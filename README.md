@@ -1,28 +1,29 @@
-# f5xc-salesdemos Marketplace
+# Marketplace
 
-Claude Code plugin marketplace for the
-[f5xc-salesdemos](https://github.com/f5xc-salesdemos) organization.
+[![GitHub Pages Deploy](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/github-pages-deploy.yml)
+[![Repository Settings](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/enforce-repo-settings.yml)
+[![License](https://img.shields.io/github/license/f5xc-salesdemos/marketplace)](LICENSE)
 
-## Available Plugins
+Claude Code plugin marketplace for f5xc-salesdemos
 
-| Plugin | Description |
-|--------|-------------|
-| [f5xc-docs-tools](plugins/f5xc-docs-tools/) | MDX content validation and review tools for documentation repositories |
+## Documentation
 
-## Installation
+Full documentation is available at **[https://f5xc-salesdemos.github.io/marketplace/](https://f5xc-salesdemos.github.io/marketplace/)**.
 
-Add this marketplace to Claude Code:
+## Getting Started
 
+```bash
+git clone https://github.com/f5xc-salesdemos/marketplace.git
 ```
-/plugin marketplace add f5xc-salesdemos/marketplace
-```
 
-Install a plugin:
-
-```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-```
+See the [documentation](https://f5xc-salesdemos.github.io/marketplace/) for detailed setup
+and usage guides.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules,
+branch naming, and CI requirements.
+
+## License
+
+See [LICENSE](LICENSE).
