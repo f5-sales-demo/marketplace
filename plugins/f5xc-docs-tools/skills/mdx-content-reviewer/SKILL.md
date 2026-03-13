@@ -39,7 +39,7 @@ closing `---` delimiters.
 **Regular pages** (any file except `docs/index.mdx`):
 
 | Field | Required | Type | Notes |
-|-------|----------|------|-------|
+| ------- | ---------- | ------ | ------- |
 | `title` | yes | string | Page title shown in browser tab and sidebar |
 | `sidebar.order` | yes | number | Controls sidebar sort order |
 | `sidebar.label` | recommended | string | Short label for sidebar (INFO if missing) |
@@ -47,7 +47,7 @@ closing `---` delimiters.
 **Landing page** (`docs/index.mdx`):
 
 | Field | Required | Type | Notes |
-|-------|----------|------|-------|
+| ------- | ---------- | ------ | ------- |
 | `title` | yes | string | |
 | `template` | yes | `splash` | Must be the literal string `splash` |
 | `hero.title` | yes | string | |
@@ -110,7 +110,7 @@ allowlist:
 **Allowed import sources:**
 
 | Source | Named exports |
-|--------|---------------|
+| -------- | --------------- |
 | `@astrojs/starlight/components` | `Aside`, `Code`, `Steps`, `CardGrid`, `Card`, `Tabs`, `TabItem`, `LinkCard`, `Badge`, `Icon`, `FileTree` |
 | `@f5xc-salesdemos/docs-theme/components/Screenshot.astro` | default import (`Screenshot`) |
 | `@f5xc-salesdemos/docs-theme/components/LinkCard.astro` | default import (`LinkCard`) |
@@ -130,7 +130,7 @@ For each component usage found in the file, validate required
 attributes:
 
 | Component | Required attributes | Optional |
-|-----------|-------------------|----------|
+| ----------- | ------------------- | ---------- |
 | `Screenshot` | `alt` + at least one of `light` or `dark` | `light`, `dark` (both accepted) |
 | `Aside` | `type` (one of: `caution`, `note`, `tip`, `danger`) | `title` |
 | `Code` | `code` + `lang` | `title`, `frame`, `mark`, `ins`, `del` |

@@ -19,7 +19,7 @@ sidebar:
 ### Field Details
 
 | Field | Required | Type | Severity if Missing |
-|-------|----------|------|-------------------|
+| ------- | ---------- | ------ | ------------------- |
 | `title` | yes | string | ERROR — page will not render |
 | `sidebar.order` | yes | number | WARNING — page may sort unpredictably |
 | `sidebar.label` | recommended | string | INFO — defaults to title, which may be too long |
@@ -45,7 +45,7 @@ sidebar:
 ### Field Details
 
 | Field | Required | Type | Severity if Missing |
-|-------|----------|------|-------------------|
+| ------- | ---------- | ------ | ------------------- |
 | `title` | yes | string | ERROR |
 | `template` | yes | `splash` (literal) | WARNING — page renders as regular content |
 | `hero.title` | yes | string | WARNING — hero section appears empty |

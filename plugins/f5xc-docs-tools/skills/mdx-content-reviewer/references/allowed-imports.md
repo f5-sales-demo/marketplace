@@ -10,7 +10,7 @@ the sources listed below. Any other import source should be flagged.
 Named exports (destructured import):
 
 | Export | Purpose |
-|--------|---------|
+| -------- | --------- |
 | `Aside` | Callout box (note, tip, caution, danger) |
 | `Code` | Syntax-highlighted code block with variable injection |
 | `Steps` | Numbered step-by-step instructions |
@@ -36,7 +36,7 @@ Each theme component is imported as a default import from its own
 `.astro` file:
 
 | Component file | Import name | Purpose |
-|---------------|-------------|---------|
+| --------------- | ------------- | --------- |
 | `Screenshot.astro` | `Screenshot` | Dark/light mode responsive screenshot |
 | `LinkCard.astro` | `LinkCard` | Enhanced link card with icon support |
 | `Banner.astro` | `Banner` | Page-width banner component |

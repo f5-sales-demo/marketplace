@@ -9,7 +9,7 @@ Renders a responsive image that switches between light and dark
 variants based on the user's color scheme preference.
 
 | Attribute | Required | Type | Notes |
-|-----------|----------|------|-------|
+| ----------- | ---------- | ------ | ------- |
 | `alt` | yes | string | Accessibility text describing the image |
 | `light` | conditional | string | Path to light-mode image. At least one of `light` or `dark` is required |
 | `dark` | conditional | string | Path to dark-mode image |
@@ -31,7 +31,7 @@ variants based on the user's color scheme preference.
 Renders a styled callout box.
 
 | Attribute | Required | Type | Notes |
-|-----------|----------|------|-------|
+| ----------- | ---------- | ------ | ------- |
 | `type` | yes | `"note"` \| `"tip"` \| `"caution"` \| `"danger"` | Controls color and icon |
 | `title` | no | string | Override the default title |
 
@@ -47,7 +47,7 @@ Renders a syntax-highlighted code block. Supports variable injection
 via `export const`.
 
 | Attribute | Required | Type | Notes |
-|-----------|----------|------|-------|
+| ----------- | ---------- | ------ | ------- |
 | `code` | yes | string or `{variable}` | The code content. If using a variable, it must be defined as `export const` in the same file |
 | `lang` | yes | string | Language identifier (e.g., `js`, `bash`, `json`) |
 | `title` | no | string | Filename/title shown above the code block |
@@ -74,7 +74,7 @@ export const myScript = `console.log("hello");`;
 Enhanced link card supporting icons from the f5xc-salesdemos icon sets.
 
 | Attribute | Required | Type | Notes |
-|-----------|----------|------|-------|
+| ----------- | ---------- | ------ | ------- |
 | `title` | yes | string | Card heading |
 | `href` | yes | string | Destination URL |
 | `description` | no | string | Card body text |
@@ -85,7 +85,7 @@ Enhanced link card supporting icons from the f5xc-salesdemos icon sets.
 Content card for use inside `<CardGrid>`.
 
 | Attribute | Required | Type | Notes |
-|-----------|----------|------|-------|
+| ----------- | ---------- | ------ | ------- |
 | `title` | yes | string | Card heading |
 | `icon` | no | string | Icon identifier |
 
@@ -94,7 +94,7 @@ Content card for use inside `<CardGrid>`.
 Inline label/badge.
 
 | Attribute | Required | Type | Notes |
-|-----------|----------|------|-------|
+| ----------- | ---------- | ------ | ------- |
 | `text` | yes | string | Badge label |
 | `variant` | no | `"note"` \| `"tip"` \| `"caution"` \| `"danger"` \| `"default"` \| `"success"` | Color variant |
 
@@ -109,7 +109,7 @@ standard Markdown ordered list.
 Tab container. `TabItem` requires a `label` attribute.
 
 | Component | Attribute | Required | Type |
-|-----------|-----------|----------|------|
+| ----------- | ----------- | ---------- | ------ |
 | `Tabs` | (none) | — | — |
 | `TabItem` | `label` | yes | string |
 
