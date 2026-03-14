@@ -42,7 +42,7 @@ sidebar:
 ---
 ```
 
-### Field Details
+### Splash Field Details
 
 | Field | Required | Type | Severity if Missing |
 | ------- | ---------- | ------ | ------------------- |
