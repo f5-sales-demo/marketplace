@@ -6,5 +6,7 @@
     "name": "f5xc-salesdemos"
   },
   "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-tools",
-  "keywords": ["mdx", "documentation", "validation", "starlight", "astro"]
+  "keywords": ["mdx", "documentation", "validation", "starlight", "astro"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
 }

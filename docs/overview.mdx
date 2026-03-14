@@ -4,28 +4,40 @@ sidebar:
   order: 1
 ---
 
-The **f5xc-salesdemos Marketplace** is a Claude Code plugin
-marketplace for the
-[f5xc-salesdemos](https://github.com/f5xc-salesdemos)
-organization. It provides plugins, skills, and tools that
-extend Claude Code for documentation workflows.
+A **Claude Code plugin marketplace** is a curated collection of
+plugins that extend Claude Code with new skills, commands, and
+agents. Marketplaces let teams share tooling so every developer
+gets the same capabilities without manual setup.
+
+The **f5xc-salesdemos Marketplace** provides plugins built for
+the [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+documentation platform — an ecosystem of 20+ repositories that
+publish Astro/Starlight sites to GitHub Pages using a shared
+build pipeline.
+
+## How It Works
+
+1. **Add the marketplace** to Claude Code — this registers it
+   as a plugin source
+2. **Install plugins** from the marketplace — each plugin adds
+   skills and commands to your Claude Code session
+3. **Use the tools** — plugins activate automatically based on
+   context, or you invoke their commands directly
 
 ## Available Plugins
 
-| Plugin | Description |
-|--------|-------------|
-| [f5xc-docs-tools](https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-tools) | MDX content validation and review tools for documentation repositories |
+| Plugin | Category | Description |
+|--------|----------|-------------|
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Productivity | MDX content validation and review tools for documentation repositories |
 
-## Installation
+## Quick Start
 
-Add this marketplace to Claude Code:
+Add the marketplace and install the docs tools plugin:
 
 ```
 /plugin marketplace add f5xc-salesdemos/marketplace
-```
-
-Install a plugin:
-
-```
 /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
 ```
+
+See [Getting Started](/marketplace/getting-started/) for a
+full walkthrough.

@@ -1,0 +1,163 @@
+---
+title: Contributing a Plugin
+sidebar:
+  order: 5
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+This guide explains how to create a new plugin and add it to
+the f5xc-salesdemos marketplace.
+
+## Plugin Structure
+
+Every plugin lives in its own directory under `plugins/` and
+follows this structure:
+
+<FileTree>
+- plugins/
+  - my-plugin/
+    - .claude-plugin/
+      - plugin.json
+    - skills/
+      - my-skill/
+        - SKILL.md
+        - references/
+          - reference-data.md
+    - commands/
+      - my-command.md
+    - agents/
+      - my-agent.md
+    - README.md
+</FileTree>
+
+## Creating a Plugin
+
+<Steps>
+
+1. **Create the plugin directory**
+
+   ```bash
+   mkdir -p plugins/my-plugin/.claude-plugin
+   mkdir -p plugins/my-plugin/skills
+   mkdir -p plugins/my-plugin/commands
+   ```
+
+2. **Write `plugin.json`**
+
+   Create `plugins/my-plugin/.claude-plugin/plugin.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": {
+       "name": "f5xc-salesdemos"
+     },
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "keywords": ["relevant", "keywords"],
+     "license": "Apache-2.0",
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+3. **Add skills**
+
+   Create `plugins/my-plugin/skills/my-skill/SKILL.md` with
+   frontmatter:
+
+   ```markdown
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   ---
+
+   Detailed instructions for Claude when this skill activates.
+   ```
+
+   Place any reference data in a `references/` subdirectory
+   alongside `SKILL.md`.
+
+4. **Add commands**
+
+   Create `plugins/my-plugin/commands/my-command.md`:
+
+   ```markdown
+   ---
+   description: What this command does
+   argument_hint: "[optional-args]"
+   allowed_tools:
+     - Read
+     - Glob
+     - Grep
+   ---
+
+   Instructions for Claude when the user invokes this command.
+   ```
+
+5. **Add the plugin to marketplace.json**
+
+   Add an entry to the `plugins` array in
+   `.claude-plugin/marketplace.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": { "name": "f5xc-salesdemos" },
+     "source": "./plugins/my-plugin",
+     "category": "productivity",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "license": "Apache-2.0",
+     "keywords": ["relevant", "keywords"],
+     "tags": ["searchable", "tags"],
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+6. **Test locally**
+
+   Test your plugin without publishing by pointing Claude Code
+   at the local directory:
+
+   ```bash
+   claude --plugin-dir ./plugins/my-plugin
+   ```
+
+   Verify that skills activate in the right context and
+   commands produce expected output.
+
+</Steps>
+
+## Submitting Your Plugin
+
+<Aside type="tip" title="Repository workflow">
+  This repository enforces a strict governance workflow.
+  See [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
+  for the full process.
+</Aside>
+
+<Steps>
+
+1. Create a GitHub issue describing the new plugin
+2. Create a feature branch from `main`
+3. Add your plugin directory and update `marketplace.json`
+4. Add a documentation page at `docs/plugins/my-plugin.mdx`
+5. Open a PR linking to the issue with `Closes #N`
+6. Fix any CI failures and merge after checks pass
+
+</Steps>
+
+## Best Practices
+
+- **Keep skills focused** — one skill should do one thing well
+- **Use reference files** — put large datasets, schemas, and
+  lookup tables in `references/` rather than inline in SKILL.md
+- **Scope intelligently** — check for uncommitted changes to
+  narrow the working set when possible
+- **Group output by severity** — use ERROR, WARNING, and INFO
+  levels so users can prioritize fixes
+- **Write a README** — include usage examples and a description
+  of what each skill and command does

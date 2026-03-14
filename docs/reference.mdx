@@ -1,0 +1,182 @@
+---
+title: Reference
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## marketplace.json Schema
+
+The marketplace manifest lives at
+`.claude-plugin/marketplace.json` in the repository root.
+
+### Top-level fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `$schema` | No | JSON Schema URL for validation |
+| `name` | Yes | Unique marketplace identifier |
+| `metadata.description` | Yes | Human-readable marketplace description |
+| `owner.name` | Yes | Organization or user that owns the marketplace |
+| `owner.email` | No | Contact email |
+| `plugins` | Yes | Array of plugin entries |
+
+### Plugin entry fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Plugin identifier (must match `plugin.json`) |
+| `description` | Yes | Short description of the plugin |
+| `version` | Yes | Semantic version string |
+| `author.name` | Yes | Plugin author |
+| `source` | Yes | Path or URL to the plugin (see Source Types) |
+| `category` | Yes | Plugin category (e.g., `productivity`) |
+| `homepage` | No | URL to plugin documentation or homepage |
+| `license` | No | SPDX license identifier |
+| `keywords` | No | Array of search keywords |
+| `tags` | No | Array of tags for filtering |
+| `repository` | No | Repository URL |
+
+## Plugin Source Types
+
+The `source` field in marketplace.json supports multiple
+formats:
+
+| Type | Example | Description |
+|------|---------|-------------|
+| Relative path | `./plugins/my-plugin` | Plugin in same repository |
+| GitHub shorthand | `owner/repo` | Plugin at repository root |
+| GitHub with path | `owner/repo/path/to/plugin` | Plugin in subdirectory |
+| Git URL | `https://github.com/owner/repo.git` | Git repository |
+| npm package | `npm:@scope/package` | Published npm package |
+
+## plugin.json Schema
+
+Each plugin has a manifest at
+`.claude-plugin/plugin.json` inside its directory.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Plugin identifier |
+| `description` | Yes | What the plugin does |
+| `version` | Yes | Semantic version |
+| `author.name` | Yes | Plugin author |
+| `homepage` | No | Documentation URL |
+| `keywords` | No | Search keywords |
+| `license` | No | SPDX license identifier |
+| `repository` | No | Repository URL |
+
+## Plugin Directory Layout
+
+```
+plugins/my-plugin/
+  .claude-plugin/
+    plugin.json          # Plugin manifest (required)
+  skills/
+    skill-name/
+      SKILL.md           # Skill definition (required per skill)
+      references/        # Reference data files (optional)
+  commands/
+    command-name.md      # Command definition (one per command)
+  agents/
+    agent-name.md        # Agent definition (one per agent)
+  README.md              # Plugin documentation (recommended)
+```
+
+## Environment Variables
+
+Plugins can use these variables in their skill and command
+files:
+
+| Variable | Description |
+|----------|-------------|
+| `$\{CLAUDE_PLUGIN_ROOT\}` | Absolute path to the plugin's root directory |
+
+## Validation
+
+Validate your marketplace and plugin manifests locally:
+
+```bash
+claude plugin validate .
+```
+
+This checks:
+
+- `marketplace.json` schema compliance
+- All referenced plugin directories exist
+- Each plugin has a valid `plugin.json`
+- Skills have properly formatted `SKILL.md` frontmatter
+- Commands have required frontmatter fields
+
+## Team Configuration
+
+### Pre-configuring marketplaces
+
+Add to `.claude/settings.json` in any repository:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ]
+}
+```
+
+### Pre-enabling plugins
+
+```json
+{
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip">
+  Committing these settings to your repository ensures every
+  team member gets the same marketplace and plugin
+  configuration automatically.
+</Aside>
+
+## Troubleshooting
+
+### Marketplace not found
+
+Verify the marketplace was added:
+
+```
+/plugin marketplace list
+```
+
+If missing, re-add it:
+
+```
+/plugin marketplace add f5xc-salesdemos/marketplace
+```
+
+### Plugin not activating
+
+- Confirm the plugin is installed:
+  `/plugin list`
+- Check that your Claude Code version supports plugins
+  (v1.0.33+)
+- Verify the skill's trigger conditions match your current
+  context
+
+### Skills not triggering automatically
+
+Skills activate based on their `description` field in
+SKILL.md frontmatter. If a skill is not activating when
+expected:
+
+- Check that the description accurately describes the
+  trigger context
+- Use the command directly (e.g., `/f5xc-docs-tools:review-mdx`)
+  as a workaround
+
+### Build errors after review
+
+The plugin reports issues but does not auto-fix them. Apply
+the suggested fixes manually, then re-run the review to
+confirm resolution.

@@ -1,7 +1,9 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "f5xc-salesdemos-marketplace",
-  "description": "Claude Code plugins for f5xc-salesdemos documentation repositories",
+  "metadata": {
+    "description": "Claude Code plugins for f5xc-salesdemos documentation repositories"
+  },
   "owner": {
     "name": "f5xc-salesdemos"
   },
@@ -15,7 +17,11 @@
       },
       "source": "./plugins/f5xc-docs-tools",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-tools"
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-tools",
+      "license": "Apache-2.0",
+      "keywords": ["mdx", "documentation", "validation", "starlight", "astro"],
+      "tags": ["docs", "linting", "content-review", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }

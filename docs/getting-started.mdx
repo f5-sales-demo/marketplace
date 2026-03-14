@@ -1,0 +1,109 @@
+---
+title: Getting Started
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+This guide walks you through adding the f5xc-salesdemos
+marketplace to Claude Code and installing your first plugin.
+
+## Prerequisites
+
+- Claude Code **v1.0.33** or later (plugin marketplace support)
+- A GitHub account with access to the
+  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  organization
+
+## Installation
+
+<Steps>
+
+1. **Add the marketplace**
+
+   In any Claude Code session, run:
+
+   ```
+   /plugin marketplace add f5xc-salesdemos/marketplace
+   ```
+
+   This registers the marketplace as a plugin source. You only
+   need to do this once.
+
+2. **Browse available plugins**
+
+   List what the marketplace offers:
+
+   ```
+   /plugin marketplace list f5xc-salesdemos-marketplace
+   ```
+
+3. **Install a plugin**
+
+   Install the docs tools plugin:
+
+   ```
+   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   ```
+
+4. **Use the plugin**
+
+   Navigate to any f5xc-salesdemos content repository and
+   run the MDX review command:
+
+   ```
+   /f5xc-docs-tools:review-mdx
+   ```
+
+   Claude reviews all MDX files in `docs/` and reports
+   errors, warnings, and suggestions.
+
+</Steps>
+
+## Updating Plugins
+
+To update an installed plugin to the latest version:
+
+```
+/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+```
+
+## Uninstalling
+
+Remove a plugin:
+
+```
+/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+```
+
+Remove the marketplace entirely:
+
+```
+/plugin marketplace remove f5xc-salesdemos-marketplace
+```
+
+## Team Configuration
+
+To pre-configure the marketplace for your entire team, add it
+to your project's `.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ],
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip" title="Shared settings">
+  Committing `.claude/settings.json` to your repository means
+  every team member gets the marketplace and plugins
+  automatically — no manual setup required.
+</Aside>
+
+This ensures every contributor has the same tooling available
+from their first Claude Code session in the repository.
