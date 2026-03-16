@@ -4,7 +4,7 @@
 [![Repository Settings](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/enforce-repo-settings.yml)
 [![License](https://img.shields.io/github/license/f5xc-salesdemos/marketplace)](LICENSE)
 
-Claude Code plugin marketplace for f5xc-salesdemos
+AI-powered marketplace for F5 Distributed Cloud solutions
 
 ## Documentation
 
