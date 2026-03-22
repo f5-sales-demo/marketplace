@@ -1,11 +1,13 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "f5xc-salesdemos-marketplace",
+  "version": "1.0.0",
   "metadata": {
     "description": "Claude Code plugins for f5xc-salesdemos documentation repositories"
   },
   "owner": {
-    "name": "f5xc-salesdemos"
+    "name": "f5xc-salesdemos",
+    "url": "https://github.com/f5xc-salesdemos"
   },
   "plugins": [
     {

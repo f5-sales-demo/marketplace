@@ -17,8 +17,10 @@ The marketplace manifest lives at
 |-------|----------|-------------|
 | `$schema` | No | JSON Schema URL for validation |
 | `name` | Yes | Unique marketplace identifier |
+| `version` | No | Marketplace schema version (semver) |
 | `metadata.description` | Yes | Human-readable marketplace description |
 | `owner.name` | Yes | Organization or user that owns the marketplace |
+| `owner.url` | No | URL to the owner's profile or website |
 | `owner.email` | No | Contact email |
 | `plugins` | Yes | Array of plugin entries |
 
@@ -62,6 +64,7 @@ Each plugin has a manifest at
 | `description` | Yes | What the plugin does |
 | `version` | Yes | Semantic version |
 | `author.name` | Yes | Plugin author |
+| `author.url` | No | URL to the author's profile or website |
 | `homepage` | No | Documentation URL |
 | `keywords` | No | Search keywords |
 | `license` | No | SPDX license identifier |
