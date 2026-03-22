@@ -89,6 +89,10 @@ tiers T0 through T5 with numbered checks.
 - **T2: Platform Prerequisites** — Product enablement, DNS, platform
   state. FAIL blocks execution.
 - **T3: Origin / Service Health** — Origin reachability. WARN only.
+  If `F5XC_ORIGIN_IP` is an RFC 5737 TEST-NET address
+  (`192.0.2.0/24`, `198.51.100.0/24`, or `203.0.113.0/24`), skip T3
+  entirely — these IPs are documentation placeholders and are not
+  routable.
 - **T4: Environment Clean** — Check for leftover demo objects. If
   found, auto-teardown by reading and executing commands from
   `docs/api-automation/phase-4-teardown.mdx`, then re-check.
