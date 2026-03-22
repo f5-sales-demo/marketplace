@@ -1,0 +1,12 @@
+{
+  "name": "f5xc-sales-engineer",
+  "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, presentation, Q&A, environment management",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-sales-engineer",
+  "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+}

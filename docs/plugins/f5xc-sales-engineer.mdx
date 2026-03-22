@@ -1,0 +1,113 @@
+---
+title: f5xc-sales-engineer
+sidebar:
+  order: 5
+---
+
+import { Aside, Badge, Steps } from '@astrojs/starlight/components';
+
+The **f5xc-sales-engineer** plugin provides a reusable Sales Engineer
+persona framework for F5 XC demo repositories. It handles the full
+demo meeting lifecycle — from pre-meeting verification through live
+execution, Q&A, and teardown.
+
+<Badge text="v1.0.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### demo-executor
+
+API-driven demo execution with a four-stage meeting lifecycle:
+
+1. **Prepare** — pre-meeting environment verification via
+   `demo-housekeeping` agent
+2. **Execute** — deterministic phase execution with customer-facing
+   narration
+3. **Q&A** — improvisational mode with live environment
+4. **Teardown** — post-meeting cleanup via `demo-housekeeping` agent
+
+Reads product-specific content from `PRODUCT_EXPERTISE.md` and demo
+commands from `docs/api-automation/`.
+
+### presenter
+
+As-built walkthrough presentation using a pre-configured demo
+environment. Follows a show → narrate → connect → pause pattern at
+each step. Reads walkthrough order from `WALKTHROUGH_CONFIG.md`.
+
+### subject-matter-expert
+
+Reference-backed Q&A with strict citation requirements. Never
+guesses — every answer includes a reference or proof. Delegates
+research to the `demo-researcher` agent when needed.
+
+### sales-engineer
+
+Role index that routes user intent to the correct persona skill.
+Activates when the request is demo-related but does not match a
+specific trigger phrase.
+
+## Agents
+
+### demo-housekeeping
+
+Autonomous agent for pre-meeting verification and post-meeting
+teardown. Runs the Readiness Verification Matrix (T0–T5) defined
+in `READINESS_MATRIX.md` and executes teardown commands from
+`docs/api-automation/phase-4-teardown.mdx`.
+
+### demo-researcher
+
+Read-only research librarian that finds verified answers with
+citations. Searches local `docs/` first, then indexed external
+sources from `SOURCE_INDEX.md`, with WebSearch as fallback.
+
+## Convention Files
+
+<Aside type="tip" title="Product-specific content">
+  This plugin is product-agnostic. Each repository provides
+  product-specific content through standardized convention files.
+</Aside>
+
+Create these files in your repository root to configure the plugin:
+
+| File | Purpose | Required For |
+| ---- | ------- | ------------ |
+| `PRODUCT_EXPERTISE.md` | Product capabilities, detection signals, threat coverage, compliance alignment, API reference | All skills |
+| `WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
+| `SOURCE_INDEX.md` | Research source catalog with local docs and external URLs | demo-researcher |
+| `READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-housekeeping |
+| `docs/api-automation/` | Phase files with cURL commands and evidence gates | demo-executor |
+
+## Trigger Phrases
+
+The `.claude/CLAUDE.md` trigger map (managed by `docs-control`)
+activates skills based on user intent:
+
+| Phrase | Skill | Stage |
+| ------ | ----- | ----- |
+| "run the demo", "execute the demo" | demo-executor | Execute |
+| "prepare the demo", "pre-flight" | demo-executor | Prepare |
+| "Q&A", "question and answer" | demo-executor | Q&A |
+| "tear down", "clean up" | demo-executor | Teardown |
+| "walk through the demo", "present" | presenter | — |
+| "answer questions", "explain" | subject-matter-expert | — |
+
+## Narration Style
+
+All personas share a consistent narration style:
+
+- **Present tense, first-person plural** — "What we're looking at
+  here…"
+- **One concern per paragraph** — each narration answers: What is
+  this? Why does it matter? What should I do about it?
+- **Name the signal** — call out which capability is at work
+- **Compliance hook when relevant** — mention regulatory alignment
+  naturally
+- **Pacing pause marker** — `> ⏸ *[Pause for audience — ready to continue?]*`
