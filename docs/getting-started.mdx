@@ -41,23 +41,26 @@ marketplace to Claude Code and installing your first plugin.
 
 3. **Install a plugin**
 
-   Install the docs tools plugin:
+   Install the plugin you need:
 
    ```
    /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
    ```
 
 4. **Use the plugin**
 
-   Navigate to any f5xc-salesdemos content repository and
-   run the MDX review command:
+   Navigate to any f5xc-salesdemos content repository.
+
+   For **docs tools**, run the MDX review command:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   Claude reviews all MDX files in `docs/` and reports
-   errors, warnings, and suggestions.
+   For **sales engineer**, use trigger phrases like
+   "prepare the demo", "run the demo", or "walk through
+   the demo" — the plugin activates automatically.
 
 </Steps>
 
@@ -67,6 +70,7 @@ To update an installed plugin to the latest version:
 
 ```
 /plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
 ```
 
 ## Uninstalling
@@ -75,6 +79,7 @@ Remove a plugin:
 
 ```
 /plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
 ```
 
 Remove the marketplace entirely:
@@ -94,7 +99,8 @@ to your project's `.claude/settings.json`:
     "f5xc-salesdemos/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
+    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
   ]
 }
 ```
