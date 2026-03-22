@@ -69,6 +69,21 @@
       "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
       "tags": ["docs", "pipeline", "content", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "f5xc-brand",
+      "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/f5xc-brand",
+      "category": "productivity",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-brand",
+      "license": "Apache-2.0",
+      "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
+      "tags": ["brand", "design", "visual-identity", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }

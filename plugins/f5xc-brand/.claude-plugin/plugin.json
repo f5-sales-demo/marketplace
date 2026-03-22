@@ -1,0 +1,12 @@
+{
+  "name": "f5xc-brand",
+  "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-brand",
+  "keywords": ["brand", "design-system", "colors", "typography", "accessibility", "f5"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+}
