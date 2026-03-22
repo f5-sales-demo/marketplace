@@ -42,3 +42,29 @@ Add the marketplace and install the docs tools plugin:
 
 See [Getting Started](/marketplace/getting-started/) for a
 full walkthrough.
+
+## Architecture
+
+A marketplace is a Git repository that contains one or more
+plugins. Each plugin packages skills, commands, and agents
+into a single installable unit.
+
+```
+Marketplace (marketplace.json)
+└── Plugin (plugin.json)
+    ├── Skills (SKILL.md)
+    │   └── References (data files)
+    ├── Commands (.md)
+    └── Agents (.md)
+```
+
+- **Marketplace** — the registry. Lists available plugins
+  with metadata for discovery and installation.
+- **Plugin** — the installable unit. Contains one or more
+  skills, commands, or agents.
+- **Skill** — contextual knowledge that Claude activates
+  automatically based on the task at hand.
+- **Command** — a slash command the user invokes directly
+  (e.g., `/review-mdx`).
+- **Agent** — a specialized sub-agent that handles complex,
+  multi-step tasks autonomously.
