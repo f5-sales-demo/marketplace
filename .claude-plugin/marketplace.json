@@ -39,6 +39,36 @@
       "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
       "tags": ["demo", "sales", "persona", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "f5xc-repo-governance",
+      "description": "Repository governance workflow — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/f5xc-repo-governance",
+      "category": "productivity",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-repo-governance",
+      "license": "Apache-2.0",
+      "keywords": ["governance", "workflow", "pr", "ci", "rate-limit", "github"],
+      "tags": ["governance", "workflow", "ci", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "f5xc-docs-pipeline",
+      "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/f5xc-docs-pipeline",
+      "category": "productivity",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-pipeline",
+      "license": "Apache-2.0",
+      "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
+      "tags": ["docs", "pipeline", "content", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }
