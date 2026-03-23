@@ -17,6 +17,10 @@ info() {
   echo "INFO: $1"
 }
 
+is_valid_semver() {
+  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
 # ── 1. marketplace.json existence ────────────────────────────
 if [[ ! -f "$MARKETPLACE" ]]; then
   error "marketplace.json not found at $MARKETPLACE"
@@ -87,6 +91,8 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
 
     MKT_VER=$(jq -r ".plugins[$i].version" "$MARKETPLACE")
     PLG_VER=$(jq -r ".version" "$PLUGIN_JSON")
+    is_valid_semver "$MKT_VER" || error "Plugin '$PLUGIN_NAME': invalid semver in marketplace.json: '$MKT_VER'"
+    is_valid_semver "$PLG_VER" || error "Plugin '$PLUGIN_NAME': invalid semver in plugin.json: '$PLG_VER'"
     if [[ "$MKT_VER" != "$PLG_VER" ]]; then
       error "Version mismatch for '$PLUGIN_NAME': marketplace.json='$MKT_VER' vs plugin.json='$PLG_VER'"
     fi

@@ -1,0 +1,77 @@
+---
+name: Release Plugins
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - ".claude-plugin/marketplace.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create plugin releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect version changes and create releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          MARKETPLACE=".claude-plugin/marketplace.json"
+
+          # Get previous marketplace.json (may not exist for first commit)
+          PREV_MARKETPLACE=$(git show HEAD~1:"$MARKETPLACE" 2>/dev/null || echo '{"plugins":[]}')
+
+          PLUGIN_COUNT=$(jq '.plugins | length' "$MARKETPLACE")
+
+          for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
+            NAME=$(jq -r ".plugins[$i].name" "$MARKETPLACE")
+            NEW_VER=$(jq -r ".plugins[$i].version" "$MARKETPLACE")
+            OLD_VER=$(echo "$PREV_MARKETPLACE" | jq -r --arg n "$NAME" \
+              '(.plugins[] | select(.name == $n) | .version) // "0.0.0"')
+
+            if [[ "$NEW_VER" == "$OLD_VER" ]]; then
+              continue
+            fi
+
+            TAG="${NAME}/v${NEW_VER}"
+            echo "Version change detected: $NAME $OLD_VER → $NEW_VER"
+
+            # Skip if release already exists
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              echo "  Release $TAG already exists, skipping"
+              continue
+            fi
+
+            # Extract release notes from CHANGELOG.md
+            # Look for lines mentioning this plugin in the Unreleased or latest section
+            BODY=""
+            if [[ -f CHANGELOG.md ]]; then
+              BODY=$(sed -n '/^## \[/,/^## \[/{//!p}' CHANGELOG.md | head -20 | grep -i "$NAME" || true)
+            fi
+
+            if [[ -z "$BODY" ]]; then
+              BODY="Released **${NAME}** v${NEW_VER}"
+            fi
+
+            gh release create "$TAG" \
+              --title "${NAME} v${NEW_VER}" \
+              --notes "$BODY" \
+              --target main
+
+            echo "  Created release: $TAG"
+          done
