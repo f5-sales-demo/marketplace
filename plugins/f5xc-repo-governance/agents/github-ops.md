@@ -1,10 +1,6 @@
 ---
 name: github-ops
-description: |
-  Exclusive GitHub operations agent for f5xc-salesdemos repositories —
-  pre-commit installation, lint gate, issue/branch/commit/PR lifecycle,
-  CI polling, error feedback, and post-merge monitoring. Does NOT edit
-  code — stages, commits, and reports errors back to caller.
+description: Exclusive GitHub operations agent for f5xc-salesdemos repositories — pre-commit installation, lint gate, issue/branch/commit/PR lifecycle, CI polling, error feedback, and post-merge monitoring
 tools:
   - Read
   - Bash
