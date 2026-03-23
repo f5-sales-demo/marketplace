@@ -1,12 +1,10 @@
 ---
 name: github-ops
-description: >-
+description: |
   Exclusive GitHub operations agent for f5xc-salesdemos repositories —
-  idempotent pre-commit installation, fast lint gate, issue creation,
-  branch naming, commits, PR creation, CI polling, CI error feedback
-  to issues, post-merge monitoring, and branch cleanup. Does NOT edit
-  code — stages and commits changes decided by the calling session,
-  reports errors back for the caller to fix.
+  pre-commit installation, lint gate, issue/branch/commit/PR lifecycle,
+  CI polling, error feedback, and post-merge monitoring. Does NOT edit
+  code — stages, commits, and reports errors back to caller.
 tools:
   - Read
   - Bash
@@ -150,6 +148,7 @@ SKIP=super-linter pre-commit run --files <staged-files>
 ```
 
 This executes:
+
 - Governance check (no-commit-to-branch)
 - Repository-specific local hooks (if present)
 - Large file check (>1024 KB)
@@ -239,7 +238,7 @@ gh pr checks <NUMBER> --json bucket \
 1. Capture failed logs: `gh run view <RUN-ID> --log-failed`
 2. Post failure summary as a comment on the linked **issue**:
 
-```
+````
 gh issue comment <ISSUE-NUMBER> --body "$(cat <<'EOF'
 ## CI Failure Report
 
@@ -259,7 +258,7 @@ gh issue comment <ISSUE-NUMBER> --body "$(cat <<'EOF'
 Fix the issues above and push a new commit to the PR branch.
 EOF
 )"
-```
+````
 
 3. Return a report with `Status: CI_FAILED` including the full
    error context. Do NOT attempt to fix the code.
