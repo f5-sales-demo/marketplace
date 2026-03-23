@@ -27,7 +27,7 @@
     },
     {
       "name": "f5xc-sales-engineer",
-      "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, presentation, Q&A, environment management",
+      "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
       "version": "1.0.0",
       "author": {
         "name": "f5xc-salesdemos"
@@ -42,7 +42,7 @@
     },
     {
       "name": "f5xc-repo-governance",
-      "description": "Repository governance workflow — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management",
+      "description": "Repository governance workflow — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, and autonomous workflow operations agent",
       "version": "1.0.0",
       "author": {
         "name": "f5xc-salesdemos"

@@ -1,6 +1,6 @@
 {
   "name": "f5xc-repo-governance",
-  "description": "Repository governance workflow for f5xc-salesdemos — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management",
+  "description": "Repository governance workflow for f5xc-salesdemos — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, and autonomous workflow operations agent",
   "version": "1.0.0",
   "author": {
     "name": "f5xc-salesdemos",

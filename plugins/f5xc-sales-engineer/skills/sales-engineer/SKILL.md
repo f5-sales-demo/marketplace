@@ -22,8 +22,9 @@ product name and context for this repository.
 
 | Task | Skill | When to use |
 | ---- | ----- | ----------- |
+| **Demo operations** | `f5xc-sales-engineer:demo-ops` | Prepare the demo environment before a meeting or tear down after a meeting |
+| **API-driven demo** | `f5xc-sales-engineer:demo-executor` | Execute live demo phases, handle Q&A, and run post-session debrief |
 | **Walkthrough presentation** | `f5xc-sales-engineer:presenter` | Walk a customer through the pre-configured demo environment using as-built documentation pages |
-| **API-driven demo** | `f5xc-sales-engineer:demo-executor` | Build, demonstrate, and tear down a complete deployment via API from scratch |
 | **Q&A / subject matter expert** | `f5xc-sales-engineer:subject-matter-expert` | Answer questions about product capabilities, compliance alignment, threat coverage, and platform operations |
 
 ## Routing Logic
