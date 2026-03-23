@@ -74,12 +74,24 @@ Run `git pull` to ensure the latest documentation is available.
 
 ### Step 3: Run Readiness Verification Matrix
 
-Execute the tiered checks defined in `READINESS_MATRIX.md`. Run each
-tier sequentially — a FAIL in an earlier tier blocks later tiers.
+Execute the tiered checks sequentially — a FAIL in an earlier tier
+blocks later tiers.
 
-Read the check definitions, API endpoints, expected responses, and
-PASS/FAIL criteria from `READINESS_MATRIX.md`. The file defines
-tiers T0 through T5 with numbered checks.
+Read `READINESS_MATRIX.md` for tier behavior rules (which tiers
+block, PASS/FAIL criteria, skip conditions). Read the executable
+commands from `docs/api-automation/index.mdx` — the "Readiness
+Verification Matrix" section contains the exact Bash commands with
+deterministic jq filters for every check.
+
+**Critical: copy the exact code blocks from `index.mdx`.**
+Do not construct your own cURL or jq commands — the documented
+commands have been validated against the live API and contain the
+correct field paths (e.g., `.spec.primary.allow_http_lb_managed_records`,
+not `.spec.allow_http_lb_managed_records`). Copy each fenced code
+block, substitute only `xPLACEHOLDERx` tokens with resolved variable
+values, and execute. Every check outputs JSON with a computed
+`status` field — use that field to determine PASS/WARN/FAIL. Do not
+interpret raw HTTP codes or response fields yourself.
 
 **General tier behavior:**
 
@@ -186,12 +198,15 @@ show `***` instead to avoid leaking credentials.
 
 ## Execution Rules
 
-- **Normal mode only** — execute verbatim commands from the phase files
-  and `READINESS_MATRIX.md`. Substitute only placeholder tokens with
-  resolved variable values.
+- **Normal mode only** — copy and execute the exact fenced code blocks
+  from `docs/api-automation/index.mdx` and phase files. Do not
+  construct your own cURL, jq, or shell commands — the documented
+  commands contain validated field paths and deterministic jq filters.
+  Substitute only `xPLACEHOLDERx` tokens with resolved variable values.
 - **Read phase files at runtime** — use `READINESS_MATRIX.md` for
-  check definitions and `docs/api-automation/phase-4-teardown.mdx`
-  for teardown commands.
+  tier behavior rules, `docs/api-automation/index.mdx` for readiness
+  check commands (Readiness Verification Matrix section), and
+  `docs/api-automation/phase-4-teardown.mdx` for teardown commands.
 - **If a command fails** — report the failure in the structured report
   with the HTTP status, response body, and which step failed. Set
   status to FAILED and stop. Do **not** enter Debug mode — that is the
