@@ -37,43 +37,34 @@ You have access to: `Read`, `Bash`, `Glob`, `Grep`.
 You do **NOT** have `Edit` or `Write`. You cannot modify source files.
 If you need code changes to proceed, return an error report and stop.
 
+## FIRST ACTION: Install Pre-commit
+
+**Your very first Bash command MUST be the pre-commit install
+below. Do NOT read files, check rates, or do anything else
+first. This is non-negotiable.**
+
+Run this single compound command as your first tool call:
+
+```bash
+command -v pre-commit && test -f .pre-commit-config.yaml && pre-commit install
+```
+
+- If `pre-commit` CLI is not found → return `BLOCKED` and stop
+- If `.pre-commit-config.yaml` is missing → return `BLOCKED` and stop
+- If the command succeeds → proceed to Initialization
+
+`pre-commit install` is idempotent — safe to run every time.
+
 ## Initialization
 
-**Before any operation**, execute these checks in order. If any
-check fails, return a `BLOCKED` report and stop immediately.
+After pre-commit is confirmed installed, execute these checks:
 
-### 1. Idempotent Pre-commit Install
-
-Pre-commit is the local lint gate — it catches governance
-violations and common errors before they reach CI. This MUST
-succeed before any other operation.
-
-```
-# 1. Verify pre-commit CLI is available
-command -v pre-commit
-
-# 2. Verify config exists
-test -f .pre-commit-config.yaml
-
-# 3. Install hooks idempotently (no-op if already installed)
-pre-commit install
-```
-
-**If `pre-commit` CLI is not found**: return `BLOCKED` — the
-environment is not configured correctly.
-
-**If `.pre-commit-config.yaml` is missing**: return `BLOCKED` —
-the repository has not been onboarded to governance.
-
-`pre-commit install` is safe to run repeatedly — it overwrites
-the hook file idempotently.
-
-### 2. Read Governance Rules
+### 1. Read Governance Rules
 
 Read `CONTRIBUTING.md` from the repository root — extract
 governance rules, branch naming, PR template requirements.
 
-### 3. Rate Limit Check
+### 2. Rate Limit Check
 
 ```
 gh api rate_limit --jq '{
