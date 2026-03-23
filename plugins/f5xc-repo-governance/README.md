@@ -16,6 +16,10 @@ verification, and task completion criteria.
 merging, monitoring CI, verifying outcomes, or
 encountering GitHub API rate limit issues.
 
+**Key behavior:** All Git and GitHub operations are
+delegated to the `github-ops` agent. The main session
+makes code changes, then delegates operational work.
+
 **Reference files:**
 
 - `polling-protocol.md` — Single-shot polling patterns
@@ -24,28 +28,50 @@ encountering GitHub API rate limit issues.
   banned commands, budget estimates, 403 recovery
 - `task-completion-checklist.md` — Done criteria
   checklist
+- `pre-commit-protocol.md` — Idempotent install,
+  fast-mode execution, hook inventory
 
 ## Agents
 
-### workflow-ops
+### github-ops
 
-Autonomous Git operations agent that any plugin can
-spawn to handle the full Git lifecycle: issue creation,
-branch naming, commits, PR creation, CI polling,
-post-merge monitoring, and branch cleanup.
+Exclusive GitHub operations agent that handles the full
+Git lifecycle for all f5xc-salesdemos repositories.
+Supersedes `commit-commands` official plugin.
 
-**Spawned by:** Other skills/agents that need to land
-changes following organization governance. The agent
-executes Git operations for changes that have already
-been decided — it does not decide what to change.
+**Responsibilities:**
+
+1. Idempotent pre-commit installation
+2. Fast pre-commit lint gate (`SKIP=super-linter`)
+3. Issue creation, branch naming, commits
+4. PR creation with issue linking
+5. CI polling with error feedback to issues
+6. Squash merge and post-merge monitoring
+7. Branch cleanup and verification
+
+**Does NOT:** Edit code, fix linting errors, or fix CI
+failures. Reports errors back to the calling session
+with full context.
+
+**Tools:** `Read`, `Bash`, `Glob`, `Grep` (no `Edit`
+or `Write`)
+
+**Status codes:**
+
+| Status              | Meaning                                     |
+| ------------------- | ------------------------------------------- |
+| `COMPLETE`          | Full lifecycle finished successfully        |
+| `PRE_COMMIT_FAILED` | Lint gate failed — fix code and re-delegate |
+| `CI_FAILED`         | CI checks failed — error posted to issue    |
+| `FAILED`            | Git/GitHub operation failed                 |
+| `BLOCKED`           | Cannot proceed (rate limit, missing config) |
 
 **Delegation pattern:**
 
 ```
-# From any skill or agent, spawn workflow-ops with:
 Agent(
-  subagent_type="f5xc-repo-governance:workflow-ops",
-  prompt="<type>: <description>\n\nChanges:\n- <file>: <what to change>\n\nWhy: <motivation>"
+  subagent_type="f5xc-repo-governance:github-ops",
+  prompt="<type>: <description>\n\nFiles to stage:\n- <file-list>\n\nWhy: <motivation>"
 )
 ```
 

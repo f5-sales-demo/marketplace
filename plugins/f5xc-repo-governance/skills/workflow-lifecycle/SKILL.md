@@ -17,22 +17,72 @@ creating a PR** — the task is not complete until the PR
 is merged, all post-merge workflows succeed, and local
 branches are cleaned.
 
+## GitHub Operations Delegation
+
+ALL Git and GitHub operations MUST be delegated to the
+`github-ops` agent. The main session MUST NOT directly
+run Git commits, pushes, PR creation, CI polling, or
+pre-commit. This keeps operational context out of the
+main session and ensures governance is always enforced.
+
+**The main session's job**: make code changes, then delegate.
+**The agent's job**: stage, lint, commit, push, PR, poll, merge.
+
+### How to delegate
+
+After making code changes, spawn the agent:
+
+```
+Agent(
+  subagent_type="f5xc-repo-governance:github-ops",
+  prompt="<type>: <description>\n\nFiles to stage:\n- <file-list>\n\nWhy: <motivation>"
+)
+```
+
+Optional fields in the prompt:
+
+- `Issue: #<number>` — skip issue creation
+- `Branch: <branch-name>` — skip branch creation
+
+### Handling errors
+
+**If the agent returns `PRE_COMMIT_FAILED`:**
+
+1. Read the error details from the report
+2. Fix the linting issues in the main session
+3. Re-delegate to `github-ops` with the same files
+
+**If the agent returns `CI_FAILED`:**
+
+1. Read the CI error details from the report
+   (also posted as a comment on the GitHub issue)
+2. Fix the issues in the main session
+3. Re-delegate to `github-ops` with `Issue:` and
+   `Branch:` set to reuse the existing PR
+
+**If the agent returns `BLOCKED`:**
+
+1. Read the blocking reason (rate limit, missing
+   config, missing pre-commit CLI)
+2. Resolve the blocker or report to the user
+3. Re-delegate when the blocker is cleared
+
 ## Project-Specific Requirements
 
-These constraints apply on top of any plugin defaults:
+These constraints are enforced by the `github-ops` agent:
 
 1. **Create a GitHub issue** before making any changes
-2. **Sync local main** before branching:
-   `git checkout main && git pull origin main`
+2. **Sync local main** before branching
 3. **Create a feature branch** from `main` — never
    commit to `main` directly
 4. **Link PRs to issues** using `Closes #N` in the
    PR body — fill out the PR template completely
 5. **Conventional commits** — use `feat:`, `fix:`,
    `docs:` prefixes
-6. **Fix any CI failures** — monitor checks with
-   `gh pr checks <NUMBER>`, fix locally, push to
-   trigger re-runs
+6. **Pre-commit lint gate** — fast hooks run before
+   every commit (see `references/pre-commit-protocol.md`)
+7. **CI failures** — the agent posts error details as
+   issue comments and returns to the caller for fixes
 
 ## Branch Naming
 
