@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-repo-governance** bumped to v1.3.3
+
 - **f5xc-repo-governance** bumped to v1.3.2
 
 - **f5xc-repo-governance** bumped to v1.3.1
