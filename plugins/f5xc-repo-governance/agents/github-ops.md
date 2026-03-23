@@ -39,12 +39,41 @@ If you need code changes to proceed, return an error report and stop.
 
 ## Initialization
 
-**Before any operation**, execute these checks:
+**Before any operation**, execute these checks in order. If any
+check fails, return a `BLOCKED` report and stop immediately.
 
-1. **Read `CONTRIBUTING.md`** from the repository root — extract
-   governance rules, branch naming, PR template requirements.
+### 1. Idempotent Pre-commit Install
 
-2. **Rate limit check**:
+Pre-commit is the local lint gate — it catches governance
+violations and common errors before they reach CI. This MUST
+succeed before any other operation.
+
+```
+# 1. Verify pre-commit CLI is available
+command -v pre-commit
+
+# 2. Verify config exists
+test -f .pre-commit-config.yaml
+
+# 3. Install hooks idempotently (no-op if already installed)
+pre-commit install
+```
+
+**If `pre-commit` CLI is not found**: return `BLOCKED` — the
+environment is not configured correctly.
+
+**If `.pre-commit-config.yaml` is missing**: return `BLOCKED` —
+the repository has not been onboarded to governance.
+
+`pre-commit install` is safe to run repeatedly — it overwrites
+the hook file idempotently.
+
+### 2. Read Governance Rules
+
+Read `CONTRIBUTING.md` from the repository root — extract
+governance rules, branch naming, PR template requirements.
+
+### 3. Rate Limit Check
 
 ```
 gh api rate_limit --jq '{
@@ -78,32 +107,6 @@ requesting the missing details. Do not guess.
 Execute these steps in order. Run autonomously — do not stop for
 confirmation at any point. The calling session has already obtained
 operator approval.
-
-### Step 0: Idempotent Pre-commit Install
-
-Ensure pre-commit hooks are installed in this repository:
-
-```
-# 1. Verify pre-commit CLI is available
-command -v pre-commit
-
-# 2. Verify config exists
-test -f .pre-commit-config.yaml
-
-# 3. Check if hooks are already installed
-test -f .git/hooks/pre-commit
-
-# 4. Install if missing
-pre-commit install
-```
-
-**If `pre-commit` CLI is not found**: report `BLOCKED` — the
-environment is not configured correctly.
-
-**If `.pre-commit-config.yaml` is missing**: report `BLOCKED` —
-the repository has not been onboarded to governance.
-
-**If hooks are already installed**: continue silently (idempotent).
 
 ### Step 1: Create GitHub Issue
 
