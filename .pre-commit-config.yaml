@@ -184,6 +184,18 @@ repos:
         language: system
         pass_filenames: false
 
+  # ===========================================================================
+  # Auto-bump plugin patch version when content files are staged
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: auto-bump-plugin-version
+        name: Auto-bump plugin patch version
+        entry: scripts/auto-bump-version.sh
+        language: system
+        always_run: true
+        pass_filenames: false
+
 ci:
   autofix_prs: true
   autoupdate_schedule: weekly
@@ -203,3 +215,4 @@ ci:
     - zizmor
     - checkov
     - gitleaks
+    - auto-bump-plugin-version
