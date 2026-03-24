@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-sales-engineer** bumped to v1.0.1
+
+- **f5xc-repo-governance** renamed to **f5xc-github-ops** v2.0.0 —
+  functional name reflecting GitHub operations automation purpose
+
 - **f5xc-repo-governance** bumped to v1.3.3
 
 - **f5xc-repo-governance** bumped to v1.3.2

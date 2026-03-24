@@ -1,6 +1,6 @@
-# f5xc-repo-governance
+# f5xc-github-ops
 
-Repository governance workflow plugin for
+GitHub operations automation plugin for
 `f5xc-salesdemos` — enforces the full task lifecycle
 from issue creation through post-merge verification.
 
@@ -70,7 +70,7 @@ or `Write`)
 
 ```
 Agent(
-  subagent_type="f5xc-repo-governance:github-ops",
+  subagent_type="f5xc-github-ops:github-ops",
   prompt="<type>: <description>\n\nFiles to stage:\n- <file-list>\n\nWhy: <motivation>"
 )
 ```
@@ -78,5 +78,5 @@ Agent(
 ## Installation
 
 ```bash
-claude /install f5xc-repo-governance@f5xc-salesdemos-marketplace
+claude /install f5xc-github-ops@f5xc-salesdemos-marketplace
 ```

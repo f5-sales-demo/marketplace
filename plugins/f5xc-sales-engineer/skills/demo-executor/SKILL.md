@@ -160,7 +160,7 @@ and demo materials.
 
 **No Git operations** — the Debrief stage produces a report only.
 When the operator decides to act on improvements, they invoke the
-`workflow-ops` agent (from the `f5xc-repo-governance` plugin) to
+`workflow-ops` agent (from the `f5xc-github-ops` plugin) to
 handle issue creation, branching, PRs, CI polling, and merging.
 
 **Graceful fallback:** If no Q&A session is found in the current

@@ -34,7 +34,7 @@ After making code changes, spawn the agent:
 
 ```
 Agent(
-  subagent_type="f5xc-repo-governance:github-ops",
+  subagent_type="f5xc-github-ops:github-ops",
   prompt="<type>: <description>\n\nFiles to stage:\n- <file-list>\n\nWhy: <motivation>"
 )
 ```

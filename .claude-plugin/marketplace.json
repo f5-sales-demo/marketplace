@@ -28,7 +28,7 @@
     {
       "name": "f5xc-sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -41,18 +41,18 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-repo-governance",
-      "description": "Repository governance workflow — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, and autonomous workflow operations agent",
-      "version": "1.3.3",
+      "name": "f5xc-github-ops",
+      "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, and autonomous workflow operations agent",
+      "version": "2.0.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-repo-governance",
+      "source": "./plugins/f5xc-github-ops",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-repo-governance",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-github-ops",
       "license": "Apache-2.0",
-      "keywords": ["governance", "workflow", "pr", "ci", "rate-limit", "github"],
-      "tags": ["governance", "workflow", "ci", "f5xc"],
+      "keywords": ["github-ops", "workflow", "pr", "ci", "rate-limit", "github"],
+      "tags": ["github-ops", "workflow", "ci", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
