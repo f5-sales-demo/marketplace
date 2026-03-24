@@ -32,14 +32,14 @@ API-driven demo execution with a four-stage meeting lifecycle:
 3. **Q&A** — improvisational mode with live environment
 4. **Teardown** — post-meeting cleanup via `demo-housekeeping` agent
 
-Reads product-specific content from `PRODUCT_EXPERTISE.md` and demo
+Reads product-specific content from `DEMO_PRODUCT_EXPERTISE.md` and demo
 commands from `docs/demo/`.
 
 ### presenter
 
 As-built walkthrough presentation using a pre-configured demo
 environment. Follows a show → narrate → connect → pause pattern at
-each step. Reads walkthrough order from `WALKTHROUGH_CONFIG.md`.
+each step. Reads walkthrough order from `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ### subject-matter-expert
 
@@ -59,14 +59,14 @@ specific trigger phrase.
 
 Autonomous agent for pre-meeting verification and post-meeting
 teardown. Runs the Readiness Verification Matrix (T0–T5) defined
-in `READINESS_MATRIX.md` and executes teardown commands from
+in `DEMO_READINESS_MATRIX.md` and executes teardown commands from
 `docs/demo/phase-4-teardown.mdx`.
 
 ### demo-researcher
 
 Read-only research librarian that finds verified answers with
 citations. Searches local `docs/` first, then indexed external
-sources from `SOURCE_INDEX.md`, with WebSearch as fallback.
+sources from `DEMO_SOURCE_INDEX.md`, with WebSearch as fallback.
 
 ## Convention Files
 
@@ -79,10 +79,10 @@ Create these files in your repository root to configure the plugin:
 
 | File | Purpose | Required For |
 | ---- | ------- | ------------ |
-| `PRODUCT_EXPERTISE.md` | Product capabilities, detection signals, threat coverage, compliance alignment, API reference | All skills |
-| `WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
-| `SOURCE_INDEX.md` | Research source catalog with local docs and external URLs | demo-researcher |
-| `READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-housekeeping |
+| `DEMO_PRODUCT_EXPERTISE.md` | Product capabilities, detection signals, threat coverage, compliance alignment, API reference | All skills |
+| `DEMO_WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
+| `DEMO_SOURCE_INDEX.md` | Research source catalog with local docs and external URLs | demo-researcher |
+| `DEMO_READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-housekeeping |
 | `docs/demo/` | Phase files with cURL commands and evidence gates | demo-executor |
 
 ## Trigger Phrases

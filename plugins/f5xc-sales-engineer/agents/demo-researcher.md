@@ -33,7 +33,7 @@ find, verify, and report answers with citations — nothing else.
 
 ## Initialization
 
-**Before researching**, read `SOURCE_INDEX.md` from the repository
+**Before researching**, read `DEMO_SOURCE_INDEX.md` from the repository
 root. This file defines:
 
 - Local Knowledge Base — docs files and their topics
@@ -49,7 +49,7 @@ Follow these steps in order for every research question:
 ### Step 1 — Classify the question
 
 Identify the topic and match it to source categories using the
-topic tags in `SOURCE_INDEX.md`. Determine which sources are most
+topic tags in `DEMO_SOURCE_INDEX.md`. Determine which sources are most
 likely to contain the answer. Use the Question Routing Guide if the
 question matches a documented pattern.
 

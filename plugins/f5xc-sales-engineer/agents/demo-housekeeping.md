@@ -26,7 +26,7 @@ and return a structured report.
 
 ## Initialization
 
-**Before any operation**, read `READINESS_MATRIX.md` from the
+**Before any operation**, read `DEMO_READINESS_MATRIX.md` from the
 repository root. This file defines:
 
 - Required and optional variables (names, defaults, placeholders)
@@ -43,7 +43,7 @@ that provides a non-placeholder value:
 2. **Check shell environment** — run `env | grep F5XC_` to find any
    values already exported in the current session.
 3. **Identify missing values** — compare resolved values against the
-   required/optional table in `READINESS_MATRIX.md`. A value is
+   required/optional table in `DEMO_READINESS_MATRIX.md`. A value is
    "missing" if it is absent, empty, or still set to a placeholder
    default (e.g., `example-api-token`, `example-tenant`,
    `example-namespace`, `app.example.com`, `user@example.com`).
@@ -51,7 +51,7 @@ that provides a non-placeholder value:
    variable cannot be resolved, report what is missing and stop. Do not
    prompt the operator (the main session handles that).
 5. **Apply defaults** — for each missing optional variable, use the
-   default from the `READINESS_MATRIX.md` table.
+   default from the `DEMO_READINESS_MATRIX.md` table.
 6. **Display the resolved variable table** — show the final values for
    the record, then proceed immediately (no wait for approval during
    Prepare).
@@ -78,7 +78,7 @@ Run `git pull` to ensure the latest documentation is available.
 Execute the tiered checks sequentially — a FAIL in an earlier tier
 blocks later tiers.
 
-Read `READINESS_MATRIX.md` for tier behavior rules (which tiers
+Read `DEMO_READINESS_MATRIX.md` for tier behavior rules (which tiers
 block, PASS/FAIL criteria, skip conditions). Read the executable
 commands from `docs/demo/index.mdx` — the "Readiness
 Verification Matrix" section contains the exact Bash commands with
@@ -126,7 +126,7 @@ before spawning this agent — do not ask for confirmation again.
 2. **Execute Phase 4** — read `docs/demo/phase-4-teardown.mdx`
    and execute all delete commands in the documented order.
 3. **Verify clean state** — run the pre-flight checks from
-   `READINESS_MATRIX.md` (T4 tier) to confirm all objects are deleted.
+   `DEMO_READINESS_MATRIX.md` (T4 tier) to confirm all objects are deleted.
 4. **Return cleanup report** — output the structured report per the
    Output Contract below.
 
@@ -145,19 +145,19 @@ format. Prepare uses the full readiness format.
 ## Resolved Variables
 | Variable | Value |
 |---|---|
-| (from READINESS_MATRIX.md variable table) |
+| (from DEMO_READINESS_MATRIX.md variable table) |
 
 ### T0: Connectivity & Auth
 | Check | Result | Status |
 |---|---|---|
-| (checks from READINESS_MATRIX.md T0 section) |
+| (checks from DEMO_READINESS_MATRIX.md T0 section) |
 
 ### T1: Quotas & Capacity
 | Check | Result | Status |
 |---|---|---|
-| (checks from READINESS_MATRIX.md T1 section) |
+| (checks from DEMO_READINESS_MATRIX.md T1 section) |
 
-(continue for each tier defined in READINESS_MATRIX.md)
+(continue for each tier defined in DEMO_READINESS_MATRIX.md)
 
 ### Warnings
 - (list any WARN or INFO items with context and remediation)
@@ -179,7 +179,7 @@ format. Prepare uses the full readiness format.
 ## Post-Teardown Verification
 | Object | HTTP Status |
 |---|---|
-| (verification checks from READINESS_MATRIX.md T4) |
+| (verification checks from DEMO_READINESS_MATRIX.md T4) |
 
 ## Warnings (if any)
 - (list any non-blocking issues encountered)
@@ -204,7 +204,7 @@ show `***` instead to avoid leaking credentials.
   construct your own cURL, jq, or shell commands — the documented
   commands contain validated field paths and deterministic jq filters.
   Substitute only `xPLACEHOLDERx` tokens with resolved variable values.
-- **Read phase files at runtime** — use `READINESS_MATRIX.md` for
+- **Read phase files at runtime** — use `DEMO_READINESS_MATRIX.md` for
   tier behavior rules, `docs/demo/index.mdx` for readiness
   check commands (Readiness Verification Matrix section), and
   `docs/demo/phase-4-teardown.mdx` for teardown commands.

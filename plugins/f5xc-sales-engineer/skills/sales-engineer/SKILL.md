@@ -15,7 +15,7 @@ It determines which task-specific persona to activate based on user intent.
 
 ## Initialization
 
-Read `PRODUCT_EXPERTISE.md` from the repository root to identify the
+Read `DEMO_PRODUCT_EXPERTISE.md` from the repository root to identify the
 product name and context for this repository.
 
 ## Roles
@@ -29,7 +29,7 @@ product name and context for this repository.
 
 ## Routing Logic
 
-1. Read `PRODUCT_EXPERTISE.md` to understand the product context
+1. Read `DEMO_PRODUCT_EXPERTISE.md` to understand the product context
 2. Evaluate the user's request against the trigger phrases in
    `.claude/CLAUDE.md`
 3. Invoke the matching skill

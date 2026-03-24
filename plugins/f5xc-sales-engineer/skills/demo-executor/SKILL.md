@@ -4,7 +4,7 @@ description: >-
   Three-stage demo lifecycle (Execute, Q&A, Debrief). Use when the user
   says "run the demo", "execute the demo", "start the demo", "API demo",
   "Q&A", "question and answer", "debrief", or "lessons learned". Reads
-  product-specific content from PRODUCT_EXPERTISE.md and demo commands
+  product-specific content from DEMO_PRODUCT_EXPERTISE.md and demo commands
   from docs/demo/.
 ---
 
@@ -29,7 +29,7 @@ explanations and showing proof/verification evidence after every action.
 
 **Before any stage**, read these files:
 
-1. **`PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
+1. **`DEMO_PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
    detection signals, threat coverage, compliance alignment, API
    reference. This replaces inline product expertise.
 2. **`docs/demo/index.mdx`** — execution protocol, variable
@@ -79,7 +79,7 @@ Normal or Debug mode.
 **Sequence:**
 
 1. **Introduction** — introduce yourself as an F5 Sales Engineer,
-   state the demo's outcome goals (read from `PRODUCT_EXPERTISE.md`
+   state the demo's outcome goals (read from `DEMO_PRODUCT_EXPERTISE.md`
    to tailor the introduction to this product's value proposition)
 2. **Demo phases** — execute Phases 1–3 following the existing
    deterministic protocol (variable resolution, evidence display,
@@ -104,7 +104,7 @@ improvisational behavior is explicitly allowed.
   diagnostic commands, navigating to unscripted pages, and modifying
   the demo environment to illustrate answers are all permitted
 - **Self-contained** — use the product expertise from
-  `PRODUCT_EXPERTISE.md` as the knowledge base
+  `DEMO_PRODUCT_EXPERTISE.md` as the knowledge base
 - **Audience prompt** — open with: "We'd love to hear your questions.
   And if I may ask — have you been experiencing any challenges with
   [product-relevant concern] on your properties?"
@@ -116,7 +116,7 @@ improvisational behavior is explicitly allowed.
 
 **Research delegation:**
 
-When a question cannot be answered from `PRODUCT_EXPERTISE.md` or
+When a question cannot be answered from `DEMO_PRODUCT_EXPERTISE.md` or
 the local `docs/` knowledge base, spawn the `demo-researcher`
 subagent with the research question. Wait for the structured report,
 then relay the findings to the audience in your own persona voice —
@@ -139,7 +139,7 @@ and demo materials.
    confidently, which required research delegation, and which
    revealed gaps
 2. **Categorize findings** into:
-   - **Knowledge gaps** — topics not covered in `PRODUCT_EXPERTISE.md`
+   - **Knowledge gaps** — topics not covered in `DEMO_PRODUCT_EXPERTISE.md`
      or `docs/` that audience members asked about
    - **Narration improvements** — phases where explanations could be
      stronger, evidence more compelling, or pacing better
@@ -148,13 +148,13 @@ and demo materials.
    - **Documentation corrections** — any inaccuracies discovered
      during Q&A or live demo execution
    - **Source gaps** — external references or documentation that
-     should be added to `SOURCE_INDEX.md`
+     should be added to `DEMO_SOURCE_INDEX.md`
 3. **Draft concrete improvements** — for each finding, propose a
    specific change:
-   - Additions or edits to `PRODUCT_EXPERTISE.md`
+   - Additions or edits to `DEMO_PRODUCT_EXPERTISE.md`
    - Narration text improvements for phase files
-   - New entries for `SOURCE_INDEX.md`
-   - New walkthrough stops for `WALKTHROUGH_CONFIG.md`
+   - New entries for `DEMO_SOURCE_INDEX.md`
+   - New walkthrough stops for `DEMO_WALKTHROUGH_CONFIG.md`
 4. **Output the Debrief Report** — structured report with all
    categories, specific file references, and proposed changes
 
@@ -165,8 +165,8 @@ handle issue creation, branching, PRs, CI polling, and merging.
 
 **Graceful fallback:** If no Q&A session is found in the current
 context (e.g., debrief triggered in a new conversation), note this
-and offer to review `PRODUCT_EXPERTISE.md`, phase files, and
-`SOURCE_INDEX.md` for general improvement opportunities instead.
+and offer to review `DEMO_PRODUCT_EXPERTISE.md`, phase files, and
+`DEMO_SOURCE_INDEX.md` for general improvement opportunities instead.
 
 **Debrief Report format:**
 
@@ -182,7 +182,7 @@ and offer to review `PRODUCT_EXPERTISE.md`, phase files, and
 ### Knowledge Gaps
 | Topic | Source File | Proposed Addition |
 |-------|-----------|-------------------|
-| <topic> | PRODUCT_EXPERTISE.md | <draft text> |
+| <topic> | DEMO_PRODUCT_EXPERTISE.md | <draft text> |
 
 ### Narration Improvements
 | Phase | Section | Current | Proposed |
@@ -200,7 +200,7 @@ and offer to review `PRODUCT_EXPERTISE.md`, phase files, and
 | <file> | <what's wrong> | <correction> |
 
 ### Source Gaps
-| Topic | Recommended Source | For SOURCE_INDEX.md |
+| Topic | Recommended Source | For DEMO_SOURCE_INDEX.md |
 |-------|-------------------|---------------------|
 | <topic> | <url or reference> | <catalog entry> |
 ```
@@ -222,7 +222,7 @@ audience can see on screen, and always tied to a customer concern.
   _What is this?_, _Why does it matter?_, or _What should I do about
   it?_
 - **Name the signal** — explicitly call out which detection signal
-  or capability (from `PRODUCT_EXPERTISE.md`) is at work
+  or capability (from `DEMO_PRODUCT_EXPERTISE.md`) is at work
 - **Compliance hook when relevant** — mention compliance alignment
   if the current step directly supports it; do not force it every time
 - **Invite engagement** — end with a short rhetorical invitation: "Any

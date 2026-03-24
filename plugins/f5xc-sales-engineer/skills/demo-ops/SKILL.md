@@ -27,9 +27,9 @@ cleaned up after.
 
 **Before any stage**, read these files:
 
-1. **`READINESS_MATRIX.md`** (repo root) — required/optional variables,
+1. **`DEMO_READINESS_MATRIX.md`** (repo root) — required/optional variables,
    readiness verification checks (T0–T5), API endpoints
-2. **`PRODUCT_EXPERTISE.md`** (repo root) — product name only, for
+2. **`DEMO_PRODUCT_EXPERTISE.md`** (repo root) — product name only, for
    operator-facing messages
 
 ## Stages
@@ -43,7 +43,7 @@ demo", "is the demo environment ready", "is the demo ready",
 
 Run before the meeting starts to verify everything works. This stage
 runs the full **Readiness Verification Matrix** defined in
-`docs/demo/index.mdx` and `READINESS_MATRIX.md`. It is
+`docs/demo/index.mdx` and `DEMO_READINESS_MATRIX.md`. It is
 delegated to the `demo-housekeeping` subagent to preserve main
 session context for the live demo.
 

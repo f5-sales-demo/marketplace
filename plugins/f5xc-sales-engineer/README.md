@@ -56,10 +56,10 @@ for your product:
 
 | File | Purpose | Required |
 | --- | --- | --- |
-| `PRODUCT_EXPERTISE.md` | Product capabilities, API reference | Yes |
-| `WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, timing | For presenter |
-| `SOURCE_INDEX.md` | Research source catalog (local docs + external) | For Q&A |
-| `READINESS_MATRIX.md` | Required/optional variables, readiness checks | For demo-ops |
+| `DEMO_PRODUCT_EXPERTISE.md` | Product capabilities, API reference | Yes |
+| `DEMO_WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, timing | For presenter |
+| `DEMO_SOURCE_INDEX.md` | Research source catalog (local docs + external) | For Q&A |
+| `DEMO_READINESS_MATRIX.md` | Required/optional variables, readiness checks | For demo-ops |
 | `docs/demo/` | Phase files with cURL commands | For demo-executor |
 
 ## Trigger Phrases

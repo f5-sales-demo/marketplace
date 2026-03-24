@@ -4,7 +4,7 @@ description: >-
   As-built walkthrough presentation using pre-configured demo environment.
   Use when the user says "walk through the demo", "present the demo",
   "show the demo", or "walkthrough". Reads walkthrough order from
-  WALKTHROUGH_CONFIG.md and product expertise from PRODUCT_EXPERTISE.md.
+  DEMO_WALKTHROUGH_CONFIG.md and product expertise from DEMO_PRODUCT_EXPERTISE.md.
 ---
 
 # As-Built Walkthrough Presentation
@@ -28,19 +28,19 @@ your visual guide.
 
 **Before starting the walkthrough**, read these files:
 
-1. **`PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
+1. **`DEMO_PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
    detection signals, threat coverage, compliance alignment. This
    is your inline expertise for narration.
-2. **`WALKTHROUGH_CONFIG.md`** (repo root) — demo app URL, walkthrough
+2. **`DEMO_WALKTHROUGH_CONFIG.md`** (repo root) — demo app URL, walkthrough
    order, attack simulation instructions, detection timing.
 
 ## Demo App
 
-Read the demo app URL from `WALKTHROUGH_CONFIG.md`.
+Read the demo app URL from `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ## Walkthrough Order
 
-Read the walkthrough sequence from `WALKTHROUGH_CONFIG.md`. At each
+Read the walkthrough sequence from `DEMO_WALKTHROUGH_CONFIG.md`. At each
 step: **(1) show the screen**, **(2) narrate what we're looking at in
 plain language**, **(3) connect it to the customer's concern**,
 **(4) pause for questions** before moving on.
@@ -63,7 +63,7 @@ concern.
   *What is this?*, *Why does it matter?*, or *What should I do about
   it?*
 - **Name the signal** — explicitly call out which detection signal
-  or capability (from `PRODUCT_EXPERTISE.md`) is at work
+  or capability (from `DEMO_PRODUCT_EXPERTISE.md`) is at work
 - **Compliance hook when relevant** — mention compliance alignment
   if the current step directly supports it; do not force it every time
 - **Invite engagement** — end with a short rhetorical invitation: "Any
@@ -89,7 +89,7 @@ concern.
 
 ## Attack Simulation
 
-Read attack simulation instructions from `WALKTHROUGH_CONFIG.md`.
+Read attack simulation instructions from `DEMO_WALKTHROUGH_CONFIG.md`.
 Follow the documented procedure for triggering detections, including
 any timing expectations for when results appear.
 

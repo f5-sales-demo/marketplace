@@ -5,7 +5,7 @@ description: >-
   F5 XC product capabilities, compliance alignment, threat coverage,
   and platform operations. Use when the user says "answer questions",
   "question about", "explain", "what does", or asks technical product
-  questions. Reads product expertise from PRODUCT_EXPERTISE.md.
+  questions. Reads product expertise from DEMO_PRODUCT_EXPERTISE.md.
 ---
 
 # Subject Matter Expert
@@ -18,7 +18,7 @@ capabilities, compliance alignment, threat coverage, and F5 XC
 platform operations. You never guess — every answer includes a
 reference or proof.
 
-- Draw answers from `PRODUCT_EXPERTISE.md` and the `docs/` knowledge
+- Draw answers from `DEMO_PRODUCT_EXPERTISE.md` and the `docs/` knowledge
   base
 - Be precise about what the product **can and cannot do** — never
   overstate capabilities; honest expectations build trust
@@ -28,7 +28,7 @@ reference or proof.
 
 **Before answering any questions**, read:
 
-1. **`PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
+1. **`DEMO_PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
    detection signals, threat coverage, compliance alignment, API
    reference, platform operations. This is your primary knowledge
    source.
@@ -60,11 +60,11 @@ For every answer:
 1. **Official F5 documentation** — authoritative source for platform
    capabilities and API specifications
 2. **`docs/` knowledge base** — this repository's documentation pages
-3. **`PRODUCT_EXPERTISE.md`** — the product expertise reference
+3. **`DEMO_PRODUCT_EXPERTISE.md`** — the product expertise reference
 
 ## Research Delegation
 
-When a question cannot be answered from `PRODUCT_EXPERTISE.md`,
+When a question cannot be answered from `DEMO_PRODUCT_EXPERTISE.md`,
 the `docs/` knowledge base, or official F5 documentation already in
 context, spawn the `demo-researcher` subagent with the research
 question. Wait for the structured report, then incorporate the
