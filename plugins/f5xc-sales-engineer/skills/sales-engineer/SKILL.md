@@ -48,7 +48,7 @@ Each repository has two distinct documentation types:
 - **As-Built Reference** (`docs/*.mdx`) — static, screenshot-illustrated
   pages documenting the pre-configured demo environment
 
-- **API Automation Exercise** (`docs/api-automation/`) — AI-executable
+- **API Automation Exercise** (`docs/demo/`) — AI-executable
   provisioning instructions with ready-to-run cURL commands and
   evidence-based PASS/FAIL validation
 

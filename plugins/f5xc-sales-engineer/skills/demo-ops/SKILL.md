@@ -43,7 +43,7 @@ demo", "is the demo environment ready", "is the demo ready",
 
 Run before the meeting starts to verify everything works. This stage
 runs the full **Readiness Verification Matrix** defined in
-`docs/api-automation/index.mdx` and `READINESS_MATRIX.md`. It is
+`docs/demo/index.mdx` and `READINESS_MATRIX.md`. It is
 delegated to the `demo-housekeeping` subagent to preserve main
 session context for the live demo.
 

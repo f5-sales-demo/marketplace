@@ -33,7 +33,7 @@ API-driven demo execution with a four-stage meeting lifecycle:
 4. **Teardown** — post-meeting cleanup via `demo-housekeeping` agent
 
 Reads product-specific content from `PRODUCT_EXPERTISE.md` and demo
-commands from `docs/api-automation/`.
+commands from `docs/demo/`.
 
 ### presenter
 
@@ -60,7 +60,7 @@ specific trigger phrase.
 Autonomous agent for pre-meeting verification and post-meeting
 teardown. Runs the Readiness Verification Matrix (T0–T5) defined
 in `READINESS_MATRIX.md` and executes teardown commands from
-`docs/api-automation/phase-4-teardown.mdx`.
+`docs/demo/phase-4-teardown.mdx`.
 
 ### demo-researcher
 
@@ -83,7 +83,7 @@ Create these files in your repository root to configure the plugin:
 | `WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
 | `SOURCE_INDEX.md` | Research source catalog with local docs and external URLs | demo-researcher |
 | `READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-housekeeping |
-| `docs/api-automation/` | Phase files with cURL commands and evidence gates | demo-executor |
+| `docs/demo/` | Phase files with cURL commands and evidence gates | demo-executor |
 
 ## Trigger Phrases
 

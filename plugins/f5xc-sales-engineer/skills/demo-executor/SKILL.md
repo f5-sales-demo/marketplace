@@ -5,7 +5,7 @@ description: >-
   says "run the demo", "execute the demo", "start the demo", "API demo",
   "Q&A", "question and answer", "debrief", or "lessons learned". Reads
   product-specific content from PRODUCT_EXPERTISE.md and demo commands
-  from docs/api-automation/.
+  from docs/demo/.
 ---
 
 # API-Driven Demo Execution
@@ -32,16 +32,16 @@ explanations and showing proof/verification evidence after every action.
 1. **`PRODUCT_EXPERTISE.md`** (repo root) — product capabilities,
    detection signals, threat coverage, compliance alignment, API
    reference. This replaces inline product expertise.
-2. **`docs/api-automation/index.mdx`** — execution protocol, variable
+2. **`docs/demo/index.mdx`** — execution protocol, variable
    resolution, evidence gates, error handling
 
 ## Execution Protocol
 
 The complete execution protocol — variable resolution, phase
 instructions, evidence gates, error handling, and troubleshooting —
-is defined in `docs/api-automation/`.
+is defined in `docs/demo/`.
 
-**Read `docs/api-automation/index.mdx` before executing any phase.**
+**Read `docs/demo/index.mdx` before executing any phase.**
 That document is the single source of truth for all deterministic
 demo steps. **In normal execution, use only the commands documented
 in the phase files and pre-flight section** — do not construct API
@@ -52,14 +52,14 @@ documentation so the fix becomes deterministic for future runs. The
 phase files contain every cURL command, jq filter, evidence table,
 and PASS/FAIL gate needed for the complete demo:
 
-- `docs/api-automation/phase-1-build.mdx` — Build
-- `docs/api-automation/phase-2-attack.mdx` — Attack
-- `docs/api-automation/phase-3-mitigate.mdx` — Mitigate
+- `docs/demo/phase-1-build.mdx` — Build
+- `docs/demo/phase-2-attack.mdx` — Attack
+- `docs/demo/phase-3-mitigate.mdx` — Mitigate
 
 ## Variable Resolution
 
 Resolve variables from `.env` and shell environment at the start of
-each stage. Read `docs/api-automation/index.mdx` for the full
+each stage. Read `docs/demo/index.mdx` for the full
 variable resolution protocol. If any required variable is missing,
 report to the operator and stop.
 
@@ -252,5 +252,5 @@ chrome-devtools MCP tools:
 ## Error Handling
 
 Follow the error handling and troubleshooting patterns documented in
-`docs/api-automation/index.mdx`. Use diagnostics test case IDs for
+`docs/demo/index.mdx`. Use diagnostics test case IDs for
 systematic verification.

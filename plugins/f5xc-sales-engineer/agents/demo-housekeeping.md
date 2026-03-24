@@ -80,7 +80,7 @@ blocks later tiers.
 
 Read `READINESS_MATRIX.md` for tier behavior rules (which tiers
 block, PASS/FAIL criteria, skip conditions). Read the executable
-commands from `docs/api-automation/index.mdx` — the "Readiness
+commands from `docs/demo/index.mdx` — the "Readiness
 Verification Matrix" section contains the exact Bash commands with
 deterministic jq filters for every check.
 
@@ -108,7 +108,7 @@ interpret raw HTTP codes or response fields yourself.
   routable.
 - **T4: Environment Clean** — Check for leftover demo objects. If
   found, auto-teardown by reading and executing commands from
-  `docs/api-automation/phase-4-teardown.mdx`, then re-check.
+  `docs/demo/phase-4-teardown.mdx`, then re-check.
 - **T5: Additional Checks** — Product-specific extras. INFO only.
 
 ### Step 4: Return Readiness Report
@@ -123,7 +123,7 @@ before spawning this agent — do not ask for confirmation again.
 
 1. **Resolve variables** — follow the Variable Resolution Protocol
    (same as Prepare). Stop if required variables are missing.
-2. **Execute Phase 4** — read `docs/api-automation/phase-4-teardown.mdx`
+2. **Execute Phase 4** — read `docs/demo/phase-4-teardown.mdx`
    and execute all delete commands in the documented order.
 3. **Verify clean state** — run the pre-flight checks from
    `READINESS_MATRIX.md` (T4 tier) to confirm all objects are deleted.
@@ -200,14 +200,14 @@ show `***` instead to avoid leaking credentials.
 ## Execution Rules
 
 - **Normal mode only** — copy and execute the exact fenced code blocks
-  from `docs/api-automation/index.mdx` and phase files. Do not
+  from `docs/demo/index.mdx` and phase files. Do not
   construct your own cURL, jq, or shell commands — the documented
   commands contain validated field paths and deterministic jq filters.
   Substitute only `xPLACEHOLDERx` tokens with resolved variable values.
 - **Read phase files at runtime** — use `READINESS_MATRIX.md` for
-  tier behavior rules, `docs/api-automation/index.mdx` for readiness
+  tier behavior rules, `docs/demo/index.mdx` for readiness
   check commands (Readiness Verification Matrix section), and
-  `docs/api-automation/phase-4-teardown.mdx` for teardown commands.
+  `docs/demo/phase-4-teardown.mdx` for teardown commands.
 - **If a command fails** — report the failure in the structured report
   with the HTTP status, response body, and which step failed. Set
   status to FAILED and stop. Do **not** enter Debug mode — that is the

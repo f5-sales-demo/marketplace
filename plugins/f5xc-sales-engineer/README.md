@@ -60,7 +60,7 @@ for your product:
 | `WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, timing | For presenter |
 | `SOURCE_INDEX.md` | Research source catalog (local docs + external) | For Q&A |
 | `READINESS_MATRIX.md` | Required/optional variables, readiness checks | For demo-ops |
-| `docs/api-automation/` | Phase files with cURL commands | For demo-executor |
+| `docs/demo/` | Phase files with cURL commands | For demo-executor |
 
 ## Trigger Phrases
 
