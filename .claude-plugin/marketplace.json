@@ -109,6 +109,21 @@
       ],
       "tags": ["sales", "qualification", "deal-management", "forecast", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "f5xc-devcontainer",
+      "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
+      "version": "1.1.2",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/f5xc-devcontainer",
+      "category": "productivity",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-devcontainer",
+      "license": "Apache-2.0",
+      "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
+      "tags": ["devcontainer", "tools", "catalog", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }

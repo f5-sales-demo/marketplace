@@ -1,0 +1,13 @@
+{
+  "name": "f5xc-devcontainer",
+  "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
+  "version": "1.1.2",
+  "author": {
+    "name": "f5xc-salesdemos",
+    "url": "https://github.com/f5xc-salesdemos"
+  },
+  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-devcontainer",
+  "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+}
