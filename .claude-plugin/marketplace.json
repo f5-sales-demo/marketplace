@@ -84,6 +84,31 @@
       "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
       "tags": ["brand", "design", "visual-identity", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "f5xc-meddpicc",
+      "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
+      "version": "1.0.2",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/f5xc-meddpicc",
+      "category": "productivity",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-meddpicc",
+      "license": "Apache-2.0",
+      "keywords": [
+        "meddpicc",
+        "sales-qualification",
+        "deal-management",
+        "enterprise-sales",
+        "forecast",
+        "champion",
+        "economic-buyer",
+        "mutual-action-plan",
+        "f5xc"
+      ],
+      "tags": ["sales", "qualification", "deal-management", "forecast", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }

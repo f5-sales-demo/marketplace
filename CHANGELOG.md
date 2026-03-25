@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-meddpicc** bumped to v1.0.2
+
+- **f5xc-meddpicc** bumped to v1.0.1
+
 - **f5xc-sales-engineer** bumped to v1.0.3
 
 - **f5xc-sales-engineer** bumped to v1.0.2

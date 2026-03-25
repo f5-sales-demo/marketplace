@@ -1,0 +1,118 @@
+---
+title: f5xc-meddpicc
+sidebar:
+  order: 6
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **f5xc-meddpicc** plugin provides a comprehensive MEDDPICC sales
+qualification and deal-execution framework for complex enterprise B2B
+sales. It transforms MEDDPICC from a checkbox exercise into a living
+deal execution system with evidence-based qualification, structured
+deal reviews, and actionable coaching.
+
+<Badge text="v1.0.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-meddpicc@f5xc-salesdemos-marketplace
+```
+
+## What is MEDDPICC?
+
+MEDDPICC is a qualification and deal-execution framework designed for
+complex B2B sales where multiple stakeholders, technical risk, and
+procurement steps can derail momentum.
+
+| Letter | Element | Purpose |
+| ------ | ------- | ------- |
+| **M** | Metrics | Quantified business outcomes the customer expects |
+| **E** | Economic Buyer | Individual with final budget authority |
+| **D** | Decision Criteria | Requirements used to evaluate options |
+| **D** | Decision Process | Step-by-step path from evaluation to agreement |
+| **P** | Paper Process | Procurement mechanics (legal, security, signature) |
+| **I** | Identify Pain | Compelling business pain that creates urgency |
+| **C** | Champion | Powerful internal advocate |
+| **C** | Competition | All alternatives (vendors, build, do-nothing) |
+
+## Skills
+
+### meddpicc-coach
+
+Comprehensive MEDDPICC methodology coaching that activates
+automatically when you discuss deal qualification, pipeline health,
+forecast accuracy, or any MEDDPICC element. Provides evidence-based
+guidance, operating rhythm recommendations, and links to detailed
+reference material.
+
+<Aside type="tip" title="Auto-activated">
+  This skill activates automatically when relevant — no slash command
+  needed.
+</Aside>
+
+### deal-qualification
+
+Produces a scored MEDDPICC scorecard (0&ndash;24) with gap analysis,
+risk assessment, and forecast recommendation. Each element is scored
+0&ndash;3 based on verified evidence.
+
+### deal-review
+
+Facilitates structured weekly deal inspections with evidence delta
+tracking, risk identification, and action items with named owners
+and due dates.
+
+### mutual-action-plan
+
+Builds a customer-facing Mutual Action Plan tied to MEDDPICC
+elements. Includes evaluation milestones, procurement roadmap,
+implementation readiness, and stakeholder mapping.
+
+### champion-test
+
+Applies a 5-criterion assessment (Power, Personal Win, Access,
+Intel, Action) scoring 0&ndash;15 to determine whether your internal
+contact is a true champion, emerging champion, coach, or friendly
+contact.
+
+## Commands
+
+| Command | Purpose |
+| ------- | ------- |
+| `/f5xc-meddpicc:qualify-deal [account]` | Score a deal with MEDDPICC scorecard |
+| `/f5xc-meddpicc:deal-review [account]` | Facilitate weekly deal inspection |
+| `/f5xc-meddpicc:champion-test [contact]` | Assess if contact is a true champion |
+| `/f5xc-meddpicc:build-map [account]` | Build a Mutual Action Plan |
+
+## Agents
+
+### deal-analyst
+
+Read-only research agent that analyzes deal health by reviewing
+local documentation, meeting notes, and account plans. Produces
+structured MEDDPICC assessment reports with evidence citations,
+gap analysis, and prioritized action recommendations.
+
+## Reference Library
+
+The plugin includes comprehensive reference material that loads on
+demand:
+
+- **MEDDPICC Framework** &mdash; complete definitions and evidence
+  requirements for all 8 elements
+- **Discovery Questions** &mdash; field-tested questions for every
+  element across the deal cycle
+- **Roles &amp; Responsibilities** &mdash; RACI ownership matrix by
+  team role (AE, SE, CSM, PS, Product, Channel, Deal Desk, Legal)
+- **Deal Stage Gates** &mdash; what must be true before advancing
+  (Early Qualification through Closed Won)
+- **Anti-Patterns** &mdash; 10 common failure modes with
+  evidence-based remediation
+- **Scoring Rubric** &mdash; objective 0&ndash;3 scoring criteria
+  per element
+- **Review Templates** &mdash; weekly inspection question sets with
+  red flag indicators
+- **MAP Templates** &mdash; customer-facing action plan structure
+  with evaluation, procurement, and implementation roadmaps
