@@ -4,7 +4,7 @@ Detailed Chrome DevTools MCP tool call sequences for each
 authentication path. Validated against multiple tenants with
 different login configurations on 2026-03-26.
 
-## Path N: Native Volterra Login
+## Path N: Native F5 XC Login
 
 Precondition: Tenant uses native email/password authentication
 (no SSO provider). Some tenants present credentials directly
@@ -129,7 +129,7 @@ After navigating to the login URL and taking a snapshot:
 
 | Page Content | Auth Type | Path |
 | -------------- | ----------- | ------ |
-| "Please enter your email address and password" + email field + password field | Native Volterra | Path N |
+| "Please enter your email address and password" + email field + password field | Native F5 XC | Path N |
 | "Sign In with Azure" link | Azure SSO | Path A/B/C |
 | "Log In as Tenant Owner" link only | Tenant owner (native) | Path N variant |
 
@@ -142,7 +142,7 @@ for debugging reference only:
 
 | URL Pattern | Meaning |
 | ------------- | --------- |
-| `login*.volterra.*/auth/realms/*` | Volterra login host |
+| `login*.volterra.*/auth/realms/*` | F5 XC login host |
 | `login.microsoftonline.com/*` | Azure AD login screens |
 | `api-*.duosecurity.com/frame/*` | DUO MFA challenge |
 | `login.microsoftonline.com/common/federation/*` | "Stay signed in" prompt |
@@ -158,7 +158,7 @@ elements using this priority:
 2. **Input type** — textbox with description containing
    "email" for username, "password" for password
 3. **Link text** — "Sign In with Azure" is a link, not a
-   button, on SSO-enabled Volterra login pages
+   button, on SSO-enabled F5 XC login pages
 4. **Button text** — "Next", "Sign in", "Continue", "Yes",
    "Try again"
 

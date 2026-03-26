@@ -1,7 +1,7 @@
 {
   "name": "f5xc-console",
   "description": "F5 Distributed Cloud web console automation via Chrome DevTools MCP — Azure SSO authentication, deterministic navigation, and workflow execution",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"

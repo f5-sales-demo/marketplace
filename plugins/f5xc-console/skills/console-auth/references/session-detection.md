@@ -25,8 +25,8 @@ Check the following indicators in order:
 
 **Expired session (re-auth needed):**
 
-- URL contains `/web/login` or a Volterra login host
-  (`login*.volterra.*`)
+- URL contains `/web/login` or an F5 XC login host
+  (URL patterns: `login*.volterra.*`)
 - Snapshot contains "Sign in" or "Session Expired" text
 - Modal overlay with "Sign in again" or "Your session has
   expired"

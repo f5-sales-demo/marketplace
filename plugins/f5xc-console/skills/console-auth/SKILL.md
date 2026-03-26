@@ -2,7 +2,7 @@
 name: console-auth
 description: >-
   Multi-provider authentication for the F5 Distributed Cloud
-  console. Auto-detects login type: native Volterra login,
+  console. Auto-detects login type: native F5 XC login,
   Azure SSO with cached session, or Azure SSO with DUO verified
   push MFA. Use when the user says "log in", "authenticate",
   "sign in to the console", or when any console workflow
@@ -15,7 +15,7 @@ user-invocable: false
 Authenticate to the F5 Distributed Cloud console. Supports
 multiple auth providers automatically detected at runtime:
 
-- **Native Volterra login** — email + password on a single
+- **Native F5 XC login** — email + password on a single
   form (some tenants present credentials directly)
 - **Azure SSO cached session** — user previously selected
   "Stay signed in: Yes"; single click auto-completes login
@@ -68,7 +68,7 @@ take_snapshot()
 
 Examine the login page to determine the auth type:
 
-- **Native Volterra login** — page shows email and password
+- **Native F5 XC login** — page shows email and password
   fields directly, with a "Sign In" button and text like
   "Please enter your email address and password to log in."
   → Go to **Path A: Native Login**
@@ -78,7 +78,7 @@ Examine the login page to determine the auth type:
 
 ---
 
-## Path A: Native Volterra Login
+## Path A: Native F5 XC Login
 
 Single-screen email + password form. Some tenants present
 credentials directly without an SSO provider selection.
