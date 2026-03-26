@@ -7,11 +7,7 @@ description: >-
   this agent — never run MCP browser tools in the main session.
   This keeps the main session context lean since browser
   snapshots are token-heavy.
-tools:
-  - Read
-  - Bash
-  - Glob
-  - Grep
+disallowedTools: Write, Edit, Agent
 ---
 
 # Console Operator Agent

@@ -174,3 +174,41 @@ elements using this priority:
 - DUO uses verified push (3-digit code entry) not simple push
 - Console SPA loads at `/web/home` and takes 15-30 seconds
 - Page reports as `busy` during SPA initialization
+
+## Subagent Validation Results (2026-03-26)
+
+Validated via `f5xc-console:console-operator` subagent:
+
+### Path N — Native Login
+
+- Agent correctly detected native login from page content
+- Used `fill_form` for both email and password fields
+- **Post-login redirect quirk**: browser may redirect to
+  `chrome://new-tab-page/` instead of the console after native
+  login. The session cookie IS set correctly — navigate
+  directly to `${F5XC_API_URL}/web/home` to recover.
+- **SPA resource errors**: first load may hit
+  `ERR_INSUFFICIENT_RESOURCES`. Retry with a hard reload
+  (`navigate_page` with `ignoreCache: true`) to recover.
+
+### Path A — Azure SSO Cached Session
+
+- Agent correctly detected "Sign In with Azure" link
+- Clicked the link and the cached session auto-completed
+- No DUO MFA was required (session from previous "Stay
+  signed in: Yes" persisted across browser restarts)
+- Auth succeeded (redirect back with valid auth code)
+- SPA may fail to load in resource-constrained environments
+
+### Recovery Procedures
+
+- **Post-login redirect to chrome://new-tab-page**: Navigate
+  directly to `${F5XC_API_URL}/web/home`
+- **ERR_INSUFFICIENT_RESOURCES**: Hard reload with
+  `ignoreCache: true`. If that fails, the browser needs more
+  memory — this is an infrastructure constraint, not an auth
+  issue.
+- **SPA stuck on busy**: Wait up to 30 seconds. If still
+  blank, hard reload once. Verify the page title is
+  "F5 Distributed Cloud Console" (auth succeeded) vs
+  a login page title (auth failed).

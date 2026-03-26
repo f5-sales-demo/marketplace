@@ -104,7 +104,17 @@ take_snapshot()
 ```
 
 If "Invalid" credentials text appears, report error and stop.
-Otherwise jump to **Verification**.
+
+**Post-login redirect quirk**: After native login, the browser
+may redirect to `chrome://new-tab-page/` instead of the
+console. The session cookie IS valid — navigate directly to
+`${F5XC_API_URL}/web/home` to recover.
+
+**SPA load failure**: If the console returns
+`ERR_INSUFFICIENT_RESOURCES`, retry with a hard reload
+(`navigate_page` type=reload, `ignoreCache: true`).
+
+Jump to **Verification**.
 
 ---
 
