@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-console** bumped to v1.0.1
+
 - **f5xc-meddpicc** bumped to v1.0.2
 
 - **f5xc-meddpicc** bumped to v1.0.1
