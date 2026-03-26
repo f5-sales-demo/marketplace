@@ -16,7 +16,7 @@ Authenticate to the F5 Distributed Cloud console. Supports
 multiple auth providers automatically detected at runtime:
 
 - **Native Volterra login** — email + password on a single
-  form (staging tenants, tenant-owner accounts)
+  form (some tenants present credentials directly)
 - **Azure SSO cached session** — user previously selected
   "Stay signed in: Yes"; single click auto-completes login
 - **Azure SSO full MFA** — username → password → DUO verified
@@ -56,9 +56,9 @@ Use `take_snapshot` on the current browser page.
 - **Other page** — navigate to the login URL, then proceed
 
 Note: `${F5XC_API_URL}/web/login` redirects to an auth host.
-Production tenants (`*.console.ves.volterra.io`) redirect to
-an SSO provider selection page. Staging tenants
-(`*.staging.volterra.us`) redirect to a native login form.
+Different tenants use different login hosts and auth methods.
+The plugin auto-detects the auth type from the login page
+content — no manual configuration is needed.
 
 ### Step 3: Detect auth provider
 
@@ -80,8 +80,8 @@ Examine the login page to determine the auth type:
 
 ## Path A: Native Volterra Login
 
-Single-screen email + password form. Used by staging tenants
-and tenant-owner accounts.
+Single-screen email + password form. Some tenants present
+credentials directly without an SSO provider selection.
 
 ### A1: Fill credentials
 

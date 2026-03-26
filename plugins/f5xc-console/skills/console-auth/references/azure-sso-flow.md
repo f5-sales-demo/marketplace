@@ -1,21 +1,18 @@
 # Authentication Flows — MCP Tool Sequences
 
 Detailed Chrome DevTools MCP tool call sequences for each
-authentication path. Validated against live tenants on
-2026-03-26.
+authentication path. Validated against multiple tenants with
+different login configurations on 2026-03-26.
 
 ## Path N: Native Volterra Login
 
 Precondition: Tenant uses native email/password authentication
-(no SSO provider). Common on staging tenants and for tenant
-owner accounts.
-
-Validated against a staging tenant.
+(no SSO provider). Some tenants present credentials directly
+on the login page.
 
 ```
 1. navigate_page(url="${F5XC_API_URL}/web/login")
-   # Redirects to login-staging.volterra.us (staging)
-   # or login.ves.volterra.io with native form
+   # Redirects to the tenant's login host
 2. take_snapshot()
    # Detect: page shows email + password fields directly
    # with "Please enter your email address and password"
@@ -42,11 +39,9 @@ and password to log in." and a "Sign In" button. There is no
 Precondition: User previously authenticated and selected
 "Stay signed in: Yes".
 
-Validated against a production tenant.
-
 ```
 1. navigate_page(url="${F5XC_API_URL}/web/login")
-   # Redirects to login.ves.volterra.io
+   # Redirects to the tenant's login host
 2. wait_for(text=["Sign In with Azure"])
 3. take_snapshot()
 4. click(uid=<sign-in-with-azure-link>)
@@ -76,14 +71,12 @@ Precondition: Multiple Azure AD accounts cached in browser.
 
 ## Path C: Azure SSO Full MFA Flow
 
-Precondition: No cached session or session expired.
-
-Validated against a production tenant.
-with Azure AD and DUO verified push.
+Precondition: No cached session or session expired. Tenant
+uses Azure AD with DUO verified push MFA.
 
 ```
  1. navigate_page(url="${F5XC_API_URL}/web/login")
-    # Redirects to login.ves.volterra.io with SSO options
+    # Redirects to the tenant's login host with SSO options
  2. wait_for(text=["Sign In with Azure"])
  3. take_snapshot()
  4. click(uid=<sign-in-with-azure-link>)
@@ -142,16 +135,18 @@ After navigating to the login URL and taking a snapshot:
 
 ## URL Patterns Observed
 
+Different tenants redirect to different login hosts. The
+plugin does not rely on URL patterns for auth detection —
+it uses page content instead. These patterns are documented
+for debugging reference only:
+
 | URL Pattern | Meaning |
 | ------------- | --------- |
-| `login.ves.volterra.io/auth/realms/*` | Production SSO selection |
-| `login-staging.volterra.us/auth/realms/*` | Staging native login |
+| `login*.volterra.*/auth/realms/*` | Volterra login host |
 | `login.microsoftonline.com/*` | Azure AD login screens |
-| `login.microsoftonline.com/*/login` | Azure AD DUO redirect |
 | `api-*.duosecurity.com/frame/*` | DUO MFA challenge |
 | `login.microsoftonline.com/common/federation/*` | "Stay signed in" prompt |
-| `*.console.ves.volterra.io/web/home*` | Production console loaded |
-| `*.staging.volterra.us/web/home*` | Staging console loaded |
+| `*/web/home*` | Console loaded (authenticated) |
 
 ## Element Identification Strategy
 
@@ -163,16 +158,14 @@ elements using this priority:
 2. **Input type** — textbox with description containing
    "email" for username, "password" for password
 3. **Link text** — "Sign In with Azure" is a link, not a
-   button, on the production Volterra login page
+   button, on SSO-enabled Volterra login pages
 4. **Button text** — "Next", "Sign in", "Continue", "Yes",
    "Try again"
 
 ## Key Observations from Live Testing
 
-- Production (`*.console.ves.volterra.io`) redirects to
-  `login.ves.volterra.io` for SSO provider selection
-- Staging (`*.staging.volterra.us`) redirects to
-  `login-staging.volterra.us` for native email/password login
+- Different tenants use different login hosts and auth methods
+- The plugin detects auth type from page content, not URLs
 - Native login uses a single form with both email and password
   fields visible simultaneously
 - Azure SSO uses a multi-screen flow (email → password → DUO)
