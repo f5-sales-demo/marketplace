@@ -15,7 +15,7 @@ navigation, and a foundation for workflow automation.
 
 | Variable | Required | Default | Purpose |
 | ---------- | ---------- | --------- | --------- |
-| `F5XC_API_URL` | No | `https://f5-amer-ent.console.ves.volterra.io` | Tenant console URL |
+| `F5XC_API_URL` | No | `https://<tenant>.console.ves.volterra.io` | Tenant console URL |
 | `F5XC_USERNAME` | Full MFA only | — | Azure AD email address |
 | `F5XC_CONSOLE_PASSWORD` | Full MFA only | — | Azure AD password |
 | `F5XC_NAMESPACE` | No | — | Default namespace for navigation |

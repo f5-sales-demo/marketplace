@@ -1,13 +1,48 @@
-# Azure SSO Flow — MCP Tool Sequences
+# Authentication Flows — MCP Tool Sequences
 
 Detailed Chrome DevTools MCP tool call sequences for each
-authentication path. Validated against the f5-amer-ent tenant
-on 2026-03-26.
+authentication path. Validated against live tenants on
+2026-03-26.
 
-## Path A: Cached Session (Single-Click)
+## Path N: Native Volterra Login
+
+Precondition: Tenant uses native email/password authentication
+(no SSO provider). Common on staging tenants and for tenant
+owner accounts.
+
+Validated against a staging tenant.
+
+```
+1. navigate_page(url="${F5XC_API_URL}/web/login")
+   # Redirects to login-staging.volterra.us (staging)
+   # or login.ves.volterra.io with native form
+2. take_snapshot()
+   # Detect: page shows email + password fields directly
+   # with "Please enter your email address and password"
+3. fill_form(elements=[
+     {uid: <email-textbox>, value: "${F5XC_USERNAME}"},
+     {uid: <password-textbox>, value: "${F5XC_CONSOLE_PASSWORD}"}
+   ])
+4. click(uid=<sign-in-button>)   # Text: "Sign In"
+5. wait_for(text=["F5 Distributed Cloud", "Welcome",
+                  "Common workspaces", "Invalid"],
+            timeout=30000)
+6. take_snapshot()   # Verify console loaded
+```
+
+Expected duration: 5-15 seconds.
+
+Detection: The login page shows both email and password fields
+on the same screen, with text "Please enter your email address
+and password to log in." and a "Sign In" button. There is no
+"Sign in with Azure" or SSO provider selection.
+
+## Path A: Azure SSO Cached Session (Single-Click)
 
 Precondition: User previously authenticated and selected
 "Stay signed in: Yes".
+
+Validated against a production tenant.
 
 ```
 1. navigate_page(url="${F5XC_API_URL}/web/login")
@@ -22,7 +57,7 @@ Precondition: User previously authenticated and selected
 
 Expected duration: 3-10 seconds.
 
-## Path B: Account Picker then Cached Session
+## Path B: Azure SSO Account Picker
 
 Precondition: Multiple Azure AD accounts cached in browser.
 
@@ -39,10 +74,12 @@ Precondition: Multiple Azure AD accounts cached in browser.
 9. take_snapshot()
 ```
 
-## Path C: Full MFA Flow
+## Path C: Azure SSO Full MFA Flow
 
-Precondition: No cached session or session expired. Validated
-against f5-amer-ent tenant with Azure AD and DUO verified push.
+Precondition: No cached session or session expired.
+
+Validated against a production tenant.
+with Azure AD and DUO verified push.
 
 ```
  1. navigate_page(url="${F5XC_API_URL}/web/login")
@@ -93,16 +130,28 @@ against f5-amer-ent tenant with Azure AD and DUO verified push.
 
 Expected duration: 30-90 seconds (depends on DUO approval).
 
+## Auth Provider Detection Logic
+
+After navigating to the login URL and taking a snapshot:
+
+| Page Content | Auth Type | Path |
+| -------------- | ----------- | ------ |
+| "Please enter your email address and password" + email field + password field | Native Volterra | Path N |
+| "Sign In with Azure" link | Azure SSO | Path A/B/C |
+| "Log In as Tenant Owner" link only | Tenant owner (native) | Path N variant |
+
 ## URL Patterns Observed
 
 | URL Pattern | Meaning |
 | ------------- | --------- |
-| `login.ves.volterra.io/auth/realms/*` | Volterra SSO selection page |
-| `login.microsoftonline.com/*` | Azure AD login (username/password) |
-| `login.microsoftonline.com/*/login` | Azure AD post-password (DUO redirect) |
+| `login.ves.volterra.io/auth/realms/*` | Production SSO selection |
+| `login-staging.volterra.us/auth/realms/*` | Staging native login |
+| `login.microsoftonline.com/*` | Azure AD login screens |
+| `login.microsoftonline.com/*/login` | Azure AD DUO redirect |
 | `api-*.duosecurity.com/frame/*` | DUO MFA challenge |
 | `login.microsoftonline.com/common/federation/*` | "Stay signed in" prompt |
-| `f5-amer-ent.console.ves.volterra.io/web/home*` | Console loaded (authenticated) |
+| `*.console.ves.volterra.io/web/home*` | Production console loaded |
+| `*.staging.volterra.us/web/home*` | Staging console loaded |
 
 ## Element Identification Strategy
 
@@ -114,18 +163,21 @@ elements using this priority:
 2. **Input type** — textbox with description containing
    "email" for username, "password" for password
 3. **Link text** — "Sign In with Azure" is a link, not a
-   button, on the Volterra login page
+   button, on the production Volterra login page
 4. **Button text** — "Next", "Sign in", "Continue", "Yes",
    "Try again"
 
 ## Key Observations from Live Testing
 
-- The Volterra login page (`login.ves.volterra.io`) hosts the
-  SSO provider selection, not `${F5XC_API_URL}/web/login`
+- Production (`*.console.ves.volterra.io`) redirects to
+  `login.ves.volterra.io` for SSO provider selection
+- Staging (`*.staging.volterra.us`) redirects to
+  `login-staging.volterra.us` for native email/password login
+- Native login uses a single form with both email and password
+  fields visible simultaneously
+- Azure SSO uses a multi-screen flow (email → password → DUO)
 - "Sign In with Azure" is a link element, not a button
-- Azure AD shows a "Verification Required" intermediate screen
-  with a "Continue" button before redirecting to DUO
+- Azure shows "Verification Required" before DUO redirect
 - DUO uses verified push (3-digit code entry) not simple push
-- The console SPA loads at `/web/home` (not `/web/workspaces`)
-  and can take 15-30 seconds for the initial render
-- The page reports as `busy` during SPA initialization
+- Console SPA loads at `/web/home` and takes 15-30 seconds
+- Page reports as `busy` during SPA initialization

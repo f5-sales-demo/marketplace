@@ -25,7 +25,8 @@ Check the following indicators in order:
 
 **Expired session (re-auth needed):**
 
-- URL contains `/web/login` or `login.ves.volterra.io`
+- URL contains `/web/login` or `login.ves.volterra.io` or
+  `login-staging.volterra.us`
 - Snapshot contains "Sign in" or "Session Expired" text
 - Modal overlay with "Sign in again" or "Your session has
   expired"

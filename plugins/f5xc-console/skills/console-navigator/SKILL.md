@@ -19,7 +19,7 @@ target page.
 
 | Variable | Required | Default | Purpose |
 | ---------- | ---------- | --------- | --------- |
-| `F5XC_API_URL` | No | `https://f5-amer-ent.console.ves.volterra.io` | Tenant URL |
+| `F5XC_API_URL` | No | `https://<tenant>.console.ves.volterra.io` | Tenant URL |
 | `F5XC_USERNAME` | No | — | Azure AD email (for auth) |
 | `F5XC_NAMESPACE` | No | — | Default namespace |
 
