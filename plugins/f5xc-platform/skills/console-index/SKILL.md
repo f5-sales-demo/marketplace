@@ -24,7 +24,7 @@ must be delegated to the `console-operator` agent:
 
 ```
 Agent(
-  subagent_type="f5xc-console:console-operator",
+  subagent_type="f5xc-platform:console-operator",
   description="<short task description>",
   prompt="<task details with env var references>"
 )

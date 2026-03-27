@@ -126,18 +126,29 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-console",
-      "description": "F5 Distributed Cloud web console automation via Chrome DevTools MCP — Azure SSO authentication, deterministic navigation, and workflow execution",
-      "version": "1.0.5",
+      "name": "f5xc-platform",
+      "description": "F5 Distributed Cloud platform automation — web console via Chrome DevTools MCP and REST API management via curl. Azure SSO authentication, deterministic navigation, API token management, and workflow execution.",
+      "version": "2.0.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-console",
+      "source": "./plugins/f5xc-platform",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-console",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-platform",
       "license": "Apache-2.0",
-      "keywords": ["console", "browser", "automation", "azure-sso", "mcp", "chrome-devtools", "f5xc"],
-      "tags": ["console", "browser", "automation", "f5xc"],
+      "keywords": [
+        "console",
+        "browser",
+        "automation",
+        "azure-sso",
+        "mcp",
+        "chrome-devtools",
+        "f5xc",
+        "api",
+        "rest",
+        "platform"
+      ],
+      "tags": ["console", "browser", "automation", "f5xc", "api", "platform"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]

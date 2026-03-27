@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-console** renamed to **f5xc-platform** v2.0.0 — now covers both web console UI automation and REST API management with separate agents for each domain
+
 - **f5xc-console** bumped to v1.0.5
 
 - **f5xc-console** bumped to v1.0.4

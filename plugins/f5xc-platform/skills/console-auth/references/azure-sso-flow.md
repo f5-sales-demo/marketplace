@@ -177,7 +177,7 @@ elements using this priority:
 
 ## Subagent Validation Results (2026-03-26)
 
-Validated via `f5xc-console:console-operator` subagent:
+Validated via `f5xc-platform:console-operator` subagent:
 
 ### Path N — Native Login
 

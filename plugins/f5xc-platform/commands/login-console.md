@@ -13,7 +13,7 @@ Spawn the console-operator agent with:
 
 ```
 Agent(
-  subagent_type="f5xc-console:console-operator",
+  subagent_type="f5xc-platform:console-operator",
   description="Authenticate to F5 XC console",
   prompt="Authenticate to the F5 Distributed Cloud console.\n\n
     Tenant URL: ${F5XC_API_URL} (or $ARGUMENTS if provided)\n

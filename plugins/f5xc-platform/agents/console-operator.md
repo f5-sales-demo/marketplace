@@ -41,13 +41,13 @@ When given a task, first read the relevant reference files
 from the plugin's skills directory:
 
 - **Authentication**: Read
-  `plugins/f5xc-console/skills/console-auth/SKILL.md` and
-  `plugins/f5xc-console/skills/console-auth/references/azure-sso-flow.md`
+  `plugins/f5xc-platform/skills/console-auth/SKILL.md` and
+  `plugins/f5xc-platform/skills/console-auth/references/azure-sso-flow.md`
 - **Navigation**: Read
-  `plugins/f5xc-console/skills/console-navigator/SKILL.md` and
-  `plugins/f5xc-console/skills/console-navigator/references/url-patterns.md`
+  `plugins/f5xc-platform/skills/console-navigator/SKILL.md` and
+  `plugins/f5xc-platform/skills/console-navigator/references/url-patterns.md`
 - **Session check**: Read
-  `plugins/f5xc-console/skills/console-auth/references/session-detection.md`
+  `plugins/f5xc-platform/skills/console-auth/references/session-detection.md`
 
 These files contain the exact MCP tool sequences, detection
 logic, and error handling for each operation.
