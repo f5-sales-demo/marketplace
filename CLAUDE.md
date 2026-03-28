@@ -13,7 +13,6 @@ Never run `git commit`, `git push`, `gh pr create` directly.
 ```
 Agent(
   subagent_type="f5xc-github-ops:github-ops",
-  mode="bypassPermissions",
   prompt="<type>: <desc>\n\nFiles:\n- <list>\n\nWhy: <reason>"
 )
 ```
