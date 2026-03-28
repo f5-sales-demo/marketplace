@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-devcontainer** bumped to v1.1.4
+
 - **f5xc-github-ops** bumped to v2.1.3
 
 - **f5xc-github-ops** bumped to v2.1.2

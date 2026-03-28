@@ -4,25 +4,25 @@
 
 ## prettier
 
-- **Package**: `prettier` via npm
+- **Package**: `prettier` (pre-installed binary at `/usr/bin/prettier`)
 - **Purpose**: Opinionated code formatter for JS, TS, CSS, HTML, JSON, YAML, Markdown, and more
 - **Use when**: Enforcing consistent formatting across a project, running in CI or pre-commit hooks
 - **Quick start**:
-  - `npx prettier --check .`
-  - `npx prettier --write "src/**/*.ts"`
-  - `npx prettier --write "*.{json,yaml,md}"`
+  - `prettier --check .`
+  - `prettier --write "src/**/*.ts"`
+  - `prettier --write "*.{json,yaml,md}"`
 - **Auth**: None
 - **Docs**: <https://prettier.io/docs/en/>
 
 ## biome
 
-- **Package**: `@biomejs/biome` via npm
+- **Package**: `biome` (pre-installed binary at `/usr/bin/biome`)
 - **Purpose**: Extremely fast JS/TS formatter and linter (Rust-based Prettier/ESLint alternative)
 - **Use when**: Wanting a single tool for formatting and linting JS/TS with near-instant execution
 - **Quick start**:
-  - `npx @biomejs/biome check .`
-  - `npx @biomejs/biome format --write .`
-  - `npx @biomejs/biome lint .`
+  - `biome check .`
+  - `biome format --write .`
+  - `biome lint .`
 - **Auth**: None
 - **Docs**: <https://biomejs.dev/reference/cli/>
 
@@ -40,13 +40,13 @@
 
 ## jscpd
 
-- **Package**: `jscpd` via npm
+- **Package**: `jscpd` (pre-installed binary at `/usr/bin/jscpd`)
 - **Purpose**: Copy/paste detection across 150+ languages
 - **Use when**: Finding duplicated code blocks, enforcing DRY principles in CI
 - **Quick start**:
-  - `npx jscpd src/`
-  - `npx jscpd --min-lines 5 --min-tokens 50 .`
-  - `npx jscpd --reporters html --output report/`
+  - `jscpd src/`
+  - `jscpd --min-lines 5 --min-tokens 50 .`
+  - `jscpd --reporters html --output report/`
 - **Auth**: None
 - **Docs**: <https://github.com/kucherenko/jscpd>
 
