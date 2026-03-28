@@ -29,11 +29,17 @@ pre-commit.
 
 ## How to Delegate
 
-After making code changes, spawn the agent:
+After making code changes, spawn the agent with `mode: bypassPermissions`.
+This is required because the agent executes a multi-step Git workflow
+(issue, branch, commit, push, PR, CI poll, merge) that requires
+uninterrupted Bash access. Without bypass mode, plan mode can re-engage
+mid-workflow and strip Bash access, leaving the agent stuck after
+completing only the first step.
 
 ```
 Agent(
   subagent_type="f5xc-github-ops:github-ops",
+  mode="bypassPermissions",
   prompt="<type>: <description>\n\nFiles:\n- <file-list>\n\nWhy: <motivation>"
 )
 ```

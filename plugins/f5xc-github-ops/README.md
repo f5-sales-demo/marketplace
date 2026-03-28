@@ -71,9 +71,15 @@ or `Write`)
 ```
 Agent(
   subagent_type="f5xc-github-ops:github-ops",
+  mode="bypassPermissions",
   prompt="<type>: <description>\n\nFiles to stage:\n- <file-list>\n\nWhy: <motivation>"
 )
 ```
+
+> `mode: bypassPermissions` is required — the agent
+> executes a multi-step workflow that needs uninterrupted
+> Bash access. Without it, plan mode can re-engage
+> mid-workflow and block execution.
 
 ## Installation
 
