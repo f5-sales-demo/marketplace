@@ -34,7 +34,10 @@ jobs:
           MARKETPLACE=".claude-plugin/marketplace.json"
 
           # Get previous marketplace.json (may not exist for first commit)
-          PREV_MARKETPLACE=$(git show HEAD~1:"$MARKETPLACE" 2>/dev/null || echo '{"plugins":[]}')
+          PREV_MARKETPLACE=$(
+            git show HEAD~1:"$MARKETPLACE" 2>/dev/null \
+              || echo '{"plugins":[]}'
+          )
 
           PLUGIN_COUNT=$(jq '.plugins | length' "$MARKETPLACE")
 
@@ -58,10 +61,16 @@ jobs:
             fi
 
             # Extract release notes from CHANGELOG.md
-            # Look for lines mentioning this plugin in the Unreleased or latest section
+            # Look for lines mentioning this plugin
+            # in the Unreleased or latest section
             BODY=""
             if [[ -f CHANGELOG.md ]]; then
-              BODY=$(sed -n '/^## \[/,/^## \[/{//!p}' CHANGELOG.md | head -20 | grep -i "$NAME" || true)
+              BODY=$(
+                sed -n '/^## \[/,/^## \[/{//!p}' \
+                  CHANGELOG.md \
+                  | head -20 \
+                  | grep -i "$NAME" || true
+              )
             fi
 
             if [[ -z "$BODY" ]]; then
