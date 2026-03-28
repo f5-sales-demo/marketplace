@@ -43,7 +43,7 @@
     {
       "name": "f5xc-github-ops",
       "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, and autonomous workflow operations agent",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "author": {
         "name": "f5xc-salesdemos"
       },

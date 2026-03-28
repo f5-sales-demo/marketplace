@@ -441,6 +441,255 @@ curl -sf "https://f5xc-salesdemos.github.io/${REPO}/" \
   && echo "OK" || echo "FAIL"
 ```
 
+## GitHub Repository Settings API Reference
+
+When asked to read or change repository settings, use these `gh api`
+endpoints directly. Each section shows the endpoint, HTTP method, and
+the JSON shape for both reading and writing.
+
+**Convention**: Always read the current value first, compare to the
+desired value, and only write if there is drift. Report each field
+checked and whether it changed.
+
+**Retry**: Wrap mutative calls in a retry loop (3 attempts, exponential
+backoff). Pause 1 second between consecutive mutative API calls.
+
+### Repository Settings
+
+Read current settings:
+
+```
+gh api repos/{owner}/{repo} --jq '{
+  private: .private,
+  has_issues: .has_issues,
+  has_projects: .has_projects,
+  has_wiki: .has_wiki,
+  is_template: .is_template,
+  allow_squash_merge: .allow_squash_merge,
+  allow_merge_commit: .allow_merge_commit,
+  allow_rebase_merge: .allow_rebase_merge,
+  allow_auto_merge: .allow_auto_merge,
+  delete_branch_on_merge: .delete_branch_on_merge,
+  allow_update_branch: .allow_update_branch,
+  web_commit_signoff_required: .web_commit_signoff_required,
+  squash_merge_commit_title: .squash_merge_commit_title,
+  squash_merge_commit_message: .squash_merge_commit_message,
+  merge_commit_title: .merge_commit_title,
+  merge_commit_message: .merge_commit_message,
+  homepage: .homepage
+}'
+```
+
+Patch only the fields that differ:
+
+```
+echo '<JSON_PATCH>' | gh api repos/{owner}/{repo} --method PATCH --input -
+```
+
+Settable fields and their types:
+
+| Field | Type | Values |
+| ----- | ---- | ------ |
+| `private` | bool | `true`, `false` |
+| `has_issues` | bool | `true`, `false` |
+| `has_projects` | bool | `true`, `false` |
+| `has_wiki` | bool | `true`, `false` |
+| `is_template` | bool | `true`, `false` |
+| `allow_squash_merge` | bool | `true`, `false` |
+| `allow_merge_commit` | bool | `true`, `false` |
+| `allow_rebase_merge` | bool | `true`, `false` |
+| `allow_auto_merge` | bool | `true`, `false` |
+| `delete_branch_on_merge` | bool | `true`, `false` |
+| `allow_update_branch` | bool | `true`, `false` |
+| `web_commit_signoff_required` | bool | `true`, `false` |
+| `squash_merge_commit_title` | string | `PR_TITLE`, `COMMIT_OR_PR_TITLE` |
+| `squash_merge_commit_message` | string | `PR_BODY`, `COMMIT_MESSAGES`, `BLANK` |
+| `merge_commit_title` | string | `PR_TITLE`, `MERGE_MESSAGE` |
+| `merge_commit_message` | string | `PR_TITLE`, `PR_BODY`, `BLANK` |
+| `homepage` | string | URL or `""` |
+| `description` | string | free text |
+
+### Actions Workflow Permissions
+
+Read:
+
+```
+gh api repos/{owner}/{repo}/actions/permissions/workflow
+```
+
+Write (PUT replaces all values):
+
+```
+echo '{"default_workflow_permissions":"write","can_approve_pull_request_reviews":true}' \
+  | gh api repos/{owner}/{repo}/actions/permissions/workflow --method PUT --input -
+```
+
+| Field | Type | Values |
+| ----- | ---- | ------ |
+| `default_workflow_permissions` | string | `read`, `write` |
+| `can_approve_pull_request_reviews` | bool | `true`, `false` |
+
+### Branch Protection
+
+Read (returns 404 if no protection exists):
+
+```
+gh api repos/{owner}/{repo}/branches/{branch}/protection
+```
+
+Write (PUT replaces the entire protection rule):
+
+```
+echo '<JSON>' | gh api repos/{owner}/{repo}/branches/{branch}/protection \
+  --method PUT --input -
+```
+
+Full JSON shape for PUT:
+
+```json
+{
+  "enforce_admins": true,
+  "required_status_checks": {
+    "strict": false,
+    "contexts": ["check-name-1", "check-name-2"]
+  },
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1,
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false,
+    "require_last_push_approval": false
+  },
+  "restrictions": null,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "block_creations": false,
+  "required_conversation_resolution": false,
+  "lock_branch": false,
+  "allow_fork_syncing": false
+}
+```
+
+Notes on the PUT shape:
+
+- `required_status_checks` — set to `null` to remove. `contexts` is
+  the list of required check names. `strict` means "require branch
+  to be up-to-date before merging".
+- `required_pull_request_reviews` — set to `null` to disable review
+  requirements entirely. Each sub-field is independent.
+- `restrictions` — set to `null` for no push restrictions. To
+  restrict, use `{"users":[],"teams":[],"apps":[]}`.
+- Boolean flags (`required_linear_history`, `allow_force_pushes`,
+  etc.) — the API returns them as `{"enabled": true}` on GET but
+  accepts plain booleans on PUT.
+- `enforce_admins` — the API returns `{"enabled": true}` on GET but
+  accepts a plain boolean on PUT.
+
+Reading individual protection fields for comparison:
+
+```
+# enforce_admins (GET returns nested, compare .enforce_admins.enabled)
+gh api repos/{owner}/{repo}/branches/{branch}/protection \
+  --jq '.enforce_admins.enabled'
+
+# required_status_checks (GET returns .contexts as array)
+gh api repos/{owner}/{repo}/branches/{branch}/protection \
+  --jq '.required_status_checks | {strict, contexts: (.contexts | sort)}'
+
+# required_pull_request_reviews
+gh api repos/{owner}/{repo}/branches/{branch}/protection \
+  --jq '.required_pull_request_reviews | {
+    required_approving_review_count,
+    dismiss_stale_reviews,
+    require_code_owner_reviews,
+    require_last_push_approval
+  }'
+
+# Boolean flags (GET returns .flag.enabled)
+gh api repos/{owner}/{repo}/branches/{branch}/protection \
+  --jq '{
+    required_linear_history: .required_linear_history.enabled,
+    allow_force_pushes: .allow_force_pushes.enabled,
+    allow_deletions: .allow_deletions.enabled,
+    block_creations: .block_creations.enabled,
+    required_conversation_resolution: .required_conversation_resolution.enabled,
+    lock_branch: .lock_branch.enabled,
+    allow_fork_syncing: .allow_fork_syncing.enabled
+  }'
+```
+
+### Topics
+
+Read:
+
+```
+gh api repos/{owner}/{repo}/topics --jq '.names'
+```
+
+Write (PUT replaces all topics):
+
+```
+echo '{"names":["topic-1","topic-2"]}' \
+  | gh api repos/{owner}/{repo}/topics --method PUT --input -
+```
+
+### GitHub Pages
+
+Read (returns 404 if Pages not enabled):
+
+```
+gh api repos/{owner}/{repo}/pages \
+  --jq '{build_type: .build_type, source: .source, status: .status, url: .html_url}'
+```
+
+Enable Pages (POST — use when GET returns 404):
+
+```
+echo '{"build_type":"workflow","source":{"branch":"main","path":"/"}}' \
+  | gh api repos/{owner}/{repo}/pages --method POST --input -
+```
+
+Update Pages (PUT — use when Pages exists but config differs):
+
+```
+echo '{"build_type":"workflow","source":{"branch":"main","path":"/"}}' \
+  | gh api repos/{owner}/{repo}/pages --method PUT --input -
+```
+
+| Field | Type | Values |
+| ----- | ---- | ------ |
+| `build_type` | string | `workflow`, `legacy` |
+| `source.branch` | string | branch name |
+| `source.path` | string | `/` or `/docs` |
+
+Check latest Pages build status:
+
+```
+gh api repos/{owner}/{repo}/pages/builds/latest \
+  --jq '{status: .status, error: .error.message}'
+```
+
+### File Contents (read remote config files)
+
+```
+gh api repos/{owner}/{repo}/contents/{path} --jq '.content' | base64 -d
+```
+
+Returns the raw file content after base64 decoding. Useful for
+reading configuration files from other repositories.
+
+### Drift Detection Pattern
+
+When applying settings, always follow this pattern:
+
+1. **Read** current state via GET
+2. **Compare** each field to desired state
+3. **Report** drift per field: `current=X desired=Y`
+4. **Write** only if drift exists — PATCH for repo settings
+   (partial update), PUT for branch protection / topics / pages
+   (full replacement)
+5. **Verify** by reading again after write and confirming match
+
 ## Output Contract
 
 Always return a structured report with these sections:
