@@ -1,6 +1,16 @@
 ---
 name: container-introspector
-description: Performs live container introspection via GitHub API and local metadata — identity, genealogy, self-diagnosis, contributor history, and build lineage
+description: >-
+  Performs live container introspection via GitHub API and local
+  metadata — identity, genealogy, self-diagnosis, contributor history,
+  and build lineage.
+  GitHub operations are STRICTLY READ-ONLY — uses `gh api` GET requests
+  against f5xc-salesdemos/devcontainer to fetch commits, PRs, issues,
+  and contributors. Does NOT create issues, branches, commits, PRs,
+  or perform any mutative GitHub operations.
+  All mutative Git/GitHub operations are the exclusive responsibility
+  of f5xc-github-ops:github-ops.
+disallowedTools: Write, Edit, Agent
 tools:
   - Read
   - Bash

@@ -1,13 +1,33 @@
 {
   "name": "f5xc-github-ops",
-  "description": "GitHub operations automation for f5xc-salesdemos — issue-driven development, pre-commit lint gate, PR lifecycle, CI polling with error feedback to issues, post-merge monitoring, verification, rate limit management, and exclusive github-ops agent for all Git operations",
-  "version": "2.0.2",
+  "description": "GitHub operations automation for f5xc-salesdemos — issue-driven development, pre-commit lint gate, PR lifecycle, CI polling with error feedback to issues, post-merge monitoring, verification, rate limit management, and exclusive github-ops agent for all Git operations. Covers commit, push, branch, merge, squash, pull request, issue creation, and repository settings.",
+  "version": "2.1.2",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"
   },
   "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-github-ops",
-  "keywords": ["github-ops", "workflow", "pr", "ci", "rate-limit", "github"],
+  "keywords": [
+    "github-ops",
+    "github",
+    "git",
+    "commit",
+    "push",
+    "branch",
+    "merge",
+    "squash",
+    "pull-request",
+    "pr",
+    "issue",
+    "ci",
+    "workflow",
+    "pre-commit",
+    "lint",
+    "rate-limit",
+    "post-merge",
+    "repo-settings",
+    "branch-protection"
+  ],
   "license": "Apache-2.0",
   "repository": "https://github.com/f5xc-salesdemos/marketplace"
 }

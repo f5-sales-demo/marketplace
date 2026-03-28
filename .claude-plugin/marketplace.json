@@ -28,7 +28,7 @@
     {
       "name": "f5xc-sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -43,7 +43,7 @@
     {
       "name": "f5xc-github-ops",
       "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, and autonomous workflow operations agent",
-      "version": "2.0.2",
+      "version": "2.1.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -113,7 +113,7 @@
     {
       "name": "f5xc-devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "author": {
         "name": "f5xc-salesdemos"
       },

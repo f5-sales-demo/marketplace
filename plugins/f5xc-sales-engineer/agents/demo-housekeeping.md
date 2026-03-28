@@ -1,6 +1,14 @@
 ---
 name: demo-housekeeping
-description: Autonomous agent for demo Prepare (pre-meeting verification/cleanup) and Teardown (post-meeting deletion) stages
+description: >-
+  Autonomous agent for demo Prepare (pre-meeting verification/cleanup)
+  and Teardown (post-meeting deletion) stages.
+  Git operations are STRICTLY SCOPED to `git pull --ff-only` for
+  fetching latest documentation before demos.
+  Does NOT commit, push, create branches, create issues, create PRs,
+  merge, or perform any mutative GitHub operations. All mutative
+  Git/GitHub operations are the exclusive responsibility of
+  f5xc-github-ops:github-ops.
 tools:
   - Read
   - Bash

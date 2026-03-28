@@ -1,6 +1,15 @@
 ---
 name: tool-auditor
-description: Audits the devcontainer Dockerfile against the tool catalog reference files to detect drift — tools added but not cataloged, or catalog entries for removed tools
+description: >-
+  Audits the devcontainer Dockerfile against the tool catalog reference
+  files to detect drift — tools added but not cataloged, or catalog
+  entries for removed tools.
+  GitHub operations are STRICTLY READ-ONLY — may clone
+  f5xc-salesdemos/devcontainer to /tmp for Dockerfile comparison only.
+  Does NOT create issues, branches, commits, PRs, or perform any
+  mutative GitHub operations. All mutative Git/GitHub operations are
+  the exclusive responsibility of f5xc-github-ops:github-ops.
+disallowedTools: Write, Edit, Agent
 tools:
   - Read
   - Bash

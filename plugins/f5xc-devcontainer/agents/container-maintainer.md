@@ -1,6 +1,15 @@
 ---
 name: container-maintainer
-description: Installs, removes, searches, and updates CLI tools in the running container using correct package manager patterns, then files GitHub issues for persistence
+description: >-
+  Installs, removes, searches, and updates CLI tools in the running
+  container using correct package manager patterns, then files GitHub
+  issues for persistence.
+  GitHub operations are STRICTLY SCOPED to `gh issue create` against
+  the f5xc-salesdemos/devcontainer repository only — for logging tool
+  install/remove changes as Dockerfile persistence requests.
+  Does NOT commit, push, create branches, create PRs, merge, poll CI,
+  or perform any Git workflow operations. All Git workflow operations
+  are the exclusive responsibility of f5xc-github-ops:github-ops.
 tools:
   - Read
   - Write

@@ -1,11 +1,22 @@
 ---
 name: workflow-lifecycle
 description: >-
-  Repository governance workflow for f5xc-salesdemos — issue creation, branch
-  naming, PR workflow, CI polling, post-merge monitoring, verification, and
-  task completion criteria. Use when starting a new task, creating a PR,
-  merging a PR, monitoring CI, verifying outcomes, or checking rate limits.
-  Also activates when encountering HTTP 403/429 from the GitHub API.
+  Repository governance workflow for f5xc-salesdemos — issue creation,
+  branch naming, PR workflow, CI polling, post-merge monitoring,
+  verification, and task completion criteria.
+  Use when the user says "commit", "push", "create a pr", "open a pr",
+  "merge", "check ci", "poll ci", "create an issue", "create a branch",
+  "start a new task", "land these changes", "ship it", "submit for review",
+  "monitor ci", "check the build", "run pre-commit", "lint gate",
+  "push changes", "open a pull request", "squash merge", or
+  "check rate limit".
+  Also activates when any code-change workflow requires Git operations,
+  when the main session has finished editing files and needs to commit,
+  or when encountering HTTP 403/429 from the GitHub API.
+  Does NOT handle code editing, file creation, file modification,
+  test writing, debugging, or any non-Git operation. Does NOT fix
+  lint or CI failures — it reports them and stops.
+  All operations are delegated to the github-ops subagent.
 user-invocable: false
 ---
 
@@ -40,7 +51,7 @@ statuses:
 | Status | Meaning | Your Action |
 | ------ | ------- | ----------- |
 | `COMPLETE` | PR merged, post-merge passed, cleanup done | Task is done |
-| `PRE_COMMIT_FAILED` | Lint gate failed before commit | Fix lint errors, re-delegate with same files |
+| `PRE_COMMIT_FAILED` | Lint gate failed before commit | Fix linting errors, re-delegate with same files |
 | `CI_FAILED` | CI checks failed after push | Fix CI errors, re-delegate with `Issue:` and `Branch:` to reuse existing PR |
 | `BLOCKED` | Rate limit, missing CLI, or missing config | Resolve blocker, then re-delegate |
 | `FAILED` | Unrecoverable error (merge conflict, etc.) | Read error details, resolve manually |
