@@ -63,16 +63,35 @@ gh auth status
 If this fails or does not show "Logged in", return `BLOCKED`.
 Token expiry mid-operation causes cryptic failures — catch it early.
 
-### 2. Remove Stale Git Lockfiles
+### 2. Detect Worktree
+
+Check if this session is running inside a Git worktree:
 
 ```
-[ -f .git/index.lock ] && rm -f .git/index.lock
+git rev-parse --is-inside-work-tree >/dev/null 2>&1
+IS_WORKTREE=$(git rev-parse --git-common-dir 2>/dev/null)
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+```
+
+If `$GIT_DIR` differs from `$IS_WORKTREE`, you are in a worktree.
+In worktrees, `.git` is a pointer file, not a directory. Use
+`git rev-parse --git-path <path>` to resolve git-internal paths
+(e.g., `git rev-parse --git-path hooks/pre-commit` instead of
+`.git/hooks/pre-commit`).
+
+Note this in the operations table so the caller knows the context.
+
+### 3. Remove Stale Git Lockfiles
+
+```
+LOCK_FILE=$(git rev-parse --git-path index.lock 2>/dev/null)
+[ -f "$LOCK_FILE" ] && rm -f "$LOCK_FILE"
 ```
 
 Crashed Git processes leave lockfiles that block all subsequent
 Git operations. Safe to remove if no Git process is currently running.
 
-### 3. Verify Clean Working Tree
+### 4. Verify Clean Working Tree
 
 ```
 git status --porcelain
@@ -81,7 +100,7 @@ git status --porcelain
 If output is non-empty, return `BLOCKED` with the dirty file list.
 Never silently discard uncommitted changes.
 
-### 4. Verify Not in Detached HEAD
+### 5. Verify Not in Detached HEAD
 
 ```
 git symbolic-ref --short HEAD
@@ -90,18 +109,26 @@ git symbolic-ref --short HEAD
 If this fails (exit code 128), the repo is in detached HEAD state.
 Return `BLOCKED` — branch operations will fail or create orphans.
 
-### 5. Check for In-Progress Rebase or Merge
+### 6. Check for In-Progress Rebase or Merge
 
-If `.git/rebase-merge/`, `.git/rebase-apply/`, or `.git/MERGE_HEAD`
-exists, a previous operation was interrupted. Return `BLOCKED` —
-the caller must resolve the interrupted operation first.
+Use `git rev-parse --git-path` to resolve paths (worktree-safe):
 
-### 6. Read Governance Rules
+```
+REBASE_MERGE=$(git rev-parse --git-path rebase-merge 2>/dev/null)
+REBASE_APPLY=$(git rev-parse --git-path rebase-apply 2>/dev/null)
+MERGE_HEAD=$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)
+```
+
+If any of these paths exist, a previous operation was interrupted.
+Return `BLOCKED` — the caller must resolve the interrupted
+operation first.
+
+### 7. Read Governance Rules
 
 Read `CONTRIBUTING.md` from the repository root — extract
 governance rules, branch naming, PR template requirements.
 
-### 7. Rate Limit Check
+### 8. Rate Limit Check
 
 ```
 gh api rate_limit --jq '{
@@ -161,6 +188,29 @@ Optional fields:
 If the prompt is missing required information, return a report
 requesting the missing details. Do not guess.
 
+## Hard Invariants
+
+These invariants are non-negotiable. Violating any of them is a
+protocol failure. Check them at every decision point.
+
+1. **ISSUE_NUMBER must exist before any Git operation.** After Step 1
+   completes, you must have a valid integer issue number — either
+   provided in the input or captured from `gh issue create` output.
+   If you do not have an issue number, **HALT immediately** and return
+   `Status: FAILED` with reason `ISSUE_CREATION_REQUIRED`. Do not
+   proceed to Step 2 or any subsequent step.
+
+2. **ISSUE_NUMBER must be verified before PR creation.** Before
+   executing Step 6 (Push and Create PR), confirm the issue number
+   is a valid positive integer and the issue exists on GitHub. If
+   validation fails, **HALT immediately** and return `Status: FAILED`
+   with reason `ISSUE_VALIDATION_FAILED`.
+
+3. **Every PR body must contain a `Closes #N` reference.** Never
+   create a PR with a placeholder, empty, or malformed issue
+   reference. If the issue number is missing or invalid at PR
+   creation time, **HALT** — do not create the PR.
+
 ## Execution Protocol
 
 Execute these steps in order. Run autonomously — do not stop for
@@ -169,14 +219,32 @@ operator approval.
 
 ### Step 1: Create GitHub Issue
 
-Skip if an issue number was provided in the input.
+If an issue number was provided in the input, validate it exists:
+
+```
+gh issue view <ISSUE-NUMBER> --json number --jq '.number'
+```
+
+If the issue does not exist (command fails or returns empty),
+**HALT immediately** — return `Status: FAILED` with reason
+`ISSUE_NOT_FOUND: #<ISSUE-NUMBER> does not exist`. Do not proceed.
+
+If no issue number was provided, create one:
 
 ```
 gh issue create --title "<type>: <short description>" \
   --body "<detailed description of the changes and why>"
 ```
 
-Capture the issue number from the output.
+Capture the issue number from the output. If `gh issue create`
+fails (non-zero exit code or no issue number in output), **HALT
+immediately** — return `Status: FAILED` with reason
+`ISSUE_CREATION_FAILED` and include the full command output.
+Do not proceed to Step 2.
+
+**Gate check**: At this point you MUST have a valid integer issue
+number stored. If you do not, STOP. This is a hard requirement —
+every subsequent step depends on the issue number.
 
 ### Step 2: Sync and Branch
 
@@ -244,6 +312,23 @@ Closes #<issue-number>"
 ```
 
 ### Step 6: Push and Create PR
+
+**Pre-PR validation gate** — before pushing or creating a PR,
+verify the issue number:
+
+1. Confirm the issue number variable is a valid positive integer
+   (not empty, not a placeholder, not zero).
+2. Verify the issue still exists on GitHub:
+
+```
+gh issue view <ISSUE-NUMBER> --json number,state --jq '"\(.number) \(.state)"'
+```
+
+If this command fails or returns empty, **HALT immediately** —
+return `Status: FAILED` with reason `ISSUE_VALIDATION_FAILED`.
+Do not push. Do not create a PR.
+
+Only after this check passes, proceed with the push:
 
 ```
 git push -u origin <branch-name>
@@ -715,11 +800,21 @@ When applying settings, always follow this pattern:
 
 Always return a structured report with these sections:
 
-1. **Status** — one of: `COMPLETE`, `PRE_COMMIT_FAILED`, `CI_FAILED`, `FAILED`, `BLOCKED`
+1. **Status** — one of: `COMPLETE`, `PRE_COMMIT_FAILED`, `CI_FAILED`, `FAILED`, `BLOCKED`, `REVIEW_NEEDED`
 2. **Operations table** — each step with result and details
 3. **Issue/PR/SHA links** — numbers and URLs
 4. **Errors** — full output for the caller to act on (if any)
 5. **Warnings** — non-blocking issues (if any)
+6. **Failure reasons** (included when Status is `FAILED`):
+   - `ISSUE_CREATION_REQUIRED` — no issue number available and creation was not attempted
+   - `ISSUE_CREATION_FAILED` — `gh issue create` returned a non-zero exit code
+   - `ISSUE_NOT_FOUND` — a provided issue number does not exist on GitHub
+   - `ISSUE_VALIDATION_FAILED` — the issue number could not be verified before PR creation
+   - `NOT_A_FORK` — the current repository is not a GitHub fork
+   - `UPSTREAM_ISSUE_CREATION_FAILED` — could not create issue in the upstream repo
+   - `UPSTREAM_ISSUE_NOT_FOUND` — a provided upstream issue number does not exist
+   - `UPSTREAM_PR_CREATION_FAILED` — could not create PR in the upstream repo
+   - `UPSTREAM_PR_NOT_FOUND` — a provided upstream PR number does not exist
 
 ## Execution Rules
 
@@ -743,3 +838,369 @@ Always return a structured report with these sections:
   response, and which step failed. Set status appropriately and stop.
 - **No audience interaction** — never narrate, present, or engage
   in conversational behavior
+
+## Upstream Contribution Protocol
+
+This protocol handles contributing code from a GitHub fork to the
+upstream (parent) repository. It is invoked by the
+`upstream-contribution` skill — never directly by the user.
+
+The protocol recognizes these prompt prefixes:
+
+| Prefix | Phase | Steps executed |
+| ------ | ----- | -------------- |
+| `upstream-research:` | Research | Fork detection + U0 |
+| `upstream-contribute:` | Contribute | U1 + U2 + U3 + U4 |
+| `upstream-status:` | Track | U5 |
+| `upstream-resolve:` | Resolve | U6 |
+
+### Fork Detection
+
+Before any upstream operation, verify the current repository is
+a GitHub fork:
+
+```
+FORK_INFO=$(gh api repos/{owner}/{repo} --jq '{
+  fork: .fork,
+  parent: .parent.full_name,
+  source: .source.full_name,
+  default_branch: .parent.default_branch
+}')
+```
+
+If `.fork` is false, **HALT immediately** — return `Status: FAILED`
+with reason `NOT_A_FORK`. Do not proceed with any upstream step.
+
+Extract the upstream repository name from `.parent.full_name` and
+the upstream default branch from `.parent.default_branch`. These
+are used in all subsequent steps.
+
+### Step U0: Upstream Research
+
+Run ALL six checks before any issue or PR creation. Do not skip
+any check.
+
+**1. Search upstream issues (open + closed):**
+
+```
+gh search issues --repo {upstream} "<keywords>" --state all --limit 20 \
+  --json number,title,state,url --jq '.[]'
+```
+
+**2. Search upstream PRs (open + closed + draft):**
+
+```
+gh search prs --repo {upstream} "<keywords>" --state all --limit 20 \
+  --json number,title,state,url --jq '.[]'
+```
+
+**3. Read upstream CONTRIBUTING.md:**
+
+```
+gh api repos/{upstream}/contents/CONTRIBUTING.md --jq '.content' | base64 -d
+```
+
+If the file does not exist (404), note this in the report and
+continue. Extract from the file:
+
+- CLA or DCO requirements
+- Branch naming conventions
+- PR template requirements and required sections
+- Commit message conventions
+- Any automated review or CI requirements mentioned
+
+**4. Check upstream CI/automation workflows:**
+
+```
+gh api repos/{upstream}/actions/workflows --jq '.workflows[] | {name, state}'
+```
+
+**5. Check for upstream issue templates:**
+
+```
+gh api repos/{upstream}/contents/.github/ISSUE_TEMPLATE --jq '.[].name' 2>/dev/null
+```
+
+If templates exist, read the most relevant one for use in Step U1.
+
+**6. Check for upstream PR templates:**
+
+```
+gh api repos/{upstream}/contents/.github/pull_request_template.md \
+  --jq '.content' | base64 -d 2>/dev/null
+```
+
+If a template exists, note its structure for use in Step U2.
+
+**Produce a Research Report** with these sections:
+
+1. **Fork info** — parent repo, source repo, default branch
+2. **Duplicate risk** — list of similar issues/PRs found upstream
+   with number, title, state, and URL
+3. **Contribution requirements** — extracted from CONTRIBUTING.md
+4. **Issue template** — available templates and recommended one
+5. **PR template** — structure requirements
+6. **CI expectations** — list of workflows that will run
+7. **Go/no-go recommendation:**
+   - `PROCEED` — no blocking duplicates found
+   - `REVIEW_NEEDED` — similar work exists upstream
+
+If recommendation is `REVIEW_NEEDED`, return `Status: REVIEW_NEEDED`
+with the full research report. The caller decides whether to proceed.
+
+If recommendation is `PROCEED`, return `Status: COMPLETE` with the
+full research report.
+
+### Step U1: Create Upstream Issue
+
+Skip if `Upstream-Issue:` was provided in the input. If provided,
+validate it exists:
+
+```
+gh issue view {number} --repo {upstream} --json number --jq '.number'
+```
+
+If the issue does not exist, **HALT** with `UPSTREAM_ISSUE_NOT_FOUND`.
+
+If no upstream issue was provided, create one:
+
+- If issue templates were found in U0, follow the most relevant
+  template's structure
+- Title follows the upstream's conventional format (extracted from
+  CONTRIBUTING.md or inferred from existing issue titles)
+- Body includes: what the change does, why, and a reference to the
+  fork's local work
+
+```
+gh issue create --repo {upstream} \
+  --title "<title following upstream conventions>" \
+  --body "<body following upstream template or standard format>"
+```
+
+Capture the upstream issue number. If creation fails, **HALT**
+with `UPSTREAM_ISSUE_CREATION_FAILED`.
+
+**Gate check**: You MUST have a valid upstream issue number before
+proceeding to Step U2.
+
+### Step U2: Create Upstream PR from Fork
+
+Skip if `Upstream-PR:` was provided in the input. If provided,
+validate it exists:
+
+```
+gh pr view {number} --repo {upstream} --json number --jq '.number'
+```
+
+If the PR does not exist, **HALT** with `UPSTREAM_PR_NOT_FOUND`.
+
+If no upstream PR was provided:
+
+1. Ensure the local branch is pushed to the fork's origin:
+
+```
+git push -u origin {branch-name}
+```
+
+2. Check for existing PR from this branch:
+
+```
+gh pr list --repo {upstream} --head {fork-owner}:{branch} \
+  --json number --jq '.[0].number'
+```
+
+If a PR already exists, use it (idempotent re-invocation).
+
+3. If no PR exists, create one:
+
+```
+gh pr create --repo {upstream} \
+  --head {fork-owner}:{branch} \
+  --base {upstream-default-branch} \
+  --title "<type>: <description>" \
+  --body "$(cat <<'EOF'
+<PR body following upstream template if available>
+
+Closes {upstream-owner}/{upstream-repo}#<upstream-issue-number>
+EOF
+)"
+```
+
+Capture the upstream PR number. If creation fails, **HALT** with
+`UPSTREAM_PR_CREATION_FAILED`.
+
+### Step U3: Create Local Tracking Issue
+
+Create a tracking issue in the fork repo (NOT the upstream):
+
+```
+gh issue create \
+  --title "upstream: tracking {upstream-owner}/{upstream-repo}#<upstream-issue-number>" \
+  --body "$(cat <<'EOF'
+## Upstream Contribution Tracker
+
+- **Upstream Issue:** {upstream-owner}/{upstream-repo}#<upstream-issue-number>
+- **Upstream PR:** {upstream-owner}/{upstream-repo}#<upstream-pr-number>
+- **Status:** Submitted
+- **Local branch:** <branch-name>
+- **Date submitted:** <YYYY-MM-DD>
+
+This issue tracks the lifecycle of an upstream contribution.
+It remains open until the upstream PR is merged or rejected.
+
+---
+
+**Do NOT close this issue when merging local PRs.** This issue
+tracks upstream status, not local work.
+EOF
+)"
+```
+
+Capture the local tracking issue number.
+
+**Critical:** This issue MUST NOT contain `Closes` references to
+any local PRs. It must survive local merges and remain open until
+the upstream contribution resolves.
+
+### Step U4: Monitor Upstream CI
+
+Poll upstream PR checks using the same logic as Step 7, but
+targeting the upstream repo:
+
+```
+gh pr checks {number} --repo {upstream} --required --json bucket \
+  --jq 'map(.bucket) | unique | map(select(. != "skipping")) |
+  if . == ["pass"] then "pass"
+  elif any(. == "fail") then "fail"
+  elif length == 0 then "pass"
+  else "pending" end'
+```
+
+Same polling rules as Step 7 (single-shot, max 20 iterations,
+rate limit awareness).
+
+Additionally, detect bot/automation comments on the upstream PR:
+
+```
+gh pr view {number} --repo {upstream} --json comments \
+  --jq '[.comments[] | select(
+    .authorAssociation == "NONE" or
+    (.author.login | test("bot|\\[bot\\]|action"))
+  ) | {author: .author.login, body: .body, createdAt: .createdAt}]'
+```
+
+Include bot feedback in the status report. These comments often
+contain automated review results, CLA check status, or required
+follow-up actions.
+
+### Step U5: Check Upstream Status
+
+When invoked with `upstream-status:` prefix and `Upstream-PR:`
+and `Tracking-Issue:` fields:
+
+1. Check upstream PR state:
+
+```
+gh pr view {number} --repo {upstream} \
+  --json state,mergedAt,closedAt,reviews,comments,statusCheckRollup,updatedAt
+```
+
+2. Determine status category:
+   - `MERGED` — `.state == "MERGED"`
+   - `CLOSED` — `.state == "CLOSED"` and `.mergedAt` is null
+   - `STALE` — `.state == "OPEN"` and `.updatedAt` is more than
+     30 days ago
+   - `ACTIVE` — `.state == "OPEN"` and updated within 30 days
+
+3. Post status update as a comment on the local tracking issue:
+
+```
+gh issue comment {tracking-number} --body "$(cat <<'EOF'
+## Status Update (<YYYY-MM-DD>)
+
+- **PR State:** <OPEN/MERGED/CLOSED>
+- **CI:** <passing/failing/pending>
+- **Reviews:** <N approvals, N changes requested>
+- **Bot comments:** <summary of any automation feedback>
+- **Last activity:** <date of last update>
+- **Action needed:** <what to do next, if anything>
+EOF
+)"
+```
+
+4. Return status report to caller with the status category.
+
+### Step U6: Resolve
+
+When invoked with `upstream-resolve:` prefix:
+
+Check the upstream PR state first (same query as U5 step 1).
+
+**If MERGED:**
+
+1. Return `Status: COMPLETE` with a report proposing these
+   cleanup actions (the caller must confirm each one):
+   - Sync fork from upstream:
+     `gh repo sync {fork-owner}/{fork-repo} --branch main`
+   - Close local tracking issue:
+     `gh issue close {tracking-number} --comment "Upstream PR merged."`
+   - Delete local feature branch:
+     `git branch -d {branch-name}`
+   - Delete remote feature branch:
+     `git push origin --delete {branch-name}`
+
+2. Wait for the caller to confirm which actions to execute.
+   Only execute confirmed actions.
+
+**If CLOSED (not merged):**
+
+1. Fetch the closing comment or last comment for context:
+
+```
+gh pr view {number} --repo {upstream} --json comments \
+  --jq '.comments[-1] | {author: .author.login, body: .body}'
+```
+
+2. Update the local tracking issue:
+
+```
+gh issue comment {tracking-number} --body "$(cat <<'EOF'
+## Upstream PR Closed
+
+The upstream PR was closed without merging.
+
+**Last comment:** <closing context>
+**Action:** This tracking issue remains open. Rework and
+resubmit, or close manually if abandoning the contribution.
+EOF
+)"
+```
+
+3. Return `Status: COMPLETE` with the rejection context.
+   Local tracking issue stays OPEN.
+
+**If STALE (open, no activity > 30 days):**
+
+1. Update the local tracking issue:
+
+```
+gh issue comment {tracking-number} --body "$(cat <<'EOF'
+## Stale Upstream PR
+
+No activity on the upstream PR for over 30 days.
+
+**Options:**
+- Ping upstream maintainers with a polite follow-up comment
+- Continue maintaining the fork independently
+- Close the upstream PR and tracking issue if no longer needed
+EOF
+)"
+```
+
+2. Return `Status: COMPLETE` with the stale report.
+   Local tracking issue stays OPEN.
+
+**If ACTIVE:**
+
+Return `Status: COMPLETE` with current status. No resolution
+actions needed — the PR is still in progress.
