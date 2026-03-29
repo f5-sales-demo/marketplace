@@ -127,8 +127,8 @@
     },
     {
       "name": "f5xc-platform",
-      "description": "F5 Distributed Cloud platform automation — web console via Chrome DevTools MCP and REST API management via curl. Azure SSO authentication, deterministic navigation, API token management, and workflow execution.",
-      "version": "2.0.0",
+      "description": "F5 Distributed Cloud platform automation — web console via Chrome DevTools MCP and spec-aware REST API operations via cURL. Azure SSO authentication, deterministic navigation, API token management, and CRUD operations across 98 resource types with dependency-aware multi-step workflows.",
+      "version": "3.0.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -146,9 +146,12 @@
         "f5xc",
         "api",
         "rest",
-        "platform"
+        "platform",
+        "openapi",
+        "crud",
+        "spec-aware"
       ],
-      "tags": ["console", "browser", "automation", "f5xc", "api", "platform"],
+      "tags": ["console", "browser", "automation", "f5xc", "api", "platform", "openapi"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]

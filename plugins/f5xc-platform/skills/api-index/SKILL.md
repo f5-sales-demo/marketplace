@@ -35,14 +35,13 @@ autonomously. The main session only receives the result.
 
 ## Routing Table
 
-| User Intent | Target Skill | Agent Prompt |
-| ----------- | ------------ | ------------ |
-| "check token", "validate token" | `api-auth` | "Validate the F5 XC API token" |
-| "list namespaces" | `api-auth` (validation) | "List all namespaces via API" |
-| "list", "get" + resource type | Future api-operations | "List [resource type] in namespace [ns]" |
-| "create" + resource type via API | Future api-operations | "Create [resource type] in namespace [ns]" |
-| "delete" + resource type via API | Future api-operations | "Delete [resource type] in namespace [ns]" |
-| "cURL", "API call" + custom | Direct delegation | Pass user's request to agent |
+| User Intent | Target Skill |
+| ----------- | ------------ |
+| "check token", "validate token" | `api-auth` |
+| "list namespaces" | `api-auth` (uses namespace list for validation) |
+| "list", "get", "create", "update", "delete" + resource | `api-operations` |
+| "deploy", "set up", "provision" + resource | `api-operations` (workflow mode) |
+| "cURL", "API call" + custom request | Direct delegation to `api-operator` |
 
 ## How to Route
 
@@ -54,10 +53,11 @@ autonomously. The main session only receives the result.
 ## Available Skills (read by the agent)
 
 - **api-auth** — API token validation and certificate auth
+- **api-operations** — Spec-aware CRUD for 98 resource types
+  across 38 domains, with endpoint paths, payload templates,
+  dependency ordering, and multi-step workflow compositions
 
 ## Future Skills (not yet implemented)
 
-- `api-operations` — CRUD operations for platform resources
-  (HTTP LBs, origin pools, app firewalls, sites)
 - `api-bulk` — Batch operations across namespaces
 - `api-export` — Export configuration as JSON/YAML
