@@ -116,7 +116,25 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
       fi
     done < <(find "$PLUGIN_DIR/skills" -name "SKILL.md" -print0 2>/dev/null)
 
-    # ── 8. Command frontmatter validation ──────────────────────
+    # ── 8. Agent frontmatter validation ─────────────────────────
+    AGENT_COUNT=0
+    while IFS= read -r -d '' agent_file; do
+      AGENT_COUNT=$((AGENT_COUNT + 1))
+      frontmatter=$(sed -n '/^---$/,/^---$/p' "$agent_file" | sed '1d;$d')
+
+      agent_name=$(echo "$frontmatter" | grep -E '^name:' | sed 's/^name:[[:space:]]*//' || true)
+      agent_desc=$(echo "$frontmatter" | grep -E '^description:' | sed 's/^description:[[:space:]]*//' || true)
+
+      rel_path="${agent_file#"$REPO_ROOT"/}"
+      if [[ -z "$agent_name" ]]; then
+        error "Agent missing 'name' in frontmatter: $rel_path"
+      fi
+      if [[ -z "$agent_desc" ]]; then
+        error "Agent missing 'description' in frontmatter: $rel_path"
+      fi
+    done < <(find "$PLUGIN_DIR/agents" -name "*.md" -print0 2>/dev/null)
+
+    # ── 9. Command frontmatter validation ──────────────────────
     CMD_COUNT=0
     while IFS= read -r -d '' cmd_file; do
       CMD_COUNT=$((CMD_COUNT + 1))
@@ -130,12 +148,12 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
       fi
     done < <(find "$PLUGIN_DIR/commands" -name "*.md" -print0 2>/dev/null)
 
-    # ── 9. Plugin has at least one skill or command ────────────
-    TOTAL=$((SKILL_COUNT + CMD_COUNT))
+    # ── 10. Plugin has at least one skill, command, or agent ───
+    TOTAL=$((SKILL_COUNT + CMD_COUNT + AGENT_COUNT))
     if [[ "$TOTAL" -eq 0 ]]; then
-      error "Plugin '$PLUGIN_NAME': no skills or commands found"
+      error "Plugin '$PLUGIN_NAME': no skills, commands, or agents found"
     else
-      info "  Found $SKILL_COUNT skill(s), $CMD_COUNT command(s)"
+      info "  Found $SKILL_COUNT skill(s), $CMD_COUNT command(s), $AGENT_COUNT agent(s)"
     fi
   fi
 done

@@ -4,9 +4,10 @@ description: >-
   Intent router for F5 XC REST API operations. When the
   user's request involves the platform API but does not
   clearly match a specific skill trigger, this skill
-  determines the correct skill to invoke. All API operations
-  MUST be delegated to the api-operator subagent to keep
-  large JSON payloads out of the main session.
+  determines the correct skill to invoke. API operations
+  delegate to the api-operator subagent; configuration
+  analysis delegates to the config-analyzer subagent.
+  Both keep large JSON payloads out of the main session.
 user-invocable: false
 ---
 
@@ -42,13 +43,26 @@ autonomously. The main session only receives the result.
 | "list", "get", "create", "update", "delete" + resource | `api-operations` |
 | "deploy", "set up", "provision" + resource | `api-operations` (workflow mode) |
 | "cURL", "API call" + custom request | Direct delegation to `api-operator` |
+| User provides JSON config + asks question about it | `config-analysis` |
+| "analyze", "review", "audit", "explain", "inspect" + config/JSON | `config-analysis` |
+| "is [feature] enabled/disabled", "what mode", "security posture" | `config-analysis` |
+| "how to change/enable/disable/add/remove" + config context | `config-analysis` |
+| "what does this config do", "show me the settings" | `config-analysis` |
 
 ## How to Route
 
 1. Parse the user's request for intent keywords
 2. Match against the routing table
-3. Spawn the `api-operator` agent with the matched task
-4. Relay the agent's result to the user
+3. **Distinguish CRUD from analysis**: If the user's message
+   contains a JSON configuration blob (or references one shared
+   earlier) AND the intent is interrogative (asking about the
+   config rather than requesting a platform operation), route to
+   `config-analysis`. CRUD requests target the platform ("create
+   this LB", "delete that pool"). Analysis requests target a
+   provided config ("is WAF enabled on this?", "explain this
+   config", "what violations are disabled?").
+4. Spawn the appropriate agent with the matched task
+5. Relay the agent's result to the user
 
 ## Available Skills (read by the agent)
 
@@ -56,6 +70,10 @@ autonomously. The main session only receives the result.
 - **api-operations** — Spec-aware CRUD for 98 resource types
   across 38 domains, with endpoint paths, payload templates,
   dependency ordering, and multi-step workflow compositions
+- **config-analysis** — Configuration analysis and advisory Q&A.
+  Analyzes customer JSON configurations against the same resource
+  profiles as api-operations. Answers questions about security
+  posture, feature enablement, mode settings, and best practices.
 
 ## Future Skills (not yet implemented)
 

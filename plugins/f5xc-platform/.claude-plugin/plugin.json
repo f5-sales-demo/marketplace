@@ -20,7 +20,9 @@
     "platform",
     "openapi",
     "crud",
-    "spec-aware"
+    "spec-aware",
+    "config-analysis",
+    "advisory"
   ],
   "license": "Apache-2.0",
   "repository": "https://github.com/f5xc-salesdemos/marketplace"

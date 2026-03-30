@@ -29,7 +29,10 @@ based operations via the `console-operator` agent.
 
 Keywords: "API", "cURL", "REST", "token", "programmatic",
 "JSON", "endpoint", "list via API", "get via API",
-"create via API", "check token", "validate token"
+"create via API", "check token", "validate token",
+"analyze config", "review config", "is [feature] enabled",
+"explain this config", "security posture", user provides
+a JSON configuration blob
 
 Invoke the `api-index` skill which handles all REST API
 operations via the `api-operator` agent.
@@ -49,19 +52,23 @@ without specifying console or API:
 ## Domain Skills
 
 ### Console Domain
+
 - **console-index** — Routes console UI requests
 - **console-auth** — Browser authentication (Azure SSO, DUO)
 - **console-navigator** — Navigate console sections by name
 - Agent: `f5xc-platform:console-operator`
 
 ### API Domain
+
 - **api-index** — Routes API requests
 - **api-auth** — API token and certificate authentication
-- Agent: `f5xc-platform:api-operator`
+- **config-analysis** — Configuration Q&A and advisory
+- Agents: `f5xc-platform:api-operator`, `f5xc-platform:config-analyzer`
 
 ## Shared Context
 
 Both domains share these environment variables:
+
 - `F5XC_API_URL` — Tenant base URL
 - `F5XC_NAMESPACE` — Default namespace
 - `F5XC_USERNAME` — User email (console auth)
