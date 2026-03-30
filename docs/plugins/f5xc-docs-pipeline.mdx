@@ -1,0 +1,54 @@
+---
+title: f5xc-docs-pipeline
+sidebar:
+  order: 8
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **f5xc-docs-pipeline** plugin provides documentation pipeline
+architecture knowledge for f5xc-salesdemos repositories. It guides
+content authoring, clarifies config ownership across multi-repo
+builds, and provides local Docker-based preview.
+
+<Badge text="v1.0.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-docs-pipeline@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### content-author
+
+Content authoring guide covering file structure, MDX syntax rules,
+frontmatter requirements, image references, and local Docker
+preview. Activates when creating or editing `docs/` content,
+working with MDX files, or setting up local preview.
+
+### pipeline-navigator
+
+Documentation pipeline architecture explaining where to make
+changes across the four upstream repositories: docs-theme,
+docs-builder, docs-control, and docs-icons. Clarifies config
+ownership (`astro.config.mjs`, `content.config.ts`), the release
+dispatch chain, and managed file tracking.
+
+<Aside type="tip">
+  Use pipeline-navigator when you need to understand which
+  repository owns a specific configuration file or component.
+</Aside>
+
+## Commands
+
+### /preview-docs
+
+```
+/f5xc-docs-pipeline:preview-docs
+```
+
+Starts a local Docker dev server to preview documentation. Runs
+the shared Docker build image with your local `docs/` directory
+mounted for live preview.

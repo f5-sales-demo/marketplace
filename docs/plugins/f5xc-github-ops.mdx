@@ -1,0 +1,58 @@
+---
+title: f5xc-github-ops
+sidebar:
+  order: 7
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **f5xc-github-ops** plugin provides exclusive GitHub operations
+automation for f5xc-salesdemos repositories. It handles the full
+Git and GitHub lifecycle from issue creation through post-merge
+monitoring, enforcing issue-driven development and pre-commit
+lint gates.
+
+<Badge text="v2.2.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### workflow-lifecycle
+
+Repository governance workflow handling issue creation, branch
+naming conventions, PR creation, CI polling with error feedback
+to issues, post-merge monitoring, verification, and task
+completion criteria. Activates when you say "commit", "push",
+"create a PR", "merge", or perform any Git operation.
+
+### upstream-contribution
+
+Upstream contribution workflow for fork-based development. Handles
+fork detection, upstream research (issues, PRs, CONTRIBUTING.md,
+CI patterns), cross-repo issue and PR creation, local tracking
+issue management, upstream CI monitoring, and guided resolution.
+
+## Agents
+
+### github-ops
+
+Exclusive agent for all mechanical Git and GitHub operations.
+Handles pre-commit lint gates, issue creation, branch creation,
+staging, committing, pushing, PR creation, CI polling with error
+feedback, infrastructure failure retry, post-merge monitoring,
+branch cleanup, and repository settings management via the
+GitHub API.
+
+Returns structured status reports: `COMPLETE`,
+`PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED`, or `FAILED`.
+
+<Aside type="caution">
+  This agent is the **exclusive** handler for Git operations.
+  Never run `git commit`, `git push`, or `gh pr create` directly
+  in repositories that use this plugin.
+</Aside>

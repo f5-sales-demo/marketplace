@@ -1,0 +1,71 @@
+---
+title: f5xc-devcontainer
+sidebar:
+  order: 10
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **f5xc-devcontainer** plugin provides container awareness for
+the f5xc-salesdemos development environment. It maintains a
+comprehensive tool catalog, enables live container introspection,
+and handles tool installation with persistence tracking via
+GitHub issues.
+
+<Badge text="v1.1.5" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-devcontainer@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### tool-catalog
+
+Knowledge base of every CLI tool installed in the devcontainer,
+organized by category (cloud, networking, security, development,
+etc.). Activates when you ask which tool to use, how to use a
+tool, whether something is installed, or need help with a
+specific operation.
+
+### self-awareness
+
+Container identity and self-diagnosis skill. Provides live
+introspection of the running container via GitHub API and local
+build metadata. Activates for identity, version, build info,
+health checks, and contributor history questions.
+
+<Aside type="tip">
+  Ask "who are you?" or "what version am I running?" to trigger
+  self-awareness.
+</Aside>
+
+## Agents
+
+### tool-advisor
+
+Reads the tool catalog and returns recommendations with purpose,
+quick-start commands, and authentication requirements for any CLI
+tool question.
+
+### tool-auditor
+
+Audits the devcontainer Dockerfile against the tool catalog
+reference files to detect drift &mdash; tools added to the image
+but not cataloged, or catalog entries for tools that have been
+removed.
+
+### container-introspector
+
+Performs live container introspection via GitHub API and local
+metadata for identity, genealogy, self-diagnosis, contributor
+history, and build lineage. Read-only operations only.
+
+### container-maintainer
+
+Installs, removes, searches, and updates CLI tools in the running
+container using correct package manager patterns. Files GitHub
+issues against the devcontainer repository for persistence
+tracking.

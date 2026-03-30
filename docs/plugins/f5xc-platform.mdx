@@ -1,0 +1,111 @@
+---
+title: f5xc-platform
+sidebar:
+  order: 11
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **f5xc-platform** plugin provides full automation for the F5
+Distributed Cloud platform. It covers web console operations via
+Chrome DevTools MCP, spec-aware REST API operations via cURL,
+multi-provider authentication, and configuration analysis across
+98 resource types in 38 domains.
+
+<Badge text="v3.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-platform@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### api-operations
+
+Spec-aware API CRUD operations covering 98 resource types across
+38 domains. Provides precise endpoints, payload templates,
+dependency ordering, and multi-step workflow compositions for
+HTTP load balancers, origin pools, WAF policies, DNS zones,
+certificates, cloud sites, and more.
+
+### config-analysis
+
+Configuration analysis and advisory capability. Analyzes customer
+JSON configurations to answer questions about security posture,
+feature enablement, mode settings, exclusions, and best practices.
+Supports multi-turn Q&A with compressed context between dispatches.
+
+### api-auth
+
+API authentication supporting API token header authentication and
+P12 certificate authentication with token validation procedures.
+
+### console-auth
+
+Multi-provider authentication for the F5 XC web console.
+Auto-detects login type: native F5 XC login, Azure SSO with
+cached session, or Azure SSO with DUO verified push MFA.
+
+### console-navigator
+
+Deterministic navigation to F5 XC console sections. Translates
+section names to URL paths, verifies session health, and confirms
+page load.
+
+### platform-index / api-index / console-index
+
+Intent routers that classify user requests and delegate to the
+appropriate skill and agent. These activate automatically and are
+not user-invocable.
+
+## Commands
+
+### /check-api-token
+
+```
+/f5xc-platform:check-api-token
+```
+
+Validates your F5 XC API token by delegating to the api-operator
+agent.
+
+### /login-console
+
+```
+/f5xc-platform:login-console
+```
+
+Authenticates to the F5 Distributed Cloud console via the
+console-operator agent.
+
+## Agents
+
+### api-operator
+
+Autonomous REST API agent executing cURL and jq sequences for
+resource CRUD, token validation, and configuration operations.
+Runs in a subagent to keep verbose API JSON payloads out of the
+main session context.
+
+### console-operator
+
+Autonomous browser automation agent executing Chrome DevTools MCP
+tool sequences for authentication, navigation, and form
+interactions. Runs in a subagent to keep token-heavy browser
+snapshots out of the main session.
+
+### config-analyzer
+
+Read-only configuration analysis agent. Analyzes customer JSON
+configurations against resource profile reference files to answer
+questions about security posture, feature enablement, mode
+transitions, and best practices.
+
+<Aside type="caution">
+  The config-analyzer agent is **ephemeral** &mdash; spawned fresh
+  for each question with no memory between dispatches. Follow-up
+  questions must include compressed previous findings in the
+  dispatch prompt.
+</Aside>

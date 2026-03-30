@@ -53,7 +53,7 @@ indicators:
 | `spec.domains` + `spec.advertise_*` or `spec.http`/`spec.https` | http_loadbalancer | virtual |
 | `spec.listen_port` + `spec.dns_volterra_managed` | tcp_loadbalancer | virtual |
 | `spec.origin_servers` | origin_pool | virtual |
-| `spec.dns_type` or `spec.primary` | dns_zone | dns |
+| `spec.dns_type` or `spec.primary` | dns_zone | DNS |
 | `spec.rule_list` or `spec.legacy_rule_list` | service_policy | virtual |
 | `spec.health_check_port` or `spec.http_health_check` | healthcheck | virtual |
 | `spec.certificate_url` or `spec.private_key` | certificate | certificates |
@@ -218,7 +218,7 @@ complete.]
 ## Execution Rules
 
 1. **Read-only** — never create, modify, or delete files
-2. **No API calls** — never execute cURL, curl, or any HTTP requests
+2. **No API calls** — never execute cURL or any HTTP requests
 3. **Cite everything** — every finding must trace to a config field
    or reference file section
 4. **Acknowledge limits** — if the reference files do not cover a

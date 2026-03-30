@@ -1,0 +1,58 @@
+---
+title: f5xc-brand
+sidebar:
+  order: 9
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+The **f5xc-brand** plugin enforces F5 corporate brand identity
+across all content types. It covers the 45-color F5 palette,
+typography rules (Neusa Next Pro Wide headlines, Proxima Nova
+body), SVG-only logo usage, icon pack selection, WCAG AA
+accessibility, and product terminology.
+
+<Badge text="v1.0.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-brand@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### brand-guardian
+
+Proactive brand identity enforcement for all content creation.
+Activates automatically when creating documentation, diagrams,
+presentations, video thumbnails, social media graphics, Mermaid
+charts, or Excalidraw drawings. Ensures correct use of F5 colors,
+typography, logos, icons, tone of voice, and accessibility.
+
+### brand-reviewer
+
+Reviews existing content for F5 brand compliance. Audits colors,
+typography, logo format, icon selection, alt text, contrast ratios,
+and product terminology. Produces structured reports with
+VIOLATIONS, WARNINGS, and SUGGESTIONS.
+
+### visual-content
+
+Format-specific rules for branded visual content. Provides
+guidance for Mermaid diagrams, Excalidraw drawings, screenshots,
+PowerPoint presentations, YouTube thumbnails, video scripts, and
+social media graphics with icon pack selection, slide layouts,
+font fallbacks, and platform-specific dimensions.
+
+## Commands
+
+### /review-brand
+
+```
+/f5xc-brand:review-brand [path-or-glob]
+```
+
+Reviews content for F5 brand compliance. Accepts an optional path
+or glob pattern to scope the review. Without arguments, reviews
+all content in the current directory.

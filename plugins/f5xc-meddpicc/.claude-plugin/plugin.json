@@ -1,7 +1,7 @@
 {
   "name": "f5xc-meddpicc",
   "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"

@@ -60,7 +60,7 @@ to the agent. Use these structural indicators:
 | `spec.domains` + `spec.advertise_*` | http_loadbalancer | virtual | `resources/virtual/http_loadbalancer.md` |
 | `spec.listen_port` + `spec.dns_volterra_managed` | tcp_loadbalancer | virtual | `resources/virtual/tcp_loadbalancer.md` |
 | `spec.origin_servers` | origin_pool | virtual | `resources/virtual/origin_pool.md` |
-| `spec.dns_type` or `spec.primary` | dns_zone | dns | `resources/dns/dns_zone.md` |
+| `spec.dns_type` or `spec.primary` | dns_zone | DNS | `resources/dns/dns_zone.md` |
 | `spec.rule_list` or `spec.legacy_rule_list` | service_policy | virtual | `resources/virtual/service_policy.md` |
 | `spec.http_health_check` | healthcheck | virtual | `resources/virtual/healthcheck.md` |
 | `spec.certificate_url` | certificate | certificates | `resources/certificates/certificate.md` |
@@ -162,7 +162,7 @@ state:
 This keeps follow-up dispatches focused while preserving
 conversational continuity.
 
-## Anti-Patterns — Do NOT Use
+## Antipatterns — Do NOT Use
 
 - **SendMessage to a completed agent**: The config-analyzer
   agent is ephemeral. Once it returns, it is gone. Do not

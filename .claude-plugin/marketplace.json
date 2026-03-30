@@ -13,7 +13,7 @@
     {
       "name": "f5xc-docs-tools",
       "description": "MDX content validation and review tools for f5xc-salesdemos docs repos",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -28,7 +28,7 @@
     {
       "name": "f5xc-sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -43,7 +43,7 @@
     {
       "name": "f5xc-github-ops",
       "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
-      "version": "2.2.0",
+      "version": "2.2.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -58,7 +58,7 @@
     {
       "name": "f5xc-docs-pipeline",
       "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -73,7 +73,7 @@
     {
       "name": "f5xc-brand",
       "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -88,7 +88,7 @@
     {
       "name": "f5xc-meddpicc",
       "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -113,7 +113,7 @@
     {
       "name": "f5xc-devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "author": {
         "name": "f5xc-salesdemos"
       },
