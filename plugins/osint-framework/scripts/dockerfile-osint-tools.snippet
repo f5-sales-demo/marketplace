@@ -1,0 +1,72 @@
+# OSINT Framework CLI Tools — Dockerfile layer
+# Generated from data/cli-tools.json manifest
+# Additive layer for the f5xc-devcontainer — only installs tools
+# NOT already in the base image.
+#
+# Base image already includes:
+#   APT:  nmap, masscan, tshark, wireshark, exiftool, tor, whois,
+#         dnsutils, sqlmap, hydra, john, radare2, binwalk
+#   Go:   subfinder, httpx, dnsx, amass, gitleaks, nuclei, gau,
+#         ffuf, gobuster, feroxbuster, dalfox, trufflehog, grype, syft
+#   Pip:  theHarvester, checkov, prowler, yt-dlp
+#   Git:  recon-ng, spiderfoot, testssl.sh, searchsploit, SecLists
+#   Java: Ghidra
+#
+# Usage: Add to your Dockerfile after the base image layers.
+
+# ── APT: additional OSINT packages ─────────────────────────
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      exiv2 \
+      mediainfo \
+      autopsy \
+      mono-complete \
+      i2p \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── PIP: 26 new OSINT tools (verified on PyPI) ────────────
+RUN pip3 install --no-cache-dir --break-system-packages \
+      sherlock-project \
+      maigret \
+      holehe \
+      h8mail \
+      sylva \
+      dnsrecon \
+      sublist3r \
+      scanless \
+      scoutsuite \
+      c7n \
+      roadrecon \
+      iocextract \
+      ioc_parser \
+      pymisp \
+      oletools \
+      pdfid \
+      quicksand \
+      apkleaks \
+      frida-tools \
+      masto \
+      wechatsogou \
+      linelog2py \
+      xeuledoc \
+      waybackpack \
+      dfir-unfurl \
+      torbot
+
+# ── GO: 3 new OSINT tools ─────────────────────────────────
+RUN go install github.com/jreisinger/checkip@latest && \
+    go install github.com/Macmod/goblob@latest && \
+    go install github.com/redhuntlabs/bucketloot/cmd/bucketloot@latest
+
+# ── GEM: PDF analysis ─────────────────────────────────────
+RUN gem install origami --no-document
+
+# ── NPM: JavaScript deobfuscation ─────────────────────────
+RUN npm install -g js-deobfuscator
+
+# ── Verify key tools ──────────────────────────────────────
+RUN sherlock --version 2>&1 | head -1 && \
+    maigret --version 2>&1 | head -1 && \
+    holehe --version 2>&1 | head -1 && \
+    dnsrecon --version 2>&1 | head -1 && \
+    echo "OSINT tools layer verified"

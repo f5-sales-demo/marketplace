@@ -1,0 +1,1164 @@
+[
+  {
+    "name": "Waybackpack",
+    "category": "archives-cache",
+    "install_cmd": "pip install waybackpack",
+    "pkg_manager": "pip",
+    "usage": "waybackpack example.com -d output_dir"
+  },
+  {
+    "name": "Wayback Machine Chrome Extension",
+    "category": "archives-cache",
+    "install_cmd": "Install from Chrome Web Store",
+    "pkg_manager": "unknown",
+    "usage": "Browser extension \u2014 auto-detects dead pages and loads Wayback snapshots"
+  },
+  {
+    "name": "Orbit",
+    "category": "blockchain-crypto",
+    "install_cmd": "git clone https://github.com/s0md3v/Orbit && cd Orbit && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python orbit.py -s <bitcoin_address>"
+  },
+  {
+    "name": "AWSBucketDump",
+    "category": "cloud-recon",
+    "install_cmd": "git clone https://github.com/jordanpotti/AWSBucketDump.git && pip install -r AWSBucketDump/requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python AWSBucketDump.py -l buckets.txt -g keywords.txt -D"
+  },
+  {
+    "name": "cloud_enum",
+    "category": "cloud-recon",
+    "install_cmd": "git clone https://github.com/initstring/cloud_enum.git && pip install -r cloud_enum/requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 cloud_enum.py -k company-name"
+  },
+  {
+    "name": "Subfinder",
+    "category": "cloud-recon",
+    "install_cmd": "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
+    "pkg_manager": "go",
+    "usage": "subfinder -d target.com"
+  },
+  {
+    "name": "AADInternals",
+    "category": "cloud-recon",
+    "install_cmd": "Install-Module AADInternals` (PowerShell Gallery)",
+    "pkg_manager": "unknown",
+    "usage": "Import-Module AADInternals; Invoke-AADIntReconAsOutsider -DomainName target.com"
+  },
+  {
+    "name": "GCPBucketBrute",
+    "category": "cloud-recon",
+    "install_cmd": "git clone https://github.com/RhinoSecurityLabs/GCPBucketBrute.git && pip3 install -r GCPBucketBrute/requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 gcpbucketbrute.py -k company-name -u"
+  },
+  {
+    "name": "MicroBurst",
+    "category": "cloud-recon",
+    "install_cmd": "Install-Module MicroBurst` (PowerShell Gallery)",
+    "pkg_manager": "unknown",
+    "usage": "Import-Module MicroBurst; Invoke-EnumerateAzureSubDomains -Base company-name"
+  },
+  {
+    "name": "ROADtools",
+    "category": "cloud-recon",
+    "install_cmd": "pip install roadrecon roadtx",
+    "pkg_manager": "pip",
+    "usage": "roadrecon auth && roadrecon gather && roadrecon gui"
+  },
+  {
+    "name": "Stormspotter",
+    "category": "cloud-recon",
+    "install_cmd": "git clone https://github.com/Azure/Stormspotter.git && docker-compose up",
+    "pkg_manager": "git",
+    "usage": "python3 sscollector.pyz cli"
+  },
+  {
+    "name": "BucketLoot",
+    "category": "cloud-recon",
+    "install_cmd": "go install github.com/redhuntlabs/bucketloot/cmd/bucketloot@latest",
+    "pkg_manager": "go",
+    "usage": "bucketloot https://bucket.s3.amazonaws.com"
+  },
+  {
+    "name": "goblob",
+    "category": "cloud-recon",
+    "install_cmd": "go install github.com/Macmod/goblob@latest",
+    "pkg_manager": "go",
+    "usage": "goblob storageaccountname"
+  },
+  {
+    "name": "lazys3",
+    "category": "cloud-recon",
+    "install_cmd": "git clone https://github.com/nahamsec/lazys3.git` (requires Ruby)",
+    "pkg_manager": "git",
+    "usage": "ruby lazys3.rb company-name"
+  },
+  {
+    "name": "S3Scanner",
+    "category": "cloud-recon",
+    "install_cmd": "go install -v github.com/sa7mon/s3scanner@latest",
+    "pkg_manager": "go",
+    "usage": "s3scanner -bucket bucket-name -enumerate"
+  },
+  {
+    "name": "Checkov",
+    "category": "cloud-recon",
+    "install_cmd": "pip install checkov",
+    "pkg_manager": "pip",
+    "usage": "checkov --directory /path/to/iac"
+  },
+  {
+    "name": "Cloud Custodian",
+    "category": "cloud-recon",
+    "install_cmd": "pip install c7n",
+    "pkg_manager": "pip",
+    "usage": "custodian run -s out policy.yml"
+  },
+  {
+    "name": "Prowler",
+    "category": "cloud-recon",
+    "install_cmd": "pip install prowler",
+    "pkg_manager": "pip",
+    "usage": "prowler aws"
+  },
+  {
+    "name": "ScoutSuite",
+    "category": "cloud-recon",
+    "install_cmd": "pip install scoutsuite",
+    "pkg_manager": "pip",
+    "usage": "scout aws"
+  },
+  {
+    "name": "Steampipe",
+    "category": "cloud-recon",
+    "install_cmd": "sudo /bin/sh -c \"$(curl -fsSL https://steampipe.io/install/steampipe.sh)\"",
+    "pkg_manager": "unknown",
+    "usage": "steampipe query \"select * from aws_s3_bucket\""
+  },
+  {
+    "name": "Amass",
+    "category": "cloud-recon",
+    "install_cmd": "go install github.com/owasp-amass/amass/v4/...@master",
+    "pkg_manager": "go",
+    "usage": "amass enum -d target.com"
+  },
+  {
+    "name": "dnsrecon",
+    "category": "cloud-recon",
+    "install_cmd": "pip install dnsrecon",
+    "pkg_manager": "pip",
+    "usage": "dnsrecon -d target.com"
+  },
+  {
+    "name": "SpiderFoot",
+    "category": "cloud-recon",
+    "install_cmd": "git clone https://github.com/smicallef/spiderfoot.git && pip3 install -r spiderfoot/requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 sf.py -l 127.0.0.1:5001"
+  },
+  {
+    "name": "Sublist3r",
+    "category": "cloud-recon",
+    "install_cmd": "pip install sublist3r",
+    "pkg_manager": "pip",
+    "usage": "sublist3r -d target.com"
+  },
+  {
+    "name": "theHarvester",
+    "category": "cloud-recon",
+    "install_cmd": "pip install theHarvester",
+    "pkg_manager": "pip",
+    "usage": "theHarvester -d target.com -b all"
+  },
+  {
+    "name": "Tor Download",
+    "category": "dark-web",
+    "install_cmd": "Apt: `apt-get install -y tor torbrowser-launcher",
+    "pkg_manager": "apt",
+    "usage": "Binary: download from https://www.torproject.org/download/"
+  },
+  {
+    "name": "Freenet Project",
+    "category": "dark-web",
+    "install_cmd": "curl -sSL https://www.hyphanet.org/assets/jnlp/freenet_installer.jar -o freenet.jar && java -jar freenet.jar",
+    "pkg_manager": "download",
+    "usage": "Docker: build from source at https://github.com/hyphanet/fred"
+  },
+  {
+    "name": "I2P Anonymous Network",
+    "category": "dark-web",
+    "install_cmd": "Apt: `apt-get install -y i2p",
+    "pkg_manager": "apt",
+    "usage": "Binary: download from https://geti2p.net/en/download; Docker: `docker pull geti2p/i2p"
+  },
+  {
+    "name": "OnionScan",
+    "category": "dark-web",
+    "install_cmd": "go install github.com/s-rah/onionscan@latest",
+    "pkg_manager": "go",
+    "usage": "git clone https://github.com/s-rah/onionscan && cd onionscan && go build"
+  },
+  {
+    "name": "TorBot",
+    "category": "dark-web",
+    "install_cmd": "pip install torbot",
+    "pkg_manager": "pip",
+    "usage": "git clone https://github.com/DedSecInside/TorBot && pip install -r requirements.txt"
+  },
+  {
+    "name": "Onioff",
+    "category": "dark-web",
+    "install_cmd": "pip install onioff",
+    "pkg_manager": "pip",
+    "usage": "git clone https://github.com/k4m4/onioff && pip install -r requirements.txt"
+  },
+  {
+    "name": "DeepFake-Detect",
+    "category": "disinfo-verification",
+    "install_cmd": "git clone https://github.com/dessa-oss/DeepFake-Detection && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "Docker: `docker build -t deepfake-detect .` (from repo)"
+  },
+  {
+    "name": "DeepSafe",
+    "category": "disinfo-verification",
+    "install_cmd": "git clone https://github.com/siddharthksah/DeepSafe && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "Docker: `docker-compose up` (from repo -- recommended)"
+  },
+  {
+    "name": "DeepfakeBench",
+    "category": "disinfo-verification",
+    "install_cmd": "git clone https://github.com/SCLBD/DeepfakeBench && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "Conda: `conda env create -f environment.yml"
+  },
+  {
+    "name": "DeepfakeDetector",
+    "category": "disinfo-verification",
+    "install_cmd": "git clone https://github.com/TRahulsingh/DeepfakeDetector && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "Docker: `docker build -t deepfake-detector .` (from repo)"
+  },
+  {
+    "name": "InVID-WeVerify Verification Plugin",
+    "category": "disinfo-verification",
+    "install_cmd": "Browser extension: install from Chrome Web Store or Firefox Add-ons",
+    "pkg_manager": "unknown",
+    "usage": "git clone https://github.com/nicedayforainbow/InVID-WeVerify"
+  },
+  {
+    "name": "whois",
+    "category": "domain-recon",
+    "install_cmd": "Pre-installed on most systems",
+    "pkg_manager": "preinstalled",
+    "usage": "whois domain.com"
+  },
+  {
+    "name": "dig",
+    "category": "domain-recon",
+    "install_cmd": "Pre-installed on most systems",
+    "pkg_manager": "preinstalled",
+    "usage": "dig domain.com ANY"
+  },
+  {
+    "name": "nslookup",
+    "category": "domain-recon",
+    "install_cmd": "Pre-installed on most systems",
+    "pkg_manager": "preinstalled",
+    "usage": "nslookup domain.com"
+  },
+  {
+    "name": "httpx",
+    "category": "domain-recon",
+    "install_cmd": "go install github.com/projectdiscovery/httpx/cmd/httpx@latest",
+    "pkg_manager": "go",
+    "usage": "echo domain.com \\"
+  },
+  {
+    "name": "dnsx",
+    "category": "domain-recon",
+    "install_cmd": "go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest",
+    "pkg_manager": "go",
+    "usage": "echo domain.com \\"
+  },
+  {
+    "name": "holehe",
+    "category": "email-recon",
+    "install_cmd": "pip install holehe",
+    "pkg_manager": "pip",
+    "usage": "holehe history-97817c0c4999@example.com"
+  },
+  {
+    "name": "h8mail",
+    "category": "email-recon",
+    "install_cmd": "pip install h8mail",
+    "pkg_manager": "pip",
+    "usage": "h8mail -t history-97817c0c4999@example.com"
+  },
+  {
+    "name": "Infoga",
+    "category": "email-recon",
+    "install_cmd": "git clone https://github.com/m4ll0k/infoga",
+    "pkg_manager": "git",
+    "usage": "python infoga.py -t history-97817c0c4999@example.com"
+  },
+  {
+    "name": "SpiderMonkey",
+    "category": "encoding-decoding",
+    "install_cmd": "apt-get install -y libmozjs-115-dev` or build from source: `git clone https://github.com/nicerobot/spidermonkey && cd spidermonkey && make",
+    "pkg_manager": "apt",
+    "usage": "js script.js"
+  },
+  {
+    "name": "Kahu Revelo",
+    "category": "encoding-decoding",
+    "install_cmd": "Download from `https://www.kahusecurity.com/tools/` (Windows .exe); on Linux run via `wine Revelo.exe",
+    "pkg_manager": "download",
+    "usage": "wine Revelo.exe sample.js"
+  },
+  {
+    "name": "JavaScript Deobfuscator",
+    "category": "encoding-decoding",
+    "install_cmd": "Firefox add-on: install from `https://addons.mozilla.org/en-US/firefox/addon/javascript-deobfuscator/`; for headless deobfuscation use `npm install -g js-deobfuscator",
+    "pkg_manager": "npm",
+    "usage": "Browser-based; or `js-deobfuscator -i obfuscated.js"
+  },
+  {
+    "name": "XORSearch/XORStrings",
+    "category": "encoding-decoding",
+    "install_cmd": "Download from `https://blog.didierstevens.com/programs/xorsearch/`; compile: `gcc -o xorsearch xorsearch.c` or `pip install xorsearch",
+    "pkg_manager": "pip",
+    "usage": "xorsearch -s sample.bin \"http\""
+  },
+  {
+    "name": "unxor",
+    "category": "encoding-decoding",
+    "install_cmd": "git clone https://github.com/tomchop/unxor && cd unxor && pip install .",
+    "pkg_manager": "pip",
+    "usage": "unxor -f encoded.bin -k known_plaintext"
+  },
+  {
+    "name": "Kahu Converter",
+    "category": "encoding-decoding",
+    "install_cmd": "Download from `https://www.kahusecurity.com/tools/` (Windows .exe); on Linux run via `wine Converter.exe",
+    "pkg_manager": "download",
+    "usage": "wine Converter.exe` (GUI-based)"
+  },
+  {
+    "name": "iheartxor.py",
+    "category": "encoding-decoding",
+    "install_cmd": "git clone https://github.com/ByteSnipers/iheartxor && chmod +x iheartxor.py` or download from `https://hooked-on-mnemonics.blogspot.com/p/iheartxor.html",
+    "pkg_manager": "git",
+    "usage": "python iheartxor.py -f sample.bin"
+  },
+  {
+    "name": "XORBruteForcer.py",
+    "category": "encoding-decoding",
+    "install_cmd": "curl -O https://raw.githubusercontent.com/jesparza/scripts/master/xorBruteForcer.py",
+    "pkg_manager": "unknown",
+    "usage": "python xorBruteForcer.py encoded.bin"
+  },
+  {
+    "name": "NoMoreXOR.py",
+    "category": "encoding-decoding",
+    "install_cmd": "git clone https://github.com/hiddenillusion/NoMoreXOR && cd NoMoreXOR && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python NoMoreXOR.py -f sample.bin"
+  },
+  {
+    "name": "Balbuzard",
+    "category": "encoding-decoding",
+    "install_cmd": "pip install balbuzard` or `git clone https://github.com/decalage2/balbuzard && cd balbuzard && python setup.py install",
+    "pkg_manager": "pip",
+    "usage": "balbuzard sample.bin"
+  },
+  {
+    "name": "CyberChef",
+    "category": "encoding-decoding",
+    "install_cmd": "Local: `git clone https://github.com/gchq/CyberChef && cd CyberChef && npm install && npm run build`; Docker: `docker run -p 8000:8000 ghcr.io/gchq/cyberchef`; or use web at `https://gchq.github.io/CyberChef/",
+    "pkg_manager": "npm",
+    "usage": "Open in browser; or use Node API for automation"
+  },
+  {
+    "name": "Hyperlapse",
+    "category": "geolocation",
+    "install_cmd": "git clone https://github.com/TeehanLax/Hyperlapse.js && npm install",
+    "pkg_manager": "npm",
+    "usage": "Embed as JS library for Street View hyperlapse animations"
+  },
+  {
+    "name": "RevEye",
+    "category": "images-videos",
+    "install_cmd": "git clone https://github.com/steven2358/reveye",
+    "pkg_manager": "git",
+    "usage": "Browser extension; multi-engine reverse image search from right-click menu"
+  },
+  {
+    "name": "ImageNet",
+    "category": "images-videos",
+    "install_cmd": "pip install imagenet` or download from https://image-net.org/",
+    "pkg_manager": "pip",
+    "usage": "Image classification dataset and API for visual taxonomy research"
+  },
+  {
+    "name": "Places2",
+    "category": "images-videos",
+    "install_cmd": "git clone https://github.com/CSAILVision/places365` && `pip install torch torchvision",
+    "pkg_manager": "pip",
+    "usage": "Scene recognition model; `python run_placesCNN_basic.py --image photo.jpg"
+  },
+  {
+    "name": "Mini Instagram",
+    "category": "images-videos",
+    "install_cmd": "Download from https://mini-for-instagram.en.softonic.com/",
+    "pkg_manager": "download",
+    "usage": "Lightweight Instagram media viewer and downloader"
+  },
+  {
+    "name": "Imgrab",
+    "category": "images-videos",
+    "install_cmd": "pip install imgrab` or download from https://www.imgrab.com/",
+    "pkg_manager": "pip",
+    "usage": "imgrab <url>` \u2014 batch image download from web pages"
+  },
+  {
+    "name": "FOCA",
+    "category": "images-videos",
+    "install_cmd": "git clone https://github.com/ElevenPaths/FOCA` (Windows/.NET)",
+    "pkg_manager": "git",
+    "usage": "Document metadata extraction from target domains; finds usernames, paths, software fingerprints"
+  },
+  {
+    "name": "GeoSetter",
+    "category": "images-videos",
+    "install_cmd": "Download installer from https://geosetter.de/en/main-en/ (Windows)",
+    "pkg_manager": "download",
+    "usage": "Bulk geotag viewing/editing for photo collections"
+  },
+  {
+    "name": "JPEGsnoop",
+    "category": "images-videos",
+    "install_cmd": "Download from https://www.impulseadventure.com/photo/jpeg-snoop.html (Windows)",
+    "pkg_manager": "download",
+    "usage": "JPEG forensic analysis \u2014 compression signatures, tamper detection"
+  },
+  {
+    "name": "xeuledoc",
+    "category": "images-videos",
+    "install_cmd": "pip install xeuledoc",
+    "pkg_manager": "pip",
+    "usage": "xeuledoc <google-doc-url>` \u2014 extract owner metadata from public Google Docs/Sheets/Slides"
+  },
+  {
+    "name": "Exiv2",
+    "category": "images-videos",
+    "install_cmd": "apt install exiv2` or `brew install exiv2",
+    "pkg_manager": "apt",
+    "usage": "exiv2 image.jpg` \u2014 read/write EXIF, IPTC, XMP, ICC metadata"
+  },
+  {
+    "name": "MediaInfo",
+    "category": "images-videos",
+    "install_cmd": "apt install mediainfo` or `brew install mediainfo",
+    "pkg_manager": "apt",
+    "usage": "mediainfo video.mp4` \u2014 codec, bitrate, duration, stream metadata"
+  },
+  {
+    "name": "Apache Tika",
+    "category": "images-videos",
+    "install_cmd": "apt install default-jre` && download `tika-app.jar` from https://tika.apache.org/",
+    "pkg_manager": "apt",
+    "usage": "java -jar tika-app.jar -m document.pdf` \u2014 extract metadata from any file format"
+  },
+  {
+    "name": "oletools",
+    "category": "images-videos",
+    "install_cmd": "pip install oletools",
+    "pkg_manager": "pip",
+    "usage": "olevba document.docm` \u2014 extract macros; `oleid document.doc` \u2014 triage indicators"
+  },
+  {
+    "name": "Nmap",
+    "category": "ip-address-recon",
+    "install_cmd": "apt install nmap` / `brew install nmap` / `snap install nmap",
+    "pkg_manager": "apt",
+    "usage": "nmap -sV -O 192.168.1.0/24"
+  },
+  {
+    "name": "Scanless",
+    "category": "ip-address-recon",
+    "install_cmd": "pip install scanless` / `git clone https://github.com/vesche/scanless && cd scanless && pip install .",
+    "pkg_manager": "pip",
+    "usage": "scanless -t 203.0.113.141 -s yougetsignal"
+  },
+  {
+    "name": "Masscan",
+    "category": "ip-address-recon",
+    "install_cmd": "apt install masscan` / `brew install masscan` / `git clone https://github.com/robertdavidgraham/masscan && cd masscan && make",
+    "pkg_manager": "apt",
+    "usage": "masscan -p1-65535 10.0.0.0/8 --rate=10000"
+  },
+  {
+    "name": "CloudFail",
+    "category": "ip-address-recon",
+    "install_cmd": "pip install cloudfail` / `git clone https://github.com/m0rtem/CloudFail && cd CloudFail && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 cloudfail.py -t target.com"
+  },
+  {
+    "name": "Wireshark",
+    "category": "ip-address-recon",
+    "install_cmd": "apt install wireshark` / `brew install --cask wireshark` / `snap install wireshark",
+    "pkg_manager": "apt",
+    "usage": "tshark -i eth0 -f \"host 192.168.1.1\" -w capture.pcap"
+  },
+  {
+    "name": "NetworkMiner",
+    "category": "ip-address-recon",
+    "install_cmd": "apt install mono-complete && wget https://www.netresec.com/files/NetworkMiner.zip` / `brew install --cask networkminer",
+    "pkg_manager": "apt",
+    "usage": "mono NetworkMiner.exe capture.pcap"
+  },
+  {
+    "name": "checkip",
+    "category": "ip-address-recon",
+    "install_cmd": "go install github.com/jreisinger/checkip@latest` / `git clone https://github.com/jreisinger/checkip && cd checkip && go build",
+    "pkg_manager": "go",
+    "usage": "checkip 203.0.113.141"
+  },
+  {
+    "name": "TYLabs QuickSand",
+    "category": "malicious-file-analysis",
+    "install_cmd": "pip install quicksand` or `git clone https://github.com/nickvdp/quicksand.git && cd quicksand && pip install .",
+    "pkg_manager": "pip",
+    "usage": "quicksand document.doc"
+  },
+  {
+    "name": "detux",
+    "category": "malicious-file-analysis",
+    "install_cmd": "git clone https://github.com/detuxsandbox/detux.git && cd detux && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python detux.py -s sample.elf"
+  },
+  {
+    "name": "OffVis",
+    "category": "malicious-file-analysis",
+    "install_cmd": "Download from `https://download.microsoft.com/download/1/2/7/127ba59a-4fe1-4acd-ba47-513ceef85a85/OffVis.zip`; requires .NET runtime (`apt install dotnet-runtime-6.0` or `wine`)",
+    "pkg_manager": "apt",
+    "usage": "OffVis.exe malicious.doc"
+  },
+  {
+    "name": "PDF Tools (Didier Stevens)",
+    "category": "malicious-file-analysis",
+    "install_cmd": "pip install pdfid pdf-parser` or `git clone https://github.com/DidierStevens/DidierStevensSuite.git",
+    "pkg_manager": "pip",
+    "usage": "pdfid.py suspect.pdf && pdf-parser.py -s /JS suspect.pdf"
+  },
+  {
+    "name": "Origami Framework",
+    "category": "malicious-file-analysis",
+    "install_cmd": "gem install origami` or `apt install ruby && gem install origami",
+    "pkg_manager": "apt",
+    "usage": "pdfwalker suspect.pdf` or `pdfcop suspect.pdf"
+  },
+  {
+    "name": "Ghidra",
+    "category": "malicious-file-analysis",
+    "install_cmd": "apt install default-jdk wget unzip && wget https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.3_build/ghidra_11.3_PUBLIC_20250108.zip && unzip ghidra_*.zip",
+    "pkg_manager": "apt",
+    "usage": "ghidra_11.3_PUBLIC/support/analyzeHeadless /tmp proj -import sample.exe -postScript analysis.py"
+  },
+  {
+    "name": "vt-cli (VirusTotal)",
+    "category": "malicious-file-analysis",
+    "install_cmd": "pip install vt-cli` or `go install github.com/VirusTotal/vt-cli/vt@latest",
+    "pkg_manager": "pip",
+    "usage": "vt file scan sample.exe && vt file <hash>"
+  },
+  {
+    "name": "comms-analyzer-toolbox",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/bitsofinfo/comms-analyzer-toolbox.git && cd comms-analyzer-toolbox && docker build -t comms-analyzer-toolbox .",
+    "pkg_manager": "git",
+    "usage": "docker run --rm -ti -p 5601:5601 -v /path/to/data.csv:/toolbox/data.csv comms-analyzer-toolbox:latest"
+  },
+  {
+    "name": "SlackPirate",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/emtunc/SlackPirate.git && cd SlackPirate && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python SlackPirate.py --token xoxc-TOKEN --cookie COOKIE"
+  },
+  {
+    "name": "slack-intelbot",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/pun1sh3r/slack-intelbot.git && cd slack-intelbot && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "Configure `config.ini` with API keys, then run the bot"
+  },
+  {
+    "name": "slack-web-scraper",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/iulspop/slack-web-scraper.git && cd slack-web-scraper && npm install",
+    "pkg_manager": "npm",
+    "usage": "Configure `CHANNEL_NAMES` in env, then run with Node.js"
+  },
+  {
+    "name": "Tosint",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/drego85/tosint.git && cd tosint && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 tosint.py -t BOT_TOKEN -c CHAT_ID"
+  },
+  {
+    "name": "WechatSogou",
+    "category": "messaging-comms",
+    "install_cmd": "pip install wechatsogou",
+    "pkg_manager": "pip",
+    "usage": "import wechatsogou; api = wechatsogou.WechatSogouAPI(); api.search_gzh('query')"
+  },
+  {
+    "name": "wechat-dump",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/ppwwyyxx/wechat-dump.git && cd wechat-dump && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "./android-interact.sh db` (requires rooted Android + adb)"
+  },
+  {
+    "name": "wechat-text-backup",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/zhaofeng-shu33/wechat-text-backup.git",
+    "pkg_manager": "git",
+    "usage": "Extract encrypted SQLite DB from Windows WeChat client"
+  },
+  {
+    "name": "linelog2py",
+    "category": "messaging-comms",
+    "install_cmd": "pip install linelog2py",
+    "pkg_manager": "pip",
+    "usage": "from linelog2py import *; messages = Reader.readFile('history.txt')"
+  },
+  {
+    "name": "line-message-analyzer",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/chonyy/line-message-analyzer.git",
+    "pkg_manager": "git",
+    "usage": "Open `index.html` in browser or visit https://chonyy.github.io/line-message-analyzer/"
+  },
+  {
+    "name": "Email2WhatsApp",
+    "category": "messaging-comms",
+    "install_cmd": "go install -v github.com/dsonbaker/email2whatsapp@latest",
+    "pkg_manager": "go",
+    "usage": "echo 5521912345678 \\"
+  },
+  {
+    "name": "WhatsApp-OSINT",
+    "category": "messaging-comms",
+    "install_cmd": "git clone https://github.com/kinghacker0/whatsapp-osint.git && cd whatsapp-osint && python3 -m venv myvenv && source myvenv/bin/activate && pip3 install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 whatsapp-osint.py"
+  },
+  {
+    "name": "Genymotion",
+    "category": "mobile-osint",
+    "install_cmd": "Download installer from https://www.genymotion.com/ (requires registration)",
+    "pkg_manager": "download",
+    "usage": "genymotion` \u2014 launch emulator for APK testing and forensic analysis"
+  },
+  {
+    "name": "BlueStacks",
+    "category": "mobile-osint",
+    "install_cmd": "Download installer from https://www.bluestacks.com/",
+    "pkg_manager": "download",
+    "usage": "BlueStacks` \u2014 lightweight Android emulator for app analysis"
+  },
+  {
+    "name": "Nox",
+    "category": "mobile-osint",
+    "install_cmd": "Download installer from https://www.bignox.com/",
+    "pkg_manager": "download",
+    "usage": "nox` \u2014 Android emulator with root access and multi-version support"
+  },
+  {
+    "name": "Signal",
+    "category": "mobile-osint",
+    "install_cmd": "snap install signal-desktop` or `apt install signal-desktop` (via Signal apt repo)",
+    "pkg_manager": "apt",
+    "usage": "Desktop client \u2014 verify accounts via phone number, inspect profiles"
+  },
+  {
+    "name": "Riot.im (Element)",
+    "category": "mobile-osint",
+    "install_cmd": "apt install element-desktop` or `snap install element-desktop",
+    "pkg_manager": "apt",
+    "usage": "Matrix client \u2014 monitor public communities and channels"
+  },
+  {
+    "name": "Telegram",
+    "category": "mobile-osint",
+    "install_cmd": "snap install telegram-desktop` or `apt install telegram-desktop",
+    "pkg_manager": "apt",
+    "usage": "telegram-desktop` \u2014 user discovery, channel monitoring, group recon"
+  },
+  {
+    "name": "Snapchat",
+    "category": "mobile-osint",
+    "install_cmd": "Mobile-only (use emulator for desktop analysis)",
+    "pkg_manager": "unknown",
+    "usage": "Profile lookup, snap map location tracking, story analysis"
+  },
+  {
+    "name": "WhatsApp",
+    "category": "mobile-osint",
+    "install_cmd": "Download from https://www.whatsapp.com/ or `snap install whatsapp-for-linux",
+    "pkg_manager": "snap",
+    "usage": "Account verification via phone number, profile and status discovery"
+  },
+  {
+    "name": "Kik",
+    "category": "mobile-osint",
+    "install_cmd": "Mobile-only (use emulator for desktop analysis)",
+    "pkg_manager": "unknown",
+    "usage": "Username search, profile analysis, public discovery"
+  },
+  {
+    "name": "Yik Yak",
+    "category": "mobile-osint",
+    "install_cmd": "Mobile-only (use emulator for desktop analysis)",
+    "pkg_manager": "unknown",
+    "usage": "Location-based anonymous post monitoring, community sentiment"
+  },
+  {
+    "name": "LINE",
+    "category": "mobile-osint",
+    "install_cmd": "Download from https://line.me/ or use emulator",
+    "pkg_manager": "download",
+    "usage": "User discovery, profile analysis, account verification (Asia-focused)"
+  },
+  {
+    "name": "Periscope",
+    "category": "mobile-osint",
+    "install_cmd": "Integrated into Twitter/X \u2014 use web interface",
+    "pkg_manager": "unknown",
+    "usage": "Live broadcast monitoring, location metadata extraction"
+  },
+  {
+    "name": "Meerkat",
+    "category": "mobile-osint",
+    "install_cmd": "Dormant service \u2014 historical archive analysis only",
+    "pkg_manager": "unknown",
+    "usage": "Legacy stream archive analysis"
+  },
+  {
+    "name": "Truecaller",
+    "category": "mobile-osint",
+    "install_cmd": "snap install truecaller` or mobile app via emulator",
+    "pkg_manager": "snap",
+    "usage": "Phone number verification, reverse caller ID lookup"
+  },
+  {
+    "name": "APKLeaks",
+    "category": "mobile-osint",
+    "install_cmd": "pip install apkleaks",
+    "pkg_manager": "pip",
+    "usage": "apkleaks -f app.apk` \u2014 scan APKs for hardcoded secrets and API endpoints"
+  },
+  {
+    "name": "JADX",
+    "category": "mobile-osint",
+    "install_cmd": "apt install jadx` or download from https://github.com/skylot/jadx/releases",
+    "pkg_manager": "apt",
+    "usage": "jadx app.apk -d output/` \u2014 decompile DEX to Java source code"
+  },
+  {
+    "name": "MobSF",
+    "category": "mobile-osint",
+    "install_cmd": "pip install mobsf` or `docker run -p 8000:8000 opensecurity/mobile-security-framework-mobsf",
+    "pkg_manager": "pip",
+    "usage": "mobsf` \u2014 comprehensive static and dynamic mobile app security analysis"
+  },
+  {
+    "name": "Autopsy",
+    "category": "mobile-osint",
+    "install_cmd": "apt install autopsy` or download from https://www.autopsy.com/",
+    "pkg_manager": "apt",
+    "usage": "autopsy` \u2014 digital forensics platform for mobile device data extraction"
+  },
+  {
+    "name": "Frida",
+    "category": "mobile-osint",
+    "install_cmd": "pip install frida-tools",
+    "pkg_manager": "pip",
+    "usage": "frida -U -f com.app.target -l script.js` \u2014 runtime instrumentation and API interception"
+  },
+  {
+    "name": "OSINT Researcher",
+    "category": "mobile-osint",
+    "install_cmd": "iOS App Store only (https://apps.apple.com/us/app/osint-researcher/id6747302251)",
+    "pkg_manager": "unknown",
+    "usage": "GitHub organization recon, team structure analysis"
+  },
+  {
+    "name": "ReconXplorer",
+    "category": "online-communities",
+    "install_cmd": "git clone https://github.com/root7am/ReconXplorer && cd ReconXplorer && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python reconxplorer.py"
+  },
+  {
+    "name": "IRCP",
+    "category": "online-communities",
+    "install_cmd": "git clone https://github.com/internet-relay-chat/IRCP && cd IRCP && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python ircp.py <irc_server>"
+  },
+  {
+    "name": "ircsnapshot",
+    "category": "online-communities",
+    "install_cmd": "git clone https://github.com/bwall/ircsnapshot && cd ircsnapshot && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python ircsnapshot.py <irc_server>"
+  },
+  {
+    "name": "Maltego",
+    "category": "osint-tools",
+    "install_cmd": "Download from `https://www.maltego.com/downloads/` (GUI installer)",
+    "pkg_manager": "download",
+    "usage": "maltego` (GUI) or run transforms via Maltego CE/XL"
+  },
+  {
+    "name": "Photon",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/s0md3v/Photon",
+    "pkg_manager": "git",
+    "usage": "Fast web crawler for URLs, emails, files, accounts"
+  },
+  {
+    "name": "ReconDog",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/s0md3v/ReconDog",
+    "pkg_manager": "git",
+    "usage": "Multi-purpose recon with API integrations"
+  },
+  {
+    "name": "DataSploit",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/datasploit/datasploit",
+    "pkg_manager": "git",
+    "usage": "Automated OSINT data aggregation"
+  },
+  {
+    "name": "OSRFramework",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/i3visio/osrframework",
+    "pkg_manager": "git",
+    "usage": "Username checking, domain research, phone lookup"
+  },
+  {
+    "name": "OSINT-SPY",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/SharadKumar97/OSINT-SPY",
+    "pkg_manager": "git",
+    "usage": "Multi-source OSINT collection"
+  },
+  {
+    "name": "Scrummage",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/matamorphosis/Scrummage",
+    "pkg_manager": "git",
+    "usage": "OSINT dashboard and task management"
+  },
+  {
+    "name": "PhoneInfoga",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/sundowndev/PhoneInfoga",
+    "pkg_manager": "git",
+    "usage": "Phone number reconnaissance"
+  },
+  {
+    "name": "Omnibus",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/InQuest/omnibus",
+    "pkg_manager": "git",
+    "usage": "OSINT artifact collection and management"
+  },
+  {
+    "name": "AutoOSINT",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/bharshbarger/AutOSINT",
+    "pkg_manager": "git",
+    "usage": "Automated OSINT workflow runner"
+  },
+  {
+    "name": "Inquisitor",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/penafieljlm/inquisitor",
+    "pkg_manager": "git",
+    "usage": "Modular OSINT gathering framework"
+  },
+  {
+    "name": "CeWL",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/digininja/CeWL",
+    "pkg_manager": "git",
+    "usage": "Custom wordlist generator from target sites"
+  },
+  {
+    "name": "Cupp",
+    "category": "osint-tools",
+    "install_cmd": "git clone https://github.com/Mebus/cupp",
+    "pkg_manager": "git",
+    "usage": "Common User Password Profiler"
+  },
+  {
+    "name": "Stract",
+    "category": "search-engines",
+    "install_cmd": "git clone https://github.com/StractOrg/stract && cd stract && cargo build --release",
+    "pkg_manager": "git",
+    "usage": "Docker: `docker pull stract/stract"
+  },
+  {
+    "name": "Gitrob",
+    "category": "search-engines",
+    "install_cmd": "go install github.com/michenriksen/gitrob@latest",
+    "pkg_manager": "go",
+    "usage": "Docker: `docker pull michenriksen/gitrob"
+  },
+  {
+    "name": "Github-Dorks",
+    "category": "search-engines",
+    "install_cmd": "pip install github-dorks",
+    "pkg_manager": "pip",
+    "usage": "git clone https://github.com/techgaun/github-dorks && pip install -r requirements.txt"
+  },
+  {
+    "name": "GitLeaks",
+    "category": "search-engines",
+    "install_cmd": "go install github.com/gitleaks/gitleaks@latest",
+    "pkg_manager": "go",
+    "usage": "Brew: `brew install gitleaks`; Docker: `docker pull ghcr.io/gitleaks/gitleaks:latest`; Binary: download from GitHub releases"
+  },
+  {
+    "name": "Lazy Scholar",
+    "category": "search-engines",
+    "install_cmd": "Browser extension install from https://lazyscholar.org/",
+    "pkg_manager": "unknown",
+    "usage": "git clone https://github.com/AaronC81/lazy-scholar"
+  },
+  {
+    "name": "pagodo",
+    "category": "search-engines",
+    "install_cmd": "pip install pagodo",
+    "pkg_manager": "pip",
+    "usage": "git clone https://github.com/opsdisk/pagodo && pip install -r requirements.txt"
+  },
+  {
+    "name": "Fediverse_OSINT",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/cyfinoid/fediverse_osint && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python fediverse_osint.py <username>"
+  },
+  {
+    "name": "Masto",
+    "category": "social-networks",
+    "install_cmd": "pip install masto",
+    "pkg_manager": "pip",
+    "usage": "python masto.py -u history-a5b1d7edbe92@example.com"
+  },
+  {
+    "name": "Osintgram",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/Datalux/Osintgram && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python main.py <target>"
+  },
+  {
+    "name": "tweets_analyzer",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/x0rz/tweets_analyzer && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python tweets_analyzer.py -n <handle>"
+  },
+  {
+    "name": "Birdwatcher",
+    "category": "social-networks",
+    "install_cmd": "gem install birdwatcher",
+    "pkg_manager": "gem",
+    "usage": "birdwatcher` (interactive console)"
+  },
+  {
+    "name": "Tinfoleak.py",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/vaguileradiaz/tinfoleak",
+    "pkg_manager": "git",
+    "usage": "python tinfoleak.py"
+  },
+  {
+    "name": "DMI-TCAT",
+    "category": "social-networks",
+    "install_cmd": "docker run --publish 80:80 -d digitalmethodsinitiative/tcat",
+    "pkg_manager": "docker",
+    "usage": "Web dashboard on port 80"
+  },
+  {
+    "name": "TweetVacuum",
+    "category": "social-networks",
+    "install_cmd": "Chrome extension \u2014 clone and load unpacked, or install from Chrome Web Store",
+    "pkg_manager": "unknown",
+    "usage": "Browser extension UI"
+  },
+  {
+    "name": "ScrapedIn",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/dchrastil/ScrapedIn && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python scrapedin.py -u <query>"
+  },
+  {
+    "name": "InSpy",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/jobroche/InSpy && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python InSpy.py --empspy <company> <wordlist>"
+  },
+  {
+    "name": "raven",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/0x09AL/raven && go build raven",
+    "pkg_manager": "git",
+    "usage": "./raven -company <name>"
+  },
+  {
+    "name": "TikTok-OSINT",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/Omicron166/TikTok-OSINT && pip3 install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 tiktok-osint.py -u <username>"
+  },
+  {
+    "name": "Unfurl",
+    "category": "social-networks",
+    "install_cmd": "pip install dfir-unfurl[all]",
+    "pkg_manager": "pip",
+    "usage": "unfurl parse <url>"
+  },
+  {
+    "name": "yt-dlp",
+    "category": "social-networks",
+    "install_cmd": "pip install yt-dlp",
+    "pkg_manager": "pip",
+    "usage": "yt-dlp --dump-json <url>"
+  },
+  {
+    "name": "Threads-Scraper",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/Zeeshanahmad4/Threads-Scraper && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python scraper.py <profile_url>"
+  },
+  {
+    "name": "ThreadsRecon",
+    "category": "social-networks",
+    "install_cmd": "git clone https://github.com/offseq/threadsrecon && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python3 threadsrecon.py -u <username>"
+  },
+  {
+    "name": "Jager",
+    "category": "threat-intelligence",
+    "install_cmd": "pip install jager` or `git clone https://github.com/sroberts/jager && cd jager && python setup.py install",
+    "pkg_manager": "pip",
+    "usage": "jager <ioc-feed-url>"
+  },
+  {
+    "name": "IOC Parser",
+    "category": "threat-intelligence",
+    "install_cmd": "pip install ioc_parser` or `git clone https://github.com/armbues/ioc_parser && cd ioc_parser && python setup.py install",
+    "pkg_manager": "pip",
+    "usage": "ioc_parser -i report.pdf -o csv"
+  },
+  {
+    "name": "Cacador",
+    "category": "threat-intelligence",
+    "install_cmd": "pip install cacador` or `git clone https://github.com/sroberts/cacador && cd cacador && python setup.py install",
+    "pkg_manager": "pip",
+    "usage": "cacador -f threat_report.txt"
+  },
+  {
+    "name": "ThreatPinch Lookup",
+    "category": "threat-intelligence",
+    "install_cmd": "git clone https://github.com/cloudtracer/ThreatPinchLookup",
+    "pkg_manager": "git",
+    "usage": "Browser extension; CLI scripts in repo for IOC enrichment"
+  },
+  {
+    "name": "iocextract",
+    "category": "threat-intelligence",
+    "install_cmd": "pip install iocextract",
+    "pkg_manager": "pip",
+    "usage": "iocextract -f input.txt` or `echo \"text\" \\"
+  },
+  {
+    "name": "ThreatIngestor",
+    "category": "threat-intelligence",
+    "install_cmd": "pip install threatingestor` or `git clone https://github.com/InQuest/ThreatIngestor && pip install .` or `docker pull inquest/threatingestor",
+    "pkg_manager": "pip",
+    "usage": "threatingestor config.yml"
+  },
+  {
+    "name": "MISP",
+    "category": "threat-intelligence",
+    "install_cmd": "git clone https://github.com/MISP/MISP && cd MISP && ./INSTALL/INSTALL.sh` or `docker pull coolacid/misp-docker` ; Python client: `pip install pymisp",
+    "pkg_manager": "pip",
+    "usage": "from pymisp import PyMISP; misp = PyMISP(url, key)"
+  },
+  {
+    "name": "mlsecproject/combine",
+    "category": "threat-intelligence",
+    "install_cmd": "git clone https://github.com/mlsecproject/combine && cd combine && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python combine.py` outputs CSV of aggregated threat feeds"
+  },
+  {
+    "name": "hostintel",
+    "category": "threat-intelligence",
+    "install_cmd": "git clone https://github.com/keithjjones/hostintel && cd hostintel && pip install -r requirements.txt",
+    "pkg_manager": "pip",
+    "usage": "python hostintel.py -a <ip-or-domain> -o csv"
+  },
+  {
+    "name": "Sherlock",
+    "category": "username-recon",
+    "install_cmd": "pip install sherlock-project",
+    "pkg_manager": "pip",
+    "usage": "sherlock <username>"
+  },
+  {
+    "name": "Maigret",
+    "category": "username-recon",
+    "install_cmd": "pip install maigret",
+    "pkg_manager": "pip",
+    "usage": "maigret <username>"
+  },
+  {
+    "name": "WhatsMyName",
+    "category": "username-recon",
+    "install_cmd": "git clone https://github.com/WebBreacher/WhatsMyName",
+    "pkg_manager": "git",
+    "usage": "Web or CLI"
+  },
+  {
+    "name": "Sylva",
+    "category": "username-recon",
+    "install_cmd": "pip install sylva",
+    "pkg_manager": "pip",
+    "usage": "sylva <username>"
+  }
+]

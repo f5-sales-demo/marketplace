@@ -1,0 +1,27 @@
+{
+  "name": "osint-framework",
+  "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos",
+    "url": "https://github.com/f5xc-salesdemos"
+  },
+  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/osint-framework",
+  "keywords": [
+    "osint",
+    "reconnaissance",
+    "intelligence",
+    "investigation",
+    "username",
+    "email",
+    "domain",
+    "ip-address",
+    "social-media",
+    "geolocation",
+    "threat-intelligence",
+    "dark-web",
+    "metadata"
+  ],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+}

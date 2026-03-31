@@ -1,0 +1,1710 @@
+{
+  "version": "0.1.0",
+  "description": "OSINT Framework CLI tools manifest \u2014 install metadata for devcontainer packaging",
+  "source": "Extracted from plugins/osint-framework/skills/*/SKILL.md",
+  "stats": {
+    "total_installable": 138,
+    "total_skipped": 28,
+    "by_package_manager": {
+      "pip": 74,
+      "git": 26,
+      "apt": 18,
+      "go": 12,
+      "npm": 3,
+      "snap": 2,
+      "docker": 1,
+      "gem": 1,
+      "unknown": 1
+    },
+    "by_category": {
+      "cloud-recon": 20,
+      "social-networks": 15,
+      "osint-tools": 12,
+      "messaging-comms": 12,
+      "images-videos": 10,
+      "mobile-osint": 10,
+      "threat-intelligence": 9,
+      "malicious-file-analysis": 7,
+      "ip-address-recon": 7,
+      "encoding-decoding": 7,
+      "dark-web": 5,
+      "search-engines": 5,
+      "username-recon": 4,
+      "disinfo-verification": 4,
+      "email-recon": 3,
+      "online-communities": 3,
+      "domain-recon": 2,
+      "geolocation": 1,
+      "blockchain-crypto": 1,
+      "archives-cache": 1
+    },
+    "verified_pass": 45,
+    "verified_fail": 11,
+    "git_clone_required": 26,
+    "untested": 56,
+    "in_devcontainer_base": 22,
+    "new_for_devcontainer": 116
+  },
+  "tools": [
+    {
+      "name": "Apache Tika",
+      "category": "images-videos",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install default-jre` && download `tika-app.jar` from https://tika.apache.org/",
+      "usage_example": "java -jar tika-app.jar -m document.pdf` \u2014 extract metadata from any file format",
+      "verify_cmd": "dpkg -l default-jre",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Autopsy",
+      "category": "mobile-osint",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install autopsy` or download from https://www.autopsy.com/",
+      "usage_example": "autopsy` \u2014 digital forensics platform for mobile device data extraction",
+      "verify_cmd": "dpkg -l autopsy",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Exiv2",
+      "category": "images-videos",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install exiv2` or `brew install exiv2",
+      "usage_example": "exiv2 image.jpg` \u2014 read/write EXIF, IPTC, XMP, ICC metadata",
+      "verify_cmd": "dpkg -l exiv2",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Ghidra",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install default-jdk wget unzip && wget https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.3_build/ghidra_11.3_PUBLIC_20250108.zip && unzip ghidra_*.zip",
+      "usage_example": "ghidra_11.3_PUBLIC/support/analyzeHeadless /tmp proj -import sample.exe -postScript analysis.py",
+      "verify_cmd": "dpkg -l default-jdk",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "I2P Anonymous Network",
+      "category": "dark-web",
+      "pkg_manager": "apt",
+      "install_cmd": "Apt: `apt-get install -y i2p",
+      "usage_example": "Binary: download from https://geti2p.net/en/download; Docker: `docker pull geti2p/i2p",
+      "verify_cmd": "dpkg -l i2p",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "JADX",
+      "category": "mobile-osint",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install jadx` or download from https://github.com/skylot/jadx/releases",
+      "usage_example": "jadx app.apk -d output/` \u2014 decompile DEX to Java source code",
+      "verify_cmd": "dpkg -l jadx",
+      "tested": true,
+      "test_result": "fail_not_in_repo",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Masscan",
+      "category": "ip-address-recon",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install masscan` / `brew install masscan` / `git clone https://github.com/robertdavidgraham/masscan && cd masscan && make",
+      "usage_example": "masscan -p1-65535 10.0.0.0/8 --rate=10000",
+      "verify_cmd": "dpkg -l masscan",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "MediaInfo",
+      "category": "images-videos",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install mediainfo` or `brew install mediainfo",
+      "usage_example": "mediainfo video.mp4` \u2014 codec, bitrate, duration, stream metadata",
+      "verify_cmd": "dpkg -l mediainfo",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "NetworkMiner",
+      "category": "ip-address-recon",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install mono-complete && wget https://www.netresec.com/files/NetworkMiner.zip` / `brew install --cask networkminer",
+      "usage_example": "mono NetworkMiner.exe capture.pcap",
+      "verify_cmd": "dpkg -l mono-complete",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Nmap",
+      "category": "ip-address-recon",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install nmap` / `brew install nmap` / `snap install nmap",
+      "usage_example": "nmap -sV -O 192.168.1.0/24",
+      "verify_cmd": "dpkg -l nmap",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "OffVis",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "apt",
+      "install_cmd": "Download from `https://download.microsoft.com/download/1/2/7/127ba59a-4fe1-4acd-ba47-513ceef85a85/OffVis.zip`; requires .NET runtime (`apt install dotnet-runtime-6.0` or `wine`)",
+      "usage_example": "OffVis.exe malicious.doc",
+      "verify_cmd": "dpkg -l dotnet-runtime-6.0",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Origami Framework",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "apt",
+      "install_cmd": "gem install origami` or `apt install ruby && gem install origami",
+      "usage_example": "pdfwalker suspect.pdf` or `pdfcop suspect.pdf",
+      "verify_cmd": "dpkg -l ruby",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Riot.im (Element)",
+      "category": "mobile-osint",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install element-desktop` or `snap install element-desktop",
+      "usage_example": "Matrix client \u2014 monitor public communities and channels",
+      "verify_cmd": "dpkg -l element-desktop",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Signal",
+      "category": "mobile-osint",
+      "pkg_manager": "apt",
+      "install_cmd": "snap install signal-desktop` or `apt install signal-desktop` (via Signal apt repo)",
+      "usage_example": "Desktop client \u2014 verify accounts via phone number, inspect profiles",
+      "verify_cmd": "dpkg -l signal-desktop",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "SpiderMonkey",
+      "category": "encoding-decoding",
+      "pkg_manager": "apt",
+      "install_cmd": "apt-get install -y libmozjs-115-dev` or build from source: `git clone https://github.com/nicerobot/spidermonkey && cd spidermonkey && make",
+      "usage_example": "js script.js",
+      "verify_cmd": "dpkg -l libmozjs-115-dev",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Telegram",
+      "category": "mobile-osint",
+      "pkg_manager": "apt",
+      "install_cmd": "snap install telegram-desktop` or `apt install telegram-desktop",
+      "usage_example": "telegram-desktop` \u2014 user discovery, channel monitoring, group recon",
+      "verify_cmd": "dpkg -l telegram-desktop",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Tor Download",
+      "category": "dark-web",
+      "pkg_manager": "apt",
+      "install_cmd": "Apt: `apt-get install -y tor torbrowser-launcher",
+      "usage_example": "Binary: download from https://www.torproject.org/download/",
+      "verify_cmd": "dpkg -l tor",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Wireshark",
+      "category": "ip-address-recon",
+      "pkg_manager": "apt",
+      "install_cmd": "apt install wireshark` / `brew install --cask wireshark` / `snap install wireshark",
+      "usage_example": "tshark -i eth0 -f \"host 192.168.1.1\" -w capture.pcap",
+      "verify_cmd": "dpkg -l wireshark",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "DMI-TCAT",
+      "category": "social-networks",
+      "pkg_manager": "docker",
+      "install_cmd": "docker run --publish 80:80 -d digitalmethodsinitiative/tcat",
+      "usage_example": "Web dashboard on port 80",
+      "verify_cmd": "command -v dmi-tcat",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Birdwatcher",
+      "category": "social-networks",
+      "pkg_manager": "gem",
+      "install_cmd": "gem install birdwatcher",
+      "usage_example": "birdwatcher` (interactive console)",
+      "verify_cmd": "command -v birdwatcher",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "AutoOSINT",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/bharshbarger/AutOSINT",
+      "usage_example": "Automated OSINT workflow runner",
+      "verify_cmd": "command -v autoosint",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "CeWL",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/digininja/CeWL",
+      "usage_example": "Custom wordlist generator from target sites",
+      "verify_cmd": "command -v cewl",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Cupp",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/Mebus/cupp",
+      "usage_example": "Common User Password Profiler",
+      "verify_cmd": "command -v cupp",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "DataSploit",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/datasploit/datasploit",
+      "usage_example": "Automated OSINT data aggregation",
+      "verify_cmd": "command -v datasploit",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "FOCA",
+      "category": "images-videos",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/ElevenPaths/FOCA` (Windows/.NET)",
+      "usage_example": "Document metadata extraction from target domains; finds usernames, paths, software fingerprints",
+      "verify_cmd": "command -v foca",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Infoga",
+      "category": "email-recon",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/m4ll0k/infoga",
+      "usage_example": "python infoga.py -t history-97817c0c4999@example.com",
+      "verify_cmd": "command -v infoga",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Inquisitor",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/penafieljlm/inquisitor",
+      "usage_example": "Modular OSINT gathering framework",
+      "verify_cmd": "command -v inquisitor",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": true
+    },
+    {
+      "name": "OSINT-SPY",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/SharadKumar97/OSINT-SPY",
+      "usage_example": "Multi-source OSINT collection",
+      "verify_cmd": "command -v osint-spy",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "OSRFramework",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/i3visio/osrframework",
+      "usage_example": "Username checking, domain research, phone lookup",
+      "verify_cmd": "command -v osrframework",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Omnibus",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/InQuest/omnibus",
+      "usage_example": "OSINT artifact collection and management",
+      "verify_cmd": "command -v omnibus",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "PhoneInfoga",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/sundowndev/PhoneInfoga",
+      "usage_example": "Phone number reconnaissance",
+      "verify_cmd": "command -v phoneinfoga",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Photon",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/s0md3v/Photon",
+      "usage_example": "Fast web crawler for URLs, emails, files, accounts",
+      "verify_cmd": "command -v photon",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ReconDog",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/s0md3v/ReconDog",
+      "usage_example": "Multi-purpose recon with API integrations",
+      "verify_cmd": "command -v recondog",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "RevEye",
+      "category": "images-videos",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/steven2358/reveye",
+      "usage_example": "Browser extension; multi-engine reverse image search from right-click menu",
+      "verify_cmd": "command -v reveye",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Scrummage",
+      "category": "osint-tools",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/matamorphosis/Scrummage",
+      "usage_example": "OSINT dashboard and task management",
+      "verify_cmd": "command -v scrummage",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Stormspotter",
+      "category": "cloud-recon",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/Azure/Stormspotter.git && docker-compose up",
+      "usage_example": "python3 sscollector.pyz cli",
+      "verify_cmd": "command -v stormspotter",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Stract",
+      "category": "search-engines",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/StractOrg/stract && cd stract && cargo build --release",
+      "usage_example": "Docker: `docker pull stract/stract",
+      "verify_cmd": "command -v stract",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ThreatPinch Lookup",
+      "category": "threat-intelligence",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/cloudtracer/ThreatPinchLookup",
+      "usage_example": "Browser extension; CLI scripts in repo for IOC enrichment",
+      "verify_cmd": "command -v threatpinch-lookup",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Tinfoleak.py",
+      "category": "social-networks",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/vaguileradiaz/tinfoleak",
+      "usage_example": "python tinfoleak.py",
+      "verify_cmd": "command -v tinfoleak.py",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "WhatsMyName",
+      "category": "username-recon",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/WebBreacher/WhatsMyName",
+      "usage_example": "Web or CLI",
+      "verify_cmd": "command -v whatsmyname",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "comms-analyzer-toolbox",
+      "category": "messaging-comms",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/bitsofinfo/comms-analyzer-toolbox.git && cd comms-analyzer-toolbox && docker build -t comms-analyzer-toolbox .",
+      "usage_example": "docker run --rm -ti -p 5601:5601 -v /path/to/data.csv:/toolbox/data.csv comms-analyzer-toolbox:latest",
+      "verify_cmd": "command -v comms-analyzer-toolbox",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "iheartxor.py",
+      "category": "encoding-decoding",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/ByteSnipers/iheartxor && chmod +x iheartxor.py` or download from `https://hooked-on-mnemonics.blogspot.com/p/iheartxor.html",
+      "usage_example": "python iheartxor.py -f sample.bin",
+      "verify_cmd": "command -v iheartxor.py",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "lazys3",
+      "category": "cloud-recon",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/nahamsec/lazys3.git` (requires Ruby)",
+      "usage_example": "ruby lazys3.rb company-name",
+      "verify_cmd": "command -v lazys3",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "line-message-analyzer",
+      "category": "messaging-comms",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/chonyy/line-message-analyzer.git",
+      "usage_example": "Open `index.html` in browser or visit https://chonyy.github.io/line-message-analyzer/",
+      "verify_cmd": "command -v line-message-analyzer",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "raven",
+      "category": "social-networks",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/0x09AL/raven && go build raven",
+      "usage_example": "./raven -company <name>",
+      "verify_cmd": "command -v raven",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "wechat-text-backup",
+      "category": "messaging-comms",
+      "pkg_manager": "git",
+      "install_cmd": "git clone https://github.com/zhaofeng-shu33/wechat-text-backup.git",
+      "usage_example": "Extract encrypted SQLite DB from Windows WeChat client",
+      "verify_cmd": "command -v wechat-text-backup",
+      "tested": false,
+      "test_result": "git_clone_required",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Amass",
+      "category": "cloud-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/owasp-amass/amass/v4/...@master",
+      "usage_example": "amass enum -d target.com",
+      "verify_cmd": "command -v amass",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "BucketLoot",
+      "category": "cloud-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/redhuntlabs/bucketloot/cmd/bucketloot@latest",
+      "usage_example": "bucketloot https://bucket.s3.amazonaws.com",
+      "verify_cmd": "command -v bucketloot",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Email2WhatsApp",
+      "category": "messaging-comms",
+      "pkg_manager": "go",
+      "install_cmd": "go install -v github.com/dsonbaker/email2whatsapp@latest",
+      "usage_example": "echo 5521912345678 \\",
+      "verify_cmd": "command -v email2whatsapp",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "GitLeaks",
+      "category": "search-engines",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/gitleaks/gitleaks@latest",
+      "usage_example": "Brew: `brew install gitleaks`; Docker: `docker pull ghcr.io/gitleaks/gitleaks:latest`; Binary: download from GitHub releases",
+      "verify_cmd": "command -v gitleaks",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Gitrob",
+      "category": "search-engines",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/michenriksen/gitrob@latest",
+      "usage_example": "Docker: `docker pull michenriksen/gitrob",
+      "verify_cmd": "command -v gitrob",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "OnionScan",
+      "category": "dark-web",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/s-rah/onionscan@latest",
+      "usage_example": "git clone https://github.com/s-rah/onionscan && cd onionscan && go build",
+      "verify_cmd": "command -v onionscan",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "S3Scanner",
+      "category": "cloud-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install -v github.com/sa7mon/s3scanner@latest",
+      "usage_example": "s3scanner -bucket bucket-name -enumerate",
+      "verify_cmd": "command -v s3scanner",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Subfinder",
+      "category": "cloud-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
+      "usage_example": "subfinder -d target.com",
+      "verify_cmd": "command -v subfinder",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "checkip",
+      "category": "ip-address-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/jreisinger/checkip@latest` / `git clone https://github.com/jreisinger/checkip && cd checkip && go build",
+      "usage_example": "checkip 203.0.113.141",
+      "verify_cmd": "command -v checkip",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "dnsx",
+      "category": "domain-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest",
+      "usage_example": "echo domain.com \\",
+      "verify_cmd": "command -v dnsx",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "goblob",
+      "category": "cloud-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/Macmod/goblob@latest",
+      "usage_example": "goblob storageaccountname",
+      "verify_cmd": "command -v goblob",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "httpx",
+      "category": "domain-recon",
+      "pkg_manager": "go",
+      "install_cmd": "go install github.com/projectdiscovery/httpx/cmd/httpx@latest",
+      "usage_example": "echo domain.com \\",
+      "verify_cmd": "command -v httpx",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "CyberChef",
+      "category": "encoding-decoding",
+      "pkg_manager": "npm",
+      "install_cmd": "Local: `git clone https://github.com/gchq/CyberChef && cd CyberChef && npm install && npm run build`; Docker: `docker run -p 8000:8000 ghcr.io/gchq/cyberchef`; or use web at `https://gchq.github.io/CyberChef/",
+      "usage_example": "Open in browser; or use Node API for automation",
+      "verify_cmd": "command -v cyberchef",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Hyperlapse",
+      "category": "geolocation",
+      "pkg_manager": "npm",
+      "install_cmd": "git clone https://github.com/TeehanLax/Hyperlapse.js && npm install",
+      "usage_example": "Embed as JS library for Street View hyperlapse animations",
+      "verify_cmd": "command -v hyperlapse",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "slack-web-scraper",
+      "category": "messaging-comms",
+      "pkg_manager": "npm",
+      "install_cmd": "git clone https://github.com/iulspop/slack-web-scraper.git && cd slack-web-scraper && npm install",
+      "usage_example": "Configure `CHANNEL_NAMES` in env, then run with Node.js",
+      "verify_cmd": "command -v slack-web-scraper",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "APKLeaks",
+      "category": "mobile-osint",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install apkleaks",
+      "usage_example": "apkleaks -f app.apk` \u2014 scan APKs for hardcoded secrets and API endpoints",
+      "verify_cmd": "pip3 show apkleaks",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "AWSBucketDump",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/jordanpotti/AWSBucketDump.git && pip install -r AWSBucketDump/requirements.txt",
+      "usage_example": "python AWSBucketDump.py -l buckets.txt -g keywords.txt -D",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Balbuzard",
+      "category": "encoding-decoding",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install balbuzard` or `git clone https://github.com/decalage2/balbuzard && cd balbuzard && python setup.py install",
+      "usage_example": "balbuzard sample.bin",
+      "verify_cmd": "pip3 show balbuzard",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Cacador",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install cacador` or `git clone https://github.com/sroberts/cacador && cd cacador && python setup.py install",
+      "usage_example": "cacador -f threat_report.txt",
+      "verify_cmd": "pip3 show cacador",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Checkov",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install checkov",
+      "usage_example": "checkov --directory /path/to/iac",
+      "verify_cmd": "pip3 show checkov",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Cloud Custodian",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install c7n",
+      "usage_example": "custodian run -s out policy.yml",
+      "verify_cmd": "pip3 show c7n",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "CloudFail",
+      "category": "ip-address-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install cloudfail` / `git clone https://github.com/m0rtem/CloudFail && cd CloudFail && pip install -r requirements.txt",
+      "usage_example": "python3 cloudfail.py -t target.com",
+      "verify_cmd": "pip3 show cloudfail",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "DeepFake-Detect",
+      "category": "disinfo-verification",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/dessa-oss/DeepFake-Detection && pip install -r requirements.txt",
+      "usage_example": "Docker: `docker build -t deepfake-detect .` (from repo)",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "DeepSafe",
+      "category": "disinfo-verification",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/siddharthksah/DeepSafe && pip install -r requirements.txt",
+      "usage_example": "Docker: `docker-compose up` (from repo -- recommended)",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "DeepfakeBench",
+      "category": "disinfo-verification",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/SCLBD/DeepfakeBench && pip install -r requirements.txt",
+      "usage_example": "Conda: `conda env create -f environment.yml",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "DeepfakeDetector",
+      "category": "disinfo-verification",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/TRahulsingh/DeepfakeDetector && pip install -r requirements.txt",
+      "usage_example": "Docker: `docker build -t deepfake-detector .` (from repo)",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Fediverse_OSINT",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/cyfinoid/fediverse_osint && pip install -r requirements.txt",
+      "usage_example": "python fediverse_osint.py <username>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Frida",
+      "category": "mobile-osint",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install frida-tools",
+      "usage_example": "frida -U -f com.app.target -l script.js` \u2014 runtime instrumentation and API interception",
+      "verify_cmd": "pip3 show frida-tools",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "GCPBucketBrute",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/RhinoSecurityLabs/GCPBucketBrute.git && pip3 install -r GCPBucketBrute/requirements.txt",
+      "usage_example": "python3 gcpbucketbrute.py -k company-name -u",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Github-Dorks",
+      "category": "search-engines",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install github-dorks",
+      "usage_example": "git clone https://github.com/techgaun/github-dorks && pip install -r requirements.txt",
+      "verify_cmd": "pip3 show github-dorks",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "IOC Parser",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install ioc_parser` or `git clone https://github.com/armbues/ioc_parser && cd ioc_parser && python setup.py install",
+      "usage_example": "ioc_parser -i report.pdf -o csv",
+      "verify_cmd": "pip3 show ioc_parser",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "IRCP",
+      "category": "online-communities",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/internet-relay-chat/IRCP && cd IRCP && pip install -r requirements.txt",
+      "usage_example": "python ircp.py <irc_server>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ImageNet",
+      "category": "images-videos",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install imagenet` or download from https://image-net.org/",
+      "usage_example": "Image classification dataset and API for visual taxonomy research",
+      "verify_cmd": "pip3 show imagenet",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Imgrab",
+      "category": "images-videos",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install imgrab` or download from https://www.imgrab.com/",
+      "usage_example": "imgrab <url>` \u2014 batch image download from web pages",
+      "verify_cmd": "pip3 show imgrab",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "InSpy",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/jobroche/InSpy && pip install -r requirements.txt",
+      "usage_example": "python InSpy.py --empspy <company> <wordlist>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Jager",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install jager` or `git clone https://github.com/sroberts/jager && cd jager && python setup.py install",
+      "usage_example": "jager <ioc-feed-url>",
+      "verify_cmd": "pip3 show jager",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "MISP",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/MISP/MISP && cd MISP && ./INSTALL/INSTALL.sh` or `docker pull coolacid/misp-docker` ; Python client: `pip install pymisp",
+      "usage_example": "from pymisp import PyMISP; misp = PyMISP(url, key)",
+      "verify_cmd": "pip3 show pymisp",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Maigret",
+      "category": "username-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install maigret",
+      "usage_example": "maigret <username>",
+      "verify_cmd": "pip3 show maigret",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Masto",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install masto",
+      "usage_example": "python masto.py -u history-a5b1d7edbe92@example.com",
+      "verify_cmd": "pip3 show masto",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "MobSF",
+      "category": "mobile-osint",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install mobsf` or `docker run -p 8000:8000 opensecurity/mobile-security-framework-mobsf",
+      "usage_example": "mobsf` \u2014 comprehensive static and dynamic mobile app security analysis",
+      "verify_cmd": "pip3 show mobsf",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "NoMoreXOR.py",
+      "category": "encoding-decoding",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/hiddenillusion/NoMoreXOR && cd NoMoreXOR && pip install -r requirements.txt",
+      "usage_example": "python NoMoreXOR.py -f sample.bin",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Onioff",
+      "category": "dark-web",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install onioff",
+      "usage_example": "git clone https://github.com/k4m4/onioff && pip install -r requirements.txt",
+      "verify_cmd": "pip3 show onioff",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Orbit",
+      "category": "blockchain-crypto",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/s0md3v/Orbit && cd Orbit && pip install -r requirements.txt",
+      "usage_example": "python orbit.py -s <bitcoin_address>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Osintgram",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/Datalux/Osintgram && pip install -r requirements.txt",
+      "usage_example": "python main.py <target>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "PDF Tools (Didier Stevens)",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install pdfid pdf-parser` or `git clone https://github.com/DidierStevens/DidierStevensSuite.git",
+      "usage_example": "pdfid.py suspect.pdf && pdf-parser.py -s /JS suspect.pdf",
+      "verify_cmd": "pip3 show pdfid",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Places2",
+      "category": "images-videos",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/CSAILVision/places365` && `pip install torch torchvision",
+      "usage_example": "Scene recognition model; `python run_placesCNN_basic.py --image photo.jpg",
+      "verify_cmd": "pip3 show torch",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Prowler",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install prowler",
+      "usage_example": "prowler aws",
+      "verify_cmd": "pip3 show prowler",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "ROADtools",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install roadrecon roadtx",
+      "usage_example": "roadrecon auth && roadrecon gather && roadrecon gui",
+      "verify_cmd": "pip3 show roadrecon",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ReconXplorer",
+      "category": "online-communities",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/root7am/ReconXplorer && cd ReconXplorer && pip install -r requirements.txt",
+      "usage_example": "python reconxplorer.py",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Scanless",
+      "category": "ip-address-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install scanless` / `git clone https://github.com/vesche/scanless && cd scanless && pip install .",
+      "usage_example": "scanless -t 203.0.113.141 -s yougetsignal",
+      "verify_cmd": "pip3 show scanless",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ScoutSuite",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install scoutsuite",
+      "usage_example": "scout aws",
+      "verify_cmd": "pip3 show scoutsuite",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ScrapedIn",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/dchrastil/ScrapedIn && pip install -r requirements.txt",
+      "usage_example": "python scrapedin.py -u <query>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Sherlock",
+      "category": "username-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install sherlock-project",
+      "usage_example": "sherlock <username>",
+      "verify_cmd": "pip3 show sherlock-project",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "SlackPirate",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/emtunc/SlackPirate.git && cd SlackPirate && pip install -r requirements.txt",
+      "usage_example": "python SlackPirate.py --token xoxc-TOKEN --cookie COOKIE",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "SpiderFoot",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/smicallef/spiderfoot.git && pip3 install -r spiderfoot/requirements.txt",
+      "usage_example": "python3 sf.py -l 127.0.0.1:5001",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Sublist3r",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install sublist3r",
+      "usage_example": "sublist3r -d target.com",
+      "verify_cmd": "pip3 show sublist3r",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Sylva",
+      "category": "username-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install sylva",
+      "usage_example": "sylva <username>",
+      "verify_cmd": "pip3 show sylva",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "TYLabs QuickSand",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install quicksand` or `git clone https://github.com/nickvdp/quicksand.git && cd quicksand && pip install .",
+      "usage_example": "quicksand document.doc",
+      "verify_cmd": "pip3 show quicksand",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Threads-Scraper",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/Zeeshanahmad4/Threads-Scraper && pip install -r requirements.txt",
+      "usage_example": "python scraper.py <profile_url>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ThreadsRecon",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/offseq/threadsrecon && pip install -r requirements.txt",
+      "usage_example": "python3 threadsrecon.py -u <username>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ThreatIngestor",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install threatingestor` or `git clone https://github.com/InQuest/ThreatIngestor && pip install .` or `docker pull inquest/threatingestor",
+      "usage_example": "threatingestor config.yml",
+      "verify_cmd": "pip3 show threatingestor",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "TikTok-OSINT",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/Omicron166/TikTok-OSINT && pip3 install -r requirements.txt",
+      "usage_example": "python3 tiktok-osint.py -u <username>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "TorBot",
+      "category": "dark-web",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install torbot",
+      "usage_example": "git clone https://github.com/DedSecInside/TorBot && pip install -r requirements.txt",
+      "verify_cmd": "pip3 show torbot",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Tosint",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/drego85/tosint.git && cd tosint && pip install -r requirements.txt",
+      "usage_example": "python3 tosint.py -t BOT_TOKEN -c CHAT_ID",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Unfurl",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install dfir-unfurl[all]",
+      "usage_example": "unfurl parse <url>",
+      "verify_cmd": "pip3 show dfir-unfurl",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Waybackpack",
+      "category": "archives-cache",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install waybackpack",
+      "usage_example": "waybackpack example.com -d output_dir",
+      "verify_cmd": "pip3 show waybackpack",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "WechatSogou",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install wechatsogou",
+      "usage_example": "import wechatsogou; api = wechatsogou.WechatSogouAPI(); api.search_gzh('query')",
+      "verify_cmd": "pip3 show wechatsogou",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "WhatsApp-OSINT",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/kinghacker0/whatsapp-osint.git && cd whatsapp-osint && python3 -m venv myvenv && source myvenv/bin/activate && pip3 install -r requirements.txt",
+      "usage_example": "python3 whatsapp-osint.py",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "XORSearch/XORStrings",
+      "category": "encoding-decoding",
+      "pkg_manager": "pip",
+      "install_cmd": "Download from `https://blog.didierstevens.com/programs/xorsearch/`; compile: `gcc -o xorsearch xorsearch.c` or `pip install xorsearch",
+      "usage_example": "xorsearch -s sample.bin \"http\"",
+      "verify_cmd": "pip3 show xorsearch",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "cloud_enum",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/initstring/cloud_enum.git && pip install -r cloud_enum/requirements.txt",
+      "usage_example": "python3 cloud_enum.py -k company-name",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "detux",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/detuxsandbox/detux.git && cd detux && pip install -r requirements.txt",
+      "usage_example": "python detux.py -s sample.elf",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "dnsrecon",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install dnsrecon",
+      "usage_example": "dnsrecon -d target.com",
+      "verify_cmd": "pip3 show dnsrecon",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "h8mail",
+      "category": "email-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install h8mail",
+      "usage_example": "h8mail -t history-97817c0c4999@example.com",
+      "verify_cmd": "pip3 show h8mail",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "holehe",
+      "category": "email-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install holehe",
+      "usage_example": "holehe history-97817c0c4999@example.com",
+      "verify_cmd": "pip3 show holehe",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "hostintel",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/keithjjones/hostintel && cd hostintel && pip install -r requirements.txt",
+      "usage_example": "python hostintel.py -a <ip-or-domain> -o csv",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "iocextract",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install iocextract",
+      "usage_example": "iocextract -f input.txt` or `echo \"text\" \\",
+      "verify_cmd": "pip3 show iocextract",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "ircsnapshot",
+      "category": "online-communities",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/bwall/ircsnapshot && cd ircsnapshot && pip install -r requirements.txt",
+      "usage_example": "python ircsnapshot.py <irc_server>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "linelog2py",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install linelog2py",
+      "usage_example": "from linelog2py import *; messages = Reader.readFile('history.txt')",
+      "verify_cmd": "pip3 show linelog2py",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "mlsecproject/combine",
+      "category": "threat-intelligence",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/mlsecproject/combine && cd combine && pip install -r requirements.txt",
+      "usage_example": "python combine.py` outputs CSV of aggregated threat feeds",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "oletools",
+      "category": "images-videos",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install oletools",
+      "usage_example": "olevba document.docm` \u2014 extract macros; `oleid document.doc` \u2014 triage indicators",
+      "verify_cmd": "pip3 show oletools",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "pagodo",
+      "category": "search-engines",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install pagodo",
+      "usage_example": "git clone https://github.com/opsdisk/pagodo && pip install -r requirements.txt",
+      "verify_cmd": "pip3 show pagodo",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "slack-intelbot",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/pun1sh3r/slack-intelbot.git && cd slack-intelbot && pip install -r requirements.txt",
+      "usage_example": "Configure `config.ini` with API keys, then run the bot",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "theHarvester",
+      "category": "cloud-recon",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install theHarvester",
+      "usage_example": "theHarvester -d target.com -b all",
+      "verify_cmd": "pip3 show theHarvester",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": true
+    },
+    {
+      "name": "tweets_analyzer",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/x0rz/tweets_analyzer && pip install -r requirements.txt",
+      "usage_example": "python tweets_analyzer.py -n <handle>",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "unxor",
+      "category": "encoding-decoding",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/tomchop/unxor && cd unxor && pip install .",
+      "usage_example": "unxor -f encoded.bin -k known_plaintext",
+      "verify_cmd": "command -v unxor",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "vt-cli (VirusTotal)",
+      "category": "malicious-file-analysis",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install vt-cli` or `go install github.com/VirusTotal/vt-cli/vt@latest",
+      "usage_example": "vt file scan sample.exe && vt file <hash>",
+      "verify_cmd": "pip3 show vt-cli",
+      "tested": true,
+      "test_result": "fail_not_on_pypi",
+      "in_devcontainer": false
+    },
+    {
+      "name": "wechat-dump",
+      "category": "messaging-comms",
+      "pkg_manager": "pip",
+      "install_cmd": "git clone https://github.com/ppwwyyxx/wechat-dump.git && cd wechat-dump && pip install -r requirements.txt",
+      "usage_example": "./android-interact.sh db` (requires rooted Android + adb)",
+      "verify_cmd": "pip3 show -r",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "xeuledoc",
+      "category": "images-videos",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install xeuledoc",
+      "usage_example": "xeuledoc <google-doc-url>` \u2014 extract owner metadata from public Google Docs/Sheets/Slides",
+      "verify_cmd": "pip3 show xeuledoc",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": false
+    },
+    {
+      "name": "yt-dlp",
+      "category": "social-networks",
+      "pkg_manager": "pip",
+      "install_cmd": "pip install yt-dlp",
+      "usage_example": "yt-dlp --dump-json <url>",
+      "verify_cmd": "pip3 show yt-dlp",
+      "tested": true,
+      "test_result": "pass",
+      "in_devcontainer": true
+    },
+    {
+      "name": "Truecaller",
+      "category": "mobile-osint",
+      "pkg_manager": "snap",
+      "install_cmd": "snap install truecaller` or mobile app via emulator",
+      "usage_example": "Phone number verification, reverse caller ID lookup",
+      "verify_cmd": "command -v truecaller",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "WhatsApp",
+      "category": "mobile-osint",
+      "pkg_manager": "snap",
+      "install_cmd": "Download from https://www.whatsapp.com/ or `snap install whatsapp-for-linux",
+      "usage_example": "Account verification via phone number, profile and status discovery",
+      "verify_cmd": "command -v whatsapp",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    },
+    {
+      "name": "Steampipe",
+      "category": "cloud-recon",
+      "pkg_manager": "unknown",
+      "install_cmd": "sudo /bin/sh -c \"$(curl -fsSL https://steampipe.io/install/steampipe.sh)\"",
+      "usage_example": "steampipe query \"select * from aws_s3_bucket\"",
+      "verify_cmd": "command -v steampipe",
+      "tested": false,
+      "test_result": "untested",
+      "in_devcontainer": false
+    }
+  ],
+  "skipped": [
+    {
+      "name": "Wayback Machine Chrome Extension",
+      "category": "archives-cache",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "AADInternals",
+      "category": "cloud-recon",
+      "reason": "PowerShell module (Windows only)"
+    },
+    {
+      "name": "MicroBurst",
+      "category": "cloud-recon",
+      "reason": "PowerShell module (Windows only)"
+    },
+    {
+      "name": "Freenet Project",
+      "category": "dark-web",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "InVID-WeVerify Verification Plugin",
+      "category": "disinfo-verification",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "whois",
+      "category": "domain-recon",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "dig",
+      "category": "domain-recon",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "nslookup",
+      "category": "domain-recon",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Kahu Revelo",
+      "category": "encoding-decoding",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "JavaScript Deobfuscator",
+      "category": "encoding-decoding",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Kahu Converter",
+      "category": "encoding-decoding",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "XORBruteForcer.py",
+      "category": "encoding-decoding",
+      "reason": "no clear install method"
+    },
+    {
+      "name": "Mini Instagram",
+      "category": "images-videos",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "GeoSetter",
+      "category": "images-videos",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "JPEGsnoop",
+      "category": "images-videos",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Genymotion",
+      "category": "mobile-osint",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "BlueStacks",
+      "category": "mobile-osint",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Nox",
+      "category": "mobile-osint",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Snapchat",
+      "category": "mobile-osint",
+      "reason": "no clear install method"
+    },
+    {
+      "name": "Kik",
+      "category": "mobile-osint",
+      "reason": "no clear install method"
+    },
+    {
+      "name": "Yik Yak",
+      "category": "mobile-osint",
+      "reason": "no clear install method"
+    },
+    {
+      "name": "LINE",
+      "category": "mobile-osint",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Periscope",
+      "category": "mobile-osint",
+      "reason": "no clear install method"
+    },
+    {
+      "name": "Meerkat",
+      "category": "mobile-osint",
+      "reason": "no clear install method"
+    },
+    {
+      "name": "OSINT Researcher",
+      "category": "mobile-osint",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Maltego",
+      "category": "osint-tools",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "Lazy Scholar",
+      "category": "search-engines",
+      "reason": "browser extension, download, or preinstalled"
+    },
+    {
+      "name": "TweetVacuum",
+      "category": "social-networks",
+      "reason": "browser extension, download, or preinstalled"
+    }
+  ]
+}

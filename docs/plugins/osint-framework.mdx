@@ -1,0 +1,196 @@
+---
+title: osint-framework
+sidebar:
+  order: 12
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **osint-framework** plugin provides OSINT tool catalog and
+investigation skills — 1,064 free intelligence-gathering tools
+across 34 categories mapped from [osintframework.com](https://osintframework.com).
+It includes category-based skills, executable investigation pipelines,
+CLI tool execution, OPSEC-aware workflows, and a persistent entity
+graph for cross-investigation correlation.
+
+<Badge text="v1.0.0" variant="note" /> <Badge text="Security" variant="tip" />
+
+## Installation
+
+```
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+```
+
+## Commands
+
+### /osint-investigate
+
+Run a full OSINT investigation against any target. Automatically
+detects the target type (email, domain, IP, username, company,
+person name) and routes to the correct category skills.
+
+```
+/osint-investigate history-3a839d502d7a@example.com
+/osint-investigate cloudflare.com
+/osint-investigate 198.51.100.66
+/osint-investigate robinmordasiewicz
+```
+
+### /osint-search
+
+Search the tool catalog for tools matching a capability query.
+
+```
+/osint-search subdomain enumeration
+/osint-search email breach check
+/osint-search satellite imagery
+```
+
+### /osint-catalog
+
+Browse the full tool catalog by category. Without arguments shows
+all 34 categories with tool counts.
+
+```
+/osint-catalog
+/osint-catalog domain
+/osint-catalog threat-intel
+```
+
+## Skills
+
+### osint-index
+
+Top-level intent router. Auto-activates when you say "find
+information about", "investigate", "look up", "background check",
+or describe any open-source intelligence task. Routes to the
+correct category skill based on target type.
+
+| Target | Routes To |
+|--------|----------|
+| Username or handle | `username-recon` |
+| Email address | `email-recon` |
+| Domain name | `domain-recon` |
+| IP address | `ip-address-recon` |
+| Person name + company | `people-search` + `business-records` |
+| Company / org | `business-records` + `domain-recon` |
+| Malware hash | `malicious-file-analysis` + `threat-intelligence` |
+
+### Category Skills (34 total)
+
+Each category has a dedicated skill with CLI tools, web resources,
+investigation workflow, cross-category pivots, and OPSEC notes.
+
+| Category | Tools | Key CLI Tools |
+|----------|-------|--------------|
+| `username-recon` | 18 | sherlock, maigret, sylva |
+| `email-recon` | 28 | holehe, h8mail, theHarvester |
+| `domain-recon` | 131 | subfinder, amass, whois, dig |
+| `cloud-recon` | 23 | cloud_enum, S3Scanner, ScoutSuite |
+| `ip-address-recon` | 55 | nmap, masscan, checkip |
+| `images-videos` | 89 | exiftool, exiv2, yt-dlp |
+| `social-networks` | 63 | maigret, yt-dlp, Osintgram |
+| `threat-intelligence` | 38 | iocextract, ioc_parser, pymisp |
+| `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
+| `search-engines` | 73 | gitleaks, pagodo, gobuster |
+| `geolocation` | 47 | Hyperlapse |
+| `opsec` | 47 | 47 web-based privacy tools |
+| `people-search` | 18 | GitHub API, GitLab API |
+| `business-records` | 28 | SEC EDGAR, OpenCorporates |
+| *(20 more categories)* | 500+ | — |
+
+<Aside type="tip">
+  Use `/osint-catalog` to browse all 34 categories or
+  `/osint-search <capability>` to find tools for a specific task.
+</Aside>
+
+### osint-catalog
+
+Tool catalog browser. Provides access to the full tool registry,
+category index, investigation pipelines, rate-limit reference,
+and correlation engine documentation.
+
+## Agents
+
+### osint-investigator
+
+Autonomous multi-tool investigation orchestrator. Runs full
+investigation workflows — tool availability check, target type
+detection, sequential tool execution (passive first), result
+aggregation, and structured report generation with confidence
+levels and OPSEC classifications.
+
+Integrates with the entity graph: each tool result creates entities
+and relationships in `/tmp/osint-graph/` for cross-investigation
+correlation.
+
+<Aside type="caution">
+  Active recon tools (nmap, nuclei, sherlock) make direct contact
+  with target infrastructure. The OPSEC warning hook alerts before
+  running active tools. Always ensure you have authorization.
+</Aside>
+
+### osint-researcher
+
+Read-only catalog lookup agent. Searches reference files to
+recommend the best tools for a given task. Never executes tools —
+only recommends and explains. Used internally by category skills
+for tool discovery.
+
+### osint-executor
+
+Single-tool CLI execution agent. Runs one tool at a time with
+specific parameters, parses output, and returns structured results.
+Includes per-tool execution recipes for 20+ tools with exact flags,
+output formats, and jq parsing patterns.
+
+## Rate Limiting
+
+All API calls use the `osint_curl` helper with built-in exponential
+backoff on HTTP 429/503. Key limits:
+
+| API | Free Limit | Env Var |
+|-----|-----------|---------|
+| ipinfo.io | 1,000/day | — |
+| crt.sh | 60/min | — |
+| NVD | 5/30s (no key) | `NVD_API_KEY` |
+| OpenCorporates | Requires key | `OPENCORPORATES_API_KEY` |
+| Shodan | 1/sec | `SHODAN_API_KEY` |
+| GitHub API | 60/hr (no auth) | `GH_TOKEN` |
+
+APIs that require keys are automatically skipped with a clear
+message if the environment variable is not set.
+
+## Correlation Engine
+
+The plugin includes a persistent JSON entity graph at
+`/tmp/osint-graph/` that accumulates findings across investigations.
+
+```bash
+source plugins/osint-framework/scripts/osint-graph.sh
+osint_graph_init
+
+# Add entities
+P=$(osint_entity_add "person" "Robin Mordasiewicz" --tool github-api)
+C=$(osint_entity_add "company" "F5" --tool github-api)
+
+# Link them
+osint_rel_add "$P" "$C" "works_at" --tool github-api
+
+# Query: all entities within 2 hops of the person
+osint_graph_query "$P" 2
+
+# Generate report
+osint_graph_report
+```
+
+**Confidence scoring** uses multi-source fusion:
+`confidence = 1 - product(1 - ci)` for each confirming source.
+Two sources at 0.80 → 0.96 combined confidence.
+
+## Legal Notice
+
+All tools use only publicly available information. Users are
+responsible for ensuring compliance with applicable laws,
+regulations, and platform terms of service. Never use OSINT tools
+for unauthorized access, harassment, or any illegal activity.
