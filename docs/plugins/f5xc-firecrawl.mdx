@@ -1,0 +1,147 @@
+---
+title: f5xc-firecrawl
+sidebar:
+  order: 13
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **f5xc-firecrawl** plugin provides local self-hosted web scraping
+via the open-source [firecrawl](https://github.com/mendableai/firecrawl)
+engine. No API keys, no subscriptions, no cloud dependency. All
+operations run against the local firecrawl instance on `localhost:3002`
+inside the devcontainer.
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## Commands
+
+### /scrape
+
+Scrape a single URL and extract content as markdown.
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+Scrape multiple URLs at once.
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+Crawl multiple pages from a starting URL.
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+Discover all URLs on a website.
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+Search the web and optionally scrape results.
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+LLM-powered structured data extraction from web pages.
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  The extract command requires an OpenAI-compatible LLM proxy
+  configured via `OPENAI_BASE_URL` and `OPENAI_API_KEY`.
+</Aside>
+
+### /llmstxt
+
+Generate an llms.txt file for a site.
+
+```
+/llmstxt https://docs.example.com
+```
+
+## Skills
+
+### web-scraper
+
+Auto-activates when you ask to scrape a URL, crawl a website, map
+site URLs, search the web, extract structured data, generate llms.txt,
+batch scrape multiple URLs, or convert a web page to markdown.
+Delegates immediately to the firecrawl-operator agent.
+
+## Agents
+
+### firecrawl-operator
+
+Autonomous web scraping agent that executes `curl` + `jq` sequences
+against the local firecrawl API. Supports 11 protocols covering all
+v1 endpoints. Read-only agent (no Write, Edit, or Agent tools).
+
+| Protocol | Endpoint | Type |
+|----------|----------|------|
+| HEALTH | `GET /` | Sync |
+| SCRAPE | `POST /v1/scrape` | Sync |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
+| CRAWL | `POST /v1/crawl` | Async |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
+| MAP | `POST /v1/map` | Sync |
+| SEARCH | `POST /v1/search` | Sync |
+| EXTRACT | `POST /v1/extract` | Async |
+| LLMSTXT | `POST /v1/llmstxt` | Async |
+
+## Infrastructure
+
+The plugin requires the firecrawl stack running in the devcontainer:
+
+| Component | Port | Purpose |
+|-----------|------|---------|
+| Firecrawl API | 3002 | All scrape/crawl/map/search/extract endpoints |
+| Playwright | 3000 | JavaScript rendering engine |
+| Redis | 6379 | Job queue backend |
+| PostgreSQL | socket | Crawl/batch job persistence |
+| LiteLLM proxy | OPENAI_BASE_URL | LLM backend for extract (optional) |
+
+The stack starts automatically when `ENABLE_FIRECRAWL=true` (the
+default). A SessionStart hook checks that the API is reachable and
+warns if the service is down.
+
+## Differences from Cloud Firecrawl
+
+This plugin uses the self-hosted open-source version:
+
+- No authentication or API keys required for scraping
+- No credit limits or rate limiting
+- Uses v1 API endpoints (not v2)
+- Browser sessions and deep research not available
+- Extract uses your own LLM proxy instead of hosted models
+- Runs entirely within the local container network

@@ -13,7 +13,7 @@
     {
       "name": "f5xc-docs-tools",
       "description": "MDX content validation and review tools for f5xc-salesdemos docs repos",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -28,7 +28,7 @@
     {
       "name": "f5xc-sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -43,7 +43,7 @@
     {
       "name": "f5xc-github-ops",
       "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
-      "version": "2.2.1",
+      "version": "2.2.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -58,7 +58,7 @@
     {
       "name": "f5xc-docs-pipeline",
       "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -73,7 +73,7 @@
     {
       "name": "f5xc-brand",
       "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -88,7 +88,7 @@
     {
       "name": "f5xc-meddpicc",
       "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -113,7 +113,7 @@
     {
       "name": "f5xc-devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -128,7 +128,7 @@
     {
       "name": "f5xc-platform",
       "description": "F5 Distributed Cloud platform automation — web console via Chrome DevTools MCP and spec-aware REST API operations via cURL. Azure SSO authentication, deterministic navigation, API token management, and CRUD operations across 98 resource types with dependency-aware multi-step workflows.",
-      "version": "3.1.0",
+      "version": "3.1.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -157,7 +157,7 @@
     {
       "name": "osint-framework",
       "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -172,7 +172,7 @@
     {
       "name": "f5xc-firecrawl",
       "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },

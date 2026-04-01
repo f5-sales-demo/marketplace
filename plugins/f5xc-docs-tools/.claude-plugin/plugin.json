@@ -1,7 +1,7 @@
 {
   "name": "f5xc-docs-tools",
   "description": "MDX content validation and review tools for f5xc-salesdemos documentation repositories",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"

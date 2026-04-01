@@ -112,6 +112,9 @@ This plugin requires the firecrawl stack running in the devcontainer:
 The stack starts automatically via `entrypoint.sh` when `ENABLE_FIRECRAWL=true`
 (the default).
 
+A `SessionStart` hook checks that the firecrawl API is reachable on
+`localhost:3002` and prints a warning if the service is down.
+
 ## Extract LLM Configuration
 
 The extract endpoint requires an OpenAI-compatible LLM proxy. Set these

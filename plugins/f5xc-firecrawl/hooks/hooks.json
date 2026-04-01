@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf http://localhost:3002/ > /dev/null 2>&1 || echo 'WARNING: Firecrawl API not reachable on localhost:3002. Web scraping commands will fail. Check that ENABLE_FIRECRAWL=true in your devcontainer.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

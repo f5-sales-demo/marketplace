@@ -1,7 +1,7 @@
 {
   "name": "f5xc-docs-pipeline",
   "description": "Documentation pipeline architecture for f5xc-salesdemos — config ownership, release dispatch chain, content authoring, managed files, local preview",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"
