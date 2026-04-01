@@ -2,11 +2,12 @@
 name: web-scraper
 description: >-
   Local firecrawl web scraping, crawling, site mapping, web search,
-  structured extraction, and llms.txt generation. Activates when the
-  user asks to scrape a URL, crawl a website, map site URLs, search
-  the web, extract structured data from pages, generate llms.txt,
-  batch scrape multiple URLs, cancel a crawl, list active crawls,
-  convert a web page to markdown, or fetch page content. Uses the
+  structured extraction, llms.txt generation, and research synthesis.
+  Activates when the user asks to scrape a URL, crawl a website, map
+  site URLs, search the web, extract structured data from pages,
+  generate llms.txt, batch scrape multiple URLs, cancel a crawl, list
+  active crawls, convert a web page to markdown, fetch page content,
+  or research a question using web search and scrape. Uses the
   self-hosted firecrawl instance on localhost:3002 — no API keys or
   subscriptions required.
 user-invocable: false
@@ -36,6 +37,7 @@ the main session context.
 | **Search** | Web search with optional scraping | `POST /v1/search` | Sync |
 | **Extract** | LLM-powered structured data extraction | `POST /v1/extract` | Async |
 | **llms.txt** | Generate llms.txt for a site | `POST /v1/llmstxt` | Async |
+| **Research** | Search + scrape + synthesize answer | Multiple | Sync |
 
 ## Delegation Protocol
 
@@ -121,6 +123,16 @@ Agent(
 )
 ```
 
+### For research requests
+
+```
+Agent(
+  subagent_type="f5xc-firecrawl:firecrawl-researcher",
+  description="Research: [topic in 3 words]",
+  prompt="QUESTION: <the user's natural language question>\nLIMIT: <number of sources, default 5>\nDOMAINS: <comma-separated domain scope, or 'none'>\n\nResearch this question using web search + scrape and return a structured report."
+)
+```
+
 Wait for the agent's response and relay it directly to the user.
 
 ## When to activate
@@ -136,6 +148,10 @@ Wait for the agent's response and relay it directly to the user.
 - "convert this page to markdown"
 - "fetch page content" / "get markdown from"
 - Any request to read, extract, or search web content
+- "research this" / "find out if" / "does [product] support"
+- "is [feature] available in" / "answer this question"
+- "look up" / "investigate" / "what do we know about"
+- Any natural language question that needs web research to answer
 
 ## What this does NOT do
 
@@ -144,3 +160,4 @@ Wait for the agent's response and relay it directly to the user.
 - **No browser sessions** — cloud-only feature
 - **No deep research** — cloud-only feature
 - **Extract requires LLM proxy** — needs OPENAI_BASE_URL configured
+- **Research requires working search** — firecrawl SEARCH endpoint must be operational

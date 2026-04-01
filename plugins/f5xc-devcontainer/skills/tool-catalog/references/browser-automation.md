@@ -201,6 +201,26 @@ Tools for browser automation, headless browsing, web scraping, and anti-detectio
 - **Auth**: None (inherits VNC server authentication)
 - **Docs**: <https://novnc.com/> or `man websockify`
 
+## Firecrawl Stack
+
+## firecrawl
+
+- **Package**: Self-hosted — built from source at `/opt/firecrawl` during image build
+- **Purpose**: Full web scraping platform with REST API for scraping, crawling, URL mapping, web search, and LLM-powered structured data extraction
+- **Use when**: You need to convert websites to markdown, crawl entire sites, discover all URLs, search the web, or extract structured data via LLM — without external API keys or usage limits
+- **Quick start**:
+  - Scrape: `curl -s http://localhost:3002/v1/scrape -X POST -H 'Content-Type: application/json' -d '{"url":"https://example.com","formats":["markdown"]}' | jq .data.markdown`
+  - Crawl: `curl -s http://localhost:3002/v1/crawl -X POST -H 'Content-Type: application/json' -d '{"url":"https://example.com","limit":10}' | jq .id`
+  - Map: `curl -s http://localhost:3002/v1/map -X POST -H 'Content-Type: application/json' -d '{"url":"https://example.com"}' | jq .links`
+  - Search: `curl -s http://localhost:3002/v1/search -X POST -H 'Content-Type: application/json' -d '{"query":"site:example.com","limit":5}' | jq .data`
+  - Via plugin: `Skill("f5xc-firecrawl:web-scraper")` or `/scrape <url>`
+- **Infrastructure**: API on port 3002, Playwright service on port 3000, Redis on port 6379, PostgreSQL via UNIX socket, workers managed by entrypoint
+- **Auth**: None — no API key required for local instance
+- **Feature flag**: `ENABLE_FIRECRAWL=false` to disable the stack
+- **Logs**: `/tmp/firecrawl-api.log`, `/tmp/firecrawl-playwright.log`, `/tmp/firecrawl-nuq-worker.log`
+- **Plugin**: `f5xc-firecrawl` marketplace plugin provides 8 commands (scrape, crawl, map, search, extract, batch-scrape, llmstxt, research), a `web-scraper` skill, and 2 agents (firecrawl-operator, firecrawl-researcher). Use `/research <question>` to search the web, scrape results, and get a synthesized answer with citations.
+- **Docs**: `/workspace/devcontainer/tests/test-firecrawl.sh` for integration tests; <https://docs.firecrawl.dev> for API reference
+
 ## fluxbox
 
 - **Package**: `apt install fluxbox`

@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **f5xc-firecrawl** added v1.1.0 — self-hosted Firecrawl web scraping plugin with
+  7 commands (scrape, batch-scrape, crawl, map, search, extract, llmstxt), a
+  `web-scraper` skill, and a `firecrawl-operator` agent; no API keys required,
+  runs against the local Firecrawl instance on port 3002
+
 - **f5xc-devcontainer** bumped to v1.1.4
 
 - **f5xc-github-ops** bumped to v2.1.3
