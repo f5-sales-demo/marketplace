@@ -1,0 +1,13 @@
+{
+  "name": "f5xc-firecrawl",
+  "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos",
+    "url": "https://github.com/f5xc-salesdemos"
+  },
+  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-firecrawl",
+  "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+}
