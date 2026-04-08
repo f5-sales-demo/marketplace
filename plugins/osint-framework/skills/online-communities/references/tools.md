@@ -95,7 +95,7 @@
 - **Best For**: Finding forum threads and topic-centric discussion history
 - **Input**: Keywords, forum names, and topical queries
 - **Output**: Indexed posts and thread references with source links
-- **Description**: Forum search engine that indexes discussions across message boards and community platforms.
+- **Description**: Forum search engine that indices discussions across message boards and community platforms.
 
 ### Omgili
 

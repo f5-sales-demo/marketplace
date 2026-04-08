@@ -7,6 +7,7 @@ Claude Code plugin for open-source intelligence gathering — 1,064 free tools a
 This plugin provides category-based OSINT skills, investigation agents, and executable command pipelines for intelligence gathering. All tools are free or freemium — no paywalled or subscription-only resources.
 
 **Key numbers:**
+
 - 1,064 cataloged tools (filtered from 1,166 — paid/dead/invite-only removed)
 - 34 investigation categories with enriched skills
 - 138 CLI-installable tools with verified install commands
@@ -19,7 +20,7 @@ This plugin provides category-based OSINT skills, investigation agents, and exec
 osint-index (router)
     |
     +-- osint-catalog (browse/search)
-    |       |-- tree-index.md (category listing)
+|  |
     |       +-- investigation-pipelines.md (executable command chains)
     |
     +-- 33 category skills (e.g. username-recon, domain-recon, ...)
@@ -44,7 +45,7 @@ osint-index (router)
 ## Commands
 
 | Command | Usage | Description |
-|---------|-------|-------------|
+| --------- | ------- | ------------- |
 | `/osint-search` | `/osint-search subdomain enumeration` | Search the tool catalog |
 | `/osint-catalog` | `/osint-catalog domain` | Browse tools by category |
 | `/osint-investigate` | `/osint-investigate example.com` | Run a multi-tool investigation |
@@ -52,7 +53,7 @@ osint-index (router)
 ## Categories
 
 | Category | Skill | Tools |
-|----------|-------|-------|
+| ---------- | ------- | ------- |
 | Username | `username-recon` | 18 |
 | Email Address | `email-recon` | 28 |
 | Domain Name | `domain-recon` | 131 |
@@ -87,7 +88,7 @@ osint-index (router)
 | Documentation / Evidence | `documentation-evidence` | 15 |
 | Training | `training` | 4 |
 
-## CLI Tools
+## Command-line tools
 
 ### Already in devcontainer base image
 
@@ -125,8 +126,8 @@ A drop-in Dockerfile layer is provided at `scripts/Dockerfile.osint-tools` for b
 The plugin includes 5 executable investigation pipelines with copy-paste-ready commands:
 
 | Pipeline | Target | Key Tools | OPSEC |
-|----------|--------|-----------|-------|
-| Username | `@handle` | sherlock, maigret, curl | Active |
+| ---------- | -------- | ----------- | ------- |
+| Username | `@handle` | sherlock, maigret, cURL | Active |
 | Email | `history-f7ee5ec73121@example.com` | holehe, h8mail, dig | Mixed |
 | Domain | `example.com` | whois, dig, subfinder, httpx, nuclei | Mixed |
 | IP Address | `192.0.2.149` | ipinfo.io, whois, nmap, searchsploit | Mixed |

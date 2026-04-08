@@ -16,7 +16,7 @@ the local firecrawl instance on `localhost:3002` inside the devcontainer.
 
 | Agent | Purpose |
 | ------- | ------- |
-| `firecrawl-operator` | Executes curl + jq against local firecrawl API; 11 protocols covering all v1 endpoints |
+| `firecrawl-operator` | Executes cURL + jq against local firecrawl API; 11 protocols covering all v1 endpoints |
 
 ## Commands
 
@@ -25,7 +25,7 @@ the local firecrawl instance on `localhost:3002` inside the devcontainer.
 | `/scrape <url>` | Scrape a single URL and extract content |
 | `/batch-scrape <url1> <url2>` | Scrape multiple URLs at once |
 | `/crawl <url>` | Crawl multiple pages from a starting URL |
-| `/map <url>` | Discover all URLs on a website |
+| `/map <url>` | Discover all URLs on a site |
 | `/search <query>` | Search the web and optionally scrape results |
 | `/extract <url> <prompt>` | LLM-powered structured data extraction |
 | `/llmstxt <url>` | Generate an llms.txt file for a site |

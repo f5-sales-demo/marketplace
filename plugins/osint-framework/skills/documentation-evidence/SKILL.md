@@ -26,11 +26,11 @@ list of 15 free tools in this category.
 ## Web Resources
 
 | Tool | URL | Best For |
-|------|-----|----------|
+| ------ | ----- | ---------- |
 | Forensic OSINT | forensicosint.com | Forensic-grade web evidence capture and documentation |
 | Fiddler | telerik.com/download/fiddler | HTTP traffic capture and session inspection |
 | Burp Suite | portswigger.net/burp | Web traffic interception and request analysis |
-| Page2Images | page2images.com | Automated live website screenshot generation |
+| Page2Images | page2images.com | Automated live site screenshot generation |
 | Archive.is | archive.is | Permanent web page archival with timestamped snapshots |
 | Web Page Saver | magnetforensics.com | Forensic-quality web page preservation |
 | Snapper | github.com/dxa4481/Snapper | Mass screenshot tool for large URL lists |
@@ -89,7 +89,7 @@ Agent(
 ## Cross-Category Pivots
 
 | When you find... | Pivot to |
-|------------------|----------|
+| ------------------ | ---------- |
 | Archived page versions needed | `archives-cache` -- Wayback Machine, cached pages |
 | Images or video in captured evidence | `images-videos` -- Reverse image search, EXIF analysis |
 | Geographic locations in evidence | `geolocation` -- Mapping and geo-verification |

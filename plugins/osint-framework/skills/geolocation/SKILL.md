@@ -20,22 +20,22 @@ with applicable laws and platform terms of service.
 Read `skills/geolocation/references/tools.md` for the complete
 list of 47 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Hyperlapse | `git clone https://github.com/TeehanLax/Hyperlapse.js && npm install` | Embed as JS library for Street View hyperlapse animations |
 
 ### All Install Methods — Hyperlapse
 
 | Method | Command |
-|--------|---------|
-| git clone | `git clone https://github.com/TeehanLax/Hyperlapse.js` |
+| -------- | --------- |
+| Git clone | `git clone https://github.com/TeehanLax/Hyperlapse.js` |
 | npm | `npm install` (after clone, for dependencies) |
 | pip | N/A |
 | go | N/A |
 | apt | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |

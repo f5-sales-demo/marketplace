@@ -13,7 +13,7 @@ Use the SCRAPE protocol. Parse the arguments:
 - First argument is the URL
 - `--format` or `-f`: output formats (comma-separated)
 - `--wait`: milliseconds to wait for JavaScript rendering
-- `--html`: shortcut for format html
+- `--html`: shortcut for format HTML
 - `--full`: disable onlyMainContent (include nav/footer)
 
 If no URL is provided, ask the user for one.

@@ -16,7 +16,7 @@ creating, querying, and reporting on graph data.
 ## Entity Types
 
 | Type | Description | Example |
-|------|-------------|---------|
+| ------ | ------------- | --------- |
 | `person` | A human individual | `"John Smith"` |
 | `company` | A business or organization | `"Acme Corp"` |
 | `domain` | A DNS domain name | `"example.com"` |
@@ -31,7 +31,7 @@ creating, querying, and reporting on graph data.
 ## Relationship Types
 
 | Relationship | Description | Example |
-|-------------|-------------|---------|
+| ------------- | ------------- | --------- |
 | `works_at` | Person is employed by a company | person -> company |
 | `owns` | Entity owns another entity | company -> domain, person -> username |
 | `uses` | Entity uses another entity | person -> email, person -> phone |
@@ -49,7 +49,7 @@ Each entity and relationship carries a confidence weight based on
 the tool or data source that produced it.
 
 | Source | Confidence Weight | Rationale |
-|--------|:-----------------:|-----------|
+| -------- | :-----------------: | ----------- |
 | DNS / WHOIS | 0.95 | Authoritative registry data |
 | SEC EDGAR | 0.95 | Government regulatory filings |
 | GitHub API | 0.90 | Verified platform identity |

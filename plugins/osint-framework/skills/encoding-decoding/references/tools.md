@@ -6,7 +6,7 @@
 ## Subcategories
 
 - Barcodes / QR
-- Javascript
+- JavaScript
 - PHP
 - XOR
 
@@ -218,7 +218,7 @@
 - **API**: Yes
 - **CLI Install**: Yes
 - **Best For**: Building and replaying multi-step decode and transform recipes
-- **Input**: Text, binary, hex, Base64, and structured payloads
+- **Input**: Text, binary, hex, base64, and structured payloads
 - **Output**: Transformed output for each selected operation chain
 - **Description**: GCHQ-maintained browser workbench for chained encoding, decoding, hashing, crypto, and data transformation operations.
 

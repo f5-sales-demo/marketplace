@@ -5,12 +5,13 @@ argument-hint: "<target>"
 
 # /osint-investigate
 
-Run an OSINT investigation against a target using available CLI tools
+Run an OSINT investigation against a target using available command-line tools
 and web resources.
 
 ## Target Auto-Detection
 
 Automatically detect the target type:
+
 - **Email**: contains `@` and `.`
 - **Domain**: looks like `example.com`
 - **IP**: matches IP address pattern

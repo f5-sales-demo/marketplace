@@ -25,10 +25,10 @@ with applicable laws and platform terms of service.
 Read `skills/disinfo-verification/references/tools.md` for the complete
 list of 17 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Alt Install | Usage |
-|------|---------|-------------|-------|
+| ------ | --------- | ------------- | ------- |
 | DeepFake-Detect | `git clone https://github.com/dessa-oss/DeepFake-Detection && pip install -r requirements.txt` | Docker: `docker build -t deepfake-detect .` (from repo) | ResNet18-based deepfake classifier for images/video |
 | DeepSafe | `git clone https://github.com/siddharthksah/DeepSafe && pip install -r requirements.txt` | Docker: `docker-compose up` (from repo -- recommended) | Ensemble deepfake detection with web and extension interfaces |
 | DeepfakeBench | `git clone https://github.com/SCLBD/DeepfakeBench && pip install -r requirements.txt` | Conda: `conda env create -f environment.yml` | Benchmark framework for comparing deepfake detection models |
@@ -117,7 +117,7 @@ Agent(
 ## Cross-Category Pivots
 
 | Finding | Pivot To |
-|---------|----------|
+| --------- | ---------- |
 | Image contains GPS coordinates | `geolocation` -- location verification and mapping |
 | Social media source identified | `social-networks` -- profile and account analysis |
 | Domain hosting disinformation | `domain-recon` -- WHOIS, hosting, infrastructure |

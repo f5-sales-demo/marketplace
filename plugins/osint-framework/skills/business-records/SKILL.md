@@ -26,21 +26,21 @@ list of 28 free tools in this category.
 ## Web Resources
 
 | Resource | URL | Best For |
-|----------|-----|----------|
-| SEC EDGAR | https://www.sec.gov/cgi-bin/browse-edgar | US public company filings (10-K, 10-Q, 8-K) |
-| OpenCorporates | https://opencorporates.com/ | 200M+ companies across 200+ jurisdictions (API) |
-| Companies House | https://beta.companieshouse.gov.uk/ | UK company registry, officers, filings (API) |
-| Crunchbase | https://www.crunchbase.com/ | Startup funding, investors, acquisitions (API) |
-| LittleSis | https://littlesis.org/ | Power relationship mapping (API) |
-| Google Finance | https://www.google.com/finance/ | Stock data, financial summaries |
-| AnnualReports.com | https://www.annualreports.com/ | Public company annual reports |
-| Company Data Rex | https://www.cdrex.com/ | Cross-border EU company research |
-| Europages | https://www.europages.co.uk/ | European B2B company directory (3M+ companies) |
-| International Registries | https://www.gov.uk/government/publications/overseas-registries/overseas-registries | Official registry links by country |
-| Buzzfile | https://www.buzzfile.com/ | US business profiles by SIC code |
-| RecruitEm | https://recruiting.net/ | X-Ray search LinkedIn/GitHub profiles |
-| EU VIES VAT | https://ec.europa.eu/taxation_customs/vies/ | EU VAT number validation (API) |
-| Rusprofile | https://www.rusprofile.ru/ | Russian company registry data |
+| ---------- | ----- | ---------- |
+| SEC EDGAR | <https://www.sec.gov/cgi-bin/browse-edgar> | US public company filings (10-K, 10-Q, 8-K) |
+| OpenCorporates | <https://opencorporates.com/> | 200M+ companies across 200+ jurisdictions (API) |
+| Companies House | <https://beta.companieshouse.gov.uk/> | UK company registry, officers, filings (API) |
+| Crunchbase | <https://www.crunchbase.com/> | Startup funding, investors, acquisitions (API) |
+| LittleSis | <https://littlesis.org/> | Power relationship mapping (API) |
+| Google Finance | <https://www.google.com/finance/> | Stock data, financial summaries |
+| AnnualReports.com | <https://www.annualreports.com/> | Public company annual reports |
+| Company Data Rex | <https://www.cdrex.com/> | Cross-border EU company research |
+| Europages | <https://www.europages.co.uk/> | European B2B company directory (3M+ companies) |
+| International Registries | <https://www.gov.uk/government/publications/overseas-registries/overseas-registries> | Official registry links by country |
+| Buzzfile | <https://www.buzzfile.com/> | US business profiles by SIC code |
+| RecruitEm | <https://recruiting.net/> | X-Ray search LinkedIn/GitHub profiles |
+| EU VIES VAT | <https://ec.europa.eu/taxation_customs/vies/> | EU VAT number validation (API) |
+| Rusprofile | <https://www.rusprofile.ru/> | Russian company registry data |
 
 ## Subcategories
 
@@ -65,7 +65,7 @@ list of 28 free tools in this category.
 9. **Relationships**: Map power networks via LittleSis (board memberships, donors)
 10. **Cross-reference**: Pivot to `compliance-risk` for sanctions screening
 
-## curl / API Patterns
+## cURL / API Patterns
 
 ### SEC EDGAR -- Step 1: Find Company CIK (no key required)
 
@@ -74,7 +74,7 @@ list of 28 free tools in this category.
 COMPANY="canadian imperial bank"
 curl -s "https://www.sec.gov/files/company_tickers.json" \
   -H "User-Agent: OSINTFramework history-a129f0a811a8@example.com" \
-  | jq --arg q "$COMPANY" '[to_entries[].value | select(.title | ascii_downcase | test($q))]'
+| jq --arg q "$COMPANY" '[to_entries[].value | select(.title | ascii_downcase |
 ```
 
 ### SEC EDGAR -- Fallback: Search by Ticker (handles OTC/ADR tickers)
@@ -84,7 +84,7 @@ curl -s "https://www.sec.gov/files/company_tickers.json" \
 TICKER="CM"
 curl -s "https://www.sec.gov/files/company_tickers.json" \
   -H "User-Agent: OSINTFramework history-a129f0a811a8@example.com" \
-  | jq --arg t "$TICKER" '[to_entries[].value | select(.ticker == $t)]'
+| jq --arg t "$TICKER" '[to_entries[].value |
 ```
 
 ### SEC EDGAR -- Step 2: Get Filings by CIK (no key required)
@@ -102,7 +102,7 @@ curl -s "https://data.sec.gov/submissions/CIK${CIK}.json" \
 ```bash
 if [ -n "${OPENCORPORATES_API_KEY:-}" ]; then
   curl -s "https://api.opencorporates.com/v0.4/companies/search?q=acme+corp&api_token=${OPENCORPORATES_API_KEY}" \
-    | jq '.results.companies[] | {name: .company.name, jurisdiction: .company.jurisdiction_code, status: .company.current_status}'
+| jq '.results.companies[] |
 else
   echo "[skip] OpenCorporates requires API key (set OPENCORPORATES_API_KEY)"
 fi
@@ -165,13 +165,13 @@ curl -s "https://ec.europa.eu/taxation_customs/vies/rest-api/ms/DE/vat/123456789
 
 ```bash
 curl -s "https://littlesis.org/api/entities/search?q=goldman+sachs" \
-  | jq '.data[] | {name: .attributes.name, type: .attributes.primary_ext, blurb: .attributes.blurb}'
+| jq '.data[] |
 ```
 
 ## Cross-Category Pivots
 
 | When you find... | Pivot to | Why |
-|------------------|----------|-----|
+| ------------------ | ---------- | ----- |
 | Company domain in filings | `domain-recon` | WHOIS, DNS, subdomains, technology stack |
 | Officers or executives | `people-search` | Personal records, social profiles |
 | Sanctions or regulatory flags | `compliance-risk` | OFAC, PEP screening, beneficial ownership |

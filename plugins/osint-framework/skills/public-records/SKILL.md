@@ -26,23 +26,23 @@ list of 45 free tools in this category.
 ## Web Resources
 
 | Resource | URL | Best For |
-|----------|-----|----------|
-| judyrecords | https://www.judyrecords.com/ | Nationwide court case search (760M+ cases) |
-| CourtListener | https://courtlistener.com/ | Federal court opinions, dockets, RECAP data |
-| Caselaw Access Project | https://case.law/ | Historical legal opinions (6M+ decisions) |
-| OFAC Sanctions Search | https://sanctionssearch.ofac.treas.gov/ | OFAC SDN list search |
-| OpenSecrets | https://www.opensecrets.org/ | Campaign finance and lobbying data |
-| FEC Data | https://fec.gov/data | Federal campaign finance disclosures |
-| USPTO Patent Search | https://www.uspto.gov/patents/search | US patent and trademark lookup |
-| Google Patents | https://patents.google.com/ | International patent research |
-| Black Book Online | https://www.blackbookonline.info/ | 37K+ record types aggregation |
-| NETR Online | https://publicrecords.netronline.com/ | County property records portal |
-| Regrid | https://regrid.com | Parcel mapping and property data (API) |
-| Find A Grave | https://www.findagrave.com/ | Cemetery records (615M+ graves) |
-| BOP Inmate Locator | https://www.bop.gov/inmateloc/ | Federal inmate search |
-| NACo County Explorer | https://explorer.naco.org/ | 1000+ county demographic indicators |
-| World Bank Open Data | https://datacatalog.worldbank.org/ | Global development data (API) |
-| EveryPolitician | https://everypolitician.org/ | Global politician data (API) |
+| ---------- | ----- | ---------- |
+| judyrecords | <https://www.judyrecords.com/> | Nationwide court case search (760M+ cases) |
+| CourtListener | <https://courtlistener.com/> | Federal court opinions, dockets, RECAP data |
+| Caselaw Access Project | <https://case.law/> | Historical legal opinions (6M+ decisions) |
+| OFAC Sanctions Search | <https://sanctionssearch.ofac.treas.gov/> | OFAC SDN list search |
+| OpenSecrets | <https://www.opensecrets.org/> | Campaign finance and lobbying data |
+| FEC Data | <https://fec.gov/data> | Federal campaign finance disclosures |
+| USPTO Patent Search | <https://www.uspto.gov/patents/search> | US patent and trademark lookup |
+| Google Patents | <https://patents.google.com/> | International patent research |
+| Black Book Online | <https://www.blackbookonline.info/> | 37K+ record types aggregation |
+| NETR Online | <https://publicrecords.netronline.com/> | County property records portal |
+| Regrid | <https://regrid.com> | Parcel mapping and property data (API) |
+| Find A Grave | <https://www.findagrave.com/> | Cemetery records (615M+ graves) |
+| BOP Inmate Locator | <https://www.bop.gov/inmateloc/> | Federal inmate search |
+| NACo County Explorer | <https://explorer.naco.org/> | 1000+ county demographic indicators |
+| World Bank Open Data | <https://datacatalog.worldbank.org/> | Global development data (API) |
+| EveryPolitician | <https://everypolitician.org/> | Global politician data (API) |
 
 ## Subcategories
 
@@ -64,10 +64,10 @@ list of 45 free tools in this category.
 4. **Criminal records**: Check BOP Inmate Locator (federal), state DOC sites, mugshot databases
 5. **Financial / political**: Query OpenSecrets and FEC for campaign contributions
 6. **Patents**: Search USPTO or Google Patents by inventor name or keyword
-7. **Vital records**: Check death indexes, Find A Grave for deceased confirmation
+7. **Vital records**: Check death indices, Find A Grave for deceased confirmation
 8. **Cross-reference**: Pivot to `people-search` for identity, `business-records` for corporate ties
 
-## curl / API Patterns
+## cURL / API Patterns
 
 ### CourtListener API -- Search Opinions
 
@@ -80,21 +80,21 @@ curl -s "https://www.courtlistener.com/api/rest/v4/search/?q=defendant+name&type
 
 ```bash
 curl -s "https://api.case.law/v1/cases/?search=smith+v+jones&jurisdiction=us" \
-  | jq '.results[] | {name, decision_date, court}'
+| jq '.results[] |
 ```
 
 ### NHTSA VIN Decode (cross-reference vehicle in court records)
 
 ```bash
 curl -s "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/1HGCM82633A004352?format=json" \
-  | jq '.Results[] | select(.Value != "" and .Value != null) | {Variable, Value}'
+| jq '.Results[] | select(.Value != "" and .Value != null) |
 ```
 
 ### FEC Candidate Search
 
 ```bash
 curl -s "https://api.open.fec.gov/v1/candidates/search/?q=smith&api_key=DEMO_KEY" \
-  | jq '.results[] | {name, party, state, office}'
+| jq '.results[] |
 ```
 
 ### OpenSecrets Legislator Search
@@ -108,13 +108,13 @@ curl -s "https://www.opensecrets.org/api/?method=getLegislators&id=NJ&apikey=$AP
 
 ```bash
 curl -s "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json&per_page=5" \
-  | jq '.[1][] | {date, value}'
+| jq '.[1][] |
 ```
 
 ## Cross-Category Pivots
 
 | When you find... | Pivot to | Why |
-|------------------|----------|-----|
+| ------------------ | ---------- | ----- |
 | Person name in court records | `people-search` | Verify identity, find addresses and aliases |
 | Company named in filings | `business-records` | SEC filings, corporate structure, officers |
 | Financial irregularities | `compliance-risk` | Sanctions screening, PEP checks |

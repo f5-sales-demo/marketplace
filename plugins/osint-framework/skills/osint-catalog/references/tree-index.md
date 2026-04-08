@@ -4,7 +4,7 @@
 > Source: <https://osintframework.com>
 
 | Category | Skill | Tools |
-|----------|-------|-------|
+| ---------- | ------- | ------- |
 | Username | `username-recon` | 18 |
 | Email Address | `email-recon` | 28 |
 | Domain Name | `domain-recon` | 131 |
@@ -39,4 +39,3 @@
 | OpSec | `opsec` | 47 |
 | Documentation / Evidence Capture | `documentation-evidence` | 15 |
 | Training | `training` | 4 |
-

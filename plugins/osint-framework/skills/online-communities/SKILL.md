@@ -21,10 +21,10 @@ with applicable laws and platform terms of service.
 Read `skills/online-communities/references/tools.md` for the complete
 list of 16 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | ReconXplorer | `git clone https://github.com/root7am/ReconXplorer && cd ReconXplorer && pip install -r requirements.txt` | `python reconxplorer.py` |
 | IRCP | `git clone https://github.com/internet-relay-chat/IRCP && cd IRCP && pip install -r requirements.txt` | `python ircp.py <irc_server>` |
 | ircsnapshot | `git clone https://github.com/bwall/ircsnapshot && cd ircsnapshot && pip install -r requirements.txt` | `python ircsnapshot.py <irc_server>` |
@@ -32,13 +32,13 @@ list of 16 free tools in this category.
 ### All Install Methods — ReconXplorer
 
 | Method | Command |
-|--------|---------|
-| git clone | `git clone https://github.com/root7am/ReconXplorer && cd ReconXplorer && pip install -r requirements.txt` |
+| -------- | --------- |
+| Git clone | `git clone https://github.com/root7am/ReconXplorer && cd ReconXplorer && pip install -r requirements.txt` |
 | pip | N/A |
 | go | N/A |
 | apt | N/A |
 | npm | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |
@@ -46,13 +46,13 @@ list of 16 free tools in this category.
 ### All Install Methods — IRCP
 
 | Method | Command |
-|--------|---------|
-| git clone | `git clone https://github.com/internet-relay-chat/IRCP && cd IRCP && pip install -r requirements.txt` |
+| -------- | --------- |
+| Git clone | `git clone https://github.com/internet-relay-chat/IRCP && cd IRCP && pip install -r requirements.txt` |
 | pip | N/A |
 | go | N/A |
 | apt | N/A |
 | npm | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |
@@ -60,13 +60,13 @@ list of 16 free tools in this category.
 ### All Install Methods — ircsnapshot
 
 | Method | Command |
-|--------|---------|
-| git clone | `git clone https://github.com/bwall/ircsnapshot && cd ircsnapshot && pip install -r requirements.txt` |
+| -------- | --------- |
+| Git clone | `git clone https://github.com/bwall/ircsnapshot && cd ircsnapshot && pip install -r requirements.txt` |
 | pip | N/A |
 | go | N/A |
 | apt | N/A |
 | npm | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |

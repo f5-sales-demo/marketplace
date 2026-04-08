@@ -5,7 +5,7 @@
 
 ---
 
-### Craigslist
+## Craigslist
 
 - **URL**: <https://charlotte.craigslist.org/>
 - **Type**: Web
@@ -15,7 +15,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Kijiji - Canada Classifieds
+## Kijiji - Canada Classifieds
 
 - **URL**: <https://www.kijiji.ca:443/>
 - **Type**: Web
@@ -25,7 +25,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Quikr - India Classifieds
+## Quikr - India Classifieds
 
 - **URL**: <https://www.quikr.com/>
 - **Type**: Web
@@ -35,7 +35,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### eBay
+## eBay
 
 - **URL**: <https://www.ebay.com/>
 - **Type**: Web
@@ -45,7 +45,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### OfferUp
+## OfferUp
 
 - **URL**: <https://offerup.com/>
 - **Type**: Web
@@ -55,7 +55,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Goofbid
+## Goofbid
 
 - **URL**: <https://www.goofbid.com/>
 - **Type**: Web
@@ -65,7 +65,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### SearchAllJunk
+## SearchAllJunk
 
 - **URL**: <https://www.searchalljunk.com/>
 - **Type**: Web
@@ -75,7 +75,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### TotalCraigSearch
+## TotalCraigSearch
 
 - **URL**: <https://www.totalcraigsearch.com/>
 - **Type**: Web
@@ -85,7 +85,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Search Tempest
+## Search Tempest
 
 - **URL**: <https://www.searchtempest.com/>
 - **Type**: Web
@@ -95,7 +95,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### francais-a-londres.org - French Classifieds
+## francais-a-londres.org - French Classifieds
 
 - **URL**: <https://francaisalondres.com/>
 - **Type**: Web
@@ -105,7 +105,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Kleinanzeigen.de
+## Kleinanzeigen.de
 
 - **URL**: <https://www.kleinanzeigen.de/>
 - **Type**: Web

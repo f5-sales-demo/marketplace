@@ -26,7 +26,7 @@ list of 4 free/freemium tools in this category.
 ## Web Resources
 
 | Tool | URL | Pricing | Best For |
-|------|-----|---------|----------|
+| ------ | ----- | --------- | ---------- |
 | GeoGuessr | geoguessr.com | Freemium | Geolocation skills via Street View challenges |
 | Verification Quiz Bot | x.com/quiztime | Free | Daily community OSINT verification challenges |
 | Forensic OSINT KB Guides | forensicosint.com/osint-guide | Freemium | Evidence preservation and forensic documentation training |
@@ -81,7 +81,7 @@ Agent(
 Training resources connect to all OSINT categories as learning tools:
 
 | Skill Area | Practice With |
-|------------|---------------|
+| ------------ | --------------- |
 | Geolocation | `geolocation` -- Apply GeoGuessr skills to real investigations |
 | Image verification | `images-videos` -- Reverse image search, EXIF analysis |
 | Evidence capture | `documentation-evidence` -- Screenshot, archival, timeline tools |

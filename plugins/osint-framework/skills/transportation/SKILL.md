@@ -26,24 +26,24 @@ list of 21 free tools in this category.
 ## Web Resources
 
 | Resource | URL | Best For |
-|----------|-----|----------|
-| NHTSA Vehicle API | https://vpic.nhtsa.dot.gov/api/ | VIN decoding, vehicle specs (free API) |
-| Flightradar24 | https://www.flightradar24.com/ | Real-time global flight tracking |
-| ADS-B Exchange | https://www.adsbexchange.com/ | Unfiltered aircraft tracking (API) |
-| Vessel Finder | https://www.vesselfinder.com/ | Global ship tracking (API) |
-| Global Fishing Watch | https://globalfishingwatch.org | Fishing activity and IUU detection (API) |
-| Carnet.ai | https://carnet.ai/ | AI vehicle identification from photos (API) |
-| FindByPlate | https://findbyplate.com/ | US license plate lookup |
-| autoDNA | https://www.autodna.com/ | VIN-based vehicle history |
-| VinDecodr | https://vindecodr.com/ | Free VIN specification decode |
-| OpenRailwayMap | https://www.openrailwaymap.org/ | Global railway infrastructure (API) |
-| Deutsche Bahn Open Data | https://data.deutschebahn.com/opendata | German rail schedules/stations (API) |
-| Ship AIS | https://shipais.uk/ | UK maritime AIS tracking |
-| OpenSeaMap | https://www.openseamap.org | Nautical charts and port data |
-| OpenAIP | https://www.openaip.net/ | Airspace and airfield data (API) |
-| N2YO Satellite Tracker | https://www.n2yo.com/ | Satellite orbit tracking (API) |
-| Track-Trace | https://www.track-trace.com/ | Multi-carrier package tracking |
-| MyAccident | https://myaccident.org/ | US traffic accident records |
+| ---------- | ----- | ---------- |
+| NHTSA Vehicle API | <https://vpic.nhtsa.dot.gov/api/> | VIN decoding, vehicle specs (free API) |
+| Flightradar24 | <https://www.flightradar24.com/> | Real-time global flight tracking |
+| ADS-B Exchange | <https://www.adsbexchange.com/> | Unfiltered aircraft tracking (API) |
+| Vessel Finder | <https://www.vesselfinder.com/> | Global ship tracking (API) |
+| Global Fishing Watch | <https://globalfishingwatch.org> | Fishing activity and IUU detection (API) |
+| Carnet.ai | <https://carnet.ai/> | AI vehicle identification from photos (API) |
+| FindByPlate | <https://findbyplate.com/> | US license plate lookup |
+| autoDNA | <https://www.autodna.com/> | VIN-based vehicle history |
+| VinDecodr | <https://vindecodr.com/> | Free VIN specification decode |
+| OpenRailwayMap | <https://www.openrailwaymap.org/> | Global railway infrastructure (API) |
+| Deutsche Bahn Open Data | <https://data.deutschebahn.com/opendata> | German rail schedules/stations (API) |
+| Ship AIS | <https://shipais.uk/> | UK maritime AIS tracking |
+| OpenSeaMap | <https://www.openseamap.org> | Nautical charts and port data |
+| OpenAIP | <https://www.openaip.net/> | Airspace and airfield data (API) |
+| N2YO Satellite Tracker | <https://www.n2yo.com/> | Satellite orbit tracking (API) |
+| Track-Trace | <https://www.track-trace.com/> | Multi-carrier package tracking |
+| MyAccident | <https://myaccident.org/> | US traffic accident records |
 
 ## Subcategories
 
@@ -68,13 +68,13 @@ list of 21 free tools in this category.
 8. **Accident records**: Check MyAccident for US crash reports tied to location
 9. **Cross-reference**: Pivot to `geolocation` for location context, `public-records` for registration
 
-## curl / API Patterns
+## cURL / API Patterns
 
 ### NHTSA -- VIN Decode
 
 ```bash
 curl -s "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/1HGCM82633A004352?format=json" \
-  | jq '.Results[] | select(.Value != "" and .Value != null) | {Variable, Value}'
+| jq '.Results[] | select(.Value != "" and .Value != null) |
 ```
 
 ### NHTSA -- Decode VIN Batch
@@ -82,7 +82,7 @@ curl -s "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/1HGCM82633A004352?for
 ```bash
 curl -s -X POST "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/" \
   -d "format=json&data=5UXWX7C5*BA,2011;1HGCM82633A004352" \
-  | jq '.Results[] | {VIN, Make, Model, ModelYear}'
+| jq '.Results[] |
 ```
 
 ### ADS-B Exchange -- Aircraft by Hex Code
@@ -90,7 +90,7 @@ curl -s -X POST "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/" 
 ```bash
 curl -s "https://adsbexchange.com/api/aircraft/v2/hex/A12345/" \
   -H "api-auth: $API_KEY" \
-  | jq '.ac[] | {hex, flight, alt_baro, gs, lat, lon}'
+| jq '.ac[] |
 ```
 
 ### ADS-B Exchange -- Aircraft by Registration
@@ -98,14 +98,14 @@ curl -s "https://adsbexchange.com/api/aircraft/v2/hex/A12345/" \
 ```bash
 curl -s "https://adsbexchange.com/api/aircraft/v2/registration/N12345/" \
   -H "api-auth: $API_KEY" \
-  | jq '.ac[] | {reg, flight, alt_baro, lat, lon, t}'
+| jq '.ac[] |
 ```
 
 ### Vessel Finder -- Vessel Search
 
 ```bash
 curl -s "https://api.vesselfinder.com/vessels?userkey=$API_KEY&imo=9321483" \
-  | jq '.[] | {NAME, IMO, MMSI, DESTINATION, ETA, LAT, LON}'
+| jq '.[] |
 ```
 
 ### Global Fishing Watch -- Vessel Search
@@ -113,7 +113,7 @@ curl -s "https://api.vesselfinder.com/vessels?userkey=$API_KEY&imo=9321483" \
 ```bash
 curl -s "https://gateway.api.globalfishingwatch.org/v3/vessels/search?query=vessel+name&limit=5" \
   -H "Authorization: Bearer $TOKEN" \
-  | jq '.entries[] | {name: .registryInfo[0].shipname, flag: .registryInfo[0].flag, mmsi: .selfReportedInfo[0].ssvid}'
+| jq '.entries[] |
 ```
 
 ### Carnet.ai -- Vehicle Image Recognition
@@ -122,27 +122,27 @@ curl -s "https://gateway.api.globalfishingwatch.org/v3/vessels/search?query=vess
 curl -s -X POST "https://carnet.ai/recognize-url" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com/car.jpg"}' \
-  | jq '.predictions[] | {make, model, generation, probability}'
+| jq '.predictions[] |
 ```
 
 ### N2YO -- Satellite Position
 
 ```bash
 curl -s "https://api.n2yo.com/rest/v1/satellite/positions/25544/41.702/-76.014/0/2/&apiKey=$API_KEY" \
-  | jq '.positions[] | {satlatitude, satlongitude, sataltitude, timestamp}'
+| jq '.positions[] |
 ```
 
 ### OpenRailwayMap -- Query via Overpass API
 
 ```bash
 curl -s "https://overpass-api.de/api/interpreter?data=[out:json];way[railway=rail](48.1,11.5,48.2,11.6);out;" \
-  | jq '.elements[:5] | .[] | {id, tags}'
+| jq '.elements[:5] | .[] |
 ```
 
 ## Cross-Category Pivots
 
 | When you find... | Pivot to | Why |
-|------------------|----------|-----|
+| ------------------ | ---------- | ----- |
 | Aircraft landing location | `geolocation` | Map coordinates, satellite imagery, proximity analysis |
 | Vehicle owner name | `people-search` | Identity verification, address, social profiles |
 | Vessel flag state | `public-records` | Maritime registry, port authority records |

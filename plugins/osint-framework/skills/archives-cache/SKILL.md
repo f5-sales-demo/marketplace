@@ -21,23 +21,23 @@ with applicable laws and platform terms of service.
 Read `skills/archives-cache/references/tools.md` for the complete
 list of 21 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Waybackpack | `pip install waybackpack` | `waybackpack example.com -d output_dir` |
 | Wayback Machine Chrome Extension | Install from Chrome Web Store | Browser extension — auto-detects dead pages and loads Wayback snapshots |
 
 ### All Install Methods — Waybackpack
 
 | Method | Command |
-|--------|---------|
+| -------- | --------- |
 | pip | `pip install waybackpack` |
-| git clone | `git clone https://github.com/jsvine/waybackpack && cd waybackpack && pip install .` |
+| Git clone | `git clone https://github.com/jsvine/waybackpack && cd waybackpack && pip install .` |
 | go | N/A |
 | apt | N/A |
 | npm | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |
@@ -45,21 +45,21 @@ list of 21 free tools in this category.
 ### All Install Methods — Wayback Machine Chrome Extension
 
 | Method | Command |
-|--------|---------|
+| -------- | --------- |
 | Chrome Web Store | `https://chrome.google.com/webstore/detail/wayback-machine/fpnmgdkabkmnadcjpehmlllkndpkmiak` |
 | pip | N/A |
-| git clone | N/A |
+| Git clone | N/A |
 | go | N/A |
 | apt | N/A |
 | npm | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |
 
 ## Subcategories
 
-- **Web Archives** — Historical website snapshots, regional archives, on-demand page capture (Internet Archive Wayback Machine, Archive.is, UK Web Archive, Web Archive-RU, Common Crawl)
+- **Web Archives** — Historical site snapshots, regional archives, on-demand page capture (Internet Archive Wayback Machine, Archive.is, UK Web Archive, Web Archive-RU, Common Crawl)
 - **Cache** — Cached page retrieval from search engines and archive providers (Cached Pages, Cached View)
 - **RSS & Evidence Capture** — PDF snapshots, screenshot archives, visual timeline checks (PDF My URL, Screenshots.com)
 - **Code Archives** — Bulk download of archived captures for offline analysis (Waybackpack)
@@ -69,12 +69,12 @@ list of 21 free tools in this category.
 
 ## Investigation Workflow
 
-1. **Wayback check**: Query the Internet Archive Wayback Machine for historical snapshots of the target URL
+1. **Wayback check**: Query the internet Archive Wayback Machine for historical snapshots of the target URL
 2. **Bulk download**: Use Waybackpack (CLI) to batch-download all archived snapshots for offline analysis
 3. **Cache fallback**: If Wayback has no results, check Cached Pages and Cached View for search-engine cached copies
 4. **On-demand capture**: Use Archive.is to create a point-in-time snapshot before content changes or disappears
 5. **Regional archives**: Check UK Web Archive and Web Archive-RU for geographically-specific web captures
-6. **Common Crawl mining**: Query Common Crawl indexes for large-scale historical content matching
+6. **Common Crawl mining**: Query Common Crawl indices for large-scale historical content matching
 7. **Evidence preservation**: Generate PDF captures via PDF My URL for court-admissible documentation
 8. **Leak correlation**: Search Cryptome and WikiLeaks for related disclosures; check Databases.Today for breach exposure
 9. **Media search**: Use TV Closed Caption Search for broadcast mentions; check Textfiles.com for early-internet artifacts
@@ -87,11 +87,11 @@ list of 21 free tools in this category.
 ## OPSEC Notes
 
 - Most archive tools are **Passive** — they query existing public archives without alerting the target
-- **Waybackpack** is **Passive** — it downloads from the Internet Archive API; queries are logged by archive.org but not by the target
+- **Waybackpack** is **Passive** — it downloads from the internet Archive API; queries are logged by archive.org but not by the target
 - **Archive.is** snapshots are **Passive** to retrieve but creating a new snapshot fetches the live page (the target may see the archiver's IP)
 - **Anna's Archive** is marked **Active** and requires **registration** — it aggregates shadow library content; access may have legal implications in some jurisdictions
 - **WikiLeaks** is marked **Active** — accessing the site may attract attention depending on jurisdiction and monitoring
-- **Databases.Today** is marked **Active** and requires **registration** — it indexes breach data; use with caution
+- **Databases.Today** is marked **Active** and requires **registration** — it indices breach data; use with caution
 - Common Crawl data is fully public and passive to access via S3/API
 - When creating Archive.is snapshots, the target site sees a request from archive.is servers, not your IP
 

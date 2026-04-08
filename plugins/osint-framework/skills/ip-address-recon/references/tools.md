@@ -144,7 +144,7 @@
 - **Best For**: URL/domain scanning for malware and phishing
 - **Input**: URL or domain
 - **Output**: Screenshot, DNS, IP, certificates, cookies
-- **Description**: Website scanner analyzing URLs and domains for malicious content with infrastructure intelligence.
+- **Description**: site scanner analyzing URLs and domains for malicious content with infrastructure intelligence.
 
 ### Spyse
 
@@ -155,10 +155,10 @@
 - **Registration**: Yes
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet asset discovery and reconnaissance
+- **Best For**: internet asset discovery and reconnaissance
 - **Input**: IP, domain, email, organization
 - **Output**: Subdomains, services, vulnerabilities, data breaches
-- **Description**: Internet assets search engine collecting and analyzing public data for attack surface management.
+- **Description**: internet assets search engine collecting and analyzing public data for attack surface management.
 
 ### Shodan
 
@@ -183,7 +183,7 @@
 - **Registration**: Yes
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet asset reconnaissance with web, DNS, WHOIS
+- **Best For**: internet asset reconnaissance with web, DNS, WHOIS
 - **Input**: IP, domain, ASN
 - **Output**: Open ports, services, certificates, DNS records, WHOIS
 - **Description**: Comprehensive internet scanning platform with OSINT, DNS, and WHOIS data. Free tier: 50 requests/day.
@@ -337,7 +337,7 @@
 - **Registration**: Yes
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet asset discovery and threat intel
+- **Best For**: internet asset discovery and threat intel
 - **Input**: IP, domain, CVE
 - **Output**: Services, vulnerabilities, certificates, datasources
 - **Description**: Cyber defense search engine with internet scanning, threat intelligence, and attack surface management.
@@ -463,7 +463,7 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet peering and AS relationship mapping
+- **Best For**: internet peering and AS relationship mapping
 - **Input**: ASN, organization, or IX
 - **Output**: Peering relationships, exchange points, contacts
 - **Description**: Database of internet exchange points, member networks, and AS relationships for network mapping.
@@ -552,7 +552,7 @@
 - **Output**: Attack reports, threat activity
 - **Description**: API and database of security events and IPs involved in attacks monitored by SANS.
 
-### FireHOL IP Lists 
+### FireHOL IP Lists
 
 - **URL**: <https://iplists.firehol.org/>
 - **Type**: API
@@ -636,7 +636,7 @@
 - **Output**: List of domains on IP, subdomains
 - **Description**: Reverse IP lookup tool for discovering all domains and subdomains on an IP address.
 
-### CloudFlare Watch
+### Cloudflare Watch
 
 - **URL**: <https://www.crimeflare.com/>
 - **Type**: Web
@@ -648,7 +648,7 @@
 - **Best For**: Identify Cloudflare-protected sites
 - **Input**: Domain or IP
 - **Output**: Cloudflare status, origin IP (if discoverable)
-- **Description**: Tool for identifying and analyzing websites protected by Cloudflare's CDN and security services.
+- **Description**: Tool for identifying and analyzing sites protected by Cloudflare's CDN and security services.
 
 ### CloudFail (T)
 
@@ -662,7 +662,7 @@
 - **Best For**: Bypass Cloudflare to find origin IP
 - **Input**: Domain protected by Cloudflare
 - **Output**: Origin IP address (if discoverable)
-- **Description**: Tool for finding origin IPs of Cloudflare-protected websites through enumeration techniques.
+- **Description**: Tool for finding origin IPs of Cloudflare-protected sites through enumeration techniques.
 
 ### WiGLE: Wireless Network Mapping
 
@@ -676,7 +676,7 @@
 - **Best For**: Map wireless networks and find signal coverage
 - **Input**: Location, SSID, or BSSID
 - **Output**: Network locations, signal maps, network details
-- **Description**: Global database of wireless networks (WiFi, Bluetooth, cellular) with mapping and signal strength data.
+- **Description**: Global database of wireless networks (Wi-Fi, Bluetooth, cellular) with mapping and signal strength data.
 
 ### OpenCellid: Database of Cell Towers
 

@@ -26,7 +26,7 @@ list of 47 free tools in this category.
 ## Web Resources
 
 | Tool | URL | Best For |
-|------|-----|----------|
+| ------ | ----- | ---------- |
 | **Persona Creation** | | |
 | Fake Name Generator | fakenamegenerator.com | Full fake identity profiles with addresses and SSNs |
 | Fake Identity Generator | backgroundchecks.org | Alternative fake identity generation |
@@ -40,7 +40,7 @@ list of 47 free tools in this category.
 | I2P Anonymous Network | geti2p.net | Garlic-routed anonymous network |
 | VPN Comparisons | thatoneprivacysite.net | Independent VPN provider comparisons |
 | IP2Proxy | ip2proxy.com | Proxy and VPN detection checking |
-| LocaBrowser.com | locabrowser.com | Browse websites from different geographic locations |
+| LocaBrowser.com | locabrowser.com | Browse sites from different geographic locations |
 | **Leak Testing** | | |
 | IP / DNS Leak Detection | ipleak.net | All-in-one IP, DNS, and WebRTC leak check |
 | DNS leak test | dnsleaktest.com | DNS query leak detection |
@@ -129,7 +129,7 @@ Agent(
 ## Cross-Category Pivots
 
 | When you need... | Pivot to |
-|------------------|----------|
+| ------------------ | ---------- |
 | Dark web access via Tor/I2P | `dark-web` -- Onion directories, hidden services |
 | File metadata analysis or stripping | `encoding-decoding` -- Hex editors, encoding tools |
 | Verify your persona is not linked | `username-recon` -- Check username uniqueness |

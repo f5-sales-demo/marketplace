@@ -28,28 +28,28 @@ violate federal and state wiretapping laws.
 Read `skills/mobile-osint/references/tools.md` for the complete
 list of 29 free/freemium tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 ### Emulators
 
 | Tool | Install Method | Usage |
-|------|---------------|-------|
-| Genymotion | Download installer from https://www.genymotion.com/ (requires registration) | `genymotion` — launch emulator for APK testing and forensic analysis |
-| BlueStacks | Download installer from https://www.bluestacks.com/ | `BlueStacks` — lightweight Android emulator for app analysis |
-| Nox | Download installer from https://www.bignox.com/ | `nox` — Android emulator with root access and multi-version support |
+| ------ | --------------- | ------- |
+| Genymotion | Download installer from <https://www.genymotion.com/> (requires registration) | `genymotion` — launch emulator for APK testing and forensic analysis |
+| BlueStacks | Download installer from <https://www.bluestacks.com/> | `BlueStacks` — lightweight Android emulator for app analysis |
+| Nox | Download installer from <https://www.bignox.com/> | `nox` — Android emulator with root access and multi-version support |
 
 ### Messaging Apps
 
 | Tool | Install Method | Usage |
-|------|---------------|-------|
+| ------ | --------------- | ------- |
 | Signal | `snap install signal-desktop` or `apt install signal-desktop` (via Signal apt repo) | Desktop client — verify accounts via phone number, inspect profiles |
 | Riot.im (Element) | `apt install element-desktop` or `snap install element-desktop` | Matrix client — monitor public communities and channels |
 | Telegram | `snap install telegram-desktop` or `apt install telegram-desktop` | `telegram-desktop` — user discovery, channel monitoring, group recon |
 | Snapchat | Mobile-only (use emulator for desktop analysis) | Profile lookup, snap map location tracking, story analysis |
-| WhatsApp | Download from https://www.whatsapp.com/ or `snap install whatsapp-for-linux` | Account verification via phone number, profile and status discovery |
+| WhatsApp | Download from <https://www.whatsapp.com/> or `snap install whatsapp-for-linux` | Account verification via phone number, profile and status discovery |
 | Kik | Mobile-only (use emulator for desktop analysis) | Username search, profile analysis, public discovery |
 | Yik Yak | Mobile-only (use emulator for desktop analysis) | Location-based anonymous post monitoring, community sentiment |
-| LINE | Download from https://line.me/ or use emulator | User discovery, profile analysis, account verification (Asia-focused) |
+| LINE | Download from <https://line.me/> or use emulator | User discovery, profile analysis, account verification (Asia-focused) |
 | Periscope | Integrated into Twitter/X — use web interface | Live broadcast monitoring, location metadata extraction |
 | Meerkat | Dormant service — historical archive analysis only | Legacy stream archive analysis |
 | Truecaller | `snap install truecaller` or mobile app via emulator | Phone number verification, reverse caller ID lookup |
@@ -57,14 +57,14 @@ list of 29 free/freemium tools in this category.
 ### Forensics and Analysis Tools
 
 | Tool | Install Method | Usage |
-|------|---------------|-------|
+| ------ | --------------- | ------- |
 | APKLeaks | `pip install apkleaks` | `apkleaks -f app.apk` — scan APKs for hardcoded secrets and API endpoints |
-| APKtool | `apt install apktool` or download JAR from https://apktool.org/ | `apktool d app.apk` — decompile APK to smali and resources |
-| JADX | `apt install jadx` or download from https://github.com/skylot/jadx/releases | `jadx app.apk -d output/` — decompile DEX to Java source code |
+| APKtool | `apt install apktool` or download JAR from <https://apktool.org/> | `apktool d app.apk` — decompile APK to smali and resources |
+| JADX | `apt install jadx` or download from <https://github.com/skylot/jadx/releases> | `jadx app.apk -d output/` — decompile DEX to Java source code |
 | MobSF | `pip install mobsf` or `docker run -p 8000:8000 opensecurity/mobile-security-framework-mobsf` | `mobsf` — comprehensive static and dynamic mobile app security analysis |
-| Autopsy | `apt install autopsy` or download from https://www.autopsy.com/ | `autopsy` — digital forensics platform for mobile device data extraction |
+| Autopsy | `apt install autopsy` or download from <https://www.autopsy.com/> | `autopsy` — digital forensics platform for mobile device data extraction |
 | Frida | `pip install frida-tools` | `frida -U -f com.app.target -l script.js` — runtime instrumentation and API interception |
-| OSINT Researcher | iOS App Store only (https://apps.apple.com/us/app/osint-researcher/id6747302251) | GitHub organization recon, team structure analysis |
+| OSINT Researcher | iOS App Store only (<https://apps.apple.com/us/app/osint-researcher/id6747302251>) | GitHub organization recon, team structure analysis |
 
 ## Subcategories
 

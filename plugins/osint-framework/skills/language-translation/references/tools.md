@@ -21,9 +21,9 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Quick translation of text and webpages
-- **Input**: Text or website URL
-- **Output**: Translated text or translated webpage content
+- **Best For**: Quick translation of text and web pages
+- **Input**: Text or site URL
+- **Output**: Translated text or translated web page content
 - **Description**: Microsoft's neural translation service for text and web content across 100+ languages.
 
 ### Cambridge Dictionary
@@ -92,9 +92,9 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Quick translation across broad language coverage
-- **Input**: Text, documents, speech, or website URL
-- **Output**: Translated text, speech output, or translated webpage
-- **Description**: Google's web translation platform covering hundreds of languages for text and website translation.
+- **Input**: Text, documents, speech, or site URL
+- **Output**: Translated text, speech output, or translated web page
+- **Description**: Google's web translation platform covering hundreds of languages for text and site translation.
 
 ### Slang Dictionary & Translator
 

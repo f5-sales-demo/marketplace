@@ -79,7 +79,7 @@
 - **CLI Install**: N/A
 - **Best For**: Large-scale historical web content mining and corpus analysis
 - **Input**: CC index query, URL, domain, or WARC request
-- **Output**: Raw crawl records, metadata indexes, and extracted web content
+- **Output**: Raw crawl records, metadata indices, and extracted web content
 - **Description**: Open repository of large-scale web crawl data published as monthly WARC datasets.
 
 ### Internet Archive: Wayback Machine
@@ -91,10 +91,10 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Historical website analysis and deleted content recovery
+- **Best For**: Historical site analysis and deleted content recovery
 - **Input**: URL or domain
 - **Output**: Archived web page snapshots with timestamps
-- **Description**: Web archive providing historical snapshots of websites captured over time.
+- **Description**: Web archive providing historical snapshots of sites captured over time.
 
 ### PDF My URL
 
@@ -119,10 +119,10 @@
 - **Registration**: Yes
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Visual timeline checks of website appearance changes
+- **Best For**: Visual timeline checks of site appearance changes
 - **Input**: Domain or URL
-- **Output**: Stored website screenshots and capture previews
-- **Description**: Website screenshot archive and capture service for viewing historical or current rendered page images.
+- **Output**: Stored site screenshots and capture previews
+- **Description**: site screenshot archive and capture service for viewing historical or current rendered page images.
 
 ### Wayback Machine Chrome Extension
 
@@ -163,8 +163,8 @@
 - **CLI Install**: N/A
 - **Best For**: Accessing preserved UK web content and historical domain captures
 - **Input**: URL, title, topic, or keyword
-- **Output**: Archived UK website records and preserved snapshots
-- **Description**: British Library-led archive preserving selected UK websites and related national web heritage content.
+- **Output**: Archived UK site records and preserved snapshots
+- **Description**: British Library-led archive preserving selected UK sites and related national web heritage content.
 
 ### Waybackpack (T)
 
@@ -178,7 +178,7 @@
 - **Best For**: Batch export of historical snapshots for offline analysis
 - **Input**: Domain/URL and optional date filters
 - **Output**: Downloaded archive files and URL/capture lists
-- **Description**: Command-line tool for bulk downloading archived captures from the Internet Archive Wayback Machine.
+- **Description**: Command-line tool for bulk downloading archived captures from the internet Archive Wayback Machine.
 
 ### Web Archive-RU
 
@@ -192,7 +192,7 @@
 - **Best For**: Supplemental archive checks when mainstream archives lack coverage
 - **Input**: URL or keyword
 - **Output**: Available archived pages and snapshot listings
-- **Description**: Regional web archiving service focused on preserving and browsing snapshots of selected websites.
+- **Description**: Regional web archiving service focused on preserving and browsing snapshots of selected sites.
 
 ### Cryptome
 
@@ -252,7 +252,7 @@
 
 ### Stanford Large Network Dataset Collection
 
-- **URL**: <https://snap.stanford.edu/data/#amazon>
+- **URL**: <https://snap.stanford.edu/data/#Amazon>
 - **Type**: Web
 - **Pricing**: Free
 - **OPSEC**: Passive
@@ -304,4 +304,4 @@
 - **Best For**: Finding broadcast mentions by keyword and time period
 - **Input**: Keyword, program, channel, or date range
 - **Output**: Matching TV clips, transcripts, and broadcast metadata
-- **Description**: Internet Archive TV News collection for searching closed-caption text across broadcast recordings.
+- **Description**: internet Archive TV News collection for searching closed-caption text across broadcast recordings.

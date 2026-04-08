@@ -81,7 +81,7 @@
 - **Best For**: High-coverage reverse face search investigations
 - **Input**: Face photo upload
 - **Output**: Matched face thumbnails and source-page links
-- **Description**: Commercial reverse face search engine for locating appearances of a face on publicly indexed websites.
+- **Description**: Commercial reverse face search engine for locating appearances of a face on publicly indexed sites.
 
 ### Yandex Images
 
@@ -94,7 +94,7 @@
 - **CLI Install**: N/A
 - **Best For**: Finding non-Western image sources and modified variants
 - **Input**: Image upload or image URL
-- **Output**: Similar images, likely originals, and source webpages
+- **Output**: Similar images, likely originals, and source web pages
 - **Description**: Reverse image search engine with strong matching for Eastern European and Asian web sources.
 
 ### Baidu Images
@@ -108,8 +108,8 @@
 - **CLI Install**: N/A
 - **Best For**: China-specific image source discovery
 - **Input**: Image upload or image URL
-- **Output**: Visually similar images from Chinese websites and platforms
-- **Description**: Chinese reverse image search platform useful for discovering image reuse on China-centric websites.
+- **Output**: Visually similar images from Chinese sites and platforms
+- **Description**: Chinese reverse image search platform useful for discovering image reuse on China-centric sites.
 
 ### Twitter Image Search (M)
 
@@ -470,7 +470,7 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Quick EXIF inspection without local CLI tools
+- **Best For**: Quick EXIF inspection without local command-line tools
 - **Input**: Image file uploads or image URLs
 - **Output**: Human-readable EXIF and geolocation data
 - **Description**: Online EXIF inspection utility for camera, location, and embedded image metadata fields.
@@ -821,9 +821,17 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Print Storyboard from Youtube
+### Print Storyboard from YouTube
 
-- **URL**: <javascript:(function(){a=ytplayer.config.args.storyboard_spec;if(!a){alert("Sorry we cannot process this YouTube video. Could you please try another one");exit();}b=a.split("|");base=b[0].split("$")[0]+"2/M";c=b[3].split("%23");sigh=c[c.length-1];var imgs="";t=ytplayer.config.args.length_seconds;n=Math.ceil(c[2]/(c[3]*c[4]));for(i=0;i<n;i++){imgs+="<PICTURE='"+base+i+".jpg%3Fsigh="+sigh+"'><br/>";}var title=ytplayer.config.args.title;msg="<body style='background-color:#444;color:#eee;margin:20px%20auto;width:90%;text-align:center'%3E%3Ch2%3ETITLE%3C/h2%3E%3Cdiv%3EIMAGES%3C/div%3E%3Cbr/%3E%3Cem%3E%3Ca%20href='http://labnol.org/?p=28217'%20style='text-decoration:none;color:#fff;font-style:bold'%3EPrinted%20using%20the%20YouTube%20bookmarklet.%3C/a%3E%3C/em%3E%3C/body%3E%22;msg=msg.replace(%22TITLE%22,title).replace(%22IMAGES%22,imgs).replace(/PICTURE/g,%22img%20src%22);var%20labnol=window.open();labnol.document.open();labnol.document.write(msg);labnol.document.close();})();>
+- **URL**: Bookmarklet (see below)
+
+<!-- markdownlint-disable MD013 -->
+
+```text
+javascript:(function(){a=ytplayer.config.args.storyboard_spec;if(!a){alert("Sorry we cannot process this YouTube video. Could you please try another one");exit();}b=a.split("|");base=b[0].split["$"](0)+"2/M";c=b[3].split("%23");sigh=c[c.length-1];var imgs="";t=ytplayer.config.args.length_seconds;n=Math.ceil(c[2]/(c[3]*c[4]));for(i=0;i<n;i++){imgs+="<PICTURE='"+base+i+".jpg%3Fsigh="+sigh+"'><br/>";}var title=ytplayer.config.args.title;msg="<body style='background-color:#444;color:#eee;margin:20px%20auto;width:90%;text-align:center'><h2>TITLE</h2><div>IMAGES</div><br/><em><a href='http://labnol.org/?p=28217' style='text-decoration:none;color:#fff;font-style:bold'>Printed using the YouTube bookmarklet.</a></em></body>";msg=msg.replace("TITLE",title).replace("IMAGES",imgs).replace(/PICTURE/g,"img src");var labnol=window.open();labnol.document.open();labnol.document.write(msg);labnol.document.close();})();
+```
+
+<!-- markdownlint-enable MD013 -->
 - **Type**: Web
 - **Pricing**: Free
 - **OPSEC**: Passive

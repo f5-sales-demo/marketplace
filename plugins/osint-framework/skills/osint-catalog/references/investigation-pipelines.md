@@ -55,7 +55,7 @@ osint_cache_get() {
 ### Key Rate Limits
 
 | API | Limit | Delay |
-|-----|-------|------:|
+| ----- | ------- | ------: |
 | ipinfo.io | 1,000/day | 100ms |
 | crt.sh | 60/min | 1s |
 | NVD | 5/30s | 6s |
@@ -190,7 +190,7 @@ echo "    Curl checks found ${CURL_FOUND} potential profiles"
 
 # ── Step 4: Extract emails and bios from found profiles ────────────
 # OPSEC: PASSIVE (scraping public profile pages)
-# Time: ~10-30s
+# Time: ~10-30s (#2)
 echo "[4/4] Extracting emails from found profiles..."
 > "${OUTDIR}/extracted-emails.txt"
 
@@ -234,7 +234,7 @@ USERNAME="johndoe" && for site in github.com gitlab.com x.com reddit.com/user in
 **Goal:** discover linked accounts, breach data, domain info, and pivot to username/domain recon
 **Estimated time:** 3-10 minutes
 
-### Pre-flight
+### Pre-flight (2. Email Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -251,7 +251,7 @@ for tool in holehe h8mail curl jq grep whois dig; do
 done
 ```
 
-### Full Pipeline
+### Full Pipeline (2. Email Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -291,7 +291,7 @@ fi
 
 # ── Step 2: H8mail — breach/paste lookup ───────────────────────────
 # OPSEC: PASSIVE (queries public breach databases)
-# Time: ~10-30s
+# Time: ~10-30s (#3)
 if command -v h8mail &>/dev/null; then
   echo "[2/5] Running h8mail..."
   h8mail -t "${EMAIL}" \
@@ -345,7 +345,7 @@ fi
 
 # ── Step 4: Gravatar / profile lookup ──────────────────────────────
 # OPSEC: PASSIVE (public API query)
-# Time: ~3s
+# Time: ~3s (#2)
 echo ""
 echo "[4/5] Checking Gravatar and public profiles..."
 
@@ -371,7 +371,7 @@ echo "[5/5] Pivoting to domain investigation for ${DOMAIN}..."
 
 # Quick domain info
 whois "${DOMAIN}" 2>/dev/null \
-  | grep -iE '(registrant|admin|tech|name server|creation|expir|updated)' \
+| grep -iE '(registrant | admin | tech | name server | creation | expir |
   > "${OUTDIR}/domain-whois-summary.txt" 2>/dev/null || true
 
 dig "${DOMAIN}" ANY +short 2>/dev/null \
@@ -388,7 +388,7 @@ grep -qi "outlook\|microsoft" "${OUTDIR}/domain-mx-records.txt" 2>/dev/null && e
 grep -qi "proton" "${OUTDIR}/domain-mx-records.txt" 2>/dev/null && echo "    -> ProtonMail" || true
 grep -qi "zoho" "${OUTDIR}/domain-mx-records.txt" 2>/dev/null && echo "    -> Zoho Mail" || true
 
-# ── Summary ────────────────────────────────────────────────────────
+# ── Summary ──────────────────────────────────────────────────────── (#2)
 echo ""
 echo "=== Email Investigation Complete: ${EMAIL} ==="
 echo "Username pivot: ${USERNAME}"
@@ -397,11 +397,20 @@ echo "Results directory: ${OUTDIR}"
 ls -la "${OUTDIR}/"
 ```
 
-### Quick One-Liner
+### Quick One-Liner (── Summary ────────────────────────────────────────────────────────)
 
 ```bash
 # Fast email overview — emailrep + gravatar + MX in one shot
-EMAIL="user@example.com" && echo "--- emailrep ---" && curl -s "https://emailrep.io/${EMAIL}" | jq '{reputation,suspicious,profiles:.details.profiles}' 2>/dev/null && echo "--- gravatar ---" && curl -s "https://en.gravatar.com/$(echo -n "$EMAIL" | tr '[:upper:]' '[:lower:]' | md5sum | awk '{print $1}').json" | jq '.entry[0].displayName // "none"' 2>/dev/null && echo "--- MX ---" && dig "${EMAIL##*@}" MX +short
+EMAIL="user@example.com" \
+  && echo "--- emailrep ---" \
+  && curl -s "https://emailrep.io/${EMAIL}" \
+    | jq '{reputation,suspicious,profiles:.details.profiles}' 2>/dev/null \
+  && echo "--- gravatar ---" \
+  && curl -s "https://en.gravatar.com/$(echo -n "$EMAIL" \
+    | tr '[:upper:]' '[:lower:]' | md5sum | awk '{print $1}').json" \
+    | jq '.entry[0].displayName // "none"' 2>/dev/null \
+  && echo "--- MX ---" \
+  && dig "${EMAIL##*@}" MX +short
 ```
 
 ---
@@ -412,7 +421,7 @@ EMAIL="user@example.com" && echo "--- emailrep ---" && curl -s "https://emailrep
 **Goal:** full domain profile — registration, DNS, subdomains, live hosts, technologies, vulnerabilities
 **Estimated time:** 5-20 minutes
 
-### Pre-flight
+### Pre-flight (3. Domain Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -429,7 +438,7 @@ for tool in whois dig nslookup subfinder amass httpx nuclei curl jq gobuster ffu
 done
 ```
 
-### Full Pipeline
+### Full Pipeline (3. Domain Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -656,14 +665,14 @@ echo "[6/6] Detecting technologies via HTTP headers..."
   done
 } | tee "${OUTDIR}/tech-detection.txt"
 
-# ── Summary ────────────────────────────────────────────────────────
+# ── Summary ──────────────────────────────────────────────────────── (#3)
 echo ""
 echo "=== Domain Investigation Complete: ${DOMAIN} ==="
 echo "Results directory: ${OUTDIR}"
 ls -la "${OUTDIR}/"
 ```
 
-### Quick One-Liner
+### Quick One-Liner (── Summary ────────────────────────────────────────────────────────) #2
 
 ```bash
 # Fast domain overview — WHOIS + DNS + crt.sh subdomains
@@ -678,7 +687,7 @@ DOMAIN="example.com" && echo "--- WHOIS ---" && whois "$DOMAIN" 2>/dev/null | gr
 **Goal:** geolocation, ownership, open ports, running services, reputation
 **Estimated time:** 3-15 minutes
 
-### Pre-flight
+### Pre-flight (4. IP Address Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -695,7 +704,7 @@ for tool in whois dig nmap masscan curl jq searchsploit; do
 done
 ```
 
-### Full Pipeline
+### Full Pipeline (4. IP Address Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -704,12 +713,12 @@ OUTDIR="./osint-results/ip-${IP//./-}"
 mkdir -p "${OUTDIR}"
 
 # ── Step 1: WHOIS — IP ownership ──────────────────────────────────
-# OPSEC: PASSIVE (public WHOIS query)
-# Time: ~3-5s
+# OPSEC: PASSIVE (public WHOIS query) (#2)
+# Time: ~3-5s (#2)
 echo "[1/6] Running WHOIS lookup..."
 whois "${IP}" > "${OUTDIR}/whois-full.txt" 2>/dev/null || true
 
-# Parse key fields
+# Parse key fields (#2)
 grep -iE '(netname|orgname|org-name|descr|country|cidr|netrange|abuse|admin-c|tech-c|route|origin)' \
   "${OUTDIR}/whois-full.txt" \
   | head -30 \
@@ -807,7 +816,7 @@ fi
 
 # ── Step 5: Exploit lookup for discovered services ─────────────────
 # OPSEC: PASSIVE (local database query only)
-# Time: ~3-5s
+# Time: ~3-5s (#3)
 echo ""
 echo "[5/6] Searching exploits for discovered services..."
 
@@ -828,12 +837,12 @@ fi
 if command -v searchsploit &>/dev/null && [ -s "${OUTDIR}/nmap-results.xml" ]; then
   echo "  --- searchsploit from nmap XML ---"
   searchsploit --nmap "${OUTDIR}/nmap-results.xml" 2>/dev/null \
-    | tee "${OUTDIR}/searchsploit-nmap.txt" || true
+| tee "${OUTDIR}/searchsploit-nmap.txt" | |
 fi
 
 # ── Step 6: Threat intelligence / reputation ───────────────────────
-# OPSEC: PASSIVE (public API queries)
-# Time: ~5s
+# OPSEC: PASSIVE (public API queries) (#2)
+# Time: ~5s (#2)
 echo ""
 echo "[6/6] Checking threat intelligence feeds..."
 
@@ -875,20 +884,33 @@ echo ""
 echo "  Shodan InternetDB:"
 curl -s "https://internetdb.shodan.io/${IP}" 2>/dev/null \
   | jq '.' \
-  | tee "${OUTDIR}/shodan-internetdb.json" 2>/dev/null || echo "  (no data)"
+| tee "${OUTDIR}/shodan-internetdb.json" 2>/dev/null | |
 
-# ── Summary ────────────────────────────────────────────────────────
+# ── Summary ──────────────────────────────────────────────────────── (#4)
 echo ""
 echo "=== IP Investigation Complete: ${IP} ==="
 echo "Results directory: ${OUTDIR}"
 ls -la "${OUTDIR}/"
 ```
 
-### Quick One-Liner
+### Quick One-Liner (── Summary ────────────────────────────────────────────────────────) #3
 
 ```bash
 # Fast IP overview — geolocation + reverse DNS + Shodan + blocklist
-IP="192.0.2.72" && echo "--- GeoIP ---" && curl -s "https://ipinfo.io/${IP}/json" | jq '{ip,city,region,country,org}' && echo "--- rDNS ---" && dig -x "$IP" +short && echo "--- Shodan ---" && curl -s "https://internetdb.shodan.io/${IP}" | jq '{ports,hostnames,vulns}' 2>/dev/null && echo "--- Blocklist ---" && R=$(echo "$IP"|awk -F. '{print $4"."$3"."$2"."$1}') && for bl in zen.spamhaus.org bl.spamcop.net; do r=$(dig "${R}.${bl}" +short 2>/dev/null); [ -n "$r" ] && echo "LISTED:$bl" || echo "clean:$bl"; done
+IP="192.0.2.72" \
+  && echo "--- GeoIP ---" \
+  && curl -s "https://ipinfo.io/${IP}/json" | jq '{ip,city,region,country,org}' \
+  && echo "--- rDNS ---" \
+  && dig -x "$IP" +short \
+  && echo "--- Shodan ---" \
+  && curl -s "https://internetdb.shodan.io/${IP}" \
+    | jq '{ports,hostnames,vulns}' 2>/dev/null \
+  && echo "--- Blocklist ---" \
+  && R=$(echo "$IP" | awk -F. '{print $4"."$3"."$2"."$1}') \
+  && for bl in zen.spamhaus.org bl.spamcop.net; do \
+    r=$(dig "${R}.${bl}" +short 2>/dev/null); \
+    [ -n "$r" ] && echo "LISTED:$bl" || echo "clean:$bl"; \
+  done
 ```
 
 ---
@@ -899,7 +921,7 @@ IP="192.0.2.72" && echo "--- GeoIP ---" && curl -s "https://ipinfo.io/${IP}/json
 **Goal:** linked profiles, public records, images, and aggregated identity data
 **Estimated time:** 5-15 minutes
 
-### Pre-flight
+### Pre-flight (5. Person Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -917,7 +939,7 @@ for tool in curl jq grep awk exiftool sherlock; do
 done
 ```
 
-### Full Pipeline
+### Full Pipeline (5. Person Investigation Pipeline)
 
 ```bash
 set -eo pipefail
@@ -963,7 +985,7 @@ else
 fi
 
 # ── Step 2: Social media enumeration ──────────────────────────────
-# OPSEC: PASSIVE (HTTP requests to public profile URLs)
+# OPSEC: PASSIVE (HTTP requests to public profile URLs) (#2)
 # Time: ~15-30s
 echo ""
 echo "[2/5] Checking social media profiles..."
@@ -1023,7 +1045,7 @@ echo "  ${PROFILE_COUNT} potential profiles found"
 
 # ── Step 3: Public records API patterns ────────────────────────────
 # OPSEC: PASSIVE (queries public records APIs)
-# Time: ~5-10s
+# Time: ~5-10s (#2)
 echo ""
 echo "[3/5] Checking public records sources..."
 
@@ -1044,7 +1066,7 @@ curl -s -A "Mozilla/5.0" \
 
 # Extract any linked profiles from PeekYou results
 grep -oE 'https?://[^"'\''> ]+' "${OUTDIR}/peekyou-raw.html" 2>/dev/null \
-  | grep -vE 'peekyou|static|css|js|favicon|pixel' \
+| grep -vE 'peekyou | static | css | js | favicon |
   | sort -u \
   > "${OUTDIR}/peekyou-links.txt" 2>/dev/null || true
 
@@ -1060,7 +1082,7 @@ echo "  Google Scholar: ~${SCHOLAR_COUNT} results"
 
 # ── Step 4: Image / avatar search ─────────────────────────────────
 # OPSEC: PASSIVE (downloads public images)
-# Time: ~5-15s
+# Time: ~5-15s (#2)
 echo ""
 echo "[4/5] Collecting profile images and avatars..."
 
@@ -1083,7 +1105,7 @@ if grep -q "GitHub" "${OUTDIR}/social-profiles-found.tsv" 2>/dev/null; then
   GH_USER=$(grep "GitHub" "${OUTDIR}/social-profiles-found.tsv" | head -1 | awk -F'\t' '{print $2}')
   curl -s "https://api.github.com/users/${GH_USER}" 2>/dev/null \
     | jq -r '.avatar_url // empty' \
-    | xargs -I{} curl -s -o "${OUTDIR}/images/github-${GH_USER}.jpg" "{}" 2>/dev/null || true
+| xargs -I{} curl -s -o "${OUTDIR}/images/github-${GH_USER}.jpg" "{}" 2>/dev/null | |
   echo "  Downloaded GitHub avatar for ${GH_USER}"
 fi
 
@@ -1099,7 +1121,7 @@ fi
 
 # ── Step 5: Aggregate and cross-reference ──────────────────────────
 # OPSEC: PASSIVE (local analysis only)
-# Time: ~2s
+# Time: ~2s (#2)
 echo ""
 echo "[5/5] Aggregating results..."
 
@@ -1123,7 +1145,7 @@ echo "[5/5] Aggregating results..."
   # Scan all HTML files for emails
   grep -rohE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' \
     "${OUTDIR}"/*.html "${OUTDIR}"/*.txt 2>/dev/null \
-    | sort -u || echo "  (none found)"
+| sort -u | |
   echo ""
 
   echo "--- Search Result URLs ---"
@@ -1142,14 +1164,14 @@ echo "[5/5] Aggregating results..."
 
 } | tee "${OUTDIR}/investigation-report.txt"
 
-# ── Summary ────────────────────────────────────────────────────────
+# ── Summary ──────────────────────────────────────────────────────── (#5)
 echo ""
 echo "=== Person Investigation Complete: ${FULLNAME} ==="
 echo "Results directory: ${OUTDIR}"
 ls -la "${OUTDIR}/"
 ```
 
-### Quick One-Liner
+### Quick One-Liner (── Summary ────────────────────────────────────────────────────────) #4
 
 ```bash
 # Fast person lookup — social profiles check for common username patterns
@@ -1161,9 +1183,9 @@ NAME="John Doe" && F="${NAME%% *}" && L="${NAME##* }" && U=$(echo "${F,,}${L,,}"
 ## OPSEC Classification Summary
 
 | Step | Pipeline | Classification | Notes |
-|------|----------|----------------|-------|
+| ------ | ---------- | ---------------- | ------- |
 | Sherlock/Maigret | Username | PASSIVE | HTTP GET to public profile pages |
-| Curl profile check | Username | PASSIVE | HTTP HEAD/GET to known URLs |
+| CURL profile check | Username | PASSIVE | HTTP HEAD/GET to known URLs |
 | Holehe | Email | ACTIVE | Sends login/registration probes |
 | H8mail | Email | PASSIVE | Queries public breach databases |
 | EmailRep | Email | PASSIVE | Public API query |

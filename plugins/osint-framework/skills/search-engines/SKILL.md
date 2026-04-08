@@ -26,15 +26,15 @@ with applicable laws and platform terms of service.
 Read `skills/search-engines/references/tools.md` for the complete
 list of 73 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Alt Install | Usage |
-|------|---------|-------------|-------|
+| ------ | --------- | ------------- | ------- |
 | Stract | `git clone https://github.com/StractOrg/stract && cd stract && cargo build --release` | Docker: `docker pull stract/stract` | Open-source search engine with customizable Optics filtering |
 | Gitrob | `go install github.com/michenriksen/gitrob@latest` | Docker: `docker pull michenriksen/gitrob` | `gitrob <org-or-user>` -- scans GitHub repos for sensitive files |
 | Github-Dorks | `pip install github-dorks` | `git clone https://github.com/techgaun/github-dorks && pip install -r requirements.txt` | `github-dork.py -u <user>` -- automated GitHub secret search |
 | GitLeaks | `go install github.com/gitleaks/gitleaks@latest` | Brew: `brew install gitleaks`; Docker: `docker pull ghcr.io/gitleaks/gitleaks:latest`; Binary: download from GitHub releases | `gitleaks detect -s <repo-path>` -- scan repos for hardcoded secrets |
-| Lazy Scholar | Browser extension install from https://lazyscholar.org/ | `git clone https://github.com/AaronC81/lazy-scholar` | Finds free full-text versions of paywalled papers |
+| Lazy Scholar | Browser extension install from <https://lazyscholar.org/> | `git clone https://github.com/AaronC81/lazy-scholar` | Finds free full-text versions of paywalled papers |
 | pagodo | `pip install pagodo` | `git clone https://github.com/opsdisk/pagodo && pip install -r requirements.txt` | `pagodo -d <domain> -g dorks.txt` -- passive Google dork enumeration |
 
 ### Dockerfile Install Examples
@@ -107,7 +107,7 @@ Agent(
 ## Investigation Workflow
 
 1. **Define scope**: Determine target type -- domain, organization, person, or topic
-2. **Passive web search**: Use Google, Bing, DuckDuckGo with advanced operators (site:, intitle:, filetype:)
+2. **Passive web search**: Use Google, Bing, DuckDuckGo with advanced operators (site:, intitle:, file type:)
 3. **Google dorking**: Use pagodo to automate GHDB dorks against the target domain
 4. **Code search**: Search PublicWWW and Searchcode for analytics IDs, API endpoints, or tech fingerprints
 5. **Secret scanning**: Run GitLeaks on target repositories; use Github-Dorks for exposed credentials
@@ -118,7 +118,7 @@ Agent(
 ## Cross-Category Pivots
 
 | Finding | Pivot To |
-|---------|----------|
+| --------- | ---------- |
 | Domain or URL discovered | `domain-recon` -- WHOIS, DNS, subdomains |
 | IP address found | `ip-address-recon` -- geolocation, ASN, port scanning |
 | Email address in code | `email-recon` -- breach checks, linked accounts |

@@ -26,10 +26,10 @@ with applicable laws and platform terms of service.
 Read `skills/domain-recon/references/tools.md` for the complete
 list of 131 free tools in this category — the largest category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | subfinder | `go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest` | `subfinder -d domain.com` |
 | amass | `go install github.com/owasp-amass/amass/v4/...@master` | `amass enum -d domain.com` |
 | dnsrecon | `pip install dnsrecon` | `dnsrecon -d domain.com` |
@@ -48,7 +48,7 @@ list of 131 free tools in this category — the largest category.
 - **Certificate Transparency** — CT log searching
 - **Domain Reputation** — Blocklists, malware association, trust scores
 - **Domain History** — Historical WHOIS, DNS changes, archived content
-- **Website Technology** — Detect CMS, frameworks, servers, analytics
+- **Site Technology** — Detect CMS, frameworks, servers, analytics
 - **URL Analysis** — Expand shortened URLs, check redirects
 - **Vulnerability Scanning** — Check for known vulnerabilities
 
@@ -97,6 +97,7 @@ For copy-paste-ready command sequences with output parsing, see:
 `skills/osint-catalog/references/investigation-pipelines.md` — Section 3: Domain Investigation Pipeline
 
 Quick one-liner:
+
 ```bash
 whois TARGET | grep -iE 'registrant|creation|expir' && dig TARGET ANY +short && subfinder -d TARGET -silent | head -20
 ```

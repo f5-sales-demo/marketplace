@@ -21,33 +21,33 @@ with applicable laws and platform terms of service.
 Read `skills/osint-tools/references/tools.md` for the complete
 list of 36 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Maltego | Download from `https://www.maltego.com/downloads/` (GUI installer) | `maltego` (GUI) or run transforms via Maltego CE/XL |
 
 ### All Install Methods — Maltego
 
 | Method | Command |
-|--------|---------|
+| -------- | --------- |
 | Download | `https://www.maltego.com/downloads/` (Linux .deb/.rpm, macOS .dmg, Windows .exe) |
 | apt | `sudo apt install maltego` (Kali Linux repos) |
 | snap | N/A |
-| docker | N/A |
+| Docker | N/A |
 | pip | N/A |
-| git clone | N/A (proprietary) |
+| Git clone | N/A (proprietary) |
 | go | N/A |
 | npm | N/A |
 | brew | N/A |
 | cargo | N/A |
 
-### Notable CLI Tools from References (git clone)
+### Notable command-line tools from References (Git clone)
 
-Many tools in this category are Python-based and installed via git clone:
+Many tools in this category are Python-based and installed via Git clone:
 
 | Tool | Install | Purpose |
-|------|---------|---------|
+| ------ | --------- | --------- |
 | Photon | `git clone https://github.com/s0md3v/Photon` | Fast web crawler for URLs, emails, files, accounts |
 | ReconDog | `git clone https://github.com/s0md3v/ReconDog` | Multi-purpose recon with API integrations |
 | DataSploit | `git clone https://github.com/datasploit/datasploit` | Automated OSINT data aggregation |
@@ -98,7 +98,7 @@ This is a **meta-tools category** — its frameworks feed into and receive data 
 
 ## OPSEC Notes
 
-- Most tools listed are **Passive** when used against public APIs and indexes
+- Most tools listed are **Passive** when used against public APIs and indices
 - **Maltego** is marked **Active** and requires **registration** — transforms actively query external services; some transforms contact target infrastructure directly
 - Maltego Community Edition (CE) is free but limited; transforms are logged by Maltego servers and transform hub providers
 - Python-based tools (Photon, ReconDog, DataSploit) make direct HTTP requests to targets — your IP is visible to target servers

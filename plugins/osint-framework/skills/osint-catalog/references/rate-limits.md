@@ -43,7 +43,7 @@ If the server sends a `Retry-After` header, that value is used instead.
 ## 2. Rate Limit Registry -- Web APIs
 
 | API | Endpoint | Free Limit | Signal | Delay | Auth |
-|-----|----------|-----------|--------|-------|------|
+| ----- | ---------- | ----------- | -------- | ------- | ------ |
 | ipinfo.io | `ipinfo.io/{ip}/json` | 1,000/day | HTTP 429 | 100ms between calls | Token: unlimited |
 | crt.sh | `crt.sh/?q=...&output=json` | ~60/min/IP | HTTP 429 | 1s between calls | No auth option |
 | NVD | `services.nvd.nist.gov/rest/json/cves/2.0` | 5 per 30s (no key) | HTTP 429 | 6s between calls | API key: 50/30s |
@@ -61,7 +61,7 @@ Some APIs require authentication. Check for the env var before calling —
 if missing, skip gracefully with a message.
 
 | API | Env Var | Free Tier | Skip Message |
-|-----|---------|-----------|-------------|
+| ----- | --------- | ----------- | ------------- |
 | OpenCorporates | `OPENCORPORATES_API_KEY` | Requires token | "OpenCorporates requires API key (set OPENCORPORATES_API_KEY)" |
 | OpenSanctions | `OPENSANCTIONS_API_KEY` | Requires token | "OpenSanctions requires API key (set OPENSANCTIONS_API_KEY)" |
 | Shodan | `SHODAN_API_KEY` | Free key available | "Shodan requires API key (set SHODAN_API_KEY)" |
@@ -102,10 +102,10 @@ These APIs are fully free with no authentication:
 
 ---
 
-## 4. Rate Limit Registry -- CLI Tools with Internal Rate Handling
+## 4. Rate Limit Registry -- command-line tools with Internal Rate Handling
 
 | Tool | Rate Limit Behavior | Built-in Flags | Recommended Config |
-|------|-------------------|----------------|-------------------|
+| ------ | ------------------- | ---------------- | ------------------- |
 | subfinder | Per-provider limits | `-rls` (rate limit per second) | `subfinder -rls 5 -d TARGET` |
 | nuclei | Template-based | `-rate-limit N` (req/sec), `-bulk-size`, `-concurrency` | `nuclei -rate-limit 10 -u TARGET` |
 | httpx | Target-side throttling | `-rl N` (rate limit), `-threads N` | `httpx -rl 50 -threads 10` |
@@ -125,7 +125,7 @@ server-side limits. They are safe for unlimited use:
 - **exiftool** -- local metadata extraction
 - **jq** -- local JSON processing
 - **grep** -- local text search
-- **awk** -- local text processing
+- **AWK** -- local text processing
 - **sed** -- local stream editing
 - **whois** -- DNS protocol (server limits in the thousands/sec, not practically limiting)
 - **dig** -- DNS protocol (same as whois)
@@ -142,9 +142,9 @@ server-side limits. They are safe for unlimited use:
 
 ---
 
-## 5. Rate-Aware curl Patterns
+## 5. Rate-Aware cURL Patterns
 
-Copy-paste patterns for each major API. All use `osint_curl` from Section 1.
+Copypaste patterns for each major API. All use `osint_curl` from Section 1.
 
 ```bash
 # ipinfo.io (1,000/day -- use sparingly)
@@ -221,7 +221,7 @@ echo "$result" | jq '{ip,city,country,org}'
 ### Cache TTL Guidelines
 
 | Data Type | Recommended TTL | Rationale |
-|-----------|----------------|-----------|
+| ----------- | ---------------- | ----------- |
 | IP geolocation | 1 hour (3600s) | Geo data changes infrequently |
 | DNS/certificates | 1 hour (3600s) | Cert issuance is slow |
 | CVE/vulnerability | 6 hours (21600s) | NVD updates on a schedule |

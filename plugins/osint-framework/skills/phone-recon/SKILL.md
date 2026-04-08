@@ -25,7 +25,7 @@ list of 13 free/freemium tools in this category.
 ## Web Resources
 
 | Tool | URL | Pricing | Best For |
-|------|-----|---------|----------|
+| ------ | ----- | --------- | ---------- |
 | Slydial | slydial.com | Freemium | Voicemail-direct delivery without ringing |
 | Numbering Plans | numberingplans.com | Free | International numbering plan validation |
 | Numberway | numberway.com | Freemium | Reverse phone owner and location lookup |
@@ -90,7 +90,7 @@ Agent(
 ## Cross-Category Pivots
 
 | When you find... | Pivot to |
-|------------------|----------|
+| ------------------ | ---------- |
 | Owner name from reverse lookup | `people-search` -- Background checks, address history |
 | Number linked to messaging apps | `messaging-comms` -- Telegram, WhatsApp, Signal lookups |
 | Username associated with number | `username-recon` -- Cross-platform username search |

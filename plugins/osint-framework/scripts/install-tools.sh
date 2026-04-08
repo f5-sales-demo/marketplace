@@ -10,10 +10,19 @@ INSTALLED=0
 FAILED=0
 SKIPPED=0
 
-log()  { echo "[OSINT] $1"; }
-ok()   { log "  OK:   $1"; INSTALLED=$((INSTALLED + 1)); }
-fail() { log "  FAIL: $1 — $2"; FAILED=$((FAILED + 1)); }
-skip() { log "  SKIP: $1 (already installed)"; SKIPPED=$((SKIPPED + 1)); }
+log() { echo "[OSINT] $1"; }
+ok() {
+  log "  OK:   $1"
+  INSTALLED=$((INSTALLED + 1))
+}
+fail() {
+  log "  FAIL: $1 — $2"
+  FAILED=$((FAILED + 1))
+}
+skip() {
+  log "  SKIP: $1 (already installed)"
+  SKIPPED=$((SKIPPED + 1))
+}
 
 # ── APT packages (NEW — not in base image) ─────────────────
 # Base image already has: nmap, masscan, tshark, wireshark, exiftool,
@@ -23,11 +32,11 @@ install_apt() {
   log "=== APT packages (OSINT additions) ==="
 
   local packages=(
-    exiv2                   # EXIF/IPTC/XMP metadata read/write
-    mediainfo               # Media file codec/bitrate metadata
-    autopsy                 # Digital forensics platform
-    mono-complete           # Mono runtime (for NetworkMiner)
-    i2p                     # I2P anonymous network daemon
+    exiv2         # EXIF/IPTC/XMP metadata read/write
+    mediainfo     # Media file codec/bitrate metadata
+    autopsy       # Digital forensics platform
+    mono-complete # Mono runtime (for NetworkMiner)
+    i2p           # I2P anonymous network daemon
   )
 
   log "Installing ${#packages[@]} apt packages..."
@@ -48,48 +57,48 @@ install_pip() {
 
   local packages=(
     # Username & Email Recon
-    sherlock-project    # Username enumeration across 400+ sites
-    maigret             # Username enumeration across 3000+ sites
-    holehe              # Email-to-account discovery
-    h8mail              # Email breach checking
-    sylva               # Username and identity discovery
+    sherlock-project # Username enumeration across 400+ sites
+    maigret          # Username enumeration across 3000+ sites
+    holehe           # Email-to-account discovery
+    h8mail           # Email breach checking
+    sylva            # Username and identity discovery
 
     # Domain & Network Recon
-    dnsrecon            # DNS enumeration and zone transfer
-    sublist3r           # Subdomain enumeration
-    scanless            # Port scanning through online services
+    dnsrecon  # DNS enumeration and zone transfer
+    sublist3r # Subdomain enumeration
+    scanless  # Port scanning through online services
 
     # Cloud Security
-    scoutsuite          # Multi-cloud security auditing
-    c7n                 # Cloud Custodian policy engine
-    roadrecon           # Azure AD reconnaissance
+    scoutsuite # Multi-cloud security auditing
+    c7n        # Cloud Custodian policy engine
+    roadrecon  # Azure AD reconnaissance
 
     # Threat Intelligence
-    iocextract          # IOC extraction from text
-    ioc_parser          # IOC parsing from reports
-    pymisp              # MISP threat sharing platform client
+    iocextract # IOC extraction from text
+    ioc_parser # IOC parsing from reports
+    pymisp     # MISP threat sharing platform client
 
     # Malware & File Analysis
-    oletools            # Microsoft Office malware analysis
-    pdfid               # PDF structure analysis
-    quicksand           # Document malware analysis framework
+    oletools  # Microsoft Office malware analysis
+    pdfid     # PDF structure analysis
+    quicksand # Document malware analysis framework
 
     # Mobile & App Analysis
-    apkleaks            # APK secret/endpoint scanner
-    frida-tools         # Runtime instrumentation toolkit
+    apkleaks    # APK secret/endpoint scanner
+    frida-tools # Runtime instrumentation toolkit
 
     # Social & Messaging
-    masto               # Mastodon OSINT
-    wechatsogou         # WeChat public account search
-    linelog2py          # LINE chat log parser
-    xeuledoc            # Google document metadata extraction
+    masto       # Mastodon OSINT
+    wechatsogou # WeChat public account search
+    linelog2py  # LINE chat log parser
+    xeuledoc    # Google document metadata extraction
 
     # Media & Archives
-    waybackpack         # Wayback Machine bulk downloader
-    dfir-unfurl         # URL/timestamp artifact analysis
+    waybackpack # Wayback Machine bulk downloader
+    dfir-unfurl # URL/timestamp artifact analysis
 
     # Dark Web
-    torbot              # Dark web crawler
+    torbot # Dark web crawler
   )
 
   log "Installing ${#packages[@]} pip packages..."
@@ -175,23 +184,38 @@ summary() {
 
 # ── Main ────────────────────────────────────────────────────
 case "$MODE" in
-  --pip-only)  install_pip; summary ;;
-  --go-only)   install_go; summary ;;
-  --apt-only)  install_apt; summary ;;
-  --gem-only)  install_gem; summary ;;
-  --npm-only)  install_npm; summary ;;
-  --verify)    verify ;;
-  --all)
-    install_apt
-    install_pip
-    install_go
-    install_gem
-    install_npm
-    verify
-    summary
-    ;;
-  *)
-    echo "Usage: $0 [--pip-only|--go-only|--apt-only|--gem-only|--npm-only|--verify|--all]"
-    exit 1
-    ;;
+--pip-only)
+  install_pip
+  summary
+  ;;
+--go-only)
+  install_go
+  summary
+  ;;
+--apt-only)
+  install_apt
+  summary
+  ;;
+--gem-only)
+  install_gem
+  summary
+  ;;
+--npm-only)
+  install_npm
+  summary
+  ;;
+--verify) verify ;;
+--all)
+  install_apt
+  install_pip
+  install_go
+  install_gem
+  install_npm
+  verify
+  summary
+  ;;
+*)
+  echo "Usage: $0 [--pip-only|--go-only|--apt-only|--gem-only|--npm-only|--verify|--all]"
+  exit 1
+  ;;
 esac

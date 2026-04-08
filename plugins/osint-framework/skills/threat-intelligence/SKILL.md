@@ -23,10 +23,10 @@ with applicable laws and platform terms of service.
 Read `skills/threat-intelligence/references/tools.md` for the complete
 list of 38 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Jager | `pip install jager` or `git clone https://github.com/sroberts/jager && cd jager && python setup.py install` | `jager <ioc-feed-url>` |
 | IOC Parser | `pip install ioc_parser` or `git clone https://github.com/armbues/ioc_parser && cd ioc_parser && python setup.py install` | `ioc_parser -i report.pdf -o csv` |
 | Cacador | `pip install cacador` or `git clone https://github.com/sroberts/cacador && cd cacador && python setup.py install` | `cacador -f threat_report.txt` |
@@ -87,7 +87,7 @@ RUN git clone --depth 1 https://github.com/cloudtracer/ThreatPinchLookup /opt/th
 ## Cross-Category Pivots
 
 | Finding | Pivot To | Reason |
-|---------|----------|--------|
+| --------- | ---------- | -------- |
 | Malicious file hash or sample | `malicious-file-analysis` | Analyze malware samples, check VirusTotal, run sandbox detonation |
 | CVE or exploit reference in threat report | `exploits-advisories` | Look up vulnerability details, check exploit availability, assess patch status |
 | Suspicious domain in IOC feed | `domain-recon` | WHOIS, DNS, subdomain enumeration, certificate transparency, reputation check |
@@ -124,7 +124,7 @@ Agent(
 
 ## OPSEC Notes
 
-- **All CLI tools listed are passive** -- they process local data or query public feeds without touching the target directly.
+- **All command-line tools listed are passive** -- they process local data or query public feeds without touching the target directly.
 - **iocextract and IOC Parser** operate entirely offline on local text; no network requests are made during extraction.
 - **ThreatIngestor and combine** pull from public feeds; your source IP is visible to feed providers. Use a VPN or proxy if source attribution matters.
 - **MISP instances** can be configured for sharing; ensure sharing groups and distribution levels are set correctly before publishing events to avoid leaking investigation details.

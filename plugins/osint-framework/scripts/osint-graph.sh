@@ -17,8 +17,8 @@ OSINT_GRAPH_DIR="${OSINT_GRAPH_DIR:-/tmp/osint-graph}"
 
 osint_graph_init() {
   mkdir -p "$OSINT_GRAPH_DIR/investigations"
-  [ -f "$OSINT_GRAPH_DIR/entities.json" ] || echo '[]' > "$OSINT_GRAPH_DIR/entities.json"
-  [ -f "$OSINT_GRAPH_DIR/relationships.json" ] || echo '[]' > "$OSINT_GRAPH_DIR/relationships.json"
+  [ -f "$OSINT_GRAPH_DIR/entities.json" ] || echo '[]' >"$OSINT_GRAPH_DIR/entities.json"
+  [ -f "$OSINT_GRAPH_DIR/relationships.json" ] || echo '[]' >"$OSINT_GRAPH_DIR/relationships.json"
 }
 
 _graph_uuid() {
@@ -35,23 +35,23 @@ _graph_now() {
 _source_weight() {
   local tool="$1"
   case "$tool" in
-    whois|dig|dns)          echo "0.95" ;;
-    sec-edgar|nvd)          echo "0.95" ;;
-    github-api|gitlab-api)  echo "0.90" ;;
-    ipinfo|ipinfo.io)       echo "0.85" ;;
-    subfinder|amass|crtsh)  echo "0.80" ;;
-    nmap|masscan)           echo "0.80" ;;
-    sherlock|maigret)       echo "0.75" ;;
-    social-profile|holehe)  echo "0.70" ;;
-    web-search)             echo "0.50" ;;
-    inference)              echo "0.30" ;;
-    *)                      echo "0.60" ;;
+  whois | dig | dns) echo "0.95" ;;
+  sec-edgar | nvd) echo "0.95" ;;
+  github-api | gitlab-api) echo "0.90" ;;
+  ipinfo | ipinfo.io) echo "0.85" ;;
+  subfinder | amass | crtsh) echo "0.80" ;;
+  nmap | masscan) echo "0.80" ;;
+  sherlock | maigret) echo "0.75" ;;
+  social-profile | holehe) echo "0.70" ;;
+  web-search) echo "0.50" ;;
+  inference) echo "0.30" ;;
+  *) echo "0.60" ;;
   esac
 }
 
 # Multi-source confidence fusion: 1 - product(1 - ci)
 _fuse_confidence() {
-  local scores="$1"  # comma-separated: "0.8,0.9,0.7"
+  local scores="$1" # comma-separated: "0.8,0.9,0.7"
   echo "$scores" | awk -F',' '{
     prod = 1.0
     for (i = 1; i <= NF; i++) { prod *= (1.0 - $i) }
@@ -65,18 +65,31 @@ _fuse_confidence() {
 # Returns: entity ID (prints to stdout)
 osint_entity_add() {
   osint_graph_init
-  local etype="$1" evalue="$2"; shift 2
+  local etype="$1" evalue="$2"
+  shift 2
   local tool="manual" confidence="" investigation="" now
   now=$(_graph_now)
   local props="{}"
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --tool) tool="$2"; shift 2 ;;
-      --confidence) confidence="$2"; shift 2 ;;
-      --investigation) investigation="$2"; shift 2 ;;
-      *=*) props=$(echo "$props" | jq --arg k "${1%%=*}" --arg v "${1#*=}" '. + {($k): $v}'); shift ;;
-      *) shift ;;
+    --tool)
+      tool="$2"
+      shift 2
+      ;;
+    --confidence)
+      confidence="$2"
+      shift 2
+      ;;
+    --investigation)
+      investigation="$2"
+      shift 2
+      ;;
+    *=*)
+      props=$(echo "$props" | jq --arg k "${1%%=*}" --arg v "${1#*=}" '. + {($k): $v}')
+      shift
+      ;;
+    *) shift ;;
     esac
   done
 
@@ -101,8 +114,8 @@ osint_entity_add() {
         .properties = (.properties * $props) |
         .sources += [$src] |
         .last_seen = $ts
-      else . end]' "$OSINT_GRAPH_DIR/entities.json" > "$OSINT_GRAPH_DIR/entities.json.tmp" \
-      && mv -f "$OSINT_GRAPH_DIR/entities.json.tmp" "$OSINT_GRAPH_DIR/entities.json"
+      else . end]' "$OSINT_GRAPH_DIR/entities.json" >"$OSINT_GRAPH_DIR/entities.json.tmp" &&
+      mv -f "$OSINT_GRAPH_DIR/entities.json.tmp" "$OSINT_GRAPH_DIR/entities.json"
 
     # Recalculate fused confidence
     local all_scores
@@ -114,8 +127,8 @@ osint_entity_add() {
 
     jq --arg id "$existing_id" --argjson c "$fused" \
       '[.[] | if .id == $id then .confidence = $c else . end]' \
-      "$OSINT_GRAPH_DIR/entities.json" > "$OSINT_GRAPH_DIR/entities.json.tmp" \
-      && mv -f "$OSINT_GRAPH_DIR/entities.json.tmp" "$OSINT_GRAPH_DIR/entities.json"
+      "$OSINT_GRAPH_DIR/entities.json" >"$OSINT_GRAPH_DIR/entities.json.tmp" &&
+      mv -f "$OSINT_GRAPH_DIR/entities.json.tmp" "$OSINT_GRAPH_DIR/entities.json"
 
     echo "$existing_id"
   else
@@ -130,8 +143,8 @@ osint_entity_add() {
       --argjson c "$confidence" --argjson src "$source_entry" --arg ts "$now" \
       '. += [{id: $id, type: $t, value: $v, properties: $props, confidence: $c,
               sources: [$src], first_seen: $ts, last_seen: $ts}]' \
-      "$OSINT_GRAPH_DIR/entities.json" > "$OSINT_GRAPH_DIR/entities.json.tmp" \
-      && mv -f "$OSINT_GRAPH_DIR/entities.json.tmp" "$OSINT_GRAPH_DIR/entities.json"
+      "$OSINT_GRAPH_DIR/entities.json" >"$OSINT_GRAPH_DIR/entities.json.tmp" &&
+      mv -f "$OSINT_GRAPH_DIR/entities.json.tmp" "$OSINT_GRAPH_DIR/entities.json"
 
     echo "$eid"
   fi
@@ -172,16 +185,26 @@ osint_entity_get() {
 # Returns: relationship ID
 osint_rel_add() {
   osint_graph_init
-  local from_id="$1" to_id="$2" rtype="$3"; shift 3
+  local from_id="$1" to_id="$2" rtype="$3"
+  shift 3
   local tool="manual" confidence="" investigation="" now
   now=$(_graph_now)
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      --tool) tool="$2"; shift 2 ;;
-      --confidence) confidence="$2"; shift 2 ;;
-      --investigation) investigation="$2"; shift 2 ;;
-      *) shift ;;
+    --tool)
+      tool="$2"
+      shift 2
+      ;;
+    --confidence)
+      confidence="$2"
+      shift 2
+      ;;
+    --investigation)
+      investigation="$2"
+      shift 2
+      ;;
+    *) shift ;;
     esac
   done
 
@@ -201,8 +224,8 @@ osint_rel_add() {
 
     jq --arg id "$existing_id" --argjson src "$source_entry" --arg ts "$now" \
       '[.[] | if .id == $id then .sources += [$src] | .last_seen = $ts else . end]' \
-      "$OSINT_GRAPH_DIR/relationships.json" > "$OSINT_GRAPH_DIR/relationships.json.tmp" \
-      && mv -f "$OSINT_GRAPH_DIR/relationships.json.tmp" "$OSINT_GRAPH_DIR/relationships.json"
+      "$OSINT_GRAPH_DIR/relationships.json" >"$OSINT_GRAPH_DIR/relationships.json.tmp" &&
+      mv -f "$OSINT_GRAPH_DIR/relationships.json.tmp" "$OSINT_GRAPH_DIR/relationships.json"
 
     echo "$existing_id"
   else
@@ -216,8 +239,8 @@ osint_rel_add() {
       --argjson c "$confidence" --argjson src "$source_entry" --arg ts "$now" \
       '. += [{id: $id, from: $f, to: $t, type: $rt, confidence: $c,
               sources: [$src], first_seen: $ts, last_seen: $ts}]' \
-      "$OSINT_GRAPH_DIR/relationships.json" > "$OSINT_GRAPH_DIR/relationships.json.tmp" \
-      && mv -f "$OSINT_GRAPH_DIR/relationships.json.tmp" "$OSINT_GRAPH_DIR/relationships.json"
+      "$OSINT_GRAPH_DIR/relationships.json" >"$OSINT_GRAPH_DIR/relationships.json.tmp" &&
+      mv -f "$OSINT_GRAPH_DIR/relationships.json.tmp" "$OSINT_GRAPH_DIR/relationships.json"
 
     echo "$rid"
   fi
@@ -335,14 +358,14 @@ osint_graph_stats() {
 
 osint_graph_export_json() {
   jq -n --slurpfile e "$OSINT_GRAPH_DIR/entities.json" \
-      --slurpfile r "$OSINT_GRAPH_DIR/relationships.json" \
+    --slurpfile r "$OSINT_GRAPH_DIR/relationships.json" \
     '{entities: $e[0], relationships: $r[0]}'
 }
 
 # osint_graph_reset — clear all data (use with caution)
 osint_graph_reset() {
   osint_graph_init
-  echo '[]' > "$OSINT_GRAPH_DIR/entities.json"
-  echo '[]' > "$OSINT_GRAPH_DIR/relationships.json"
+  echo '[]' >"$OSINT_GRAPH_DIR/entities.json"
+  echo '[]' >"$OSINT_GRAPH_DIR/relationships.json"
   echo "Graph reset."
 }

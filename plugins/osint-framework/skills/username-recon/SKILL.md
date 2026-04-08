@@ -26,10 +26,10 @@ with applicable laws and platform terms of service.
 Read `skills/username-recon/references/tools.md` for the complete
 list of 18 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Sherlock | `pip install sherlock-project` | `sherlock <username>` |
 | Maigret | `pip install maigret` | `maigret <username>` |
 | WhatsMyName | `git clone https://github.com/WebBreacher/WhatsMyName` | Web or CLI |
@@ -72,7 +72,7 @@ This may be logged by the target platforms.
 
 ## Investigation Workflow
 
-1. **Start with CLI tools**: Run Sherlock or Maigret for broad enumeration
+1. **Start with command-line tools**: Run Sherlock or Maigret for broad enumeration
 2. **Cross-reference**: Check discovered profiles against each other
 3. **Expand**: Use discovered email addresses with `email-recon`
 4. **Profile**: Use `social-networks` skills for platform-specific deep dives
@@ -83,6 +83,7 @@ For copy-paste-ready command sequences with output parsing, see:
 `skills/osint-catalog/references/investigation-pipelines.md` — Section 1: Username Investigation Pipeline
 
 Quick one-liner:
+
 ```bash
 sherlock TARGET --print-found --no-color 2>/dev/null | grep -oP 'https?://\S+' | sort -u
 ```

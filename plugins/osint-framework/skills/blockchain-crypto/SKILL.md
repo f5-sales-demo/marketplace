@@ -20,22 +20,22 @@ with applicable laws and platform terms of service.
 Read `skills/blockchain-crypto/references/tools.md` for the complete
 list of 31 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Orbit | `git clone https://github.com/s0md3v/Orbit && cd Orbit && pip install -r requirements.txt` | `python orbit.py -s <bitcoin_address>` |
 
 ### All Install Methods — Orbit
 
 | Method | Command |
-|--------|---------|
-| git clone | `git clone https://github.com/s0md3v/Orbit && cd Orbit && pip install -r requirements.txt` |
+| -------- | --------- |
+| Git clone | `git clone https://github.com/s0md3v/Orbit && cd Orbit && pip install -r requirements.txt` |
 | pip | N/A |
 | go | N/A |
 | apt | N/A |
 | npm | N/A |
-| docker | N/A |
+| Docker | N/A |
 | brew | N/A |
 | snap | N/A |
 | cargo | N/A |

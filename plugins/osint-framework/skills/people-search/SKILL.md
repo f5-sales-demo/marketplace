@@ -26,7 +26,7 @@ list of 18 free/freemium tools in this category.
 ## Web Resources
 
 | Tool | URL | Pricing | Best For |
-|------|-----|---------|----------|
+| ------ | ----- | --------- | ---------- |
 | **General People Search** | | | |
 | ThatsThem | thatsthem.com | Freemium | Free multi-input people lookups (name, email, phone, IP) |
 | PeekYou | peekyou.com | Free | Social media profile aggregation by name |
@@ -113,7 +113,7 @@ parallel tracks:
 11. **Face Search**: If photo available, use FaceCheckID for reverse face matching
 12. **Public Records**: Cross-reference with `public-records` for court, property, government data
 
-## curl / API Patterns for Person Investigation
+## cURL / API Patterns for Person Investigation
 
 ```bash
 # GitHub user search by surname
@@ -154,7 +154,7 @@ curl -s "https://api.github.com/search/users?q=SURNAME" \
 ## Cross-Category Pivots
 
 | When you find... | Pivot to |
-|------------------|----------|
+| ------------------ | ---------- |
 | Username or handle | `username-recon` -- Cross-platform username enumeration |
 | Social media profiles | `social-networks` -- Platform-specific deep investigation |
 | Email address | `email-recon` -- Verification, breach data, domain analysis |

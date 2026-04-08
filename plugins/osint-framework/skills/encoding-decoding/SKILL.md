@@ -25,10 +25,10 @@ with applicable laws and platform terms of service.
 Read `skills/encoding-decoding/references/tools.md` for the complete
 list of 16 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | SpiderMonkey | `apt-get install -y libmozjs-115-dev` or build from source: `git clone https://github.com/nicerobot/spidermonkey && cd spidermonkey && make` | `js script.js` |
 | Kahu Revelo | Download from `https://www.kahusecurity.com/tools/` (Windows .exe); on Linux run via `wine Revelo.exe` | `wine Revelo.exe sample.js` |
 | JavaScript Deobfuscator | Firefox add-on: install from `https://addons.mozilla.org/en-US/firefox/addon/javascript-deobfuscator/`; for headless deobfuscation use `npm install -g js-deobfuscator` | Browser-based; or `js-deobfuscator -i obfuscated.js` |
@@ -48,7 +48,7 @@ list of 16 free tools in this category.
 - **Hash / Crypto** — Hashing, encryption, and cryptographic transforms (CyberChef, Functions Online)
 - **JavaScript Deobfuscation** — Unpack and deobfuscate minified or obfuscated JavaScript (SpiderMonkey, Kahu Revelo, JavaScript Deobfuscator, JS Beautifier)
 - **XOR Analysis** — Key recovery, brute-forcing, and decoding of XOR-encoded payloads (XORSearch/XORStrings, xortool, unxor, iheartxor.py, XORBruteForcer.py, NoMoreXOR.py, Balbuzard, Kahu Converter)
-- **General Encoding** — Base64, hex, URL encoding, ROT13, and multi-step transform chains (CyberChef, DDecode, Functions Online)
+- **General Encoding** — base64, hex, URL encoding, ROT13, and multi-step transform chains (CyberChef, DDecode, Functions Online)
 
 ## Delegation
 
@@ -82,10 +82,10 @@ Agent(
 ## Investigation Workflow
 
 1. **Identify encoding**: Examine the payload visually and with CyberChef "Magic" to detect encoding type (Base64, hex, XOR, URL-encoded, obfuscated JS)
-2. **Simple decoding**: Apply straightforward transforms first — Base64 decode, URL decode, hex-to-ASCII — using CyberChef or command-line tools
+2. **Simple decoding**: Apply straightforward transforms first — base64 decode, URL decode, hex-to-ASCII — using CyberChef or command-line tools
 3. **JavaScript deobfuscation**: If the payload is obfuscated JavaScript, beautify with JS Beautifier, then analyze with SpiderMonkey or JavaScript Deobfuscator to reveal hidden logic
 4. **XOR analysis**: For suspected XOR-encoded content, estimate key length with xortool, then brute-force with XORSearch or XORBruteForcer.py; use unxor if known plaintext is available
-5. **Multi-layer decoding**: Chain CyberChef operations for layered encoding (e.g., Base64 -> gunzip -> XOR -> hex); save recipes for reproducibility
+5. **Multi-layer decoding**: Chain CyberChef operations for layered encoding (e.g., base64 -> gunzip -> XOR -> hex); save recipes for reproducibility
 6. **Extract indicators**: Run Balbuzard or manual review to pull URLs, IPs, domains, and other IoCs from decoded output
 7. **Pivot**: Hand extracted indicators to `malicious-file-analysis` or `threat-intelligence` for further investigation
 

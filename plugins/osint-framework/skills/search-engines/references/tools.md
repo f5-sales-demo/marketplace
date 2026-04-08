@@ -19,7 +19,7 @@
 
 ### Google
 
-- **URL**: <https://www.google.com/?gws_rd=ssl>
+- **URL**: <https://www.google.com/?gws_rd=SSL>
 - **Type**: Google Dork
 - **Pricing**: Free
 - **OPSEC**: Passive
@@ -27,7 +27,7 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: General web OSINT, historical information via cache, broad searches with operators
-- **Input**: Keywords, search operators (site:, intitle:, inurl:, filetype:, cache:, etc.)
+- **Input**: Keywords, search operators (site:, intitle:, inurl:, file type:, cache:, etc.)
 - **Output**: Ranked web pages, snippets, images, news, cached pages
 - **Description**: World's most popular search engine with advanced indexing capabilities and support for extensive search operators (Google dorks). Used for passive OSINT research with broad web coverage.
 
@@ -41,7 +41,7 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Alternative to Google, regional results, academic content, supplementary searches
-- **Input**: Keywords, search operators (site:, intitle:, filetype:, inurl:, AND, NOT, etc.)
+- **Input**: Keywords, search operators (site:, intitle:, file type:, inurl:, AND, NOT, etc.)
 - **Output**: Ranked web pages, images, news, videos, answers
 - **Description**: Microsoft's search engine with advanced search operators and API capabilities. Supports many of the same operators as Google, providing alternative search coverage.
 
@@ -55,7 +55,7 @@
 - **API**: No
 - **CLI Install**: N/A
 - **Best For**: Privacy-preserving searches, tracking-free OSINT research, European results
-- **Input**: Keywords, basic search operators (site:, intitle:, filetype:), natural language
+- **Input**: Keywords, basic search operators (site:, intitle:, file type:), natural language
 - **Output**: Ranked web pages with privacy-protecting anonymous view option
 - **Description**: Privacy-focused search engine that doesn't track users or store personal data. Processes ~3 billion queries monthly with enhanced privacy protections and tracker blocking.
 
@@ -69,9 +69,9 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Alternative to Google/Bing, specialized searches, location-based results
-- **Input**: Keywords, search operators (+, -, site:, intitle:, filetype:, exact phrases in quotes)
+- **Input**: Keywords, search operators (+, -, site:, intitle:, file type:, exact phrases in quotes)
 - **Output**: Ranked web pages, news, images, location-specific results
-- **Description**: Yahoo's advanced search interface with support for search operators including site:, intitle:, filetype:, AND, OR, NOT. Provides real-time search results data with location filtering.
+- **Description**: Yahoo's advanced search interface with support for search operators including site:, intitle:, file type:, AND, OR, NOT. Provides real-time search results data with location filtering.
 
 ### StartPage
 
@@ -85,7 +85,7 @@
 - **Best For**: Privacy-preserving Google searches, anonymous browsing through proxy
 - **Input**: Keywords, Google operators (forwarded through proxy)
 - **Output**: Google/Bing results returned anonymously without trackers
-- **Description**: Privacy-centric proxy search engine that strips identifying data before querying Google/Bing and provides anonymous view to visited websites through proxy servers.
+- **Description**: Privacy-centric proxy search engine that strips identifying data before querying Google/Bing and provides anonymous view to visited sites through proxy servers.
 
 ### Yandex
 
@@ -97,7 +97,7 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Russian/post-Soviet OSINT, faster breach board indexing, regional coverage
-- **Input**: Keywords, advanced operators (inurl:, url:, "", *, |, lang:, mime:, etc.)
+- **Input**: Keywords, advanced operators (inurl:, URL:, "", *, |, lang:, MIME:, etc.)
 - **Output**: Ranked web pages with regional focus, Russian content prioritized
 - **Description**: Russian search engine with excellent coverage of post-Soviet digital spaces. Supports 20+ advanced operators and provides faster indexing of Russian forums and breach boards than Google.
 
@@ -111,7 +111,7 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Chinese language OSINT, Chinese market research, regional search coverage
-- **Input**: Keywords, operators (inurl:, intitle:, site:, filetype:), language and time filters
+- **Input**: Keywords, operators (inurl:, intitle:, site:, file type:), language and time filters
 - **Output**: Ranked web pages, images, news, knowledge graph, trending queries
 - **Description**: China's dominant search engine with support for advanced search operators and knowledge graph data. Used for Chinese language and regional OSINT research.
 
@@ -182,7 +182,7 @@
 - **CLI Install**: N/A
 - **Best For**: Corporate information only, NOT for web search OSINT
 - **Input**: Company information
-- **Output**: Corporate website content
+- **Output**: Corporate site content
 - **Description**: Corporate site and product page for Hulbee AG. NOT a search engine itself - Hulbee is the company behind Swisscows. URL/category mismatch issue.
 
 ### Mojeek
@@ -264,10 +264,10 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Finding websites with specific code/analytics IDs, competitive intelligence, security research
+- **Best For**: Finding sites with specific code/analytics IDs, competitive intelligence, security research
 - **Input**: Code snippets, regular expressions, analytics IDs (Google Analytics, AdSense, etc.), JavaScript libraries
 - **Output**: Web pages containing matching code with download/export to CSV
-- **Description**: Source code search engine for HTML, JavaScript, CSS, and plaintext across 509+ million web pages. Find websites using specific analytics IDs, ad accounts, or code snippets.
+- **Description**: Source code search engine for HTML, JavaScript, CSS, and plaintext across 509+ million web pages. Find sites using specific analytics IDs, ad accounts, or code snippets.
 
 ### Searchcode
 
@@ -281,7 +281,7 @@
 - **Best For**: Source code snippet and function discovery across public repositories
 - **Input**: Code snippet, function name, or keyword
 - **Output**: Matching source code files with context and repository links
-- **Description**: Code search engine that indexes public source code from GitHub, GitLab, Bitbucket, and other repositories; useful for finding code examples and identifying technology usage patterns.
+- **Description**: Code search engine that indices public source code from GitHub, GitLab, Bitbucket, and other repositories; useful for finding code examples and identifying technology usage patterns.
 
 ### NerdyData
 
@@ -292,10 +292,10 @@
 - **Registration**: Yes
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Identifying websites using specific technologies, libraries, or code patterns
+- **Best For**: Identifying sites using specific technologies, libraries, or code patterns
 - **Input**: Code snippet, library name, or technology string
-- **Output**: List of websites containing matching source code
-- **Description**: Source code search engine for website technology reconnaissance that indexes HTML, CSS, and JavaScript across millions of live websites to identify technology and library usage.
+- **Output**: List of sites containing matching source code
+- **Description**: Source code search engine for site technology reconnaissance that indices HTML, CSS, and JavaScript across millions of live sites to identify technology and library usage.
 
 ### Gitrob (T)
 
@@ -309,7 +309,7 @@
 - **Best For**: GitHub organization reconnaissance for exposed secrets and sensitive files in commit history
 - **Input**: GitHub username or organization name
 - **Output**: List of potentially sensitive files and paths found across repositories
-- **Description**: CLI tool for reconnaissance on GitHub organizations and users; clones repositories and scans commit history for sensitive files, exposed credentials, and configuration data.
+- **Description**: command-line tool for reconnaissance on GitHub organizations and users; clones repositories and scans commit history for sensitive files, exposed credentials, and configuration data.
 
 ### Github-Dorks (T)
 
@@ -323,7 +323,7 @@
 - **Best For**: Finding exposed credentials and sensitive files on GitHub via advanced search dorks
 - **Input**: Target username, organization, or domain
 - **Output**: GitHub search results matching dork patterns for sensitive data exposure
-- **Description**: Collection of GitHub advanced search operators and a CLI tool that automates searching GitHub for exposed credentials, API keys, configuration files, and other sensitive information.
+- **Description**: Collection of GitHub advanced search operators and a command-line tool that automates searching GitHub for exposed credentials, API keys, configuration files, and other sensitive information.
 
 ### GitLeaks
 
@@ -334,10 +334,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: Yes
-- **Best For**: Scanning git repositories for hardcoded secrets, API keys, and leaked credentials
+- **Best For**: Scanning Git repositories for hardcoded secrets, API keys, and leaked credentials
 - **Input**: Git repository path, remote URL, or file system path
 - **Output**: Report of detected secrets with file location, matched rule, commit hash, and line context
-- **Description**: Open-source SAST tool for detecting hardcoded secrets, API keys, passwords, and credentials in git repositories and file systems using customizable regex-based detection rules.
+- **Description**: Open-source SAST tool for detecting hardcoded secrets, API keys, passwords, and credentials in Git repositories and file systems using customizable regex-based detection rules.
 
 ### GlobalFile
 
@@ -351,7 +351,7 @@
 - **Best For**: Discovering publicly accessible files on FTP servers by filename or file type
 - **Input**: Filename, file extension, or keyword
 - **Output**: List of matching files with FTP server addresses and paths
-- **Description**: FTP file search engine that indexes publicly accessible FTP servers; allows searching for specific file types including images, videos, software, and archives.
+- **Description**: FTP file search engine that indices publicly accessible FTP servers; allows searching for specific file types including images, videos, software, and archives.
 
 ### FTP Google Dork (D)
 
@@ -365,7 +365,7 @@
 - **Best For**: Discovering publicly indexed FTP server directories and files via Google dorking
 - **Input**: Search term appended to the dork URL
 - **Output**: Google search results showing indexed FTP server directories
-- **Description**: Google dork technique using inurl:ftp operators to discover publicly indexed FTP server directories and files through Google's web index.
+- **Description**: Google dork technique using inurl:FTP operators to discover publicly indexed FTP server directories and files through Google's web index.
 
 ### Napalm FTP
 
@@ -449,7 +449,7 @@
 - **Best For**: Finding and borrowing digitized books, especially out-of-print or historical publications
 - **Input**: Title, author, ISBN, or subject
 - **Output**: Book records with metadata, cover images, and links to borrowable or readable editions
-- **Description**: Internet Archive's open catalog of over 3 million books with borrowable digital editions; provides bibliographic data and full-text access for many out-of-print titles.
+- **Description**: internet Archive's open catalog of over 3 million books with borrowable digital editions; provides bibliographic data and full-text access for many out-of-print titles.
 
 ### JURN
 
@@ -839,7 +839,7 @@
 - **Best For**: Automated passive Google dork enumeration from GHDB
 - **Input**: GHDB dork categories, target domain
 - **Output**: Google search result URLs matching dork patterns
-- **Description**: Python CLI tool that automates passive Google dork searches using the Google Hacking Database (GHDB), supporting HTTP/SOCKS5 proxies to avoid rate-limiting.
+- **Description**: Python command-line tool that automates passive Google dork searches using the Google Hacking Database (GHDB), supporting HTTP/SOCKS5 proxies to avoid rate-limiting.
 
 ### Google Trends
 

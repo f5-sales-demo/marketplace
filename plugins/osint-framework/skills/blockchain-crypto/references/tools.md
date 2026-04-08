@@ -72,7 +72,7 @@
 - **Best For**: Bitcoin transaction network visualization and wallet relationship mapping
 - **Input**: Bitcoin address(es) via command line; supports single or multiple wallet analysis
 - **Output**: Interactive graph visualization showing fund flows, transaction frequency, node connections
-- **Description**: Python CLI tool for Bitcoin wallet network analysis that visualizes transaction relationships through recursive crawling and graph rendering.
+- **Description**: Python command-line tool for Bitcoin wallet network analysis that visualizes transaction relationships through recursive crawling and graph rendering.
 
 ### Wallet Explorer
 
@@ -102,7 +102,7 @@
 - **Output**: Abuse reports, report dates, reporter comments, associated crime type classifications
 - **Description**: Community-curated Bitcoin address abuse database tracking addresses associated with ransomware, fraud, scams, and illicit activities.
 
-### Bitcoin Who's Who
+### Bitcoin Who's Who (Subcategories)
 
 - **URL**: <https://www.bitcoinwhoswho.com/>
 - **Type**: Web
@@ -116,7 +116,7 @@
 - **Output**: Address profile, transaction history, scam reports, community tags
 - **Description**: Bitcoin address profiling and scam reporting platform with community-driven address tagging for fraud detection and wallet identification.
 
-### BitRef
+### BitRef (Subcategories)
 
 - **URL**: <https://bitref.com/>
 - **Type**: API
@@ -186,7 +186,7 @@
 - **Output**: Address summary, transaction timeline, balance history, probability-linked wallet analysis, transaction graph
 - **Description**: Bitcoin blockchain analysis platform providing address probability scoring, transaction graph visualization, and timeline-based balance analysis for privacy research.
 
-### Wallet Explorer
+### Wallet Explorer (Subcategories)
 
 - **URL**: <https://www.walletexplorer.com/>
 - **Type**: Web
@@ -228,7 +228,7 @@
 - **Output**: Query results, custom visualizations, shareable dashboards, blockchain analytics insights
 - **Description**: Onchain data analytics platform enabling SQL queries against indexed blockchain data for 100+ blockchains with interactive dashboard and visualization tools.
 
-### Etherscan
+### Etherscan (Subcategories)
 
 - **URL**: <https://etherscan.io/>
 - **Type**: API
@@ -354,7 +354,7 @@
 - **Output**: Transaction data, token transfer history, DEX trades, smart contract events, real-time streaming via WebSocket
 - **Description**: Multi-chain blockchain explorer with GraphQL API supporting 40+ blockchains, real-time streaming, and advanced querying for token trades, transfers, and smart contract events.
 
-### Blockchair
+### Blockchair (Subcategories)
 
 - **URL**: <https://blockchair.com/>
 - **Type**: API
@@ -424,7 +424,7 @@
 - **Output**: Transaction details, address balance (transparent addresses only), block information, mining statistics
 - **Description**: Zcash blockchain explorer (hosted on Blockchair) supporting transparent and shielded transaction analysis for privacy-coin OSINT with transaction filtering and address lookup.
 
-### Blockchair
+### Blockchair (Subcategories) #2
 
 - **URL**: <https://blockchair.com/>
 - **Type**: API
@@ -438,7 +438,7 @@
 - **Output**: Transaction history, balance data, token transfers, smart contract events, cross-chain analytics
 - **Description**: Multi-chain blockchain explorer supporting 48+ blockchains (Bitcoin, Ethereum, Litecoin, Solana, etc.) with advanced search, SQL-like queries, and privacy-focused design (Tor accessible, no tracking).
 
-### Wallet Explorer
+### Wallet Explorer (Subcategories) #2
 
 - **URL**: <https://www.walletexplorer.com/>
 - **Type**: Web

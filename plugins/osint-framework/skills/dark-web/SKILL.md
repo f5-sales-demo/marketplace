@@ -27,15 +27,15 @@ before active scanning of hidden services.
 Read `skills/dark-web/references/tools.md` for the complete
 list of 13 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Alt Install | Usage |
-|------|---------|-------------|-------|
-| Tor Download | Apt: `apt-get install -y tor torbrowser-launcher` | Binary: download from https://www.torproject.org/download/ | `tor` -- starts Tor SOCKS proxy on port 9050 |
-| Freenet Project | `curl -sSL https://www.hyphanet.org/assets/jnlp/freenet_installer.jar -o freenet.jar && java -jar freenet.jar` | Docker: build from source at https://github.com/hyphanet/fred | Runs Freenet/Hyphanet node for anonymous content distribution |
-| I2P Anonymous Network | Apt: `apt-get install -y i2p` | Binary: download from https://geti2p.net/en/download; Docker: `docker pull geti2p/i2p` | `i2prouter start` -- starts I2P router for anonymous network access |
+| ------ | --------- | ------------- | ------- |
+| Tor Download | Apt: `apt-get install -y tor torbrowser-launcher` | Binary: download from <https://www.torproject.org/download/> | `tor` -- starts Tor SOCKS proxy on port 9050 |
+| Freenet Project | `curl -sSL https://www.hyphanet.org/assets/jnlp/freenet_installer.jar -o freenet.jar && java -jar freenet.jar` | Docker: build from source at <https://github.com/hyphanet/fred> | Runs Freenet/Hyphanet node for anonymous content distribution |
+| I2P Anonymous Network | Apt: `apt-get install -y i2p` | Binary: download from <https://geti2p.net/en/download;> Docker: `docker pull geti2p/i2p` | `i2prouter start` -- starts I2P router for anonymous network access |
 | OnionScan | `go install github.com/s-rah/onionscan@latest` | `git clone https://github.com/s-rah/onionscan && cd onionscan && go build` | `onionscan <target.onion>` -- scans onion services for metadata leaks |
-| TorBot | `pip install torbot` | `git clone https://github.com/DedSecInside/TorBot && pip install -r requirements.txt` | `torbot -u <seed-onion-url>` -- crawls and indexes .onion links |
+| TorBot | `pip install torbot` | `git clone https://github.com/DedSecInside/TorBot && pip install -r requirements.txt` | `torbot -u <seed-onion-url>` -- crawls and indices .onion links |
 | Onioff | `pip install onioff` | `git clone https://github.com/k4m4/onioff && pip install -r requirements.txt` | `onioff <onion-url>` -- checks reachability and extracts metadata |
 
 ### Dockerfile Install Examples
@@ -124,7 +124,7 @@ Agent(
 ## Cross-Category Pivots
 
 | Finding | Pivot To |
-|---------|----------|
+| --------- | ---------- |
 | Clearnet IP leaked via OnionScan | `ip-address-recon` -- geolocation, ASN, hosting |
 | Email address found on hidden service | `email-recon` -- breach checks, linked accounts |
 | Domain reference on .onion page | `domain-recon` -- WHOIS, DNS, subdomains |

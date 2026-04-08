@@ -140,13 +140,13 @@ while IFS=$'\t' read -r cat_name skill_dir; do
       echo ""
       while IFS= read -r sub; do
         [[ -n "$sub" ]] && echo "- $sub"
-      done <<< "$subcats"
+      done <<<"$subcats"
       echo ""
     fi
     echo "---"
     echo ""
     echo "$tools_md"
-  } > "$ref_file"
+  } >"$ref_file"
 
   # If this skill_dir already has a file (merged categories), append
   # Actually the > above overwrites. For merged categories (Dating->messaging-comms),
@@ -157,7 +157,7 @@ while IFS=$'\t' read -r cat_name skill_dir; do
   INDEX_ROWS="${INDEX_ROWS}| $cat_name | \`$skill_dir\` | $tool_count |\n"
   echo "  $skill_dir ($cat_name): $tool_count tools"
 
-done <<< "$MAPPING"
+done <<<"$MAPPING"
 
 # ── Generate tree-index.md ───────────────────────────────────
 CATALOG_REF="$SKILLS/osint-catalog/references"
@@ -172,7 +172,7 @@ mkdir -p "$CATALOG_REF"
   echo "| Category | Skill | Tools |"
   echo "|----------|-------|-------|"
   echo -e "$INDEX_ROWS"
-} > "$CATALOG_REF/tree-index.md"
+} >"$CATALOG_REF/tree-index.md"
 
 echo ""
 echo "Done: $TOTAL_TOOLS tools across $TOTAL_CATEGORIES categories"

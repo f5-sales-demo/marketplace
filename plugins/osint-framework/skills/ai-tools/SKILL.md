@@ -28,7 +28,7 @@ list of 19 free tools in this category.
 ## Web Resources
 
 | Tool | URL | Best For |
-|------|-----|----------|
+| ------ | ----- | ---------- |
 | **AI Detection -- Text** | | |
 | GPTZero | gptzero.me | AI-generated text detection and classification |
 | Copyleaks | copyleaks.com | AI content and plagiarism detection |
@@ -104,7 +104,7 @@ Agent(
 ## Cross-Category Pivots
 
 | When you find... | Pivot to |
-|------------------|----------|
+| ------------------ | ---------- |
 | Suspected disinformation campaign | `disinfo-verification` -- Fact-checking, source verification |
 | AI-generated face images | `images-videos` -- Reverse image search, EXIF analysis |
 | Manipulated media in social posts | `social-networks` -- Platform-specific investigation |

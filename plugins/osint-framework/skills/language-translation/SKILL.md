@@ -27,22 +27,22 @@ list of 16 free tools in this category.
 ## Web Resources
 
 | Resource | URL | Best For |
-|----------|-----|----------|
-| Google Translate | https://translate.google.com/ | Broadest language coverage, webpage translation (API) |
-| DeepL Translator | https://www.deepl.com/en/translator | High-accuracy document and technical translation (API) |
-| Bing Translate | https://translator.bing.com/ | Microsoft ecosystem translation (API) |
-| i2OCR | https://www.i2ocr.com/ | Multilingual OCR from images, no registration |
-| New OCR | https://www.newocr.com/ | Tesseract-based OCR from scanned pages |
-| Online OCR (onlineocr.net) | https://www.onlineocr.net/ | OCR to Word/Excel/text conversion |
-| SodaPDF OCR | https://www.sodapdf.com/pdf-tools/ocr-pdf/ | Scanned PDF to searchable PDF |
-| Urban Dictionary | https://www.urbandictionary.com/ | Emerging slang and cultural terms |
-| NoSlang | https://www.noslang.com/ | Internet slang and text abbreviation decoder |
-| Slangit | https://slang.net/ | Modern internet terminology |
-| Google Input Tools | https://www.google.com/inputtools/ | Non-Latin script typing and transliteration |
-| WhatTheFont | https://www.myfonts.com/pages/whatthefont/ | Font identification from screenshots |
-| Wiktionary | https://en.wiktionary.org/ | Etymology, definitions, multilingual translations |
-| WordReference | https://www.wordreference.com/ | Bilingual dictionary with conjugation |
-| Cambridge Dictionary | https://dictionary.cambridge.org/ | Word-level translation and pronunciation |
+| ---------- | ----- | ---------- |
+| Google Translate | <https://translate.google.com/> | Broadest language coverage, web page translation (API) |
+| DeepL Translator | <https://www.deepl.com/en/translator> | High-accuracy document and technical translation (API) |
+| Bing Translate | <https://translator.bing.com/> | Microsoft ecosystem translation (API) |
+| i2OCR | <https://www.i2ocr.com/> | Multilingual OCR from images, no registration |
+| New OCR | <https://www.newocr.com/> | Tesseract-based OCR from scanned pages |
+| Online OCR (onlineocr.net) | <https://www.onlineocr.net/> | OCR to Word/Excel/text conversion |
+| SodaPDF OCR | <https://www.sodapdf.com/pdf-tools/ocr-pdf/> | Scanned PDF to searchable PDF |
+| Urban Dictionary | <https://www.urbandictionary.com/> | Emerging slang and cultural terms |
+| NoSlang | <https://www.noslang.com/> | Internet slang and text abbreviation decoder |
+| Slangit | <https://slang.net/> | Modern internet terminology |
+| Google Input Tools | <https://www.google.com/inputtools/> | Non-Latin script typing and transliteration |
+| WhatTheFont | <https://www.myfonts.com/pages/whatthefont/> | Font identification from screenshots |
+| Wiktionary | <https://en.wiktionary.org/> | Etymology, definitions, multilingual translations |
+| WordReference | <https://www.wordreference.com/> | Bilingual dictionary with conjugation |
+| Cambridge Dictionary | <https://dictionary.cambridge.org/> | Word-level translation and pronunciation |
 
 ## Subcategories
 
@@ -64,7 +64,7 @@ list of 16 free tools in this category.
 7. **Font forensics**: Use WhatTheFont to identify fonts in screenshots for document analysis
 8. **Iterate**: Translate extracted text, then feed translated terms back into other OSINT tools
 
-## curl / API Patterns
+## cURL / API Patterns
 
 ### DeepL -- Translate Text
 
@@ -73,7 +73,7 @@ curl -s -X POST "https://api-free.deepl.com/v2/translate" \
   -d "auth_key=YOUR_KEY" \
   -d "text=Ermittlungen gegen unbekannt" \
   -d "target_lang=EN" \
-  | jq '.translations[] | {detected_source_language, text}'
+| jq '.translations[] |
 ```
 
 ### DeepL -- Detect Language
@@ -116,7 +116,7 @@ curl -s -X POST "https://api.cognitive.microsofttranslator.com/translate?api-ver
   -H "Ocp-Apim-Subscription-Key: YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '[{"Text":"Informe de investigacion"}]' \
-  | jq '.[0] | {detectedLanguage, translations}'
+| jq '.[0] |
 ```
 
 ### Free Translation Shortcut -- Google Translate URL Pattern
@@ -146,7 +146,7 @@ curl -s -X POST "https://api-free.deepl.com/v2/translate" \
 This skill supports ALL other OSINT categories as a utility capability:
 
 | Scenario | Pivot to | Why |
-|----------|----------|-----|
+| ---------- | ---------- | ----- |
 | Foreign-language social media posts | `social-networks` | Translate then search in native language |
 | Non-English domain WHOIS data | `domain-recon` | Understand registrant details |
 | Foreign court documents | `public-records` | Translate legal filings for analysis |

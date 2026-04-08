@@ -28,18 +28,18 @@ list of 11 free tools in this category.
 ## Web Resources
 
 | Resource | URL | Best For | Region |
-|----------|-----|----------|--------|
-| Search Tempest | https://www.searchtempest.com/ | Multi-city Craigslist + marketplace aggregation | US |
-| TotalCraigSearch | https://www.totalcraigsearch.com/ | Nationwide Craigslist search | US |
-| SearchAllJunk | https://www.searchalljunk.com/ | Cross-platform classified search | US |
-| Goofbid | https://www.goofbid.com/ | eBay misspelling and typo search | Global |
-| Craigslist | https://craigslist.org/ | Local classified ads by city | US |
-| eBay | https://www.ebay.com/ | Online auctions, sold item history | Global |
-| OfferUp | https://offerup.com/ | Local buy/sell marketplace | US |
-| Kijiji | https://www.kijiji.ca/ | Canadian classifieds | Canada |
-| Quikr | https://www.quikr.com/ | Indian classifieds marketplace | India |
-| Kleinanzeigen.de | https://www.kleinanzeigen.de/ | German classifieds (ex-eBay Kleinanzeigen) | Germany |
-| francaisalondres.com | https://francaisalondres.com/ | French community classifieds in London | UK/France |
+| ---------- | ----- | ---------- | -------- |
+| Search Tempest | <https://www.searchtempest.com/> | Multi-city Craigslist + marketplace aggregation | US |
+| TotalCraigSearch | <https://www.totalcraigsearch.com/> | Nationwide Craigslist search | US |
+| SearchAllJunk | <https://www.searchalljunk.com/> | Cross-platform classified search | US |
+| Goofbid | <https://www.goofbid.com/> | eBay misspelling and typo search | Global |
+| Craigslist | <https://craigslist.org/> | Local classified ads by city | US |
+| eBay | <https://www.ebay.com/> | Online auctions, sold item history | Global |
+| OfferUp | <https://offerup.com/> | Local buy/sell marketplace | US |
+| Kijiji | <https://www.kijiji.ca/> | Canadian classifieds | Canada |
+| Quikr | <https://www.quikr.com/> | Indian classifieds marketplace | India |
+| Kleinanzeigen.de | <https://www.kleinanzeigen.de/> | German classifieds (ex-eBay Kleinanzeigen) | Germany |
+| francaisalondres.com | <https://francaisalondres.com/> | French community classifieds in London | UK/France |
 
 ## Subcategories
 
@@ -96,20 +96,20 @@ Replace CITY with the target city subdomain and SEARCH_TERM with
 URL-encoded search keywords. Subscribe to this RSS feed for
 automated monitoring of new listings.
 
-### curl -- Craigslist Search via RSS
+### cURL -- Craigslist Search via RSS
 
 ```bash
 curl -s "https://newyork.craigslist.org/search/sss?query=macbook+pro&format=rss" \
-  | grep -oP '<title>\K[^<]+' | head -20
+| grep -oP '<title>\K[^<]+' |
 ```
 
-### curl -- eBay Browse API (requires OAuth)
+### cURL -- eBay Browse API (requires OAuth)
 
 ```bash
 curl -s "https://api.ebay.com/buy/browse/v1/item_summary/search?q=vintage+watch&limit=5" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-EBAY-C-MARKETPLACE-ID: EBAY_US" \
-  | jq '.itemSummaries[] | {title, price: .price.value, seller: .seller.username, itemWebUrl}'
+| jq '.itemSummaries[] |
 ```
 
 ### Monitoring Pattern -- Repeat Search with Diff
@@ -125,7 +125,7 @@ diff /tmp/cl_baseline.xml /tmp/cl_current.xml
 ## Cross-Category Pivots
 
 | When you find... | Pivot to | Why |
-|------------------|----------|-----|
+| ------------------ | ---------- | ----- |
 | Seller phone number | `phone-recon` | Carrier lookup, caller ID, linked accounts |
 | Seller email address | `email-recon` | Email verification, breach data, linked profiles |
 | Seller username | `username-recon` | Cross-platform profile discovery |

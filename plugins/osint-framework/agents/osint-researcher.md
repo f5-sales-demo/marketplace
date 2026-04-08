@@ -36,20 +36,20 @@ Include this at the top of every response:
    for each relevant category
 3. **Filter and rank** tools based on the request:
    - Match tool descriptions and capabilities to the query
-   - Prefer CLI tools over web-only tools when the user wants automation
+   - Prefer command-line tools over web-only tools when the user wants automation
    - Prefer passive tools over active tools for lower OPSEC risk
    - Prefer free tools over freemium
 4. **Return structured results**
 
 ## Output Format
 
-Return results as a markdown table:
+Return results as a Markdown table:
 
 ```markdown
 ## Recommended Tools for: [query]
 
 | Tool | Type | OPSEC | URL | Why |
-|------|------|-------|-----|-----|
+| ------ | ------ | ------- | ----- | ----- |
 | Name | CLI/Web/API | Passive/Active | URL | Brief match reason |
 
 ### CLI Quick Start (if applicable)

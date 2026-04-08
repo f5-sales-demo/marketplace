@@ -151,7 +151,7 @@
 - **Best For**: Email reverse lookup, social media profile discovery
 - **Input**: Email address or phone number
 - **Output**: Associated social media profiles, forum posts, breach info
-- **Description**: Freemium OSINT tool performing email reverse lookups to uncover associated social media profiles across 120+ websites and services with breach detection.
+- **Description**: Freemium OSINT tool performing email reverse lookups to uncover associated social media profiles across 120+ sites and services with breach detection.
 
 ### breach.vip
 
@@ -178,8 +178,8 @@
 - **CLI Install**: Yes
 - **Best For**: Email account enumeration, service detection
 - **Input**: Email address
-- **Output**: List of websites where email is registered
-- **Description**: Python-based email enumeration tool that checks if an email is registered across 120+ websites and services using password-reset mechanisms.
+- **Output**: List of sites where email is registered
+- **Description**: Python-based email enumeration tool that checks if an email is registered across 120+ sites and services using password-reset mechanisms.
 
 ### Email Format
 
@@ -209,7 +209,7 @@
 - **Output**: List of possible email address variations
 - **Description**: OSINT tool that generates all possible email address combinations from a person's name and domain(s) for reconnaissance and email guessing.
 
-### `Reach-er` Github (T)
+### `Reach-er` GitHub (T)
 
 - **URL**: <https://github.com/`reach-er`hq/check-if-email-exists>
 - **Type**: CLI

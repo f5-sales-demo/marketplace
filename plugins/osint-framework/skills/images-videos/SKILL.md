@@ -24,23 +24,23 @@ jurisdiction-specific regulations before use.
 Read `skills/images-videos/references/tools.md` for the complete
 list of 89 free/freemium tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install Method | Usage |
-|------|---------------|-------|
+| ------ | --------------- | ------- |
 | RevEye | `git clone https://github.com/steven2358/reveye` | Browser extension; multi-engine reverse image search from right-click menu |
-| ImageNet | `pip install imagenet` or download from https://image-net.org/ | Image classification dataset and API for visual taxonomy research |
+| ImageNet | `pip install imagenet` or download from <https://image-net.org/> | Image classification dataset and API for visual taxonomy research |
 | Places2 | `git clone https://github.com/CSAILVision/places365` && `pip install torch torchvision` | Scene recognition model; `python run_placesCNN_basic.py --image photo.jpg` |
-| Mini Instagram | Download from https://mini-for-instagram.en.softonic.com/ | Lightweight Instagram media viewer and downloader |
-| Imgrab | `pip install imgrab` or download from https://www.imgrab.com/ | `imgrab <url>` — batch image download from web pages |
+| Mini Instagram | Download from <https://mini-for-instagram.en.softonic.com/> | Lightweight Instagram media viewer and downloader |
+| Imgrab | `pip install imgrab` or download from <https://www.imgrab.com/> | `imgrab <url>` — batch image download from web pages |
 | ExifTool | `apt install libimage-exiftool-perl` or `brew install exiftool` | `exiftool image.jpg` — read/write EXIF, IPTC, XMP metadata |
 | FOCA | `git clone https://github.com/ElevenPaths/FOCA` (Windows/.NET) | Document metadata extraction from target domains; finds usernames, paths, software fingerprints |
-| GeoSetter | Download installer from https://geosetter.de/en/main-en/ (Windows) | Bulk geotag viewing/editing for photo collections |
-| JPEGsnoop | Download from https://www.impulseadventure.com/photo/jpeg-snoop.html (Windows) | JPEG forensic analysis — compression signatures, tamper detection |
+| GeoSetter | Download installer from <https://geosetter.de/en/main-en/> (Windows) | Bulk geotag viewing/editing for photo collections |
+| JPEGsnoop | Download from <https://www.impulseadventure.com/photo/jpeg-snoop.html> (Windows) | JPEG forensic analysis — compression signatures, tamper detection |
 | xeuledoc | `pip install xeuledoc` | `xeuledoc <google-doc-url>` — extract owner metadata from public Google Docs/Sheets/Slides |
 | Exiv2 | `apt install exiv2` or `brew install exiv2` | `exiv2 image.jpg` — read/write EXIF, IPTC, XMP, ICC metadata |
 | MediaInfo | `apt install mediainfo` or `brew install mediainfo` | `mediainfo video.mp4` — codec, bitrate, duration, stream metadata |
-| Apache Tika | `apt install default-jre` && download `tika-app.jar` from https://tika.apache.org/ | `java -jar tika-app.jar -m document.pdf` — extract metadata from any file format |
+| Apache Tika | `apt install default-jre` && download `tika-app.jar` from <https://tika.apache.org/> | `java -jar tika-app.jar -m document.pdf` — extract metadata from any file format |
 | oletools | `pip install oletools` | `olevba document.docm` — extract macros; `oleid document.doc` — triage indicators |
 
 ## Subcategories
@@ -50,7 +50,7 @@ list of 89 free/freemium tools in this category.
 - **Images — Geolocation** — Current Location, Picarta, Flickr Map; estimate or discover where a photo was taken using visual cues or geotagged databases
 - **Images — Forensics** — Forensically, JPEGsnoop, C2PA Verify; detect tampering, compression artifacts, and content authenticity signals
 - **Images — OCR** — i2OCR, New OCR, Online OCR; extract text from images and scanned documents
-- **Videos — Search & Analysis** — Google Videos, Bing Videos, Yahoo Video, Internet Archive; YouTube Geo Search, YouTube Data Tools, Frame by Frame; search, geolocate, and frame-analyze video content
+- **Videos — Search & Analysis** — Google Videos, Bing Videos, Yahoo Video, internet Archive; YouTube Geo Search, YouTube Data Tools, Frame by Frame; search, geolocate, and frame-analyze video content
 - **Videos — Download & Preservation** — Metatube, Hooktube; capture and archive video content for offline analysis
 - **Webcams** — Insecam, EarthCam; discover live camera feeds by location and type
 - **Documents — Metadata** — ExifTool, FOCA, xeuledoc, Apache Tika, oletools, Exiv2; extract author names, software versions, timestamps, paths, and embedded objects from documents

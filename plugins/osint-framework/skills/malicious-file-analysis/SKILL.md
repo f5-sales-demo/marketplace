@@ -22,10 +22,10 @@ unknown binaries outside of isolated sandbox environments.
 Read `skills/malicious-file-analysis/references/tools.md` for the complete
 list of 33 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | TYLabs QuickSand | `pip install quicksand` or `git clone https://github.com/nickvdp/quicksand.git && cd quicksand && pip install .` | `quicksand document.doc` |
 | detux | `git clone https://github.com/detuxsandbox/detux.git && cd detux && pip install -r requirements.txt` | `python detux.py -s sample.elf` |
 | OffVis | Download from `https://download.microsoft.com/download/1/2/7/127ba59a-4fe1-4acd-ba47-513ceef85a85/OffVis.zip`; requires .NET runtime (`apt install dotnet-runtime-6.0` or `wine`) | `OffVis.exe malicious.doc` |
@@ -56,7 +56,7 @@ list of 33 free tools in this category.
 
 - **threat-intelligence** — Pivot extracted IOCs (hashes, C2 domains, IPs) into threat feeds and actor attribution databases
 - **exploits-advisories** — Map detected exploits (CVE IDs from sandbox reports) to vulnerability advisories and patch status
-- **encoding-decoding** — Decode obfuscated payloads, Base64 strings, XOR-encoded shellcode, and packed executables found during analysis
+- **encoding-decoding** — Decode obfuscated payloads, base64 strings, XOR-encoded shellcode, and packed executables found during analysis
 
 ## OPSEC Notes
 

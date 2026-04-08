@@ -40,7 +40,7 @@
 - **Output**: Sun azimuth/elevation and daylight phase data
 - **Description**: Solar position calculator for estimating time and orientation from shadows in imagery.
 
-### SunCalc
+### SunCalc (Subcategories)
 
 - **URL**: <https://suncalc.org/>
 - **Type**: Web
@@ -460,7 +460,7 @@
 - **Output**: Map layers, routes, local business/POI data
 - **Description**: Korea-focused mapping platform with strong local POI and transit coverage.
 
-### OpenStreetMap
+### OpenStreetMap (Subcategories)
 
 - **URL**: <https://www.openstreetmap.org/>
 - **Type**: API
@@ -628,7 +628,7 @@
 - **Output**: Trail-focused map overlays and terrain context
 - **Description**: OSM-based map optimized for trails, cycling routes, and terrain context.
 
-### US Nav Guide Zip Code Data
+### US Nav Guide ZIP Code Data
 
 - **URL**: <https://www.usnaviguide.com/>
 - **Type**: Web
@@ -637,8 +637,8 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Linking US zip codes to geographic lookup context
-- **Input**: US zip code or city/state query
+- **Best For**: Linking US ZIP codes to geographic lookup context
+- **Input**: US ZIP code or city/state query
 - **Output**: Zip-associated geographic and lookup reference data
 - **Description**: Zip-code lookup resource for correlating US postal areas with map context.
 

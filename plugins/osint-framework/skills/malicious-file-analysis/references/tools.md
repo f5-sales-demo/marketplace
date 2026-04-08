@@ -25,7 +25,7 @@
 - **Best For**: Quick metasearch across multiple malware analysis databases by hash, string, or filename
 - **Input**: IOC (hash, filename, string, yara rule, VT hash)
 - **Output**: Links to malware analysis reports from aggregated databases
-- **Description**: Custom metasearch engine that indexes malware analysis databases to find malware samples containing specific strings, filenames, hashes, or IOCs.
+- **Description**: Custom metasearch engine that indices malware analysis databases to find malware samples containing specific strings, filenames, hashes, or IOCs.
 
 ### VirusShare.com
 
@@ -38,7 +38,7 @@
 - **CLI Install**: N/A
 - **Best For**: Bulk access to malware sample collections for research and analysis
 - **Input**: MD5 hash, account credentials
-- **Output**: Malware sample files (zip archives, password protected), related IOCs
+- **Output**: Malware sample files (ZIP archives, password protected), related IOCs
 - **Description**: Repository of 111+ million live malware samples provided for security researchers, incident responders, forensic analysts, and researchers.
 
 ### #totalhash
@@ -125,7 +125,7 @@
 - **Output**: Behavioral analysis, network IOCs, detection verdicts, MITRE ATT&CK mappings, export formats (JSON, XML, HTML, PDF)
 - **Description**: Hosted automated malware analysis service that performs dynamic and static analysis of files including Office documents, PDFs, and executables with comprehensive behavioral reporting.
 
-### TYLabs QuickSand Framework
+### TYLabs QuickSand Framework (Subcategories)
 
 - **URL**: <https://scan.tylabs.com/>
 - **Type**: CLI

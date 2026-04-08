@@ -30,10 +30,10 @@ attribution risk.
 Read `skills/social-networks/references/tools.md` for the complete
 list of 63 free/freemium tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Fediverse_OSINT | `git clone https://github.com/cyfinoid/fediverse_osint && pip install -r requirements.txt` | `python fediverse_osint.py <username>` |
 | Masto | `pip install masto` | `python masto.py -u history-a5b1d7edbe92@example.com` |
 | Osintgram | `git clone https://github.com/Datalux/Osintgram && pip install -r requirements.txt` | `python main.py <target>` |
@@ -119,7 +119,7 @@ For copy-paste-ready command sequences, see:
 - **people-search** — Social profile names and details pivot into people-search engines for real-world identity correlation
 - **images-videos** — Profile photos and posted media pivot into reverse image search and EXIF analysis
 - **email-address** — Email addresses found in social bios or linked accounts feed into email OSINT
-- **domain-recon** — Personal websites or link-in-bio domains pivot into domain investigation
+- **domain-recon** — Personal sites or link-in-bio domains pivot into domain investigation
 - **geolocation** — Geotagged posts and check-ins feed into mapping and location analysis
 
 ## OPSEC Notes

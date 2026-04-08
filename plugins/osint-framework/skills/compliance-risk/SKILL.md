@@ -26,19 +26,19 @@ list of 18 free tools in this category.
 ## Web Resources
 
 | Resource | URL | Best For |
-|----------|-----|----------|
-| OpenSanctions | https://www.opensanctions.org/ | Consolidated global sanctions/PEP data (API) |
-| OFAC Sanctions Search | https://sanctionssearch.ofac.treas.gov/ | US Treasury SDN list screening |
-| EU Sanctions Tool | https://sanctions-tool.ec.europa.eu | EU restrictive measures screening |
-| ICIJ Offshore Leaks | https://offshoreleaks.icij.org/ | Panama/Paradise/Pandora Papers (API) |
-| OCCRP Aleph | https://aleph.occrp.org/ | Cross-reference leaks and public records (API) |
-| OpenOwnership | https://www.openownership.org/ | Beneficial ownership chains (API) |
-| Companies House | https://find-and-update.company-information.service.gov.uk/ | UK company and director data (API) |
-| OpenScreening | https://resources.linkurious.com/openscreening | Graph visualization of entity relationships |
-| NameScan | https://namescan.io | Sanctions/PEP/adverse media screening (API) |
-| dilisense | https://dilisense.com/en | AML/KYC screening with fuzzy matching (API) |
-| PepChecker | https://pepchecker.com | PEP and sanctions screening (API) |
-| EveryPolitician | https://everypolitician.org/ | Global political office-holder data (API) |
+| ---------- | ----- | ---------- |
+| OpenSanctions | <https://www.opensanctions.org/> | Consolidated global sanctions/PEP data (API) |
+| OFAC Sanctions Search | <https://sanctionssearch.ofac.treas.gov/> | US Treasury SDN list screening |
+| EU Sanctions Tool | <https://sanctions-tool.ec.europa.eu> | EU restrictive measures screening |
+| ICIJ Offshore Leaks | <https://offshoreleaks.icij.org/> | Panama/Paradise/Pandora Papers (API) |
+| OCCRP Aleph | <https://aleph.occrp.org/> | Cross-reference leaks and public records (API) |
+| OpenOwnership | <https://www.openownership.org/> | Beneficial ownership chains (API) |
+| Companies House | <https://find-and-update.company-information.service.gov.uk/> | UK company and director data (API) |
+| OpenScreening | <https://resources.linkurious.com/openscreening> | Graph visualization of entity relationships |
+| NameScan | <https://namescan.io> | Sanctions/PEP/adverse media screening (API) |
+| dilisense | <https://dilisense.com/en> | AML/KYC screening with fuzzy matching (API) |
+| PepChecker | <https://pepchecker.com> | PEP and sanctions screening (API) |
+| EveryPolitician | <https://everypolitician.org/> | Global political office-holder data (API) |
 
 ## Subcategories
 
@@ -61,21 +61,21 @@ list of 18 free tools in this category.
 8. **Visualize**: Use OpenScreening to map entity relationships graphically
 9. **Cross-reference**: Pivot to `business-records` for corporate filings, `public-records` for court cases
 
-## curl / API Patterns
+## cURL / API Patterns
 
 ### OpenSanctions -- Entity Search
 
 ```bash
 curl -s "https://api.opensanctions.org/search/default?q=John+Smith&limit=5" \
   -H "Authorization: ApiKey YOUR_KEY" \
-  | jq '.results[] | {id, caption, schema, datasets}'
+| jq '.results[] |
 ```
 
 ### ICIJ Offshore Leaks -- Search Entities
 
 ```bash
 curl -s "https://offshoreleaks.icij.org/api/v1/search?q=company+name&limit=10" \
-  | jq '.[] | {entity, jurisdiction, linked_to, source}'
+| jq '.[] |
 ```
 
 ### Companies House UK -- Company Search
@@ -83,7 +83,7 @@ curl -s "https://offshoreleaks.icij.org/api/v1/search?q=company+name&limit=10" \
 ```bash
 curl -s "https://api.company-information.service.gov.uk/search/companies?q=acme+ltd" \
   -H "Authorization: Basic $(echo -n 'YOUR_API_KEY:' | base64)" \
-  | jq '.items[] | {title, company_number, company_status, date_of_creation}'
+| jq '.items[] |
 ```
 
 ### Companies House UK -- Officer Search
@@ -91,7 +91,7 @@ curl -s "https://api.company-information.service.gov.uk/search/companies?q=acme+
 ```bash
 curl -s "https://api.company-information.service.gov.uk/search/officers?q=john+smith" \
   -H "Authorization: Basic $(echo -n 'YOUR_API_KEY:' | base64)" \
-  | jq '.items[] | {title, appointed_to, date_of_birth}'
+| jq '.items[] |
 ```
 
 ### OCCRP Aleph -- Cross-Reference Search
@@ -99,14 +99,14 @@ curl -s "https://api.company-information.service.gov.uk/search/officers?q=john+s
 ```bash
 curl -s "https://aleph.occrp.org/api/2/search?q=target+name" \
   -H "Authorization: ApiKey YOUR_KEY" \
-  | jq '.results[] | {id, schema, properties}'
+| jq '.results[] |
 ```
 
 ### OpenOwnership -- Beneficial Ownership Lookup
 
 ```bash
 curl -s "https://api.openownership.org/api/v1/entities?q=company+name" \
-  | jq '.results[] | {name, type, jurisdiction, identifiers}'
+| jq '.results[] |
 ```
 
 ### EU VIES VAT Validation (via SOAP, simplified)
@@ -119,10 +119,10 @@ curl -s "https://ec.europa.eu/taxation_customs/vies/rest-api/ms/GB/vat/123456789
 ## Cross-Category Pivots
 
 | When you find... | Pivot to | Why |
-|------------------|----------|-----|
+| ------------------ | ---------- | ----- |
 | Corporate entity on sanctions list | `business-records` | Full SEC filings, officers, financial history |
 | Individual flagged as PEP | `public-records` | Court records, property, campaign finance |
-| Offshore shell company | `domain-recon` | Website analysis, hosting, registration |
+| Offshore shell company | `domain-recon` | Site analysis, hosting, registration |
 | Suspicious financial activity | `threat-intelligence` | Threat actor associations, dark web mentions |
 | Subject's business address | `geolocation` | Physical location verification |
 

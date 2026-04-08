@@ -27,7 +27,7 @@
 - **Output**: Research articles and threat analysis
 - **Description**: Security research platform providing threat intelligence, vulnerability analysis, and cybersecurity insights with focus on emerging threats.
 
-### https://openphish.com/feed.txt
+### <https://openphish.com/feed.txt>
 
 - **URL**: <https://openphish.com/feed.txt>
 - **Type**: API
@@ -137,7 +137,7 @@
 - **Best For**: IOC extraction with deobfuscation
 - **Input**: Raw text with obfuscated indicators
 - **Output**: Extracted IOCs including decoded variants
-- **Description**: Python library and CLI tool for rapid IOC extraction with support for obfuscated indicators.
+- **Description**: Python library and command-line tool for rapid IOC extraction with support for obfuscated indicators.
 
 ### ThreatIngestor (T)
 
@@ -349,7 +349,7 @@
 - **Output**: Community threat pulses and analysis
 - **Description**: Crowd-sourced threat intelligence platform with 180K+ participants sharing 19M+ daily threats.
 
-### FireHOL IP Lists 
+### FireHOL IP Lists
 
 - **URL**: <https://iplists.firehol.org/>
 - **Type**: API
@@ -419,7 +419,7 @@
 - **Output**: Normalized IOC data in CSV or CRITs format
 - **Description**: Tool for gathering and normalizing threat intelligence feeds from public sources.
 
-### hostintel - keithjjones Github
+### hostintel - keithjjones GitHub
 
 - **URL**: <https://github.com/keithjjones/hostintel>
 - **Type**: CLI
@@ -443,9 +443,9 @@
 - **API**: No
 - **CLI Install**: N/A
 - **Best For**: Scam and fraud reporting
-- **Input**: Phone, email, or website
+- **Input**: Phone, email, or site
 - **Output**: Unverified scam reports and details
-- **Description**: User-contributed database of scam reports searchable by phone, email, and website.
+- **Description**: User-contributed database of scam reports searchable by phone, email, and site.
 
 ### Bot Scout
 

@@ -55,7 +55,7 @@ while IFS='|' read -r skill_dir display_name description triggers; do
     tool_count=$(grep -c '^### ' "$ref_file" || true)
   fi
 
-  cat > "$skill_path" << SKILL_EOF
+  cat >"$skill_path" <<SKILL_EOF
 ---
 name: $skill_dir
 description: >-
@@ -107,6 +107,6 @@ SKILL_EOF
 
   echo "  Created: $skill_dir ($tool_count tools)"
 
-done <<< "$CATEGORIES"
+done <<<"$CATEGORIES"
 
 echo "Done."

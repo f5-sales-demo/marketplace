@@ -26,10 +26,10 @@ proper authorization before accessing private communications data.
 Read `skills/messaging-comms/references/tools.md` for the complete
 list of 12 free tools in this category, focused on dating platforms.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | comms-analyzer-toolbox | `git clone https://github.com/bitsofinfo/comms-analyzer-toolbox.git && cd comms-analyzer-toolbox && docker build -t comms-analyzer-toolbox .` | `docker run --rm -ti -p 5601:5601 -v /path/to/data.csv:/toolbox/data.csv comms-analyzer-toolbox:latest` |
 | SlackPirate | `git clone https://github.com/emtunc/SlackPirate.git && cd SlackPirate && pip install -r requirements.txt` | `python SlackPirate.py --token xoxc-TOKEN --cookie COOKIE` |
 | slack-intelbot | `git clone https://github.com/pun1sh3r/slack-intelbot.git && cd slack-intelbot && pip install -r requirements.txt` | Configure `config.ini` with API keys, then run the bot |
@@ -39,7 +39,7 @@ list of 12 free tools in this category, focused on dating platforms.
 | wechat-dump | `git clone https://github.com/ppwwyyxx/wechat-dump.git && cd wechat-dump && pip install -r requirements.txt` | `./android-interact.sh db` (requires rooted Android + adb) |
 | wechat-text-backup | `git clone https://github.com/zhaofeng-shu33/wechat-text-backup.git` | Extract encrypted SQLite DB from Windows WeChat client |
 | linelog2py | `pip install linelog2py` | `from linelog2py import *; messages = Reader.readFile('history.txt')` |
-| line-message-analyzer | `git clone https://github.com/chonyy/line-message-analyzer.git` | Open `index.html` in browser or visit https://chonyy.github.io/line-message-analyzer/ |
+| line-message-analyzer | `git clone https://github.com/chonyy/line-message-analyzer.git` | Open `index.html` in browser or visit <https://chonyy.github.io/line-message-analyzer/> |
 | Email2WhatsApp | `go install -v github.com/dsonbaker/email2whatsapp@latest` | `echo 5521912345678 \| email2whatsapp` |
 | WhatsApp-OSINT | `git clone https://github.com/kinghacker0/whatsapp-osint.git && cd whatsapp-osint && python3 -m venv myvenv && source myvenv/bin/activate && pip3 install -r requirements.txt` | `python3 whatsapp-osint.py` |
 

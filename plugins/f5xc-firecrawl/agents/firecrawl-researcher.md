@@ -78,12 +78,12 @@ Agent(
 ```
 
 The SEARCH protocol with `scrapeOptions` returns both search metadata
-(title, URL, description) AND scraped markdown content for each result.
+(title, URL, description) AND scraped Markdown content for each result.
 This is a single API call — no separate scrape step is needed.
 
 ### Step 3 — Filter and rank
 
-Read the scraped markdown content from each result. For each result:
+Read the scraped Markdown content from each result. For each result:
 
 1. Does it contain information relevant to the original QUESTION?
 2. Is it from an authoritative source (official docs, vendor pages)?
@@ -138,7 +138,7 @@ like [1], [2] to cite specific sources from the table below.]
 ## Execution Rules
 
 1. **Always delegate search+scrape** to firecrawl-operator — never
-   run curl commands yourself
+   run cURL commands yourself
 2. **Cite everything** — every factual claim must trace to a source
 3. **Acknowledge limits** — if you cannot find the answer, say so
    clearly in Gaps & Follow-up

@@ -116,7 +116,7 @@
 - **Best For**: Cross-instance Fediverse user and content search
 - **Input**: Username or search terms
 - **Output**: User profiles and posts found across Fediverse instances
-- **Description**: Python CLI tool for checking whether a domain belongs to the Fediverse and hunting usernames across discoverable Fediverse servers.
+- **Description**: Python command-line tool for checking whether a domain belongs to the Fediverse and hunting usernames across discoverable Fediverse servers.
 
 ### Masto (T)
 
@@ -128,7 +128,7 @@
 - **API**: Yes
 - **CLI Install**: Yes
 - **Best For**: Mastodon user profile investigation and account analysis
-- **Input**: Mastodon username and instance (e.g., history-a5b1d7edbe92@example.com)
+- **Input**: Mastodon username and instance (e.g., `history-a5b1d7edbe92@example.com`)
 - **Output**: Profile details, recent toots, follower/following lists, account creation date, and metadata
 - **Description**: Python-based Mastodon OSINT tool for investigating user accounts across instances. Retrieves profile details, toots, followers, and account metadata.
 

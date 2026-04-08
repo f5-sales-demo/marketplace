@@ -52,7 +52,7 @@
 - **Output**: Domain owner information, historical ownership, similar domains, analytics data, reverse MX/IP/DNS lookups
 - **Description**: Comprehensive domain intelligence platform offering reverse lookups, ownership history, and related domain discovery. Trusted by government agencies, domain investors, and legal firms.
 
-### SWITCH Internet Domains Whois (.ch)
+### SWITCH internet Domains Whois (.ch)
 
 - **URL**: <https://www.nic.ch/whois/>
 - **Type**: Web
@@ -61,7 +61,7 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: .ch and .li domain ownership research, Swiss Internet infrastructure lookup
+- **Best For**: .ch and .li domain ownership research, Swiss internet infrastructure lookup
 - **Input**: .ch or .li domain name
 - **Output**: Registrant contact details, creation/expiry dates, nameservers, registration status
 - **Description**: Official Swiss domain registry WHOIS lookup service operated by SWITCH for .ch and .li country-code domains. Public registry with all owner contact details visible.
@@ -92,7 +92,7 @@
 - **Best For**: IP address and ASN registration data, North American internet resource tracking
 - **Input**: IP address, ASN, organization name, contact information
 - **Output**: IP ownership, organization details, Points of Contact (POCs), ASN information
-- **Description**: Official American Registry for Internet Numbers WHOIS and RDAP lookup service for IPv4, IPv6, ASNs, and organizations in the North American region.
+- **Description**: Official American Registry for internet Numbers WHOIS and RDAP lookup service for IPv4, IPv6, ASNs, and organizations in the North American region.
 
 ### DNSstuff
 
@@ -136,7 +136,7 @@
 - **Output**: WHOIS records, DNS information, registrant details, nameservers
 - **Description**: Free domain WHOIS lookup and DNS tools service. Now operated under the DomainHelp platform, providing domain registration information and DNS lookups.
 
-### Website Informer
+### Site Informer
 
 - **URL**: <https://website.informer.com/>
 - **Type**: Web
@@ -145,10 +145,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Website profiling, ownership verification, traffic estimation, technical stack discovery
+- **Best For**: site profiling, ownership verification, traffic estimation, technical stack discovery
 - **Input**: Domain name or URL
 - **Output**: Visitor statistics, safety ratings, domain owner information, technology stack, Alexa rank, historical snapshots
-- **Description**: Free domain and website information aggregator providing visitor statistics, safety status, Alexa rankings, ownership data, and technical details about websites.
+- **Description**: Free domain and site information aggregator providing visitor statistics, safety status, Alexa rankings, ownership data, and technical details about sites.
 
 ### Who.is
 
@@ -229,7 +229,7 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
+- **Best For**: internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
 - **Input**: Domain name, IP address, ASN, DNS records
 - **Output**: DNS records, WHOIS data, open ports, SSL certificates, service information, historical data
 - **Description**: Comprehensive internet-wide scanning and OSINT platform providing DNS, WHOIS, SSL, and network reconnaissance with attack surface discovery capabilities.
@@ -486,7 +486,7 @@
 - **Output**: Resolved alternative subdomains and permutation results
 - **Description**: Permutation-based DNS tool that generates and resolves alternative subdomains from known names.
 
-### Netlas.io
+### Netlas.io (Subcategories)
 
 - **URL**: <https://app.netlas.io/domains/>
 - **Type**: API
@@ -495,7 +495,7 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
+- **Best For**: internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
 - **Input**: Domain name, IP address, ASN, DNS records
 - **Output**: DNS records, WHOIS data, open ports, SSL certificates, service information, historical data
 - **Description**: Comprehensive internet-wide scanning and OSINT platform providing DNS, WHOIS, SSL, and network reconnaissance with attack surface discovery capabilities.
@@ -514,7 +514,7 @@
 - **Output**: Service banners, open ports, geolocation, vulnerabilities, and host metadata
 - **Description**: Search engine for internet-exposed devices, services, and security-relevant banners.
 
-### Netlas.io
+### Netlas.io (Subcategories) #2
 
 - **URL**: <https://app.netlas.io/>
 - **Type**: API
@@ -523,7 +523,7 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
+- **Best For**: internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
 - **Input**: Domain name, IP address, ASN, DNS records
 - **Output**: DNS records, WHOIS data, open ports, SSL certificates, service information, historical data
 - **Description**: Comprehensive internet-wide scanning and OSINT platform providing DNS, WHOIS, SSL, and network reconnaissance with attack surface discovery capabilities.
@@ -570,7 +570,7 @@
 - **Output**: Scan reports including redirects, requests, domains, IPs, and screenshots
 - **Description**: URL and domain analysis service that captures page loads, requests, and security-relevant artifacts.
 
-### Daily DNS Changes
+### Daily DNS Changes (Subcategories)
 
 - **URL**: <https://dailychanges.domaintools.com/>
 - **Type**: Web
@@ -610,7 +610,7 @@
 - **Best For**: Tracking site changes between snapshots for monitoring and QA
 - **Input**: Two URLs or snapshots to compare
 - **Output**: Diff output highlighting content and structural deltas
-- **Description**: Command-line utility for comparing website versions to detect content and structural changes.
+- **Description**: Command-line utility for comparing site versions to detect content and structural changes.
 
 ### BuiltWith
 
@@ -621,7 +621,7 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Website technology stack fingerprinting and ecosystem mapping
+- **Best For**: site technology stack fingerprinting and ecosystem mapping
 - **Input**: Domain or URL
 - **Output**: Detected technologies, hosting/CDN indicators, and related site intelligence
 - **Description**: Technology profiling platform that identifies web stacks, frameworks, analytics, and hosting signals.
@@ -636,7 +636,7 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Detecting web technologies and software dependencies at scale
-- **Input**: Domain, URL, or browsed webpage
+- **Input**: Domain, URL, or browsed web page
 - **Output**: Detected technologies by category with confidence indicators
 - **Description**: Technology detection platform and browser tooling for identifying frameworks, CMS, and SaaS usage.
 
@@ -691,12 +691,12 @@
 - **Registration**: Yes
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet device discovery, service enumeration, vulnerability mapping, attack surface assessment
+- **Best For**: internet device discovery, service enumeration, vulnerability mapping, attack surface assessment
 - **Input**: Domain, IP, port, service, or natural language query
 - **Output**: Device list, port data, banner info, vulnerability details, geographic distribution
 - **Description**: Cyberspace search engine indexing internet-connected devices, services, and vulnerabilities globally. Provides AI-powered search via ZoomEyeGPT with support for ZoomEye dorks for targeted reconnaissance.
 
-### Shodan
+### Shodan (Subcategories)
 
 - **URL**: <https://www.shodan.io/>
 - **Type**: Web
@@ -732,7 +732,7 @@
 - **Best For**: Domain intelligence, certificate discovery, subdomain enumeration, vulnerability identification
 - **Input**: Domain, IP, certificate, email, or organization name
 - **Output**: Domain details, subdomains, certificates, WHOIS info, CVEs, open ports, scraped emails
-- **Description**: Internet assets registry providing certificate search, domain intelligence, and vulnerability discovery. Scans domains, subdomains, certificates, emails, and open ports across the global internet.
+- **Description**: internet assets registry providing certificate search, domain intelligence, and vulnerability discovery. Scans domains, subdomains, certificates, emails, and open ports across the global internet.
 
 ### Censys
 
@@ -746,7 +746,7 @@
 - **Best For**: Certificate discovery, host enumeration, exposure monitoring
 - **Input**: Domain, IP, certificate fingerprint, search query
 - **Output**: Host details, open ports, TLS certificates, service banners
-- **Description**: Internet-wide scanner and search engine for hosts, certificates, and services.
+- **Description**: internet-wide scanner and search engine for hosts, certificates, and services.
 
 ### crt.sh - Certificate Search
 
@@ -774,7 +774,7 @@
 - **Best For**: CT certificate search, subdomain enumeration, certificate misuse detection
 - **Input**: Domain name
 - **Output**: List of certificates with issuance dates, expiry dates, and Subject Alternative Names
-- **Description**: Fast Certificate Transparency log search tool using Clickhouse for sub-second queries. Discover all certificates issued to a domain, including Subject Alternative Names, to reveal hidden infrastructure.
+- **Description**: Fast Certificate Transparency log search tool using ClickHouse for sub-second queries. Discover all certificates issued to a domain, including Subject Alternative Names, to reveal hidden infrastructure.
 
 ### certgraph (T)
 
@@ -788,9 +788,9 @@
 - **Best For**: Certificate mapping, domain relationship discovery, hostname enumeration via SSL certificates
 - **Input**: Hostname or domain name
 - **Output**: Directed graph showing domain nodes and certificate alternative name connections between domains
-- **Description**: CLI tool that crawls SSL certificates via Certificate Transparency logs to create a directed graph of domain relationships. Supports multiple drivers including crt.sh, Censys, HTTPS, and SMTP.
+- **Description**: command-line tool that crawls SSL certificates via Certificate Transparency logs to create a directed graph of domain relationships. Supports multiple drivers including crt.sh, Censys, HTTPS, and SMTP.
 
-### Netlas.io
+### Netlas.io (Subcategories) #3
 
 - **URL**: <https://app.netlas.io/certs/>
 - **Type**: API
@@ -799,7 +799,7 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
+- **Best For**: internet reconnaissance, DNS and WHOIS lookups, attack surface discovery, vulnerability research
 - **Input**: Domain name, IP address, ASN, DNS records
 - **Output**: DNS records, WHOIS data, open ports, SSL certificates, service information, historical data
 - **Description**: Comprehensive internet-wide scanning and OSINT platform providing DNS, WHOIS, SSL, and network reconnaissance with attack surface discovery capabilities.
@@ -856,9 +856,9 @@
 - **API**: No
 - **CLI Install**: N/A
 - **Best For**: URL reputation scanning, malware detection, phishing detection, threat analysis
-- **Input**: URL or webpage
+- **Input**: URL or web page
 - **Output**: Threat report, detected threats, malicious behavior, anomalies, security assessment
-- **Description**: Free online URL scanner that analyzes webpages for malware, suspicious elements, and phishing threats. Provides comprehensive threat detection reports with threat briefs on emerging campaigns.
+- **Description**: Free online URL scanner that analyzes web pages for malware, suspicious elements, and phishing threats. Provides comprehensive threat detection reports with threat briefs on emerging campaigns.
 
 ### URL Void
 
@@ -869,10 +869,10 @@
 - **Registration**: No
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Website reputation checking, malware/phishing detection, threat analysis
-- **Input**: Website URL
+- **Best For**: site reputation checking, malware/phishing detection, threat analysis
+- **Input**: site URL
 - **Output**: Safety report from 30+ blocklists, IP details, domain age, server location, threat indicators
-- **Description**: Free website reputation checker that scans URLs against 30+ blocklist engines and reputation services. Detects fraudulent and malicious websites with browser extension available.
+- **Description**: Free site reputation checker that scans URLs against 30+ blocklist engines and reputation services. Detects fraudulent and malicious sites with browser extension available.
 
 ### FortiGuard Reputation Service
 
@@ -897,10 +897,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Website safety verification, malware/phishing detection, threat assessment
-- **Input**: Website URL
+- **Best For**: site safety verification, malware/phishing detection, threat assessment
+- **Input**: site URL
 - **Output**: Safety rating, category classification, threat indicators, historical data
-- **Description**: Free service that checks website safety ratings from Trend Micro's research and reputation sources. Identifies websites with malware, phishing activity, or suspicious behavior.
+- **Description**: Free service that checks site safety ratings from Trend Micro's research and reputation sources. Identifies sites with malware, phishing activity, or suspicious behavior.
 
 ### WatchGuard ReputationAuthority
 
@@ -925,10 +925,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Website malware scanning, vulnerability detection, security assessment
-- **Input**: Website URL
+- **Best For**: site malware scanning, vulnerability detection, security assessment
+- **Input**: site URL
 - **Output**: Security scan report, malware detection, blacklist status, vulnerable plugin/CMS details
-- **Description**: Free remote website scanner that checks for malware, security threats, blacklisting, and vulnerabilities. Detects outdated CMS versions, insecure configurations, and security anomalies.
+- **Description**: Free remote site scanner that checks for malware, security threats, blacklisting, and vulnerabilities. Detects outdated CMS versions, insecure configurations, and security anomalies.
 
 ### ThreatMiner.org
 
@@ -953,8 +953,8 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: URL categorization, website reputation filtering, malicious link detection
-- **Input**: Website URL
+- **Best For**: URL categorization, site reputation filtering, malicious link detection
+- **Input**: site URL
 - **Output**: URL category, reputation rating, threat indicators, web content classification
 - **Description**: Web reputation filtering service rating URLs with 50+ language support. Processes 180+ million rating requests daily with Dynamic Link Analysis for attack injection detection.
 
@@ -968,11 +968,11 @@
 - **API**: No
 - **CLI Install**: N/A
 - **Best For**: URL risk scoring, web threat detection, malicious content analysis
-- **Input**: Website URL
+- **Input**: site URL
 - **Output**: Risk score, threat assessment at content/URL/host levels, malicious behavior detection
 - **Description**: Free dynamic risk scoring engine for web content analysis. Assesses URLs from multiple perspectives: content analysis, URL patterns, and host reputation using machine learning.
 
-### Joe Sandbox Url Analyzer
+### Joe Sandbox URL Analyzer
 
 - **URL**: <https://www.url-analyzer.net/>
 - **Type**: API
@@ -1065,10 +1065,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Website malware scanning
-- **Input**: Website URL
+- **Best For**: site malware scanning
+- **Input**: site URL
 - **Output**: Malware scan report, vulnerability assessment
-- **Description**: Free cloud-based website malware scanner with daily automated scanning and blacklist checking capabilities.
+- **Description**: Free cloud-based site malware scanner with daily automated scanning and blacklist checking capabilities.
 
 ### Google Safe Browsing API
 
@@ -1135,7 +1135,7 @@
 - **Registration**: Yes
 - **API**: Yes
 - **CLI Install**: Yes
-- **Best For**: Network IDS threat intelligence
+- **Best For**: Network IDs threat intelligence
 - **Input**: Bro/Zeek intel format
 - **Output**: Intel.log entries, network alerts
 - **Description**: Free threat intelligence feeds integrated with Bro/Zeek network security monitoring systems.
@@ -1154,7 +1154,7 @@
 - **Output**: Malware domain sinkhole list
 - **Description**: Malware domain sinkhole from malc0de.com providing DNS-based threat blocking zones.
 
-### Malware Domain List
+### Malware Domain List (Subcategories)
 
 - **URL**: <https://www.malwaredomainlist.com/hostslist/hosts.txt>
 - **Type**: Web
@@ -1180,7 +1180,7 @@
 - **Best For**: Malware URL reputation checking
 - **Input**: URL
 - **Output**: Reputation report, blocklist data
-- **Description**: Commercial malware URL reputation checker and blocklist service protecting networks from known malicious websites.
+- **Description**: Commercial malware URL reputation checker and blocklist service protecting networks from known malicious sites.
 
 ### scumware.org
 
@@ -1294,7 +1294,7 @@
 - **Output**: Phishing domain variants, categorization status
 - **Description**: Red team tool for generating phishing domains using homoglyphs, punycode, and domain manipulation techniques.
 
-### BuiltWith
+### BuiltWith (Subcategories)
 
 - **URL**: <https://builtwith.com/>
 - **Type**: API
@@ -1304,9 +1304,9 @@
 - **API**: Yes
 - **CLI Install**: N/A
 - **Best For**: Web technology intelligence and competitive analysis
-- **Input**: Website URL or domain
+- **Input**: site URL or domain
 - **Output**: Technology stack report, lead generation data
-- **Description**: Web technology profiler identifying CMS platforms, frameworks, analytics, and 2500+ technologies used by websites.
+- **Description**: Web technology profiler identifying CMS platforms, frameworks, analytics, and 2500+ technologies used by sites.
 
 ### SiteSleuth
 
@@ -1320,7 +1320,7 @@
 - **Best For**: Tracking code intelligence and related domain discovery
 - **Input**: Domain, Google Analytics ID, AdSense ID, or Stripe key
 - **Output**: List of associated domains and tracking codes
-- **Description**: OSINT domain analytics tool tracking Google Analytics, AdSense, and Stripe keys across 32+ million websites.
+- **Description**: OSINT domain analytics tool tracking Google Analytics, AdSense, and Stripe keys across 32+ million sites.
 
 ### Wappalyzer (T)
 
@@ -1334,7 +1334,7 @@
 - **Best For**: Technology stack fingerprinting and recon
 - **Input**: Domain or URL
 - **Output**: Detected technologies, categories, versions, and metadata
-- **Description**: Technology stack profiler that identifies CMS, frameworks, analytics, and infrastructure used by a website.
+- **Description**: Technology stack profiler that identifies CMS, frameworks, analytics, and infrastructure used by a site.
 
 ### Ewhois
 
@@ -1359,10 +1359,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Quick website popularity snapshots
+- **Best For**: Quick site popularity snapshots
 - **Input**: Domain
 - **Output**: Traffic rank estimates and summary site stats
-- **Description**: Website statistics portal with traffic rank snapshots and related metadata.
+- **Description**: site statistics portal with traffic rank snapshots and related metadata.
 
 ### SpyOnWeb
 
@@ -1429,10 +1429,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: Yes
-- **Best For**: Generating website structure maps
+- **Best For**: Generating site structure maps
 - **Input**: Domain or URL seed
 - **Output**: Crawl graph and site map structure
-- **Description**: Site-crawling mapper used to visualize website structure and page relationships.
+- **Description**: Site-crawling mapper used to visualize site structure and page relationships.
 
 ### ClearWebStats.com
 
@@ -1474,7 +1474,7 @@
 - **Best For**: Duplicate-content and link-health audits
 - **Input**: Domain
 - **Output**: Duplicate-content metrics, broken links, and crawl summaries
-- **Description**: Website crawler that highlights duplicate content, broken links, and SEO quality issues.
+- **Description**: site crawler that highlights duplicate content, broken links, and SEO quality issues.
 
 ### WhatWeb
 
@@ -1555,10 +1555,10 @@
 - **Registration**: Yes
 - **API**: Yes
 - **CLI Install**: N/A
-- **Best For**: Automated webpage change monitoring
+- **Best For**: Automated web page change monitoring
 - **Input**: URL and watch settings
 - **Output**: Change alerts with visual or text diffs
-- **Description**: Website monitoring platform that alerts on page content or visual changes.
+- **Description**: site monitoring platform that alerts on page content or visual changes.
 
 ### Change Detection
 
@@ -1572,7 +1572,7 @@
 - **Best For**: Self-hosted page change monitoring
 - **Input**: URL and monitoring rules
 - **Output**: Diffs and notifications when monitored content changes
-- **Description**: Open-source change-monitoring system for tracking updates on websites over time.
+- **Description**: Open-source change-monitoring system for tracking updates on sites over time.
 
 ### Follow That Page
 
@@ -1586,7 +1586,7 @@
 - **Best For**: Tracking updates on specific web pages by keyword
 - **Input**: Target page URL and optional keyword filters
 - **Output**: Email alerts showing detected page changes
-- **Description**: Website monitoring service that checks pages for changes and sends alerts when tracked content updates. Supports keyword-based notifications for focused monitoring.
+- **Description**: site monitoring service that checks pages for changes and sends alerts when tracked content updates. Supports keyword-based notifications for focused monitoring.
 
 ### Urlwatch
 
@@ -1600,7 +1600,7 @@
 - **Best For**: Self-hosted web page change monitoring automation
 - **Input**: URLs, feeds, and local watch configuration
 - **Output**: Diffs and alerts through email, console, or integrations
-- **Description**: Open-source Python CLI tool for monitoring webpages and feeds for changes. Supports multiple filters, reporters, and scheduled checks via local automation.
+- **Description**: Open-source Python command-line tool for monitoring web pages and feeds for changes. Supports multiple filters, reporters, and scheduled checks via local automation.
 
 ### WatchThatPage
 
@@ -1614,7 +1614,7 @@
 - **Best For**: Monitoring static web pages for updates over time
 - **Input**: Web page URL and watch configuration
 - **Output**: Email notifications and change history snapshots
-- **Description**: Web-based page monitoring platform that detects content changes and notifies users by email. Useful for tracking updates on websites without RSS feeds.
+- **Description**: Web-based page monitoring platform that detects content changes and notifies users by email. Useful for tracking updates on sites without RSS feeds.
 
 ### ChangeDetect
 
@@ -1628,7 +1628,7 @@
 - **Best For**: Flexible page change monitoring with self-hosted control
 - **Input**: Target URL and optional monitoring rules/selectors
 - **Output**: Change alerts, snapshots, and webhook/integration notifications
-- **Description**: Open-source website change detection platform with both self-hosted and hosted options. Supports visual diffs, notifications, and automation workflows.
+- **Description**: Open-source site change detection platform with both self-hosted and hosted options. Supports visual diffs, notifications, and automation workflows.
 
 ### Google Trends
 
@@ -1686,7 +1686,7 @@
 - **Output**: Recon data, open ports, vulnerabilities, and footprinting results
 - **Description**: Automated reconnaissance and penetration testing framework combining multiple scanning tools for full-scope target enumeration.
 
-### Online Nikto scanner
+### Online Nikto scanner (Subcategories)
 
 - **URL**: <https://nikto.online/>
 - **Type**: Web
@@ -1723,10 +1723,10 @@
 - **Registration**: No
 - **API**: No
 - **CLI Install**: N/A
-- **Best For**: Historical tracking of website defacement incidents
+- **Best For**: Historical tracking of site defacement incidents
 - **Input**: Search terms, domains, or browsing archive filters
 - **Output**: Defacement records with timestamps and mirrored evidence
-- **Description**: Archive of reported website defacements and related incident metadata maintained by the Zone-H community.
+- **Description**: Archive of reported site defacements and related incident metadata maintained by the Zone-H community.
 
 ### RobotsDisallowed
 
@@ -1740,7 +1740,7 @@
 - **Best For**: robots.txt enumeration and directory discovery
 - **Input**: Used as wordlist input for directory brute-forcing
 - **Output**: Directory path wordlist
-- **Description**: Curated wordlist of top disallowed paths harvested from robots.txt files across high-traffic websites.
+- **Description**: Curated wordlist of top disallowed paths harvested from robots.txt files across high-traffic sites.
 
 ### Belati (T)
 
@@ -1782,7 +1782,7 @@
 - **Best For**: Visual site enumeration and credential identification
 - **Input**: URL lists
 - **Output**: Screenshots, headers, and default credential matches
-- **Description**: Open-source tool for automated website screenshotting, service header collection, and default credential identification.
+- **Description**: Open-source tool for automated site screenshotting, service header collection, and default credential identification.
 
 ### Hunting-New-Registered-Domains (T)
 
@@ -1812,7 +1812,7 @@
 - **Output**: Converted domain equivalents
 - **Description**: Verisign's IDN/Punycode bidirectional converter for translating international domain names to and from ASCII-compatible encoding.
 
-### Online Nikto scanner
+### Online Nikto scanner (Subcategories) #2
 
 - **URL**: <https://nikto.online/>
 - **Type**: Web

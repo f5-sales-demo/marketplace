@@ -25,10 +25,10 @@ with applicable laws and platform terms of service. Active scanning
 Read `skills/ip-address-recon/references/tools.md` for the complete
 list of 55 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | Nmap | `apt install nmap` / `brew install nmap` / `snap install nmap` | `nmap -sV -O 192.168.1.0/24` |
 | Scanless | `pip install scanless` / `git clone https://github.com/vesche/scanless && cd scanless && pip install .` | `scanless -t 203.0.113.141 -s yougetsignal` |
 | Masscan | `apt install masscan` / `brew install masscan` / `git clone https://github.com/robertdavidgraham/masscan && cd masscan && make` | `masscan -p1-65535 10.0.0.0/8 --rate=10000` |
@@ -44,7 +44,7 @@ list of 55 free tools in this category.
 - **Reputation** — Check IPs against blocklists, threat feeds, and honeypot data (IP Void, Grey Noise, Blocklist.de, DShield, FireHOL, Project Honey Pot, ExoneraTor, Criminal IP)
 - **ASN/BGP** — Map IP addresses to autonomous systems, routing prefixes, and peering relationships (ASlookup, Team Cymru, Hurricane Electric BGP Toolkit, PeeringDB, BGP Tools, CIDR Report)
 - **MAC Vendor** — Identify hardware manufacturer from MAC address OUI prefix
-- **Wireless** — Map WiFi networks, cell towers, and signal coverage (WiGLE, OpenCellid)
+- **Wireless** — Map Wi-Fi networks, cell towers, and signal coverage (WiGLE, OpenCellid)
 - **Network Visualization** — Capture and analyze network traffic, extract artifacts (Wireshark, NetworkMiner, Packet Total)
 
 ## Investigation Workflow
@@ -64,6 +64,7 @@ For copy-paste-ready command sequences with output parsing, see:
 `skills/osint-catalog/references/investigation-pipelines.md` — Section 4: IP Address Investigation Pipeline
 
 Quick one-liner:
+
 ```bash
 curl -s "https://ipinfo.io/TARGET/json" | jq '{ip,city,region,country,org}' && whois TARGET | grep -iE 'netname|orgname|country' | head -5
 ```
@@ -77,12 +78,14 @@ curl -s "https://ipinfo.io/TARGET/json" | jq '{ip,city,region,country,org}' && w
 ## OPSEC Notes
 
 **Passive (no target interaction):**
+
 - WHOIS lookups, geolocation queries, ASN/BGP lookups
 - Reputation checks against blocklists and threat feeds
 - Reverse IP / neighbor domain lookups via third-party databases
 - Cached scan data from Shodan, Censys, Netlas (querying their index, not the target)
 
 **Active (direct target interaction -- requires authorization):**
+
 - Port scanning with Nmap, Masscan, or online port scanners
 - CloudFail origin-IP enumeration against Cloudflare-protected targets
 - Packet capture with Wireshark/tshark on networks you control

@@ -157,14 +157,22 @@ discover_mx_provider() {
   local mx
   mx=$(dig "$domain" MX +short 2>/dev/null | head -1)
   local provider="Unknown"
-  if echo "$mx" | grep -qi "google\|gmail\|googlemail"; then provider="Google Workspace";
-  elif echo "$mx" | grep -qi "outlook\|microsoft\|protection.outlook"; then provider="Microsoft 365";
-  elif echo "$mx" | grep -qi "pphosted\|proofpoint"; then provider="Proofpoint";
-  elif echo "$mx" | grep -qi "mimecast"; then provider="Mimecast";
-  elif echo "$mx" | grep -qi "barracuda"; then provider="Barracuda";
-  elif echo "$mx" | grep -qi "messagelabs\|symantec"; then provider="Symantec";
-  elif echo "$mx" | grep -qi "forcepoint"; then provider="Forcepoint";
-  elif echo "$mx" | grep -qi "sophos"; then provider="Sophos";
+  if echo "$mx" | grep -qi "google\|gmail\|googlemail"; then
+    provider="Google Workspace"
+  elif echo "$mx" | grep -qi "outlook\|microsoft\|protection.outlook"; then
+    provider="Microsoft 365"
+  elif echo "$mx" | grep -qi "pphosted\|proofpoint"; then
+    provider="Proofpoint"
+  elif echo "$mx" | grep -qi "mimecast"; then
+    provider="Mimecast"
+  elif echo "$mx" | grep -qi "barracuda"; then
+    provider="Barracuda"
+  elif echo "$mx" | grep -qi "messagelabs\|symantec"; then
+    provider="Symantec"
+  elif echo "$mx" | grep -qi "forcepoint"; then
+    provider="Forcepoint"
+  elif echo "$mx" | grep -qi "sophos"; then
+    provider="Sophos"
   fi
   echo "EMAIL_PROVIDER: $provider ($mx)"
 }
@@ -174,15 +182,24 @@ discover_ns_provider() {
   local ns
   ns=$(dig "$domain" NS +short 2>/dev/null | head -1)
   local provider="Unknown"
-  if echo "$ns" | grep -qi "cloudflare"; then provider="Cloudflare";
-  elif echo "$ns" | grep -qi "awsdns\|amazonaws"; then provider="AWS Route53";
-  elif echo "$ns" | grep -qi "google\|googledomains"; then provider="Google Cloud DNS";
-  elif echo "$ns" | grep -qi "azure\|microsoft"; then provider="Azure DNS";
-  elif echo "$ns" | grep -qi "akam"; then provider="Akamai";
-  elif echo "$ns" | grep -qi "ultradns\|neustar"; then provider="Neustar/UltraDNS";
-  elif echo "$ns" | grep -qi "domaincontrol\|godaddy"; then provider="GoDaddy";
-  elif echo "$ns" | grep -qi "registrar-servers\|namecheap"; then provider="Namecheap";
-  elif echo "$ns" | grep -qi "dynect\|oracle"; then provider="Oracle/Dyn";
+  if echo "$ns" | grep -qi "cloudflare"; then
+    provider="Cloudflare"
+  elif echo "$ns" | grep -qi "awsdns\|amazonaws"; then
+    provider="AWS Route53"
+  elif echo "$ns" | grep -qi "google\|googledomains"; then
+    provider="Google Cloud DNS"
+  elif echo "$ns" | grep -qi "azure\|microsoft"; then
+    provider="Azure DNS"
+  elif echo "$ns" | grep -qi "akam"; then
+    provider="Akamai"
+  elif echo "$ns" | grep -qi "ultradns\|neustar"; then
+    provider="Neustar/UltraDNS"
+  elif echo "$ns" | grep -qi "domaincontrol\|godaddy"; then
+    provider="GoDaddy"
+  elif echo "$ns" | grep -qi "registrar-servers\|namecheap"; then
+    provider="Namecheap"
+  elif echo "$ns" | grep -qi "dynect\|oracle"; then
+    provider="Oracle/Dyn"
   fi
   echo "DNS_PROVIDER: $provider ($ns)"
 }
@@ -196,7 +213,7 @@ echo ""
 
 # CSV header
 echo "Company,Domain,Vertical,Country,Ticker,SEC,WHOIS,DNS_Records,TXT_Insights,Subdomains,IP,IP_Geo,Email_Provider,DNS_Provider" \
-  > "$OUTDIR/summary.csv"
+  >"$OUTDIR/summary.csv"
 
 TOTAL=0
 SEC_FOUND=0
@@ -204,7 +221,7 @@ WHOIS_FOUND=0
 HIGH_SUBDOMAIN=0
 
 for entry in "${COMPANIES[@]}"; do
-  IFS='|' read -r company domain vertical country ticker <<< "$entry"
+  IFS='|' read -r company domain vertical country ticker <<<"$entry"
   TOTAL=$((TOTAL + 1))
 
   echo "--- [$TOTAL/${#COMPANIES[@]}] $company ($domain) — $vertical ---"
@@ -216,31 +233,31 @@ for entry in "${COMPANIES[@]}"; do
   # Run all discovery in sequence (respecting rate limits)
   echo "  SEC EDGAR..."
   sec_result=$(discover_sec "$company" "$ticker" 2>/dev/null)
-  echo "$sec_result" > "$CDIR/sec.txt"
+  echo "$sec_result" >"$CDIR/sec.txt"
   sec_status=$(echo "$sec_result" | grep "SEC_STATUS:" | cut -d: -f2)
   [ "$sec_status" = "found" ] && SEC_FOUND=$((SEC_FOUND + 1))
 
   echo "  WHOIS..."
   whois_result=$(discover_whois "$domain" 2>/dev/null)
-  echo "$whois_result" > "$CDIR/whois.txt"
+  echo "$whois_result" >"$CDIR/whois.txt"
   whois_status=$(echo "$whois_result" | grep "WHOIS_STATUS:" | cut -d: -f2)
   [ "$whois_status" = "found" ] && WHOIS_FOUND=$((WHOIS_FOUND + 1))
 
   echo "  DNS..."
   dns_result=$(discover_dns "$domain" 2>/dev/null)
-  echo "$dns_result" > "$CDIR/dns.txt"
+  echo "$dns_result" >"$CDIR/dns.txt"
   dns_records=$(echo "$dns_result" | grep "DNS_RECORDS:" | sed 's/DNS_RECORDS: //')
   txt_insights=$(echo "$dns_result" | grep "TXT_INSIGHTS:" | sed 's/TXT_INSIGHTS: //')
 
   echo "  Subdomains..."
   sub_result=$(discover_subdomains "$domain" 2>/dev/null)
-  echo "$sub_result" > "$CDIR/subdomains.txt"
+  echo "$sub_result" >"$CDIR/subdomains.txt"
   sub_count=$(echo "$sub_result" | grep "SUBDOMAIN_COUNT:" | awk '{print $2}')
   [ "${sub_count:-0}" -gt 100 ] && HIGH_SUBDOMAIN=$((HIGH_SUBDOMAIN + 1))
 
   echo "  IP & Geo..."
   ip_result=$(discover_ip "$domain" 2>/dev/null)
-  echo "$ip_result" > "$CDIR/ip.txt"
+  echo "$ip_result" >"$CDIR/ip.txt"
   primary_ip=$(echo "$ip_result" | grep "PRIMARY_IP:" | sed 's/PRIMARY_IP: //')
   ip_geo=$(echo "$ip_result" | grep "IP_GEO:" | sed 's/IP_GEO: //')
 
@@ -258,10 +275,10 @@ for entry in "${COMPANIES[@]}"; do
 
   # CSV row
   echo "\"$company\",\"$domain\",\"$vertical\",\"$country\",\"$ticker\",\"$sec_status\",\"$whois_status\",\"$dns_records\",\"$txt_insights\",\"${sub_count:-0}\",\"$primary_ip\",\"$ip_geo\",\"$email_provider\",\"$dns_provider\"" \
-    >> "$OUTDIR/summary.csv"
+    >>"$OUTDIR/summary.csv"
 
   echo ""
-  sleep 0.5  # rate limit courtesy between companies
+  sleep 0.5 # rate limit courtesy between companies
 done
 
 # ── Batch Summary ───────────────────────────────────────────

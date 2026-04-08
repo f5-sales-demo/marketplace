@@ -5,7 +5,7 @@
 
 ---
 
-### AYI.com
+## AYI.com
 
 - **URL**: <https://www.ayichat.com>
 - **Type**: API
@@ -19,7 +19,7 @@
 - **Output**: User profiles, chat sessions, and location-based matches
 - **Description**: Online community for real-time meeting and chatting with singles across web and mobile platforms.
 
-### Plenty Of Fish.com
+## Plenty Of Fish.com
 
 - **URL**: <https://www.pof.com/>
 - **Type**: Web
@@ -33,7 +33,7 @@
 - **Output**: Suggested profiles and messaging connections
 - **Description**: Freemium dating platform with large membership and profile-based discovery through filters and recommendations.
 
-### Farmers Only
+## Farmers Only
 
 - **URL**: <https://www.farmersonly.com/>
 - **Type**: Web
@@ -47,7 +47,7 @@
 - **Output**: Filtered profile matches and messaging opportunities
 - **Description**: Niche dating service for rural communities including farmers and ranchers with lifestyle-focused matching.
 
-### Tinder (R)
+## Tinder (R)
 
 - **URL**: <https://tinder.com/>
 - **Type**: Web
@@ -61,7 +61,7 @@
 - **Output**: Swipe matches, profile suggestions, and messaging threads
 - **Description**: Swipe-based dating platform emphasizing quick location-aware matching and in-app messaging.
 
-### Bumble (R)
+## Bumble (R)
 
 - **URL**: <https://bumble.com/>
 - **Type**: Web
@@ -75,7 +75,7 @@
 - **Output**: Suggested matches and app-based messaging connections
 - **Description**: Swipe-based dating app with women-first messaging rules and location-based recommendations.
 
-### Tantan (R)
+## Tantan (R)
 
 - **URL**: <https://int.tantanapp.com>
 - **Type**: Web
@@ -89,7 +89,7 @@
 - **Output**: Suggested matches, profile discovery, and messaging
 - **Description**: Swipe-based Asian-focused dating app with geolocation and algorithmic profile recommendations.
 
-### AdultFriendFinder
+## AdultFriendFinder
 
 - **URL**: <https://www.adultfriendfinder.com>
 - **Type**: Web
@@ -103,7 +103,7 @@
 - **Output**: Browsable profiles, messages, and preference-matched results
 - **Description**: Adult-oriented social and dating platform with searchable profiles and preference-driven discovery.
 
-### BeautifulPeople.com
+## BeautifulPeople.com
 
 - **URL**: <https://www.beautifulpeople.com/en-US>
 - **Type**: Web
@@ -117,7 +117,7 @@
 - **Output**: Verified profile access, match suggestions, and messaging
 - **Description**: Dating community with verification-oriented onboarding and profile access tied to membership standards.
 
-### Badoo
+## Badoo
 
 - **URL**: <https://badoo.com>
 - **Type**: Web
@@ -131,7 +131,7 @@
 - **Output**: Suggested profiles, swipe matches, and direct messages
 - **Description**: Global social dating platform with swipe-based matching, nearby discovery, and in-app messaging.
 
-### Spark.com
+## Spark.com
 
 - **URL**: <https://spark.com>
 - **Type**: Web
@@ -145,7 +145,7 @@
 - **Output**: Recommended profiles, search results, and messaging
 - **Description**: Long-running relationship-focused dating service with profile filtering and compatibility-oriented matching tools.
 
-### Meetup
+## Meetup
 
 - **URL**: <https://www.meetup.com/>
 - **Type**: API
@@ -159,7 +159,7 @@
 - **Output**: Group listings, event calendars, and participant profiles
 - **Description**: Community event platform for discovering local groups and activities that can support social and relationship networking.
 
-### Hinge
+## Hinge
 
 - **URL**: <https://hinge.co/en-gb>
 - **Type**: Web

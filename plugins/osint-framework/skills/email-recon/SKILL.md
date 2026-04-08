@@ -25,10 +25,10 @@ with applicable laws and platform terms of service.
 Read `skills/email-recon/references/tools.md` for the complete
 list of 28 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | theHarvester | `pip install theHarvester` | `theHarvester -d domain.com -b all` |
 | holehe | `pip install holehe` | `holehe history-97817c0c4999@example.com` |
 | h8mail | `pip install h8mail` | `h8mail -t history-97817c0c4999@example.com` |
@@ -83,6 +83,7 @@ For copy-paste-ready command sequences with output parsing, see:
 `skills/osint-catalog/references/investigation-pipelines.md` — Section 2: Email Investigation Pipeline
 
 Quick one-liner:
+
 ```bash
 holehe TARGET --no-color 2>/dev/null | grep '^\[+\]'
 ```

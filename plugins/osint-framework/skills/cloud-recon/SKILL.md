@@ -31,10 +31,10 @@ you do not own.
 Read `skills/cloud-recon/references/tools.md` for the complete
 list of 23 free tools in this category.
 
-## Key CLI Tools
+## Key command-line tools
 
 | Tool | Install | Usage |
-|------|---------|-------|
+| ------ | --------- | ------- |
 | AWSBucketDump | `git clone https://github.com/jordanpotti/AWSBucketDump.git && pip install -r AWSBucketDump/requirements.txt` | `python AWSBucketDump.py -l buckets.txt -g keywords.txt -D` |
 | cloud_enum | `git clone https://github.com/initstring/cloud_enum.git && pip install -r cloud_enum/requirements.txt` | `python3 cloud_enum.py -k company-name` |
 | Subfinder | `go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest` | `subfinder -d target.com` |
@@ -110,7 +110,7 @@ Agent(
 ## Cross-Category Pivots
 
 | Finding | Pivot To | Reason |
-|---------|----------|--------|
+| --------- | ---------- | -------- |
 | Cloud-hosted subdomain discovered | `domain-recon` | Full DNS/WHOIS/certificate analysis |
 | Cloud endpoint IP resolved | `ip-address-recon` | Geolocation, ASN, reverse DNS |
 | Email addresses in bucket objects | `email-recon` | Validate and investigate leaked emails |
@@ -120,10 +120,12 @@ Agent(
 ## OPSEC Notes
 
 **Passive tools** (no direct target interaction):
+
 - Subfinder, Sublist3r, theHarvester, BucketLoot, Checkov (local IaC analysis)
 - Public Buckets (web search of pre-indexed data)
 
 **Active tools** (directly probe target infrastructure):
+
 - cloud_enum, AWSBucketDump, GCPBucketBrute, goblob, lazys3, S3Scanner
 - AADInternals, MicroBurst, ROADtools, Stormspotter
 - Prowler, ScoutSuite, Cloud Custodian, Steampipe

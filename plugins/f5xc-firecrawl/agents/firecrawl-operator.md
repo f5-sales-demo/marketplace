@@ -104,11 +104,11 @@ curl -sf --max-time 60 http://localhost:3002/v1/scrape \
 
 **Available formats** (in the `formats` array):
 
-- `markdown` — Clean markdown content (default, most useful)
+- `markdown` — Clean Markdown content (default, most useful)
 - `html` — Parsed HTML
 - `rawHtml` — Raw unprocessed HTML
 - `links` — All links found on the page
-- `screenshot` — Base64 screenshot image
+- `screenshot` — base64 screenshot image
 
 **Optional parameters:**
 
@@ -184,7 +184,7 @@ curl -sf --max-time 30 http://localhost:3002/v1/batch/scrape \
 | Parameter | Type | Required | Purpose |
 | ------------- | -------- | ---------- | --------- |
 | `urls` | string[] | yes | List of URLs to scrape |
-| `formats` | string[] | no | Output formats (default: markdown) |
+| `formats` | string[] | no | Output formats (default: Markdown) |
 | `onlyMainContent` | boolean | no | Strip nav/footer (default: true) |
 
 **Response:**
@@ -337,7 +337,7 @@ curl -sf http://localhost:3002/v1/crawl/${CRAWL_ID} | jq '.'
 ```
 
 If the user wants full content of specific pages, output the complete
-markdown for those pages.
+Markdown for those pages.
 
 ---
 
@@ -406,7 +406,7 @@ Report any errors with their URLs and error messages.
 
 ## Protocol: MAP
 
-Discover all URLs on a website without scraping content. Synchronous.
+Discover all URLs on a site without scraping content. Synchronous.
 
 ### Map: Health check
 
@@ -624,7 +624,7 @@ sudo rabbitmqctl status
 
 ## Protocol: LLMSTXT
 
-Generate an llms.txt file for a website. This creates a machine-readable
+Generate an llms.txt file for a site. This creates a machine-readable
 summary of a site optimized for LLM consumption. Async — returns a job ID.
 
 ### LLMSTXT: Health check
@@ -644,7 +644,7 @@ curl -sf --max-time 30 http://localhost:3002/v1/llmstxt \
 
 | Parameter | Type | Required | Purpose |
 | ------------- | -------- | ---------- | --------- |
-| `url` | string | yes | Target website URL |
+| `url` | string | yes | Target site URL |
 | `maxUrls` | integer | no | Max URLs to process |
 | `showFullText` | boolean | no | Include full content in output |
 
@@ -718,6 +718,6 @@ The standard polling pattern:
 - Keep output concise — summarize large content unless full output requested
 - For scrape results over 5000 characters, show first 3000 chars with a note about truncation
 - Always include metadata (title, URL, status code) when available
-- Format links as markdown links: `[text](url)`
+- Format links as Markdown links: `[text](url)`
 - Use fenced code blocks for HTML/raw content
 - For batch/crawl results, show summaries per page unless full content is requested

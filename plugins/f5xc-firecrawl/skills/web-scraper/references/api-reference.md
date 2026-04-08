@@ -34,8 +34,8 @@ Scrape a single URL and extract content. Synchronous.
 
 | Field | Type | Required | Default | Description |
 | ------- | -------- | ---------- | --------- | ------------- |
-| url | string | yes | — | Target URL to scrape |
-| formats | string[] | no | ["markdown"] | Output formats: markdown, html, rawHtml, links, screenshot |
+| URL | string | yes | — | Target URL to scrape |
+| formats | string[] | no | ["markdown"] | Output formats: Markdown, HTML, rawHtml, links, screenshot |
 | onlyMainContent | boolean | no | true | Strip navigation, footer, sidebar |
 | includeTags | string[] | no | — | Only keep content in these HTML tags |
 | excludeTags | string[] | no | — | Remove content in these HTML tags |
@@ -82,7 +82,7 @@ Scrape multiple URLs in one request. Async — returns job ID.
 
 | Field | Type | Required | Default | Description |
 | ------- | -------- | ---------- | --------- | ------------- |
-| urls | string[] | yes | — | List of URLs to scrape |
+| URLs | string[] | yes | — | List of URLs to scrape |
 | formats | string[] | no | ["markdown"] | Output formats |
 | onlyMainContent | boolean | no | true | Strip nav/footer |
 
@@ -96,7 +96,7 @@ Scrape multiple URLs in one request. Async — returns job ID.
 }
 ```
 
-### GET /v1/batch/scrape/:id
+### GET /v1/batch/scrape/:ID
 
 Check batch scrape job status.
 
@@ -136,7 +136,7 @@ Start an async crawl job for multiple pages.
 
 | Field | Type | Required | Default | Description |
 | ------- | -------- | ---------- | --------- | ------------- |
-| url | string | yes | — | Starting URL |
+| URL | string | yes | — | Starting URL |
 | limit | integer | no | 10 | Max pages to crawl |
 | maxDepth | integer | no | — | Maximum link depth |
 | includePaths | string[] | no | — | URL path patterns to include |
@@ -155,7 +155,7 @@ Start an async crawl job for multiple pages.
 }
 ```
 
-### GET /v1/crawl/:id
+### GET /v1/crawl/:ID
 
 Check crawl job status and retrieve results.
 
@@ -178,7 +178,7 @@ Check crawl job status and retrieve results.
 }
 ```
 
-### DELETE /v1/crawl/:id
+### DELETE /v1/crawl/:ID
 
 Cancel a running crawl job.
 
@@ -210,7 +210,7 @@ Get error details for a crawl job.
 
 ### POST /v1/map
 
-Discover all URLs on a website without scraping content. Synchronous.
+Discover all URLs on a site without scraping content. Synchronous.
 
 **Request:**
 
@@ -225,7 +225,7 @@ Discover all URLs on a website without scraping content. Synchronous.
 
 | Field | Type | Required | Default | Description |
 | ------- | -------- | ---------- | --------- | ------------- |
-| url | string | yes | — | Target website |
+| URL | string | yes | — | Target site |
 | search | string | no | — | Filter URLs by keyword |
 | includeSubdomains | boolean | no | false | Include subdomain URLs |
 | limit | integer | no | 5000 | Max URLs to return |
@@ -312,7 +312,7 @@ Requires OPENAI_BASE_URL and OPENAI_API_KEY configured.
 
 | Field | Type | Required | Default | Description |
 | ------- | -------- | ---------- | --------- | ------------- |
-| urls | string[] | yes | — | URLs to extract from (supports wildcards) |
+| URLs | string[] | yes | — | URLs to extract from (supports wildcards) |
 | prompt | string | no* | — | What to extract (natural language) |
 | schema | object | no* | — | JSON schema for structured output |
 | enableWebSearch | boolean | no | false | Expand beyond specified URLs |
@@ -325,7 +325,7 @@ Requires OPENAI_BASE_URL and OPENAI_API_KEY configured.
 { "success": true, "id": "<extract-job-id>" }
 ```
 
-### GET /v1/extract/:id
+### GET /v1/extract/:ID
 
 Check extract job status.
 
@@ -343,7 +343,7 @@ Check extract job status.
 
 ### POST /v1/llmstxt
 
-Generate an llms.txt file for a website. Async — returns job ID.
+Generate an llms.txt file for a site. Async — returns job ID.
 
 **Request:**
 
@@ -357,7 +357,7 @@ Generate an llms.txt file for a website. Async — returns job ID.
 
 | Field | Type | Required | Default | Description |
 | ------- | -------- | ---------- | --------- | ------------- |
-| url | string | yes | — | Target website URL |
+| URL | string | yes | — | Target site URL |
 | maxUrls | integer | no | — | Max URLs to process |
 | showFullText | boolean | no | false | Include full content |
 
@@ -367,7 +367,7 @@ Generate an llms.txt file for a website. Async — returns job ID.
 { "success": true, "id": "<llmstxt-job-id>" }
 ```
 
-### GET /v1/llmstxt/:id
+### GET /v1/llmstxt/:ID
 
 Check llms.txt job status.
 
@@ -389,7 +389,7 @@ Check llms.txt job status.
 | Firecrawl API | localhost:3002 | Main API |
 | Playwright | localhost:3000 | JavaScript rendering |
 | Redis | localhost:6379 | Job queue |
-| PostgreSQL | /var/run/postgresql | Crawl persistence |
+| PostgreSQL | /var/run/PostgreSQL | Crawl persistence |
 | LiteLLM proxy | OPENAI_BASE_URL | LLM for extract (optional) |
 
 ## Differences from Cloud API

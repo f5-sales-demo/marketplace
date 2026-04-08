@@ -45,6 +45,7 @@ Read the category's reference file directly:
 See `references/tree-index.md` for the complete index.
 
 Key categories:
+
 - **username-recon** — Username enumeration (18 tools)
 - **email-recon** — Email search, verification, breach data (28 tools)
 - **domain-recon** — WHOIS, DNS, subdomains, certificates (131 tools)

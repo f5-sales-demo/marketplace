@@ -26,7 +26,7 @@ use complies with applicable laws and regulations.
 ### By Target Type
 
 | Target | Primary Skill | Secondary Skills |
-|--------|--------------|------------------|
+| -------- | -------------- | ------------------ |
 | Username/handle | `username-recon` | `social-networks`, `messaging-comms` |
 | Email address | `email-recon` | `username-recon`, `people-search` |
 | Domain name | `domain-recon` | `ip-address-recon`, `threat-intelligence` |
@@ -42,7 +42,7 @@ use complies with applicable laws and regulations.
 ### By Intent
 
 | Intent | Skill |
-|--------|-------|
+| -------- | ------- |
 | Browse tool catalog | `osint-catalog` |
 | Search for tools | `osint-catalog` |
 | Encode/decode data | `encoding-decoding` |

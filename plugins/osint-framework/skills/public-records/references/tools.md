@@ -42,7 +42,7 @@
 - **API**: No
 - **CLI Install**: N/A
 - **Best For**: Neighborhood demographics and safety
-- **Input**: Address or zip code
+- **Input**: Address or ZIP code
 - **Output**: Crime stats, schools, community data
 - **Description**: Neighborhood and property statistics including crime data, schools, and community information. Aggregates public data into neighborhood profiles.
 
@@ -170,7 +170,7 @@
 - **Best For**: National sex offender search
 - **Input**: Name, address, jurisdiction
 - **Output**: Registry info, photo, address
-- **Description**: Official National Sex Offender Public Website aggregating state registry data. Comprehensive multi-state sex offender search tool.
+- **Description**: Official National Sex Offender Public site aggregating state registry data. Comprehensive multi-state sex offender search tool.
 
 ### Mugshots.com
 
@@ -422,7 +422,7 @@
 - **Best For**: Death record and obituary lookup
 - **Input**: Name, location, date range
 - **Output**: Obituaries, death certificates, dates
-- **Description**: Directory of online death indexes, obituaries, and cemetery records. Aggregates links to state and national obituary databases.
+- **Description**: Directory of online death indices, obituaries, and cemetery records. Aggregates links to state and national obituary databases.
 
 ### Find A Grave
 

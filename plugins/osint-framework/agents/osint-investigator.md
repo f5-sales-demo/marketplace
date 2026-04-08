@@ -16,7 +16,7 @@ multi-tool intelligence-gathering workflows against specified targets.
 
 ## Why This Agent Exists
 
-OSINT investigations involve running multiple CLI tools and querying
+OSINT investigations involve running multiple command-line tools and querying
 web resources that produce verbose output. Running these in a subagent
 keeps the main session context lean. The main session only receives
 the structured investigation report.
@@ -68,7 +68,7 @@ After EVERY tool execution, create entities and relationships:
 ### Entity Creation Patterns
 
 | Tool Output | Entity Type | Example |
-|------------|-------------|---------|
+| ------------ | ------------- | --------- |
 | GitHub user profile | person + username | `osint_entity_add "person" "$NAME" --tool github-api` |
 | WHOIS domain | domain | `osint_entity_add "domain" "$DOMAIN" --tool whois` |
 | dig A record | ip | `osint_entity_add "ip" "$IP" --tool dig` |
@@ -80,7 +80,7 @@ After EVERY tool execution, create entities and relationships:
 ### Relationship Creation Patterns
 
 | Discovery | Relationship | Example |
-|-----------|-------------|---------|
+| ----------- | ------------- | --------- |
 | Person works at company | works_at | `osint_rel_add "$P_ID" "$C_ID" "works_at"` |
 | Person owns username | owns | `osint_rel_add "$P_ID" "$U_ID" "owns"` |
 | Company owns domain | owns | `osint_rel_add "$C_ID" "$D_ID" "owns"` |
@@ -503,6 +503,7 @@ Then validate found email addresses with the **Email** plan (2B).
 #### Step 4: Public Records (PASSIVE)
 
 Query free web resources via WebSearch and WebFetch:
+
 - Court records (PACER, state court sites)
 - Property records (county assessor sites)
 - Business filings (state secretary of state)
@@ -510,11 +511,12 @@ Query free web resources via WebSearch and WebFetch:
 
 #### Step 5: Social Media Deep Dive (ACTIVE)
 
-For each discovered profile, use curl or WebFetch to extract:
+For each discovered profile, use cURL or WebFetch to extract:
+
 - Bio text, location, join date
 - Follower/following counts
 - Recent public posts or activity
-- Links to other profiles or websites
+- Links to other profiles or sites
 
 ---
 
@@ -588,14 +590,14 @@ cat /tmp/osint-username-emails.txt /tmp/osint-holehe.txt 2>/dev/null | grep -oP 
 When a primary tool is not installed, use these alternatives in order:
 
 | Primary Tool | Fallback 1 | Fallback 2 | Fallback 3 |
-|-------------|-----------|-----------|-----------|
-| `sherlock` | `maigret` | curl + manual platform checks | WebSearch for username |
-| `maigret` | `sherlock` | curl + manual platform checks | WebSearch for username |
+| ------------- | ----------- | ----------- | ----------- |
+| `sherlock` | `maigret` | cURL + manual platform checks | WebSearch for username |
+| `maigret` | `sherlock` | cURL + manual platform checks | WebSearch for username |
 | `subfinder` | `amass enum -passive` | `curl crt.sh API` | `dig` brute-force common subdomains |
 | `amass` | `subfinder` | `curl crt.sh API` | `dig` brute-force common subdomains |
-| `nmap` | `masscan` | bash `/dev/tcp` port probe | Shodan API cached data |
-| `httpx` | curl + loop over targets | WebFetch per URL | skip |
-| `nuclei` | curl header inspection | WebFetch + manual checks | skip |
+| `nmap` | `masscan` | Bash `/dev/tcp` port probe | Shodan API cached data |
+| `httpx` | cURL + loop over targets | WebFetch per URL | skip |
+| `nuclei` | cURL header inspection | WebFetch + manual checks | skip |
 | `holehe` | WebSearch for email references | manual password-reset probing (caution) | skip |
 | `whois` | `curl whois.iana.org` | WebSearch "whois TARGET" | skip |
 | `dig` | `nslookup` | `host` command | `curl dns.google/resolve?name=TARGET` |
@@ -610,6 +612,7 @@ provides equivalent coverage.
 ## OPSEC Classification
 
 Label every tool invocation:
+
 - **PASSIVE**: No direct contact with target infrastructure (WHOIS
   via third-party, cached DNS, CT logs, Shodan cached data)
 - **ACTIVE**: Direct contact with target (port scanning, direct HTTP
@@ -651,27 +654,27 @@ exposure assessment. Lead with the most significant finding.]
 
 ### Identity & Ownership
 | Finding | Value | Source | Confidence | OPSEC |
-|---------|-------|--------|------------|-------|
+| --------- | ------- | -------- | ------------ | ------- |
 | [field] | [value] | [tool/URL] | High/Med/Low | Passive/Active |
 
 ### Infrastructure
 | Finding | Value | Source | Confidence | OPSEC |
-|---------|-------|--------|------------|-------|
+| --------- | ------- | -------- | ------------ | ------- |
 | [field] | [value] | [tool/URL] | High/Med/Low | Passive/Active |
 
 ### Online Presence
 | Finding | Value | Source | Confidence | OPSEC |
-|---------|-------|--------|------------|-------|
+| --------- | ------- | -------- | ------------ | ------- |
 | [field] | [value] | [tool/URL] | High/Med/Low | Passive/Active |
 
 ### Security & Exposure
 | Finding | Value | Source | Confidence | OPSEC |
-|---------|-------|--------|------------|-------|
+| --------- | ------- | -------- | ------------ | ------- |
 | [field] | [value] | [tool/URL] | High/Med/Low | Passive/Active |
 
 ### Relationships & Pivots
 | Finding | Value | Source | Confidence | OPSEC |
-|---------|-------|--------|------------|-------|
+| --------- | ------- | -------- | ------------ | ------- |
 | [field] | [value] | [tool/URL] | High/Med/Low | Passive/Active |
 
 ---
@@ -679,7 +682,7 @@ exposure assessment. Lead with the most significant finding.]
 ## Pivot Data Discovered
 
 | Data Type | Value | Discovered From | Recommended Next Step |
-|-----------|-------|-----------------|----------------------|
+| ----------- | ------- | ----------------- | ---------------------- |
 | Email | [addr] | [source] | Run email-recon |
 | Username | [name] | [source] | Run username-recon |
 | IP | [addr] | [source] | Run ip-address-recon |
@@ -689,7 +692,7 @@ exposure assessment. Lead with the most significant finding.]
 
 ## Tools Executed
 | Tool | Version | Type | OPSEC | Result | Notes |
-|------|---------|------|-------|--------|-------|
+| ------ | --------- | ------ | ------- | -------- | ------- |
 | [name] | [ver] | CLI/Web/API | Passive/Active | Success/Failed/Skipped | [fallback used?] |
 
 ---
@@ -710,7 +713,7 @@ exposure assessment. Lead with the most significant finding.]
 ## Error Recovery
 
 | Situation | Action |
-|-----------|--------|
+| ----------- | -------- |
 | Tool not installed | Use fallback chain (Phase 5), note in Tools Executed table |
 | Tool exits non-zero | Capture stderr, note error in report, try fallback |
 | Web resource returns 4xx/5xx | Try alternative API endpoint, note in report |

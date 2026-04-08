@@ -422,7 +422,7 @@
 - **API**: No
 - **CLI Install**: N/A
 
-### Intel Techniques - Hiding from the Internet
+### Intel Techniques - Hiding from the internet
 
 - **URL**: <https://inteltechniques.com/data/workbook.pdf>
 - **Type**: Web

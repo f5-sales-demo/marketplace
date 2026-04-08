@@ -33,7 +33,7 @@ the main session context.
 | **Crawl Cancel** | Cancel a running crawl job | `DELETE /v1/crawl/:id` | Sync |
 | **Crawl Active** | List all active crawl jobs | `GET /v1/crawl/active` | Sync |
 | **Crawl Errors** | Get error details for a crawl | `GET /v1/crawl/:id/errors` | Sync |
-| **Map** | Discover all URLs on a website | `POST /v1/map` | Sync |
+| **Map** | Discover all URLs on a site | `POST /v1/map` | Sync |
 | **Search** | Web search with optional scraping | `POST /v1/search` | Sync |
 | **Extract** | LLM-powered structured data extraction | `POST /v1/extract` | Async |
 | **llms.txt** | Generate llms.txt for a site | `POST /v1/llmstxt` | Async |
@@ -139,14 +139,14 @@ Wait for the agent's response and relay it directly to the user.
 
 - "scrape this URL" / "scrape https://..."
 - "batch scrape" / "scrape these URLs" / "scrape multiple pages"
-- "crawl this website" / "crawl https://..."
+- "crawl this site" / "crawl https://..."
 - "cancel the crawl" / "stop the crawl" / "list active crawls"
 - "map this site" / "find all URLs on"
 - "search for" / "search the web for" / "web search"
 - "extract data from" / "extract structured data" / "pull fields from"
 - "generate llms.txt" / "create llms.txt" / "make an llms.txt"
-- "convert this page to markdown"
-- "fetch page content" / "get markdown from"
+- "convert this page to Markdown"
+- "fetch page content" / "get Markdown from"
 - Any request to read, extract, or search web content
 - "research this" / "find out if" / "does [product] support"
 - "is [feature] available in" / "answer this question"

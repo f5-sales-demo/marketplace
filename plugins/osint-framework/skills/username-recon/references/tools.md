@@ -22,7 +22,7 @@
 - **Best For**: Quick web-based username enumeration across social media, forums, gaming platforms, and professional networks
 - **Input**: Username
 - **Output**: List of sites where the username exists with direct profile links
-- **Description**: Free web-based OSINT username enumeration tool that searches for a specified username across 1500+ websites and platforms simultaneously, returning direct links to matching profiles.
+- **Description**: Free web-based OSINT username enumeration tool that searches for a specified username across 1500+ sites and platforms simultaneously, returning direct links to matching profiles.
 
 ### WhatsMyName (T)
 
@@ -36,7 +36,7 @@
 - **Best For**: Username enumeration using community-maintained site detection data
 - **Input**: Username
 - **Output**: List of sites where the username exists, based on HTTP response pattern matching
-- **Description**: OSINT project maintaining a curated JSON database of website detection patterns for username enumeration. Web interface available at whatsmyname.app.
+- **Description**: OSINT project maintaining a curated JSON database of site detection patterns for username enumeration. Web interface available at whatsmyname.app.
 
 ### Sylva Identity Discovery (T)
 
@@ -50,7 +50,7 @@
 - **Best For**: Username enumeration with identity branching
 - **Input**: Username
 - **Output**: Linked accounts and identities across platforms
-- **Description**: Open-source CLI tool for username and identity discovery with branch discovery to expand searches as additional linked identities are uncovered.
+- **Description**: Open-source command-line tool for username and identity discovery with branch discovery to expand searches as additional linked identities are uncovered.
 
 ### Sherlock (T)
 
@@ -64,7 +64,7 @@
 - **Best For**: Mass username enumeration across 400+ sites
 - **Input**: Username(s)
 - **Output**: List of discovered profile URLs across social networks
-- **Description**: Python CLI tool that hunts down social media accounts by username across 400+ social networks. Supports Tor routing, proxy configuration, and CSV/XLSX export.
+- **Description**: Python command-line tool that hunts down social media accounts by username across 400+ social networks. Supports Tor routing, proxy configuration, and CSV/XLSX export.
 
 ### Namechk
 
@@ -120,7 +120,7 @@
 - **Best For**: Deep investigation of GitHub user profiles and email-to-account mapping
 - **Input**: GitHub username or email address
 - **Output**: Profile history, linked emails, SSH keys, repository analysis, JSON export
-- **Description**: OSINT CLI tool for investigating GitHub profiles. Tracks username/name history, maps emails to accounts, extracts SSH public keys, and exports findings as JSON.
+- **Description**: OSINT command-line tool for investigating GitHub profiles. Tracks username/name history, maps emails to accounts, extracts SSH public keys, and exports findings as JSON.
 
 ### Sherlock
 
@@ -134,7 +134,7 @@
 - **Best For**: Mass username enumeration across 400+ sites
 - **Input**: Username(s)
 - **Output**: List of discovered profile URLs across social networks
-- **Description**: Python CLI tool that hunts down social media accounts by username across 400+ social networks. Supports Tor routing, proxy configuration, and CSV/XLSX export.
+- **Description**: Python command-line tool that hunts down social media accounts by username across 400+ social networks. Supports Tor routing, proxy configuration, and CSV/XLSX export.
 
 ### Names Directory
 
@@ -178,7 +178,7 @@
 - **Output**: Google search results linking to Amazon pages mentioning the username
 - **Description**: Google dork that searches Amazon.com for pages associated with a specific username, surfacing public profiles, wishlists, and reviews.
 
-### Github User (M)
+### GitHub User (M)
 
 - **URL**: <https://api.github.com/users/%3Cusername%3E/events/public>
 - **Type**: API
@@ -236,7 +236,7 @@
 
 ### ProtonMail users (M)
 
-- **URL**: <https://api.protonmail.ch/pks/lookup?op=index&search=<username>@protonmail.com>
+- **URL**: `https://api.protonmail.ch/pks/lookup?op=index&search=<username>@protonmail.com`
 - **Type**: API
 - **Pricing**: Free
 - **OPSEC**: Passive
@@ -250,7 +250,7 @@
 
 ### ProtonMail Domains (M)
 
-- **URL**: <https://api.protonmail.ch/pks/lookup?op=index&search=<email_address>>
+- **URL**: `https://api.protonmail.ch/pks/lookup?op=index&search=<email_address>`
 - **Type**: API
 - **Pricing**: Free
 - **OPSEC**: Passive
