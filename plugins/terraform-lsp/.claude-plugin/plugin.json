@@ -2,6 +2,9 @@
   "name": "terraform-lsp",
   "description": "Terraform language server for infrastructure-as-code intelligence via terraform-ls",
   "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
   "lspServers": {
     "terraform-ls": {
       "command": "terraform-ls",
