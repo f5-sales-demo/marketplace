@@ -1,0 +1,15 @@
+{
+  "name": "eslint-lsp",
+  "description": "ESLint language server for JavaScript/TypeScript linting",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "vscode-eslint-language-server": {
+      "command": "vscode-eslint-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {".js":"javascript",".jsx":"javascriptreact",".ts":"typescript",".tsx":"typescriptreact",".mjs":"javascript",".cjs":"javascript"}
+    }
+  }
+}

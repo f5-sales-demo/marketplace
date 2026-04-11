@@ -235,6 +235,165 @@
           }
         }
       }
+    },
+    {
+      "name": "bash-lsp",
+      "description": "Bash/Shell language server for script intelligence via bash-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/bash-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["bash", "shell", "zsh", "lsp"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "bash-language-server": {
+          "command": "bash-language-server",
+          "args": ["start"],
+          "extensionToLanguage": {
+            ".sh": "bash",
+            ".bash": "bash",
+            ".zsh": "zsh",
+            ".bats": "bash"
+          }
+        }
+      }
+    },
+    {
+      "name": "yaml-lsp",
+      "description": "YAML language server for schema validation and code intelligence via yaml-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/yaml-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["yaml", "yml", "kubernetes", "lsp"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "yaml-language-server": {
+          "command": "yaml-language-server",
+          "args": ["--stdio"],
+          "extensionToLanguage": {
+            ".yml": "yaml",
+            ".yaml": "yaml"
+          }
+        }
+      }
+    },
+    {
+      "name": "css-lsp",
+      "description": "CSS/SCSS/Less language server for style intelligence via vscode-css-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/css-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["css", "scss", "less", "lsp"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "vscode-css-language-server": {
+          "command": "vscode-css-language-server",
+          "args": ["--stdio"],
+          "extensionToLanguage": {
+            ".css": "css",
+            ".scss": "scss",
+            ".less": "less"
+          }
+        }
+      }
+    },
+    {
+      "name": "html-lsp",
+      "description": "HTML language server for markup intelligence via vscode-html-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/html-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["html", "htm", "lsp"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "vscode-html-language-server": {
+          "command": "vscode-html-language-server",
+          "args": ["--stdio"],
+          "extensionToLanguage": {
+            ".html": "html",
+            ".htm": "html"
+          }
+        }
+      }
+    },
+    {
+      "name": "eslint-lsp",
+      "description": "ESLint language server for JavaScript/TypeScript linting via vscode-eslint-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/eslint-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["eslint", "javascript", "typescript", "lsp", "linting"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "vscode-eslint-language-server": {
+          "command": "vscode-eslint-language-server",
+          "args": ["--stdio"],
+          "extensionToLanguage": {
+            ".js": "javascript",
+            ".jsx": "javascriptreact",
+            ".ts": "typescript",
+            ".tsx": "typescriptreact",
+            ".mjs": "javascript",
+            ".cjs": "javascript"
+          }
+        }
+      }
+    },
+    {
+      "name": "markdown-lsp",
+      "description": "Markdown language server for documentation intelligence via vscode-markdown-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/markdown-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["markdown", "md", "lsp", "documentation"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "vscode-markdown-language-server": {
+          "command": "vscode-markdown-language-server",
+          "args": ["--stdio"],
+          "extensionToLanguage": {
+            ".md": "markdown"
+          }
+        }
+      }
+    },
+    {
+      "name": "mdx-lsp",
+      "description": "MDX language server for MDX document intelligence via mdx-language-server",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/mdx-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["mdx", "markdown", "jsx", "lsp"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "mdx-language-server": {
+          "command": "mdx-language-server",
+          "args": ["--stdio"],
+          "extensionToLanguage": {
+            ".mdx": "mdx"
+          }
+        }
+      }
     }
   ]
 }

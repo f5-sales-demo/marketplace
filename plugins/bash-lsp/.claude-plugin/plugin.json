@@ -1,0 +1,15 @@
+{
+  "name": "bash-lsp",
+  "description": "Bash/Shell language server for script intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "bash-language-server": {
+      "command": "bash-language-server",
+      "args": ["start"],
+      "extensionToLanguage": {".sh":"bash",".bash":"bash",".zsh":"zsh",".bats":"bash"}
+    }
+  }
+}

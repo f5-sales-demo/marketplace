@@ -1,0 +1,15 @@
+{
+  "name": "css-lsp",
+  "description": "CSS/SCSS/Less language server for style intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "vscode-css-language-server": {
+      "command": "vscode-css-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {".css":"css",".scss":"scss",".less":"less"}
+    }
+  }
+}

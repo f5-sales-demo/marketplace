@@ -1,0 +1,15 @@
+{
+  "name": "mdx-lsp",
+  "description": "MDX language server for MDX document intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "mdx-language-server": {
+      "command": "mdx-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {".mdx":"mdx"}
+    }
+  }
+}

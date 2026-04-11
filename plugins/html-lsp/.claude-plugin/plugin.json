@@ -1,0 +1,15 @@
+{
+  "name": "html-lsp",
+  "description": "HTML language server for markup intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "vscode-html-language-server": {
+      "command": "vscode-html-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {".html":"html",".htm":"html"}
+    }
+  }
+}

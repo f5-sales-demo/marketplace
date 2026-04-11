@@ -1,0 +1,15 @@
+{
+  "name": "markdown-lsp",
+  "description": "Markdown language server for documentation intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "vscode-markdown-language-server": {
+      "command": "vscode-markdown-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {".md":"markdown"}
+    }
+  }
+}

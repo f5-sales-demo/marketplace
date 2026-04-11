@@ -1,0 +1,15 @@
+{
+  "name": "yaml-lsp",
+  "description": "YAML language server for schema validation and code intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "yaml-language-server": {
+      "command": "yaml-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {".yml":"yaml",".yaml":"yaml"}
+    }
+  }
+}
