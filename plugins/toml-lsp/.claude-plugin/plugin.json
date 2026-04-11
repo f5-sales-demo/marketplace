@@ -1,0 +1,17 @@
+{
+  "name": "toml-lsp",
+  "description": "TOML language server for configuration file intelligence via taplo",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5xc-salesdemos"
+  },
+  "lspServers": {
+    "taplo": {
+      "command": "taplo",
+      "args": ["lsp", "stdio"],
+      "extensionToLanguage": {
+        ".toml": "toml"
+      }
+    }
+  }
+}
