@@ -71,8 +71,9 @@ gh_poll() {
 
   local raw
   raw="$(gh "${args[@]}" 2>&1 || true)"
-  local status remaining reset etag retry_after
-  status="$(parse_status "$raw")"
+  # `http_status` — not `status` — because zsh aliases $status to $? (readonly).
+  local http_status remaining reset etag retry_after
+  http_status="$(parse_status "$raw")"
   remaining="$(parse_rate_header "$raw" "X-RateLimit-Remaining")"
   reset="$(parse_rate_header "$raw" "X-RateLimit-Reset")"
   etag="$(parse_rate_header "$raw" "ETag")"
@@ -81,7 +82,7 @@ gh_poll() {
   local body_path
   body_path="$(mktemp "$cache_dir/$key.out.XXXXXX")"
 
-  case "$status" in
+  case "$http_status" in
   200)
     local body
     body="$(parse_body "$raw")"
@@ -102,11 +103,11 @@ gh_poll() {
   mkdir -p "$(dirname -- "$log_file")"
   printf '%s %s %s %s %s %s\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$url" \
-    "${status:-0}" "${remaining:-}" "$etag_hit" >>"$log_file" 2>/dev/null || true
+    "${http_status:-0}" "${remaining:-}" "$etag_hit" >>"$log_file" 2>/dev/null || true
 
-  # TSV output: status, remaining, reset, etag_hit, body_path, retry_after
+  # TSV output: http_status, remaining, reset, etag_hit, body_path, retry_after
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "${status:-0}" "${remaining:-}" "${reset:-}" "$etag_hit" "$body_path" "${retry_after:-}"
+    "${http_status:-0}" "${remaining:-}" "${reset:-}" "$etag_hit" "$body_path" "${retry_after:-}"
 }
 
 poll_until() {
@@ -129,14 +130,15 @@ poll_until() {
 
     local line
     line="$(gh_poll "$url")"
-    local status remaining reset body_path retry_after_s
-    status="$(echo "$line" | awk -F'\t' '{print $1}')"
+    # `http_status` — not `status` — because zsh aliases $status to $? (readonly).
+    local http_status remaining reset body_path retry_after_s
+    http_status="$(echo "$line" | awk -F'\t' '{print $1}')"
     remaining="$(echo "$line" | awk -F'\t' '{print $2}')"
     reset="$(echo "$line" | awk -F'\t' '{print $3}')"
     body_path="$(echo "$line" | awk -F'\t' '{print $5}')"
     retry_after_s="$(echo "$line" | awk -F'\t' '{print $6}')"
 
-    case "$status" in
+    case "$http_status" in
     200) paid=$((paid + 1)) ;;
     304) free=$((free + 1)) ;;
     403 | 429)
@@ -144,7 +146,7 @@ poll_until() {
       [ -z "$ra" ] && ra=60
       if [ "$retried" -eq 0 ]; then
         retried=1
-        retry_with_backoff "$status" "$ra" "$url"
+        retry_with_backoff "$http_status" "$ra" "$url"
         sleep "$ra"
         rm -f "$body_path"
         continue
@@ -155,7 +157,7 @@ poll_until() {
       fi
       ;;
     *)
-      printf 'Status: FAILED http_status=%s free_polls=%s paid_polls=%s\n' "$status" "$free" "$paid"
+      printf 'Status: FAILED http_status=%s free_polls=%s paid_polls=%s\n' "$http_status" "$free" "$paid"
       rm -f "$body_path"
       return 1
       ;;

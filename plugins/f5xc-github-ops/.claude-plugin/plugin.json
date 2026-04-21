@@ -1,7 +1,7 @@
 {
   "name": "f5xc-github-ops",
   "description": "GitHub operations automation for f5xc-salesdemos — issue-driven development, pre-commit lint gate, PR lifecycle, CI polling with error feedback to issues, post-merge monitoring, verification, rate limit management, upstream contribution workflow for fork-based development, and exclusive github-ops agent for all Git operations. Covers commit, push, branch, merge, squash, pull request, issue creation, repository settings, and fork-to-upstream contributions.",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"

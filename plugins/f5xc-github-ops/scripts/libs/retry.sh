@@ -41,13 +41,14 @@ wait_out_cooldown() {
 }
 
 retry_with_backoff() {
-  local status="$1" retry_after="$2" url="$3"
+  # `http_status` — not `status` — because zsh aliases $status to $? (readonly).
+  local http_status="$1" retry_after="$2" url="$3"
   local seconds="${retry_after:-60}"
   local now
   now="$(date +%s)"
   cooldown_set $((now + seconds))
   printf 'Status: RATE_LIMIT_BACKOFF http_status=%s retry_after_seconds=%s url=%s\n' \
-    "$status" "$seconds" "$url" >&2
+    "$http_status" "$seconds" "$url" >&2
   return 0
 }
 
