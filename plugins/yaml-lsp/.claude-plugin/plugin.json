@@ -9,7 +9,7 @@
     "yaml-language-server": {
       "command": "yaml-language-server",
       "args": ["--stdio"],
-      "extensionToLanguage": {".yml":"yaml",".yaml":"yaml"}
+      "extensionToLanguage": { ".yml": "yaml", ".yaml": "yaml" }
     }
   }
 }

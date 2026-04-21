@@ -76,6 +76,8 @@ statuses:
 | `PRE_COMMIT_FAILED` | Lint gate failed before commit | Fix linting errors, re-delegate with same files |
 | `CI_FAILED` | CI checks failed after push | Fix CI errors, re-delegate with `Issue:` and `Branch:` to reuse existing PR |
 | `BLOCKED` | Rate limit, missing CLI, or missing config | Resolve blocker, then re-delegate |
+| `BUDGET_EXHAUSTED` | Primary GitHub rate limit neared exhaustion mid-workflow. Pause until `reset_at` and retry. Report includes remaining/reset fields. | Wait until `reset_at`, then re-delegate |
+| `RATE_LIMIT_BACKOFF` | Secondary rate limit triggered and a single retry also failed. Wait `retry_after_seconds` and retry. | Wait `retry_after_seconds`, then re-delegate |
 | `FAILED` | Unrecoverable error (merge conflict, etc.) | Read error details, resolve manually |
 
 When re-delegating after a failure, always include the

@@ -9,7 +9,14 @@
     "vscode-eslint-language-server": {
       "command": "vscode-eslint-language-server",
       "args": ["--stdio"],
-      "extensionToLanguage": {".js":"javascript",".jsx":"javascriptreact",".ts":"typescript",".tsx":"typescriptreact",".mjs":"javascript",".cjs":"javascript"}
+      "extensionToLanguage": {
+        ".js": "javascript",
+        ".jsx": "javascriptreact",
+        ".ts": "typescript",
+        ".tsx": "typescriptreact",
+        ".mjs": "javascript",
+        ".cjs": "javascript"
+      }
     }
   }
 }

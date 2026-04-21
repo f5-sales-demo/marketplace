@@ -81,6 +81,35 @@ Agent(
 > Bash access. Without it, plan mode can re-engage
 > mid-workflow and block execution.
 
+## Rate-limit-aware polling (v2.3+)
+
+All CI/workflow polling in the agent is routed through three
+composable shell libraries installed by a `PreToolUse` hook to
+`~/.claude/github-ops/lib/`:
+
+- **`gh-poll.sh`** — `gh api -i` wrapper that caches ETag+body per
+  URL and sends `If-None-Match` on subsequent requests. A `304`
+  response returns the cached body at zero primary-rate-limit cost,
+  so polling a long-running workflow is nearly free. Exposes
+  `poll_until <url> <predicate>` as the primary entry point.
+- **`budget.sh`** — adaptive poll-interval calculator (20 s / 60 s /
+  180 s based on observed `X-RateLimit-Remaining`), ±25 % jitter,
+  `BUDGET_EXHAUSTED` floor at 200 remaining, and a `gap-wait
+  mutation` subcommand that enforces ≥1 s between mutative calls.
+- **`retry.sh`** — `403`/`429` handling with a host-wide
+  `state/cooldown.json` so every Claude Code session on the same
+  machine courteously waits out any observed `Retry-After` before
+  issuing its next request.
+
+These libraries add two statuses to the agent's return taxonomy:
+`BUDGET_EXHAUSTED` and `RATE_LIMIT_BACKOFF`. Callers use these to
+distinguish recoverable rate-limit events from non-recoverable
+configuration failures.
+
+Concurrency-safe by construction: per-PID log files, atomic-rename
+cache writes, `flock`-guarded installer, no locks held across
+network I/O.
+
 ## Installation
 
 ```bash

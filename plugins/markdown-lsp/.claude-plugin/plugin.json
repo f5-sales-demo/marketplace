@@ -9,7 +9,7 @@
     "vscode-markdown-language-server": {
       "command": "vscode-markdown-language-server",
       "args": ["--stdio"],
-      "extensionToLanguage": {".md":"markdown"}
+      "extensionToLanguage": { ".md": "markdown" }
     }
   }
 }

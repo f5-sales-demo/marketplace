@@ -9,7 +9,7 @@
     "bash-language-server": {
       "command": "bash-language-server",
       "args": ["start"],
-      "extensionToLanguage": {".sh":"bash",".bash":"bash",".zsh":"zsh",".bats":"bash"}
+      "extensionToLanguage": { ".sh": "bash", ".bash": "bash", ".zsh": "zsh", ".bats": "bash" }
     }
   }
 }

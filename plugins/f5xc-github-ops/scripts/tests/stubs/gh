@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# gh CLI stub for unit tests. Only implements `gh api -i`.
+# Behavior is driven by env vars set by the calling test.
+#
+#   GH_STUB_STATUS       — HTTP status integer (200, 304, 403, 429, 404)
+#   GH_STUB_ETAG         — ETag header value to echo (e.g. W/"abc")
+#   GH_STUB_BODY         — response body bytes
+#   GH_STUB_REMAINING    — X-RateLimit-Remaining value
+#   GH_STUB_LIMIT        — X-RateLimit-Limit value
+#   GH_STUB_RESET        — X-RateLimit-Reset epoch seconds
+#   GH_STUB_RETRY_AFTER  — Retry-After seconds (403/429 only)
+#   GH_STUB_RECORD       — file path to append each invocation's argv to
+#
+# The test asserts against GH_STUB_RECORD to verify the call shape
+# (including whether If-None-Match was sent).
+
+set -euo pipefail
+
+[ -n "${GH_STUB_RECORD:-}" ] && printf '%s\n' "$*" >>"$GH_STUB_RECORD"
+
+status="${GH_STUB_STATUS:-200}"
+printf 'HTTP/2.0 %s\r\n' "$status"
+[ -n "${GH_STUB_ETAG:-}" ] && printf 'ETag: %s\r\n' "$GH_STUB_ETAG"
+[ -n "${GH_STUB_REMAINING:-}" ] && printf 'X-RateLimit-Remaining: %s\r\n' "$GH_STUB_REMAINING"
+[ -n "${GH_STUB_LIMIT:-}" ] && printf 'X-RateLimit-Limit: %s\r\n' "$GH_STUB_LIMIT"
+[ -n "${GH_STUB_RESET:-}" ] && printf 'X-RateLimit-Reset: %s\r\n' "$GH_STUB_RESET"
+[ -n "${GH_STUB_RETRY_AFTER:-}" ] && printf 'Retry-After: %s\r\n' "$GH_STUB_RETRY_AFTER"
+printf '\r\n'
+[ "$status" = "304" ] || printf '%s' "${GH_STUB_BODY:-}"
+
+case "$status" in
+2?? | 304) exit 0 ;;
+*) exit 1 ;;
+esac

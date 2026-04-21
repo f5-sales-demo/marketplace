@@ -151,8 +151,8 @@ If remaining is in the RED zone, stop and return `BLOCKED`.
 GitHub enforces secondary rate limits separately from primary limits.
 These are triggered by abuse patterns, not by exceeding a counter.
 
-**Detection**: HTTP 403 or 429 with a `retry-after` response header.
-There is no way to check secondary limit budget in advance.
+**Detection**: HTTP 403 or 429 with a `Retry-After` response header.
+There is no way to check secondary-limit budget in advance.
 
 **Triggers** (avoid these):
 
@@ -161,16 +161,21 @@ There is no way to check secondary limit budget in advance.
 - More than 80 content-creation requests/min
 - More than 500 content-creation requests/hr
 
-**Handling**: If you receive a 403 or 429 with `retry-after`:
+**Handling**: `~/.claude/github-ops/lib/retry.sh` parses `Retry-After`,
+writes a host-wide cooldown to `state/cooldown.json`, and
+`poll_until` re-checks the cooldown before every request. If the
+same call fails twice, `poll_until` returns
+`Status: RATE_LIMIT_BACKOFF retry_after_seconds=<N>`.
 
-1. Parse the `retry-after` header (seconds to wait)
-2. Wait the specified duration
-3. Retry the request once
-4. If it fails again, return `BLOCKED` with the retry-after value
+**Mutation throttling**: Before every mutative `gh` call (issue
+create, PR create, comment, merge, branch protection edit) invoke:
 
-**Throttling**: Pause at least 1 second between mutative API calls
-(issue create, PR create, comment, merge). This prevents triggering
-the content-creation secondary limit.
+```bash
+~/.claude/github-ops/lib/budget.sh gap-wait mutation
+```
+
+This enforces a ≥1 s gap between mutations, keeping the workflow
+under the 80 content-creations-per-minute limit.
 
 ## Input Contract
 
@@ -380,29 +385,35 @@ done
 If no checks appear after 50 seconds, report a warning and proceed
 to merge — the repo may have no required checks.
 
-**Poll using single-shot queries** (never `--watch`):
+**Poll via the rate-limit-aware library** (`~/.claude/github-ops/lib/gh-poll.sh`):
 
+```bash
+# shellcheck disable=SC1091
+source ~/.claude/github-ops/lib/gh-poll.sh
+
+OWNER=<owner>; REPO=<repo>; SHA=$(gh pr view <NUMBER> --json headRefOid --jq .headRefOid)
+RESULT=$(poll_until "/repos/$OWNER/$REPO/commits/$SHA/check-runs" predicate_pr_checks_done)
+STATUS=$(echo "$RESULT" | awk '{print $2}')
 ```
-gh pr checks <NUMBER> --required --json bucket \
-  --jq 'map(.bucket) | unique | map(select(. != "skipping")) |
-  if . == ["pass"] then "pass"
-  elif any(. == "fail") then "fail"
-  elif length == 0 then "pass"
-  else "pending" end'
-```
 
-Use `--required` to focus on merge-blocking checks only.
-Skipped checks (bucket `skipping`) are filtered out before
-evaluation — they are non-blocking and must not cause the
-poll loop to wait indefinitely.
+`poll_until` uses ETag-cached `If-None-Match` requests (`304` = free,
+does not consume primary rate-limit budget), adapts its interval
+to the observed `X-RateLimit-Remaining`, applies ±25 % jitter,
+honors a host-wide cooldown on `429`/`403`-with-`Retry-After`, and
+aborts cleanly with `BUDGET_EXHAUSTED` before primary budget drops
+below 200.
 
-**Loop rules:**
+**Possible `STATUS` values from `poll_until`:**
 
-- Sleep for the interval defined by the current consumption zone
-  (30s GREEN, 60s YELLOW)
-- Maximum 20 iterations — if still pending, include status in the
-  report and stop
-- Re-check rate limit every 5 iterations
+- `COMPLETE` — the response body is at the path shown after `body=`;
+  inspect it to decide pass vs. fail (see classification below).
+- `BUDGET_EXHAUSTED` — stop. Return `Status: BUDGET_EXHAUSTED` to
+  the caller with the fields from the library line.
+- `RATE_LIMIT_BACKOFF` — stop. Return `Status: RATE_LIMIT_BACKOFF`
+  with `retry_after_seconds`.
+- `PENDING_TIMEOUT` — include the pending state in the report and
+  proceed to report `Status: CI_PENDING` to the caller.
+- `FAILED` — include the HTTP status and return `Status: FAILED`.
 
 **Zombie check detection**: If a check has been `in_progress` for
 more than 30 minutes, report it as a warning. Use:
@@ -504,24 +515,23 @@ Include merge failure details in the report if unresolvable.
 
 ### Step 9: Post-Merge Monitoring
 
-```
+```bash
 git checkout main && git pull origin main
 MERGE_SHA=$(git rev-parse HEAD)
 sleep 15
-gh run list --branch main --commit $MERGE_SHA
+
+# shellcheck disable=SC1091
+source ~/.claude/github-ops/lib/gh-poll.sh
+
+OWNER=<owner>; REPO=<repo>
+RESULT=$(poll_until "/repos/$OWNER/$REPO/actions/runs?head_sha=$MERGE_SHA" predicate_runs_complete)
+STATUS=$(echo "$RESULT" | awk '{print $2}')
 ```
 
-Poll each discovered workflow run:
-
-```
-gh run view <RUN-ID> --json status,conclusion \
-  --jq '"\(.status) \(.conclusion)"'
-```
-
-Same loop rules as Step 7. If a post-merge workflow fails due to
+Status semantics match Step 7. If a post-merge workflow fails due to
 your changes, include the failure in the report with
-`Status: CI_FAILED` and post a comment on the issue. Do NOT
-attempt to fix — return to the caller.
+`Status: CI_FAILED` and post a comment on the issue. Do NOT attempt
+to fix — return to the caller.
 
 ### Step 10: Verify and Clean Up
 
@@ -800,7 +810,7 @@ When applying settings, always follow this pattern:
 
 Always return a structured report with these sections:
 
-1. **Status** — one of: `COMPLETE`, `PRE_COMMIT_FAILED`, `CI_FAILED`, `FAILED`, `BLOCKED`, `REVIEW_NEEDED`
+1. **Status** — one of: `COMPLETE`, `PRE_COMMIT_FAILED`, `CI_FAILED`, `FAILED`, `BLOCKED`, `REVIEW_NEEDED`, `BUDGET_EXHAUSTED`, `RATE_LIMIT_BACKOFF`
 2. **Operations table** — each step with result and details
 3. **Issue/PR/SHA links** — numbers and URLs
 4. **Errors** — full output for the caller to act on (if any)
@@ -815,6 +825,13 @@ Always return a structured report with these sections:
    - `UPSTREAM_ISSUE_NOT_FOUND` — a provided upstream issue number does not exist
    - `UPSTREAM_PR_CREATION_FAILED` — could not create PR in the upstream repo
    - `UPSTREAM_PR_NOT_FOUND` — a provided upstream PR number does not exist
+   - `BUDGET_EXHAUSTED` — primary GitHub rate limit approached the
+     200-remaining floor mid-workflow. Report includes `remaining`,
+     `reset_at`, `minutes_until_reset`, `polls_used`, `free_polls`,
+     `paid_polls`. Caller should pause until reset and retry.
+   - `RATE_LIMIT_BACKOFF` — secondary rate limit triggered
+     (`Retry-After` observed) and a single retry also failed. Report
+     includes `retry_after_seconds`. Caller should wait and retry.
 
 ## Execution Rules
 
@@ -1064,20 +1081,21 @@ the upstream contribution resolves.
 
 ### Step U4: Monitor Upstream CI
 
-Poll upstream PR checks using the same logic as Step 7, but
-targeting the upstream repo:
+```bash
+# shellcheck disable=SC1091
+source ~/.claude/github-ops/lib/gh-poll.sh
 
-```
-gh pr checks {number} --repo {upstream} --required --json bucket \
-  --jq 'map(.bucket) | unique | map(select(. != "skipping")) |
-  if . == ["pass"] then "pass"
-  elif any(. == "fail") then "fail"
-  elif length == 0 then "pass"
-  else "pending" end'
+UPSTREAM_OWNER=<upstream-owner>; UPSTREAM_REPO=<upstream-repo>
+UPSTREAM_PR=<pr-number>
+SHA=$(gh pr view "$UPSTREAM_PR" --repo "$UPSTREAM_OWNER/$UPSTREAM_REPO" \
+       --json headRefOid --jq .headRefOid)
+RESULT=$(poll_until "/repos/$UPSTREAM_OWNER/$UPSTREAM_REPO/commits/$SHA/check-runs" \
+                    predicate_pr_checks_done)
+STATUS=$(echo "$RESULT" | awk '{print $2}')
 ```
 
-Same polling rules as Step 7 (single-shot, max 20 iterations,
-rate limit awareness).
+Status semantics match Step 7. Bot/automation comment detection
+remains unchanged:
 
 Additionally, detect bot/automation comments on the upstream PR:
 

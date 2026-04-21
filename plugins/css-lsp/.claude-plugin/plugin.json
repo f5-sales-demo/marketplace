@@ -9,7 +9,7 @@
     "vscode-css-language-server": {
       "command": "vscode-css-language-server",
       "args": ["--stdio"],
-      "extensionToLanguage": {".css":"css",".scss":"scss",".less":"less"}
+      "extensionToLanguage": { ".css": "css", ".scss": "scss", ".less": "less" }
     }
   }
 }

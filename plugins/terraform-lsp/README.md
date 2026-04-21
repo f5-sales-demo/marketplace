@@ -6,7 +6,7 @@ Terraform language server plugin for Claude Code, providing code intelligence fo
 
 Install `terraform-ls` before enabling this plugin:
 
-- **Via HashiCorp releases (recommended):** Download from https://releases.hashicorp.com/terraform-ls/
+- **Via HashiCorp releases (recommended):** Download from <https://releases.hashicorp.com/terraform-ls/>
 - **Via Homebrew (macOS):** `brew install hashicorp/tap/terraform-ls`
 - **Via package manager (Linux):** See [installation docs](https://github.com/hashicorp/terraform-ls/blob/main/docs/installation.md)
 

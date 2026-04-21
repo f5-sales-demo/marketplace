@@ -9,7 +9,7 @@
     "mdx-language-server": {
       "command": "mdx-language-server",
       "args": ["--stdio"],
-      "extensionToLanguage": {".mdx":"mdx"}
+      "extensionToLanguage": { ".mdx": "mdx" }
     }
   }
 }
