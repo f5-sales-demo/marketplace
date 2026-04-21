@@ -431,6 +431,36 @@
           }
         }
       }
+    },
+    {
+      "name": "tsgo-lsp",
+      "description": "TypeScript and JavaScript language server via tsgo (Microsoft's native TypeScript-Go port)",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/tsgo-lsp",
+      "category": "development",
+      "strict": false,
+      "license": "Apache-2.0",
+      "keywords": ["typescript", "javascript", "tsgo", "lsp", "tsserver"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "lspServers": {
+        "tsgo": {
+          "command": "tsgo",
+          "args": ["--lsp", "--stdio"],
+          "extensionToLanguage": {
+            ".ts": "typescript",
+            ".tsx": "typescriptreact",
+            ".mts": "typescript",
+            ".cts": "typescript",
+            ".js": "javascript",
+            ".jsx": "javascriptreact",
+            ".mjs": "javascript",
+            ".cjs": "javascript"
+          }
+        }
+      }
     }
   ]
 }
