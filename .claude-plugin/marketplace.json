@@ -389,7 +389,7 @@
     {
       "name": "mdx-lsp",
       "description": "MDX language server for MDX document intelligence via mdx-language-server",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -405,6 +405,11 @@
           "args": ["--stdio"],
           "extensionToLanguage": {
             ".mdx": "mdx"
+          },
+          "initializationOptions": {
+            "typescript": {
+              "tsdk": "/usr/lib/node_modules/typescript/lib"
+            }
           }
         }
       }
