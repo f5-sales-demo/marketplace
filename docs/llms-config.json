@@ -1,0 +1,11 @@
+{
+  "customSets": [
+    {
+      "label": "Plugins",
+      "description": "Individual plugin documentation for all marketplace offerings",
+      "paths": ["plugins/**"]
+    }
+  ],
+  "promote": ["index*", "overview*", "getting-started*"],
+  "demote": ["changelog*", "reference*"]
+}
