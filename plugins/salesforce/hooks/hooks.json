@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v sf > /dev/null 2>&1 || echo 'WARNING: Salesforce CLI (sf) is not installed. Run: npm install -g @salesforce/cli'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

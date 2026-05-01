@@ -466,6 +466,21 @@
           }
         }
       }
+    },
+    {
+      "name": "salesforce",
+      "description": "Salesforce CLI automation — container-adapted org authentication (JWT, access-token, SFDX URL), org management, and bridge to the official forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/salesforce",
+      "category": "development",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
+      "license": "Apache-2.0",
+      "keywords": ["salesforce", "sf", "apex", "lwc", "soql", "metadata", "deploy", "testing", "sfdx", "agentforce"],
+      "tags": ["salesforce", "development", "cli", "crm"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }
