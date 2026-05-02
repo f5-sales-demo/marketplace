@@ -83,7 +83,7 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 | Error                   | Action                                                                          |
 | ----------------------- | ------------------------------------------------------------------------------- |
-| `sf: command not found` | Report: sf CLI not installed, suggest `npm install -g @salesforce/cli`          |
+| `sf: command not found` | Report: sf CLI not installed, suggest `brew install sf`                         |
 | `No default org`        | Report: no authenticated org, suggest using `/salesforce:sf-login`              |
 | `INVALID_SESSION_ID`    | Report: session expired, suggest re-authenticating                              |
 | `ECONNREFUSED`          | Report: cannot reach Salesforce, check network and org URL                      |

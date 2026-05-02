@@ -8,8 +8,7 @@ skills for Salesforce development.
 
 ## Prerequisites
 
-- **Salesforce CLI** (`@salesforce/cli`): `brew install sf` or
-  `npm install -g @salesforce/cli`
+- **Salesforce CLI** (`@salesforce/cli`): `brew install sf`
 - **afv-library skills** (optional): `npx skills add forcedotcom/afv-library`
 - **Salesforce org** with API access
 
