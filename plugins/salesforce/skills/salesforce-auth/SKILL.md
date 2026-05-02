@@ -75,12 +75,12 @@ export SFDX_AUTH_URL="force://..."
 
 ```bash
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url \
-  --sfdx-url-stdin \
+  --sfdx-url-stdin=- \
   --alias my-dev-org \
   --set-default
 ```
 
-Never write the auth URL to a file — use `--sfdx-url-stdin` with a
+Never write the auth URL to a file — use `--sfdx-url-stdin=-` with a
 pipe to avoid persisting credentials on disk.
 
 ### Method 4: Web Login (Browser Required)
@@ -125,7 +125,7 @@ instructions:
    - `SF_JWT_KEY_FILE` + `SF_CLIENT_ID` + `SF_USERNAME` all set →
      `sf org login jwt`
    - `SFDX_AUTH_URL` set →
-     `echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin`
+     `echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=-`
    - None satisfied → `sf org login web` (requires browser/VNC)
 3. Do NOT choose an option unless all its required env vars are set.
 4. Never echo tokens or auth URLs in output.
@@ -145,5 +145,5 @@ instructions:
 
 - Never echo access tokens, refresh tokens, or auth URLs
 - Use `$SF_ACCESS_TOKEN` placeholder in output
-- Never write credentials to disk — use stdin pipes (`--sfdx-url-stdin`)
+- Never write credentials to disk — use stdin pipes (`--sfdx-url-stdin=-`)
 - Do not store credentials in project files

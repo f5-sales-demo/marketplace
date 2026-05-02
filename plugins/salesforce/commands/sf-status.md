@@ -19,4 +19,4 @@ Spawn the cli-operator agent with the following instructions:
    - Number of authenticated orgs
    - Default org alias, username, instance URL, connected status
    - API version
-5. If no orgs are authenticated, suggest using `/sf-login`
+5. If no orgs are authenticated, suggest using `/salesforce:sf-login`

@@ -14,13 +14,14 @@ STATUS_CMD="$PLUGIN_ROOT/commands/sf-status.md"
 test_login_auth_priority_match() {
   local login_order auth_order
 
-  login_order=$(grep -oP 'sf org login \K[a-z-]+' "$LOGIN_CMD" | head -4)
+  login_order=$(grep -oE 'sf org login [a-z-]+' "$LOGIN_CMD" |
+    sed 's/sf org login //' | head -4)
   auth_order=$(grep -A2 'Pick the first\|first fully satisfied' "$AUTH_SKILL" |
-    grep -oP 'sf org login \K[a-z-]+' || true)
+    grep -oE 'sf org login [a-z-]+' | sed 's/sf org login //' || true)
 
   if [ -z "$auth_order" ]; then
     auth_order=$(awk '/## Delegation/,/^##[^#]/' "$AUTH_SKILL" |
-      grep -oP 'sf org login \K[a-z-]+')
+      grep -oE 'sf org login [a-z-]+' | sed 's/sf org login //')
   fi
 
   local login_first auth_first
@@ -38,7 +39,7 @@ test_routing_table_skills_valid() {
   local skills
   skills=$(awk '/afv-library Skill/,/^###/' "$INDEX_SKILL" |
     grep '`' |
-    grep -oP '`\K[a-z][-a-z0-9]*(?=`)' || true)
+    sed -n 's/.*`\([a-z][-a-z0-9]*\)`.*/\1/p' || true)
 
   [ -n "$skills" ] || {
     echo "no skill names found in routing table"
@@ -63,7 +64,7 @@ test_routing_table_skills_valid() {
 # TI.3 — sf-status.md delegation commands are in cli-operator
 test_status_commands_in_agent() {
   local cmds
-  cmds=$(grep -oP 'sf (org|project|apex) \S+' "$STATUS_CMD" | sort -u)
+  cmds=$(grep -oE 'sf (org|project|apex) [a-z-]+' "$STATUS_CMD" | sort -u)
 
   while IFS= read -r cmd; do
     [ -z "$cmd" ] && continue
@@ -80,7 +81,7 @@ test_status_commands_in_agent() {
 # TI.4 — sf-login.md delegation commands reference valid sf subcommands
 test_login_commands_in_agent() {
   local login_cmds
-  login_cmds=$(grep -oP 'sf org (login \S+|list|display)' "$LOGIN_CMD" | sort -u)
+  login_cmds=$(grep -oE 'sf org (login [a-z-]+|list|display)' "$LOGIN_CMD" | sort -u)
 
   [ -n "$login_cmds" ] || {
     echo "no sf commands found in sf-login.md"
@@ -132,8 +133,7 @@ test_delegation_sf_commands_valid() {
 
   local subcommands
   subcommands=$(cat "$LOGIN_CMD" "$STATUS_CMD" "$AUTH_SKILL" |
-    grep -oP 'sf (org|project|apex) \S+' |
-    sed 's/ --.*//; s/ \\$//' |
+    grep -oE 'sf (org|project|apex) [a-z-]+' |
     sort -u)
 
   while IFS= read -r cmd; do
@@ -153,9 +153,9 @@ test_delegation_sf_commands_valid() {
 
 # TI.8 — audit --sfdx-url-stdin usage across plugin
 test_sfdx_url_stdin_syntax_audit() {
-  local total bare correct
+  local total correct bare
   total=$(grep -rc -- '--sfdx-url-stdin' "$PLUGIN_ROOT" --include='*.md' 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
-  correct=$(grep -rcP -- '--sfdx-url-stdin\s*=' "$PLUGIN_ROOT" --include='*.md' 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
+  correct=$(grep -rcE -- '--sfdx-url-stdin[[:space:]]*=' "$PLUGIN_ROOT" --include='*.md' 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
   bare=$((total - correct))
 
   if [ "$bare" -gt 0 ]; then

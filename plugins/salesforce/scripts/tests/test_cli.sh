@@ -153,7 +153,10 @@ test_sfdx_url_stdin_syntax() {
   out=$(echo "" | sf org login sfdx-url --sfdx-url-stdin --json 2>&1) || true
   if echo "$out" | grep -qi 'value\|stdin\|format'; then
     local bare_count
-    bare_count=$(grep -cP -- '--sfdx-url-stdin(?!\s*=)' "$PLUGIN_ROOT/skills/salesforce-auth/SKILL.md" 2>/dev/null || echo 0)
+    local total_count eq_count
+    total_count=$(grep -c -- '--sfdx-url-stdin' "$PLUGIN_ROOT/skills/salesforce-auth/SKILL.md" 2>/dev/null || echo 0)
+    eq_count=$(grep -cE -- '--sfdx-url-stdin[[:space:]]*=' "$PLUGIN_ROOT/skills/salesforce-auth/SKILL.md" 2>/dev/null || echo 0)
+    bare_count=$((total_count - eq_count))
     if [ "$bare_count" -gt 0 ]; then
       echo "WARNING: salesforce-auth/SKILL.md has $bare_count bare --sfdx-url-stdin references (should use --sfdx-url-stdin=-)"
     fi
@@ -177,7 +180,6 @@ test_access_token_login() {
   out=$(sf org login access-token \
     --instance-url "$SF_ORG_INSTANCE_URL" \
     --alias sf-test-org \
-    --set-default \
     --no-prompt \
     --json 2>&1) || true
 
@@ -210,7 +212,6 @@ test_sfdx_url_login() {
   out=$(echo "$SFDX_AUTH_URL" | sf org login sfdx-url \
     --sfdx-url-stdin=- \
     --alias=sf-test-sfdx \
-    --set-default \
     --json 2>&1) || {
     echo "login failed: $out"
     return 1
@@ -306,7 +307,6 @@ test_org_display_fields() {
     sf org login access-token \
       --instance-url "$SF_ORG_INSTANCE_URL" \
       --alias sf-test-display \
-      --set-default \
       --no-prompt \
       --json >/dev/null 2>&1 || {
       echo "SKIP: login failed"

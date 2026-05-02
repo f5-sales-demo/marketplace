@@ -81,9 +81,9 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 ## Error Recovery
 
-| Error                   | Action                                                                 |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `sf: command not found` | Report: sf CLI not installed, suggest `npm install -g @salesforce/cli` |
-| `No default org`        | Report: no authenticated org, suggest using `/sf-login` command        |
-| `INVALID_SESSION_ID`    | Report: session expired, suggest re-authenticating                     |
-| `ECONNREFUSED`          | Report: cannot reach Salesforce, check network and org URL             |
+| Error                   | Action                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `sf: command not found` | Report: sf CLI not installed, suggest `npm install -g @salesforce/cli`          |
+| `No default org`        | Report: no authenticated org, suggest using `/salesforce:sf-login`              |
+| `INVALID_SESSION_ID`    | Report: session expired, suggest re-authenticating                              |
+| `ECONNREFUSED`          | Report: cannot reach Salesforce, check network and org URL                      |

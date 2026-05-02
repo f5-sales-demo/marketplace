@@ -9,10 +9,12 @@ sidebar:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 The **salesforce** plugin integrates Salesforce CLI with Claude Code,
-providing org authentication, account management, opportunity pipeline
-analysis, case tracking, and natural language data queries. It supports
-headless container environments with JWT, access-token, and SFDX URL
-authentication flows.
+providing org authentication and a general-purpose CLI agent that can
+run any `sf` command including SOQL queries. It supports headless
+container environments with JWT, access-token, and SFDX URL
+authentication flows. The usage guide below demonstrates how to use
+natural language to query accounts, opportunities, cases, and contacts
+through the CLI agent.
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
@@ -203,6 +205,15 @@ keep the main session context lean.
 ```
 
 ## Usage Guide: Account Management
+
+<Aside type="note">
+  The prompts below are not hard-coded features of the plugin. They work
+  because the cli-operator agent can run any `sf` CLI command, including
+  arbitrary SOQL queries. Results depend on your org's data model and
+  your user permissions. The prompts here have been tested and verified
+  to work with standard Salesforce objects (Account, Contact, Case,
+  Opportunity, AccountTeamMember, OpportunityTeamMember).
+</Aside>
 
 These prompts work with any Salesforce org. Replace the placeholder
 values with your own information. Each prompt produces results specific

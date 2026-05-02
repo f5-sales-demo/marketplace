@@ -1,8 +1,8 @@
 # Salesforce Plugin
 
 Container-adapted Salesforce CLI integration for Claude Code. Provides
-org authentication, account management, pipeline analysis, and natural
-language data queries. Bridges to the official
+org authentication and a general-purpose CLI agent that can run any
+`sf` command including SOQL queries. Bridges to the official
 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
 skills for Salesforce development.
 

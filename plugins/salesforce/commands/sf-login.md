@@ -21,7 +21,7 @@ Spawn the cli-operator agent with the following instructions:
    - `SF_JWT_KEY_FILE` + `SF_CLIENT_ID` + `SF_USERNAME` all set →
      `sf org login jwt`
    - `SFDX_AUTH_URL` set →
-     `echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin`
+     `echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=-`
    - None fully satisfied → suggest `sf org login web`
 5. Do NOT choose an option unless all required env vars are present.
 6. Use the alias in the `--alias` flag.

@@ -3,17 +3,23 @@
 
 set -euo pipefail
 
-# T1.11 — no hardcoded credentials in plugin files
+# T1.11 — no hardcoded credentials in plugin or docs files
 test_no_hardcoded_credentials() {
   local patterns='password[[:space:]]*=|secret[[:space:]]*=|token=[A-Za-z0-9]|Bearer [A-Za-z0-9]{20,}|force://[A-Za-z0-9]{10,}'
+  local scan_dirs=("$PLUGIN_ROOT")
+  local docs_dir="$MARKETPLACE_ROOT/docs/plugins"
+  [ -f "$docs_dir/salesforce.mdx" ] && scan_dirs+=("$docs_dir/salesforce.mdx")
+
   local matches
-  matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT" \
-    --include='*.md' --include='*.json' |
+  matches=$(grep -rIin -E "$patterns" "${scan_dirs[@]}" \
+    --include='*.md' --include='*.json' --include='*.mdx' |
     grep -v 'README.md' |
     grep -v '\$SF_ACCESS_TOKEN' |
     grep -v '\$SFDX_AUTH_URL' |
     grep -v 'force://\.\.\.' |
-    grep -v 'force://fake' ||
+    grep -v 'force://fake' |
+    grep -v 'force://PlatformCLI::YOUR_AUTH_TOKEN' |
+    grep -v 'history-4a95675d220b@example.com' ||
     true)
 
   if [ -n "$matches" ]; then
