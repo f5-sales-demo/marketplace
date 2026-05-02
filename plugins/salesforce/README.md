@@ -1,40 +1,65 @@
 # Salesforce Plugin
 
 Container-adapted Salesforce CLI integration for Claude Code. Provides
-org authentication, org management, and bridges to the official
+org authentication, account management, pipeline analysis, and natural
+language data queries. Bridges to the official
 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
 skills for Salesforce development.
 
 ## Prerequisites
 
-- **Salesforce CLI** (`@salesforce/cli`): `npm install -g @salesforce/cli`
-- **afv-library skills**: `npx skills add forcedotcom/afv-library`
+- **Salesforce CLI** (`@salesforce/cli`): `brew install sf` or
+  `npm install -g @salesforce/cli`
+- **afv-library skills** (optional): `npx skills add forcedotcom/afv-library`
 - **Salesforce org** with API access
 
 ## Quick Start
 
 ```bash
 # Check CLI and org status
-/sf-status
+/salesforce:sf-status
 
 # Authenticate to an org
-/sf-login my-dev-org
+/salesforce:sf-login my-org
 ```
 
-## Authentication Methods
+## Authentication
 
-This plugin adapts Salesforce authentication for headless container
-environments:
+### Workstation (browser available)
 
-| Method       | Best For                   | Command                     |
-| ------------ | -------------------------- | --------------------------- |
-| JWT Bearer   | CI/CD, automation          | `sf org login jwt`          |
-| Access Token | Environment variable auth  | `sf org login access-token` |
-| SFDX URL     | Portable auth URLs         | `sf org login sfdx-url`     |
-| Web Login    | Interactive (VNC required) | `sf org login web`          |
+Find your Salesforce domain from your browser URL
+(`https://acme.lightning.force.com` means your domain is
+`acme.my.salesforce.com`), then run:
+
+```bash
+sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
+```
+
+### Container / headless (no browser)
+
+Export the SFDX auth URL from an authenticated workstation:
+
+```bash
+sf org display --verbose --target-org my-org
+```
+
+Copy the `Sfdx Auth Url` value, then in the container:
+
+```bash
+echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
+```
+
+### All authentication methods
+
+| Method       | Best For                      | Command                     |
+| ------------ | ----------------------------- | --------------------------- |
+| Web Login    | Workstations with browser/SSO | `sf org login web`          |
+| SFDX URL     | Containers, CI/CD             | `sf org login sfdx-url`     |
+| JWT Bearer   | Automated pipelines           | `sf org login jwt`          |
+| Access Token | Environment variable auth     | `sf org login access-token` |
 
 **Note:** Device flow (`sf org login device`) is blocked since August
-2025 and is not supported.
+2025.
 
 ## Environment Variables
 
@@ -47,6 +72,59 @@ environments:
 | `SF_CLIENT_ID`        | Connected App consumer key         |
 | `SF_USERNAME`         | Salesforce username for JWT        |
 
+## Usage Examples
+
+After authenticating, use natural language to query your Salesforce
+data. Replace placeholder values with your own information.
+
+### Account discovery
+
+```
+what salesforce accounts am I on the account team for? My email is history-4a95675d220b@example.com
+```
+
+### Coverage cross-reference
+
+```
+find all accounts where Colleague Name is on the account team, then check if history-4a95675d220b@example.com is also tagged on each one
+```
+
+### Opportunity pipeline
+
+```
+show me all open salesforce opportunities on Colleague Name's accounts, sorted by amount
+```
+
+### Quarterly forecast
+
+```
+group open opportunities by close date quarter with count, total amount, and weighted amount
+```
+
+### Opportunity deep dive
+
+```
+show me a detailed view of the OPPORTUNITY NAME opportunity including team members, activities, and contacts
+```
+
+### Support cases
+
+```
+show me all open salesforce cases across Colleague Name's accounts, grouped by account
+```
+
+### Case lookup
+
+```
+look up salesforce case CASE-NUMBER and show me the details, customer account, and owner
+```
+
+### Account overview
+
+```
+give me a full account overview for ACCOUNT NAME including contacts, open opportunities, and recent cases
+```
+
 ## Skills
 
 | Skill              | Purpose                                     |
@@ -54,15 +132,15 @@ environments:
 | `salesforce-index` | Routes requests to the right skill or agent |
 | `salesforce-auth`  | Container-adapted org authentication        |
 
+## Commands
+
+| Command                 | Purpose                          |
+| ----------------------- | -------------------------------- |
+| `/salesforce:sf-login`  | Authenticate to a Salesforce org |
+| `/salesforce:sf-status` | Check org connection status      |
+
 ## Development Skills (via afv-library)
 
 The 30 Salesforce development skills from `forcedotcom/afv-library` are
 installed separately and activate automatically for Apex, Flow, LWC,
 SOQL, metadata, Agentforce, and deployment tasks.
-
-## Commands
-
-| Command      | Purpose                          |
-| ------------ | -------------------------------- |
-| `/sf-login`  | Authenticate to a Salesforce org |
-| `/sf-status` | Check org connection status      |
