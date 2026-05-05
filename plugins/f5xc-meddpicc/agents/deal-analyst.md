@@ -59,7 +59,7 @@ Competition), assess:
 
 ### Step 3 — Score and report
 
-Use the scoring rubric (0–3 per element) to produce an objective
+Use the scoring rubric (0–4 per element) to produce an objective
 assessment. Include evidence citations for every score.
 
 ### Step 4 — Recommend actions
@@ -86,16 +86,16 @@ Every response must follow this structure:
 
 | Element | Score | Evidence | Gaps |
 | ------- | ----- | -------- | ---- |
-| Metrics | X/3 | [citations] | [gaps] |
-| Economic Buyer | X/3 | [citations] | [gaps] |
-| Decision Criteria | X/3 | [citations] | [gaps] |
-| Decision Process | X/3 | [citations] | [gaps] |
-| Paper Process | X/3 | [citations] | [gaps] |
-| Identify Pain | X/3 | [citations] | [gaps] |
-| Champion | X/3 | [citations] | [gaps] |
-| Competition | X/3 | [citations] | [gaps] |
+| Metrics | X/4 | [citations] | [gaps] |
+| Economic Buyer | X/4 | [citations] | [gaps] |
+| Decision Criteria | X/4 | [citations] | [gaps] |
+| Decision Process | X/4 | [citations] | [gaps] |
+| Paper Process | X/4 | [citations] | [gaps] |
+| Identify Pain | X/4 | [citations] | [gaps] |
+| Champion | X/4 | [citations] | [gaps] |
+| Competition | X/4 | [citations] | [gaps] |
 
-### Overall Score: X/24
+### Overall Score: X/32
 ### Risk Level: [Low / Medium / High / Critical]
 
 ### Priority Actions

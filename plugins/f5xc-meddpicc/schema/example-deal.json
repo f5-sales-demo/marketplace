@@ -1,0 +1,351 @@
+{
+  "metadata": {
+    "dealId": "deal-acme-dc-modernization-2026",
+    "accountName": "Acme Corporation",
+    "dealName": "DC Modernization Phase 2",
+    "dealStatus": "Qualified",
+    "closeDate": "2026-06-30",
+    "competition": "Cloudflare, Akamai",
+    "winProbability": 0.5,
+    "forecastStage": "Best Case",
+    "revenue": {
+      "pAndIplusAcvx": 150000,
+      "hardware": 0,
+      "software": 85000,
+      "acv": 85000
+    },
+    "lastClientInteraction": {
+      "date": "2026-05-01",
+      "outcome": "Validated decision criteria with CTO — F5 ranked #1 on security and API protection"
+    },
+    "nextClientInteraction": {
+      "date": "2026-05-12",
+      "objective": "Present POC results to steering committee"
+    },
+    "reviewDate": "2026-05-05",
+    "reviewer": "Jane Smith",
+    "salesforce": {
+      "opportunityId": "006Hs00000AbCdEfG",
+      "accountId": "001Hs00000XyZaBcD",
+      "ownerId": "005Hs00000JkLmNoP",
+      "stageName": "Negotiation/Review",
+      "lastSyncDate": "2026-05-05T14:30:00Z"
+    },
+    "completionStatus": {
+      "metrics": "complete",
+      "economicBuyer": "complete",
+      "decisionCriteria": "complete",
+      "decisionProcess": "partial",
+      "paperProcess": "not_started",
+      "implicateThePain": "complete",
+      "champion": "complete",
+      "competition": "partial",
+      "threeWhys": "complete",
+      "stakeholders": "partial",
+      "salesStrategy": "complete",
+      "closePlan": "partial",
+      "team": "complete"
+    }
+  },
+  "qualification": {
+    "metrics": {
+      "definition": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value",
+      "questions": ["What goals is the client trying to accomplish?", "What KPIs are they using to measure the goals?"],
+      "responses": [
+        "Reduce MTTR from 4 hours to 30 minutes and achieve 99.99% uptime for customer-facing APIs across 3 data centers",
+        "Tracking MTTR, uptime SLA compliance rate, incident count per month, and API error rate (target <0.1%)"
+      ],
+      "score": 3,
+      "scoreDefinition": {
+        "0": "Unknown — No metrics identified or discussed",
+        "1": "Identified — Qualitative goals mentioned but no specific KPIs or baselines",
+        "2": "Validated — KPIs documented and confirmed with at least one stakeholder",
+        "3": "Quantified — Metrics tied to business value with baseline and target data",
+        "4": "Committed — Client has committed to metrics in writing or proposal"
+      },
+      "evidence": "CTO confirmed MTTR target in email 2026-04-15. Baseline data shared from Datadog dashboard.",
+      "notes": "VP Ops also confirmed the 99.99% uptime target is a board-level commitment"
+    },
+    "economicBuyer": {
+      "definition": "The individual with final budget authority and political power to fund the purchase",
+      "questions": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"],
+      "responses": [
+        "Sarah Chen, SVP Infrastructure — confirmed budget authority for all platform security investments up to $500K",
+        "Direct meeting held 2026-04-20. She is focused on reducing security incidents before Q3 board review. Follow-up scheduled May 15."
+      ],
+      "score": 3,
+      "scoreDefinition": {
+        "0": "Unknown — Don't know who controls budget",
+        "1": "Identified — Role identified but not the specific person; access only through intermediaries",
+        "2": "Engaged — EB identified by name; no direct access yet but plan exists",
+        "3": "Aligned — Direct access achieved; EB priorities and personal win documented",
+        "4": "Sponsoring — EB is actively sponsoring the deal through procurement"
+      },
+      "evidence": "Meeting notes from 2026-04-20 one-on-one with Sarah Chen. Champion confirmed her budget authority.",
+      "notes": "Sarah reports to CIO; CIO is supportive but not directly involved"
+    },
+    "decisionCriteria": {
+      "definition": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial",
+      "questions": [
+        "What criteria is the client using to evaluate the proposition?",
+        "What is the client's budget or business case?"
+      ],
+      "responses": [
+        "Technical: API security coverage, Kubernetes-native integration, multi-cloud support. Business: TCO under $100K/yr, <6 month time-to-value, vendor SOC2 Type II.",
+        "Budget approved at $90K ACV. Business case built around reducing security incidents by 60% and avoiding $2M potential breach cost."
+      ],
+      "score": 3,
+      "scoreDefinition": {
+        "0": "Unknown — Don't know how the customer will evaluate solutions",
+        "1": "Identified — General requirements known but not documented or ranked",
+        "2": "Validated — Criteria partially documented with some influence actions taken",
+        "3": "Differentiated — Written criteria with priority ranking; competitive position mapped per criterion",
+        "4": "Locked — Criteria influenced toward our strengths; key stakeholders aligned"
+      },
+      "evidence": "Evaluation matrix shared by CTO 2026-04-22. F5 ranked #1 on security and API protection, #2 on multi-cloud.",
+      "notes": ""
+    },
+    "decisionProcess": {
+      "definition": "The step-by-step path from evaluation to signed agreement",
+      "questions": [
+        "What is the client's technical approval process for the solution you are proposing?",
+        "What is the client's business approval process and typical timeline for a transaction of this nature?"
+      ],
+      "responses": [
+        "POC → Security review → Architecture review board → Business case to SVP → Procurement",
+        "Typical 6-8 week cycle. Currently in POC phase (week 3 of 4). Architecture review board meets bi-weekly."
+      ],
+      "score": 2,
+      "scoreDefinition": {
+        "0": "Unknown — Unknown how the customer will make and approve the decision",
+        "1": "Identified — High-level understanding only; no dates or named owners",
+        "2": "Mapped — Major steps identified but dates or owners missing",
+        "3": "Validated — Step-by-step process documented with named owners and dates",
+        "4": "Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed"
+      },
+      "evidence": "Process outline shared by champion. Missing specific dates for architecture review board and procurement.",
+      "notes": "Need to get specific dates and owners for each gate before next review"
+    },
+    "paperProcess": {
+      "definition": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process",
+      "questions": [
+        "What are the legal steps required to conclude on the transaction?",
+        "What administrative steps need to be completed to allow an order to flow?"
+      ],
+      "responses": ["", ""],
+      "score": 0,
+      "scoreDefinition": {
+        "0": "Unknown — No procurement discovery done",
+        "1": "Identified — Aware that procurement exists but steps unknown",
+        "2": "Mapped — Some procurement steps known; security requirements identified",
+        "3": "In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review",
+        "4": "Complete — All procurement, legal, and security steps done; signature workflow mapped; PO format confirmed"
+      },
+      "evidence": "",
+      "notes": "Paper process discovery not started — this is a gap to close in the next review"
+    },
+    "implicateThePain": {
+      "definition": "The compelling business pain that creates urgency to act",
+      "questions": [
+        "What is the problem the client is solving for and how does it impact them?",
+        "What happens if the client can't solve the problem?"
+      ],
+      "responses": [
+        "3 API security incidents in Q1 2026 resulted in 12 hours cumulative downtime and $400K in SLA penalties. Board mandated a fix by Q3.",
+        "Another incident before Q3 board review puts the CTO's modernization budget at risk. Regulatory audit in September requires documented API security controls."
+      ],
+      "score": 4,
+      "scoreDefinition": {
+        "0": "Unknown — No pain identified or discussed; solution looking for a problem",
+        "1": "Identified — Pain implied but not explicitly confirmed by customer",
+        "2": "Acknowledged — Pain acknowledged by customer but not fully quantified",
+        "3": "Quantified — Pain quantified with business impact; consequence of inaction documented",
+        "4": "Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver"
+      },
+      "evidence": "Incident reports shared by CTO. $400K SLA penalty confirmed by VP Finance. Board mandate documented in Q1 board minutes excerpt.",
+      "notes": "Strongest element in this deal — use as anchor for urgency conversations"
+    },
+    "champion": {
+      "definition": "A powerful internal advocate who sells for you when you're not in the room",
+      "questions": ["Who will benefit most from this transaction?", "Can they influence the buying process?"],
+      "responses": [
+        "Mike Torres, Director of Platform Engineering — he owns the API gateway team and will be directly measured on MTTR improvement",
+        "Yes — he reports to the CTO, introduced us to the EB, and is running the POC internally. Shared competitor pricing last week."
+      ],
+      "score": 4,
+      "scoreDefinition": {
+        "0": "Unknown — No internal advocate identified",
+        "1": "Identified — Friendly contact without organizational power; passive supporter",
+        "2": "Tested — Friendly contact with some influence; willing to help but hasn't taken significant action",
+        "3": "Validated — Named individual with influence and credibility; personal win documented",
+        "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
+      },
+      "evidence": "Mike scheduled the EB meeting, shared competitor pricing (Cloudflare quote), and presented our POC results at the architecture review board on 2026-04-28.",
+      "notes": "Mike's personal win: his team gets headcount if MTTR target is met with automation"
+    },
+    "competition": {
+      "definition": "Any alternative the buyer might choose — another vendor, internal build, or do nothing",
+      "questions": [
+        "Who are we competing with and what is their strategy?",
+        "What are their strengths and weaknesses?"
+      ],
+      "responses": [
+        "Cloudflare (primary) — leading on price, positioning as simpler to deploy. Akamai (secondary) — incumbent for CDN, trying to upsell API security.",
+        "Cloudflare: strong brand, lower price point, but lacks F5's depth on API discovery and Kubernetes-native integration. Akamai: existing relationship but their API security product is immature."
+      ],
+      "score": 2,
+      "scoreDefinition": {
+        "0": "Unknown — No competitive intelligence gathered",
+        "1": "Identified — Assumptions about competition; no differentiation strategy",
+        "2": "Assessed — Competitors identified but customer perception unclear; general differentiation known",
+        "3": "Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear",
+        "4": "Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer"
+      },
+      "evidence": "Champion shared Cloudflare quote. CTO mentioned Akamai in initial call. No formal competitive proof test done yet.",
+      "notes": "Need customer's perception of Cloudflare vs F5 on key criteria. Plan competitive demo for week of May 19."
+    }
+  },
+  "threeWhys": {
+    "f5": {
+      "whyAnything": "3 API security incidents in Q1 cost $400K in SLA penalties; board mandated a fix by Q3; regulatory audit in September requires documented controls",
+      "whyF5": "Only vendor with unified app + API security that integrates natively with their Kubernetes platform; deepest API discovery and threat detection",
+      "whyNow": "Board mandate deadline is Q3 2026; regulatory audit in September; every month of delay is another month of exposure to SLA penalties"
+    },
+    "partner": {
+      "name": "TechServ Solutions",
+      "whyAnything": "Acme needs implementation support — their platform team is at capacity with the Kubernetes migration",
+      "whyThisPartner": "TechServ has 3 certified F5 engineers and prior Acme relationship from the load balancer deployment",
+      "whyNow": "TechServ has a team available in June; if we wait, they're committed to another project through Q4"
+    }
+  },
+  "stakeholders": [
+    {
+      "name": "Sarah Chen",
+      "title": "SVP Infrastructure",
+      "roleInDeal": "Economic buyer",
+      "mustSayYes": true,
+      "canSayNo": true,
+      "whatTheyNeedToBelieve": "F5 will reduce security incidents by 60% within 6 months and the TCO stays under $100K/yr",
+      "viewOfF5": "Positive",
+      "f5Owner": "Jane Smith"
+    },
+    {
+      "name": "David Park",
+      "title": "CTO",
+      "roleInDeal": "Decision maker",
+      "mustSayYes": true,
+      "canSayNo": true,
+      "whatTheyNeedToBelieve": "F5 integrates with existing Kubernetes platform without migration risk and passes architecture review",
+      "viewOfF5": "Positive",
+      "f5Owner": "Bob Johnson"
+    },
+    {
+      "name": "Mike Torres",
+      "title": "Director of Platform Engineering",
+      "roleInDeal": "Influencer",
+      "mustSayYes": false,
+      "canSayNo": false,
+      "whatTheyNeedToBelieve": "F5 makes his team more productive and helps him hit the MTTR target that gets him headcount",
+      "viewOfF5": "Positive",
+      "f5Owner": "Jane Smith"
+    },
+    {
+      "name": "Lisa Wang",
+      "title": "CISO",
+      "roleInDeal": "Influencer",
+      "mustSayYes": false,
+      "canSayNo": true,
+      "whatTheyNeedToBelieve": "F5 meets SOC2 and regulatory requirements without creating new compliance gaps",
+      "viewOfF5": "Neutral",
+      "f5Owner": "Bob Johnson"
+    }
+  ],
+  "salesStrategy": {
+    "differentiatedValueProposition": "F5 is the only vendor that provides unified application and API security with native Kubernetes integration — eliminating the need to deploy separate tools for north-south and east-west API protection. This directly addresses Acme's MTTR target by providing a single pane of glass for API discovery, threat detection, and incident response across all 3 data centers.",
+    "winStrategy": "Lead with the pain: $400K SLA penalties and board mandate create urgency. Differentiate on Kubernetes-native integration (Cloudflare can't match this). Use the POC to prove MTTR improvement quantitatively. Get EB alignment on business case before architecture review board. Neutralize Cloudflare's price advantage by quantifying the cost of deploying and managing a separate API discovery tool."
+  },
+  "closePlan": {
+    "milestones": [
+      {
+        "description": "Complete POC with documented MTTR results",
+        "targetDate": "2026-05-09",
+        "status": "in_progress"
+      },
+      {
+        "description": "Present POC results to steering committee",
+        "targetDate": "2026-05-12",
+        "status": "pending"
+      },
+      {
+        "description": "Architecture review board approval",
+        "targetDate": "2026-05-26",
+        "status": "pending"
+      },
+      {
+        "description": "Business case approval by EB",
+        "targetDate": "2026-06-09",
+        "status": "pending"
+      },
+      {
+        "description": "Contract signed",
+        "targetDate": "2026-06-30",
+        "status": "pending"
+      }
+    ],
+    "criticalActions": [
+      {
+        "action": "Schedule competitive differentiation demo vs Cloudflare",
+        "owner": "Bob Johnson (SE)",
+        "dueDate": "2026-05-19",
+        "status": "pending"
+      },
+      {
+        "action": "Begin paper process discovery with procurement contact",
+        "owner": "Jane Smith (AE)",
+        "dueDate": "2026-05-15",
+        "status": "pending"
+      },
+      {
+        "action": "Get specific dates and owners for architecture review board and procurement gates",
+        "owner": "Jane Smith (AE)",
+        "dueDate": "2026-05-12",
+        "status": "pending"
+      }
+    ]
+  },
+  "team": {
+    "f5": [
+      { "name": "Jane Smith", "role": "Account Executive", "dateRequiredFrom": "2026-03-01", "assignedToDeal": true },
+      { "name": "Bob Johnson", "role": "Solutions Engineer", "dateRequiredFrom": "2026-04-01", "assignedToDeal": true },
+      { "name": "Amy Chen", "role": "CSM", "dateRequiredFrom": "2026-06-15", "assignedToDeal": false }
+    ],
+    "partner": [
+      { "name": "Tom Rivera", "role": "Lead Engineer", "dateRequiredFrom": "2026-06-01", "assignedToDeal": true },
+      { "name": "Priya Patel", "role": "Project Manager", "dateRequiredFrom": "2026-06-01", "assignedToDeal": false }
+    ]
+  },
+  "scoring": {
+    "elementScores": {
+      "metrics": 3,
+      "economicBuyer": 3,
+      "decisionCriteria": 3,
+      "decisionProcess": 2,
+      "paperProcess": 0,
+      "implicateThePain": 4,
+      "champion": 4,
+      "competition": 2
+    },
+    "previousElementScores": {
+      "metrics": 2,
+      "economicBuyer": 2,
+      "decisionCriteria": 2,
+      "decisionProcess": 1,
+      "paperProcess": 0,
+      "implicateThePain": 3,
+      "champion": 3,
+      "competition": 1
+    },
+    "overallScore": 65.6,
+    "overallRating": "Yellow"
+  }
+}

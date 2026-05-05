@@ -53,7 +53,7 @@ The plugin includes comprehensive reference material:
 - **Roles & Responsibilities** — RACI ownership by team role
 - **Deal Stage Gates** — what must be true before advancing
 - **Antipatterns** — common failure modes and fixes
-- **Scoring Rubric** — objective 0–3 scoring criteria
+- **Scoring Rubric** — objective 0–4 scoring criteria
 - **Review Templates** — weekly inspection question sets
 - **MAP Templates** — customer-facing action plan structure
 

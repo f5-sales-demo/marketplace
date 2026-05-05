@@ -1,0 +1,90 @@
+{
+  "$comment": "Maps Salesforce Opportunity and Account fields to MEDDPICC schema paths. Used by the deal-qualification skill to pre-populate deal data from SFDC. Requires Salesforce MCP server or sf/sfdx CLI.",
+  "soqlQuery": "SELECT Id, Name, CloseDate, StageName, Amount, Probability, OwnerId, Account.Id, Account.Name FROM Opportunity WHERE Id = '{opportunityId}'",
+  "fieldMappings": [
+    {
+      "sfObject": "Opportunity",
+      "sfField": "Name",
+      "schemaPath": "metadata.dealName",
+      "transform": null
+    },
+    {
+      "sfObject": "Account",
+      "sfField": "Name",
+      "schemaPath": "metadata.accountName",
+      "transform": null
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "CloseDate",
+      "schemaPath": "metadata.closeDate",
+      "transform": "date_to_iso"
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "StageName",
+      "schemaPath": "metadata.salesforce.stageName",
+      "transform": null
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "StageName",
+      "schemaPath": "metadata.forecastStage",
+      "transform": "stage_to_forecast",
+      "transformMap": {
+        "Prospecting": "Pipeline",
+        "Qualification": "Pipeline",
+        "Needs Analysis": "Pipeline",
+        "Value Proposition": "Pipeline",
+        "Id. Decision Makers": "Pipeline",
+        "Perception Analysis": "Best Case",
+        "Proposal/Price Quote": "Best Case",
+        "Negotiation/Review": "Commit",
+        "Closed Won": "Commit",
+        "Closed Lost": "Pipeline"
+      }
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "Amount",
+      "schemaPath": "metadata.revenue.acv",
+      "transform": "number"
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "Probability",
+      "schemaPath": "metadata.winProbability",
+      "transform": "percentage_to_decimal"
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "OwnerId",
+      "schemaPath": "metadata.salesforce.ownerId",
+      "transform": null
+    },
+    {
+      "sfObject": "Opportunity",
+      "sfField": "Id",
+      "schemaPath": "metadata.salesforce.opportunityId",
+      "transform": null
+    },
+    {
+      "sfObject": "Account",
+      "sfField": "Id",
+      "schemaPath": "metadata.salesforce.accountId",
+      "transform": null
+    }
+  ],
+  "transforms": {
+    "date_to_iso": "Convert SFDC date (YYYY-MM-DD) to ISO date string — typically no conversion needed",
+    "stage_to_forecast": "Map SFDC stage name to forecast category using transformMap lookup",
+    "number": "Ensure numeric type (SFDC may return string)",
+    "percentage_to_decimal": "Divide by 100 (SFDC stores probability as 0-100, schema uses 0-1)"
+  },
+  "manualFields": [
+    {
+      "schemaPath": "metadata.competition",
+      "note": "No standard SFDC field. Skill should prompt user for this after import."
+    }
+  ]
+}
