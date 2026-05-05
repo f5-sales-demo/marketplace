@@ -80,5 +80,11 @@
     "stage_to_forecast": "Map SFDC stage name to forecast category using transformMap lookup",
     "number": "Ensure numeric type (SFDC may return string)",
     "percentage_to_decimal": "Divide by 100 (SFDC stores probability as 0-100, schema uses 0-1)"
-  }
+  },
+  "manualFields": [
+    {
+      "schemaPath": "metadata.competition",
+      "note": "No standard SFDC field. Skill should prompt user for this after import."
+    }
+  ]
 }

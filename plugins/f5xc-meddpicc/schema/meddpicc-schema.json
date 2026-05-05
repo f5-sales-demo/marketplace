@@ -39,8 +39,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "enum": [0.05, 0.10, 0.25, 0.35, 0.50, 0.60, 0.75],
-          "description": "Win probability from pick list (decimal 0-1)"
+"description": "Win probability as decimal 0-1. Common values from pick list: 0.05, 0.10, 0.25, 0.35, 0.50, 0.60, 0.75"
         },
         "forecastStage": {
           "type": "string",
@@ -434,6 +433,20 @@
             "competition": { "type": "integer", "minimum": 0, "maximum": 4 }
           }
         },
+        "previousElementScores": {
+          "type": "object",
+          "description": "Snapshot of element scores from the previous review — used by deal-review to compute score deltas",
+          "properties": {
+            "metrics": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "economicBuyer": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "decisionCriteria": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "decisionProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "paperProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "implicateThePain": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "champion": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "competition": { "type": "integer", "minimum": 0, "maximum": 4 }
+          }
+        },
         "overallScore": {
           "type": "number",
           "minimum": 0,
@@ -443,7 +456,7 @@
         "overallRating": {
           "type": "string",
           "enum": ["Red", "Yellow", "Green"],
-          "description": "Traffic light: Red = 0-40%, Yellow = 41-70%, Green = 71-100%"
+          "description": "Traffic light: Red = 0-40% (0-13/32), Yellow = 44-78% (14-25/32), Green = 81-100% (26-32/32)"
         }
       }
     }

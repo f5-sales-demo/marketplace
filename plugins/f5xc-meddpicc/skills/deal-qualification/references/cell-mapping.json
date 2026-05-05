@@ -1,5 +1,5 @@
 {
-  "$comment": "Maps JSON paths from meddpicc-schema.json to cell coordinates in meddpicc-template.xlsx. The XLS template uses the 'MEDDPICC Deal Review Sheet' sheet. Dynamic rows (stakeholders, milestones, team) start at the given row and increment by 1 per item.",
+  "$comment": "Maps JSON paths from meddpicc-schema.json to cell coordinates in meddpicc-template.xlsx. The XLS template uses the 'MEDDPICC Deal Review Sheet' sheet. Dynamic rows (stakeholders, milestones, team) start at the given row and increment by 1 per item. Sections sharing the same startRow use side-by-side layout (different column ranges on the same rows).",
   "sheetName": "MEDDPICC Deal Review Sheet",
   "staticFields": [
     { "jsonPath": "metadata.accountName", "cell": "B4" },
@@ -63,6 +63,7 @@
       "jsonPath": "closePlan.milestones",
       "startRow": 67,
       "maxRows": 10,
+      "layout": "side-by-side",
       "columns": {
         "description": "B",
         "targetDate": "F",
@@ -73,6 +74,7 @@
       "jsonPath": "closePlan.criticalActions",
       "startRow": 67,
       "maxRows": 10,
+      "layout": "side-by-side",
       "columns": {
         "action": "J",
         "owner": "N",
@@ -84,6 +86,7 @@
       "jsonPath": "team.f5",
       "startRow": 82,
       "maxRows": 10,
+      "layout": "side-by-side",
       "columns": {
         "name": "B",
         "role": "D",
@@ -96,6 +99,7 @@
       "jsonPath": "team.partner",
       "startRow": 82,
       "maxRows": 10,
+      "layout": "side-by-side",
       "columns": {
         "name": "J",
         "role": "L",

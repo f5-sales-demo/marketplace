@@ -114,7 +114,7 @@ detailed scoring criteria.
 ### Overall Score Calculation
 
 - **Formula:** `(sum of 8 element scores / 32) × 100`
-- **Rating:** Red = 0-40%, Yellow = 41-70%, Green = 71-100%
+- **Rating:** Red = 0-40%, Yellow = 44-78%, Green = 81-100%
 
 ### Scoring Guidelines
 
