@@ -6,7 +6,7 @@
     "dealStatus": "Qualified",
     "closeDate": "2026-06-30",
     "competition": "Cloudflare, Akamai",
-    "winProbability": 0.50,
+    "winProbability": 0.5,
     "forecastStage": "Best Case",
     "revenue": {
       "pAndIplusAcvx": 150000,
@@ -50,10 +50,7 @@
   "qualification": {
     "metrics": {
       "definition": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value",
-      "questions": [
-        "What goals is the client trying to accomplish?",
-        "What KPIs are they using to measure the goals?"
-      ],
+      "questions": ["What goals is the client trying to accomplish?", "What KPIs are they using to measure the goals?"],
       "responses": [
         "Reduce MTTR from 4 hours to 30 minutes and achieve 99.99% uptime for customer-facing APIs across 3 data centers",
         "Tracking MTTR, uptime SLA compliance rate, incident count per month, and API error rate (target <0.1%)"
@@ -71,10 +68,7 @@
     },
     "economicBuyer": {
       "definition": "The individual with final budget authority and political power to fund the purchase",
-      "questions": [
-        "Who makes the buying decision?",
-        "How are we engaged with them to address their priorities?"
-      ],
+      "questions": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"],
       "responses": [
         "<HISTORICAL_IDENTITY_D3C487ABA7>, SVP Infrastructure — confirmed budget authority for all platform security investments up to $500K",
         "Direct meeting held 2026-04-20. She is focused on reducing security incidents before Q3 board review. Follow-up scheduled May 15."
@@ -173,10 +167,7 @@
     },
     "champion": {
       "definition": "A powerful internal advocate who sells for you when you're not in the room",
-      "questions": [
-        "Who will benefit most from this transaction?",
-        "Can they influence the buying process?"
-      ],
+      "questions": ["Who will benefit most from this transaction?", "Can they influence the buying process?"],
       "responses": [
         "<HISTORICAL_IDENTITY_AF9456C4DA>, Director of Platform Engineering — he owns the API gateway team and will be directly measured on MTTR improvement",
         "Yes — he reports to the CTO, introduced us to the EB, and is running the POC internally. Shared competitor pricing last week."

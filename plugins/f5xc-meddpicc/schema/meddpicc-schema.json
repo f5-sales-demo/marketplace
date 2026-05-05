@@ -39,7 +39,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-"description": "Win probability as decimal 0-1. Common values from pick list: 0.05, 0.10, 0.25, 0.35, 0.50, 0.60, 0.75"
+          "description": "Win probability as decimal 0-1. Common values from pick list: 0.05, 0.10, 0.25, 0.35, 0.50, 0.60, 0.75"
         },
         "forecastStage": {
           "type": "string",
@@ -87,7 +87,11 @@
             "accountId": { "type": "string", "pattern": "^001", "description": "Salesforce Account ID" },
             "ownerId": { "type": "string", "pattern": "^005", "description": "Salesforce Opportunity Owner ID" },
             "stageName": { "type": "string", "description": "Salesforce stage name (raw value)" },
-            "lastSyncDate": { "type": "string", "format": "date-time", "description": "Last time data was synced from Salesforce" }
+            "lastSyncDate": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Last time data was synced from Salesforce"
+            }
           }
         },
         "completionStatus": {
@@ -119,7 +123,9 @@
         "metrics": {
           "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
           "properties": {
-            "definition": { "const": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value" },
+            "definition": {
+              "const": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value"
+            },
             "questions": {
               "default": [
                 "What goals is the client trying to accomplish?",
@@ -140,12 +146,11 @@
         "economicBuyer": {
           "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
           "properties": {
-            "definition": { "const": "The individual with final budget authority and political power to fund the purchase" },
+            "definition": {
+              "const": "The individual with final budget authority and political power to fund the purchase"
+            },
             "questions": {
-              "default": [
-                "Who makes the buying decision?",
-                "How are we engaged with them to address their priorities?"
-              ]
+              "default": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"]
             },
             "scoreDefinition": {
               "default": {
@@ -161,7 +166,9 @@
         "decisionCriteria": {
           "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
           "properties": {
-            "definition": { "const": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial" },
+            "definition": {
+              "const": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial"
+            },
             "questions": {
               "default": [
                 "What criteria is the client using to evaluate the proposition?",
@@ -203,7 +210,9 @@
         "paperProcess": {
           "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
           "properties": {
-            "definition": { "const": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process" },
+            "definition": {
+              "const": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process"
+            },
             "questions": {
               "default": [
                 "What are the legal steps required to conclude on the transaction?",
@@ -247,10 +256,7 @@
           "properties": {
             "definition": { "const": "A powerful internal advocate who sells for you when you're not in the room" },
             "questions": {
-              "default": [
-                "Who will benefit most from this transaction?",
-                "Can they influence the buying process?"
-              ]
+              "default": ["Who will benefit most from this transaction?", "Can they influence the buying process?"]
             },
             "scoreDefinition": {
               "default": {
@@ -266,7 +272,9 @@
         "competition": {
           "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
           "properties": {
-            "definition": { "const": "Any alternative the buyer might choose — another vendor, internal build, or do nothing" },
+            "definition": {
+              "const": "Any alternative the buyer might choose — another vendor, internal build, or do nothing"
+            },
             "questions": {
               "default": [
                 "Who are we competing with and what is their strategy?",
@@ -293,7 +301,10 @@
         "f5": {
           "type": "object",
           "properties": {
-            "whyAnything": { "type": "string", "description": "Why does the client need to change from the status quo?" },
+            "whyAnything": {
+              "type": "string",
+              "description": "Why does the client need to change from the status quo?"
+            },
             "whyF5": { "type": "string", "description": "Why is F5 the right choice over alternatives?" },
             "whyNow": { "type": "string", "description": "Why must this happen on the current timeline?" }
           }
