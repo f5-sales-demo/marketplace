@@ -344,6 +344,16 @@
       "champion": 4,
       "competition": 2
     },
+    "previousElementScores": {
+      "metrics": 2,
+      "economicBuyer": 2,
+      "decisionCriteria": 2,
+      "decisionProcess": 1,
+      "paperProcess": 0,
+      "implicateThePain": 3,
+      "champion": 3,
+      "competition": 1
+    },
     "overallScore": 65.6,
     "overallRating": "Yellow"
   }

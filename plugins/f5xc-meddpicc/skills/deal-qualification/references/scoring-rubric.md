@@ -102,8 +102,8 @@ Detailed criteria for scoring each element 0–4.
 
 ## Scoring Guidelines
 
-- **26–32 (81–100%):** Strong deal — Green. Forecast as Commit if Decision Process and Paper Process are both ≥3.
-- **14–25 (44–78%):** Developing deal — Yellow. Forecast as Best Case with clear gap-closing plan.
-- **0–13 (0–40%):** At risk — Red. Forecast as Pipeline; significant work needed or qualify out.
+- **26–32 (~81–100%):** Strong deal — Green. Forecast as Commit if Decision Process and Paper Process are both ≥3.
+- **14–25 (~44–78%):** Developing deal — Yellow. Forecast as Best Case with clear gap-closing plan.
+- **0–13 (~0–41%):** At risk — Red. Forecast as Pipeline; significant work needed or qualify out.
 
 **Overall score formula:** `(sum of 8 element scores / 32) × 100`

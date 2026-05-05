@@ -456,7 +456,7 @@
         "overallRating": {
           "type": "string",
           "enum": ["Red", "Yellow", "Green"],
-          "description": "Traffic light: Red = 0-40% (0-13/32), Yellow = 44-78% (14-25/32), Green = 81-100% (26-32/32)"
+          "description": "Traffic light based on raw score: Red (0-13/32, ~0-41%), Yellow (14-25/32, ~44-78%), Green (26-32/32, ~81-100%). Use raw score brackets as the definitive boundary."
         }
       }
     }

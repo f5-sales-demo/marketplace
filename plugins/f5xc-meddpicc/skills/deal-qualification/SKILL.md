@@ -114,14 +114,14 @@ detailed scoring criteria.
 ### Overall Score Calculation
 
 - **Formula:** `(sum of 8 element scores / 32) × 100`
-- **Rating:** Red = 0-40%, Yellow = 44-78%, Green = 81-100%
+- **Rating:** Red (0-13/32), Yellow (14-25/32), Green (26-32/32)
 
 ### Scoring Guidelines
 
-- **26–32 (81–100%):** Strong — Commit if Decision Process and
+- **26–32 (~81–100%):** Strong — Commit if Decision Process and
   Paper Process are both ≥3
-- **14–25 (44–78%):** Developing — Best Case with gap-closing plan
-- **0–13 (0–40%):** At risk — Pipeline or qualify out
+- **14–25 (~44–78%):** Developing — Best Case with gap-closing plan
+- **0–13 (~0–41%):** At risk — Pipeline or qualify out
 
 ## Output
 
