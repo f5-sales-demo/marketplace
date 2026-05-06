@@ -20,7 +20,7 @@ COMPANIES=(
   "HSBC|hsbc.com|Banking|UK|HSBC"
   "Deutsche Bank|db.com|Banking|Germany|DB"
   # Tech
-  "ExampleCorp|example.com|Tech/CDN|US|EXC"
+  "Cloudflare|cloudflare.com|Tech/CDN|US|NET"
   "Shopify|shopify.com|Tech/E-commerce|Canada|SHOP"
   "SAP|sap.com|Tech/Enterprise|Germany|SAP"
   "Atlassian|atlassian.com|Tech/SaaS|Australia|TEAM"
