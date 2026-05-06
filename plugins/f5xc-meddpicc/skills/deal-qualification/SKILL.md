@@ -26,6 +26,121 @@ review produces a JSON file conforming to this schema. The schema
 embeds guiding questions and scoring rubric definitions for each
 MEDDPICC element.
 
+## Element Key Reference
+
+Use these exact JSON keys in all jq paths:
+
+| Display Name | JSON Key | jq Path |
+| ------------ | -------- | ------- |
+| Metrics (M) | `metrics` | `.qualification.metrics` |
+| Economic Buyer (E) | `economicBuyer` | `.qualification.economicBuyer` |
+| Decision Criteria (D1) | `decisionCriteria` | `.qualification.decisionCriteria` |
+| Decision Process (D2) | `decisionProcess` | `.qualification.decisionProcess` |
+| Paper Process (P) | `paperProcess` | `.qualification.paperProcess` |
+| Identify Pain (I) | `implicateThePain` | `.qualification.implicateThePain` |
+| Champion (C1) | `champion` | `.qualification.champion` |
+| Competition (C2) | `competition` | `.qualification.competition` |
+
+## Data Persistence Protocol
+
+Write data to the deal JSON **incrementally** using `jq` as each
+piece is collected — never batch writes at the end. This ensures
+data is preserved if the user pauses or the session ends.
+
+Verify `jq` is installed before starting: if `jq --version` fails,
+ask the user to install it (`apt install jq` or `brew install jq`).
+
+### File variable
+
+Set a shell variable at the start of the session and reuse it for
+every write:
+
+```bash
+DEAL_FILE="/path/to/account-deal.json"
+```
+
+### Write pattern
+
+Use `jq` with tmp-and-mv (`sponge` is not available):
+
+```bash
+jq '<expression>' "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+### Escaping rules
+
+- Use `--arg name value` for user-provided strings — prevents
+  shell injection and handles quotes automatically
+- Use `--argjson name value` for numbers and booleans
+- Never use `!=` in jq — use `| not` instead
+- Never use `!` in Bash — use `cmd || { handle; }` instead
+
+### Write points and jq patterns
+
+**Metadata field** — after each metadata answer:
+
+```bash
+jq --arg v "Discovery" '.metadata.dealStatus = $v' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Multiple metadata fields** — when collecting several at once:
+
+```bash
+jq --arg status "Discovery" --arg close "2026-09-30" \
+   --argjson prob 0.25 \
+  '.metadata.dealStatus = $status |
+   .metadata.closeDate = $close |
+   .metadata.winProbability = $prob' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**MEDDPICC element completion** — after scoring each element, write
+responses, score, evidence, notes, completionStatus, and
+elementScore. Replace `metrics` with the correct key from the
+Element Key Reference table:
+
+```bash
+jq --arg r0 "Answer to question 1" \
+   --arg r1 "Answer to question 2" \
+   --argjson score 2 \
+   --arg ev "[2026-05-06 interview] Supporting evidence" \
+   --arg notes "Additional context" \
+  '.qualification.metrics.responses = [$r0, $r1] |
+   .qualification.metrics.score = $score |
+   .qualification.metrics.evidence = $ev |
+   .qualification.metrics.notes = $notes |
+   .metadata.completionStatus.metrics = "complete" |
+   .scoring.elementScores.metrics = $score' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Overall score calculation** — after all 8 elements are scored:
+
+```bash
+jq '(.scoring.elementScores | to_entries | map(.value) | add) as $sum |
+  .scoring.overallScore = ($sum / 32 * 100) |
+  .scoring.overallRating = (
+    if $sum <= 13 then "Red"
+    elif $sum <= 25 then "Yellow"
+    else "Green" end)' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Array append** — for stakeholders, milestones, actions, team.
+Stakeholders require `name`, `title`, and `roleInDeal`. Initialize
+the array if absent:
+
+```bash
+jq --argjson item '{"name":"Jane","title":"VP","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"...","viewOfF5":"Neutral","f5Owner":"John Smith"}' \
+  'if .stakeholders then .stakeholders += [$item] else .stakeholders = [$item] end' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Scorecard display:** `scoring.overallScore` stores a percentage
+(0–100). To display `X/32`, sum `scoring.elementScores` values
+directly — do not back-compute from the percentage.
+
 ## Initialization — Determine Mode
 
 When the user invokes this skill, determine which mode to use:
@@ -34,24 +149,49 @@ When the user invokes this skill, determine which mode to use:
 
 User provides a deal or account name with no existing JSON file.
 
-1. Create a new deal JSON with a generated `dealId`, the provided
-   account/deal name, today's date as `reviewDate`, and all
-   `completionStatus` fields set to `"not_started"`
-2. Collect metadata first: deal status, close date, competition,
-   win probability, forecast stage, revenue breakdown, client
-   interactions
-3. Walk through each MEDDPICC element sequentially using the
-   `questions` from the schema — ask one question at a time
-4. After each element: assign a score (0-4) using the
-   `scoreDefinition` from the schema, ask for evidence, update
-   `completionStatus` to `"complete"`
-5. After all 8 elements: collect Three Whys, stakeholders, sales
-   strategy, close plan, and team
-6. Calculate `scoring.overallScore` and `scoring.overallRating`
-7. Write the JSON file
+1. Create a new deal JSON using the `Write` tool with a **full
+   skeleton** that includes all static data pre-populated from the
+   schema. Use [example-deal.json](../../schema/example-deal.json)
+   as the structural reference. Every MEDDPICC element must include:
+   - `definition` — from the schema's `const` value
+   - `questions` — from the schema's `default` array
+   - `scoreDefinition` — from the schema's `default` object
+   - `responses: []` — empty array (not null)
+   - `score: 0` — integer zero
+   - `evidence: ""` — empty string (not null, not omitted)
+   - `notes: ""` — empty string (not null, not omitted)
 
-The user can pause at any time. On pause, write the JSON with
-`completionStatus` reflecting progress for each section.
+   The `evidence` and `notes` fields **must be initialized to `""`**
+   — not `null`, not omitted. Downstream evidence appends depend
+   on these being strings. Also include:
+   - `metadata` with generated `dealId`, account/deal name, today's
+     `reviewDate`, all `completionStatus` fields `"not_started"`
+   - `scoring.elementScores` with all 8 keys set to `0`
+   - `scoring.overallScore: 0` and `scoring.overallRating: "Red"`
+   - Empty `stakeholders: []`, `closePlan: {milestones: [],
+     criticalActions: []}`, `team: {f5: [], partner: []}`
+2. Set the `DEAL_FILE` shell variable to the file path.
+3. Collect metadata: deal status, close date, competition, win
+   probability, forecast stage, revenue breakdown, client
+   interactions. **Write:** after each answer (or batch of related
+   answers), update the metadata field(s) with `jq`.
+4. Walk through each MEDDPICC element sequentially using the
+   `questions` from the schema — ask one question at a time.
+5. After each element: assign a score (0-4) using the
+   `scoreDefinition` from the schema, ask for evidence. **Write:**
+   immediately update `qualification.<element>.responses`,
+   `.score`, `.evidence`, `.notes`, plus
+   `metadata.completionStatus.<element>` = `"complete"` and
+   `scoring.elementScores.<element>` with a single `jq` call.
+6. After all 8 elements: collect Three Whys, stakeholders, sales
+   strategy, close plan, and team. **Write:** after each section,
+   update the section data and its `completionStatus` with `jq`.
+7. **Write:** calculate and write `scoring.overallScore` and
+   `scoring.overallRating` with the overall score `jq` pattern.
+
+The file is always up to date — there is no final "save" step. The
+user can pause at any time without data loss because every answer
+is persisted immediately.
 
 ### Mode 2: Import and Complete
 
@@ -59,12 +199,16 @@ User provides `--import` flag, a Salesforce opportunity ID, or there
 is an existing JSON file for this deal.
 
 **If existing JSON file found:**
-1. Read the file
+
+1. Read the file and set the `DEAL_FILE` shell variable
 2. Check `completionStatus` for incomplete sections
 3. Present a summary of what's complete and what's missing
 4. Ask targeted questions only for incomplete/partial sections
+5. **Write:** use `jq` to update each completed section
+   immediately (same protocol as Mode 1)
 
 **If Salesforce opportunity ID provided:**
+
 1. Read the field mapping from
    [sfdc-field-mapping.json](references/sfdc-field-mapping.json)
 2. Query Salesforce using the SOQL template (requires Salesforce
@@ -80,14 +224,17 @@ Mode 1.
 
 User invokes with an existing complete deal.
 
-1. Read the existing JSON file
+1. Read the existing JSON file and set the `DEAL_FILE` shell variable
 2. Present current scores and gaps
-3. Allow the user to update any section
-4. Recalculate scores after changes
+3. Allow the user to update any section — **Write:** use `jq` to
+   persist each change immediately
+4. **Write:** recalculate `scoring.overallScore` and
+   `scoring.overallRating` with the overall score `jq` pattern
 
 ## File Location
 
 Deal JSON files are stored at a configurable path:
+
 1. If the user specifies a path, use it
 2. Otherwise, use the current working directory
 3. File naming: `{accountName}-{dealName}.json` (slugified —
@@ -127,8 +274,10 @@ detailed scoring criteria.
 
 ### Primary output: JSON file
 
-Write the deal data to a JSON file conforming to the schema. This
-is the source of truth.
+The deal JSON file is written incrementally throughout the session
+via `jq` (see Data Persistence Protocol). By the time the
+interview completes, the file is already up to date and conforms
+to the schema. This file is the source of truth.
 
 ### Secondary output: Markdown scorecard
 

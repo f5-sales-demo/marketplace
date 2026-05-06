@@ -34,6 +34,7 @@ MEDDPICC is a qualification and deal-execution framework for complex B2B sales:
 | Command | Skill | Purpose |
 | ------- | ----- | ------- |
 | `/f5xc-meddpicc:qualify-deal` | `deal-qualification` | Score a deal with MEDDPICC scorecard |
+| `/f5xc-meddpicc:update-deal` | `deal-update` | Ingest intel from any source into a deal file |
 | `/f5xc-meddpicc:deal-review` | `deal-review` | Facilitate weekly deal inspection |
 | `/f5xc-meddpicc:champion-test` | `champion-test` | Assess if contact is a true champion |
 | `/f5xc-meddpicc:build-map` | `mutual-action-plan` | Build a Mutual Action Plan |
@@ -67,11 +68,25 @@ Or add to your marketplace configuration for automatic installation.
 
 ## Usage Examples
 
-### Qualify a deal
+### Create a new deal (day-0)
 
 ```
 /f5xc-meddpicc:qualify-deal Acme Corp
 ```
+
+### Ingest intelligence from any source
+
+```
+/f5xc-meddpicc:update-deal Acme Corp
+Here are my notes from today's call with the CTO:
+- Confirmed $500K budget for API security modernization
+- Board mandate to fix API incidents by Q3
+- Currently evaluating us and Cloudflare
+- Architecture review board meets May 26
+```
+
+Accepted sources: meeting notes, emails, transcripts, OSINT reports,
+competitive intel, Salesforce exports, presentation feedback — any text.
 
 ### Run a weekly deal review
 

@@ -22,16 +22,128 @@ The deal data model is defined in
 [meddpicc-schema.json](../../schema/meddpicc-schema.json). Reviews
 read and update deal JSON files conforming to this schema.
 
+## Data Persistence Protocol
+
+Update the deal JSON **incrementally** using `jq` as each piece of
+the review is collected — never batch writes at the end. This
+ensures data is preserved if the user pauses or the session ends.
+
+### File variable
+
+Set a shell variable when the deal file is loaded:
+
+```bash
+DEAL_FILE="/path/to/account-deal.json"
+```
+
+### Write pattern
+
+Use `jq` with tmp-and-mv (`sponge` is not available):
+
+```bash
+jq '<expression>' "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+### Escaping rules
+
+- Use `--arg name value` for user-provided strings
+- Use `--argjson name value` for numbers and booleans
+- Never use `!=` in jq — use `| not` instead
+- Never use `!` in Bash — use `cmd || { handle; }` instead
+
+## Element Key Reference
+
+Use these exact JSON keys in all jq paths (display name ≠ key):
+
+| Display Name | JSON Key | jq Path |
+| ------------ | -------- | ------- |
+| Metrics (M) | `metrics` | `.qualification.metrics` |
+| Economic Buyer (E) | `economicBuyer` | `.qualification.economicBuyer` |
+| Decision Criteria (D1) | `decisionCriteria` | `.qualification.decisionCriteria` |
+| Decision Process (D2) | `decisionProcess` | `.qualification.decisionProcess` |
+| Paper Process (P) | `paperProcess` | `.qualification.paperProcess` |
+| Identify Pain (I) | `implicateThePain` | `.qualification.implicateThePain` |
+| Champion (C1) | `champion` | `.qualification.champion` |
+| Competition (C2) | `competition` | `.qualification.competition` |
+
+### Key jq patterns for reviews
+
+**Evidence append** — append new evidence; never replace history.
+Handle both `null` and `""` as empty with `// ""`:
+
+```bash
+jq --arg new "[2026-05-20 weekly-review] Fred confirmed ARB slot June 2" \
+  '.qualification.metrics.evidence = (
+    ((.qualification.metrics.evidence // "") | if . == "" then $new else . + "\n" + $new end)
+  )' "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Score + completionStatus update** — update element score after
+evidence review. Replace `metrics` with the correct key above:
+
+```bash
+jq --argjson score 3 \
+  '.qualification.metrics.score = $score |
+   .metadata.completionStatus.metrics = "complete" |
+   .scoring.elementScores.metrics = $score' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Responses update** — replace responses only when new information
+is materially more specific than existing:
+
+```bash
+jq --arg r0 "Updated response to Q1" --arg r1 "Updated response to Q2" \
+  '.qualification.metrics.responses = [$r0, $r1]' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Append to critical actions**:
+
+```bash
+jq --argjson action '{"action":"Next step","owner":"AE","dueDate":"2026-05-15","status":"pending"}' \
+  'if .closePlan then .closePlan.criticalActions += [$action] else .closePlan = {milestones:[], criticalActions:[$action]} end' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Snapshot previous scores** — take this snapshot at Step 1 (load),
+before any element scores are changed, so the delta table is accurate:
+
+```bash
+jq '.scoring.previousElementScores = .scoring.elementScores' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Recalculate overall score** — run after all element updates:
+
+```bash
+jq '(.scoring.elementScores | to_entries | map(.value) | add) as $sum |
+  .scoring.overallScore = ($sum / 32 * 100) |
+  .scoring.overallRating = (
+    if $sum <= 13 then "Red"
+    elif $sum <= 25 then "Yellow"
+    else "Green" end)' \
+  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+```
+
+**Scorecard display:** `scoring.overallScore` stores a percentage.
+To display `X/32`, sum `scoring.elementScores` values directly.
+
 ## Review Protocol
 
 ### Step 1 — Load deal data
 
 Check for an existing deal JSON file:
+
 - Look for `{accountName}-{dealName}.json` at the configured path
   or current working directory
-- If found: load it and present current scores as the starting point
-- If not found: ask for deal context (same as deal-qualification
-  Mode 1) and create a new file
+- If found: load it, set the `DEAL_FILE` shell variable, and
+  **immediately snapshot** `previousElementScores` using the
+  snapshot jq pattern above — this must happen before any element
+  scores are changed in Steps 3–4
+- If not found: inform the user to create a deal first with
+  `/f5xc-meddpicc:qualify-deal` — a review requires an existing
+  deal file with baseline scores to produce meaningful deltas
 
 ### Step 2 — Establish context
 
@@ -65,8 +177,10 @@ Focus the review on what changed since the last review:
 - "What competitive threat increased or decreased?"
 - "What is the riskiest assumption remaining?"
 
-Update the JSON `responses`, `scores`, `evidence`, and `notes`
-fields based on new information from the review.
+**Write:** after each element discussion, immediately update
+`responses`, `score`, `evidence`, and `notes` in the JSON with
+`jq` (see Data Persistence Protocol). Also update
+`completionStatus` and `scoring.elementScores` for the element.
 
 ### Step 5 — Action items
 
@@ -77,7 +191,8 @@ For each gap identified, produce:
 - **Due date:** Concrete date, not "ASAP"
 - **Success criteria:** How we'll know this is done
 
-Add actions to `closePlan.criticalActions` in the JSON file.
+**Write:** append each action to `closePlan.criticalActions` with
+`jq` using the array append pattern (see Data Persistence Protocol).
 
 ### Step 6 — Forecast assessment
 
@@ -90,13 +205,29 @@ Based on the review, recommend one of:
 - **At Risk** — Deal has stalled or has fundamental gaps
 - **Qualify Out** — Evidence suggests this deal should not be pursued
 
-### Step 7 — Save and report
+### Step 7 — Finalize and report
 
-1. Update `metadata.reviewDate` to today's date
-2. Recalculate `scoring.overallScore` and `scoring.overallRating`
-3. Update `completionStatus` for any sections that changed
-4. Write the updated JSON file
-5. Present the review output
+The file has been updated incrementally throughout the review.
+The `previousElementScores` snapshot was taken at Step 1 (load).
+For the final writes:
+
+1. **Write:** update `metadata.reviewDate` to today's date, update
+   `metadata.reviewer` to the person conducting the review, and
+   update `metadata.lastClientInteraction` with the most recent
+   interaction discussed:
+
+   ```bash
+   jq --arg date "2026-05-20" --arg reviewer "John Smith" \
+      --arg lastDate "2026-05-20" --arg lastOutcome "Weekly review" \
+     '.metadata.reviewDate = $date |
+      .metadata.reviewer = $reviewer |
+      .metadata.lastClientInteraction = {date: $lastDate, outcome: $lastOutcome}' \
+     "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
+   ```
+
+2. **Write:** recalculate overall score and rating using the
+   recalculate jq pattern (see Data Persistence Protocol)
+3. Present the review output
 
 ## Output Format
 
