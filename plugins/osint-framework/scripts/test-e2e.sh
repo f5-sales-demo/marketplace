@@ -216,15 +216,15 @@ if [ -z "$LAYER_FILTER" ] || { [ "$LAYER_FILTER" = "--layer" ] && [ "${2:-}" = "
 
   # IP tools
   run_test "U08" "ipinfo.io returns IP JSON" \
-    "curl -s 'https://ipinfo.io/93.184.216.34/json' 2>/dev/null" \
+    "curl -s 'https://ipinfo.io/198.51.100.1/json' 2>/dev/null" \
     "\"ip\"" 15
 
   run_test "U09" "whois IP returns NetName" \
-    "whois 93.184.216.34 2>/dev/null" \
+    "whois 198.51.100.1 2>/dev/null" \
     "netname|orgname|org-name|NetName|OrgName" 30
 
   run_test "U10" "dig reverse DNS runs clean" \
-    "dig -x 93.184.216.34 +short 2>/dev/null; echo 'reverse_done'" \
+    "dig -x 198.51.100.1 +short 2>/dev/null; echo 'reverse_done'" \
     "reverse_done" 15
 
   # Active scanning (safe targets only)
@@ -321,7 +321,7 @@ if [ -z "$LAYER_FILTER" ] || { [ "$LAYER_FILTER" = "--layer" ] && [ "${2:-}" = "
     "verified" 5
 
   run_test "T03d" "Passive pipeline: ipinfo country" \
-    "curl -s 'https://ipinfo.io/93.184.216.34/json' 2>/dev/null | jq -r '.country' 2>/dev/null" \
+    "curl -s 'https://ipinfo.io/198.51.100.1/json' 2>/dev/null | jq -r '.country' 2>/dev/null" \
     "US" 15
 
   # T04: Reference File Integrity

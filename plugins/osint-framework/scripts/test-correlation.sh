@@ -71,7 +71,7 @@ osint_graph_reset
 # ── Test 1: Entity Creation ────────────────────────────────
 echo -e "${CYAN}--- Entity CRUD ---${NC}"
 
-P1=$(osint_entity_add "person" "Robin Mordasiewicz" name="Robin Mordasiewicz" location="Toronto" --tool github-api --investigation test-001)
+P1=$(osint_entity_add "person" "J. Smith" name="J. Smith" location="Anytown" --tool github-api --investigation test-001)
 assert_contains "Entity add returns ID" "e-" "$P1"
 
 C1=$(osint_entity_add "company" "F5" domain="f5.com" --tool github-api --investigation test-001)
@@ -80,13 +80,13 @@ assert_contains "Company entity created" "e-" "$C1"
 D1=$(osint_entity_add "domain" "f5.com" registrar="CSC" --tool whois --investigation test-001)
 assert_contains "Domain entity created" "e-" "$D1"
 
-U1=$(osint_entity_add "username" "robinmordasiewicz" platform="github" --tool github-api --investigation test-001)
+U1=$(osint_entity_add "username" "example-user" platform="github" --tool github-api --investigation test-001)
 assert_contains "Username entity created" "e-" "$U1"
 
 IP1=$(osint_entity_add "ip" "159.60.134.0" org="F5 Networks" --tool dig --investigation test-001)
 assert_contains "IP entity created" "e-" "$IP1"
 
-E1=$(osint_entity_add "email" "robin@f5.com" --tool inference --investigation test-001)
+E1=$(osint_entity_add "email" "j.smith@example.com" --tool inference --investigation test-001)
 assert_contains "Email entity created" "e-" "$E1"
 
 entity_count=$(jq 'length' "$OSINT_GRAPH_DIR/entities.json")
@@ -96,7 +96,7 @@ assert_eq "6 entities in graph" "6" "$entity_count"
 echo ""
 echo -e "${CYAN}--- Deduplication ---${NC}"
 
-P1_DUP=$(osint_entity_add "person" "Robin Mordasiewicz" company="F5" --tool linkedin --investigation test-001)
+P1_DUP=$(osint_entity_add "person" "J. Smith" company="F5" --tool linkedin --investigation test-001)
 assert_eq "Dedup: same person returns same ID" "$P1" "$P1_DUP"
 
 entity_count=$(jq 'length' "$OSINT_GRAPH_DIR/entities.json")
@@ -121,7 +121,7 @@ e1_conf=$(osint_entity_get "$E1" | jq -r '.confidence')
 assert_gt "Email confidence from inference < 0.5" "0.0" "$e1_conf"
 
 # Add same email from authoritative source — confidence should rise
-osint_entity_add "email" "robin@f5.com" --tool whois --investigation test-001 >/dev/null
+osint_entity_add "email" "j.smith@example.com" --tool whois --investigation test-001 >/dev/null
 e1_conf_new=$(osint_entity_get "$E1" | jq -r '.confidence')
 assert_gt "Email confidence rises after WHOIS confirms (>0.9)" "0.9" "$e1_conf_new"
 

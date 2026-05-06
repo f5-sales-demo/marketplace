@@ -5,7 +5,7 @@
     "dealName": "DC Modernization Phase 2",
     "dealStatus": "Qualified",
     "closeDate": "2026-06-30",
-    "competition": "Cloudflare, Akamai",
+    "competition": "Vendor A, Vendor B",
     "winProbability": 0.5,
     "forecastStage": "Best Case",
     "revenue": {
@@ -180,7 +180,7 @@
         "3": "Validated — Named individual with influence and credibility; personal win documented",
         "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
       },
-      "evidence": "Mike scheduled the EB meeting, shared competitor pricing (Cloudflare quote), and presented our POC results at the architecture review board on 2026-04-28.",
+      "evidence": "Mike scheduled the EB meeting, shared competitor pricing (Vendor A quote), and presented our POC results at the architecture review board on 2026-04-28.",
       "notes": "Mike's personal win: his team gets headcount if MTTR target is met with automation"
     },
     "competition": {
@@ -190,8 +190,8 @@
         "What are their strengths and weaknesses?"
       ],
       "responses": [
-        "Cloudflare (primary) — leading on price, positioning as simpler to deploy. Akamai (secondary) — incumbent for CDN, trying to upsell API security.",
-        "Cloudflare: strong brand, lower price point, but lacks F5's depth on API discovery and Kubernetes-native integration. Akamai: existing relationship but their API security product is immature."
+        "Vendor A (primary) — leading on price, positioning as simpler to deploy. Vendor B (secondary) — incumbent for CDN, trying to upsell API security.",
+        "Vendor A: strong brand, lower price point, but lacks F5's depth on API discovery and Kubernetes-native integration. Vendor B: existing relationship but their API security product is immature."
       ],
       "score": 2,
       "scoreDefinition": {
@@ -201,8 +201,8 @@
         "3": "Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear",
         "4": "Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer"
       },
-      "evidence": "Champion shared Cloudflare quote. CTO mentioned Akamai in initial call. No formal competitive proof test done yet.",
-      "notes": "Need customer's perception of Cloudflare vs F5 on key criteria. Plan competitive demo for week of May 19."
+      "evidence": "Champion shared Vendor A quote. CTO mentioned Vendor B in initial call. No formal competitive proof test done yet.",
+      "notes": "Need customer's perception of Vendor A vs F5 on key criteria. Plan competitive demo for week of May 19."
     }
   },
   "threeWhys": {
@@ -212,10 +212,10 @@
       "whyNow": "Board mandate deadline is Q3 2026; regulatory audit in September; every month of delay is another month of exposure to SLA penalties"
     },
     "partner": {
-      "name": "TechServ Solutions",
+      "name": "PartnerCo",
       "whyAnything": "Acme needs implementation support — their platform team is at capacity with the Kubernetes migration",
-      "whyThisPartner": "TechServ has 3 certified F5 engineers and prior Acme relationship from the load balancer deployment",
-      "whyNow": "TechServ has a team available in June; if we wait, they're committed to another project through Q4"
+      "whyThisPartner": "PartnerCo has 3 certified F5 engineers and prior Acme relationship from the load balancer deployment",
+      "whyNow": "PartnerCo has a team available in June; if we wait, they're committed to another project through Q4"
     }
   },
   "stakeholders": [
@@ -262,7 +262,7 @@
   ],
   "salesStrategy": {
     "differentiatedValueProposition": "F5 is the only vendor that provides unified application and API security with native Kubernetes integration — eliminating the need to deploy separate tools for north-south and east-west API protection. This directly addresses Acme's MTTR target by providing a single pane of glass for API discovery, threat detection, and incident response across all 3 data centers.",
-    "winStrategy": "Lead with the pain: $400K SLA penalties and board mandate create urgency. Differentiate on Kubernetes-native integration (Cloudflare can't match this). Use the POC to prove MTTR improvement quantitatively. Get EB alignment on business case before architecture review board. Neutralize Cloudflare's price advantage by quantifying the cost of deploying and managing a separate API discovery tool."
+    "winStrategy": "Lead with the pain: $400K SLA penalties and board mandate create urgency. Differentiate on Kubernetes-native integration (Vendor A can't match this). Use the POC to prove MTTR improvement quantitatively. Get EB alignment on business case before architecture review board. Neutralize Vendor A's price advantage by quantifying the cost of deploying and managing a separate API discovery tool."
   },
   "closePlan": {
     "milestones": [
@@ -294,7 +294,7 @@
     ],
     "criticalActions": [
       {
-        "action": "Schedule competitive differentiation demo vs Cloudflare",
+        "action": "Schedule competitive differentiation demo vs Vendor A",
         "owner": "Bob Johnson (SE)",
         "dueDate": "2026-05-19",
         "status": "pending"
