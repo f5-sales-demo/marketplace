@@ -58,7 +58,7 @@ Creates a new MEDDPICC deal file through a guided interview. Walks through each 
 - **Import** — resume a partial deal file, or import from Salesforce via `--sfdc <opportunity-id>`
 - **Review and update** — update an existing complete deal
 
-Output: JSON deal file (source of truth) + markdown scorecard. Add `render` or `export` to generate an XLS spreadsheet from the deal data.
+Output: JSON deal file (source of truth) + Markdown scorecard. Add `render` or `export` to generate an XLS spreadsheet from the deal data.
 
 ### Deal update (`/f5xc-meddpicc:update-deal`)
 
