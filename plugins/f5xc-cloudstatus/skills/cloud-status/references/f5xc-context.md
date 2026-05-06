@@ -32,7 +32,7 @@ organizes components into the following geographic and service groups:
 | Component Group | Coverage |
 | ------------------------------------ | ----------------------------------------------------- |
 | Services | Core platform services (console, API, control plane) |
-| Customer Support, Docs and WebSite | Support infrastructure and documentation |
+| Customer Support, Docs and site | Support infrastructure and documentation |
 | North America PoPs | US, Canada regional edge sites |
 | South America PoPs | Latin America regional edge sites |
 | Europe PoPs | European regional edge sites |
@@ -69,7 +69,7 @@ Regional Edge Sites (per-region)
 
 **Key dependency insight:** A control plane outage prevents *configuration
 changes* but does not stop existing traffic rules from enforcing. DNS
-outages are more severe for end-user impact than control plane outages.
+outages are more severe for end user impact than control plane outages.
 
 ## Severity Interpretation Guide
 

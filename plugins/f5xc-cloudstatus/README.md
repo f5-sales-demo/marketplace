@@ -18,7 +18,7 @@ No API keys. No authentication. The Statuspage.io public API is rate-limit-free.
 
 | Agent | Purpose |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
-| `status-operator` | Executes curl + jq against Statuspage.io API; 9 operation types with structured analysis reports |
+| `status-operator` | Executes cURL + jq against Statuspage.io API; 9 operation types with structured analysis reports |
 
 ## Commands
 
@@ -119,4 +119,4 @@ This plugin replaces the [f5xc-cloudstatus-mcp](https://github.com/robinmordasie
 MCP server. All 6 MCP tools are ported with full feature parity, plus new
 operational intelligence capabilities. The MCP server's infrastructure
 (Playwright browser, connection pooling, in-memory caching) is replaced by
-direct `curl` + `jq` calls against the public API.
+direct `cURL` + `jq` calls against the public API.

@@ -4,9 +4,9 @@
 
 **Goal:** Create a marketplace agent skill plugin that monitors Atlassian Statuspage.io-powered status pages, porting all functionality from the f5xc-cloudstatus-mcp server and adding operational intelligence capabilities.
 
-**Architecture:** Thin skill + fat agent. A single skill (`cloud-status`) routes user intent to operations, and a single agent (`status-operator`) executes `curl` + `jq` against the Statuspage.io public API v2 and produces structured markdown reports. Three reference files provide API documentation, F5 domain knowledge, and analysis rules.
+**Architecture:** Thin skill + fat agent. A single skill (`cloud-status`) routes user intent to operations, and a single agent (`status-operator`) executes `cURL` + `jq` against the Statuspage.io public API v2 and produces structured Markdown reports. Three reference files provide API documentation, F5 domain knowledge, and analysis rules.
 
-**Tech Stack:** Markdown skill definitions, curl + jq for API access, no runtime dependencies.
+**Tech Stack:** Markdown skill definitions, cURL + jq for API access, no runtime dependencies.
 
 **Spec:** `docs/superpowers/specs/2026-05-05-f5xc-cloudstatus-design.md`
 
@@ -17,10 +17,10 @@
 | File | Responsibility | Created/Modified |
 | --- | --- | --- |
 | `plugins/f5xc-cloudstatus/.claude-plugin/plugin.json` | Plugin manifest | Create |
-| `plugins/f5xc-cloudstatus/skills/cloud-status/references/statuspage-api.md` | Generic Statuspage.io API v2 reference with curl + jq templates | Create |
+| `plugins/f5xc-cloudstatus/skills/cloud-status/references/statuspage-api.md` | Generic Statuspage.io API v2 reference with cURL + jq templates | Create |
 | `plugins/f5xc-cloudstatus/skills/cloud-status/references/f5xc-context.md` | F5 Distributed Cloud domain knowledge | Create |
 | `plugins/f5xc-cloudstatus/skills/cloud-status/references/analysis-playbook.md` | Analysis rules, thresholds, report templates | Create |
-| `plugins/f5xc-cloudstatus/agents/status-operator.md` | Autonomous curl + jq agent for API calls and analysis | Create |
+| `plugins/f5xc-cloudstatus/agents/status-operator.md` | Autonomous cURL + jq agent for API calls and analysis | Create |
 | `plugins/f5xc-cloudstatus/skills/cloud-status/SKILL.md` | Skill definition: intent routing + delegation | Create |
 | `plugins/f5xc-cloudstatus/commands/cloud-status.md` | `/cloud-status` slash command | Create |
 | `plugins/f5xc-cloudstatus/README.md` | User-facing plugin documentation | Create |
@@ -97,7 +97,7 @@ git commit -m "feat(cloudstatus): bootstrap plugin scaffold and manifest"
 
 Create `plugins/f5xc-cloudstatus/skills/cloud-status/references/statuspage-api.md`:
 
-````markdown
+````Markdown
 # Statuspage.io Public API v2 Reference
 
 Consumer-facing (read-only) Status API v2. No authentication required
@@ -158,7 +158,7 @@ Set `STATUSPAGE_URL` environment variable to use a different Statuspage.io page.
 
 ---
 
-## curl + jq Command Templates
+## cURL + jq Command Templates
 
 ### Overall Status
 
@@ -508,7 +508,7 @@ The summary endpoint returns only **unresolved** incidents and **upcoming/in-pro
 scheduled maintenances (not historical data).
 ````
 
-- [ ] **Step 2: Verify API connectivity by running key curl commands**
+- [ ] **Step 2: Verify API connectivity by running key cURL commands**
 
 Run each against the live F5 Cloud Status API to confirm the templates work:
 
@@ -531,7 +531,7 @@ Expected: All three return valid JSON with expected field names. No HTTP errors.
 
 ```bash
 git add plugins/f5xc-cloudstatus/skills/cloud-status/references/statuspage-api.md
-git commit -m "feat(cloudstatus): add Statuspage.io API v2 reference with curl templates"
+git commit -m "feat(cloudstatus): add Statuspage.io API v2 reference with cURL templates"
 ```
 
 ---
@@ -552,7 +552,7 @@ This reveals the actual component group names on F5's status page. Use this outp
 
 Create `plugins/f5xc-cloudstatus/skills/cloud-status/references/f5xc-context.md`:
 
-````markdown
+````Markdown
 # F5 Distributed Cloud — Status Page Context
 
 Domain knowledge for interpreting the F5 Cloud Status page.
@@ -677,7 +677,7 @@ git commit -m "feat(cloudstatus): add F5 XC domain knowledge reference"
 
 Create `plugins/f5xc-cloudstatus/skills/cloud-status/references/analysis-playbook.md`:
 
-````markdown
+````Markdown
 # Analysis Playbook
 
 Rules for the status-operator agent when performing analysis and
@@ -778,7 +778,7 @@ Otherwise:
 
 ### Minimal Report (overall-status, check-component)
 
-```markdown
+```Markdown
 ## Cloud Status — [Page Name]
 **[timestamp]** | **Status:** [emoji] [description]
 
@@ -787,7 +787,7 @@ Otherwise:
 
 ### Standard Report (list-components, active-incidents, recent-incidents, maintenance, search)
 
-```markdown
+```Markdown
 ## Cloud Status Report — [Page Name]
 **Generated:** [timestamp]
 **Overall:** [emoji] [indicator] — [description]
@@ -802,7 +802,7 @@ Otherwise:
 
 ### Full Intelligence Report (full-briefing, stakeholder-report)
 
-```markdown
+```Markdown
 ## Cloud Status Report — [Page Name]
 **Generated:** [ISO 8601 timestamp]
 **Overall Status:** [emoji] [level] — [description]
@@ -839,7 +839,7 @@ from f5xc-context.md (the formal status update block).
 
 ## 7. Error Response Format
 
-```markdown
+```Markdown
 ## Cloud Status — Error
 
 **Error:** [API_FAILURE | TIMEOUT | INVALID_URL | PARSE_ERROR]
@@ -872,12 +872,12 @@ git commit -m "feat(cloudstatus): add analysis playbook with severity matrix, tr
 
 Create `plugins/f5xc-cloudstatus/agents/status-operator.md`:
 
-````markdown
+````Markdown
 ---
 name: status-operator
 description: >-
   Autonomous API + analysis agent for Statuspage.io-powered status pages.
-  Executes curl + jq sequences against the public Status API v2 and
+  Executes cURL + jq sequences against the public Status API v2 and
   produces structured intelligence reports. Handles overall-status,
   list-components, check-component, active-incidents, recent-incidents,
   maintenance, full-briefing, search, and stakeholder-report operations.
@@ -898,7 +898,7 @@ tools:
 
 You are the **Status Operator** — an autonomous agent that queries
 Statuspage.io-powered status pages and produces operational intelligence
-reports. You use `curl` + `jq` to fetch data from the public API v2 and
+reports. You use `cURL` + `jq` to fetch data from the public API v2 and
 apply the analysis playbook to generate structured reports.
 
 You do **NOT** have `Write`, `Edit`, or `Agent`. You are execution-only.
@@ -907,7 +907,7 @@ You do **NOT** have `Write`, `Edit`, or `Agent`. You are execution-only.
 
 Statuspage API responses contain verbose JSON. Running them in a subagent
 keeps the main session context lean. The main session receives only your
-structured markdown report, not the raw API data.
+structured Markdown report, not the raw API data.
 
 ## Initialization (Every Invocation)
 
@@ -915,7 +915,7 @@ structured markdown report, not the raw API data.
 root directory. Find the plugin root by looking for the nearest
 `.claude-plugin/plugin.json` ancestor directory.
 
-1. `skills/cloud-status/references/statuspage-api.md` — curl + jq templates
+1. `skills/cloud-status/references/statuspage-api.md` — cURL + jq templates
 2. `skills/cloud-status/references/f5xc-context.md` — domain knowledge (or read `$STATUSPAGE_CONTEXT_FILE` if set)
 3. `skills/cloud-status/references/analysis-playbook.md` — analysis rules + report templates
 
@@ -938,13 +938,13 @@ and stop. Do not proceed with the main operation.
 
 ### overall-status
 
-1. Fetch status.json using the "Overall Status" curl template
+1. Fetch status.json using the "Overall Status" cURL template
 2. Report using the **Minimal Report** template
 3. If indicator is not `none`, add a sentence noting which level
 
 ### list-components
 
-1. Fetch components.json using the "All Components with Group Resolution" curl template
+1. Fetch components.json using the "All Components with Group Resolution" cURL template
 2. If user specified a status filter, apply "Filter Components by Status"
 3. If user specified a group filter, apply "Filter Components by Group Name"
 4. Report using the **Standard Report** template with a table of components grouped by group name
@@ -1008,7 +1008,7 @@ and stop. Do not proceed with the main operation.
 
 ## Error Handling
 
-For every `curl` call, capture HTTP status:
+For every `cURL` call, capture HTTP status:
 
 ```bash
 response=$(curl -s -w "\n%{http_code}" --connect-timeout 10 --max-time 15 "$URL")
@@ -1066,7 +1066,7 @@ git commit -m "feat(cloudstatus): add status-operator agent with 9 operation typ
 
 Create `plugins/f5xc-cloudstatus/skills/cloud-status/SKILL.md`:
 
-````markdown
+````Markdown
 ---
 name: cloud-status
 description: >-
@@ -1076,10 +1076,10 @@ description: >-
   windows, component status, operational status, or requests a status briefing.
   Also activates for: "is [service] up", "any outages", "what's down",
   "status report for stakeholders", "executive status summary". Delegates
-  all API calls to the status-operator agent — never runs curl in the main
+  all API calls to the status-operator agent — never runs cURL in the main
   session.
 user-invocable: false
-compatibility: Requires curl, jq, and network access to the Statuspage.io API
+compatibility: Requires cURL, jq, and network access to the Statuspage.io API
 ---
 
 # Cloud Status Skill
@@ -1181,7 +1181,7 @@ git commit -m "feat(cloudstatus): add cloud-status skill with intent routing and
 
 Create `plugins/f5xc-cloudstatus/commands/cloud-status.md`:
 
-```markdown
+```Markdown
 ---
 description: Check cloud service status, incidents, maintenance, and generate operational intelligence reports
 argument-hint: "[status|incidents|maintenance|briefing|search <query>|components]"
@@ -1224,7 +1224,7 @@ git commit -m "feat(cloudstatus): add /cloud-status slash command"
 
 Create `plugins/f5xc-cloudstatus/README.md`:
 
-````markdown
+````Markdown
 # f5xc-cloudstatus
 
 Cloud service status monitoring and operational intelligence plugin for
@@ -1245,7 +1245,7 @@ No API keys. No authentication. The Statuspage.io public API is rate-limit-free.
 
 | Agent | Purpose |
 |-------|---------|
-| `status-operator` | Executes curl + jq against Statuspage.io API; 9 operation types with structured analysis reports |
+| `status-operator` | Executes cURL + jq against Statuspage.io API; 9 operation types with structured analysis reports |
 
 ## Commands
 
@@ -1346,7 +1346,7 @@ This plugin replaces the [f5xc-cloudstatus-mcp](https://github.com/robinmordasie
 MCP server. All 6 MCP tools are ported with full feature parity, plus new
 operational intelligence capabilities. The MCP server's infrastructure
 (Playwright browser, connection pooling, in-memory caching) is replaced by
-direct `curl` + `jq` calls against the public API.
+direct `cURL` + `jq` calls against the public API.
 ````
 
 - [ ] **Step 2: Commit**
@@ -1467,7 +1467,7 @@ Run: `jq '.plugins | length' .claude-plugin/marketplace.json`
 
 Expected: Previous count + 1 (should be 23 if there were 22 before).
 
-- [ ] **Step 5: Verify YAML frontmatter consistency across all markdown files**
+- [ ] **Step 5: Verify YAML frontmatter consistency across all Markdown files**
 
 Run:
 

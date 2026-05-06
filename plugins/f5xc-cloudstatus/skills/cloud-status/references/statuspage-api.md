@@ -61,7 +61,7 @@ severity-based values used by incidents.
 
 ---
 
-## curl + jq Command Templates
+## cURL + jq Command Templates
 
 ### Overall Status
 
