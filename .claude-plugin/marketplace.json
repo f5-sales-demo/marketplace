@@ -481,6 +481,30 @@
       "keywords": ["salesforce", "sf", "apex", "lwc", "soql", "metadata", "deploy", "testing", "sfdx", "agentforce"],
       "tags": ["salesforce", "development", "cli", "crm"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "f5xc-cloudstatus",
+      "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API — status checks, incident tracking, maintenance windows, trend analysis, regional impact assessment, and stakeholder briefings",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/f5xc-cloudstatus",
+      "category": "productivity",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-cloudstatus",
+      "license": "Apache-2.0",
+      "keywords": [
+        "status",
+        "monitoring",
+        "incidents",
+        "maintenance",
+        "statuspage",
+        "operational-intelligence",
+        "f5xc",
+        "atlassian"
+      ],
+      "tags": ["status", "monitoring", "ops", "f5xc"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }
