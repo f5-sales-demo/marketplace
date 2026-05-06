@@ -31,7 +31,7 @@ arrives throughout the deal cycle.
 - Presentation or demo feedback
 - Internal Slack/Teams conversations
 - Customer-facing documents (RFPs, SOWs, evaluation matrices)
-- Prospect website or public filings analysis
+- Prospect site or public filings analysis
 - News articles about the account or competitors
 
 ## Element Key Reference
@@ -194,7 +194,7 @@ actively sponsoring procurement = 4.
 
 #### Decision Criteria (D1)
 
-Look for: requirement lists, evaluation matrices, must-haves,
+Look for: requirement lists, evaluation matrices, must haves,
 disqualifiers, weighting statements, vendor scoring.
 
 Signals: "top requirements", "must have", "non-negotiable",
