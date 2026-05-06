@@ -55,7 +55,7 @@ When invoked via `/cloud-status [arg]`:
 ## Delegation
 
 Delegate to the `status-operator` agent with a lean prompt — the agent has
-all templates and rules built in, no reference file reads needed.
+all templates and rules built-in, no reference file reads needed.
 
 ```
 Agent(
