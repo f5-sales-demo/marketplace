@@ -115,7 +115,7 @@ Beyond raw data retrieval, the plugin provides:
 
 ## Ported From
 
-This plugin replaces the [f5xc-cloudstatus-mcp](https://github.com/robinmordasiewicz/f5xc-cloudstatus-mcp)
+This plugin replaces the [f5xc-cloudstatus-mcp](https://github.com/example-user/f5xc-cloudstatus-mcp)
 MCP server. All 6 MCP tools are ported with full feature parity, plus new
 operational intelligence capabilities. The MCP server's infrastructure
 (Playwright browser, connection pooling, in-memory caching) is replaced by

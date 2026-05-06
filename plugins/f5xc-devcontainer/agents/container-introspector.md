@@ -84,7 +84,7 @@ arch
 Combine all data into a grounded identity response. Example format:
 
 > I am Claude Code running inside a devcontainer built from commit
-> `abc1234` on 2026-03-24 by Robin Mordasiewicz. My image is
+> `abc1234` on 2026-03-24 by J. Smith. My image is
 > `ghcr.io/f5xc-salesdemos/devcontainer:latest`, built from
 > github.com/f5xc-salesdemos/devcontainer. I run as user `vscode`
 > on Linux arm64. My creators: [list contributors with counts].

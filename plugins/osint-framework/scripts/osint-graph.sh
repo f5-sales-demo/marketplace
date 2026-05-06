@@ -5,7 +5,7 @@
 # Usage: source this file, then call functions:
 #   source plugins/osint-framework/scripts/osint-graph.sh
 #   osint_graph_init
-#   osint_entity_add "person" "Robin Mordasiewicz" name="Robin Mordasiewicz" location="Toronto"
+#   osint_entity_add "person" "J. Smith" name="J. Smith" location="Anytown"
 #   osint_entity_add "company" "F5" domain="f5.com"
 #   osint_rel_add "$ID1" "$ID2" "works_at" --tool github-api --confidence 0.9
 #   osint_graph_query "$ID1" 2
