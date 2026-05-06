@@ -7,78 +7,65 @@ description: >-
   windows, component status, operational status, or requests a status briefing.
   Also activates for: "is [service] up", "any outages", "what's down",
   "status report for stakeholders", "executive status summary". Delegates
-  all API calls to the status-operator agent — never runs curl in the main
+  all API calls to the status-operator agent — never runs cURL in the main
   session.
 user-invocable: false
-compatibility: Requires curl, jq, and network access to the Statuspage.io API
+compatibility: Requires cURL, jq, and network access to the Statuspage.io API
 ---
 
 # Cloud Status Skill
 
-Cloud service status monitoring and operational intelligence by querying
-a Statuspage.io-powered status page via its public API v2.
+Status monitoring via Statuspage.io public API v2.
 
-**Default target:** F5 Distributed Cloud at `https://www.f5cloudstatus.com`
-**Generic:** Set `STATUSPAGE_URL` env var to use any Statuspage.io page.
+**Default:** F5 Distributed Cloud at `https://www.f5cloudstatus.com`
+**Generic:** Set `STATUSPAGE_URL` env var for any Statuspage.io page.
 
 ## Intent Routing
 
-Map the user's request to an operation type, then delegate to the
-`status-operator` agent.
+| User Intent | Operation |
+| ---------------------------------------------------- | --------------------- |
+| "What's the overall status?" / "Is everything OK?" | `overall-status` |
+| "Show me all components" / "What services exist?" | `list-components` |
+| "Is [service] healthy?" / "Status of [component]" | `check-component` |
+| "Any active incidents?" / "Current outages?" | `active-incidents` |
+| "Show recent incidents" / "Incident history" | `recent-incidents` |
+| "Scheduled maintenance?" / "Maintenance windows?" | `maintenance` |
+| "Full status briefing" / "What's going on?" | `full-briefing` |
+| "Search for [query]" | `search` |
+| "Stakeholder report" / "Executive summary" | `stakeholder-report` |
 
-| User Intent | Operation | Notes |
-| ---------------------------------------------------- | --------------------- | ------------------------------------------ |
-| "What's the overall status?" / "Is everything OK?" | `overall-status` | Quick indicator check |
-| "Show me all components" / "What services exist?" | `list-components` | Full component list with groups |
-| "Is [service] healthy?" / "Status of [component]" | `check-component` | Provide the service name or ID as filter |
-| "Any active incidents?" / "Current outages?" | `active-incidents` | Unresolved only + trend analysis |
-| "Show recent incidents" / "Incident history" | `recent-incidents` | Pass filters: days, status, impact |
-| "Scheduled maintenance?" / "Maintenance windows?" | `maintenance` | upcoming, active, or all |
-| "Full status briefing" / "What's going on?" | `full-briefing` | Complete operational intelligence |
-| "Search for [query]" | `search` | Text search across all entities |
-| "Stakeholder report" / "Executive summary" | `stakeholder-report` | Full briefing + stakeholder template |
-
-### Command Argument Mapping
-
-When invoked via `/cloud-status [arg]`:
+### Command Argument Mapping (`/cloud-status [arg]`)
 
 | Argument | Operation |
-| ------------------ | ---------------------------- |
+| ---------------- | --------------------- |
 | (none) | `full-briefing` |
 | `status` | `overall-status` |
 | `incidents` | `active-incidents` |
 | `maintenance` | `maintenance` |
 | `briefing` | `full-briefing` |
-| `search <query>` | `search` with the query text |
+| `search <query>` | `search` |
 | `components` | `list-components` |
 
 ## Delegation
-
-Delegate to the `status-operator` agent with a lean prompt — the agent has
-all templates and rules built-in, no reference file reads needed.
 
 ```
 Agent(
   subagent_type="f5xc-cloudstatus:status-operator",
   description="<operation> cloud status",
   prompt="Operation: <operation-type>
-  User request: <user's exact words>
-  Base URL: ${STATUSPAGE_URL:-https://www.f5cloudstatus.com}
-  Filters: <any user-specified filters, or 'none'>
+User request: <user's exact words>
+Filters: <component name | status | impact | days | search query | none>
 
-  Execute the operation and return the report."
+Read skills/cloud-status/references/commands.md and run the
+<operation-type> section. Return the formatted report."
 )
 ```
 
-**Substitutions:**
-
-- `<operation>` — short description (e.g., `overall-status`, `check DNS component`)
-- `<operation-type>` — one of: `overall-status`, `list-components`, `check-component`, `active-incidents`, `recent-incidents`, `maintenance`, `full-briefing`, `search`, `stakeholder-report`
-- `<user's exact words>` — the user's original request verbatim
-- `<filters>` — extracted parameters: component name, status/impact/days filter, search query, maintenance scope
+For `check-component`: include the component name or ID as the filter.
+For `search`: include the search query as the filter.
+For `recent-incidents`: include any days/status/impact filters.
 
 ## After Delegation
 
-Present the agent's report to the user as-is. The agent's report is the
-complete output — add no extra commentary. If the user asks follow-up
-questions, determine the new operation type and delegate again.
+Present the agent's report as-is. For follow-ups, determine the new
+operation and delegate again.
