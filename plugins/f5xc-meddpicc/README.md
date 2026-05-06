@@ -193,7 +193,7 @@ Pre-populates the deal JSON from Salesforce fields, then asks targeted questions
 Here are my notes from today's call with the CTO:
 - Confirmed $500K budget for API security modernization
 - Board mandate to fix API incidents by Q3
-- Currently evaluating us and Cloudflare
+- Currently evaluating us and Vendor A
 - Architecture review board meets May 26
 ```
 
@@ -205,7 +205,7 @@ The AI extracts MEDDPICC signals, presents a proposed update diff with score rec
 /f5xc-meddpicc:update-deal Acme Corp
 FW: RE: API Gateway eval - internal update
 Hey John, wanted to give you a heads up. The architecture review
-board approved F5 for the shortlist. Cloudflare pricing came in at
+board approved F5 for the shortlist. Vendor A pricing came in at
 $85K/yr vs your $120K. Legal confirmed their standard review takes
 3 weeks. Talk soon, Barney
 ```

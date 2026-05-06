@@ -683,7 +683,7 @@ DOMAIN="example.com" && echo "--- WHOIS ---" && whois "$DOMAIN" 2>/dev/null | gr
 
 ## 4. IP Address Investigation Pipeline
 
-**Target:** an IP address (e.g., `93.184.216.34`)
+**Target:** an IP address (e.g., `198.51.100.1`)
 **Goal:** geolocation, ownership, open ports, running services, reputation
 **Estimated time:** 3-15 minutes
 
@@ -691,7 +691,7 @@ DOMAIN="example.com" && echo "--- WHOIS ---" && whois "$DOMAIN" 2>/dev/null | gr
 
 ```bash
 set -eo pipefail
-IP="93.184.216.34"
+IP="198.51.100.1"
 OUTDIR="./osint-results/ip-${IP//./-}"
 mkdir -p "${OUTDIR}"
 
@@ -708,7 +708,7 @@ done
 
 ```bash
 set -eo pipefail
-IP="93.184.216.34"
+IP="198.51.100.1"
 OUTDIR="./osint-results/ip-${IP//./-}"
 mkdir -p "${OUTDIR}"
 
@@ -897,7 +897,7 @@ ls -la "${OUTDIR}/"
 
 ```bash
 # Fast IP overview — geolocation + reverse DNS + Shodan + blocklist
-IP="93.184.216.34" \
+IP="198.51.100.1" \
   && echo "--- GeoIP ---" \
   && curl -s "https://ipinfo.io/${IP}/json" | jq '{ip,city,region,country,org}' \
   && echo "--- rDNS ---" \

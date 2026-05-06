@@ -20,7 +20,7 @@ creating, querying, and reporting on graph data.
 | `person` | A human individual | `"John Smith"` |
 | `company` | A business or organization | `"Acme Corp"` |
 | `domain` | A DNS domain name | `"example.com"` |
-| `ip` | An IPv4 or IPv6 address | `"93.184.216.34"` |
+| `ip` | An IPv4 or IPv6 address | `"198.51.100.1"` |
 | `email` | An email address | `"john@example.com"` |
 | `username` | An account handle on a platform | `"jsmith"` |
 | `phone` | A phone number | `"+1-555-0100"` |

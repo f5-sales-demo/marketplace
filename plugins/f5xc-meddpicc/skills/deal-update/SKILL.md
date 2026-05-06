@@ -267,7 +267,7 @@ actively coaching + taking concrete actions weekly = 4.
 Look for: competitor names, comparison statements, customer
 perception language, build-vs-buy signals, do-nothing risk.
 
-Signals: vendor names (Cloudflare, Akamai, Zscaler, etc.),
+Signals: competitor vendor names (Vendor A, Vendor B, CDN providers, etc.),
 "also evaluating", "we like them because", "concerned about",
 "they're cheaper", "we could build this", "why not just use
 [existing vendor]".
@@ -317,7 +317,7 @@ proposed changes:
 Current overall: X/32 (Y%) [Rating] → Proposed: X/32 (Y%) [Rating]
 
 ### Flags
-- [CONFLICT] Competition: Input says Cloudflare is "not in the running" — contradicts existing note that customer is actively evaluating Cloudflare. Clarify before updating.
+- [CONFLICT] Competition: Input says Vendor A is "not in the running" — contradicts existing note that customer is actively evaluating Vendor A. Clarify before updating.
 - [NEW STAKEHOLDER] Lisa Wang (CISO) mentioned — add to stakeholder list?
 ```
 

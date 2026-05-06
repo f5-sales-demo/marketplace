@@ -31,10 +31,10 @@ detects the target type (email, domain, IP, username, company,
 person name) and routes to the correct category skills.
 
 ```
-/osint-investigate robin.mordasiewicz@f5.com
+/osint-investigate j.smith@example.com
 /osint-investigate cloudflare.com
 /osint-investigate 1.1.1.1
-/osint-investigate robinmordasiewicz
+/osint-investigate example-user
 ```
 
 ### /osint-search
@@ -172,7 +172,7 @@ source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
 # Add entities
-P=$(osint_entity_add "person" "Robin Mordasiewicz" --tool github-api)
+P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
 # Link them
