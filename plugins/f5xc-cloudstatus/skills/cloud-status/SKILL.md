@@ -54,32 +54,28 @@ When invoked via `/cloud-status [arg]`:
 
 ## Delegation
 
-For every operation, delegate to the `status-operator` agent:
+Delegate to the `status-operator` agent with a lean prompt — the agent has
+all templates and rules built-in, no reference file reads needed.
 
 ```
 Agent(
   subagent_type="f5xc-cloudstatus:status-operator",
   description="<operation> cloud status",
-  prompt="Read these reference files first (relative to your plugin root):
-  1. skills/cloud-status/references/statuspage-api.md
-  2. skills/cloud-status/references/f5xc-context.md
-  3. skills/cloud-status/references/analysis-playbook.md
-
-  Operation: <operation-type>
+  prompt="Operation: <operation-type>
   User request: <user's exact words>
   Base URL: ${STATUSPAGE_URL:-https://www.f5cloudstatus.com}
   Filters: <any user-specified filters, or 'none'>
 
-  Execute the operation per your agent instructions and return the report."
+  Execute the operation and return the report."
 )
 ```
 
 **Substitutions:**
 
-- `<operation>` — short description for the Agent description field (e.g., "full-briefing", "check DNS component")
+- `<operation>` — short description (e.g., `overall-status`, `check DNS component`)
 - `<operation-type>` — one of: `overall-status`, `list-components`, `check-component`, `active-incidents`, `recent-incidents`, `maintenance`, `full-briefing`, `search`, `stakeholder-report`
 - `<user's exact words>` — the user's original request verbatim
-- `<any user-specified filters>` — extracted parameters like: component name, status filter, impact filter, days window, search query, maintenance scope (upcoming/active/all)
+- `<filters>` — extracted parameters: component name, status/impact/days filter, search query, maintenance scope
 
 ## After Delegation
 
