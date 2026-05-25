@@ -2,6 +2,8 @@
 
 [![GitHub Pages Deploy](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/github-pages-deploy.yml)
 [![Repository Settings](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/enforce-repo-settings.yml)
+[![Validate Plugins](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/validate-plugins.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/validate-plugins.yml)
+[![Release Plugins](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/release-plugins.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/release-plugins.yml)
 [![License](https://img.shields.io/github/license/f5xc-salesdemos/marketplace)](LICENSE)
 
 AI-powered marketplace for F5 Distributed Cloud solutions
