@@ -32,6 +32,33 @@ const factory: ExtensionFactory = async (pi) => {
   pi.registerTool(createSfOrgDisplayTool(pi));
   pi.registerTool(createSfPipelineReportTool(pi));
 
+  // Register welcome screen service status
+  if (typeof pi.registerServiceStatus === 'function') {
+    pi.registerServiceStatus({
+      name: 'Salesforce',
+      async check() {
+        try {
+          const { execSfJson } = await import('./sf/exec');
+          const { collectAllOrgs, makeExecApi } = await import('./tools/shared');
+          const api = makeExecApi(process.cwd());
+          const orgResult = await execSfJson(api, ['org', 'list']);
+          const allOrgs = collectAllOrgs(orgResult.result as Record<string, unknown[]>);
+          if (allOrgs.length === 0) return { state: 'unauthenticated', hint: 'run: sf org login web' };
+          const defaultOrg = allOrgs.find((o) => o.isDefault);
+          if (!defaultOrg) return { state: 'unauthenticated', hint: 'run: sf_setup action set_default' };
+          if (defaultOrg.connectedStatus === 'Connected') return { state: 'connected' };
+          return { state: 'unauthenticated', hint: 'session expired, run: sf org login web' };
+        } catch {
+          return { state: 'unavailable', hint: 'sf CLI check failed' };
+        }
+      },
+      fix: {
+        prompt: 'Salesforce not authenticated',
+        command: ['sf', 'org', 'login', 'web', '--set-default'],
+      },
+    });
+  }
+
   // Context injection — inject Salesforce pipeline hint before each agent turn
   pi.on('before_agent_start', async () => {
     const { loadSalesforceContext, buildSalesforceHint } = await import('./context/salesforce-context');
