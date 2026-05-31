@@ -468,18 +468,44 @@
       }
     },
     {
-      "name": "salesforce",
-      "description": "Salesforce CLI automation — container-adapted org authentication (JWT, access-token, SFDX URL), org management, and bridge to the official forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment",
+      "name": "salesforce-claude-code-legacy",
+      "description": "[ARCHIVED] Original Claude Code-only Salesforce CLI automation. Replaced by unified salesforce plugin with native xcsh tool support.",
       "version": "1.0.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/salesforce",
+      "source": "./plugins/salesforce-claude-code-legacy",
       "category": "development",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
       "license": "Apache-2.0",
       "keywords": ["salesforce", "sf", "apex", "lwc", "soql", "metadata", "deploy", "testing", "sfdx", "agentforce"],
       "tags": ["salesforce", "development", "cli", "crm"],
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "salesforce",
+      "description": "Salesforce pipeline intelligence — native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting. Bridge to forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment.",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/salesforce",
+      "category": "development",
+      "keywords": [
+        "salesforce",
+        "sf",
+        "apex",
+        "lwc",
+        "soql",
+        "metadata",
+        "deploy",
+        "testing",
+        "sfdx",
+        "agentforce",
+        "pipeline",
+        "xcsh"
+      ],
+      "tags": ["salesforce", "development", "cli", "crm", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {

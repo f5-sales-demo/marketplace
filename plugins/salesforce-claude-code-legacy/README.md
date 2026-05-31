@@ -1,10 +1,8 @@
 # Salesforce Plugin
 
-Container-adapted Salesforce CLI integration for Claude Code with native
-xcsh pipeline intelligence tools. Provides org authentication, a
-general-purpose CLI agent that can run any `sf` command including SOQL
-queries, and xcsh extension tools for pipeline reporting and context
-discovery. Bridges to the official
+Container-adapted Salesforce CLI integration for Claude Code. Provides
+org authentication and a general-purpose CLI agent that can run any
+`sf` command including SOQL queries. Bridges to the official
 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
 skills for Salesforce development.
 
@@ -23,49 +21,6 @@ skills for Salesforce development.
 # Authenticate to an org
 /salesforce:sf-login my-org
 ```
-
-## xcsh Extension
-
-The plugin registers an xcsh extension (`src/index.ts`) that provides
-native tools accessible to any xcsh-compatible shell session. These
-tools are registered automatically when the Salesforce CLI (`sf`) is
-detected in the environment.
-
-### Native Tools
-
-| Tool                 | Purpose                                                    |
-| -------------------- | ---------------------------------------------------------- |
-| `sf_setup`           | Verify Salesforce CLI installation and org connectivity     |
-| `sf_query`           | Execute SOQL queries against authenticated orgs             |
-| `sf_org_display`     | Display org details (alias, username, instance URL, status) |
-| `sf_pipeline_report` | Generate F5 Distributed Cloud pipeline intelligence report  |
-
-### Pipeline Report
-
-The `sf_pipeline_report` tool queries Salesforce for opportunity pipeline
-data and generates a structured report including:
-
-- Open opportunities sorted by close date and amount
-- Quarterly forecast with weighted pipeline totals
-- Account team coverage analysis
-- Stage distribution and conversion metrics
-
-The report uses prompt templates from `src/prompts/` to produce
-consistent, actionable output for sales engineering workflows.
-
-### Context Discovery
-
-The extension injects Salesforce context before each agent turn via the
-`before_agent_start` event. When an authenticated org is detected, a
-background context loader (`src/context/salesforce-context.ts`) gathers:
-
-- Authenticated org metadata (alias, username, instance URL)
-- Active pipeline summary (opportunity count, total amount)
-- Recent activity indicators
-
-This context is injected as a non-displayed hint, giving downstream
-agents awareness of the Salesforce environment without cluttering the
-conversation.
 
 ## Authentication
 
@@ -182,20 +137,6 @@ give me a full account overview for ACCOUNT NAME including contacts, open opport
 | ----------------------- | -------------------------------- |
 | `/salesforce:sf-login`  | Authenticate to a Salesforce org |
 | `/salesforce:sf-status` | Check org connection status      |
-
-## CLI Agent
-
-The `cli-operator` agent (`agents/cli-operator.md`) executes Salesforce
-CLI commands on behalf of the main session. It enforces safety rules:
-
-- Read-only by default; deployments require explicit confirmation
-- Never echoes credentials or auth URLs
-- Sanitizes user-provided values against shell injection
-- Uses `--json` output for structured parsing
-
-Skills and commands delegate to this agent rather than running `sf`
-commands directly in the main session, keeping context lean since sf CLI
-output can be verbose.
 
 ## Development Skills (via afv-library)
 
