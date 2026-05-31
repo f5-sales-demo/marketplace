@@ -39,8 +39,17 @@ const factory: ExtensionFactory = async (pi) => {
     if (!sfContext) return;
     const hint = buildSalesforceHint(sfContext);
     if (!hint) return;
+    const lines = [
+      `Pipeline: ${hint.pipelineTotal} (${hint.dealCount} deals, ${hint.accountCount} accounts)`,
+      hint.territories ? `Territories: ${hint.territories}` : '',
+      hint.forecastBreakdown ? `Forecast: ${hint.forecastBreakdown}` : '',
+      hint.partnerName ? `Partner: ${hint.partnerName} (${hint.partnerRole ?? 'Partner'})` : '',
+      hint.orgAlias ? `Org: ${hint.orgAlias}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
     return {
-      message: { customType: 'salesforce_hint', content: hint, display: false },
+      message: { customType: 'salesforce_hint', content: lines, display: false },
     };
   });
 
