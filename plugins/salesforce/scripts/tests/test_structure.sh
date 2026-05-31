@@ -203,33 +203,57 @@ test_hook_command_syntax() {
 # T1.11 — package.json declares xcsh extensions entry point
 test_T1_11_package_json_has_xcsh_extensions() {
   local pkg="$PLUGIN_ROOT/package.json"
-  [[ -f "$pkg" ]] || { echo "SKIP: no package.json"; return 0; }
+  if [[ ! -f "$pkg" ]]; then
+    echo "SKIP: no package.json"
+    return 0
+  fi
   local ext
   ext=$(jq -r '.xcsh.extensions[0] // empty' "$pkg")
-  [[ -n "$ext" ]] || { echo "FAIL: xcsh.extensions not defined in package.json"; return 1; }
-  [[ -f "$PLUGIN_ROOT/$ext" ]] || { echo "FAIL: extension entry point $ext does not exist"; return 1; }
+  if [[ -z "$ext" ]]; then
+    echo "FAIL: xcsh.extensions not defined in package.json"
+    return 1
+  fi
+  if [[ ! -f "$PLUGIN_ROOT/$ext" ]]; then
+    echo "FAIL: extension entry point $ext does not exist"
+    return 1
+  fi
 }
 
 # T1.12 — src/index.ts exports a default factory
 test_T1_12_src_index_exports_default_factory() {
   local entry="$PLUGIN_ROOT/src/index.ts"
-  [[ -f "$entry" ]] || { echo "SKIP: no src/index.ts"; return 0; }
-  grep -q "export default" "$entry" || { echo "FAIL: src/index.ts must export default factory"; return 1; }
+  if [[ ! -f "$entry" ]]; then
+    echo "SKIP: no src/index.ts"
+    return 0
+  fi
+  if ! grep -q "export default" "$entry"; then
+    echo "FAIL: src/index.ts must export default factory"
+    return 1
+  fi
 }
 
 # T1.13 — extension registers at least 4 tools
 test_T1_13_extension_registers_tools() {
   local entry="$PLUGIN_ROOT/src/index.ts"
-  [[ -f "$entry" ]] || { echo "SKIP: no src/index.ts"; return 0; }
+  if [[ ! -f "$entry" ]]; then
+    echo "SKIP: no src/index.ts"
+    return 0
+  fi
   local count
   count=$(grep -c "registerTool" "$entry")
-  [[ "$count" -ge 4 ]] || { echo "FAIL: src/index.ts should register at least 4 tools, found $count"; return 1; }
+  if [[ "$count" -lt 4 ]]; then
+    echo "FAIL: src/index.ts should register at least 4 tools, found $count"
+    return 1
+  fi
 }
 
 # T1.14 — all expected tool factory files exist
 test_T1_14_tool_factories_exist() {
   local tools_dir="$PLUGIN_ROOT/src/tools"
-  [[ -d "$tools_dir" ]] || { echo "SKIP: no src/tools directory"; return 0; }
+  if [[ ! -d "$tools_dir" ]]; then
+    echo "SKIP: no src/tools directory"
+    return 0
+  fi
   local missing=()
   for f in sf-setup.ts sf-query.ts sf-org-display.ts sf-pipeline-report.ts shared.ts; do
     [[ -f "$tools_dir/$f" ]] || missing+=("$f")
@@ -243,6 +267,12 @@ test_T1_14_tool_factories_exist() {
 # T1.15 — salesforce-context.ts exists and exports setLoadProfile
 test_T1_15_salesforce_context_exists() {
   local ctx="$PLUGIN_ROOT/src/context/salesforce-context.ts"
-  [[ -f "$ctx" ]] || { echo "FAIL: salesforce-context.ts missing"; return 1; }
-  grep -q "setLoadProfile" "$ctx" || { echo "FAIL: salesforce-context.ts should export setLoadProfile"; return 1; }
+  if [[ ! -f "$ctx" ]]; then
+    echo "FAIL: salesforce-context.ts missing"
+    return 1
+  fi
+  if ! grep -q "setLoadProfile" "$ctx"; then
+    echo "FAIL: salesforce-context.ts should export setLoadProfile"
+    return 1
+  fi
 }

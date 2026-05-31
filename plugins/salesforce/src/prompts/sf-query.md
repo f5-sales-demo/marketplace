@@ -96,9 +96,21 @@ Audience-aware formatting — adjust output based on who will read it:
 Scoping: User may be an overlay SE. Use OpportunityTeamMember scoping (not OwnerId) as the primary filter.
 AE-owned deals: SFDC does not allow OR with semi-join subselects. Run a SEPARATE query with OwnerId = '{aeId}' and merge results. Do not combine into one WHERE clause.
 
-Stage-based filtering: Add WHERE StageName clauses to any template when the user asks about deals needing technical engagement, demos, POCs, or specific stages. Early stages: 'Awareness', 'Research and Internal Education', 'Pending Initial Meeting'. Active stages: 'Budget and Timing Determination', 'Solution - Front Runner'. Late stages: 'Negotiation', 'Close - Booked'. Deals in early stages with close dates within 60 days are at-risk (insufficient time to progress).
+Stage-based filtering: Add WHERE StageName clauses to any template when the user asks about
+deals needing technical engagement, demos, POCs, or specific stages.
+Early stages: 'Awareness', 'Research and Internal Education', 'Pending Initial Meeting'.
+Active stages: 'Budget and Timing Determination', 'Solution - Front Runner'.
+Late stages: 'Negotiation', 'Close - Booked'.
+Deals in early stages with close dates within 60 days are at-risk (insufficient time to progress).
 
-Territory-based filtering: Add WHERE clauses on territory fields when the user asks about specific territories, regions, or countries. Available fields: `ETM_Core_Territory__c` (exact territory, e.g. 'AMER: Major Accounts FinSvcs Red 9'), `Territory_Credited_Category__c` (category, e.g. 'Financial', 'OEM'), `Territory_Grouping__c` (region, e.g. 'USA', 'Canada'). Use LIKE '%keyword%' for partial matches (e.g. `ETM_Core_Territory__c LIKE '%Canada%'`). Always combine territory filters with `ForecastCategoryName <> 'Omitted'` or quarter scoping to avoid zombie pipeline noise.
+Territory-based filtering: Add WHERE clauses on territory fields when the user asks about
+specific territories, regions, or countries. Available fields:
+`ETM_Core_Territory__c` (exact territory, e.g. 'AMER: Major Accounts FinSvcs Red 9'),
+`Territory_Credited_Category__c` (category, e.g. 'Financial', 'OEM'),
+`Territory_Grouping__c` (region, e.g. 'USA', 'Canada').
+Use LIKE '%keyword%' for partial matches (e.g. `ETM_Core_Territory__c LIKE '%Canada%'`).
+Always combine territory filters with `ForecastCategoryName <> 'Omitted'`
+or quarter scoping to avoid zombie pipeline noise.
 
 Coverage ratio: When the user asks about pipeline coverage or "do I have enough pipeline", calculate coverage = in-quarter pipeline total / quarterly quota target. Healthy coverage is 3x-5x quota. Below 2x is a risk. Use the forecast breakdown (T2) total as the numerator. Quota is available from the user profile when set.
 
