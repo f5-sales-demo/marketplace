@@ -1,4 +1,3 @@
-import { logger } from '@f5xc-salesdemos/pi-utils';
 import { $ } from 'bun';
 import type {
   AccountRow,
@@ -32,7 +31,7 @@ async function runSfQuery(soql: string, orgAlias?: string): Promise<Record<strin
     };
     return parsed.result?.records ?? [];
   } catch (err) {
-    logger.debug('Pipeline SOQL query failed', { error: err });
+    // Silently swallow — the caller handles empty results
     return [];
   }
 }
