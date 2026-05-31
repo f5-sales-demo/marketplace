@@ -1,13 +1,13 @@
 {
   "name": "salesforce",
-  "description": "Salesforce CLI automation — container-adapted org authentication (JWT, access-token, SFDX URL), org management, and bridge to the official forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment",
+  "description": "Salesforce pipeline intelligence — native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting",
   "version": "1.0.0",
   "author": {
     "name": "f5xc-salesdemos",
     "url": "https://github.com/f5xc-salesdemos"
   },
   "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
-  "keywords": ["salesforce", "sf", "apex", "lwc", "soql", "metadata", "deploy", "testing", "sfdx", "agentforce"],
+  "keywords": ["salesforce", "sf", "soql", "pipeline", "xcsh-extension"],
   "license": "Apache-2.0",
   "repository": "https://github.com/f5xc-salesdemos/marketplace"
 }
