@@ -1,0 +1,9 @@
+{
+  "name": "azure-status",
+  "description": "Azure CLI welcome screen status — checks az account authentication and offers auto-fix",
+  "version": "1.0.0",
+  "author": { "name": "f5xc-salesdemos", "url": "https://github.com/f5xc-salesdemos" },
+  "keywords": ["azure", "az", "cloud", "xcsh-extension"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+}
