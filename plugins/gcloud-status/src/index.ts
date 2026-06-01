@@ -3,29 +3,48 @@ import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GCloud Status');
 
-  try {
-    const which = Bun.spawnSync(['which', 'gcloud']);
-    if (which.exitCode !== 0) return;
-  } catch {
-    return;
+  // Always register setup command (even without gcloud CLI)
+  if (typeof pi.registerCommand === 'function') {
+    pi.registerCommand('gcloud-status:setup', {
+      description: 'Install and configure Google Cloud CLI',
+      async handler(_args, ctx) {
+        const { runSetupWizard } = await import('./wizard');
+        await runSetupWizard(pi, ctx);
+      },
+    });
   }
 
+  // Check if gcloud CLI is available
+  let gcloudAvailable = false;
+  try {
+    const checker = process.platform === 'win32' ? 'where' : 'which';
+    gcloudAvailable = Bun.spawnSync([checker, 'gcloud']).exitCode === 0;
+  } catch {
+    // gcloud not available
+  }
+
+  // Always register service status (shows unavailable when CLI missing)
   if (typeof pi.registerServiceStatus === 'function') {
     pi.registerServiceStatus({
       name: 'GCloud',
       async check() {
         try {
+          const whichChecker = process.platform === 'win32' ? 'where' : 'which';
+          const whichResult = Bun.spawnSync([whichChecker, 'gcloud']);
+          if (whichResult.exitCode !== 0) {
+            return { state: 'unavailable', hint: 'run: /gcloud-status:setup' };
+          }
           const result = Bun.spawnSync(['gcloud', 'auth', 'print-access-token', '--quiet']);
           if (result.exitCode === 0) return { state: 'connected' };
           const stderr = new TextDecoder().decode(result.stderr).toLowerCase();
           if (stderr.includes('expired') || stderr.includes('token'))
             return {
               state: 'unauthenticated',
-              hint: 'token expired, run: gcloud auth login',
+              hint: 'token expired, run: /gcloud-status:setup',
             };
           return {
             state: 'unauthenticated',
-            hint: 'run: gcloud auth login',
+            hint: 'run: /gcloud-status:setup',
           };
         } catch {
           return { state: 'unavailable', hint: 'gcloud CLI check failed' };
@@ -35,6 +54,15 @@ const factory: ExtensionFactory = async (pi) => {
         prompt: 'Google Cloud token expired',
         command: ['gcloud', 'auth', 'login'],
       },
+    });
+  }
+
+  // Session start: notify if CLI missing
+  if (typeof pi.on === 'function') {
+    pi.on('session_start', async (_event: unknown, _ctx: { cwd: string }) => {
+      if (!gcloudAvailable) {
+        pi.logger.debug('GCloud: gcloud CLI not found');
+      }
     });
   }
 };
