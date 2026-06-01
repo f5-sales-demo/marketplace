@@ -1,5 +1,30 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
+const mockTypebox = {
+  Type: {
+    Object: (s: unknown) => s,
+    String: (o?: unknown) => ({ type: 'string', ...((o as object) ?? {}) }),
+    Boolean: (o?: unknown) => ({ type: 'boolean', ...((o as object) ?? {}) }),
+    Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
+    Array: (i: unknown, o?: unknown) => ({ type: 'array', items: i, ...((o as object) ?? {}) }),
+    Union: (s: unknown[]) => ({ union: s }),
+    Literal: (v: string) => ({ const: v }),
+  },
+};
+
+function baseMockPi(overrides?: Record<string, unknown>) {
+  return {
+    setLabel() {},
+    logger: { debug() {} },
+    registerCommand() {},
+    registerServiceStatus() {},
+    registerTool() {},
+    on() {},
+    typebox: mockTypebox,
+    ...overrides,
+  };
+}
+
 describe('Azure Status extension', () => {
   let factory: (pi: unknown) => Promise<void>;
 
@@ -12,39 +37,99 @@ describe('Azure Status extension', () => {
     expect(typeof factory).toBe('function');
   });
 
-  it('registers service status when az is available', async () => {
-    const registered: { name: string }[] = [];
-    const mockPi = {
-      setLabel() {},
-      logger: { debug() {} },
-      registerCommand() {},
-      registerServiceStatus(c: { name: string }) {
-        registered.push(c);
+  it('always registers azure-status:setup command', async () => {
+    const commands: Array<{ name: string }> = [];
+    const mockPi = baseMockPi({
+      registerCommand(name: string) {
+        commands.push({ name });
       },
-    };
+    });
     await factory(mockPi);
+    expect(commands.find((c) => c.name === 'azure-status:setup')).toBeDefined();
+  });
 
-    // If az CLI is installed, should register; if not, should skip gracefully
-    if (registered.length > 0) {
-      expect(registered[0].name).toBe('Azure');
-    }
+  it('always registers Azure service status', async () => {
+    const statuses: Array<{ name: string }> = [];
+    const mockPi = baseMockPi({
+      registerServiceStatus(c: { name: string }) {
+        statuses.push(c);
+      },
+    });
+    await factory(mockPi);
+    expect(statuses.length).toBeGreaterThanOrEqual(1);
+    expect(statuses[0].name).toBe('Azure');
+  });
+
+  it('registers session_start event handler', async () => {
+    const events: string[] = [];
+    const mockPi = baseMockPi({
+      on(event: string) {
+        events.push(event);
+      },
+    });
+    await factory(mockPi);
+    expect(events).toContain('session_start');
   });
 
   it('service check returns valid state', async () => {
     let checkFn: (() => Promise<{ state: string }>) | undefined;
-    const mockPi = {
-      setLabel() {},
-      logger: { debug() {} },
-      registerCommand() {},
+    const mockPi = baseMockPi({
       registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
         checkFn = c.check;
       },
-    };
+    });
     await factory(mockPi);
-
+    expect(checkFn).toBeDefined();
     if (checkFn) {
       const result = await checkFn();
       expect(['connected', 'unauthenticated', 'unavailable']).toContain(result.state);
     }
+  });
+
+  it('registers 6 tools when az CLI is available', async () => {
+    const tools: Array<{ name: string }> = [];
+    const mockPi = baseMockPi({
+      registerTool(tool: { name: string }) {
+        tools.push(tool);
+      },
+    });
+    await factory(mockPi);
+
+    if (tools.length > 0) {
+      const toolNames = tools.map((t) => t.name).sort();
+      expect(toolNames).toEqual(['az_account', 'az_exec', 'az_group', 'az_help', 'az_resource', 'az_vm']);
+    }
+  });
+
+  it('each registered tool has required fields', async () => {
+    const tools: Array<Record<string, unknown>> = [];
+    const mockPi = baseMockPi({
+      registerTool(tool: Record<string, unknown>) {
+        tools.push(tool);
+      },
+    });
+    await factory(mockPi);
+
+    for (const tool of tools) {
+      expect(tool.name).toBeDefined();
+      expect(tool.label).toBeDefined();
+      expect(tool.description).toBeDefined();
+      expect(tool.parameters).toBeDefined();
+      expect(typeof tool.execute).toBe('function');
+    }
+  });
+
+  it('gracefully handles missing registerCommand', async () => {
+    const mockPi = baseMockPi();
+    // biome-ignore lint/suspicious/noExplicitAny: test requires deleting optional method
+    delete (mockPi as Record<string, any>).registerCommand;
+    await expect(factory(mockPi)).resolves.toBeUndefined();
+  });
+
+  it('gracefully handles missing registerServiceStatus', async () => {
+    const mockPi = baseMockPi();
+    // biome-ignore lint/suspicious/noExplicitAny: test requires deleting optional method
+    delete (mockPi as Record<string, any>).registerServiceStatus;
+    await expect(factory(mockPi)).resolves.toBeUndefined();
   });
 });

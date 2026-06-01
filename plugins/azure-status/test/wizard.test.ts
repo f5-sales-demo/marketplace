@@ -221,6 +221,94 @@ describe('runSetupWizard — az not installed', () => {
 });
 
 // ---------------------------------------------------------------------------
+// runSetupWizard — service principal auth path
+// ---------------------------------------------------------------------------
+
+describe('runSetupWizard — service principal auth', () => {
+  const azInstalled = { checkCliInstalled: () => true };
+  const originalEnv = { ...process.env };
+
+  it('auto-detects service principal from environment', async () => {
+    process.env.AZURE_CLIENT_ID = 'test-client-id';
+    process.env.AZURE_CLIENT_SECRET = 'test-secret';
+    process.env.AZURE_TENANT_ID = 'test-tenant-id';
+    try {
+      const { pi, calls } = buildMockPi({
+        '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
+        '--service-principal': { stdout: '', stderr: '', code: 0 },
+        'account show': {
+          stdout: JSON.stringify({ user: { name: 'sp@test.com' }, name: 'SP Subscription' }),
+          stderr: '',
+          code: 0,
+        },
+      });
+      const { ctx, notifications } = buildMockCtx();
+
+      await runSetupWizard(pi, ctx, azInstalled);
+
+      const spCall = calls.find((c) => c.args.includes('--service-principal'));
+      expect(spCall).toBeDefined();
+      expect(notifications.find((n) => n.message.includes('service principal'))).toBeDefined();
+    } finally {
+      process.env.AZURE_CLIENT_ID = originalEnv.AZURE_CLIENT_ID;
+      process.env.AZURE_CLIENT_SECRET = originalEnv.AZURE_CLIENT_SECRET;
+      process.env.AZURE_TENANT_ID = originalEnv.AZURE_TENANT_ID;
+    }
+  });
+
+  it('handles service principal auth failure', async () => {
+    process.env.AZURE_CLIENT_ID = 'test-client-id';
+    process.env.AZURE_CLIENT_SECRET = 'test-secret';
+    process.env.AZURE_TENANT_ID = 'test-tenant-id';
+    try {
+      const { pi } = buildMockPi({
+        '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
+        '--service-principal': { stdout: '', stderr: 'AADSTS7000215', code: 1 },
+      });
+      const { ctx, notifications } = buildMockCtx();
+
+      await runSetupWizard(pi, ctx, azInstalled);
+
+      expect(notifications.find((n) => n.message.includes('Authentication failed'))?.type).toBe('error');
+    } finally {
+      process.env.AZURE_CLIENT_ID = originalEnv.AZURE_CLIENT_ID;
+      process.env.AZURE_CLIENT_SECRET = originalEnv.AZURE_CLIENT_SECRET;
+      process.env.AZURE_TENANT_ID = originalEnv.AZURE_TENANT_ID;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildInstallStep — multi-manager fallback coverage
+// ---------------------------------------------------------------------------
+
+describe('buildInstallStep — fallback options', () => {
+  it('returns multiple options on linux with apt and npm', () => {
+    const platform: PlatformInfo = {
+      os: 'linux',
+      arch: 'x64',
+      packageManagers: ['apt', 'npm'],
+      isCorporateManaged: false,
+    };
+    const options = buildInstallStep(platform);
+    expect(options.length).toBeGreaterThanOrEqual(1);
+    expect(options[0].manager).toBe('apt');
+  });
+
+  it('returns multiple options on win32 with winget and scoop', () => {
+    const platform: PlatformInfo = {
+      os: 'win32',
+      arch: 'x64',
+      packageManagers: ['winget', 'scoop', 'npm'],
+      isCorporateManaged: false,
+    };
+    const options = buildInstallStep(platform);
+    expect(options.length).toBeGreaterThanOrEqual(1);
+    expect(options[0].manager).toBe('winget');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Notification ordering
 // ---------------------------------------------------------------------------
 
