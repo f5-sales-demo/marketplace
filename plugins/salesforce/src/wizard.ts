@@ -12,7 +12,7 @@ export function buildVerifyCommand(alias: string): string[] {
   return ['sf', 'org', 'display', '--target-org', alias, '--json'];
 }
 
-function sfIsInstalled(): boolean {
+export function sfIsInstalled(): boolean {
   try {
     const checker = process.platform === 'win32' ? 'where' : 'which';
     return Bun.spawnSync([checker, 'sf']).exitCode === 0;
@@ -34,7 +34,9 @@ export async function runSetupWizard(
     cwd: string;
     reload?: () => Promise<void>;
   },
+  options?: { checkSfInstalled?: () => boolean },
 ): Promise<void> {
+  const checkSf = options?.checkSfInstalled ?? sfIsInstalled;
   ctx.ui.notify('Salesforce Setup Wizard starting...', 'info');
 
   // Step 1: Platform detection
@@ -50,7 +52,7 @@ export async function runSetupWizard(
   }
 
   // Step 2: CLI install (if needed)
-  if (!sfIsInstalled()) {
+  if (!checkSf()) {
     const installOptions = buildInstallStep(platform);
     if (installOptions.length === 0) {
       ctx.ui.notify(
@@ -86,7 +88,7 @@ export async function runSetupWizard(
     }
 
     // Verify install
-    if (!sfIsInstalled()) {
+    if (!checkSf()) {
       ctx.ui.notify('sf CLI not found after install. You may need to restart your terminal.', 'error');
       return;
     }

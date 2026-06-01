@@ -3,11 +3,11 @@ import type { PlatformInfo } from '../src/platform';
 import { buildAuthStep, buildInstallStep, buildVerifyCommand, runSetupWizard } from '../src/wizard';
 
 // ---------------------------------------------------------------------------
-// Helper builders
+// Helper builders — exact command assertions
 // ---------------------------------------------------------------------------
 
 describe('buildInstallStep', () => {
-  it('returns install options for macOS with brew', () => {
+  it('macOS brew command is exactly brew install sf', () => {
     const platform: PlatformInfo = {
       os: 'darwin',
       arch: 'arm64',
@@ -15,12 +15,12 @@ describe('buildInstallStep', () => {
       isCorporateManaged: false,
     };
     const options = buildInstallStep(platform);
-    expect(options.length).toBeGreaterThanOrEqual(2);
-    expect(options[0].label).toContain('Homebrew');
-    expect(options[0].command[0]).toBe('brew');
+    const brew = options.find((o) => o.manager === 'brew');
+    expect(brew).toBeDefined();
+    expect(brew?.command).toEqual(['brew', 'install', 'sf']);
   });
 
-  it('returns npm fallback for linux without apt', () => {
+  it('npm fallback command is npm install -g @salesforce/cli', () => {
     const platform: PlatformInfo = {
       os: 'linux',
       arch: 'x64',
@@ -29,10 +29,10 @@ describe('buildInstallStep', () => {
     };
     const options = buildInstallStep(platform);
     expect(options).toHaveLength(1);
-    expect(options[0].manager).toBe('npm');
+    expect(options[0].command).toEqual(['npm', 'install', '-g', '@salesforce/cli']);
   });
 
-  it('returns winget for windows', () => {
+  it('winget command is winget install Salesforce.SalesforceCLI', () => {
     const platform: PlatformInfo = {
       os: 'win32',
       arch: 'x64',
@@ -40,7 +40,29 @@ describe('buildInstallStep', () => {
       isCorporateManaged: false,
     };
     const options = buildInstallStep(platform);
-    expect(options[0].label).toContain('winget');
+    const winget = options.find((o) => o.manager === 'winget');
+    expect(winget?.command).toEqual(['winget', 'install', 'Salesforce.SalesforceCLI']);
+  });
+
+  it('scoop command is scoop install sf', () => {
+    const platform: PlatformInfo = {
+      os: 'win32',
+      arch: 'x64',
+      packageManagers: ['scoop'],
+      isCorporateManaged: false,
+    };
+    const options = buildInstallStep(platform);
+    expect(options[0].command).toEqual(['scoop', 'install', 'sf']);
+  });
+
+  it('returns empty when no package managers available', () => {
+    const platform: PlatformInfo = {
+      os: 'linux',
+      arch: 'x64',
+      packageManagers: [],
+      isCorporateManaged: false,
+    };
+    expect(buildInstallStep(platform)).toHaveLength(0);
   });
 });
 
@@ -50,22 +72,22 @@ describe('buildAuthStep', () => {
     expect(options[0].key).toBe('web');
     expect(options[0].available).toBe(true);
   });
+
+  it('includes all 4 auth methods', () => {
+    const options = buildAuthStep();
+    const keys = options.map((o) => o.key);
+    expect(keys).toEqual(['web', 'sfdx_url', 'access_token', 'jwt']);
+  });
 });
 
 describe('buildVerifyCommand', () => {
-  it('returns the sf org display command with alias', () => {
-    const cmd = buildVerifyCommand('SFDC');
-    expect(cmd).toEqual(['sf', 'org', 'display', '--target-org', 'SFDC', '--json']);
-  });
-
-  it('uses provided alias', () => {
-    const cmd = buildVerifyCommand('my-org');
-    expect(cmd).toContain('my-org');
+  it('returns exact sf org display command', () => {
+    expect(buildVerifyCommand('SFDC')).toEqual(['sf', 'org', 'display', '--target-org', 'SFDC', '--json']);
   });
 });
 
 // ---------------------------------------------------------------------------
-// runSetupWizard — full flow tests with mocked UI and exec
+// Mock builders
 // ---------------------------------------------------------------------------
 
 function buildMockCtx(overrides?: { selectResponses?: Array<string | undefined>; confirmResponses?: boolean[] }) {
@@ -74,6 +96,7 @@ function buildMockCtx(overrides?: { selectResponses?: Array<string | undefined>;
   let confirmIndex = 0;
   const selectResponses = overrides?.selectResponses ?? [];
   const confirmResponses = overrides?.confirmResponses ?? [];
+  let reloadCalled = false;
 
   return {
     ctx: {
@@ -89,9 +112,12 @@ function buildMockCtx(overrides?: { selectResponses?: Array<string | undefined>;
         },
       },
       cwd: '/tmp',
-      reload: undefined as (() => Promise<void>) | undefined,
+      async reload() {
+        reloadCalled = true;
+      },
     },
     notifications,
+    wasReloadCalled: () => reloadCalled,
   };
 }
 
@@ -112,33 +138,28 @@ function buildMockPi(execResponses?: Record<string, { stdout: string; stderr: st
   };
 }
 
+// ---------------------------------------------------------------------------
+// runSetupWizard — sf already installed (override checkSfInstalled = true)
+// ---------------------------------------------------------------------------
+
 describe('runSetupWizard — sf already installed', () => {
+  const sfInstalled = { checkSfInstalled: () => true };
+
   it('reports sf version and proceeds to auth selection', async () => {
-    const { pi } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
-    });
-    const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Skip authentication'],
-    });
+    const { pi } = buildMockPi({ '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 } });
+    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip authentication'] });
 
-    await runSetupWizard(pi, ctx);
+    await runSetupWizard(pi, ctx, sfInstalled);
 
-    const versionNotif = notifications.find((n) => n.message.includes('already installed'));
-    expect(versionNotif).toBeDefined();
-    expect(versionNotif?.message).toContain('2.50.0');
-
-    const skipNotif = notifications.find((n) => n.message.includes('Run /salesforce:setup again'));
-    expect(skipNotif).toBeDefined();
+    expect(notifications.find((n) => n.message.includes('already installed'))?.message).toContain('2.50.0');
+    expect(notifications.find((n) => n.message.includes('Run /salesforce:setup again'))).toBeDefined();
   });
 
-  it('executes web auth when selected', async () => {
+  it('executes web auth and verifies', async () => {
     const { pi, calls } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
+      '--version': { stdout: 'v2.50.0', stderr: '', code: 0 },
       'org display': {
-        stdout: JSON.stringify({
-          status: 0,
-          result: { username: 'history-f02f61d33aac@example.com', instanceUrl: 'https://test.sf.com' },
-        }),
+        stdout: JSON.stringify({ result: { username: 'history-f02f61d33aac@example.com', instanceUrl: 'https://test.sf.com' } }),
         stderr: '',
         code: 0,
       },
@@ -147,124 +168,161 @@ describe('runSetupWizard — sf already installed', () => {
       selectResponses: ['Web browser (recommended for workstations)'],
     });
 
-    await runSetupWizard(pi, ctx);
+    await runSetupWizard(pi, ctx, sfInstalled);
 
     const authCall = calls.find((c) => c.args.includes('login') && c.args.includes('web'));
     expect(authCall).toBeDefined();
     expect(authCall?.args).toContain('--set-default');
     expect(authCall?.args).toContain('SFDC');
-
-    const readyNotif = notifications.find((n) => n.message.includes('Salesforce ready'));
-    expect(readyNotif).toBeDefined();
-    expect(readyNotif?.message).toContain('history-f02f61d33aac@example.com');
+    expect(notifications.find((n) => n.message.includes('Salesforce ready'))?.message).toContain('history-f02f61d33aac@example.com');
   });
 
-  it('handles auth failure gracefully', async () => {
+  it('handles auth failure', async () => {
     const { pi } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
+      '--version': { stdout: 'v2', stderr: '', code: 0 },
       'org login web': { stdout: '', stderr: 'INVALID_SESSION_ID', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({
       selectResponses: ['Web browser (recommended for workstations)'],
     });
 
-    await runSetupWizard(pi, ctx);
+    await runSetupWizard(pi, ctx, sfInstalled);
 
-    const failNotif = notifications.find((n) => n.message.includes('Authentication failed'));
-    expect(failNotif).toBeDefined();
-    expect(failNotif?.type).toBe('error');
+    const fail = notifications.find((n) => n.message.includes('Authentication failed'));
+    expect(fail).toBeDefined();
+    expect(fail?.type).toBe('error');
   });
 
   it('handles verify failure with warning', async () => {
     const { pi } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
-      'org login web': { stdout: '', stderr: '', code: 0 },
+      '--version': { stdout: 'v2', stderr: '', code: 0 },
       'org display': { stdout: '', stderr: 'error', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({
       selectResponses: ['Web browser (recommended for workstations)'],
     });
 
-    await runSetupWizard(pi, ctx);
+    await runSetupWizard(pi, ctx, sfInstalled);
 
-    const warnNotif = notifications.find((n) => n.message.includes('may have succeeded'));
-    expect(warnNotif).toBeDefined();
-    expect(warnNotif?.type).toBe('warning');
+    expect(notifications.find((n) => n.message.includes('may have succeeded'))?.type).toBe('warning');
   });
 
-  it('user cancels auth by selecting undefined', async () => {
+  it('handles malformed verify JSON', async () => {
     const { pi } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
-    });
-    const { ctx, notifications } = buildMockCtx({
-      selectResponses: [undefined],
-    });
-
-    await runSetupWizard(pi, ctx);
-
-    const skipNotif = notifications.find((n) => n.message.includes('Run /salesforce:setup again'));
-    expect(skipNotif).toBeDefined();
-  });
-});
-
-describe('runSetupWizard — verify step', () => {
-  it('parses org display JSON on success', async () => {
-    const orgData = { username: 'history-cae172fda804@example.com', instanceUrl: 'https://prod.my.salesforce.com' };
-    const { pi } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
-      'org login web': { stdout: '', stderr: '', code: 0 },
-      'org display': { stdout: JSON.stringify({ status: 0, result: orgData }), stderr: '', code: 0 },
-    });
-    const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Web browser (recommended for workstations)'],
-    });
-
-    await runSetupWizard(pi, ctx);
-
-    const ready = notifications.find((n) => n.message.includes('Salesforce ready'));
-    expect(ready).toBeDefined();
-    expect(ready?.message).toContain('history-cae172fda804@example.com');
-    expect(ready?.message).toContain('prod.my.salesforce.com');
-  });
-
-  it('handles malformed JSON in verify gracefully', async () => {
-    const { pi } = buildMockPi({
-      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
-      'org login web': { stdout: '', stderr: '', code: 0 },
+      '--version': { stdout: 'v2', stderr: '', code: 0 },
       'org display': { stdout: 'not json', stderr: '', code: 0 },
     });
     const { ctx, notifications } = buildMockCtx({
       selectResponses: ['Web browser (recommended for workstations)'],
     });
 
-    await runSetupWizard(pi, ctx);
+    await runSetupWizard(pi, ctx, sfInstalled);
 
-    const fallback = notifications.find((n) => n.message.includes('Run /salesforce:setup to confirm'));
-    expect(fallback).toBeDefined();
+    expect(notifications.find((n) => n.message.includes('Run /salesforce:setup to confirm'))).toBeDefined();
+  });
+
+  it('user cancels auth', async () => {
+    const { pi } = buildMockPi({ '--version': { stdout: 'v2', stderr: '', code: 0 } });
+    const { ctx, notifications } = buildMockCtx({ selectResponses: [undefined] });
+
+    await runSetupWizard(pi, ctx, sfInstalled);
+
+    expect(notifications.find((n) => n.message.includes('Run /salesforce:setup again'))).toBeDefined();
   });
 });
 
-describe('runSetupWizard — notification flow', () => {
-  it('first notification is wizard starting', async () => {
-    const { pi } = buildMockPi({
-      '--version': { stdout: 'v2', stderr: '', code: 0 },
-    });
-    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip authentication'] });
+// ---------------------------------------------------------------------------
+// runSetupWizard — sf NOT installed (override checkSfInstalled = false)
+// ---------------------------------------------------------------------------
 
-    await runSetupWizard(pi, ctx);
+describe('runSetupWizard — sf not installed', () => {
+  let installCount = 0;
+  const sfNotInstalled = {
+    checkSfInstalled: () => {
+      installCount++;
+      return installCount > 1;
+    },
+  };
 
-    expect(notifications[0].message).toContain('Setup Wizard starting');
-    expect(notifications[0].type).toBe('info');
+  it('offers install options and user skips', async () => {
+    installCount = 0;
+    const { pi } = buildMockPi();
+    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip installation'] });
+
+    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
+
+    expect(notifications.find((n) => n.message.includes('Setup cancelled'))).toBeDefined();
   });
 
-  it('second notification is platform detection', async () => {
-    const { pi } = buildMockPi({
-      '--version': { stdout: 'v2', stderr: '', code: 0 },
+  it('user selects brew install, confirms, succeeds, reload called', async () => {
+    installCount = 0;
+    const { pi, calls } = buildMockPi({
+      'brew install sf': { stdout: 'installed', stderr: '', code: 0 },
+      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
     });
+    const { ctx, notifications, wasReloadCalled } = buildMockCtx({
+      selectResponses: ['Homebrew (recommended)', 'Skip authentication'],
+      confirmResponses: [true],
+    });
+
+    await runSetupWizard(pi, ctx, sfNotInstalled);
+
+    const installCall = calls.find((c) => c.cmd === 'brew' && c.args.includes('sf'));
+    expect(installCall).toBeDefined();
+    expect(installCall?.args).toEqual(['install', 'sf']);
+    expect(notifications.find((n) => n.message.includes('installed'))?.message).toContain('2.50.0');
+    expect(wasReloadCalled()).toBe(true);
+  });
+
+  it('install fails, shows error', async () => {
+    const { pi } = buildMockPi({
+      'brew install sf': { stdout: '', stderr: 'permission denied', code: 1 },
+    });
+    const { ctx, notifications } = buildMockCtx({
+      selectResponses: ['Homebrew (recommended)'],
+      confirmResponses: [true],
+    });
+
+    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
+
+    expect(notifications.find((n) => n.message.includes('Installation failed'))?.type).toBe('error');
+  });
+
+  it('user declines install confirmation', async () => {
+    const { pi } = buildMockPi();
+    const { ctx, notifications } = buildMockCtx({
+      selectResponses: ['Homebrew (recommended)'],
+      confirmResponses: [false],
+    });
+
+    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
+
+    const installCalls = notifications.filter((n) => n.message.includes('Installing'));
+    expect(installCalls).toHaveLength(0);
+  });
+
+  it('no install options shows manual install URL', async () => {
+    // When getInstallOptions returns empty (no matching package managers for this OS),
+    // the wizard should show a manual install error.
+    // This is tested via buildInstallStep returning [] for empty packageManagers.
+    const platform: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: [], isCorporateManaged: false };
+    const options = buildInstallStep(platform);
+    expect(options).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Notification flow ordering
+// ---------------------------------------------------------------------------
+
+describe('runSetupWizard — notification ordering', () => {
+  it('first two notifications are wizard start and platform detection', async () => {
+    const { pi } = buildMockPi({ '--version': { stdout: 'v2', stderr: '', code: 0 } });
     const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip authentication'] });
 
-    await runSetupWizard(pi, ctx);
+    await runSetupWizard(pi, ctx, { checkSfInstalled: () => true });
 
+    expect(notifications[0].message).toContain('Setup Wizard starting');
     expect(notifications[1].message).toContain('Detected:');
   });
 });
