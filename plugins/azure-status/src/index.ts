@@ -3,7 +3,6 @@ import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Azure Status');
 
-  // Always register setup command (even without az CLI)
   if (typeof pi.registerCommand === 'function') {
     pi.registerCommand('azure-status:setup', {
       description: 'Install and configure Azure CLI',
@@ -14,7 +13,6 @@ const factory: ExtensionFactory = async (pi) => {
     });
   }
 
-  // Check if az CLI is available
   let azAvailable = false;
   try {
     const checker = process.platform === 'win32' ? 'where' : 'which';
@@ -23,7 +21,22 @@ const factory: ExtensionFactory = async (pi) => {
     // az not available
   }
 
-  // Always register service status (shows unavailable when CLI missing)
+  if (azAvailable && typeof pi.registerTool === 'function') {
+    const { createAzAccountTool } = await import('./tools/az-account');
+    const { createAzGroupTool } = await import('./tools/az-group');
+    const { createAzResourceTool } = await import('./tools/az-resource');
+    const { createAzVmTool } = await import('./tools/az-vm');
+    const { createAzExecTool } = await import('./tools/az-exec');
+    const { createAzHelpTool } = await import('./tools/az-help');
+
+    pi.registerTool(createAzAccountTool(pi));
+    pi.registerTool(createAzGroupTool(pi));
+    pi.registerTool(createAzResourceTool(pi));
+    pi.registerTool(createAzVmTool(pi));
+    pi.registerTool(createAzExecTool(pi));
+    pi.registerTool(createAzHelpTool(pi));
+  }
+
   if (typeof pi.registerServiceStatus === 'function') {
     pi.registerServiceStatus({
       name: 'Azure',
@@ -48,7 +61,6 @@ const factory: ExtensionFactory = async (pi) => {
     });
   }
 
-  // Session start: notify if CLI missing
   if (typeof pi.on === 'function') {
     pi.on('session_start', async (_event: unknown, _ctx: { cwd: string }) => {
       if (!azAvailable) {
