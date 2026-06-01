@@ -107,6 +107,9 @@ function buildMockCtx(overrides?: { selectResponses?: Array<string | undefined>;
         confirm(_title: string, _message: string) {
           return Promise.resolve(confirmResponses[confirmIndex++] ?? false);
         },
+        input(_title: string, _placeholder?: string) {
+          return Promise.resolve(selectResponses[selectIndex++]);
+        },
         notify(message: string, type?: string) {
           notifications.push({ message, type });
         },

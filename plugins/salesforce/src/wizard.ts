@@ -12,6 +12,93 @@ export function buildVerifyCommand(alias: string): string[] {
   return ['sf', 'org', 'display', '--target-org', alias, '--json'];
 }
 
+function isSalesforceUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    return parsed.protocol === 'https:' && (hostname === 'salesforce.com' || hostname.endsWith('.salesforce.com'));
+  } catch {
+    return false;
+  }
+}
+
+async function discoverInstanceUrls(): Promise<string[]> {
+  const urls = new Set<string>();
+
+  // Strategy 1: Check cached sfdx auth files for previous instance URLs
+  try {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const sfdxDir = path.join(os.homedir(), '.sfdx');
+    if (fs.existsSync(sfdxDir)) {
+      for (const file of fs.readdirSync(sfdxDir)) {
+        if (!file.endsWith('.json') || file === 'alias.json' || file === 'sfdx-config.json') continue;
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(sfdxDir, file), 'utf8'));
+          if (data.instanceUrl && isSalesforceUrl(data.instanceUrl)) {
+            urls.add(`${data.instanceUrl} (from previous login)`);
+          }
+        } catch {
+          // skip unreadable files
+        }
+      }
+    }
+  } catch {
+    // sfdx dir not accessible
+  }
+
+  // Strategy 2: Derive from user's email — try {company}.my.salesforce.com
+  if (urls.size === 0) {
+    const email = await discoverUserEmail();
+    if (email) {
+      const domain = email.split('@')[1];
+      if (domain) {
+        const company = domain.split('.')[0].toLowerCase();
+        const candidateUrl = `https://${company}.my.salesforce.com`;
+        if (isSalesforceUrl(candidateUrl) && (await probeUrl(candidateUrl))) {
+          urls.add(`${candidateUrl} (discovered from email ${email})`);
+        }
+      }
+    }
+  }
+
+  return Array.from(urls);
+}
+
+async function discoverUserEmail(): Promise<string | undefined> {
+  // Try xcsh user profile first
+  try {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const profilePath = path.join(os.homedir(), '.xcsh', 'user-profile.json');
+    const data = JSON.parse(await Bun.file(profilePath).text());
+    if (data.email && data.email.includes('@')) return data.email;
+  } catch {
+    // no profile
+  }
+  // Fall back to git config
+  try {
+    const result = Bun.spawnSync(['git', 'config', 'user.email']);
+    if (result.exitCode === 0) {
+      const email = new TextDecoder().decode(result.stdout).trim();
+      if (email.includes('@')) return email;
+    }
+  } catch {
+    // no git
+  }
+  return undefined;
+}
+
+async function probeUrl(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(5000) });
+    return response.status >= 200 && response.status < 400;
+  } catch {
+    return false;
+  }
+}
+
 export function sfIsInstalled(): boolean {
   try {
     const checker = process.platform === 'win32' ? 'where' : 'which';
@@ -29,6 +116,7 @@ export async function runSetupWizard(
     ui: {
       select: (title: string, options: string[]) => Promise<string | undefined>;
       confirm: (title: string, message: string) => Promise<boolean>;
+      input: (title: string, placeholder?: string) => Promise<string | undefined>;
       notify: (message: string, type?: 'info' | 'warning' | 'error') => void;
     };
     cwd: string;
@@ -153,9 +241,38 @@ export async function runSetupWizard(
   } else {
     let authCmd: string[];
     switch (selectedAuth.key) {
-      case 'web':
+      case 'web': {
+        const discoveredUrls = await discoverInstanceUrls();
+        const urlOptions = [
+          ...discoveredUrls.map((u) => u),
+          'https://login.salesforce.com (standard)',
+          'https://test.salesforce.com (sandbox)',
+          'Enter URL manually',
+        ];
+        const instanceUrl = await ctx.ui.select('Salesforce login URL', urlOptions);
         authCmd = ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
+        if (!instanceUrl || instanceUrl.includes('login.salesforce.com (standard)')) {
+          // default — no --instance-url needed
+        } else if (instanceUrl.includes('test.salesforce.com')) {
+          authCmd.push('--instance-url', 'https://test.salesforce.com');
+        } else if (instanceUrl === 'Enter URL manually') {
+          ctx.ui.notify('Enter your Salesforce domain (e.g. https://mycompany.my.salesforce.com)', 'info');
+          const customUrl = await ctx.ui.input('Instance URL', 'https://mycompany.my.salesforce.com');
+          if (!customUrl || !customUrl.startsWith('https://')) {
+            ctx.ui.notify('Invalid URL. Must start with https://. Run /salesforce:setup to try again.', 'error');
+            return;
+          }
+          authCmd.push('--instance-url', customUrl);
+        } else {
+          const url = instanceUrl.split(' ')[0];
+          if (!isSalesforceUrl(url)) {
+            ctx.ui.notify('Invalid Salesforce URL. Run /salesforce:setup to try again.', 'error');
+            return;
+          }
+          authCmd.push('--instance-url', url);
+        }
         break;
+      }
       case 'access_token':
         authCmd = [
           'sf',
