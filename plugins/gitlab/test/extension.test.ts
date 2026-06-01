@@ -8,9 +8,11 @@ const mockPi = {
   registerTool(t: { name: string }) {
     (mockPi as any)._tools.push(t);
   },
+  registerCommand(_name: string, _def: { description: string; handler: (...args: unknown[]) => Promise<void> }) {},
   registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
     (mockPi as any)._serviceStatus.push(c);
   },
+  on(_event: string, _handler: (...args: unknown[]) => Promise<unknown>) {},
   _tools: [] as { name: string }[],
   _serviceStatus: [] as { name: string; check: () => Promise<{ state: string }> }[],
 };
