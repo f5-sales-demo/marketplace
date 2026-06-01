@@ -3,85 +3,101 @@ import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Salesforce');
 
+  // Always register setup command (even without sf CLI)
+  if (typeof pi.registerCommand === 'function') {
+    pi.registerCommand('salesforce:setup', {
+      description: 'Install and configure Salesforce CLI',
+      async handler(_args, ctx) {
+        const { runSetupWizard } = await import('./wizard');
+        await runSetupWizard(pi, ctx);
+      },
+    });
+  }
+
   // Check if sf CLI is available
+  let sfAvailable = false;
   try {
-    const result = Bun.spawnSync(['which', 'sf']);
-    if (result.exitCode !== 0) {
-      pi.logger.debug('Salesforce CLI (sf) not found — skipping tool registration');
-      return;
-    }
+    const checker = process.platform === 'win32' ? 'where' : 'which';
+    sfAvailable = Bun.spawnSync([checker, 'sf']).exitCode === 0;
   } catch {
-    pi.logger.debug('Salesforce CLI (sf) not found — skipping tool registration');
-    return;
+    // sf not available
   }
 
-  // Inject loadProfile dependency from xcsh's internal API
-  const { setLoadProfile } = await import('./context/salesforce-context');
-  if (pi.pi?.loadProfile) {
-    setLoadProfile(pi.pi.loadProfile);
+  // Only register tools when sf CLI is present
+  if (sfAvailable) {
+    // Inject loadProfile dependency
+    const { setLoadProfile } = await import('./context/salesforce-context');
+    if (pi.pi?.loadProfile) {
+      setLoadProfile(pi.pi.loadProfile);
+    }
+
+    // Register tools
+    const { createSfSetupTool } = await import('./tools/sf-setup');
+    const { createSfQueryTool } = await import('./tools/sf-query');
+    const { createSfOrgDisplayTool } = await import('./tools/sf-org-display');
+    const { createSfPipelineReportTool } = await import('./tools/sf-pipeline-report');
+
+    pi.registerTool(createSfSetupTool(pi));
+    pi.registerTool(createSfQueryTool(pi));
+    pi.registerTool(createSfOrgDisplayTool(pi));
+    pi.registerTool(createSfPipelineReportTool(pi));
+
+    // Context injection (only when sf available)
+    pi.on('before_agent_start', async () => {
+      const { loadSalesforceContext, buildSalesforceHint } = await import('./context/salesforce-context');
+      const sfContext = await loadSalesforceContext();
+      if (!sfContext) return;
+      const hint = buildSalesforceHint(sfContext);
+      if (!hint) return;
+      const lines = [
+        `Pipeline: ${hint.pipelineTotal} (${hint.dealCount} deals, ${hint.accountCount} accounts)`,
+        hint.territories ? `Territories: ${hint.territories}` : '',
+        hint.forecastBreakdown ? `Forecast: ${hint.forecastBreakdown}` : '',
+        hint.partnerName ? `Partner: ${hint.partnerName} (${hint.partnerRole ?? 'Partner'})` : '',
+        hint.orgAlias ? `Org: ${hint.orgAlias}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      return {
+        message: { customType: 'salesforce_hint', content: lines, display: false },
+      };
+    });
   }
 
-  // Register tools
-  const { createSfSetupTool } = await import('./tools/sf-setup');
-  const { createSfQueryTool } = await import('./tools/sf-query');
-  const { createSfOrgDisplayTool } = await import('./tools/sf-org-display');
-  const { createSfPipelineReportTool } = await import('./tools/sf-pipeline-report');
-
-  pi.registerTool(createSfSetupTool(pi));
-  pi.registerTool(createSfQueryTool(pi));
-  pi.registerTool(createSfOrgDisplayTool(pi));
-  pi.registerTool(createSfPipelineReportTool(pi));
-
-  // Register welcome screen service status
+  // Always register service status (shows unavailable when CLI missing)
   if (typeof pi.registerServiceStatus === 'function') {
     pi.registerServiceStatus({
       name: 'Salesforce',
       async check() {
         try {
+          const whichChecker = process.platform === 'win32' ? 'where' : 'which';
+          const whichResult = Bun.spawnSync([whichChecker, 'sf']);
+          if (whichResult.exitCode !== 0) {
+            return { state: 'unavailable', hint: 'run: /salesforce:setup' };
+          }
           const { execSfJson } = await import('./sf/exec');
           const { collectAllOrgs, makeExecApi } = await import('./tools/shared');
           const api = makeExecApi(process.cwd());
           const orgResult = await execSfJson(api, ['org', 'list']);
           const allOrgs = collectAllOrgs(orgResult.result as Record<string, unknown[]>);
-          if (allOrgs.length === 0) return { state: 'unauthenticated', hint: 'run: sf org login web' };
+          if (allOrgs.length === 0) return { state: 'unauthenticated', hint: 'run: /salesforce:setup' };
           const defaultOrg = allOrgs.find((o) => o.isDefault);
-          if (!defaultOrg) return { state: 'unauthenticated', hint: 'run: sf_setup action set_default' };
+          if (!defaultOrg) return { state: 'unauthenticated', hint: 'run: /salesforce:setup' };
           if (defaultOrg.connectedStatus === 'Connected') return { state: 'connected' };
-          return { state: 'unauthenticated', hint: 'session expired, run: sf org login web' };
+          return { state: 'unauthenticated', hint: 'session expired, run: /salesforce:setup' };
         } catch {
           return { state: 'unavailable', hint: 'sf CLI check failed' };
         }
       },
-      fix: {
-        prompt: 'Salesforce not authenticated',
-        command: ['sf', 'org', 'login', 'web', '--set-default'],
-      },
     });
   }
 
-  // Context injection — inject Salesforce pipeline hint before each agent turn
-  pi.on('before_agent_start', async () => {
-    const { loadSalesforceContext, buildSalesforceHint } = await import('./context/salesforce-context');
-    const sfContext = await loadSalesforceContext();
-    if (!sfContext) return;
-    const hint = buildSalesforceHint(sfContext);
-    if (!hint) return;
-    const lines = [
-      `Pipeline: ${hint.pipelineTotal} (${hint.dealCount} deals, ${hint.accountCount} accounts)`,
-      hint.territories ? `Territories: ${hint.territories}` : '',
-      hint.forecastBreakdown ? `Forecast: ${hint.forecastBreakdown}` : '',
-      hint.partnerName ? `Partner: ${hint.partnerName} (${hint.partnerRole ?? 'Partner'})` : '',
-      hint.orgAlias ? `Org: ${hint.orgAlias}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-    return {
-      message: { customType: 'salesforce_hint', content: lines, display: false },
-    };
-  });
-
-  // Welcome check — verify org connectivity at session start (non-fatal)
+  // Session start: notify if CLI missing, check org connectivity if available
   pi.on('session_start', async (_event: unknown, ctx: { cwd: string }) => {
+    if (!sfAvailable) {
+      pi.logger.debug('Salesforce: sf CLI not found');
+      return;
+    }
     try {
       const { execSfJson } = await import('./sf/exec');
       const { collectAllOrgs, makeExecApi } = await import('./tools/shared');

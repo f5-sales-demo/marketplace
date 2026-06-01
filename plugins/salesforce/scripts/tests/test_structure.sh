@@ -276,3 +276,20 @@ test_T1_15_salesforce_context_exists() {
     return 1
   fi
 }
+
+# T1.16 — hooks.json references /salesforce:setup, not brew
+test_T1_16_hook_references_setup_command() {
+  local hook="$PLUGIN_ROOT/hooks/hooks.json"
+  if [[ ! -f "$hook" ]]; then
+    echo "FAIL: hooks.json missing"
+    return 1
+  fi
+  if ! grep -q "salesforce:setup" "$hook"; then
+    echo "FAIL: hooks.json should reference /salesforce:setup"
+    return 1
+  fi
+  if grep -q "brew install" "$hook"; then
+    echo "FAIL: hooks.json should not hardcode brew (cross-platform)"
+    return 1
+  fi
+}
