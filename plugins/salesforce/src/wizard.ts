@@ -187,7 +187,10 @@ export async function runSetupWizard(
 
     const ver = await pi.exec('sf', ['--version']);
     ctx.ui.notify(`Salesforce CLI installed: ${ver.stdout.trim()}`, 'info');
-    if (ctx.reload) await ctx.reload();
+    ctx.ui.notify(
+      'Restart xcsh to activate Salesforce tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report).',
+      'info',
+    );
   } else {
     const ver = await pi.exec('sf', ['--version']);
     ctx.ui.notify(`Salesforce CLI: ${ver.stdout.trim()}`, 'info');

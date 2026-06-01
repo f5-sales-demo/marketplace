@@ -235,7 +235,7 @@ describe('runSetupWizard — sf not installed', () => {
     },
   };
 
-  it('auto-installs via preferred package manager and reloads', async () => {
+  it('auto-installs via preferred package manager and notifies restart', async () => {
     installCount = 0;
     const { pi, calls } = buildMockPi({
       'brew install sf': { stdout: 'installed', stderr: '', code: 0 },
@@ -246,7 +246,7 @@ describe('runSetupWizard — sf not installed', () => {
         code: 0,
       },
     });
-    const { ctx, notifications, wasReloadCalled } = buildMockCtx({
+    const { ctx, notifications } = buildMockCtx({
       selectResponses: ['https://login.salesforce.com (standard)'],
     });
 
@@ -256,7 +256,7 @@ describe('runSetupWizard — sf not installed', () => {
     expect(installCall).toBeDefined();
     expect(installCall?.args).toEqual(['install', 'sf']);
     expect(notifications.find((n) => n.message.includes('installed'))?.message).toContain('2.50.0');
-    expect(wasReloadCalled()).toBe(true);
+    expect(notifications.find((n) => n.message.includes('Restart xcsh'))).toBeDefined();
   });
 
   it('install failure shows error', async () => {
