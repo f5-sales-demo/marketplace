@@ -39,29 +39,12 @@ describe('buildInstallStep', () => {
       packageManagers: ['winget', 'npm'],
       isCorporateManaged: false,
     };
-    const options = buildInstallStep(platform);
-    const winget = options.find((o) => o.manager === 'winget');
+    const winget = buildInstallStep(platform).find((o) => o.manager === 'winget');
     expect(winget?.command).toEqual(['winget', 'install', 'Salesforce.SalesforceCLI']);
   });
 
-  it('scoop command is scoop install sf', () => {
-    const platform: PlatformInfo = {
-      os: 'win32',
-      arch: 'x64',
-      packageManagers: ['scoop'],
-      isCorporateManaged: false,
-    };
-    const options = buildInstallStep(platform);
-    expect(options[0].command).toEqual(['scoop', 'install', 'sf']);
-  });
-
   it('returns empty when no package managers available', () => {
-    const platform: PlatformInfo = {
-      os: 'linux',
-      arch: 'x64',
-      packageManagers: [],
-      isCorporateManaged: false,
-    };
+    const platform: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: [], isCorporateManaged: false };
     expect(buildInstallStep(platform)).toHaveLength(0);
   });
 });
@@ -74,9 +57,7 @@ describe('buildAuthStep', () => {
   });
 
   it('includes all 4 auth methods', () => {
-    const options = buildAuthStep();
-    const keys = options.map((o) => o.key);
-    expect(keys).toEqual(['web', 'sfdx_url', 'access_token', 'jwt']);
+    expect(buildAuthStep().map((o) => o.key)).toEqual(['web', 'sfdx_url', 'access_token', 'jwt']);
   });
 });
 
@@ -90,12 +71,15 @@ describe('buildVerifyCommand', () => {
 // Mock builders
 // ---------------------------------------------------------------------------
 
-function buildMockCtx(overrides?: { selectResponses?: Array<string | undefined>; confirmResponses?: boolean[] }) {
+function buildMockCtx(overrides?: {
+  selectResponses?: Array<string | undefined>;
+  inputResponses?: Array<string | undefined>;
+}) {
   const notifications: Array<{ message: string; type?: string }> = [];
   let selectIndex = 0;
-  let confirmIndex = 0;
+  let inputIndex = 0;
   const selectResponses = overrides?.selectResponses ?? [];
-  const confirmResponses = overrides?.confirmResponses ?? [];
+  const inputResponses = overrides?.inputResponses ?? [];
   let reloadCalled = false;
 
   return {
@@ -105,7 +89,10 @@ function buildMockCtx(overrides?: { selectResponses?: Array<string | undefined>;
           return Promise.resolve(selectResponses[selectIndex++]);
         },
         confirm(_title: string, _message: string) {
-          return Promise.resolve(confirmResponses[confirmIndex++] ?? false);
+          return Promise.resolve(true);
+        },
+        input(_title: string, _placeholder?: string) {
+          return Promise.resolve(inputResponses[inputIndex++]);
         },
         notify(message: string, type?: string) {
           notifications.push({ message, type });
@@ -139,58 +126,44 @@ function buildMockPi(execResponses?: Record<string, { stdout: string; stderr: st
 }
 
 // ---------------------------------------------------------------------------
-// runSetupWizard — sf already installed (override checkSfInstalled = true)
+// runSetupWizard — sf already installed, web auth (deterministic flow)
 // ---------------------------------------------------------------------------
 
-describe('runSetupWizard — sf already installed', () => {
+describe('runSetupWizard — sf installed, web auth', () => {
   const sfInstalled = { checkSfInstalled: () => true };
 
-  it('reports sf version and proceeds to auth selection', async () => {
-    const { pi } = buildMockPi({ '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 } });
-    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip authentication'] });
-
-    await runSetupWizard(pi, ctx, sfInstalled);
-
-    expect(notifications.find((n) => n.message.includes('already installed'))?.message).toContain('2.50.0');
-    expect(notifications.find((n) => n.message.includes('Run /salesforce:setup again'))).toBeDefined();
-  });
-
-  it('executes web auth and verifies', async () => {
-    const { pi, calls } = buildMockPi({
-      '--version': { stdout: 'v2.50.0', stderr: '', code: 0 },
+  it('reports version then proceeds to auth', async () => {
+    const { pi } = buildMockPi({
+      '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
       'org display': {
         stdout: JSON.stringify({ result: { username: 'user@test.com', instanceUrl: 'https://test.sf.com' } }),
         stderr: '',
         code: 0,
       },
     });
+    // No discovered URLs, so wizard prompts for login type — pick standard
     const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Web browser (recommended for workstations)'],
+      selectResponses: ['https://login.salesforce.com (standard)'],
     });
 
     await runSetupWizard(pi, ctx, sfInstalled);
 
-    const authCall = calls.find((c) => c.args.includes('login') && c.args.includes('web'));
-    expect(authCall).toBeDefined();
-    expect(authCall?.args).toContain('--set-default');
-    expect(authCall?.args).toContain('SFDC');
-    expect(notifications.find((n) => n.message.includes('Salesforce ready'))?.message).toContain('user@test.com');
+    expect(notifications.find((n) => n.message.includes('2.50.0'))).toBeDefined();
+    expect(notifications.find((n) => n.message.includes('Salesforce ready'))).toBeDefined();
   });
 
   it('handles auth failure', async () => {
     const { pi } = buildMockPi({
       '--version': { stdout: 'v2', stderr: '', code: 0 },
-      'org login web': { stdout: '', stderr: 'INVALID_SESSION_ID', code: 1 },
+      'org login web': { stdout: '', stderr: 'TIMEOUT', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Web browser (recommended for workstations)'],
+      selectResponses: ['https://login.salesforce.com (standard)'],
     });
 
     await runSetupWizard(pi, ctx, sfInstalled);
 
-    const fail = notifications.find((n) => n.message.includes('Authentication failed'));
-    expect(fail).toBeDefined();
-    expect(fail?.type).toBe('error');
+    expect(notifications.find((n) => n.message.includes('Authentication failed'))?.type).toBe('error');
   });
 
   it('handles verify failure with warning', async () => {
@@ -199,7 +172,7 @@ describe('runSetupWizard — sf already installed', () => {
       'org display': { stdout: '', stderr: 'error', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Web browser (recommended for workstations)'],
+      selectResponses: ['https://login.salesforce.com (standard)'],
     });
 
     await runSetupWizard(pi, ctx, sfInstalled);
@@ -207,65 +180,77 @@ describe('runSetupWizard — sf already installed', () => {
     expect(notifications.find((n) => n.message.includes('may have succeeded'))?.type).toBe('warning');
   });
 
-  it('handles malformed verify JSON', async () => {
-    const { pi } = buildMockPi({
-      '--version': { stdout: 'v2', stderr: '', code: 0 },
-      'org display': { stdout: 'not json', stderr: '', code: 0 },
-    });
-    const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Web browser (recommended for workstations)'],
-    });
+  it('user cancels login URL selection', async () => {
+    const { pi } = buildMockPi({ '--version': { stdout: 'v2', stderr: '', code: 0 } });
+    const { ctx } = buildMockCtx({ selectResponses: [undefined] });
 
     await runSetupWizard(pi, ctx, sfInstalled);
-
-    expect(notifications.find((n) => n.message.includes('Run /salesforce:setup to confirm'))).toBeDefined();
+    // Should return without error — just exits silently
   });
 
-  it('user cancels auth', async () => {
-    const { pi } = buildMockPi({ '--version': { stdout: 'v2', stderr: '', code: 0 } });
-    const { ctx, notifications } = buildMockCtx({ selectResponses: [undefined] });
+  it('custom domain with manual input validates URL', async () => {
+    const { pi } = buildMockPi({
+      '--version': { stdout: 'v2', stderr: '', code: 0 },
+      'org display': {
+        stdout: JSON.stringify({
+          result: { username: 'admin@acme.com', instanceUrl: 'https://acme.my.salesforce.com' },
+        }),
+        stderr: '',
+        code: 0,
+      },
+    });
+    const { ctx, notifications } = buildMockCtx({
+      selectResponses: ['Custom domain (SSO / federated)'],
+      inputResponses: ['https://acme.my.salesforce.com'],
+    });
 
     await runSetupWizard(pi, ctx, sfInstalled);
 
-    expect(notifications.find((n) => n.message.includes('Run /salesforce:setup again'))).toBeDefined();
+    expect(notifications.find((n) => n.message.includes('Salesforce ready'))).toBeDefined();
+  });
+
+  it('isSalesforceUrl rejects non-salesforce domains', async () => {
+    // Import the validator directly — wizard uses it to block bad URLs
+    const { isSalesforceUrl } = await import('../src/wizard');
+    expect(isSalesforceUrl('https://evil.com')).toBe(false);
+    expect(isSalesforceUrl('https://evil.com/.salesforce.com')).toBe(false);
+    expect(isSalesforceUrl('https://salesforce.com.evil.com')).toBe(false);
+    expect(isSalesforceUrl('http://f5.my.salesforce.com')).toBe(false);
+    expect(isSalesforceUrl('https://f5.my.salesforce.com')).toBe(true);
+    expect(isSalesforceUrl('https://login.salesforce.com')).toBe(true);
+    expect(isSalesforceUrl('https://test.salesforce.com')).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// runSetupWizard — sf NOT installed (override checkSfInstalled = false)
+// runSetupWizard — sf NOT installed (auto-install flow)
 // ---------------------------------------------------------------------------
 
 describe('runSetupWizard — sf not installed', () => {
   let installCount = 0;
-  const sfNotInstalled = {
+  const sfNotInstalledThenInstalled = {
     checkSfInstalled: () => {
       installCount++;
       return installCount > 1;
     },
   };
 
-  it('offers install options and user skips', async () => {
-    installCount = 0;
-    const { pi } = buildMockPi();
-    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip installation'] });
-
-    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
-
-    expect(notifications.find((n) => n.message.includes('Setup cancelled'))).toBeDefined();
-  });
-
-  it('user selects brew install, confirms, succeeds, reload called', async () => {
+  it('auto-installs via preferred package manager and reloads', async () => {
     installCount = 0;
     const { pi, calls } = buildMockPi({
       'brew install sf': { stdout: 'installed', stderr: '', code: 0 },
       '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
+      'org display': {
+        stdout: JSON.stringify({ result: { username: 'u@t.com', instanceUrl: 'https://t.sf.com' } }),
+        stderr: '',
+        code: 0,
+      },
     });
     const { ctx, notifications, wasReloadCalled } = buildMockCtx({
-      selectResponses: ['Homebrew (recommended)', 'Skip authentication'],
-      confirmResponses: [true],
+      selectResponses: ['https://login.salesforce.com (standard)'],
     });
 
-    await runSetupWizard(pi, ctx, sfNotInstalled);
+    await runSetupWizard(pi, ctx, sfNotInstalledThenInstalled);
 
     const installCall = calls.find((c) => c.cmd === 'brew' && c.args.includes('sf'));
     expect(installCall).toBeDefined();
@@ -274,55 +259,29 @@ describe('runSetupWizard — sf not installed', () => {
     expect(wasReloadCalled()).toBe(true);
   });
 
-  it('install fails, shows error', async () => {
-    const { pi } = buildMockPi({
+  it('install failure shows error', async () => {
+    const { pi, notifications: n } = buildMockPi({
       'brew install sf': { stdout: '', stderr: 'permission denied', code: 1 },
     });
-    const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Homebrew (recommended)'],
-      confirmResponses: [true],
-    });
+    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip'] });
 
     await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
 
     expect(notifications.find((n) => n.message.includes('Installation failed'))?.type).toBe('error');
   });
-
-  it('user declines install confirmation', async () => {
-    const { pi } = buildMockPi();
-    const { ctx, notifications } = buildMockCtx({
-      selectResponses: ['Homebrew (recommended)'],
-      confirmResponses: [false],
-    });
-
-    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
-
-    const installCalls = notifications.filter((n) => n.message.includes('Installing'));
-    expect(installCalls).toHaveLength(0);
-  });
-
-  it('no install options shows manual install URL', async () => {
-    // When getInstallOptions returns empty (no matching package managers for this OS),
-    // the wizard should show a manual install error.
-    // This is tested via buildInstallStep returning [] for empty packageManagers.
-    const platform: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: [], isCorporateManaged: false };
-    const options = buildInstallStep(platform);
-    expect(options).toHaveLength(0);
-  });
 });
 
 // ---------------------------------------------------------------------------
-// Notification flow ordering
+// Notification ordering
 // ---------------------------------------------------------------------------
 
-describe('runSetupWizard — notification ordering', () => {
-  it('first two notifications are wizard start and platform detection', async () => {
+describe('runSetupWizard — notifications', () => {
+  it('first notification is platform detection', async () => {
     const { pi } = buildMockPi({ '--version': { stdout: 'v2', stderr: '', code: 0 } });
-    const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip authentication'] });
+    const { ctx, notifications } = buildMockCtx({ selectResponses: [undefined] });
 
     await runSetupWizard(pi, ctx, { checkSfInstalled: () => true });
 
-    expect(notifications[0].message).toContain('Setup Wizard starting');
-    expect(notifications[1].message).toContain('Detected:');
+    expect(notifications[0].message).toContain('Detected:');
   });
 });

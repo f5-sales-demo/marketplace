@@ -12,6 +12,91 @@ export function buildVerifyCommand(alias: string): string[] {
   return ['sf', 'org', 'display', '--target-org', alias, '--json'];
 }
 
+export function isSalesforceUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    return parsed.protocol === 'https:' && (hostname === 'salesforce.com' || hostname.endsWith('.salesforce.com'));
+  } catch {
+    return false;
+  }
+}
+
+async function discoverInstanceUrls(): Promise<string[]> {
+  const urls = new Set<string>();
+
+  // Strategy 1: Cached sfdx auth files
+  try {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const sfdxDir = path.join(os.homedir(), '.sfdx');
+    if (fs.existsSync(sfdxDir)) {
+      for (const file of fs.readdirSync(sfdxDir)) {
+        if (!file.endsWith('.json') || file === 'alias.json' || file === 'sfdx-config.json') continue;
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(sfdxDir, file), 'utf8'));
+          if (data.instanceUrl && isSalesforceUrl(data.instanceUrl)) {
+            urls.add(data.instanceUrl);
+          }
+        } catch {
+          // skip
+        }
+      }
+    }
+  } catch {
+    // not accessible
+  }
+
+  // Strategy 2: Derive from email
+  if (urls.size === 0) {
+    const email = await discoverUserEmail();
+    if (email) {
+      const domain = email.split('@')[1];
+      if (domain) {
+        const company = domain.split('.')[0].toLowerCase();
+        const candidate = `https://${company}.my.salesforce.com`;
+        if (isSalesforceUrl(candidate) && (await probeUrl(candidate))) {
+          urls.add(candidate);
+        }
+      }
+    }
+  }
+
+  return Array.from(urls);
+}
+
+async function discoverUserEmail(): Promise<string | undefined> {
+  try {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const profilePath = path.join(os.homedir(), '.xcsh', 'user-profile.json');
+    const data = JSON.parse(await Bun.file(profilePath).text());
+    if (data.email?.includes('@')) return data.email;
+  } catch {
+    // no profile
+  }
+  try {
+    const result = Bun.spawnSync(['git', 'config', 'user.email']);
+    if (result.exitCode === 0) {
+      const email = new TextDecoder().decode(result.stdout).trim();
+      if (email.includes('@')) return email;
+    }
+  } catch {
+    // no git
+  }
+  return undefined;
+}
+
+async function probeUrl(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(5000) });
+    return response.status >= 200 && response.status < 400;
+  } catch {
+    return false;
+  }
+}
+
 export function sfIsInstalled(): boolean {
   try {
     const checker = process.platform === 'win32' ? 'where' : 'which';
@@ -29,6 +114,7 @@ export async function runSetupWizard(
     ui: {
       select: (title: string, options: string[]) => Promise<string | undefined>;
       confirm: (title: string, message: string) => Promise<boolean>;
+      input: (title: string, placeholder?: string) => Promise<string | undefined>;
       notify: (message: string, type?: 'info' | 'warning' | 'error') => void;
     };
     cwd: string;
@@ -37,9 +123,8 @@ export async function runSetupWizard(
   options?: { checkSfInstalled?: () => boolean },
 ): Promise<void> {
   const checkSf = options?.checkSfInstalled ?? sfIsInstalled;
-  ctx.ui.notify('Salesforce Setup Wizard starting...', 'info');
 
-  // Step 1: Platform detection
+  // --- Platform detection (deterministic, no prompts) ---
   const platform = await detectPlatform();
   const osLabel = platform.os === 'darwin' ? 'macOS' : platform.os === 'win32' ? 'Windows' : 'Linux';
   ctx.ui.notify(`Detected: ${osLabel} (${platform.arch})`, 'info');
@@ -51,153 +136,143 @@ export async function runSetupWizard(
     );
   }
 
-  // Step 2: CLI install (if needed)
+  // --- CLI install (auto-select best option, only prompt on ambiguity) ---
   if (!checkSf()) {
     const installOptions = buildInstallStep(platform);
     if (installOptions.length === 0) {
       ctx.ui.notify(
-        'No package manager found. Install Salesforce CLI manually: https://developer.salesforce.com/tools/salesforcecli',
+        'No package manager found. Install manually: https://developer.salesforce.com/tools/salesforcecli',
         'error',
       );
       return;
     }
 
-    const labels = installOptions.map((o) => o.label);
-    labels.push('Skip installation');
+    // Auto-select the first (preferred) option — only prompt if user needs to override
+    const preferred = installOptions[0];
+    ctx.ui.notify(`Installing via ${preferred.manager}: ${preferred.command.join(' ')}`, 'info');
+    const result = await pi.exec(preferred.command[0], preferred.command.slice(1));
 
-    const choice = await ctx.ui.select('Install Salesforce CLI', labels);
-    if (!choice || choice === 'Skip installation') {
-      ctx.ui.notify('Setup cancelled. Run /salesforce:setup when ready.', 'info');
-      return;
-    }
-
-    const selected = installOptions.find((o) => o.label === choice);
-    if (!selected) return;
-
-    const proceed = await ctx.ui.confirm('Install Salesforce CLI', `Run: ${selected.command.join(' ')}`);
-    if (!proceed) return;
-
-    ctx.ui.notify(`Installing via ${selected.manager}...`, 'info');
-    const result = await pi.exec(selected.command[0], selected.command.slice(1));
     if (result.code !== 0) {
-      ctx.ui.notify(`Installation failed (exit ${result.code}). ${result.stderr || 'Check output above.'}`, 'error');
+      ctx.ui.notify(`Installation failed (exit ${result.code}).`, 'error');
       if (platform.isCorporateManaged) {
-        ctx.ui.notify('This may be due to corporate restrictions. Try npm install or contact IT.', 'warning');
+        ctx.ui.notify('Corporate restrictions may apply. Try npm install or contact IT.', 'warning');
       }
-      return;
+      // Offer fallback options if the preferred one failed
+      if (installOptions.length > 1) {
+        const fallbackLabels = installOptions.slice(1).map((o) => o.label);
+        fallbackLabels.push('Skip');
+        const fallback = await ctx.ui.select('Try an alternative installer?', fallbackLabels);
+        if (fallback && fallback !== 'Skip') {
+          const alt = installOptions.find((o) => o.label === fallback);
+          if (alt) {
+            ctx.ui.notify(`Installing via ${alt.manager}...`, 'info');
+            const altResult = await pi.exec(alt.command[0], alt.command.slice(1));
+            if (altResult.code !== 0) {
+              ctx.ui.notify('Alternative install also failed. Run /salesforce:setup to try again.', 'error');
+              return;
+            }
+          }
+        } else {
+          return;
+        }
+      } else {
+        return;
+      }
     }
 
-    // Verify install
     if (!checkSf()) {
       ctx.ui.notify('sf CLI not found after install. You may need to restart your terminal.', 'error');
       return;
     }
-    const versionResult = await pi.exec('sf', ['--version']);
-    ctx.ui.notify(`Salesforce CLI installed: ${versionResult.stdout.trim()}`, 'info');
-    // Reload extensions so tools get registered
-    if (ctx.reload) {
-      await ctx.reload();
-    }
+
+    const ver = await pi.exec('sf', ['--version']);
+    ctx.ui.notify(`Salesforce CLI installed: ${ver.stdout.trim()}`, 'info');
+    if (ctx.reload) await ctx.reload();
   } else {
-    const versionResult = await pi.exec('sf', ['--version']);
-    ctx.ui.notify(`Salesforce CLI already installed: ${versionResult.stdout.trim()}`, 'info');
+    const ver = await pi.exec('sf', ['--version']);
+    ctx.ui.notify(`Salesforce CLI: ${ver.stdout.trim()}`, 'info');
   }
 
-  // Step 3: Authentication
+  // --- Auth (auto-detect best method, only prompt on ambiguity) ---
   const authOptions = buildAuthStep();
-  const availableLabels = authOptions.filter((o) => o.available || o.key === 'web').map((o) => o.label);
-  availableLabels.push('Skip authentication');
-
-  const authChoice = await ctx.ui.select('Authenticate to Salesforce', availableLabels);
-  if (!authChoice || authChoice === 'Skip authentication') {
-    ctx.ui.notify('CLI installed. Run /salesforce:setup again to authenticate.', 'info');
-    return;
-  }
-
-  const selectedAuth = authOptions.find((o) => o.label === authChoice);
-  if (!selectedAuth) return;
-
-  // Step 4: Execute authentication
+  const envDetected = authOptions.filter((o) => o.available && o.key !== 'web');
   const alias = 'SFDC';
 
-  if (selectedAuth.key === 'sfdx_url') {
-    const { mkdtempSync, openSync, writeSync, closeSync, unlinkSync, rmSync } = await import('node:fs');
-    const { tmpdir } = await import('node:os');
-    const { join } = await import('node:path');
-    const sfdxUrl = process.env.SFDX_AUTH_URL || '';
-    const tmpDir = mkdtempSync(join(tmpdir(), 'xcsh-sf-'));
-    const tmpFile = join(tmpDir, 'sfdx-auth.txt');
-    const fd = openSync(tmpFile, 'w', 0o600);
-    writeSync(fd, sfdxUrl);
-    closeSync(fd);
-    try {
-      ctx.ui.notify('Authenticating...', 'info');
-      const sfdxResult = await pi.exec('sf', [
-        'org',
-        'login',
-        'sfdx-url',
-        '--sfdx-url-file',
-        tmpFile,
-        '--set-default',
-        '--alias',
-        alias,
-      ]);
-      if (sfdxResult.code !== 0) {
-        ctx.ui.notify(`Authentication failed: ${sfdxResult.stderr || sfdxResult.stdout}`, 'error');
+  if (envDetected.length > 0) {
+    // Environment credentials detected — use the first one automatically
+    const best = envDetected[0];
+    ctx.ui.notify(`Using ${best.label} (credentials detected in environment)`, 'info');
+    const authCmd = buildAuthCommand(best.key, alias);
+    if (best.key === 'sfdx_url') {
+      await executeSfdxUrlAuth(pi, ctx, alias);
+    } else {
+      const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
+      if (authResult.code !== 0) {
+        ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
         return;
       }
-    } finally {
-      unlinkSync(tmpFile);
-      rmSync(tmpDir, { recursive: true });
     }
   } else {
-    let authCmd: string[];
-    switch (selectedAuth.key) {
-      case 'web':
-        authCmd = ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
-        break;
-      case 'access_token':
-        authCmd = [
-          'sf',
-          'org',
-          'login',
-          'access-token',
-          '--instance-url',
-          process.env.SF_ORG_INSTANCE_URL || '',
-          '--set-default',
-          '--alias',
-          alias,
-        ];
-        break;
-      case 'jwt':
-        authCmd = [
-          'sf',
-          'org',
-          'login',
-          'jwt',
-          '--client-id',
-          process.env.SF_CLIENT_ID || '',
-          '--jwt-key-file',
-          process.env.SF_JWT_KEY_FILE || '',
-          '--username',
-          process.env.SF_USERNAME || '',
-          '--set-default',
-          '--alias',
-          alias,
-        ];
-        break;
-      default:
-        return;
+    // No env credentials — use web login with auto-discovered URL
+    const discoveredUrls = await discoverInstanceUrls();
+    let instanceUrl: string | undefined;
+
+    if (discoveredUrls.length === 1) {
+      // One URL discovered — use it automatically
+      instanceUrl = discoveredUrls[0];
+      ctx.ui.notify(`Using discovered Salesforce instance: ${instanceUrl}`, 'info');
+    } else if (discoveredUrls.length > 1) {
+      // Multiple discovered — let user pick
+      const urlOptions = [...discoveredUrls, 'https://login.salesforce.com (standard)', 'Enter URL manually'];
+      const picked = await ctx.ui.select('Salesforce login URL', urlOptions);
+      if (!picked) return;
+      if (picked === 'Enter URL manually') {
+        const manual = await ctx.ui.input('Instance URL', 'https://mycompany.my.salesforce.com');
+        if (!manual || !isSalesforceUrl(manual)) {
+          ctx.ui.notify('Invalid Salesforce URL. Run /salesforce:setup to try again.', 'error');
+          return;
+        }
+        instanceUrl = manual;
+      } else if (picked.includes('login.salesforce.com')) {
+        instanceUrl = undefined; // default login
+      } else {
+        instanceUrl = picked;
+      }
+    } else {
+      // Nothing discovered — prompt for login type
+      const loginType = await ctx.ui.select('Salesforce login URL', [
+        'https://login.salesforce.com (standard)',
+        'https://test.salesforce.com (sandbox)',
+        'Custom domain (SSO / federated)',
+      ]);
+      if (!loginType) return;
+      if (loginType.includes('test.salesforce.com')) {
+        instanceUrl = 'https://test.salesforce.com';
+      } else if (loginType.includes('Custom domain')) {
+        const manual = await ctx.ui.input('Instance URL', 'https://mycompany.my.salesforce.com');
+        if (!manual || !isSalesforceUrl(manual)) {
+          ctx.ui.notify('Invalid Salesforce URL. Run /salesforce:setup to try again.', 'error');
+          return;
+        }
+        instanceUrl = manual;
+      }
+      // else standard login — instanceUrl stays undefined
     }
-    ctx.ui.notify('Authenticating...', 'info');
-    const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
+
+    const webCmd = ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
+    if (instanceUrl && isSalesforceUrl(instanceUrl)) {
+      webCmd.push('--instance-url', instanceUrl);
+    }
+
+    ctx.ui.notify('Opening browser for authentication...', 'info');
+    const authResult = await pi.exec(webCmd[0], webCmd.slice(1));
     if (authResult.code !== 0) {
       ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
       return;
     }
   }
 
-  // Step 5: Verify
+  // --- Verify (deterministic) ---
   const verifyCmd = buildVerifyCommand(alias);
   const verifyResult = await pi.exec(verifyCmd[0], verifyCmd.slice(1));
   if (verifyResult.code === 0) {
@@ -213,5 +288,76 @@ export async function runSetupWizard(
     }
   } else {
     ctx.ui.notify('Authentication may have succeeded. Run /salesforce:setup to verify.', 'warning');
+  }
+}
+
+function buildAuthCommand(key: string, alias: string): string[] {
+  switch (key) {
+    case 'web':
+      return ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
+    case 'access_token':
+      return [
+        'sf',
+        'org',
+        'login',
+        'access-token',
+        '--instance-url',
+        process.env.SF_ORG_INSTANCE_URL || '',
+        '--set-default',
+        '--alias',
+        alias,
+      ];
+    case 'jwt':
+      return [
+        'sf',
+        'org',
+        'login',
+        'jwt',
+        '--client-id',
+        process.env.SF_CLIENT_ID || '',
+        '--jwt-key-file',
+        process.env.SF_JWT_KEY_FILE || '',
+        '--username',
+        process.env.SF_USERNAME || '',
+        '--set-default',
+        '--alias',
+        alias,
+      ];
+    default:
+      return ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
+  }
+}
+
+async function executeSfdxUrlAuth(
+  pi: { exec: (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string; code: number }> },
+  ctx: { ui: { notify: (msg: string, type?: 'info' | 'warning' | 'error') => void } },
+  alias: string,
+): Promise<void> {
+  const { mkdtempSync, openSync, writeSync, closeSync, unlinkSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const sfdxUrl = process.env.SFDX_AUTH_URL || '';
+  const tmpDir = mkdtempSync(join(tmpdir(), 'xcsh-sf-'));
+  const tmpFile = join(tmpDir, 'sfdx-auth.txt');
+  const fd = openSync(tmpFile, 'w', 0o600);
+  writeSync(fd, sfdxUrl);
+  closeSync(fd);
+  try {
+    const result = await pi.exec('sf', [
+      'org',
+      'login',
+      'sfdx-url',
+      '--sfdx-url-file',
+      tmpFile,
+      '--set-default',
+      '--alias',
+      alias,
+    ]);
+    if (result.code !== 0) {
+      ctx.ui.notify(`Authentication failed: ${result.stderr || result.stdout}`, 'error');
+    }
+  } finally {
+    unlinkSync(tmpFile);
+    rmSync(tmpDir, { recursive: true });
   }
 }
