@@ -162,15 +162,35 @@ export async function runSetupWizard(
   const authOptions = buildAuthStep();
   const envDetected = authOptions.filter((o) => o.available && o.key !== 'web' && o.key !== 'device_code');
 
-  if (envDetected.length > 0) {
-    // Environment credentials detected — use service principal automatically
-    const best = envDetected[0];
-    ctx.ui.notify(`Using ${best.label} (credentials detected in environment)`, 'info');
-    const authCmd = buildAuthCommand(best.key);
-    const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
-    if (authResult.code !== 0) {
-      ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
-      return;
+  if (envDetected.length > 0 && envDetected[0].key === 'service_principal') {
+    ctx.ui.notify('Using service principal (credentials detected in environment)', 'info');
+    const { mkdtempSync, openSync, writeSync, closeSync, unlinkSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const secret = process.env.AZURE_CLIENT_SECRET || '';
+    const tmpDir = mkdtempSync(join(tmpdir(), 'xcsh-az-'));
+    const tmpFile = join(tmpDir, 'sp-secret.txt');
+    const fd = openSync(tmpFile, 'w', 0o600);
+    writeSync(fd, secret);
+    closeSync(fd);
+    try {
+      const authResult = await pi.exec('az', [
+        'login',
+        '--service-principal',
+        '--username',
+        process.env.AZURE_CLIENT_ID || '',
+        '--password',
+        `@${tmpFile}`,
+        '--tenant',
+        process.env.AZURE_TENANT_ID || '',
+      ]);
+      if (authResult.code !== 0) {
+        ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
+        return;
+      }
+    } finally {
+      unlinkSync(tmpFile);
+      rmSync(tmpDir, { recursive: true });
     }
   } else {
     // No env credentials — default to browser login
@@ -208,17 +228,7 @@ function buildAuthCommand(key: string): string[] {
     case 'device_code':
       return ['az', 'login', '--use-device-code'];
     case 'service_principal':
-      return [
-        'az',
-        'login',
-        '--service-principal',
-        '--username',
-        process.env.AZURE_CLIENT_ID || '',
-        '--password',
-        process.env.AZURE_CLIENT_SECRET || '',
-        '--tenant',
-        process.env.AZURE_TENANT_ID || '',
-      ];
+      return ['az', 'login', '--service-principal'];
     default:
       return ['az', 'login'];
   }
