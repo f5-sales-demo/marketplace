@@ -210,4 +210,20 @@ describe('ExtensionFactory integration', () => {
 
     await expect(handler({}, { cwd: '/tmp' })).resolves.toBeUndefined();
   });
+
+  it('registers salesforce:setup command', async () => {
+    const commands: { name: string; description?: string }[] = [];
+    const { pi } = await buildMockPi();
+
+    // Add registerCommand to the mock
+    (pi as Record<string, unknown>).registerCommand = (name: string, opts: { description?: string }) => {
+      commands.push({ name, description: opts.description });
+    };
+
+    await factory(pi);
+
+    const setup = commands.find((c) => c.name === 'salesforce:setup');
+    expect(setup).toBeDefined();
+    expect(setup?.description).toContain('Install');
+  });
 });
