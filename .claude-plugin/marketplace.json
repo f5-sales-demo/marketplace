@@ -531,6 +531,45 @@
       ],
       "tags": ["status", "monitoring", "ops", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "azure-status",
+      "description": "Azure CLI welcome screen status — checks az account authentication and offers auto-fix",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/azure-status",
+      "category": "development",
+      "keywords": ["azure", "az", "cloud"],
+      "tags": ["azure", "cloud", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/azure-status",
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "aws-status",
+      "description": "AWS CLI welcome screen status — checks AWS STS authentication with SSO expiry detection and auto-fix",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/aws-status",
+      "category": "development",
+      "keywords": ["aws", "amazon", "cloud"],
+      "tags": ["aws", "cloud", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/aws-status",
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "gcloud-status",
+      "description": "Google Cloud CLI welcome screen status — checks gcloud authentication with token expiry detection and auto-fix",
+      "version": "1.0.0",
+      "author": { "name": "f5xc-salesdemos" },
+      "source": "./plugins/gcloud-status",
+      "category": "development",
+      "keywords": ["gcloud", "google", "cloud"],
+      "tags": ["gcloud", "google", "cloud", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gcloud-status",
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
 }
