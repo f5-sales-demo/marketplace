@@ -17,6 +17,7 @@ describe('GCloud Status extension', () => {
     const mockPi = {
       setLabel() {},
       logger: { debug() {} },
+      registerCommand() {},
       registerServiceStatus(c: { name: string }) {
         registered.push(c);
       },
@@ -34,6 +35,7 @@ describe('GCloud Status extension', () => {
     const mockPi = {
       setLabel() {},
       logger: { debug() {} },
+      registerCommand() {},
       registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
         checkFn = c.check;
       },
