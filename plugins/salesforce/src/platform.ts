@@ -81,7 +81,7 @@ export function getInstallOptions(
   if (info.os === 'darwin' && info.packageManagers.includes('brew')) {
     options.push({
       label: 'Homebrew (recommended)',
-      command: ['brew', 'install', '@salesforce/cli'],
+      command: ['brew', 'install', 'sf'],
       manager: 'brew',
     });
   }
