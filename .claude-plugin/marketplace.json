@@ -27,7 +27,7 @@
     },
     {
       "name": "f5xc-sales-engineer",
-      "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
+      "description": "Sales Engineer persona framework for F5 XC demo repositories \u2014 demo execution, environment operations, presentation, Q&A, post-session debrief",
       "version": "1.0.6",
       "author": {
         "name": "f5xc-salesdemos"
@@ -42,7 +42,7 @@
     },
     {
       "name": "f5xc-github-ops",
-      "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
+      "description": "GitHub operations automation \u2014 issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
       "version": "2.3.1",
       "author": {
         "name": "f5xc-salesdemos"
@@ -57,7 +57,7 @@
     },
     {
       "name": "f5xc-docs-pipeline",
-      "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
+      "description": "Documentation pipeline architecture \u2014 config ownership, release dispatch chain, content authoring, managed files, local preview",
       "version": "1.0.2",
       "author": {
         "name": "f5xc-salesdemos"
@@ -72,7 +72,7 @@
     },
     {
       "name": "f5xc-brand",
-      "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
+      "description": "F5 corporate branding enforcement \u2014 colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
       "version": "1.0.2",
       "author": {
         "name": "f5xc-salesdemos"
@@ -87,7 +87,7 @@
     },
     {
       "name": "f5xc-meddpicc",
-      "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
+      "description": "MEDDPICC sales qualification and deal-execution framework \u2014 evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
       "version": "2.1.0",
       "author": {
         "name": "f5xc-salesdemos"
@@ -112,7 +112,7 @@
     },
     {
       "name": "f5xc-devcontainer",
-      "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
+      "description": "Container awareness \u2014 tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
       "version": "1.1.6",
       "author": {
         "name": "f5xc-salesdemos"
@@ -127,7 +127,7 @@
     },
     {
       "name": "f5xc-platform",
-      "description": "F5 Distributed Cloud platform automation — web console via Chrome DevTools MCP and spec-aware REST API operations via cURL. Azure SSO authentication, deterministic navigation, API token management, and CRUD operations across 98 resource types with dependency-aware multi-step workflows.",
+      "description": "F5 Distributed Cloud platform automation \u2014 web console via Chrome DevTools MCP and spec-aware REST API operations via cURL. Azure SSO authentication, deterministic navigation, API token management, and CRUD operations across 98 resource types with dependency-aware multi-step workflows.",
       "version": "3.1.1",
       "author": {
         "name": "f5xc-salesdemos"
@@ -156,7 +156,7 @@
     },
     {
       "name": "osint-framework",
-      "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
+      "description": "OSINT Framework tool catalog and investigation skills \u2014 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
       "version": "1.0.1",
       "author": {
         "name": "f5xc-salesdemos"
@@ -171,7 +171,7 @@
     },
     {
       "name": "f5xc-firecrawl",
-      "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
+      "description": "Local self-hosted firecrawl web scraping \u2014 scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
       "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
@@ -484,9 +484,11 @@
     },
     {
       "name": "salesforce",
-      "description": "Salesforce pipeline intelligence — native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting. Bridge to forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment.",
+      "description": "Salesforce pipeline intelligence \u2014 native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting. Bridge to forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment.",
       "version": "1.0.0",
-      "author": { "name": "f5xc-salesdemos" },
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
       "source": "./plugins/salesforce",
       "category": "development",
       "keywords": [
@@ -510,7 +512,7 @@
     },
     {
       "name": "f5xc-cloudstatus",
-      "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API — status checks, incident tracking, maintenance windows, trend analysis, regional impact assessment, and stakeholder briefings",
+      "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API \u2014 status checks, incident tracking, maintenance windows, trend analysis, regional impact assessment, and stakeholder briefings",
       "version": "1.3.0",
       "author": {
         "name": "f5xc-salesdemos"
@@ -534,9 +536,11 @@
     },
     {
       "name": "azure-status",
-      "description": "Azure CLI welcome screen status — checks az account authentication and offers auto-fix",
+      "description": "Azure CLI welcome screen status \u2014 checks az account authentication and offers auto-fix",
       "version": "1.0.0",
-      "author": { "name": "f5xc-salesdemos" },
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
       "source": "./plugins/azure-status",
       "category": "development",
       "keywords": ["azure", "az", "cloud"],
@@ -547,9 +551,11 @@
     },
     {
       "name": "aws-status",
-      "description": "AWS CLI welcome screen status — checks AWS STS authentication with SSO expiry detection and auto-fix",
+      "description": "AWS CLI welcome screen status \u2014 checks AWS STS authentication with SSO expiry detection and auto-fix",
       "version": "1.0.0",
-      "author": { "name": "f5xc-salesdemos" },
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
       "source": "./plugins/aws-status",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud"],
@@ -560,15 +566,47 @@
     },
     {
       "name": "gcloud-status",
-      "description": "Google Cloud CLI welcome screen status — checks gcloud authentication with token expiry detection and auto-fix",
+      "description": "Google Cloud CLI welcome screen status \u2014 checks gcloud authentication with token expiry detection and auto-fix",
       "version": "1.0.0",
-      "author": { "name": "f5xc-salesdemos" },
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
       "source": "./plugins/gcloud-status",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud"],
       "tags": ["gcloud", "google", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gcloud-status",
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "gitlab",
+      "description": "GitLab CLI integration \u2014 native xcsh tools (glab_setup, glab_issue_list, glab_issue_view, glab_search), welcome screen status, and issue management via glab CLI",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/gitlab",
+      "category": "development",
+      "keywords": ["gitlab", "glab", "issues", "git"],
+      "tags": ["gitlab", "development", "cli", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gitlab",
+      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+    },
+    {
+      "name": "github",
+      "description": "GitHub CLI tools \u2014 repo view, issue/PR management, CI run watching, search, and welcome screen status via xcsh Extension API",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5xc-salesdemos"
+      },
+      "source": "./plugins/github",
+      "category": "development",
+      "keywords": ["github", "gh", "git", "pr", "issues", "ci"],
+      "tags": ["github", "development", "cli", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/github",
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     }
   ]
