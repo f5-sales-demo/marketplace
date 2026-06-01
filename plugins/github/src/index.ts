@@ -15,7 +15,10 @@ const factory: ExtensionFactory = async (pi) => {
     return;
   }
 
-  // Import tool classes
+  // Inject typebox before importing tool classes (avoids @sinclair/typebox resolution failure in compiled binary)
+  const ghModule = await import('./tools/gh');
+  ghModule.setTypebox(pi.typebox);
+
   const {
     GhRepoViewTool,
     GhIssueViewTool,
@@ -26,7 +29,7 @@ const factory: ExtensionFactory = async (pi) => {
     GhRunWatchTool,
     GhSearchIssuesTool,
     GhSearchPrsTool,
-  } = await import('./tools/gh');
+  } = ghModule;
 
   // Each tool class has a createIf() that checks gh availability and returns
   // an instance with name/label/description/parameters/execute.

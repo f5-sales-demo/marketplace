@@ -1,6 +1,43 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { type Static, Type } from '@sinclair/typebox';
+// Import typebox using a file:// URL resolved from this module's location.
+// The compiled xcsh binary can't resolve bare @sinclair/typebox specifiers,
+// but can resolve absolute file paths via dynamic import.
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const tbPath = path.resolve(__dirname, '..', '..', 'node_modules', '@sinclair', 'typebox', 'src', 'index.ts');
+const tbPathJs = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'node_modules',
+  '@sinclair',
+  'typebox',
+  'build',
+  'cjs',
+  'index.js',
+);
+let Type: typeof import('@sinclair/typebox').Type;
+try {
+  const tb = await import('@sinclair/typebox');
+  Type = tb.Type;
+} catch {
+  // Fallback: import from local node_modules via absolute path
+  try {
+    const tb = await import(tbPathJs);
+    Type = tb.Type;
+  } catch {
+    const tb = await import(tbPath);
+    Type = tb.Type;
+  }
+}
+type Static<T> = T extends { static: infer S } ? S : never;
+
+export function setTypebox(tb: { Type: typeof Type }): void {
+  Type = tb.Type;
+}
+
 import ghIssueViewDescription from '../prompts/gh-issue-view.md' with { type: 'text' };
 import ghPrCheckoutDescription from '../prompts/gh-pr-checkout.md' with { type: 'text' };
 import ghPrDiffDescription from '../prompts/gh-pr-diff.md' with { type: 'text' };

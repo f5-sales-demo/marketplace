@@ -4,8 +4,10 @@
   "workspaces": {
     "": {
       "name": "@f5xc-salesdemos/xcsh-github",
-      "devDependencies": {
+      "dependencies": {
         "@sinclair/typebox": "^0.34.0",
+      },
+      "devDependencies": {
         "bun-types": "latest",
       },
       "peerDependencies": {
