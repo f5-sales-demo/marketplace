@@ -117,58 +117,82 @@ export async function runSetupWizard(
 
   // Step 4: Execute authentication
   const alias = 'SFDC';
-  let authCmd: string[];
 
-  switch (selectedAuth.key) {
-    case 'web':
-      authCmd = ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
-      break;
-    case 'sfdx_url': {
-      const sfdxUrl = process.env.SFDX_AUTH_URL || '';
-      const tmpFile = `${require('node:os').tmpdir()}/xcsh-sfdx-auth-${Date.now()}.txt`;
-      await Bun.write(tmpFile, sfdxUrl);
-      authCmd = ['sf', 'org', 'login', 'sfdx-url', '--sfdx-url-file', tmpFile, '--set-default', '--alias', alias];
-      break;
+  if (selectedAuth.key === 'sfdx_url') {
+    const { mkdtempSync, openSync, writeSync, closeSync, unlinkSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const sfdxUrl = process.env.SFDX_AUTH_URL || '';
+    const tmpDir = mkdtempSync(join(tmpdir(), 'xcsh-sf-'));
+    const tmpFile = join(tmpDir, 'sfdx-auth.txt');
+    const fd = openSync(tmpFile, 'w', 0o600);
+    writeSync(fd, sfdxUrl);
+    closeSync(fd);
+    try {
+      ctx.ui.notify('Authenticating...', 'info');
+      const sfdxResult = await pi.exec('sf', [
+        'org',
+        'login',
+        'sfdx-url',
+        '--sfdx-url-file',
+        tmpFile,
+        '--set-default',
+        '--alias',
+        alias,
+      ]);
+      if (sfdxResult.code !== 0) {
+        ctx.ui.notify(`Authentication failed: ${sfdxResult.stderr || sfdxResult.stdout}`, 'error');
+        return;
+      }
+    } finally {
+      unlinkSync(tmpFile);
+      rmSync(tmpDir, { recursive: true });
     }
-    case 'access_token':
-      authCmd = [
-        'sf',
-        'org',
-        'login',
-        'access-token',
-        '--instance-url',
-        process.env.SF_ORG_INSTANCE_URL || '',
-        '--set-default',
-        '--alias',
-        alias,
-      ];
-      break;
-    case 'jwt':
-      authCmd = [
-        'sf',
-        'org',
-        'login',
-        'jwt',
-        '--client-id',
-        process.env.SF_CLIENT_ID || '',
-        '--jwt-key-file',
-        process.env.SF_JWT_KEY_FILE || '',
-        '--username',
-        process.env.SF_USERNAME || '',
-        '--set-default',
-        '--alias',
-        alias,
-      ];
-      break;
-    default:
+  } else {
+    let authCmd: string[];
+    switch (selectedAuth.key) {
+      case 'web':
+        authCmd = ['sf', 'org', 'login', 'web', '--set-default', '--alias', alias];
+        break;
+      case 'access_token':
+        authCmd = [
+          'sf',
+          'org',
+          'login',
+          'access-token',
+          '--instance-url',
+          process.env.SF_ORG_INSTANCE_URL || '',
+          '--set-default',
+          '--alias',
+          alias,
+        ];
+        break;
+      case 'jwt':
+        authCmd = [
+          'sf',
+          'org',
+          'login',
+          'jwt',
+          '--client-id',
+          process.env.SF_CLIENT_ID || '',
+          '--jwt-key-file',
+          process.env.SF_JWT_KEY_FILE || '',
+          '--username',
+          process.env.SF_USERNAME || '',
+          '--set-default',
+          '--alias',
+          alias,
+        ];
+        break;
+      default:
+        return;
+    }
+    ctx.ui.notify('Authenticating...', 'info');
+    const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
+    if (authResult.code !== 0) {
+      ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
       return;
-  }
-
-  ctx.ui.notify('Authenticating...', 'info');
-  const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
-  if (authResult.code !== 0) {
-    ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
-    return;
+    }
   }
 
   // Step 5: Verify
