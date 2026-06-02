@@ -1,1 +1,1 @@
-`az vm` list. `--show-details` adds `publicIps`, `fqdns`, power. `--resource-group` to scope.
+`az vm` `--show-details` `--resource-group` adds `publicIps` `fqdns` power.

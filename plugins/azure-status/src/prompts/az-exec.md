@@ -1,1 +1,1 @@
-Run any `az` subcommand, e.g. `storage account list`. `--subscription` to target.
+Run `az` subcommand e.g. `storage account list`. `--subscription`.

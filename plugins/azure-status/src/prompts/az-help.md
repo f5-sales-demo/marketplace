@@ -1,1 +1,1 @@
-`az_help` — get help via `command_path` (e.g. `network vnet`). Use before `az_exec`.
+`az_help`: `command_path` e.g. `network vnet`. Before `az_exec`.

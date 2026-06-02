@@ -1,1 +1,1 @@
-`az group` list/show. `--tag` (`key[=value]`). Tags: key=value pairs.
+`az group` `--tag` `key[=value]` format. Tags: key=value pairs.
