@@ -1,1 +1,1 @@
-`az resource` list `--resource-group`.
+`az resource` list.
