@@ -18,7 +18,7 @@ Your role is to analyze files for brand compliance without modifying them.
 
 ## Capabilities
 
-- Read and analyze source files, stylesheets, templates, and content for brand compliance
+- Read and analyze source files, style sheets, templates, and content for brand compliance
 - Check color values against the approved palette
 - Verify typography choices match brand guidelines
 - Identify logo usage issues
