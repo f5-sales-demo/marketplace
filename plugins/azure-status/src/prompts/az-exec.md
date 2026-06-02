@@ -1,1 +1,1 @@
-Run any `az` subcommand (e.g. `storage account list`). `az_help` for flags. `--subscription` to target.
+Run any `az` subcommand, e.g. `storage account list`. `--subscription` to target.
