@@ -17,8 +17,8 @@ Route the user's request to the correct skill or agent.
 
 ### Authentication
 
-Keywords: "login", "authenticate", "gh auth", "github login",
-"token", "connect github"
+Keywords: "login", "authenticate", "gh auth", "GitHub login",
+"token", "connect GitHub"
 
 - Auth setup -> invoke `github:github-auth` skill
 - Auth status check -> delegate to `github:cli-operator` agent:

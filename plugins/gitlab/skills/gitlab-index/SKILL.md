@@ -18,8 +18,8 @@ Route the user's request to the correct skill or agent.
 
 ### Authentication and Access
 
-Keywords: "login", "authenticate", "glab auth", "gitlab token",
-"connect to gitlab", "auth status"
+Keywords: "login", "authenticate", "glab auth", "GitLab token",
+"connect to GitLab", "auth status"
 
 - Auth setup -> invoke `gitlab:gitlab-auth` skill
 - Auth status check -> delegate to `gitlab:cli-operator` agent:
