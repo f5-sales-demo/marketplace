@@ -33,7 +33,7 @@ export function detectErrorType(err: unknown): AzErrorType {
 export function makeExecApi(cwd: string): { exec: (command: string, args: string[]) => Promise<AzRawResult> } {
   return {
     async exec(command: string, args: string[]): Promise<AzRawResult> {
-      const proc = Bun.spawn([command, ...args], { cwd, stdout: 'pipe', stderr: 'pipe' });
+      const proc = Bun.spawn([command, ...args], { cwd, stdout: 'pipe', stderr: 'pipe', env: process.env });
       const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
       const exitCode = await proc.exited;
       return { stdout, stderr, exitCode };

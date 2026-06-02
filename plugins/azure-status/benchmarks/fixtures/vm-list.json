@@ -1,0 +1,26 @@
+[
+  {
+    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
+    "location": "eastus",
+    "name": "web-vm-01",
+    "provisioningState": "Succeeded",
+    "resourceGroup": "rg-dev-eastus",
+    "hardwareProfile": { "vmSize": "Standard_D2s_v5" },
+    "storageProfile": { "osDisk": { "osType": "Linux" } },
+    "osProfile": { "adminUsername": "azureuser", "secrets": [] },
+    "networkProfile": { "networkInterfaces": [{ "id": "/subscriptions/11111111/nic/nic-web-01" }] },
+    "tags": { "env": "dev" }
+  },
+  {
+    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/db-vm-01",
+    "location": "eastus",
+    "name": "db-vm-01",
+    "provisioningState": "Succeeded",
+    "resourceGroup": "rg-dev-eastus",
+    "hardwareProfile": { "vmSize": "Standard_D4s_v5" },
+    "storageProfile": { "osDisk": { "osType": "Linux" } },
+    "osProfile": { "adminUsername": "azureuser", "secrets": [] },
+    "networkProfile": { "networkInterfaces": [{ "id": "/subscriptions/11111111/nic/nic-db-01" }] },
+    "tags": { "env": "dev", "role": "database" }
+  }
+]
