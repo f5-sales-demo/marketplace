@@ -1,2 +1,1 @@
-`az group` — resource groups. `group list [--tag KEY[=VALUE]]`, `group show --name NAME`.
-Flags: `--subscription`, `--tag` (`key[=value]` format), `--name`/`-n`. Output includes tags (key=value pairs).
+`az group` — `--tag` filter (`key[=value]`). `group list [--subscription ID]`, `group show --name NAME`. Tags as key=value pairs.
