@@ -1,1 +1,1 @@
-`az_help` `command_path` e.g. `network` `az_exec`.
+az_help command_path network az_exec

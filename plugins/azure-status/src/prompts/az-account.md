@@ -1,1 +1,1 @@
-`az account show --subscription`, `account list`.
+az account show --subscription
