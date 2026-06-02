@@ -1,1 +1,0 @@
-az_helpaz_execommand_path

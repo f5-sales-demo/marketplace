@@ -1,6 +1,6 @@
 import type { PluginInterface } from '../az/types';
 import { HELP_PATH_PATTERN } from '../az/types';
-import azHelpDescription from '../prompts/az-help.md' with { type: 'text' };
+import azHelpDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { errorResult, makeExecApi, textResult } from './shared';
 
 export function createAzHelpTool(pi: PluginInterface) {

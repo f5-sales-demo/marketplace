@@ -2,7 +2,7 @@ import { execAzJson } from '../az/exec';
 import { formatResourceGroupTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
 import { RESOURCE_GROUP_PATTERN, SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATTERN, TAG_PATTERN } from '../az/types';
-import azGroupDescription from '../prompts/az-group.md' with { type: 'text' };
+import azGroupDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeResourceGroup, textResult } from './shared';
 
 export function createAzGroupTool(pi: PluginInterface) {
