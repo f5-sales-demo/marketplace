@@ -7,12 +7,12 @@ A hook blocks direct edits — open an issue in docs-control instead.
 
 ## Git Operations
 
-Delegate ALL Git/GitHub operations to `f5xc-github-ops:github-ops`.
+Delegate ALL Git/GitHub operations to `github-ops:github-ops`.
 Never run `git commit`, `git push`, `gh pr create` directly.
 
 ```
 Agent(
-  subagent_type="f5xc-github-ops:github-ops",
+  subagent_type="github-ops:github-ops",
   mode="bypassPermissions",
   prompt="<type>: <desc>\n\nFiles:\n- <list>\n\nWhy: <reason>"
 )

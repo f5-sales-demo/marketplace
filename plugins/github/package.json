@@ -18,10 +18,8 @@
   "peerDependencies": {
     "@f5xc-salesdemos/xcsh": ">=1.0.0"
   },
-  "dependencies": {
-    "@sinclair/typebox": "^0.34.0"
-  },
   "devDependencies": {
+    "@sinclair/typebox": "^0.34.0",
     "bun-types": "latest"
   },
   "license": "Apache-2.0"

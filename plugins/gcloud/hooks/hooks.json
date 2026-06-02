@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v gcloud > /dev/null 2>&1 || echo 'WARNING: Google Cloud CLI (gcloud) is not installed. Run /gcloud:setup to install and configure.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v az > /dev/null 2>&1 || echo 'WARNING: Azure CLI (az) is not installed. Run /azure:setup to install and configure.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

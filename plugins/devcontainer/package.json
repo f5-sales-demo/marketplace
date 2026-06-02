@@ -1,0 +1,6 @@
+{
+  "name": "devcontainer",
+  "version": "1.0.0",
+  "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance",
+  "license": "Apache-2.0"
+}

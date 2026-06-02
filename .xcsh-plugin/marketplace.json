@@ -11,90 +11,90 @@
   },
   "plugins": [
     {
-      "name": "f5xc-docs-tools",
+      "name": "docs-tools",
       "description": "MDX content validation and review tools for f5xc-salesdemos docs repos",
       "version": "1.1.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-docs-tools",
+      "source": "./plugins/docs-tools",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-tools",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/docs-tools",
       "license": "Apache-2.0",
       "keywords": ["mdx", "documentation", "validation", "starlight", "astro"],
       "tags": ["docs", "linting", "content-review", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-sales-engineer",
+      "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories \u2014 demo execution, environment operations, presentation, Q&A, post-session debrief",
       "version": "1.0.6",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-sales-engineer",
+      "source": "./plugins/sales-engineer",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-sales-engineer",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/sales-engineer",
       "license": "Apache-2.0",
       "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
       "tags": ["demo", "sales", "persona", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-github-ops",
+      "name": "github-ops",
       "description": "GitHub operations automation \u2014 issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
       "version": "2.3.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-github-ops",
+      "source": "./plugins/github-ops",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-github-ops",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/github-ops",
       "license": "Apache-2.0",
       "keywords": ["github-ops", "workflow", "pr", "ci", "rate-limit", "github"],
       "tags": ["github-ops", "workflow", "ci", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-docs-pipeline",
+      "name": "docs-pipeline",
       "description": "Documentation pipeline architecture \u2014 config ownership, release dispatch chain, content authoring, managed files, local preview",
       "version": "1.0.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-docs-pipeline",
+      "source": "./plugins/docs-pipeline",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-docs-pipeline",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/docs-pipeline",
       "license": "Apache-2.0",
       "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
       "tags": ["docs", "pipeline", "content", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-brand",
+      "name": "brand",
       "description": "F5 corporate branding enforcement \u2014 colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
       "version": "1.0.2",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-brand",
+      "source": "./plugins/brand",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-brand",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/brand",
       "license": "Apache-2.0",
       "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
       "tags": ["brand", "design", "visual-identity", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-meddpicc",
+      "name": "meddpicc",
       "description": "MEDDPICC sales qualification and deal-execution framework \u2014 evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
       "version": "2.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-meddpicc",
+      "source": "./plugins/meddpicc",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-meddpicc",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/meddpicc",
       "license": "Apache-2.0",
       "keywords": [
         "meddpicc",
@@ -111,30 +111,30 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-devcontainer",
+      "name": "devcontainer",
       "description": "Container awareness \u2014 tool catalog, self-identity, self-diagnosis, and maintenance for the f5xc-salesdemos devcontainer",
       "version": "1.1.6",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-devcontainer",
+      "source": "./plugins/devcontainer",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-devcontainer",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/devcontainer",
       "license": "Apache-2.0",
       "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
       "tags": ["devcontainer", "tools", "catalog", "f5xc"],
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-platform",
+      "name": "platform",
       "description": "F5 Distributed Cloud platform automation \u2014 web console via Chrome DevTools MCP and spec-aware REST API operations via cURL. Azure SSO authentication, deterministic navigation, API token management, and CRUD operations across 98 resource types with dependency-aware multi-step workflows.",
       "version": "3.1.1",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-platform",
+      "source": "./plugins/platform",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-platform",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "keywords": [
         "console",
@@ -170,15 +170,15 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-firecrawl",
+      "name": "firecrawl",
       "description": "Local self-hosted firecrawl web scraping \u2014 scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
       "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-firecrawl",
+      "source": "./plugins/firecrawl",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-firecrawl",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/firecrawl",
       "license": "Apache-2.0",
       "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
       "tags": ["firecrawl", "scraping", "web", "local"],
@@ -468,13 +468,13 @@
       }
     },
     {
-      "name": "salesforce-claude-code-legacy",
+      "name": "salesforce-legacy",
       "description": "[ARCHIVED] Original Claude Code-only Salesforce CLI automation. Replaced by unified salesforce plugin with native xcsh tool support.",
       "version": "1.0.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/salesforce-claude-code-legacy",
+      "source": "./plugins/salesforce-legacy",
       "category": "development",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
       "license": "Apache-2.0",
@@ -511,15 +511,15 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "f5xc-cloudstatus",
+      "name": "cloudstatus",
       "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API \u2014 status checks, incident tracking, maintenance windows, trend analysis, regional impact assessment, and stakeholder briefings",
       "version": "1.3.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/f5xc-cloudstatus",
+      "source": "./plugins/cloudstatus",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-cloudstatus",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/cloudstatus",
       "license": "Apache-2.0",
       "keywords": [
         "status",
@@ -535,48 +535,48 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "azure-status",
+      "name": "azure",
       "description": "Azure CLI integration \u2014 native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status",
       "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/azure-status",
+      "source": "./plugins/azure",
       "category": "development",
       "keywords": ["azure", "az", "cloud"],
       "tags": ["azure", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/azure-status",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/azure",
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "aws-status",
+      "name": "aws",
       "description": "AWS CLI integration \u2014 container-adapted auth, context injection, CLI operator agent, SSO expiry detection, and welcome screen status",
       "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/aws-status",
+      "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud"],
       "tags": ["aws", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/aws-status",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/aws",
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
-      "name": "gcloud-status",
+      "name": "gcloud",
       "description": "Google Cloud CLI integration \u2014 container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
       "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
-      "source": "./plugins/gcloud-status",
+      "source": "./plugins/gcloud",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud"],
       "tags": ["gcloud", "google", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gcloud-status",
+      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gcloud",
       "repository": "https://github.com/f5xc-salesdemos/marketplace"
     },
     {
