@@ -1,1 +1,1 @@
-`az group` — `--tag` filter (`key[=value]`). `group list [--subscription ID]`, `group show --name NAME`. Tags as key=value pairs.
+`az group` — `--tag` (`key[=value]` format). `group list`, `group show --name`. Tags: key=value pairs.
