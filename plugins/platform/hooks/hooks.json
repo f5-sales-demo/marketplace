@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -n \"${F5XC_API_TOKEN:-}\" || echo 'WARNING: F5XC_API_TOKEN is not set. Run /platform:check-api-token to configure API access.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
