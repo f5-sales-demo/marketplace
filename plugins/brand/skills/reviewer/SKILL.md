@@ -43,7 +43,7 @@ Grep/Glob searches in a single turn wherever possible.
 Scan files for hex color values. Flag any hex color that does
 not appear in the F5 45-color palette.
 
-**Allowed hex values** (the official palette):
+**Allowed hex values** (the official palette — last synced with docs-theme: 2026-06-02):
 
 Red family: `#e4002b`, `#f7b2bf`, `#f06680`, `#a70020`, `#720016`
 Tangerine: `#f29a36`, `#ffe4c4`, `#ffbd61`, `#a35700`, `#7a4100`
@@ -64,7 +64,10 @@ Icon vars: `#0f1e57`, `#e5eaff`, `#e6e9f3`, `#1a2a6c`
   (e.g., `color: #e4002b` instead of `var(--f5-red)`)
 
 **Skip**: hex values inside code blocks, inline code spans, and
-`export const` blocks.
+`export const` blocks. The skip applies transitively — any content
+inside a skipped block is also skipped, regardless of nesting depth
+(e.g., inline styles inside HTML strings inside JavaScript inside
+an `export const` are all skipped).
 
 ## Check 2: Typography compliance
 
@@ -126,6 +129,9 @@ Find Screenshot component usages and check for both
 `light` and `dark` props:
 
 - Screenshot with only one variant → SUGGESTION
+- Screenshot where `light` and `dark` props reference the same
+  file path → SUGGESTION ("light and dark props reference the
+  same image; capture a separate dark-mode screenshot")
 
 ### Contrast (best effort)
 
@@ -144,7 +150,10 @@ naming issues.
 **Rules:**
 
 - "F5 XC" or "F5XC" without prior "F5 Distributed Cloud"
-  expansion in the same file → SUGGESTION
+  expansion in the same file → SUGGESTION. However, if a peer
+  `index.mdx` in the same directory contains the expansion
+  "F5 Distributed Cloud", downgrade to INFO (the directory
+  scope establishes the expansion for all sibling pages).
 - Lowercase product names that should be capitalized:
   "bot defense" → "Bot Defense",
   "web app and API protection" → "Web App and API Protection",
