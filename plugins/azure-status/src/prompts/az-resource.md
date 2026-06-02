@@ -1,1 +1,1 @@
-az resource list
+az resource --subscription

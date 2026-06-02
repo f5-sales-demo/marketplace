@@ -1,1 +1,1 @@
-az storage account list
+az storage account show
