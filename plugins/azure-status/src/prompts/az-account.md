@@ -1,1 +1,1 @@
-`az account` — `account show [--subscription ID]`, `account list [--all] [--refresh]`.
+`az account show [--subscription]`, `account list [--all] [--refresh]`.
