@@ -1,10 +1,5 @@
-Execute any `az` subcommand. Use for commands not in typed tools (az_account, az_group, az_resource, az_vm).
+Run any `az` subcommand not covered by typed tools. Args as array, no `az` prefix.
 
-Example `az storage account list --resource-group myRG` as array:
+Example `az storage account list`: `{ "args": ["storage", "account", "list", "--resource-group", "myRG"] }`.
 
-```json
-{ "args": ["storage", "account", "list", "--resource-group", "myRG"] }
-```
-
-No shell metacharacters allowed. `--output json` added automatically.
-Use `--subscription NAME_OR_ID` for specific subscription. Use `az_help` if unsure about flags.
+No shell metacharacters. `--output json` auto-added. Use `--subscription` to target. Use `az_help` for flag discovery.

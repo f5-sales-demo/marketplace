@@ -1,7 +1,1 @@
-Get help for any `az` command via `command_path`.
-
-```json
-{ "command_path": "network vnet" }
-```
-
-Empty `command_path` for top-level help. Use before `az_exec` with unfamiliar commands.
+Get help for `az` commands. Pass `command_path` (e.g. `network vnet`). Empty for top-level. Use before `az_exec`.

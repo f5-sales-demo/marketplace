@@ -1,9 +1,5 @@
-List or show Azure resource groups.
+`az group` — resource groups. Actions: `group list [--subscription ID] [--tag KEY[=VALUE]]`, `group show --name NAME`.
 
-**list**: `az group list [--subscription NAME_OR_ID] [--tag KEY[=VALUE]]`
+Flags: `--subscription`, `--tag` (`key[=value]` format), `--name`/`-n` (required for show).
 
-**show**: `az group show --name NAME [--subscription NAME_OR_ID]`
-
-Flags: `--subscription` (name or ID), `--tag` (filter by `key[=value]` format), `--name`/`-n` (required for show)
-
-Output: `id`, `name`, `location`, `provisioningState`, `tags` (key=value pairs)
+Output: `id`, `name`, `location`, `provisioningState`, `tags` (key=value pairs).
