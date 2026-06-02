@@ -381,7 +381,7 @@ if [ -z "$LAYER_FILTER" ] || { [ "$LAYER_FILTER" = "--layer" ] && [ "${2:-}" = "
     "skills/osint-catalog/SKILL.md" "Categories|category"
 
   file_test "A11" "Plugin.json: version 1.0.0" \
-    ".claude-plugin/plugin.json" "1\\.0\\.0"
+    ".xcsh-plugin/plugin.json" "1\\.0\\.0"
 
   file_test "A12" "CLI manifest: exists with stats" \
     "data/cli-tools.json" "total_installable"

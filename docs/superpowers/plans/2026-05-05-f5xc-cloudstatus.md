@@ -16,7 +16,7 @@
 
 | File | Responsibility | Created/Modified |
 | --- | --- | --- |
-| `plugins/f5xc-cloudstatus/.claude-plugin/plugin.json` | Plugin manifest | Create |
+| `plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json` | Plugin manifest | Create |
 | `plugins/f5xc-cloudstatus/skills/cloud-status/references/statuspage-api.md` | Generic Statuspage.io API v2 reference with cURL + jq templates | Create |
 | `plugins/f5xc-cloudstatus/skills/cloud-status/references/f5xc-context.md` | F5 Distributed Cloud domain knowledge | Create |
 | `plugins/f5xc-cloudstatus/skills/cloud-status/references/analysis-playbook.md` | Analysis rules, thresholds, report templates | Create |
@@ -24,7 +24,7 @@
 | `plugins/f5xc-cloudstatus/skills/cloud-status/SKILL.md` | Skill definition: intent routing + delegation | Create |
 | `plugins/f5xc-cloudstatus/commands/cloud-status.md` | `/cloud-status` slash command | Create |
 | `plugins/f5xc-cloudstatus/README.md` | User-facing plugin documentation | Create |
-| `.claude-plugin/marketplace.json` | Marketplace registry | Modify (add plugin entry) |
+| `.xcsh-plugin/marketplace.json` | Marketplace registry | Modify (add plugin entry) |
 
 ---
 
@@ -32,12 +32,12 @@
 
 **Files:**
 
-- Create: `plugins/f5xc-cloudstatus/.claude-plugin/plugin.json`
+- Create: `plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json`
 
 - [ ] **Step 1: Create directory structure**
 
 ```bash
-mkdir -p plugins/f5xc-cloudstatus/.claude-plugin
+mkdir -p plugins/f5xc-cloudstatus/.xcsh-plugin
 mkdir -p plugins/f5xc-cloudstatus/agents
 mkdir -p plugins/f5xc-cloudstatus/commands
 mkdir -p plugins/f5xc-cloudstatus/skills/cloud-status/references
@@ -45,7 +45,7 @@ mkdir -p plugins/f5xc-cloudstatus/skills/cloud-status/references
 
 - [ ] **Step 2: Write plugin.json**
 
-Create `plugins/f5xc-cloudstatus/.claude-plugin/plugin.json`:
+Create `plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json`:
 
 ```json
 {
@@ -74,14 +74,14 @@ Create `plugins/f5xc-cloudstatus/.claude-plugin/plugin.json`:
 
 - [ ] **Step 3: Verify JSON is valid and directory structure is correct**
 
-Run: `jq . plugins/f5xc-cloudstatus/.claude-plugin/plugin.json && find plugins/f5xc-cloudstatus -type d | sort`
+Run: `jq . plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json && find plugins/f5xc-cloudstatus -type d | sort`
 
 Expected: JSON parses cleanly, all 5 directories listed.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add plugins/f5xc-cloudstatus/.claude-plugin/plugin.json
+git add plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json
 git commit -m "feat(cloudstatus): bootstrap plugin scaffold and manifest"
 ```
 
@@ -913,7 +913,7 @@ structured Markdown report, not the raw API data.
 
 **Step 1:** Read all three reference files. These are relative to the plugin
 root directory. Find the plugin root by looking for the nearest
-`.claude-plugin/plugin.json` ancestor directory.
+`.xcsh-plugin/plugin.json` ancestor directory.
 
 1. `skills/cloud-status/references/statuspage-api.md` — cURL + jq templates
 2. `skills/cloud-status/references/f5xc-context.md` — domain knowledge (or read `$STATUSPAGE_CONTEXT_FILE` if set)
@@ -1362,7 +1362,7 @@ git commit -m "feat(cloudstatus): add README with usage documentation"
 
 **Files:**
 
-- Modify: `.claude-plugin/marketplace.json`
+- Modify: `.xcsh-plugin/marketplace.json`
 
 - [ ] **Step 1: Add the f5xc-cloudstatus entry to the plugins array**
 
@@ -1389,13 +1389,13 @@ Insert before the closing `]` of the plugins array (after the last existing plug
 
 - [ ] **Step 2: Validate the complete marketplace.json is valid JSON**
 
-Run: `jq . .claude-plugin/marketplace.json > /dev/null && echo "Valid JSON" || echo "INVALID JSON"`
+Run: `jq . .xcsh-plugin/marketplace.json > /dev/null && echo "Valid JSON" || echo "INVALID JSON"`
 
 Expected: "Valid JSON"
 
 - [ ] **Step 3: Verify the new plugin is listed**
 
-Run: `jq '.plugins[] | select(.name == "f5xc-cloudstatus") | {name, version, source}' .claude-plugin/marketplace.json`
+Run: `jq '.plugins[] | select(.name == "f5xc-cloudstatus") | {name, version, source}' .xcsh-plugin/marketplace.json`
 
 Expected:
 
@@ -1410,7 +1410,7 @@ Expected:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add .claude-plugin/marketplace.json
+git add .xcsh-plugin/marketplace.json
 git commit -m "feat(cloudstatus): register f5xc-cloudstatus in marketplace manifest"
 ```
 
@@ -1426,7 +1426,7 @@ Run:
 
 ```bash
 echo "=== File check ===" && \
-test -f plugins/f5xc-cloudstatus/.claude-plugin/plugin.json && echo "OK: plugin.json" && \
+test -f plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json && echo "OK: plugin.json" && \
 test -f plugins/f5xc-cloudstatus/README.md && echo "OK: README.md" && \
 test -f plugins/f5xc-cloudstatus/agents/status-operator.md && echo "OK: status-operator.md" && \
 test -f plugins/f5xc-cloudstatus/commands/cloud-status.md && echo "OK: cloud-status.md" && \
@@ -1441,7 +1441,7 @@ Expected: All 8 "OK" lines printed.
 
 - [ ] **Step 2: Validate plugin.json**
 
-Run: `jq '.name, .version' plugins/f5xc-cloudstatus/.claude-plugin/plugin.json`
+Run: `jq '.name, .version' plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json`
 
 Expected: `"f5xc-cloudstatus"` and `"1.0.0"`
 
@@ -1463,7 +1463,7 @@ Expected: Three valid JSON blocks confirming API connectivity and data shape.
 
 - [ ] **Step 4: Verify marketplace.json plugin count**
 
-Run: `jq '.plugins | length' .claude-plugin/marketplace.json`
+Run: `jq '.plugins | length' .xcsh-plugin/marketplace.json`
 
 Expected: Previous count + 1 (should be 23 if there were 22 before).
 

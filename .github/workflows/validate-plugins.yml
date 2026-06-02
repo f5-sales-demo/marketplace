@@ -7,13 +7,13 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - "plugins/**"
-      - ".claude-plugin/**"
+      - ".xcsh-plugin/**"
       - "scripts/validate-plugins.sh"
   push:
     branches: [main]
     paths:
       - "plugins/**"
-      - ".claude-plugin/**"
+      - ".xcsh-plugin/**"
       - "scripts/validate-plugins.sh"
 
 permissions:

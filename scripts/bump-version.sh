@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MARKETPLACE="$REPO_ROOT/.claude-plugin/marketplace.json"
+MARKETPLACE="$REPO_ROOT/.xcsh-plugin/marketplace.json"
 
 # ── Helpers ──────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ for name in "${PLUGINS[@]}"; do
     "$MARKETPLACE" >"$MARKETPLACE.tmp" && command mv "$MARKETPLACE.tmp" "$MARKETPLACE"
 
   # Update plugin.json
-  PLUGIN_JSON="$REPO_ROOT/plugins/$name/.claude-plugin/plugin.json"
+  PLUGIN_JSON="$REPO_ROOT/plugins/$name/.xcsh-plugin/plugin.json"
   [[ -f "$PLUGIN_JSON" ]] || die "plugin.json not found at $PLUGIN_JSON"
 
   jq --arg v "$NEW_VER" '.version = $v' \
@@ -132,8 +132,8 @@ fi
 
 echo ""
 echo "Done. Files modified:"
-echo "  .claude-plugin/marketplace.json"
+echo "  .xcsh-plugin/marketplace.json"
 for name in "${PLUGINS[@]}"; do
-  echo "  plugins/$name/.claude-plugin/plugin.json"
+  echo "  plugins/$name/.xcsh-plugin/plugin.json"
 done
 [[ -f "$CHANGELOG" ]] && echo "  CHANGELOG.md"

@@ -74,7 +74,7 @@ and this project adheres to
   persona framework with four skills (sales-engineer,
   demo-executor, presenter, subject-matter-expert) and two
   agents (demo-housekeeping, demo-researcher)
-- Marketplace manifest at `.claude-plugin/marketplace.json`
+- Marketplace manifest at `.xcsh-plugin/marketplace.json`
 - Documentation site with plugin catalog, getting started
   guide, reference, and contributing guide
 - Plugin validation CI workflow

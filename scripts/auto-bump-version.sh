@@ -7,15 +7,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MARKETPLACE="$REPO_ROOT/.claude-plugin/marketplace.json"
+MARKETPLACE="$REPO_ROOT/.xcsh-plugin/marketplace.json"
 
 # Version files to exclude from "content changed" detection.
 # A plugin is only eligible for auto-bump if it has staged files BEYOND these.
 is_version_file() {
   local file="$1"
   case "$file" in
-  plugins/*/.claude-plugin/plugin.json) return 0 ;;
-  .claude-plugin/marketplace.json) return 0 ;;
+  plugins/*/.xcsh-plugin/plugin.json) return 0 ;;
+  .xcsh-plugin/marketplace.json) return 0 ;;
   CHANGELOG.md) return 0 ;;
   *) return 1 ;;
   esac
@@ -44,7 +44,7 @@ if [[ ${#STAGED_PLUGINS[@]} -eq 0 ]]; then
 fi
 
 for plugin_name in "${STAGED_PLUGINS[@]}"; do
-  plugin_json_rel="plugins/${plugin_name}/.claude-plugin/plugin.json"
+  plugin_json_rel="plugins/${plugin_name}/.xcsh-plugin/plugin.json"
   plugin_json_abs="$REPO_ROOT/$plugin_json_rel"
 
   if [[ ! -f "$plugin_json_abs" ]]; then

@@ -14,7 +14,7 @@ frontmatter_value() {
 
 # T1.1 — plugin.json is valid JSON with required fields
 test_plugin_json_valid() {
-  local pj="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+  local pj="$PLUGIN_ROOT/.xcsh-plugin/plugin.json"
   jq -e '.name' "$pj" >/dev/null
   jq -e '.description' "$pj" >/dev/null
   jq -e '.version' "$pj" >/dev/null
@@ -37,8 +37,8 @@ test_plugin_json_valid() {
 
 # T1.2 — marketplace.json has a matching gitlab entry
 test_marketplace_entry() {
-  local mj="$MARKETPLACE_ROOT/.claude-plugin/marketplace.json"
-  local pj="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+  local mj="$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json"
+  local pj="$PLUGIN_ROOT/.xcsh-plugin/plugin.json"
 
   local mp_name
   mp_name=$(jq -r '.plugins[] | select(.name == "gitlab") | .name' "$mj")
@@ -67,7 +67,7 @@ test_marketplace_entry() {
 # T1.3 — all expected files exist
 test_expected_files_exist() {
   local files=(
-    ".claude-plugin/plugin.json"
+    ".xcsh-plugin/plugin.json"
     "hooks/hooks.json"
     "skills/gitlab-index/SKILL.md"
     "skills/gitlab-auth/SKILL.md"
