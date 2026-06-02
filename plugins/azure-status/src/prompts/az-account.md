@@ -1,27 +1,9 @@
-Show or list Azure subscriptions via `az account`.
+Show or list Azure subscriptions.
 
-## Actions
+**show**: `az account show [--subscription NAME_OR_ID]`
 
-**show** — Current or specified subscription.
+**list**: `az account list [--all] [--refresh]`
 
-```
-az account show [--subscription NAME_OR_ID]
-```
+Flags: `--subscription`/`-s` (name or ID), `--all` (include non-Enabled), `--refresh` (refresh from server)
 
-**list** — All subscriptions (default: only Enabled).
-
-```
-az account list [--all] [--refresh]
-```
-
-## Flags
-
-| Flag | Applies To | Description |
-|------|-----------|-------------|
-| `--subscription`, `-s` | show | Name or ID |
-| `--all` | list | Include non-Enabled |
-| `--refresh` | list | Refresh from server |
-
-## Output
-
-`id`, `name`, `state`, `isDefault`, `tenantId`, `user.name`, `user.type`
+Output: `id`, `name`, `state`, `isDefault`, `tenantId`, `user.name`, `user.type`
