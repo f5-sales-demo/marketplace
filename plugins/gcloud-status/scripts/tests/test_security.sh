@@ -10,7 +10,7 @@ test_no_hardcoded_credentials() {
   matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT" \
     --include='*.md' --include='*.json' --include='*.ts' \
     --exclude-dir=node_modules \
-    --exclude-dir=.claude-plugin |
+    --exclude-dir=.xcsh-plugin |
     grep -v 'AZURE_CLIENT_SECRET\|AWS_SECRET_ACCESS_KEY\|GOOGLE_APPLICATION_CREDENTIALS' |
     grep -v '\$[A-Z_]*TOKEN\|\$[A-Z_]*SECRET\|\$[A-Z_]*KEY' |
     grep -v 'sanitizeHintField\|placeholder\|example\|README' ||
