@@ -1,1 +1,1 @@
-az group--tagkey[=value]key=value
+az group--tagkey[=value]networkey=value
