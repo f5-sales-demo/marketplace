@@ -1,5 +1,10 @@
 import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 
+function sanitizeHintField(value: unknown, maxLen = 200): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GitHub');
 
@@ -110,6 +115,33 @@ const factory: ExtensionFactory = async (pi) => {
         prompt: 'GitHub CLI not authenticated',
         command: ['gh', 'auth', 'login'],
       },
+    });
+  }
+
+  // Context injection: provide repo info to agents
+  if (ghAvailable && typeof pi.on === 'function') {
+    pi.on('before_agent_start', async (_event: unknown, ctx: { cwd: string }) => {
+      try {
+        const cwd = ctx?.cwd || process.cwd();
+        const result = Bun.spawnSync(['gh', 'repo', 'view', '--json', 'nameWithOwner,defaultBranchRef,url'], { cwd });
+        if (result.exitCode !== 0) return;
+        const repo = JSON.parse(new TextDecoder().decode(result.stdout));
+        const branchResult = Bun.spawnSync(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+        const branch = branchResult.exitCode === 0 ? new TextDecoder().decode(branchResult.stdout).trim() : '';
+        const lines = [
+          repo.nameWithOwner ? `Repo: ${sanitizeHintField(repo.nameWithOwner)}` : '',
+          branch ? `Branch: ${sanitizeHintField(branch)}` : '',
+          repo.url ? `URL: ${sanitizeHintField(repo.url)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        if (!lines) return;
+        return {
+          message: { customType: 'github_hint', content: lines, display: false },
+        };
+      } catch {
+        return;
+      }
     });
   }
 

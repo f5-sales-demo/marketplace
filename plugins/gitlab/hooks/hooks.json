@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v glab > /dev/null 2>&1 || echo 'WARNING: GitLab CLI (glab) is not installed. Run /gitlab:setup to install and configure.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

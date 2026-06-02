@@ -536,8 +536,8 @@
     },
     {
       "name": "azure-status",
-      "description": "Azure CLI welcome screen status \u2014 checks az account authentication and offers auto-fix",
-      "version": "1.0.0",
+      "description": "Azure CLI integration \u2014 native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -551,8 +551,8 @@
     },
     {
       "name": "aws-status",
-      "description": "AWS CLI welcome screen status \u2014 checks AWS STS authentication with SSO expiry detection and auto-fix",
-      "version": "1.0.0",
+      "description": "AWS CLI integration \u2014 container-adapted auth, context injection, CLI operator agent, SSO expiry detection, and welcome screen status",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -566,8 +566,8 @@
     },
     {
       "name": "gcloud-status",
-      "description": "Google Cloud CLI welcome screen status \u2014 checks gcloud authentication with token expiry detection and auto-fix",
-      "version": "1.0.0",
+      "description": "Google Cloud CLI integration \u2014 container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -581,8 +581,8 @@
     },
     {
       "name": "gitlab",
-      "description": "GitLab CLI integration \u2014 native xcsh tools (glab_setup, glab_issue_list, glab_issue_view, glab_search), welcome screen status, and issue management via glab CLI",
-      "version": "1.0.0",
+      "description": "GitLab CLI integration \u2014 native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status via glab CLI",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
@@ -596,8 +596,8 @@
     },
     {
       "name": "github",
-      "description": "GitHub CLI tools \u2014 repo view, issue/PR management, CI run watching, search, and welcome screen status via xcsh Extension API",
-      "version": "1.0.0",
+      "description": "GitHub CLI integration \u2014 native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status via gh CLI",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
