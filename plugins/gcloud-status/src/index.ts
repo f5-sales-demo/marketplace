@@ -1,5 +1,10 @@
 import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 
+function sanitizeHintField(value: unknown, maxLen = 200): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GCloud Status');
 
@@ -54,6 +59,32 @@ const factory: ExtensionFactory = async (pi) => {
         prompt: 'Google Cloud token expired',
         command: ['gcloud', 'auth', 'login'],
       },
+    });
+  }
+
+  // Before agent start: inject gcloud config context
+  if (gcloudAvailable && typeof pi.on === 'function') {
+    pi.on('before_agent_start', async (_event: unknown, ctx: { cwd: string }) => {
+      try {
+        const cwd = ctx?.cwd || process.cwd();
+        const result = Bun.spawnSync(['gcloud', 'config', 'list', '--format=json'], { cwd });
+        if (result.exitCode !== 0) return;
+        const config = JSON.parse(new TextDecoder().decode(result.stdout));
+        const lines = [
+          config.core?.project ? `Project: ${sanitizeHintField(config.core.project)}` : '',
+          config.core?.account ? `Account: ${sanitizeHintField(config.core.account)}` : '',
+          config.compute?.region ? `Region: ${sanitizeHintField(config.compute.region)}` : '',
+          config.compute?.zone ? `Zone: ${sanitizeHintField(config.compute.zone)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        if (!lines) return;
+        return {
+          message: { customType: 'gcloud_hint', content: lines, display: false },
+        };
+      } catch {
+        return;
+      }
     });
   }
 

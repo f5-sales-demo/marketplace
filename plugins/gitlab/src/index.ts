@@ -1,5 +1,10 @@
 import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 
+function sanitizeHintField(value: unknown, maxLen = 200): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GitLab');
 
@@ -94,6 +99,33 @@ const factory: ExtensionFactory = async (pi) => {
         prompt: 'GitLab not authenticated',
         command: ['glab', 'auth', 'login', '--hostname', 'gitlab.com', '--git-protocol', 'https', '--web'],
       },
+    });
+  }
+
+  // Before agent start: inject GitLab project context
+  if (glabAvailable && typeof pi.on === 'function') {
+    pi.on('before_agent_start', async (_event: unknown, ctx: { cwd: string }) => {
+      try {
+        const cwd = ctx?.cwd || process.cwd();
+        const result = Bun.spawnSync(['glab', 'repo', 'view', '--output', 'json'], { cwd });
+        if (result.exitCode !== 0) return;
+        const repo = JSON.parse(new TextDecoder().decode(result.stdout));
+        const branchResult = Bun.spawnSync(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+        const branch = branchResult.exitCode === 0 ? new TextDecoder().decode(branchResult.stdout).trim() : '';
+        const lines = [
+          repo.path_with_namespace ? `Project: ${sanitizeHintField(repo.path_with_namespace)}` : '',
+          branch ? `Branch: ${sanitizeHintField(branch)}` : '',
+          repo.web_url ? `URL: ${sanitizeHintField(repo.web_url)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        if (!lines) return;
+        return {
+          message: { customType: 'gitlab_hint', content: lines, display: false },
+        };
+      } catch {
+        return;
+      }
     });
   }
 

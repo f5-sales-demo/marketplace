@@ -1,5 +1,10 @@
 import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
 
+function sanitizeHintField(value: unknown, maxLen = 200): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Azure Status');
 
@@ -58,6 +63,33 @@ const factory: ExtensionFactory = async (pi) => {
         prompt: 'Azure session expired',
         command: ['az', 'login', '--use-device-code'],
       },
+    });
+  }
+
+  if (azAvailable && typeof pi.on === 'function') {
+    pi.on('before_agent_start', async (_event: unknown, ctx: { cwd: string }) => {
+      try {
+        const cwd = ctx?.cwd || process.cwd();
+        const result = Bun.spawnSync(['az', 'account', 'show', '--output', 'json'], { cwd });
+        if (result.exitCode !== 0) return;
+        const account = JSON.parse(new TextDecoder().decode(result.stdout));
+        const lines = [
+          account.name ? `Subscription: ${sanitizeHintField(account.name)} (${sanitizeHintField(account.id)})` : '',
+          account.tenantId ? `Tenant: ${sanitizeHintField(account.tenantId)}` : '',
+          account.user?.name
+            ? `User: ${sanitizeHintField(account.user.name)} (${sanitizeHintField(account.user.type)})`
+            : '',
+          account.environmentName ? `Cloud: ${sanitizeHintField(account.environmentName)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        if (!lines) return;
+        return {
+          message: { customType: 'azure_hint', content: lines, display: false },
+        };
+      } catch {
+        return;
+      }
     });
   }
 
