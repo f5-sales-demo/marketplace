@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf https://status.github.com/api/v2/status.json > /dev/null 2>&1 || echo 'WARNING: Cannot reach Statuspage API. Cloud status commands may fail.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

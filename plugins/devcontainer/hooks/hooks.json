@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f /.dockerenv || test -f /run/.containerenv || echo 'WARNING: Not running inside a container. Devcontainer features may be limited.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
