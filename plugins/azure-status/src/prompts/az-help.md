@@ -1,1 +1,1 @@
-az_helpcommand_pathnetworkaz_exec
+az_helpaz_execommand_path

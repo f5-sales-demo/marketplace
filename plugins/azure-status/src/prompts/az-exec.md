@@ -1,1 +1,1 @@
-azstorage account show
+az--show-detailstorage account show
