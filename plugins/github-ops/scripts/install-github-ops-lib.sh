@@ -21,7 +21,10 @@ lock="$GITHUB_OPS_HOME/.install.lock"
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$lock"
   if ! flock -n 9; then exit 0; fi
-elif ! (set -C; : >"$lock") 2>/dev/null; then
+elif ! (
+  set -C
+  : >"$lock"
+) 2>/dev/null; then
   exit 0
 else
   trap 'rm -f "$lock"' EXIT
