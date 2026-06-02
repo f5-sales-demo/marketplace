@@ -30,7 +30,7 @@ test_hook_warns_when_sf_missing() {
   cmd=$(_get_hook_command)
   local tmp
   tmp=$(mktemp -d)
-  ln -s /usr/bin/bash "$tmp/bash"
+  ln -s "$(command -v bash)" "$tmp/bash"
   ln -s "$(command -v command)" "$tmp/command" 2>/dev/null || true
   local out
   out=$(PATH="$tmp" bash -c "$cmd" 2>&1) || true

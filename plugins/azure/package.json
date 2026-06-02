@@ -1,0 +1,25 @@
+{
+  "name": "@f5xc-salesdemos/xcsh-azure",
+  "version": "1.0.0",
+  "description": "Azure CLI tools for xcsh — native az command execution, subscription/resource/VM management, and welcome screen status",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "xcsh": {
+    "name": "Azure",
+    "version": "1.0.0",
+    "extensions": [
+      "src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@f5xc-salesdemos/xcsh": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "bun-types": "latest"
+  },
+  "license": "Apache-2.0"
+}

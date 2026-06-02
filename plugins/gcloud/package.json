@@ -1,0 +1,17 @@
+{
+  "name": "@f5xc-salesdemos/xcsh-gcloud",
+  "version": "1.0.0",
+  "description": "Google Cloud CLI status for xcsh welcome screen",
+  "main": "src/index.ts",
+  "xcsh": {
+    "name": "GCloud",
+    "version": "1.0.0",
+    "extensions": [
+      "src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@f5xc-salesdemos/xcsh": ">=1.0.0"
+  },
+  "license": "Apache-2.0"
+}

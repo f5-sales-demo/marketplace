@@ -1,0 +1,6 @@
+{
+  "name": "firecrawl",
+  "version": "1.0.0",
+  "description": "Local self-hosted firecrawl web scraping via local firecrawl API",
+  "license": "Apache-2.0"
+}

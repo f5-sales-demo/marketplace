@@ -1,0 +1,527 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/f5xc-salesdemos/marketplace/plugins/meddpicc/schema/meddpicc-schema.json",
+  "title": "MEDDPICC Deal Review",
+  "description": "Complete MEDDPICC deal review with qualification scoring, stakeholder analysis, sales strategy, and close plan. Used by the meddpicc Claude Code plugin for guided deal qualification, JSON data capture, and XLS rendering.",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Deal identification, status, financials, client interactions, Salesforce integration, and completion tracking",
+      "properties": {
+        "dealId": {
+          "type": "string",
+          "description": "Unique identifier for this deal review"
+        },
+        "accountName": {
+          "type": "string",
+          "description": "Client/account name"
+        },
+        "dealName": {
+          "type": "string",
+          "description": "Deal or project name"
+        },
+        "dealStatus": {
+          "type": "string",
+          "enum": ["Discovery", "Validated", "Qualified", "Proposal"],
+          "description": "Current deal stage from pick list"
+        },
+        "closeDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Expected close date (YYYY-MM-DD)"
+        },
+        "competition": {
+          "type": "string",
+          "description": "Primary competitor(s)"
+        },
+        "winProbability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Win probability as decimal 0-1. Common values from pick list: 0.05, 0.10, 0.25, 0.35, 0.50, 0.60, 0.75"
+        },
+        "forecastStage": {
+          "type": "string",
+          "enum": ["Pipeline", "Best Case", "Commit"],
+          "description": "Forecast category"
+        },
+        "revenue": {
+          "type": "object",
+          "description": "Revenue breakdown in dollars",
+          "properties": {
+            "pAndIplusAcvx": { "type": "number", "default": 0, "description": "P&I + ACVx revenue" },
+            "hardware": { "type": "number", "default": 0, "description": "Hardware revenue" },
+            "software": { "type": "number", "default": 0, "description": "Software revenue" },
+            "acv": { "type": "number", "default": 0, "description": "Annual Contract Value" }
+          }
+        },
+        "lastClientInteraction": {
+          "type": "object",
+          "properties": {
+            "date": { "type": "string", "format": "date" },
+            "outcome": { "type": "string" }
+          }
+        },
+        "nextClientInteraction": {
+          "type": "object",
+          "properties": {
+            "date": { "type": "string", "format": "date" },
+            "objective": { "type": "string" }
+          }
+        },
+        "reviewDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of this review"
+        },
+        "reviewer": {
+          "type": "string",
+          "description": "Person conducting the review"
+        },
+        "salesforce": {
+          "type": "object",
+          "description": "Optional Salesforce integration fields — present when SFDC data has been imported",
+          "properties": {
+            "opportunityId": { "type": "string", "pattern": "^006", "description": "Salesforce Opportunity ID" },
+            "accountId": { "type": "string", "pattern": "^001", "description": "Salesforce Account ID" },
+            "ownerId": { "type": "string", "pattern": "^005", "description": "Salesforce Opportunity Owner ID" },
+            "stageName": { "type": "string", "description": "Salesforce stage name (raw value)" },
+            "lastSyncDate": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Last time data was synced from Salesforce"
+            }
+          }
+        },
+        "completionStatus": {
+          "type": "object",
+          "description": "Tracks which sections are complete for resume support. The AI reads this to determine where to pick up.",
+          "properties": {
+            "metrics": { "$ref": "#/$defs/sectionStatus" },
+            "economicBuyer": { "$ref": "#/$defs/sectionStatus" },
+            "decisionCriteria": { "$ref": "#/$defs/sectionStatus" },
+            "decisionProcess": { "$ref": "#/$defs/sectionStatus" },
+            "paperProcess": { "$ref": "#/$defs/sectionStatus" },
+            "implicateThePain": { "$ref": "#/$defs/sectionStatus" },
+            "champion": { "$ref": "#/$defs/sectionStatus" },
+            "competition": { "$ref": "#/$defs/sectionStatus" },
+            "threeWhys": { "$ref": "#/$defs/sectionStatus" },
+            "stakeholders": { "$ref": "#/$defs/sectionStatus" },
+            "salesStrategy": { "$ref": "#/$defs/sectionStatus" },
+            "closePlan": { "$ref": "#/$defs/sectionStatus" },
+            "team": { "$ref": "#/$defs/sectionStatus" }
+          }
+        }
+      },
+      "required": ["dealId", "accountName", "dealName"]
+    },
+    "qualification": {
+      "type": "object",
+      "description": "The 8 MEDDPICC qualification elements with embedded questions, scoring rubrics, and responses",
+      "properties": {
+        "metrics": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": {
+              "const": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value"
+            },
+            "questions": {
+              "default": [
+                "What goals is the client trying to accomplish?",
+                "What KPIs are they using to measure the goals?"
+              ]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — No metrics identified or discussed",
+                "1": "Identified — Qualitative goals mentioned but no specific KPIs or baselines",
+                "2": "Validated — KPIs documented and confirmed with at least one stakeholder",
+                "3": "Quantified — Metrics tied to business value with baseline and target data",
+                "4": "Committed — Client has committed to metrics in writing or proposal"
+              }
+            }
+          }
+        },
+        "economicBuyer": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": {
+              "const": "The individual with final budget authority and political power to fund the purchase"
+            },
+            "questions": {
+              "default": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — Don't know who controls budget",
+                "1": "Identified — Role identified but not the specific person; access only through intermediaries",
+                "2": "Engaged — EB identified by name; no direct access yet but plan exists",
+                "3": "Aligned — Direct access achieved; EB priorities and personal win documented",
+                "4": "Sponsoring — EB is actively sponsoring the deal through procurement"
+              }
+            }
+          }
+        },
+        "decisionCriteria": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": {
+              "const": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial"
+            },
+            "questions": {
+              "default": [
+                "What criteria is the client using to evaluate the proposition?",
+                "What is the client's budget or business case?"
+              ]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — Don't know how the customer will evaluate solutions",
+                "1": "Identified — General requirements known but not documented or ranked",
+                "2": "Validated — Criteria partially documented with some influence actions taken",
+                "3": "Differentiated — Written criteria with priority ranking; competitive position mapped per criterion",
+                "4": "Locked — Criteria influenced toward our strengths; key stakeholders aligned"
+              }
+            }
+          }
+        },
+        "decisionProcess": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": { "const": "The step-by-step path from evaluation to signed agreement" },
+            "questions": {
+              "default": [
+                "What is the client's technical approval process for the solution you are proposing?",
+                "What is the client's business approval process and typical timeline for a transaction of this nature?"
+              ]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — Unknown how the customer will make and approve the decision",
+                "1": "Identified — High-level understanding only; no dates or named owners",
+                "2": "Mapped — Major steps identified but dates or owners missing",
+                "3": "Validated — Step-by-step process documented with named owners and dates",
+                "4": "Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed"
+              }
+            }
+          }
+        },
+        "paperProcess": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": {
+              "const": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process"
+            },
+            "questions": {
+              "default": [
+                "What are the legal steps required to conclude on the transaction?",
+                "What administrative steps need to be completed to allow an order to flow?"
+              ]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — No procurement discovery done",
+                "1": "Identified — Aware that procurement exists but steps unknown",
+                "2": "Mapped — Some procurement steps known; security requirements identified",
+                "3": "In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review",
+                "4": "Complete — All procurement, legal, and security steps done; signature workflow mapped; PO format confirmed"
+              }
+            }
+          }
+        },
+        "implicateThePain": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": { "const": "The compelling business pain that creates urgency to act" },
+            "questions": {
+              "default": [
+                "What is the problem the client is solving for and how does it impact them?",
+                "What happens if the client can't solve the problem?"
+              ]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — No pain identified or discussed; solution looking for a problem",
+                "1": "Identified — Pain implied but not explicitly confirmed by customer",
+                "2": "Acknowledged — Pain acknowledged by customer but not fully quantified",
+                "3": "Quantified — Pain quantified with business impact; consequence of inaction documented",
+                "4": "Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver"
+              }
+            }
+          }
+        },
+        "champion": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": { "const": "A powerful internal advocate who sells for you when you're not in the room" },
+            "questions": {
+              "default": ["Who will benefit most from this transaction?", "Can they influence the buying process?"]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — No internal advocate identified",
+                "1": "Identified — Friendly contact without organizational power; passive supporter",
+                "2": "Tested — Friendly contact with some influence; willing to help but hasn't taken significant action",
+                "3": "Validated — Named individual with influence and credibility; personal win documented",
+                "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
+              }
+            }
+          }
+        },
+        "competition": {
+          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "properties": {
+            "definition": {
+              "const": "Any alternative the buyer might choose — another vendor, internal build, or do nothing"
+            },
+            "questions": {
+              "default": [
+                "Who are we competing with and what is their strategy?",
+                "What are their strengths and weaknesses?"
+              ]
+            },
+            "scoreDefinition": {
+              "default": {
+                "0": "Unknown — No competitive intelligence gathered",
+                "1": "Identified — Assumptions about competition; no differentiation strategy",
+                "2": "Assessed — Competitors identified but customer perception unclear; general differentiation known",
+                "3": "Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear",
+                "4": "Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "threeWhys": {
+      "type": "object",
+      "description": "F5-specific: Why Anything, Why Us, Why Now — for both F5 and the partner",
+      "properties": {
+        "f5": {
+          "type": "object",
+          "properties": {
+            "whyAnything": {
+              "type": "string",
+              "description": "Why does the client need to change from the status quo?"
+            },
+            "whyF5": { "type": "string", "description": "Why is F5 the right choice over alternatives?" },
+            "whyNow": { "type": "string", "description": "Why must this happen on the current timeline?" }
+          }
+        },
+        "partner": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "description": "Partner organization name" },
+            "whyAnything": { "type": "string", "description": "Why does the partner need to engage?" },
+            "whyThisPartner": { "type": "string", "description": "Why is this the right partner?" },
+            "whyNow": { "type": "string", "description": "Why must the partner engage now?" }
+          }
+        }
+      }
+    },
+    "stakeholders": {
+      "type": "array",
+      "description": "Stakeholder analysis grid — all individuals involved in the buying decision",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "title": { "type": "string" },
+          "roleInDeal": {
+            "type": "string",
+            "enum": ["Economic buyer", "Decision maker", "Influencer"],
+            "description": "Role from pick list"
+          },
+          "mustSayYes": { "type": "boolean", "description": "Must this person say yes for the deal to proceed?" },
+          "canSayNo": { "type": "boolean", "description": "Can this person veto or block the deal?" },
+          "whatTheyNeedToBelieve": {
+            "type": "string",
+            "description": "What this person needs to believe to say yes to the deal"
+          },
+          "viewOfF5": {
+            "type": "string",
+            "enum": ["Positive", "Negative", "Neutral", "Unknown"],
+            "description": "Current sentiment toward F5"
+          },
+          "f5Owner": {
+            "type": "string",
+            "description": "F5 team member responsible for this relationship"
+          }
+        },
+        "required": ["name", "title", "roleInDeal"]
+      }
+    },
+    "salesStrategy": {
+      "type": "object",
+      "description": "Value proposition and win strategy",
+      "properties": {
+        "differentiatedValueProposition": {
+          "type": "string",
+          "description": "What is our differentiated value proposition?"
+        },
+        "winStrategy": {
+          "type": "string",
+          "description": "What is our sales/win strategy?"
+        }
+      }
+    },
+    "closePlan": {
+      "type": "object",
+      "description": "Customer-agreed milestones and critical actions to close",
+      "properties": {
+        "milestones": {
+          "type": "array",
+          "description": "High-level milestones agreed with customer",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "targetDate": { "type": "string", "format": "date" },
+              "status": { "type": "string", "enum": ["pending", "in_progress", "complete"] }
+            }
+          }
+        },
+        "criticalActions": {
+          "type": "array",
+          "description": "Critical actions and next steps to support close plan",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action": { "type": "string" },
+              "owner": { "type": "string" },
+              "dueDate": { "type": "string", "format": "date" },
+              "status": { "type": "string", "enum": ["pending", "in_progress", "complete"] }
+            }
+          }
+        }
+      }
+    },
+    "team": {
+      "type": "object",
+      "description": "F5 and partner team members assigned to the deal",
+      "properties": {
+        "f5": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" },
+              "dateRequiredFrom": { "type": "string", "format": "date" },
+              "assignedToDeal": { "type": "boolean" }
+            }
+          }
+        },
+        "partner": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" },
+              "dateRequiredFrom": { "type": "string", "format": "date" },
+              "assignedToDeal": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "description": "Computed scoring summary — derived from qualification.*.score values. Updated by the AI after each section.",
+      "properties": {
+        "elementScores": {
+          "type": "object",
+          "properties": {
+            "metrics": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "economicBuyer": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "decisionCriteria": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "decisionProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "paperProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "implicateThePain": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "champion": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "competition": { "type": "integer", "minimum": 0, "maximum": 4 }
+          }
+        },
+        "previousElementScores": {
+          "type": "object",
+          "description": "Snapshot of element scores from the previous review — used by deal-review to compute score deltas",
+          "properties": {
+            "metrics": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "economicBuyer": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "decisionCriteria": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "decisionProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "paperProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "implicateThePain": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "champion": { "type": "integer", "minimum": 0, "maximum": 4 },
+            "competition": { "type": "integer", "minimum": 0, "maximum": 4 }
+          }
+        },
+        "overallScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Weighted average across 8 elements as percentage: (sum of scores / 32) * 100"
+        },
+        "overallRating": {
+          "type": "string",
+          "enum": ["Red", "Yellow", "Green"],
+          "description": "Traffic light based on raw score: Red (0-13/32, ~0-41%), Yellow (14-25/32, ~44-78%), Green (26-32/32, ~81-100%). Use raw score brackets as the definitive boundary."
+        }
+      }
+    }
+  },
+  "required": ["metadata", "qualification"],
+  "$defs": {
+    "sectionStatus": {
+      "type": "string",
+      "enum": ["not_started", "partial", "complete"],
+      "default": "not_started"
+    },
+    "meddpiccElement": {
+      "type": "object",
+      "properties": {
+        "definition": {
+          "type": "string",
+          "description": "What this element means in the MEDDPICC framework"
+        },
+        "questions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Guiding questions the AI asks the rep"
+        },
+        "responses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Rep's answers, ordered to match questions array"
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "0-4 qualification score for this element"
+        },
+        "scoreDefinition": {
+          "type": "object",
+          "description": "What each score level means for this specific element",
+          "properties": {
+            "0": { "type": "string" },
+            "1": { "type": "string" },
+            "2": { "type": "string" },
+            "3": { "type": "string" },
+            "4": { "type": "string" }
+          }
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Supporting evidence — emails, meetings, documents"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional context or observations"
+        }
+      }
+    }
+  }
+}

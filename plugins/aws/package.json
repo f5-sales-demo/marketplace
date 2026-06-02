@@ -1,0 +1,17 @@
+{
+  "name": "@f5xc-salesdemos/xcsh-aws",
+  "version": "1.0.0",
+  "description": "AWS CLI status for xcsh welcome screen",
+  "main": "src/index.ts",
+  "xcsh": {
+    "name": "AWS",
+    "version": "1.0.0",
+    "extensions": [
+      "src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@f5xc-salesdemos/xcsh": ">=1.0.0"
+  },
+  "license": "Apache-2.0"
+}

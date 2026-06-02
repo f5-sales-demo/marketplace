@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `f5xc-github-ops:github-ops` agent polling rate-limit-aware through ETag-cached conditional requests, adaptive intervals, and proper `403`/`429` handling, while being safe under multiple concurrent Claude Code sessions on a single workstation.
+**Goal:** Make `github-ops:github-ops` agent polling rate-limit-aware through ETag-cached conditional requests, adaptive intervals, and proper `403`/`429` handling, while being safe under multiple concurrent Claude Code sessions on a single workstation.
 
 **Architecture:** Three composable shell libraries (`gh-poll.sh`,
 `budget.sh`, `retry.sh`) installed into `~/.claude/github-ops/lib/` by
