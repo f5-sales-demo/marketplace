@@ -2,7 +2,7 @@ import { execAzJson } from '../az/exec';
 import { formatSubscriptionDetail, formatSubscriptionTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
 import { SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATTERN } from '../az/types';
-import azAccountDescription from '../prompts/az-account.md' with { type: 'text' };
+import azAccountDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeSubscription, textResult } from './shared';
 
 export function createAzAccountTool(pi: PluginInterface) {

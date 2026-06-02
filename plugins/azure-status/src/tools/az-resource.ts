@@ -7,7 +7,7 @@ import {
   SUBSCRIPTION_ID_PATTERN,
   SUBSCRIPTION_NAME_PATTERN,
 } from '../az/types';
-import azResourceDescription from '../prompts/az-resource.md' with { type: 'text' };
+import azResourceDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeResource, textResult } from './shared';
 
 export function createAzResourceTool(pi: PluginInterface) {

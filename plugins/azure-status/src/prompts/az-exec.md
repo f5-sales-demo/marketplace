@@ -1,1 +1,1 @@
-az--show-detailstorage account show
+az accountaz resource--subscription--show-detailstorage account show
