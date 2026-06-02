@@ -5,7 +5,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MARKETPLACE="$REPO_ROOT/.claude-plugin/marketplace.json"
+MARKETPLACE="$REPO_ROOT/.xcsh-plugin/marketplace.json"
 ERRORS=0
 
 error() {
@@ -59,7 +59,7 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
   SOURCE=$(jq -r ".plugins[$i].source // empty" "$MARKETPLACE")
   if [[ -n "$SOURCE" ]]; then
     PLUGIN_DIR="$REPO_ROOT/$SOURCE"
-    PLUGIN_JSON="$PLUGIN_DIR/.claude-plugin/plugin.json"
+    PLUGIN_JSON="$PLUGIN_DIR/.xcsh-plugin/plugin.json"
 
     if [[ ! -d "$PLUGIN_DIR" ]]; then
       error "Plugin '$PLUGIN_NAME': source directory not found: $SOURCE"
@@ -67,7 +67,7 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
     fi
 
     if [[ ! -f "$PLUGIN_JSON" ]]; then
-      error "Plugin '$PLUGIN_NAME': missing .claude-plugin/plugin.json in $SOURCE"
+      error "Plugin '$PLUGIN_NAME': missing .xcsh-plugin/plugin.json in $SOURCE"
       continue
     fi
 
