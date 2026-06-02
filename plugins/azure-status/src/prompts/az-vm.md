@@ -1,1 +1,1 @@
-az vm --show-details --resource-group publicIps
+az vm--resource-grouppublicIps
