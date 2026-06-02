@@ -1,1 +1,1 @@
-Run `az` e.g. `storage account list`.
+az storage account list

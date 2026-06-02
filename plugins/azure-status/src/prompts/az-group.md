@@ -1,1 +1,1 @@
-`az group` `--tag` `key[=value]` key=value.
+az group --tag key[=value] key=value
