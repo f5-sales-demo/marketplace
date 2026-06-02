@@ -2,7 +2,7 @@ import { execAzJson } from '../az/exec';
 import { formatVmTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
 import { RESOURCE_GROUP_PATTERN, SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATTERN } from '../az/types';
-import azVmDescription from '../prompts/az-vm.md' with { type: 'text' };
+import azVmDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeVm, textResult } from './shared';
 
 export function createAzVmTool(pi: PluginInterface) {
