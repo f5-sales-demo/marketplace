@@ -1,1 +1,1 @@
-`az resource` — list resources. Filters: `--resource-group`, `--resource-type`, `--tag` (`key[=value]`), `--subscription`.
+`az resource` list — `--resource-group`, `--resource-type`, `--tag`, `--subscription`.
