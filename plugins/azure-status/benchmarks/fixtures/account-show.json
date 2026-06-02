@@ -1,0 +1,14 @@
+{
+  "environmentName": "AzureCloud",
+  "homeTenantId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "id": "11111111-2222-3333-4444-555555555555",
+  "isDefault": true,
+  "managedByTenants": [],
+  "name": "Dev Subscription",
+  "state": "Enabled",
+  "tenantId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "user": {
+    "name": "dev@example.com",
+    "type": "user"
+  }
+}

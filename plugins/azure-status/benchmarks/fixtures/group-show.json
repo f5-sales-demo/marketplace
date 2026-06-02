@@ -1,0 +1,9 @@
+{
+  "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus",
+  "location": "eastus",
+  "managedBy": null,
+  "name": "rg-dev-eastus",
+  "properties": { "provisioningState": "Succeeded" },
+  "tags": { "env": "dev", "team": "platform" },
+  "type": "Microsoft.Resources/resourceGroups"
+}

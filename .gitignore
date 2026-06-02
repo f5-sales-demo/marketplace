@@ -146,16 +146,15 @@ docs/api-reference/
 .etag
 .github_release
 
-# Autoresearch session artifacts
-autoresearch.sh
-autoresearch.md
-autoresearch.program.md
-autoresearch.checks.sh
-autoresearch-loop.sh
-autoresearch.ideas.md
-autoresearch-queries.txt
+# Autoresearch session artifacts (local state — never committed)
 autoresearch.jsonl
+autoresearch-queries.txt
+autoresearch-loop.sh
+autoresearch.program.md
 .autoresearch/
+
+# Autoresearch committable files are tracked per-plugin:
+# autoresearch.md, autoresearch.sh, autoresearch.checks.sh, autoresearch.ideas.md
 
 # Session-resume files
 handoff.md

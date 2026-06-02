@@ -1,0 +1,29 @@
+[
+  {
+    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus",
+    "location": "eastus",
+    "managedBy": null,
+    "name": "rg-dev-eastus",
+    "properties": { "provisioningState": "Succeeded" },
+    "tags": { "env": "dev", "team": "platform" },
+    "type": "Microsoft.Resources/resourceGroups"
+  },
+  {
+    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-staging-westus2",
+    "location": "westus2",
+    "managedBy": null,
+    "name": "rg-staging-westus2",
+    "properties": { "provisioningState": "Succeeded" },
+    "tags": { "env": "staging", "team": "platform" },
+    "type": "Microsoft.Resources/resourceGroups"
+  },
+  {
+    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-prod-eastus",
+    "location": "eastus",
+    "managedBy": null,
+    "name": "rg-prod-eastus",
+    "properties": { "provisioningState": "Succeeded" },
+    "tags": { "env": "prod", "team": "ops" },
+    "type": "Microsoft.Resources/resourceGroups"
+  }
+]
