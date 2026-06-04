@@ -225,7 +225,9 @@
       "tags": ["salesforce", "development", "cli", "crm", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "recommended": true,
+      "prerequisites": [{ "tool": "sf", "installCmd": "brew install sf", "detectCmd": "sf version" }]
     },
     {
       "name": "cloudstatus",
@@ -264,7 +266,9 @@
       "tags": ["azure", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/azure",
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "recommended": true,
+      "prerequisites": [{ "tool": "az", "installCmd": "brew install azure-cli", "detectCmd": "az version" }]
     },
     {
       "name": "aws",
@@ -279,7 +283,9 @@
       "tags": ["aws", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/aws",
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "recommended": true,
+      "prerequisites": [{ "tool": "aws", "installCmd": "brew install awscli", "detectCmd": "aws --version" }]
     },
     {
       "name": "gcloud",
@@ -294,7 +300,9 @@
       "tags": ["gcloud", "google", "cloud", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gcloud",
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "recommended": true,
+      "prerequisites": [{ "tool": "gcloud", "installCmd": "brew install google-cloud-sdk", "detectCmd": "gcloud version" }]
     },
     {
       "name": "gitlab",
@@ -309,7 +317,9 @@
       "tags": ["gitlab", "development", "cli", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gitlab",
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "recommended": true,
+      "prerequisites": [{ "tool": "glab", "installCmd": "brew install glab", "detectCmd": "glab version" }]
     },
     {
       "name": "github",
@@ -324,7 +334,9 @@
       "tags": ["github", "development", "cli", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/github",
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5xc-salesdemos/marketplace",
+      "recommended": true,
+      "prerequisites": [{ "tool": "gh", "installCmd": "brew install gh", "detectCmd": "gh version" }]
     }
   ]
 }
