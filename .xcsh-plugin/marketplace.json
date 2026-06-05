@@ -302,7 +302,9 @@
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gcloud",
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
-      "prerequisites": [{ "tool": "gcloud", "installCmd": "brew install google-cloud-sdk", "detectCmd": "gcloud version" }]
+      "prerequisites": [
+        { "tool": "gcloud", "installCmd": "brew install google-cloud-sdk", "detectCmd": "gcloud version" }
+      ]
     },
     {
       "name": "gitlab",
