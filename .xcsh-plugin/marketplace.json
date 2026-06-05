@@ -227,7 +227,15 @@
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
-      "prerequisites": [{ "tool": "sf", "installCmd": "brew install sf", "detectCmd": "sf version" }]
+      "prerequisites": [
+        {
+          "tool": "sf",
+          "installCmd": "brew install sf",
+          "detectCmd": "sf version",
+          "authDetectCmd": "sf org display --json",
+          "authLoginCmd": "sf org login web"
+        }
+      ]
     },
     {
       "name": "cloudstatus",
@@ -268,7 +276,15 @@
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/azure",
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
-      "prerequisites": [{ "tool": "az", "installCmd": "brew install azure-cli", "detectCmd": "az version" }]
+      "prerequisites": [
+        {
+          "tool": "az",
+          "installCmd": "brew install azure-cli",
+          "detectCmd": "az version",
+          "authDetectCmd": "az account show --output json",
+          "authLoginCmd": "az login"
+        }
+      ]
     },
     {
       "name": "aws",
@@ -285,7 +301,15 @@
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/aws",
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
-      "prerequisites": [{ "tool": "aws", "installCmd": "brew install awscli", "detectCmd": "aws --version" }]
+      "prerequisites": [
+        {
+          "tool": "aws",
+          "installCmd": "brew install awscli",
+          "detectCmd": "aws --version",
+          "authDetectCmd": "aws sts get-caller-identity --output json",
+          "authLoginCmd": "aws sso login"
+        }
+      ]
     },
     {
       "name": "gcloud",
@@ -303,7 +327,13 @@
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
       "prerequisites": [
-        { "tool": "gcloud", "installCmd": "brew install google-cloud-sdk", "detectCmd": "gcloud version" }
+        {
+          "tool": "gcloud",
+          "installCmd": "brew install google-cloud-sdk",
+          "detectCmd": "gcloud version",
+          "authDetectCmd": "gcloud auth print-access-token --quiet",
+          "authLoginCmd": "gcloud auth login"
+        }
       ]
     },
     {
@@ -321,7 +351,15 @@
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/gitlab",
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
-      "prerequisites": [{ "tool": "glab", "installCmd": "brew install glab", "detectCmd": "glab version" }]
+      "prerequisites": [
+        {
+          "tool": "glab",
+          "installCmd": "brew install glab",
+          "detectCmd": "glab version",
+          "authDetectCmd": "glab auth status",
+          "authLoginCmd": "glab auth login"
+        }
+      ]
     },
     {
       "name": "github",
@@ -338,7 +376,15 @@
       "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/github",
       "repository": "https://github.com/f5xc-salesdemos/marketplace",
       "recommended": true,
-      "prerequisites": [{ "tool": "gh", "installCmd": "brew install gh", "detectCmd": "gh version" }]
+      "prerequisites": [
+        {
+          "tool": "gh",
+          "installCmd": "brew install gh",
+          "detectCmd": "gh version",
+          "authDetectCmd": "gh auth status",
+          "authLoginCmd": "gh auth login"
+        }
+      ]
     }
   ]
 }
