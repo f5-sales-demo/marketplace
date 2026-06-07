@@ -1,0 +1,56 @@
+---
+title: プラグイン
+description: f5xc-salesdemos マーケットプレイスで利用可能なプラグインのカタログ（バージョンおよびカテゴリ付き）。
+sidebar:
+  order: 3
+i18n:
+  sourceHash: 1433e1146ae5
+  translator: machine
+---
+
+f5xc-salesdemos マーケットプレイスでは以下のプラグインを提供しています。
+各プラグインは、ドキュメント作成、デモワークフロー、セールス手法、
+ブランディング、開発オペレーションに役立つスキル、コマンド、
+エージェントを Claude Code に追加します。
+
+## プラグインカタログ
+
+| プラグイン | バージョン | カテゴリ | 説明 |
+|--------|---------|----------|-------------|
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 1.1.2 | 生産性 | MDX コンテンツの検証およびレビューツール |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 1.0.6 | 生産性 | セールスエンジニアペルソナフレームワーク — デモ実行、プレゼンテーション、Q&A、環境管理 |
+| [f5xc-github-ops](/marketplace/plugins/f5xc-github-ops/) | 2.2.2 | 生産性 | GitHub オペレーション自動化 — イシュー駆動開発、PR ライフサイクル、CI ポーリング |
+| [f5xc-docs-pipeline](/marketplace/plugins/f5xc-docs-pipeline/) | 1.0.2 | 生産性 | ドキュメントパイプラインアーキテクチャ — コンテンツ作成、ローカルプレビュー、設定管理 |
+| [f5xc-brand](/marketplace/plugins/f5xc-brand/) | 1.0.2 | 生産性 | F5 コーポレートブランディング準拠 — カラー、タイポグラフィ、ロゴ、アイコン、アクセシビリティ |
+| [f5xc-meddpicc](/marketplace/plugins/f5xc-meddpicc/) | 1.0.4 | 生産性 | MEDDPICC セールス資格認定およびディール実行フレームワーク |
+| [f5xc-devcontainer](/marketplace/plugins/f5xc-devcontainer/) | 1.1.6 | 生産性 | コンテナ認識 — ツールカタログ、自己識別、自己診断、メンテナンス |
+| [f5xc-platform](/marketplace/plugins/f5xc-platform/) | 3.1.1 | 生産性 | F5 XC プラットフォーム自動化 — コンソール、REST API、98 リソースタイプにわたる設定分析 |
+| [osint-framework](/marketplace/plugins/osint-framework/) | 1.0.1 | セキュリティ | OSINT ツールカタログおよび調査スキル — 34 カテゴリにわたる 1,064 の無料ツール、調査パイプライン、相関エンジン |
+| [f5xc-firecrawl](/marketplace/plugins/f5xc-firecrawl/) | 1.1.0 | 生産性 | ローカルセルフホスト型 Web スクレイピング — localhost:3002 上の firecrawl によるスクレイプ、クロール、マップ、検索、抽出 |
+
+## プラグインに含まれるもの
+
+各プラグインには以下を含めることができます：
+
+- **スキル** — 関連する場面で Claude が自動的に有効化する
+  コンテキスト知識（例：MDX ファイルのレビュー時）
+- **コマンド** — 直接呼び出すスラッシュコマンド
+  （例：`/f5xc-docs-tools:review-mdx`）
+- **エージェント** — 複雑なタスクに対応する特化型サブエージェント
+
+## プラグインのインストール
+
+```
+/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-pipeline@f5xc-salesdemos-marketplace
+/plugin install f5xc-brand@f5xc-salesdemos-marketplace
+/plugin install f5xc-meddpicc@f5xc-salesdemos-marketplace
+/plugin install f5xc-devcontainer@f5xc-salesdemos-marketplace
+/plugin install f5xc-platform@f5xc-salesdemos-marketplace
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+完全なセットアップ手順については、[はじめに](/marketplace/getting-started/)を参照してください。

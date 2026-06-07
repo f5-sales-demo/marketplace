@@ -1,0 +1,151 @@
+---
+title: f5xc-firecrawl
+description: استخراج وزحف محلي ذاتي الاستضافة للويب عبر محرك Firecrawl مفتوح المصدر.
+sidebar:
+  order: 13
+i18n:
+  sourceHash: a9d67be9cf3e
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+يوفر إضافة **f5xc-firecrawl** استخراج محلي ذاتي الاستضافة للويب
+عبر محرك [firecrawl](https://github.com/mendableai/firecrawl) مفتوح المصدر.
+لا مفاتيح API، لا اشتراكات، لا اعتماد على السحابة. جميع
+العمليات تعمل على نسخة firecrawl المحلية على `localhost:3002`
+داخل حاوية التطوير.
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## التثبيت
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## الأوامر
+
+### /scrape
+
+استخراج محتوى عنوان URL واحد وتحويله إلى markdown.
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+استخراج محتوى عناوين URL متعددة دفعة واحدة.
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+زحف صفحات متعددة بدءاً من عنوان URL محدد.
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+اكتشاف جميع عناوين URL في موقع ويب.
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+البحث في الويب مع إمكانية استخراج محتوى النتائج اختيارياً.
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+استخراج بيانات منظمة من صفحات الويب بدعم نماذج اللغة الكبيرة (LLM).
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  يتطلب أمر extract وكيل LLM متوافق مع OpenAI
+  مُعدّ عبر `OPENAI_BASE_URL` و `OPENAI_API_KEY`.
+</Aside>
+
+### /llmstxt
+
+إنشاء ملف llms.txt لموقع ويب.
+
+```
+/llmstxt https://docs.example.com
+```
+
+## المهارات
+
+### web-scraper
+
+يتم تفعيلها تلقائياً عند طلب استخراج محتوى عنوان URL، أو زحف موقع ويب، أو تعيين
+عناوين URL للموقع، أو البحث في الويب، أو استخراج بيانات منظمة، أو إنشاء ملف llms.txt،
+أو استخراج محتوى عناوين URL متعددة دفعة واحدة، أو تحويل صفحة ويب إلى markdown.
+تُفوض فوراً إلى وكيل firecrawl-operator.
+
+## الوكلاء
+
+### firecrawl-operator
+
+وكيل استخراج ويب مستقل ينفذ تسلسلات `curl` + `jq`
+على واجهة firecrawl API المحلية. يدعم 11 بروتوكولاً تغطي جميع
+نقاط نهاية v1. وكيل للقراءة فقط (بدون أدوات الكتابة أو التحرير أو الوكلاء).
+
+| البروتوكول | نقطة النهاية | النوع |
+|----------|----------|------|
+| HEALTH | `GET /` | متزامن |
+| SCRAPE | `POST /v1/scrape` | متزامن |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | غير متزامن |
+| CRAWL | `POST /v1/crawl` | غير متزامن |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | متزامن |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | متزامن |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | متزامن |
+| MAP | `POST /v1/map` | متزامن |
+| SEARCH | `POST /v1/search` | متزامن |
+| EXTRACT | `POST /v1/extract` | غير متزامن |
+| LLMSTXT | `POST /v1/llmstxt` | غير متزامن |
+
+## البنية التحتية
+
+تتطلب الإضافة تشغيل حزمة firecrawl داخل حاوية التطوير:
+
+| المكوّن | المنفذ | الغرض |
+|-----------|------|---------|
+| Firecrawl API | 3002 | جميع نقاط نهاية الاستخراج/الزحف/التعيين/البحث/الاستخلاص |
+| Playwright | 3000 | محرك عرض JavaScript |
+| Redis | 6379 | الواجهة الخلفية لقائمة المهام |
+| PostgreSQL | socket | تخزين مهام الزحف/الدفعات |
+| LiteLLM proxy | OPENAI_BASE_URL | الواجهة الخلفية لنماذج اللغة الكبيرة للاستخلاص (اختياري) |
+
+تبدأ الحزمة تلقائياً عند تعيين `ENABLE_FIRECRAWL=true` (القيمة
+الافتراضية). يتحقق خطاف SessionStart من إمكانية الوصول إلى واجهة API
+ويُنبه في حالة توقف الخدمة.
+
+## الاختلافات عن Firecrawl السحابي
+
+تستخدم هذه الإضافة النسخة مفتوحة المصدر ذاتية الاستضافة:
+
+- لا حاجة لمصادقة أو مفاتيح API للاستخراج
+- لا حدود رصيد أو تقييد معدل الطلبات
+- تستخدم نقاط نهاية واجهة API الإصدار v1 (وليس v2)
+- جلسات المتصفح والبحث المعمق غير متوفرة
+- يستخدم الاستخلاص وكيل LLM الخاص بك بدلاً من النماذج المستضافة
+- يعمل بالكامل داخل شبكة الحاوية المحلية

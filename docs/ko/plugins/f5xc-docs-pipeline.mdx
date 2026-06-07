@@ -1,0 +1,58 @@
+---
+title: f5xc-docs-pipeline
+description: '멀티 레포 빌드, 콘텐츠 작성 및 로컬 미리보기를 위한 문서 파이프라인 아키텍처 지식.'
+sidebar:
+  order: 8
+i18n:
+  sourceHash: 858155aa1d2f
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-docs-pipeline** 플러그인은 f5xc-salesdemos 리포지토리를 위한
+문서 파이프라인 아키텍처 지식을 제공합니다. 콘텐츠 작성을 안내하고,
+멀티 레포 빌드 전반에 걸친 구성 소유권을 명확히 하며, 로컬 Docker
+기반 미리보기를 제공합니다.
+
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 설치
+
+```
+/plugin install f5xc-docs-pipeline@f5xc-salesdemos-marketplace
+```
+
+## 스킬
+
+### content-author
+
+파일 구조, MDX 구문 규칙, 프론트매터 요구사항, 이미지 참조 및 로컬
+Docker 미리보기를 다루는 콘텐츠 작성 가이드입니다. `docs/` 콘텐츠를
+생성하거나 편집할 때, MDX 파일을 작업할 때, 또는 로컬 미리보기를
+설정할 때 활성화됩니다.
+
+### pipeline-navigator
+
+네 개의 업스트림 리포지토리(docs-theme, docs-builder, docs-control,
+docs-icons) 전반에 걸쳐 어디에서 변경을 해야 하는지 설명하는 문서
+파이프라인 아키텍처입니다. 구성 소유권(`astro.config.mjs`,
+`content.config.ts`), 릴리스 디스패치 체인 및 관리 파일 추적을
+명확히 합니다.
+
+<Aside type="tip">
+  특정 구성 파일이나 컴포넌트를 어떤 리포지토리가 소유하는지 이해해야
+  할 때 pipeline-navigator를 사용하세요.
+</Aside>
+
+## 명령어
+
+### /preview-docs
+
+```
+/f5xc-docs-pipeline:preview-docs
+```
+
+문서를 미리보기 위해 로컬 Docker 개발 서버를 시작합니다. 실시간
+미리보기를 위해 로컬 `docs/` 디렉터리가 마운트된 공유 Docker 빌드
+이미지를 실행합니다.

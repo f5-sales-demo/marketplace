@@ -1,0 +1,169 @@
+---
+title: Contribuir con un Plugin
+description: >-
+  Guía para crear, estructurar y publicar plugins para el marketplace de
+  f5xc-salesdemos.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 36a56024cade
+  translator: machine
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+Esta guía explica cómo crear un nuevo plugin y añadirlo al
+marketplace de f5xc-salesdemos.
+
+## Estructura del Plugin
+
+Cada plugin reside en su propio directorio dentro de `plugins/` y
+sigue esta estructura:
+
+<FileTree>
+- plugins/
+  - my-plugin/
+    - .claude-plugin/
+      - plugin.json
+    - skills/
+      - my-skill/
+        - SKILL.md
+        - references/
+          - reference-data.md
+    - commands/
+      - my-command.md
+    - agents/
+      - my-agent.md
+    - README.md
+</FileTree>
+
+## Crear un Plugin
+
+<Steps>
+
+1. **Crear el directorio del plugin**
+
+   ```bash
+   mkdir -p plugins/my-plugin/.claude-plugin
+   mkdir -p plugins/my-plugin/skills
+   mkdir -p plugins/my-plugin/commands
+   ```
+
+2. **Escribir `plugin.json`**
+
+   Cree `plugins/my-plugin/.claude-plugin/plugin.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": {
+       "name": "f5xc-salesdemos"
+     },
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "keywords": ["relevant", "keywords"],
+     "license": "Apache-2.0",
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+3. **Añadir skills**
+
+   Cree `plugins/my-plugin/skills/my-skill/SKILL.md` con
+   frontmatter:
+
+   ```markdown
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   ---
+
+   Detailed instructions for Claude when this skill activates.
+   ```
+
+   Coloque cualquier dato de referencia en un subdirectorio `references/`
+   junto a `SKILL.md`.
+
+4. **Añadir comandos**
+
+   Cree `plugins/my-plugin/commands/my-command.md`:
+
+   ```markdown
+   ---
+   description: What this command does
+   argument_hint: "[optional-args]"
+   allowed_tools:
+     - Read
+     - Glob
+     - Grep
+   ---
+
+   Instructions for Claude when the user invokes this command.
+   ```
+
+5. **Añadir el plugin a marketplace.json**
+
+   Agregue una entrada al array `plugins` en
+   `.claude-plugin/marketplace.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": { "name": "f5xc-salesdemos" },
+     "source": "./plugins/my-plugin",
+     "category": "productivity",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "license": "Apache-2.0",
+     "keywords": ["relevant", "keywords"],
+     "tags": ["searchable", "tags"],
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+6. **Probar localmente**
+
+   Pruebe su plugin sin publicarlo apuntando Claude Code
+   al directorio local:
+
+   ```bash
+   claude --plugin-dir ./plugins/my-plugin
+   ```
+
+   Verifique que los skills se activan en el contexto adecuado y
+   que los comandos producen la salida esperada.
+
+</Steps>
+
+## Enviar su Plugin
+
+<Aside type="tip" title="Flujo de trabajo del repositorio">
+  Este repositorio aplica un flujo de trabajo de gobernanza estricto.
+  Consulte [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
+  para conocer el proceso completo.
+</Aside>
+
+<Steps>
+
+1. Cree un issue en GitHub describiendo el nuevo plugin
+2. Cree una rama de funcionalidad desde `main`
+3. Añada el directorio de su plugin y actualice `marketplace.json`
+4. Añada una página de documentación en `docs/plugins/my-plugin.mdx`
+5. Abra un PR vinculado al issue con `Closes #N`
+6. Corrija cualquier fallo de CI y haga merge después de que pasen las verificaciones
+
+</Steps>
+
+## Mejores Prácticas
+
+- **Mantenga los skills enfocados** — un skill debe hacer una sola cosa bien
+- **Use archivos de referencia** — coloque conjuntos de datos grandes, esquemas y
+  tablas de búsqueda en `references/` en lugar de incluirlos en línea en SKILL.md
+- **Defina el alcance de forma inteligente** — verifique los cambios no confirmados para
+  reducir el conjunto de trabajo cuando sea posible
+- **Agrupe la salida por severidad** — use los niveles ERROR, WARNING e INFO
+  para que los usuarios puedan priorizar las correcciones
+- **Escriba un README** — incluya ejemplos de uso y una descripción
+  de lo que hace cada skill y comando

@@ -1,0 +1,83 @@
+---
+title: f5xc-platform
+description: F5 Distributed Cloud 平台自動化 — 主控台操作、REST API、驗證及組態分析。
+sidebar:
+  order: 11
+i18n:
+  sourceHash: 7d49edf60846
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-platform** 外掛為 F5 Distributed Cloud 平台提供完整的自動化功能。涵蓋透過 Chrome DevTools MCP 進行的網頁主控台操作、透過 cURL 進行的規格感知 REST API 操作、多提供者驗證，以及橫跨 38 個領域、98 種資源類型的組態分析。
+
+<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 安裝
+
+```
+/plugin install f5xc-platform@f5xc-salesdemos-marketplace
+```
+
+## 技能
+
+### api-operations
+
+涵蓋 38 個領域、98 種資源類型的規格感知 API CRUD 操作。提供精確的端點、負載範本、相依性排序，以及針對 HTTP 負載平衡器、來源池、WAF 政策、DNS 區域、憑證、雲端站台等的多步驟工作流程組合。
+
+### config-analysis
+
+組態分析與建議功能。分析客戶的 JSON 組態，以回答有關安全態勢、功能啟用狀態、模式設定、排除項目及最佳實務的問題。支援在調度之間使用壓縮上下文的多輪問答。
+
+### api-auth
+
+API 驗證，支援 API 權杖標頭驗證及 P12 憑證驗證，並提供權杖驗證程序。
+
+### console-auth
+
+F5 XC 網頁主控台的多提供者驗證。自動偵測登入類型：原生 F5 XC 登入、具有快取工作階段的 Azure SSO，或具有 DUO 驗證推播 MFA 的 Azure SSO。
+
+### console-navigator
+
+確定性導航至 F5 XC 主控台各區段。將區段名稱轉譯為 URL 路徑、驗證工作階段健康狀態，並確認頁面載入完成。
+
+### platform-index / api-index / console-index
+
+意圖路由器，負責分類使用者請求並委派至適當的技能與代理。這些會自動啟動，使用者無法直接呼叫。
+
+## 命令
+
+### /check-api-token
+
+```
+/f5xc-platform:check-api-token
+```
+
+透過委派至 api-operator 代理來驗證您的 F5 XC API 權杖。
+
+### /login-console
+
+```
+/f5xc-platform:login-console
+```
+
+透過 console-operator 代理驗證並登入 F5 Distributed Cloud 主控台。
+
+## 代理
+
+### api-operator
+
+自主 REST API 代理，執行 cURL 和 jq 序列以進行資源 CRUD、權杖驗證及組態操作。在子代理中執行，以將冗長的 API JSON 負載隔離在主要工作階段上下文之外。
+
+### console-operator
+
+自主瀏覽器自動化代理，執行 Chrome DevTools MCP 工具序列以進行驗證、導航及表單互動。在子代理中執行，以將大量權杖的瀏覽器快照隔離在主要工作階段之外。
+
+### config-analyzer
+
+唯讀組態分析代理。根據資源設定檔參考檔案分析客戶的 JSON 組態，以回答有關安全態勢、功能啟用狀態、模式轉換及最佳實務的問題。
+
+<Aside type="caution">
+  config-analyzer 代理是**臨時性的** &mdash; 每次問題都會重新產生，調度之間不保留記憶。後續問題必須在調度提示中包含先前發現的壓縮摘要。
+</Aside>

@@ -1,0 +1,408 @@
+---
+title: salesforce
+description: >-
+  Salesforce CLI automation with org authentication, account management,
+  pipeline analysis, and natural language data queries.
+sidebar:
+  label: Salesforce
+  order: 14
+i18n:
+  sourceHash: d55112fac780
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**salesforce** 플러그인은 Salesforce CLI를 Claude Code와 통합하여
+조직 인증과 SOQL 쿼리를 포함한 모든 `sf` 명령을 실행할 수 있는
+범용 CLI 에이전트를 제공합니다. JWT, 액세스 토큰, SFDX URL
+인증 흐름을 통해 헤드리스 컨테이너 환경을 지원합니다. 아래 사용 가이드에서는
+CLI 에이전트를 통해 자연어로 계정, 기회, 케이스, 연락처를
+쿼리하는 방법을 설명합니다.
+
+<Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
+
+## 설치
+
+```
+/plugin install salesforce@f5xc-salesdemos-marketplace
+```
+
+## 사전 요구 사항
+
+- **Salesforce CLI** (`@salesforce/cli`)
+- API 접근이 가능한 **Salesforce 조직**
+- 오브젝트(Cases, Opportunities, Accounts, Contacts)를 쿼리할 수 있는 권한이 있는 사용자 계정
+
+워크스테이션에 Salesforce CLI를 설치합니다:
+
+```bash
+brew install sf
+```
+
+설치를 확인합니다:
+
+```bash
+sf --version
+```
+
+`@salesforce/cli/2.x.x`와 같은 출력이 표시되어야 합니다.
+
+## 인증 설정
+
+### 1단계: Salesforce 도메인 찾기
+
+브라우저에서 Salesforce URL을 확인합니다. Salesforce에
+`https://acme.lightning.force.com`으로 접근하는 경우, 로그인 도메인은
+`https://acme.my.salesforce.com`입니다.
+
+<Aside type="tip">
+  회사에서 SSO를 사용하는 경우, 일반 Salesforce 로그인 페이지 대신
+  SSO 공급자를 통해 리디렉션되도록 `--instance-url`에 사용자 정의
+  도메인을 지정해야 합니다.
+</Aside>
+
+### 2단계: 브라우저를 통한 인증
+
+```bash
+sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
+```
+
+`YOUR-DOMAIN`을 1단계에서 확인한 회사 도메인으로 바꿉니다. 브라우저가
+열리면 SSO 또는 로그인 흐름을 완료하고 앱을 승인합니다. 다음과 같은
+출력이 표시되어야 합니다:
+
+```
+Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+```
+
+### 3단계: 연결 확인
+
+```bash
+sf org display --target-org my-org
+```
+
+출력에 사용자 이름과 인스턴스 URL과 함께 `Connected Status: Connected`가
+표시되는지 확인합니다.
+
+### 4단계: 컨테이너용 이식 가능한 인증 (선택 사항)
+
+헤드리스 환경(CI/CD, 컨테이너, 원격 세션)에서 인증해야 하는 경우,
+워크스테이션에서 SFDX 인증 URL을 내보냅니다:
+
+```bash
+sf org display --verbose --target-org my-org
+```
+
+**Sfdx Auth Url** 값(`force://`로 시작)을 복사합니다. 컨테이너에서
+다음을 실행합니다:
+
+```bash
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
+```
+
+<Aside type="caution">
+  SFDX 인증 URL은 자격 증명입니다 — 비밀번호처럼 취급하세요. 파일에
+  커밋하거나 채팅에 붙여넣지 마세요. 환경 변수와 stdin 파이프만
+  사용하세요.
+</Aside>
+
+### 인증 방법 참조
+
+| 방법 | 적합한 용도 | 필요 사항 |
+|--------|----------|----------|
+| 웹 로그인 | 브라우저가 있는 워크스테이션 | 브라우저 + SSO |
+| SFDX URL | 컨테이너, CI/CD, 이식 가능한 인증 | 인증된 세션의 인증 URL |
+| JWT Bearer | 자동화된 파이프라인 | Connected App + 개인 키 + 소비자 키 |
+| 액세스 토큰 | 환경 변수 인증 | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
+
+**참고:** 디바이스 흐름(`sf org login device`)은 2025년 8월부터
+차단되었으며 지원되지 않습니다.
+
+### 환경 변수
+
+| 변수 | 용도 |
+|----------|---------|
+| `SF_ACCESS_TOKEN` | 액세스 토큰 인증을 위한 Bearer 토큰 |
+| `SFDX_AUTH_URL` | SFDX URL 인증을 위한 Force 인증 URL |
+| `SF_ORG_INSTANCE_URL` | 조직 인스턴스 URL |
+| `SF_JWT_KEY_FILE` | JWT 개인 키 경로 |
+| `SF_CLIENT_ID` | Connected App 소비자 키 |
+| `SF_USERNAME` | JWT용 Salesforce 사용자 이름 |
+
+## 명령어
+
+### /salesforce:sf-status
+
+Salesforce 조직 연결 상태, CLI 버전 및 인증된 조직을 확인합니다.
+
+```
+/salesforce:sf-status
+```
+
+**예상 결과:** sf CLI 버전, 인증된 조직 별칭, 사용자 이름, 인스턴스 URL,
+연결 상태, API 버전을 보여주는 테이블이 표시됩니다.
+
+### /salesforce:sf-login
+
+Salesforce 조직에 인증합니다. 선택적으로 별칭을 제공할 수 있습니다.
+
+```
+/salesforce:sf-login
+/salesforce:sf-login my-org
+```
+
+**예상 결과:** 해당 별칭의 조직이 이미 인증되어 있으면 연결 세부 정보를
+보고합니다. 그렇지 않으면 사용 가능한 자격 증명(환경 변수)을 확인하고
+첫 번째로 충족되는 방법을 사용하여 인증합니다.
+
+## 스킬
+
+### salesforce-index
+
+최상위 의도 라우터입니다. 자연어로 Salesforce, 조직 관리 또는
+데이터 쿼리를 언급하면 자동으로 활성화됩니다.
+
+| 사용자 입력 | 라우팅 대상 |
+|---------|-----------|
+| "salesforce에 로그인", "조직 인증" | `salesforce-auth` 스킬 |
+| "조직 상태 확인", "조직 목록" | `cli-operator` 에이전트 |
+| "기회 보여줘", "케이스 조회" | `cli-operator` 에이전트 (SOQL 쿼리) |
+| "Apex 클래스 생성", "Flow 만들기" | afv-library 개발 스킬 |
+
+### salesforce-auth
+
+컨테이너에 적응된 인증 스킬입니다. 네 가지 인증 방법을 지원하며
+사용 가능한 자격 증명을 자동으로 감지합니다. 우선순위: 액세스 토큰,
+JWT, SFDX URL, 웹 로그인 순입니다.
+
+## 에이전트
+
+### cli-operator
+
+안전 가드레일이 적용된 `sf` 명령을 실행하는 자율 Salesforce CLI
+에이전트입니다. 모든 Salesforce 작업은 메인 세션 컨텍스트를
+간결하게 유지하기 위해 이 에이전트에 위임됩니다.
+
+**안전 규칙:**
+
+- 기본적으로 읽기 전용 — 쓰기 작업은 명시적 승인 필요
+- 미리보기 및 확인 단계 없이 배포하지 않음
+- 액세스 토큰, 인증 URL 또는 자격 증명을 출력에 표시하지 않음
+- 사용자 제공 값을 모두 정제 (셸 메타 문자 거부)
+- 구조화된 파싱 가능한 결과를 위해 `--json` 출력 사용
+
+**응답 형식:**
+
+```
+## Result: [SUCCESS | FAILURE | PARTIAL]
+### Command Executed
+### Output Summary
+### Issues
+```
+
+## 사용 가이드: 계정 관리
+
+<Aside type="note">
+  아래 프롬프트는 플러그인의 하드코딩된 기능이 아닙니다. cli-operator
+  에이전트가 임의의 SOQL 쿼리를 포함한 모든 `sf` CLI 명령을 실행할 수
+  있기 때문에 작동합니다. 결과는 조직의 데이터 모델과 사용자 권한에
+  따라 달라집니다. 여기의 프롬프트는 표준 Salesforce 오브젝트(Account,
+  Contact, Case, Opportunity, AccountTeamMember,
+  OpportunityTeamMember)로 테스트 및 검증되었습니다.
+</Aside>
+
+이 프롬프트는 모든 Salesforce 조직에서 작동합니다. 자리 표시자 값을
+사용자의 정보로 바꾸세요. 각 프롬프트는 사용자의 역할, 계정 및
+영역에 맞는 결과를 생성합니다.
+
+<Aside type="tip">
+  최상의 결과를 얻으려면 사용자 레코드를 식별해야 하는 프롬프트에
+  이메일 주소를 포함하세요. Salesforce 조직에는 유사한 이름을 가진
+  여러 사용자가 있을 수 있습니다.
+</Aside>
+
+### 시작하기
+
+인증 후 모든 것이 작동하는지 확인합니다:
+
+```
+/salesforce:sf-status
+```
+
+그런 다음 간단한 자연어 쿼리를 시도합니다:
+
+```
+list my authenticated salesforce orgs
+```
+
+**예상 결과:** 별칭, 사용자 이름, 인스턴스 URL 및 연결 상태와 함께
+연결된 모든 조직을 보여주는 테이블이 표시됩니다.
+
+### 내 계정 찾기
+
+자신이 배정된 계정을 확인합니다:
+
+```
+what salesforce accounts am I on the account team for? My email is your-email@company.com
+```
+
+**예상 결과:** 계정 소유자별로 그룹화된 계정 목록이 표시되며,
+각 계정에서의 팀 멤버 역할이 표시됩니다. 대부분의 역할이 비어 있는 경우,
+이는 일반적인 데이터 위생 문제입니다 — 계정 팀 멤버십은 존재하지만
+역할이 채워지지 않은 것입니다.
+
+### 동료와의 담당 범위 교차 확인
+
+팀원과의 계정 담당 범위를 비교하여 누락을 찾습니다:
+
+```
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+```
+
+**예상 결과:** 겹치는 수와 누락 수를 보여주는 요약 테이블에 이어
+두 개의 목록이 표시됩니다. 최근에 역할을 변경한 경우 겹치는 항목이
+없을 수 있습니다 — 이는 추가되어야 할 계정을 보여줍니다.
+
+<Aside type="note">
+  "Also check if Previous Person Name appears on any of those accounts."를
+  추가하여 전임자도 확인할 수 있습니다. 이는 영역에서 누군가를 교체할 때
+  인수인계 누락을 식별하는 데 도움이 됩니다.
+</Aside>
+
+### 영역 파이프라인 개요
+
+계정 전체의 열린 기회를 확인합니다:
+
+```
+show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
+```
+
+**예상 결과:** 총 기회 수, 원시 파이프라인, 가중 파이프라인이 포함된
+요약이 표시됩니다. 이어서 단계 분포 테이블과 금액별 상위 기회 목록이
+나옵니다. 출력에서 기한이 지난 마감일이나 null 금액과 같은 데이터 위생
+문제를 표시합니다.
+
+### 기회 심층 분석
+
+특정 딜의 전체 그림을 파악합니다:
+
+```
+show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
+```
+
+**예상 결과:** 기회 개요(단계, 금액, 마감일, 확률, 예측 카테고리,
+소유자), 역할이 포함된 기회 팀 멤버, 태그된 연락처, 최근 작업 및
+이벤트, 그리고 딜 금액과 마감일이 시간에 따라 어떻게 변화했는지
+보여주는 필드 변경 이력이 표시됩니다.
+
+### 영역 전체 지원 케이스
+
+계정의 열린 지원 케이스를 확인합니다:
+
+```
+show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
+```
+
+**예상 결과:** 우선순위 및 상태 분류와 함께 열린 케이스 수가 표시되고,
+계정별로 그룹화된 케이스 세부 정보가 나옵니다. 활동 없이 수개월 또는
+수년 된 오래된 케이스는 위생 후보로 표시됩니다.
+
+### 분기별 파이프라인 예측
+
+파이프라인의 예측 준비 보기를 가져옵니다:
+
+```
+for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
+```
+
+**예상 결과:** 분기별 한 행씩 기회 수, 총 파이프라인, 가중 파이프라인을
+보여주는 테이블이 표시됩니다. 분기별 단계 구성 분석과 상위 가중 딜이
+강조 표시됩니다. 기한이 지난 기회는 별도로 그룹화됩니다.
+
+### 전체 계정 개요
+
+특정 고객에 대한 심층 분석:
+
+```
+give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
+```
+
+**예상 결과:** 회사 프로필(산업, 매출, 직원 수, 위치), 직책 및 이메일이
+포함된 주요 연락처, 단계 및 금액이 포함된 열린 기회, 상태가 포함된
+최근 지원 케이스가 표시됩니다.
+
+### 케이스 조회
+
+케이스 번호로 특정 지원 케이스를 조회합니다:
+
+```
+look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
+```
+
+**예상 결과:** 케이스 제목, 상태, 우선순위, 설명, 고객 계정 프로필,
+연락처 정보가 포함된 케이스 소유자가 표시됩니다.
+
+## 사용 가이드: 데이터 쿼리
+
+파워 유저의 경우, 자연어로 특정 SOQL 스타일 쿼리를 요청할 수 있습니다.
+플러그인이 요청을 적절한 SOQL로 변환하여 실행합니다.
+
+### 특정 필드
+
+```
+query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
+```
+
+### 날짜 필터링
+
+```
+show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
+```
+
+### 집계
+
+```
+count all open salesforce cases grouped by priority and status across my accounts
+```
+
+### 사용자 정의 오브젝트
+
+```
+query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
+```
+
+<Aside type="tip">
+  필드가 존재하지 않아 쿼리가 실패하면, 플러그인이 해당 필드 없이
+  자동으로 재시도합니다. 조직의 사용자 정의 필드는 다른 이름을 사용할 수
+  있습니다 — 필드를 찾을 수 없는 경우 Salesforce 설정을 확인하세요.
+</Aside>
+
+## 개발 스킬
+
+[forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)의
+30개 Salesforce 개발 스킬은 Apex, Flow, LWC, SOQL, 메타데이터,
+Agentforce 및 배포 작업에 대해 자동으로 활성화됩니다. 별도로
+설치하세요:
+
+```bash
+npx skills add forcedotcom/afv-library
+```
+
+| 주제 | 스킬 |
+|-------|-------|
+| Apex 클래스 및 서비스 | `generating-apex` |
+| Apex 테스트 | `generating-apex-test` |
+| Flow | `generating-flow` |
+| LWC 및 UI 번들 | `building-ui-bundle-app` |
+| 사용자 정의 오브젝트 | `generating-custom-object` |
+| 사용자 정의 필드 | `generating-custom-field` |
+| 유효성 검사 규칙 | `generating-validation-rule` |
+| 권한 세트 | `generating-permission-set` |
+| FlexiPage | `generating-flexipage` |
+| Agentforce 에이전트 | `developing-agentforce` |
+| Agentforce 테스트 | `testing-agentforce` |
+| 배포 | `deploying-ui-bundle` |
+| SLDS2 마이그레이션 | `uplifting-components-to-slds2` |
+| 트리거 리팩토링 | `trigger-refactor-pipeline` |

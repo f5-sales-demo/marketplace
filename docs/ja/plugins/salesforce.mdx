@@ -1,0 +1,353 @@
+---
+title: salesforce
+description: >-
+  Salesforce CLI automation with org authentication, account management,
+  pipeline analysis, and natural language data queries.
+sidebar:
+  label: Salesforce
+  order: 14
+i18n:
+  sourceHash: d55112fac780
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**salesforce** プラグインは Salesforce CLI を Claude Code と統合し、
+org 認証と、SOQL クエリを含むあらゆる `sf` コマンドを実行できる汎用 CLI エージェントを提供します。JWT、アクセストークン、SFDX URL
+認証フローにより、ヘッドレスコンテナ環境をサポートします。以下の使用ガイドでは、
+CLI エージェントを通じて自然言語でアカウント、商談、ケース、取引先責任者をクエリする方法を説明します。
+
+<Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
+
+## インストール
+
+```
+/plugin install salesforce@f5xc-salesdemos-marketplace
+```
+
+## 前提条件
+
+- **Salesforce CLI** (`@salesforce/cli`)
+- API アクセスが有効な **Salesforce org**
+- オブジェクト（ケース、商談、取引先、取引先責任者）をクエリする権限を持つユーザーアカウント
+
+ワークステーションに Salesforce CLI をインストールします：
+
+```bash
+brew install sf
+```
+
+インストールを確認します：
+
+```bash
+sf --version
+```
+
+`@salesforce/cli/2.x.x` のような出力が表示されるはずです。
+
+## 認証セットアップ
+
+### ステップ 1: Salesforce ドメインを確認する
+
+ブラウザで Salesforce の URL を確認します。Salesforce に
+`https://acme.lightning.force.com` でアクセスしている場合、ログインドメインは
+`https://acme.my.salesforce.com` です。
+
+<Aside type="tip">
+  会社が SSO を使用している場合、`--instance-url` でカスタムドメインを指定する必要があります。
+  これにより、汎用の Salesforce ログインページではなく、SSO プロバイダーを通じてログインがリダイレクトされます。
+</Aside>
+
+### ステップ 2: ブラウザ経由で認証する
+
+```bash
+sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
+```
+
+`YOUR-DOMAIN` をステップ 1 で確認した会社のドメインに置き換えてください。ブラウザが開きます — SSO またはログインフローを完了し、アプリを承認してください。以下のように表示されるはずです：
+
+```
+Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+```
+
+### ステップ 3: 接続を確認する
+
+```bash
+sf org display --target-org my-org
+```
+
+出力にユーザー名とインスタンス URL とともに `Connected Status: Connected` が表示されることを確認します。
+
+### ステップ 4: コンテナ向けのポータブル認証（オプション）
+
+ヘッドレス環境（CI/CD、コンテナ、リモートセッション）で認証する必要がある場合、ワークステーションから SFDX 認証 URL をエクスポートします：
+
+```bash
+sf org display --verbose --target-org my-org
+```
+
+**Sfdx Auth Url** の値（`force://` で始まる）をコピーします。コンテナ内で以下を実行します：
+
+```bash
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
+```
+
+<Aside type="caution">
+  SFDX 認証 URL は資格情報です — パスワードと同様に取り扱ってください。ファイルにコミットしたり、チャットに貼り付けたりしないでください。環境変数と stdin パイプのみを使用してください。
+</Aside>
+
+### 認証方法リファレンス
+
+| 方法 | 最適な用途 | 必要なもの |
+|--------|----------|----------|
+| Web ログイン | ブラウザが使えるワークステーション | ブラウザ + SSO |
+| SFDX URL | コンテナ、CI/CD、ポータブル認証 | 認証済みセッションからの認証 URL |
+| JWT Bearer | 自動化パイプライン | Connected App + 秘密鍵 + コンシューマーキー |
+| アクセストークン | 環境変数認証 | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
+
+**注意:** デバイスフロー（`sf org login device`）は 2025 年 8 月以降ブロックされており、サポートされていません。
+
+### 環境変数
+
+| 変数 | 用途 |
+|----------|---------|
+| `SF_ACCESS_TOKEN` | アクセストークン認証用のベアラートークン |
+| `SFDX_AUTH_URL` | SFDX URL 認証用の Force 認証 URL |
+| `SF_ORG_INSTANCE_URL` | org インスタンス URL |
+| `SF_JWT_KEY_FILE` | JWT 秘密鍵のパス |
+| `SF_CLIENT_ID` | Connected App コンシューマーキー |
+| `SF_USERNAME` | JWT 用の Salesforce ユーザー名 |
+
+## コマンド
+
+### /salesforce:sf-status
+
+Salesforce org の接続状態、CLI バージョン、認証済み org を確認します。
+
+```
+/salesforce:sf-status
+```
+
+**期待される結果:** sf CLI バージョン、認証済み org のエイリアス、ユーザー名、インスタンス URL、接続状態、API バージョンを示すテーブルが表示されます。
+
+### /salesforce:sf-login
+
+Salesforce org に認証します。オプションでエイリアスを指定できます。
+
+```
+/salesforce:sf-login
+/salesforce:sf-login my-org
+```
+
+**期待される結果:** そのエイリアスの org が既に認証されている場合、接続詳細が報告されます。認証されていない場合、利用可能な資格情報（環境変数）を確認し、最初に条件を満たした方法で認証します。
+
+## スキル
+
+### salesforce-index
+
+トップレベルのインテントルーター。自然言語で Salesforce、org 管理、またはデータクエリに言及すると自動的にアクティブになります。
+
+| ユーザーの発言 | ルーティング先 |
+|---------|-----------|
+| 「salesforce にログイン」「org を認証」 | `salesforce-auth` スキル |
+| 「org の状態を確認」「org を一覧表示」 | `cli-operator` エージェント |
+| 「商談を表示」「ケースを検索」 | `cli-operator` エージェント（SOQL クエリ） |
+| 「Apex クラスを生成」「Flow を作成」 | afv-library 開発スキル |
+
+### salesforce-auth
+
+コンテナ対応の認証スキル。4 つの認証方法をサポートし、利用可能な資格情報を自動検出します。優先順位：アクセストークン、次に JWT、次に SFDX URL、最後に Web ログイン。
+
+## エージェント
+
+### cli-operator
+
+安全ガードレール付きで `sf` コマンドを実行する自律型 Salesforce CLI エージェント。すべての Salesforce 操作はこのエージェントに委任され、メインセッションのコンテキストを軽量に保ちます。
+
+**安全ルール:**
+
+- デフォルトは読み取り専用 — 書き込み操作には明示的な承認が必要
+- プレビューと確認ステップなしにデプロイしない
+- アクセストークン、認証 URL、資格情報を出力にエコーしない
+- ユーザー提供のすべての値をサニタイズ（シェルメタ文字を拒否）
+- 構造化された解析可能な結果のために `--json` 出力を使用
+
+**レスポンス形式:**
+
+```
+## Result: [SUCCESS | FAILURE | PARTIAL]
+### Command Executed
+### Output Summary
+### Issues
+```
+
+## 使用ガイド: アカウント管理
+
+<Aside type="note">
+  以下のプロンプトはプラグインのハードコードされた機能ではありません。cli-operator エージェントが任意の SOQL クエリを含むあらゆる `sf` CLI コマンドを実行できるため機能します。結果は org のデータモデルとユーザー権限に依存します。ここに記載されたプロンプトは、標準 Salesforce オブジェクト（Account、Contact、Case、Opportunity、AccountTeamMember、OpportunityTeamMember）でテストおよび検証済みです。
+</Aside>
+
+これらのプロンプトはどの Salesforce org でも使用できます。プレースホルダーの値をご自身の情報に置き換えてください。各プロンプトは、あなたの役割、アカウント、テリトリーに固有の結果を生成します。
+
+<Aside type="tip">
+  最良の結果を得るために、ユーザーレコードを特定する必要があるプロンプトにはメールアドレスを含めてください。Salesforce org には似た名前の複数のユーザーが存在する場合があります。
+</Aside>
+
+### はじめに
+
+認証後、すべてが正常に動作することを確認します：
+
+```
+/salesforce:sf-status
+```
+
+次に、簡単な自然言語クエリを試してみましょう：
+
+```
+list my authenticated salesforce orgs
+```
+
+**期待される結果:** すべての接続済み org のエイリアス、ユーザー名、インスタンス URL、接続状態を示すテーブルが表示されます。
+
+### アカウントを確認する
+
+自分が割り当てられているアカウントを確認します：
+
+```
+what salesforce accounts am I on the account team for? My email is your-email@company.com
+```
+
+**期待される結果:** アカウントオーナーごとにグループ化されたアカウントのリストが表示され、各アカウントでのチームメンバーロールが示されます。ほとんどのロールが空白の場合、これはよくあるデータ品質の問題です — アカウントチームメンバーシップは存在するがロールが設定されていないことを意味します。
+
+### 同僚とのカバレッジを相互参照する
+
+チームメイトとアカウントカバレッジを比較してギャップを見つけます：
+
+```
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+```
+
+**期待される結果:** 重複数とギャップ数を示すサマリーテーブルに続いて、2 つのリストが表示されます。最近役割を変更した場合、重複がゼロになることがあります — これにより、追加が必要なアカウントが明らかになります。
+
+<Aside type="note">
+  前任者を確認するために「Also check if Previous Person Name appears on any of those accounts.」を追加することもできます。これにより、テリトリーで誰かの後任となる際の引継ぎギャップを特定できます。
+</Aside>
+
+### テリトリーパイプライン概要
+
+アカウント全体のオープン商談を確認します：
+
+```
+show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
+```
+
+**期待される結果:** 商談総数、生パイプライン、加重パイプラインのサマリーが表示されます。続いてステージ分布テーブルと金額別トップ商談のリストが表示されます。出力には、期限切れのクローズ日や null 金額などのデータ品質の問題がフラグ付けされます。
+
+### 商談の詳細分析
+
+特定の案件の全体像を把握します：
+
+```
+show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
+```
+
+**期待される結果:** 商談概要（ステージ、金額、クローズ日、確度、フォーキャストカテゴリ、オーナー）、商談チームメンバーとロール、タグ付けされた取引先責任者、最近のタスクとイベント、および案件金額とクローズ日の変動履歴を示すフィールド変更履歴が表示されます。
+
+### テリトリー全体のサポートケース
+
+アカウントのオープンケースを確認します：
+
+```
+show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
+```
+
+**期待される結果:** 優先度とステータスの内訳を含むオープンケース数が表示され、その後アカウントごとにグループ化されたケース詳細が表示されます。長期間活動のないケース（数ヶ月や数年前のもの）は、整理候補としてフラグ付けされます。
+
+### 四半期パイプライン予測
+
+パイプラインの予測対応ビューを取得します：
+
+```
+for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
+```
+
+**期待される結果:** 四半期ごとに商談数、総パイプライン、加重パイプラインを示す行を持つテーブルが表示されます。四半期ごとのステージミックス内訳が含まれ、加重トップの案件がハイライトされます。期限切れの商談は別途グループ化されます。
+
+### アカウント全体概要
+
+特定の顧客を詳細に分析します：
+
+```
+give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
+```
+
+**期待される結果:** 企業プロフィール（業界、売上、従業員数、所在地）、役職とメールアドレス付きの主要な取引先責任者、ステージと金額付きのオープン商談、およびステータス付きの最近のサポートケースが表示されます。
+
+### ケース検索
+
+番号で特定のサポートケースを検索します：
+
+```
+look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
+```
+
+**期待される結果:** ケースの件名、ステータス、優先度、説明、顧客アカウントのプロフィール、および連絡先情報付きのケースオーナーが表示されます。
+
+## 使用ガイド: データクエリ
+
+パワーユーザー向けに、自然言語で特定の SOQL スタイルのクエリを要求できます。プラグインがリクエストを適切な SOQL に変換して実行します。
+
+### 特定のフィールド
+
+```
+query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
+```
+
+### 日付フィルタリング
+
+```
+show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
+```
+
+### 集計
+
+```
+count all open salesforce cases grouped by priority and status across my accounts
+```
+
+### カスタムオブジェクト
+
+```
+query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
+```
+
+<Aside type="tip">
+  フィールドが存在しないためにクエリが失敗した場合、プラグインはそのフィールドを除外して自動的にリトライします。org 内のカスタムフィールドは異なる名前を使用している場合があります — フィールドが見つからない場合は Salesforce のセットアップを確認してください。
+</Aside>
+
+## 開発スキル
+
+[forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) の 30 個の Salesforce 開発スキルは、Apex、Flow、LWC、SOQL、メタデータ、Agentforce、およびデプロイメントタスクに対して自動的にアクティブになります。別途インストールしてください：
+
+```bash
+npx skills add forcedotcom/afv-library
+```
+
+| トピック | スキル |
+|-------|-------|
+| Apex クラスとサービス | `generating-apex` |
+| Apex テスト | `generating-apex-test` |
+| フロー | `generating-flow` |
+| LWC と UI バンドル | `building-ui-bundle-app` |
+| カスタムオブジェクト | `generating-custom-object` |
+| カスタムフィールド | `generating-custom-field` |
+| 入力規則 | `generating-validation-rule` |
+| 権限セット | `generating-permission-set` |
+| FlexiPages | `generating-flexipage` |
+| Agentforce エージェント | `developing-agentforce` |
+| Agentforce テスト | `testing-agentforce` |
+| デプロイメント | `deploying-ui-bundle` |
+| SLDS2 移行 | `uplifting-components-to-slds2` |
+| トリガーリファクタリング | `trigger-refactor-pipeline` |

@@ -1,0 +1,64 @@
+---
+title: f5xc-github-ops
+description: >-
+  Automazione delle operazioni GitHub per lo sviluppo basato su issue, workflow
+  delle PR e monitoraggio CI.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 2ba0b437f939
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+Il plugin **f5xc-github-ops** fornisce un'automazione esclusiva delle operazioni
+GitHub per i repository f5xc-salesdemos. Gestisce l'intero ciclo di vita
+Git e GitHub dalla creazione delle issue fino al monitoraggio post-merge,
+applicando lo sviluppo basato su issue e i gate di lint pre-commit.
+
+<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installazione
+
+```
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+```
+
+## Competenze
+
+### workflow-lifecycle
+
+Workflow di governance del repository che gestisce la creazione delle issue,
+le convenzioni di denominazione dei branch, la creazione delle PR, il polling
+CI con feedback degli errori sulle issue, il monitoraggio post-merge, la
+verifica e i criteri di completamento delle attività. Si attiva quando si
+dice "commit", "push", "crea una PR", "merge" o si esegue qualsiasi
+operazione Git.
+
+### upstream-contribution
+
+Workflow di contribuzione upstream per lo sviluppo basato su fork. Gestisce
+il rilevamento dei fork, la ricerca upstream (issue, PR, CONTRIBUTING.md,
+pattern CI), la creazione di issue e PR cross-repo, la gestione delle issue
+di tracciamento locali, il monitoraggio CI upstream e la risoluzione guidata.
+
+## Agenti
+
+### github-ops
+
+Agente esclusivo per tutte le operazioni meccaniche Git e GitHub.
+Gestisce i gate di lint pre-commit, la creazione delle issue, la creazione
+dei branch, lo staging, il commit, il push, la creazione delle PR, il
+polling CI con feedback degli errori, il retry in caso di fallimento
+dell'infrastruttura, il monitoraggio post-merge, la pulizia dei branch
+e la gestione delle impostazioni del repository tramite l'API GitHub.
+
+Restituisce report di stato strutturati: `COMPLETE`,
+`PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` o `FAILED`.
+
+<Aside type="caution">
+  Questo agente è il gestore **esclusivo** delle operazioni Git.
+  Non eseguire mai `git commit`, `git push` o `gh pr create` direttamente
+  nei repository che utilizzano questo plugin.
+</Aside>

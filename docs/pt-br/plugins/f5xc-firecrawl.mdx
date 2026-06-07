@@ -1,0 +1,153 @@
+---
+title: f5xc-firecrawl
+description: >-
+  Raspagem e rastreamento web local auto-hospedado via o motor de código aberto
+  Firecrawl.
+sidebar:
+  order: 13
+i18n:
+  sourceHash: a9d67be9cf3e
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+O plugin **f5xc-firecrawl** fornece raspagem web local auto-hospedada
+via o motor de código aberto [firecrawl](https://github.com/mendableai/firecrawl).
+Sem chaves de API, sem assinaturas, sem dependência de nuvem. Todas as
+operações são executadas contra a instância local do firecrawl em `localhost:3002`
+dentro do devcontainer.
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Instalação
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## Comandos
+
+### /scrape
+
+Raspa uma única URL e extrai o conteúdo como markdown.
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+Raspa múltiplas URLs de uma vez.
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+Rastreia múltiplas páginas a partir de uma URL inicial.
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+Descobre todas as URLs de um site.
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+Pesquisa na web e opcionalmente raspa os resultados.
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+Extração de dados estruturados de páginas web com tecnologia LLM.
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  O comando extract requer um proxy LLM compatível com OpenAI
+  configurado via `OPENAI_BASE_URL` e `OPENAI_API_KEY`.
+</Aside>
+
+### /llmstxt
+
+Gera um arquivo llms.txt para um site.
+
+```
+/llmstxt https://docs.example.com
+```
+
+## Skills
+
+### web-scraper
+
+Ativa automaticamente quando você solicita raspar uma URL, rastrear um site,
+mapear URLs de um site, pesquisar na web, extrair dados estruturados, gerar llms.txt,
+raspar múltiplas URLs em lote ou converter uma página web em markdown.
+Delega imediatamente para o agente firecrawl-operator.
+
+## Agentes
+
+### firecrawl-operator
+
+Agente autônomo de raspagem web que executa sequências de `curl` + `jq`
+contra a API local do firecrawl. Suporta 11 protocolos cobrindo todos os
+endpoints v1. Agente somente leitura (sem ferramentas de Escrita, Edição ou Agente).
+
+| Protocolo | Endpoint | Tipo |
+|----------|----------|------|
+| HEALTH | `GET /` | Sync |
+| SCRAPE | `POST /v1/scrape` | Sync |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
+| CRAWL | `POST /v1/crawl` | Async |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
+| MAP | `POST /v1/map` | Sync |
+| SEARCH | `POST /v1/search` | Sync |
+| EXTRACT | `POST /v1/extract` | Async |
+| LLMSTXT | `POST /v1/llmstxt` | Async |
+
+## Infraestrutura
+
+O plugin requer a stack do firecrawl em execução no devcontainer:
+
+| Componente | Porta | Finalidade |
+|-----------|------|---------|
+| Firecrawl API | 3002 | Todos os endpoints de scrape/crawl/map/search/extract |
+| Playwright | 3000 | Motor de renderização JavaScript |
+| Redis | 6379 | Backend de fila de jobs |
+| PostgreSQL | socket | Persistência de jobs de crawl/batch |
+| LiteLLM proxy | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
+
+A stack inicia automaticamente quando `ENABLE_FIRECRAWL=true` (o
+padrão). Um hook SessionStart verifica se a API está acessível e
+emite um aviso se o serviço estiver indisponível.
+
+## Diferenças em relação ao Firecrawl Cloud
+
+Este plugin utiliza a versão de código aberto auto-hospedada:
+
+- Não requer autenticação ou chaves de API para raspagem
+- Sem limites de crédito ou limitação de taxa
+- Utiliza endpoints da API v1 (não v2)
+- Sessões de navegador e pesquisa profunda não estão disponíveis
+- Extract utiliza seu próprio proxy LLM em vez de modelos hospedados
+- Executa inteiramente dentro da rede local do container

@@ -1,0 +1,116 @@
+---
+title: f5xc-sales-engineer
+description: >-
+  Sales-Engineer-Persona-Framework für Demo-Durchführung, Präsentationen, Q&A
+  und Teardown.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: aa053700ebd2
+  translator: machine
+---
+
+import { Aside, Badge, Steps } from '@astrojs/starlight/components';
+
+Das **f5xc-sales-engineer**-Plugin bietet ein wiederverwendbares Sales-Engineer-
+Persona-Framework für F5 XC Demo-Repositories. Es deckt den gesamten
+Demo-Meeting-Lebenszyklus ab — von der Vorab-Verifizierung über die Live-
+Durchführung und Q&A bis hin zum Teardown.
+
+<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### demo-executor
+
+API-gesteuerte Demo-Durchführung mit einem vierstufigen Meeting-Lebenszyklus:
+
+1. **Vorbereitung** — Vorab-Umgebungsverifizierung über den
+   `demo-housekeeping`-Agenten
+2. **Durchführung** — deterministische Phasen-Ausführung mit kundenorientierter
+   Narration
+3. **Q&A** — Improvisationsmodus mit Live-Umgebung
+4. **Teardown** — Nachbereinigung nach dem Meeting über den `demo-housekeeping`-Agenten
+
+Liest produktspezifische Inhalte aus `DEMO_PRODUCT_EXPERTISE.md` und Demo-
+Befehle aus `docs/demo/`.
+
+### presenter
+
+As-Built-Walkthrough-Präsentation unter Verwendung einer vorkonfigurierten Demo-
+Umgebung. Folgt einem Zeigen → Erzählen → Verknüpfen → Pausieren-Muster bei
+jedem Schritt. Liest die Walkthrough-Reihenfolge aus `DEMO_WALKTHROUGH_CONFIG.md`.
+
+### subject-matter-expert
+
+Referenzgestütztes Q&A mit strikten Zitieranforderungen. Rät niemals —
+jede Antwort enthält eine Referenz oder einen Nachweis. Delegiert
+Recherchen bei Bedarf an den `demo-researcher`-Agenten.
+
+### sales-engineer
+
+Rollenindex, der Benutzerabsichten an den richtigen Persona-Skill weiterleitet.
+Wird aktiviert, wenn die Anfrage demo-bezogen ist, aber keiner
+bestimmten Trigger-Phrase entspricht.
+
+## Agenten
+
+### demo-housekeeping
+
+Autonomer Agent für Vorab-Verifizierung und Nachbereinigung.
+Führt die Readiness Verification Matrix (T0–T5) aus, die in
+`DEMO_READINESS_MATRIX.md` definiert ist, und führt Teardown-Befehle aus
+`docs/demo/phase-4-teardown.mdx` aus.
+
+### demo-researcher
+
+Schreibgeschützter Recherche-Bibliothekar, der verifizierte Antworten mit
+Quellenangaben findet. Durchsucht zuerst lokale `docs/`, dann indexierte externe
+Quellen aus `DEMO_SOURCE_INDEX.md`, mit WebSearch als Fallback.
+
+## Konventionsdateien
+
+<Aside type="tip" title="Produktspezifische Inhalte">
+  Dieses Plugin ist produktagnostisch. Jedes Repository stellt
+  produktspezifische Inhalte über standardisierte Konventionsdateien bereit.
+</Aside>
+
+Erstellen Sie diese Dateien im Stammverzeichnis Ihres Repositories, um das Plugin zu konfigurieren:
+
+| Datei | Zweck | Erforderlich für |
+| ---- | ------- | ------------ |
+| `DEMO_PRODUCT_EXPERTISE.md` | Produktfähigkeiten, Erkennungssignale, Bedrohungsabdeckung, Compliance-Ausrichtung, API-Referenz | Alle Skills |
+| `DEMO_WALKTHROUGH_CONFIG.md` | Demo-App-URL, Walkthrough-Reihenfolge, Erkennungs-Timing | presenter |
+| `DEMO_SOURCE_INDEX.md` | Recherchequellen-Katalog mit lokalen Dokumenten und externen URLs | demo-researcher |
+| `DEMO_READINESS_MATRIX.md` | Erforderliche/optionale Variablen, Bereitschaftsprüfungen (T0–T5), API-Endpunkte | demo-housekeeping |
+| `docs/demo/` | Phasen-Dateien mit cURL-Befehlen und Nachweis-Gates | demo-executor |
+
+## Trigger-Phrasen
+
+Die `.claude/CLAUDE.md` Trigger-Map (verwaltet durch `docs-control`)
+aktiviert Skills basierend auf der Benutzerabsicht:
+
+| Phrase | Skill | Phase |
+| ------ | ----- | ----- |
+| "run the demo", "execute the demo" | demo-executor | Execute |
+| "prepare the demo", "pre-flight" | demo-executor | Prepare |
+| "Q&A", "question and answer" | demo-executor | Q&A |
+| "tear down", "clean up" | demo-executor | Teardown |
+| "walk through the demo", "present" | presenter | — |
+| "answer questions", "explain" | subject-matter-expert | — |
+
+## Narrationsstil
+
+Alle Personas teilen einen einheitlichen Narrationsstil:
+
+- **Präsens, erste Person Plural** — "Was wir hier sehen…"
+- **Ein Thema pro Absatz** — jede Narration beantwortet: Was ist das? Warum ist es wichtig? Was sollte ich dagegen tun?
+- **Das Signal benennen** — hervorheben, welche Fähigkeit am Werk ist
+- **Compliance-Bezug bei Relevanz** — regulatorische Ausrichtung natürlich erwähnen
+- **Pausen-Markierung** — `> ⏸ *[Pause für das Publikum — bereit fortzufahren?]*`
