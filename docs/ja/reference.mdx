@@ -1,0 +1,178 @@
+---
+title: リファレンス
+description: marketplace.json スキーマリファレンス：フィールド定義、スキル設定、バリデーションルール。
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 15be095fe190
+  translator: machine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## marketplace.json スキーマ
+
+マーケットプレイスマニフェストはリポジトリルートの
+`.claude-plugin/marketplace.json` に配置されます。
+
+### トップレベルフィールド
+
+| フィールド | 必須 | 説明 |
+|-------|----------|-------------|
+| `$schema` | いいえ | バリデーション用の JSON Schema URL |
+| `name` | はい | マーケットプレイスの一意な識別子 |
+| `version` | いいえ | マーケットプレイススキーマバージョン（semver） |
+| `metadata.description` | はい | 人間が読めるマーケットプレイスの説明 |
+| `owner.name` | はい | マーケットプレイスを所有する組織またはユーザー |
+| `owner.url` | いいえ | 所有者のプロフィールまたはウェブサイトの URL |
+| `owner.email` | いいえ | 連絡先メールアドレス |
+| `plugins` | はい | プラグインエントリの配列 |
+
+### プラグインエントリフィールド
+
+| フィールド | 必須 | 説明 |
+|-------|----------|-------------|
+| `name` | はい | プラグイン識別子（`plugin.json` と一致する必要あり） |
+| `description` | はい | プラグインの短い説明 |
+| `version` | はい | セマンティックバージョン文字列 |
+| `author.name` | はい | プラグインの作者 |
+| `source` | はい | プラグインへのパスまたは URL（ソースタイプを参照） |
+| `category` | はい | プラグインカテゴリ（例：`productivity`） |
+| `homepage` | いいえ | プラグインのドキュメントまたはホームページの URL |
+| `license` | いいえ | SPDX ライセンス識別子 |
+| `keywords` | いいえ | 検索キーワードの配列 |
+| `tags` | いいえ | フィルタリング用タグの配列 |
+| `repository` | いいえ | リポジトリ URL |
+
+## プラグインソースタイプ
+
+marketplace.json の `source` フィールドは複数の形式をサポートしています：
+
+| タイプ | 例 | 説明 |
+|------|---------|-------------|
+| 相対パス | `./plugins/my-plugin` | 同じリポジトリ内のプラグイン |
+| GitHub 短縮形 | `owner/repo` | リポジトリルートにあるプラグイン |
+| GitHub パス付き | `owner/repo/path/to/plugin` | サブディレクトリ内のプラグイン |
+| Git URL | `https://github.com/owner/repo.git` | Git リポジトリ |
+| npm パッケージ | `npm:@scope/package` | 公開済み npm パッケージ |
+
+## plugin.json スキーマ
+
+各プラグインは、そのディレクトリ内の
+`.claude-plugin/plugin.json` にマニフェストを持ちます。
+
+| フィールド | 必須 | 説明 |
+|-------|----------|-------------|
+| `name` | はい | プラグイン識別子 |
+| `description` | はい | プラグインの機能説明 |
+| `version` | はい | セマンティックバージョン |
+| `author.name` | はい | プラグインの作者 |
+| `author.url` | いいえ | 作者のプロフィールまたはウェブサイトの URL |
+| `homepage` | いいえ | ドキュメント URL |
+| `keywords` | いいえ | 検索キーワード |
+| `license` | いいえ | SPDX ライセンス識別子 |
+| `repository` | いいえ | リポジトリ URL |
+
+## プラグインディレクトリ構成
+
+```
+plugins/my-plugin/
+  .claude-plugin/
+    plugin.json          # Plugin manifest (required)
+  skills/
+    skill-name/
+      SKILL.md           # Skill definition (required per skill)
+      references/        # Reference data files (optional)
+  commands/
+    command-name.md      # Command definition (one per command)
+  agents/
+    agent-name.md        # Agent definition (one per agent)
+  README.md              # Plugin documentation (recommended)
+```
+
+## 環境変数
+
+プラグインはスキルおよびコマンドファイル内で以下の変数を使用できます：
+
+| 変数 | 説明 |
+|----------|-------------|
+| `$\{CLAUDE_PLUGIN_ROOT\}` | プラグインのルートディレクトリの絶対パス |
+
+## バリデーション
+
+マーケットプレイスおよびプラグインマニフェストをローカルでバリデーションします：
+
+```bash
+claude plugin validate .
+```
+
+以下の項目がチェックされます：
+
+- `marketplace.json` のスキーマ準拠
+- 参照されているすべてのプラグインディレクトリの存在
+- 各プラグインが有効な `plugin.json` を持っていること
+- スキルが適切にフォーマットされた `SKILL.md` フロントマターを持っていること
+- コマンドが必須のフロントマターフィールドを持っていること
+
+## チーム設定
+
+### マーケットプレイスの事前設定
+
+任意のリポジトリの `.claude/settings.json` に追加します：
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ]
+}
+```
+
+### プラグインの事前有効化
+
+```json
+{
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip">
+  これらの設定をリポジトリにコミットすることで、すべてのチームメンバーが同じマーケットプレイスとプラグインの設定を自動的に取得できるようになります。
+</Aside>
+
+## トラブルシューティング
+
+### マーケットプレイスが見つからない
+
+マーケットプレイスが追加されているか確認します：
+
+```
+/plugin marketplace list
+```
+
+見つからない場合は、再度追加します：
+
+```
+/plugin marketplace add f5xc-salesdemos/marketplace
+```
+
+### プラグインが有効にならない
+
+- プラグインがインストールされていることを確認します：
+  `/plugin list`
+- お使いの Claude Code のバージョンがプラグインをサポートしているか確認します
+  （v1.0.33+）
+- スキルのトリガー条件が現在のコンテキストに一致しているか確認します
+
+### スキルが自動的にトリガーされない
+
+スキルは SKILL.md フロントマターの `description` フィールドに基づいて有効化されます。スキルが期待通りに有効化されない場合：
+
+- 説明がトリガーコンテキストを正確に記述しているか確認します
+- 回避策としてコマンドを直接使用します（例：`/f5xc-docs-tools:review-mdx`）
+
+### レビュー後のビルドエラー
+
+プラグインは問題を報告しますが、自動修正は行いません。提案された修正を手動で適用し、レビューを再実行して解決を確認してください。

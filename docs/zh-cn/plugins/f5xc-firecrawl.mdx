@@ -1,0 +1,140 @@
+---
+title: f5xc-firecrawl
+description: 通过开源 Firecrawl 引擎实现本地自托管的网页抓取和爬取。
+sidebar:
+  order: 13
+i18n:
+  sourceHash: a9d67be9cf3e
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-firecrawl** 插件通过开源 [firecrawl](https://github.com/mendableai/firecrawl)
+引擎提供本地自托管的网页抓取功能。无需 API 密钥、无需订阅、不依赖云服务。所有操作都在 devcontainer 内部的 `localhost:3002` 上运行的本地 firecrawl 实例上执行。
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 安装
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## 命令
+
+### /scrape
+
+抓取单个 URL 并将内容提取为 markdown 格式。
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+一次性抓取多个 URL。
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+从起始 URL 开始爬取多个页面。
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+发现网站上的所有 URL。
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+搜索网络并可选择性地抓取搜索结果。
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+基于 LLM 的网页结构化数据提取。
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  extract 命令需要通过 `OPENAI_BASE_URL` 和 `OPENAI_API_KEY` 配置兼容 OpenAI 的 LLM 代理。
+</Aside>
+
+### /llmstxt
+
+为网站生成 llms.txt 文件。
+
+```
+/llmstxt https://docs.example.com
+```
+
+## 技能
+
+### web-scraper
+
+当您请求抓取 URL、爬取网站、映射站点 URL、搜索网络、提取结构化数据、生成 llms.txt、批量抓取多个 URL 或将网页转换为 markdown 时自动激活。会立即委派给 firecrawl-operator 代理。
+
+## 代理
+
+### firecrawl-operator
+
+自主网页抓取代理，执行针对本地 firecrawl API 的 `curl` + `jq` 操作序列。支持覆盖所有 v1 端点的 11 种协议。只读代理（无写入、编辑或代理工具）。
+
+| 协议 | 端点 | 类型 |
+|----------|----------|------|
+| HEALTH | `GET /` | 同步 |
+| SCRAPE | `POST /v1/scrape` | 同步 |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | 异步 |
+| CRAWL | `POST /v1/crawl` | 异步 |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | 同步 |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | 同步 |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | 同步 |
+| MAP | `POST /v1/map` | 同步 |
+| SEARCH | `POST /v1/search` | 同步 |
+| EXTRACT | `POST /v1/extract` | 异步 |
+| LLMSTXT | `POST /v1/llmstxt` | 异步 |
+
+## 基础设施
+
+该插件需要在 devcontainer 中运行 firecrawl 技术栈：
+
+| 组件 | 端口 | 用途 |
+|-----------|------|---------|
+| Firecrawl API | 3002 | 所有抓取/爬取/映射/搜索/提取端点 |
+| Playwright | 3000 | JavaScript 渲染引擎 |
+| Redis | 6379 | 任务队列后端 |
+| PostgreSQL | socket | 爬取/批量任务持久化 |
+| LiteLLM 代理 | OPENAI_BASE_URL | 用于 extract 的 LLM 后端（可选） |
+
+当 `ENABLE_FIRECRAWL=true`（默认值）时，技术栈会自动启动。SessionStart 钩子会检查 API 是否可达，如果服务不可用则发出警告。
+
+## 与云端 Firecrawl 的区别
+
+本插件使用自托管的开源版本：
+
+- 抓取无需认证或 API 密钥
+- 无额度限制或速率限制
+- 使用 v1 API 端点（非 v2）
+- 浏览器会话和深度研究功能不可用
+- Extract 使用您自己的 LLM 代理而非托管模型
+- 完全在本地容器网络内运行

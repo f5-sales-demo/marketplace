@@ -1,0 +1,59 @@
+---
+title: ปลั๊กอิน
+description: >-
+  แคตตาล็อกปลั๊กอินที่มีให้ใช้งานใน marketplace ของ f5xc-salesdemos
+  พร้อมเวอร์ชันและหมวดหมู่
+sidebar:
+  order: 3
+i18n:
+  sourceHash: 1433e1146ae5
+  translator: machine
+---
+
+marketplace ของ f5xc-salesdemos มีปลั๊กอินดังต่อไปนี้
+ปลั๊กอินแต่ละตัวจะเพิ่มทักษะ คำสั่ง และเอเจนต์ให้กับ Claude Code
+ที่ช่วยในด้านเอกสาร เวิร์กโฟลว์สาธิต วิธีการขาย
+การสร้างแบรนด์ และการดำเนินงานด้านการพัฒนา
+
+## แคตตาล็อกปลั๊กอิน
+
+| ปลั๊กอิน | เวอร์ชัน | หมวดหมู่ | คำอธิบาย |
+|--------|---------|----------|-------------|
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 1.1.2 | ผลิตภาพ | เครื่องมือตรวจสอบและทบทวนเนื้อหา MDX |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 1.0.6 | ผลิตภาพ | เฟรมเวิร์ก Sales Engineer persona — การดำเนินการสาธิต, การนำเสนอ, ถาม-ตอบ, การจัดการสภาพแวดล้อม |
+| [f5xc-github-ops](/marketplace/plugins/f5xc-github-ops/) | 2.2.2 | ผลิตภาพ | ระบบอัตโนมัติสำหรับการดำเนินงาน GitHub — การพัฒนาแบบขับเคลื่อนด้วย issue, วงจร PR, การตรวจสอบ CI |
+| [f5xc-docs-pipeline](/marketplace/plugins/f5xc-docs-pipeline/) | 1.0.2 | ผลิตภาพ | สถาปัตยกรรม pipeline เอกสาร — การเขียนเนื้อหา, การแสดงตัวอย่างในเครื่อง, การเป็นเจ้าของการตั้งค่า |
+| [f5xc-brand](/marketplace/plugins/f5xc-brand/) | 1.0.2 | ผลิตภาพ | การบังคับใช้แบรนด์องค์กร F5 — สี, ตัวอักษร, โลโก้, ไอคอน, การเข้าถึง |
+| [f5xc-meddpicc](/marketplace/plugins/f5xc-meddpicc/) | 1.0.4 | ผลิตภาพ | เฟรมเวิร์กการคัดกรองคุณสมบัติการขายและการดำเนินการข้อตกลงแบบ MEDDPICC |
+| [f5xc-devcontainer](/marketplace/plugins/f5xc-devcontainer/) | 1.1.6 | ผลิตภาพ | การรับรู้คอนเทนเนอร์ — แคตตาล็อกเครื่องมือ, การระบุตัวตน, การวินิจฉัยตนเอง, และการบำรุงรักษา |
+| [f5xc-platform](/marketplace/plugins/f5xc-platform/) | 3.1.1 | ผลิตภาพ | ระบบอัตโนมัติแพลตฟอร์ม F5 XC — คอนโซล, REST API, การวิเคราะห์การตั้งค่าครอบคลุม 98 ประเภททรัพยากร |
+| [osint-framework](/marketplace/plugins/osint-framework/) | 1.0.1 | ความปลอดภัย | แคตตาล็อกเครื่องมือ OSINT และทักษะการสืบสวน — เครื่องมือฟรี 1,064 รายการใน 34 หมวดหมู่, ไปป์ไลน์การสืบสวน, เอนจินความสัมพันธ์ |
+| [f5xc-firecrawl](/marketplace/plugins/f5xc-firecrawl/) | 1.1.0 | ผลิตภาพ | การขูดเว็บแบบโฮสต์เองในเครื่อง — scrape, crawl, map, search, extract ผ่าน firecrawl บน localhost:3002 |
+
+## ปลั๊กอินประกอบด้วยอะไรบ้าง?
+
+ปลั๊กอินแต่ละตัวสามารถประกอบด้วย:
+
+- **ทักษะ** — ความรู้เชิงบริบทที่ Claude เปิดใช้งาน
+  โดยอัตโนมัติเมื่อเกี่ยวข้อง (เช่น การทบทวนไฟล์ MDX)
+- **คำสั่ง** — คำสั่งแบบ slash ที่คุณเรียกใช้โดยตรง
+  (เช่น `/f5xc-docs-tools:review-mdx`)
+- **เอเจนต์** — เอเจนต์ย่อยเฉพาะทางสำหรับงานที่ซับซ้อน
+
+## การติดตั้งปลั๊กอิน
+
+```
+/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-pipeline@f5xc-salesdemos-marketplace
+/plugin install f5xc-brand@f5xc-salesdemos-marketplace
+/plugin install f5xc-meddpicc@f5xc-salesdemos-marketplace
+/plugin install f5xc-devcontainer@f5xc-salesdemos-marketplace
+/plugin install f5xc-platform@f5xc-salesdemos-marketplace
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+ดู [เริ่มต้นใช้งาน](/marketplace/getting-started/) สำหรับ
+คำแนะนำการตั้งค่าฉบับสมบูรณ์

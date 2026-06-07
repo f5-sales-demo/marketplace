@@ -1,0 +1,148 @@
+---
+title: f5xc-firecrawl
+description: 오픈소스 Firecrawl 엔진을 통한 로컬 자체 호스팅 웹 스크래핑 및 크롤링.
+sidebar:
+  order: 13
+i18n:
+  sourceHash: a9d67be9cf3e
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-firecrawl** 플러그인은 오픈소스 [firecrawl](https://github.com/mendableai/firecrawl)
+엔진을 통해 로컬 자체 호스팅 웹 스크래핑을 제공합니다. API 키도, 구독도, 클라우드 의존성도
+없습니다. 모든 작업은 devcontainer 내부의 `localhost:3002`에서 실행되는 로컬 firecrawl
+인스턴스를 대상으로 수행됩니다.
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 설치
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## 명령어
+
+### /scrape
+
+단일 URL을 스크래핑하고 콘텐츠를 마크다운으로 추출합니다.
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+여러 URL을 한 번에 스크래핑합니다.
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+시작 URL에서 여러 페이지를 크롤링합니다.
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+웹사이트의 모든 URL을 탐색합니다.
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+웹을 검색하고 선택적으로 결과를 스크래핑합니다.
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+LLM 기반 웹 페이지 구조화 데이터 추출.
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  extract 명령어는 `OPENAI_BASE_URL` 및 `OPENAI_API_KEY`를 통해 구성된
+  OpenAI 호환 LLM 프록시가 필요합니다.
+</Aside>
+
+### /llmstxt
+
+사이트에 대한 llms.txt 파일을 생성합니다.
+
+```
+/llmstxt https://docs.example.com
+```
+
+## 스킬
+
+### web-scraper
+
+URL 스크래핑, 웹사이트 크롤링, 사이트 URL 매핑, 웹 검색, 구조화 데이터 추출,
+llms.txt 생성, 여러 URL 일괄 스크래핑, 또는 웹 페이지를 마크다운으로 변환하도록
+요청할 때 자동으로 활성화됩니다. firecrawl-operator 에이전트에 즉시 위임합니다.
+
+## 에이전트
+
+### firecrawl-operator
+
+로컬 firecrawl API를 대상으로 `curl` + `jq` 시퀀스를 실행하는 자율 웹 스크래핑
+에이전트입니다. 모든 v1 엔드포인트를 포괄하는 11개의 프로토콜을 지원합니다.
+읽기 전용 에이전트입니다(Write, Edit 또는 Agent 도구 없음).
+
+| 프로토콜 | 엔드포인트 | 유형 |
+|----------|----------|------|
+| HEALTH | `GET /` | 동기 |
+| SCRAPE | `POST /v1/scrape` | 동기 |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | 비동기 |
+| CRAWL | `POST /v1/crawl` | 비동기 |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | 동기 |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | 동기 |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | 동기 |
+| MAP | `POST /v1/map` | 동기 |
+| SEARCH | `POST /v1/search` | 동기 |
+| EXTRACT | `POST /v1/extract` | 비동기 |
+| LLMSTXT | `POST /v1/llmstxt` | 비동기 |
+
+## 인프라
+
+이 플러그인은 devcontainer에서 실행되는 firecrawl 스택이 필요합니다:
+
+| 구성 요소 | 포트 | 용도 |
+|-----------|------|---------|
+| Firecrawl API | 3002 | 모든 scrape/crawl/map/search/extract 엔드포인트 |
+| Playwright | 3000 | JavaScript 렌더링 엔진 |
+| Redis | 6379 | 작업 큐 백엔드 |
+| PostgreSQL | socket | 크롤/일괄 작업 영속성 |
+| LiteLLM proxy | OPENAI_BASE_URL | extract용 LLM 백엔드 (선택 사항) |
+
+`ENABLE_FIRECRAWL=true`(기본값)일 때 스택이 자동으로 시작됩니다. SessionStart
+훅이 API에 접근 가능한지 확인하고 서비스가 다운되어 있으면 경고합니다.
+
+## 클라우드 Firecrawl과의 차이점
+
+이 플러그인은 자체 호스팅 오픈소스 버전을 사용합니다:
+
+- 스크래핑에 인증이나 API 키가 필요하지 않음
+- 크레딧 제한이나 속도 제한 없음
+- v1 API 엔드포인트 사용 (v2 아님)
+- 브라우저 세션 및 딥 리서치 사용 불가
+- 호스팅 모델 대신 자체 LLM 프록시를 사용하여 Extract 수행
+- 로컬 컨테이너 네트워크 내에서 완전히 실행

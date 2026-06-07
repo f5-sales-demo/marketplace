@@ -1,0 +1,61 @@
+---
+title: f5xc-github-ops
+description: イシュー駆動開発、PRワークフロー、CI監視のためのGitHub操作自動化。
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 2ba0b437f939
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-github-ops** プラグインは、f5xc-salesdemos リポジトリ専用の
+GitHub 操作自動化を提供します。イシュー作成からマージ後の監視まで、
+Git および GitHub のライフサイクル全体を処理し、イシュー駆動開発と
+プリコミットのリントゲートを強制します。
+
+<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## インストール
+
+```
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+```
+
+## スキル
+
+### workflow-lifecycle
+
+イシュー作成、ブランチ命名規則、PR 作成、エラーフィードバック付き
+CI ポーリング、マージ後の監視、検証、タスク完了基準を処理する
+リポジトリガバナンスワークフロー。「commit」、「push」、
+「create a PR」、「merge」と言ったとき、または任意の Git 操作を
+実行したときにアクティブになります。
+
+### upstream-contribution
+
+フォークベース開発のためのアップストリームコントリビューション
+ワークフロー。フォーク検出、アップストリーム調査（イシュー、PR、
+CONTRIBUTING.md、CI パターン）、クロスリポジトリのイシューおよび
+PR 作成、ローカルトラッキングイシュー管理、アップストリーム CI
+監視、およびガイド付き解決を処理します。
+
+## エージェント
+
+### github-ops
+
+すべての機械的な Git および GitHub 操作のための専用エージェント。
+プリコミットリントゲート、イシュー作成、ブランチ作成、ステージング、
+コミット、プッシュ、PR 作成、エラーフィードバック付き CI ポーリング、
+インフラ障害のリトライ、マージ後の監視、ブランチクリーンアップ、
+および GitHub API を介したリポジトリ設定管理を処理します。
+
+構造化されたステータスレポートを返します: `COMPLETE`、
+`PRE_COMMIT_FAILED`、`CI_FAILED`、`BLOCKED`、または `FAILED`。
+
+<Aside type="caution">
+  このエージェントは Git 操作の**専用**ハンドラーです。
+  このプラグインを使用するリポジトリでは、`git commit`、`git push`、
+  または `gh pr create` を直接実行しないでください。
+</Aside>

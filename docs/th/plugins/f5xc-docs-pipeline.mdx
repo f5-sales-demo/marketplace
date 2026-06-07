@@ -1,0 +1,60 @@
+---
+title: f5xc-docs-pipeline
+description: >-
+  Documentation pipeline architecture knowledge for multi-repo builds, content
+  authoring, and local preview.
+sidebar:
+  order: 8
+i18n:
+  sourceHash: 858155aa1d2f
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+ปลั๊กอิน **f5xc-docs-pipeline** ให้ความรู้เกี่ยวกับสถาปัตยกรรม
+ไปป์ไลน์เอกสารสำหรับ repositories ของ f5xc-salesdemos โดยช่วยแนะนำ
+การเขียนเนื้อหา อธิบายความเป็นเจ้าของ config ในการ build แบบ multi-repo
+และให้การพรีวิวแบบ local ผ่าน Docker
+
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## การติดตั้ง
+
+```
+/plugin install f5xc-docs-pipeline@f5xc-salesdemos-marketplace
+```
+
+## ทักษะ
+
+### content-author
+
+คู่มือการเขียนเนื้อหาที่ครอบคลุมโครงสร้างไฟล์ กฎไวยากรณ์ MDX
+ข้อกำหนด frontmatter การอ้างอิงรูปภาพ และการพรีวิวแบบ local ผ่าน Docker
+จะทำงานเมื่อสร้างหรือแก้ไขเนื้อหาใน `docs/`
+ทำงานกับไฟล์ MDX หรือตั้งค่าการพรีวิวแบบ local
+
+### pipeline-navigator
+
+อธิบายสถาปัตยกรรมไปป์ไลน์เอกสารว่าควรทำการเปลี่ยนแปลงที่ใด
+ใน repositories upstream ทั้งสี่แห่ง ได้แก่ docs-theme,
+docs-builder, docs-control และ docs-icons อธิบายความเป็นเจ้าของ
+config (`astro.config.mjs`, `content.config.ts`) ห่วงโซ่การ dispatch
+ของ release และการติดตามไฟล์ที่ถูกจัดการ
+
+<Aside type="tip">
+  ใช้ pipeline-navigator เมื่อคุณต้องการทำความเข้าใจว่า repository ใด
+  เป็นเจ้าของไฟล์ config หรือ component เฉพาะตัวใด
+</Aside>
+
+## คำสั่ง
+
+### /preview-docs
+
+```
+/f5xc-docs-pipeline:preview-docs
+```
+
+เริ่มต้น Docker dev server แบบ local เพื่อพรีวิวเอกสาร โดยรัน
+Docker build image ที่ใช้ร่วมกัน พร้อม mount ไดเรกทอรี `docs/`
+ในเครื่องของคุณสำหรับการพรีวิวแบบ live

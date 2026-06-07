@@ -1,0 +1,83 @@
+---
+title: f5xc-platform
+description: F5 Distributed Cloud プラットフォーム自動化 — コンソール操作、REST API、認証、および設定分析。
+sidebar:
+  order: 11
+i18n:
+  sourceHash: 7d49edf60846
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-platform** プラグインは、F5 Distributed Cloud プラットフォームの完全な自動化を提供します。Chrome DevTools MCP を介した Web コンソール操作、cURL を介した仕様対応の REST API 操作、マルチプロバイダー認証、および 38 ドメインにわたる 98 のリソースタイプの設定分析をカバーします。
+
+<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## インストール
+
+```
+/plugin install f5xc-platform@f5xc-salesdemos-marketplace
+```
+
+## スキル
+
+### api-operations
+
+38 ドメインにわたる 98 のリソースタイプをカバーする仕様対応の API CRUD 操作。HTTP ロードバランサー、オリジンプール、WAF ポリシー、DNS ゾーン、証明書、クラウドサイトなどに対して、正確なエンドポイント、ペイロードテンプレート、依存関係の順序付け、およびマルチステップのワークフロー構成を提供します。
+
+### config-analysis
+
+設定分析およびアドバイザリー機能。顧客の JSON 設定を分析し、セキュリティ態勢、機能の有効化、モード設定、除外設定、およびベストプラクティスに関する質問に回答します。ディスパッチ間で圧縮されたコンテキストを使用したマルチターン Q&A をサポートします。
+
+### api-auth
+
+API トークンヘッダー認証と P12 証明書認証をサポートする API 認証。トークン検証手順を含みます。
+
+### console-auth
+
+F5 XC Web コンソールのマルチプロバイダー認証。ログインタイプを自動検出します：ネイティブ F5 XC ログイン、キャッシュされたセッションを使用した Azure SSO、または DUO 認証プッシュ MFA を使用した Azure SSO。
+
+### console-navigator
+
+F5 XC コンソールセクションへの決定論的ナビゲーション。セクション名を URL パスに変換し、セッションの正常性を検証し、ページの読み込みを確認します。
+
+### platform-index / api-index / console-index
+
+ユーザーリクエストを分類し、適切なスキルとエージェントに委任するインテントルーター。これらは自動的にアクティブ化され、ユーザーが直接呼び出すことはできません。
+
+## コマンド
+
+### /check-api-token
+
+```
+/f5xc-platform:check-api-token
+```
+
+api-operator エージェントに委任して F5 XC API トークンを検証します。
+
+### /login-console
+
+```
+/f5xc-platform:login-console
+```
+
+console-operator エージェントを介して F5 Distributed Cloud コンソールに認証します。
+
+## エージェント
+
+### api-operator
+
+リソースの CRUD、トークン検証、および設定操作のために cURL と jq のシーケンスを実行する自律型 REST API エージェント。冗長な API JSON ペイロードをメインセッションコンテキストから除外するために、サブエージェントとして実行されます。
+
+### console-operator
+
+認証、ナビゲーション、およびフォーム操作のために Chrome DevTools MCP ツールシーケンスを実行する自律型ブラウザ自動化エージェント。トークン量の多いブラウザスナップショットをメインセッションから除外するために、サブエージェントとして実行されます。
+
+### config-analyzer
+
+読み取り専用の設定分析エージェント。リソースプロファイルの参照ファイルに基づいて顧客の JSON 設定を分析し、セキュリティ態勢、機能の有効化、モード遷移、およびベストプラクティスに関する質問に回答します。
+
+<Aside type="caution">
+  config-analyzer エージェントは**エフェメラル（一時的）**です &mdash; 各質問ごとに新規に生成され、ディスパッチ間のメモリは保持されません。フォローアップの質問には、ディスパッチプロンプトに圧縮された以前の調査結果を含める必要があります。
+</Aside>

@@ -1,0 +1,47 @@
+---
+title: f5xc-github-ops
+description: >-
+  GitHub-Operations-Automatisierung für Issue-getriebene Entwicklung,
+  PR-Workflows und CI-Überwachung.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 2ba0b437f939
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+Das **f5xc-github-ops**-Plugin bietet exklusive GitHub-Operations-Automatisierung für f5xc-salesdemos-Repositories. Es verwaltet den gesamten Git- und GitHub-Lebenszyklus von der Issue-Erstellung bis zur Post-Merge-Überwachung und setzt Issue-getriebene Entwicklung sowie Pre-Commit-Lint-Gates durch.
+
+<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### workflow-lifecycle
+
+Repository-Governance-Workflow, der Issue-Erstellung, Branch-Namenskonventionen, PR-Erstellung, CI-Polling mit Fehler-Feedback zu Issues, Post-Merge-Überwachung, Verifizierung und Aufgabenabschlusskriterien behandelt. Wird aktiviert, wenn Sie "commit", "push", "create a PR", "merge" sagen oder eine beliebige Git-Operation durchführen.
+
+### upstream-contribution
+
+Upstream-Contribution-Workflow für Fork-basierte Entwicklung. Behandelt Fork-Erkennung, Upstream-Recherche (Issues, PRs, CONTRIBUTING.md, CI-Patterns), Cross-Repo-Issue- und PR-Erstellung, lokales Tracking-Issue-Management, Upstream-CI-Überwachung und geführte Problemlösung.
+
+## Agents
+
+### github-ops
+
+Exklusiver Agent für alle mechanischen Git- und GitHub-Operationen. Behandelt Pre-Commit-Lint-Gates, Issue-Erstellung, Branch-Erstellung, Staging, Commits, Pushing, PR-Erstellung, CI-Polling mit Fehler-Feedback, Infrastruktur-Fehler-Wiederholung, Post-Merge-Überwachung, Branch-Bereinigung und Repository-Einstellungsverwaltung über die GitHub-API.
+
+Gibt strukturierte Statusberichte zurück: `COMPLETE`, `PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` oder `FAILED`.
+
+<Aside type="caution">
+  Dieser Agent ist der **exklusive** Handler für Git-Operationen.
+  Führen Sie niemals `git commit`, `git push` oder `gh pr create` direkt
+  in Repositories aus, die dieses Plugin verwenden.
+</Aside>

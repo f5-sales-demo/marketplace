@@ -1,0 +1,120 @@
+---
+title: Primeiros Passos
+description: >-
+  Guia passo a passo para adicionar o marketplace f5xc-salesdemos e instalar seu
+  primeiro plugin.
+sidebar:
+  order: 2
+i18n:
+  sourceHash: 8b7375e24be2
+  translator: machine
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+Este guia orienta você na adição do marketplace f5xc-salesdemos
+ao Claude Code e na instalação do seu primeiro plugin.
+
+## Pré-requisitos
+
+- Claude Code **v1.0.33** ou posterior (suporte a marketplace de plugins)
+- Uma conta GitHub com acesso à organização
+  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+
+## Instalação
+
+<Steps>
+
+1. **Adicione o marketplace**
+
+   Em qualquer sessão do Claude Code, execute:
+
+   ```
+   /plugin marketplace add f5xc-salesdemos/marketplace
+   ```
+
+   Isso registra o marketplace como uma fonte de plugins. Você só
+   precisa fazer isso uma vez.
+
+2. **Navegue pelos plugins disponíveis**
+
+   Liste o que o marketplace oferece:
+
+   ```
+   /plugin marketplace list f5xc-salesdemos-marketplace
+   ```
+
+3. **Instale um plugin**
+
+   Instale o plugin que você precisa:
+
+   ```
+   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   ```
+
+4. **Use o plugin**
+
+   Navegue até qualquer repositório de conteúdo do f5xc-salesdemos.
+
+   Para **docs tools**, execute o comando de revisão MDX:
+
+   ```
+   /f5xc-docs-tools:review-mdx
+   ```
+
+   Para **sales engineer**, use frases de ativação como
+   "prepare the demo", "run the demo" ou "walk through
+   the demo" — o plugin é ativado automaticamente.
+
+</Steps>
+
+## Atualizando Plugins
+
+Para atualizar um plugin instalado para a versão mais recente:
+
+```
+/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## Desinstalação
+
+Remova um plugin:
+
+```
+/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+Remova o marketplace completamente:
+
+```
+/plugin marketplace remove f5xc-salesdemos-marketplace
+```
+
+## Configuração para Equipe
+
+Para pré-configurar o marketplace para toda a sua equipe, adicione-o
+ao `.claude/settings.json` do seu projeto:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ],
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
+    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip" title="Configurações compartilhadas">
+  Fazer commit do `.claude/settings.json` no seu repositório significa
+  que cada membro da equipe obtém o marketplace e os plugins
+  automaticamente — sem necessidade de configuração manual.
+</Aside>
+
+Isso garante que cada colaborador tenha as mesmas ferramentas disponíveis
+desde sua primeira sessão do Claude Code no repositório.

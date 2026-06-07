@@ -1,0 +1,141 @@
+---
+title: f5xc-docs-tools
+description: f5xc-salesdemos ドキュメントパイプラインのための MDX コンテンツ検証と品質チェック。
+sidebar:
+  order: 4
+i18n:
+  sourceHash: fc8929b2eaae
+  translator: machine
+---
+
+import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+**f5xc-docs-tools** プラグインは、f5xc-salesdemos ドキュメントパイプラインの MDX コンテンツファイルを検証します。裸の JSX 文字、無効なインポート、壊れた画像参照、不完全なフロントマターなど、ビルドを破壊する一般的な問題を CI に到達する前にキャッチします。
+
+<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## インストール
+
+```
+/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+```
+
+## スキル
+
+### mdx-content-reviewer
+
+このスキルは、Claude が f5xc-salesdemos コンテンツリポジトリ内の MDX ファイルを操作していることを検出すると自動的にアクティブになります。7 つの検証チェックを実行します：
+
+<CardGrid>
+  <Card title="フロントマター検証">
+    `title` や `sidebar.order` などの必須フィールドをチェックします。スプラッシュページには `hero` フィールドと `template: splash` が含まれている必要があります。
+  </Card>
+  <Card title="MDX 構文の落とし穴">
+    MDX パースを壊す裸の `&lt;` 文字やエスケープされていない `\{` `\}` 中括弧を検出します。
+  </Card>
+  <Card title="インポート検証">
+    Starlight 組み込みおよび f5xc-salesdemos テーマコンポーネントの許可リストに対してインポートを検証します。
+  </Card>
+  <Card title="コンポーネント属性">
+    Screenshot、Aside、Code、LinkCard、Card、Badge などのコンポーネントの必須 props をチェックします。
+  </Card>
+  <Card title="画像参照">
+    参照された画像が `docs/images/` ディレクトリに存在することを確認します。
+  </Card>
+  <Card title="構造チェック">
+    `docs/index.mdx` が存在し、画像ディレクトリに不要な MDX ファイルが含まれていないことを確認します。
+  </Card>
+  <Card title="エクスポートとコードブロック">
+    `Code` コンポーネントの `code` props で使用される変数に対応するエクスポートがあることを確認します。
+  </Card>
+</CardGrid>
+
+#### スコープの動作
+
+スキルはレビュー範囲をインテリジェントにスコーピングします：
+
+- `docs/**/*.mdx` ファイルにコミットされていない変更やステージされた変更がある場合、それらのファイルのみがレビューされます
+- それ以外の場合は、すべての `docs/**/*.mdx` ファイルがレビューされます
+
+#### 出力形式
+
+検出結果は重大度別にグループ化されます：
+
+- **ERROR** — ビルドを破壊します。マージ前に修正が必要です
+- **WARNING** — 対処すべき可能性の高い問題です
+- **INFO** — 提案とベストプラクティスです
+
+各検出結果には、ファイルパス、行番号、および問題の説明が含まれます。
+
+## コマンド
+
+### /review-mdx
+
+```
+/f5xc-docs-tools:review-mdx [path-or-glob]
+```
+
+`mdx-content-reviewer` スキルをオンデマンドで実行します。
+
+**引数：**
+
+| 引数 | 必須 | 説明 |
+|----------|----------|-------------|
+| `path-or-glob` | いいえ | レビュー範囲を指定するファイルパスまたは glob パターン。デフォルトではすべての `docs/**/*.mdx` ファイルが対象です。 |
+
+**例：**
+
+```
+# docs/ 内のすべての MDX ファイルをレビュー
+/f5xc-docs-tools:review-mdx
+
+# 特定のファイルをレビュー
+/f5xc-docs-tools:review-mdx docs/getting-started.mdx
+
+# glob に一致するファイルをレビュー
+/f5xc-docs-tools:review-mdx docs/guides/*.mdx
+```
+
+**出力：** 最後にレビューされたファイルの合計数と重大度別の検出結果数を報告するサマリー行が表示されます。
+
+## 許可されたインポート
+
+プラグインは以下のソースに対してインポートを検証します：
+
+**Starlight 組み込みコンポーネント** (`@astrojs/starlight/components`):
+
+`Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
+`LinkCard` `Steps` `TabItem` `Tabs`
+
+**f5xc-salesdemos テーマコンポーネント** (`@f5xc-salesdemos/docs-theme/components/`):
+
+`Banner` `Icon` `LinkCard` `Screenshot`
+
+<Aside type="caution">
+  テーマコンポーネントは個別の `.astro` ファイルからのデフォルトインポートを使用します。直接の `node_modules` インポート、相対パス、および `require()` 呼び出しは警告としてフラグされます。
+</Aside>
+
+## コンポーネントクイックリファレンス
+
+| コンポーネント | 必須 Props | オプション Props |
+|-----------|---------------|----------------|
+| Screenshot | `alt` + `light` または `dark` の少なくとも 1 つ | — |
+| Aside | `type` | `title` |
+| Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
+| LinkCard (テーマ) | `title`, `href` | `description`, `icon` |
+| Card | `title` | `icon` |
+| Badge | `text` | `variant` |
+| Steps | — | — |
+| Tabs / TabItem | TabItem: `label` | — |
+| CardGrid | — | — |
+| FileTree | — | — |
+
+## MDX の落とし穴
+
+プラグインがキャッチする一般的な問題：
+
+| 落とし穴 | 問題 | 修正方法 |
+|---------|---------|-----|
+| 裸の `&lt;` | MDX が JSX タグとして解釈する | `&amp;lt;`、インラインコード、または表現の変更を使用 |
+| エスケープされていない `\{` `\}` | MDX が JSX 式として扱う | インラインコードの使用、`\` でエスケープ、またはコードブロックを使用 |
+| ファイル名内の中括弧 | Astro がファイルを処理できない | `.mdx` ファイル名に `\{` や `\}` を絶対に使用しない |

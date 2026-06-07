@@ -1,0 +1,201 @@
+---
+title: osint-framework
+description: >-
+  แคตตาล็อกเครื่องมือ OSINT และทักษะการสืบสวนพร้อมเครื่องมือรวบรวมข่าวกรอง 1,064
+  รายการใน 34 หมวดหมู่
+sidebar:
+  order: 12
+i18n:
+  sourceHash: 79499aa33fc5
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+ปลั๊กอิน **osint-framework** มอบแคตตาล็อกเครื่องมือ OSINT และ
+ทักษะการสืบสวน — เครื่องมือรวบรวมข่าวกรองแบบฟรี 1,064 รายการ
+ใน 34 หมวดหมู่ที่แมปมาจาก [osintframework.com](https://osintframework.com)
+ประกอบด้วยทักษะตามหมวดหมู่ ไปป์ไลน์การสืบสวนที่สามารถดำเนินการได้
+การรันเครื่องมือ CLI เวิร์กโฟลว์ที่คำนึงถึง OPSEC และกราฟเอนทิตี
+แบบถาวรสำหรับการเชื่อมโยงข้ามการสืบสวน
+
+<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+
+## การติดตั้ง
+
+```
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+```
+
+## คำสั่ง
+
+### /osint-investigate
+
+รันการสืบสวน OSINT แบบเต็มรูปแบบกับเป้าหมายใดก็ได้ ตรวจจับประเภท
+เป้าหมายโดยอัตโนมัติ (อีเมล โดเมน IP ชื่อผู้ใช้ บริษัท
+ชื่อบุคคล) และส่งต่อไปยังทักษะหมวดหมู่ที่ถูกต้อง
+
+```
+/osint-investigate j.smith@example.com
+/osint-investigate example.com
+/osint-investigate 198.51.100.1
+/osint-investigate example-user
+```
+
+### /osint-search
+
+ค้นหาแคตตาล็อกเครื่องมือสำหรับเครื่องมือที่ตรงกับคำค้นหาความสามารถ
+
+```
+/osint-search subdomain enumeration
+/osint-search email breach check
+/osint-search satellite imagery
+```
+
+### /osint-catalog
+
+เรียกดูแคตตาล็อกเครื่องมือทั้งหมดตามหมวดหมู่ หากไม่ระบุอาร์กิวเมนต์
+จะแสดงทั้ง 34 หมวดหมู่พร้อมจำนวนเครื่องมือ
+
+```
+/osint-catalog
+/osint-catalog domain
+/osint-catalog threat-intel
+```
+
+## ทักษะ
+
+### osint-index
+
+ตัวกำหนดเส้นทางเจตนาระดับบนสุด เปิดใช้งานอัตโนมัติเมื่อคุณพูดว่า "find
+information about", "investigate", "look up", "background check"
+หรืออธิบายงานข่าวกรองจากแหล่งเปิดใดๆ ส่งต่อไปยัง
+ทักษะหมวดหมู่ที่ถูกต้องตามประเภทเป้าหมาย
+
+| เป้าหมาย | ส่งต่อไปยัง |
+|--------|----------|
+| ชื่อผู้ใช้หรือแฮนเดิล | `username-recon` |
+| ที่อยู่อีเมล | `email-recon` |
+| ชื่อโดเมน | `domain-recon` |
+| ที่อยู่ IP | `ip-address-recon` |
+| ชื่อบุคคล + บริษัท | `people-search` + `business-records` |
+| บริษัท / องค์กร | `business-records` + `domain-recon` |
+| แฮชมัลแวร์ | `malicious-file-analysis` + `threat-intelligence` |
+
+### ทักษะหมวดหมู่ (ทั้งหมด 34 รายการ)
+
+แต่ละหมวดหมู่มีทักษะเฉพาะพร้อมเครื่องมือ CLI ทรัพยากรเว็บ
+เวิร์กโฟลว์การสืบสวน การเชื่อมต่อข้ามหมวดหมู่ และหมายเหตุ OPSEC
+
+| หมวดหมู่ | เครื่องมือ | เครื่องมือ CLI หลัก |
+|----------|-------|--------------|
+| `username-recon` | 18 | sherlock, maigret, sylva |
+| `email-recon` | 28 | holehe, h8mail, theHarvester |
+| `domain-recon` | 131 | subfinder, amass, whois, dig |
+| `cloud-recon` | 23 | cloud_enum, S3Scanner, ScoutSuite |
+| `ip-address-recon` | 55 | nmap, masscan, checkip |
+| `images-videos` | 89 | exiftool, exiv2, yt-dlp |
+| `social-networks` | 63 | maigret, yt-dlp, Osintgram |
+| `threat-intelligence` | 38 | iocextract, ioc_parser, pymisp |
+| `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
+| `search-engines` | 73 | gitleaks, pagodo, gobuster |
+| `geolocation` | 47 | Hyperlapse |
+| `opsec` | 47 | เครื่องมือความเป็นส่วนตัวบนเว็บ 47 รายการ |
+| `people-search` | 18 | GitHub API, GitLab API |
+| `business-records` | 28 | SEC EDGAR, OpenCorporates |
+| *(อีก 20 หมวดหมู่)* | 500+ | — |
+
+<Aside type="tip">
+  ใช้ `/osint-catalog` เพื่อเรียกดูทั้ง 34 หมวดหมู่ หรือ
+  `/osint-search <capability>` เพื่อค้นหาเครื่องมือสำหรับงานเฉพาะ
+</Aside>
+
+### osint-catalog
+
+ตัวเรียกดูแคตตาล็อกเครื่องมือ ให้การเข้าถึงรีจิสทรีเครื่องมือทั้งหมด
+ดัชนีหมวดหมู่ ไปป์ไลน์การสืบสวน ข้อมูลอ้างอิงขีดจำกัดอัตรา
+และเอกสารประกอบเอนจินเชื่อมโยง
+
+## เอเจนต์
+
+### osint-investigator
+
+ตัวประสานงานการสืบสวนหลายเครื่องมือแบบอัตโนมัติ รันเวิร์กโฟลว์
+การสืบสวนแบบเต็มรูปแบบ — ตรวจสอบความพร้อมของเครื่องมือ ตรวจจับ
+ประเภทเป้าหมาย รันเครื่องมือตามลำดับ (แบบ passive ก่อน) รวบรวม
+ผลลัพธ์ และสร้างรายงานแบบมีโครงสร้างพร้อมระดับความเชื่อมั่น
+และการจำแนก OPSEC
+
+ผสานรวมกับกราฟเอนทิตี: ผลลัพธ์ของแต่ละเครื่องมือจะสร้างเอนทิตี
+และความสัมพันธ์ใน `/tmp/osint-graph/` สำหรับการเชื่อมโยงข้ามการสืบสวน
+
+<Aside type="caution">
+  เครื่องมือ active recon (nmap, nuclei, sherlock) จะติดต่อโดยตรง
+  กับโครงสร้างพื้นฐานของเป้าหมาย hook แจ้งเตือน OPSEC จะแจ้งก่อน
+  รันเครื่องมือแบบ active ตรวจสอบให้แน่ใจเสมอว่าคุณได้รับอนุญาตแล้ว
+</Aside>
+
+### osint-researcher
+
+เอเจนต์ค้นหาแคตตาล็อกแบบอ่านอย่างเดียว ค้นหาไฟล์อ้างอิงเพื่อ
+แนะนำเครื่องมือที่ดีที่สุดสำหรับงานที่กำหนด ไม่เคยรันเครื่องมือ —
+แนะนำและอธิบายเท่านั้น ใช้ภายในโดยทักษะหมวดหมู่
+สำหรับการค้นพบเครื่องมือ
+
+### osint-executor
+
+เอเจนต์รัน CLI เครื่องมือทีละตัว รันเครื่องมือทีละหนึ่งตัวด้วย
+พารามิเตอร์เฉพาะ แยกวิเคราะห์ผลลัพธ์ และส่งคืนผลลัพธ์แบบมีโครงสร้าง
+รวมถึงสูตรการรันเครื่องมือสำหรับเครื่องมือมากกว่า 20 ตัวพร้อมแฟล็กที่แน่นอน
+รูปแบบผลลัพธ์ และรูปแบบการแยกวิเคราะห์ด้วย jq
+
+## การจำกัดอัตรา
+
+การเรียก API ทั้งหมดใช้ตัวช่วย `osint_curl` พร้อม exponential
+backoff ในตัวสำหรับ HTTP 429/503 ขีดจำกัดหลัก:
+
+| API | ขีดจำกัดฟรี | ตัวแปรสภาพแวดล้อม |
+|-----|-----------|---------|
+| ipinfo.io | 1,000/วัน | — |
+| crt.sh | 60/นาที | — |
+| NVD | 5/30วินาที (ไม่มีคีย์) | `NVD_API_KEY` |
+| OpenCorporates | ต้องใช้คีย์ | `OPENCORPORATES_API_KEY` |
+| Shodan | 1/วินาที | `SHODAN_API_KEY` |
+| GitHub API | 60/ชั่วโมง (ไม่มี auth) | `GH_TOKEN` |
+
+API ที่ต้องใช้คีย์จะถูกข้ามโดยอัตโนมัติพร้อมข้อความแจ้งชัดเจน
+หากไม่ได้ตั้งค่าตัวแปรสภาพแวดล้อม
+
+## เอนจินเชื่อมโยง
+
+ปลั๊กอินมีกราฟเอนทิตี JSON แบบถาวรที่
+`/tmp/osint-graph/` ซึ่งสะสมข้อค้นพบจากการสืบสวนต่างๆ
+
+```bash
+source plugins/osint-framework/scripts/osint-graph.sh
+osint_graph_init
+
+# เพิ่มเอนทิตี
+P=$(osint_entity_add "person" "J. Smith" --tool github-api)
+C=$(osint_entity_add "company" "F5" --tool github-api)
+
+# เชื่อมโยง
+osint_rel_add "$P" "$C" "works_at" --tool github-api
+
+# สอบถาม: เอนทิตีทั้งหมดภายใน 2 ฮ็อปจากบุคคล
+osint_graph_query "$P" 2
+
+# สร้างรายงาน
+osint_graph_report
+```
+
+**การให้คะแนนความเชื่อมั่น** ใช้การรวมหลายแหล่ง:
+`confidence = 1 - product(1 - ci)` สำหรับแต่ละแหล่งที่ยืนยัน
+สองแหล่งที่ 0.80 → ความเชื่อมั่นรวม 0.96
+
+## ข้อความทางกฎหมาย
+
+เครื่องมือทั้งหมดใช้เฉพาะข้อมูลที่เปิดเผยต่อสาธารณะเท่านั้น ผู้ใช้
+มีหน้าที่รับผิดชอบในการปฏิบัติตามกฎหมาย กฎระเบียบ และข้อกำหนด
+การให้บริการของแพลตฟอร์มที่เกี่ยวข้อง ห้ามใช้เครื่องมือ OSINT
+เพื่อการเข้าถึงโดยไม่ได้รับอนุญาต การคุกคาม หรือกิจกรรมที่ผิดกฎหมายใดๆ

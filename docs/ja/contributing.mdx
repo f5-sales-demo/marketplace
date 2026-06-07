@@ -1,0 +1,155 @@
+---
+title: プラグインの貢献
+description: f5xc-salesdemos マーケットプレイス向けのプラグインの作成、構成、公開に関するガイド。
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 36a56024cade
+  translator: machine
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+このガイドでは、新しいプラグインを作成し、f5xc-salesdemos マーケットプレイスに追加する方法を説明します。
+
+## プラグインの構成
+
+すべてのプラグインは `plugins/` 配下の個別のディレクトリに配置され、以下の構成に従います：
+
+<FileTree>
+- plugins/
+  - my-plugin/
+    - .claude-plugin/
+      - plugin.json
+    - skills/
+      - my-skill/
+        - SKILL.md
+        - references/
+          - reference-data.md
+    - commands/
+      - my-command.md
+    - agents/
+      - my-agent.md
+    - README.md
+</FileTree>
+
+## プラグインの作成
+
+<Steps>
+
+1. **プラグインディレクトリを作成する**
+
+   ```bash
+   mkdir -p plugins/my-plugin/.claude-plugin
+   mkdir -p plugins/my-plugin/skills
+   mkdir -p plugins/my-plugin/commands
+   ```
+
+2. **`plugin.json` を記述する**
+
+   `plugins/my-plugin/.claude-plugin/plugin.json` を作成します：
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": {
+       "name": "f5xc-salesdemos"
+     },
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "keywords": ["relevant", "keywords"],
+     "license": "Apache-2.0",
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+3. **スキルを追加する**
+
+   フロントマター付きで `plugins/my-plugin/skills/my-skill/SKILL.md` を作成します：
+
+   ```markdown
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   ---
+
+   Detailed instructions for Claude when this skill activates.
+   ```
+
+   参照データは `SKILL.md` と同階層の `references/` サブディレクトリに配置します。
+
+4. **コマンドを追加する**
+
+   `plugins/my-plugin/commands/my-command.md` を作成します：
+
+   ```markdown
+   ---
+   description: What this command does
+   argument_hint: "[optional-args]"
+   allowed_tools:
+     - Read
+     - Glob
+     - Grep
+   ---
+
+   Instructions for Claude when the user invokes this command.
+   ```
+
+5. **プラグインを marketplace.json に追加する**
+
+   `.claude-plugin/marketplace.json` の `plugins` 配列にエントリを追加します：
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": { "name": "f5xc-salesdemos" },
+     "source": "./plugins/my-plugin",
+     "category": "productivity",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "license": "Apache-2.0",
+     "keywords": ["relevant", "keywords"],
+     "tags": ["searchable", "tags"],
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+6. **ローカルでテストする**
+
+   公開せずにプラグインをテストするには、Claude Code をローカルディレクトリに向けて実行します：
+
+   ```bash
+   claude --plugin-dir ./plugins/my-plugin
+   ```
+
+   スキルが適切なコンテキストで有効化されること、およびコマンドが期待どおりの出力を生成することを確認します。
+
+</Steps>
+
+## プラグインの提出
+
+<Aside type="tip" title="リポジトリワークフロー">
+  このリポジトリでは厳格なガバナンスワークフローが適用されています。
+  完全なプロセスについては [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md) を参照してください。
+</Aside>
+
+<Steps>
+
+1. 新しいプラグインを説明する GitHub Issue を作成する
+2. `main` からフィーチャーブランチを作成する
+3. プラグインディレクトリを追加し、`marketplace.json` を更新する
+4. `docs/plugins/my-plugin.mdx` にドキュメントページを追加する
+5. `Closes #N` で Issue にリンクする PR を作成する
+6. CI の失敗を修正し、チェックが通ったらマージする
+
+</Steps>
+
+## ベストプラクティス
+
+- **スキルは焦点を絞る** — 1つのスキルは1つのことをうまくこなすべきです
+- **参照ファイルを使用する** — 大規模なデータセット、スキーマ、ルックアップテーブルは SKILL.md にインラインで記述するのではなく、`references/` に配置してください
+- **スコープをインテリジェントに設定する** — 可能な場合はコミットされていない変更を確認し、作業セットを絞り込んでください
+- **重要度別に出力をグループ化する** — ユーザーが修正の優先順位を付けられるよう、ERROR、WARNING、INFO のレベルを使用してください
+- **README を記述する** — 使用例と、各スキルおよびコマンドの説明を含めてください
