@@ -1,0 +1,45 @@
+---
+title: f5xc-docs-pipeline
+description: 適用於多儲存庫建置、內容撰寫及本機預覽的文件管線架構知識。
+sidebar:
+  order: 8
+i18n:
+  sourceHash: 858155aa1d2f
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-docs-pipeline** 外掛為 f5xc-salesdemos 儲存庫提供文件管線架構知識。它引導內容撰寫、釐清多儲存庫建置中的設定檔所有權，並提供基於 Docker 的本機預覽功能。
+
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 安裝
+
+```
+/plugin install f5xc-docs-pipeline@f5xc-salesdemos-marketplace
+```
+
+## 技能
+
+### content-author
+
+內容撰寫指南，涵蓋檔案結構、MDX 語法規則、frontmatter 需求、圖片參照及本機 Docker 預覽。在建立或編輯 `docs/` 內容、處理 MDX 檔案或設定本機預覽時會啟用。
+
+### pipeline-navigator
+
+文件管線架構說明，解釋在四個上游儲存庫中應於何處進行變更：docs-theme、docs-builder、docs-control 和 docs-icons。釐清設定檔所有權（`astro.config.mjs`、`content.config.ts`）、發布調度鏈及受管理檔案的追蹤機制。
+
+<Aside type="tip">
+  當您需要了解特定設定檔或元件由哪個儲存庫所擁有時，請使用 pipeline-navigator。
+</Aside>
+
+## 指令
+
+### /preview-docs
+
+```
+/f5xc-docs-pipeline:preview-docs
+```
+
+啟動本機 Docker 開發伺服器以預覽文件。使用共用的 Docker 建置映像，並掛載您本機的 `docs/` 目錄以進行即時預覽。

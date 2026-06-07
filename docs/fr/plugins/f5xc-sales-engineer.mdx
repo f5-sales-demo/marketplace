@@ -1,0 +1,121 @@
+---
+title: f5xc-sales-engineer
+description: >-
+  Cadre de persona Ingénieur Avant-Vente pour l'exécution de démos, les
+  présentations, les sessions Q&R et le démontage.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: aa053700ebd2
+  translator: machine
+---
+
+import { Aside, Badge, Steps } from '@astrojs/starlight/components';
+
+Le plugin **f5xc-sales-engineer** fournit un cadre réutilisable de persona
+Ingénieur Avant-Vente pour les dépôts de démo F5 XC. Il gère l'intégralité
+du cycle de vie d'une réunion de démonstration — de la vérification
+pré-réunion à l'exécution en direct, en passant par les sessions Q&R
+et le démontage.
+
+<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## Compétences
+
+### demo-executor
+
+Exécution de démo pilotée par API avec un cycle de vie de réunion en quatre étapes :
+
+1. **Préparation** — vérification pré-réunion de l'environnement via
+   l'agent `demo-housekeeping`
+2. **Exécution** — exécution déterministe des phases avec narration
+   orientée client
+3. **Q&R** — mode d'improvisation avec l'environnement en direct
+4. **Démontage** — nettoyage post-réunion via l'agent `demo-housekeeping`
+
+Lit le contenu spécifique au produit depuis `DEMO_PRODUCT_EXPERTISE.md` et les
+commandes de démo depuis `docs/demo/`.
+
+### presenter
+
+Présentation pas-à-pas de l'architecture existante utilisant un environnement
+de démo préconfiguré. Suit un schéma montrer → narrer → relier → pause à
+chaque étape. Lit l'ordre de parcours depuis `DEMO_WALKTHROUGH_CONFIG.md`.
+
+### subject-matter-expert
+
+Q&R appuyée sur des références avec des exigences strictes de citation. Ne
+devine jamais — chaque réponse inclut une référence ou une preuve. Délègue
+la recherche à l'agent `demo-researcher` si nécessaire.
+
+### sales-engineer
+
+Index de rôle qui dirige l'intention de l'utilisateur vers la compétence
+persona appropriée. S'active lorsque la requête est liée à une démo mais
+ne correspond pas à une phrase de déclenchement spécifique.
+
+## Agents
+
+### demo-housekeeping
+
+Agent autonome pour la vérification pré-réunion et le démontage
+post-réunion. Exécute la Matrice de Vérification de Disponibilité (T0–T5)
+définie dans `DEMO_READINESS_MATRIX.md` et exécute les commandes de
+démontage depuis `docs/demo/phase-4-teardown.mdx`.
+
+### demo-researcher
+
+Bibliothécaire de recherche en lecture seule qui trouve des réponses
+vérifiées avec citations. Recherche d'abord dans les `docs/` locaux,
+puis dans les sources externes indexées depuis `DEMO_SOURCE_INDEX.md`,
+avec WebSearch en solution de repli.
+
+## Fichiers de convention
+
+<Aside type="tip" title="Contenu spécifique au produit">
+  Ce plugin est agnostique au produit. Chaque dépôt fournit
+  du contenu spécifique au produit via des fichiers de convention standardisés.
+</Aside>
+
+Créez ces fichiers à la racine de votre dépôt pour configurer le plugin :
+
+| Fichier | Objectif | Requis pour |
+| ---- | ------- | ------------ |
+| `DEMO_PRODUCT_EXPERTISE.md` | Capacités produit, signaux de détection, couverture des menaces, alignement conformité, référence API | Toutes les compétences |
+| `DEMO_WALKTHROUGH_CONFIG.md` | URL de l'application de démo, ordre de parcours, timing de détection | presenter |
+| `DEMO_SOURCE_INDEX.md` | Catalogue de sources de recherche avec docs locaux et URLs externes | demo-researcher |
+| `DEMO_READINESS_MATRIX.md` | Variables requises/optionnelles, vérifications de disponibilité (T0–T5), points de terminaison API | demo-housekeeping |
+| `docs/demo/` | Fichiers de phases avec commandes cURL et points de contrôle de preuve | demo-executor |
+
+## Phrases de déclenchement
+
+La carte de déclenchement `.claude/CLAUDE.md` (gérée par `docs-control`)
+active les compétences en fonction de l'intention de l'utilisateur :
+
+| Phrase | Compétence | Étape |
+| ------ | ----- | ----- |
+| "run the demo", "execute the demo" | demo-executor | Exécution |
+| "prepare the demo", "pre-flight" | demo-executor | Préparation |
+| "Q&A", "question and answer" | demo-executor | Q&R |
+| "tear down", "clean up" | demo-executor | Démontage |
+| "walk through the demo", "present" | presenter | — |
+| "answer questions", "explain" | subject-matter-expert | — |
+
+## Style de narration
+
+Tous les personas partagent un style de narration cohérent :
+
+- **Présent, première personne du pluriel** — « Ce que nous voyons
+  ici… »
+- **Une préoccupation par paragraphe** — chaque narration répond à : Qu'est-ce
+  que c'est ? Pourquoi est-ce important ? Que dois-je faire à ce sujet ?
+- **Nommer le signal** — indiquer quelle capacité est à l'œuvre
+- **Ancrage conformité si pertinent** — mentionner l'alignement réglementaire
+  naturellement
+- **Marqueur de pause de rythme** — `> ⏸ *[Pause pour l'audience — prêt à continuer ?]*`

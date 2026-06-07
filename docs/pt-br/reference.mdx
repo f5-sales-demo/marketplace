@@ -1,0 +1,192 @@
+---
+title: Referência
+description: >-
+  Referência do esquema marketplace.json com definições de campos, configuração
+  de skills e regras de validação.
+sidebar:
+  order: 7
+  label: Referência
+i18n:
+  sourceHash: 15be095fe190
+  translator: machine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Esquema marketplace.json
+
+O manifesto do marketplace está localizado em
+`.claude-plugin/marketplace.json` na raiz do repositório.
+
+### Campos de nível superior
+
+| Campo | Obrigatório | Descrição |
+|-------|-------------|-----------|
+| `$schema` | Não | URL do JSON Schema para validação |
+| `name` | Sim | Identificador único do marketplace |
+| `version` | Não | Versão do esquema do marketplace (semver) |
+| `metadata.description` | Sim | Descrição legível do marketplace |
+| `owner.name` | Sim | Organização ou usuário proprietário do marketplace |
+| `owner.url` | Não | URL para o perfil ou site do proprietário |
+| `owner.email` | Não | E-mail de contato |
+| `plugins` | Sim | Array de entradas de plugins |
+
+### Campos de entrada de plugin
+
+| Campo | Obrigatório | Descrição |
+|-------|-------------|-----------|
+| `name` | Sim | Identificador do plugin (deve corresponder ao `plugin.json`) |
+| `description` | Sim | Descrição curta do plugin |
+| `version` | Sim | String de versão semântica |
+| `author.name` | Sim | Autor do plugin |
+| `source` | Sim | Caminho ou URL para o plugin (veja Tipos de Source) |
+| `category` | Sim | Categoria do plugin (ex.: `productivity`) |
+| `homepage` | Não | URL para documentação ou página inicial do plugin |
+| `license` | Não | Identificador de licença SPDX |
+| `keywords` | Não | Array de palavras-chave de busca |
+| `tags` | Não | Array de tags para filtragem |
+| `repository` | Não | URL do repositório |
+
+## Tipos de Source de Plugin
+
+O campo `source` no marketplace.json suporta múltiplos
+formatos:
+
+| Tipo | Exemplo | Descrição |
+|------|---------|-----------|
+| Caminho relativo | `./plugins/my-plugin` | Plugin no mesmo repositório |
+| Abreviação GitHub | `owner/repo` | Plugin na raiz do repositório |
+| GitHub com caminho | `owner/repo/path/to/plugin` | Plugin em subdiretório |
+| URL Git | `https://github.com/owner/repo.git` | Repositório Git |
+| Pacote npm | `npm:@scope/package` | Pacote npm publicado |
+
+## Esquema plugin.json
+
+Cada plugin possui um manifesto em
+`.claude-plugin/plugin.json` dentro do seu diretório.
+
+| Campo | Obrigatório | Descrição |
+|-------|-------------|-----------|
+| `name` | Sim | Identificador do plugin |
+| `description` | Sim | O que o plugin faz |
+| `version` | Sim | Versão semântica |
+| `author.name` | Sim | Autor do plugin |
+| `author.url` | Não | URL para o perfil ou site do autor |
+| `homepage` | Não | URL da documentação |
+| `keywords` | Não | Palavras-chave de busca |
+| `license` | Não | Identificador de licença SPDX |
+| `repository` | Não | URL do repositório |
+
+## Estrutura de Diretório do Plugin
+
+```
+plugins/my-plugin/
+  .claude-plugin/
+    plugin.json          # Plugin manifest (required)
+  skills/
+    skill-name/
+      SKILL.md           # Skill definition (required per skill)
+      references/        # Reference data files (optional)
+  commands/
+    command-name.md      # Command definition (one per command)
+  agents/
+    agent-name.md        # Agent definition (one per agent)
+  README.md              # Plugin documentation (recommended)
+```
+
+## Variáveis de Ambiente
+
+Os plugins podem usar estas variáveis em seus arquivos de
+skill e comando:
+
+| Variável | Descrição |
+|----------|-----------|
+| `$\{CLAUDE_PLUGIN_ROOT\}` | Caminho absoluto para o diretório raiz do plugin |
+
+## Validação
+
+Valide seus manifestos de marketplace e plugin localmente:
+
+```bash
+claude plugin validate .
+```
+
+Isto verifica:
+
+- Conformidade do `marketplace.json` com o esquema
+- Todos os diretórios de plugin referenciados existem
+- Cada plugin possui um `plugin.json` válido
+- Skills possuem frontmatter `SKILL.md` formatado corretamente
+- Comandos possuem campos de frontmatter obrigatórios
+
+## Configuração de Equipe
+
+### Pré-configurando marketplaces
+
+Adicione ao `.claude/settings.json` em qualquer repositório:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ]
+}
+```
+
+### Pré-habilitando plugins
+
+```json
+{
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip">
+  Fazer commit dessas configurações no seu repositório garante que cada
+  membro da equipe receba a mesma configuração de marketplace e plugins
+  automaticamente.
+</Aside>
+
+## Solução de Problemas
+
+### Marketplace não encontrado
+
+Verifique se o marketplace foi adicionado:
+
+```
+/plugin marketplace list
+```
+
+Se estiver ausente, adicione-o novamente:
+
+```
+/plugin marketplace add f5xc-salesdemos/marketplace
+```
+
+### Plugin não ativando
+
+- Confirme que o plugin está instalado:
+  `/plugin list`
+- Verifique se sua versão do Claude Code suporta plugins
+  (v1.0.33+)
+- Verifique se as condições de acionamento da skill correspondem ao seu
+  contexto atual
+
+### Skills não acionando automaticamente
+
+As skills são ativadas com base no campo `description` no
+frontmatter do SKILL.md. Se uma skill não está sendo ativada quando
+esperado:
+
+- Verifique se a descrição descreve com precisão o
+  contexto de acionamento
+- Use o comando diretamente (ex.: `/f5xc-docs-tools:review-mdx`)
+  como alternativa
+
+### Erros de build após revisão
+
+O plugin reporta problemas, mas não os corrige automaticamente. Aplique
+as correções sugeridas manualmente e, em seguida, execute novamente a revisão para
+confirmar a resolução.

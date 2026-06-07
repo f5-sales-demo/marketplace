@@ -1,0 +1,119 @@
+---
+title: البدء
+description: دليل خطوة بخطوة لإضافة سوق f5xc-salesdemos وتثبيت أول إضافة لك.
+sidebar:
+  order: 2
+  label: البدء
+i18n:
+  sourceHash: 8b7375e24be2
+  translator: machine
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+يرشدك هذا الدليل خلال إضافة سوق f5xc-salesdemos
+إلى Claude Code وتثبيت أول إضافة لك.
+
+## المتطلبات الأساسية
+
+- Claude Code **الإصدار 1.0.33** أو أحدث (دعم سوق الإضافات)
+- حساب GitHub مع صلاحية الوصول إلى منظمة
+  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+
+## التثبيت
+
+<Steps>
+
+1. **إضافة السوق**
+
+   في أي جلسة Claude Code، قم بتشغيل:
+
+   ```
+   /plugin marketplace add f5xc-salesdemos/marketplace
+   ```
+
+   يؤدي هذا إلى تسجيل السوق كمصدر للإضافات. تحتاج إلى
+   القيام بذلك مرة واحدة فقط.
+
+2. **تصفح الإضافات المتاحة**
+
+   اعرض قائمة بما يقدمه السوق:
+
+   ```
+   /plugin marketplace list f5xc-salesdemos-marketplace
+   ```
+
+3. **تثبيت إضافة**
+
+   قم بتثبيت الإضافة التي تحتاجها:
+
+   ```
+   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   ```
+
+4. **استخدام الإضافة**
+
+   انتقل إلى أي مستودع محتوى خاص بـ f5xc-salesdemos.
+
+   بالنسبة لـ **أدوات التوثيق**، قم بتشغيل أمر مراجعة MDX:
+
+   ```
+   /f5xc-docs-tools:review-mdx
+   ```
+
+   بالنسبة لـ **مهندس المبيعات**، استخدم عبارات التفعيل مثل
+   "prepare the demo" أو "run the demo" أو "walk through
+   the demo" — تُفعَّل الإضافة تلقائيًا.
+
+</Steps>
+
+## تحديث الإضافات
+
+لتحديث إضافة مثبتة إلى أحدث إصدار:
+
+```
+/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## إلغاء التثبيت
+
+إزالة إضافة:
+
+```
+/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+إزالة السوق بالكامل:
+
+```
+/plugin marketplace remove f5xc-salesdemos-marketplace
+```
+
+## إعداد الفريق
+
+لإعداد السوق مسبقًا لفريقك بالكامل، أضفه
+إلى ملف `.claude/settings.json` الخاص بمشروعك:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ],
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
+    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip" title="الإعدادات المشتركة">
+  إيداع ملف `.claude/settings.json` في مستودعك يعني
+  أن كل عضو في الفريق يحصل على السوق والإضافات
+  تلقائيًا — دون الحاجة إلى إعداد يدوي.
+</Aside>
+
+يضمن هذا أن كل مساهم لديه نفس الأدوات المتاحة
+منذ أول جلسة Claude Code له في المستودع.

@@ -1,0 +1,150 @@
+---
+title: f5xc-docs-tools
+description: التحقق من محتوى MDX وفحوصات الجودة لخط أنابيب توثيق f5xc-salesdemos.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: fc8929b2eaae
+  translator: machine
+---
+
+import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+يتحقق إضافة **f5xc-docs-tools** من ملفات محتوى MDX لخط أنابيب توثيق f5xc-salesdemos. يكتشف المشكلات الشائعة التي تتسبب في كسر البناء قبل وصولها إلى CI، بما في ذلك أحرف JSX العارية والاستيرادات غير الصالحة ومراجع الصور المعطلة والبيانات الوصفية الأمامية غير المكتملة.
+
+<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## التثبيت
+
+```
+/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+```
+
+## المهارات
+
+### mdx-content-reviewer
+
+تُفعَّل هذه المهارة تلقائياً عندما يكتشف Claude أنك تعمل مع ملفات MDX في مستودع محتوى f5xc-salesdemos. تُجري سبعة فحوصات للتحقق:
+
+<CardGrid>
+  <Card title="التحقق من البيانات الوصفية الأمامية">
+    يتحقق من الحقول المطلوبة مثل `title` و `sidebar.order`.
+    يجب أن تتضمن صفحات البداية حقول `hero` و
+    `template: splash`.
+  </Card>
+  <Card title="مشكلات صيغة MDX">
+    يكتشف أحرف `&lt;` العارية والأقواس المتعرجة `\{` `\}`
+    غير المحمية التي تكسر تحليل MDX.
+  </Card>
+  <Card title="التحقق من الاستيرادات">
+    يتحقق من الاستيرادات مقابل قائمة مسموح بها من مكونات
+    Starlight المدمجة ومكونات سمة f5xc-salesdemos.
+  </Card>
+  <Card title="خصائص المكونات">
+    يتحقق من الخصائص المطلوبة لمكونات مثل Screenshot و
+    Aside و Code و LinkCard و Card و Badge.
+  </Card>
+  <Card title="مراجع الصور">
+    يتحقق من وجود الصور المُشار إليها في دليل `docs/images/`.
+  </Card>
+  <Card title="فحوصات البنية">
+    يتأكد من وجود `docs/index.mdx` وأن أدلة الصور
+    لا تحتوي على ملفات MDX شاردة.
+  </Card>
+  <Card title="التصدير وكتل الشفرة">
+    يتحقق من أن المتغيرات المستخدمة في خصائص `code`
+    لمكون `Code` لها تصديرات مطابقة.
+  </Card>
+</CardGrid>
+
+#### سلوك تحديد النطاق
+
+تُحدد المهارة نطاق مراجعتها بذكاء:
+
+- إذا كانت هناك تغييرات غير مُلتزم بها أو مُرحَّلة في ملفات `docs/**/*.mdx`، تتم مراجعة تلك الملفات فقط
+- وإلا، تتم مراجعة جميع ملفات `docs/**/*.mdx`
+
+#### تنسيق المخرجات
+
+تُجمَّع النتائج حسب الخطورة:
+
+- **خطأ** — سيكسر البناء؛ يجب إصلاحه قبل الدمج
+- **تحذير** — مشكلات محتملة ينبغي معالجتها
+- **معلومة** — اقتراحات وأفضل الممارسات
+
+تتضمن كل نتيجة مسار الملف ورقم السطر ووصفاً للمشكلة.
+
+## الأوامر
+
+### /review-mdx
+
+```
+/f5xc-docs-tools:review-mdx [path-or-glob]
+```
+
+يُشغِّل مهارة `mdx-content-reviewer` عند الطلب.
+
+**المعاملات:**
+
+| المعامل | مطلوب | الوصف |
+|----------|----------|-------------|
+| `path-or-glob` | لا | مسار ملف أو نمط glob لتحديد نطاق المراجعة. الافتراضي هو جميع ملفات `docs/**/*.mdx`. |
+
+**أمثلة:**
+
+```
+# مراجعة جميع ملفات MDX في docs/
+/f5xc-docs-tools:review-mdx
+
+# مراجعة ملف محدد
+/f5xc-docs-tools:review-mdx docs/getting-started.mdx
+
+# مراجعة الملفات المطابقة لنمط glob
+/f5xc-docs-tools:review-mdx docs/guides/*.mdx
+```
+
+**المخرجات:** سطر ملخص في النهاية يُظهر إجمالي الملفات المُراجَعة وعدد النتائج حسب الخطورة.
+
+## الاستيرادات المسموح بها
+
+يتحقق الإضافة من الاستيرادات مقابل هذه المصادر:
+
+**مكونات Starlight المدمجة** (`@astrojs/starlight/components`):
+
+`Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
+`LinkCard` `Steps` `TabItem` `Tabs`
+
+**مكونات سمة f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+
+`Banner` `Icon` `LinkCard` `Screenshot`
+
+<Aside type="caution">
+  تستخدم مكونات السمة استيرادات افتراضية من ملفات `.astro`
+  فردية. يتم تمييز استيرادات `node_modules` المباشرة والمسارات
+  النسبية واستدعاءات `require()` كتحذيرات.
+</Aside>
+
+## مرجع سريع للمكونات
+
+| المكون | الخصائص المطلوبة | الخصائص الاختيارية |
+|-----------|---------------|----------------|
+| Screenshot | `alt` + واحدة على الأقل من `light` أو `dark` | — |
+| Aside | `type` | `title` |
+| Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
+| LinkCard (السمة) | `title`, `href` | `description`, `icon` |
+| Card | `title` | `icon` |
+| Badge | `text` | `variant` |
+| Steps | — | — |
+| Tabs / TabItem | TabItem: `label` | — |
+| CardGrid | — | — |
+| FileTree | — | — |
+
+## مشكلات MDX الشائعة
+
+المشكلات الشائعة التي يكتشفها الإضافة:
+
+| المشكلة | السبب | الحل |
+|---------|---------|-----|
+| `&lt;` عارية | يُفسرها MDX كوسم JSX | استخدم `&amp;lt;` أو شفرة مضمنة أو أعد الصياغة |
+| `\{` `\}` غير محمية | يعاملها MDX كتعبير JSX | استخدم شفرة مضمنة أو حرف الهروب `\` أو كتلة شفرة |
+| أقواس متعرجة في أسماء الملفات | لا يستطيع Astro معالجة الملف | لا تستخدم أبداً `\{` أو `\}` في أسماء ملفات `.mdx` |

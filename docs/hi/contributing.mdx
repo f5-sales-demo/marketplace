@@ -1,0 +1,169 @@
+---
+title: प्लगइन का योगदान करना
+description: >-
+  f5xc-salesdemos मार्केटप्लेस के लिए प्लगइन बनाने, संरचित करने और प्रकाशित करने
+  की मार्गदर्शिका।
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 36a56024cade
+  translator: machine
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+यह मार्गदर्शिका बताती है कि कैसे एक नया प्लगइन बनाएं और उसे
+f5xc-salesdemos मार्केटप्लेस में जोड़ें।
+
+## प्लगइन संरचना
+
+प्रत्येक प्लगइन `plugins/` के अंतर्गत अपनी स्वयं की निर्देशिका में रहता है और
+इस संरचना का पालन करता है:
+
+<FileTree>
+- plugins/
+  - my-plugin/
+    - .claude-plugin/
+      - plugin.json
+    - skills/
+      - my-skill/
+        - SKILL.md
+        - references/
+          - reference-data.md
+    - commands/
+      - my-command.md
+    - agents/
+      - my-agent.md
+    - README.md
+</FileTree>
+
+## प्लगइन बनाना
+
+<Steps>
+
+1. **प्लगइन निर्देशिका बनाएं**
+
+   ```bash
+   mkdir -p plugins/my-plugin/.claude-plugin
+   mkdir -p plugins/my-plugin/skills
+   mkdir -p plugins/my-plugin/commands
+   ```
+
+2. **`plugin.json` लिखें**
+
+   `plugins/my-plugin/.claude-plugin/plugin.json` बनाएं:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": {
+       "name": "f5xc-salesdemos"
+     },
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "keywords": ["relevant", "keywords"],
+     "license": "Apache-2.0",
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+3. **कौशल (skills) जोड़ें**
+
+   `plugins/my-plugin/skills/my-skill/SKILL.md` बनाएं जिसमें
+   फ्रंटमैटर हो:
+
+   ```markdown
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   ---
+
+   Detailed instructions for Claude when this skill activates.
+   ```
+
+   किसी भी संदर्भ डेटा को `SKILL.md` के साथ `references/`
+   उप-निर्देशिका में रखें।
+
+4. **कमांड जोड़ें**
+
+   `plugins/my-plugin/commands/my-command.md` बनाएं:
+
+   ```markdown
+   ---
+   description: What this command does
+   argument_hint: "[optional-args]"
+   allowed_tools:
+     - Read
+     - Glob
+     - Grep
+   ---
+
+   Instructions for Claude when the user invokes this command.
+   ```
+
+5. **प्लगइन को marketplace.json में जोड़ें**
+
+   `.claude-plugin/marketplace.json` में `plugins` ऐरे में
+   एक प्रविष्टि जोड़ें:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": { "name": "f5xc-salesdemos" },
+     "source": "./plugins/my-plugin",
+     "category": "productivity",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "license": "Apache-2.0",
+     "keywords": ["relevant", "keywords"],
+     "tags": ["searchable", "tags"],
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+6. **स्थानीय रूप से परीक्षण करें**
+
+   प्रकाशित किए बिना अपने प्लगइन का परीक्षण करें, Claude Code
+   को स्थानीय निर्देशिका की ओर इंगित करके:
+
+   ```bash
+   claude --plugin-dir ./plugins/my-plugin
+   ```
+
+   सत्यापित करें कि कौशल सही संदर्भ में सक्रिय होते हैं और
+   कमांड अपेक्षित आउटपुट उत्पन्न करते हैं।
+
+</Steps>
+
+## अपना प्लगइन सबमिट करना
+
+<Aside type="tip" title="रिपॉज़िटरी वर्कफ़्लो">
+  यह रिपॉज़िटरी एक सख्त गवर्नेंस वर्कफ़्लो लागू करती है।
+  पूरी प्रक्रिया के लिए [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
+  देखें।
+</Aside>
+
+<Steps>
+
+1. नए प्लगइन का वर्णन करते हुए एक GitHub इश्यू बनाएं
+2. `main` से एक फ़ीचर ब्रांच बनाएं
+3. अपनी प्लगइन निर्देशिका जोड़ें और `marketplace.json` अपडेट करें
+4. `docs/plugins/my-plugin.mdx` पर एक दस्तावेज़ीकरण पृष्ठ जोड़ें
+5. `Closes #N` के साथ इश्यू से लिंक करते हुए एक PR खोलें
+6. किसी भी CI विफलताओं को ठीक करें और जाँच पास होने के बाद मर्ज करें
+
+</Steps>
+
+## सर्वोत्तम प्रथाएं
+
+- **कौशल को केंद्रित रखें** — एक कौशल को एक काम अच्छी तरह से करना चाहिए
+- **संदर्भ फ़ाइलों का उपयोग करें** — बड़े डेटासेट, स्कीमा और
+  लुकअप टेबल को SKILL.md में इनलाइन करने के बजाय `references/` में रखें
+- **बुद्धिमानी से स्कोप करें** — जब संभव हो तो कार्यशील सेट को
+  सीमित करने के लिए अनकमिटेड परिवर्तनों की जाँच करें
+- **आउटपुट को गंभीरता के अनुसार समूहित करें** — ERROR, WARNING, और INFO
+  स्तरों का उपयोग करें ताकि उपयोगकर्ता सुधारों को प्राथमिकता दे सकें
+- **README लिखें** — उपयोग के उदाहरण और प्रत्येक कौशल तथा
+  कमांड क्या करता है इसका विवरण शामिल करें

@@ -1,0 +1,119 @@
+---
+title: 快速入门
+description: 逐步指南，介绍如何添加 f5xc-salesdemos 市场并安装您的第一个插件。
+sidebar:
+  order: 2
+i18n:
+  sourceHash: 8b7375e24be2
+  translator: machine
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+本指南将引导您完成将 f5xc-salesdemos
+市场添加到 Claude Code 并安装第一个插件的过程。
+
+## 前提条件
+
+- Claude Code **v1.0.33** 或更高版本（支持插件市场功能）
+- 拥有访问
+  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  组织权限的 GitHub 账户
+
+## 安装
+
+<Steps>
+
+1. **添加市场**
+
+   在任意 Claude Code 会话中，运行：
+
+   ```
+   /plugin marketplace add f5xc-salesdemos/marketplace
+   ```
+
+   这将把该市场注册为插件源。您只需要
+   执行一次此操作。
+
+2. **浏览可用插件**
+
+   列出市场提供的内容：
+
+   ```
+   /plugin marketplace list f5xc-salesdemos-marketplace
+   ```
+
+3. **安装插件**
+
+   安装您需要的插件：
+
+   ```
+   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   ```
+
+4. **使用插件**
+
+   导航到任意 f5xc-salesdemos 内容仓库。
+
+   使用**文档工具**时，运行 MDX 审查命令：
+
+   ```
+   /f5xc-docs-tools:review-mdx
+   ```
+
+   使用**销售工程师**工具时，使用触发短语，例如
+   "prepare the demo"、"run the demo" 或 "walk through
+   the demo" — 插件将自动激活。
+
+</Steps>
+
+## 更新插件
+
+要将已安装的插件更新到最新版本：
+
+```
+/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## 卸载
+
+移除插件：
+
+```
+/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+完全移除市场：
+
+```
+/plugin marketplace remove f5xc-salesdemos-marketplace
+```
+
+## 团队配置
+
+要为整个团队预配置市场，请将其添加
+到项目的 `.claude/settings.json` 中：
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ],
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
+    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip" title="共享设置">
+  将 `.claude/settings.json` 提交到仓库意味着
+  每位团队成员都会自动获得市场和插件
+  — 无需手动设置。
+</Aside>
+
+这确保每位贡献者从在仓库中首次启动 Claude Code 会话起
+就拥有相同的工具可用。

@@ -1,0 +1,131 @@
+---
+title: f5xc-meddpicc
+description: >-
+  Cadre de qualification commerciale et d'exécution des affaires MEDDPICC pour
+  les ventes B2B complexes en entreprise.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: d1dbbc7ad484
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+Le plugin **f5xc-meddpicc** fournit un cadre complet de qualification
+commerciale et d'exécution des affaires MEDDPICC pour les ventes B2B
+complexes en entreprise. Il transforme MEDDPICC d'un simple exercice
+de cases à cocher en un véritable système d'exécution des affaires
+avec qualification basée sur les preuves, revues d'affaires
+structurées et coaching actionnable.
+
+<Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-meddpicc@f5xc-salesdemos-marketplace
+```
+
+## Qu'est-ce que MEDDPICC ?
+
+MEDDPICC est un cadre de qualification et d'exécution des affaires
+conçu pour les ventes B2B complexes où de multiples parties prenantes,
+le risque technique et les étapes d'approvisionnement peuvent faire
+dérailler la dynamique.
+
+| Lettre | Élément | Objectif |
+| ------ | ------- | ------- |
+| **M** | Metrics (Métriques) | Résultats commerciaux quantifiés attendus par le client |
+| **E** | Economic Buyer (Acheteur économique) | Individu disposant de l'autorité budgétaire finale |
+| **D** | Decision Criteria (Critères de décision) | Exigences utilisées pour évaluer les options |
+| **D** | Decision Process (Processus de décision) | Parcours étape par étape de l'évaluation à l'accord |
+| **P** | Paper Process (Processus administratif) | Mécanismes d'approvisionnement (juridique, sécurité, signature) |
+| **I** | Identify Pain (Identifier la douleur) | Douleur commerciale impérieuse qui crée l'urgence |
+| **C** | Champion | Défenseur interne influent |
+| **C** | Competition (Concurrence) | Toutes les alternatives (fournisseurs, développement interne, statu quo) |
+
+## Compétences
+
+### meddpicc-coach
+
+Coaching complet sur la méthodologie MEDDPICC qui s'active
+automatiquement lorsque vous discutez de qualification d'affaires,
+de santé du pipeline, de précision des prévisions ou de tout élément
+MEDDPICC. Fournit des conseils basés sur les preuves, des
+recommandations de rythme opérationnel et des liens vers la
+documentation de référence détaillée.
+
+<Aside type="tip" title="Activation automatique">
+  Cette compétence s'active automatiquement lorsque c'est pertinent — aucune commande slash
+  nécessaire.
+</Aside>
+
+### deal-qualification
+
+Produit une fiche d'évaluation MEDDPICC notée (0&ndash;24) avec
+analyse des lacunes, évaluation des risques et recommandation de
+prévision. Chaque élément est noté de 0&ndash;3 sur la base de
+preuves vérifiées.
+
+### deal-review
+
+Facilite les inspections hebdomadaires structurées des affaires avec
+suivi des deltas de preuves, identification des risques et plans
+d'action avec responsables nommés et dates d'échéance.
+
+### mutual-action-plan
+
+Construit un Plan d'Action Mutuel orienté client lié aux éléments
+MEDDPICC. Inclut les jalons d'évaluation, la feuille de route
+d'approvisionnement, la préparation à l'implémentation et la
+cartographie des parties prenantes.
+
+### champion-test
+
+Applique une évaluation à 5 critères (Pouvoir, Gain Personnel, Accès,
+Renseignement, Action) notée de 0&ndash;15 pour déterminer si votre
+contact interne est un véritable champion, un champion émergent, un
+coach ou un simple contact bienveillant.
+
+## Commandes
+
+| Commande | Objectif |
+| ------- | ------- |
+| `/f5xc-meddpicc:qualify-deal [account]` | Évaluer une affaire avec la fiche d'évaluation MEDDPICC |
+| `/f5xc-meddpicc:deal-review [account]` | Faciliter l'inspection hebdomadaire d'une affaire |
+| `/f5xc-meddpicc:champion-test [contact]` | Évaluer si un contact est un véritable champion |
+| `/f5xc-meddpicc:build-map [account]` | Construire un Plan d'Action Mutuel |
+
+## Agents
+
+### deal-analyst
+
+Agent de recherche en lecture seule qui analyse la santé des affaires
+en examinant la documentation locale, les notes de réunion et les
+plans de compte. Produit des rapports d'évaluation MEDDPICC
+structurés avec citations de preuves, analyse des lacunes et
+recommandations d'actions priorisées.
+
+## Bibliothèque de référence
+
+Le plugin inclut une documentation de référence complète qui se charge
+à la demande :
+
+- **Cadre MEDDPICC** &mdash; définitions complètes et exigences de
+  preuves pour les 8 éléments
+- **Questions de découverte** &mdash; questions éprouvées sur le
+  terrain pour chaque élément tout au long du cycle de vente
+- **Rôles &amp; Responsabilités** &mdash; matrice de propriété RACI
+  par rôle d'équipe (AE, SE, CSM, PS, Produit, Canal, Deal Desk, Juridique)
+- **Portes d'étape des affaires** &mdash; ce qui doit être vérifié
+  avant de progresser (de la Qualification Initiale au Contrat Signé)
+- **Anti-patterns** &mdash; 10 modes d'échec courants avec
+  remédiation basée sur les preuves
+- **Grille de notation** &mdash; critères de notation objectifs de
+  0&ndash;3 par élément
+- **Modèles de revue** &mdash; ensembles de questions d'inspection
+  hebdomadaire avec indicateurs d'alerte
+- **Modèles de MAP** &mdash; structure de plan d'action orienté
+  client avec feuilles de route d'évaluation, d'approvisionnement
+  et d'implémentation

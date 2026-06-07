@@ -1,0 +1,113 @@
+---
+title: はじめに
+description: f5xc-salesdemos マーケットプレイスの追加と最初のプラグインのインストールに関するステップバイステップガイド。
+sidebar:
+  order: 2
+i18n:
+  sourceHash: 8b7375e24be2
+  translator: machine
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+このガイドでは、f5xc-salesdemos マーケットプレイスを Claude Code に追加し、最初のプラグインをインストールする手順を説明します。
+
+## 前提条件
+
+- Claude Code **v1.0.33** 以降（プラグインマーケットプレイスサポート）
+- [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  組織へのアクセス権を持つ GitHub アカウント
+
+## インストール
+
+<Steps>
+
+1. **マーケットプレイスの追加**
+
+   任意の Claude Code セッションで、以下を実行します：
+
+   ```
+   /plugin marketplace add f5xc-salesdemos/marketplace
+   ```
+
+   これにより、マーケットプレイスがプラグインソースとして登録されます。この操作は一度だけ行えば十分です。
+
+2. **利用可能なプラグインの閲覧**
+
+   マーケットプレイスで提供されているプラグインを一覧表示します：
+
+   ```
+   /plugin marketplace list f5xc-salesdemos-marketplace
+   ```
+
+3. **プラグインのインストール**
+
+   必要なプラグインをインストールします：
+
+   ```
+   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   ```
+
+4. **プラグインの使用**
+
+   任意の f5xc-salesdemos コンテンツリポジトリに移動します。
+
+   **docs tools** の場合、MDX レビューコマンドを実行します：
+
+   ```
+   /f5xc-docs-tools:review-mdx
+   ```
+
+   **sales engineer** の場合、「prepare the demo」、「run the demo」、「walk through
+   the demo」などのトリガーフレーズを使用します — プラグインは自動的にアクティブになります。
+
+</Steps>
+
+## プラグインの更新
+
+インストール済みのプラグインを最新バージョンに更新するには：
+
+```
+/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## アンインストール
+
+プラグインを削除します：
+
+```
+/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+マーケットプレイスを完全に削除します：
+
+```
+/plugin marketplace remove f5xc-salesdemos-marketplace
+```
+
+## チーム設定
+
+チーム全体にマーケットプレイスを事前設定するには、プロジェクトの `.claude/settings.json` に追加します：
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ],
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
+    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip" title="共有設定">
+  `.claude/settings.json` をリポジトリにコミットすることで、
+  すべてのチームメンバーがマーケットプレイスとプラグインを
+  自動的に取得できます — 手動セットアップは不要です。
+</Aside>
+
+これにより、すべてのコントリビューターがリポジトリでの最初の Claude Code セッションから同じツールを利用できるようになります。

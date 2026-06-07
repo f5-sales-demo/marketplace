@@ -1,0 +1,201 @@
+---
+title: osint-framework
+description: >-
+  Catálogo de ferramentas OSINT e habilidades de investigação com 1.064
+  ferramentas de coleta de inteligência em 34 categorias.
+sidebar:
+  order: 12
+i18n:
+  sourceHash: 79499aa33fc5
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+O plugin **osint-framework** fornece catálogo de ferramentas OSINT e
+habilidades de investigação — 1.064 ferramentas gratuitas de coleta de inteligência
+em 34 categorias mapeadas a partir do [osintframework.com](https://osintframework.com).
+Inclui habilidades baseadas em categorias, pipelines de investigação executáveis,
+execução de ferramentas CLI, fluxos de trabalho com consciência de OPSEC e um grafo
+de entidades persistente para correlação entre investigações.
+
+<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+
+## Instalação
+
+```
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+```
+
+## Comandos
+
+### /osint-investigate
+
+Execute uma investigação OSINT completa contra qualquer alvo. Detecta
+automaticamente o tipo de alvo (e-mail, domínio, IP, nome de usuário, empresa,
+nome de pessoa) e direciona para as habilidades de categoria corretas.
+
+```
+/osint-investigate j.smith@example.com
+/osint-investigate example.com
+/osint-investigate 198.51.100.1
+/osint-investigate example-user
+```
+
+### /osint-search
+
+Pesquise no catálogo de ferramentas por ferramentas que correspondam a uma consulta de capacidade.
+
+```
+/osint-search subdomain enumeration
+/osint-search email breach check
+/osint-search satellite imagery
+```
+
+### /osint-catalog
+
+Navegue pelo catálogo completo de ferramentas por categoria. Sem argumentos, exibe
+todas as 34 categorias com contagem de ferramentas.
+
+```
+/osint-catalog
+/osint-catalog domain
+/osint-catalog threat-intel
+```
+
+## Habilidades
+
+### osint-index
+
+Roteador de intenção de nível superior. Ativa automaticamente quando você diz "encontrar
+informações sobre", "investigar", "pesquisar", "verificação de antecedentes",
+ou descreve qualquer tarefa de inteligência de fontes abertas. Direciona para a
+habilidade de categoria correta com base no tipo de alvo.
+
+| Alvo | Direciona Para |
+|------|---------------|
+| Nome de usuário ou identificador | `username-recon` |
+| Endereço de e-mail | `email-recon` |
+| Nome de domínio | `domain-recon` |
+| Endereço IP | `ip-address-recon` |
+| Nome de pessoa + empresa | `people-search` + `business-records` |
+| Empresa / organização | `business-records` + `domain-recon` |
+| Hash de malware | `malicious-file-analysis` + `threat-intelligence` |
+
+### Habilidades por Categoria (34 no total)
+
+Cada categoria possui uma habilidade dedicada com ferramentas CLI, recursos web,
+fluxo de trabalho de investigação, pivôs entre categorias e notas de OPSEC.
+
+| Categoria | Ferramentas | Principais Ferramentas CLI |
+|-----------|-------------|---------------------------|
+| `username-recon` | 18 | sherlock, maigret, sylva |
+| `email-recon` | 28 | holehe, h8mail, theHarvester |
+| `domain-recon` | 131 | subfinder, amass, whois, dig |
+| `cloud-recon` | 23 | cloud_enum, S3Scanner, ScoutSuite |
+| `ip-address-recon` | 55 | nmap, masscan, checkip |
+| `images-videos` | 89 | exiftool, exiv2, yt-dlp |
+| `social-networks` | 63 | maigret, yt-dlp, Osintgram |
+| `threat-intelligence` | 38 | iocextract, ioc_parser, pymisp |
+| `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
+| `search-engines` | 73 | gitleaks, pagodo, gobuster |
+| `geolocation` | 47 | Hyperlapse |
+| `opsec` | 47 | 47 ferramentas de privacidade baseadas na web |
+| `people-search` | 18 | GitHub API, GitLab API |
+| `business-records` | 28 | SEC EDGAR, OpenCorporates |
+| *(mais 20 categorias)* | 500+ | — |
+
+<Aside type="tip">
+  Use `/osint-catalog` para navegar por todas as 34 categorias ou
+  `/osint-search <capacidade>` para encontrar ferramentas para uma tarefa específica.
+</Aside>
+
+### osint-catalog
+
+Navegador do catálogo de ferramentas. Fornece acesso ao registro completo de ferramentas,
+índice de categorias, pipelines de investigação, referência de limites de taxa
+e documentação do motor de correlação.
+
+## Agentes
+
+### osint-investigator
+
+Orquestrador autônomo de investigação multi-ferramenta. Executa fluxos de trabalho
+de investigação completos — verificação de disponibilidade de ferramentas, detecção
+de tipo de alvo, execução sequencial de ferramentas (passiva primeiro), agregação
+de resultados e geração de relatórios estruturados com níveis de confiança
+e classificações OPSEC.
+
+Integra-se com o grafo de entidades: cada resultado de ferramenta cria entidades
+e relacionamentos em `/tmp/osint-graph/` para correlação entre investigações.
+
+<Aside type="caution">
+  Ferramentas de reconhecimento ativo (nmap, nuclei, sherlock) fazem contato direto
+  com a infraestrutura do alvo. O hook de alerta OPSEC notifica antes de
+  executar ferramentas ativas. Sempre certifique-se de que você possui autorização.
+</Aside>
+
+### osint-researcher
+
+Agente de consulta de catálogo somente leitura. Pesquisa arquivos de referência para
+recomendar as melhores ferramentas para uma determinada tarefa. Nunca executa ferramentas —
+apenas recomenda e explica. Usado internamente pelas habilidades de categoria
+para descoberta de ferramentas.
+
+### osint-executor
+
+Agente de execução CLI de ferramenta única. Executa uma ferramenta por vez com
+parâmetros específicos, analisa a saída e retorna resultados estruturados.
+Inclui receitas de execução por ferramenta para mais de 20 ferramentas com flags exatas,
+formatos de saída e padrões de análise com jq.
+
+## Limite de Taxa
+
+Todas as chamadas de API usam o helper `osint_curl` com backoff exponencial
+integrado em HTTP 429/503. Principais limites:
+
+| API | Limite Gratuito | Variável de Ambiente |
+|-----|----------------|---------------------|
+| ipinfo.io | 1.000/dia | — |
+| crt.sh | 60/min | — |
+| NVD | 5/30s (sem chave) | `NVD_API_KEY` |
+| OpenCorporates | Requer chave | `OPENCORPORATES_API_KEY` |
+| Shodan | 1/seg | `SHODAN_API_KEY` |
+| GitHub API | 60/hr (sem auth) | `GH_TOKEN` |
+
+APIs que requerem chaves são automaticamente ignoradas com uma mensagem
+clara se a variável de ambiente não estiver definida.
+
+## Motor de Correlação
+
+O plugin inclui um grafo de entidades JSON persistente em
+`/tmp/osint-graph/` que acumula descobertas entre investigações.
+
+```bash
+source plugins/osint-framework/scripts/osint-graph.sh
+osint_graph_init
+
+# Add entities
+P=$(osint_entity_add "person" "J. Smith" --tool github-api)
+C=$(osint_entity_add "company" "F5" --tool github-api)
+
+# Link them
+osint_rel_add "$P" "$C" "works_at" --tool github-api
+
+# Query: all entities within 2 hops of the person
+osint_graph_query "$P" 2
+
+# Generate report
+osint_graph_report
+```
+
+**Pontuação de confiança** utiliza fusão multi-fonte:
+`confidence = 1 - product(1 - ci)` para cada fonte confirmadora.
+Duas fontes com 0,80 → 0,96 de confiança combinada.
+
+## Aviso Legal
+
+Todas as ferramentas utilizam apenas informações publicamente disponíveis. Os usuários são
+responsáveis por garantir a conformidade com as leis aplicáveis,
+regulamentos e termos de serviço das plataformas. Nunca use ferramentas OSINT
+para acesso não autorizado, assédio ou qualquer atividade ilegal.

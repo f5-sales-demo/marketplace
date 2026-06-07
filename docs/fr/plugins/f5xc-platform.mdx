@@ -1,0 +1,124 @@
+---
+title: f5xc-platform
+description: >-
+  Automatisation de la plateforme F5 Distributed Cloud — opérations de la
+  console, API REST, authentification et analyse de configuration.
+sidebar:
+  order: 11
+i18n:
+  sourceHash: 7d49edf60846
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+Le plugin **f5xc-platform** fournit une automatisation complète pour la
+plateforme F5 Distributed Cloud. Il couvre les opérations de la console web
+via Chrome DevTools MCP, les opérations d'API REST basées sur les
+spécifications via cURL, l'authentification multi-fournisseurs et l'analyse
+de configuration couvrant 98 types de ressources dans 38 domaines.
+
+<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-platform@f5xc-salesdemos-marketplace
+```
+
+## Compétences
+
+### api-operations
+
+Opérations CRUD d'API basées sur les spécifications couvrant 98 types de
+ressources dans 38 domaines. Fournit des endpoints précis, des modèles
+de payload, un ordonnancement des dépendances et des compositions de
+workflows multi-étapes pour les répartiteurs de charge HTTP, les pools
+d'origine, les politiques WAF, les zones DNS, les certificats, les sites
+cloud, et plus encore.
+
+### config-analysis
+
+Capacité d'analyse et de conseil sur la configuration. Analyse les
+configurations JSON des clients pour répondre aux questions sur la posture
+de sécurité, l'activation des fonctionnalités, les paramètres de mode,
+les exclusions et les bonnes pratiques. Prend en charge les échanges
+questions-réponses multi-tours avec un contexte compressé entre les
+dispatches.
+
+### api-auth
+
+Authentification API prenant en charge l'authentification par en-tête de
+jeton API et l'authentification par certificat P12 avec des procédures
+de validation de jeton.
+
+### console-auth
+
+Authentification multi-fournisseurs pour la console web F5 XC.
+Détecte automatiquement le type de connexion : connexion native F5 XC,
+SSO Azure avec session en cache, ou SSO Azure avec MFA par push vérifié
+DUO.
+
+### console-navigator
+
+Navigation déterministe vers les sections de la console F5 XC. Traduit
+les noms de sections en chemins URL, vérifie la santé de la session et
+confirme le chargement de la page.
+
+### platform-index / api-index / console-index
+
+Routeurs d'intention qui classifient les requêtes utilisateur et les
+délèguent à la compétence et à l'agent appropriés. Ceux-ci s'activent
+automatiquement et ne sont pas invocables par l'utilisateur.
+
+## Commandes
+
+### /check-api-token
+
+```
+/f5xc-platform:check-api-token
+```
+
+Valide votre jeton API F5 XC en déléguant à l'agent api-operator.
+
+### /login-console
+
+```
+/f5xc-platform:login-console
+```
+
+S'authentifie à la console F5 Distributed Cloud via l'agent
+console-operator.
+
+## Agents
+
+### api-operator
+
+Agent autonome d'API REST exécutant des séquences cURL et jq pour les
+opérations CRUD sur les ressources, la validation de jetons et les
+opérations de configuration. S'exécute dans un sous-agent pour maintenir
+les payloads JSON verbeux de l'API en dehors du contexte de la session
+principale.
+
+### console-operator
+
+Agent autonome d'automatisation de navigateur exécutant des séquences
+d'outils Chrome DevTools MCP pour l'authentification, la navigation et
+les interactions avec les formulaires. S'exécute dans un sous-agent pour
+maintenir les instantanés de navigateur gourmands en jetons en dehors de
+la session principale.
+
+### config-analyzer
+
+Agent d'analyse de configuration en lecture seule. Analyse les
+configurations JSON des clients par rapport aux fichiers de référence de
+profil de ressource pour répondre aux questions sur la posture de
+sécurité, l'activation des fonctionnalités, les transitions de mode et
+les bonnes pratiques.
+
+<Aside type="caution">
+  L'agent config-analyzer est **éphémère** &mdash; instancié à neuf
+  pour chaque question sans mémoire entre les dispatches. Les questions
+  de suivi doivent inclure les résultats précédents compressés dans le
+  prompt de dispatch.
+</Aside>

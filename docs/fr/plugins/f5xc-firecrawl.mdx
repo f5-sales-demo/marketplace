@@ -1,0 +1,153 @@
+---
+title: f5xc-firecrawl
+description: >-
+  Scraping et crawling web auto-hébergé en local via le moteur open-source
+  Firecrawl.
+sidebar:
+  order: 13
+i18n:
+  sourceHash: a9d67be9cf3e
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+Le plugin **f5xc-firecrawl** fournit un scraping web auto-hébergé en local
+via le moteur open-source [firecrawl](https://github.com/mendableai/firecrawl).
+Pas de clés API, pas d'abonnements, pas de dépendance au cloud. Toutes
+les opérations s'exécutent sur l'instance firecrawl locale sur `localhost:3002`
+à l'intérieur du devcontainer.
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Installation
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## Commandes
+
+### /scrape
+
+Scraper une URL unique et extraire le contenu en markdown.
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+Scraper plusieurs URLs en une seule fois.
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+Explorer plusieurs pages à partir d'une URL de départ.
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+Découvrir toutes les URLs d'un site web.
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+Rechercher sur le web et optionnellement scraper les résultats.
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+Extraction de données structurées à partir de pages web assistée par LLM.
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  La commande extract nécessite un proxy LLM compatible OpenAI
+  configuré via `OPENAI_BASE_URL` et `OPENAI_API_KEY`.
+</Aside>
+
+### /llmstxt
+
+Générer un fichier llms.txt pour un site.
+
+```
+/llmstxt https://docs.example.com
+```
+
+## Compétences
+
+### web-scraper
+
+S'active automatiquement lorsque vous demandez de scraper une URL, explorer un site web, mapper
+les URLs d'un site, rechercher sur le web, extraire des données structurées, générer un llms.txt,
+scraper plusieurs URLs en lot, ou convertir une page web en markdown.
+Délègue immédiatement à l'agent firecrawl-operator.
+
+## Agents
+
+### firecrawl-operator
+
+Agent autonome de scraping web qui exécute des séquences `curl` + `jq`
+contre l'API firecrawl locale. Prend en charge 11 protocoles couvrant tous
+les endpoints v1. Agent en lecture seule (pas d'outils Write, Edit ou Agent).
+
+| Protocole | Endpoint | Type |
+|----------|----------|------|
+| HEALTH | `GET /` | Sync |
+| SCRAPE | `POST /v1/scrape` | Sync |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
+| CRAWL | `POST /v1/crawl` | Async |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
+| MAP | `POST /v1/map` | Sync |
+| SEARCH | `POST /v1/search` | Sync |
+| EXTRACT | `POST /v1/extract` | Async |
+| LLMSTXT | `POST /v1/llmstxt` | Async |
+
+## Infrastructure
+
+Le plugin nécessite la stack firecrawl fonctionnant dans le devcontainer :
+
+| Composant | Port | Fonction |
+|-----------|------|---------|
+| API Firecrawl | 3002 | Tous les endpoints scrape/crawl/map/search/extract |
+| Playwright | 3000 | Moteur de rendu JavaScript |
+| Redis | 6379 | Backend de file d'attente des tâches |
+| PostgreSQL | socket | Persistance des tâches crawl/batch |
+| Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM pour extract (optionnel) |
+
+La stack démarre automatiquement lorsque `ENABLE_FIRECRAWL=true` (la
+valeur par défaut). Un hook SessionStart vérifie que l'API est accessible et
+avertit si le service est indisponible.
+
+## Différences avec Firecrawl Cloud
+
+Ce plugin utilise la version open-source auto-hébergée :
+
+- Aucune authentification ni clé API requise pour le scraping
+- Pas de limites de crédits ni de limitation de débit
+- Utilise les endpoints API v1 (pas v2)
+- Les sessions navigateur et la recherche approfondie ne sont pas disponibles
+- Extract utilise votre propre proxy LLM au lieu de modèles hébergés
+- Fonctionne entièrement au sein du réseau de conteneurs local

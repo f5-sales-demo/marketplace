@@ -1,0 +1,120 @@
+---
+title: เริ่มต้นใช้งาน
+description: >-
+  คู่มือทีละขั้นตอนสำหรับการเพิ่ม marketplace ของ f5xc-salesdemos
+  และติดตั้งปลั๊กอินแรกของคุณ
+sidebar:
+  order: 2
+i18n:
+  sourceHash: 8b7375e24be2
+  translator: machine
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+คู่มือนี้จะพาคุณผ่านขั้นตอนการเพิ่ม marketplace ของ f5xc-salesdemos
+ไปยัง Claude Code และติดตั้งปลั๊กอินแรกของคุณ
+
+## ข้อกำหนดเบื้องต้น
+
+- Claude Code **v1.0.33** หรือใหม่กว่า (รองรับ plugin marketplace)
+- บัญชี GitHub ที่มีสิทธิ์เข้าถึงองค์กร
+  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+
+## การติดตั้ง
+
+<Steps>
+
+1. **เพิ่ม marketplace**
+
+   ในเซสชัน Claude Code ใดก็ได้ ให้รันคำสั่ง:
+
+   ```
+   /plugin marketplace add f5xc-salesdemos/marketplace
+   ```
+
+   คำสั่งนี้จะลงทะเบียน marketplace เป็นแหล่งที่มาของปลั๊กอิน คุณจำเป็นต้อง
+   ทำเพียงครั้งเดียวเท่านั้น
+
+2. **เรียกดูปลั๊กอินที่มีให้บริการ**
+
+   แสดงรายการสิ่งที่ marketplace มีให้:
+
+   ```
+   /plugin marketplace list f5xc-salesdemos-marketplace
+   ```
+
+3. **ติดตั้งปลั๊กอิน**
+
+   ติดตั้งปลั๊กอินที่คุณต้องการ:
+
+   ```
+   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   ```
+
+4. **ใช้งานปลั๊กอิน**
+
+   นำทางไปยัง content repository ใดก็ได้ของ f5xc-salesdemos
+
+   สำหรับ **docs tools** ให้รันคำสั่งตรวจสอบ MDX:
+
+   ```
+   /f5xc-docs-tools:review-mdx
+   ```
+
+   สำหรับ **sales engineer** ให้ใช้วลีทริกเกอร์ เช่น
+   "prepare the demo", "run the demo" หรือ "walk through
+   the demo" — ปลั๊กอินจะเปิดใช้งานโดยอัตโนมัติ
+
+</Steps>
+
+## การอัปเดตปลั๊กอิน
+
+เพื่ออัปเดตปลั๊กอินที่ติดตั้งแล้วเป็นเวอร์ชันล่าสุด:
+
+```
+/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## การถอนการติดตั้ง
+
+ลบปลั๊กอิน:
+
+```
+/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+ลบ marketplace ทั้งหมด:
+
+```
+/plugin marketplace remove f5xc-salesdemos-marketplace
+```
+
+## การกำหนดค่าสำหรับทีม
+
+เพื่อกำหนดค่า marketplace ล่วงหน้าสำหรับทั้งทีมของคุณ ให้เพิ่มเข้าไป
+ในไฟล์ `.claude/settings.json` ของโปรเจกต์:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ],
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
+    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip" title="การตั้งค่าที่ใช้ร่วมกัน">
+  การคอมมิต `.claude/settings.json` เข้าสู่ repository ของคุณ หมายความว่า
+  สมาชิกทุกคนในทีมจะได้รับ marketplace และปลั๊กอิน
+  โดยอัตโนมัติ — ไม่จำเป็นต้องตั้งค่าด้วยตนเอง
+</Aside>
+
+สิ่งนี้ช่วยให้มั่นใจว่าผู้มีส่วนร่วมทุกคนมีเครื่องมือชุดเดียวกันพร้อมใช้งาน
+ตั้งแต่เซสชัน Claude Code แรกใน repository

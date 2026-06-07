@@ -1,0 +1,60 @@
+---
+title: f5xc-brand
+description: 'F5 기업 브랜드 아이덴티티 적용 — 색상, 타이포그래피, 로고, 아이콘 및 WCAG AA 접근성.'
+sidebar:
+  order: 9
+i18n:
+  sourceHash: f07061be8697
+  translator: machine
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+**f5xc-brand** 플러그인은 모든 콘텐츠 유형에 걸쳐 F5 기업 브랜드
+아이덴티티를 적용합니다. 45색 F5 팔레트, 타이포그래피 규칙(Neusa
+Next Pro Wide 제목, Proxima Nova 본문), SVG 전용 로고 사용, 아이콘
+팩 선택, WCAG AA 접근성 및 제품 용어를 다룹니다.
+
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 설치
+
+```
+/plugin install f5xc-brand@f5xc-salesdemos-marketplace
+```
+
+## 스킬
+
+### brand-guardian
+
+모든 콘텐츠 생성에 대한 사전 브랜드 아이덴티티 적용.
+문서, 다이어그램, 프레젠테이션, 비디오 썸네일, 소셜 미디어 그래픽,
+Mermaid 차트 또는 Excalidraw 드로잉을 생성할 때 자동으로 활성화됩니다.
+F5 색상, 타이포그래피, 로고, 아이콘, 톤 앤 매너 및 접근성의 올바른
+사용을 보장합니다.
+
+### brand-reviewer
+
+기존 콘텐츠의 F5 브랜드 준수 여부를 검토합니다. 색상, 타이포그래피,
+로고 형식, 아이콘 선택, 대체 텍스트, 명암비 및 제품 용어를 감사합니다.
+VIOLATIONS, WARNINGS 및 SUGGESTIONS이 포함된 구조화된 보고서를
+생성합니다.
+
+### visual-content
+
+브랜드가 적용된 시각적 콘텐츠에 대한 형식별 규칙. Mermaid 다이어그램,
+Excalidraw 드로잉, 스크린샷, PowerPoint 프레젠테이션, YouTube 썸네일,
+비디오 스크립트 및 소셜 미디어 그래픽에 대해 아이콘 팩 선택, 슬라이드
+레이아웃, 폰트 대체 및 플랫폼별 치수에 관한 가이드를 제공합니다.
+
+## 명령어
+
+### /review-brand
+
+```
+/f5xc-brand:review-brand [path-or-glob]
+```
+
+콘텐츠의 F5 브랜드 준수 여부를 검토합니다. 검토 범위를 지정하기 위해
+선택적으로 경로 또는 glob 패턴을 입력할 수 있습니다. 인수 없이
+실행하면 현재 디렉토리의 모든 콘텐츠를 검토합니다.

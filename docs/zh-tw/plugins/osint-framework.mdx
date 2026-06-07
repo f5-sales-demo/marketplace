@@ -1,0 +1,165 @@
+---
+title: osint-framework
+description: 'OSINT 工具目錄與調查技能，涵蓋 34 個類別中的 1,064 種情報蒐集工具。'
+sidebar:
+  order: 12
+i18n:
+  sourceHash: 79499aa33fc5
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**osint-framework** 外掛程式提供 OSINT 工具目錄與調查技能 — 涵蓋 34 個類別中的 1,064 種免費情報蒐集工具，對應自 [osintframework.com](https://osintframework.com)。它包含基於類別的技能、可執行的調查管線、CLI 工具執行、OPSEC 感知工作流程，以及用於跨調查關聯分析的持久化實體圖譜。
+
+<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+
+## 安裝
+
+```
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+```
+
+## 指令
+
+### /osint-investigate
+
+針對任何目標執行完整的 OSINT 調查。自動偵測目標類型（電子郵件、網域、IP、使用者名稱、公司、人名）並路由至正確的類別技能。
+
+```
+/osint-investigate j.smith@example.com
+/osint-investigate example.com
+/osint-investigate 198.51.100.1
+/osint-investigate example-user
+```
+
+### /osint-search
+
+在工具目錄中搜尋符合功能查詢的工具。
+
+```
+/osint-search subdomain enumeration
+/osint-search email breach check
+/osint-search satellite imagery
+```
+
+### /osint-catalog
+
+按類別瀏覽完整工具目錄。不帶引數時顯示所有 34 個類別及工具數量。
+
+```
+/osint-catalog
+/osint-catalog domain
+/osint-catalog threat-intel
+```
+
+## 技能
+
+### osint-index
+
+頂層意圖路由器。當您說「尋找相關資訊」、「調查」、「查詢」、「背景調查」或描述任何開源情報任務時自動啟動。根據目標類型路由至正確的類別技能。
+
+| 目標 | 路由至 |
+|--------|----------|
+| 使用者名稱或帳號 | `username-recon` |
+| 電子郵件地址 | `email-recon` |
+| 網域名稱 | `domain-recon` |
+| IP 位址 | `ip-address-recon` |
+| 人名 + 公司 | `people-search` + `business-records` |
+| 公司 / 組織 | `business-records` + `domain-recon` |
+| 惡意程式雜湊值 | `malicious-file-analysis` + `threat-intelligence` |
+
+### 類別技能（共 34 個）
+
+每個類別都有專屬技能，包含 CLI 工具、網路資源、調查工作流程、跨類別樞紐分析及 OPSEC 注意事項。
+
+| 類別 | 工具數量 | 主要 CLI 工具 |
+|----------|-------|--------------|
+| `username-recon` | 18 | sherlock, maigret, sylva |
+| `email-recon` | 28 | holehe, h8mail, theHarvester |
+| `domain-recon` | 131 | subfinder, amass, whois, dig |
+| `cloud-recon` | 23 | cloud_enum, S3Scanner, ScoutSuite |
+| `ip-address-recon` | 55 | nmap, masscan, checkip |
+| `images-videos` | 89 | exiftool, exiv2, yt-dlp |
+| `social-networks` | 63 | maigret, yt-dlp, Osintgram |
+| `threat-intelligence` | 38 | iocextract, ioc_parser, pymisp |
+| `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
+| `search-engines` | 73 | gitleaks, pagodo, gobuster |
+| `geolocation` | 47 | Hyperlapse |
+| `opsec` | 47 | 47 種網頁式隱私工具 |
+| `people-search` | 18 | GitHub API, GitLab API |
+| `business-records` | 28 | SEC EDGAR, OpenCorporates |
+| *（另外 20 個類別）* | 500+ | — |
+
+<Aside type="tip">
+  使用 `/osint-catalog` 瀏覽所有 34 個類別，或使用
+  `/osint-search <capability>` 尋找特定任務的工具。
+</Aside>
+
+### osint-catalog
+
+工具目錄瀏覽器。提供完整工具登錄檔、類別索引、調查管線、速率限制參考及關聯引擎文件的存取。
+
+## 代理
+
+### osint-investigator
+
+自主多工具調查協調器。執行完整的調查工作流程 — 工具可用性檢查、目標類型偵測、依序執行工具（被動優先）、結果彙總，以及產生含信心等級和 OPSEC 分類的結構化報告。
+
+與實體圖譜整合：每個工具結果都會在 `/tmp/osint-graph/` 中建立實體和關係，用於跨調查關聯分析。
+
+<Aside type="caution">
+  主動偵察工具（nmap、nuclei、sherlock）會直接聯繫目標基礎設施。OPSEC 警告鉤子會在執行主動工具前發出警示。請務必確保您已獲得授權。
+</Aside>
+
+### osint-researcher
+
+唯讀目錄查詢代理。搜尋參考檔案以推薦最適合特定任務的工具。不會執行工具 — 僅提供推薦和說明。由類別技能在內部使用以進行工具探索。
+
+### osint-executor
+
+單一工具 CLI 執行代理。一次執行一個工具並帶有特定參數，解析輸出並回傳結構化結果。包含 20 多種工具的逐工具執行配方，提供精確的旗標、輸出格式及 jq 解析模式。
+
+## 速率限制
+
+所有 API 呼叫使用內建指數退避機制的 `osint_curl` 輔助程式處理 HTTP 429/503。主要限制：
+
+| API | 免費限制 | 環境變數 |
+|-----|-----------|---------|
+| ipinfo.io | 1,000/天 | — |
+| crt.sh | 60/分鐘 | — |
+| NVD | 5/30秒（無金鑰） | `NVD_API_KEY` |
+| OpenCorporates | 需要金鑰 | `OPENCORPORATES_API_KEY` |
+| Shodan | 1/秒 | `SHODAN_API_KEY` |
+| GitHub API | 60/小時（無驗證） | `GH_TOKEN` |
+
+需要金鑰的 API 在環境變數未設定時會自動跳過，並顯示明確的訊息。
+
+## 關聯引擎
+
+此外掛程式包含位於 `/tmp/osint-graph/` 的持久化 JSON 實體圖譜，可在調查過程中累積發現結果。
+
+```bash
+source plugins/osint-framework/scripts/osint-graph.sh
+osint_graph_init
+
+# Add entities
+P=$(osint_entity_add "person" "J. Smith" --tool github-api)
+C=$(osint_entity_add "company" "F5" --tool github-api)
+
+# Link them
+osint_rel_add "$P" "$C" "works_at" --tool github-api
+
+# Query: all entities within 2 hops of the person
+osint_graph_query "$P" 2
+
+# Generate report
+osint_graph_report
+```
+
+**信心評分**使用多來源融合：
+`confidence = 1 - product(1 - ci)`，針對每個確認來源計算。兩個 0.80 的來源 → 組合信心為 0.96。
+
+## 法律聲明
+
+所有工具僅使用公開可得的資訊。使用者有責任確保遵守適用的法律、法規及平台服務條款。切勿將 OSINT 工具用於未經授權的存取、騷擾或任何非法活動。

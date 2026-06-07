@@ -1,0 +1,164 @@
+---
+title: f5xc-docs-tools
+description: >-
+  Validação de conteúdo MDX e verificações de qualidade para o pipeline de
+  documentação f5xc-salesdemos.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: fc8929b2eaae
+  translator: machine
+---
+
+import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+O plugin **f5xc-docs-tools** valida arquivos de conteúdo MDX para
+o pipeline de documentação f5xc-salesdemos. Ele captura problemas
+comuns que quebram o build antes que cheguem ao CI, incluindo
+caracteres JSX soltos, imports inválidos, referências de imagens
+quebradas e frontmatter incompleto.
+
+<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## Instalação
+
+```
+/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+```
+
+## Skills
+
+### mdx-content-reviewer
+
+Esta skill é ativada automaticamente quando o Claude detecta que
+você está trabalhando com arquivos MDX em um repositório de
+conteúdo f5xc-salesdemos. Ela realiza sete verificações de
+validação:
+
+<CardGrid>
+  <Card title="Validação de frontmatter">
+    Verifica campos obrigatórios como `title` e `sidebar.order`.
+    Páginas splash devem incluir campos `hero` e
+    `template: splash`.
+  </Card>
+  <Card title="Armadilhas de sintaxe MDX">
+    Detecta caracteres `&lt;` soltos e chaves `\{` `\}` não
+    escapadas que quebram a análise MDX.
+  </Card>
+  <Card title="Validação de imports">
+    Valida imports contra uma lista permitida de componentes
+    nativos do Starlight e do tema f5xc-salesdemos.
+  </Card>
+  <Card title="Atributos de componentes">
+    Verifica props obrigatórias para componentes como Screenshot,
+    Aside, Code, LinkCard, Card e Badge.
+  </Card>
+  <Card title="Referências de imagens">
+    Verifica se as imagens referenciadas existem no diretório
+    `docs/images/`.
+  </Card>
+  <Card title="Verificações de estrutura">
+    Garante que `docs/index.mdx` existe e que diretórios de
+    imagens não contêm arquivos MDX perdidos.
+  </Card>
+  <Card title="Exports e blocos de código">
+    Verifica se variáveis utilizadas nas props `code` do
+    componente `Code` possuem exports correspondentes.
+  </Card>
+</CardGrid>
+
+#### Comportamento de escopo
+
+A skill define o escopo de revisão de forma inteligente:
+
+- Se houver alterações não commitadas ou em staging em arquivos
+  `docs/**/*.mdx`, apenas esses arquivos são revisados
+- Caso contrário, todos os arquivos `docs/**/*.mdx` são revisados
+
+#### Formato de saída
+
+Os achados são agrupados por severidade:
+
+- **ERROR** — quebrará o build; deve ser corrigido antes do merge
+- **WARNING** — problemas prováveis que devem ser tratados
+- **INFO** — sugestões e boas práticas
+
+Cada achado inclui o caminho do arquivo, número da linha e uma
+descrição do problema.
+
+## Comandos
+
+### /review-mdx
+
+```
+/f5xc-docs-tools:review-mdx [path-or-glob]
+```
+
+Executa a skill `mdx-content-reviewer` sob demanda.
+
+**Argumentos:**
+
+| Argumento | Obrigatório | Descrição |
+|----------|----------|-------------|
+| `path-or-glob` | Não | Caminho de arquivo ou padrão glob para definir o escopo da revisão. O padrão é todos os arquivos `docs/**/*.mdx`. |
+
+**Exemplos:**
+
+```
+# Revisar todos os arquivos MDX em docs/
+/f5xc-docs-tools:review-mdx
+
+# Revisar um arquivo específico
+/f5xc-docs-tools:review-mdx docs/getting-started.mdx
+
+# Revisar arquivos correspondentes a um glob
+/f5xc-docs-tools:review-mdx docs/guides/*.mdx
+```
+
+**Saída:** Uma linha de resumo ao final reporta o total de
+arquivos revisados e a contagem de achados por severidade.
+
+## Imports Permitidos
+
+O plugin valida imports contra estas fontes:
+
+**Componentes nativos do Starlight** (`@astrojs/starlight/components`):
+
+`Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
+`LinkCard` `Steps` `TabItem` `Tabs`
+
+**Componentes do tema f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+
+`Banner` `Icon` `LinkCard` `Screenshot`
+
+<Aside type="caution">
+  Componentes do tema utilizam imports padrão (default) de
+  arquivos `.astro` individuais. Imports diretos de
+  `node_modules`, caminhos relativos e chamadas `require()` são
+  sinalizados como avisos.
+</Aside>
+
+## Referência Rápida de Componentes
+
+| Componente | Props Obrigatórias | Props Opcionais |
+|-----------|---------------|----------------|
+| Screenshot | `alt` + pelo menos um entre `light` ou `dark` | — |
+| Aside | `type` | `title` |
+| Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
+| LinkCard (tema) | `title`, `href` | `description`, `icon` |
+| Card | `title` | `icon` |
+| Badge | `text` | `variant` |
+| Steps | — | — |
+| Tabs / TabItem | TabItem: `label` | — |
+| CardGrid | — | — |
+| FileTree | — | — |
+
+## Armadilhas do MDX
+
+Problemas comuns que o plugin captura:
+
+| Armadilha | Problema | Correção |
+|---------|---------|-----|
+| `&lt;` solto | MDX interpreta como tag JSX | Use `&amp;lt;`, código inline ou reformule |
+| `\{` `\}` não escapados | MDX trata como expressão JSX | Use código inline, escape com `\` ou use bloco de código |
+| Chaves em nomes de arquivo | Astro não consegue processar o arquivo | Nunca use `\{` ou `\}` em nomes de arquivo `.mdx` |

@@ -1,0 +1,78 @@
+---
+title: Visão Geral
+description: >-
+  Como o marketplace de plugins do Claude Code funciona — adicionando fontes,
+  instalando plugins e usando ferramentas compartilhadas.
+sidebar:
+  order: 1
+i18n:
+  sourceHash: cbde599e6ac0
+  translator: machine
+---
+
+Um **marketplace de plugins do Claude Code** é uma coleção curada de
+plugins que estendem o Claude Code com novas habilidades, comandos e
+agentes. Os marketplaces permitem que equipes compartilhem ferramentas
+para que cada desenvolvedor tenha as mesmas capacidades sem
+configuração manual.
+
+O **Marketplace f5xc-salesdemos** fornece plugins desenvolvidos para
+a plataforma de documentação
+[f5xc-salesdemos](https://github.com/f5xc-salesdemos) — um
+ecossistema de mais de 20 repositórios que publicam sites
+Astro/Starlight no GitHub Pages usando um pipeline de build
+compartilhado.
+
+## Como Funciona
+
+1. **Adicione o marketplace** ao Claude Code — isso o registra
+   como uma fonte de plugins
+2. **Instale plugins** do marketplace — cada plugin adiciona
+   habilidades e comandos à sua sessão do Claude Code
+3. **Use as ferramentas** — os plugins são ativados automaticamente
+   com base no contexto, ou você invoca seus comandos diretamente
+
+## Plugins Disponíveis
+
+| Plugin | Categoria | Descrição |
+|--------|-----------|-----------|
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Produtividade | Ferramentas de validação e revisão de conteúdo MDX para repositórios de documentação |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Produtividade | Framework de persona de Engenheiro de Vendas — execução de demos, apresentações, Q&A, gerenciamento de ambientes |
+
+## Início Rápido
+
+Adicione o marketplace e instale o plugin de ferramentas de documentação:
+
+```
+/plugin marketplace add f5xc-salesdemos/marketplace
+/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+```
+
+Consulte [Primeiros Passos](/marketplace/getting-started/) para um
+guia completo passo a passo.
+
+## Arquitetura
+
+Um marketplace é um repositório Git que contém um ou mais
+plugins. Cada plugin empacota habilidades, comandos e agentes
+em uma única unidade instalável.
+
+```
+Marketplace (marketplace.json)
+└── Plugin (plugin.json)
+    ├── Skills (SKILL.md)
+    │   └── References (data files)
+    ├── Commands (.md)
+    └── Agents (.md)
+```
+
+- **Marketplace** — o registro. Lista os plugins disponíveis
+  com metadados para descoberta e instalação.
+- **Plugin** — a unidade instalável. Contém uma ou mais
+  habilidades, comandos ou agentes.
+- **Skill (Habilidade)** — conhecimento contextual que o Claude ativa
+  automaticamente com base na tarefa em questão.
+- **Command (Comando)** — um comando slash que o usuário invoca diretamente
+  (ex.: `/review-mdx`).
+- **Agent (Agente)** — um sub-agente especializado que lida com tarefas
+  complexas e de múltiplas etapas de forma autônoma.

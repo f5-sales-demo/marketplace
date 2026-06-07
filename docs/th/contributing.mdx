@@ -1,0 +1,169 @@
+---
+title: การร่วมพัฒนาปลั๊กอิน
+description: >-
+  คู่มือสำหรับการสร้าง จัดโครงสร้าง และเผยแพร่ปลั๊กอินสำหรับ marketplace ของ
+  f5xc-salesdemos
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 36a56024cade
+  translator: machine
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+คู่มือนี้อธิบายวิธีการสร้างปลั๊กอินใหม่และเพิ่มเข้าไปใน
+marketplace ของ f5xc-salesdemos
+
+## โครงสร้างปลั๊กอิน
+
+ปลั๊กอินทุกตัวจะอยู่ในไดเรกทอรีของตัวเองภายใต้ `plugins/` และ
+มีโครงสร้างดังนี้:
+
+<FileTree>
+- plugins/
+  - my-plugin/
+    - .claude-plugin/
+      - plugin.json
+    - skills/
+      - my-skill/
+        - SKILL.md
+        - references/
+          - reference-data.md
+    - commands/
+      - my-command.md
+    - agents/
+      - my-agent.md
+    - README.md
+</FileTree>
+
+## การสร้างปลั๊กอิน
+
+<Steps>
+
+1. **สร้างไดเรกทอรีปลั๊กอิน**
+
+   ```bash
+   mkdir -p plugins/my-plugin/.claude-plugin
+   mkdir -p plugins/my-plugin/skills
+   mkdir -p plugins/my-plugin/commands
+   ```
+
+2. **เขียน `plugin.json`**
+
+   สร้างไฟล์ `plugins/my-plugin/.claude-plugin/plugin.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": {
+       "name": "f5xc-salesdemos"
+     },
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "keywords": ["relevant", "keywords"],
+     "license": "Apache-2.0",
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+3. **เพิ่ม skills**
+
+   สร้างไฟล์ `plugins/my-plugin/skills/my-skill/SKILL.md` พร้อม
+   frontmatter:
+
+   ```markdown
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   ---
+
+   Detailed instructions for Claude when this skill activates.
+   ```
+
+   วางข้อมูลอ้างอิงใดๆ ไว้ในไดเรกทอรีย่อย `references/`
+   คู่กับ `SKILL.md`
+
+4. **เพิ่ม commands**
+
+   สร้างไฟล์ `plugins/my-plugin/commands/my-command.md`:
+
+   ```markdown
+   ---
+   description: What this command does
+   argument_hint: "[optional-args]"
+   allowed_tools:
+     - Read
+     - Glob
+     - Grep
+   ---
+
+   Instructions for Claude when the user invokes this command.
+   ```
+
+5. **เพิ่มปลั๊กอินเข้าไปใน marketplace.json**
+
+   เพิ่มรายการเข้าไปในอาร์เรย์ `plugins` ในไฟล์
+   `.claude-plugin/marketplace.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": { "name": "f5xc-salesdemos" },
+     "source": "./plugins/my-plugin",
+     "category": "productivity",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "license": "Apache-2.0",
+     "keywords": ["relevant", "keywords"],
+     "tags": ["searchable", "tags"],
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+6. **ทดสอบในเครื่อง**
+
+   ทดสอบปลั๊กอินของคุณโดยไม่ต้องเผยแพร่ โดยชี้ Claude Code
+   ไปยังไดเรกทอรีในเครื่อง:
+
+   ```bash
+   claude --plugin-dir ./plugins/my-plugin
+   ```
+
+   ตรวจสอบว่า skills ถูกเปิดใช้งานในบริบทที่ถูกต้อง และ
+   commands ให้ผลลัพธ์ตามที่คาดหวัง
+
+</Steps>
+
+## การส่งปลั๊กอินของคุณ
+
+<Aside type="tip" title="ขั้นตอนการทำงานของ Repository">
+  Repository นี้บังคับใช้ขั้นตอนการกำกับดูแลอย่างเข้มงวด
+  ดู [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
+  สำหรับกระบวนการทั้งหมด
+</Aside>
+
+<Steps>
+
+1. สร้าง GitHub issue เพื่ออธิบายปลั๊กอินใหม่
+2. สร้าง feature branch จาก `main`
+3. เพิ่มไดเรกทอรีปลั๊กอินของคุณและอัปเดต `marketplace.json`
+4. เพิ่มหน้าเอกสารที่ `docs/plugins/my-plugin.mdx`
+5. เปิด PR โดยลิงก์ไปยัง issue ด้วย `Closes #N`
+6. แก้ไขข้อผิดพลาดจาก CI และ merge หลังจากการตรวจสอบผ่านทั้งหมด
+
+</Steps>
+
+## แนวปฏิบัติที่ดี
+
+- **ทำให้ skills มีจุดเน้นชัดเจน** — skill หนึ่งควรทำสิ่งเดียวให้ดี
+- **ใช้ไฟล์อ้างอิง** — วางชุดข้อมูลขนาดใหญ่ schemas และ
+  ตารางค้นหาไว้ใน `references/` แทนที่จะใส่ไว้ใน SKILL.md โดยตรง
+- **กำหนดขอบเขตอย่างชาญฉลาด** — ตรวจสอบการเปลี่ยนแปลงที่ยังไม่ได้ commit เพื่อ
+  จำกัดชุดข้อมูลที่ทำงานเมื่อเป็นไปได้
+- **จัดกลุ่มผลลัพธ์ตามระดับความรุนแรง** — ใช้ระดับ ERROR, WARNING และ INFO
+  เพื่อให้ผู้ใช้สามารถจัดลำดับความสำคัญของการแก้ไขได้
+- **เขียน README** — รวมตัวอย่างการใช้งานและคำอธิบาย
+  ว่าแต่ละ skill และ command ทำอะไร

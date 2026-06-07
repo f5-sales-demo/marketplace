@@ -1,0 +1,118 @@
+---
+title: f5xc-sales-engineer
+description: >-
+  Sales Engineer persona framework for demo execution, presentations, Q&A, and
+  teardown.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: aa053700ebd2
+  translator: machine
+---
+
+import { Aside, Badge, Steps } from '@astrojs/starlight/components';
+
+ปลั๊กอิน **f5xc-sales-engineer** มอบเฟรมเวิร์กบุคลิกภาพ Sales Engineer
+ที่สามารถนำกลับมาใช้ซ้ำได้สำหรับคลัง demo ของ F5 XC โดยจัดการวงจรชีวิตการประชุม
+demo ทั้งหมด — ตั้งแต่การตรวจสอบก่อนการประชุมไปจนถึงการดำเนินการแบบสด
+การถาม-ตอบ และการรื้อถอน
+
+<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## การติดตั้ง
+
+```
+/plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+```
+
+## ทักษะ
+
+### demo-executor
+
+การดำเนินการ demo แบบขับเคลื่อนด้วย API พร้อมวงจรชีวิตการประชุมสี่ขั้นตอน:
+
+1. **เตรียมการ** — การตรวจสอบสภาพแวดล้อมก่อนการประชุมผ่าน
+   `demo-housekeeping` agent
+2. **ดำเนินการ** — การดำเนินการตามขั้นตอนแบบกำหนดได้พร้อม
+   การบรรยายสำหรับลูกค้า
+3. **ถาม-ตอบ** — โหมดด้นสดพร้อมสภาพแวดล้อมจริง
+4. **รื้อถอน** — การล้างข้อมูลหลังการประชุมผ่าน `demo-housekeeping` agent
+
+อ่านเนื้อหาเฉพาะผลิตภัณฑ์จาก `DEMO_PRODUCT_EXPERTISE.md` และคำสั่ง demo
+จาก `docs/demo/`
+
+### presenter
+
+การนำเสนอแบบ walkthrough ตามที่สร้างไว้โดยใช้สภาพแวดล้อม demo
+ที่กำหนดค่าไว้ล่วงหน้า ดำเนินตามรูปแบบ แสดง → บรรยาย → เชื่อมโยง → หยุดรอ
+ในแต่ละขั้นตอน อ่านลำดับ walkthrough จาก `DEMO_WALKTHROUGH_CONFIG.md`
+
+### subject-matter-expert
+
+การถาม-ตอบที่มีแหล่งอ้างอิงรองรับพร้อมข้อกำหนดการอ้างอิงที่เข้มงวด ไม่มีการ
+คาดเดา — ทุกคำตอบจะมีแหล่งอ้างอิงหรือหลักฐานประกอบ มอบหมายการวิจัย
+ให้กับ `demo-researcher` agent เมื่อจำเป็น
+
+### sales-engineer
+
+ดัชนีบทบาทที่กำหนดเส้นทางเจตนาของผู้ใช้ไปยังทักษะบุคลิกภาพที่ถูกต้อง
+เปิดใช้งานเมื่อคำขอเกี่ยวข้องกับ demo แต่ไม่ตรงกับวลีทริกเกอร์เฉพาะ
+
+## Agents
+
+### demo-housekeeping
+
+Agent อัตโนมัติสำหรับการตรวจสอบก่อนการประชุมและการรื้อถอนหลังการประชุม
+รัน Readiness Verification Matrix (T0–T5) ที่กำหนดไว้
+ใน `DEMO_READINESS_MATRIX.md` และดำเนินการคำสั่งรื้อถอนจาก
+`docs/demo/phase-4-teardown.mdx`
+
+### demo-researcher
+
+บรรณารักษ์วิจัยแบบอ่านอย่างเดียวที่ค้นหาคำตอบที่ได้รับการยืนยันพร้อม
+การอ้างอิง ค้นหาจาก `docs/` ในเครื่องก่อน จากนั้นจึงค้นหาแหล่งข้อมูลภายนอก
+ที่จัดทำดัชนีจาก `DEMO_SOURCE_INDEX.md` โดยใช้ WebSearch เป็นทางเลือกสำรอง
+
+## ไฟล์ Convention
+
+<Aside type="tip" title="เนื้อหาเฉพาะผลิตภัณฑ์">
+  ปลั๊กอินนี้ไม่ผูกกับผลิตภัณฑ์ใดโดยเฉพาะ แต่ละคลังจะจัดเตรียม
+  เนื้อหาเฉพาะผลิตภัณฑ์ผ่านไฟล์ convention ที่เป็นมาตรฐาน
+</Aside>
+
+สร้างไฟล์เหล่านี้ในรูทของคลังเพื่อกำหนดค่าปลั๊กอิน:
+
+| ไฟล์ | วัตถุประสงค์ | จำเป็นสำหรับ |
+| ---- | ------- | ------------ |
+| `DEMO_PRODUCT_EXPERTISE.md` | ความสามารถของผลิตภัณฑ์, สัญญาณการตรวจจับ, การครอบคลุมภัยคุกคาม, การจัดแนวการปฏิบัติตามข้อกำหนด, API reference | ทุกทักษะ |
+| `DEMO_WALKTHROUGH_CONFIG.md` | URL แอป demo, ลำดับ walkthrough, เวลาการตรวจจับ | presenter |
+| `DEMO_SOURCE_INDEX.md` | แคตตาล็อกแหล่งข้อมูลวิจัยพร้อมเอกสารในเครื่องและ URL ภายนอก | demo-researcher |
+| `DEMO_READINESS_MATRIX.md` | ตัวแปรที่จำเป็น/ทางเลือก, การตรวจสอบความพร้อม (T0–T5), API endpoints | demo-housekeeping |
+| `docs/demo/` | ไฟล์เฟสพร้อมคำสั่ง cURL และเกตหลักฐาน | demo-executor |
+
+## วลีทริกเกอร์
+
+แผนที่ทริกเกอร์ `.claude/CLAUDE.md` (จัดการโดย `docs-control`)
+เปิดใช้งานทักษะตามเจตนาของผู้ใช้:
+
+| วลี | ทักษะ | ขั้นตอน |
+| ------ | ----- | ----- |
+| "run the demo", "execute the demo" | demo-executor | ดำเนินการ |
+| "prepare the demo", "pre-flight" | demo-executor | เตรียมการ |
+| "Q&A", "question and answer" | demo-executor | ถาม-ตอบ |
+| "tear down", "clean up" | demo-executor | รื้อถอน |
+| "walk through the demo", "present" | presenter | — |
+| "answer questions", "explain" | subject-matter-expert | — |
+
+## รูปแบบการบรรยาย
+
+บุคลิกภาพทั้งหมดใช้รูปแบบการบรรยายที่สอดคล้องกัน:
+
+- **ปัจจุบันกาล, สรรพนามบุรุษที่หนึ่งพหูพจน์** — "สิ่งที่เรากำลังดูอยู่
+  ตรงนี้…"
+- **หนึ่งประเด็นต่อหนึ่งย่อหน้า** — แต่ละการบรรยายตอบคำถาม: นี่คืออะไร?
+  ทำไมจึงสำคัญ? ควรทำอย่างไรต่อ?
+- **ระบุชื่อสัญญาณ** — ชี้ให้เห็นว่าความสามารถใดกำลังทำงานอยู่
+- **เชื่อมโยงกับการปฏิบัติตามข้อกำหนดเมื่อเกี่ยวข้อง** — กล่าวถึงการจัดแนวด้านกฎระเบียบ
+  อย่างเป็นธรรมชาติ
+- **เครื่องหมายหยุดรอจังหวะ** — `> ⏸ *[Pause for audience — ready to continue?]*`

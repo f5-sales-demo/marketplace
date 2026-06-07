@@ -1,0 +1,169 @@
+---
+title: Contribuire con un Plugin
+description: >-
+  Guida alla creazione, strutturazione e pubblicazione di plugin per il
+  marketplace f5xc-salesdemos.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: 36a56024cade
+  translator: machine
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+Questa guida spiega come creare un nuovo plugin e aggiungerlo
+al marketplace f5xc-salesdemos.
+
+## Struttura del Plugin
+
+Ogni plugin risiede nella propria directory sotto `plugins/` e
+segue questa struttura:
+
+<FileTree>
+- plugins/
+  - my-plugin/
+    - .claude-plugin/
+      - plugin.json
+    - skills/
+      - my-skill/
+        - SKILL.md
+        - references/
+          - reference-data.md
+    - commands/
+      - my-command.md
+    - agents/
+      - my-agent.md
+    - README.md
+</FileTree>
+
+## Creazione di un Plugin
+
+<Steps>
+
+1. **Creare la directory del plugin**
+
+   ```bash
+   mkdir -p plugins/my-plugin/.claude-plugin
+   mkdir -p plugins/my-plugin/skills
+   mkdir -p plugins/my-plugin/commands
+   ```
+
+2. **Scrivere `plugin.json`**
+
+   Creare `plugins/my-plugin/.claude-plugin/plugin.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": {
+       "name": "f5xc-salesdemos"
+     },
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "keywords": ["relevant", "keywords"],
+     "license": "Apache-2.0",
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+3. **Aggiungere le skill**
+
+   Creare `plugins/my-plugin/skills/my-skill/SKILL.md` con
+   il frontmatter:
+
+   ```markdown
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   ---
+
+   Detailed instructions for Claude when this skill activates.
+   ```
+
+   Posizionare eventuali dati di riferimento in una sottodirectory
+   `references/` accanto a `SKILL.md`.
+
+4. **Aggiungere i comandi**
+
+   Creare `plugins/my-plugin/commands/my-command.md`:
+
+   ```markdown
+   ---
+   description: What this command does
+   argument_hint: "[optional-args]"
+   allowed_tools:
+     - Read
+     - Glob
+     - Grep
+   ---
+
+   Instructions for Claude when the user invokes this command.
+   ```
+
+5. **Aggiungere il plugin a marketplace.json**
+
+   Aggiungere una voce nell'array `plugins` in
+   `.claude-plugin/marketplace.json`:
+
+   ```json
+   {
+     "name": "my-plugin",
+     "description": "What this plugin does",
+     "version": "1.0.0",
+     "author": { "name": "f5xc-salesdemos" },
+     "source": "./plugins/my-plugin",
+     "category": "productivity",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "license": "Apache-2.0",
+     "keywords": ["relevant", "keywords"],
+     "tags": ["searchable", "tags"],
+     "repository": "https://github.com/f5xc-salesdemos/marketplace"
+   }
+   ```
+
+6. **Testare localmente**
+
+   Testare il plugin senza pubblicarlo puntando Claude Code
+   alla directory locale:
+
+   ```bash
+   claude --plugin-dir ./plugins/my-plugin
+   ```
+
+   Verificare che le skill si attivino nel contesto corretto e
+   che i comandi producano l'output previsto.
+
+</Steps>
+
+## Invio del Plugin
+
+<Aside type="tip" title="Flusso di lavoro del repository">
+  Questo repository applica un rigoroso flusso di lavoro di governance.
+  Consultare [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
+  per il processo completo.
+</Aside>
+
+<Steps>
+
+1. Creare un issue su GitHub che descriva il nuovo plugin
+2. Creare un branch di funzionalità da `main`
+3. Aggiungere la directory del plugin e aggiornare `marketplace.json`
+4. Aggiungere una pagina di documentazione in `docs/plugins/my-plugin.mdx`
+5. Aprire una PR collegata all'issue con `Closes #N`
+6. Correggere eventuali errori della CI e fare il merge dopo il superamento dei controlli
+
+</Steps>
+
+## Buone Pratiche
+
+- **Mantenere le skill focalizzate** — ogni skill dovrebbe fare bene una sola cosa
+- **Utilizzare i file di riferimento** — inserire dataset di grandi dimensioni, schemi e
+  tabelle di lookup in `references/` anziché inline in SKILL.md
+- **Definire l'ambito in modo intelligente** — verificare le modifiche non ancora committate per
+  restringere il set di lavoro quando possibile
+- **Raggruppare l'output per gravità** — utilizzare i livelli ERROR, WARNING e INFO
+  così che gli utenti possano dare priorità alle correzioni
+- **Scrivere un README** — includere esempi di utilizzo e una descrizione
+  di ciò che ogni skill e comando fa

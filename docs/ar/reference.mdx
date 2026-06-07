@@ -1,0 +1,183 @@
+---
+title: المرجع
+description: >-
+  marketplace.json schema reference with field definitions, skill configuration,
+  and validation rules.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 15be095fe190
+  translator: machine
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## مخطط marketplace.json
+
+يتواجد بيان السوق في
+`.claude-plugin/marketplace.json` في جذر المستودع.
+
+### الحقول على المستوى الأعلى
+
+| الحقل | مطلوب | الوصف |
+|-------|----------|-------------|
+| `$schema` | لا | عنوان URL لمخطط JSON للتحقق من الصحة |
+| `name` | نعم | معرّف فريد للسوق |
+| `version` | لا | إصدار مخطط السوق (semver) |
+| `metadata.description` | نعم | وصف السوق المقروء للإنسان |
+| `owner.name` | نعم | المنظمة أو المستخدم الذي يملك السوق |
+| `owner.url` | لا | عنوان URL لملف المالك الشخصي أو موقعه الإلكتروني |
+| `owner.email` | لا | البريد الإلكتروني للتواصل |
+| `plugins` | نعم | مصفوفة من إدخالات الإضافات |
+
+### حقول إدخال الإضافة
+
+| الحقل | مطلوب | الوصف |
+|-------|----------|-------------|
+| `name` | نعم | معرّف الإضافة (يجب أن يتطابق مع `plugin.json`) |
+| `description` | نعم | وصف مختصر للإضافة |
+| `version` | نعم | سلسلة الإصدار الدلالي |
+| `author.name` | نعم | مؤلف الإضافة |
+| `source` | نعم | المسار أو عنوان URL للإضافة (انظر أنواع المصادر) |
+| `category` | نعم | فئة الإضافة (مثل `productivity`) |
+| `homepage` | لا | عنوان URL لتوثيق الإضافة أو صفحتها الرئيسية |
+| `license` | لا | معرّف ترخيص SPDX |
+| `keywords` | لا | مصفوفة من كلمات البحث المفتاحية |
+| `tags` | لا | مصفوفة من الوسوم للتصفية |
+| `repository` | لا | عنوان URL للمستودع |
+
+## أنواع مصادر الإضافات
+
+يدعم حقل `source` في marketplace.json تنسيقات متعددة:
+
+| النوع | مثال | الوصف |
+|------|---------|-------------|
+| مسار نسبي | `./plugins/my-plugin` | إضافة في نفس المستودع |
+| اختصار GitHub | `owner/repo` | إضافة في جذر المستودع |
+| GitHub مع مسار | `owner/repo/path/to/plugin` | إضافة في دليل فرعي |
+| عنوان URL لـ Git | `https://github.com/owner/repo.git` | مستودع Git |
+| حزمة npm | `npm:@scope/package` | حزمة npm منشورة |
+
+## مخطط plugin.json
+
+تمتلك كل إضافة بيانًا في
+`.claude-plugin/plugin.json` داخل دليلها.
+
+| الحقل | مطلوب | الوصف |
+|-------|----------|-------------|
+| `name` | نعم | معرّف الإضافة |
+| `description` | نعم | ما تفعله الإضافة |
+| `version` | نعم | الإصدار الدلالي |
+| `author.name` | نعم | مؤلف الإضافة |
+| `author.url` | لا | عنوان URL لملف المؤلف الشخصي أو موقعه الإلكتروني |
+| `homepage` | لا | عنوان URL للتوثيق |
+| `keywords` | لا | كلمات البحث المفتاحية |
+| `license` | لا | معرّف ترخيص SPDX |
+| `repository` | لا | عنوان URL للمستودع |
+
+## هيكل دليل الإضافة
+
+```
+plugins/my-plugin/
+  .claude-plugin/
+    plugin.json          # Plugin manifest (required)
+  skills/
+    skill-name/
+      SKILL.md           # Skill definition (required per skill)
+      references/        # Reference data files (optional)
+  commands/
+    command-name.md      # Command definition (one per command)
+  agents/
+    agent-name.md        # Agent definition (one per agent)
+  README.md              # Plugin documentation (recommended)
+```
+
+## متغيرات البيئة
+
+يمكن للإضافات استخدام هذه المتغيرات في ملفات المهارات والأوامر الخاصة بها:
+
+| المتغير | الوصف |
+|----------|-------------|
+| `$\{CLAUDE_PLUGIN_ROOT\}` | المسار المطلق لدليل جذر الإضافة |
+
+## التحقق من الصحة
+
+تحقق من صحة بيانات السوق والإضافات محليًا:
+
+```bash
+claude plugin validate .
+```
+
+يتحقق هذا من:
+
+- توافق `marketplace.json` مع المخطط
+- وجود جميع أدلة الإضافات المُشار إليها
+- امتلاك كل إضافة لملف `plugin.json` صالح
+- احتواء المهارات على بيانات وصفية مُنسّقة بشكل صحيح في `SKILL.md`
+- احتواء الأوامر على الحقول الوصفية المطلوبة
+
+## إعداد الفريق
+
+### إعداد الأسواق مسبقًا
+
+أضف إلى `.claude/settings.json` في أي مستودع:
+
+```json
+{
+  "extraKnownMarketplaces": [
+    "f5xc-salesdemos/marketplace"
+  ]
+}
+```
+
+### تفعيل الإضافات مسبقًا
+
+```json
+{
+  "enabledPlugins": [
+    "f5xc-docs-tools@f5xc-salesdemos-marketplace"
+  ]
+}
+```
+
+<Aside type="tip">
+  يضمن إيداع هذه الإعدادات في مستودعك حصول كل عضو في
+  الفريق على نفس إعدادات السوق والإضافات تلقائيًا.
+</Aside>
+
+## استكشاف الأخطاء وإصلاحها
+
+### السوق غير موجود
+
+تحقق من أن السوق قد تمت إضافته:
+
+```
+/plugin marketplace list
+```
+
+إذا كان مفقودًا، أعد إضافته:
+
+```
+/plugin marketplace add f5xc-salesdemos/marketplace
+```
+
+### الإضافة لا تعمل
+
+- تأكد من أن الإضافة مُثبّتة:
+  `/plugin list`
+- تحقق من أن إصدار Claude Code الخاص بك يدعم الإضافات
+  (v1.0.33+)
+- تحقق من أن شروط تشغيل المهارة تتطابق مع سياقك الحالي
+
+### المهارات لا تعمل تلقائيًا
+
+تعمل المهارات بناءً على حقل `description` في البيانات الوصفية لملف SKILL.md. إذا لم تعمل المهارة عند المتوقع:
+
+- تحقق من أن الوصف يصف بدقة سياق التشغيل
+- استخدم الأمر مباشرة (مثل `/f5xc-docs-tools:review-mdx`)
+  كحل بديل
+
+### أخطاء البناء بعد المراجعة
+
+تُبلغ الإضافة عن المشكلات لكنها لا تُصلحها تلقائيًا. طبّق
+الإصلاحات المُقترحة يدويًا، ثم أعد تشغيل المراجعة للتأكد من الحل.

@@ -1,0 +1,153 @@
+---
+title: f5xc-firecrawl
+description: >-
+  Local self-hosted web scraping and crawling via the open-source Firecrawl
+  engine.
+sidebar:
+  order: 13
+i18n:
+  sourceHash: a9d67be9cf3e
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+ปลั๊กอิน **f5xc-firecrawl** ให้บริการ web scraping แบบ self-hosted ภายในเครื่อง
+ผ่านเอนจิน [firecrawl](https://github.com/mendableai/firecrawl) แบบโอเพนซอร์ส
+ไม่ต้องใช้ API key ไม่ต้องสมัครสมาชิก ไม่ต้องพึ่งพาคลาวด์ การดำเนินการทั้งหมด
+ทำงานกับ firecrawl instance ภายในเครื่องบน `localhost:3002`
+ภายใน devcontainer
+
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## การติดตั้ง
+
+```
+/plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
+```
+
+## คำสั่ง
+
+### /scrape
+
+สแครปหน้าเว็บจาก URL เดียวและดึงเนื้อหาเป็น markdown
+
+```
+/scrape https://docs.example.com/getting-started
+/scrape https://example.com --format markdown,links --wait 2000
+```
+
+### /batch-scrape
+
+สแครปหลาย URL พร้อมกัน
+
+```
+/batch-scrape https://example.com https://example.org https://example.net
+```
+
+### /crawl
+
+ครอว์ลหลายหน้าจาก URL เริ่มต้น
+
+```
+/crawl https://docs.example.com --limit 20 --depth 2
+/crawl https://docs.example.com --include /api/* --exclude /blog/*
+```
+
+### /map
+
+ค้นหา URL ทั้งหมดบนเว็บไซต์
+
+```
+/map https://docs.example.com
+/map https://docs.example.com --search api --subdomains
+```
+
+### /search
+
+ค้นหาเว็บและเลือกที่จะสแครปผลลัพธ์ได้
+
+```
+/search "firecrawl web scraping" --limit 10
+/search "AI tools 2026" --scrape --time month
+```
+
+### /extract
+
+การดึงข้อมูลแบบมีโครงสร้างจากหน้าเว็บโดยใช้ LLM
+
+```
+/extract https://example.com "Extract the main heading and any links"
+/extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
+```
+
+<Aside type="note">
+  คำสั่ง extract ต้องการ LLM proxy ที่เข้ากันได้กับ OpenAI
+  ซึ่งกำหนดค่าผ่าน `OPENAI_BASE_URL` และ `OPENAI_API_KEY`
+</Aside>
+
+### /llmstxt
+
+สร้างไฟล์ llms.txt สำหรับเว็บไซต์
+
+```
+/llmstxt https://docs.example.com
+```
+
+## ทักษะ
+
+### web-scraper
+
+เปิดใช้งานอัตโนมัติเมื่อคุณขอให้สแครป URL, ครอว์ลเว็บไซต์, แมป
+URL ของไซต์, ค้นหาเว็บ, ดึงข้อมูลแบบมีโครงสร้าง, สร้าง llms.txt,
+สแครปหลาย URL พร้อมกัน หรือแปลงหน้าเว็บเป็น markdown
+มอบหมายงานให้ firecrawl-operator agent ทันที
+
+## เอเจนต์
+
+### firecrawl-operator
+
+เอเจนต์ web scraping อัตโนมัติที่รันลำดับ `curl` + `jq`
+กับ firecrawl API ภายในเครื่อง รองรับ 11 โปรโตคอลที่ครอบคลุม endpoint
+v1 ทั้งหมด เป็นเอเจนต์แบบอ่านอย่างเดียว (ไม่มีเครื่องมือ Write, Edit หรือ Agent)
+
+| โปรโตคอล | Endpoint | ประเภท |
+|----------|----------|------|
+| HEALTH | `GET /` | Sync |
+| SCRAPE | `POST /v1/scrape` | Sync |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
+| CRAWL | `POST /v1/crawl` | Async |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
+| MAP | `POST /v1/map` | Sync |
+| SEARCH | `POST /v1/search` | Sync |
+| EXTRACT | `POST /v1/extract` | Async |
+| LLMSTXT | `POST /v1/llmstxt` | Async |
+
+## โครงสร้างพื้นฐาน
+
+ปลั๊กอินต้องการ firecrawl stack ที่ทำงานอยู่ใน devcontainer:
+
+| ส่วนประกอบ | พอร์ต | วัตถุประสงค์ |
+|-----------|------|---------|
+| Firecrawl API | 3002 | endpoint ทั้งหมดของ scrape/crawl/map/search/extract |
+| Playwright | 3000 | เอนจินเรนเดอร์ JavaScript |
+| Redis | 6379 | แบ็กเอนด์คิวงาน |
+| PostgreSQL | socket | การเก็บข้อมูลงาน crawl/batch |
+| LiteLLM proxy | OPENAI_BASE_URL | แบ็กเอนด์ LLM สำหรับ extract (ไม่จำเป็น) |
+
+Stack จะเริ่มทำงานอัตโนมัติเมื่อ `ENABLE_FIRECRAWL=true` (ค่าเริ่มต้น)
+SessionStart hook จะตรวจสอบว่า API เข้าถึงได้
+และแจ้งเตือนหากบริการไม่ทำงาน
+
+## ความแตกต่างจาก Cloud Firecrawl
+
+ปลั๊กอินนี้ใช้เวอร์ชันโอเพนซอร์สแบบ self-hosted:
+
+- ไม่ต้องมีการยืนยันตัวตนหรือ API key สำหรับการสแครป
+- ไม่มีขีดจำกัดเครดิตหรือการจำกัดอัตราการใช้งาน
+- ใช้ endpoint API v1 (ไม่ใช่ v2)
+- ไม่มี browser session และ deep research
+- Extract ใช้ LLM proxy ของคุณเองแทนโมเดลแบบโฮสต์
+- ทำงานทั้งหมดภายในเครือข่ายคอนเทนเนอร์ภายในเครื่อง

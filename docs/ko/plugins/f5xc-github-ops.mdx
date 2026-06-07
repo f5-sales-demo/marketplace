@@ -1,0 +1,58 @@
+---
+title: f5xc-github-ops
+description: '이슈 기반 개발, PR 워크플로, CI 모니터링을 위한 GitHub 운영 자동화.'
+sidebar:
+  order: 7
+i18n:
+  sourceHash: 2ba0b437f939
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**f5xc-github-ops** 플러그인은 f5xc-salesdemos 리포지토리를 위한 전용 GitHub 운영
+자동화를 제공합니다. 이슈 생성부터 병합 후 모니터링까지 전체
+Git 및 GitHub 라이프사이클을 처리하며, 이슈 기반 개발과 사전 커밋
+린트 게이트를 강제합니다.
+
+<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+
+## 설치
+
+```
+/plugin install f5xc-github-ops@f5xc-salesdemos-marketplace
+```
+
+## 스킬
+
+### workflow-lifecycle
+
+이슈 생성, 브랜치 명명 규칙, PR 생성, 이슈에 대한 오류 피드백이 포함된
+CI 폴링, 병합 후 모니터링, 검증, 작업 완료 기준을 처리하는 리포지토리
+거버넌스 워크플로입니다. "commit", "push", "create a PR", "merge"라고 말하거나
+Git 작업을 수행할 때 활성화됩니다.
+
+### upstream-contribution
+
+포크 기반 개발을 위한 업스트림 기여 워크플로입니다. 포크 감지, 업스트림
+조사(이슈, PR, CONTRIBUTING.md, CI 패턴), 교차 리포지토리 이슈 및 PR 생성,
+로컬 추적 이슈 관리, 업스트림 CI 모니터링, 가이드된 해결을 처리합니다.
+
+## 에이전트
+
+### github-ops
+
+모든 기계적 Git 및 GitHub 운영을 위한 전용 에이전트입니다.
+사전 커밋 린트 게이트, 이슈 생성, 브랜치 생성, 스테이징, 커밋, 푸시,
+PR 생성, 오류 피드백이 포함된 CI 폴링, 인프라 실패 재시도, 병합 후
+모니터링, 브랜치 정리, GitHub API를 통한 리포지토리 설정 관리를
+처리합니다.
+
+구조화된 상태 보고서를 반환합니다: `COMPLETE`,
+`PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED`, 또는 `FAILED`.
+
+<Aside type="caution">
+  이 에이전트는 Git 운영의 **전용** 핸들러입니다.
+  이 플러그인을 사용하는 리포지토리에서는 `git commit`, `git push`,
+  또는 `gh pr create`를 직접 실행하지 마십시오.
+</Aside>

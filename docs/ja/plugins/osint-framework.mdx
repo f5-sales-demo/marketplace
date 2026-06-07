@@ -1,0 +1,166 @@
+---
+title: osint-framework
+description: '34カテゴリにわたる1,064の情報収集ツールを備えたOSINTツールカタログおよび調査スキル。'
+sidebar:
+  order: 12
+i18n:
+  sourceHash: 79499aa33fc5
+  translator: machine
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+**osint-framework** プラグインは、OSINTツールカタログと調査スキルを提供します — [osintframework.com](https://osintframework.com) からマッピングされた34カテゴリにわたる1,064の無料情報収集ツールが含まれています。カテゴリベースのスキル、実行可能な調査パイプライン、CLIツール実行、OPSEC対応ワークフロー、およびクロス調査の相関分析のための永続的なエンティティグラフが含まれています。
+
+<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+
+## インストール
+
+```
+/plugin install osint-framework@f5xc-salesdemos-marketplace
+```
+
+## コマンド
+
+### /osint-investigate
+
+任意のターゲットに対してフルOSINT調査を実行します。ターゲットタイプ（メール、ドメイン、IP、ユーザー名、企業、人名）を自動検出し、適切なカテゴリスキルにルーティングします。
+
+```
+/osint-investigate j.smith@example.com
+/osint-investigate example.com
+/osint-investigate 198.51.100.1
+/osint-investigate example-user
+```
+
+### /osint-search
+
+能力クエリに一致するツールをツールカタログから検索します。
+
+```
+/osint-search subdomain enumeration
+/osint-search email breach check
+/osint-search satellite imagery
+```
+
+### /osint-catalog
+
+カテゴリ別にフルツールカタログを閲覧します。引数なしの場合、ツール数付きの全34カテゴリを表示します。
+
+```
+/osint-catalog
+/osint-catalog domain
+/osint-catalog threat-intel
+```
+
+## スキル
+
+### osint-index
+
+トップレベルのインテントルーター。「～について情報を調べて」、「調査して」、「検索して」、「身元調査」と言った場合、またはオープンソースインテリジェンスタスクを記述した場合に自動的にアクティブになります。ターゲットタイプに基づいて適切なカテゴリスキルにルーティングします。
+
+| ターゲット | ルーティング先 |
+|--------|----------|
+| ユーザー名またはハンドル | `username-recon` |
+| メールアドレス | `email-recon` |
+| ドメイン名 | `domain-recon` |
+| IPアドレス | `ip-address-recon` |
+| 人名 + 企業 | `people-search` + `business-records` |
+| 企業 / 組織 | `business-records` + `domain-recon` |
+| マルウェアハッシュ | `malicious-file-analysis` + `threat-intelligence` |
+
+### カテゴリスキル（全34種）
+
+各カテゴリには、CLIツール、Webリソース、調査ワークフロー、クロスカテゴリピボット、OPSECノートを備えた専用スキルがあります。
+
+| カテゴリ | ツール数 | 主要CLIツール |
+|----------|-------|--------------|
+| `username-recon` | 18 | sherlock, maigret, sylva |
+| `email-recon` | 28 | holehe, h8mail, theHarvester |
+| `domain-recon` | 131 | subfinder, amass, whois, dig |
+| `cloud-recon` | 23 | cloud_enum, S3Scanner, ScoutSuite |
+| `ip-address-recon` | 55 | nmap, masscan, checkip |
+| `images-videos` | 89 | exiftool, exiv2, yt-dlp |
+| `social-networks` | 63 | maigret, yt-dlp, Osintgram |
+| `threat-intelligence` | 38 | iocextract, ioc_parser, pymisp |
+| `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
+| `search-engines` | 73 | gitleaks, pagodo, gobuster |
+| `geolocation` | 47 | Hyperlapse |
+| `opsec` | 47 | 47のWebベースプライバシーツール |
+| `people-search` | 18 | GitHub API, GitLab API |
+| `business-records` | 28 | SEC EDGAR, OpenCorporates |
+| *（その他20カテゴリ）* | 500+ | — |
+
+<Aside type="tip">
+  `/osint-catalog` で全34カテゴリを閲覧するか、
+  `/osint-search <capability>` で特定のタスクに適したツールを検索できます。
+</Aside>
+
+### osint-catalog
+
+ツールカタログブラウザ。フルツールレジストリ、カテゴリインデックス、調査パイプライン、レート制限リファレンス、および相関エンジンのドキュメントへのアクセスを提供します。
+
+## エージェント
+
+### osint-investigator
+
+自律型マルチツール調査オーケストレーター。フル調査ワークフローを実行します — ツール可用性チェック、ターゲットタイプ検出、順次ツール実行（パッシブ優先）、結果集約、および信頼度レベルとOPSEC分類を含む構造化レポートの生成。
+
+エンティティグラフと統合されており、各ツールの結果は `/tmp/osint-graph/` にエンティティとリレーションシップを作成し、クロス調査の相関分析に活用されます。
+
+<Aside type="caution">
+  アクティブ偵察ツール（nmap、nuclei、sherlock）はターゲットインフラに直接接触します。OPSECの警告フックがアクティブツールの実行前にアラートを表示します。必ず許可を得てから使用してください。
+</Aside>
+
+### osint-researcher
+
+読み取り専用のカタログ検索エージェント。リファレンスファイルを検索して、特定のタスクに最適なツールを推奨します。ツールを実行することはなく、推奨と説明のみを行います。ツール検出のためにカテゴリスキルで内部的に使用されます。
+
+### osint-executor
+
+単一ツールのCLI実行エージェント。特定のパラメータで一度に1つのツールを実行し、出力を解析して構造化された結果を返します。20以上のツールについて、正確なフラグ、出力形式、jq解析パターンを含むツールごとの実行レシピが含まれています。
+
+## レート制限
+
+すべてのAPI呼び出しは、HTTP 429/503に対する組み込みの指数バックオフを備えた `osint_curl` ヘルパーを使用します。主な制限：
+
+| API | 無料制限 | 環境変数 |
+|-----|-----------|---------|
+| ipinfo.io | 1,000/日 | — |
+| crt.sh | 60/分 | — |
+| NVD | 5/30秒（キーなし） | `NVD_API_KEY` |
+| OpenCorporates | キーが必要 | `OPENCORPORATES_API_KEY` |
+| Shodan | 1/秒 | `SHODAN_API_KEY` |
+| GitHub API | 60/時間（認証なし） | `GH_TOKEN` |
+
+キーが必要なAPIは、環境変数が設定されていない場合、明確なメッセージとともに自動的にスキップされます。
+
+## 相関エンジン
+
+このプラグインには、調査全体にわたって発見事項を蓄積する永続的なJSONエンティティグラフが `/tmp/osint-graph/` に含まれています。
+
+```bash
+source plugins/osint-framework/scripts/osint-graph.sh
+osint_graph_init
+
+# エンティティの追加
+P=$(osint_entity_add "person" "J. Smith" --tool github-api)
+C=$(osint_entity_add "company" "F5" --tool github-api)
+
+# リンクの作成
+osint_rel_add "$P" "$C" "works_at" --tool github-api
+
+# クエリ：人物から2ホップ以内のすべてのエンティティ
+osint_graph_query "$P" 2
+
+# レポートの生成
+osint_graph_report
+```
+
+**信頼度スコアリング**はマルチソースフュージョンを使用します：
+各確認ソースに対して `confidence = 1 - product(1 - ci)`。
+0.80の2つのソース → 結合信頼度0.96。
+
+## 法的注意事項
+
+すべてのツールは公開情報のみを使用します。ユーザーは、適用される法律、規制、およびプラットフォームの利用規約への準拠を確認する責任があります。OSINTツールを不正アクセス、ハラスメント、またはその他の違法行為に使用しないでください。
