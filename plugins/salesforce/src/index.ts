@@ -31,6 +31,31 @@ const factory: ExtensionFactory = async (pi) => {
       setLoadProfile(pi.pi.loadProfile);
     }
 
+    // Register profile collector for person-data sync
+    if (typeof pi.registerProfileCollector === 'function') {
+      pi.registerProfileCollector({
+        id: 'salesforce',
+        name: 'Salesforce',
+        async available() {
+          const { loadSalesforceContext } = await import('./context/salesforce-context');
+          const ctx = await loadSalesforceContext();
+          return ctx !== null;
+        },
+        async collect() {
+          const { loadSalesforceContext, salesforceContextIsStale, seedSalesforceContext } = await import(
+            './context/salesforce-context'
+          );
+          const { mapSalesforceToProfile } = await import('./context/profile-mapper');
+          let ctx = await loadSalesforceContext();
+          if (!ctx || salesforceContextIsStale(ctx)) {
+            ctx = await seedSalesforceContext();
+          }
+          if (!ctx) return {};
+          return mapSalesforceToProfile(ctx);
+        },
+      });
+    }
+
     // Register tools
     const { createSfSetupTool } = await import('./tools/sf-setup');
     const { createSfQueryTool } = await import('./tools/sf-query');
