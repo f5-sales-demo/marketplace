@@ -38,9 +38,13 @@ const factory: ExtensionFactory = async (pi) => {
         name: 'Salesforce',
         authoritativeFields: ['manager', 'partner', 'territories'],
         async available() {
-          const { loadSalesforceContext } = await import('./context/salesforce-context');
+          const { loadSalesforceContext, getLoadProfile } = await import('./context/salesforce-context');
           const ctx = await loadSalesforceContext();
-          return ctx !== null;
+          if (ctx) return true;
+          const loader = getLoadProfile();
+          if (!loader) return false;
+          const profile = await loader();
+          return !!profile.identifiers?.salesforceId;
         },
         async collect() {
           const { loadSalesforceContext, salesforceContextIsStale, seedSalesforceContext } = await import(
