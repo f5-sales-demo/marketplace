@@ -36,6 +36,7 @@ const factory: ExtensionFactory = async (pi) => {
       pi.registerProfileCollector({
         id: 'salesforce',
         name: 'Salesforce',
+        authoritativeFields: ['manager', 'partner', 'territories'],
         async available() {
           const { loadSalesforceContext } = await import('./context/salesforce-context');
           const ctx = await loadSalesforceContext();
