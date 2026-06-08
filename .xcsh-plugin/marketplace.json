@@ -202,7 +202,7 @@
     {
       "name": "salesforce",
       "description": "Salesforce pipeline intelligence \u2014 native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting. Bridge to forcedotcom/afv-library skills for Apex, LWC, Flow, SOQL, metadata, and deployment.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "f5xc-salesdemos"
       },
