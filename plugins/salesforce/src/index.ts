@@ -42,14 +42,38 @@ const factory: ExtensionFactory = async (pi) => {
           const ctx = await loadSalesforceContext();
           if (ctx) return true;
           const loader = getLoadProfile();
-          if (!loader) return false;
-          const profile = await loader();
-          return !!profile.identifiers?.salesforceId;
+          if (loader) {
+            const profile = await loader();
+            return !!profile.identifiers?.salesforceId;
+          }
+          const os = await import('node:os');
+          const path = await import('node:path');
+          try {
+            const profile = await Bun.file(path.join(os.homedir(), '.xcsh', 'user-profile.json')).json();
+            return !!profile?.identifiers?.salesforceId;
+          } catch {
+            return false;
+          }
         },
         async collect() {
-          const { loadSalesforceContext, salesforceContextIsStale, seedSalesforceContext } = await import(
-            './context/salesforce-context'
-          );
+          const {
+            loadSalesforceContext,
+            salesforceContextIsStale,
+            seedSalesforceContext,
+            getLoadProfile,
+            setLoadProfile,
+          } = await import('./context/salesforce-context');
+          if (!getLoadProfile()) {
+            const os = await import('node:os');
+            const path = await import('node:path');
+            setLoadProfile(async () => {
+              try {
+                return await Bun.file(path.join(os.homedir(), '.xcsh', 'user-profile.json')).json();
+              } catch {
+                return {};
+              }
+            });
+          }
           const { mapSalesforceToProfile } = await import('./context/profile-mapper');
           let ctx = await loadSalesforceContext();
           if (!ctx || salesforceContextIsStale(ctx)) {
