@@ -1,6 +1,6 @@
 ---
 title: プラグインの貢献
-description: f5xc-salesdemos マーケットプレイス向けのプラグインの作成、構成、公開に関するガイド。
+description: f5xc-salesdemos マーケットプレイス向けのプラグインの作成、構造化、公開に関するガイド。
 sidebar:
   order: 6
 i18n:
@@ -12,9 +12,9 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 このガイドでは、新しいプラグインを作成し、f5xc-salesdemos マーケットプレイスに追加する方法を説明します。
 
-## プラグインの構成
+## プラグインの構造
 
-すべてのプラグインは `plugins/` 配下の個別のディレクトリに配置され、以下の構成に従います：
+すべてのプラグインは `plugins/` 配下の独自のディレクトリに配置され、以下の構造に従います：
 
 <FileTree>
 - plugins/
@@ -77,7 +77,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    Detailed instructions for Claude when this skill activates.
    ```
 
-   参照データは `SKILL.md` と同階層の `references/` サブディレクトリに配置します。
+   参照データは `SKILL.md` と同じ階層の `references/` サブディレクトリに配置します。
 
 4. **コマンドを追加する**
 
@@ -96,7 +96,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    Instructions for Claude when the user invokes this command.
    ```
 
-5. **プラグインを marketplace.json に追加する**
+5. **マーケットプレイスの marketplace.json にプラグインを追加する**
 
    `.claude-plugin/marketplace.json` の `plugins` 配列にエントリを追加します：
 
@@ -118,38 +118,38 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 6. **ローカルでテストする**
 
-   公開せずにプラグインをテストするには、Claude Code をローカルディレクトリに向けて実行します：
+   公開せずにプラグインをテストするには、Claude Code をローカルディレクトリに向けます：
 
    ```bash
    claude --plugin-dir ./plugins/my-plugin
    ```
 
-   スキルが適切なコンテキストで有効化されること、およびコマンドが期待どおりの出力を生成することを確認します。
+   スキルが適切なコンテキストでアクティベートされること、コマンドが期待通りの出力を生成することを確認します。
 
 </Steps>
 
 ## プラグインの提出
 
-<Aside type="tip" title="リポジトリワークフロー">
-  このリポジトリでは厳格なガバナンスワークフローが適用されています。
+<Aside type="tip" title="リポジトリのワークフロー">
+  このリポジトリは厳格なガバナンスワークフローを適用しています。
   完全なプロセスについては [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md) を参照してください。
 </Aside>
 
 <Steps>
 
-1. 新しいプラグインを説明する GitHub Issue を作成する
+1. 新しいプラグインについて説明する GitHub Issue を作成する
 2. `main` からフィーチャーブランチを作成する
 3. プラグインディレクトリを追加し、`marketplace.json` を更新する
 4. `docs/plugins/my-plugin.mdx` にドキュメントページを追加する
-5. `Closes #N` で Issue にリンクする PR を作成する
-6. CI の失敗を修正し、チェックが通ったらマージする
+5. `Closes #N` を含めて Issue にリンクする PR を作成する
+6. CI の失敗を修正し、チェックが通った後にマージする
 
 </Steps>
 
 ## ベストプラクティス
 
 - **スキルは焦点を絞る** — 1つのスキルは1つのことをうまくこなすべきです
-- **参照ファイルを使用する** — 大規模なデータセット、スキーマ、ルックアップテーブルは SKILL.md にインラインで記述するのではなく、`references/` に配置してください
-- **スコープをインテリジェントに設定する** — 可能な場合はコミットされていない変更を確認し、作業セットを絞り込んでください
-- **重要度別に出力をグループ化する** — ユーザーが修正の優先順位を付けられるよう、ERROR、WARNING、INFO のレベルを使用してください
-- **README を記述する** — 使用例と、各スキルおよびコマンドの説明を含めてください
+- **参照ファイルを使用する** — 大きなデータセット、スキーマ、ルックアップテーブルは SKILL.md にインラインで記述するのではなく `references/` に配置します
+- **スコープを賢く設定する** — 可能な場合はコミットされていない変更をチェックして作業セットを絞り込みます
+- **出力を重要度別にグループ化する** — ユーザーが修正の優先順位を付けられるよう、ERROR、WARNING、INFO レベルを使用します
+- **README を記述する** — 使用例と各スキルおよびコマンドの説明を含めます

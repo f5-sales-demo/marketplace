@@ -15,10 +15,10 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 Il plugin **f5xc-firecrawl** fornisce web scraping locale self-hosted
 tramite il motore open-source [firecrawl](https://github.com/mendableai/firecrawl).
 Nessuna chiave API, nessun abbonamento, nessuna dipendenza dal cloud. Tutte
-le operazioni vengono eseguite sull'istanza locale di firecrawl su `localhost:3002`
+le operazioni vengono eseguite contro l'istanza locale di firecrawl su `localhost:3002`
 all'interno del devcontainer.
 
-<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.0" variant="note" /> <Badge text="Produttività" variant="tip" />
 
 ## Installazione
 
@@ -30,7 +30,7 @@ all'interno del devcontainer.
 
 ### /scrape
 
-Effettua lo scraping di un singolo URL ed estrae il contenuto come markdown.
+Esegue lo scraping di un singolo URL ed estrae il contenuto come markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Effettua lo scraping di un singolo URL ed estrae il contenuto come markdown.
 
 ### /batch-scrape
 
-Effettua lo scraping di più URL contemporaneamente.
+Esegue lo scraping di più URL contemporaneamente.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -65,7 +65,7 @@ Scopre tutti gli URL di un sito web.
 
 ### /search
 
-Cerca nel web e opzionalmente effettua lo scraping dei risultati.
+Cerca nel web e opzionalmente esegue lo scraping dei risultati.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -98,9 +98,9 @@ Genera un file llms.txt per un sito.
 
 ### web-scraper
 
-Si attiva automaticamente quando si richiede di effettuare lo scraping di un URL, il crawling di un sito web, la mappatura
-degli URL di un sito, la ricerca nel web, l'estrazione di dati strutturati, la generazione di llms.txt,
-il batch scraping di più URL o la conversione di una pagina web in markdown.
+Si attiva automaticamente quando si richiede di eseguire lo scraping di un URL, il crawling di un sito web, la mappatura
+degli URL del sito, la ricerca nel web, l'estrazione di dati strutturati, la generazione di llms.txt,
+lo scraping batch di più URL o la conversione di una pagina web in markdown.
 Delega immediatamente all'agente firecrawl-operator.
 
 ## Agenti
@@ -109,21 +109,21 @@ Delega immediatamente all'agente firecrawl-operator.
 
 Agente autonomo di web scraping che esegue sequenze `curl` + `jq`
 contro l'API locale di firecrawl. Supporta 11 protocolli che coprono tutti
-gli endpoint v1. Agente in sola lettura (nessuno strumento di Write, Edit o Agent).
+gli endpoint v1. Agente in sola lettura (nessuno strumento Write, Edit o Agent).
 
 | Protocollo | Endpoint | Tipo |
 |----------|----------|------|
-| HEALTH | `GET /` | Sync |
-| SCRAPE | `POST /v1/scrape` | Sync |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
-| CRAWL | `POST /v1/crawl` | Async |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
-| MAP | `POST /v1/map` | Sync |
-| SEARCH | `POST /v1/search` | Sync |
-| EXTRACT | `POST /v1/extract` | Async |
-| LLMSTXT | `POST /v1/llmstxt` | Async |
+| HEALTH | `GET /` | Sincrono |
+| SCRAPE | `POST /v1/scrape` | Sincrono |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Asincrono |
+| CRAWL | `POST /v1/crawl` | Asincrono |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sincrono |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sincrono |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sincrono |
+| MAP | `POST /v1/map` | Sincrono |
+| SEARCH | `POST /v1/search` | Sincrono |
+| EXTRACT | `POST /v1/extract` | Asincrono |
+| LLMSTXT | `POST /v1/llmstxt` | Asincrono |
 
 ## Infrastruttura
 
@@ -135,7 +135,7 @@ Il plugin richiede lo stack firecrawl in esecuzione nel devcontainer:
 | Playwright | 3000 | Motore di rendering JavaScript |
 | Redis | 6379 | Backend per la coda dei job |
 | PostgreSQL | socket | Persistenza dei job crawl/batch |
-| LiteLLM proxy | OPENAI_BASE_URL | Backend LLM per extract (opzionale) |
+| Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM per extract (opzionale) |
 
 Lo stack si avvia automaticamente quando `ENABLE_FIRECRAWL=true` (il
 valore predefinito). Un hook SessionStart verifica che l'API sia raggiungibile e
@@ -150,4 +150,4 @@ Questo plugin utilizza la versione open-source self-hosted:
 - Utilizza gli endpoint API v1 (non v2)
 - Sessioni browser e deep research non disponibili
 - Extract utilizza il proprio proxy LLM invece dei modelli hosted
-- Viene eseguito interamente all'interno della rete locale del container
+- Funziona interamente all'interno della rete locale del container

@@ -1,8 +1,6 @@
 ---
-title: salesforce
-description: >-
-  Salesforce CLI automation with org authentication, account management,
-  pipeline analysis, and natural language data queries.
+title: Salesforce
+description: Salesforce CLI 自动化，包括组织身份验证、账户管理、管道分析和自然语言数据查询。
 sidebar:
   label: Salesforce
   order: 14
@@ -14,7 +12,9 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 **salesforce** 插件将 Salesforce CLI 与 Claude Code 集成，
-提供组织认证和通用 CLI 代理，可以运行任何 `sf` 命令，包括 SOQL 查询。它支持无头容器环境中的 JWT、access-token 和 SFDX URL 认证流程。以下使用指南展示了如何通过 CLI 代理使用自然语言查询客户、商机、案例和联系人。
+提供组织身份验证和通用 CLI 代理，可以运行任何 `sf` 命令（包括 SOQL 查询）。
+它支持无头容器环境，提供 JWT、访问令牌和 SFDX URL 身份验证流程。
+以下使用指南演示了如何使用自然语言通过 CLI 代理查询账户、商机、案例和联系人。
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
@@ -24,11 +24,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 /plugin install salesforce@f5xc-salesdemos-marketplace
 ```
 
-## 前置条件
+## 前提条件
 
 - **Salesforce CLI** (`@salesforce/cli`)
 - 具有 API 访问权限的 **Salesforce 组织**
-- 具有查询对象（Cases、Opportunities、Accounts、Contacts）权限的用户账户
+- 拥有查询对象（Cases、Opportunities、Accounts、Contacts）权限的用户账户
 
 在您的工作站上安装 Salesforce CLI：
 
@@ -44,23 +44,26 @@ sf --version
 
 您应该看到类似 `@salesforce/cli/2.x.x` 的输出。
 
-## 认证设置
+## 身份验证设置
 
 ### 步骤 1：查找您的 Salesforce 域名
 
-在浏览器中查看您的 Salesforce URL。如果您通过 `https://acme.lightning.force.com` 访问 Salesforce，那么您的登录域名是 `https://acme.my.salesforce.com`。
+在浏览器中查看您的 Salesforce URL。如果您通过
+`https://acme.lightning.force.com` 访问 Salesforce，您的登录域名为
+`https://acme.my.salesforce.com`。
 
 <Aside type="tip">
-  如果您的公司使用 SSO，您必须使用 `--instance-url` 指定自定义域名，以便登录通过您的 SSO 提供商重定向，而不是通用的 Salesforce 登录页面。
+  如果您的公司使用 SSO，您必须通过 `--instance-url` 指定自定义域名，
+  以便登录重定向通过您的 SSO 提供商，而不是通用的 Salesforce 登录页面。
 </Aside>
 
-### 步骤 2：通过浏览器进行认证
+### 步骤 2：通过浏览器进行身份验证
 
 ```bash
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
 ```
 
-将 `YOUR-DOMAIN` 替换为步骤 1 中获取的公司域名。浏览器将打开 — 完成 SSO 或登录流程并授权应用。您应该看到：
+将 `YOUR-DOMAIN` 替换为步骤 1 中的公司域名。浏览器将打开 — 完成 SSO 或登录流程并授权应用。您应该看到：
 
 ```
 Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
@@ -74,15 +77,16 @@ sf org display --target-org my-org
 
 确认输出显示 `Connected Status: Connected` 以及您的用户名和实例 URL。
 
-### 步骤 4：容器的便携式认证（可选）
+### 步骤 4：容器的可移植身份验证（可选）
 
-如果您需要在无头环境（CI/CD、容器、远程会话）中进行认证，请从您的工作站导出 SFDX 认证 URL：
+如果您需要在无头环境（CI/CD、容器、远程会话）中进行身份验证，
+请从工作站导出 SFDX 身份验证 URL：
 
 ```bash
 sf org display --verbose --target-org my-org
 ```
 
-复制 **Sfdx Auth Url** 的值（以 `force://` 开头）。在容器中运行：
+复制 **Sfdx Auth Url** 值（以 `force://` 开头）。在容器中运行：
 
 ```bash
 export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
@@ -90,84 +94,85 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ```
 
 <Aside type="caution">
-  SFDX 认证 URL 是一个凭据 — 请像对待密码一样对待它。不要将其提交到文件中或粘贴到聊天中。仅使用环境变量和标准输入管道。
+  SFDX 身份验证 URL 是凭据 — 请像密码一样对待。不要将其提交到文件或粘贴到聊天中。
+  仅使用环境变量和 stdin 管道。
 </Aside>
 
-### 认证方式参考
+### 身份验证方法参考
 
-| 方式 | 最适用于 | 要求 |
+| 方法 | 最适用场景 | 要求 |
 |--------|----------|----------|
 | Web 登录 | 具有浏览器的工作站 | 浏览器 + SSO |
-| SFDX URL | 容器、CI/CD、便携式认证 | 来自已认证会话的认证 URL |
-| JWT Bearer | 自动化流水线 | Connected App + 私钥 + consumer key |
-| Access Token | 环境变量认证 | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
+| SFDX URL | 容器、CI/CD、可移植身份验证 | 来自已验证会话的身份验证 URL |
+| JWT Bearer | 自动化管道 | Connected App + 私钥 + 消费者密钥 |
+| 访问令牌 | 环境变量身份验证 | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
 
-**注意：** 设备流程（`sf org login device`）自 2025 年 8 月起已被阻止，不再受支持。
+**注意：** 设备流程（`sf org login device`）自 2025 年 8 月起已被阻止，不受支持。
 
 ### 环境变量
 
 | 变量 | 用途 |
 |----------|---------|
-| `SF_ACCESS_TOKEN` | 用于 access-token 认证的 Bearer 令牌 |
-| `SFDX_AUTH_URL` | 用于 SFDX URL 认证的 Force 认证 URL |
+| `SF_ACCESS_TOKEN` | 用于访问令牌身份验证的 Bearer 令牌 |
+| `SFDX_AUTH_URL` | 用于 SFDX URL 身份验证的 Force 身份验证 URL |
 | `SF_ORG_INSTANCE_URL` | 组织实例 URL |
 | `SF_JWT_KEY_FILE` | JWT 私钥路径 |
-| `SF_CLIENT_ID` | Connected App consumer key |
+| `SF_CLIENT_ID` | Connected App 消费者密钥 |
 | `SF_USERNAME` | 用于 JWT 的 Salesforce 用户名 |
 
 ## 命令
 
 ### /salesforce:sf-status
 
-检查您的 Salesforce 组织连接状态、CLI 版本和已认证的组织。
+检查您的 Salesforce 组织连接状态、CLI 版本和已验证的组织。
 
 ```
 /salesforce:sf-status
 ```
 
-**预期结果：** 一个表格，显示您的 sf CLI 版本、已认证的组织别名、用户名、实例 URL、连接状态和 API 版本。
+**预期结果：** 一个表格，显示您的 sf CLI 版本、已验证的组织别名、用户名、实例 URL、连接状态和 API 版本。
 
 ### /salesforce:sf-login
 
-认证到 Salesforce 组织。可选择提供别名。
+向 Salesforce 组织进行身份验证。可选提供别名。
 
 ```
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
 
-**预期结果：** 如果具有该别名的组织已经认证，它会报告连接详情。如果没有，它会检查可用的凭据（环境变量）并使用第一个完全满足条件的方式进行认证。
+**预期结果：** 如果具有该别名的组织已经过身份验证，将报告连接详情。如果没有，它会检查可用的凭据（环境变量），并使用第一个完全满足条件的方法进行身份验证。
 
 ## 技能
 
 ### salesforce-index
 
-顶级意图路由器。当您在自然语言中提到 Salesforce、组织管理或数据查询时自动激活。
+顶级意图路由器。当您在自然语言中提及 Salesforce、组织管理或数据查询时自动激活。
 
-| 您的输入 | 路由到 |
+| 您说的话 | 路由到 |
 |---------|-----------|
-| "login to salesforce"、"authenticate org" | `salesforce-auth` 技能 |
-| "check org status"、"list orgs" | `cli-operator` 代理 |
-| "show me opportunities"、"look up case" | `cli-operator` 代理（SOQL 查询） |
-| "generate Apex class"、"create Flow" | afv-library 开发技能 |
+| "登录 salesforce"、"验证组织" | `salesforce-auth` 技能 |
+| "检查组织状态"、"列出组织" | `cli-operator` 代理 |
+| "显示商机"、"查找案例" | `cli-operator` 代理（SOQL 查询） |
+| "生成 Apex 类"、"创建 Flow" | afv-library 开发技能 |
 
 ### salesforce-auth
 
-适用于容器的认证技能。支持四种认证方式，并自动检测可用的凭据。优先级为：access-token，然后是 JWT，然后是 SFDX URL，最后是 web 登录。
+适配容器的身份验证技能。支持四种身份验证方法，并自动检测可用的凭据。优先级顺序为：访问令牌、JWT、SFDX URL、Web 登录。
 
 ## 代理
 
 ### cli-operator
 
-自主 Salesforce CLI 代理，带有安全防护机制执行 `sf` 命令。所有 Salesforce 操作都委托给此代理，以保持主会话上下文精简。
+自主 Salesforce CLI 代理，执行带有安全防护的 `sf` 命令。所有 Salesforce 操作都委托给此代理，以保持主会话上下文的精简。
 
 **安全规则：**
 
 - 默认只读 — 写操作需要明确批准
-- 未经预览和确认步骤绝不执行部署
-- 绝不在输出中回显访问令牌、认证 URL 或凭据
+- 未经预览和确认步骤绝不部署
+- 绝不在输出中回显访问令牌、身份验证 URL 或凭据
 - 对所有用户提供的值进行清理（拒绝 shell 元字符）
-- 使用 `--json` 输出获取结构化、可解析的结果
+- 使用 `--json` 输出以获得结构化、可解析的结果
 
 **响应格式：**
 
@@ -178,21 +183,25 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### Issues
 ```
 
-## 使用指南：客户管理
+## 使用指南：账户管理
 
 <Aside type="note">
-  以下提示词不是插件的硬编码功能。它们之所以有效，是因为 cli-operator 代理可以运行任何 `sf` CLI 命令，包括任意 SOQL 查询。结果取决于您组织的数据模型和用户权限。此处的提示词已经过测试和验证，可与标准 Salesforce 对象（Account、Contact、Case、Opportunity、AccountTeamMember、OpportunityTeamMember）配合使用。
+  以下提示不是插件的硬编码功能。它们之所以有效，是因为 cli-operator 代理
+  可以运行任何 `sf` CLI 命令，包括任意 SOQL 查询。结果取决于您组织的数据模型
+  和用户权限。此处的提示已经过测试验证，可与标准 Salesforce 对象
+  （Account、Contact、Case、Opportunity、AccountTeamMember、OpportunityTeamMember）配合使用。
 </Aside>
 
-这些提示词适用于任何 Salesforce 组织。请将占位符值替换为您自己的信息。每个提示词会根据您的角色、客户和区域生成特定的结果。
+这些提示适用于任何 Salesforce 组织。将占位符值替换为您自己的信息。每个提示都会根据您的角色、账户和区域生成特定的结果。
 
 <Aside type="tip">
-  为获得最佳结果，请在需要识别用户记录的提示词中包含您的电子邮件地址。Salesforce 组织中可能有多个名称相似的用户。
+  为获得最佳结果，请在需要识别您的用户记录的提示中包含您的电子邮件地址。
+  Salesforce 组织中可能有多个名称相似的用户。
 </Aside>
 
-### 入门
+### 快速入门
 
-认证后，验证一切是否正常工作：
+身份验证后，验证一切正常：
 
 ```
 /salesforce:sf-status
@@ -204,73 +213,74 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 list my authenticated salesforce orgs
 ```
 
-**预期结果：** 一个表格，显示所有已连接组织的别名、用户名、实例 URL 和连接状态。
+**预期结果：** 一个表格，显示所有已连接的组织及其别名、用户名、实例 URL 和连接状态。
 
-### 查找您的客户
+### 查找您的账户
 
-了解您被分配到哪些客户：
+查看您被分配到哪些账户：
 
 ```
 what salesforce accounts am I on the account team for? My email is your-email@company.com
 ```
 
-**预期结果：** 按客户所有者分组的客户列表，显示您在每个客户上的团队成员角色。如果大多数角色显示为空，这是常见的数据质量问题 — 客户团队成员关系存在但角色未被填充。
+**预期结果：** 按账户所有者分组的账户列表，显示您在每个账户上的团队成员角色。如果大多数角色显示为空，这是常见的数据清洁度问题 — 账户团队成员关系存在，但角色未被填充。
 
 ### 与同事交叉核对覆盖范围
 
-将您的客户覆盖范围与队友进行比较以发现差距：
+将您的账户覆盖范围与团队成员进行比较，以发现差距：
 
 ```
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
-**预期结果：** 一个汇总表格显示重叠数量和差距数量，后跟两个列表。如果您最近更换了角色，可能会发现零重叠 — 这揭示了您需要被添加到哪些客户中。
+**预期结果：** 一个汇总表，显示重叠数量和差距数量，后跟两个列表。如果您最近更换了角色，可能会发现零重叠 — 这揭示了您需要被添加到哪些账户。
 
 <Aside type="note">
-  您还可以通过添加以下内容来检查前任："Also check if Previous Person Name appears on any of those accounts."这有助于识别在接替某人区域时的交接差距。
+  您还可以通过添加以下内容来检查前任："Also check if
+  Previous Person Name appears on any of those accounts." 这有助于识别替换区域中某人时的交接差距。
 </Aside>
 
-### 区域管线概览
+### 区域管道概览
 
-查看您客户中所有打开的商机：
+查看您账户中所有开放的商机：
 
 ```
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
-**预期结果：** 一个包含商机总数、原始管线和加权管线的摘要。然后是阶段分布表和按金额排序的顶级商机列表。输出会标记数据质量问题，如逾期的关闭日期或空金额。
+**预期结果：** 包含总商机数量、原始管道和加权管道的摘要。然后是阶段分布表和按金额排列的顶级商机列表。输出会标记数据清洁度问题，如逾期的关闭日期或空值金额。
 
-### 商机详细分析
+### 商机深入分析
 
-获取特定交易的完整视图：
+获取特定交易的完整信息：
 
 ```
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
-**预期结果：** 商机概览（阶段、金额、关闭日期、概率、预测类别、所有者）、商机团队成员及角色、标记的联系人、最近的任务和事件，以及显示交易金额和关闭日期如何随时间变化的字段变更历史。
+**预期结果：** 商机概览（阶段、金额、关闭日期、概率、预测类别、所有者）、商机团队成员及其角色、标记的联系人、近期任务和事件，以及显示交易金额和关闭日期随时间变化的字段变更历史。
 
 ### 区域内的支持案例
 
-检查您客户中的未关闭支持案例：
+检查您账户中的待处理支持案例：
 
 ```
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
-**预期结果：** 未关闭案例的计数及优先级和状态分布，然后是按客户分组的案例详情。长期未活动的陈旧案例（数月或数年未活动）会被标记为需要清理的候选项。
+**预期结果：** 按优先级和状态分类的待处理案例数量，然后是按账户分组的案例详情。长期未活动的陈旧案例（数月或数年）会被标记为需要清理的候选项。
 
-### 季度管线预测
+### 季度管道预测
 
-获取可用于预测的管线视图：
+获取适合预测的管道视图：
 
 ```
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
-**预期结果：** 一个每行一个季度的表格，显示商机数量、总管线和加权管线。包括每个季度的阶段组合分布，并突出显示加权最高的交易。逾期的商机单独分组。
+**预期结果：** 一个表格，每行代表一个季度，显示商机数量、总管道和加权管道。包括每个季度的阶段组合分布，并突出显示加权最高的交易。逾期商机单独分组。
 
-### 完整客户概览
+### 完整账户概览
 
 深入了解特定客户：
 
@@ -278,7 +288,7 @@ for Colleague Name's accounts, show me a quarterly pipeline summary - group the 
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
-**预期结果：** 公司简介（行业、收入、员工数、地点）、关键联系人及其职位和电子邮件、带阶段和金额的未关闭商机，以及带状态的近期支持案例。
+**预期结果：** 公司概况（行业、收入、员工数、位置）、关键联系人及其职位和电子邮件、待处理商机及其阶段和金额，以及近期支持案例及其状态。
 
 ### 案例查询
 
@@ -288,11 +298,11 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
-**预期结果：** 案例主题、状态、优先级、描述、客户账户简介，以及案例所有者的联系信息。
+**预期结果：** 案例主题、状态、优先级、描述、客户账户概况以及案例所有者的联系信息。
 
 ## 使用指南：数据查询
 
-对于高级用户，您可以用自然语言请求特定的 SOQL 风格查询。插件会将您的请求转换为相应的 SOQL 并执行。
+对于高级用户，您可以使用自然语言请求特定的 SOQL 风格查询。插件会将您的请求转换为相应的 SOQL 并执行。
 
 ### 指定字段
 
@@ -300,13 +310,13 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
-### 日期筛选
+### 日期过滤
 
 ```
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
-### 聚合查询
+### 聚合
 
 ```
 count all open salesforce cases grouped by priority and status across my accounts
@@ -319,12 +329,14 @@ query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'A
 ```
 
 <Aside type="tip">
-  如果查询因字段不存在而失败，插件会自动去除该字段后重试。您组织中的自定义字段可能使用不同的名称 — 如果找不到某个字段，请检查您的 Salesforce 设置。
+  如果查询因字段不存在而失败，插件会自动移除该字段并重试。
+  您组织中的自定义字段可能使用不同的名称 — 如果找不到某个字段，
+  请检查您的 Salesforce 设置。
 </Aside>
 
 ## 开发技能
 
-来自 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) 的 30 个 Salesforce 开发技能会在涉及 Apex、Flow、LWC、SOQL、元数据、Agentforce 和部署任务时自动激活。单独安装它们：
+来自 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) 的 30 个 Salesforce 开发技能会在 Apex、Flow、LWC、SOQL、元数据、Agentforce 和部署任务中自动激活。请单独安装：
 
 ```bash
 npx skills add forcedotcom/afv-library
@@ -340,7 +352,7 @@ npx skills add forcedotcom/afv-library
 | 自定义字段 | `generating-custom-field` |
 | 验证规则 | `generating-validation-rule` |
 | 权限集 | `generating-permission-set` |
-| FlexiPages | `generating-flexipage` |
+| FlexiPage | `generating-flexipage` |
 | Agentforce 代理 | `developing-agentforce` |
 | Agentforce 测试 | `testing-agentforce` |
 | 部署 | `deploying-ui-bundle` |

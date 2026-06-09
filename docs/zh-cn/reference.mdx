@@ -15,22 +15,22 @@ import { Aside } from '@astrojs/starlight/components';
 市场清单文件位于仓库根目录的
 `.claude-plugin/marketplace.json`。
 
-### 顶级字段
+### 顶层字段
 
-| 字段 | 必填 | 描述 |
+| 字段 | 必需 | 描述 |
 |-------|----------|-------------|
 | `$schema` | 否 | 用于验证的 JSON Schema URL |
 | `name` | 是 | 唯一的市场标识符 |
 | `version` | 否 | 市场模式版本（语义化版本） |
 | `metadata.description` | 是 | 人类可读的市场描述 |
 | `owner.name` | 是 | 拥有该市场的组织或用户 |
-| `owner.url` | 否 | 所有者的个人主页或网站 URL |
+| `owner.url` | 否 | 所有者主页或网站的 URL |
 | `owner.email` | 否 | 联系邮箱 |
 | `plugins` | 是 | 插件条目数组 |
 
 ### 插件条目字段
 
-| 字段 | 必填 | 描述 |
+| 字段 | 必需 | 描述 |
 |-------|----------|-------------|
 | `name` | 是 | 插件标识符（必须与 `plugin.json` 匹配） |
 | `description` | 是 | 插件的简短描述 |
@@ -46,8 +46,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 插件来源类型
 
-marketplace.json 中的 `source` 字段支持多种
-格式：
+marketplace.json 中的 `source` 字段支持多种格式：
 
 | 类型 | 示例 | 描述 |
 |------|---------|-------------|
@@ -60,15 +59,15 @@ marketplace.json 中的 `source` 字段支持多种
 ## plugin.json 模式
 
 每个插件在其目录内的
-`.claude-plugin/plugin.json` 都有一个清单文件。
+`.claude-plugin/plugin.json` 中有一个清单文件。
 
-| 字段 | 必填 | 描述 |
+| 字段 | 必需 | 描述 |
 |-------|----------|-------------|
 | `name` | 是 | 插件标识符 |
 | `description` | 是 | 插件的功能描述 |
 | `version` | 是 | 语义化版本 |
 | `author.name` | 是 | 插件作者 |
-| `author.url` | 否 | 作者的个人主页或网站 URL |
+| `author.url` | 否 | 作者主页或网站的 URL |
 | `homepage` | 否 | 文档 URL |
 | `keywords` | 否 | 搜索关键词 |
 | `license` | 否 | SPDX 许可证标识符 |
@@ -112,8 +111,8 @@ claude plugin validate .
 - `marketplace.json` 模式合规性
 - 所有引用的插件目录是否存在
 - 每个插件是否有有效的 `plugin.json`
-- 技能是否有正确格式化的 `SKILL.md` frontmatter
-- 命令是否有必填的 frontmatter 字段
+- 技能是否有格式正确的 `SKILL.md` 前置元数据
+- 命令是否有必需的前置元数据字段
 
 ## 团队配置
 
@@ -140,9 +139,7 @@ claude plugin validate .
 ```
 
 <Aside type="tip">
-  将这些设置提交到您的仓库，可以确保每位
-  团队成员自动获得相同的市场和插件
-  配置。
+  将这些设置提交到您的仓库中，可确保每位团队成员自动获得相同的市场和插件配置。
 </Aside>
 
 ## 故障排除
@@ -167,21 +164,15 @@ claude plugin validate .
   `/plugin list`
 - 检查您的 Claude Code 版本是否支持插件
   （v1.0.33+）
-- 验证技能的触发条件是否与您当前的
-  上下文匹配
+- 验证技能的触发条件是否与您当前的上下文匹配
 
 ### 技能未自动触发
 
-技能根据 SKILL.md frontmatter 中的 `description` 字段
-进行激活。如果技能未按预期激活：
+技能根据 SKILL.md 前置元数据中的 `description` 字段激活。如果技能未按预期激活：
 
-- 检查描述是否准确地描述了
-  触发上下文
-- 直接使用命令（例如 `/f5xc-docs-tools:review-mdx`）
-  作为替代方案
+- 检查描述是否准确描述了触发上下文
+- 直接使用命令（例如 `/f5xc-docs-tools:review-mdx`）作为替代方案
 
 ### 审查后出现构建错误
 
-插件会报告问题但不会自动修复。请手动应用
-建议的修复，然后重新运行审查以
-确认问题已解决。
+插件会报告问题但不会自动修复。请手动应用建议的修复，然后重新运行审查以确认问题已解决。

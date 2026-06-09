@@ -1,7 +1,7 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Raspagem e rastreamento web local auto-hospedado via o motor de código aberto
+  Web scraping e crawling local auto-hospedado via o motor open-source
   Firecrawl.
 sidebar:
   order: 13
@@ -12,13 +12,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-firecrawl** fornece raspagem web local auto-hospedada
-via o motor de código aberto [firecrawl](https://github.com/mendableai/firecrawl).
-Sem chaves de API, sem assinaturas, sem dependência de nuvem. Todas as
-operações são executadas contra a instância local do firecrawl em `localhost:3002`
+O plugin **f5xc-firecrawl** fornece web scraping local auto-hospedado
+via o motor open-source [firecrawl](https://github.com/mendableai/firecrawl).
+Sem chaves de API, sem assinaturas, sem dependência de nuvem. Todas
+as operações são executadas contra a instância local do firecrawl em `localhost:3002`
 dentro do devcontainer.
 
-<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.0" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
 ## Instalação
 
@@ -30,7 +30,7 @@ dentro do devcontainer.
 
 ### /scrape
 
-Raspa uma única URL e extrai o conteúdo como markdown.
+Faz scrape de uma única URL e extrai o conteúdo como markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Raspa uma única URL e extrai o conteúdo como markdown.
 
 ### /batch-scrape
 
-Raspa múltiplas URLs de uma vez.
+Faz scrape de múltiplas URLs de uma vez.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -47,7 +47,7 @@ Raspa múltiplas URLs de uma vez.
 
 ### /crawl
 
-Rastreia múltiplas páginas a partir de uma URL inicial.
+Faz crawl de múltiplas páginas a partir de uma URL inicial.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -65,7 +65,7 @@ Descobre todas as URLs de um site.
 
 ### /search
 
-Pesquisa na web e opcionalmente raspa os resultados.
+Pesquisa na web e opcionalmente faz scrape dos resultados.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ Pesquisa na web e opcionalmente raspa os resultados.
 
 ### /extract
 
-Extração de dados estruturados de páginas web com tecnologia LLM.
+Extração de dados estruturados de páginas web com LLM.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -94,60 +94,60 @@ Gera um arquivo llms.txt para um site.
 /llmstxt https://docs.example.com
 ```
 
-## Skills
+## Habilidades
 
 ### web-scraper
 
-Ativa automaticamente quando você solicita raspar uma URL, rastrear um site,
-mapear URLs de um site, pesquisar na web, extrair dados estruturados, gerar llms.txt,
-raspar múltiplas URLs em lote ou converter uma página web em markdown.
+Ativa automaticamente quando você solicita fazer scrape de uma URL, crawl de um site, mapear
+URLs de um site, pesquisar na web, extrair dados estruturados, gerar llms.txt,
+fazer batch scrape de múltiplas URLs ou converter uma página web em markdown.
 Delega imediatamente para o agente firecrawl-operator.
 
 ## Agentes
 
 ### firecrawl-operator
 
-Agente autônomo de raspagem web que executa sequências de `curl` + `jq`
-contra a API local do firecrawl. Suporta 11 protocolos cobrindo todos os
-endpoints v1. Agente somente leitura (sem ferramentas de Escrita, Edição ou Agente).
+Agente autônomo de web scraping que executa sequências de `curl` + `jq`
+contra a API local do firecrawl. Suporta 11 protocolos cobrindo todos
+os endpoints v1. Agente somente leitura (sem ferramentas de Escrita, Edição ou Agente).
 
 | Protocolo | Endpoint | Tipo |
-|----------|----------|------|
-| HEALTH | `GET /` | Sync |
-| SCRAPE | `POST /v1/scrape` | Sync |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
-| CRAWL | `POST /v1/crawl` | Async |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
-| MAP | `POST /v1/map` | Sync |
-| SEARCH | `POST /v1/search` | Sync |
-| EXTRACT | `POST /v1/extract` | Async |
-| LLMSTXT | `POST /v1/llmstxt` | Async |
+|-----------|----------|------|
+| HEALTH | `GET /` | Síncrono |
+| SCRAPE | `POST /v1/scrape` | Síncrono |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Assíncrono |
+| CRAWL | `POST /v1/crawl` | Assíncrono |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Síncrono |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Síncrono |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Síncrono |
+| MAP | `POST /v1/map` | Síncrono |
+| SEARCH | `POST /v1/search` | Síncrono |
+| EXTRACT | `POST /v1/extract` | Assíncrono |
+| LLMSTXT | `POST /v1/llmstxt` | Assíncrono |
 
 ## Infraestrutura
 
 O plugin requer a stack do firecrawl em execução no devcontainer:
 
 | Componente | Porta | Finalidade |
-|-----------|------|---------|
+|------------|-------|------------|
 | Firecrawl API | 3002 | Todos os endpoints de scrape/crawl/map/search/extract |
 | Playwright | 3000 | Motor de renderização JavaScript |
 | Redis | 6379 | Backend de fila de jobs |
 | PostgreSQL | socket | Persistência de jobs de crawl/batch |
-| LiteLLM proxy | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
+| Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
 
 A stack inicia automaticamente quando `ENABLE_FIRECRAWL=true` (o
-padrão). Um hook SessionStart verifica se a API está acessível e
+padrão). Um hook de SessionStart verifica se a API está acessível e
 emite um aviso se o serviço estiver indisponível.
 
 ## Diferenças em relação ao Firecrawl Cloud
 
-Este plugin utiliza a versão de código aberto auto-hospedada:
+Este plugin utiliza a versão open-source auto-hospedada:
 
-- Não requer autenticação ou chaves de API para raspagem
+- Nenhuma autenticação ou chave de API necessária para scraping
 - Sem limites de crédito ou limitação de taxa
 - Utiliza endpoints da API v1 (não v2)
-- Sessões de navegador e pesquisa profunda não estão disponíveis
-- Extract utiliza seu próprio proxy LLM em vez de modelos hospedados
+- Sessões de navegador e pesquisa profunda não disponíveis
+- O extract utiliza seu próprio proxy LLM em vez de modelos hospedados
 - Executa inteiramente dentro da rede local do container

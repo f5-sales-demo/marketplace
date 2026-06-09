@@ -15,10 +15,10 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 O plugin **f5xc-docs-tools** valida arquivos de conteúdo MDX para
 o pipeline de documentação f5xc-salesdemos. Ele captura problemas
 comuns que quebram o build antes que cheguem ao CI, incluindo
-caracteres JSX soltos, imports inválidos, referências de imagens
+caracteres JSX soltos, imports inválidos, referências de imagem
 quebradas e frontmatter incompleto.
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
 ## Instalação
 
@@ -32,7 +32,7 @@ quebradas e frontmatter incompleto.
 
 Esta skill é ativada automaticamente quando o Claude detecta que
 você está trabalhando com arquivos MDX em um repositório de
-conteúdo f5xc-salesdemos. Ela realiza sete verificações de
+conteúdo f5xc-salesdemos. Ela executa sete verificações de
 validação:
 
 <CardGrid>
@@ -42,12 +42,12 @@ validação:
     `template: splash`.
   </Card>
   <Card title="Armadilhas de sintaxe MDX">
-    Detecta caracteres `&lt;` soltos e chaves `\{` `\}` não
-    escapadas que quebram a análise MDX.
+    Detecta caracteres `&lt;` soltos e chaves `\{` `\}` sem
+    escape que quebram a análise do MDX.
   </Card>
   <Card title="Validação de imports">
     Valida imports contra uma lista permitida de componentes
-    nativos do Starlight e do tema f5xc-salesdemos.
+    integrados do Starlight e componentes do tema f5xc-salesdemos.
   </Card>
   <Card title="Atributos de componentes">
     Verifica props obrigatórias para componentes como Screenshot,
@@ -58,20 +58,20 @@ validação:
     `docs/images/`.
   </Card>
   <Card title="Verificações de estrutura">
-    Garante que `docs/index.mdx` existe e que diretórios de
-    imagens não contêm arquivos MDX perdidos.
+    Garante que `docs/index.mdx` exista e que diretórios de
+    imagens não contenham arquivos MDX dispersos.
   </Card>
   <Card title="Exports e blocos de código">
-    Verifica se variáveis utilizadas nas props `code` do
-    componente `Code` possuem exports correspondentes.
+    Verifica se variáveis usadas nas props `code` do componente
+    `Code` possuem exports correspondentes.
   </Card>
 </CardGrid>
 
 #### Comportamento de escopo
 
-A skill define o escopo de revisão de forma inteligente:
+A skill define o escopo da revisão de forma inteligente:
 
-- Se houver alterações não commitadas ou em staging em arquivos
+- Se houver alterações não commitadas ou staged em arquivos
   `docs/**/*.mdx`, apenas esses arquivos são revisados
 - Caso contrário, todos os arquivos `docs/**/*.mdx` são revisados
 
@@ -79,7 +79,7 @@ A skill define o escopo de revisão de forma inteligente:
 
 Os achados são agrupados por severidade:
 
-- **ERROR** — quebrará o build; deve ser corrigido antes do merge
+- **ERROR** — irá quebrar o build; deve ser corrigido antes do merge
 - **WARNING** — problemas prováveis que devem ser tratados
 - **INFO** — sugestões e boas práticas
 
@@ -111,18 +111,18 @@ Executa a skill `mdx-content-reviewer` sob demanda.
 # Revisar um arquivo específico
 /f5xc-docs-tools:review-mdx docs/getting-started.mdx
 
-# Revisar arquivos correspondentes a um glob
+# Revisar arquivos que correspondem a um glob
 /f5xc-docs-tools:review-mdx docs/guides/*.mdx
 ```
 
 **Saída:** Uma linha de resumo ao final reporta o total de
-arquivos revisados e a contagem de achados por severidade.
+arquivos revisados e contagens de achados por severidade.
 
 ## Imports Permitidos
 
 O plugin valida imports contra estas fontes:
 
-**Componentes nativos do Starlight** (`@astrojs/starlight/components`):
+**Componentes integrados do Starlight** (`@astrojs/starlight/components`):
 
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
@@ -132,10 +132,10 @@ O plugin valida imports contra estas fontes:
 `Banner` `Icon` `LinkCard` `Screenshot`
 
 <Aside type="caution">
-  Componentes do tema utilizam imports padrão (default) de
-  arquivos `.astro` individuais. Imports diretos de
-  `node_modules`, caminhos relativos e chamadas `require()` são
-  sinalizados como avisos.
+  Componentes do tema usam imports padrão (default) de arquivos
+  `.astro` individuais. Imports diretos de `node_modules`,
+  caminhos relativos e chamadas `require()` são sinalizados como
+  avisos.
 </Aside>
 
 ## Referência Rápida de Componentes
@@ -160,5 +160,5 @@ Problemas comuns que o plugin captura:
 | Armadilha | Problema | Correção |
 |---------|---------|-----|
 | `&lt;` solto | MDX interpreta como tag JSX | Use `&amp;lt;`, código inline ou reformule |
-| `\{` `\}` não escapados | MDX trata como expressão JSX | Use código inline, escape com `\` ou use bloco de código |
-| Chaves em nomes de arquivo | Astro não consegue processar o arquivo | Nunca use `\{` ou `\}` em nomes de arquivo `.mdx` |
+| `\{` `\}` sem escape | MDX trata como expressão JSX | Use código inline, escape com `\` ou use bloco de código |
+| Chaves em nomes de arquivos | Astro não consegue processar o arquivo | Nunca use `\{` ou `\}` em nomes de arquivos `.mdx` |

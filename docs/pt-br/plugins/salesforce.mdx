@@ -14,12 +14,11 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 O plugin **salesforce** integra o Salesforce CLI com o Claude Code,
-fornecendo autenticação de org e um agente CLI de uso geral que pode
+fornecendo autenticação de org e um agente CLI de propósito geral que pode
 executar qualquer comando `sf`, incluindo consultas SOQL. Ele suporta
-ambientes de contêiner headless com fluxos de autenticação JWT,
-access-token e SFDX URL. O guia de uso abaixo demonstra como usar
-linguagem natural para consultar contas, oportunidades, casos e contatos
-através do agente CLI.
+ambientes de contêiner headless com fluxos de autenticação JWT, access-token
+e SFDX URL. O guia de uso abaixo demonstra como usar linguagem natural
+para consultar contas, oportunidades, casos e contatos através do agente CLI.
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
@@ -47,11 +46,11 @@ Verifique a instalação:
 sf --version
 ```
 
-Você deverá ver uma saída como `@salesforce/cli/2.x.x`.
+Você deve ver uma saída como `@salesforce/cli/2.x.x`.
 
 ## Configuração de Autenticação
 
-### Etapa 1: Encontre seu domínio Salesforce
+### Passo 1: Encontre seu domínio Salesforce
 
 Observe a URL do Salesforce no navegador. Se você acessa o Salesforce em
 `https://acme.lightning.force.com`, seu domínio de login é
@@ -63,21 +62,21 @@ Observe a URL do Salesforce no navegador. Se você acessa o Salesforce em
   em vez da página de login genérica do Salesforce.
 </Aside>
 
-### Etapa 2: Autentique via navegador
+### Passo 2: Autentique via navegador
 
 ```bash
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
 ```
 
-Substitua `YOUR-DOMAIN` pelo domínio da sua empresa da Etapa 1. Seu navegador
+Substitua `YOUR-DOMAIN` pelo domínio da sua empresa do Passo 1. Seu navegador
 será aberto — complete o fluxo de SSO ou login e autorize o aplicativo. Você
-deverá ver:
+deve ver:
 
 ```
 Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
-### Etapa 3: Verifique a conexão
+### Passo 3: Verifique a conexão
 
 ```bash
 sf org display --target-org my-org
@@ -86,7 +85,7 @@ sf org display --target-org my-org
 Confirme que a saída mostra `Connected Status: Connected` com seu nome de
 usuário e URL da instância.
 
-### Etapa 4: Autenticação portável para contêineres (opcional)
+### Passo 4: Autenticação portátil para contêineres (opcional)
 
 Se você precisa autenticar em um ambiente headless (CI/CD, contêiner,
 sessão remota), exporte a URL de autenticação SFDX da sua estação de trabalho:
@@ -95,7 +94,7 @@ sessão remota), exporte a URL de autenticação SFDX da sua estação de trabal
 sf org display --verbose --target-org my-org
 ```
 
-Copie o valor **Sfdx Auth Url** (começa com `force://`). No
+Copie o valor da **Sfdx Auth Url** (começa com `force://`). No
 contêiner, execute:
 
 ```bash
@@ -105,7 +104,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 <Aside type="caution">
   A URL de autenticação SFDX é uma credencial — trate-a como uma senha. Não
-  a salve em arquivos nem a cole no chat. Use variáveis de ambiente
+  a salve em arquivos nem cole em chats. Use variáveis de ambiente
   e pipes stdin apenas.
 </Aside>
 
@@ -114,7 +113,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 | Método | Melhor Para | Requer |
 |--------|-------------|--------|
 | Web Login | Estações de trabalho com navegador | Navegador + SSO |
-| SFDX URL | Contêineres, CI/CD, autenticação portável | URL de autenticação de uma sessão autenticada |
+| SFDX URL | Contêineres, CI/CD, autenticação portátil | URL de autenticação de uma sessão autenticada |
 | JWT Bearer | Pipelines automatizados | Connected App + chave privada + consumer key |
 | Access Token | Autenticação via variável de ambiente | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
 
@@ -125,8 +124,8 @@ de 2025 e não é suportado.
 
 | Variável | Finalidade |
 |----------|------------|
-| `SF_ACCESS_TOKEN` | Bearer token para autenticação por access-token |
-| `SFDX_AUTH_URL` | URL de autenticação Force para autenticação SFDX URL |
+| `SF_ACCESS_TOKEN` | Token bearer para autenticação por access-token |
+| `SFDX_AUTH_URL` | URL de autenticação force para autenticação SFDX URL |
 | `SF_ORG_INSTANCE_URL` | URL da instância da org |
 | `SF_JWT_KEY_FILE` | Caminho para a chave privada JWT |
 | `SF_CLIENT_ID` | Consumer key do Connected App |
@@ -143,55 +142,55 @@ orgs autenticadas.
 /salesforce:sf-status
 ```
 
-**O que esperar:** Uma tabela mostrando a versão do sf CLI, alias da org
+**O que esperar:** Uma tabela mostrando a versão do seu sf CLI, alias da org
 autenticada, nome de usuário, URL da instância, status de conexão e versão da API.
 
 ### /salesforce:sf-login
 
-Autentique em uma org Salesforce. Opcionalmente forneça um alias.
+Autentique-se em uma org Salesforce. Opcionalmente forneça um alias.
 
 ```
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
 
-**O que esperar:** Se uma org com esse alias já está autenticada,
-ele reporta os detalhes da conexão. Se não, ele verifica as credenciais
+**O que esperar:** Se uma org com esse alias já estiver autenticada,
+ele reporta os detalhes da conexão. Caso contrário, verifica as credenciais
 disponíveis (variáveis de ambiente) e autentica usando o primeiro
 método totalmente satisfeito.
 
-## Habilidades
+## Skills
 
 ### salesforce-index
 
 Roteador de intenção de nível superior. Ativa automaticamente quando você menciona
 Salesforce, gerenciamento de org ou consultas de dados em linguagem natural.
 
-| Você diz | Encaminha para |
-|----------|----------------|
-| "login to salesforce", "authenticate org" | habilidade `salesforce-auth` |
+| Você diz | Roteia para |
+|----------|-------------|
+| "login to salesforce", "authenticate org" | skill `salesforce-auth` |
 | "check org status", "list orgs" | agente `cli-operator` |
 | "show me opportunities", "look up case" | agente `cli-operator` (consulta SOQL) |
-| "generate Apex class", "create Flow" | habilidades de desenvolvimento afv-library |
+| "generate Apex class", "create Flow" | skills de desenvolvimento afv-library |
 
 ### salesforce-auth
 
-Habilidade de autenticação adaptada para contêineres. Suporta quatro métodos de
-autenticação e detecta automaticamente quais credenciais estão disponíveis. Prioriza:
-access-token, depois JWT, depois SFDX URL, depois web login.
+Skill de autenticação adaptada para contêineres. Suporta quatro métodos de
+autenticação e detecta automaticamente quais credenciais estão disponíveis.
+Prioriza: access-token, depois JWT, depois SFDX URL, depois web login.
 
 ## Agentes
 
 ### cli-operator
 
 Agente autônomo do Salesforce CLI que executa comandos `sf` com
-proteções de segurança. Todas as operações Salesforce são delegadas a este agente para
-manter o contexto da sessão principal enxuto.
+proteções de segurança. Todas as operações Salesforce são delegadas a este
+agente para manter o contexto da sessão principal enxuto.
 
 **Regras de segurança:**
 
 - Somente leitura por padrão — operações de escrita requerem aprovação explícita
-- Nunca faz deploy sem uma prévia e etapa de confirmação
+- Nunca realiza deploy sem uma pré-visualização e etapa de confirmação
 - Nunca exibe access tokens, URLs de autenticação ou credenciais na saída
 - Sanitiza todos os valores fornecidos pelo usuário (rejeita metacaracteres de shell)
 - Usa saída `--json` para resultados estruturados e parseáveis
@@ -217,13 +216,13 @@ manter o contexto da sessão principal enxuto.
 </Aside>
 
 Estes prompts funcionam com qualquer org Salesforce. Substitua os valores
-de exemplo pelas suas próprias informações. Cada prompt produz resultados específicos
-para sua função, contas e território.
+placeholder pelas suas próprias informações. Cada prompt produz resultados
+específicos para sua função, contas e território.
 
 <Aside type="tip">
-  Para melhores resultados, inclua seu endereço de email nos prompts que precisam
+  Para melhores resultados, inclua seu endereço de e-mail nos prompts que precisam
   identificar seu registro de usuário. Orgs Salesforce podem ter múltiplos usuários
-  com nomes similares.
+  com nomes semelhantes.
 </Aside>
 
 ### Primeiros passos
@@ -253,10 +252,10 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 
 **O que esperar:** Uma lista de contas agrupadas por proprietário da conta, mostrando
 sua função de membro da equipe em cada uma. Se a maioria das funções aparecer vazia,
-isso é uma lacuna comum de higiene de dados — as associações de equipe da conta existem,
+isso é uma lacuna comum de higiene de dados — as associações à equipe da conta existem,
 mas as funções não foram preenchidas.
 
-### Verificação cruzada de cobertura com um colega
+### Referência cruzada de cobertura com um colega
 
 Compare sua cobertura de contas com um colega de equipe para encontrar lacunas:
 
@@ -266,17 +265,17 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 **O que esperar:** Uma tabela resumo mostrando contagem de sobreposição e contagem de
 lacunas, seguida de duas listas. Se você mudou de função recentemente, pode encontrar
-zero sobreposição — isso revela em quais contas você precisa ser adicionado.
+sobreposição zero — isso revela quais contas você precisa ser adicionado.
 
 <Aside type="note">
   Você também pode verificar um predecessor adicionando: "Also check if
-  Previous Person Name appears on any of those accounts." Isso ajuda
-  a identificar lacunas de transição ao substituir alguém em um território.
+  Previous Person Name appears on any of those accounts." Isso ajuda a
+  identificar lacunas de handoff ao substituir alguém em um território.
 </Aside>
 
 ### Visão geral do pipeline do território
 
-Veja todas as oportunidades abertas em suas contas:
+Veja todas as oportunidades abertas nas suas contas:
 
 ```
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
@@ -302,44 +301,44 @@ de campo mostrando como o valor do negócio e a data de fechamento mudaram ao lo
 
 ### Casos de suporte no território
 
-Verifique os casos de suporte abertos em suas contas:
+Verifique os casos de suporte abertos nas suas contas:
 
 ```
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
 **O que esperar:** Uma contagem de casos abertos com detalhamento por prioridade e status,
-depois detalhes dos casos agrupados por conta. Casos obsoletos (meses ou
-anos sem atividade) são sinalizados como candidatos a higienização.
+depois detalhes dos casos agrupados por conta. Casos obsoletos (meses ou anos sem
+atividade) são sinalizados como candidatos a higiene.
 
 ### Previsão de pipeline trimestral
 
-Obtenha uma visão do seu pipeline pronta para previsão:
+Obtenha uma visão pronta para previsão do seu pipeline:
 
 ```
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
 **O que esperar:** Uma tabela com uma linha por trimestre mostrando contagem de
-oportunidades, pipeline total e pipeline ponderado. Inclui um detalhamento de mix de
+oportunidades, pipeline total e pipeline ponderado. Inclui um detalhamento do mix de
 estágios por trimestre e destaca os principais negócios ponderados. Oportunidades
 vencidas são agrupadas separadamente.
 
 ### Visão geral completa da conta
 
-Mergulho profundo em um cliente específico:
+Análise detalhada de um cliente específico:
 
 ```
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
 **O que esperar:** Perfil da empresa (setor, receita, funcionários,
-localização), contatos-chave com cargos e email, oportunidades abertas com
+localização), contatos principais com cargos e e-mail, oportunidades abertas com
 estágios e valores, e casos de suporte recentes com status.
 
 ### Consulta de caso
 
-Consulte um caso de suporte específico pelo número:
+Consulte um caso de suporte específico por número:
 
 ```
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
@@ -380,35 +379,35 @@ query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'A
 
 <Aside type="tip">
   Se uma consulta falhar porque um campo não existe, o plugin
-  automaticamente tenta novamente sem esse campo. Campos personalizados na sua org
+  automaticamente tenta novamente sem aquele campo. Campos personalizados na sua org
   podem usar nomes diferentes — verifique o Setup do Salesforce se um campo
   não for encontrado.
 </Aside>
 
-## Habilidades de Desenvolvimento
+## Skills de Desenvolvimento
 
-As 30 habilidades de desenvolvimento Salesforce da
+As 30 skills de desenvolvimento Salesforce do
 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
-ativam automaticamente para tarefas de Apex, Flow, LWC, SOQL, metadados, Agentforce
+ativam automaticamente para tarefas de Apex, Flow, LWC, SOQL, metadata, Agentforce
 e deploy. Instale-as separadamente:
 
 ```bash
 npx skills add forcedotcom/afv-library
 ```
 
-| Tópico | Habilidade |
-|--------|------------|
+| Tópico | Skill |
+|--------|-------|
 | Classes e serviços Apex | `generating-apex` |
 | Testes Apex | `generating-apex-test` |
 | Flows | `generating-flow` |
-| LWC e bundles de UI | `building-ui-bundle-app` |
+| LWC e pacotes de UI | `building-ui-bundle-app` |
 | Objetos personalizados | `generating-custom-object` |
 | Campos personalizados | `generating-custom-field` |
 | Regras de validação | `generating-validation-rule` |
-| Conjuntos de permissão | `generating-permission-set` |
+| Conjuntos de permissões | `generating-permission-set` |
 | FlexiPages | `generating-flexipage` |
 | Agentes Agentforce | `developing-agentforce` |
 | Testes Agentforce | `testing-agentforce` |
 | Deploy | `deploying-ui-bundle` |
 | Migração SLDS2 | `uplifting-components-to-slds2` |
-| Refatoração de trigger | `trigger-refactor-pipeline` |
+| Refatoração de triggers | `trigger-refactor-pipeline` |

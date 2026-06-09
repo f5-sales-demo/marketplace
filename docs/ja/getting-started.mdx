@@ -22,7 +22,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 <Steps>
 
-1. **マーケットプレイスの追加**
+1. **マーケットプレイスを追加する**
 
    任意の Claude Code セッションで、以下を実行します：
 
@@ -32,15 +32,15 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
    これにより、マーケットプレイスがプラグインソースとして登録されます。この操作は一度だけ行えば十分です。
 
-2. **利用可能なプラグインの閲覧**
+2. **利用可能なプラグインを確認する**
 
-   マーケットプレイスで提供されているプラグインを一覧表示します：
+   マーケットプレイスが提供するプラグインを一覧表示します：
 
    ```
    /plugin marketplace list f5xc-salesdemos-marketplace
    ```
 
-3. **プラグインのインストール**
+3. **プラグインをインストールする**
 
    必要なプラグインをインストールします：
 
@@ -49,7 +49,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
    ```
 
-4. **プラグインの使用**
+4. **プラグインを使用する**
 
    任意の f5xc-salesdemos コンテンツリポジトリに移動します。
 
@@ -60,7 +60,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    ```
 
    **sales engineer** の場合、「prepare the demo」、「run the demo」、「walk through
-   the demo」などのトリガーフレーズを使用します — プラグインは自動的にアクティブになります。
+   the demo」などのトリガーフレーズを使用します。プラグインが自動的に起動します。
 
 </Steps>
 
@@ -105,9 +105,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="共有設定">
-  `.claude/settings.json` をリポジトリにコミットすることで、
-  すべてのチームメンバーがマーケットプレイスとプラグインを
-  自動的に取得できます — 手動セットアップは不要です。
+  `.claude/settings.json` をリポジトリにコミットすることで、すべてのチームメンバーがマーケットプレイスとプラグインを自動的に取得できます。手動でのセットアップは不要です。
 </Aside>
 
 これにより、すべてのコントリビューターがリポジトリでの最初の Claude Code セッションから同じツールを利用できるようになります。

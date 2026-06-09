@@ -12,33 +12,34 @@ i18n:
 
 Un **marketplace de plugins Claude Code** est une collection organisée de
 plugins qui étendent Claude Code avec de nouvelles compétences, commandes et
-agents. Les marketplaces permettent aux équipes de partager des outils afin que
-chaque développeur dispose des mêmes fonctionnalités sans configuration manuelle.
+agents. Les marketplaces permettent aux équipes de partager des outils afin que chaque développeur
+dispose des mêmes capacités sans configuration manuelle.
 
 Le **Marketplace f5xc-salesdemos** fournit des plugins conçus pour
 la plateforme de documentation [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
-— un écosystème de plus de 20 dépôts qui publient des sites Astro/Starlight
-sur GitHub Pages à l'aide d'un pipeline de build partagé.
+— un écosystème de plus de 20 dépôts qui
+publient des sites Astro/Starlight sur GitHub Pages en utilisant un pipeline
+de build partagé.
 
-## Fonctionnement
+## Comment ça fonctionne
 
 1. **Ajoutez le marketplace** à Claude Code — cela l'enregistre
-   en tant que source de plugins
+   comme source de plugins
 2. **Installez des plugins** depuis le marketplace — chaque plugin ajoute
    des compétences et des commandes à votre session Claude Code
-3. **Utilisez les outils** — les plugins s'activent automatiquement en fonction
-   du contexte, ou vous invoquez leurs commandes directement
+3. **Utilisez les outils** — les plugins s'activent automatiquement en fonction du
+   contexte, ou vous invoquez leurs commandes directement
 
 ## Plugins disponibles
 
 | Plugin | Catégorie | Description |
 |--------|-----------|-------------|
-| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Productivité | Outils de validation et de revue de contenu MDX pour les dépôts de documentation |
-| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Productivité | Framework de persona Sales Engineer — exécution de démos, présentations, Q&R, gestion d'environnements |
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Productivité | Outils de validation et de révision de contenu MDX pour les dépôts de documentation |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Productivité | Framework de persona Sales Engineer — exécution de démos, présentations, Q&R, gestion d'environnement |
 
 ## Démarrage rapide
 
-Ajoutez le marketplace et installez le plugin docs tools :
+Ajoutez le marketplace et installez le plugin d'outils de documentation :
 
 ```
 /plugin marketplace add f5xc-salesdemos/marketplace
@@ -69,7 +70,7 @@ Marketplace (marketplace.json)
   compétences, commandes ou agents.
 - **Compétence (Skill)** — connaissance contextuelle que Claude active
   automatiquement en fonction de la tâche en cours.
-- **Commande (Command)** — une commande slash que l'utilisateur invoque directement
+- **Commande** — une commande slash que l'utilisateur invoque directement
   (par ex., `/review-mdx`).
 - **Agent** — un sous-agent spécialisé qui gère des tâches complexes
   et multi-étapes de manière autonome.

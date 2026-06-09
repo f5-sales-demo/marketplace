@@ -18,7 +18,7 @@ umfassenden Werkzeugkatalog, ermöglicht Live-Introspektion des
 Containers und übernimmt die Werkzeuginstallation mit
 Persistenz-Tracking über GitHub Issues.
 
-<Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.6" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
 ## Installation
 
@@ -33,7 +33,7 @@ Persistenz-Tracking über GitHub Issues.
 Wissensbasis aller im Devcontainer installierten CLI-Werkzeuge,
 organisiert nach Kategorie (Cloud, Netzwerk, Sicherheit,
 Entwicklung usw.). Wird aktiviert, wenn Sie fragen, welches
-Werkzeug Sie verwenden sollen, wie ein Werkzeug benutzt wird,
+Werkzeug Sie verwenden sollen, wie ein Werkzeug verwendet wird,
 ob etwas installiert ist oder Hilfe bei einer bestimmten
 Operation benötigen.
 
@@ -43,11 +43,11 @@ Skill für Container-Identität und Selbstdiagnose. Bietet
 Live-Introspektion des laufenden Containers über die GitHub-API
 und lokale Build-Metadaten. Wird bei Fragen zu Identität,
 Version, Build-Informationen, Gesundheitsprüfungen und
-Contributor-Historie aktiviert.
+Mitwirkenden-Historie aktiviert.
 
 <Aside type="tip">
   Fragen Sie "Wer bist du?" oder "Welche Version verwende ich?",
-  um Self-Awareness auszulösen.
+  um die Self-Awareness auszulösen.
 </Aside>
 
 ## Agenten
@@ -61,20 +61,21 @@ jede CLI-Werkzeug-Frage zurück.
 ### tool-auditor
 
 Prüft das Devcontainer-Dockerfile gegen die
-Werkzeugkatalog-Referenzdateien auf Abweichungen &mdash;
-Werkzeuge, die zum Image hinzugefügt, aber nicht katalogisiert
-wurden, oder Katalogeinträge für Werkzeuge, die entfernt wurden.
+Werkzeugkatalog-Referenzdateien, um Abweichungen zu erkennen
+&mdash; Werkzeuge, die zum Image hinzugefügt, aber nicht
+katalogisiert wurden, oder Katalogeinträge für Werkzeuge, die
+entfernt wurden.
 
 ### container-introspector
 
 Führt Live-Introspektion des Containers über die GitHub-API und
-lokale Metadaten durch für Identität, Genealogie, Selbstdiagnose,
-Contributor-Historie und Build-Herkunft. Ausschließlich
+lokale Metadaten durch – für Identität, Herkunft, Selbstdiagnose,
+Mitwirkenden-Historie und Build-Abstammung. Ausschließlich
 lesende Operationen.
 
 ### container-maintainer
 
 Installiert, entfernt, sucht und aktualisiert CLI-Werkzeuge im
 laufenden Container unter Verwendung korrekter
-Paketmanager-Muster. Erstellt GitHub Issues gegen das
-Devcontainer-Repository für Persistenz-Tracking.
+Paketmanager-Muster. Erstellt GitHub Issues im
+Devcontainer-Repository für das Persistenz-Tracking.

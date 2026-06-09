@@ -1,8 +1,8 @@
 ---
-title: salesforce
+title: Salesforce
 description: >-
-  Salesforce CLI automation with org authentication, account management,
-  pipeline analysis, and natural language data queries.
+  Salesforce-CLI-Automatisierung mit Org-Authentifizierung, Kontoverwaltung,
+  Pipeline-Analyse und Datenabfragen in natürlicher Sprache.
 sidebar:
   label: Salesforce
   order: 14
@@ -15,11 +15,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 Das **salesforce**-Plugin integriert die Salesforce CLI mit Claude Code
 und bietet Org-Authentifizierung sowie einen universellen CLI-Agenten, der
-jeden `sf`-Befehl ausführen kann, einschließlich SOQL-Abfragen. Es unterstützt
-headless Container-Umgebungen mit JWT-, Access-Token- und SFDX-URL-
-Authentifizierungsabläufen. Die nachfolgende Nutzungsanleitung zeigt, wie Sie
-mit natürlicher Sprache Accounts, Opportunities, Cases und Contacts
-über den CLI-Agenten abfragen können.
+jeden `sf`-Befehl einschließlich SOQL-Abfragen ausführen kann. Es unterstützt
+kopflose Container-Umgebungen mit JWT-, Access-Token- und SFDX-URL-
+Authentifizierungsflows. Die nachfolgende Nutzungsanleitung zeigt, wie Sie
+natürliche Sprache verwenden können, um Konten, Opportunities, Cases und
+Kontakte über den CLI-Agenten abzufragen.
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
@@ -32,7 +32,7 @@ mit natürlicher Sprache Accounts, Opportunities, Cases und Contacts
 ## Voraussetzungen
 
 - **Salesforce CLI** (`@salesforce/cli`)
-- **Salesforce Org** mit API-Zugriff
+- **Salesforce-Org** mit API-Zugriff
 - Ein Benutzerkonto mit Berechtigungen zum Abfragen von Objekten (Cases, Opportunities, Accounts, Contacts)
 
 Installieren Sie die Salesforce CLI auf Ihrer Workstation:
@@ -49,7 +49,7 @@ sf --version
 
 Sie sollten eine Ausgabe wie `@salesforce/cli/2.x.x` sehen.
 
-## Authentifizierung einrichten
+## Einrichtung der Authentifizierung
 
 ### Schritt 1: Ihre Salesforce-Domain finden
 
@@ -59,44 +59,44 @@ Schauen Sie sich Ihre Salesforce-URL im Browser an. Wenn Sie auf Salesforce unte
 
 <Aside type="tip">
   Wenn Ihr Unternehmen SSO verwendet, müssen Sie Ihre benutzerdefinierte Domain mit
-  `--instance-url` angeben, damit die Anmeldung über Ihren SSO-Provider
+  `--instance-url` angeben, damit die Anmeldung über Ihren SSO-Anbieter
   umgeleitet wird, anstatt über die generische Salesforce-Anmeldeseite.
 </Aside>
 
-### Schritt 2: Über den Browser authentifizieren
+### Schritt 2: Authentifizierung über den Browser
 
 ```bash
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
 ```
 
 Ersetzen Sie `YOUR-DOMAIN` durch Ihre Unternehmens-Domain aus Schritt 1. Ihr Browser
-öffnet sich — schließen Sie den SSO- oder Anmeldevorgang ab und autorisieren Sie die App. Sie sollten
+öffnet sich — schließen Sie den SSO- oder Login-Flow ab und autorisieren Sie die App. Sie sollten
 Folgendes sehen:
 
 ```
 Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
-### Schritt 3: Die Verbindung überprüfen
+### Schritt 3: Verbindung überprüfen
 
 ```bash
 sf org display --target-org my-org
 ```
 
 Bestätigen Sie, dass die Ausgabe `Connected Status: Connected` mit Ihrem Benutzernamen
-und der Instanz-URL anzeigt.
+und Ihrer Instanz-URL anzeigt.
 
 ### Schritt 4: Portable Authentifizierung für Container (optional)
 
-Wenn Sie sich in einer headless Umgebung (CI/CD, Container,
-Remote-Session) authentifizieren müssen, exportieren Sie die SFDX-Auth-URL von Ihrer Workstation:
+Wenn Sie sich in einer kopflosen Umgebung authentifizieren müssen (CI/CD, Container,
+Remote-Sitzung), exportieren Sie die SFDX-Auth-URL von Ihrer Workstation:
 
 ```bash
 sf org display --verbose --target-org my-org
 ```
 
-Kopieren Sie den Wert der **Sfdx Auth Url** (beginnt mit `force://`). Führen Sie im
-Container Folgendes aus:
+Kopieren Sie den Wert der **Sfdx Auth Url** (beginnt mit `force://`). Im
+Container führen Sie aus:
 
 ```bash
 export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
@@ -104,8 +104,8 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ```
 
 <Aside type="caution">
-  Die SFDX-Auth-URL ist ein Zugangsdatenwert — behandeln Sie ihn wie ein Passwort. Committen Sie
-  ihn nicht in Dateien und fügen Sie ihn nicht in den Chat ein. Verwenden Sie ausschließlich
+  Die SFDX-Auth-URL ist ein Zugangsdaten — behandeln Sie sie wie ein Passwort. Committen
+  Sie sie nicht in Dateien und fügen Sie sie nicht in den Chat ein. Verwenden Sie ausschließlich
   Umgebungsvariablen und stdin-Pipes.
 </Aside>
 
@@ -113,13 +113,13 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 | Methode | Geeignet für | Erfordert |
 |---------|-------------|-----------|
-| Web Login | Workstations mit Browser | Browser + SSO |
-| SFDX URL | Container, CI/CD, portable Authentifizierung | Auth-URL aus einer authentifizierten Sitzung |
+| Web-Login | Workstations mit Browser | Browser + SSO |
+| SFDX-URL | Container, CI/CD, portable Authentifizierung | Auth-URL aus einer authentifizierten Sitzung |
 | JWT Bearer | Automatisierte Pipelines | Connected App + privater Schlüssel + Consumer Key |
-| Access Token | Authentifizierung über Umgebungsvariable | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
+| Access Token | Authentifizierung über Umgebungsvariablen | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
 
 **Hinweis:** Der Device-Flow (`sf org login device`) ist seit August
-2025 blockiert und wird nicht unterstützt.
+2025 gesperrt und wird nicht unterstützt.
 
 ### Umgebungsvariablen
 
@@ -136,63 +136,63 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 ### /salesforce:sf-status
 
-Prüfen Sie den Verbindungsstatus Ihrer Salesforce Org, die CLI-Version und
+Prüfen Sie den Verbindungsstatus Ihrer Salesforce-Org, die CLI-Version und
 die authentifizierten Orgs.
 
 ```
 /salesforce:sf-status
 ```
 
-**Erwartete Ausgabe:** Eine Tabelle mit Ihrer sf-CLI-Version, dem authentifizierten
+**Was zu erwarten ist:** Eine Tabelle mit Ihrer sf-CLI-Version, dem authentifizierten
 Org-Alias, Benutzernamen, der Instanz-URL, dem Verbindungsstatus und der API-Version.
 
 ### /salesforce:sf-login
 
-Authentifizieren Sie sich bei einer Salesforce Org. Optional können Sie einen Alias angeben.
+Authentifizieren Sie sich bei einer Salesforce-Org. Optional können Sie einen Alias angeben.
 
 ```
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
 
-**Erwartete Ausgabe:** Wenn eine Org mit diesem Alias bereits authentifiziert ist,
-werden die Verbindungsdetails angezeigt. Falls nicht, wird nach verfügbaren
+**Was zu erwarten ist:** Wenn eine Org mit diesem Alias bereits authentifiziert ist,
+werden die Verbindungsdetails angezeigt. Andernfalls wird nach verfügbaren
 Zugangsdaten (Umgebungsvariablen) gesucht und die Authentifizierung mit der ersten
 vollständig erfüllten Methode durchgeführt.
 
-## Skills
+## Fähigkeiten
 
 ### salesforce-index
 
-Top-Level Intent-Router. Wird automatisch aktiviert, wenn Sie Salesforce,
+Top-Level-Intent-Router. Wird automatisch aktiviert, wenn Sie Salesforce,
 Org-Verwaltung oder Datenabfragen in natürlicher Sprache erwähnen.
 
 | Sie sagen | Leitet weiter an |
 |-----------|-----------------|
-| "login to salesforce", "authenticate org" | `salesforce-auth`-Skill |
-| "check org status", "list orgs" | `cli-operator`-Agent |
-| "show me opportunities", "look up case" | `cli-operator`-Agent (SOQL-Abfrage) |
-| "generate Apex class", "create Flow" | afv-library Development-Skills |
+| "Bei Salesforce anmelden", "Org authentifizieren" | `salesforce-auth`-Fähigkeit |
+| "Org-Status prüfen", "Orgs auflisten" | `cli-operator`-Agent |
+| "Zeige mir Opportunities", "Case nachschlagen" | `cli-operator`-Agent (SOQL-Abfrage) |
+| "Apex-Klasse generieren", "Flow erstellen" | afv-library-Entwicklungsfähigkeiten |
 
 ### salesforce-auth
 
-Container-adaptierter Authentifizierungs-Skill. Unterstützt vier Authentifizierungsmethoden und
+Container-angepasste Authentifizierungsfähigkeit. Unterstützt vier Authentifizierungsmethoden und
 erkennt automatisch, welche Zugangsdaten verfügbar sind. Priorisierung:
-Access-Token, dann JWT, dann SFDX URL, dann Web Login.
+Access-Token, dann JWT, dann SFDX-URL, dann Web-Login.
 
 ## Agenten
 
 ### cli-operator
 
-Autonomer Salesforce-CLI-Agent, der `sf`-Befehle mit Sicherheitsleitplanken ausführt.
-Alle Salesforce-Operationen werden an diesen Agenten delegiert, um den
-Hauptsitzungskontext schlank zu halten.
+Autonomer Salesforce-CLI-Agent, der `sf`-Befehle mit Sicherheitsvorkehrungen
+ausführt. Alle Salesforce-Operationen werden an diesen Agenten delegiert, um
+den Hauptsitzungskontext schlank zu halten.
 
 **Sicherheitsregeln:**
 
-- Standardmäßig schreibgeschützt — Schreiboperationen erfordern explizite Genehmigung
-- Führt niemals Deployments ohne Vorschau und Bestätigungsschritt durch
-- Gibt niemals Access-Tokens, Auth-URLs oder Zugangsdaten in der Ausgabe aus
+- Standardmäßig nur lesend — Schreiboperationen erfordern explizite Genehmigung
+- Deployt niemals ohne Vorschau und Bestätigungsschritt
+- Gibt niemals Access Tokens, Auth-URLs oder Zugangsdaten in der Ausgabe aus
 - Bereinigt alle vom Benutzer bereitgestellten Werte (lehnt Shell-Metazeichen ab)
 - Verwendet `--json`-Ausgabe für strukturierte, parsbare Ergebnisse
 
@@ -205,89 +205,89 @@ Hauptsitzungskontext schlank zu halten.
 ### Issues
 ```
 
-## Nutzungsanleitung: Account-Verwaltung
+## Nutzungsanleitung: Kontoverwaltung
 
 <Aside type="note">
-  Die nachfolgenden Prompts sind keine fest einprogrammierten Funktionen des Plugins. Sie funktionieren,
+  Die folgenden Prompts sind keine fest codierten Funktionen des Plugins. Sie funktionieren,
   weil der cli-operator-Agent jeden `sf`-CLI-Befehl ausführen kann, einschließlich
   beliebiger SOQL-Abfragen. Die Ergebnisse hängen vom Datenmodell Ihrer Org und
-  Ihren Benutzerberechtigungen ab. Die hier aufgeführten Prompts wurden mit
-  Standard-Salesforce-Objekten (Account, Contact, Case,
-  Opportunity, AccountTeamMember, OpportunityTeamMember) getestet und verifiziert.
+  Ihren Benutzerberechtigungen ab. Die hier gezeigten Prompts wurden getestet und
+  verifiziert, um mit Standard-Salesforce-Objekten (Account, Contact, Case,
+  Opportunity, AccountTeamMember, OpportunityTeamMember) zu funktionieren.
 </Aside>
 
-Diese Prompts funktionieren mit jeder Salesforce Org. Ersetzen Sie die Platzhalter
-durch Ihre eigenen Informationen. Jeder Prompt liefert Ergebnisse, die spezifisch
-für Ihre Rolle, Accounts und Ihr Gebiet sind.
+Diese Prompts funktionieren mit jeder Salesforce-Org. Ersetzen Sie die Platzhalter-
+Werte durch Ihre eigenen Informationen. Jeder Prompt liefert Ergebnisse, die
+spezifisch für Ihre Rolle, Konten und Ihr Gebiet sind.
 
 <Aside type="tip">
-  Für optimale Ergebnisse geben Sie Ihre E-Mail-Adresse in Prompts an, die
-  Ihren Benutzerdatensatz identifizieren müssen. Salesforce Orgs können mehrere Benutzer
+  Für beste Ergebnisse geben Sie Ihre E-Mail-Adresse in Prompts an, die
+  Ihren Benutzerdatensatz identifizieren müssen. Salesforce-Orgs können mehrere Benutzer
   mit ähnlichen Namen haben.
 </Aside>
 
 ### Erste Schritte
 
-Nach der Authentifizierung überprüfen Sie, ob alles funktioniert:
+Überprüfen Sie nach der Authentifizierung, ob alles funktioniert:
 
 ```
 /salesforce:sf-status
 ```
 
-Probieren Sie dann eine einfache Abfrage in natürlicher Sprache:
+Versuchen Sie dann eine einfache Abfrage in natürlicher Sprache:
 
 ```
 list my authenticated salesforce orgs
 ```
 
-**Erwartete Ausgabe:** Eine Tabelle mit allen verbundenen Orgs mit Alias,
+**Was zu erwarten ist:** Eine Tabelle mit allen verbundenen Orgs mit Alias,
 Benutzername, Instanz-URL und Verbindungsstatus.
 
-### Ihre Accounts finden
+### Ihre Konten finden
 
-Finden Sie heraus, welchen Accounts Sie zugeordnet sind:
+Finden Sie heraus, welchen Konten Sie zugeordnet sind:
 
 ```
 what salesforce accounts am I on the account team for? My email is your-email@company.com
 ```
 
-**Erwartete Ausgabe:** Eine Liste von Accounts gruppiert nach Account-Inhaber, die
-Ihre Teammitglied-Rolle bei jedem anzeigt. Wenn die meisten Rollen leer erscheinen, ist das
-eine häufige Datenhygiene-Lücke — die Account-Team-Mitgliedschaften existieren, aber die Rollen
-wurden nicht ausgefüllt.
+**Was zu erwarten ist:** Eine Liste von Konten, gruppiert nach Kontoinhaber, die
+Ihre Teammitgliederrolle bei jedem anzeigt. Wenn die meisten Rollen leer erscheinen,
+ist das eine häufige Datenhygienelücke — die Kontoteam-Mitgliedschaften existieren,
+aber die Rollen wurden nicht ausgefüllt.
 
 ### Abdeckung mit einem Kollegen abgleichen
 
-Vergleichen Sie Ihre Account-Abdeckung mit einem Teammitglied, um Lücken zu finden:
+Vergleichen Sie Ihre Kontoabdeckung mit einem Teammitglied, um Lücken zu finden:
 
 ```
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
-**Erwartete Ausgabe:** Eine Übersichtstabelle mit Überschneidungs- und Lückenanzahl,
-gefolgt von zwei Listen. Wenn Sie kürzlich die Rolle gewechselt haben, finden Sie möglicherweise null
-Überschneidungen — dies zeigt auf, bei welchen Accounts Sie hinzugefügt werden müssen.
+**Was zu erwarten ist:** Eine Zusammenfassungstabelle mit Überschneidungs- und Lückenanzahl,
+gefolgt von zwei Listen. Wenn Sie kürzlich die Rolle gewechselt haben, finden Sie möglicherweise
+keine Überschneidung — dies zeigt, bei welchen Konten Sie hinzugefügt werden müssen.
 
 <Aside type="note">
   Sie können auch nach einem Vorgänger suchen, indem Sie hinzufügen: "Also check if
   Previous Person Name appears on any of those accounts." Dies hilft,
-  Übergabelücken zu identifizieren, wenn Sie jemanden in einem Gebiet ablösen.
+  Übergabelücken zu identifizieren, wenn Sie jemanden in einem Gebiet ersetzen.
 </Aside>
 
 ### Gebiets-Pipeline-Übersicht
 
-Sehen Sie alle offenen Opportunities über Ihre Accounts hinweg:
+Sehen Sie alle offenen Opportunities über Ihre Konten hinweg:
 
 ```
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
-**Erwartete Ausgabe:** Eine Zusammenfassung mit Gesamtzahl der Opportunities, Brutto-Pipeline
-und gewichteter Pipeline. Dann eine Stage-Verteilungstabelle und eine Liste der Top-
-Opportunities nach Betrag. Die Ausgabe markiert Datenhygiene-Probleme wie
-überfällige Abschlussdaten oder fehlende Beträge.
+**Was zu erwarten ist:** Eine Zusammenfassung mit der Gesamtanzahl der Opportunities,
+der Roh-Pipeline und der gewichteten Pipeline. Dann eine Stufenverteilungstabelle und eine
+Liste der Top-Opportunities nach Betrag. Die Ausgabe markiert Datenhygieneprobleme wie
+überfällige Abschlussdaten oder Null-Beträge.
 
-### Opportunity-Detailanalyse
+### Opportunity-Detailansicht
 
 Erhalten Sie das vollständige Bild zu einem bestimmten Deal:
 
@@ -295,47 +295,48 @@ Erhalten Sie das vollständige Bild zu einem bestimmten Deal:
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
-**Erwartete Ausgabe:** Die Opportunity-Übersicht (Stage, Betrag, Abschlussdatum,
-Wahrscheinlichkeit, Forecast-Kategorie, Inhaber), Opportunity-Teammitglieder mit
-Rollen, zugeordnete Kontakte, aktuelle Aufgaben und Ereignisse sowie der Feldänderungs-
-verlauf, der zeigt, wie sich Dealbetrag und Abschlussdatum im Laufe der Zeit verändert haben.
+**Was zu erwarten ist:** Die Opportunity-Übersicht (Stufe, Betrag, Abschlussdatum,
+Wahrscheinlichkeit, Prognosekategorie, Inhaber), Opportunity-Teammitglieder mit
+Rollen, zugeordnete Kontakte, aktuelle Aufgaben und Ereignisse sowie die
+Feldänderungshistorie, die zeigt, wie sich der Deal-Betrag und das Abschlussdatum
+im Laufe der Zeit verändert haben.
 
-### Support-Cases im Gebiet
+### Support-Cases im gesamten Gebiet
 
-Prüfen Sie offene Support-Cases in Ihren Accounts:
+Prüfen Sie offene Support-Cases Ihrer Konten:
 
 ```
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
-**Erwartete Ausgabe:** Eine Anzahl offener Cases mit Prioritäts- und Status-
-aufschlüsselung, dann Case-Details gruppiert nach Account. Veraltete Cases (Monate oder
-Jahre alt ohne Aktivität) werden als Hygiene-Kandidaten markiert.
+**Was zu erwarten ist:** Eine Anzahl offener Cases mit Prioritäts- und Status-
+aufschlüsselung, dann Case-Details gruppiert nach Konto. Veraltete Cases (Monate oder
+Jahre alt ohne Aktivität) werden als Hygienekandidaten markiert.
 
 ### Quartals-Pipeline-Prognose
 
-Erhalten Sie eine prognosetaugliche Ansicht Ihrer Pipeline:
+Erhalten Sie eine prognosegeeignete Ansicht Ihrer Pipeline:
 
 ```
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
-**Erwartete Ausgabe:** Eine Tabelle mit einer Zeile pro Quartal, die Opportunity-
-Anzahl, Gesamtpipeline und gewichtete Pipeline zeigt. Enthält eine Stage-Mix-
-Aufschlüsselung pro Quartal und hebt die Top gewichteten Deals hervor. Überfällige
+**Was zu erwarten ist:** Eine Tabelle mit einer Zeile pro Quartal, die Opportunity-
+Anzahl, Gesamt-Pipeline und gewichtete Pipeline zeigt. Enthält eine Stufenverteilung
+pro Quartal und hebt die am höchsten gewichteten Deals hervor. Überfällige
 Opportunities werden separat gruppiert.
 
-### Vollständige Account-Übersicht
+### Vollständige Kontoübersicht
 
-Tauchen Sie tief in einen bestimmten Kunden ein:
+Vertiefen Sie sich in einen bestimmten Kunden:
 
 ```
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
-**Erwartete Ausgabe:** Unternehmensprofil (Branche, Umsatz, Mitarbeiter,
-Standort), wichtige Kontakte mit Titel und E-Mail, offene Opportunities mit
-Stages und Beträgen sowie aktuelle Support-Cases mit Status.
+**Was zu erwarten ist:** Unternehmensprofil (Branche, Umsatz, Mitarbeiter,
+Standort), Schlüsselkontakte mit Titel und E-Mail, offene Opportunities mit
+Stufen und Beträgen sowie aktuelle Support-Cases mit Status.
 
 ### Case-Abfrage
 
@@ -345,16 +346,16 @@ Suchen Sie einen bestimmten Support-Case anhand der Nummer:
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
-**Erwartete Ausgabe:** Case-Betreff, Status, Priorität, Beschreibung, das
-Kunden-Account-Profil und der Case-Inhaber mit Kontaktinformationen.
+**Was zu erwarten ist:** Case-Betreff, Status, Priorität, Beschreibung, das
+Kundenkontoprofil und der Case-Inhaber mit Kontaktinformationen.
 
 ## Nutzungsanleitung: Datenabfragen
 
-Für Power-User können Sie spezifische SOQL-artige Abfragen in natürlicher
-Sprache stellen. Das Plugin übersetzt Ihre Anfrage in die entsprechende SOQL-Abfrage
+Für fortgeschrittene Benutzer können Sie spezifische SOQL-ähnliche Abfragen in natürlicher
+Sprache anfordern. Das Plugin übersetzt Ihre Anfrage in die entsprechende SOQL-Abfrage
 und führt sie aus.
 
-### Bestimmte Felder
+### Spezifische Felder
 
 ```
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
@@ -379,15 +380,15 @@ query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'A
 ```
 
 <Aside type="tip">
-  Wenn eine Abfrage fehlschlägt, weil ein Feld nicht existiert, versucht das Plugin
-  automatisch einen erneuten Versuch ohne dieses Feld. Benutzerdefinierte Felder in Ihrer Org
-  können andere Namen verwenden — überprüfen Sie Ihr Salesforce-Setup, wenn ein Feld
+  Wenn eine Abfrage fehlschlägt, weil ein Feld nicht existiert, wiederholt das Plugin
+  die Abfrage automatisch ohne dieses Feld. Benutzerdefinierte Felder in Ihrer Org
+  können andere Namen verwenden — prüfen Sie Ihr Salesforce-Setup, wenn ein Feld
   nicht gefunden wird.
 </Aside>
 
-## Entwicklungs-Skills
+## Entwicklungsfähigkeiten
 
-Die 30 Salesforce-Entwicklungs-Skills aus der
+Die 30 Salesforce-Entwicklungsfähigkeiten aus der
 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
 werden automatisch für Apex, Flow, LWC, SOQL, Metadaten, Agentforce
 und Deployment-Aufgaben aktiviert. Installieren Sie sie separat:
@@ -396,9 +397,9 @@ und Deployment-Aufgaben aktiviert. Installieren Sie sie separat:
 npx skills add forcedotcom/afv-library
 ```
 
-| Thema | Skill |
-|-------|-------|
-| Apex-Klassen und Services | `generating-apex` |
+| Thema | Fähigkeit |
+|-------|-----------|
+| Apex-Klassen und -Services | `generating-apex` |
 | Apex-Tests | `generating-apex-test` |
 | Flows | `generating-flow` |
 | LWC und UI-Bundles | `building-ui-bundle-app` |

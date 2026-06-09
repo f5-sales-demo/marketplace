@@ -1,8 +1,8 @@
 ---
 title: f5xc-docs-pipeline
 description: >-
-  Documentation pipeline architecture knowledge for multi-repo builds, content
-  authoring, and local preview.
+  معرفة بنية خط أنابيب التوثيق للبناء متعدد المستودعات وتأليف المحتوى والمعاينة
+  المحلية.
 sidebar:
   order: 8
 i18n:
@@ -12,12 +12,12 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-يوفر إضافة **f5xc-docs-pipeline** معرفة بنية خط أنابيب التوثيق
-لمستودعات f5xc-salesdemos. يُوجّه عملية تأليف المحتوى، ويوضّح
-ملكية الإعدادات عبر البناءات متعددة المستودعات، ويوفر معاينة محلية
-قائمة على Docker.
+يوفر ملحق **f5xc-docs-pipeline** معرفة ببنية خط أنابيب التوثيق
+لمستودعات f5xc-salesdemos. يرشد في تأليف المحتوى، ويوضح ملكية
+الإعدادات عبر البناء متعدد المستودعات، ويوفر معاينة محلية قائمة
+على Docker.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="إنتاجية" variant="tip" />
 
 ## التثبيت
 
@@ -29,22 +29,22 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### content-author
 
-دليل تأليف المحتوى الذي يغطي بنية الملفات، وقواعد صياغة MDX،
-ومتطلبات البيانات الوصفية الأمامية، ومراجع الصور، والمعاينة المحلية
-عبر Docker. يتم تنشيطه عند إنشاء أو تعديل محتوى `docs/`،
-أو العمل مع ملفات MDX، أو إعداد المعاينة المحلية.
+دليل تأليف المحتوى الذي يغطي بنية الملفات وقواعد صياغة MDX
+ومتطلبات frontmatter ومراجع الصور والمعاينة المحلية عبر Docker.
+يُفعَّل عند إنشاء أو تحرير محتوى `docs/`، أو العمل مع ملفات
+MDX، أو إعداد المعاينة المحلية.
 
 ### pipeline-navigator
 
-بنية خط أنابيب التوثيق التي تشرح أين يجب إجراء التغييرات
-عبر المستودعات الأربعة الأساسية: docs-theme و
-docs-builder و docs-control و docs-icons. يوضّح ملكية
-الإعدادات (`astro.config.mjs`، `content.config.ts`)، وسلسلة
-إرسال الإصدارات، وتتبع الملفات المُدارة.
+بنية خط أنابيب التوثيق التي تشرح أين يجب إجراء التغييرات عبر
+المستودعات الأربعة الأساسية: docs-theme وdocs-builder وdocs-control
+وdocs-icons. يوضح ملكية الإعدادات (`astro.config.mjs`،
+`content.config.ts`)، وسلسلة إرسال الإصدارات، وتتبع الملفات
+المُدارة.
 
 <Aside type="tip">
-  استخدم pipeline-navigator عندما تحتاج إلى فهم أي
-  مستودع يمتلك ملف إعدادات أو مكوّن معين.
+  استخدم pipeline-navigator عندما تحتاج إلى فهم أي مستودع يملك
+  ملف إعدادات أو مكوّن معين.
 </Aside>
 
 ## الأوامر
@@ -55,6 +55,6 @@ docs-builder و docs-control و docs-icons. يوضّح ملكية
 /f5xc-docs-pipeline:preview-docs
 ```
 
-يبدأ خادم تطوير Docker محلي لمعاينة التوثيق. يقوم بتشغيل
-صورة بناء Docker المشتركة مع تثبيت مجلد `docs/` المحلي
-الخاص بك للمعاينة المباشرة.
+يبدأ خادم تطوير Docker محلي لمعاينة التوثيق. يشغّل صورة بناء
+Docker المشتركة مع تركيب مجلد `docs/` المحلي الخاص بك للمعاينة
+المباشرة.

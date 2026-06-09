@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-docs-pipeline** 外掛為 f5xc-salesdemos 儲存庫提供文件管線架構知識。它引導內容撰寫、釐清多儲存庫建置中的設定檔所有權，並提供基於 Docker 的本機預覽功能。
+**f5xc-docs-pipeline** 外掛程式為 f5xc-salesdemos 儲存庫提供文件管線架構知識。它引導內容撰寫、釐清多儲存庫建置中的設定所有權，並提供基於 Docker 的本機預覽功能。
 
 <Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,17 +24,17 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### content-author
 
-內容撰寫指南，涵蓋檔案結構、MDX 語法規則、frontmatter 需求、圖片參照及本機 Docker 預覽。在建立或編輯 `docs/` 內容、處理 MDX 檔案或設定本機預覽時會啟用。
+內容撰寫指南，涵蓋檔案結構、MDX 語法規則、frontmatter 需求、圖片參考以及本機 Docker 預覽。當建立或編輯 `docs/` 內容、處理 MDX 檔案或設定本機預覽時會啟用。
 
 ### pipeline-navigator
 
-文件管線架構說明，解釋在四個上游儲存庫中應於何處進行變更：docs-theme、docs-builder、docs-control 和 docs-icons。釐清設定檔所有權（`astro.config.mjs`、`content.config.ts`）、發布調度鏈及受管理檔案的追蹤機制。
+文件管線架構說明，解釋在四個上游儲存庫（docs-theme、docs-builder、docs-control 和 docs-icons）中應在何處進行變更。釐清設定所有權（`astro.config.mjs`、`content.config.ts`）、發布調度鏈以及受管理檔案追蹤。
 
 <Aside type="tip">
-  當您需要了解特定設定檔或元件由哪個儲存庫所擁有時，請使用 pipeline-navigator。
+  當您需要了解哪個儲存庫擁有特定設定檔或元件時，請使用 pipeline-navigator。
 </Aside>
 
-## 指令
+## 命令
 
 ### /preview-docs
 

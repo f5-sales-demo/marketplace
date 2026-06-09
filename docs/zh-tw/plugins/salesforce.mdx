@@ -1,8 +1,6 @@
 ---
-title: salesforce
-description: >-
-  Salesforce CLI automation with org authentication, account management,
-  pipeline analysis, and natural language data queries.
+title: Salesforce
+description: Salesforce CLI 自動化，包含組織驗證、帳戶管理、銷售管線分析與自然語言資料查詢。
 sidebar:
   label: Salesforce
   order: 14
@@ -13,10 +11,11 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**salesforce** 外掛程式將 Salesforce CLI 與 Claude Code 整合，
-提供組織驗證和通用 CLI 代理程式，可執行任何 `sf` 命令，包括 SOQL 查詢。它支援無介面容器環境，
-具備 JWT、存取權杖和 SFDX URL 驗證流程。以下使用指南展示如何使用自然語言透過 CLI 代理程式
-查詢帳戶、商機、案例和聯絡人。
+**salesforce** 外掛將 Salesforce CLI 與 Claude Code 整合，
+提供組織驗證功能以及通用 CLI 代理程式，可執行任何 `sf` 命令，
+包括 SOQL 查詢。它支援無頭容器環境的 JWT、存取權杖和 SFDX URL
+驗證流程。以下使用指南示範如何透過 CLI 代理程式使用自然語言查詢
+帳戶、商機、案例和聯絡人。
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
@@ -26,11 +25,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 /plugin install salesforce@f5xc-salesdemos-marketplace
 ```
 
-## 先決條件
+## 前置條件
 
 - **Salesforce CLI** (`@salesforce/cli`)
 - 具有 API 存取權限的 **Salesforce 組織**
-- 具有查詢物件（案例、商機、帳戶、聯絡人）權限的使用者帳戶
+- 具有查詢物件（Cases、Opportunities、Accounts、Contacts）權限的使用者帳戶
 
 在您的工作站上安裝 Salesforce CLI：
 
@@ -50,13 +49,14 @@ sf --version
 
 ### 步驟 1：找到您的 Salesforce 網域
 
-在瀏覽器中查看您的 Salesforce URL。如果您透過
+查看瀏覽器中的 Salesforce URL。如果您透過
 `https://acme.lightning.force.com` 存取 Salesforce，您的登入網域為
 `https://acme.my.salesforce.com`。
 
 <Aside type="tip">
-  如果您的公司使用 SSO，您必須使用 `--instance-url` 指定您的自訂網域，
-  這樣登入會透過您的 SSO 供應商重新導向，而非通用的 Salesforce 登入頁面。
+  如果您的公司使用 SSO，您必須使用 `--instance-url` 指定自訂網域，
+  這樣登入流程才會透過您的 SSO 提供者重新導向，而非通用的 Salesforce
+  登入頁面。
 </Aside>
 
 ### 步驟 2：透過瀏覽器驗證
@@ -65,8 +65,8 @@ sf --version
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
 ```
 
-將 `YOUR-DOMAIN` 替換為步驟 1 中您的公司網域。您的瀏覽器會開啟 —
-完成 SSO 或登入流程並授權應用程式。您應該會看到：
+將 `YOUR-DOMAIN` 替換為步驟 1 中您的公司網域。瀏覽器會開啟 — 完成
+SSO 或登入流程並授權應用程式。您應該會看到：
 
 ```
 Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
@@ -78,11 +78,11 @@ Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
 sf org display --target-org my-org
 ```
 
-確認輸出顯示 `Connected Status: Connected` 以及您的使用者名稱和實例 URL。
+確認輸出顯示 `Connected Status: Connected` 以及您的使用者名稱和執行個體 URL。
 
 ### 步驟 4：容器的可攜式驗證（選用）
 
-如果您需要在無介面環境（CI/CD、容器、遠端工作階段）中進行驗證，
+如果您需要在無頭環境（CI/CD、容器、遠端工作階段）中進行驗證，
 請從您的工作站匯出 SFDX 驗證 URL：
 
 ```bash
@@ -97,31 +97,31 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ```
 
 <Aside type="caution">
-  SFDX 驗證 URL 是一組憑證 — 請像密碼一樣對待它。不要將它提交到檔案中
-  或貼到聊天中。僅使用環境變數和標準輸入管道。
+  SFDX 驗證 URL 是憑證 — 請像密碼一樣妥善保管。不要將其提交到檔案
+  或貼到聊天中。請僅使用環境變數和標準輸入管線。
 </Aside>
 
 ### 驗證方法參考
 
-| 方法 | 最適合 | 需求 |
+| 方法 | 適用情境 | 需求 |
 |--------|----------|----------|
-| Web 登入 | 具有瀏覽器的工作站 | 瀏覽器 + SSO |
+| 網頁登入 | 有瀏覽器的工作站 | 瀏覽器 + SSO |
 | SFDX URL | 容器、CI/CD、可攜式驗證 | 來自已驗證工作階段的驗證 URL |
-| JWT Bearer | 自動化管線 | 連線應用程式 + 私密金鑰 + 消費者金鑰 |
+| JWT Bearer | 自動化管線 | Connected App + 私密金鑰 + 消費者金鑰 |
 | 存取權杖 | 環境變數驗證 | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
 
-**注意：** 裝置流程（`sf org login device`）自 2025 年 8 月起已被封鎖，不再支援。
+**注意：**裝置流程（`sf org login device`）自 2025 年 8 月起已被封鎖，不再支援。
 
 ### 環境變數
 
 | 變數 | 用途 |
 |----------|---------|
-| `SF_ACCESS_TOKEN` | 用於存取權杖驗證的 Bearer 權杖 |
-| `SFDX_AUTH_URL` | 用於 SFDX URL 驗證的 Force 驗證 URL |
-| `SF_ORG_INSTANCE_URL` | 組織實例 URL |
+| `SF_ACCESS_TOKEN` | 存取權杖驗證的 Bearer 權杖 |
+| `SFDX_AUTH_URL` | SFDX URL 驗證的 Force 驗證 URL |
+| `SF_ORG_INSTANCE_URL` | 組織執行個體 URL |
 | `SF_JWT_KEY_FILE` | JWT 私密金鑰路徑 |
-| `SF_CLIENT_ID` | 連線應用程式消費者金鑰 |
-| `SF_USERNAME` | 用於 JWT 的 Salesforce 使用者名稱 |
+| `SF_CLIENT_ID` | Connected App 消費者金鑰 |
+| `SF_USERNAME` | JWT 的 Salesforce 使用者名稱 |
 
 ## 命令
 
@@ -133,46 +133,51 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 /salesforce:sf-status
 ```
 
-**預期結果：** 一個表格，顯示您的 sf CLI 版本、已驗證的組織別名、使用者名稱、實例 URL、連線狀態和 API 版本。
+**預期結果：**一個表格，顯示您的 sf CLI 版本、已驗證的組織別名、使用者名稱、
+執行個體 URL、連線狀態和 API 版本。
 
 ### /salesforce:sf-login
 
-驗證 Salesforce 組織。可選擇性地提供別名。
+驗證 Salesforce 組織。可選擇提供別名。
 
 ```
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
 
-**預期結果：** 如果具有該別名的組織已經過驗證，它會報告連線詳細資訊。如果尚未驗證，它會檢查可用的憑證（環境變數），並使用第一個完全滿足的方法進行驗證。
+**預期結果：**如果該別名的組織已經驗證，會回報連線詳細資訊。如果尚未驗證，
+會檢查可用的憑證（環境變數），並使用第一個完全滿足的方法進行驗證。
 
 ## 技能
 
 ### salesforce-index
 
-頂層意圖路由器。當您在自然語言中提及 Salesforce、組織管理或資料查詢時自動啟動。
+頂層意圖路由器。當您在自然語言中提及 Salesforce、組織管理或資料查詢時，
+會自動啟動。
 
-| 您說的話 | 路由到 |
+| 您說的話 | 路由至 |
 |---------|-----------|
-| "login to salesforce"、"authenticate org" | `salesforce-auth` 技能 |
-| "check org status"、"list orgs" | `cli-operator` 代理程式 |
-| "show me opportunities"、"look up case" | `cli-operator` 代理程式（SOQL 查詢） |
-| "generate Apex class"、"create Flow" | afv-library 開發技能 |
+| "登入 salesforce"、"驗證組織" | `salesforce-auth` 技能 |
+| "檢查組織狀態"、"列出組織" | `cli-operator` 代理程式 |
+| "顯示商機"、"查詢案例" | `cli-operator` 代理程式（SOQL 查詢） |
+| "產生 Apex 類別"、"建立 Flow" | afv-library 開發技能 |
 
 ### salesforce-auth
 
-適配容器的驗證技能。支援四種驗證方法，並自動偵測可用的憑證。優先順序為：存取權杖、JWT、SFDX URL、Web 登入。
+容器適配的驗證技能。支援四種驗證方法，並自動偵測可用的憑證。
+優先順序為：存取權杖、JWT、SFDX URL、網頁登入。
 
 ## 代理程式
 
 ### cli-operator
 
-自主 Salesforce CLI 代理程式，在安全防護下執行 `sf` 命令。所有 Salesforce 操作都委派給此代理程式，以保持主工作階段上下文精簡。
+自主 Salesforce CLI 代理程式，在安全防護機制下執行 `sf` 命令。所有 Salesforce
+操作都委派給此代理程式，以保持主工作階段上下文的精簡。
 
 **安全規則：**
 
 - 預設為唯讀 — 寫入操作需要明確核准
-- 未經預覽和確認步驟絕不部署
+- 在沒有預覽和確認步驟的情況下，絕不進行部署
 - 絕不在輸出中回顯存取權杖、驗證 URL 或憑證
 - 清理所有使用者提供的值（拒絕 shell 元字元）
 - 使用 `--json` 輸出以獲得結構化、可解析的結果
@@ -189,18 +194,19 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ## 使用指南：帳戶管理
 
 <Aside type="note">
-  以下提示語並非外掛程式的硬編碼功能。它們之所以有效，是因為 cli-operator
-  代理程式可以執行任何 `sf` CLI 命令，包括任意 SOQL 查詢。結果取決於您組織的
-  資料模型和您的使用者權限。此處的提示語已經過測試並驗證可與標準 Salesforce
-  物件（Account、Contact、Case、Opportunity、AccountTeamMember、
-  OpportunityTeamMember）搭配使用。
+  以下提示並非外掛的硬編碼功能。它們之所以有效，是因為 cli-operator
+  代理程式可以執行任何 `sf` CLI 命令，包括任意 SOQL 查詢。結果取決於
+  您組織的資料模型和使用者權限。此處的提示已經過測試，確認可與標準
+  Salesforce 物件（Account、Contact、Case、Opportunity、
+  AccountTeamMember、OpportunityTeamMember）搭配使用。
 </Aside>
 
-這些提示語適用於任何 Salesforce 組織。請將預留位置值替換為您自己的資訊。每個提示語會產生特定於您的角色、帳戶和區域的結果。
+這些提示適用於任何 Salesforce 組織。請將佔位符值替換為您自己的資訊。
+每個提示都會產生針對您的角色、帳戶和區域的特定結果。
 
 <Aside type="tip">
-  為獲得最佳結果，請在需要識別您使用者記錄的提示語中包含您的電子郵件地址。
-  Salesforce 組織可能有多個名稱相似的使用者。
+  為獲得最佳結果，請在需要識別您使用者記錄的提示中包含您的電子郵件地址。
+  Salesforce 組織中可能有多個名稱相似的使用者。
 </Aside>
 
 ### 入門
@@ -217,35 +223,39 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 list my authenticated salesforce orgs
 ```
 
-**預期結果：** 一個表格，顯示所有已連線的組織，包含別名、使用者名稱、實例 URL 和連線狀態。
+**預期結果：**一個表格，顯示所有已連線組織的別名、使用者名稱、
+執行個體 URL 和連線狀態。
 
 ### 找到您的帳戶
 
-探索您被分配到哪些帳戶：
+探索您被指派到哪些帳戶：
 
 ```
 what salesforce accounts am I on the account team for? My email is your-email@company.com
 ```
 
-**預期結果：** 依帳戶擁有者分組的帳戶清單，顯示您在每個帳戶上的團隊成員角色。如果大多數角色顯示為空白，這是常見的資料品質問題 — 帳戶團隊成員資格存在，但角色未被填入。
+**預期結果：**按帳戶擁有者分組的帳戶清單，顯示您在每個帳戶上的
+團隊成員角色。如果大多數角色顯示為空白，這是常見的資料品質問題 —
+帳戶團隊成員資格存在，但角色未被填寫。
 
-### 與同事交叉比對覆蓋範圍
+### 與同事交叉比對涵蓋範圍
 
-將您的帳戶覆蓋範圍與團隊成員進行比較以找出差距：
+將您的帳戶涵蓋範圍與團隊成員進行比較，找出缺口：
 
 ```
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
-**預期結果：** 一個摘要表格，顯示重疊數量和差距數量，後面跟著兩個清單。如果您最近更換了角色，您可能會發現零重疊 — 這揭示了您需要被新增到哪些帳戶。
+**預期結果：**一個摘要表格，顯示重疊數量和缺口數量，後接兩個清單。
+如果您最近更換了角色，可能會發現零重疊 — 這揭示了您需要被加入的帳戶。
 
 <Aside type="note">
-  您也可以透過新增以下內容來檢查前任：「Also check if
+  您也可以透過加入以下內容來檢查前任人員：「Also check if
   Previous Person Name appears on any of those accounts.」這有助於
-  在接替某人的區域時識別交接差距。
+  在接替某人的區域時識別交接缺口。
 </Aside>
 
-### 區域管線概覽
+### 區域銷售管線概覽
 
 查看您帳戶中所有開放的商機：
 
@@ -253,61 +263,70 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
-**預期結果：** 包含總商機數量、原始管線和加權管線的摘要。然後是階段分佈表和依金額排列的頂級商機清單。輸出會標記資料品質問題，如逾期的結案日期或空值金額。
+**預期結果：**一個摘要，包含商機總數、原始管線金額和加權管線金額。
+然後是階段分佈表和按金額排序的頂尖商機清單。輸出會標記資料品質問題，
+如逾期的結案日期或空值金額。
 
 ### 商機深入分析
 
-取得特定交易的完整圖片：
+取得特定交易的完整資訊：
 
 ```
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
-**預期結果：** 商機概覽（階段、金額、結案日期、機率、預測類別、擁有者）、商機團隊成員及角色、標記的聯絡人、最近的工作和事件，以及欄位變更歷史記錄，顯示交易金額和結案日期隨時間的變化。
+**預期結果：**商機概覽（階段、金額、結案日期、機率、預測類別、擁有者）、
+商機團隊成員及角色、標記的聯絡人、近期任務和事件，以及欄位變更歷史記錄，
+顯示交易金額和結案日期隨時間的變動。
 
 ### 區域內的支援案例
 
-檢查您帳戶上的開放支援案例：
+檢查您帳戶中開放的支援案例：
 
 ```
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
-**預期結果：** 包含優先順序和狀態細分的開放案例數量，然後是依帳戶分組的案例詳細資訊。閒置案例（數月或數年無活動）會被標記為品質候選項目。
+**預期結果：**開放案例數量及優先順序和狀態分佈，然後是按帳戶分組的案例
+詳細資訊。長期未活動的案例（數月或數年未有活動）會被標記為清理候選項。
 
-### 季度管線預測
+### 季度銷售管線預測
 
-取得可用於預測的管線檢視：
+取得適合預測的管線檢視：
 
 ```
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
-**預期結果：** 一個表格，每列顯示一個季度的商機數量、總管線和加權管線。包含每季度的階段組合細分，並突顯頂級加權交易。逾期商機會單獨分組。
+**預期結果：**一個表格，每季一列，顯示商機數量、管線總額和加權管線金額。
+包含每季的階段組合分佈，並強調頂尖加權交易。逾期的商機會另外分組。
 
 ### 完整帳戶概覽
 
-深入了解特定客戶：
+深入分析特定客戶：
 
 ```
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
-**預期結果：** 公司簡介（產業、營收、員工數、地點）、關鍵聯絡人及職稱和電子郵件、開放商機及階段和金額，以及最近的支援案例及狀態。
+**預期結果：**公司檔案（產業、營收、員工數、地點）、關鍵聯絡人及職稱和
+電子郵件、開放商機及階段和金額，以及近期支援案例和狀態。
 
 ### 案例查詢
 
-依案例編號查詢特定支援案例：
+透過案例編號查詢特定支援案例：
 
 ```
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
-**預期結果：** 案例主旨、狀態、優先順序、描述、客戶帳戶簡介，以及案例擁有者的聯絡資訊。
+**預期結果：**案例主旨、狀態、優先順序、描述、客戶帳戶檔案，
+以及案例擁有者的聯絡資訊。
 
 ## 使用指南：資料查詢
 
-對於進階使用者，您可以用自然語言要求特定的 SOQL 風格查詢。外掛程式會將您的請求轉譯為適當的 SOQL 並執行。
+進階使用者可以用自然語言要求特定的 SOQL 風格查詢。外掛會將您的請求
+轉換為適當的 SOQL 並執行。
 
 ### 特定欄位
 
@@ -334,13 +353,15 @@ query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'A
 ```
 
 <Aside type="tip">
-  如果查詢因欄位不存在而失敗，外掛程式會自動移除該欄位並重試。您組織中的
+  如果查詢因欄位不存在而失敗，外掛會自動移除該欄位後重試。您組織中的
   自訂欄位可能使用不同的名稱 — 如果找不到欄位，請檢查您的 Salesforce 設定。
 </Aside>
 
 ## 開發技能
 
-來自 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) 的 30 個 Salesforce 開發技能會自動為 Apex、Flow、LWC、SOQL、中繼資料、Agentforce 和部署工作啟動。請單獨安裝它們：
+來自 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) 的
+30 個 Salesforce 開發技能會在 Apex、Flow、LWC、SOQL、中繼資料、Agentforce
+和部署任務中自動啟動。請單獨安裝：
 
 ```bash
 npx skills add forcedotcom/afv-library
@@ -350,7 +371,7 @@ npx skills add forcedotcom/afv-library
 |-------|-------|
 | Apex 類別和服務 | `generating-apex` |
 | Apex 測試 | `generating-apex-test` |
-| 流程 | `generating-flow` |
+| Flows | `generating-flow` |
 | LWC 和 UI 套件 | `building-ui-bundle-app` |
 | 自訂物件 | `generating-custom-object` |
 | 自訂欄位 | `generating-custom-field` |
@@ -361,4 +382,4 @@ npx skills add forcedotcom/afv-library
 | Agentforce 測試 | `testing-agentforce` |
 | 部署 | `deploying-ui-bundle` |
 | SLDS2 遷移 | `uplifting-components-to-slds2` |
-| 觸發程式重構 | `trigger-refactor-pipeline` |
+| 觸發器重構 | `trigger-refactor-pipeline` |

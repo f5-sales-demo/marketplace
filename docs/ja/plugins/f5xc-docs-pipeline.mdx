@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-pipeline
-description: マルチリポジトリビルド、コンテンツオーサリング、ローカルプレビューのためのドキュメントパイプラインアーキテクチャの知識。
+description: マルチリポジトリビルド、コンテンツ作成、ローカルプレビューのためのドキュメントパイプラインアーキテクチャの知識。
 sidebar:
   order: 8
 i18n:
@@ -10,9 +10,9 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-docs-pipeline** プラグインは、f5xc-salesdemos リポジトリ向けのドキュメントパイプラインアーキテクチャの知識を提供します。コンテンツオーサリングのガイド、マルチリポジトリビルドにおける設定の所有権の明確化、およびローカルでの Docker ベースのプレビューを提供します。
+**f5xc-docs-pipeline** プラグインは、f5xc-salesdemos リポジトリ向けのドキュメントパイプラインアーキテクチャの知識を提供します。コンテンツ作成をガイドし、マルチリポジトリビルド全体にわたる設定の所有権を明確にし、ローカルの Docker ベースのプレビューを提供します。
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="生産性" variant="tip" />
 
 ## インストール
 
@@ -24,11 +24,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### content-author
 
-ファイル構造、MDX 構文ルール、フロントマターの要件、画像参照、およびローカル Docker プレビューを網羅するコンテンツオーサリングガイドです。`docs/` コンテンツの作成や編集、MDX ファイルの操作、またはローカルプレビューのセットアップ時にアクティブになります。
+ファイル構造、MDX 構文ルール、フロントマター要件、画像参照、およびローカル Docker プレビューを網羅するコンテンツ作成ガイドです。`docs/` コンテンツの作成や編集、MDX ファイルの操作、またはローカルプレビューのセットアップ時にアクティブになります。
 
 ### pipeline-navigator
 
-4つの上流リポジトリ（docs-theme、docs-builder、docs-control、docs-icons）にまたがる変更箇所を説明するドキュメントパイプラインアーキテクチャです。設定の所有権（`astro.config.mjs`、`content.config.ts`）、リリースディスパッチチェーン、および管理対象ファイルの追跡を明確にします。
+4つの上流リポジトリ（docs-theme、docs-builder、docs-control、docs-icons）全体にわたって、どこで変更を行うべきかを説明するドキュメントパイプラインアーキテクチャです。設定の所有権（`astro.config.mjs`、`content.config.ts`）、リリースディスパッチチェーン、および管理対象ファイルの追跡を明確にします。
 
 <Aside type="tip">
   特定の設定ファイルやコンポーネントをどのリポジトリが所有しているかを理解する必要がある場合は、pipeline-navigator を使用してください。
@@ -42,4 +42,4 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 /f5xc-docs-pipeline:preview-docs
 ```
 
-ドキュメントをプレビューするためのローカル Docker 開発サーバーを起動します。ローカルの `docs/` ディレクトリをマウントした共有 Docker ビルドイメージを実行し、ライブプレビューを提供します。
+ドキュメントをプレビューするためのローカル Docker 開発サーバーを起動します。共有 Docker ビルドイメージを実行し、ローカルの `docs/` ディレクトリをマウントしてライブプレビューを行います。

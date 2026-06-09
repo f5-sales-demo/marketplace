@@ -5,7 +5,6 @@ description: >-
   de skills e regras de validação.
 sidebar:
   order: 7
-  label: Referência
 i18n:
   sourceHash: 15be095fe190
   translator: machine
@@ -13,7 +12,7 @@ i18n:
 
 import { Aside } from '@astrojs/starlight/components';
 
-## Esquema marketplace.json
+## Esquema do marketplace.json
 
 O manifesto do marketplace está localizado em
 `.claude-plugin/marketplace.json` na raiz do repositório.
@@ -40,14 +39,14 @@ O manifesto do marketplace está localizado em
 | `version` | Sim | String de versão semântica |
 | `author.name` | Sim | Autor do plugin |
 | `source` | Sim | Caminho ou URL para o plugin (veja Tipos de Source) |
-| `category` | Sim | Categoria do plugin (ex.: `productivity`) |
-| `homepage` | Não | URL para documentação ou página inicial do plugin |
+| `category` | Sim | Categoria do plugin (ex., `productivity`) |
+| `homepage` | Não | URL para a documentação ou página inicial do plugin |
 | `license` | Não | Identificador de licença SPDX |
 | `keywords` | Não | Array de palavras-chave de busca |
 | `tags` | Não | Array de tags para filtragem |
 | `repository` | Não | URL do repositório |
 
-## Tipos de Source de Plugin
+## Tipos de Source do Plugin
 
 O campo `source` no marketplace.json suporta múltiplos
 formatos:
@@ -55,15 +54,15 @@ formatos:
 | Tipo | Exemplo | Descrição |
 |------|---------|-----------|
 | Caminho relativo | `./plugins/my-plugin` | Plugin no mesmo repositório |
-| Abreviação GitHub | `owner/repo` | Plugin na raiz do repositório |
+| Atalho GitHub | `owner/repo` | Plugin na raiz do repositório |
 | GitHub com caminho | `owner/repo/path/to/plugin` | Plugin em subdiretório |
 | URL Git | `https://github.com/owner/repo.git` | Repositório Git |
 | Pacote npm | `npm:@scope/package` | Pacote npm publicado |
 
-## Esquema plugin.json
+## Esquema do plugin.json
 
 Cada plugin possui um manifesto em
-`.claude-plugin/plugin.json` dentro do seu diretório.
+`.claude-plugin/plugin.json` dentro de seu diretório.
 
 | Campo | Obrigatório | Descrição |
 |-------|-------------|-----------|
@@ -77,7 +76,7 @@ Cada plugin possui um manifesto em
 | `license` | Não | Identificador de licença SPDX |
 | `repository` | Não | URL do repositório |
 
-## Estrutura de Diretório do Plugin
+## Estrutura de Diretórios do Plugin
 
 ```
 plugins/my-plugin/
@@ -96,8 +95,8 @@ plugins/my-plugin/
 
 ## Variáveis de Ambiente
 
-Os plugins podem usar estas variáveis em seus arquivos de
-skill e comando:
+Plugins podem usar estas variáveis em seus arquivos de skill e
+comando:
 
 | Variável | Descrição |
 |----------|-----------|
@@ -111,13 +110,13 @@ Valide seus manifestos de marketplace e plugin localmente:
 claude plugin validate .
 ```
 
-Isto verifica:
+Isso verifica:
 
-- Conformidade do `marketplace.json` com o esquema
+- Conformidade do esquema do `marketplace.json`
 - Todos os diretórios de plugin referenciados existem
 - Cada plugin possui um `plugin.json` válido
-- Skills possuem frontmatter `SKILL.md` formatado corretamente
-- Comandos possuem campos de frontmatter obrigatórios
+- Skills possuem frontmatter do `SKILL.md` formatado corretamente
+- Comandos possuem os campos obrigatórios no frontmatter
 
 ## Configuração de Equipe
 
@@ -145,7 +144,7 @@ Adicione ao `.claude/settings.json` em qualquer repositório:
 
 <Aside type="tip">
   Fazer commit dessas configurações no seu repositório garante que cada
-  membro da equipe receba a mesma configuração de marketplace e plugins
+  membro da equipe receba a mesma configuração de marketplace e plugin
   automaticamente.
 </Aside>
 
@@ -165,7 +164,7 @@ Se estiver ausente, adicione-o novamente:
 /plugin marketplace add f5xc-salesdemos/marketplace
 ```
 
-### Plugin não ativando
+### Plugin não está ativando
 
 - Confirme que o plugin está instalado:
   `/plugin list`
@@ -174,19 +173,19 @@ Se estiver ausente, adicione-o novamente:
 - Verifique se as condições de acionamento da skill correspondem ao seu
   contexto atual
 
-### Skills não acionando automaticamente
+### Skills não estão sendo acionadas automaticamente
 
-As skills são ativadas com base no campo `description` no
+Skills são ativadas com base no campo `description` no
 frontmatter do SKILL.md. Se uma skill não está sendo ativada quando
 esperado:
 
 - Verifique se a descrição descreve com precisão o
   contexto de acionamento
-- Use o comando diretamente (ex.: `/f5xc-docs-tools:review-mdx`)
+- Use o comando diretamente (ex., `/f5xc-docs-tools:review-mdx`)
   como alternativa
 
 ### Erros de build após revisão
 
 O plugin reporta problemas, mas não os corrige automaticamente. Aplique
-as correções sugeridas manualmente e, em seguida, execute novamente a revisão para
+as correções sugeridas manualmente e, em seguida, execute a revisão novamente para
 confirmar a resolução.

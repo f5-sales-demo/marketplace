@@ -3,7 +3,6 @@ title: البدء
 description: دليل خطوة بخطوة لإضافة سوق f5xc-salesdemos وتثبيت أول إضافة لك.
 sidebar:
   order: 2
-  label: البدء
 i18n:
   sourceHash: 8b7375e24be2
   translator: machine
@@ -32,12 +31,12 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    /plugin marketplace add f5xc-salesdemos/marketplace
    ```
 
-   يؤدي هذا إلى تسجيل السوق كمصدر للإضافات. تحتاج إلى
-   القيام بذلك مرة واحدة فقط.
+   يسجّل هذا الأمر السوق كمصدر للإضافات. تحتاج إلى القيام
+   بذلك مرة واحدة فقط.
 
 2. **تصفح الإضافات المتاحة**
 
-   اعرض قائمة بما يقدمه السوق:
+   اعرض قائمة ما يوفره السوق:
 
    ```
    /plugin marketplace list f5xc-salesdemos-marketplace
@@ -54,17 +53,17 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 4. **استخدام الإضافة**
 
-   انتقل إلى أي مستودع محتوى خاص بـ f5xc-salesdemos.
+   انتقل إلى أي مستودع محتوى تابع لـ f5xc-salesdemos.
 
-   بالنسبة لـ **أدوات التوثيق**، قم بتشغيل أمر مراجعة MDX:
+   لـ **أدوات التوثيق**، قم بتشغيل أمر مراجعة MDX:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   بالنسبة لـ **مهندس المبيعات**، استخدم عبارات التفعيل مثل
+   لـ **مهندس المبيعات**، استخدم عبارات التفعيل مثل
    "prepare the demo" أو "run the demo" أو "walk through
-   the demo" — تُفعَّل الإضافة تلقائيًا.
+   the demo" — تُفعَّل الإضافة تلقائياً.
 
 </Steps>
 
@@ -94,7 +93,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## إعداد الفريق
 
-لإعداد السوق مسبقًا لفريقك بالكامل، أضفه
+لتهيئة السوق مسبقاً لفريقك بالكامل، أضفه
 إلى ملف `.claude/settings.json` الخاص بمشروعك:
 
 ```json
@@ -110,10 +109,10 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="الإعدادات المشتركة">
-  إيداع ملف `.claude/settings.json` في مستودعك يعني
+  إضافة ملف `.claude/settings.json` إلى مستودعك يعني
   أن كل عضو في الفريق يحصل على السوق والإضافات
-  تلقائيًا — دون الحاجة إلى إعداد يدوي.
+  تلقائياً — دون الحاجة إلى إعداد يدوي.
 </Aside>
 
 يضمن هذا أن كل مساهم لديه نفس الأدوات المتاحة
-منذ أول جلسة Claude Code له في المستودع.
+من أول جلسة Claude Code له في المستودع.

@@ -1,6 +1,6 @@
 ---
-title: 參考資料
-description: marketplace.json 結構描述參考，包含欄位定義、技能配置與驗證規則。
+title: 參考文件
+description: marketplace.json 結構參考，包含欄位定義、技能配置與驗證規則。
 sidebar:
   order: 7
 i18n:
@@ -10,9 +10,9 @@ i18n:
 
 import { Aside } from '@astrojs/starlight/components';
 
-## marketplace.json 結構描述
+## marketplace.json 結構
 
-Marketplace 清單檔位於儲存庫根目錄的
+marketplace 清單檔案位於儲存庫根目錄的
 `.claude-plugin/marketplace.json`。
 
 ### 頂層欄位
@@ -20,15 +20,15 @@ Marketplace 清單檔位於儲存庫根目錄的
 | 欄位 | 必填 | 說明 |
 |-------|----------|-------------|
 | `$schema` | 否 | 用於驗證的 JSON Schema URL |
-| `name` | 是 | Marketplace 唯一識別碼 |
-| `version` | 否 | Marketplace 結構描述版本（語意化版本） |
-| `metadata.description` | 是 | 人類可讀的 Marketplace 描述 |
-| `owner.name` | 是 | 擁有此 Marketplace 的組織或使用者 |
-| `owner.url` | 否 | 擁有者個人檔案或網站的 URL |
+| `name` | 是 | 唯一的 marketplace 識別碼 |
+| `version` | 否 | Marketplace 結構版本（語意化版本） |
+| `metadata.description` | 是 | 人類可讀的 marketplace 描述 |
+| `owner.name` | 是 | 擁有該 marketplace 的組織或使用者 |
+| `owner.url` | 否 | 擁有者的個人檔案或網站 URL |
 | `owner.email` | 否 | 聯絡電子郵件 |
-| `plugins` | 是 | 外掛程式項目陣列 |
+| `plugins` | 是 | 外掛程式條目陣列 |
 
-### 外掛程式項目欄位
+### 外掛程式條目欄位
 
 | 欄位 | 必填 | 說明 |
 |-------|----------|-------------|
@@ -36,8 +36,8 @@ Marketplace 清單檔位於儲存庫根目錄的
 | `description` | 是 | 外掛程式的簡短描述 |
 | `version` | 是 | 語意化版本字串 |
 | `author.name` | 是 | 外掛程式作者 |
-| `source` | 是 | 外掛程式的路徑或 URL（請參閱來源類型） |
-| `category` | 是 | 外掛程式分類（例如 `productivity`） |
+| `source` | 是 | 外掛程式的路徑或 URL（參見來源類型） |
+| `category` | 是 | 外掛程式類別（例如 `productivity`） |
 | `homepage` | 否 | 外掛程式文件或首頁的 URL |
 | `license` | 否 | SPDX 授權識別碼 |
 | `keywords` | 否 | 搜尋關鍵字陣列 |
@@ -51,16 +51,16 @@ marketplace.json 中的 `source` 欄位支援多種
 
 | 類型 | 範例 | 說明 |
 |------|---------|-------------|
-| 相對路徑 | `./plugins/my-plugin` | 位於同一儲存庫中的外掛程式 |
+| 相對路徑 | `./plugins/my-plugin` | 同一儲存庫中的外掛程式 |
 | GitHub 簡寫 | `owner/repo` | 位於儲存庫根目錄的外掛程式 |
-| GitHub 含路徑 | `owner/repo/path/to/plugin` | 位於子目錄中的外掛程式 |
+| GitHub 含路徑 | `owner/repo/path/to/plugin` | 位於子目錄的外掛程式 |
 | Git URL | `https://github.com/owner/repo.git` | Git 儲存庫 |
 | npm 套件 | `npm:@scope/package` | 已發佈的 npm 套件 |
 
-## plugin.json 結構描述
+## plugin.json 結構
 
 每個外掛程式在其目錄內的
-`.claude-plugin/plugin.json` 有一個清單檔。
+`.claude-plugin/plugin.json` 都有一個清單檔案。
 
 | 欄位 | 必填 | 說明 |
 |-------|----------|-------------|
@@ -68,13 +68,13 @@ marketplace.json 中的 `source` 欄位支援多種
 | `description` | 是 | 外掛程式的功能說明 |
 | `version` | 是 | 語意化版本 |
 | `author.name` | 是 | 外掛程式作者 |
-| `author.url` | 否 | 作者個人檔案或網站的 URL |
+| `author.url` | 否 | 作者的個人檔案或網站 URL |
 | `homepage` | 否 | 文件 URL |
 | `keywords` | 否 | 搜尋關鍵字 |
 | `license` | 否 | SPDX 授權識別碼 |
 | `repository` | 否 | 儲存庫 URL |
 
-## 外掛程式目錄配置
+## 外掛程式目錄結構
 
 ```
 plugins/my-plugin/
@@ -102,23 +102,23 @@ plugins/my-plugin/
 
 ## 驗證
 
-在本機驗證您的 Marketplace 和外掛程式清單檔：
+在本機驗證您的 marketplace 和外掛程式清單：
 
 ```bash
 claude plugin validate .
 ```
 
-此命令會檢查：
+這會檢查：
 
-- `marketplace.json` 結構描述合規性
-- 所有參照的外掛程式目錄是否存在
+- `marketplace.json` 結構合規性
+- 所有引用的外掛程式目錄是否存在
 - 每個外掛程式是否有有效的 `plugin.json`
-- 技能是否有格式正確的 `SKILL.md` 前置資料
+- 技能是否有正確格式的 `SKILL.md` 前置資料
 - 命令是否有必填的前置資料欄位
 
 ## 團隊配置
 
-### 預先配置 Marketplace
+### 預先配置 marketplace
 
 在任何儲存庫的 `.claude/settings.json` 中新增：
 
@@ -142,7 +142,7 @@ claude plugin validate .
 
 <Aside type="tip">
   將這些設定提交到您的儲存庫，可確保每位
-  團隊成員自動獲得相同的 Marketplace 和外掛程式
+  團隊成員自動獲得相同的 marketplace 和外掛程式
   配置。
 </Aside>
 
@@ -150,7 +150,7 @@ claude plugin validate .
 
 ### 找不到 Marketplace
 
-確認 Marketplace 是否已新增：
+確認 marketplace 是否已新增：
 
 ```
 /plugin marketplace list
@@ -162,27 +162,27 @@ claude plugin validate .
 /plugin marketplace add f5xc-salesdemos/marketplace
 ```
 
-### 外掛程式未啟用
+### 外掛程式未啟動
 
 - 確認外掛程式已安裝：
   `/plugin list`
-- 確認您的 Claude Code 版本支援外掛程式
+- 檢查您的 Claude Code 版本是否支援外掛程式
   （v1.0.33+）
-- 確認技能的觸發條件與您目前的
-  情境相符
+- 確認技能的觸發條件是否與您目前的
+  環境相符
 
 ### 技能未自動觸發
 
 技能根據 SKILL.md 前置資料中的 `description` 欄位
-進行啟用。如果技能未如預期啟用：
+進行啟動。如果技能未在預期時啟動：
 
-- 確認描述是否準確說明了
+- 檢查描述是否準確地描述了
   觸發情境
-- 使用命令直接執行（例如 `/f5xc-docs-tools:review-mdx`）
+- 直接使用命令（例如 `/f5xc-docs-tools:review-mdx`）
   作為替代方案
 
 ### 審查後出現建置錯誤
 
-外掛程式會回報問題但不會自動修正。請手動
+外掛程式會回報問題但不會自動修復。請手動
 套用建議的修正，然後重新執行審查以
 確認問題已解決。

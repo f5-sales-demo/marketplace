@@ -1,7 +1,7 @@
 ---
 title: f5xc-docs-pipeline
 description: >-
-  Conhecimento sobre a arquitetura do pipeline de documentação para builds
+  Conhecimento de arquitetura do pipeline de documentação para builds
   multi-repositório, autoria de conteúdo e pré-visualização local.
 sidebar:
   order: 8
@@ -15,10 +15,10 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 O plugin **f5xc-docs-pipeline** fornece conhecimento sobre a
 arquitetura do pipeline de documentação para repositórios
 f5xc-salesdemos. Ele orienta a autoria de conteúdo, esclarece a
-propriedade de configurações em builds multi-repositório e oferece
+propriedade de configuração em builds multi-repositório e oferece
 pré-visualização local baseada em Docker.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
 ## Instalação
 
@@ -32,23 +32,23 @@ pré-visualização local baseada em Docker.
 
 Guia de autoria de conteúdo cobrindo estrutura de arquivos, regras
 de sintaxe MDX, requisitos de frontmatter, referências de imagens
-e pré-visualização local com Docker. É ativado ao criar ou editar
+e pré-visualização local com Docker. Ativa ao criar ou editar
 conteúdo em `docs/`, trabalhar com arquivos MDX ou configurar a
 pré-visualização local.
 
 ### pipeline-navigator
 
-Arquitetura do pipeline de documentação explicando onde realizar
+Arquitetura do pipeline de documentação explicando onde fazer
 alterações nos quatro repositórios upstream: docs-theme,
 docs-builder, docs-control e docs-icons. Esclarece a propriedade
-de configurações (`astro.config.mjs`, `content.config.ts`), a
-cadeia de dispatch de releases e o rastreamento de arquivos
+de configuração (`astro.config.mjs`, `content.config.ts`), a
+cadeia de dispatch de release e o rastreamento de arquivos
 gerenciados.
 
 <Aside type="tip">
-  Use pipeline-navigator quando precisar entender qual repositório
-  é proprietário de um arquivo de configuração ou componente
-  específico.
+  Use o pipeline-navigator quando precisar entender qual
+  repositório é proprietário de um arquivo de configuração ou
+  componente específico.
 </Aside>
 
 ## Comandos
@@ -62,4 +62,4 @@ gerenciados.
 Inicia um servidor de desenvolvimento Docker local para
 pré-visualizar a documentação. Executa a imagem Docker de build
 compartilhada com seu diretório local `docs/` montado para
-pré-visualização em tempo real.
+pré-visualização ao vivo.

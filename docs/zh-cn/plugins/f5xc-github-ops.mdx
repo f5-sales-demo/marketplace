@@ -1,6 +1,6 @@
 ---
 title: f5xc-github-ops
-description: 用于问题驱动开发、PR 工作流和 CI 监控的 GitHub 运维自动化。
+description: 面向问题驱动开发、PR 工作流和 CI 监控的 GitHub 操作自动化。
 sidebar:
   order: 7
 i18n:
@@ -10,9 +10,9 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-github-ops** 插件为 f5xc-salesdemos 仓库提供专属的 GitHub 运维自动化功能。它处理从 issue 创建到合并后监控的完整 Git 和 GitHub 生命周期，强制执行问题驱动开发和预提交 lint 检查。
+**f5xc-github-ops** 插件为 f5xc-salesdemos 仓库提供专属的 GitHub 操作自动化。它处理从创建 issue 到合并后监控的完整 Git 和 GitHub 生命周期，强制执行问题驱动开发和预提交 lint 检查门控。
 
-<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v2.2.2" variant="note" /> <Badge text="生产力" variant="tip" />
 
 ## 安装
 
@@ -24,17 +24,17 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### workflow-lifecycle
 
-仓库治理工作流，处理 issue 创建、分支命名规范、PR 创建、CI 轮询及错误反馈到 issue、合并后监控、验证以及任务完成标准。当您说"commit"、"push"、"create a PR"、"merge"或执行任何 Git 操作时激活。
+仓库治理工作流，处理 issue 创建、分支命名规范、PR 创建、CI 轮询及错误反馈到 issue、合并后监控、验证和任务完成标准。当您说"commit"、"push"、"create a PR"、"merge"或执行任何 Git 操作时激活。
 
 ### upstream-contribution
 
-上游贡献工作流，用于基于 fork 的开发。处理 fork 检测、上游研究（issues、PRs、CONTRIBUTING.md、CI 模式）、跨仓库 issue 和 PR 创建、本地跟踪 issue 管理、上游 CI 监控以及引导式问题解决。
+上游贡献工作流，用于基于 fork 的开发。处理 fork 检测、上游研究（issues、PRs、CONTRIBUTING.md、CI 模式）、跨仓库 issue 和 PR 创建、本地跟踪 issue 管理、上游 CI 监控和引导式问题解决。
 
 ## 代理
 
 ### github-ops
 
-专属代理，负责所有机械化的 Git 和 GitHub 操作。处理预提交 lint 检查、issue 创建、分支创建、暂存、提交、推送、PR 创建、CI 轮询及错误反馈、基础设施故障重试、合并后监控、分支清理以及通过 GitHub API 进行的仓库设置管理。
+所有机械化 Git 和 GitHub 操作的专属代理。处理预提交 lint 检查门控、issue 创建、分支创建、暂存、提交、推送、PR 创建、CI 轮询及错误反馈、基础设施故障重试、合并后监控、分支清理以及通过 GitHub API 进行的仓库设置管理。
 
 返回结构化状态报告：`COMPLETE`、`PRE_COMMIT_FAILED`、`CI_FAILED`、`BLOCKED` 或 `FAILED`。
 

@@ -12,13 +12,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Le plugin **f5xc-github-ops** fournit une automatisation exclusive des opérations
-GitHub pour les dépôts f5xc-salesdemos. Il gère l'intégralité du
-cycle de vie Git et GitHub, de la création d'issues jusqu'à la
-surveillance post-merge, en imposant le développement piloté par les issues
-et les contrôles de lint en pré-commit.
+Le plugin **f5xc-github-ops** fournit une automatisation exclusive des
+opérations GitHub pour les dépôts f5xc-salesdemos. Il gère l'intégralité
+du cycle de vie Git et GitHub, de la création d'issues jusqu'à la
+surveillance post-merge, en imposant le développement piloté par les
+issues et les contrôles de lint en pré-commit.
 
-<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v2.2.2" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -31,34 +31,36 @@ et les contrôles de lint en pré-commit.
 ### workflow-lifecycle
 
 Workflow de gouvernance de dépôt gérant la création d'issues, les
-conventions de nommage des branches, la création de PR, le polling CI avec
-retour d'erreurs vers les issues, la surveillance post-merge, la vérification
-et les critères de complétion des tâches. S'active lorsque vous dites « commit »,
-« push », « créer une PR », « merge », ou effectuez toute opération Git.
+conventions de nommage des branches, la création de PR, le polling
+CI avec retour d'erreurs sur les issues, la surveillance post-merge,
+la vérification et les critères de complétion des tâches. S'active
+lorsque vous dites « commit », « push », « créer une PR », « merge »,
+ou effectuez toute opération Git.
 
 ### upstream-contribution
 
-Workflow de contribution upstream pour le développement basé sur les forks. Gère
-la détection de fork, la recherche upstream (issues, PRs, CONTRIBUTING.md,
-patterns CI), la création d'issues et de PRs cross-repo, la gestion des issues
-de suivi locales, la surveillance CI upstream et la résolution guidée.
+Workflow de contribution upstream pour le développement basé sur les
+forks. Gère la détection de forks, la recherche upstream (issues, PR,
+CONTRIBUTING.md, patterns CI), la création d'issues et de PR
+cross-repo, la gestion des issues de suivi locales, la surveillance
+CI upstream et la résolution guidée.
 
 ## Agents
 
 ### github-ops
 
 Agent exclusif pour toutes les opérations mécaniques Git et GitHub.
-Gère les contrôles de lint en pré-commit, la création d'issues, la création
-de branches, le staging, les commits, les pushs, la création de PR, le polling
-CI avec retour d'erreurs, la relance en cas de défaillance d'infrastructure,
-la surveillance post-merge, le nettoyage des branches et la gestion des
-paramètres du dépôt via l'API GitHub.
+Gère les contrôles de lint en pré-commit, la création d'issues, la
+création de branches, le staging, les commits, les pushs, la création
+de PR, le polling CI avec retour d'erreurs, la relance en cas de
+défaillance d'infrastructure, la surveillance post-merge, le nettoyage
+des branches et la gestion des paramètres de dépôt via l'API GitHub.
 
 Retourne des rapports de statut structurés : `COMPLETE`,
 `PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` ou `FAILED`.
 
 <Aside type="caution">
   Cet agent est le gestionnaire **exclusif** des opérations Git.
-  N'exécutez jamais `git commit`, `git push` ou `gh pr create` directement
-  dans les dépôts qui utilisent ce plugin.
+  N'exécutez jamais `git commit`, `git push` ou `gh pr create`
+  directement dans les dépôts qui utilisent ce plugin.
 </Aside>

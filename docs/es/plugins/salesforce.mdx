@@ -1,8 +1,9 @@
 ---
 title: salesforce
 description: >-
-  Salesforce CLI automation with org authentication, account management,
-  pipeline analysis, and natural language data queries.
+  Automatización de la CLI de Salesforce con autenticación de organizaciones,
+  gestión de cuentas, análisis de pipeline y consultas de datos en lenguaje
+  natural.
 sidebar:
   label: Salesforce
   order: 14
@@ -13,13 +14,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-El plugin **salesforce** integra Salesforce CLI con Claude Code,
-proporcionando autenticación de orgs y un agente CLI de propósito general que puede
-ejecutar cualquier comando `sf`, incluyendo consultas SOQL. Soporta entornos
-de contenedores sin interfaz gráfica con flujos de autenticación JWT, access-token y SFDX URL.
-La guía de uso a continuación demuestra cómo utilizar
-lenguaje natural para consultar cuentas, oportunidades, casos y contactos
-a través del agente CLI.
+El plugin **salesforce** integra la CLI de Salesforce con Claude Code,
+proporcionando autenticación de organizaciones y un agente CLI de propósito
+general que puede ejecutar cualquier comando `sf`, incluyendo consultas SOQL.
+Soporta entornos de contenedores sin interfaz gráfica con flujos de
+autenticación JWT, access-token y SFDX URL. La guía de uso a continuación
+demuestra cómo utilizar lenguaje natural para consultar cuentas, oportunidades,
+casos y contactos a través del agente CLI.
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
@@ -32,10 +33,10 @@ a través del agente CLI.
 ## Requisitos previos
 
 - **Salesforce CLI** (`@salesforce/cli`)
-- **Org de Salesforce** con acceso a la API
+- **Organización de Salesforce** con acceso a la API
 - Una cuenta de usuario con permisos para consultar objetos (Cases, Opportunities, Accounts, Contacts)
 
-Instale Salesforce CLI en su estación de trabajo:
+Instale la CLI de Salesforce en su estación de trabajo:
 
 ```bash
 brew install sf
@@ -59,37 +60,39 @@ Observe su URL de Salesforce en el navegador. Si accede a Salesforce en
 
 <Aside type="tip">
   Si su empresa utiliza SSO, debe especificar su dominio personalizado con
-  `--instance-url` para que el inicio de sesión se redirija a través de su proveedor SSO
-  en lugar de la página de inicio de sesión genérica de Salesforce.
+  `--instance-url` para que el inicio de sesión redirija a través de su
+  proveedor SSO en lugar de la página de inicio de sesión genérica de
+  Salesforce.
 </Aside>
 
-### Paso 2: Autenticarse mediante el navegador
+### Paso 2: Autentíquese a través del navegador
 
 ```bash
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
 ```
 
 Reemplace `YOUR-DOMAIN` con el dominio de su empresa del Paso 1. Su navegador
-se abrirá — complete el flujo de SSO o inicio de sesión y autorice la aplicación. Debería
-ver:
+se abrirá — complete el flujo de SSO o inicio de sesión y autorice la
+aplicación. Debería ver:
 
 ```
 Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
-### Paso 3: Verificar la conexión
+### Paso 3: Verifique la conexión
 
 ```bash
 sf org display --target-org my-org
 ```
 
-Confirme que la salida muestra `Connected Status: Connected` con su nombre de usuario
-y URL de instancia.
+Confirme que la salida muestra `Connected Status: Connected` con su nombre
+de usuario y URL de instancia.
 
 ### Paso 4: Autenticación portátil para contenedores (opcional)
 
 Si necesita autenticarse en un entorno sin interfaz gráfica (CI/CD, contenedor,
-sesión remota), exporte la URL de autenticación SFDX desde su estación de trabajo:
+sesión remota), exporte la URL de autenticación SFDX desde su estación de
+trabajo:
 
 ```bash
 sf org display --verbose --target-org my-org
@@ -104,9 +107,9 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ```
 
 <Aside type="caution">
-  La URL de autenticación SFDX es una credencial — trátela como una contraseña. No la
-  incluya en archivos ni la pegue en el chat. Use variables de entorno
-  y pipes de stdin únicamente.
+  La URL de autenticación SFDX es una credencial — trátela como una
+  contraseña. No la incluya en archivos ni la pegue en el chat. Utilice
+  únicamente variables de entorno y pipes de stdin.
 </Aside>
 
 ### Referencia de métodos de autenticación
@@ -115,86 +118,89 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 |--------|-----------|----------|
 | Web Login | Estaciones de trabajo con navegador | Navegador + SSO |
 | SFDX URL | Contenedores, CI/CD, autenticación portátil | URL de autenticación de una sesión autenticada |
-| JWT Bearer | Pipelines automatizados | Connected App + clave privada + consumer key |
+| JWT Bearer | Pipelines automatizados | Connected App + clave privada + clave de consumidor |
 | Access Token | Autenticación por variable de entorno | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
 
-**Nota:** El flujo de dispositivo (`sf org login device`) está bloqueado desde agosto
-de 2025 y no es compatible.
+**Nota:** El flujo de dispositivo (`sf org login device`) está bloqueado
+desde agosto de 2025 y no es soportado.
 
 ### Variables de entorno
 
 | Variable | Propósito |
 |----------|-----------|
-| `SF_ACCESS_TOKEN` | Token bearer para autenticación por access-token |
+| `SF_ACCESS_TOKEN` | Token Bearer para autenticación por access-token |
 | `SFDX_AUTH_URL` | URL de autenticación Force para autenticación SFDX URL |
-| `SF_ORG_INSTANCE_URL` | URL de instancia de la org |
+| `SF_ORG_INSTANCE_URL` | URL de instancia de la organización |
 | `SF_JWT_KEY_FILE` | Ruta a la clave privada JWT |
-| `SF_CLIENT_ID` | Consumer key de la Connected App |
+| `SF_CLIENT_ID` | Clave de consumidor de la Connected App |
 | `SF_USERNAME` | Nombre de usuario de Salesforce para JWT |
 
 ## Comandos
 
 ### /salesforce:sf-status
 
-Verifica el estado de conexión de su org de Salesforce, la versión del CLI y
-las orgs autenticadas.
+Verifique el estado de conexión de su organización de Salesforce, la versión
+de la CLI y las organizaciones autenticadas.
 
 ```
 /salesforce:sf-status
 ```
 
-**Qué esperar:** Una tabla que muestra la versión de su sf CLI, el alias de la org autenticada,
-nombre de usuario, URL de instancia, estado de conexión y versión de la API.
+**Qué esperar:** Una tabla que muestra la versión de su CLI sf, el alias de la
+organización autenticada, nombre de usuario, URL de instancia, estado de
+conexión y versión de la API.
 
 ### /salesforce:sf-login
 
-Autenticarse en una org de Salesforce. Opcionalmente proporcione un alias.
+Autentíquese en una organización de Salesforce. Opcionalmente proporcione un
+alias.
 
 ```
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
 
-**Qué esperar:** Si una org con ese alias ya está autenticada,
-reporta los detalles de conexión. Si no, verifica las credenciales disponibles
-(variables de entorno) y se autentica usando el primer método
+**Qué esperar:** Si una organización con ese alias ya está autenticada,
+reporta los detalles de conexión. Si no, verifica las credenciales
+disponibles (variables de entorno) y se autentica usando el primer método
 completamente satisfecho.
 
-## Skills
+## Habilidades
 
 ### salesforce-index
 
-Enrutador de intención de nivel superior. Se activa automáticamente cuando menciona
-Salesforce, gestión de orgs o consultas de datos en lenguaje natural.
+Enrutador de intenciones de nivel superior. Se activa automáticamente cuando
+menciona Salesforce, gestión de organizaciones o consultas de datos en
+lenguaje natural.
 
 | Usted dice | Se enruta a |
 |------------|-------------|
-| "login to salesforce", "authenticate org" | skill `salesforce-auth` |
-| "check org status", "list orgs" | agente `cli-operator` |
-| "show me opportunities", "look up case" | agente `cli-operator` (consulta SOQL) |
-| "generate Apex class", "create Flow" | skills de desarrollo de afv-library |
+| "login to salesforce", "authenticate org" | Habilidad `salesforce-auth` |
+| "check org status", "list orgs" | Agente `cli-operator` |
+| "show me opportunities", "look up case" | Agente `cli-operator` (consulta SOQL) |
+| "generate Apex class", "create Flow" | Habilidades de desarrollo afv-library |
 
 ### salesforce-auth
 
-Skill de autenticación adaptada para contenedores. Soporta cuatro métodos de autenticación y
-detecta automáticamente qué credenciales están disponibles. Prioriza:
-access-token, luego JWT, luego SFDX URL, luego web login.
+Habilidad de autenticación adaptada a contenedores. Soporta cuatro métodos
+de autenticación y detecta automáticamente qué credenciales están disponibles.
+Prioriza: access-token, luego JWT, luego SFDX URL, luego web login.
 
 ## Agentes
 
 ### cli-operator
 
-Agente autónomo de Salesforce CLI que ejecuta comandos `sf` con
-medidas de seguridad. Todas las operaciones de Salesforce se delegan a este agente para
-mantener el contexto de la sesión principal ligero.
+Agente autónomo de CLI de Salesforce que ejecuta comandos `sf` con
+protecciones de seguridad. Todas las operaciones de Salesforce se delegan a
+este agente para mantener el contexto de la sesión principal ligero.
 
 **Reglas de seguridad:**
 
 - Solo lectura por defecto — las operaciones de escritura requieren aprobación explícita
-- Nunca despliega sin una vista previa y un paso de confirmación
+- Nunca despliega sin una vista previa y paso de confirmación
 - Nunca muestra tokens de acceso, URLs de autenticación o credenciales en la salida
 - Sanitiza todos los valores proporcionados por el usuario (rechaza metacaracteres de shell)
-- Usa la salida `--json` para resultados estructurados y procesables
+- Utiliza la salida `--json` para resultados estructurados y parseables
 
 **Formato de respuesta:**
 
@@ -208,22 +214,24 @@ mantener el contexto de la sesión principal ligero.
 ## Guía de uso: Gestión de cuentas
 
 <Aside type="note">
-  Los prompts a continuación no son funcionalidades codificadas del plugin. Funcionan
-  porque el agente cli-operator puede ejecutar cualquier comando `sf` del CLI, incluyendo
-  consultas SOQL arbitrarias. Los resultados dependen del modelo de datos de su org y
-  de los permisos de su usuario. Los prompts aquí han sido probados y verificados
-  para funcionar con objetos estándar de Salesforce (Account, Contact, Case,
-  Opportunity, AccountTeamMember, OpportunityTeamMember).
+  Los prompts a continuación no son funcionalidades codificadas del plugin.
+  Funcionan porque el agente cli-operator puede ejecutar cualquier comando
+  `sf` de la CLI, incluyendo consultas SOQL arbitrarias. Los resultados
+  dependen del modelo de datos de su organización y sus permisos de usuario.
+  Los prompts aquí han sido probados y verificados para funcionar con
+  objetos estándar de Salesforce (Account, Contact, Case, Opportunity,
+  AccountTeamMember, OpportunityTeamMember).
 </Aside>
 
-Estos prompts funcionan con cualquier org de Salesforce. Reemplace los valores
-de ejemplo con su propia información. Cada prompt produce resultados específicos
-a su rol, cuentas y territorio.
+Estos prompts funcionan con cualquier organización de Salesforce. Reemplace
+los valores de marcador de posición con su propia información. Cada prompt
+produce resultados específicos para su rol, cuentas y territorio.
 
 <Aside type="tip">
-  Para mejores resultados, incluya su dirección de correo electrónico en los prompts que necesiten
-  identificar su registro de usuario. Las orgs de Salesforce pueden tener múltiples usuarios
-  con nombres similares.
+  Para mejores resultados, incluya su dirección de correo electrónico en
+  los prompts que necesiten identificar su registro de usuario. Las
+  organizaciones de Salesforce pueden tener múltiples usuarios con
+  nombres similares.
 </Aside>
 
 ### Primeros pasos
@@ -240,10 +248,10 @@ Luego pruebe una consulta simple en lenguaje natural:
 list my authenticated salesforce orgs
 ```
 
-**Qué esperar:** Una tabla que muestra todas las orgs conectadas con alias,
-nombre de usuario, URL de instancia y estado de conexión.
+**Qué esperar:** Una tabla que muestra todas las organizaciones conectadas
+con alias, nombre de usuario, URL de instancia y estado de conexión.
 
-### Encontrar sus cuentas
+### Encuentre sus cuentas
 
 Descubra a qué cuentas está asignado:
 
@@ -251,27 +259,30 @@ Descubra a qué cuentas está asignado:
 what salesforce accounts am I on the account team for? My email is your-email@company.com
 ```
 
-**Qué esperar:** Una lista de cuentas agrupadas por propietario de cuenta, mostrando
-su rol de miembro del equipo en cada una. Si la mayoría de los roles aparecen vacíos, es una
-brecha común de higiene de datos — las membresías del equipo de cuenta existen pero los roles
-no fueron completados.
+**Qué esperar:** Una lista de cuentas agrupadas por propietario de cuenta,
+mostrando su rol como miembro del equipo en cada una. Si la mayoría de los
+roles aparecen vacíos, es un problema común de higiene de datos — las
+membresías del equipo de cuenta existen pero los roles no fueron completados.
 
-### Cruzar cobertura con un colega
+### Referencia cruzada de cobertura con un colega
 
-Compare su cobertura de cuentas con un compañero de equipo para encontrar brechas:
+Compare su cobertura de cuentas con un compañero de equipo para encontrar
+brechas:
 
 ```
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
-**Qué esperar:** Una tabla resumen que muestra el conteo de superposición y el conteo de brechas,
-seguida de dos listas. Si cambió de rol recientemente, puede encontrar cero
-superposición — esto revela a qué cuentas necesita ser añadido.
+**Qué esperar:** Una tabla resumen que muestra el conteo de superposiciones
+y brechas, seguida de dos listas. Si cambió de rol recientemente, puede
+encontrar cero superposiciones — esto revela a qué cuentas necesita ser
+agregado.
 
 <Aside type="note">
-  También puede verificar un predecesor agregando: "Also check if
+  También puede verificar a un predecesor agregando: "Also check if
   Previous Person Name appears on any of those accounts." Esto ayuda
-  a identificar brechas de traspaso al reemplazar a alguien en un territorio.
+  a identificar brechas de traspaso al reemplazar a alguien en un
+  territorio.
 </Aside>
 
 ### Vista general del pipeline del territorio
@@ -282,23 +293,24 @@ Vea todas las oportunidades abiertas en sus cuentas:
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
-**Qué esperar:** Un resumen con el conteo total de oportunidades, pipeline bruto
-y pipeline ponderado. Luego una tabla de distribución por etapa y una lista de las principales
-oportunidades por monto. La salida señala problemas de higiene de datos como
-fechas de cierre vencidas o montos nulos.
+**Qué esperar:** Un resumen con el conteo total de oportunidades, pipeline
+bruto y pipeline ponderado. Luego una tabla de distribución por etapa y una
+lista de las principales oportunidades por monto. La salida señala problemas
+de higiene de datos como fechas de cierre vencidas o montos nulos.
 
 ### Análisis profundo de oportunidad
 
-Obtenga el panorama completo de un negocio específico:
+Obtenga la imagen completa de un negocio específico:
 
 ```
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
-**Qué esperar:** La vista general de la oportunidad (etapa, monto, fecha de cierre,
-probabilidad, categoría de pronóstico, propietario), miembros del equipo de oportunidad
-con roles, contactos etiquetados, tareas y eventos recientes, e historial de cambios
-de campos que muestra cómo el monto del negocio y la fecha de cierre han cambiado con el tiempo.
+**Qué esperar:** La vista general de la oportunidad (etapa, monto, fecha de
+cierre, probabilidad, categoría de pronóstico, propietario), miembros del
+equipo de oportunidad con roles, contactos etiquetados, tareas y eventos
+recientes, e historial de cambios de campo que muestra cómo se han movido
+el monto del negocio y la fecha de cierre a lo largo del tiempo.
 
 ### Casos de soporte en el territorio
 
@@ -308,22 +320,22 @@ Verifique los casos de soporte abiertos en sus cuentas:
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
-**Qué esperar:** Un conteo de casos abiertos con desglose por prioridad y estado,
-luego detalles de casos agrupados por cuenta. Los casos obsoletos (meses o
-años sin actividad) se señalan como candidatos de higiene.
+**Qué esperar:** Un conteo de casos abiertos con desglose de prioridad y
+estado, luego detalles de casos agrupados por cuenta. Los casos inactivos
+(meses o años sin actividad) se señalan como candidatos de higiene.
 
 ### Pronóstico de pipeline trimestral
 
-Obtenga una vista de su pipeline lista para pronóstico:
+Obtenga una vista lista para pronóstico de su pipeline:
 
 ```
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
-**Qué esperar:** Una tabla con una fila por trimestre que muestra el conteo de oportunidades,
-pipeline total y pipeline ponderado. Incluye un desglose de mezcla de etapas
-por trimestre y destaca los principales negocios ponderados. Las oportunidades
-vencidas se agrupan por separado.
+**Qué esperar:** Una tabla con una fila por trimestre mostrando conteo de
+oportunidades, pipeline total y pipeline ponderado. Incluye un desglose
+de mezcla de etapas por trimestre y destaca los principales negocios
+ponderados. Las oportunidades vencidas se agrupan por separado.
 
 ### Vista completa de cuenta
 
@@ -334,8 +346,8 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 ```
 
 **Qué esperar:** Perfil de la empresa (industria, ingresos, empleados,
-ubicación), contactos clave con títulos y correo electrónico, oportunidades abiertas con
-etapas y montos, y casos de soporte recientes con estado.
+ubicación), contactos clave con títulos y correo electrónico, oportunidades
+abiertas con etapas y montos, y casos de soporte recientes con estado.
 
 ### Búsqueda de caso
 
@@ -346,13 +358,14 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 ```
 
 **Qué esperar:** Asunto del caso, estado, prioridad, descripción, el
-perfil de la cuenta del cliente y el propietario del caso con información de contacto.
+perfil de la cuenta del cliente y el propietario del caso con información
+de contacto.
 
 ## Guía de uso: Consultas de datos
 
-Para usuarios avanzados, puede solicitar consultas específicas de estilo SOQL en
-lenguaje natural. El plugin traduce su solicitud al SOQL apropiado
-y la ejecuta.
+Para usuarios avanzados, puede solicitar consultas específicas estilo SOQL
+en lenguaje natural. El plugin traduce su solicitud al SOQL apropiado y
+lo ejecuta.
 
 ### Campos específicos
 
@@ -380,35 +393,35 @@ query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'A
 
 <Aside type="tip">
   Si una consulta falla porque un campo no existe, el plugin
-  reintenta automáticamente sin ese campo. Los campos personalizados en su org
-  pueden usar nombres diferentes — verifique la Configuración de Salesforce si un campo
-  no se encuentra.
+  reintenta automáticamente sin ese campo. Los campos personalizados
+  en su organización pueden usar nombres diferentes — verifique la
+  Configuración de Salesforce si un campo no se encuentra.
 </Aside>
 
-## Skills de desarrollo
+## Habilidades de desarrollo
 
-Los 30 skills de desarrollo de Salesforce de la biblioteca
+Las 30 habilidades de desarrollo de Salesforce de la biblioteca
 [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
-se activan automáticamente para tareas de Apex, Flow, LWC, SOQL, metadatos, Agentforce
-y despliegue. Instálelos por separado:
+se activan automáticamente para tareas de Apex, Flow, LWC, SOQL,
+metadatos, Agentforce y despliegue. Instálelas por separado:
 
 ```bash
 npx skills add forcedotcom/afv-library
 ```
 
-| Tema | Skill |
-|------|-------|
+| Tema | Habilidad |
+|------|-----------|
 | Clases y servicios Apex | `generating-apex` |
 | Tests de Apex | `generating-apex-test` |
 | Flows | `generating-flow` |
-| LWC y bundles de UI | `building-ui-bundle-app` |
+| LWC y paquetes de UI | `building-ui-bundle-app` |
 | Objetos personalizados | `generating-custom-object` |
 | Campos personalizados | `generating-custom-field` |
 | Reglas de validación | `generating-validation-rule` |
 | Conjuntos de permisos | `generating-permission-set` |
 | FlexiPages | `generating-flexipage` |
-| Agentes de Agentforce | `developing-agentforce` |
-| Testing de Agentforce | `testing-agentforce` |
+| Agentes Agentforce | `developing-agentforce` |
+| Pruebas de Agentforce | `testing-agentforce` |
 | Despliegue | `deploying-ui-bundle` |
 | Migración SLDS2 | `uplifting-components-to-slds2` |
 | Refactorización de triggers | `trigger-refactor-pipeline` |

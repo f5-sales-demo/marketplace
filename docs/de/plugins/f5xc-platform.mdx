@@ -12,13 +12,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Das **f5xc-platform**-Plugin bietet vollständige Automatisierung für die F5
-Distributed Cloud Plattform. Es umfasst Web-Konsolenoperationen über
+Das Plugin **f5xc-platform** bietet vollständige Automatisierung für die
+F5 Distributed Cloud Plattform. Es umfasst Web-Konsolenoperationen über
 Chrome DevTools MCP, spezifikationsbewusste REST-API-Operationen über cURL,
 Multi-Provider-Authentifizierung und Konfigurationsanalyse über
 98 Ressourcentypen in 38 Domänen.
 
-<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v3.1.1" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
 ## Installation
 
@@ -26,12 +26,12 @@ Multi-Provider-Authentifizierung und Konfigurationsanalyse über
 /plugin install f5xc-platform@f5xc-salesdemos-marketplace
 ```
 
-## Skills
+## Fähigkeiten
 
 ### api-operations
 
-Spezifikationsbewusste API-CRUD-Operationen für 98 Ressourcentypen in
-38 Domänen. Bietet präzise Endpunkte, Payload-Vorlagen,
+Spezifikationsbewusste API-CRUD-Operationen, die 98 Ressourcentypen über
+38 Domänen abdecken. Bietet präzise Endpunkte, Payload-Vorlagen,
 Abhängigkeitsreihenfolgen und mehrstufige Workflow-Kompositionen für
 HTTP-Load-Balancer, Origin-Pools, WAF-Richtlinien, DNS-Zonen,
 Zertifikate, Cloud-Sites und mehr.
@@ -39,33 +39,33 @@ Zertifikate, Cloud-Sites und mehr.
 ### config-analysis
 
 Konfigurationsanalyse- und Beratungsfähigkeit. Analysiert JSON-Konfigurationen
-von Kunden, um Fragen zur Sicherheitslage, Feature-Aktivierung,
+von Kunden, um Fragen zu Sicherheitsstatus, Feature-Aktivierung,
 Moduseinstellungen, Ausnahmen und Best Practices zu beantworten.
-Unterstützt mehrstufige Frage-und-Antwort-Dialoge mit komprimiertem Kontext
-zwischen den Weiterleitungen.
+Unterstützt mehrstufige Frage-und-Antwort-Sitzungen mit komprimiertem
+Kontext zwischen den Weiterleitungen.
 
 ### api-auth
 
-API-Authentifizierung mit Unterstützung für API-Token-Header-Authentifizierung und
-P12-Zertifikatauthentifizierung mit Token-Validierungsverfahren.
+API-Authentifizierung mit Unterstützung für API-Token-Header-Authentifizierung
+und P12-Zertifikat-Authentifizierung mit Token-Validierungsverfahren.
 
 ### console-auth
 
 Multi-Provider-Authentifizierung für die F5 XC Web-Konsole.
-Erkennt automatisch den Login-Typ: nativer F5 XC Login, Azure SSO mit
+Erkennt automatisch den Anmeldetyp: native F5 XC-Anmeldung, Azure SSO mit
 zwischengespeicherter Sitzung oder Azure SSO mit DUO Verified Push MFA.
 
 ### console-navigator
 
-Deterministische Navigation zu F5 XC Konsolenabschnitten. Übersetzt
-Abschnittsnamen in URL-Pfade, überprüft den Sitzungszustand und bestätigt
+Deterministische Navigation zu Bereichen der F5 XC-Konsole. Übersetzt
+Bereichsnamen in URL-Pfade, überprüft den Sitzungszustand und bestätigt
 das Laden der Seite.
 
 ### platform-index / api-index / console-index
 
-Intent-Router, die Benutzeranfragen klassifizieren und an den
-entsprechenden Skill und Agenten delegieren. Diese werden automatisch
-aktiviert und sind nicht vom Benutzer aufrufbar.
+Intent-Router, die Benutzeranfragen klassifizieren und an die
+entsprechende Fähigkeit und den zuständigen Agenten weiterleiten. Diese
+werden automatisch aktiviert und sind nicht vom Benutzer aufrufbar.
 
 ## Befehle
 
@@ -75,8 +75,7 @@ aktiviert und sind nicht vom Benutzer aufrufbar.
 /f5xc-platform:check-api-token
 ```
 
-Validiert Ihr F5 XC API-Token durch Delegation an den api-operator
-Agenten.
+Validiert Ihr F5 XC API-Token durch Delegation an den api-operator-Agenten.
 
 ### /login-console
 
@@ -85,7 +84,7 @@ Agenten.
 ```
 
 Authentifiziert sich bei der F5 Distributed Cloud Konsole über den
-console-operator Agenten.
+console-operator-Agenten.
 
 ## Agenten
 
@@ -93,26 +92,26 @@ console-operator Agenten.
 
 Autonomer REST-API-Agent, der cURL- und jq-Sequenzen für
 Ressourcen-CRUD, Token-Validierung und Konfigurationsoperationen ausführt.
-Läuft in einem Subagenten, um ausführliche API-JSON-Payloads aus dem
+Läuft in einem Subagenten, um umfangreiche API-JSON-Payloads aus dem
 Hauptsitzungskontext fernzuhalten.
 
 ### console-operator
 
 Autonomer Browser-Automatisierungsagent, der Chrome DevTools MCP
-Tool-Sequenzen für Authentifizierung, Navigation und Formular-
-Interaktionen ausführt. Läuft in einem Subagenten, um token-intensive
-Browser-Snapshots aus der Hauptsitzung fernzuhalten.
+Tool-Sequenzen für Authentifizierung, Navigation und Formularinteraktionen
+ausführt. Läuft in einem Subagenten, um token-intensive Browser-Snapshots
+aus der Hauptsitzung fernzuhalten.
 
 ### config-analyzer
 
 Schreibgeschützter Konfigurationsanalyse-Agent. Analysiert JSON-Konfigurationen
-von Kunden anhand von Ressourcenprofil-Referenzdateien, um Fragen zur
-Sicherheitslage, Feature-Aktivierung, Modusübergängen und Best Practices
+von Kunden anhand von Ressourcenprofil-Referenzdateien, um Fragen zu
+Sicherheitsstatus, Feature-Aktivierung, Modusübergängen und Best Practices
 zu beantworten.
 
 <Aside type="caution">
-  Der config-analyzer Agent ist **kurzlebig** &mdash; er wird für
-  jede Frage neu erstellt und hat kein Gedächtnis zwischen den
-  Weiterleitungen. Folgefragen müssen komprimierte vorherige
-  Ergebnisse im Weiterleitungs-Prompt enthalten.
+  Der config-analyzer-Agent ist **kurzlebig** &mdash; er wird für
+  jede Frage neu erzeugt und hat kein Gedächtnis zwischen den
+  Weiterleitungen. Folgefragen müssen komprimierte vorherige Ergebnisse
+  im Weiterleitungs-Prompt enthalten.
 </Aside>

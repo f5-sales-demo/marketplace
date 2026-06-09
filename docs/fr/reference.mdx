@@ -1,7 +1,7 @@
 ---
 title: Référence
 description: >-
-  Référence du schéma marketplace.json avec les définitions des champs, la
+  Référence du schéma marketplace.json avec les définitions de champs, la
   configuration des compétences et les règles de validation.
 sidebar:
   order: 7
@@ -17,11 +17,11 @@ import { Aside } from '@astrojs/starlight/components';
 Le manifeste du marketplace se trouve dans
 `.claude-plugin/marketplace.json` à la racine du dépôt.
 
-### Champs de niveau supérieur
+### Champs de premier niveau
 
 | Champ | Requis | Description |
 |-------|--------|-------------|
-| `$schema` | Non | URL du JSON Schema pour la validation |
+| `$schema` | Non | URL du schéma JSON pour la validation |
 | `name` | Oui | Identifiant unique du marketplace |
 | `version` | Non | Version du schéma du marketplace (semver) |
 | `metadata.description` | Oui | Description lisible du marketplace |
@@ -30,11 +30,11 @@ Le manifeste du marketplace se trouve dans
 | `owner.email` | Non | Adresse e-mail de contact |
 | `plugins` | Oui | Tableau d'entrées de plugins |
 
-### Champs d'une entrée de plugin
+### Champs d'entrée de plugin
 
 | Champ | Requis | Description |
 |-------|--------|-------------|
-| `name` | Oui | Identifiant du plugin (doit correspondre au `plugin.json`) |
+| `name` | Oui | Identifiant du plugin (doit correspondre à `plugin.json`) |
 | `description` | Oui | Courte description du plugin |
 | `version` | Oui | Chaîne de version sémantique |
 | `author.name` | Oui | Auteur du plugin |
@@ -46,7 +46,7 @@ Le manifeste du marketplace se trouve dans
 | `tags` | Non | Tableau de tags pour le filtrage |
 | `repository` | Non | URL du dépôt |
 
-## Types de sources de plugins
+## Types de sources de plugin
 
 Le champ `source` dans marketplace.json prend en charge plusieurs
 formats :
@@ -57,7 +57,7 @@ formats :
 | Raccourci GitHub | `owner/repo` | Plugin à la racine du dépôt |
 | GitHub avec chemin | `owner/repo/path/to/plugin` | Plugin dans un sous-répertoire |
 | URL Git | `https://github.com/owner/repo.git` | Dépôt Git |
-| Package npm | `npm:@scope/package` | Package npm publié |
+| Paquet npm | `npm:@scope/package` | Paquet npm publié |
 
 ## Schéma plugin.json
 
@@ -76,7 +76,7 @@ Chaque plugin possède un manifeste dans
 | `license` | Non | Identifiant de licence SPDX |
 | `repository` | Non | URL du dépôt |
 
-## Structure du répertoire d'un plugin
+## Structure des répertoires d'un plugin
 
 ```
 plugins/my-plugin/
@@ -104,7 +104,7 @@ de compétences et de commandes :
 
 ## Validation
 
-Validez vos manifestes de marketplace et de plugins localement :
+Validez vos manifestes de marketplace et de plugin localement :
 
 ```bash
 claude plugin validate .
@@ -112,11 +112,11 @@ claude plugin validate .
 
 Cela vérifie :
 
-- La conformité du schéma `marketplace.json`
+- La conformité au schéma de `marketplace.json`
 - L'existence de tous les répertoires de plugins référencés
-- La présence d'un `plugin.json` valide dans chaque plugin
-- Le formatage correct du frontmatter des `SKILL.md`
-- La présence des champs de frontmatter requis dans les commandes
+- La présence d'un `plugin.json` valide pour chaque plugin
+- Le formatage correct du frontmatter de `SKILL.md` pour les compétences
+- La présence des champs frontmatter requis pour les commandes
 
 ## Configuration d'équipe
 
@@ -158,7 +158,7 @@ Vérifiez que le marketplace a été ajouté :
 /plugin marketplace list
 ```
 
-S'il est absent, ajoutez-le à nouveau :
+S'il est manquant, ajoutez-le à nouveau :
 
 ```
 /plugin marketplace add f5xc-salesdemos/marketplace
@@ -186,6 +186,6 @@ prévu :
 
 ### Erreurs de build après la revue
 
-Le plugin signale les problèmes mais ne les corrige pas automatiquement.
+Le plugin signale des problèmes mais ne les corrige pas automatiquement.
 Appliquez les corrections suggérées manuellement, puis relancez la revue
 pour confirmer la résolution.

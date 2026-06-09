@@ -1,7 +1,7 @@
 ---
 title: Erste Schritte
 description: >-
-  Schritt-für-Schritt-Anleitung zum Hinzufügen des f5xc-salesdemos-Marketplace
+  Schritt-für-Schritt-Anleitung zum Hinzufügen des f5xc-salesdemos-Marktplatzes
   und zur Installation Ihres ersten Plugins.
 sidebar:
   order: 2
@@ -12,11 +12,11 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-Diese Anleitung führt Sie durch das Hinzufügen des f5xc-salesdemos-Marketplace zu Claude Code und die Installation Ihres ersten Plugins.
+Diese Anleitung führt Sie durch das Hinzufügen des f5xc-salesdemos-Marktplatzes zu Claude Code und die Installation Ihres ersten Plugins.
 
 ## Voraussetzungen
 
-- Claude Code **v1.0.33** oder höher (Plugin-Marketplace-Unterstützung)
+- Claude Code **v1.0.33** oder höher (Plugin-Marktplatz-Unterstützung)
 - Ein GitHub-Konto mit Zugriff auf die
   [f5xc-salesdemos](https://github.com/f5xc-salesdemos)-Organisation
 
@@ -24,19 +24,19 @@ Diese Anleitung führt Sie durch das Hinzufügen des f5xc-salesdemos-Marketplace
 
 <Steps>
 
-1. **Marketplace hinzufügen**
+1. **Marktplatz hinzufügen**
 
-   Führen Sie in einer beliebigen Claude Code-Sitzung folgenden Befehl aus:
+   Führen Sie in einer beliebigen Claude-Code-Sitzung folgenden Befehl aus:
 
    ```
    /plugin marketplace add f5xc-salesdemos/marketplace
    ```
 
-   Damit wird der Marketplace als Plugin-Quelle registriert. Dies müssen Sie nur einmal durchführen.
+   Damit wird der Marktplatz als Plugin-Quelle registriert. Dies müssen Sie nur einmal durchführen.
 
 2. **Verfügbare Plugins durchsuchen**
 
-   Listen Sie auf, was der Marketplace anbietet:
+   Lassen Sie sich anzeigen, was der Marktplatz bietet:
 
    ```
    /plugin marketplace list f5xc-salesdemos-marketplace
@@ -55,7 +55,7 @@ Diese Anleitung führt Sie durch das Hinzufügen des f5xc-salesdemos-Marketplace
 
    Navigieren Sie zu einem beliebigen f5xc-salesdemos-Content-Repository.
 
-   Für **Docs Tools** führen Sie den MDX-Review-Befehl aus:
+   Für **Docs Tools** führen Sie den MDX-Überprüfungsbefehl aus:
 
    ```
    /f5xc-docs-tools:review-mdx
@@ -85,7 +85,7 @@ Ein Plugin entfernen:
 /plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
 ```
 
-Den Marketplace vollständig entfernen:
+Den Marktplatz vollständig entfernen:
 
 ```
 /plugin marketplace remove f5xc-salesdemos-marketplace
@@ -93,7 +93,8 @@ Den Marketplace vollständig entfernen:
 
 ## Team-Konfiguration
 
-Um den Marketplace für Ihr gesamtes Team vorzukonfigurieren, fügen Sie ihn zur `.claude/settings.json` Ihres Projekts hinzu:
+Um den Marktplatz für Ihr gesamtes Team vorzukonfigurieren, fügen Sie ihn
+in die `.claude/settings.json` Ihres Projekts ein:
 
 ```json
 {
@@ -109,8 +110,8 @@ Um den Marketplace für Ihr gesamtes Team vorzukonfigurieren, fügen Sie ihn zur
 
 <Aside type="tip" title="Gemeinsame Einstellungen">
   Wenn Sie `.claude/settings.json` in Ihr Repository committen,
-  erhalten alle Teammitglieder den Marketplace und die Plugins
+  erhalten alle Teammitglieder den Marktplatz und die Plugins
   automatisch — keine manuelle Einrichtung erforderlich.
 </Aside>
 
-Dies stellt sicher, dass jeder Mitwirkende von seiner ersten Claude Code-Sitzung im Repository an die gleichen Werkzeuge zur Verfügung hat.
+Dies stellt sicher, dass jeder Mitwirkende ab der ersten Claude-Code-Sitzung im Repository dieselben Werkzeuge zur Verfügung hat.

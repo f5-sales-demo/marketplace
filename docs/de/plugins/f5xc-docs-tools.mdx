@@ -12,13 +12,13 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-Das **f5xc-docs-tools**-Plugin validiert MDX-Inhaltsdateien für
+Das Plugin **f5xc-docs-tools** validiert MDX-Inhaltsdateien für
 die f5xc-salesdemos-Dokumentationspipeline. Es erkennt häufige
 Build-brechende Probleme, bevor sie die CI erreichen, darunter
-ungeschützte JSX-Zeichen, ungültige Imports, fehlerhafte
-Bildreferenzen und unvollständige Frontmatter.
+nackte JSX-Zeichen, ungültige Imports, fehlerhafte
+Bildreferenzen und unvollständige Frontmatter-Daten.
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
 ## Installation
 
@@ -30,9 +30,10 @@ Bildreferenzen und unvollständige Frontmatter.
 
 ### mdx-content-reviewer
 
-Dieser Skill wird automatisch aktiviert, wenn Claude erkennt, dass Sie
-mit MDX-Dateien in einem f5xc-salesdemos-Inhalts-Repository
-arbeiten. Er führt sieben Validierungsprüfungen durch:
+Dieser Skill wird automatisch aktiviert, wenn Claude erkennt,
+dass Sie mit MDX-Dateien in einem f5xc-salesdemos-Content-
+Repository arbeiten. Er führt sieben Validierungsprüfungen
+durch:
 
 <CardGrid>
   <Card title="Frontmatter-Validierung">
@@ -41,28 +42,28 @@ arbeiten. Er führt sieben Validierungsprüfungen durch:
     `template: splash` enthalten.
   </Card>
   <Card title="MDX-Syntaxfallen">
-    Erkennt ungeschützte `&lt;`-Zeichen und nicht-escapte `\{` `\}`-
+    Erkennt nackte `&lt;`-Zeichen und nicht-escapte `\{` `\}`-
     Klammern, die das MDX-Parsing unterbrechen.
   </Card>
   <Card title="Import-Validierung">
     Validiert Imports gegen eine Allowlist von Starlight-
-    integrierten und f5xc-salesdemos-Theme-Komponenten.
+    Built-in- und f5xc-salesdemos-Theme-Komponenten.
   </Card>
-  <Card title="Komponentenattribute">
+  <Card title="Komponenten-Attribute">
     Prüft erforderliche Props für Komponenten wie Screenshot,
     Aside, Code, LinkCard, Card und Badge.
   </Card>
   <Card title="Bildreferenzen">
-    Überprüft, ob referenzierte Bilder im Verzeichnis `docs/images/`
-    vorhanden sind.
+    Überprüft, ob referenzierte Bilder im Verzeichnis
+    `docs/images/` vorhanden sind.
   </Card>
   <Card title="Strukturprüfungen">
-    Stellt sicher, dass `docs/index.mdx` existiert und Bildverzeichnisse
-    keine verstreuten MDX-Dateien enthalten.
+    Stellt sicher, dass `docs/index.mdx` existiert und
+    Bildverzeichnisse keine verirrten MDX-Dateien enthalten.
   </Card>
   <Card title="Exports und Codeblöcke">
-    Überprüft, ob Variablen, die in `Code`-Komponenten-`code`-
-    Props verwendet werden, passende Exports haben.
+    Überprüft, ob Variablen, die in `code`-Props der
+    `Code`-Komponente verwendet werden, passende Exports haben.
   </Card>
 </CardGrid>
 
@@ -70,19 +71,20 @@ arbeiten. Er führt sieben Validierungsprüfungen durch:
 
 Der Skill begrenzt seine Überprüfung intelligent:
 
-- Wenn es nicht commitete oder gestagete Änderungen an `docs/**/*.mdx`-
-  Dateien gibt, werden nur diese Dateien überprüft
+- Wenn es nicht committete oder gestagete Änderungen an
+  `docs/**/*.mdx`-Dateien gibt, werden nur diese Dateien
+  überprüft
 - Andernfalls werden alle `docs/**/*.mdx`-Dateien überprüft
 
 #### Ausgabeformat
 
-Ergebnisse werden nach Schweregrad gruppiert:
+Befunde werden nach Schweregrad gruppiert:
 
-- **ERROR** — wird den Build unterbrechen; muss vor dem Mergen behoben werden
+- **ERROR** — wird den Build brechen; muss vor dem Mergen behoben werden
 - **WARNING** — wahrscheinliche Probleme, die behoben werden sollten
 - **INFO** — Vorschläge und Best Practices
 
-Jedes Ergebnis enthält den Dateipfad, die Zeilennummer und eine
+Jeder Befund enthält den Dateipfad, die Zeilennummer und eine
 Beschreibung des Problems.
 
 ## Befehle
@@ -93,13 +95,13 @@ Beschreibung des Problems.
 /f5xc-docs-tools:review-mdx [path-or-glob]
 ```
 
-Führt den `mdx-content-reviewer`-Skill bei Bedarf aus.
+Führt den Skill `mdx-content-reviewer` auf Abruf aus.
 
 **Argumente:**
 
 | Argument | Erforderlich | Beschreibung |
 |----------|----------|-------------|
-| `path-or-glob` | Nein | Dateipfad oder Glob-Muster zur Eingrenzung der Überprüfung. Standardmäßig werden alle `docs/**/*.mdx`-Dateien verwendet. |
+| `path-or-glob` | Nein | Dateipfad oder Glob-Muster zur Eingrenzung der Überprüfung. Standardmäßig werden alle `docs/**/*.mdx`-Dateien geprüft. |
 
 **Beispiele:**
 
@@ -110,18 +112,19 @@ Führt den `mdx-content-reviewer`-Skill bei Bedarf aus.
 # Eine bestimmte Datei überprüfen
 /f5xc-docs-tools:review-mdx docs/getting-started.mdx
 
-# Dateien überprüfen, die einem Glob entsprechen
+# Dateien überprüfen, die einem Glob-Muster entsprechen
 /f5xc-docs-tools:review-mdx docs/guides/*.mdx
 ```
 
-**Ausgabe:** Eine Zusammenfassungszeile am Ende gibt die Gesamtzahl
-der überprüften Dateien und die Anzahl der Ergebnisse nach Schweregrad aus.
+**Ausgabe:** Eine Zusammenfassungszeile am Ende zeigt die
+Gesamtzahl der überprüften Dateien und die Anzahl der Befunde
+nach Schweregrad.
 
 ## Erlaubte Imports
 
 Das Plugin validiert Imports gegen diese Quellen:
 
-**Starlight-integrierte Komponenten** (`@astrojs/starlight/components`):
+**Starlight-Built-in-Komponenten** (`@astrojs/starlight/components`):
 
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
@@ -131,9 +134,10 @@ Das Plugin validiert Imports gegen diese Quellen:
 `Banner` `Icon` `LinkCard` `Screenshot`
 
 <Aside type="caution">
-  Theme-Komponenten verwenden Default-Imports aus einzelnen `.astro`-
-  Dateien. Direkte `node_modules`-Imports, relative Pfade und
-  `require()`-Aufrufe werden als Warnungen markiert.
+  Theme-Komponenten verwenden Default-Imports aus einzelnen
+  `.astro`-Dateien. Direkte `node_modules`-Imports, relative
+  Pfade und `require()`-Aufrufe werden als Warnungen
+  gekennzeichnet.
 </Aside>
 
 ## Komponenten-Kurzreferenz
@@ -151,12 +155,12 @@ Das Plugin validiert Imports gegen diese Quellen:
 | CardGrid | — | — |
 | FileTree | — | — |
 
-## MDX-Stolperfallen
+## MDX-Fallstricke
 
 Häufige Probleme, die das Plugin erkennt:
 
-| Stolperfalle | Problem | Lösung |
+| Fallstrick | Problem | Lösung |
 |---------|---------|-----|
-| Ungeschütztes `&lt;` | MDX interpretiert es als JSX-Tag | Verwenden Sie `&amp;lt;`, Inline-Code oder formulieren Sie um |
+| Nacktes `&lt;` | MDX interpretiert es als JSX-Tag | Verwenden Sie `&amp;lt;`, Inline-Code oder formulieren Sie um |
 | Nicht-escaptes `\{` `\}` | MDX behandelt es als JSX-Ausdruck | Verwenden Sie Inline-Code, escapen Sie mit `\` oder verwenden Sie einen Codeblock |
 | Klammern in Dateinamen | Astro kann die Datei nicht verarbeiten | Verwenden Sie niemals `\{` oder `\}` in `.mdx`-Dateinamen |

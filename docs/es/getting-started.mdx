@@ -1,7 +1,7 @@
 ---
 title: Primeros pasos
 description: >-
-  Guía paso a paso para añadir el marketplace f5xc-salesdemos e instalar tu
+  Guía paso a paso para agregar el marketplace f5xc-salesdemos e instalar tu
   primer plugin.
 sidebar:
   order: 2
@@ -12,12 +12,12 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-Esta guía le explica cómo añadir el marketplace f5xc-salesdemos
-a Claude Code e instalar su primer plugin.
+Esta guía te acompaña en el proceso de agregar el marketplace
+f5xc-salesdemos a Claude Code e instalar tu primer plugin.
 
 ## Requisitos previos
 
-- Claude Code **v1.0.33** o posterior (compatibilidad con marketplace de plugins)
+- Claude Code **v1.0.33** o posterior (soporte para marketplace de plugins)
 - Una cuenta de GitHub con acceso a la organización
   [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
 
@@ -25,20 +25,20 @@ a Claude Code e instalar su primer plugin.
 
 <Steps>
 
-1. **Añadir el marketplace**
+1. **Agregar el marketplace**
 
-   En cualquier sesión de Claude Code, ejecute:
+   En cualquier sesión de Claude Code, ejecuta:
 
    ```
    /plugin marketplace add f5xc-salesdemos/marketplace
    ```
 
    Esto registra el marketplace como fuente de plugins. Solo
-   necesita hacerlo una vez.
+   necesitas hacerlo una vez.
 
 2. **Explorar los plugins disponibles**
 
-   Liste lo que ofrece el marketplace:
+   Lista lo que el marketplace ofrece:
 
    ```
    /plugin marketplace list f5xc-salesdemos-marketplace
@@ -46,7 +46,7 @@ a Claude Code e instalar su primer plugin.
 
 3. **Instalar un plugin**
 
-   Instale el plugin que necesite:
+   Instala el plugin que necesites:
 
    ```
    /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
@@ -55,15 +55,15 @@ a Claude Code e instalar su primer plugin.
 
 4. **Usar el plugin**
 
-   Navegue a cualquier repositorio de contenido de f5xc-salesdemos.
+   Navega a cualquier repositorio de contenido de f5xc-salesdemos.
 
-   Para **docs tools**, ejecute el comando de revisión MDX:
+   Para **docs tools**, ejecuta el comando de revisión MDX:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   Para **sales engineer**, utilice frases activadoras como
+   Para **sales engineer**, usa frases de activación como
    "prepare the demo", "run the demo" o "walk through
    the demo" — el plugin se activa automáticamente.
 
@@ -95,8 +95,8 @@ Eliminar el marketplace por completo:
 
 ## Configuración de equipo
 
-Para preconfigurar el marketplace para todo su equipo, añádalo
-al archivo `.claude/settings.json` de su proyecto:
+Para preconfigurar el marketplace para todo tu equipo, agrégalo
+al archivo `.claude/settings.json` de tu proyecto:
 
 ```json
 {
@@ -111,10 +111,10 @@ al archivo `.claude/settings.json` de su proyecto:
 ```
 
 <Aside type="tip" title="Configuración compartida">
-  Incluir `.claude/settings.json` en el repositorio mediante commit significa
+  Hacer commit de `.claude/settings.json` en tu repositorio significa
   que cada miembro del equipo obtiene el marketplace y los plugins
   automáticamente — sin necesidad de configuración manual.
 </Aside>
 
-Esto garantiza que cada colaborador disponga de las mismas herramientas
-desde su primera sesión de Claude Code en el repositorio.
+Esto asegura que cada colaborador tenga las mismas herramientas
+disponibles desde su primera sesión de Claude Code en el repositorio.

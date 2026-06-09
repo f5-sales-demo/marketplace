@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-pipeline
-description: 面向多仓库构建、内容编写和本地预览的文档流水线架构知识。
+description: 用于多仓库构建、内容编写和本地预览的文档管道架构知识。
 sidebar:
   order: 8
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-docs-pipeline** 插件为 f5xc-salesdemos 仓库提供文档流水线架构知识。它指导内容编写，阐明多仓库构建中的配置归属关系，并提供基于 Docker 的本地预览功能。
+**f5xc-docs-pipeline** 插件为 f5xc-salesdemos 仓库提供文档管道架构知识。它指导内容编写，阐明多仓库构建中的配置归属，并提供基于 Docker 的本地预览。
 
 <Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -28,10 +28,10 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### pipeline-navigator
 
-文档流水线架构说明，解释在四个上游仓库中应在何处进行更改：docs-theme、docs-builder、docs-control 和 docs-icons。阐明配置归属关系（`astro.config.mjs`、`content.config.ts`）、发布调度链以及受管文件追踪。
+文档管道架构说明，解释在四个上游仓库中应在何处进行更改：docs-theme、docs-builder、docs-control 和 docs-icons。阐明配置归属（`astro.config.mjs`、`content.config.ts`）、发布调度链以及托管文件跟踪。
 
 <Aside type="tip">
-  当您需要了解哪个仓库拥有特定配置文件或组件时，请使用 pipeline-navigator。
+  当您需要了解哪个仓库拥有特定的配置文件或组件时，请使用 pipeline-navigator。
 </Aside>
 
 ## 命令
@@ -42,4 +42,4 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 /f5xc-docs-pipeline:preview-docs
 ```
 
-启动本地 Docker 开发服务器以预览文档。运行共享的 Docker 构建镜像，并挂载您本地的 `docs/` 目录以实现实时预览。
+启动本地 Docker 开发服务器以预览文档。运行共享的 Docker 构建镜像，并挂载您本地的 `docs/` 目录以进行实时预览。

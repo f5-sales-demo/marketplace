@@ -1,8 +1,8 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Lokales, selbstgehostetes Web-Scraping und Crawling über die Open-Source
-  Firecrawl-Engine.
+  Lokales, selbst gehostetes Web-Scraping und Crawling über die
+  Open-Source-Engine Firecrawl.
 sidebar:
   order: 13
 i18n:
@@ -12,8 +12,8 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Das **f5xc-firecrawl**-Plugin bietet lokales, selbstgehostetes Web-Scraping
-über die Open-Source [firecrawl](https://github.com/mendableai/firecrawl)-Engine.
+Das Plugin **f5xc-firecrawl** bietet lokales, selbst gehostetes Web-Scraping
+über die Open-Source-Engine [firecrawl](https://github.com/mendableai/firecrawl).
 Keine API-Schlüssel, keine Abonnements, keine Cloud-Abhängigkeit. Alle
 Operationen werden gegen die lokale Firecrawl-Instanz auf `localhost:3002`
 innerhalb des Devcontainers ausgeführt.
@@ -65,7 +65,7 @@ Alle URLs einer Website entdecken.
 
 ### /search
 
-Das Web durchsuchen und optional Ergebnisse scrapen.
+Im Web suchen und optional Ergebnisse scrapen.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -98,10 +98,10 @@ Eine llms.txt-Datei für eine Website generieren.
 
 ### web-scraper
 
-Aktiviert sich automatisch, wenn Sie eine URL scrapen, eine Website crawlen,
-Website-URLs mappen, das Web durchsuchen, strukturierte Daten extrahieren,
-llms.txt generieren, mehrere URLs im Batch scrapen oder eine Webseite in
-Markdown konvertieren möchten. Delegiert sofort an den firecrawl-operator-Agenten.
+Wird automatisch aktiviert, wenn Sie eine URL scrapen, eine Website crawlen,
+Website-URLs kartieren, im Web suchen, strukturierte Daten extrahieren,
+llms.txt generieren, mehrere URLs per Batch scrapen oder eine Webseite
+in Markdown konvertieren möchten. Delegiert sofort an den firecrawl-operator-Agenten.
 
 ## Agenten
 
@@ -131,23 +131,23 @@ Das Plugin erfordert den Firecrawl-Stack, der im Devcontainer läuft:
 
 | Komponente | Port | Zweck |
 |-----------|------|---------|
-| Firecrawl API | 3002 | Alle Scrape-/Crawl-/Map-/Search-/Extract-Endpunkte |
+| Firecrawl API | 3002 | Alle Scrape/Crawl/Map/Search/Extract-Endpunkte |
 | Playwright | 3000 | JavaScript-Rendering-Engine |
 | Redis | 6379 | Job-Queue-Backend |
-| PostgreSQL | Socket | Crawl-/Batch-Job-Persistenz |
+| PostgreSQL | Socket | Persistenz für Crawl-/Batch-Jobs |
 | LiteLLM-Proxy | OPENAI_BASE_URL | LLM-Backend für Extract (optional) |
 
-Der Stack startet automatisch, wenn `ENABLE_FIRECRAWL=true` gesetzt ist (der
-Standardwert). Ein SessionStart-Hook prüft, ob die API erreichbar ist, und
-warnt, wenn der Dienst nicht verfügbar ist.
+Der Stack startet automatisch, wenn `ENABLE_FIRECRAWL=true` gesetzt ist (die
+Standardeinstellung). Ein SessionStart-Hook prüft, ob die API erreichbar ist,
+und warnt, wenn der Dienst nicht verfügbar ist.
 
-## Unterschiede zur Cloud-Version von Firecrawl
+## Unterschiede zu Cloud-Firecrawl
 
-Dieses Plugin verwendet die selbstgehostete Open-Source-Version:
+Dieses Plugin verwendet die selbst gehostete Open-Source-Version:
 
 - Keine Authentifizierung oder API-Schlüssel für das Scraping erforderlich
-- Keine Credit-Limits oder Rate-Limiting
+- Keine Kreditlimits oder Ratenbegrenzung
 - Verwendet v1-API-Endpunkte (nicht v2)
-- Browser-Sessions und Deep Research sind nicht verfügbar
-- Extract verwendet Ihren eigenen LLM-Proxy anstelle von gehosteten Modellen
+- Browser-Sessions und Deep Research nicht verfügbar
+- Extract verwendet Ihren eigenen LLM-Proxy anstelle gehosteter Modelle
 - Läuft vollständig innerhalb des lokalen Container-Netzwerks

@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: f5xc-salesdemos 문서 파이프라인을 위한 MDX 콘텐츠 유효성 검사 및 품질 검사.
+description: f5xc-salesdemos 문서화 파이프라인을 위한 MDX 콘텐츠 유효성 검사 및 품질 검사.
 sidebar:
   order: 4
 i18n:
@@ -10,13 +10,9 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** 플러그인은 f5xc-salesdemos 문서 파이프라인을 위한
-MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 빌드를 중단시키는
-일반적인 문제들을 CI에 도달하기 전에 포착합니다. 여기에는 이스케이프되지
-않은 JSX 문자, 잘못된 import, 깨진 이미지 참조, 불완전한 frontmatter
-등이 포함됩니다.
+**f5xc-docs-tools** 플러그인은 f5xc-salesdemos 문서화 파이프라인을 위한 MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 노출된 JSX 문자, 잘못된 임포트, 손상된 이미지 참조, 불완전한 프론트매터 등 빌드를 중단시키는 일반적인 문제를 CI에 도달하기 전에 감지합니다.
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="생산성" variant="tip" />
 
 ## 설치
 
@@ -28,58 +24,56 @@ MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 빌드
 
 ### mdx-content-reviewer
 
-이 스킬은 Claude가 f5xc-salesdemos 콘텐츠 저장소에서 MDX 파일로
-작업하고 있음을 감지하면 자동으로 활성화됩니다. 7가지 유효성 검사를
-수행합니다:
+이 스킬은 Claude가 f5xc-salesdemos 콘텐츠 리포지토리에서 MDX 파일을 작업하고 있음을 감지하면 자동으로 활성화됩니다. 7가지 유효성 검사를 수행합니다:
 
 <CardGrid>
-  <Card title="Frontmatter 유효성 검사">
+  <Card title="프론트매터 유효성 검사">
     `title` 및 `sidebar.order`와 같은 필수 필드를 검사합니다.
-    스플래시 페이지는 `hero` 필드와 `template: splash`를
-    포함해야 합니다.
+    스플래시 페이지에는 `hero` 필드와
+    `template: splash`가 포함되어야 합니다.
   </Card>
   <Card title="MDX 구문 함정">
-    MDX 파싱을 중단시키는 이스케이프되지 않은 `&lt;` 문자와
-    `\{` `\}` 중괄호를 감지합니다.
+    MDX 파싱을 중단시키는 노출된 `&lt;` 문자와
+    이스케이프되지 않은 `\{` `\}` 중괄호를 감지합니다.
   </Card>
-  <Card title="Import 유효성 검사">
+  <Card title="임포트 유효성 검사">
     Starlight 내장 및 f5xc-salesdemos 테마 컴포넌트의
-    허용 목록에 대해 import를 검증합니다.
+    허용 목록을 기준으로 임포트의 유효성을 검사합니다.
   </Card>
   <Card title="컴포넌트 속성">
     Screenshot, Aside, Code, LinkCard, Card, Badge와 같은
     컴포넌트의 필수 props를 검사합니다.
   </Card>
   <Card title="이미지 참조">
-    참조된 이미지가 `docs/images/` 디렉토리에 존재하는지
-    확인합니다.
+    참조된 이미지가 `docs/images/` 디렉토리에
+    존재하는지 확인합니다.
   </Card>
   <Card title="구조 검사">
     `docs/index.mdx`가 존재하는지, 이미지 디렉토리에
-    불필요한 MDX 파일이 없는지 확인합니다.
+    불필요한 MDX 파일이 포함되어 있지 않은지 확인합니다.
   </Card>
-  <Card title="Export 및 코드 블록">
-    `Code` 컴포넌트의 `code` props에서 사용된 변수에
-    일치하는 export가 있는지 확인합니다.
+  <Card title="내보내기 및 코드 블록">
+    `Code` 컴포넌트 `code` props에 사용된 변수에
+    일치하는 내보내기가 있는지 확인합니다.
   </Card>
 </CardGrid>
 
 #### 범위 지정 동작
 
-이 스킬은 검토 범위를 지능적으로 설정합니다:
+이 스킬은 검토 범위를 지능적으로 지정합니다:
 
-- `docs/**/*.mdx` 파일에 커밋되지 않았거나 스테이징된 변경 사항이 있는 경우, 해당 파일만 검토합니다
-- 그렇지 않으면, 모든 `docs/**/*.mdx` 파일을 검토합니다
+- `docs/**/*.mdx` 파일에 커밋되지 않았거나 스테이징된 변경 사항이 있는 경우, 해당 파일만 검토됩니다
+- 그렇지 않으면 모든 `docs/**/*.mdx` 파일이 검토됩니다
 
 #### 출력 형식
 
 발견 사항은 심각도별로 그룹화됩니다:
 
-- **ERROR** — 빌드를 중단시킵니다; 머지 전에 반드시 수정해야 합니다
-- **WARNING** — 해결해야 할 가능성이 높은 문제입니다
-- **INFO** — 제안 사항 및 모범 사례입니다
+- **ERROR** — 빌드를 중단시킴; 병합 전에 반드시 수정해야 함
+- **WARNING** — 해결해야 할 가능성이 높은 문제
+- **INFO** — 제안 사항 및 모범 사례
 
-각 발견 사항에는 파일 경로, 줄 번호, 문제에 대한 설명이 포함됩니다.
+각 발견 사항에는 파일 경로, 줄 번호, 그리고 문제에 대한 설명이 포함됩니다.
 
 ## 명령어
 
@@ -93,29 +87,28 @@ MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 빌드
 
 **인수:**
 
-| 인수 | 필수 여부 | 설명 |
+| 인수 | 필수 | 설명 |
 |----------|----------|-------------|
-| `path-or-glob` | 아니오 | 검토 범위를 지정할 파일 경로 또는 glob 패턴. 기본값은 모든 `docs/**/*.mdx` 파일입니다. |
+| `path-or-glob` | 아니오 | 검토 범위를 지정할 파일 경로 또는 글로브 패턴. 기본값은 모든 `docs/**/*.mdx` 파일입니다. |
 
 **예시:**
 
 ```
-# docs/ 내 모든 MDX 파일 검토
+# docs/의 모든 MDX 파일 검토
 /f5xc-docs-tools:review-mdx
 
 # 특정 파일 검토
 /f5xc-docs-tools:review-mdx docs/getting-started.mdx
 
-# glob에 일치하는 파일 검토
+# 글로브에 일치하는 파일 검토
 /f5xc-docs-tools:review-mdx docs/guides/*.mdx
 ```
 
-**출력:** 마지막에 요약 줄이 표시되며, 검토된 총 파일 수와 심각도별
-발견 사항 수를 보고합니다.
+**출력:** 마지막에 요약 줄이 표시되어 검토된 총 파일 수와 심각도별 발견 수를 보고합니다.
 
-## 허용된 Import
+## 허용된 임포트
 
-플러그인은 다음 소스에 대해 import를 검증합니다:
+플러그인은 다음 소스를 기준으로 임포트의 유효성을 검사합니다:
 
 **Starlight 내장 컴포넌트** (`@astrojs/starlight/components`):
 
@@ -127,8 +120,8 @@ MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 빌드
 `Banner` `Icon` `LinkCard` `Screenshot`
 
 <Aside type="caution">
-  테마 컴포넌트는 개별 `.astro` 파일에서 기본 import를 사용합니다.
-  직접적인 `node_modules` import, 상대 경로, `require()` 호출은
+  테마 컴포넌트는 개별 `.astro` 파일에서 기본 임포트를 사용합니다.
+  직접적인 `node_modules` 임포트, 상대 경로, `require()` 호출은
   경고로 표시됩니다.
 </Aside>
 
@@ -149,10 +142,10 @@ MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 빌드
 
 ## MDX 함정
 
-플러그인이 포착하는 일반적인 문제:
+플러그인이 감지하는 일반적인 문제:
 
-| 함정 | 문제 | 수정 방법 |
+| 함정 | 문제 | 해결 방법 |
 |---------|---------|-----|
-| 이스케이프되지 않은 `&lt;` | MDX가 JSX 태그로 해석합니다 | `&amp;lt;`, 인라인 코드를 사용하거나 문구를 변경하세요 |
-| 이스케이프되지 않은 `\{` `\}` | MDX가 JSX 표현식으로 처리합니다 | 인라인 코드를 사용하거나, `\`로 이스케이프하거나, 코드 블록을 사용하세요 |
-| 파일명의 중괄호 | Astro가 파일을 처리할 수 없습니다 | `.mdx` 파일명에 `\{` 또는 `\}`를 절대 사용하지 마세요 |
+| 노출된 `&lt;` | MDX가 JSX 태그로 해석 | `&amp;lt;`, 인라인 코드 사용 또는 문구 변경 |
+| 이스케이프되지 않은 `\{` `\}` | MDX가 JSX 표현식으로 처리 | 인라인 코드 사용, `\`로 이스케이프 또는 코드 블록 사용 |
+| 파일명의 중괄호 | Astro가 파일을 처리할 수 없음 | `.mdx` 파일명에 `\{` 또는 `\}`를 절대 사용하지 않기 |

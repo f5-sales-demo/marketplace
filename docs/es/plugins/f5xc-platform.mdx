@@ -13,12 +13,12 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 El plugin **f5xc-platform** proporciona automatización completa para la
-plataforma F5 Distributed Cloud. Cubre operaciones de consola web
-mediante Chrome DevTools MCP, operaciones de API REST con reconocimiento
-de especificaciones mediante cURL, autenticación multi-proveedor y
-análisis de configuración en 98 tipos de recursos en 38 dominios.
+plataforma F5 Distributed Cloud. Cubre operaciones de consola web mediante
+Chrome DevTools MCP, operaciones de API REST con conocimiento de
+especificaciones mediante cURL, autenticación multi-proveedor y análisis
+de configuración en 98 tipos de recursos en 38 dominios.
 
-<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v3.1.1" variant="note" /> <Badge text="Productividad" variant="tip" />
 
 ## Instalación
 
@@ -30,45 +30,45 @@ análisis de configuración en 98 tipos de recursos en 38 dominios.
 
 ### api-operations
 
-Operaciones CRUD de API con reconocimiento de especificaciones que
-cubren 98 tipos de recursos en 38 dominios. Proporciona endpoints
-precisos, plantillas de payload, ordenamiento de dependencias y
-composiciones de flujos de trabajo de múltiples pasos para balanceadores
-de carga HTTP, pools de origen, políticas WAF, zonas DNS, certificados,
-sitios en la nube y más.
+Operaciones CRUD de API con conocimiento de especificaciones que cubren
+98 tipos de recursos en 38 dominios. Proporciona endpoints precisos,
+plantillas de payload, ordenamiento de dependencias y composiciones de
+flujos de trabajo de múltiples pasos para balanceadores de carga HTTP,
+pools de origen, políticas WAF, zonas DNS, certificados, sitios en la
+nube y más.
 
 ### config-analysis
 
 Capacidad de análisis y asesoramiento de configuración. Analiza
-configuraciones JSON de clientes para responder preguntas sobre
-postura de seguridad, habilitación de funcionalidades, configuraciones
-de modo, exclusiones y mejores prácticas. Soporta Q&A de múltiples
-turnos con contexto comprimido entre despachos.
+configuraciones JSON del cliente para responder preguntas sobre postura
+de seguridad, habilitación de funcionalidades, configuraciones de modo,
+exclusiones y mejores prácticas. Soporta preguntas y respuestas en
+múltiples turnos con contexto comprimido entre despachos.
 
 ### api-auth
 
-Autenticación de API que soporta autenticación mediante encabezado
-con token de API y autenticación con certificado P12 con procedimientos
-de validación de token.
+Autenticación de API que soporta autenticación mediante encabezado de
+token de API y autenticación con certificado P12 con procedimientos de
+validación de token.
 
 ### console-auth
 
 Autenticación multi-proveedor para la consola web de F5 XC.
-Auto-detecta el tipo de inicio de sesión: inicio de sesión nativo
-de F5 XC, SSO de Azure con sesión en caché, o SSO de Azure con
-MFA de push verificado de DUO.
+Auto-detecta el tipo de inicio de sesión: inicio de sesión nativo de
+F5 XC, SSO de Azure con sesión en caché, o SSO de Azure con MFA de
+push verificado de DUO.
 
 ### console-navigator
 
-Navegación determinista a las secciones de la consola de F5 XC.
-Traduce nombres de secciones a rutas URL, verifica el estado de
-la sesión y confirma la carga de la página.
+Navegación determinística a secciones de la consola de F5 XC. Traduce
+nombres de secciones a rutas URL, verifica el estado de la sesión y
+confirma la carga de la página.
 
 ### platform-index / api-index / console-index
 
-Enrutadores de intención que clasifican las solicitudes de los
-usuarios y las delegan a la habilidad y agente apropiados. Se
-activan automáticamente y no son invocables por el usuario.
+Enrutadores de intención que clasifican las solicitudes del usuario y
+las delegan a la habilidad y agente apropiados. Se activan
+automáticamente y no son invocables por el usuario.
 
 ## Comandos
 
@@ -93,31 +93,30 @@ agente console-operator.
 
 ### api-operator
 
-Agente autónomo de API REST que ejecuta secuencias de cURL y jq
-para operaciones CRUD de recursos, validación de tokens y
-operaciones de configuración. Se ejecuta en un subagente para
-mantener los payloads JSON verbosos de la API fuera del contexto
-de la sesión principal.
+Agente autónomo de API REST que ejecuta secuencias de cURL y jq para
+operaciones CRUD de recursos, validación de tokens y operaciones de
+configuración. Se ejecuta en un subagente para mantener los payloads
+JSON verbosos de la API fuera del contexto de la sesión principal.
 
 ### console-operator
 
-Agente autónomo de automatización de navegador que ejecuta
-secuencias de herramientas Chrome DevTools MCP para autenticación,
-navegación e interacciones con formularios. Se ejecuta en un
-subagente para mantener las capturas del navegador con alto
-consumo de tokens fuera de la sesión principal.
+Agente autónomo de automatización de navegador que ejecuta secuencias
+de herramientas Chrome DevTools MCP para autenticación, navegación e
+interacciones con formularios. Se ejecuta en un subagente para mantener
+las capturas de navegador con alto consumo de tokens fuera de la sesión
+principal.
 
 ### config-analyzer
 
 Agente de análisis de configuración de solo lectura. Analiza
-configuraciones JSON de clientes contra archivos de referencia
-de perfiles de recursos para responder preguntas sobre postura
-de seguridad, habilitación de funcionalidades, transiciones de
-modo y mejores prácticas.
+configuraciones JSON del cliente contra archivos de referencia de
+perfiles de recursos para responder preguntas sobre postura de
+seguridad, habilitación de funcionalidades, transiciones de modo y
+mejores prácticas.
 
 <Aside type="caution">
-  El agente config-analyzer es **efímero** &mdash; se genera nuevo
+  El agente config-analyzer es **efímero** &mdash; se genera de nuevo
   para cada pregunta sin memoria entre despachos. Las preguntas de
-  seguimiento deben incluir los hallazgos previos comprimidos en
-  el prompt de despacho.
+  seguimiento deben incluir los hallazgos previos comprimidos en el
+  prompt de despacho.
 </Aside>

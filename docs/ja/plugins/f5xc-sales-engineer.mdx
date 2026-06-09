@@ -12,7 +12,7 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 **f5xc-sales-engineer** プラグインは、F5 XC デモリポジトリ向けの再利用可能なセールスエンジニアペルソナフレームワークを提供します。ミーティング前の検証からライブ実行、Q&A、ティアダウンまで、デモミーティングのライフサイクル全体を処理します。
 
-<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.6" variant="note" /> <Badge text="生産性" variant="tip" />
 
 ## インストール
 
@@ -24,22 +24,22 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 ### demo-executor
 
-4段階のミーティングライフサイクルを持つAPI駆動のデモ実行：
+4段階のミーティングライフサイクルを備えたAPI駆動のデモ実行：
 
-1. **準備** — `demo-housekeeping` エージェントによるミーティング前の環境検証
-2. **実行** — 顧客向けナレーション付きの決定論的フェーズ実行
+1. **準備** — `demo-housekeeping` エージェント経由のミーティング前環境検証
+2. **実行** — 顧客向けナレーション付きの決定的なフェーズ実行
 3. **Q&A** — ライブ環境での即興モード
-4. **ティアダウン** — `demo-housekeeping` エージェントによるミーティング後のクリーンアップ
+4. **ティアダウン** — `demo-housekeeping` エージェント経由のミーティング後クリーンアップ
 
-製品固有のコンテンツを `DEMO_PRODUCT_EXPERTISE.md` から、デモコマンドを `docs/demo/` から読み取ります。
+`DEMO_PRODUCT_EXPERTISE.md` から製品固有のコンテンツを、`docs/demo/` からデモコマンドを読み取ります。
 
 ### presenter
 
-事前構成されたデモ環境を使用した構築済みウォークスループレゼンテーション。各ステップで「見せる → ナレーションする → 結びつける → 一時停止する」パターンに従います。ウォークスルーの順序を `DEMO_WALKTHROUGH_CONFIG.md` から読み取ります。
+事前設定されたデモ環境を使用した構成済みウォークスループレゼンテーション。各ステップで「見せる → 説明する → 関連付ける → 一時停止」のパターンに従います。`DEMO_WALKTHROUGH_CONFIG.md` からウォークスルーの順序を読み取ります。
 
 ### subject-matter-expert
 
-厳格な引用要件を持つリファレンスベースのQ&A。推測は一切行わず、すべての回答にリファレンスまたは証拠を含めます。必要に応じて `demo-researcher` エージェントにリサーチを委任します。
+厳格な引用要件を備えたリファレンスベースのQ&A。推測は一切せず、すべての回答にリファレンスまたは証拠を含めます。必要に応じて `demo-researcher` エージェントにリサーチを委任します。
 
 ### sales-engineer
 
@@ -53,19 +53,19 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 ### demo-researcher
 
-検証済みの回答を引用付きで検索する読み取り専用のリサーチライブラリアン。まずローカルの `docs/` を検索し、次に `DEMO_SOURCE_INDEX.md` からのインデックス済み外部ソースを検索し、フォールバックとして WebSearch を使用します。
+検証済みの回答を引用付きで見つける読み取り専用のリサーチライブラリアン。まずローカルの `docs/` を検索し、次に `DEMO_SOURCE_INDEX.md` からのインデックス付き外部ソースを検索し、フォールバックとして WebSearch を使用します。
 
 ## コンベンションファイル
 
 <Aside type="tip" title="製品固有のコンテンツ">
-  このプラグインは製品に依存しません。各リポジトリは標準化されたコンベンションファイルを通じて製品固有のコンテンツを提供します。
+  このプラグインは製品非依存です。各リポジトリは標準化されたコンベンションファイルを通じて製品固有のコンテンツを提供します。
 </Aside>
 
-プラグインを設定するには、リポジトリのルートに以下のファイルを作成してください：
+プラグインを設定するには、リポジトリルートに以下のファイルを作成してください：
 
 | ファイル | 目的 | 必要なスキル |
 | ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | 製品機能、検出シグナル、脅威カバレッジ、コンプライアンス整合、APIリファレンス | すべてのスキル |
+| `DEMO_PRODUCT_EXPERTISE.md` | 製品機能、検出シグナル、脅威カバレッジ、コンプライアンス整合性、APIリファレンス | すべてのスキル |
 | `DEMO_WALKTHROUGH_CONFIG.md` | デモアプリURL、ウォークスルー順序、検出タイミング | presenter |
 | `DEMO_SOURCE_INDEX.md` | ローカルドキュメントと外部URLを含むリサーチソースカタログ | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | 必須/オプション変数、レディネスチェック（T0–T5）、APIエンドポイント | demo-housekeeping |
@@ -73,14 +73,14 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 ## トリガーフレーズ
 
-`.claude/CLAUDE.md` のトリガーマップ（`docs-control` によって管理）は、ユーザーの意図に基づいてスキルをアクティベートします：
+`.claude/CLAUDE.md` のトリガーマップ（`docs-control` で管理）は、ユーザーの意図に基づいてスキルをアクティベートします：
 
 | フレーズ | スキル | ステージ |
 | ------ | ----- | ----- |
-| "run the demo", "execute the demo" | demo-executor | Execute |
-| "prepare the demo", "pre-flight" | demo-executor | Prepare |
+| "run the demo", "execute the demo" | demo-executor | 実行 |
+| "prepare the demo", "pre-flight" | demo-executor | 準備 |
 | "Q&A", "question and answer" | demo-executor | Q&A |
-| "tear down", "clean up" | demo-executor | Teardown |
+| "tear down", "clean up" | demo-executor | ティアダウン |
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
 
@@ -89,7 +89,7 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 すべてのペルソナは一貫したナレーションスタイルを共有します：
 
 - **現在形、一人称複数** — 「ここで見ているのは…」
-- **1段落に1つの関心事** — 各ナレーションは次の問いに答えます：これは何か？なぜ重要か？どう対処すべきか？
-- **シグナルを名指しする** — どの機能が動作しているかを明示する
-- **関連する場合はコンプライアンスフック** — 規制への整合を自然に言及する
+- **1段落に1つの関心事** — 各ナレーションは以下に回答します：これは何か？なぜ重要か？どう対処すべきか？
+- **シグナルの明示** — どの機能が動作しているかを呼び出す
+- **関連する場合はコンプライアンスフック** — 規制への整合性を自然に言及する
 - **ペーシング一時停止マーカー** — `> ⏸ *[Pause for audience — ready to continue?]*`

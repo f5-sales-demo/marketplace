@@ -2,7 +2,7 @@
 title: f5xc-sales-engineer
 description: >-
   Marco de persona de Ingeniero de Ventas para ejecución de demos,
-  presentaciones, preguntas y respuestas, y limpieza.
+  presentaciones, preguntas y respuestas, y desmontaje.
 sidebar:
   order: 5
 i18n:
@@ -12,11 +12,11 @@ i18n:
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-El plugin **f5xc-sales-engineer** proporciona un marco reutilizable de
-persona de Ingeniero de Ventas para repositorios de demos de F5 XC.
-Gestiona el ciclo de vida completo de una reunión de demostración — desde
-la verificación previa a la reunión hasta la ejecución en vivo, preguntas
-y respuestas, y limpieza posterior.
+El plugin **f5xc-sales-engineer** proporciona un marco reutilizable de persona
+de Ingeniero de Ventas para los repositorios de demos de F5 XC. Gestiona el
+ciclo de vida completo de una reunión de demostración — desde la verificación
+previa a la reunión hasta la ejecución en vivo, preguntas y respuestas, y
+desmontaje.
 
 <Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -30,58 +30,56 @@ y respuestas, y limpieza posterior.
 
 ### demo-executor
 
-Ejecución de demos impulsada por API con un ciclo de vida de reunión en cuatro etapas:
+Ejecución de demos basada en API con un ciclo de vida de reunión de cuatro etapas:
 
 1. **Preparar** — verificación del entorno previa a la reunión mediante
    el agente `demo-housekeeping`
 2. **Ejecutar** — ejecución determinista de fases con narración
    orientada al cliente
-3. **Preguntas y respuestas** — modo de improvisación con el entorno en vivo
-4. **Limpieza** — limpieza posterior a la reunión mediante el agente `demo-housekeeping`
+3. **Preguntas y Respuestas** — modo de improvisación con entorno en vivo
+4. **Desmontaje** — limpieza posterior a la reunión mediante el agente `demo-housekeeping`
 
-Lee contenido específico del producto desde `DEMO_PRODUCT_EXPERTISE.md` y
+Lee el contenido específico del producto desde `DEMO_PRODUCT_EXPERTISE.md` y los
 comandos de demo desde `docs/demo/`.
 
 ### presenter
 
-Presentación guiada del entorno de demostración preconfigurado. Sigue
-un patrón de mostrar → narrar → conectar → pausar en cada paso. Lee el
-orden de la guía desde `DEMO_WALKTHROUGH_CONFIG.md`.
+Presentación tipo recorrido as-built utilizando un entorno de demo
+preconfigurado. Sigue un patrón de mostrar → narrar → conectar → pausar en
+cada paso. Lee el orden del recorrido desde `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ### subject-matter-expert
 
-Preguntas y respuestas respaldadas por referencias con requisitos estrictos
-de citación. Nunca supone — cada respuesta incluye una referencia o prueba.
-Delega la investigación al agente `demo-researcher` cuando es necesario.
+Preguntas y respuestas respaldadas por referencias con requisitos estrictos de
+citación. Nunca adivina — cada respuesta incluye una referencia o prueba. Delega
+la investigación al agente `demo-researcher` cuando es necesario.
 
 ### sales-engineer
 
-Índice de roles que dirige la intención del usuario hacia la habilidad
-de persona correcta. Se activa cuando la solicitud está relacionada con
-demos pero no coincide con una frase de activación específica.
+Índice de roles que dirige la intención del usuario a la habilidad de persona
+correcta. Se activa cuando la solicitud está relacionada con demos pero no
+coincide con una frase de activación específica.
 
 ## Agentes
 
 ### demo-housekeeping
 
-Agente autónomo para verificación previa a la reunión y limpieza
-posterior. Ejecuta la Matriz de Verificación de Preparación (T0–T5)
-definida en `DEMO_READINESS_MATRIX.md` y ejecuta comandos de limpieza
-desde `docs/demo/phase-4-teardown.mdx`.
+Agente autónomo para verificación previa a la reunión y desmontaje posterior.
+Ejecuta la Matriz de Verificación de Preparación (T0–T5) definida en
+`DEMO_READINESS_MATRIX.md` y ejecuta los comandos de desmontaje desde
+`docs/demo/phase-4-teardown.mdx`.
 
 ### demo-researcher
 
 Bibliotecario de investigación de solo lectura que encuentra respuestas
-verificadas con citaciones. Busca primero en `docs/` local, luego en
-fuentes externas indexadas desde `DEMO_SOURCE_INDEX.md`, con WebSearch
-como respaldo.
+verificadas con citaciones. Busca primero en `docs/` local, luego en fuentes
+externas indexadas desde `DEMO_SOURCE_INDEX.md`, con WebSearch como alternativa.
 
 ## Archivos de convención
 
 <Aside type="tip" title="Contenido específico del producto">
   Este plugin es agnóstico al producto. Cada repositorio proporciona
-  contenido específico del producto a través de archivos de convención
-  estandarizados.
+  contenido específico del producto a través de archivos de convención estandarizados.
 </Aside>
 
 Cree estos archivos en la raíz de su repositorio para configurar el plugin:
@@ -89,22 +87,22 @@ Cree estos archivos en la raíz de su repositorio para configurar el plugin:
 | Archivo | Propósito | Requerido para |
 | ---- | ------- | ------------ |
 | `DEMO_PRODUCT_EXPERTISE.md` | Capacidades del producto, señales de detección, cobertura de amenazas, alineación de cumplimiento, referencia de API | Todas las habilidades |
-| `DEMO_WALKTHROUGH_CONFIG.md` | URL de la app de demo, orden de la guía, temporización de detección | presenter |
-| `DEMO_SOURCE_INDEX.md` | Catálogo de fuentes de investigación con documentos locales y URLs externas | demo-researcher |
+| `DEMO_WALKTHROUGH_CONFIG.md` | URL de la app de demo, orden del recorrido, temporización de detección | presenter |
+| `DEMO_SOURCE_INDEX.md` | Catálogo de fuentes de investigación con documentación local y URLs externas | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | Variables requeridas/opcionales, verificaciones de preparación (T0–T5), endpoints de API | demo-housekeeping |
 | `docs/demo/` | Archivos de fase con comandos cURL y puertas de evidencia | demo-executor |
 
 ## Frases de activación
 
-El mapa de activación en `.claude/CLAUDE.md` (gestionado por `docs-control`)
-activa habilidades según la intención del usuario:
+El mapa de activación de `.claude/CLAUDE.md` (gestionado por `docs-control`)
+activa las habilidades según la intención del usuario:
 
 | Frase | Habilidad | Etapa |
 | ------ | ----- | ----- |
 | "run the demo", "execute the demo" | demo-executor | Ejecutar |
 | "prepare the demo", "pre-flight" | demo-executor | Preparar |
-| "Q&A", "question and answer" | demo-executor | Preguntas y respuestas |
-| "tear down", "clean up" | demo-executor | Limpieza |
+| "Q&A", "question and answer" | demo-executor | Preguntas y Respuestas |
+| "tear down", "clean up" | demo-executor | Desmontaje |
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
 
@@ -112,11 +110,11 @@ activa habilidades según la intención del usuario:
 
 Todas las personas comparten un estilo de narración consistente:
 
-- **Tiempo presente, primera persona del plural** — "Lo que estamos
-  viendo aquí…"
-- **Una idea por párrafo** — cada narración responde: ¿Qué es esto?
-  ¿Por qué importa? ¿Qué debo hacer al respecto?
-- **Nombrar la señal** — señalar qué capacidad está en acción
-- **Referencia de cumplimiento cuando sea relevante** — mencionar la
-  alineación regulatoria de forma natural
+- **Tiempo presente, primera persona del plural** — "Lo que estamos viendo
+  aquí…"
+- **Una preocupación por párrafo** — cada narración responde: ¿Qué es
+  esto? ¿Por qué importa? ¿Qué debo hacer al respecto?
+- **Nombrar la señal** — indicar qué capacidad está en acción
+- **Referencia de cumplimiento cuando sea relevante** — mencionar la alineación
+  regulatoria de forma natural
 - **Marcador de pausa de ritmo** — `> ⏸ *[Pausa para la audiencia — ¿listos para continuar?]*`

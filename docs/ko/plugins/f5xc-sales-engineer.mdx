@@ -10,11 +10,11 @@ i18n:
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-**f5xc-sales-engineer** 플러그인은 F5 XC 데모 리포지토리를 위한 재사용 가능한 Sales Engineer
-페르소나 프레임워크를 제공합니다. 미팅 전 검증부터 라이브 실행, Q&A,
-정리까지 데모 미팅의 전체 생명주기를 처리합니다.
+**f5xc-sales-engineer** 플러그인은 F5 XC 데모 리포지토리를 위한 재사용 가능한
+Sales Engineer 페르소나 프레임워크를 제공합니다. 미팅 전 검증부터 라이브 실행,
+Q&A, 정리까지 전체 데모 미팅 라이프사이클을 처리합니다.
 
-<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.6" variant="note" /> <Badge text="생산성" variant="tip" />
 
 ## 설치
 
@@ -26,33 +26,32 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 ### demo-executor
 
-4단계 미팅 생명주기를 갖춘 API 기반 데모 실행:
+4단계 미팅 라이프사이클을 갖춘 API 기반 데모 실행:
 
 1. **준비** — `demo-housekeeping` 에이전트를 통한 미팅 전 환경 검증
-2. **실행** — 고객 대상 내레이션을 포함한 결정적 페이즈 실행
+2. **실행** — 고객 대면 나레이션과 함께 결정적 단계 실행
 3. **Q&A** — 라이브 환경에서의 즉흥 대응 모드
 4. **정리** — `demo-housekeeping` 에이전트를 통한 미팅 후 정리
 
 `DEMO_PRODUCT_EXPERTISE.md`에서 제품별 콘텐츠를 읽고 `docs/demo/`에서 데모
-명령어를 읽습니다.
+명령을 읽습니다.
 
 ### presenter
 
-사전 구성된 데모 환경을 사용한 구축 완료 상태 워크스루 프레젠테이션.
-각 단계에서 보여주기 → 설명하기 → 연결하기 → 일시 정지 패턴을 따릅니다.
+사전 구성된 데모 환경을 사용한 As-built 워크스루 프레젠테이션. 각 단계에서
+보여주기 → 나레이션 → 연결 → 일시정지 패턴을 따릅니다.
 `DEMO_WALKTHROUGH_CONFIG.md`에서 워크스루 순서를 읽습니다.
 
 ### subject-matter-expert
 
-엄격한 인용 요건을 갖춘 참조 기반 Q&A. 절대 추측하지 않으며,
-모든 답변에 참조 또는 근거를 포함합니다. 필요시 `demo-researcher`
+엄격한 인용 요구사항을 갖춘 레퍼런스 기반 Q&A. 절대 추측하지 않으며 —
+모든 답변에 레퍼런스 또는 증거를 포함합니다. 필요시 `demo-researcher`
 에이전트에 조사를 위임합니다.
 
 ### sales-engineer
 
 사용자 의도를 올바른 페르소나 스킬로 라우팅하는 역할 인덱스.
-요청이 데모 관련이지만 특정 트리거 문구와 일치하지 않을 때
-활성화됩니다.
+요청이 데모와 관련이 있지만 특정 트리거 문구와 일치하지 않을 때 활성화됩니다.
 
 ## 에이전트
 
@@ -60,13 +59,13 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 미팅 전 검증 및 미팅 후 정리를 위한 자율 에이전트.
 `DEMO_READINESS_MATRIX.md`에 정의된 준비 상태 검증 매트릭스(T0–T5)를
-실행하고 `docs/demo/phase-4-teardown.mdx`의 정리 명령어를 수행합니다.
+실행하고 `docs/demo/phase-4-teardown.mdx`의 정리 명령을 수행합니다.
 
 ### demo-researcher
 
-인용이 포함된 검증된 답변을 찾는 읽기 전용 연구 라이브러리언.
-먼저 로컬 `docs/`를 검색한 다음 `DEMO_SOURCE_INDEX.md`의 색인된 외부
-소스를 검색하며, WebSearch를 폴백으로 사용합니다.
+검증된 답변을 인용과 함께 찾는 읽기 전용 리서치 라이브러리언.
+로컬 `docs/`를 먼저 검색한 다음 `DEMO_SOURCE_INDEX.md`의 인덱싱된
+외부 소스를 검색하며, WebSearch를 폴백으로 사용합니다.
 
 ## 컨벤션 파일
 
@@ -77,21 +76,21 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 플러그인을 구성하려면 리포지토리 루트에 다음 파일을 생성하세요:
 
-| 파일 | 목적 | 필요 대상 |
-| ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | 제품 기능, 탐지 신호, 위협 커버리지, 컴플라이언스 정합성, API 참조 | 모든 스킬 |
+| 파일 | 용도 | 필요 대상 |
+| ---- | ---- | --------- |
+| `DEMO_PRODUCT_EXPERTISE.md` | 제품 기능, 탐지 시그널, 위협 커버리지, 컴플라이언스 연계, API 레퍼런스 | 모든 스킬 |
 | `DEMO_WALKTHROUGH_CONFIG.md` | 데모 앱 URL, 워크스루 순서, 탐지 타이밍 | presenter |
-| `DEMO_SOURCE_INDEX.md` | 로컬 문서 및 외부 URL이 포함된 연구 소스 카탈로그 | demo-researcher |
-| `DEMO_READINESS_MATRIX.md` | 필수/선택 변수, 준비 상태 점검(T0–T5), API 엔드포인트 | demo-housekeeping |
-| `docs/demo/` | cURL 명령어 및 증거 게이트가 포함된 페이즈 파일 | demo-executor |
+| `DEMO_SOURCE_INDEX.md` | 로컬 문서 및 외부 URL이 포함된 리서치 소스 카탈로그 | demo-researcher |
+| `DEMO_READINESS_MATRIX.md` | 필수/선택 변수, 준비 상태 확인(T0–T5), API 엔드포인트 | demo-housekeeping |
+| `docs/demo/` | cURL 명령 및 증거 게이트가 포함된 단계 파일 | demo-executor |
 
 ## 트리거 문구
 
-`.claude/CLAUDE.md` 트리거 맵(`docs-control`이 관리)은
-사용자 의도에 따라 스킬을 활성화합니다:
+`.claude/CLAUDE.md` 트리거 맵(`docs-control`이 관리)은 사용자 의도에 따라
+스킬을 활성화합니다:
 
 | 문구 | 스킬 | 단계 |
-| ------ | ----- | ----- |
+| ---- | ---- | ---- |
 | "run the demo", "execute the demo" | demo-executor | 실행 |
 | "prepare the demo", "pre-flight" | demo-executor | 준비 |
 | "Q&A", "question and answer" | demo-executor | Q&A |
@@ -99,12 +98,12 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
 
-## 내레이션 스타일
+## 나레이션 스타일
 
-모든 페르소나는 일관된 내레이션 스타일을 공유합니다:
+모든 페르소나는 일관된 나레이션 스타일을 공유합니다:
 
-- **현재 시제, 1인칭 복수** — "지금 우리가 보고 있는 것은…"
-- **단락당 하나의 관심사** — 각 내레이션은 다음에 답합니다: 이것은 무엇인가? 왜 중요한가? 이에 대해 무엇을 해야 하는가?
-- **신호 명시** — 어떤 기능이 작동 중인지 명확히 언급
-- **관련 시 컴플라이언스 연결** — 규제 정합성을 자연스럽게 언급
-- **페이싱 일시 정지 마커** — `> ⏸ *[Pause for audience — ready to continue?]*`
+- **현재 시제, 1인칭 복수** — "지금 보고 계신 것은…"
+- **문단당 하나의 주제** — 각 나레이션은 다음에 답합니다: 이것은 무엇인가? 왜 중요한가? 어떻게 해야 하는가?
+- **시그널 명시** — 어떤 기능이 작동하고 있는지 명확히 언급
+- **관련 시 컴플라이언스 연결** — 규제 연계를 자연스럽게 언급
+- **페이싱 일시정지 마커** — `> ⏸ *[청중 확인을 위한 일시정지 — 계속 진행할까요?]*`

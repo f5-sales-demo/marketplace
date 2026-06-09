@@ -1,7 +1,7 @@
 ---
-title: Reference
+title: Riferimento
 description: >-
-  Riferimento dello schema marketplace.json con definizioni dei campi,
+  Riferimento allo schema marketplace.json con definizioni dei campi,
   configurazione delle skill e regole di validazione.
 sidebar:
   order: 7
@@ -14,7 +14,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Schema di marketplace.json
 
-Il manifesto del marketplace si trova in
+Il manifest del marketplace si trova in
 `.claude-plugin/marketplace.json` nella radice del repository.
 
 ### Campi di primo livello
@@ -22,31 +22,31 @@ Il manifesto del marketplace si trova in
 | Campo | Obbligatorio | Descrizione |
 |-------|----------|-------------|
 | `$schema` | No | URL dello JSON Schema per la validazione |
-| `name` | Sì | Identificatore univoco del marketplace |
+| `name` | Sì | Identificativo univoco del marketplace |
 | `version` | No | Versione dello schema del marketplace (semver) |
 | `metadata.description` | Sì | Descrizione del marketplace leggibile dall'utente |
 | `owner.name` | Sì | Organizzazione o utente proprietario del marketplace |
 | `owner.url` | No | URL al profilo o sito web del proprietario |
 | `owner.email` | No | Email di contatto |
-| `plugins` | Sì | Array di voci plugin |
+| `plugins` | Sì | Array di voci dei plugin |
 
-### Campi delle voci plugin
+### Campi delle voci dei plugin
 
 | Campo | Obbligatorio | Descrizione |
 |-------|----------|-------------|
-| `name` | Sì | Identificatore del plugin (deve corrispondere a `plugin.json`) |
+| `name` | Sì | Identificativo del plugin (deve corrispondere a `plugin.json`) |
 | `description` | Sì | Breve descrizione del plugin |
 | `version` | Sì | Stringa di versione semantica |
 | `author.name` | Sì | Autore del plugin |
 | `source` | Sì | Percorso o URL del plugin (vedi Tipi di sorgente) |
-| `category` | Sì | Categoria del plugin (es., `productivity`) |
+| `category` | Sì | Categoria del plugin (es. `productivity`) |
 | `homepage` | No | URL alla documentazione o homepage del plugin |
-| `license` | No | Identificatore di licenza SPDX |
-| `keywords` | No | Array di parole chiave di ricerca |
+| `license` | No | Identificativo di licenza SPDX |
+| `keywords` | No | Array di parole chiave per la ricerca |
 | `tags` | No | Array di tag per il filtraggio |
 | `repository` | No | URL del repository |
 
-## Tipi di sorgente del plugin
+## Tipi di sorgente dei plugin
 
 Il campo `source` in marketplace.json supporta molteplici
 formati:
@@ -61,19 +61,19 @@ formati:
 
 ## Schema di plugin.json
 
-Ogni plugin ha un manifesto in
+Ogni plugin ha un manifest in
 `.claude-plugin/plugin.json` all'interno della propria directory.
 
 | Campo | Obbligatorio | Descrizione |
 |-------|----------|-------------|
-| `name` | Sì | Identificatore del plugin |
+| `name` | Sì | Identificativo del plugin |
 | `description` | Sì | Cosa fa il plugin |
 | `version` | Sì | Versione semantica |
 | `author.name` | Sì | Autore del plugin |
 | `author.url` | No | URL al profilo o sito web dell'autore |
 | `homepage` | No | URL della documentazione |
-| `keywords` | No | Parole chiave di ricerca |
-| `license` | No | Identificatore di licenza SPDX |
+| `keywords` | No | Parole chiave per la ricerca |
+| `license` | No | Identificativo di licenza SPDX |
 | `repository` | No | URL del repository |
 
 ## Struttura della directory del plugin
@@ -104,7 +104,7 @@ di skill e comandi:
 
 ## Validazione
 
-Validate i vostri manifesti marketplace e plugin in locale:
+Validate i manifest del marketplace e dei plugin localmente:
 
 ```bash
 claude plugin validate .
@@ -113,14 +113,14 @@ claude plugin validate .
 Questo verifica:
 
 - Conformità allo schema di `marketplace.json`
-- L'esistenza di tutte le directory plugin referenziate
-- La presenza di un `plugin.json` valido per ogni plugin
-- Il corretto formato del frontmatter di `SKILL.md` per le skill
-- La presenza dei campi frontmatter obbligatori nei comandi
+- Esistenza di tutte le directory dei plugin referenziati
+- Ogni plugin ha un `plugin.json` valido
+- Le skill hanno un frontmatter di `SKILL.md` formattato correttamente
+- I comandi hanno i campi frontmatter obbligatori
 
 ## Configurazione del team
 
-### Pre-configurare i marketplace
+### Pre-configurazione dei marketplace
 
 Aggiungete a `.claude/settings.json` in qualsiasi repository:
 
@@ -132,7 +132,7 @@ Aggiungete a `.claude/settings.json` in qualsiasi repository:
 }
 ```
 
-### Pre-abilitare i plugin
+### Pre-abilitazione dei plugin
 
 ```json
 {
@@ -143,9 +143,9 @@ Aggiungete a `.claude/settings.json` in qualsiasi repository:
 ```
 
 <Aside type="tip">
-  Fare il commit di queste impostazioni nel vostro repository garantisce che ogni
-  membro del team riceva automaticamente la stessa configurazione
-  di marketplace e plugin.
+  Committare queste impostazioni nel vostro repository assicura
+  che ogni membro del team riceva automaticamente la stessa
+  configurazione del marketplace e dei plugin.
 </Aside>
 
 ## Risoluzione dei problemi
@@ -170,8 +170,8 @@ Se mancante, aggiungetelo nuovamente:
   `/plugin list`
 - Verificate che la vostra versione di Claude Code supporti i plugin
   (v1.0.33+)
-- Verificate che le condizioni di attivazione della skill corrispondano al vostro
-  contesto corrente
+- Verificate che le condizioni di attivazione della skill corrispondano
+  al vostro contesto attuale
 
 ### Le skill non si attivano automaticamente
 
@@ -181,11 +181,11 @@ previsto:
 
 - Verificate che la descrizione descriva accuratamente il
   contesto di attivazione
-- Utilizzate il comando direttamente (es., `/f5xc-docs-tools:review-mdx`)
+- Utilizzate il comando direttamente (es. `/f5xc-docs-tools:review-mdx`)
   come soluzione alternativa
 
 ### Errori di build dopo la revisione
 
-Il plugin segnala i problemi ma non li corregge automaticamente. Applicate
-le correzioni suggerite manualmente, poi rieseguite la revisione per
-confermare la risoluzione.
+Il plugin segnala i problemi ma non li corregge automaticamente.
+Applicate le correzioni suggerite manualmente, poi rieseguite
+la revisione per confermare la risoluzione.

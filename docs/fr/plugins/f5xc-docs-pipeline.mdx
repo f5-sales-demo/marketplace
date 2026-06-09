@@ -1,8 +1,8 @@
 ---
 title: f5xc-docs-pipeline
 description: >-
-  Architecture du pipeline de documentation pour les builds multi-dépôts, la
-  rédaction de contenu et la prévisualisation locale.
+  Connaissances sur l'architecture du pipeline de documentation pour les builds
+  multi-dépôts, la rédaction de contenu et la prévisualisation locale.
 sidebar:
   order: 8
 i18n:
@@ -18,7 +18,7 @@ f5xc-salesdemos. Il guide la rédaction de contenu, clarifie la
 propriété des configurations à travers les builds multi-dépôts,
 et offre une prévisualisation locale basée sur Docker.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -32,19 +32,18 @@ et offre une prévisualisation locale basée sur Docker.
 
 Guide de rédaction de contenu couvrant la structure des fichiers,
 les règles de syntaxe MDX, les exigences du frontmatter, les
-références d'images et la prévisualisation locale via Docker.
-S'active lors de la création ou de la modification du contenu dans
-`docs/`, lors du travail avec des fichiers MDX, ou lors de la
-configuration de la prévisualisation locale.
+références d'images et la prévisualisation locale avec Docker.
+S'active lors de la création ou de l'édition de contenu dans `docs/`,
+lors du travail avec des fichiers MDX, ou lors de la configuration
+de la prévisualisation locale.
 
 ### pipeline-navigator
 
 Architecture du pipeline de documentation expliquant où effectuer
-les modifications à travers les quatre dépôts en amont :
-docs-theme, docs-builder, docs-control et docs-icons. Clarifie
-la propriété des configurations (`astro.config.mjs`,
-`content.config.ts`), la chaîne de dispatch des releases et le
-suivi des fichiers gérés.
+des modifications à travers les quatre dépôts en amont : docs-theme,
+docs-builder, docs-control et docs-icons. Clarifie la propriété
+des configurations (`astro.config.mjs`, `content.config.ts`), la
+chaîne de dispatch des releases et le suivi des fichiers gérés.
 
 <Aside type="tip">
   Utilisez pipeline-navigator lorsque vous avez besoin de comprendre
@@ -63,4 +62,4 @@ suivi des fichiers gérés.
 Démarre un serveur de développement Docker local pour prévisualiser
 la documentation. Exécute l'image Docker de build partagée avec
 votre répertoire local `docs/` monté pour une prévisualisation en
-direct.
+temps réel.

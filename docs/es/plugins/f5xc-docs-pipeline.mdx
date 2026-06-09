@@ -14,11 +14,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 El plugin **f5xc-docs-pipeline** proporciona conocimiento sobre la
 arquitectura del pipeline de documentación para los repositorios de
-f5xc-salesdemos. Guía la creación de contenido, clarifica la
-propiedad de configuración en compilaciones multi-repositorio y
-ofrece vista previa local basada en Docker.
+f5xc-salesdemos. Guía la creación de contenido, aclara la propiedad
+de configuración en compilaciones multi-repositorio y ofrece vista
+previa local basada en Docker.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productividad" variant="tip" />
 
 ## Instalación
 
@@ -33,20 +33,20 @@ ofrece vista previa local basada en Docker.
 Guía de creación de contenido que cubre la estructura de archivos,
 reglas de sintaxis MDX, requisitos de frontmatter, referencias de
 imágenes y vista previa local con Docker. Se activa al crear o
-editar contenido en `docs/`, trabajar con archivos MDX o
-configurar la vista previa local.
+editar contenido en `docs/`, trabajar con archivos MDX o configurar
+la vista previa local.
 
 ### pipeline-navigator
 
 Arquitectura del pipeline de documentación que explica dónde
 realizar cambios en los cuatro repositorios upstream: docs-theme,
-docs-builder, docs-control y docs-icons. Clarifica la propiedad
-de configuración (`astro.config.mjs`, `content.config.ts`), la
-cadena de despacho de releases y el seguimiento de archivos
+docs-builder, docs-control y docs-icons. Aclara la propiedad de
+configuración (`astro.config.mjs`, `content.config.ts`), la cadena
+de despacho de lanzamientos y el seguimiento de archivos
 gestionados.
 
 <Aside type="tip">
-  Utilice pipeline-navigator cuando necesite comprender qué
+  Use pipeline-navigator cuando necesite comprender qué
   repositorio es propietario de un archivo de configuración o
   componente específico.
 </Aside>
@@ -59,7 +59,6 @@ gestionados.
 /f5xc-docs-pipeline:preview-docs
 ```
 
-Inicia un servidor de desarrollo Docker local para previsualizar
-la documentación. Ejecuta la imagen Docker de compilación
-compartida con su directorio local `docs/` montado para vista
-previa en tiempo real.
+Inicia un servidor de desarrollo local con Docker para previsualizar
+la documentación. Ejecuta la imagen Docker de compilación compartida
+con su directorio local `docs/` montado para vista previa en vivo.

@@ -1,6 +1,6 @@
 ---
 title: f5xc-platform
-description: F5 Distributed Cloud 平台自動化 — 主控台操作、REST API、驗證及組態分析。
+description: F5 Distributed Cloud 平台自動化 — 控制台操作、REST API、驗證及組態分析。
 sidebar:
   order: 11
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-platform** 外掛為 F5 Distributed Cloud 平台提供完整的自動化功能。涵蓋透過 Chrome DevTools MCP 進行的網頁主控台操作、透過 cURL 進行的規格感知 REST API 操作、多提供者驗證，以及橫跨 38 個領域、98 種資源類型的組態分析。
+**f5xc-platform** 外掛提供 F5 Distributed Cloud 平台的完整自動化功能。它涵蓋透過 Chrome DevTools MCP 進行的網頁控制台操作、透過 cURL 進行的規格感知 REST API 操作、多提供者驗證，以及涵蓋 38 個領域中 98 種資源類型的組態分析。
 
 <Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,27 +24,27 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### api-operations
 
-涵蓋 38 個領域、98 種資源類型的規格感知 API CRUD 操作。提供精確的端點、負載範本、相依性排序，以及針對 HTTP 負載平衡器、來源池、WAF 政策、DNS 區域、憑證、雲端站台等的多步驟工作流程組合。
+規格感知的 API CRUD 操作，涵蓋 38 個領域中的 98 種資源類型。提供精確的端點、酬載範本、相依性排序，以及針對 HTTP 負載平衡器、來源集區、WAF 策略、DNS 區域、憑證、雲端站點等的多步驟工作流程組合。
 
 ### config-analysis
 
-組態分析與建議功能。分析客戶的 JSON 組態，以回答有關安全態勢、功能啟用狀態、模式設定、排除項目及最佳實務的問題。支援在調度之間使用壓縮上下文的多輪問答。
+組態分析與建議功能。分析客戶的 JSON 組態，以回答有關安全態勢、功能啟用、模式設定、排除項目及最佳實務的問題。支援在分派之間使用壓縮上下文的多輪問答。
 
 ### api-auth
 
-API 驗證，支援 API 權杖標頭驗證及 P12 憑證驗證，並提供權杖驗證程序。
+API 驗證，支援 API 權杖標頭驗證和 P12 憑證驗證，並包含權杖驗證程序。
 
 ### console-auth
 
-F5 XC 網頁主控台的多提供者驗證。自動偵測登入類型：原生 F5 XC 登入、具有快取工作階段的 Azure SSO，或具有 DUO 驗證推播 MFA 的 Azure SSO。
+F5 XC 網頁控制台的多提供者驗證。自動偵測登入類型：原生 F5 XC 登入、使用快取工作階段的 Azure SSO，或使用 DUO 驗證推播 MFA 的 Azure SSO。
 
 ### console-navigator
 
-確定性導航至 F5 XC 主控台各區段。將區段名稱轉譯為 URL 路徑、驗證工作階段健康狀態，並確認頁面載入完成。
+確定性導覽至 F5 XC 控制台各區段。將區段名稱轉換為 URL 路徑、驗證工作階段健康狀態，並確認頁面載入完成。
 
 ### platform-index / api-index / console-index
 
-意圖路由器，負責分類使用者請求並委派至適當的技能與代理。這些會自動啟動，使用者無法直接呼叫。
+意圖路由器，用於分類使用者請求並委派至適當的技能和代理程式。這些會自動啟動，無法由使用者手動呼叫。
 
 ## 命令
 
@@ -54,7 +54,7 @@ F5 XC 網頁主控台的多提供者驗證。自動偵測登入類型：原生 F
 /f5xc-platform:check-api-token
 ```
 
-透過委派至 api-operator 代理來驗證您的 F5 XC API 權杖。
+透過委派給 api-operator 代理程式來驗證您的 F5 XC API 權杖。
 
 ### /login-console
 
@@ -62,22 +62,22 @@ F5 XC 網頁主控台的多提供者驗證。自動偵測登入類型：原生 F
 /f5xc-platform:login-console
 ```
 
-透過 console-operator 代理驗證並登入 F5 Distributed Cloud 主控台。
+透過 console-operator 代理程式驗證登入 F5 Distributed Cloud 控制台。
 
-## 代理
+## 代理程式
 
 ### api-operator
 
-自主 REST API 代理，執行 cURL 和 jq 序列以進行資源 CRUD、權杖驗證及組態操作。在子代理中執行，以將冗長的 API JSON 負載隔離在主要工作階段上下文之外。
+自主 REST API 代理程式，執行 cURL 和 jq 序列以進行資源 CRUD、權杖驗證及組態操作。在子代理程式中執行，以將冗長的 API JSON 酬載保持在主工作階段上下文之外。
 
 ### console-operator
 
-自主瀏覽器自動化代理，執行 Chrome DevTools MCP 工具序列以進行驗證、導航及表單互動。在子代理中執行，以將大量權杖的瀏覽器快照隔離在主要工作階段之外。
+自主瀏覽器自動化代理程式，執行 Chrome DevTools MCP 工具序列以進行驗證、導覽及表單互動。在子代理程式中執行，以將權杖密集的瀏覽器快照保持在主工作階段之外。
 
 ### config-analyzer
 
-唯讀組態分析代理。根據資源設定檔參考檔案分析客戶的 JSON 組態，以回答有關安全態勢、功能啟用狀態、模式轉換及最佳實務的問題。
+唯讀組態分析代理程式。根據資源設定檔參考檔案分析客戶的 JSON 組態，以回答有關安全態勢、功能啟用、模式轉換及最佳實務的問題。
 
 <Aside type="caution">
-  config-analyzer 代理是**臨時性的** &mdash; 每次問題都會重新產生，調度之間不保留記憶。後續問題必須在調度提示中包含先前發現的壓縮摘要。
+  config-analyzer 代理程式是**暫時性的** &mdash; 每次問題都會重新產生，分派之間不會保留記憶。後續問題必須在分派提示中包含壓縮後的先前發現結果。
 </Aside>

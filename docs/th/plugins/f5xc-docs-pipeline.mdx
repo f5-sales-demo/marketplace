@@ -1,8 +1,8 @@
 ---
 title: f5xc-docs-pipeline
 description: >-
-  Documentation pipeline architecture knowledge for multi-repo builds, content
-  authoring, and local preview.
+  ความรู้เกี่ยวกับสถาปัตยกรรมไปป์ไลน์เอกสารสำหรับการสร้างแบบหลายรีโป
+  การเขียนเนื้อหา และการดูตัวอย่างในเครื่อง
 sidebar:
   order: 8
 i18n:
@@ -13,9 +13,9 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 ปลั๊กอิน **f5xc-docs-pipeline** ให้ความรู้เกี่ยวกับสถาปัตยกรรม
-ไปป์ไลน์เอกสารสำหรับ repositories ของ f5xc-salesdemos โดยช่วยแนะนำ
-การเขียนเนื้อหา อธิบายความเป็นเจ้าของ config ในการ build แบบ multi-repo
-และให้การพรีวิวแบบ local ผ่าน Docker
+ไปป์ไลน์เอกสารสำหรับรีโปซิทอรี f5xc-salesdemos โดยช่วยแนะนำ
+การเขียนเนื้อหา อธิบายความเป็นเจ้าของการตั้งค่าข้ามการสร้าง
+แบบหลายรีโป และให้การดูตัวอย่างในเครื่องผ่าน Docker
 
 <Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -29,22 +29,22 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### content-author
 
-คู่มือการเขียนเนื้อหาที่ครอบคลุมโครงสร้างไฟล์ กฎไวยากรณ์ MDX
-ข้อกำหนด frontmatter การอ้างอิงรูปภาพ และการพรีวิวแบบ local ผ่าน Docker
-จะทำงานเมื่อสร้างหรือแก้ไขเนื้อหาใน `docs/`
-ทำงานกับไฟล์ MDX หรือตั้งค่าการพรีวิวแบบ local
+คู่มือการเขียนเนื้อหาครอบคลุมโครงสร้างไฟล์ กฎไวยากรณ์ MDX
+ข้อกำหนด frontmatter การอ้างอิงรูปภาพ และการดูตัวอย่างในเครื่อง
+ผ่าน Docker เปิดใช้งานเมื่อสร้างหรือแก้ไขเนื้อหาใน `docs/`
+ทำงานกับไฟล์ MDX หรือตั้งค่าการดูตัวอย่างในเครื่อง
 
 ### pipeline-navigator
 
-อธิบายสถาปัตยกรรมไปป์ไลน์เอกสารว่าควรทำการเปลี่ยนแปลงที่ใด
-ใน repositories upstream ทั้งสี่แห่ง ได้แก่ docs-theme,
-docs-builder, docs-control และ docs-icons อธิบายความเป็นเจ้าของ
-config (`astro.config.mjs`, `content.config.ts`) ห่วงโซ่การ dispatch
-ของ release และการติดตามไฟล์ที่ถูกจัดการ
+สถาปัตยกรรมไปป์ไลน์เอกสารที่อธิบายว่าควรทำการเปลี่ยนแปลง
+ที่ใดข้ามรีโปซิทอรีอัปสตรีมทั้งสี่: docs-theme, docs-builder,
+docs-control และ docs-icons อธิบายความเป็นเจ้าของการตั้งค่า
+(`astro.config.mjs`, `content.config.ts`) ลำดับการดิสแพตช์
+รีลีส และการติดตามไฟล์ที่ถูกจัดการ
 
 <Aside type="tip">
-  ใช้ pipeline-navigator เมื่อคุณต้องการทำความเข้าใจว่า repository ใด
-  เป็นเจ้าของไฟล์ config หรือ component เฉพาะตัวใด
+  ใช้ pipeline-navigator เมื่อคุณต้องการทำความเข้าใจว่ารีโปซิทอรี
+  ใดเป็นเจ้าของไฟล์การตั้งค่าหรือคอมโพเนนต์เฉพาะ
 </Aside>
 
 ## คำสั่ง
@@ -55,6 +55,6 @@ config (`astro.config.mjs`, `content.config.ts`) ห่วงโซ่การ 
 /f5xc-docs-pipeline:preview-docs
 ```
 
-เริ่มต้น Docker dev server แบบ local เพื่อพรีวิวเอกสาร โดยรัน
-Docker build image ที่ใช้ร่วมกัน พร้อม mount ไดเรกทอรี `docs/`
-ในเครื่องของคุณสำหรับการพรีวิวแบบ live
+เริ่มเซิร์ฟเวอร์ dev Docker ในเครื่องเพื่อดูตัวอย่างเอกสาร
+รันอิมเมจ Docker build ที่ใช้ร่วมกันโดยเมาท์ไดเรกทอรี `docs/`
+ในเครื่องของคุณสำหรับการดูตัวอย่างแบบสด

@@ -10,13 +10,13 @@ i18n:
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-本指南介绍如何创建新插件并将其添加到
+本指南说明如何创建新插件并将其添加到
 f5xc-salesdemos 市场。
 
 ## 插件结构
 
 每个插件都位于 `plugins/` 下的独立目录中，
-并遵循以下结构：
+遵循以下结构：
 
 <FileTree>
 - plugins/
@@ -68,7 +68,8 @@ f5xc-salesdemos 市场。
 
 3. **添加技能**
 
-   创建包含 frontmatter 的 `plugins/my-plugin/skills/my-skill/SKILL.md`：
+   创建 `plugins/my-plugin/skills/my-skill/SKILL.md`，
+   包含 frontmatter：
 
    ```markdown
    ---
@@ -79,7 +80,8 @@ f5xc-salesdemos 市场。
    Detailed instructions for Claude when this skill activates.
    ```
 
-   将任何参考数据放在 `SKILL.md` 旁边的 `references/` 子目录中。
+   将任何参考数据放在 `SKILL.md` 旁边的 `references/`
+   子目录中。
 
 4. **添加命令**
 
@@ -100,8 +102,8 @@ f5xc-salesdemos 市场。
 
 5. **将插件添加到 marketplace.json**
 
-   在 `.claude-plugin/marketplace.json` 的 `plugins` 数组中
-   添加一个条目：
+   在 `.claude-plugin/marketplace.json` 的 `plugins`
+   数组中添加一个条目：
 
    ```json
    {
@@ -121,22 +123,22 @@ f5xc-salesdemos 市场。
 
 6. **本地测试**
 
-   无需发布即可测试您的插件，只需将 Claude Code
+   无需发布即可测试您的插件，将 Claude Code
    指向本地目录：
 
    ```bash
    claude --plugin-dir ./plugins/my-plugin
    ```
 
-   验证技能是否在正确的上下文中激活，
-   以及命令是否产生预期输出。
+   验证技能在正确的上下文中激活，且命令产生
+   预期的输出。
 
 </Steps>
 
 ## 提交您的插件
 
 <Aside type="tip" title="仓库工作流">
-  本仓库执行严格的治理工作流。
+  本仓库强制执行严格的治理工作流。
   请参阅 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   了解完整流程。
 </Aside>
@@ -144,22 +146,22 @@ f5xc-salesdemos 市场。
 <Steps>
 
 1. 创建一个 GitHub issue 描述新插件
-2. 从 `main` 创建功能分支
+2. 从 `main` 创建一个功能分支
 3. 添加您的插件目录并更新 `marketplace.json`
 4. 在 `docs/plugins/my-plugin.mdx` 添加文档页面
 5. 提交 PR 并通过 `Closes #N` 链接到对应 issue
-6. 修复所有 CI 失败并在检查通过后合并
+6. 修复所有 CI 失败问题，检查通过后合并
 
 </Steps>
 
 ## 最佳实践
 
-- **保持技能专注** — 每个技能应该只做好一件事
-- **使用参考文件** — 将大型数据集、模式和
-  查找表放在 `references/` 中，而不是内联在 SKILL.md 中
+- **保持技能专注** — 一个技能应该只做好一件事
+- **使用参考文件** — 将大型数据集、模式和查找表放在
+  `references/` 中，而不是内联在 SKILL.md 中
 - **智能限定范围** — 尽可能检查未提交的更改以
   缩小工作集
 - **按严重程度分组输出** — 使用 ERROR、WARNING 和 INFO
-  级别，以便用户可以确定修复的优先级
-- **编写 README** — 包含使用示例以及
-  每个技能和命令功能的描述
+  级别，以便用户优先处理修复
+- **编写 README** — 包含使用示例以及每个技能和
+  命令的功能描述

@@ -12,10 +12,10 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **osint-framework** fornece catálogo de ferramentas OSINT e
+O plugin **osint-framework** fornece um catálogo de ferramentas OSINT e
 habilidades de investigação — 1.064 ferramentas gratuitas de coleta de inteligência
 em 34 categorias mapeadas a partir do [osintframework.com](https://osintframework.com).
-Inclui habilidades baseadas em categorias, pipelines de investigação executáveis,
+Ele inclui habilidades baseadas em categorias, pipelines de investigação executáveis,
 execução de ferramentas CLI, fluxos de trabalho com consciência de OPSEC e um grafo
 de entidades persistente para correlação entre investigações.
 
@@ -32,7 +32,7 @@ de entidades persistente para correlação entre investigações.
 ### /osint-investigate
 
 Execute uma investigação OSINT completa contra qualquer alvo. Detecta
-automaticamente o tipo de alvo (e-mail, domínio, IP, nome de usuário, empresa,
+automaticamente o tipo de alvo (email, domínio, IP, nome de usuário, empresa,
 nome de pessoa) e direciona para as habilidades de categoria corretas.
 
 ```
@@ -54,8 +54,8 @@ Pesquise no catálogo de ferramentas por ferramentas que correspondam a uma cons
 
 ### /osint-catalog
 
-Navegue pelo catálogo completo de ferramentas por categoria. Sem argumentos, exibe
-todas as 34 categorias com contagem de ferramentas.
+Navegue pelo catálogo completo de ferramentas por categoria. Sem argumentos,
+exibe todas as 34 categorias com contagem de ferramentas.
 
 ```
 /osint-catalog
@@ -67,15 +67,15 @@ todas as 34 categorias com contagem de ferramentas.
 
 ### osint-index
 
-Roteador de intenção de nível superior. Ativa automaticamente quando você diz "encontrar
-informações sobre", "investigar", "pesquisar", "verificação de antecedentes",
+Roteador de intenção de nível superior. Ativa-se automaticamente quando você diz
+"encontrar informações sobre", "investigar", "pesquisar", "verificação de antecedentes",
 ou descreve qualquer tarefa de inteligência de fontes abertas. Direciona para a
 habilidade de categoria correta com base no tipo de alvo.
 
 | Alvo | Direciona Para |
-|------|---------------|
-| Nome de usuário ou identificador | `username-recon` |
-| Endereço de e-mail | `email-recon` |
+|------|----------------|
+| Nome de usuário ou handle | `username-recon` |
+| Endereço de email | `email-recon` |
 | Nome de domínio | `domain-recon` |
 | Endereço IP | `ip-address-recon` |
 | Nome de pessoa + empresa | `people-search` + `business-records` |
@@ -100,7 +100,7 @@ fluxo de trabalho de investigação, pivôs entre categorias e notas de OPSEC.
 | `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
 | `search-engines` | 73 | gitleaks, pagodo, gobuster |
 | `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 ferramentas de privacidade baseadas na web |
+| `opsec` | 47 | 47 ferramentas de privacidade baseadas em web |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
 | *(mais 20 categorias)* | 500+ | — |
@@ -120,24 +120,24 @@ e documentação do motor de correlação.
 
 ### osint-investigator
 
-Orquestrador autônomo de investigação multi-ferramenta. Executa fluxos de trabalho
-de investigação completos — verificação de disponibilidade de ferramentas, detecção
-de tipo de alvo, execução sequencial de ferramentas (passiva primeiro), agregação
-de resultados e geração de relatórios estruturados com níveis de confiança
-e classificações OPSEC.
+Orquestrador autônomo de investigação com múltiplas ferramentas. Executa fluxos
+de trabalho completos de investigação — verificação de disponibilidade de ferramentas,
+detecção do tipo de alvo, execução sequencial de ferramentas (passivas primeiro),
+agregação de resultados e geração de relatórios estruturados com níveis de confiança
+e classificações de OPSEC.
 
 Integra-se com o grafo de entidades: cada resultado de ferramenta cria entidades
 e relacionamentos em `/tmp/osint-graph/` para correlação entre investigações.
 
 <Aside type="caution">
   Ferramentas de reconhecimento ativo (nmap, nuclei, sherlock) fazem contato direto
-  com a infraestrutura do alvo. O hook de alerta OPSEC notifica antes de
-  executar ferramentas ativas. Sempre certifique-se de que você possui autorização.
+  com a infraestrutura do alvo. O hook de aviso de OPSEC alerta antes de executar
+  ferramentas ativas. Sempre certifique-se de que você tem autorização.
 </Aside>
 
 ### osint-researcher
 
-Agente de consulta de catálogo somente leitura. Pesquisa arquivos de referência para
+Agente de consulta ao catálogo somente leitura. Pesquisa arquivos de referência para
 recomendar as melhores ferramentas para uma determinada tarefa. Nunca executa ferramentas —
 apenas recomenda e explica. Usado internamente pelas habilidades de categoria
 para descoberta de ferramentas.
@@ -147,15 +147,15 @@ para descoberta de ferramentas.
 Agente de execução CLI de ferramenta única. Executa uma ferramenta por vez com
 parâmetros específicos, analisa a saída e retorna resultados estruturados.
 Inclui receitas de execução por ferramenta para mais de 20 ferramentas com flags exatas,
-formatos de saída e padrões de análise com jq.
+formatos de saída e padrões de parsing com jq.
 
-## Limite de Taxa
+## Limites de Taxa
 
-Todas as chamadas de API usam o helper `osint_curl` com backoff exponencial
-integrado em HTTP 429/503. Principais limites:
+Todas as chamadas de API usam o auxiliar `osint_curl` com backoff exponencial
+integrado em HTTP 429/503. Limites principais:
 
 | API | Limite Gratuito | Variável de Ambiente |
-|-----|----------------|---------------------|
+|-----|-----------------|----------------------|
 | ipinfo.io | 1.000/dia | — |
 | crt.sh | 60/min | — |
 | NVD | 5/30s (sem chave) | `NVD_API_KEY` |
@@ -175,27 +175,27 @@ O plugin inclui um grafo de entidades JSON persistente em
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# Add entities
+# Adicionar entidades
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# Link them
+# Vincular entidades
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# Query: all entities within 2 hops of the person
+# Consulta: todas as entidades dentro de 2 saltos da pessoa
 osint_graph_query "$P" 2
 
-# Generate report
+# Gerar relatório
 osint_graph_report
 ```
 
-**Pontuação de confiança** utiliza fusão multi-fonte:
+**Pontuação de confiança** utiliza fusão de múltiplas fontes:
 `confidence = 1 - product(1 - ci)` para cada fonte confirmadora.
-Duas fontes com 0,80 → 0,96 de confiança combinada.
+Duas fontes a 0,80 → 0,96 de confiança combinada.
 
 ## Aviso Legal
 
-Todas as ferramentas utilizam apenas informações publicamente disponíveis. Os usuários são
-responsáveis por garantir a conformidade com as leis aplicáveis,
-regulamentos e termos de serviço das plataformas. Nunca use ferramentas OSINT
+Todas as ferramentas utilizam apenas informações publicamente disponíveis. Os usuários
+são responsáveis por garantir conformidade com leis aplicáveis,
+regulamentações e termos de serviço das plataformas. Nunca use ferramentas OSINT
 para acesso não autorizado, assédio ou qualquer atividade ilegal.

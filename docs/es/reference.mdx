@@ -2,7 +2,7 @@
 title: Referencia
 description: >-
   Referencia del esquema marketplace.json con definiciones de campos,
-  configuración de habilidades y reglas de validación.
+  configuración de skills y reglas de validación.
 sidebar:
   order: 7
 i18n:
@@ -39,14 +39,14 @@ El manifiesto del marketplace se encuentra en
 | `version` | Sí | Cadena de versión semántica |
 | `author.name` | Sí | Autor del plugin |
 | `source` | Sí | Ruta o URL al plugin (ver Tipos de origen) |
-| `category` | Sí | Categoría del plugin (p. ej., `productivity`) |
+| `category` | Sí | Categoría del plugin (ej., `productivity`) |
 | `homepage` | No | URL a la documentación o página principal del plugin |
 | `license` | No | Identificador de licencia SPDX |
 | `keywords` | No | Array de palabras clave de búsqueda |
 | `tags` | No | Array de etiquetas para filtrado |
 | `repository` | No | URL del repositorio |
 
-## Tipos de origen de plugins
+## Tipos de origen del plugin
 
 El campo `source` en marketplace.json admite múltiples
 formatos:
@@ -55,7 +55,7 @@ formatos:
 |------|---------|-------------|
 | Ruta relativa | `./plugins/my-plugin` | Plugin en el mismo repositorio |
 | Abreviatura de GitHub | `owner/repo` | Plugin en la raíz del repositorio |
-| GitHub con ruta | `owner/repo/path/to/plugin` | Plugin en un subdirectorio |
+| GitHub con ruta | `owner/repo/path/to/plugin` | Plugin en subdirectorio |
 | URL de Git | `https://github.com/owner/repo.git` | Repositorio Git |
 | Paquete npm | `npm:@scope/package` | Paquete npm publicado |
 
@@ -95,8 +95,8 @@ plugins/my-plugin/
 
 ## Variables de entorno
 
-Los plugins pueden usar estas variables en sus archivos de
-habilidades y comandos:
+Los plugins pueden utilizar estas variables en sus archivos
+de skills y comandos:
 
 | Variable | Descripción |
 |----------|-------------|
@@ -104,7 +104,7 @@ habilidades y comandos:
 
 ## Validación
 
-Valide sus manifiestos de marketplace y plugins localmente:
+Valide sus manifiestos de marketplace y plugin localmente:
 
 ```bash
 claude plugin validate .
@@ -113,14 +113,14 @@ claude plugin validate .
 Esto verifica:
 
 - Cumplimiento del esquema de `marketplace.json`
-- Que todos los directorios de plugins referenciados existen
-- Que cada plugin tiene un `plugin.json` válido
-- Que las habilidades tienen el frontmatter de `SKILL.md` correctamente formateado
-- Que los comandos tienen los campos de frontmatter requeridos
+- Que todos los directorios de plugins referenciados existan
+- Que cada plugin tenga un `plugin.json` válido
+- Que los skills tengan un frontmatter de `SKILL.md` correctamente formateado
+- Que los comandos tengan los campos de frontmatter requeridos
 
 ## Configuración de equipo
 
-### Pre-configuración de marketplaces
+### Pre-configurar marketplaces
 
 Agregue a `.claude/settings.json` en cualquier repositorio:
 
@@ -132,7 +132,7 @@ Agregue a `.claude/settings.json` en cualquier repositorio:
 }
 ```
 
-### Pre-habilitación de plugins
+### Pre-habilitar plugins
 
 ```json
 {
@@ -143,9 +143,9 @@ Agregue a `.claude/settings.json` en cualquier repositorio:
 ```
 
 <Aside type="tip">
-  Hacer commit de estas configuraciones en su repositorio
-  garantiza que cada miembro del equipo obtenga la misma
-  configuración de marketplace y plugins automáticamente.
+  Confirmar estos ajustes en su repositorio garantiza que cada
+  miembro del equipo obtenga la misma configuración de
+  marketplace y plugins automáticamente.
 </Aside>
 
 ## Solución de problemas
@@ -170,18 +170,18 @@ Si no aparece, agréguelo nuevamente:
   `/plugin list`
 - Verifique que su versión de Claude Code sea compatible con plugins
   (v1.0.33+)
-- Verifique que las condiciones de activación de la habilidad coincidan con su
+- Verifique que las condiciones de activación del skill coincidan con su
   contexto actual
 
-### Las habilidades no se activan automáticamente
+### Los skills no se activan automáticamente
 
-Las habilidades se activan según su campo `description` en
-el frontmatter de SKILL.md. Si una habilidad no se activa cuando
+Los skills se activan basándose en su campo `description` en
+el frontmatter de SKILL.md. Si un skill no se activa cuando
 se espera:
 
-- Verifique que la descripción describe con precisión el
+- Verifique que la descripción refleje con precisión el
   contexto de activación
-- Use el comando directamente (p. ej., `/f5xc-docs-tools:review-mdx`)
+- Use el comando directamente (ej., `/f5xc-docs-tools:review-mdx`)
   como alternativa
 
 ### Errores de compilación después de la revisión

@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: f5xc-salesdemos ドキュメントパイプラインのための MDX コンテンツ検証と品質チェック。
+description: f5xc-salesdemos ドキュメントパイプライン向けの MDX コンテンツ検証および品質チェック。
 sidebar:
   order: 4
 i18n:
@@ -10,9 +10,9 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** プラグインは、f5xc-salesdemos ドキュメントパイプラインの MDX コンテンツファイルを検証します。裸の JSX 文字、無効なインポート、壊れた画像参照、不完全なフロントマターなど、ビルドを破壊する一般的な問題を CI に到達する前にキャッチします。
+**f5xc-docs-tools** プラグインは、f5xc-salesdemos ドキュメントパイプライン向けの MDX コンテンツファイルを検証します。ベア JSX 文字、無効なインポート、壊れた画像参照、不完全なフロントマターなど、ビルドを破壊する一般的な問題を CI に到達する前にキャッチします。
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="生産性" variant="tip" />
 
 ## インストール
 
@@ -24,38 +24,46 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 ### mdx-content-reviewer
 
-このスキルは、Claude が f5xc-salesdemos コンテンツリポジトリ内の MDX ファイルを操作していることを検出すると自動的にアクティブになります。7 つの検証チェックを実行します：
+このスキルは、f5xc-salesdemos コンテンツリポジトリで MDX ファイルを操作していることを Claude が検出すると自動的にアクティブになります。7 つの検証チェックを実行します：
 
 <CardGrid>
   <Card title="フロントマター検証">
-    `title` や `sidebar.order` などの必須フィールドをチェックします。スプラッシュページには `hero` フィールドと `template: splash` が含まれている必要があります。
+    `title` や `sidebar.order` などの必須フィールドをチェックします。
+    スプラッシュページには `hero` フィールドと
+    `template: splash` が含まれている必要があります。
   </Card>
   <Card title="MDX 構文の落とし穴">
-    MDX パースを壊す裸の `&lt;` 文字やエスケープされていない `\{` `\}` 中括弧を検出します。
+    MDX パースを破壊するベア `&lt;` 文字やエスケープされていない `\{` `\}`
+    ブレースを検出します。
   </Card>
   <Card title="インポート検証">
-    Starlight 組み込みおよび f5xc-salesdemos テーマコンポーネントの許可リストに対してインポートを検証します。
+    Starlight 組み込みおよび f5xc-salesdemos テーマコンポーネントの
+    許可リストに対してインポートを検証します。
   </Card>
   <Card title="コンポーネント属性">
-    Screenshot、Aside、Code、LinkCard、Card、Badge などのコンポーネントの必須 props をチェックします。
+    Screenshot、Aside、Code、LinkCard、Card、Badge などのコンポーネントの
+    必須 props をチェックします。
   </Card>
   <Card title="画像参照">
-    参照された画像が `docs/images/` ディレクトリに存在することを確認します。
+    参照された画像が `docs/images/` ディレクトリに存在するかを
+    検証します。
   </Card>
   <Card title="構造チェック">
-    `docs/index.mdx` が存在し、画像ディレクトリに不要な MDX ファイルが含まれていないことを確認します。
+    `docs/index.mdx` が存在することと、画像ディレクトリに
+    不要な MDX ファイルが含まれていないことを確認します。
   </Card>
   <Card title="エクスポートとコードブロック">
-    `Code` コンポーネントの `code` props で使用される変数に対応するエクスポートがあることを確認します。
+    `Code` コンポーネントの `code` props で使用される変数に
+    対応するエクスポートがあるかを検証します。
   </Card>
 </CardGrid>
 
-#### スコープの動作
+#### スコープ動作
 
-スキルはレビュー範囲をインテリジェントにスコーピングします：
+このスキルはレビュー範囲をインテリジェントにスコープします：
 
 - `docs/**/*.mdx` ファイルにコミットされていない変更やステージされた変更がある場合、それらのファイルのみがレビューされます
-- それ以外の場合は、すべての `docs/**/*.mdx` ファイルがレビューされます
+- それ以外の場合、すべての `docs/**/*.mdx` ファイルがレビューされます
 
 #### 出力形式
 
@@ -81,7 +89,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 | 引数 | 必須 | 説明 |
 |----------|----------|-------------|
-| `path-or-glob` | いいえ | レビュー範囲を指定するファイルパスまたは glob パターン。デフォルトではすべての `docs/**/*.mdx` ファイルが対象です。 |
+| `path-or-glob` | いいえ | レビュー範囲を指定するファイルパスまたは glob パターン。デフォルトはすべての `docs/**/*.mdx` ファイルです。 |
 
 **例：**
 
@@ -96,30 +104,30 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 /f5xc-docs-tools:review-mdx docs/guides/*.mdx
 ```
 
-**出力：** 最後にレビューされたファイルの合計数と重大度別の検出結果数を報告するサマリー行が表示されます。
+**出力：** 最後にサマリー行が表示され、レビューされたファイルの総数と重大度別の検出件数が報告されます。
 
 ## 許可されたインポート
 
 プラグインは以下のソースに対してインポートを検証します：
 
-**Starlight 組み込みコンポーネント** (`@astrojs/starlight/components`):
+**Starlight 組み込みコンポーネント** (`@astrojs/starlight/components`)：
 
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos テーマコンポーネント** (`@f5xc-salesdemos/docs-theme/components/`):
+**f5xc-salesdemos テーマコンポーネント** (`@f5xc-salesdemos/docs-theme/components/`)：
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 
 <Aside type="caution">
-  テーマコンポーネントは個別の `.astro` ファイルからのデフォルトインポートを使用します。直接の `node_modules` インポート、相対パス、および `require()` 呼び出しは警告としてフラグされます。
+  テーマコンポーネントは個別の `.astro` ファイルからのデフォルトインポートを使用します。直接的な `node_modules` インポート、相対パス、および `require()` 呼び出しは警告としてフラグされます。
 </Aside>
 
 ## コンポーネントクイックリファレンス
 
 | コンポーネント | 必須 Props | オプション Props |
 |-----------|---------------|----------------|
-| Screenshot | `alt` + `light` または `dark` の少なくとも 1 つ | — |
+| Screenshot | `alt` + `light` または `dark` のいずれか | — |
 | Aside | `type` | `title` |
 | Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
 | LinkCard (テーマ) | `title`, `href` | `description`, `icon` |
@@ -136,6 +144,6 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 | 落とし穴 | 問題 | 修正方法 |
 |---------|---------|-----|
-| 裸の `&lt;` | MDX が JSX タグとして解釈する | `&amp;lt;`、インラインコード、または表現の変更を使用 |
-| エスケープされていない `\{` `\}` | MDX が JSX 式として扱う | インラインコードの使用、`\` でエスケープ、またはコードブロックを使用 |
-| ファイル名内の中括弧 | Astro がファイルを処理できない | `.mdx` ファイル名に `\{` や `\}` を絶対に使用しない |
+| ベア `&lt;` | MDX が JSX タグとして解釈する | `&amp;lt;`、インラインコード、または表現の変更を使用 |
+| エスケープされていない `\{` `\}` | MDX が JSX 式として扱う | インラインコードを使用、`\` でエスケープ、またはコードブロックを使用 |
+| ファイル名のブレース | Astro がファイルを処理できない | `.mdx` ファイル名に `\{` や `\}` を使用しない |

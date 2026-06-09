@@ -1,6 +1,6 @@
 ---
 title: 概覽
-description: Claude Code 插件市場的運作方式 — 新增來源、安裝插件及使用共享工具。
+description: Claude Code 外掛市集的運作方式 — 新增來源、安裝外掛及使用共享工具。
 sidebar:
   order: 1
 i18n:
@@ -8,26 +8,26 @@ i18n:
   translator: machine
 ---
 
-**Claude Code 插件市場**是一個精心策劃的插件集合，用於擴展 Claude Code 的新技能、命令和代理程式。市場讓團隊能夠共享工具，使每位開發者無需手動設定即可獲得相同的功能。
+**Claude Code 外掛市集**是一個精選的外掛集合，用於擴展 Claude Code 的新技能、命令和代理。市集讓團隊可以共享工具，使每位開發者無需手動設定即可獲得相同的功能。
 
-**f5xc-salesdemos 市場**提供專為 [f5xc-salesdemos](https://github.com/f5xc-salesdemos) 文件平台所建置的插件 — 這是一個包含 20 多個儲存庫的生態系統，使用共享建置管線將 Astro/Starlight 網站發佈到 GitHub Pages。
+**f5xc-salesdemos 市集**提供為 [f5xc-salesdemos](https://github.com/f5xc-salesdemos) 文件平台打造的外掛 — 這是一個包含 20 多個儲存庫的生態系統，使用共享建置管線將 Astro/Starlight 網站發布到 GitHub Pages。
 
 ## 運作方式
 
-1. **新增市場**至 Claude Code — 這會將其註冊為插件來源
-2. **從市場安裝插件** — 每個插件都會為您的 Claude Code 工作階段新增技能和命令
-3. **使用工具** — 插件會根據上下文自動啟用，或者您可以直接呼叫其命令
+1. **將市集新增**至 Claude Code — 這會將其註冊為外掛來源
+2. **從市集安裝外掛** — 每個外掛都會為您的 Claude Code 工作階段新增技能和命令
+3. **使用工具** — 外掛會根據情境自動啟用，或者您也可以直接呼叫其命令
 
-## 可用插件
+## 可用外掛
 
-| 插件 | 類別 | 說明 |
+| 外掛 | 類別 | 說明 |
 |--------|----------|-------------|
-| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 生產力 | 適用於文件儲存庫的 MDX 內容驗證與審查工具 |
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 生產力 | 用於文件儲存庫的 MDX 內容驗證和審查工具 |
 | [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 生產力 | 銷售工程師角色框架 — 示範執行、簡報、問答、環境管理 |
 
-## 快速入門
+## 快速開始
 
-新增市場並安裝文件工具插件：
+新增市集並安裝文件工具外掛：
 
 ```
 /plugin marketplace add f5xc-salesdemos/marketplace
@@ -38,7 +38,7 @@ i18n:
 
 ## 架構
 
-市場是一個包含一個或多個插件的 Git 儲存庫。每個插件將技能、命令和代理程式打包成單一可安裝單元。
+市集是一個包含一個或多個外掛的 Git 儲存庫。每個外掛將技能、命令和代理打包為單一可安裝的單元。
 
 ```
 Marketplace (marketplace.json)
@@ -49,8 +49,8 @@ Marketplace (marketplace.json)
     └── Agents (.md)
 ```
 
-- **市場** — 登錄中心。列出可用的插件及其元資料，用於探索和安裝。
-- **插件** — 可安裝單元。包含一個或多個技能、命令或代理程式。
-- **技能** — 情境知識，Claude 會根據手邊的任務自動啟用。
+- **市集** — 註冊中心。列出可用的外掛及其用於探索和安裝的中繼資料。
+- **外掛** — 可安裝的單元。包含一個或多個技能、命令或代理。
+- **技能** — 情境知識，Claude 會根據當前任務自動啟用。
 - **命令** — 使用者直接呼叫的斜線命令（例如 `/review-mdx`）。
-- **代理程式** — 專門的子代理程式，能夠自主處理複雜的多步驟任務。
+- **代理** — 專門的子代理，可自主處理複雜的多步驟任務。

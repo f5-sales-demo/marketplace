@@ -12,11 +12,12 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-meddpicc** fornece um framework abrangente de qualificação
-de vendas e execução de negócios MEDDPICC para vendas B2B empresariais
-complexas. Ele transforma o MEDDPICC de um exercício de checklist em um
-sistema vivo de execução de negócios com qualificação baseada em evidências,
-revisões estruturadas de negócios e coaching acionável.
+O plugin **f5xc-meddpicc** oferece um framework abrangente de
+qualificação de vendas e execução de negócios MEDDPICC para vendas
+B2B empresariais complexas. Ele transforma o MEDDPICC de um exercício
+de checklist em um sistema vivo de execução de negócios com
+qualificação baseada em evidências, revisões estruturadas de negócios
+e coaching acionável.
 
 <Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -28,52 +29,52 @@ revisões estruturadas de negócios e coaching acionável.
 
 ## O que é MEDDPICC?
 
-MEDDPICC é um framework de qualificação e execução de negócios projetado
-para vendas B2B complexas onde múltiplos stakeholders, risco técnico e
-etapas de procurement podem comprometer o andamento.
+MEDDPICC é um framework de qualificação e execução de negócios
+projetado para vendas B2B complexas onde múltiplos stakeholders,
+riscos técnicos e etapas de procurement podem comprometer o andamento.
 
 | Letra | Elemento | Propósito |
 | ------ | ------- | ------- |
 | **M** | Metrics (Métricas) | Resultados de negócio quantificados que o cliente espera |
 | **E** | Economic Buyer (Comprador Econômico) | Indivíduo com autoridade final sobre o orçamento |
-| **D** | Decision Criteria (Critérios de Decisão) | Requisitos utilizados para avaliar as opções |
-| **D** | Decision Process (Processo de Decisão) | Caminho passo a passo da avaliação ao acordo |
+| **D** | Decision Criteria (Critérios de Decisão) | Requisitos usados para avaliar opções |
+| **D** | Decision Process (Processo de Decisão) | Caminho passo a passo da avaliação até o acordo |
 | **P** | Paper Process (Processo Burocrático) | Mecânicas de procurement (jurídico, segurança, assinatura) |
 | **I** | Identify Pain (Identificar a Dor) | Dor de negócio convincente que cria urgência |
-| **C** | Champion (Campeão) | Defensor interno poderoso |
-| **C** | Competition (Competição) | Todas as alternativas (fornecedores, construir internamente, não fazer nada) |
+| **C** | Champion (Campeão) | Defensor interno influente |
+| **C** | Competition (Competição) | Todas as alternativas (fornecedores, desenvolvimento interno, não fazer nada) |
 
-## Skills
+## Habilidades
 
 ### meddpicc-coach
 
 Coaching abrangente da metodologia MEDDPICC que é ativado
 automaticamente quando você discute qualificação de negócios, saúde
-do pipeline, precisão de forecast ou qualquer elemento MEDDPICC.
+do pipeline, precisão de forecast ou qualquer elemento do MEDDPICC.
 Fornece orientação baseada em evidências, recomendações de ritmo
 operacional e links para material de referência detalhado.
 
 <Aside type="tip" title="Ativação automática">
-  Esta skill é ativada automaticamente quando relevante — nenhum
-  comando slash é necessário.
+  Esta habilidade é ativada automaticamente quando relevante — nenhum
+  comando de barra é necessário.
 </Aside>
 
 ### deal-qualification
 
 Produz um scorecard MEDDPICC pontuado (0&ndash;24) com análise de
-gaps, avaliação de riscos e recomendação de forecast. Cada elemento
-é pontuado de 0&ndash;3 com base em evidências verificadas.
+lacunas, avaliação de riscos e recomendação de forecast. Cada
+elemento é pontuado de 0&ndash;3 com base em evidências verificadas.
 
 ### deal-review
 
 Facilita inspeções semanais estruturadas de negócios com
-acompanhamento de delta de evidências, identificação de riscos e
-itens de ação com responsáveis nomeados e datas de entrega.
+rastreamento de delta de evidências, identificação de riscos e itens
+de ação com responsáveis nomeados e datas de vencimento.
 
 ### mutual-action-plan
 
-Constrói um Plano de Ação Mútuo voltado ao cliente e vinculado aos
-elementos MEDDPICC. Inclui marcos de avaliação, roadmap de
+Constrói um Plano de Ação Mútuo voltado para o cliente e vinculado
+aos elementos do MEDDPICC. Inclui marcos de avaliação, roteiro de
 procurement, prontidão para implementação e mapeamento de
 stakeholders.
 
@@ -82,7 +83,7 @@ stakeholders.
 Aplica uma avaliação de 5 critérios (Poder, Ganho Pessoal, Acesso,
 Inteligência, Ação) com pontuação de 0&ndash;15 para determinar se
 seu contato interno é um verdadeiro campeão, campeão emergente,
-coach ou contato amigável.
+orientador ou contato amigável.
 
 ## Comandos
 
@@ -98,9 +99,9 @@ coach ou contato amigável.
 ### deal-analyst
 
 Agente de pesquisa somente leitura que analisa a saúde do negócio
-revisando documentação local, notas de reuniões e planos de conta.
-Produz relatórios estruturados de avaliação MEDDPICC com citações
-de evidências, análise de gaps e recomendações de ação priorizadas.
+revisando documentação local, notas de reunião e planos de conta.
+Produz relatórios de avaliação MEDDPICC estruturados com citações de
+evidências, análise de lacunas e recomendações de ações priorizadas.
 
 ## Biblioteca de Referência
 
@@ -108,18 +109,20 @@ O plugin inclui material de referência abrangente que é carregado
 sob demanda:
 
 - **Framework MEDDPICC** &mdash; definições completas e requisitos
-  de evidência para todos os 8 elementos
+  de evidências para todos os 8 elementos
 - **Perguntas de Descoberta** &mdash; perguntas testadas em campo
-  para cada elemento ao longo do ciclo do negócio
+  para cada elemento ao longo do ciclo de negócio
 - **Papéis &amp; Responsabilidades** &mdash; matriz de propriedade
-  RACI por função da equipe (AE, SE, CSM, PS, Produto, Canal, Deal Desk, Jurídico)
-- **Stage Gates do Negócio** &mdash; o que deve ser verdadeiro antes
-  de avançar (da Qualificação Inicial até Fechado Ganho)
+  RACI por função da equipe (AE, SE, CSM, PS, Produto, Canal, Deal
+  Desk, Jurídico)
+- **Gates de Estágio do Negócio** &mdash; o que deve ser verdadeiro
+  antes de avançar (da Qualificação Inicial até o Fechamento)
 - **Anti-Padrões** &mdash; 10 modos de falha comuns com remediação
   baseada em evidências
 - **Rubrica de Pontuação** &mdash; critérios objetivos de pontuação
   0&ndash;3 por elemento
 - **Templates de Revisão** &mdash; conjuntos de perguntas para
-  inspeção semanal com indicadores de alerta vermelho
-- **Templates de MAP** &mdash; estrutura de plano de ação voltado ao
-  cliente com roadmaps de avaliação, procurement e implementação
+  inspeção semanal com indicadores de alerta
+- **Templates de MAP** &mdash; estrutura de plano de ação voltado
+  para o cliente com roteiros de avaliação, procurement e
+  implementação

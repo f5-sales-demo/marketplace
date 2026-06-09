@@ -1,6 +1,6 @@
 ---
 title: osint-framework
-description: 'OSINT 工具目录与调查技能，涵盖 34 个类别中的 1,064 个情报收集工具。'
+description: 'OSINT 工具目录和调查技能，涵盖 34 个类别中的 1,064 个情报收集工具。'
 sidebar:
   order: 12
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**osint-framework** 插件提供 OSINT 工具目录和调查技能——涵盖 34 个类别中的 1,064 个免费情报收集工具，数据映射自 [osintframework.com](https://osintframework.com)。它包括基于类别的技能、可执行的调查流水线、CLI 工具执行、具备 OPSEC 意识的工作流，以及用于跨调查关联的持久化实体图谱。
+**osint-framework** 插件提供 OSINT 工具目录和调查技能——涵盖 34 个类别中的 1,064 个免费情报收集工具，映射自 [osintframework.com](https://osintframework.com)。它包括基于类别的技能、可执行的调查流水线、CLI 工具执行、OPSEC 感知工作流，以及用于跨调查关联的持久化实体图谱。
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
 
@@ -24,7 +24,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-investigate
 
-对任意目标运行完整的 OSINT 调查。自动检测目标类型（电子邮件、域名、IP、用户名、公司、人名）并路由到相应的类别技能。
+针对任意目标运行完整的 OSINT 调查。自动检测目标类型（电子邮件、域名、IP、用户名、公司、人名）并路由到正确的类别技能。
 
 ```
 /osint-investigate j.smith@example.com
@@ -35,7 +35,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-search
 
-在工具目录中搜索匹配功能查询的工具。
+在工具目录中搜索与能力查询匹配的工具。
 
 ```
 /osint-search subdomain enumeration
@@ -45,7 +45,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-catalog
 
-按类别浏览完整工具目录。不带参数时显示所有 34 个类别及工具数量。
+按类别浏览完整的工具目录。不带参数时显示所有 34 个类别及工具数量。
 
 ```
 /osint-catalog
@@ -57,7 +57,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### osint-index
 
-顶层意图路由器。当您说"查找关于……的信息"、"调查"、"查询"、"背景调查"或描述任何开源情报任务时自动激活。根据目标类型路由到相应的类别技能。
+顶层意图路由器。当您说"查找信息"、"调查"、"查询"、"背景调查"或描述任何开源情报任务时自动激活。根据目标类型路由到正确的类别技能。
 
 | 目标 | 路由至 |
 |--------|----------|
@@ -71,7 +71,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### 类别技能（共 34 个）
 
-每个类别都有专门的技能，包含 CLI 工具、网络资源、调查工作流、跨类别关联分析和 OPSEC 注意事项。
+每个类别都有专用技能，包含 CLI 工具、Web 资源、调查工作流、跨类别枢纽分析和 OPSEC 注意事项。
 
 | 类别 | 工具数 | 关键 CLI 工具 |
 |----------|-------|--------------|
@@ -86,14 +86,14 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
 | `search-engines` | 73 | gitleaks, pagodo, gobuster |
 | `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 个基于网页的隐私工具 |
+| `opsec` | 47 | 47 个基于 Web 的隐私工具 |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
 | *（另外 20 个类别）* | 500+ | — |
 
 <Aside type="tip">
   使用 `/osint-catalog` 浏览所有 34 个类别，或使用
-  `/osint-search <capability>` 查找特定任务的工具。
+  `/osint-search <能力>` 查找特定任务的工具。
 </Aside>
 
 ### osint-catalog
@@ -104,17 +104,17 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### osint-investigator
 
-自主多工具调查编排器。运行完整的调查工作流——工具可用性检查、目标类型检测、顺序工具执行（优先被动侦察）、结果聚合，以及带有置信度和 OPSEC 分类的结构化报告生成。
+自主多工具调查编排器。运行完整的调查工作流——工具可用性检查、目标类型检测、顺序工具执行（被动优先）、结果聚合，以及带有置信度级别和 OPSEC 分类的结构化报告生成。
 
 与实体图谱集成：每个工具结果在 `/tmp/osint-graph/` 中创建实体和关系，用于跨调查关联。
 
 <Aside type="caution">
-  主动侦察工具（nmap、nuclei、sherlock）会直接联系目标基础设施。OPSEC 警告钩子会在运行主动工具前发出提醒。请始终确保您已获得授权。
+  主动侦察工具（nmap、nuclei、sherlock）会直接连接目标基础设施。OPSEC 警告钩子会在运行主动工具之前发出提醒。请始终确保您已获得授权。
 </Aside>
 
 ### osint-researcher
 
-只读目录查询代理。搜索参考文件以推荐最适合指定任务的工具。从不执行工具——仅提供推荐和说明。由类别技能内部用于工具发现。
+只读目录查询代理。搜索参考文件以推荐最适合给定任务的工具。从不执行工具——仅提供推荐和说明。由类别技能内部用于工具发现。
 
 ### osint-executor
 
@@ -122,22 +122,22 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 速率限制
 
-所有 API 调用使用内置的 `osint_curl` 辅助函数，在 HTTP 429/503 时自动执行指数退避。关键限制如下：
+所有 API 调用使用内置的 `osint_curl` 辅助工具，在 HTTP 429/503 时自动进行指数退避。关键限制：
 
 | API | 免费限额 | 环境变量 |
 |-----|-----------|---------|
-| ipinfo.io | 1,000 次/天 | — |
-| crt.sh | 60 次/分钟 | — |
-| NVD | 5 次/30 秒（无密钥） | `NVD_API_KEY` |
+| ipinfo.io | 1,000/天 | — |
+| crt.sh | 60/分钟 | — |
+| NVD | 5/30秒（无密钥） | `NVD_API_KEY` |
 | OpenCorporates | 需要密钥 | `OPENCORPORATES_API_KEY` |
-| Shodan | 1 次/秒 | `SHODAN_API_KEY` |
-| GitHub API | 60 次/小时（无认证） | `GH_TOKEN` |
+| Shodan | 1/秒 | `SHODAN_API_KEY` |
+| GitHub API | 60/小时（无认证） | `GH_TOKEN` |
 
-需要密钥的 API 在环境变量未设置时会自动跳过，并显示清晰的提示信息。
+需要密钥的 API 在环境变量未设置时会自动跳过，并显示明确的提示信息。
 
 ## 关联引擎
 
-该插件包含一个位于 `/tmp/osint-graph/` 的持久化 JSON 实体图谱，可跨调查积累发现结果。
+该插件包含一个位于 `/tmp/osint-graph/` 的持久化 JSON 实体图谱，用于在多次调查中累积发现。
 
 ```bash
 source plugins/osint-framework/scripts/osint-graph.sh
@@ -157,8 +157,8 @@ osint_graph_query "$P" 2
 osint_graph_report
 ```
 
-**置信度评分**使用多源融合算法：对于每个确认来源，`confidence = 1 - product(1 - ci)`。两个置信度为 0.80 的来源 → 组合置信度为 0.96。
+**置信度评分**使用多源融合：对于每个确认来源，`confidence = 1 - product(1 - ci)`。两个置信度为 0.80 的来源 → 0.96 的组合置信度。
 
 ## 法律声明
 
-所有工具仅使用公开可用的信息。用户有责任确保遵守适用的法律法规及平台服务条款。切勿将 OSINT 工具用于未授权访问、骚扰或任何违法活动。
+所有工具仅使用公开可用的信息。用户有责任确保遵守适用的法律、法规和平台服务条款。切勿将 OSINT 工具用于未授权访问、骚扰或任何非法活动。
