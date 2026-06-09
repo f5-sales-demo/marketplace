@@ -1,6 +1,6 @@
 ---
 title: f5xc-meddpicc
-description: 適用於複雜企業 B2B 銷售的 MEDDPICC 銷售資格審查與交易執行框架。
+description: 適用於複雜企業 B2B 銷售的 MEDDPICC 銷售資格評估與交易執行框架。
 sidebar:
   order: 6
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-meddpicc** 外掛提供了一套完整的 MEDDPICC 銷售資格審查與交易執行框架，專為複雜的企業 B2B 銷售而設計。它將 MEDDPICC 從一個勾選清單的形式作業，轉變為一個活躍的交易執行系統，具備基於證據的資格審查、結構化交易審查，以及可操作的指導建議。
+**f5xc-meddpicc** 外掛程式為複雜的企業 B2B 銷售提供全面的 MEDDPICC 銷售資格評估與交易執行框架。它將 MEDDPICC 從勾選清單式的練習轉變為一個活躍的交易執行系統，具備基於證據的資格評估、結構化的交易審查以及可執行的輔導建議。
 
 <Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -22,24 +22,24 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 什麼是 MEDDPICC？
 
-MEDDPICC 是一個資格審查與交易執行框架，專為複雜的 B2B 銷售場景而設計，在這些場景中，多方利害關係人、技術風險和採購流程都可能導致交易停滯。
+MEDDPICC 是一個資格評估與交易執行框架，專為複雜的 B2B 銷售而設計，在這類銷售中，多方利害關係人、技術風險和採購流程都可能導致交易進度停滯。
 
 | 字母 | 要素 | 用途 |
 | ------ | ------- | ------- |
-| **M** | Metrics | 客戶期望的量化業務成果 |
-| **E** | Economic Buyer | 擁有最終預算決定權的個人 |
-| **D** | Decision Criteria | 用於評估選項的需求條件 |
-| **D** | Decision Process | 從評估到簽約的逐步路徑 |
-| **P** | Paper Process | 採購流程機制（法務、安全、簽署） |
-| **I** | Identify Pain | 能創造急迫性的關鍵業務痛點 |
-| **C** | Champion | 具有影響力的內部倡導者 |
-| **C** | Competition | 所有替代方案（供應商、自建、維持現狀） |
+| **M** | Metrics（指標） | 客戶期望的量化業務成果 |
+| **E** | Economic Buyer（經濟買家） | 擁有最終預算決策權的個人 |
+| **D** | Decision Criteria（決策標準） | 用於評估選項的需求條件 |
+| **D** | Decision Process（決策流程） | 從評估到達成協議的逐步路徑 |
+| **P** | Paper Process（文書流程） | 採購機制（法務、資安、簽核） |
+| **I** | Identify Pain（識別痛點） | 創造緊迫性的關鍵業務痛點 |
+| **C** | Champion（支持者） | 有影響力的內部倡導者 |
+| **C** | Competition（競爭） | 所有替代方案（供應商、自建、維持現狀） |
 
 ## 技能
 
 ### meddpicc-coach
 
-全面的 MEDDPICC 方法論指導，當您討論交易資格審查、管線健康度、預測準確性或任何 MEDDPICC 要素時會自動啟動。提供基於證據的指導、營運節奏建議，以及詳細參考資料的連結。
+全面的 MEDDPICC 方法論輔導，當您討論交易資格評估、管線健康度、預測準確性或任何 MEDDPICC 要素時會自動啟動。提供基於證據的指導、運作節奏建議，以及詳細參考資料的連結。
 
 <Aside type="tip" title="自動啟動">
   此技能在相關情境下會自動啟動——無需使用斜線命令。
@@ -47,44 +47,44 @@ MEDDPICC 是一個資格審查與交易執行框架，專為複雜的 B2B 銷售
 
 ### deal-qualification
 
-產出一份評分式 MEDDPICC 計分卡（0&ndash;24），包含差距分析、風險評估和預測建議。每個要素根據已驗證的證據評分 0&ndash;3。
+產生一份 MEDDPICC 評分卡（0&ndash;24 分），包含差距分析、風險評估和預測建議。每個要素根據已驗證的證據評分 0&ndash;3 分。
 
 ### deal-review
 
-促進結構化的每週交易檢查，包含證據差異追蹤、風險識別，以及指定負責人和截止日期的行動項目。
+進行結構化的每週交易檢視，包含證據差異追蹤、風險識別，以及指定負責人和截止日期的行動項目。
 
 ### mutual-action-plan
 
-建立一份與 MEDDPICC 要素連結的客戶端共同行動計畫。包含評估里程碑、採購路線圖、實施準備度和利害關係人對應圖。
+建立與 MEDDPICC 要素關聯的客戶面向共同行動計畫。包含評估里程碑、採購路線圖、實施準備度和利害關係人對應圖。
 
 ### champion-test
 
-套用 5 項標準評估（權力、個人收益、存取權限、情報、行動力），評分 0&ndash;15，以判定您的內部聯絡人是真正的倡導者、潛在倡導者、教練，還是友善的聯絡人。
+應用 5 項標準評估（權力、個人利益、存取權限、情報、行動力），評分 0&ndash;15 分，以判定您的內部聯絡人是真正的支持者、潛在支持者、教練，還是友善的聯絡人。
 
 ## 命令
 
 | 命令 | 用途 |
 | ------- | ------- |
-| `/f5xc-meddpicc:qualify-deal [account]` | 使用 MEDDPICC 計分卡為交易評分 |
-| `/f5xc-meddpicc:deal-review [account]` | 進行每週交易檢查 |
-| `/f5xc-meddpicc:champion-test [contact]` | 評估聯絡人是否為真正的倡導者 |
+| `/f5xc-meddpicc:qualify-deal [account]` | 使用 MEDDPICC 評分卡為交易評分 |
+| `/f5xc-meddpicc:deal-review [account]` | 進行每週交易檢視 |
+| `/f5xc-meddpicc:champion-test [contact]` | 評估聯絡人是否為真正的支持者 |
 | `/f5xc-meddpicc:build-map [account]` | 建立共同行動計畫 |
 
 ## 代理程式
 
 ### deal-analyst
 
-唯讀研究代理程式，透過審查本地文件、會議記錄和客戶計畫來分析交易健康度。產出結構化的 MEDDPICC 評估報告，包含證據引用、差距分析和優先順序排列的行動建議。
+唯讀研究代理程式，透過審查本地文件、會議記錄和客戶計畫來分析交易健康度。產出結構化的 MEDDPICC 評估報告，包含證據引用、差距分析和優先排序的行動建議。
 
 ## 參考資料庫
 
-此外掛包含完整的參考資料，可依需求載入：
+此外掛程式包含完整的參考資料，按需載入：
 
-- **MEDDPICC 框架** &mdash; 所有 8 個要素的完整定義和證據需求
-- **探索式提問** &mdash; 針對交易週期中每個要素經過實戰驗證的問題集
-- **角色與職責** &mdash; 依團隊角色（AE、SE、CSM、PS、Product、Channel、Deal Desk、Legal）劃分的 RACI 負責矩陣
-- **交易階段關卡** &mdash; 推進各階段前必須具備的條件（從初步資格審查到成交）
-- **反模式** &mdash; 10 種常見失敗模式及基於證據的修正方案
-- **評分準則** &mdash; 每個要素的客觀 0&ndash;3 評分標準
-- **審查範本** &mdash; 每週檢查問題集，包含紅旗指標
-- **MAP 範本** &mdash; 客戶端行動計畫結構，包含評估、採購和實施路線圖
+- **MEDDPICC 框架** &mdash; 所有 8 個要素的完整定義與證據需求
+- **探索問題** &mdash; 涵蓋交易週期中每個要素的實戰驗證問題
+- **角色與職責** &mdash; 依團隊角色（AE、SE、CSM、PS、產品、通路、交易管理、法務）的 RACI 責任矩陣
+- **交易階段關卡** &mdash; 從早期資格評估到成交前各階段必須達成的條件
+- **反模式** &mdash; 10 種常見失敗模式及基於證據的補救措施
+- **評分標準** &mdash; 每個要素的客觀 0&ndash;3 分評分準則
+- **審查範本** &mdash; 包含紅旗指標的每週檢視問題集
+- **MAP 範本** &mdash; 客戶面向的行動計畫結構，包含評估、採購和實施路線圖

@@ -1,6 +1,6 @@
 ---
 title: 概述
-description: Claude Code 插件市场的工作原理 — 添加源、安装插件和使用共享工具。
+description: Claude Code 插件市场的工作原理 — 添加来源、安装插件以及使用共享工具。
 sidebar:
   order: 1
 i18n:
@@ -8,22 +8,31 @@ i18n:
   translator: machine
 ---
 
-**Claude Code 插件市场**是一个精心策划的插件集合，用于为 Claude Code 扩展新的技能、命令和代理。市场让团队能够共享工具，使每位开发者无需手动设置即可获得相同的功能。
+**Claude Code 插件市场**是一个精心策划的插件集合，
+用于为 Claude Code 扩展新的技能、命令和代理。
+市场让团队能够共享工具，使每位开发者无需手动设置
+即可获得相同的能力。
 
-**f5xc-salesdemos 市场**提供了专为 [f5xc-salesdemos](https://github.com/f5xc-salesdemos) 文档平台构建的插件 — 这是一个包含 20 多个仓库的生态系统，使用共享构建流水线将 Astro/Starlight 站点发布到 GitHub Pages。
+**f5xc-salesdemos 市场**提供专为
+[f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+文档平台构建的插件 — 这是一个包含 20 多个仓库的生态系统，
+使用共享的构建管道将 Astro/Starlight 站点发布到 GitHub Pages。
 
 ## 工作原理
 
-1. **添加市场**到 Claude Code — 这会将其注册为插件源
-2. **从市场安装插件** — 每个插件会为您的 Claude Code 会话添加技能和命令
-3. **使用工具** — 插件会根据上下文自动激活，或者您也可以直接调用其命令
+1. **将市场添加**到 Claude Code — 这会将其注册为
+   插件来源
+2. **从市场安装插件** — 每个插件都会为你的 Claude Code
+   会话添加技能和命令
+3. **使用工具** — 插件会根据上下文自动激活，
+   或者你可以直接调用它们的命令
 
 ## 可用插件
 
 | 插件 | 类别 | 描述 |
 |--------|----------|-------------|
-| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 生产力 | 文档仓库的 MDX 内容验证和审查工具 |
-| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 生产力 | 销售工程师角色框架 — 演示执行、演示文稿、问答、环境管理 |
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 生产力 | 适用于文档仓库的 MDX 内容验证和审查工具 |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 生产力 | 销售工程师角色框架 — 演示执行、演讲、问答、环境管理 |
 
 ## 快速开始
 
@@ -34,11 +43,13 @@ i18n:
 /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
 ```
 
-请参阅[入门指南](/marketplace/getting-started/)获取完整的操作演练。
+请参阅[入门指南](/marketplace/getting-started/)
+获取完整的操作流程。
 
 ## 架构
 
-市场是一个包含一个或多个插件的 Git 仓库。每个插件将技能、命令和代理打包为一个可安装的单元。
+市场是一个包含一个或多个插件的 Git 仓库。
+每个插件将技能、命令和代理打包成一个可安装的单元。
 
 ```
 Marketplace (marketplace.json)
@@ -49,8 +60,13 @@ Marketplace (marketplace.json)
     └── Agents (.md)
 ```
 
-- **市场** — 注册中心。列出可用插件及其元数据，用于发现和安装。
-- **插件** — 可安装的单元。包含一个或多个技能、命令或代理。
-- **技能** — Claude 根据当前任务自动激活的上下文知识。
-- **命令** — 用户直接调用的斜杠命令（例如 `/review-mdx`）。
-- **代理** — 自主处理复杂多步骤任务的专用子代理。
+- **市场** — 注册中心。列出可用插件及其元数据，
+  用于发现和安装。
+- **插件** — 可安装的单元。包含一个或多个技能、
+  命令或代理。
+- **技能** — 上下文知识，Claude 会根据当前任务
+  自动激活。
+- **命令** — 用户直接调用的斜杠命令
+  （例如 `/review-mdx`）。
+- **代理** — 专门的子代理，能够自主处理复杂的
+  多步骤任务。

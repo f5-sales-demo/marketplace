@@ -1,7 +1,7 @@
 ---
 title: f5xc-devcontainer
 description: >-
-  Plugin per la consapevolezza del container, catalogo degli strumenti,
+  Plugin di consapevolezza del container per il catalogo degli strumenti,
   introspezione in tempo reale e installazione di strumenti con tracciamento
   della persistenza.
 sidebar:
@@ -13,13 +13,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-devcontainer** fornisce la consapevolezza del container per
+Il plugin **f5xc-devcontainer** fornisce consapevolezza del container per
 l'ambiente di sviluppo f5xc-salesdemos. Mantiene un catalogo
 completo degli strumenti, abilita l'introspezione in tempo reale del container
-e gestisce l'installazione degli strumenti con tracciamento della persistenza
-tramite issue su GitHub.
+e gestisce l'installazione degli strumenti con tracciamento della persistenza tramite
+issue di GitHub.
 
-<Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.6" variant="note" /> <Badge text="Produttività" variant="tip" />
 
 ## Installazione
 
@@ -32,21 +32,21 @@ tramite issue su GitHub.
 ### tool-catalog
 
 Base di conoscenza di ogni strumento CLI installato nel devcontainer,
-organizzata per categoria (cloud, networking, sicurezza, sviluppo,
+organizzato per categoria (cloud, networking, sicurezza, sviluppo,
 ecc.). Si attiva quando chiedi quale strumento utilizzare, come usare uno
 strumento, se qualcosa è installato, o hai bisogno di aiuto con
 un'operazione specifica.
 
 ### self-awareness
 
-Competenza di identità del container e autodiagnosi. Fornisce
+Competenza di identità e autodiagnosi del container. Fornisce
 introspezione in tempo reale del container in esecuzione tramite API GitHub e
 metadati di build locali. Si attiva per domande su identità, versione, informazioni
 di build, controlli di stato e cronologia dei contributori.
 
 <Aside type="tip">
   Chiedi "chi sei?" o "quale versione sto eseguendo?" per attivare
-  la self-awareness.
+  self-awareness.
 </Aside>
 
 ## Agenti
@@ -55,20 +55,20 @@ di build, controlli di stato e cronologia dei contributori.
 
 Legge il catalogo degli strumenti e restituisce raccomandazioni con scopo,
 comandi di avvio rapido e requisiti di autenticazione per qualsiasi domanda
-su strumenti CLI.
+sugli strumenti CLI.
 
 ### tool-auditor
 
-Verifica il Dockerfile del devcontainer rispetto ai file di riferimento del
-catalogo degli strumenti per rilevare derive &mdash; strumenti aggiunti all'immagine
-ma non catalogati, o voci del catalogo per strumenti che sono stati
+Verifica il Dockerfile del devcontainer rispetto ai file di riferimento
+del catalogo degli strumenti per rilevare disallineamenti &mdash; strumenti aggiunti
+all'immagine ma non catalogati, o voci di catalogo per strumenti che sono stati
 rimossi.
 
 ### container-introspector
 
-Esegue l'introspezione in tempo reale del container tramite API GitHub e
-metadati locali per identità, genealogia, autodiagnosi, cronologia
-dei contributori e lineage di build. Solo operazioni in sola lettura.
+Esegue l'introspezione in tempo reale del container tramite API GitHub e metadati
+locali per identità, genealogia, autodiagnosi, cronologia dei contributori
+e lineage di build. Solo operazioni in sola lettura.
 
 ### container-maintainer
 

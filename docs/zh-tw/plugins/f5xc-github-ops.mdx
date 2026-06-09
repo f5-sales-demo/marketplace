@@ -1,6 +1,6 @@
 ---
 title: f5xc-github-ops
-description: 用於議題驅動開發、PR 工作流程及 CI 監控的 GitHub 操作自動化。
+description: 用於議題驅動開發、PR 工作流程和 CI 監控的 GitHub 操作自動化。
 sidebar:
   order: 7
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-github-ops** 外掛為 f5xc-salesdemos 儲存庫提供專屬的 GitHub 操作自動化功能。它處理從議題建立到合併後監控的完整 Git 和 GitHub 生命週期，強制執行議題驅動開發和預提交 lint 檢查門檻。
+**f5xc-github-ops** 外掛為 f5xc-salesdemos 儲存庫提供專屬的 GitHub 操作自動化。它處理從議題建立到合併後監控的完整 Git 和 GitHub 生命週期，強制執行議題驅動開發和預提交 lint 檢查門檻。
 
 <Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,17 +24,17 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### workflow-lifecycle
 
-儲存庫治理工作流程，處理議題建立、分支命名慣例、PR 建立、CI 輪詢與錯誤回饋至議題、合併後監控、驗證及任務完成標準。當您說「commit」、「push」、「create a PR」、「merge」或執行任何 Git 操作時會啟動。
+儲存庫治理工作流程，處理議題建立、分支命名慣例、PR 建立、CI 輪詢與錯誤回饋至議題、合併後監控、驗證及任務完成標準。當您說「commit」、「push」、「create a PR」、「merge」或執行任何 Git 操作時啟動。
 
 ### upstream-contribution
 
-用於 fork 為基礎開發的上游貢獻工作流程。處理 fork 偵測、上游研究（議題、PR、CONTRIBUTING.md、CI 模式）、跨儲存庫議題和 PR 建立、本地追蹤議題管理、上游 CI 監控及引導式問題解決。
+針對基於 fork 開發的上游貢獻工作流程。處理 fork 偵測、上游研究（議題、PR、CONTRIBUTING.md、CI 模式）、跨儲存庫議題和 PR 建立、本地追蹤議題管理、上游 CI 監控及引導式問題解決。
 
 ## 代理
 
 ### github-ops
 
-專責處理所有機械化 Git 和 GitHub 操作的代理。處理預提交 lint 檢查門檻、議題建立、分支建立、暫存、提交、推送、PR 建立、CI 輪詢與錯誤回饋、基礎設施故障重試、合併後監控、分支清理，以及透過 GitHub API 進行的儲存庫設定管理。
+處理所有機械性 Git 和 GitHub 操作的專屬代理。處理預提交 lint 檢查門檻、議題建立、分支建立、暫存、提交、推送、PR 建立、CI 輪詢與錯誤回饋、基礎設施故障重試、合併後監控、分支清理，以及透過 GitHub API 進行的儲存庫設定管理。
 
 回傳結構化狀態報告：`COMPLETE`、`PRE_COMMIT_FAILED`、`CI_FAILED`、`BLOCKED` 或 `FAILED`。
 

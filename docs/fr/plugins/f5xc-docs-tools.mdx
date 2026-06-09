@@ -1,7 +1,7 @@
 ---
 title: f5xc-docs-tools
 description: >-
-  Validation du contenu MDX et vérifications de qualité pour le pipeline de
+  Validation du contenu MDX et contrôles qualité pour le pipeline de
   documentation f5xc-salesdemos.
 sidebar:
   order: 4
@@ -14,11 +14,11 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 Le plugin **f5xc-docs-tools** valide les fichiers de contenu MDX pour
 le pipeline de documentation f5xc-salesdemos. Il détecte les problèmes
-courants qui cassent le build avant qu'ils n'atteignent la CI, notamment
+courants qui cassent le build avant qu'ils n'atteignent le CI, notamment
 les caractères JSX non échappés, les imports invalides, les références
 d'images cassées et les frontmatter incomplets.
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -32,12 +32,12 @@ d'images cassées et les frontmatter incomplets.
 
 Cette compétence s'active automatiquement lorsque Claude détecte que vous
 travaillez avec des fichiers MDX dans un dépôt de contenu f5xc-salesdemos.
-Elle effectue sept vérifications de validation :
+Elle effectue sept contrôles de validation :
 
 <CardGrid>
   <Card title="Validation du frontmatter">
     Vérifie les champs obligatoires comme `title` et `sidebar.order`.
-    Les pages d'accueil doivent inclure les champs `hero` et
+    Les pages splash doivent inclure les champs `hero` et
     `template: splash`.
   </Card>
   <Card title="Pièges de syntaxe MDX">
@@ -56,7 +56,7 @@ Elle effectue sept vérifications de validation :
     Vérifie que les images référencées existent dans le répertoire
     `docs/images/`.
   </Card>
-  <Card title="Vérifications de structure">
+  <Card title="Contrôles de structure">
     S'assure que `docs/index.mdx` existe et que les répertoires d'images
     ne contiennent pas de fichiers MDX égarés.
   </Card>
@@ -70,15 +70,15 @@ Elle effectue sept vérifications de validation :
 
 La compétence délimite intelligemment sa revue :
 
-- S'il y a des modifications non commitées ou indexées dans les fichiers
+- S'il y a des modifications non committées ou indexées dans les fichiers
   `docs/**/*.mdx`, seuls ces fichiers sont examinés
 - Sinon, tous les fichiers `docs/**/*.mdx` sont examinés
 
 #### Format de sortie
 
-Les résultats sont regroupés par sévérité :
+Les résultats sont regroupés par gravité :
 
-- **ERROR** — cassera le build ; doit être corrigé avant le merge
+- **ERROR** — cassera le build ; à corriger impérativement avant le merge
 - **WARNING** — problèmes probables qui devraient être traités
 - **INFO** — suggestions et bonnes pratiques
 
@@ -115,7 +115,7 @@ Exécute la compétence `mdx-content-reviewer` à la demande.
 ```
 
 **Sortie :** Une ligne de résumé à la fin indique le nombre total de fichiers
-examinés et le nombre de résultats par sévérité.
+examinés et le nombre de résultats par gravité.
 
 ## Imports autorisés
 
@@ -157,6 +157,6 @@ Problèmes courants détectés par le plugin :
 
 | Piège | Problème | Correction |
 |-------|----------|------------|
-| `&lt;` non échappé | MDX l'interprète comme une balise JSX | Utiliser `&amp;lt;`, du code en ligne ou reformuler |
-| `\{` `\}` non échappées | MDX les traite comme une expression JSX | Utiliser du code en ligne, échapper avec `\` ou utiliser un bloc de code |
+| `&lt;` non échappé | MDX l'interprète comme une balise JSX | Utiliser `&amp;lt;`, du code inline ou reformuler |
+| `\{` `\}` non échappés | MDX les traite comme une expression JSX | Utiliser du code inline, échapper avec `\` ou utiliser un bloc de code |
 | Accolades dans les noms de fichiers | Astro ne peut pas traiter le fichier | Ne jamais utiliser `\{` ou `\}` dans les noms de fichiers `.mdx` |

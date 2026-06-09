@@ -2,7 +2,7 @@
 title: f5xc-sales-engineer
 description: >-
   Cadre de persona Ingénieur Avant-Vente pour l'exécution de démos, les
-  présentations, les sessions Q&R et le démontage.
+  présentations, les questions-réponses et le démontage.
 sidebar:
   order: 5
 i18n:
@@ -13,12 +13,12 @@ i18n:
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 Le plugin **f5xc-sales-engineer** fournit un cadre réutilisable de persona
-Ingénieur Avant-Vente pour les dépôts de démo F5 XC. Il gère l'intégralité
+Ingénieur Avant-Vente pour les dépôts de démos F5 XC. Il gère l'ensemble
 du cycle de vie d'une réunion de démonstration — de la vérification
-pré-réunion à l'exécution en direct, en passant par les sessions Q&R
+préalable à l'exécution en direct, en passant par les questions-réponses
 et le démontage.
 
-<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.6" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -32,11 +32,11 @@ et le démontage.
 
 Exécution de démo pilotée par API avec un cycle de vie de réunion en quatre étapes :
 
-1. **Préparation** — vérification pré-réunion de l'environnement via
+1. **Préparer** — vérification de l'environnement avant la réunion via
    l'agent `demo-housekeeping`
-2. **Exécution** — exécution déterministe des phases avec narration
+2. **Exécuter** — exécution déterministe des phases avec narration
    orientée client
-3. **Q&R** — mode d'improvisation avec l'environnement en direct
+3. **Questions-réponses** — mode d'improvisation avec l'environnement en direct
 4. **Démontage** — nettoyage post-réunion via l'agent `demo-housekeeping`
 
 Lit le contenu spécifique au produit depuis `DEMO_PRODUCT_EXPERTISE.md` et les
@@ -44,28 +44,28 @@ commandes de démo depuis `docs/demo/`.
 
 ### presenter
 
-Présentation pas-à-pas de l'architecture existante utilisant un environnement
+Présentation guidée de l'architecture déployée utilisant un environnement
 de démo préconfiguré. Suit un schéma montrer → narrer → relier → pause à
-chaque étape. Lit l'ordre de parcours depuis `DEMO_WALKTHROUGH_CONFIG.md`.
+chaque étape. Lit l'ordre de la visite guidée depuis `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ### subject-matter-expert
 
-Q&R appuyée sur des références avec des exigences strictes de citation. Ne
-devine jamais — chaque réponse inclut une référence ou une preuve. Délègue
-la recherche à l'agent `demo-researcher` si nécessaire.
+Questions-réponses appuyées par des références avec des exigences strictes
+de citation. Ne devine jamais — chaque réponse inclut une référence ou une
+preuve. Délègue la recherche à l'agent `demo-researcher` si nécessaire.
 
 ### sales-engineer
 
-Index de rôle qui dirige l'intention de l'utilisateur vers la compétence
-persona appropriée. S'active lorsque la requête est liée à une démo mais
-ne correspond pas à une phrase de déclenchement spécifique.
+Index de rôle qui redirige l'intention de l'utilisateur vers la compétence
+de persona appropriée. S'active lorsque la requête est liée à une démo
+mais ne correspond pas à une phrase de déclenchement spécifique.
 
 ## Agents
 
 ### demo-housekeeping
 
-Agent autonome pour la vérification pré-réunion et le démontage
-post-réunion. Exécute la Matrice de Vérification de Disponibilité (T0–T5)
+Agent autonome pour la vérification préalable à la réunion et le démontage
+post-réunion. Exécute la matrice de vérification de disponibilité (T0–T5)
 définie dans `DEMO_READINESS_MATRIX.md` et exécute les commandes de
 démontage depuis `docs/demo/phase-4-teardown.mdx`.
 
@@ -79,19 +79,19 @@ avec WebSearch en solution de repli.
 ## Fichiers de convention
 
 <Aside type="tip" title="Contenu spécifique au produit">
-  Ce plugin est agnostique au produit. Chaque dépôt fournit
-  du contenu spécifique au produit via des fichiers de convention standardisés.
+  Ce plugin est agnostique au produit. Chaque dépôt fournit du contenu
+  spécifique au produit via des fichiers de convention standardisés.
 </Aside>
 
 Créez ces fichiers à la racine de votre dépôt pour configurer le plugin :
 
 | Fichier | Objectif | Requis pour |
 | ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | Capacités produit, signaux de détection, couverture des menaces, alignement conformité, référence API | Toutes les compétences |
-| `DEMO_WALKTHROUGH_CONFIG.md` | URL de l'application de démo, ordre de parcours, timing de détection | presenter |
-| `DEMO_SOURCE_INDEX.md` | Catalogue de sources de recherche avec docs locaux et URLs externes | demo-researcher |
+| `DEMO_PRODUCT_EXPERTISE.md` | Capacités du produit, signaux de détection, couverture des menaces, alignement de conformité, référence API | Toutes les compétences |
+| `DEMO_WALKTHROUGH_CONFIG.md` | URL de l'application de démo, ordre de la visite guidée, temporisation de détection | presenter |
+| `DEMO_SOURCE_INDEX.md` | Catalogue des sources de recherche avec documentation locale et URLs externes | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | Variables requises/optionnelles, vérifications de disponibilité (T0–T5), points de terminaison API | demo-housekeeping |
-| `docs/demo/` | Fichiers de phases avec commandes cURL et points de contrôle de preuve | demo-executor |
+| `docs/demo/` | Fichiers de phase avec commandes cURL et portes de validation | demo-executor |
 
 ## Phrases de déclenchement
 
@@ -100,22 +100,22 @@ active les compétences en fonction de l'intention de l'utilisateur :
 
 | Phrase | Compétence | Étape |
 | ------ | ----- | ----- |
-| "run the demo", "execute the demo" | demo-executor | Exécution |
-| "prepare the demo", "pre-flight" | demo-executor | Préparation |
-| "Q&A", "question and answer" | demo-executor | Q&R |
+| "run the demo", "execute the demo" | demo-executor | Exécuter |
+| "prepare the demo", "pre-flight" | demo-executor | Préparer |
+| "Q&A", "question and answer" | demo-executor | Questions-réponses |
 | "tear down", "clean up" | demo-executor | Démontage |
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
 
 ## Style de narration
 
-Tous les personas partagent un style de narration cohérent :
+Toutes les personas partagent un style de narration cohérent :
 
-- **Présent, première personne du pluriel** — « Ce que nous voyons
+- **Présent, première personne du pluriel** — « Ce que nous observons
   ici… »
 - **Une préoccupation par paragraphe** — chaque narration répond à : Qu'est-ce
   que c'est ? Pourquoi est-ce important ? Que dois-je faire à ce sujet ?
 - **Nommer le signal** — indiquer quelle capacité est à l'œuvre
-- **Ancrage conformité si pertinent** — mentionner l'alignement réglementaire
-  naturellement
+- **Accroche de conformité lorsque pertinent** — mentionner l'alignement
+  réglementaire de manière naturelle
 - **Marqueur de pause de rythme** — `> ⏸ *[Pause pour l'audience — prêt à continuer ?]*`

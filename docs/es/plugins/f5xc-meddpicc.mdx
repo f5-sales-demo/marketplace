@@ -1,8 +1,8 @@
 ---
 title: f5xc-meddpicc
 description: >-
-  Marco de cualificación de ventas y ejecución de oportunidades MEDDPICC para
-  ventas B2B empresariales complejas.
+  Marco de calificación de ventas y ejecución de acuerdos MEDDPICC para ventas
+  B2B empresariales complejas.
 sidebar:
   order: 6
 i18n:
@@ -12,14 +12,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-El plugin **f5xc-meddpicc** proporciona un marco integral de
-cualificación de ventas y ejecución de oportunidades MEDDPICC para
-ventas B2B empresariales complejas. Transforma MEDDPICC de un
-ejercicio de casillas de verificación en un sistema vivo de ejecución
-de oportunidades con cualificación basada en evidencia, revisiones
-estructuradas de oportunidades y coaching accionable.
+El plugin **f5xc-meddpicc** proporciona un marco integral de calificación
+de ventas y ejecución de acuerdos MEDDPICC para ventas B2B empresariales
+complejas. Transforma MEDDPICC de un ejercicio de casillas de verificación
+en un sistema vivo de ejecución de acuerdos con calificación basada en
+evidencia, revisiones estructuradas de acuerdos y asesoramiento accionable.
 
-<Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.4" variant="note" /> <Badge text="Productividad" variant="tip" />
 
 ## Instalación
 
@@ -29,10 +28,9 @@ estructuradas de oportunidades y coaching accionable.
 
 ## ¿Qué es MEDDPICC?
 
-MEDDPICC es un marco de cualificación y ejecución de oportunidades
-diseñado para ventas B2B complejas donde múltiples partes interesadas,
-riesgo técnico y pasos de aprovisionamiento pueden descarrilar el
-impulso.
+MEDDPICC es un marco de calificación y ejecución de acuerdos diseñado para
+ventas B2B complejas donde múltiples partes interesadas, riesgo técnico y
+pasos de adquisición pueden descarrilar el impulso.
 
 | Letra | Elemento | Propósito |
 | ------ | ------- | ------- |
@@ -40,60 +38,58 @@ impulso.
 | **E** | Economic Buyer (Comprador Económico) | Individuo con autoridad final sobre el presupuesto |
 | **D** | Decision Criteria (Criterios de Decisión) | Requisitos utilizados para evaluar opciones |
 | **D** | Decision Process (Proceso de Decisión) | Camino paso a paso desde la evaluación hasta el acuerdo |
-| **P** | Paper Process (Proceso Documental) | Mecánica de aprovisionamiento (legal, seguridad, firma) |
+| **P** | Paper Process (Proceso Documental) | Mecánicas de adquisición (legal, seguridad, firma) |
 | **I** | Identify Pain (Identificar el Dolor) | Dolor de negocio convincente que crea urgencia |
-| **C** | Champion (Campeón) | Defensor interno con poder e influencia |
-| **C** | Competition (Competencia) | Todas las alternativas (proveedores, desarrollo interno, no hacer nada) |
+| **C** | Champion (Campeón) | Defensor interno con poder |
+| **C** | Competition (Competencia) | Todas las alternativas (proveedores, desarrollo propio, no hacer nada) |
 
 ## Habilidades
 
 ### meddpicc-coach
 
-Coaching integral de la metodología MEDDPICC que se activa
-automáticamente cuando se discute la cualificación de oportunidades,
-la salud del pipeline, la precisión del forecast o cualquier
-elemento de MEDDPICC. Proporciona orientación basada en evidencia,
-recomendaciones de ritmo operativo y enlaces a material de referencia
-detallado.
+Asesoramiento integral de la metodología MEDDPICC que se activa
+automáticamente cuando se discute sobre calificación de acuerdos, salud
+del pipeline, precisión del pronóstico o cualquier elemento de MEDDPICC.
+Proporciona orientación basada en evidencia, recomendaciones de ritmo
+operativo y enlaces a material de referencia detallado.
 
 <Aside type="tip" title="Activación automática">
-  Esta habilidad se activa automáticamente cuando es relevante — no
-  se necesita un comando de barra.
+  Esta habilidad se activa automáticamente cuando es relevante — no se
+  necesita un comando de barra.
 </Aside>
 
 ### deal-qualification
 
-Produce una tarjeta de puntuación MEDDPICC calificada (0&ndash;24) con
-análisis de brechas, evaluación de riesgos y recomendación de
-forecast. Cada elemento se puntúa de 0&ndash;3 basándose en evidencia
-verificada.
+Produce un cuadro de mando MEDDPICC con puntuación (0&ndash;24) con análisis
+de brechas, evaluación de riesgos y recomendación de pronóstico. Cada
+elemento se puntúa de 0&ndash;3 basándose en evidencia verificada.
 
 ### deal-review
 
-Facilita inspecciones semanales estructuradas de oportunidades con
-seguimiento del delta de evidencia, identificación de riesgos y
-elementos de acción con responsables asignados y fechas límite.
+Facilita inspecciones semanales estructuradas de acuerdos con seguimiento
+de delta de evidencia, identificación de riesgos y elementos de acción
+con responsables asignados y fechas de vencimiento.
 
 ### mutual-action-plan
 
-Construye un Plan de Acción Mutuo orientado al cliente vinculado a
-los elementos de MEDDPICC. Incluye hitos de evaluación, hoja de ruta
-de aprovisionamiento, preparación para la implementación y mapeo de
-partes interesadas.
+Construye un Plan de Acción Mutuo orientado al cliente vinculado a los
+elementos de MEDDPICC. Incluye hitos de evaluación, hoja de ruta de
+adquisición, preparación para la implementación y mapeo de partes
+interesadas.
 
 ### champion-test
 
-Aplica una evaluación de 5 criterios (Poder, Beneficio Personal,
-Acceso, Inteligencia, Acción) con puntuación de 0&ndash;15 para
-determinar si su contacto interno es un verdadero campeón, un campeón
-emergente, un coach o un contacto amigable.
+Aplica una evaluación de 5 criterios (Poder, Beneficio Personal, Acceso,
+Inteligencia, Acción) con puntuación de 0&ndash;15 para determinar si su
+contacto interno es un verdadero campeón, un campeón emergente, un
+orientador o un contacto amigable.
 
 ## Comandos
 
 | Comando | Propósito |
 | ------- | ------- |
-| `/f5xc-meddpicc:qualify-deal [account]` | Puntuar una oportunidad con la tarjeta de puntuación MEDDPICC |
-| `/f5xc-meddpicc:deal-review [account]` | Facilitar la inspección semanal de la oportunidad |
+| `/f5xc-meddpicc:qualify-deal [account]` | Puntuar un acuerdo con el cuadro de mando MEDDPICC |
+| `/f5xc-meddpicc:deal-review [account]` | Facilitar la inspección semanal del acuerdo |
 | `/f5xc-meddpicc:champion-test [contact]` | Evaluar si el contacto es un verdadero campeón |
 | `/f5xc-meddpicc:build-map [account]` | Construir un Plan de Acción Mutuo |
 
@@ -101,31 +97,29 @@ emergente, un coach o un contacto amigable.
 
 ### deal-analyst
 
-Agente de investigación de solo lectura que analiza la salud de la
-oportunidad revisando documentación local, notas de reuniones y
-planes de cuenta. Produce informes de evaluación MEDDPICC
-estructurados con citas de evidencia, análisis de brechas y
-recomendaciones de acción priorizadas.
+Agente de investigación de solo lectura que analiza la salud del acuerdo
+revisando documentación local, notas de reuniones y planes de cuenta.
+Produce informes de evaluación MEDDPICC estructurados con citaciones de
+evidencia, análisis de brechas y recomendaciones de acción priorizadas.
 
-## Biblioteca de Referencia
+## Biblioteca de referencia
 
 El plugin incluye material de referencia integral que se carga bajo
 demanda:
 
 - **Marco MEDDPICC** &mdash; definiciones completas y requisitos de
   evidencia para los 8 elementos
-- **Preguntas de Descubrimiento** &mdash; preguntas probadas en campo
-  para cada elemento a lo largo del ciclo de venta
-- **Roles y Responsabilidades** &mdash; matriz de responsabilidad RACI
+- **Preguntas de descubrimiento** &mdash; preguntas probadas en campo
+  para cada elemento a lo largo del ciclo del acuerdo
+- **Roles y responsabilidades** &mdash; matriz de responsabilidades RACI
   por rol de equipo (AE, SE, CSM, PS, Producto, Canal, Deal Desk, Legal)
-- **Puertas de Etapa de Oportunidad** &mdash; lo que debe ser verdad
-  antes de avanzar (desde Cualificación Temprana hasta Cierre Ganado)
-- **Anti-Patrones** &mdash; 10 modos de fallo comunes con
-  remediación basada en evidencia
-- **Rúbrica de Puntuación** &mdash; criterios de puntuación objetivos
-  de 0&ndash;3 por elemento
-- **Plantillas de Revisión** &mdash; conjuntos de preguntas de
+- **Puertas de etapa del acuerdo** &mdash; lo que debe ser verdadero
+  antes de avanzar (desde Calificación Temprana hasta Cerrado Ganado)
+- **Anti-patrones** &mdash; 10 modos de fallo comunes con remediación
+  basada en evidencia
+- **Rúbrica de puntuación** &mdash; criterios objetivos de puntuación
+  0&ndash;3 por elemento
+- **Plantillas de revisión** &mdash; conjuntos de preguntas de
   inspección semanal con indicadores de alerta roja
-- **Plantillas de MAP** &mdash; estructura de plan de acción orientado
-  al cliente con hojas de ruta de evaluación, aprovisionamiento e
-  implementación
+- **Plantillas MAP** &mdash; estructura de plan de acción orientado al
+  cliente con hojas de ruta de evaluación, adquisición e implementación

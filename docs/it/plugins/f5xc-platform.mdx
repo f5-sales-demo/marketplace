@@ -1,7 +1,7 @@
 ---
 title: f5xc-platform
 description: >-
-  Automazione della piattaforma F5 Distributed Cloud — operazioni sulla console,
+  Automazione della piattaforma F5 Distributed Cloud — operazioni della console,
   API REST, autenticazione e analisi della configurazione.
 sidebar:
   order: 11
@@ -13,10 +13,10 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 Il plugin **f5xc-platform** fornisce un'automazione completa per la
-piattaforma F5 Distributed Cloud. Copre le operazioni sulla console web
-tramite Chrome DevTools MCP, le operazioni API REST spec-aware tramite
-cURL, l'autenticazione multi-provider e l'analisi della configurazione
-su 98 tipi di risorse in 38 domini.
+piattaforma F5 Distributed Cloud. Copre le operazioni della console web
+tramite Chrome DevTools MCP, operazioni API REST spec-aware tramite cURL,
+autenticazione multi-provider e analisi della configurazione su
+98 tipi di risorse in 38 domini.
 
 <Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -32,17 +32,17 @@ su 98 tipi di risorse in 38 domini.
 
 Operazioni CRUD API spec-aware che coprono 98 tipi di risorse su
 38 domini. Fornisce endpoint precisi, template di payload,
-ordinamento delle dipendenze e composizioni di workflow multi-step
-per HTTP load balancer, origin pool, policy WAF, zone DNS,
-certificati, cloud site e altro.
+ordinamento delle dipendenze e composizioni di workflow multi-step per
+HTTP load balancer, origin pool, policy WAF, zone DNS,
+certificati, cloud site e altro ancora.
 
 ### config-analysis
 
 Capacità di analisi e consulenza sulla configurazione. Analizza le
-configurazioni JSON dei clienti per rispondere a domande su postura
-di sicurezza, abilitazione delle funzionalità, impostazioni delle
-modalità, esclusioni e best practice. Supporta sessioni di domande
-e risposte multi-turno con contesto compresso tra i dispatch.
+configurazioni JSON dei clienti per rispondere a domande sulla postura
+di sicurezza, abilitazione delle funzionalità, impostazioni di modalità,
+esclusioni e best practice. Supporta Q&A multi-turno con contesto
+compresso tra i dispatch.
 
 ### api-auth
 
@@ -53,20 +53,21 @@ validazione del token.
 ### console-auth
 
 Autenticazione multi-provider per la console web F5 XC.
-Rileva automaticamente il tipo di login: login nativo F5 XC,
-SSO Azure con sessione in cache o SSO Azure con MFA DUO verified push.
+Rileva automaticamente il tipo di login: login nativo F5 XC, SSO Azure
+con sessione memorizzata nella cache, oppure SSO Azure con MFA
+DUO verified push.
 
 ### console-navigator
 
-Navigazione deterministica verso le sezioni della console F5 XC.
-Traduce i nomi delle sezioni in percorsi URL, verifica lo stato
-della sessione e conferma il caricamento della pagina.
+Navigazione deterministica verso le sezioni della console F5 XC. Traduce
+i nomi delle sezioni in percorsi URL, verifica lo stato della sessione
+e conferma il caricamento della pagina.
 
 ### platform-index / api-index / console-index
 
-Router di intenti che classificano le richieste degli utenti e le
-delegano alla competenza e all'agente appropriato. Si attivano
-automaticamente e non sono invocabili dall'utente.
+Router di intent che classificano le richieste dell'utente e le delegano
+alla competenza e all'agente appropriato. Si attivano automaticamente e
+non sono invocabili dall'utente.
 
 ## Comandi
 
@@ -91,25 +92,24 @@ l'agente console-operator.
 
 ### api-operator
 
-Agente API REST autonomo che esegue sequenze cURL e jq per le
-operazioni CRUD sulle risorse, la validazione dei token e le
-operazioni di configurazione. Viene eseguito in un sotto-agente
-per mantenere i payload JSON API verbosi fuori dal contesto della
-sessione principale.
+Agente autonomo per API REST che esegue sequenze cURL e jq per
+operazioni CRUD sulle risorse, validazione dei token e operazioni di
+configurazione. Viene eseguito in un sotto-agente per mantenere i
+payload JSON verbosi delle API fuori dal contesto della sessione
+principale.
 
 ### console-operator
 
-Agente di automazione browser autonomo che esegue sequenze di
-strumenti Chrome DevTools MCP per l'autenticazione, la navigazione
-e le interazioni con i form. Viene eseguito in un sotto-agente per
-mantenere gli snapshot del browser ad alto consumo di token fuori
-dalla sessione principale.
+Agente autonomo di automazione del browser che esegue sequenze di
+strumenti Chrome DevTools MCP per autenticazione, navigazione e
+interazioni con i form. Viene eseguito in un sotto-agente per mantenere
+gli snapshot del browser ricchi di token fuori dalla sessione principale.
 
 ### config-analyzer
 
 Agente di analisi della configurazione in sola lettura. Analizza le
-configurazioni JSON dei clienti rispetto ai file di riferimento dei
-profili delle risorse per rispondere a domande su postura di
+configurazioni JSON dei clienti confrontandole con i file di riferimento
+dei profili delle risorse per rispondere a domande sulla postura di
 sicurezza, abilitazione delle funzionalità, transizioni di modalità
 e best practice.
 

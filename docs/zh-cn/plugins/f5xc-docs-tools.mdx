@@ -10,9 +10,9 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** 插件用于验证 f5xc-salesdemos 文档流水线中的 MDX 内容文件。它能在问题进入 CI 之前捕获常见的构建中断问题，包括裸 JSX 字符、无效导入、损坏的图片引用以及不完整的 frontmatter。
+**f5xc-docs-tools** 插件为 f5xc-salesdemos 文档流水线验证 MDX 内容文件。它能在问题到达 CI 之前捕获常见的构建中断问题，包括裸 JSX 字符、无效导入、损坏的图片引用以及不完整的 frontmatter。
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="生产力" variant="tip" />
 
 ## 安装
 
@@ -24,41 +24,36 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 ### mdx-content-reviewer
 
-当 Claude 检测到您正在 f5xc-salesdemos 内容仓库中使用 MDX 文件时，此技能会自动激活。它执行七项验证检查：
+当 Claude 检测到您正在 f5xc-salesdemos 内容仓库中处理 MDX 文件时，此技能会自动激活。它执行七项验证检查：
 
 <CardGrid>
   <Card title="Frontmatter 验证">
-    检查必填字段，如 `title` 和 `sidebar.order`。
+    检查必需字段，如 `title` 和 `sidebar.order`。
     启动页面必须包含 `hero` 字段和
     `template: splash`。
   </Card>
   <Card title="MDX 语法陷阱">
     检测裸 `&lt;` 字符和未转义的 `\{` `\}`
-    花括号，这些会导致 MDX 解析失败。
+    花括号，这些会破坏 MDX 解析。
   </Card>
   <Card title="导入验证">
-    根据 Starlight 内置组件和 f5xc-salesdemos 主题组件的
-    允许列表验证导入。
+    根据 Starlight 内置组件和 f5xc-salesdemos 主题组件的允许列表验证导入。
   </Card>
   <Card title="组件属性">
-    检查 Screenshot、Aside、Code、LinkCard、Card 和 Badge
-    等组件的必需属性。
+    检查 Screenshot、Aside、Code、LinkCard、Card 和 Badge 等组件的必需属性。
   </Card>
   <Card title="图片引用">
-    验证引用的图片是否存在于 `docs/images/`
-    目录中。
+    验证引用的图片是否存在于 `docs/images/` 目录中。
   </Card>
   <Card title="结构检查">
-    确保 `docs/index.mdx` 存在，且图片目录中
-    不包含多余的 MDX 文件。
+    确保 `docs/index.mdx` 存在，且图片目录中不包含多余的 MDX 文件。
   </Card>
   <Card title="导出和代码块">
-    验证在 `Code` 组件 `code` 属性中使用的变量
-    是否有匹配的导出。
+    验证 `Code` 组件 `code` 属性中使用的变量是否有匹配的导出。
   </Card>
 </CardGrid>
 
-#### 作用域行为
+#### 范围行为
 
 该技能会智能地确定其审查范围：
 
@@ -69,9 +64,9 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 发现的问题按严重程度分组：
 
-- **ERROR** — 将导致构建失败；合并前必须修复
-- **WARNING** — 可能存在的问题，应予以处理
-- **INFO** — 建议和最佳实践
+- **错误（ERROR）** — 将导致构建中断；合并前必须修复
+- **警告（WARNING）** — 可能存在的问题，应当处理
+- **信息（INFO）** — 建议和最佳实践
 
 每个发现都包含文件路径、行号和问题描述。
 
@@ -104,7 +99,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 /f5xc-docs-tools:review-mdx docs/guides/*.mdx
 ```
 
-**输出：** 末尾会显示一行摘要，报告已审查的文件总数和按严重程度分类的发现数量。
+**输出：** 末尾的摘要行报告审查的文件总数和按严重程度分类的发现数量。
 
 ## 允许的导入
 
@@ -120,9 +115,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Banner` `Icon` `LinkCard` `Screenshot`
 
 <Aside type="caution">
-  主题组件使用从各个 `.astro` 文件中默认导入的方式。
-  直接的 `node_modules` 导入、相对路径和
-  `require()` 调用将被标记为警告。
+  主题组件使用从单独的 `.astro` 文件进行的默认导入。直接的 `node_modules` 导入、相对路径和 `require()` 调用将被标记为警告。
 </Aside>
 
 ## 组件快速参考
@@ -140,12 +133,12 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 | CardGrid | — | — |
 | FileTree | — | — |
 
-## MDX 常见陷阱
+## MDX 陷阱
 
-插件捕获的常见问题：
+该插件捕获的常见问题：
 
 | 陷阱 | 问题 | 修复方法 |
 |---------|---------|-----|
-| 裸 `&lt;` | MDX 会将其解释为 JSX 标签 | 使用 `&amp;lt;`、行内代码或改写表述 |
-| 未转义的 `\{` `\}` | MDX 会将其视为 JSX 表达式 | 使用行内代码、用 `\` 转义或使用代码块 |
+| 裸 `&lt;` | MDX 将其解释为 JSX 标签 | 使用 `&amp;lt;`、行内代码或改写措辞 |
+| 未转义的 `\{` `\}` | MDX 将其视为 JSX 表达式 | 使用行内代码、用 `\` 转义或使用代码块 |
 | 文件名中的花括号 | Astro 无法处理该文件 | 切勿在 `.mdx` 文件名中使用 `\{` 或 `\}` |

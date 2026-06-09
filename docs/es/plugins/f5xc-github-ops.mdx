@@ -1,8 +1,8 @@
 ---
 title: f5xc-github-ops
 description: >-
-  Automatización de operaciones GitHub para desarrollo dirigido por issues,
-  flujo de trabajo de PR y monitoreo de CI.
+  Automatización de operaciones de GitHub para desarrollo basado en issues,
+  flujo de trabajo de PRs y monitoreo de CI.
 sidebar:
   order: 7
 i18n:
@@ -12,13 +12,14 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-El plugin **f5xc-github-ops** proporciona automatización exclusiva de
-operaciones GitHub para los repositorios de f5xc-salesdemos. Gestiona
-el ciclo de vida completo de Git y GitHub desde la creación de issues
-hasta el monitoreo post-merge, aplicando desarrollo dirigido por issues
-y validaciones de lint previas al commit.
+El plugin **f5xc-github-ops** proporciona automatización exclusiva
+de operaciones de GitHub para los repositorios de f5xc-salesdemos.
+Gestiona el ciclo de vida completo de Git y GitHub desde la creación
+de issues hasta el monitoreo posterior al merge, imponiendo el
+desarrollo basado en issues y las verificaciones de lint previas
+al commit.
 
-<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v2.2.2" variant="note" /> <Badge text="Productividad" variant="tip" />
 
 ## Instalación
 
@@ -30,37 +31,39 @@ y validaciones de lint previas al commit.
 
 ### workflow-lifecycle
 
-Flujo de trabajo de gobernanza del repositorio que gestiona la creación
-de issues, convenciones de nomenclatura de ramas, creación de PRs,
-consulta de CI con retroalimentación de errores a issues, monitoreo
-post-merge, verificación y criterios de finalización de tareas. Se
-activa cuando se dice "commit", "push", "create a PR", "merge" o se
-realiza cualquier operación Git.
+Flujo de trabajo de gobernanza del repositorio que gestiona la
+creación de issues, convenciones de nomenclatura de ramas,
+creación de PRs, sondeo de CI con retroalimentación de errores
+a los issues, monitoreo posterior al merge, verificación y
+criterios de finalización de tareas. Se activa cuando dices
+"commit", "push", "create a PR", "merge", o realizas cualquier
+operación de Git.
 
 ### upstream-contribution
 
-Flujo de trabajo de contribución upstream para desarrollo basado en
-forks. Gestiona la detección de forks, investigación upstream (issues,
-PRs, CONTRIBUTING.md, patrones de CI), creación de issues y PRs entre
-repositorios, gestión de issues de seguimiento local, monitoreo de CI
-upstream y resolución guiada.
+Flujo de trabajo de contribución upstream para desarrollo basado
+en forks. Gestiona la detección de forks, investigación upstream
+(issues, PRs, CONTRIBUTING.md, patrones de CI), creación de
+issues y PRs entre repositorios, gestión de issues de seguimiento
+local, monitoreo de CI upstream y resolución guiada.
 
 ## Agentes
 
 ### github-ops
 
-Agente exclusivo para todas las operaciones mecánicas de Git y GitHub.
-Gestiona validaciones de lint previas al commit, creación de issues,
-creación de ramas, preparación (staging), commits, push, creación de
-PRs, consulta de CI con retroalimentación de errores, reintento ante
-fallos de infraestructura, monitoreo post-merge, limpieza de ramas y
-gestión de configuración del repositorio a través de la API de GitHub.
+Agente exclusivo para todas las operaciones mecánicas de Git y
+GitHub. Gestiona las verificaciones de lint previas al commit,
+creación de issues, creación de ramas, staging, commits, push,
+creación de PRs, sondeo de CI con retroalimentación de errores,
+reintento de fallos de infraestructura, monitoreo posterior al
+merge, limpieza de ramas y gestión de configuración del
+repositorio a través de la API de GitHub.
 
 Devuelve informes de estado estructurados: `COMPLETE`,
 `PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` o `FAILED`.
 
 <Aside type="caution">
-  Este agente es el gestor **exclusivo** de las operaciones Git.
-  Nunca ejecute `git commit`, `git push` o `gh pr create` directamente
+  Este agente es el gestor **exclusivo** de las operaciones de Git.
+  Nunca ejecutes `git commit`, `git push` o `gh pr create` directamente
   en repositorios que utilicen este plugin.
 </Aside>

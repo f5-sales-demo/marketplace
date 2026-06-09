@@ -12,7 +12,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 **f5xc-firecrawl** 外掛透過開源 [firecrawl](https://github.com/mendableai/firecrawl)
 引擎提供本機自託管網頁抓取功能。無需 API 金鑰、無需訂閱、無需雲端依賴。所有
-操作都在 devcontainer 內的 `localhost:3002` 上執行本機 firecrawl 實例。
+操作都在 devcontainer 內部的 `localhost:3002` 上對本機 firecrawl 實例執行。
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -61,7 +61,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /search
 
-搜尋網頁並可選擇性地抓取結果。
+搜尋網路並可選擇性地抓取結果。
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -70,7 +70,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /extract
 
-由 LLM 驅動的結構化資料擷取，從網頁中提取資料。
+由 LLM 驅動的網頁結構化資料擷取。
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -93,7 +93,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### web-scraper
 
-當您要求抓取 URL、爬取網站、映射網站 URL、搜尋網頁、擷取結構化資料、產生 llms.txt、
+當您要求抓取 URL、爬取網站、映射網站 URL、搜尋網路、擷取結構化資料、產生 llms.txt、
 批次抓取多個 URL 或將網頁轉換為 markdown 時自動啟用。
 會立即委派給 firecrawl-operator 代理。
 
@@ -101,8 +101,8 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### firecrawl-operator
 
-自主網頁抓取代理，針對本機 firecrawl API 執行 `curl` + `jq` 序列。
-支援涵蓋所有 v1 端點的 11 種協定。唯讀代理（無 Write、Edit 或 Agent 工具）。
+自主網頁抓取代理，對本機 firecrawl API 執行 `curl` + `jq` 序列。
+支援涵蓋所有 v1 端點的 11 種協定。唯讀代理（無寫入、編輯或代理工具）。
 
 | 協定 | 端點 | 類型 |
 |----------|----------|------|
@@ -118,7 +118,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | EXTRACT | `POST /v1/extract` | 非同步 |
 | LLMSTXT | `POST /v1/llmstxt` | 非同步 |
 
-## 基礎架構
+## 基礎設施
 
 此外掛需要在 devcontainer 中執行 firecrawl 堆疊：
 
@@ -128,18 +128,18 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | Playwright | 3000 | JavaScript 渲染引擎 |
 | Redis | 6379 | 工作佇列後端 |
 | PostgreSQL | socket | 爬取/批次工作持久化 |
-| LiteLLM proxy | OPENAI_BASE_URL | extract 的 LLM 後端（選用） |
+| LiteLLM proxy | OPENAI_BASE_URL | 用於 extract 的 LLM 後端（選用） |
 
-當 `ENABLE_FIRECRAWL=true`（預設值）時，堆疊會自動啟動。SessionStart 鉤子會檢查 API 是否可連線，
-並在服務停止時發出警告。
+當 `ENABLE_FIRECRAWL=true`（預設值）時，堆疊會自動啟動。SessionStart 鉤子會檢查
+API 是否可連線，若服務無法使用則發出警告。
 
 ## 與雲端 Firecrawl 的差異
 
 此外掛使用自託管開源版本：
 
-- 抓取時無需驗證或 API 金鑰
+- 抓取無需驗證或 API 金鑰
 - 無額度限制或速率限制
 - 使用 v1 API 端點（非 v2）
-- 瀏覽器工作階段和深度研究不可用
-- Extract 使用您自己的 LLM 代理，而非託管模型
+- 瀏覽器工作階段與深度研究功能不可用
+- Extract 使用您自己的 LLM 代理而非託管模型
 - 完全在本機容器網路內執行

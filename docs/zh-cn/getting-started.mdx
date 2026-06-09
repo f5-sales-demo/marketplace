@@ -1,6 +1,6 @@
 ---
 title: 快速入门
-description: 逐步指南，介绍如何添加 f5xc-salesdemos 市场并安装您的第一个插件。
+description: 添加 f5xc-salesdemos 市场并安装第一个插件的分步指南。
 sidebar:
   order: 2
 i18n:
@@ -11,14 +11,14 @@ i18n:
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 本指南将引导您完成将 f5xc-salesdemos
-市场添加到 Claude Code 并安装第一个插件的过程。
+市场添加到 Claude Code 并安装第一个插件的操作。
 
 ## 前提条件
 
 - Claude Code **v1.0.33** 或更高版本（支持插件市场功能）
-- 拥有访问
+- 拥有
   [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
-  组织权限的 GitHub 账户
+  组织访问权限的 GitHub 账户
 
 ## 安装
 
@@ -32,12 +32,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    /plugin marketplace add f5xc-salesdemos/marketplace
    ```
 
-   这将把该市场注册为插件源。您只需要
-   执行一次此操作。
+   这将注册该市场为插件来源。此操作只需执行一次。
 
 2. **浏览可用插件**
 
-   列出市场提供的内容：
+   列出市场提供的插件：
 
    ```
    /plugin marketplace list f5xc-salesdemos-marketplace
@@ -56,21 +55,21 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
    导航到任意 f5xc-salesdemos 内容仓库。
 
-   使用**文档工具**时，运行 MDX 审查命令：
+   对于 **docs tools**，运行 MDX 审查命令：
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   使用**销售工程师**工具时，使用触发短语，例如
+   对于 **sales engineer**，使用触发短语，如
    "prepare the demo"、"run the demo" 或 "walk through
-   the demo" — 插件将自动激活。
+   the demo" — 插件会自动激活。
 
 </Steps>
 
 ## 更新插件
 
-要将已安装的插件更新到最新版本：
+将已安装的插件更新到最新版本：
 
 ```
 /plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
@@ -94,8 +93,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## 团队配置
 
-要为整个团队预配置市场，请将其添加
-到项目的 `.claude/settings.json` 中：
+要为整个团队预配置市场，请将其添加到项目的
+`.claude/settings.json` 文件中：
 
 ```json
 {
@@ -110,10 +109,10 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="共享设置">
-  将 `.claude/settings.json` 提交到仓库意味着
-  每位团队成员都会自动获得市场和插件
+  将 `.claude/settings.json` 提交到仓库后，
+  每位团队成员都会自动获取市场和插件配置
   — 无需手动设置。
 </Aside>
 
-这确保每位贡献者从在仓库中首次启动 Claude Code 会话起
-就拥有相同的工具可用。
+这确保了每位贡献者从第一次在仓库中使用 Claude Code
+会话时就拥有相同的工具集。

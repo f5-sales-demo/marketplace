@@ -1,6 +1,6 @@
 ---
 title: f5xc-devcontainer
-description: 容器感知外掛，用於工具目錄、即時內省與工具安裝，並透過持久化追蹤進行管理。
+description: 容器感知外掛，用於工具目錄、即時自省與工具安裝及持久性追蹤。
 sidebar:
   order: 10
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-devcontainer** 外掛為 f5xc-salesdemos 開發環境提供容器感知功能。它維護一個完整的工具目錄，支援即時容器內省，並透過 GitHub issues 處理工具安裝與持久化追蹤。
+**f5xc-devcontainer** 外掛為 f5xc-salesdemos 開發環境提供容器感知功能。它維護一個完整的工具目錄，支援即時容器自省，並透過 GitHub issues 處理工具安裝與持久性追蹤。
 
 <Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,30 +24,30 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### tool-catalog
 
-開發容器中所有已安裝 CLI 工具的知識庫，按類別組織（雲端、網路、安全、開發等）。當您詢問該使用哪個工具、如何使用工具、某個工具是否已安裝，或需要特定操作的協助時會啟動。
+devcontainer 中安裝的所有 CLI 工具的知識庫，按類別（雲端、網路、安全、開發等）組織。當您詢問該使用哪個工具、如何使用工具、某個工具是否已安裝，或需要特定操作的協助時，此技能會被啟動。
 
 ### self-awareness
 
-容器身份識別與自我診斷技能。透過 GitHub API 與本地建置中繼資料，提供執行中容器的即時內省功能。當詢問身份、版本、建置資訊、健康檢查與貢獻者歷史等問題時會啟動。
+容器身份與自我診斷技能。透過 GitHub API 和本機建置中繼資料，提供執行中容器的即時自省功能。當詢問身份、版本、建置資訊、健康檢查和貢獻者歷史等問題時會被啟動。
 
 <Aside type="tip">
-  詢問「你是誰？」或「我正在執行什麼版本？」即可觸發自我感知功能。
+  詢問「你是誰？」或「我正在執行什麼版本？」即可觸發 self-awareness 技能。
 </Aside>
 
 ## 代理
 
 ### tool-advisor
 
-讀取工具目錄，並針對任何 CLI 工具問題回傳建議，包含用途說明、快速入門指令與驗證需求。
+讀取工具目錄並針對任何 CLI 工具問題，回傳包含用途、快速入門指令和驗證需求的建議。
 
 ### tool-auditor
 
-根據工具目錄參考檔案審核開發容器的 Dockerfile，以偵測偏差 &mdash; 已加入映像但未編入目錄的工具，或目錄中存在但已被移除的工具條目。
+將 devcontainer 的 Dockerfile 與工具目錄參考檔案進行稽核比對，以偵測差異 &mdash; 已加入映像檔但未編入目錄的工具，或目錄中已被移除工具的條目。
 
 ### container-introspector
 
-透過 GitHub API 與本地中繼資料執行即時容器內省，涵蓋身份識別、譜系關係、自我診斷、貢獻者歷史與建置血統。僅執行唯讀操作。
+透過 GitHub API 和本機中繼資料執行即時容器自省，涵蓋身份、系譜、自我診斷、貢獻者歷史和建置血統。僅執行唯讀操作。
 
 ### container-maintainer
 
-使用正確的套件管理器模式，在執行中的容器內安裝、移除、搜尋與更新 CLI 工具。針對開發容器儲存庫提交 GitHub issues 以進行持久化追蹤。
+使用正確的套件管理器模式，在執行中的容器內安裝、移除、搜尋和更新 CLI 工具。會向 devcontainer 儲存庫提交 GitHub issues 以進行持久性追蹤。

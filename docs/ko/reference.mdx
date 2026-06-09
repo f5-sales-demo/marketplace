@@ -12,7 +12,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## marketplace.json 스키마
 
-마켓플레이스 매니페스트는 리포지토리 루트의
+마켓플레이스 매니페스트는 저장소 루트의
 `.claude-plugin/marketplace.json`에 위치합니다.
 
 ### 최상위 필드
@@ -26,14 +26,14 @@ import { Aside } from '@astrojs/starlight/components';
 | `owner.name` | 예 | 마켓플레이스를 소유한 조직 또는 사용자 |
 | `owner.url` | 아니오 | 소유자의 프로필 또는 웹사이트 URL |
 | `owner.email` | 아니오 | 연락처 이메일 |
-| `plugins` | 예 | 플러그인 항목 배열 |
+| `plugins` | 예 | 플러그인 항목의 배열 |
 
 ### 플러그인 항목 필드
 
 | 필드 | 필수 | 설명 |
 |-------|----------|-------------|
 | `name` | 예 | 플러그인 식별자 (`plugin.json`과 일치해야 함) |
-| `description` | 예 | 플러그인에 대한 짧은 설명 |
+| `description` | 예 | 플러그인에 대한 간단한 설명 |
 | `version` | 예 | 시맨틱 버전 문자열 |
 | `author.name` | 예 | 플러그인 작성자 |
 | `source` | 예 | 플러그인 경로 또는 URL (소스 유형 참조) |
@@ -42,59 +42,57 @@ import { Aside } from '@astrojs/starlight/components';
 | `license` | 아니오 | SPDX 라이선스 식별자 |
 | `keywords` | 아니오 | 검색 키워드 배열 |
 | `tags` | 아니오 | 필터링을 위한 태그 배열 |
-| `repository` | 아니오 | 리포지토리 URL |
+| `repository` | 아니오 | 저장소 URL |
 
 ## 플러그인 소스 유형
 
-marketplace.json의 `source` 필드는 여러 형식을
-지원합니다:
+marketplace.json의 `source` 필드는 여러 형식을 지원합니다:
 
 | 유형 | 예시 | 설명 |
 |------|---------|-------------|
-| 상대 경로 | `./plugins/my-plugin` | 동일 리포지토리 내 플러그인 |
-| GitHub 단축 표기 | `owner/repo` | 리포지토리 루트에 있는 플러그인 |
+| 상대 경로 | `./plugins/my-plugin` | 동일 저장소 내 플러그인 |
+| GitHub 축약형 | `owner/repo` | 저장소 루트에 있는 플러그인 |
 | GitHub 경로 포함 | `owner/repo/path/to/plugin` | 하위 디렉토리에 있는 플러그인 |
-| Git URL | `https://github.com/owner/repo.git` | Git 리포지토리 |
+| Git URL | `https://github.com/owner/repo.git` | Git 저장소 |
 | npm 패키지 | `npm:@scope/package` | 게시된 npm 패키지 |
 
 ## plugin.json 스키마
 
-각 플러그인은 해당 디렉토리 내
-`.claude-plugin/plugin.json`에 매니페스트를 가집니다.
+각 플러그인은 자체 디렉토리 내의
+`.claude-plugin/plugin.json`에 매니페스트를 가지고 있습니다.
 
 | 필드 | 필수 | 설명 |
 |-------|----------|-------------|
 | `name` | 예 | 플러그인 식별자 |
-| `description` | 예 | 플러그인이 하는 일 |
+| `description` | 예 | 플러그인의 기능 설명 |
 | `version` | 예 | 시맨틱 버전 |
 | `author.name` | 예 | 플러그인 작성자 |
 | `author.url` | 아니오 | 작성자의 프로필 또는 웹사이트 URL |
 | `homepage` | 아니오 | 문서 URL |
 | `keywords` | 아니오 | 검색 키워드 |
 | `license` | 아니오 | SPDX 라이선스 식별자 |
-| `repository` | 아니오 | 리포지토리 URL |
+| `repository` | 아니오 | 저장소 URL |
 
-## 플러그인 디렉토리 레이아웃
+## 플러그인 디렉토리 구조
 
 ```
 plugins/my-plugin/
   .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+    plugin.json          # 플러그인 매니페스트 (필수)
   skills/
     skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+      SKILL.md           # 스킬 정의 (스킬당 필수)
+      references/        # 참조 데이터 파일 (선택 사항)
   commands/
-    command-name.md      # Command definition (one per command)
+    command-name.md      # 명령어 정의 (명령어당 하나)
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    agent-name.md        # 에이전트 정의 (에이전트당 하나)
+  README.md              # 플러그인 문서 (권장)
 ```
 
 ## 환경 변수
 
-플러그인은 스킬 및 커맨드 파일에서 다음 변수를 사용할 수
-있습니다:
+플러그인은 스킬 및 명령어 파일에서 다음 변수를 사용할 수 있습니다:
 
 | 변수 | 설명 |
 |----------|-------------|
@@ -108,19 +106,19 @@ plugins/my-plugin/
 claude plugin validate .
 ```
 
-다음 항목을 확인합니다:
+다음 항목을 검사합니다:
 
 - `marketplace.json` 스키마 준수 여부
 - 참조된 모든 플러그인 디렉토리 존재 여부
-- 각 플러그인이 유효한 `plugin.json`을 가지고 있는지
-- 스킬이 올바른 형식의 `SKILL.md` 프론트매터를 가지고 있는지
-- 커맨드가 필수 프론트매터 필드를 포함하고 있는지
+- 각 플러그인의 유효한 `plugin.json` 보유 여부
+- 스킬의 `SKILL.md` 프론트매터 형식 적합성
+- 명령어의 필수 프론트매터 필드 포함 여부
 
 ## 팀 구성
 
 ### 마켓플레이스 사전 구성
 
-리포지토리의 `.claude/settings.json`에 추가합니다:
+저장소의 `.claude/settings.json`에 추가합니다:
 
 ```json
 {
@@ -141,9 +139,9 @@ claude plugin validate .
 ```
 
 <Aside type="tip">
-  이 설정을 리포지토리에 커밋하면 모든 팀원이 동일한
-  마켓플레이스 및 플러그인 구성을 자동으로 받을 수
-  있습니다.
+  이러한 설정을 저장소에 커밋하면 모든 팀원이
+  동일한 마켓플레이스 및 플러그인 구성을
+  자동으로 적용받을 수 있습니다.
 </Aside>
 
 ## 문제 해결
@@ -166,8 +164,8 @@ claude plugin validate .
 
 - 플러그인이 설치되었는지 확인합니다:
   `/plugin list`
-- Claude Code 버전이 플러그인을 지원하는지 확인합니다
-  (v1.0.33+)
+- 사용 중인 Claude Code 버전이 플러그인을 지원하는지
+  확인합니다 (v1.0.33+)
 - 스킬의 트리거 조건이 현재 컨텍스트와 일치하는지
   확인합니다
 
@@ -178,10 +176,10 @@ claude plugin validate .
 
 - 설명이 트리거 컨텍스트를 정확하게 기술하고 있는지
   확인합니다
-- 우회 방법으로 커맨드를 직접 사용합니다 (예: `/f5xc-docs-tools:review-mdx`)
+- 대안으로 명령어를 직접 사용합니다 (예: `/f5xc-docs-tools:review-mdx`)
 
 ### 리뷰 후 빌드 오류
 
 플러그인은 문제를 보고하지만 자동으로 수정하지는 않습니다.
-제안된 수정 사항을 수동으로 적용한 후 리뷰를 다시 실행하여
-해결을 확인합니다.
+제안된 수정 사항을 수동으로 적용한 다음, 리뷰를 다시 실행하여
+해결 여부를 확인합니다.

@@ -12,13 +12,14 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-platform** fornece automação completa para a plataforma
-F5 Distributed Cloud. Ele abrange operações do console web via
-Chrome DevTools MCP, operações de API REST com reconhecimento de
-especificação via cURL, autenticação multi-provedor e análise de
-configuração em 98 tipos de recursos em 38 domínios.
+O plugin **f5xc-platform** fornece automação completa para a
+plataforma F5 Distributed Cloud. Ele abrange operações do console
+web via Chrome DevTools MCP, operações de API REST com
+reconhecimento de especificação via cURL, autenticação
+multi-provedor e análise de configuração em 98 tipos de recursos
+em 38 domínios.
 
-<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v3.1.1" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
 ## Instalação
 
@@ -26,47 +27,48 @@ configuração em 98 tipos de recursos em 38 domínios.
 /plugin install f5xc-platform@f5xc-salesdemos-marketplace
 ```
 
-## Skills
+## Habilidades
 
 ### api-operations
 
-Operações CRUD de API com reconhecimento de especificação, cobrindo
-98 tipos de recursos em 38 domínios. Fornece endpoints precisos,
-templates de payload, ordenação de dependências e composições de
-workflows multi-etapas para balanceadores de carga HTTP, pools de
-origem, políticas WAF, zonas DNS, certificados, sites em nuvem e
-muito mais.
+Operações CRUD de API com reconhecimento de especificação,
+cobrindo 98 tipos de recursos em 38 domínios. Fornece endpoints
+precisos, modelos de payload, ordenação de dependências e
+composições de workflows multi-etapas para load balancers HTTP,
+origin pools, políticas WAF, zonas DNS, certificados, cloud sites
+e muito mais.
 
 ### config-analysis
 
 Capacidade de análise e consultoria de configuração. Analisa
 configurações JSON de clientes para responder perguntas sobre
 postura de segurança, habilitação de funcionalidades, configurações
-de modo, exclusões e melhores práticas. Suporta Q&A em múltiplas
-interações com contexto comprimido entre despachos.
+de modo, exclusões e melhores práticas. Suporta Q&A multi-turno
+com contexto comprimido entre despachos.
 
 ### api-auth
 
-Autenticação de API com suporte a autenticação por header com token
-de API e autenticação por certificado P12 com procedimentos de
-validação de token.
+Autenticação de API com suporte a autenticação por token de API
+via cabeçalho e autenticação por certificado P12 com procedimentos
+de validação de token.
 
 ### console-auth
 
-Autenticação multi-provedor para o console web F5 XC. Detecta
-automaticamente o tipo de login: login nativo F5 XC, SSO Azure com
-sessão em cache ou SSO Azure com MFA de push verificado via DUO.
+Autenticação multi-provedor para o console web do F5 XC.
+Detecta automaticamente o tipo de login: login nativo do F5 XC,
+SSO Azure com sessão em cache ou SSO Azure com MFA por push
+verificado via DUO.
 
 ### console-navigator
 
-Navegação determinística para seções do console F5 XC. Traduz
-nomes de seções em caminhos de URL, verifica a saúde da sessão e
-confirma o carregamento da página.
+Navegação determinística para seções do console do F5 XC. Traduz
+nomes de seções para caminhos de URL, verifica a saúde da sessão
+e confirma o carregamento da página.
 
 ### platform-index / api-index / console-index
 
-Roteadores de intenção que classificam as solicitações do usuário
-e delegam à skill e ao agente apropriado. Estes são ativados
+Roteadores de intenção que classificam solicitações de usuários e
+delegam para a habilidade e agente apropriados. Estes são ativados
 automaticamente e não são invocáveis pelo usuário.
 
 ## Comandos
@@ -77,7 +79,7 @@ automaticamente e não são invocáveis pelo usuário.
 /f5xc-platform:check-api-token
 ```
 
-Valida seu token de API F5 XC delegando ao agente api-operator.
+Valida seu token de API do F5 XC delegando ao agente api-operator.
 
 ### /login-console
 
@@ -85,7 +87,7 @@ Valida seu token de API F5 XC delegando ao agente api-operator.
 /f5xc-platform:login-console
 ```
 
-Autentica no console F5 Distributed Cloud via agente
+Autentica no console do F5 Distributed Cloud por meio do agente
 console-operator.
 
 ## Agentes
@@ -93,16 +95,16 @@ console-operator.
 ### api-operator
 
 Agente autônomo de API REST que executa sequências de cURL e jq
-para CRUD de recursos, validação de token e operações de
-configuração. Executa em um subagente para manter os payloads JSON
-verbosos da API fora do contexto da sessão principal.
+para CRUD de recursos, validação de tokens e operações de
+configuração. Executa em um subagente para manter payloads JSON
+verbosos de API fora do contexto da sessão principal.
 
 ### console-operator
 
 Agente autônomo de automação de navegador que executa sequências
 de ferramentas Chrome DevTools MCP para autenticação, navegação e
 interações com formulários. Executa em um subagente para manter
-os snapshots de navegador com muitos tokens fora da sessão
+snapshots de navegador com uso intensivo de tokens fora da sessão
 principal.
 
 ### config-analyzer

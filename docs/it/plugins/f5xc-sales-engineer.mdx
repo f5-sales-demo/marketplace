@@ -1,8 +1,8 @@
 ---
 title: f5xc-sales-engineer
 description: >-
-  Framework persona Sales Engineer per l'esecuzione di demo, presentazioni, Q&A
-  e teardown.
+  Framework persona Sales Engineer per esecuzione demo, presentazioni, Q&A e
+  teardown.
 sidebar:
   order: 5
 i18n:
@@ -12,12 +12,12 @@ i18n:
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-sales-engineer** fornisce un framework persona Sales Engineer
-riutilizzabile per i repository demo di F5 XC. Gestisce l'intero ciclo di vita
-di una riunione demo — dalla verifica pre-meeting all'esecuzione live,
-Q&A e teardown.
+Il plugin **f5xc-sales-engineer** fornisce un framework riutilizzabile
+per la persona Sales Engineer destinato ai repository demo di F5 XC.
+Gestisce l'intero ciclo di vita di una riunione demo — dalla verifica
+pre-riunione all'esecuzione dal vivo, Q&A e teardown.
 
-<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.6" variant="note" /> <Badge text="Produttività" variant="tip" />
 
 ## Installazione
 
@@ -25,18 +25,18 @@ Q&A e teardown.
 /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
 ```
 
-## Skill
+## Competenze
 
 ### demo-executor
 
-Esecuzione demo basata su API con un ciclo di vita della riunione in quattro fasi:
+Esecuzione demo guidata da API con un ciclo di vita della riunione in quattro fasi:
 
-1. **Preparazione** — verifica dell'ambiente pre-meeting tramite
+1. **Preparazione** — verifica dell'ambiente pre-riunione tramite
    l'agente `demo-housekeeping`
 2. **Esecuzione** — esecuzione deterministica delle fasi con
    narrazione rivolta al cliente
 3. **Q&A** — modalità di improvvisazione con ambiente live
-4. **Teardown** — pulizia post-meeting tramite l'agente `demo-housekeeping`
+4. **Teardown** — pulizia post-riunione tramite l'agente `demo-housekeeping`
 
 Legge i contenuti specifici del prodotto da `DEMO_PRODUCT_EXPERTISE.md` e i
 comandi demo da `docs/demo/`.
@@ -49,55 +49,55 @@ ogni passaggio. Legge l'ordine del walkthrough da `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ### subject-matter-expert
 
-Q&A con riferimenti e requisiti rigorosi di citazione. Non
-improvvisa mai — ogni risposta include un riferimento o una prova. Delega
+Q&A supportato da riferimenti con requisiti rigorosi di citazione. Non
+ipotizza mai — ogni risposta include un riferimento o una prova. Delega
 la ricerca all'agente `demo-researcher` quando necessario.
 
 ### sales-engineer
 
-Indice dei ruoli che instrada l'intento dell'utente verso lo skill persona
-corretto. Si attiva quando la richiesta è relativa alla demo ma non corrisponde
-a una frase trigger specifica.
+Indice dei ruoli che instrada l'intento dell'utente verso la competenza
+persona corretta. Si attiva quando la richiesta è relativa alla demo ma
+non corrisponde a una frase trigger specifica.
 
 ## Agenti
 
 ### demo-housekeeping
 
-Agente autonomo per la verifica pre-meeting e il teardown
-post-meeting. Esegue la Matrice di Verifica della Prontezza (T0–T5) definita
-in `DEMO_READINESS_MATRIX.md` ed esegue i comandi di teardown da
+Agente autonomo per la verifica pre-riunione e il teardown
+post-riunione. Esegue la Matrice di Verifica della Prontezza (T0–T5)
+definita in `DEMO_READINESS_MATRIX.md` ed esegue i comandi di teardown da
 `docs/demo/phase-4-teardown.mdx`.
 
 ### demo-researcher
 
-Bibliotecario di ricerca in sola lettura che trova risposte verificate con
-citazioni. Cerca prima nella documentazione locale `docs/`, poi nelle fonti esterne
-indicizzate da `DEMO_SOURCE_INDEX.md`, con WebSearch come fallback.
+Bibliotecario di ricerca in sola lettura che trova risposte verificate
+con citazioni. Cerca prima nella documentazione locale `docs/`, poi nelle
+fonti esterne indicizzate da `DEMO_SOURCE_INDEX.md`, con WebSearch come fallback.
 
-## File di Convenzione
+## File di convenzione
 
 <Aside type="tip" title="Contenuti specifici del prodotto">
   Questo plugin è agnostico rispetto al prodotto. Ogni repository fornisce
   contenuti specifici del prodotto attraverso file di convenzione standardizzati.
 </Aside>
 
-Create questi file nella root del vostro repository per configurare il plugin:
+Crea questi file nella root del tuo repository per configurare il plugin:
 
-| File | Scopo | Richiesto Per |
+| File | Scopo | Richiesto per |
 | ---- | ----- | ------------- |
-| `DEMO_PRODUCT_EXPERTISE.md` | Capacità del prodotto, segnali di rilevamento, copertura delle minacce, allineamento alla conformità, riferimento API | Tutti gli skill |
+| `DEMO_PRODUCT_EXPERTISE.md` | Capacità del prodotto, segnali di rilevamento, copertura delle minacce, allineamento alla conformità, riferimento API | Tutte le competenze |
 | `DEMO_WALKTHROUGH_CONFIG.md` | URL dell'app demo, ordine del walkthrough, tempistiche di rilevamento | presenter |
-| `DEMO_SOURCE_INDEX.md` | Catalogo delle fonti di ricerca con documenti locali e URL esterni | demo-researcher |
+| `DEMO_SOURCE_INDEX.md` | Catalogo delle fonti di ricerca con documentazione locale e URL esterni | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | Variabili obbligatorie/opzionali, controlli di prontezza (T0–T5), endpoint API | demo-housekeeping |
 | `docs/demo/` | File di fase con comandi cURL e gate di evidenza | demo-executor |
 
-## Frasi Trigger
+## Frasi trigger
 
 La mappa trigger in `.claude/CLAUDE.md` (gestita da `docs-control`)
-attiva gli skill in base all'intento dell'utente:
+attiva le competenze in base all'intento dell'utente:
 
-| Frase | Skill | Fase |
-| ----- | ----- | ---- |
+| Frase | Competenza | Fase |
+| ----- | ---------- | ---- |
 | "run the demo", "execute the demo" | demo-executor | Esecuzione |
 | "prepare the demo", "pre-flight" | demo-executor | Preparazione |
 | "Q&A", "question and answer" | demo-executor | Q&A |
@@ -105,7 +105,7 @@ attiva gli skill in base all'intento dell'utente:
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
 
-## Stile di Narrazione
+## Stile di narrazione
 
 Tutte le persona condividono uno stile di narrazione coerente:
 
@@ -114,6 +114,6 @@ Tutte le persona condividono uno stile di narrazione coerente:
 - **Un concetto per paragrafo** — ogni narrazione risponde a: Cos'è
   questo? Perché è importante? Cosa dovrei fare al riguardo?
 - **Nominare il segnale** — evidenziare quale capacità è in azione
-- **Riferimento alla conformità quando pertinente** — menzionare l'allineamento normativo
-  in modo naturale
-- **Marcatore di pausa per il ritmo** — `> ⏸ *[Pausa per il pubblico — pronti a continuare?]*`
+- **Aggancio alla conformità quando rilevante** — menzionare
+  l'allineamento normativo in modo naturale
+- **Marcatore di pausa** — `> ⏸ *[Pausa per il pubblico — pronti a continuare?]*`

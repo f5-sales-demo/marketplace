@@ -2,7 +2,7 @@
 title: Ein Plugin beitragen
 description: >-
   Anleitung zum Erstellen, Strukturieren und Veröffentlichen von Plugins für den
-  f5xc-salesdemos Marketplace.
+  f5xc-salesdemos Marktplatz.
 sidebar:
   order: 6
 i18n:
@@ -13,7 +13,7 @@ i18n:
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 Diese Anleitung erklärt, wie Sie ein neues Plugin erstellen und
-es dem f5xc-salesdemos Marketplace hinzufügen.
+zum f5xc-salesdemos Marktplatz hinzufügen.
 
 ## Plugin-Struktur
 
@@ -85,7 +85,7 @@ folgt dieser Struktur:
    Platzieren Sie Referenzdaten in einem `references/`-Unterverzeichnis
    neben `SKILL.md`.
 
-4. **Commands hinzufügen**
+4. **Befehle hinzufügen**
 
    Erstellen Sie `plugins/my-plugin/commands/my-command.md`:
 
@@ -132,15 +132,15 @@ folgt dieser Struktur:
    claude --plugin-dir ./plugins/my-plugin
    ```
 
-   Überprüfen Sie, ob Skills im richtigen Kontext aktiviert werden und
-   Commands die erwartete Ausgabe erzeugen.
+   Überprüfen Sie, dass Skills im richtigen Kontext aktiviert werden und
+   Befehle die erwartete Ausgabe liefern.
 
 </Steps>
 
 ## Ihr Plugin einreichen
 
 <Aside type="tip" title="Repository-Workflow">
-  Dieses Repository erzwingt einen strengen Governance-Workflow.
+  Dieses Repository setzt einen strikten Governance-Workflow durch.
   Siehe [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   für den vollständigen Prozess.
 </Aside>
@@ -151,19 +151,19 @@ folgt dieser Struktur:
 2. Erstellen Sie einen Feature-Branch von `main`
 3. Fügen Sie Ihr Plugin-Verzeichnis hinzu und aktualisieren Sie `marketplace.json`
 4. Fügen Sie eine Dokumentationsseite unter `docs/plugins/my-plugin.mdx` hinzu
-5. Öffnen Sie einen PR, der auf das Issue mit `Closes #N` verweist
-6. Beheben Sie eventuelle CI-Fehler und mergen Sie nach erfolgreichen Checks
+5. Öffnen Sie einen PR mit Verweis auf das Issue mit `Closes #N`
+6. Beheben Sie etwaige CI-Fehler und mergen Sie nach bestandenen Prüfungen
 
 </Steps>
 
-## Best Practices
+## Bewährte Vorgehensweisen
 
 - **Skills fokussiert halten** — ein Skill sollte eine Sache gut erledigen
-- **Referenzdateien verwenden** — platzieren Sie große Datensätze, Schemas und
-  Nachschlagetabellen in `references/` anstatt inline in SKILL.md
+- **Referenzdateien verwenden** — platzieren Sie große Datensätze, Schemata und
+  Nachschlagetabellen in `references/` anstatt sie inline in SKILL.md einzubetten
 - **Intelligent eingrenzen** — prüfen Sie auf nicht committete Änderungen, um
-  den Arbeitsbereich wenn möglich einzugrenzen
-- **Ausgaben nach Schweregrad gruppieren** — verwenden Sie ERROR-, WARNING- und INFO-Stufen,
+  den Arbeitsbereich wenn möglich einzuschränken
+- **Ausgabe nach Schweregrad gruppieren** — verwenden Sie die Stufen ERROR, WARNING und INFO,
   damit Benutzer Korrekturen priorisieren können
-- **Eine README schreiben** — fügen Sie Nutzungsbeispiele und eine Beschreibung
-  hinzu, was jeder Skill und Command tut
+- **Eine README schreiben** — fügen Sie Verwendungsbeispiele und eine Beschreibung
+  dessen hinzu, was jeder Skill und Befehl tut

@@ -15,11 +15,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 Le plugin **osint-framework** fournit un catalogue d'outils OSINT et
 des compétences d'investigation — 1 064 outils gratuits de collecte
 de renseignements répartis dans 34 catégories, cartographiés depuis [osintframework.com](https://osintframework.com).
-Il comprend des compétences basées sur les catégories, des pipelines d'investigation exécutables,
-l'exécution d'outils CLI, des flux de travail sensibles à l'OPSEC, et un graphe
+Il inclut des compétences basées sur les catégories, des pipelines d'investigation
+exécutables, l'exécution d'outils CLI, des workflows respectant l'OPSEC, et un graphe
 d'entités persistant pour la corrélation inter-investigations.
 
-<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+<Badge text="v1.0.1" variant="note" /> <Badge text="Sécurité" variant="tip" />
 
 ## Installation
 
@@ -31,9 +31,9 @@ d'entités persistant pour la corrélation inter-investigations.
 
 ### /osint-investigate
 
-Exécutez une investigation OSINT complète contre n'importe quelle cible. Détecte
+Exécute une investigation OSINT complète sur n'importe quelle cible. Détecte
 automatiquement le type de cible (e-mail, domaine, IP, nom d'utilisateur, entreprise,
-nom de personne) et route vers les compétences de catégorie appropriées.
+nom de personne) et oriente vers les compétences de catégorie appropriées.
 
 ```
 /osint-investigate j.smith@example.com
@@ -44,7 +44,7 @@ nom de personne) et route vers les compétences de catégorie appropriées.
 
 ### /osint-search
 
-Recherchez dans le catalogue d'outils ceux correspondant à une requête de capacité.
+Recherche dans le catalogue d'outils ceux correspondant à une requête de capacité.
 
 ```
 /osint-search subdomain enumeration
@@ -54,7 +54,7 @@ Recherchez dans le catalogue d'outils ceux correspondant à une requête de capa
 
 ### /osint-catalog
 
-Parcourez le catalogue complet d'outils par catégorie. Sans arguments, affiche
+Parcourt le catalogue complet d'outils par catégorie. Sans argument, affiche
 les 34 catégories avec le nombre d'outils.
 
 ```
@@ -67,14 +67,14 @@ les 34 catégories avec le nombre d'outils.
 
 ### osint-index
 
-Routeur d'intention de premier niveau. S'active automatiquement lorsque vous dites « trouver
-des informations sur », « investiguer », « rechercher », « vérification des antécédents »,
-ou décrivez toute tâche de renseignement en sources ouvertes. Route vers la
-compétence de catégorie appropriée en fonction du type de cible.
+Routeur d'intention de niveau supérieur. S'active automatiquement lorsque vous dites
+« trouver des informations sur », « investiguer », « rechercher », « vérification d'antécédents »,
+ou décrivez toute tâche de renseignement en sources ouvertes. Oriente vers la compétence
+de catégorie appropriée en fonction du type de cible.
 
-| Cible | Route vers |
-|-------|-----------|
-| Nom d'utilisateur ou pseudonyme | `username-recon` |
+| Cible | Oriente vers |
+|-------|-------------|
+| Nom d'utilisateur ou pseudo | `username-recon` |
 | Adresse e-mail | `email-recon` |
 | Nom de domaine | `domain-recon` |
 | Adresse IP | `ip-address-recon` |
@@ -85,10 +85,10 @@ compétence de catégorie appropriée en fonction du type de cible.
 ### Compétences par catégorie (34 au total)
 
 Chaque catégorie dispose d'une compétence dédiée avec des outils CLI, des ressources web,
-un flux de travail d'investigation, des pivots inter-catégories et des notes OPSEC.
+un workflow d'investigation, des pivots inter-catégories et des notes OPSEC.
 
-| Catégorie | Outils | Principaux outils CLI |
-|-----------|--------|----------------------|
+| Catégorie | Outils | Outils CLI principaux |
+|-----------|--------|-----------------------|
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
 | `domain-recon` | 131 | subfinder, amass, whois, dig |
@@ -100,14 +100,14 @@ un flux de travail d'investigation, des pivots inter-catégories et des notes OP
 | `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
 | `search-engines` | 73 | gitleaks, pagodo, gobuster |
 | `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 outils web de confidentialité |
+| `opsec` | 47 | 47 outils de confidentialité web |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
 | *(20 catégories supplémentaires)* | 500+ | — |
 
 <Aside type="tip">
   Utilisez `/osint-catalog` pour parcourir les 34 catégories ou
-  `/osint-search <capability>` pour trouver des outils pour une tâche spécifique.
+  `/osint-search <capacité>` pour trouver des outils pour une tâche spécifique.
 </Aside>
 
 ### osint-catalog
@@ -120,10 +120,10 @@ et à la documentation du moteur de corrélation.
 
 ### osint-investigator
 
-Orchestrateur d'investigation autonome multi-outils. Exécute des flux de travail
+Orchestrateur d'investigation autonome multi-outils. Exécute des workflows
 d'investigation complets — vérification de la disponibilité des outils, détection
 du type de cible, exécution séquentielle des outils (passif en premier), agrégation
-des résultats, et génération de rapports structurés avec niveaux de confiance
+des résultats et génération de rapports structurés avec niveaux de confiance
 et classifications OPSEC.
 
 S'intègre au graphe d'entités : chaque résultat d'outil crée des entités
@@ -132,27 +132,27 @@ et des relations dans `/tmp/osint-graph/` pour la corrélation inter-investigati
 <Aside type="caution">
   Les outils de reconnaissance active (nmap, nuclei, sherlock) établissent un contact direct
   avec l'infrastructure cible. Le hook d'avertissement OPSEC alerte avant
-  l'exécution des outils actifs. Assurez-vous toujours d'avoir l'autorisation nécessaire.
+  d'exécuter les outils actifs. Assurez-vous toujours d'avoir l'autorisation nécessaire.
 </Aside>
 
 ### osint-researcher
 
-Agent de consultation du catalogue en lecture seule. Recherche dans les fichiers de référence pour
-recommander les meilleurs outils pour une tâche donnée. N'exécute jamais d'outils —
+Agent de consultation du catalogue en lecture seule. Recherche dans les fichiers de référence
+pour recommander les meilleurs outils pour une tâche donnée. N'exécute jamais d'outils —
 recommande et explique uniquement. Utilisé en interne par les compétences de catégorie
 pour la découverte d'outils.
 
 ### osint-executor
 
-Agent d'exécution CLI mono-outil. Exécute un outil à la fois avec
+Agent d'exécution CLI d'outil unique. Exécute un outil à la fois avec
 des paramètres spécifiques, analyse la sortie et retourne des résultats structurés.
-Inclut des recettes d'exécution par outil pour plus de 20 outils avec les flags exacts,
-les formats de sortie et les patterns d'analyse jq.
+Inclut des recettes d'exécution par outil pour plus de 20 outils avec les drapeaux exacts,
+les formats de sortie et les modèles d'analyse jq.
 
 ## Limitation de débit
 
 Tous les appels API utilisent l'utilitaire `osint_curl` avec un backoff exponentiel
-intégré sur les réponses HTTP 429/503. Limites principales :
+intégré sur HTTP 429/503. Limites principales :
 
 | API | Limite gratuite | Variable d'env. |
 |-----|----------------|-----------------|
@@ -169,33 +169,33 @@ clair si la variable d'environnement n'est pas définie.
 ## Moteur de corrélation
 
 Le plugin inclut un graphe d'entités JSON persistant dans
-`/tmp/osint-graph/` qui accumule les résultats à travers les investigations.
+`/tmp/osint-graph/` qui accumule les découvertes à travers les investigations.
 
 ```bash
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# Add entities
+# Ajouter des entités
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# Link them
+# Les relier
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# Query: all entities within 2 hops of the person
+# Requête : toutes les entités à 2 sauts de la personne
 osint_graph_query "$P" 2
 
-# Generate report
+# Générer le rapport
 osint_graph_report
 ```
 
-Le **scoring de confiance** utilise la fusion multi-sources :
+**Le scoring de confiance** utilise la fusion multi-sources :
 `confidence = 1 - product(1 - ci)` pour chaque source confirmante.
 Deux sources à 0,80 → 0,96 de confiance combinée.
 
-## Mention légale
+## Avis juridique
 
-Tous les outils utilisent uniquement des informations accessibles au public. Les utilisateurs sont
-responsables de s'assurer de la conformité avec les lois applicables,
-les réglementations et les conditions d'utilisation des plateformes. N'utilisez jamais les outils OSINT
-pour un accès non autorisé, du harcèlement ou toute activité illégale.
+Tous les outils utilisent uniquement des informations accessibles au public. Les utilisateurs
+sont responsables du respect des lois applicables, des réglementations et des conditions
+d'utilisation des plateformes. N'utilisez jamais les outils OSINT pour un accès non autorisé,
+du harcèlement ou toute activité illégale.

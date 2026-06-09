@@ -1,7 +1,7 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  ओपन-सोर्स Firecrawl इंजन के माध्यम से स्थानीय सेल्फ-होस्टेड वेब स्क्रैपिंग और
+  ओपन-सोर्स Firecrawl इंजन के माध्यम से स्थानीय स्व-होस्टेड वेब स्क्रैपिंग और
   क्रॉलिंग।
 sidebar:
   order: 13
@@ -13,22 +13,22 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 **f5xc-firecrawl** प्लगइन ओपन-सोर्स [firecrawl](https://github.com/mendableai/firecrawl)
-इंजन के माध्यम से स्थानीय सेल्फ-होस्टेड वेब स्क्रैपिंग प्रदान करता है। कोई API कुंजियाँ नहीं, कोई सब्सक्रिप्शन नहीं, कोई क्लाउड निर्भरता नहीं। सभी
-ऑपरेशन devcontainer के अंदर `localhost:3002` पर स्थानीय firecrawl इंस्टेंस के विरुद्ध चलते हैं।
+इंजन के माध्यम से स्थानीय स्व-होस्टेड वेब स्क्रैपिंग प्रदान करता है। कोई API कुंजी नहीं, कोई सब्सक्रिप्शन नहीं, कोई क्लाउड निर्भरता नहीं। सभी
+ऑपरेशन devcontainer के अंदर `localhost:3002` पर स्थानीय firecrawl इंस्टेंस पर चलते हैं।
 
-<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.0" variant="note" /> <Badge text="उत्पादकता" variant="tip" />
 
-## इंस्टॉलेशन
+## स्थापना
 
 ```
 /plugin install f5xc-firecrawl@f5xc-salesdemos-marketplace
 ```
 
-## कमांड्स
+## कमांड
 
 ### /scrape
 
-एक एकल URL को स्क्रैप करें और कंटेंट को मार्कडाउन के रूप में एक्सट्रैक्ट करें।
+एक एकल URL को स्क्रैप करें और सामग्री को मार्कडाउन के रूप में निकालें।
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -45,7 +45,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /crawl
 
-एक प्रारंभिक URL से कई पेजों को क्रॉल करें।
+एक प्रारंभिक URL से कई पेज क्रॉल करें।
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -72,7 +72,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /extract
 
-वेब पेजों से LLM-संचालित संरचित डेटा एक्सट्रैक्शन।
+वेब पेजों से LLM-संचालित संरचित डेटा निष्कर्षण।
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -80,7 +80,8 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 ```
 
 <Aside type="note">
-  extract कमांड के लिए `OPENAI_BASE_URL` और `OPENAI_API_KEY` के माध्यम से कॉन्फ़िगर किया गया एक OpenAI-संगत LLM प्रॉक्सी आवश्यक है।
+  extract कमांड के लिए `OPENAI_BASE_URL` और `OPENAI_API_KEY` के माध्यम से कॉन्फ़िगर किया गया
+  OpenAI-संगत LLM प्रॉक्सी आवश्यक है।
 </Aside>
 
 ### /llmstxt
@@ -91,59 +92,59 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 /llmstxt https://docs.example.com
 ```
 
-## स्किल्स
+## कौशल
 
 ### web-scraper
 
-जब आप किसी URL को स्क्रैप करने, वेबसाइट क्रॉल करने, साइट
-URL मैप करने, वेब सर्च करने, संरचित डेटा एक्सट्रैक्ट करने, llms.txt जनरेट करने,
-कई URL बैच स्क्रैप करने, या वेब पेज को मार्कडाउन में कन्वर्ट करने के लिए कहते हैं तो ऑटो-एक्टिवेट होता है।
-तुरंत firecrawl-operator एजेंट को डेलीगेट करता है।
+जब आप किसी URL को स्क्रैप करने, वेबसाइट क्रॉल करने, साइट URL मैप करने,
+वेब खोजने, संरचित डेटा निकालने, llms.txt जनरेट करने,
+कई URL बैच स्क्रैप करने, या वेब पेज को मार्कडाउन में कनवर्ट करने के लिए कहते हैं तो स्वचालित रूप से सक्रिय होता है।
+तुरंत firecrawl-operator एजेंट को कार्य सौंपता है।
 
-## एजेंट्स
+## एजेंट
 
 ### firecrawl-operator
 
-स्वायत्त वेब स्क्रैपिंग एजेंट जो स्थानीय firecrawl API के
-विरुद्ध `curl` + `jq` अनुक्रम निष्पादित करता है। सभी
-v1 एंडपॉइंट्स को कवर करने वाले 11 प्रोटोकॉल का समर्थन करता है। रीड-ओनली एजेंट (कोई Write, Edit, या Agent टूल्स नहीं)।
+स्वायत्त वेब स्क्रैपिंग एजेंट जो स्थानीय firecrawl API के विरुद्ध `curl` + `jq` अनुक्रम
+निष्पादित करता है। सभी v1 एंडपॉइंट को कवर करने वाले 11 प्रोटोकॉल का समर्थन करता है। केवल-पठन एजेंट (कोई Write, Edit, या Agent टूल नहीं)।
 
 | प्रोटोकॉल | एंडपॉइंट | प्रकार |
 |----------|----------|------|
-| HEALTH | `GET /` | Sync |
-| SCRAPE | `POST /v1/scrape` | Sync |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
-| CRAWL | `POST /v1/crawl` | Async |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
-| MAP | `POST /v1/map` | Sync |
-| SEARCH | `POST /v1/search` | Sync |
-| EXTRACT | `POST /v1/extract` | Async |
-| LLMSTXT | `POST /v1/llmstxt` | Async |
+| HEALTH | `GET /` | सिंक |
+| SCRAPE | `POST /v1/scrape` | सिंक |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | एसिंक |
+| CRAWL | `POST /v1/crawl` | एसिंक |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | सिंक |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | सिंक |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | सिंक |
+| MAP | `POST /v1/map` | सिंक |
+| SEARCH | `POST /v1/search` | सिंक |
+| EXTRACT | `POST /v1/extract` | एसिंक |
+| LLMSTXT | `POST /v1/llmstxt` | एसिंक |
 
-## इन्फ्रास्ट्रक्चर
+## अवसंरचना
 
-इस प्लगइन के लिए devcontainer में firecrawl स्टैक का चलना आवश्यक है:
+प्लगइन के लिए devcontainer में firecrawl स्टैक चलना आवश्यक है:
 
-| कंपोनेंट | पोर्ट | उद्देश्य |
+| घटक | पोर्ट | उद्देश्य |
 |-----------|------|---------|
-| Firecrawl API | 3002 | सभी scrape/crawl/map/search/extract एंडपॉइंट्स |
+| Firecrawl API | 3002 | सभी scrape/crawl/map/search/extract एंडपॉइंट |
 | Playwright | 3000 | JavaScript रेंडरिंग इंजन |
 | Redis | 6379 | जॉब क्यू बैकएंड |
-| PostgreSQL | socket | Crawl/batch जॉब पर्सिस्टेंस |
+| PostgreSQL | socket | क्रॉल/बैच जॉब पर्सिस्टेंस |
 | LiteLLM proxy | OPENAI_BASE_URL | extract के लिए LLM बैकएंड (वैकल्पिक) |
 
-जब `ENABLE_FIRECRAWL=true` (डिफ़ॉल्ट) होता है तो स्टैक स्वचालित रूप से शुरू होता है। एक SessionStart हुक जाँचता है कि API पहुँच योग्य है और
+जब `ENABLE_FIRECRAWL=true` (डिफ़ॉल्ट) होता है तो स्टैक स्वचालित रूप से प्रारंभ होता है।
+एक SessionStart हुक जाँचता है कि API पहुँच योग्य है और
 सेवा बंद होने पर चेतावनी देता है।
 
 ## क्लाउड Firecrawl से अंतर
 
-यह प्लगइन सेल्फ-होस्टेड ओपन-सोर्स संस्करण का उपयोग करता है:
+यह प्लगइन स्व-होस्टेड ओपन-सोर्स संस्करण का उपयोग करता है:
 
-- स्क्रैपिंग के लिए कोई प्रमाणीकरण या API कुंजियाँ आवश्यक नहीं
+- स्क्रैपिंग के लिए कोई प्रमाणीकरण या API कुंजी आवश्यक नहीं
 - कोई क्रेडिट सीमा या रेट लिमिटिंग नहीं
-- v1 API एंडपॉइंट्स का उपयोग करता है (v2 नहीं)
-- ब्राउज़र सेशन और डीप रिसर्च उपलब्ध नहीं हैं
-- Extract होस्टेड मॉडल की बजाय आपके स्वयं के LLM प्रॉक्सी का उपयोग करता है
-- पूरी तरह से स्थानीय कंटेनर नेटवर्क के भीतर चलता है
+- v1 API एंडपॉइंट का उपयोग करता है (v2 नहीं)
+- ब्राउज़र सेशन और डीप रिसर्च उपलब्ध नहीं
+- Extract होस्टेड मॉडल के बजाय आपके अपने LLM प्रॉक्सी का उपयोग करता है
+- पूरी तरह से स्थानीय कंटेनर नेटवर्क के अंदर चलता है

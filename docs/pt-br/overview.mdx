@@ -1,7 +1,7 @@
 ---
 title: Visão Geral
 description: >-
-  Como o marketplace de plugins do Claude Code funciona — adicionando fontes,
+  Como funciona o marketplace de plugins do Claude Code — adicionando fontes,
   instalando plugins e usando ferramentas compartilhadas.
 sidebar:
   order: 1
@@ -12,16 +12,13 @@ i18n:
 
 Um **marketplace de plugins do Claude Code** é uma coleção curada de
 plugins que estendem o Claude Code com novas habilidades, comandos e
-agentes. Os marketplaces permitem que equipes compartilhem ferramentas
-para que cada desenvolvedor tenha as mesmas capacidades sem
-configuração manual.
+agentes. Marketplaces permitem que equipes compartilhem ferramentas para que
+todo desenvolvedor tenha as mesmas capacidades sem configuração manual.
 
-O **Marketplace f5xc-salesdemos** fornece plugins desenvolvidos para
-a plataforma de documentação
-[f5xc-salesdemos](https://github.com/f5xc-salesdemos) — um
-ecossistema de mais de 20 repositórios que publicam sites
-Astro/Starlight no GitHub Pages usando um pipeline de build
-compartilhado.
+O **Marketplace f5xc-salesdemos** fornece plugins construídos para
+a plataforma de documentação [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+— um ecossistema de mais de 20 repositórios que publicam sites
+Astro/Starlight no GitHub Pages usando um pipeline de build compartilhado.
 
 ## Como Funciona
 
@@ -29,8 +26,8 @@ compartilhado.
    como uma fonte de plugins
 2. **Instale plugins** do marketplace — cada plugin adiciona
    habilidades e comandos à sua sessão do Claude Code
-3. **Use as ferramentas** — os plugins são ativados automaticamente
-   com base no contexto, ou você invoca seus comandos diretamente
+3. **Use as ferramentas** — plugins são ativados automaticamente com base no
+   contexto, ou você invoca seus comandos diretamente
 
 ## Plugins Disponíveis
 
@@ -49,7 +46,7 @@ Adicione o marketplace e instale o plugin de ferramentas de documentação:
 ```
 
 Consulte [Primeiros Passos](/marketplace/getting-started/) para um
-guia completo passo a passo.
+guia completo.
 
 ## Arquitetura
 
@@ -66,7 +63,7 @@ Marketplace (marketplace.json)
     └── Agents (.md)
 ```
 
-- **Marketplace** — o registro. Lista os plugins disponíveis
+- **Marketplace** — o registro. Lista plugins disponíveis
   com metadados para descoberta e instalação.
 - **Plugin** — a unidade instalável. Contém uma ou mais
   habilidades, comandos ou agentes.

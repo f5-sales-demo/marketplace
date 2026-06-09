@@ -1,6 +1,6 @@
 ---
 title: f5xc-brand
-description: F5 企業品牌識別規範——色彩、字型排版、標誌、圖示及 WCAG AA 無障礙合規。
+description: F5 企業品牌識別規範執行 — 色彩、字型排版、標誌、圖示及 WCAG AA 無障礙規範。
 sidebar:
   order: 9
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Badge } from '@astrojs/starlight/components';
 
-**f5xc-brand** 外掛程式可在所有內容類型中強制執行 F5 企業品牌識別規範。涵蓋 F5 的 45 色調色盤、字型排版規則（Neusa Next Pro Wide 標題字型、Proxima Nova 內文字型）、僅限 SVG 格式的標誌使用、圖示套件選擇、WCAG AA 無障礙合規，以及產品術語規範。
+**f5xc-brand** 外掛程式可在所有內容類型中強制執行 F5 企業品牌識別規範。涵蓋 F5 的 45 色調色盤、字型排版規則（Neusa Next Pro Wide 標題字型、Proxima Nova 內文字型）、僅限 SVG 格式的標誌使用規範、圖示套件選擇、WCAG AA 無障礙規範，以及產品術語規範。
 
 <Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,15 +24,15 @@ import { Badge } from '@astrojs/starlight/components';
 
 ### brand-guardian
 
-針對所有內容建立進行主動式品牌識別規範執行。當建立文件、圖表、簡報、影片縮圖、社群媒體圖像、Mermaid 圖表或 Excalidraw 繪圖時會自動啟動。確保正確使用 F5 色彩、字型排版、標誌、圖示、語調風格及無障礙合規。
+針對所有內容建立進行主動式品牌識別規範執行。在建立文件、圖表、簡報、影片縮圖、社群媒體圖像、Mermaid 圖表或 Excalidraw 繪圖時自動啟動。確保正確使用 F5 色彩、字型排版、標誌、圖示、語調風格及無障礙規範。
 
 ### brand-reviewer
 
-審查現有內容是否符合 F5 品牌規範。稽核色彩、字型排版、標誌格式、圖示選擇、替代文字、對比度，以及產品術語。產出包含「違規」(VIOLATIONS)、「警告」(WARNINGS) 和「建議」(SUGGESTIONS) 的結構化報告。
+審查現有內容是否符合 F5 品牌規範。稽核色彩、字型排版、標誌格式、圖示選擇、替代文字、對比度比率及產品術語。產出包含 VIOLATIONS（違規）、WARNINGS（警告）和 SUGGESTIONS（建議）的結構化報告。
 
 ### visual-content
 
-針對品牌化視覺內容的格式專屬規則。提供 Mermaid 圖表、Excalidraw 繪圖、螢幕截圖、PowerPoint 簡報、YouTube 縮圖、影片腳本及社群媒體圖像的指引，包括圖示套件選擇、投影片版面配置、字型備援方案及各平台專屬尺寸。
+針對品牌視覺內容的格式專屬規則。提供 Mermaid 圖表、Excalidraw 繪圖、螢幕截圖、PowerPoint 簡報、YouTube 縮圖、影片腳本及社群媒體圖像的指引，包括圖示套件選擇、投影片版面配置、備用字型及各平台專屬尺寸規範。
 
 ## 指令
 
@@ -42,4 +42,4 @@ import { Badge } from '@astrojs/starlight/components';
 /f5xc-brand:review-brand [path-or-glob]
 ```
 
-審查內容是否符合 F5 品牌規範。接受選用的路徑或 glob 模式以限定審查範圍。若未提供引數，將審查目前目錄中的所有內容。
+審查內容是否符合 F5 品牌規範。可接受選用的路徑或 glob 模式來限定審查範圍。若未提供參數，則審查當前目錄中的所有內容。

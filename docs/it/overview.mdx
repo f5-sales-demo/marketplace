@@ -10,18 +10,18 @@ i18n:
   translator: machine
 ---
 
-Un **marketplace dei plugin di Claude Code** è una collezione curata di
+Un **marketplace di plugin di Claude Code** è una raccolta curata di
 plugin che estendono Claude Code con nuove competenze, comandi e
 agenti. I marketplace permettono ai team di condividere gli strumenti
 in modo che ogni sviluppatore ottenga le stesse funzionalità senza
 configurazione manuale.
 
-Il **Marketplace f5xc-salesdemos** fornisce plugin realizzati per
+Il **Marketplace f5xc-salesdemos** fornisce plugin creati per
 la piattaforma di documentazione
 [f5xc-salesdemos](https://github.com/f5xc-salesdemos) — un
 ecosistema di oltre 20 repository che pubblicano siti
-Astro/Starlight su GitHub Pages utilizzando una pipeline di build
-condivisa.
+Astro/Starlight su GitHub Pages utilizzando una pipeline di
+build condivisa.
 
 ## Come Funziona
 
@@ -37,7 +37,7 @@ condivisa.
 
 | Plugin | Categoria | Descrizione |
 |--------|-----------|-------------|
-| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Produttività | Strumenti di validazione e revisione dei contenuti MDX per i repository di documentazione |
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Produttività | Strumenti di validazione e revisione di contenuti MDX per repository di documentazione |
 | [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Produttività | Framework persona Sales Engineer — esecuzione demo, presentazioni, Q&A, gestione ambienti |
 
 ## Avvio Rapido
@@ -50,12 +50,12 @@ Aggiungi il marketplace e installa il plugin docs tools:
 ```
 
 Consulta [Per Iniziare](/marketplace/getting-started/) per una
-guida completa passo passo.
+guida completa passo dopo passo.
 
 ## Architettura
 
 Un marketplace è un repository Git che contiene uno o più
-plugin. Ogni plugin raggruppa competenze, comandi e agenti
+plugin. Ogni plugin racchiude competenze, comandi e agenti
 in un'unica unità installabile.
 
 ```
@@ -72,8 +72,8 @@ Marketplace (marketplace.json)
 - **Plugin** — l'unità installabile. Contiene una o più
   competenze, comandi o agenti.
 - **Skill** — conoscenza contestuale che Claude attiva
-  automaticamente in base al compito da svolgere.
+  automaticamente in base al compito in corso.
 - **Comando** — un comando slash che l'utente invoca
-  direttamente (ad es., `/review-mdx`).
+  direttamente (es., `/review-mdx`).
 - **Agente** — un sotto-agente specializzato che gestisce
-  compiti complessi e multi-step in modo autonomo.
+  compiti complessi e multi-fase in modo autonomo.

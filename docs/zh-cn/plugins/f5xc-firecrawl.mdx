@@ -11,7 +11,8 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 **f5xc-firecrawl** 插件通过开源 [firecrawl](https://github.com/mendableai/firecrawl)
-引擎提供本地自托管的网页抓取功能。无需 API 密钥、无需订阅、不依赖云服务。所有操作都在 devcontainer 内部的 `localhost:3002` 上运行的本地 firecrawl 实例上执行。
+引擎提供本地自托管的网页抓取功能。无需 API 密钥、无需订阅、无需依赖云服务。所有
+操作都在 devcontainer 内的 `localhost:3002` 本地 firecrawl 实例上运行。
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -34,7 +35,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /batch-scrape
 
-一次性抓取多个 URL。
+一次抓取多个 URL。
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -42,7 +43,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /crawl
 
-从起始 URL 开始爬取多个页面。
+从起始 URL 爬取多个页面。
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -60,7 +61,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /search
 
-搜索网络并可选择性地抓取搜索结果。
+搜索网页并可选择抓取结果。
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -92,13 +93,16 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### web-scraper
 
-当您请求抓取 URL、爬取网站、映射站点 URL、搜索网络、提取结构化数据、生成 llms.txt、批量抓取多个 URL 或将网页转换为 markdown 时自动激活。会立即委派给 firecrawl-operator 代理。
+当您请求抓取 URL、爬取网站、映射站点 URL、搜索网页、提取结构化数据、生成 llms.txt、
+批量抓取多个 URL 或将网页转换为 markdown 时自动激活。
+立即委派给 firecrawl-operator 代理执行。
 
 ## 代理
 
 ### firecrawl-operator
 
-自主网页抓取代理，执行针对本地 firecrawl API 的 `curl` + `jq` 操作序列。支持覆盖所有 v1 端点的 11 种协议。只读代理（无写入、编辑或代理工具）。
+自主网页抓取代理，针对本地 firecrawl API 执行 `curl` + `jq` 序列。
+支持覆盖所有 v1 端点的 11 种协议。只读代理（无写入、编辑或代理工具）。
 
 | 协议 | 端点 | 类型 |
 |----------|----------|------|
@@ -126,13 +130,14 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | PostgreSQL | socket | 爬取/批量任务持久化 |
 | LiteLLM 代理 | OPENAI_BASE_URL | 用于 extract 的 LLM 后端（可选） |
 
-当 `ENABLE_FIRECRAWL=true`（默认值）时，技术栈会自动启动。SessionStart 钩子会检查 API 是否可达，如果服务不可用则发出警告。
+当 `ENABLE_FIRECRAWL=true`（默认值）时，技术栈会自动启动。SessionStart 钩子会检查
+API 是否可达，如果服务不可用则发出警告。
 
-## 与云端 Firecrawl 的区别
+## 与云端 Firecrawl 的差异
 
 本插件使用自托管的开源版本：
 
-- 抓取无需认证或 API 密钥
+- 抓取无需身份验证或 API 密钥
 - 无额度限制或速率限制
 - 使用 v1 API 端点（非 v2）
 - 浏览器会话和深度研究功能不可用

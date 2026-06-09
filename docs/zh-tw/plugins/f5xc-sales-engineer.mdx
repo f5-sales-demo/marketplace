@@ -1,6 +1,6 @@
 ---
 title: f5xc-sales-engineer
-description: 用於示範執行、簡報、問答及拆卸的售前工程師角色框架。
+description: 銷售工程師角色框架，用於示範執行、簡報、問答及拆卸。
 sidebar:
   order: 5
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-**f5xc-sales-engineer** 外掛為 F5 XC 示範儲存庫提供可重複使用的售前工程師角色框架。它處理完整的示範會議生命週期——從會前驗證到現場執行、問答及拆卸。
+**f5xc-sales-engineer** 外掛為 F5 XC 示範儲存庫提供可重複使用的銷售工程師角色框架。它處理完整的示範會議生命週期——從會前驗證到現場執行、問答及拆卸。
 
 <Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,52 +24,52 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 ### demo-executor
 
-API 驅動的示範執行，具有四階段會議生命週期：
+API 驅動的示範執行，具備四階段會議生命週期：
 
 1. **準備** — 透過 `demo-housekeeping` 代理進行會前環境驗證
 2. **執行** — 確定性階段執行，搭配面向客戶的旁白
-3. **問答** — 即興模式，使用即時環境
+3. **問答** — 搭配即時環境的即興模式
 4. **拆卸** — 透過 `demo-housekeeping` 代理進行會後清理
 
-從 `DEMO_PRODUCT_EXPERTISE.md` 讀取產品專屬內容，並從 `docs/demo/` 讀取示範指令。
+從 `DEMO_PRODUCT_EXPERTISE.md` 讀取產品特定內容，從 `docs/demo/` 讀取示範命令。
 
 ### presenter
 
-使用預先配置的示範環境進行已建構的導覽簡報。在每個步驟遵循展示 → 旁白 → 連結 → 暫停的模式。從 `DEMO_WALKTHROUGH_CONFIG.md` 讀取導覽順序。
+使用預先配置的示範環境進行實機建置導覽簡報。在每個步驟遵循「展示 → 敘述 → 連結 → 暫停」模式。從 `DEMO_WALKTHROUGH_CONFIG.md` 讀取導覽順序。
 
 ### subject-matter-expert
 
-具有嚴格引用要求的參考支援問答。絕不猜測——每個答案都包含參考或證據。需要時委派研究任務給 `demo-researcher` 代理。
+有參考依據支撐的問答，具有嚴格的引用要求。從不猜測——每個答案都包含參考資料或證據。需要時將研究工作委派給 `demo-researcher` 代理。
 
 ### sales-engineer
 
-角色索引，將使用者意圖路由到正確的角色技能。當請求與示範相關但不匹配特定觸發短語時啟動。
+角色索引，將使用者意圖路由到正確的角色技能。當請求與示範相關但不符合特定觸發短語時啟動。
 
 ## 代理
 
 ### demo-housekeeping
 
-用於會前驗證和會後拆卸的自主代理。執行 `DEMO_READINESS_MATRIX.md` 中定義的就緒驗證矩陣（T0–T5），並執行 `docs/demo/phase-4-teardown.mdx` 中的拆卸指令。
+用於會前驗證和會後拆卸的自主代理。執行 `DEMO_READINESS_MATRIX.md` 中定義的就緒驗證矩陣（T0–T5），並從 `docs/demo/phase-4-teardown.mdx` 執行拆卸命令。
 
 ### demo-researcher
 
-唯讀研究型資料管理員，尋找經驗證且附帶引用的答案。優先搜尋本地 `docs/`，然後搜尋 `DEMO_SOURCE_INDEX.md` 中索引的外部來源，以 WebSearch 作為後備。
+唯讀研究圖書館員，尋找經驗證且附引用的答案。優先搜尋本地 `docs/`，然後搜尋 `DEMO_SOURCE_INDEX.md` 中的索引外部來源，以 WebSearch 作為備用方案。
 
 ## 慣例檔案
 
-<Aside type="tip" title="產品專屬內容">
-  此外掛與產品無關。每個儲存庫透過標準化的慣例檔案提供產品專屬內容。
+<Aside type="tip" title="產品特定內容">
+  此外掛與產品無關。每個儲存庫透過標準化的慣例檔案提供產品特定內容。
 </Aside>
 
 在您的儲存庫根目錄建立這些檔案以配置外掛：
 
-| 檔案 | 用途 | 所需技能 |
+| 檔案 | 用途 | 必要條件 |
 | ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | 產品能力、偵測訊號、威脅覆蓋範圍、合規對齊、API 參考 | 所有技能 |
-| `DEMO_WALKTHROUGH_CONFIG.md` | 示範應用程式 URL、導覽順序、偵測時間 | presenter |
-| `DEMO_SOURCE_INDEX.md` | 包含本地文件和外部 URL 的研究來源目錄 | demo-researcher |
+| `DEMO_PRODUCT_EXPERTISE.md` | 產品功能、偵測訊號、威脅覆蓋範圍、合規對齊、API 參考 | 所有技能 |
+| `DEMO_WALKTHROUGH_CONFIG.md` | 示範應用程式 URL、導覽順序、偵測計時 | presenter |
+| `DEMO_SOURCE_INDEX.md` | 研究來源目錄，包含本地文件和外部 URL | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | 必要/選用變數、就緒檢查（T0–T5）、API 端點 | demo-housekeeping |
-| `docs/demo/` | 包含 cURL 指令和證據閘門的階段檔案 | demo-executor |
+| `docs/demo/` | 包含 cURL 命令和證據閘門的階段檔案 | demo-executor |
 
 ## 觸發短語
 
@@ -88,8 +88,8 @@ API 驅動的示範執行，具有四階段會議生命週期：
 
 所有角色共享一致的旁白風格：
 
-- **現在式、第一人稱複數** — 「我們現在看到的是……」
+- **現在式，第一人稱複數** — "What we're looking at here…"
 - **每段一個重點** — 每段旁白回答：這是什麼？為什麼重要？我該怎麼做？
-- **指明訊號** — 明確指出正在運作的能力
-- **相關時加入合規鉤子** — 自然地提及法規對齊
+- **指名訊號** — 點出正在運作的功能
+- **相關時加入合規掛鉤** — 自然地提及法規對齊
 - **節奏暫停標記** — `> ⏸ *[Pause for audience — ready to continue?]*`

@@ -82,7 +82,7 @@ segue questa struttura:
    Detailed instructions for Claude when this skill activates.
    ```
 
-   Posizionare eventuali dati di riferimento in una sottodirectory
+   Inserire eventuali dati di riferimento in una sottodirectory
    `references/` accanto a `SKILL.md`.
 
 4. **Aggiungere i comandi**
@@ -133,26 +133,26 @@ segue questa struttura:
    ```
 
    Verificare che le skill si attivino nel contesto corretto e
-   che i comandi producano l'output previsto.
+   che i comandi producano l'output atteso.
 
 </Steps>
 
-## Invio del Plugin
+## Inviare il Proprio Plugin
 
 <Aside type="tip" title="Flusso di lavoro del repository">
-  Questo repository applica un rigoroso flusso di lavoro di governance.
+  Questo repository applica un flusso di lavoro di governance rigoroso.
   Consultare [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   per il processo completo.
 </Aside>
 
 <Steps>
 
-1. Creare un issue su GitHub che descriva il nuovo plugin
+1. Creare una issue su GitHub che descriva il nuovo plugin
 2. Creare un branch di funzionalità da `main`
 3. Aggiungere la directory del plugin e aggiornare `marketplace.json`
 4. Aggiungere una pagina di documentazione in `docs/plugins/my-plugin.mdx`
-5. Aprire una PR collegata all'issue con `Closes #N`
-6. Correggere eventuali errori della CI e fare il merge dopo il superamento dei controlli
+5. Aprire una PR collegata alla issue con `Closes #N`
+6. Correggere eventuali errori CI e fare il merge dopo il superamento dei controlli
 
 </Steps>
 
@@ -160,10 +160,10 @@ segue questa struttura:
 
 - **Mantenere le skill focalizzate** — ogni skill dovrebbe fare bene una sola cosa
 - **Utilizzare i file di riferimento** — inserire dataset di grandi dimensioni, schemi e
-  tabelle di lookup in `references/` anziché inline in SKILL.md
-- **Definire l'ambito in modo intelligente** — verificare le modifiche non ancora committate per
+  tabelle di ricerca in `references/` anziché inline in SKILL.md
+- **Definire lo scope in modo intelligente** — verificare la presenza di modifiche non committate per
   restringere il set di lavoro quando possibile
 - **Raggruppare l'output per gravità** — utilizzare i livelli ERROR, WARNING e INFO
-  così che gli utenti possano dare priorità alle correzioni
+  in modo che gli utenti possano dare priorità alle correzioni
 - **Scrivere un README** — includere esempi di utilizzo e una descrizione
   di ciò che ogni skill e comando fa

@@ -83,7 +83,7 @@ segue esta estrutura:
    ```
 
    Coloque quaisquer dados de referência em um subdiretório `references/`
-   junto ao `SKILL.md`.
+   ao lado do `SKILL.md`.
 
 4. **Adicione comandos**
 
@@ -132,15 +132,15 @@ segue esta estrutura:
    claude --plugin-dir ./plugins/my-plugin
    ```
 
-   Verifique se as skills são ativadas no contexto correto e
-   se os comandos produzem a saída esperada.
+   Verifique se as skills são ativadas no contexto correto e se
+   os comandos produzem a saída esperada.
 
 </Steps>
 
 ## Enviando Seu Plugin
 
 <Aside type="tip" title="Fluxo de trabalho do repositório">
-  Este repositório aplica um fluxo de trabalho de governança rigoroso.
+  Este repositório aplica um fluxo de governança rigoroso.
   Consulte [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   para o processo completo.
 </Aside>
@@ -148,7 +148,7 @@ segue esta estrutura:
 <Steps>
 
 1. Crie uma issue no GitHub descrevendo o novo plugin
-2. Crie uma branch de feature a partir da `main`
+2. Crie um branch de feature a partir de `main`
 3. Adicione o diretório do seu plugin e atualize o `marketplace.json`
 4. Adicione uma página de documentação em `docs/plugins/my-plugin.mdx`
 5. Abra um PR vinculado à issue com `Closes #N`
@@ -156,12 +156,12 @@ segue esta estrutura:
 
 </Steps>
 
-## Melhores Práticas
+## Boas Práticas
 
-- **Mantenha as skills focadas** — uma skill deve fazer uma coisa bem feita
+- **Mantenha as skills focadas** — cada skill deve fazer uma coisa bem feita
 - **Use arquivos de referência** — coloque grandes conjuntos de dados, schemas e
   tabelas de consulta em `references/` em vez de inline no SKILL.md
-- **Delimite o escopo de forma inteligente** — verifique alterações não commitadas para
+- **Defina o escopo de forma inteligente** — verifique alterações não commitadas para
   reduzir o conjunto de trabalho quando possível
 - **Agrupe a saída por severidade** — use os níveis ERROR, WARNING e INFO
   para que os usuários possam priorizar as correções

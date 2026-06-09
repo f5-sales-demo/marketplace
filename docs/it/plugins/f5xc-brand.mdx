@@ -1,8 +1,8 @@
 ---
 title: f5xc-brand
 description: >-
-  F5 corporate brand identity enforcement — colors, typography, logos, icons,
-  and WCAG AA accessibility.
+  Applicazione dell'identità aziendale F5 — colori, tipografia, loghi, icone e
+  accessibilità WCAG AA.
 sidebar:
   order: 9
 i18n:
@@ -12,12 +12,11 @@ i18n:
 
 import { Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-brand** impone l'identità aziendale del marchio F5
-su tutti i tipi di contenuto. Copre la palette di 45 colori F5,
+Il plugin **f5xc-brand** applica l'identità aziendale F5
+su tutti i tipi di contenuto. Copre la palette F5 a 45 colori,
 le regole tipografiche (titoli in Neusa Next Pro Wide, corpo del testo
-in Proxima Nova), l'utilizzo dei loghi esclusivamente in formato SVG,
-la selezione dei pacchetti di icone, l'accessibilità WCAG AA
-e la terminologia di prodotto.
+in Proxima Nova), l'utilizzo esclusivo di loghi in formato SVG, la selezione
+dei pacchetti di icone, l'accessibilità WCAG AA e la terminologia di prodotto.
 
 <Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -31,17 +30,17 @@ e la terminologia di prodotto.
 
 ### brand-guardian
 
-Applicazione proattiva dell'identità del marchio per tutta la creazione di contenuti.
+Applicazione proattiva dell'identità del brand per tutta la creazione di contenuti.
 Si attiva automaticamente durante la creazione di documentazione, diagrammi,
-presentazioni, miniature video, grafiche per i social media, grafici Mermaid
+presentazioni, miniature video, grafiche per social media, grafici Mermaid
 o disegni Excalidraw. Garantisce l'uso corretto di colori F5,
 tipografia, loghi, icone, tono di voce e accessibilità.
 
 ### brand-reviewer
 
-Revisiona i contenuti esistenti per la conformità al marchio F5. Verifica colori,
-tipografia, formato del logo, selezione delle icone, testo alternativo, rapporti
-di contrasto e terminologia di prodotto. Produce report strutturati con
+Revisiona i contenuti esistenti per verificare la conformità al brand F5. Controlla colori,
+tipografia, formato dei loghi, selezione delle icone, testo alternativo, rapporti di contrasto
+e terminologia di prodotto. Produce report strutturati con
 VIOLAZIONI, AVVERTENZE e SUGGERIMENTI.
 
 ### visual-content
@@ -49,7 +48,7 @@ VIOLAZIONI, AVVERTENZE e SUGGERIMENTI.
 Regole specifiche per formato per i contenuti visivi brandizzati. Fornisce
 indicazioni per diagrammi Mermaid, disegni Excalidraw, screenshot,
 presentazioni PowerPoint, miniature YouTube, script video e
-grafiche per i social media con selezione dei pacchetti di icone, layout delle slide,
+grafiche per social media con selezione del pacchetto icone, layout delle slide,
 font di fallback e dimensioni specifiche per piattaforma.
 
 ## Comandi
@@ -60,6 +59,6 @@ font di fallback e dimensioni specifiche per piattaforma.
 /f5xc-brand:review-brand [path-or-glob]
 ```
 
-Revisiona i contenuti per la conformità al marchio F5. Accetta un percorso opzionale
+Revisiona i contenuti per verificare la conformità al brand F5. Accetta un percorso opzionale
 o un pattern glob per delimitare l'ambito della revisione. Senza argomenti, revisiona
 tutti i contenuti nella directory corrente.

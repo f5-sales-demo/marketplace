@@ -15,9 +15,9 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 Le plugin **f5xc-meddpicc** fournit un cadre complet de qualification
 commerciale et d'exécution des affaires MEDDPICC pour les ventes B2B
 complexes en entreprise. Il transforme MEDDPICC d'un simple exercice
-de cases à cocher en un véritable système d'exécution des affaires
-avec qualification basée sur les preuves, revues d'affaires
-structurées et coaching actionnable.
+de cases à cocher en un système vivant d'exécution des affaires avec
+une qualification basée sur les preuves, des revues d'affaires
+structurées et un coaching actionnable.
 
 <Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -31,17 +31,17 @@ structurées et coaching actionnable.
 
 MEDDPICC est un cadre de qualification et d'exécution des affaires
 conçu pour les ventes B2B complexes où de multiples parties prenantes,
-le risque technique et les étapes d'approvisionnement peuvent faire
-dérailler la dynamique.
+des risques techniques et des étapes d'approvisionnement peuvent
+freiner l'élan commercial.
 
 | Lettre | Élément | Objectif |
 | ------ | ------- | ------- |
 | **M** | Metrics (Métriques) | Résultats commerciaux quantifiés attendus par le client |
 | **E** | Economic Buyer (Acheteur économique) | Individu disposant de l'autorité budgétaire finale |
 | **D** | Decision Criteria (Critères de décision) | Exigences utilisées pour évaluer les options |
-| **D** | Decision Process (Processus de décision) | Parcours étape par étape de l'évaluation à l'accord |
+| **D** | Decision Process (Processus de décision) | Chemin étape par étape de l'évaluation à l'accord |
 | **P** | Paper Process (Processus administratif) | Mécanismes d'approvisionnement (juridique, sécurité, signature) |
-| **I** | Identify Pain (Identifier la douleur) | Douleur commerciale impérieuse qui crée l'urgence |
+| **I** | Identify Pain (Identifier la douleur) | Douleur commerciale impérieuse créant l'urgence |
 | **C** | Champion | Défenseur interne influent |
 | **C** | Competition (Concurrence) | Toutes les alternatives (fournisseurs, développement interne, statu quo) |
 
@@ -57,21 +57,20 @@ recommandations de rythme opérationnel et des liens vers la
 documentation de référence détaillée.
 
 <Aside type="tip" title="Activation automatique">
-  Cette compétence s'active automatiquement lorsque c'est pertinent — aucune commande slash
-  nécessaire.
+  Cette compétence s'active automatiquement lorsqu'elle est pertinente — aucune commande slash
+  n'est nécessaire.
 </Aside>
 
 ### deal-qualification
 
-Produit une fiche d'évaluation MEDDPICC notée (0&ndash;24) avec
-analyse des lacunes, évaluation des risques et recommandation de
-prévision. Chaque élément est noté de 0&ndash;3 sur la base de
-preuves vérifiées.
+Produit une fiche de score MEDDPICC notée (0&ndash;24) avec analyse
+des écarts, évaluation des risques et recommandation de prévision.
+Chaque élément est noté de 0&ndash;3 sur la base de preuves vérifiées.
 
 ### deal-review
 
-Facilite les inspections hebdomadaires structurées des affaires avec
-suivi des deltas de preuves, identification des risques et plans
+Facilite des inspections hebdomadaires structurées des affaires avec
+suivi du delta des preuves, identification des risques et plans
 d'action avec responsables nommés et dates d'échéance.
 
 ### mutual-action-plan
@@ -83,18 +82,18 @@ cartographie des parties prenantes.
 
 ### champion-test
 
-Applique une évaluation à 5 critères (Pouvoir, Gain Personnel, Accès,
+Applique une évaluation à 5 critères (Pouvoir, Gain personnel, Accès,
 Renseignement, Action) notée de 0&ndash;15 pour déterminer si votre
 contact interne est un véritable champion, un champion émergent, un
-coach ou un simple contact bienveillant.
+coach ou un contact amical.
 
 ## Commandes
 
 | Commande | Objectif |
 | ------- | ------- |
-| `/f5xc-meddpicc:qualify-deal [account]` | Évaluer une affaire avec la fiche d'évaluation MEDDPICC |
-| `/f5xc-meddpicc:deal-review [account]` | Faciliter l'inspection hebdomadaire d'une affaire |
-| `/f5xc-meddpicc:champion-test [contact]` | Évaluer si un contact est un véritable champion |
+| `/f5xc-meddpicc:qualify-deal [account]` | Noter une affaire avec la fiche de score MEDDPICC |
+| `/f5xc-meddpicc:deal-review [account]` | Faciliter l'inspection hebdomadaire de l'affaire |
+| `/f5xc-meddpicc:champion-test [contact]` | Évaluer si le contact est un véritable champion |
 | `/f5xc-meddpicc:build-map [account]` | Construire un Plan d'Action Mutuel |
 
 ## Agents
@@ -103,9 +102,9 @@ coach ou un simple contact bienveillant.
 
 Agent de recherche en lecture seule qui analyse la santé des affaires
 en examinant la documentation locale, les notes de réunion et les
-plans de compte. Produit des rapports d'évaluation MEDDPICC
-structurés avec citations de preuves, analyse des lacunes et
-recommandations d'actions priorisées.
+plans de compte. Produit des rapports d'évaluation MEDDPICC structurés
+avec citations de preuves, analyse des écarts et recommandations
+d'actions priorisées.
 
 ## Bibliothèque de référence
 
@@ -116,16 +115,15 @@ Le plugin inclut une documentation de référence complète qui se charge
   preuves pour les 8 éléments
 - **Questions de découverte** &mdash; questions éprouvées sur le
   terrain pour chaque élément tout au long du cycle de vente
-- **Rôles &amp; Responsabilités** &mdash; matrice de propriété RACI
+- **Rôles et responsabilités** &mdash; matrice de responsabilité RACI
   par rôle d'équipe (AE, SE, CSM, PS, Produit, Canal, Deal Desk, Juridique)
-- **Portes d'étape des affaires** &mdash; ce qui doit être vérifié
-  avant de progresser (de la Qualification Initiale au Contrat Signé)
+- **Portes d'étape des affaires** &mdash; ce qui doit être validé
+  avant de progresser (de la Qualification initiale au Gain confirmé)
 - **Anti-patterns** &mdash; 10 modes d'échec courants avec
   remédiation basée sur les preuves
 - **Grille de notation** &mdash; critères de notation objectifs de
   0&ndash;3 par élément
 - **Modèles de revue** &mdash; ensembles de questions d'inspection
-  hebdomadaire avec indicateurs d'alerte
-- **Modèles de MAP** &mdash; structure de plan d'action orienté
-  client avec feuilles de route d'évaluation, d'approvisionnement
-  et d'implémentation
+  hebdomadaire avec indicateurs de signaux d'alerte
+- **Modèles de MAP** &mdash; structure de plan d'action orienté client
+  avec feuilles de route d'évaluation, d'approvisionnement et d'implémentation

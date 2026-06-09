@@ -1,9 +1,8 @@
 ---
 title: f5xc-devcontainer
 description: >-
-  Plugin de reconnaissance de conteneur pour le catalogue d'outils,
-  l'introspection en direct et l'installation d'outils avec suivi de
-  persistance.
+  Plugin de détection de conteneur pour le catalogue d'outils, l'introspection
+  en direct et l'installation d'outils avec suivi de la persistance.
 sidebar:
   order: 10
 i18n:
@@ -13,13 +12,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Le plugin **f5xc-devcontainer** fournit une reconnaissance de conteneur pour
+Le plugin **f5xc-devcontainer** fournit une détection de conteneur pour
 l'environnement de développement f5xc-salesdemos. Il maintient un
 catalogue d'outils complet, permet l'introspection en direct du conteneur
-et gère l'installation d'outils avec suivi de persistance via
+et gère l'installation d'outils avec suivi de la persistance via
 les issues GitHub.
 
-<Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.6" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -33,20 +32,21 @@ les issues GitHub.
 
 Base de connaissances de chaque outil CLI installé dans le devcontainer,
 organisée par catégorie (cloud, réseau, sécurité, développement,
-etc.). S'active lorsque vous demandez quel outil utiliser, comment utiliser un
-outil, si quelque chose est installé, ou si vous avez besoin d'aide pour une
-opération spécifique.
+etc.). S'active lorsque vous demandez quel outil utiliser, comment
+utiliser un outil, si quelque chose est installé, ou si vous avez
+besoin d'aide pour une opération spécifique.
 
 ### self-awareness
 
 Compétence d'identité et d'autodiagnostic du conteneur. Fournit une
-introspection en direct du conteneur en cours d'exécution via l'API GitHub et les
-métadonnées de build locales. S'active pour les questions d'identité, de version,
-d'informations de build, de vérifications de santé et d'historique des contributeurs.
+introspection en direct du conteneur en cours d'exécution via l'API
+GitHub et les métadonnées de build locales. S'active pour les questions
+d'identité, de version, d'informations de build, de vérifications
+d'état et d'historique des contributeurs.
 
 <Aside type="tip">
   Demandez « qui es-tu ? » ou « quelle version est-ce que j'utilise ? » pour déclencher
-  le self-awareness.
+  la compétence self-awareness.
 </Aside>
 
 ## Agents
@@ -54,24 +54,26 @@ d'informations de build, de vérifications de santé et d'historique des contrib
 ### tool-advisor
 
 Lit le catalogue d'outils et renvoie des recommandations avec l'objectif,
-les commandes de démarrage rapide et les exigences d'authentification pour toute
-question relative à un outil CLI.
+les commandes de démarrage rapide et les exigences d'authentification
+pour toute question relative aux outils CLI.
 
 ### tool-auditor
 
-Audite le Dockerfile du devcontainer par rapport aux fichiers de référence du catalogue
-d'outils pour détecter les écarts &mdash; outils ajoutés à l'image
-mais non catalogués, ou entrées de catalogue pour des outils qui ont été
-supprimés.
+Audite le Dockerfile du devcontainer par rapport aux fichiers de
+référence du catalogue d'outils pour détecter les écarts &mdash; outils
+ajoutés à l'image mais non catalogués, ou entrées du catalogue pour
+des outils qui ont été supprimés.
 
 ### container-introspector
 
-Effectue une introspection en direct du conteneur via l'API GitHub et les
-métadonnées locales pour l'identité, la généalogie, l'autodiagnostic, l'historique
-des contributeurs et la lignée de build. Opérations en lecture seule uniquement.
+Effectue une introspection en direct du conteneur via l'API GitHub et
+les métadonnées locales pour l'identité, la généalogie, l'autodiagnostic,
+l'historique des contributeurs et la lignée de build. Opérations en
+lecture seule uniquement.
 
 ### container-maintainer
 
-Installe, supprime, recherche et met à jour les outils CLI dans le conteneur
-en cours d'exécution en utilisant les modèles corrects de gestionnaire de paquets. Crée des issues
-GitHub sur le dépôt du devcontainer pour le suivi de persistance.
+Installe, supprime, recherche et met à jour les outils CLI dans le
+conteneur en cours d'exécution en utilisant les modèles de gestionnaires
+de paquets appropriés. Crée des issues GitHub dans le dépôt du
+devcontainer pour le suivi de la persistance.

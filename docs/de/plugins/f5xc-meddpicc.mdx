@@ -2,7 +2,7 @@
 title: f5xc-meddpicc
 description: >-
   MEDDPICC-Vertriebsqualifizierungs- und Deal-Execution-Framework für komplexe
-  Enterprise-B2B-Verkäufe.
+  B2B-Unternehmensverkäufe.
 sidebar:
   order: 6
 i18n:
@@ -13,13 +13,13 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 Das **f5xc-meddpicc**-Plugin bietet ein umfassendes MEDDPICC-Framework
-für Vertriebsqualifizierung und Deal-Execution für komplexe
-Enterprise-B2B-Verkäufe. Es verwandelt MEDDPICC von einer
-Checkbox-Übung in ein lebendiges Deal-Execution-System mit
+für Vertriebsqualifizierung und Deal-Execution bei komplexen
+B2B-Unternehmensverkäufen. Es verwandelt MEDDPICC von einer reinen
+Checklisten-Übung in ein lebendiges Deal-Execution-System mit
 evidenzbasierter Qualifizierung, strukturierten Deal-Reviews und
 umsetzbarem Coaching.
 
-<Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.4" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
 ## Installation
 
@@ -37,11 +37,11 @@ Fortschritt gefährden können.
 | Buchstabe | Element | Zweck |
 | --------- | ------- | ----- |
 | **M** | Metrics | Quantifizierte Geschäftsergebnisse, die der Kunde erwartet |
-| **E** | Economic Buyer | Person mit endgültiger Budgetautorität |
-| **D** | Decision Criteria | Anforderungen zur Bewertung von Optionen |
+| **E** | Economic Buyer | Person mit finaler Budgetautorität |
+| **D** | Decision Criteria | Anforderungen zur Bewertung der Optionen |
 | **D** | Decision Process | Schrittweiser Weg von der Evaluierung bis zur Vereinbarung |
-| **P** | Paper Process | Beschaffungsmechanik (Recht, Sicherheit, Unterschrift) |
-| **I** | Identify Pain | Überzeugendes geschäftliches Problem, das Dringlichkeit erzeugt |
+| **P** | Paper Process | Beschaffungsmechanismen (Recht, Sicherheit, Unterschrift) |
+| **I** | Identify Pain | Überzeugende geschäftliche Schmerzpunkte, die Dringlichkeit erzeugen |
 | **C** | Champion | Einflussreicher interner Fürsprecher |
 | **C** | Competition | Alle Alternativen (Anbieter, Eigenentwicklung, Nichtstun) |
 
@@ -49,34 +49,34 @@ Fortschritt gefährden können.
 
 ### meddpicc-coach
 
-Umfassendes MEDDPICC-Methodik-Coaching, das automatisch aktiviert
-wird, wenn Sie über Deal-Qualifizierung, Pipeline-Gesundheit,
-Forecast-Genauigkeit oder ein beliebiges MEDDPICC-Element sprechen.
-Bietet evidenzbasierte Anleitung, Empfehlungen für den
-Betriebsrhythmus und Links zu detailliertem Referenzmaterial.
+Umfassendes MEDDPICC-Methodik-Coaching, das sich automatisch
+aktiviert, wenn Sie Deal-Qualifizierung, Pipeline-Gesundheit,
+Forecast-Genauigkeit oder ein beliebiges MEDDPICC-Element besprechen.
+Bietet evidenzbasierte Anleitung, Empfehlungen für den operativen
+Rhythmus und Links zu detailliertem Referenzmaterial.
 
 <Aside type="tip" title="Automatisch aktiviert">
-  Dieser Skill wird automatisch aktiviert, wenn er relevant ist — kein
+  Dieser Skill aktiviert sich automatisch bei Relevanz — kein
   Slash-Befehl erforderlich.
 </Aside>
 
 ### deal-qualification
 
 Erstellt eine bewertete MEDDPICC-Scorecard (0&ndash;24) mit
-Gap-Analyse, Risikobewertung und Forecast-Empfehlung. Jedes Element
-wird auf Basis verifizierter Evidenz mit 0&ndash;3 bewertet.
+Lückenanalyse, Risikobewertung und Forecast-Empfehlung. Jedes
+Element wird auf Basis verifizierter Evidenz mit 0&ndash;3 bewertet.
 
 ### deal-review
 
 Ermöglicht strukturierte wöchentliche Deal-Inspektionen mit
-Evidenz-Delta-Tracking, Risikoidentifikation und Aktionspunkten
-mit benannten Verantwortlichen und Fälligkeitsterminen.
+Evidenz-Delta-Tracking, Risikoidentifikation und Maßnahmen mit
+benannten Verantwortlichen und Fälligkeitsdaten.
 
 ### mutual-action-plan
 
 Erstellt einen kundenorientierten Mutual Action Plan, der an
-MEDDPICC-Elemente gebunden ist. Enthält Evaluierungsmeilensteine,
-Beschaffungsfahrplan, Implementierungsbereitschaft und
+MEDDPICC-Elemente gekoppelt ist. Umfasst Evaluierungsmeilensteine,
+Beschaffungs-Roadmap, Implementierungsbereitschaft und
 Stakeholder-Mapping.
 
 ### champion-test
@@ -92,22 +92,22 @@ aufstrebender Champion, Coach oder freundlicher Kontakt ist.
 | ------ | ----- |
 | `/f5xc-meddpicc:qualify-deal [account]` | Deal mit MEDDPICC-Scorecard bewerten |
 | `/f5xc-meddpicc:deal-review [account]` | Wöchentliche Deal-Inspektion durchführen |
-| `/f5xc-meddpicc:champion-test [contact]` | Bewerten, ob ein Kontakt ein echter Champion ist |
-| `/f5xc-meddpicc:build-map [account]` | Einen Mutual Action Plan erstellen |
+| `/f5xc-meddpicc:champion-test [contact]` | Prüfen, ob ein Kontakt ein echter Champion ist |
+| `/f5xc-meddpicc:build-map [account]` | Mutual Action Plan erstellen |
 
-## Agents
+## Agenten
 
 ### deal-analyst
 
-Schreibgeschützter Research-Agent, der die Deal-Gesundheit analysiert,
-indem er lokale Dokumentation, Meeting-Notizen und Account-Pläne
-überprüft. Erstellt strukturierte MEDDPICC-Bewertungsberichte mit
-Evidenzzitaten, Gap-Analyse und priorisierten
+Schreibgeschützter Research-Agent, der die Deal-Gesundheit durch
+Analyse lokaler Dokumentation, Meeting-Notizen und Account-Pläne
+bewertet. Erstellt strukturierte MEDDPICC-Bewertungsberichte mit
+Evidenzzitaten, Lückenanalyse und priorisierten
 Handlungsempfehlungen.
 
 ## Referenzbibliothek
 
-Das Plugin enthält umfangreiches Referenzmaterial, das bei Bedarf
+Das Plugin enthält umfassendes Referenzmaterial, das bei Bedarf
 geladen wird:
 
 - **MEDDPICC-Framework** &mdash; vollständige Definitionen und
@@ -116,13 +116,13 @@ geladen wird:
   Element über den gesamten Deal-Zyklus
 - **Rollen &amp; Verantwortlichkeiten** &mdash; RACI-Zuständigkeitsmatrix
   nach Teamrolle (AE, SE, CSM, PS, Product, Channel, Deal Desk, Legal)
-- **Deal Stage Gates** &mdash; was erfüllt sein muss, bevor
-  fortgeschritten werden kann (von Early Qualification bis Closed Won)
+- **Deal-Stage-Gates** &mdash; was erfüllt sein muss, bevor der
+  nächste Schritt erfolgt (von Early Qualification bis Closed Won)
 - **Anti-Patterns** &mdash; 10 häufige Fehlermuster mit
   evidenzbasierter Behebung
-- **Bewertungsrubrik** &mdash; objektive 0&ndash;3-Bewertungskriterien
+- **Scoring-Rubrik** &mdash; objektive 0&ndash;3-Bewertungskriterien
   pro Element
-- **Review-Vorlagen** &mdash; wöchentliche Inspektionsfragen mit
+- **Review-Vorlagen** &mdash; wöchentliche Inspektionsfragen-Sets mit
   Red-Flag-Indikatoren
 - **MAP-Vorlagen** &mdash; kundenorientierte Aktionsplan-Struktur
-  mit Evaluierungs-, Beschaffungs- und Implementierungsfahrplänen
+  mit Evaluierungs-, Beschaffungs- und Implementierungs-Roadmaps

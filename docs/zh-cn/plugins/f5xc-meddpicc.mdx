@@ -1,8 +1,9 @@
 ---
 title: f5xc-meddpicc
-description: 适用于复杂企业级 B2B 销售的 MEDDPICC 销售资格评估与交易执行框架。
+description: 适用于复杂企业级 B2B 销售的 MEDDPICC 销售资格认定与交易执行框架。
 sidebar:
   order: 6
+  label: f5xc-meddpicc
 i18n:
   sourceHash: d1dbbc7ad484
   translator: machine
@@ -10,12 +11,9 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-meddpicc** 插件为复杂企业级 B2B 销售提供了一套全面的 MEDDPICC
-销售资格评估与交易执行框架。它将 MEDDPICC 从一个简单的清单勾选练习
-转变为一个活的交易执行系统，具备基于证据的资格评估、结构化交易审查
-以及可操作的辅导指引。
+**f5xc-meddpicc** 插件提供了一套全面的 MEDDPICC 销售资格认定与交易执行框架，专为复杂的企业级 B2B 销售场景设计。它将 MEDDPICC 从一项机械的勾选练习转变为一个动态的交易执行系统，具备基于证据的资格认定、结构化的交易审查以及可执行的辅导建议。
 
-<Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.4" variant="note" /> <Badge text="生产力" variant="tip" />
 
 ## 安装
 
@@ -25,84 +23,69 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 什么是 MEDDPICC？
 
-MEDDPICC 是一套资格评估与交易执行框架，专为复杂 B2B 销售场景设计，
-在这些场景中，多个利益相关方、技术风险和采购流程都可能导致交易势头
-中断。
+MEDDPICC 是一套资格认定与交易执行框架，专为复杂的 B2B 销售而设计——在这类销售中，多方利益相关者、技术风险和采购流程都可能阻碍交易推进。
 
 | 字母 | 要素 | 用途 |
 | ------ | ------- | ------- |
-| **M** | Metrics（量化指标） | 客户期望的可量化业务成果 |
-| **E** | Economic Buyer（经济决策者） | 拥有最终预算审批权的个人 |
-| **D** | Decision Criteria（决策标准） | 用于评估各选项的需求条件 |
-| **D** | Decision Process（决策流程） | 从评估到签约的逐步路径 |
-| **P** | Paper Process（文书流程） | 采购机制（法务、安全审查、签署） |
-| **I** | Identify Pain（识别痛点） | 创造紧迫性的关键业务痛点 |
-| **C** | Champion（内部拥护者） | 有影响力的内部倡导者 |
-| **C** | Competition（竞争） | 所有替代方案（竞争厂商、自建、维持现状） |
+| **M** | Metrics（指标） | 客户期望的可量化业务成果 |
+| **E** | Economic Buyer（经济买家） | 拥有最终预算审批权的个人 |
+| **D** | Decision Criteria（决策标准） | 用于评估各方案的要求 |
+| **D** | Decision Process（决策流程） | 从评估到达成协议的逐步路径 |
+| **P** | Paper Process（书面流程） | 采购机制（法务、安全、签署） |
+| **I** | Identify Pain（识别痛点） | 能够创造紧迫感的关键业务痛点 |
+| **C** | Champion（内部支持者） | 有影响力的内部倡导者 |
+| **C** | Competition（竞争） | 所有替代方案（供应商、自建、维持现状） |
 
 ## 技能
 
 ### meddpicc-coach
 
-全面的 MEDDPICC 方法论辅导，当您讨论交易资格评估、管道健康度、
-预测准确性或任何 MEDDPICC 要素时会自动激活。提供基于证据的指导、
-运营节奏建议以及详细参考资料的链接。
+全面的 MEDDPICC 方法论辅导，当您讨论交易资格认定、管道健康度、预测准确性或任何 MEDDPICC 要素时会自动激活。提供基于证据的指导、运营节奏建议以及指向详细参考资料的链接。
 
 <Aside type="tip" title="自动激活">
-  该技能在相关场景下会自动激活——无需使用斜杠命令。
+  此技能在相关场景下会自动激活——无需使用斜杠命令。
 </Aside>
 
 ### deal-qualification
 
-生成带评分的 MEDDPICC 记分卡（0&ndash;24），包含差距分析、
-风险评估和预测建议。每个要素根据经过验证的证据评分 0&ndash;3。
+生成一份评分制 MEDDPICC 记分卡（0&ndash;24 分），包含差距分析、风险评估和预测建议。每个要素根据已验证的证据评分 0&ndash;3 分。
 
 ### deal-review
 
-支持结构化的每周交易检查，包含证据变化追踪、风险识别，
-以及指定负责人和截止日期的行动项。
+促进结构化的每周交易检查，包含证据变化追踪、风险识别以及分配了责任人和截止日期的行动项。
 
 ### mutual-action-plan
 
-构建与 MEDDPICC 要素关联的面向客户的共同行动计划（Mutual Action Plan）。
-包括评估里程碑、采购路线图、实施准备度和利益相关方映射。
+构建与 MEDDPICC 要素关联的面向客户的共同行动计划。包括评估里程碑、采购路线图、实施准备度和利益相关者映射。
 
 ### champion-test
 
-应用 5 项标准评估（权力、个人收益、访问权限、情报、行动力），
-评分 0&ndash;15，以判断您的内部联系人是真正的拥护者、潜在拥护者、
-教练还是友好联系人。
+应用 5 项标准评估（权力、个人收益、接触权限、情报获取、行动力），评分 0&ndash;15 分，以判断您的内部联系人是真正的支持者、潜在支持者、顾问还是友好联系人。
 
 ## 命令
 
 | 命令 | 用途 |
 | ------- | ------- |
 | `/f5xc-meddpicc:qualify-deal [account]` | 使用 MEDDPICC 记分卡为交易评分 |
-| `/f5xc-meddpicc:deal-review [account]` | 进行每周交易检查 |
-| `/f5xc-meddpicc:champion-test [contact]` | 评估联系人是否为真正的拥护者 |
+| `/f5xc-meddpicc:deal-review [account]` | 推动每周交易检查 |
+| `/f5xc-meddpicc:champion-test [contact]` | 评估联系人是否为真正的支持者 |
 | `/f5xc-meddpicc:build-map [account]` | 构建共同行动计划 |
 
 ## 代理
 
 ### deal-analyst
 
-只读研究代理，通过审查本地文档、会议记录和客户计划来分析交易健康度。
-生成结构化的 MEDDPICC 评估报告，包含证据引用、差距分析和优先级排序的
-行动建议。
+只读研究代理，通过审查本地文档、会议记录和客户计划来分析交易健康状况。生成结构化的 MEDDPICC 评估报告，包含证据引用、差距分析和优先级排序的行动建议。
 
 ## 参考资料库
 
 该插件包含按需加载的全面参考资料：
 
 - **MEDDPICC 框架** &mdash; 所有 8 个要素的完整定义和证据要求
-- **发现问题集** &mdash; 覆盖交易周期各阶段、针对每个要素的
-  经实战验证的问题
-- **角色与职责** &mdash; 按团队角色（AE、SE、CSM、PS、产品、
-  渠道、交易支持、法务）划分的 RACI 职责矩阵
-- **交易阶段门控** &mdash; 推进各阶段前必须满足的条件
-  （从早期资格评估到成功签约）
-- **反模式** &mdash; 10 种常见失败模式及基于证据的补救措施
-- **评分标准** &mdash; 每个要素的客观 0&ndash;3 评分标准
-- **审查模板** &mdash; 每周检查问题集及红旗指标
-- **MAP 模板** &mdash; 面向客户的行动计划结构，包含评估、
-  采购和实施路线图
+- **探索性问题** &mdash; 针对交易周期中每个要素的经过实战验证的问题
+- **角色与职责** &mdash; 按团队角色（AE、SE、CSM、PS、产品、渠道、交易台、法务）划分的 RACI 责任矩阵
+- **交易阶段关卡** &mdash; 推进前必须满足的条件（从早期资格认定到成功关闭）
+- **反模式** &mdash; 10 种常见失败模式及基于证据的补救方案
+- **评分标准** &mdash; 每个要素的客观 0&ndash;3 分评分标准
+- **审查模板** &mdash; 包含红旗指标的每周检查问题集
+- **MAP 模板** &mdash; 面向客户的行动计划结构，包含评估、采购和实施路线图

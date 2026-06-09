@@ -1,6 +1,6 @@
 ---
 title: 貢獻外掛程式
-description: 建立、組織和發佈 f5xc-salesdemos 市集外掛程式的指南。
+description: 建立、組織和發布 f5xc-salesdemos 市集外掛程式的指南。
 sidebar:
   order: 6
 i18n:
@@ -15,8 +15,8 @@ f5xc-salesdemos 市集。
 
 ## 外掛程式結構
 
-每個外掛程式都位於 `plugins/` 下的獨立目錄中，並遵循
-以下結構：
+每個外掛程式都位於 `plugins/` 下的獨立目錄中，並
+遵循以下結構：
 
 <FileTree>
 - plugins/
@@ -69,7 +69,7 @@ f5xc-salesdemos 市集。
 3. **新增技能**
 
    建立 `plugins/my-plugin/skills/my-skill/SKILL.md` 並包含
-   frontmatter：
+   前置資料：
 
    ```markdown
    ---
@@ -103,7 +103,7 @@ f5xc-salesdemos 市集。
 5. **將外掛程式新增至 marketplace.json**
 
    在 `.claude-plugin/marketplace.json` 的 `plugins` 陣列中
-   新增一筆項目：
+   新增一個項目：
 
    ```json
    {
@@ -121,47 +121,47 @@ f5xc-salesdemos 市集。
    }
    ```
 
-6. **在本機測試**
+6. **本機測試**
 
-   在不發佈的情況下測試您的外掛程式，將 Claude Code
-   指向本機目錄：
+   將 Claude Code 指向本機目錄，無需發布即可測試您的
+   外掛程式：
 
    ```bash
    claude --plugin-dir ./plugins/my-plugin
    ```
 
-   驗證技能是否在正確的情境中啟動，以及命令是否產生
-   預期的輸出。
+   驗證技能在正確的情境中啟動，且命令產生預期的
+   輸出結果。
 
 </Steps>
 
 ## 提交您的外掛程式
 
 <Aside type="tip" title="儲存庫工作流程">
-  本儲存庫強制執行嚴格的治理工作流程。
+  此儲存庫執行嚴格的治理工作流程。
   請參閱 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
-  了解完整流程。
+  以了解完整流程。
 </Aside>
 
 <Steps>
 
-1. 建立一個 GitHub issue 來描述新的外掛程式
-2. 從 `main` 建立一個功能分支
+1. 建立 GitHub issue 描述新的外掛程式
+2. 從 `main` 建立功能分支
 3. 新增您的外掛程式目錄並更新 `marketplace.json`
-4. 在 `docs/plugins/my-plugin.mdx` 新增一個文件頁面
-5. 開啟一個 PR 並連結至 issue，使用 `Closes #N`
-6. 修復所有 CI 失敗，並在檢查通過後合併
+4. 在 `docs/plugins/my-plugin.mdx` 新增文件頁面
+5. 開啟 PR 並連結至 issue，使用 `Closes #N`
+6. 修正任何 CI 失敗並在檢查通過後合併
 
 </Steps>
 
-## 最佳實踐
+## 最佳實務
 
-- **保持技能聚焦** — 一個技能應該只做好一件事
-- **使用參考檔案** — 將大型資料集、結構描述和查詢表放在
-  `references/` 中，而不是內嵌在 SKILL.md 中
-- **智慧地限定範圍** — 盡可能檢查未提交的變更以縮小
-  工作集
-- **依嚴重程度分組輸出** — 使用 ERROR、WARNING 和 INFO
-  層級，讓使用者能夠優先處理修復
-- **撰寫 README** — 包含使用範例以及每個技能和命令的
-  功能描述
+- **保持技能專注** — 一個技能應該只做好一件事
+- **使用參考檔案** — 將大型資料集、結構描述和
+  對照表放在 `references/` 中，而非內嵌在 SKILL.md 中
+- **智慧限定範圍** — 盡可能檢查未提交的變更以
+  縮小工作集
+- **依嚴重性分組輸出** — 使用 ERROR、WARNING 和 INFO
+  等級，讓使用者能夠優先處理修正項目
+- **撰寫 README** — 包含使用範例以及每個技能和命令
+  的功能說明

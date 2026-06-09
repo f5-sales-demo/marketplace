@@ -1,7 +1,7 @@
 ---
 title: Referenz
 description: >-
-  marketplace.json-Schema-Referenz mit Felddefinitionen, Skill-Konfiguration und
+  marketplace.json Schema-Referenz mit Felddefinitionen, Skill-Konfiguration und
   Validierungsregeln.
 sidebar:
   order: 7
@@ -12,20 +12,20 @@ i18n:
 
 import { Aside } from '@astrojs/starlight/components';
 
-## marketplace.json-Schema
+## marketplace.json Schema
 
 Das Marketplace-Manifest befindet sich unter
 `.claude-plugin/marketplace.json` im Repository-Stammverzeichnis.
 
-### Felder der obersten Ebene
+### Felder auf oberster Ebene
 
 | Feld | Erforderlich | Beschreibung |
 |-------|----------|-------------|
 | `$schema` | Nein | JSON-Schema-URL zur Validierung |
 | `name` | Ja | Eindeutiger Marketplace-Bezeichner |
-| `version` | Nein | Marketplace-Schema-Version (Semver) |
+| `version` | Nein | Marketplace-Schema-Version (semver) |
 | `metadata.description` | Ja | Menschenlesbare Marketplace-Beschreibung |
-| `owner.name` | Ja | Organisation oder Benutzer, der den Marketplace besitzt |
+| `owner.name` | Ja | Organisation oder Benutzer, dem der Marketplace gehört |
 | `owner.url` | Nein | URL zum Profil oder zur Website des Eigentümers |
 | `owner.email` | Nein | Kontakt-E-Mail |
 | `plugins` | Ja | Array von Plugin-Einträgen |
@@ -36,14 +36,14 @@ Das Marketplace-Manifest befindet sich unter
 |-------|----------|-------------|
 | `name` | Ja | Plugin-Bezeichner (muss mit `plugin.json` übereinstimmen) |
 | `description` | Ja | Kurzbeschreibung des Plugins |
-| `version` | Ja | Semantische Versionszeichenkette |
+| `version` | Ja | Semantischer Versions-String |
 | `author.name` | Ja | Plugin-Autor |
 | `source` | Ja | Pfad oder URL zum Plugin (siehe Quelltypen) |
 | `category` | Ja | Plugin-Kategorie (z. B. `productivity`) |
 | `homepage` | Nein | URL zur Plugin-Dokumentation oder Homepage |
 | `license` | Nein | SPDX-Lizenzbezeichner |
 | `keywords` | Nein | Array von Suchbegriffen |
-| `tags` | Nein | Array von Tags zur Filterung |
+| `tags` | Nein | Array von Tags zum Filtern |
 | `repository` | Nein | Repository-URL |
 
 ## Plugin-Quelltypen
@@ -59,7 +59,7 @@ Formate:
 | Git-URL | `https://github.com/owner/repo.git` | Git-Repository |
 | npm-Paket | `npm:@scope/package` | Veröffentlichtes npm-Paket |
 
-## plugin.json-Schema
+## plugin.json Schema
 
 Jedes Plugin hat ein Manifest unter
 `.claude-plugin/plugin.json` in seinem Verzeichnis.
@@ -84,19 +84,19 @@ plugins/my-plugin/
     plugin.json          # Plugin-Manifest (erforderlich)
   skills/
     skill-name/
-      SKILL.md           # Skill-Definition (erforderlich pro Skill)
-      references/        # Referenzdatendateien (optional)
+      SKILL.md           # Skill-Definition (pro Skill erforderlich)
+      references/        # Referenzdaten-Dateien (optional)
   commands/
     command-name.md      # Befehlsdefinition (eine pro Befehl)
   agents/
-    agent-name.md        # Agentendefinition (eine pro Agent)
+    agent-name.md        # Agenten-Definition (eine pro Agent)
   README.md              # Plugin-Dokumentation (empfohlen)
 ```
 
 ## Umgebungsvariablen
 
-Plugins können diese Variablen in ihren Skill- und
-Befehlsdateien verwenden:
+Plugins können diese Variablen in ihren Skill- und Befehlsdateien
+verwenden:
 
 | Variable | Beschreibung |
 |----------|-------------|
@@ -112,10 +112,10 @@ claude plugin validate .
 
 Dies prüft:
 
-- `marketplace.json`-Schema-Konformität
+- `marketplace.json` Schema-Konformität
 - Alle referenzierten Plugin-Verzeichnisse existieren
 - Jedes Plugin hat eine gültige `plugin.json`
-- Skills haben korrekt formatiertes `SKILL.md`-Frontmatter
+- Skills haben korrekt formatierte `SKILL.md`-Frontmatter
 - Befehle haben die erforderlichen Frontmatter-Felder
 
 ## Team-Konfiguration
@@ -132,7 +132,7 @@ Fügen Sie dies zur `.claude/settings.json` in einem beliebigen Repository hinzu
 }
 ```
 
-### Plugins voraktivieren
+### Plugins vorab aktivieren
 
 ```json
 {
@@ -143,8 +143,8 @@ Fügen Sie dies zur `.claude/settings.json` in einem beliebigen Repository hinzu
 ```
 
 <Aside type="tip">
-  Das Einchecken dieser Einstellungen in Ihr Repository stellt sicher, dass
-  jedes Teammitglied automatisch die gleiche Marketplace- und
+  Wenn Sie diese Einstellungen in Ihr Repository committen, stellen Sie sicher,
+  dass jedes Teammitglied automatisch dieselbe Marketplace- und
   Plugin-Konfiguration erhält.
 </Aside>
 
@@ -170,22 +170,22 @@ Falls nicht vorhanden, fügen Sie ihn erneut hinzu:
   `/plugin list`
 - Prüfen Sie, ob Ihre Claude Code-Version Plugins unterstützt
   (v1.0.33+)
-- Überprüfen Sie, ob die Auslösebedingungen des Skills mit Ihrem
-  aktuellen Kontext übereinstimmen
+- Überprüfen Sie, ob die Auslösebedingungen des Skills zu Ihrem aktuellen
+  Kontext passen
 
 ### Skills werden nicht automatisch ausgelöst
 
-Skills werden basierend auf ihrem `description`-Feld im
+Skills werden basierend auf ihrem `description`-Feld in der
 SKILL.md-Frontmatter aktiviert. Wenn ein Skill nicht wie
 erwartet aktiviert wird:
 
 - Prüfen Sie, ob die Beschreibung den Auslösekontext
-  genau beschreibt
+  korrekt beschreibt
 - Verwenden Sie den Befehl direkt (z. B. `/f5xc-docs-tools:review-mdx`)
-  als Behelfslösung
+  als Workaround
 
 ### Build-Fehler nach der Überprüfung
 
-Das Plugin meldet Probleme, behebt sie jedoch nicht automatisch. Wenden Sie
+Das Plugin meldet Probleme, behebt sie aber nicht automatisch. Wenden Sie
 die vorgeschlagenen Korrekturen manuell an und führen Sie dann die Überprüfung
-erneut aus, um die Behebung zu bestätigen.
+erneut durch, um die Behebung zu bestätigen.

@@ -12,8 +12,8 @@ i18n:
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-Esta guía explica cómo crear un nuevo plugin y añadirlo al
-marketplace de f5xc-salesdemos.
+Esta guía explica cómo crear un nuevo plugin y añadirlo
+al marketplace de f5xc-salesdemos.
 
 ## Estructura del Plugin
 
@@ -132,12 +132,12 @@ sigue esta estructura:
    claude --plugin-dir ./plugins/my-plugin
    ```
 
-   Verifique que los skills se activan en el contexto adecuado y
-   que los comandos producen la salida esperada.
+   Verifique que los skills se activen en el contexto correcto y
+   que los comandos produzcan la salida esperada.
 
 </Steps>
 
-## Enviar su Plugin
+## Enviar Su Plugin
 
 <Aside type="tip" title="Flujo de trabajo del repositorio">
   Este repositorio aplica un flujo de trabajo de gobernanza estricto.
@@ -152,7 +152,7 @@ sigue esta estructura:
 3. Añada el directorio de su plugin y actualice `marketplace.json`
 4. Añada una página de documentación en `docs/plugins/my-plugin.mdx`
 5. Abra un PR vinculado al issue con `Closes #N`
-6. Corrija cualquier fallo de CI y haga merge después de que pasen las verificaciones
+6. Corrija cualquier fallo de CI y haga merge una vez que las verificaciones pasen
 
 </Steps>
 
@@ -160,8 +160,8 @@ sigue esta estructura:
 
 - **Mantenga los skills enfocados** — un skill debe hacer una sola cosa bien
 - **Use archivos de referencia** — coloque conjuntos de datos grandes, esquemas y
-  tablas de búsqueda en `references/` en lugar de incluirlos en línea en SKILL.md
-- **Defina el alcance de forma inteligente** — verifique los cambios no confirmados para
+  tablas de consulta en `references/` en lugar de incluirlos directamente en SKILL.md
+- **Defina el alcance de forma inteligente** — verifique si hay cambios sin confirmar para
   reducir el conjunto de trabajo cuando sea posible
 - **Agrupe la salida por severidad** — use los niveles ERROR, WARNING e INFO
   para que los usuarios puedan priorizar las correcciones

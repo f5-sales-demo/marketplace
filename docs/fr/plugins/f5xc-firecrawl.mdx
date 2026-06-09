@@ -1,7 +1,7 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Scraping et crawling web auto-hébergé en local via le moteur open-source
+  Scraping et crawling web auto-hébergé localement via le moteur open-source
   Firecrawl.
 sidebar:
   order: 13
@@ -12,13 +12,13 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Le plugin **f5xc-firecrawl** fournit un scraping web auto-hébergé en local
+Le plugin **f5xc-firecrawl** fournit un scraping web auto-hébergé local
 via le moteur open-source [firecrawl](https://github.com/mendableai/firecrawl).
 Pas de clés API, pas d'abonnements, pas de dépendance au cloud. Toutes
-les opérations s'exécutent sur l'instance firecrawl locale sur `localhost:3002`
+les opérations s'exécutent contre l'instance firecrawl locale sur `localhost:3002`
 à l'intérieur du devcontainer.
 
-<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.0" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -30,7 +30,7 @@ les opérations s'exécutent sur l'instance firecrawl locale sur `localhost:3002
 
 ### /scrape
 
-Scraper une URL unique et extraire le contenu en markdown.
+Scrape une URL unique et extrait le contenu en markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Scraper une URL unique et extraire le contenu en markdown.
 
 ### /batch-scrape
 
-Scraper plusieurs URLs en une seule fois.
+Scrape plusieurs URLs simultanément.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -47,7 +47,7 @@ Scraper plusieurs URLs en une seule fois.
 
 ### /crawl
 
-Explorer plusieurs pages à partir d'une URL de départ.
+Crawle plusieurs pages à partir d'une URL de départ.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -56,7 +56,7 @@ Explorer plusieurs pages à partir d'une URL de départ.
 
 ### /map
 
-Découvrir toutes les URLs d'un site web.
+Découvre toutes les URLs d'un site web.
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ Découvrir toutes les URLs d'un site web.
 
 ### /search
 
-Rechercher sur le web et optionnellement scraper les résultats.
+Recherche sur le web et scrape optionnellement les résultats.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ Rechercher sur le web et optionnellement scraper les résultats.
 
 ### /extract
 
-Extraction de données structurées à partir de pages web assistée par LLM.
+Extraction de données structurées assistée par LLM depuis des pages web.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -88,7 +88,7 @@ Extraction de données structurées à partir de pages web assistée par LLM.
 
 ### /llmstxt
 
-Générer un fichier llms.txt pour un site.
+Génère un fichier llms.txt pour un site.
 
 ```
 /llmstxt https://docs.example.com
@@ -98,9 +98,9 @@ Générer un fichier llms.txt pour un site.
 
 ### web-scraper
 
-S'active automatiquement lorsque vous demandez de scraper une URL, explorer un site web, mapper
+S'active automatiquement lorsque vous demandez de scraper une URL, crawler un site web, mapper
 les URLs d'un site, rechercher sur le web, extraire des données structurées, générer un llms.txt,
-scraper plusieurs URLs en lot, ou convertir une page web en markdown.
+scraper en lot plusieurs URLs, ou convertir une page web en markdown.
 Délègue immédiatement à l'agent firecrawl-operator.
 
 ## Agents
@@ -127,7 +127,7 @@ les endpoints v1. Agent en lecture seule (pas d'outils Write, Edit ou Agent).
 
 ## Infrastructure
 
-Le plugin nécessite la stack firecrawl fonctionnant dans le devcontainer :
+Le plugin nécessite la pile firecrawl en cours d'exécution dans le devcontainer :
 
 | Composant | Port | Fonction |
 |-----------|------|---------|
@@ -137,7 +137,7 @@ Le plugin nécessite la stack firecrawl fonctionnant dans le devcontainer :
 | PostgreSQL | socket | Persistance des tâches crawl/batch |
 | Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM pour extract (optionnel) |
 
-La stack démarre automatiquement lorsque `ENABLE_FIRECRAWL=true` (la
+La pile démarre automatiquement lorsque `ENABLE_FIRECRAWL=true` (la
 valeur par défaut). Un hook SessionStart vérifie que l'API est accessible et
 avertit si le service est indisponible.
 
@@ -145,9 +145,9 @@ avertit si le service est indisponible.
 
 Ce plugin utilise la version open-source auto-hébergée :
 
-- Aucune authentification ni clé API requise pour le scraping
+- Aucune authentification ou clé API requise pour le scraping
 - Pas de limites de crédits ni de limitation de débit
 - Utilise les endpoints API v1 (pas v2)
 - Les sessions navigateur et la recherche approfondie ne sont pas disponibles
 - Extract utilise votre propre proxy LLM au lieu de modèles hébergés
-- Fonctionne entièrement au sein du réseau de conteneurs local
+- S'exécute entièrement au sein du réseau de conteneurs local

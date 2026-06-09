@@ -12,9 +12,9 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Das **f5xc-github-ops**-Plugin bietet exklusive GitHub-Operations-Automatisierung für f5xc-salesdemos-Repositories. Es verwaltet den gesamten Git- und GitHub-Lebenszyklus von der Issue-Erstellung bis zur Post-Merge-Überwachung und setzt Issue-getriebene Entwicklung sowie Pre-Commit-Lint-Gates durch.
+Das **f5xc-github-ops**-Plugin bietet exklusive GitHub-Operations-Automatisierung für f5xc-salesdemos-Repositories. Es verwaltet den gesamten Git- und GitHub-Lebenszyklus von der Issue-Erstellung bis zur Überwachung nach dem Merge und setzt Issue-getriebene Entwicklung sowie Pre-Commit-Lint-Gates durch.
 
-<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v2.2.2" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
 ## Installation
 
@@ -26,17 +26,17 @@ Das **f5xc-github-ops**-Plugin bietet exklusive GitHub-Operations-Automatisierun
 
 ### workflow-lifecycle
 
-Repository-Governance-Workflow, der Issue-Erstellung, Branch-Namenskonventionen, PR-Erstellung, CI-Polling mit Fehler-Feedback zu Issues, Post-Merge-Überwachung, Verifizierung und Aufgabenabschlusskriterien behandelt. Wird aktiviert, wenn Sie "commit", "push", "create a PR", "merge" sagen oder eine beliebige Git-Operation durchführen.
+Repository-Governance-Workflow zur Handhabung von Issue-Erstellung, Branch-Namenskonventionen, PR-Erstellung, CI-Polling mit Fehler-Feedback an Issues, Überwachung nach dem Merge, Verifizierung und Aufgabenabschlusskriterien. Wird aktiviert, wenn Sie "commit", "push", "erstelle einen PR", "merge" sagen oder eine Git-Operation durchführen.
 
 ### upstream-contribution
 
-Upstream-Contribution-Workflow für Fork-basierte Entwicklung. Behandelt Fork-Erkennung, Upstream-Recherche (Issues, PRs, CONTRIBUTING.md, CI-Patterns), Cross-Repo-Issue- und PR-Erstellung, lokales Tracking-Issue-Management, Upstream-CI-Überwachung und geführte Problemlösung.
+Upstream-Contribution-Workflow für Fork-basierte Entwicklung. Behandelt Fork-Erkennung, Upstream-Recherche (Issues, PRs, CONTRIBUTING.md, CI-Muster), repositoryübergreifende Issue- und PR-Erstellung, lokales Tracking-Issue-Management, Upstream-CI-Überwachung und geführte Problemlösung.
 
-## Agents
+## Agenten
 
 ### github-ops
 
-Exklusiver Agent für alle mechanischen Git- und GitHub-Operationen. Behandelt Pre-Commit-Lint-Gates, Issue-Erstellung, Branch-Erstellung, Staging, Commits, Pushing, PR-Erstellung, CI-Polling mit Fehler-Feedback, Infrastruktur-Fehler-Wiederholung, Post-Merge-Überwachung, Branch-Bereinigung und Repository-Einstellungsverwaltung über die GitHub-API.
+Exklusiver Agent für alle mechanischen Git- und GitHub-Operationen. Behandelt Pre-Commit-Lint-Gates, Issue-Erstellung, Branch-Erstellung, Staging, Commits, Pushes, PR-Erstellung, CI-Polling mit Fehler-Feedback, Wiederholung bei Infrastrukturfehlern, Überwachung nach dem Merge, Branch-Bereinigung und Repository-Einstellungsverwaltung über die GitHub-API.
 
 Gibt strukturierte Statusberichte zurück: `COMPLETE`, `PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` oder `FAILED`.
 

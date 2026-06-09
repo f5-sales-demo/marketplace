@@ -1,8 +1,8 @@
 ---
 title: f5xc-platform
 description: >-
-  Automatisation de la plateforme F5 Distributed Cloud — opérations de la
-  console, API REST, authentification et analyse de configuration.
+  Automatisation de la plateforme F5 Distributed Cloud — opérations de console,
+  API REST, authentification et analyse de configuration.
 sidebar:
   order: 11
 i18n:
@@ -14,11 +14,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 Le plugin **f5xc-platform** fournit une automatisation complète pour la
 plateforme F5 Distributed Cloud. Il couvre les opérations de la console web
-via Chrome DevTools MCP, les opérations d'API REST basées sur les
+via Chrome DevTools MCP, les opérations d'API REST conformes aux
 spécifications via cURL, l'authentification multi-fournisseurs et l'analyse
 de configuration couvrant 98 types de ressources dans 38 domaines.
 
-<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v3.1.1" variant="note" /> <Badge text="Productivité" variant="tip" />
 
 ## Installation
 
@@ -30,10 +30,10 @@ de configuration couvrant 98 types de ressources dans 38 domaines.
 
 ### api-operations
 
-Opérations CRUD d'API basées sur les spécifications couvrant 98 types de
+Opérations CRUD d'API conformes aux spécifications couvrant 98 types de
 ressources dans 38 domaines. Fournit des endpoints précis, des modèles
 de payload, un ordonnancement des dépendances et des compositions de
-workflows multi-étapes pour les répartiteurs de charge HTTP, les pools
+workflows multi-étapes pour les équilibreurs de charge HTTP, les pools
 d'origine, les politiques WAF, les zones DNS, les certificats, les sites
 cloud, et plus encore.
 
@@ -49,8 +49,8 @@ dispatches.
 ### api-auth
 
 Authentification API prenant en charge l'authentification par en-tête de
-jeton API et l'authentification par certificat P12 avec des procédures
-de validation de jeton.
+jeton API et l'authentification par certificat P12 avec des procédures de
+validation de jeton.
 
 ### console-auth
 
@@ -62,12 +62,12 @@ DUO.
 ### console-navigator
 
 Navigation déterministe vers les sections de la console F5 XC. Traduit
-les noms de sections en chemins URL, vérifie la santé de la session et
+les noms de sections en chemins URL, vérifie l'état de la session et
 confirme le chargement de la page.
 
 ### platform-index / api-index / console-index
 
-Routeurs d'intention qui classifient les requêtes utilisateur et les
+Routeurs d'intention qui classifient les requêtes des utilisateurs et les
 délèguent à la compétence et à l'agent appropriés. Ceux-ci s'activent
 automatiquement et ne sont pas invocables par l'utilisateur.
 
@@ -96,23 +96,23 @@ console-operator.
 
 Agent autonome d'API REST exécutant des séquences cURL et jq pour les
 opérations CRUD sur les ressources, la validation de jetons et les
-opérations de configuration. S'exécute dans un sous-agent pour maintenir
-les payloads JSON verbeux de l'API en dehors du contexte de la session
+opérations de configuration. S'exécute en sous-agent pour maintenir les
+payloads JSON verbeux de l'API en dehors du contexte de la session
 principale.
 
 ### console-operator
 
-Agent autonome d'automatisation de navigateur exécutant des séquences
+Agent autonome d'automatisation du navigateur exécutant des séquences
 d'outils Chrome DevTools MCP pour l'authentification, la navigation et
-les interactions avec les formulaires. S'exécute dans un sous-agent pour
-maintenir les instantanés de navigateur gourmands en jetons en dehors de
-la session principale.
+les interactions avec les formulaires. S'exécute en sous-agent pour
+maintenir les instantanés de navigateur riches en jetons en dehors de la
+session principale.
 
 ### config-analyzer
 
 Agent d'analyse de configuration en lecture seule. Analyse les
 configurations JSON des clients par rapport aux fichiers de référence de
-profil de ressource pour répondre aux questions sur la posture de
+profils de ressources pour répondre aux questions sur la posture de
 sécurité, l'activation des fonctionnalités, les transitions de mode et
 les bonnes pratiques.
 

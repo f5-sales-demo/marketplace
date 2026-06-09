@@ -16,7 +16,7 @@ El plugin **osint-framework** proporciona un catálogo de herramientas OSINT y
 habilidades de investigación — 1.064 herramientas gratuitas de recopilación de inteligencia
 en 34 categorías mapeadas desde [osintframework.com](https://osintframework.com).
 Incluye habilidades basadas en categorías, pipelines de investigación ejecutables,
-ejecución de herramientas CLI, flujos de trabajo con conciencia OPSEC y un grafo
+ejecución de herramientas CLI, flujos de trabajo con conciencia de OPSEC y un grafo
 de entidades persistente para correlación entre investigaciones.
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
@@ -54,8 +54,8 @@ Busca en el catálogo de herramientas aquellas que coincidan con una consulta de
 
 ### /osint-catalog
 
-Explora el catálogo completo de herramientas por categoría. Sin argumentos muestra
-las 34 categorías con el conteo de herramientas.
+Navega por el catálogo completo de herramientas por categoría. Sin argumentos muestra
+las 34 categorías con el recuento de herramientas.
 
 ```
 /osint-catalog
@@ -73,8 +73,8 @@ o describes cualquier tarea de inteligencia de fuentes abiertas. Dirige a la
 habilidad de categoría correcta según el tipo de objetivo.
 
 | Objetivo | Dirige a |
-|--------|----------|
-| Nombre de usuario o handle | `username-recon` |
+|----------|----------|
+| Nombre de usuario o identificador | `username-recon` |
 | Dirección de correo electrónico | `email-recon` |
 | Nombre de dominio | `domain-recon` |
 | Dirección IP | `ip-address-recon` |
@@ -82,13 +82,13 @@ habilidad de categoría correcta según el tipo de objetivo.
 | Empresa / organización | `business-records` + `domain-recon` |
 | Hash de malware | `malicious-file-analysis` + `threat-intelligence` |
 
-### Habilidades por categoría (34 en total)
+### Habilidades de categoría (34 en total)
 
 Cada categoría tiene una habilidad dedicada con herramientas CLI, recursos web,
-flujo de trabajo de investigación, pivotes entre categorías y notas OPSEC.
+flujo de trabajo de investigación, pivotes entre categorías y notas de OPSEC.
 
-| Categoría | Herramientas | Herramientas CLI principales |
-|----------|-------|--------------|
+| Categoría | Herramientas | Herramientas CLI clave |
+|-----------|-------------|----------------------|
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
 | `domain-recon` | 131 | subfinder, amass, whois, dig |
@@ -112,7 +112,7 @@ flujo de trabajo de investigación, pivotes entre categorías y notas OPSEC.
 
 ### osint-catalog
 
-Explorador del catálogo de herramientas. Proporciona acceso al registro completo de herramientas,
+Navegador del catálogo de herramientas. Proporciona acceso al registro completo de herramientas,
 índice de categorías, pipelines de investigación, referencia de límites de tasa
 y documentación del motor de correlación.
 
@@ -120,25 +120,25 @@ y documentación del motor de correlación.
 
 ### osint-investigator
 
-Orquestador de investigación autónomo multi-herramienta. Ejecuta flujos de trabajo
+Orquestador autónomo de investigación multiherramienta. Ejecuta flujos de trabajo
 de investigación completos — verificación de disponibilidad de herramientas, detección
 del tipo de objetivo, ejecución secuencial de herramientas (pasivas primero), agregación
 de resultados y generación de informes estructurados con niveles de confianza
-y clasificaciones OPSEC.
+y clasificaciones de OPSEC.
 
 Se integra con el grafo de entidades: cada resultado de herramienta crea entidades
 y relaciones en `/tmp/osint-graph/` para correlación entre investigaciones.
 
 <Aside type="caution">
   Las herramientas de reconocimiento activo (nmap, nuclei, sherlock) realizan contacto directo
-  con la infraestructura del objetivo. El hook de advertencia OPSEC alerta antes
-  de ejecutar herramientas activas. Asegúrese siempre de contar con autorización.
+  con la infraestructura del objetivo. El hook de advertencia OPSEC alerta antes de
+  ejecutar herramientas activas. Asegúrese siempre de contar con autorización.
 </Aside>
 
 ### osint-researcher
 
-Agente de consulta de catálogo en modo solo lectura. Busca en los archivos de referencia para
-recomendar las mejores herramientas para una tarea determinada. Nunca ejecuta herramientas —
+Agente de consulta de catálogo de solo lectura. Busca en los archivos de referencia para
+recomendar las mejores herramientas para una tarea dada. Nunca ejecuta herramientas —
 solo recomienda y explica. Utilizado internamente por las habilidades de categoría
 para el descubrimiento de herramientas.
 
@@ -149,13 +149,13 @@ parámetros específicos, analiza la salida y devuelve resultados estructurados.
 Incluye recetas de ejecución por herramienta para más de 20 herramientas con flags exactos,
 formatos de salida y patrones de análisis con jq.
 
-## Límites de tasa
+## Limitación de tasa
 
 Todas las llamadas a API utilizan el helper `osint_curl` con retroceso exponencial
-incorporado ante HTTP 429/503. Límites principales:
+integrado en HTTP 429/503. Límites clave:
 
 | API | Límite gratuito | Variable de entorno |
-|-----|-----------|---------|
+|-----|-----------------|---------------------|
 | ipinfo.io | 1.000/día | — |
 | crt.sh | 60/min | — |
 | NVD | 5/30s (sin clave) | `NVD_API_KEY` |
@@ -175,23 +175,23 @@ El plugin incluye un grafo de entidades JSON persistente en
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# Add entities
+# Agregar entidades
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# Link them
+# Vincularlas
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# Query: all entities within 2 hops of the person
+# Consulta: todas las entidades dentro de 2 saltos de la persona
 osint_graph_query "$P" 2
 
-# Generate report
+# Generar informe
 osint_graph_report
 ```
 
-La **puntuación de confianza** utiliza fusión de múltiples fuentes:
-`confidence = 1 - product(1 - ci)` para cada fuente que confirma.
-Dos fuentes con 0,80 → 0,96 de confianza combinada.
+**Puntuación de confianza** utiliza fusión de múltiples fuentes:
+`confidence = 1 - product(1 - ci)` para cada fuente confirmante.
+Dos fuentes a 0,80 → 0,96 de confianza combinada.
 
 ## Aviso legal
 

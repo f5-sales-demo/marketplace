@@ -2,7 +2,7 @@
 title: เริ่มต้นใช้งาน
 description: >-
   คู่มือทีละขั้นตอนสำหรับการเพิ่ม marketplace ของ f5xc-salesdemos
-  และติดตั้งปลั๊กอินแรกของคุณ
+  และติดตั้งปลั๊กอินตัวแรกของคุณ
 sidebar:
   order: 2
 i18n:
@@ -13,7 +13,7 @@ i18n:
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 คู่มือนี้จะพาคุณผ่านขั้นตอนการเพิ่ม marketplace ของ f5xc-salesdemos
-ไปยัง Claude Code และติดตั้งปลั๊กอินแรกของคุณ
+ไปยัง Claude Code และติดตั้งปลั๊กอินตัวแรกของคุณ
 
 ## ข้อกำหนดเบื้องต้น
 
@@ -33,12 +33,12 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    /plugin marketplace add f5xc-salesdemos/marketplace
    ```
 
-   คำสั่งนี้จะลงทะเบียน marketplace เป็นแหล่งที่มาของปลั๊กอิน คุณจำเป็นต้อง
-   ทำเพียงครั้งเดียวเท่านั้น
+   คำสั่งนี้จะลงทะเบียน marketplace เป็นแหล่งที่มาของปลั๊กอิน คุณต้อง
+   ทำขั้นตอนนี้เพียงครั้งเดียว
 
-2. **เรียกดูปลั๊กอินที่มีให้บริการ**
+2. **เรียกดูปลั๊กอินที่มีอยู่**
 
-   แสดงรายการสิ่งที่ marketplace มีให้:
+   แสดงรายการปลั๊กอินที่ marketplace มีให้:
 
    ```
    /plugin marketplace list f5xc-salesdemos-marketplace
@@ -55,9 +55,9 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 4. **ใช้งานปลั๊กอิน**
 
-   นำทางไปยัง content repository ใดก็ได้ของ f5xc-salesdemos
+   นำทางไปยังรีโพซิทอรีเนื้อหา f5xc-salesdemos ใดก็ได้
 
-   สำหรับ **docs tools** ให้รันคำสั่งตรวจสอบ MDX:
+   สำหรับ **docs tools** ให้รันคำสั่ง MDX review:
 
    ```
    /f5xc-docs-tools:review-mdx
@@ -95,8 +95,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## การกำหนดค่าสำหรับทีม
 
-เพื่อกำหนดค่า marketplace ล่วงหน้าสำหรับทั้งทีมของคุณ ให้เพิ่มเข้าไป
-ในไฟล์ `.claude/settings.json` ของโปรเจกต์:
+เพื่อกำหนดค่า marketplace ล่วงหน้าสำหรับทีมทั้งหมดของคุณ ให้เพิ่ม
+ลงในไฟล์ `.claude/settings.json` ของโปรเจกต์:
 
 ```json
 {
@@ -111,10 +111,10 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="การตั้งค่าที่ใช้ร่วมกัน">
-  การคอมมิต `.claude/settings.json` เข้าสู่ repository ของคุณ หมายความว่า
-  สมาชิกทุกคนในทีมจะได้รับ marketplace และปลั๊กอิน
-  โดยอัตโนมัติ — ไม่จำเป็นต้องตั้งค่าด้วยตนเอง
+  การคอมมิตไฟล์ `.claude/settings.json` เข้าไปในรีโพซิทอรีของคุณ
+  หมายความว่าสมาชิกทุกคนในทีมจะได้รับ marketplace และปลั๊กอิน
+  โดยอัตโนมัติ — ไม่ต้องตั้งค่าด้วยตนเอง
 </Aside>
 
-สิ่งนี้ช่วยให้มั่นใจว่าผู้มีส่วนร่วมทุกคนมีเครื่องมือชุดเดียวกันพร้อมใช้งาน
-ตั้งแต่เซสชัน Claude Code แรกใน repository
+สิ่งนี้ช่วยให้มั่นใจว่าผู้ร่วมพัฒนาทุกคนมีเครื่องมือเดียวกันพร้อมใช้งาน
+ตั้งแต่เซสชัน Claude Code แรกในรีโพซิทอรี
