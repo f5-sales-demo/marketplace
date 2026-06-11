@@ -326,7 +326,10 @@ export async function runSetupWizard(
         ctx.ui.notify(`Authentication failed: ${errText}`, 'error');
       }
       if (attempt < 2) {
-        const retry = await ctx.ui.confirm('Retry Salesforce login?', 'The browser authentication did not complete. Try again?');
+        const retry = await ctx.ui.confirm(
+          'Retry Salesforce login?',
+          'The browser authentication did not complete. Try again?',
+        );
         if (!retry) return;
         ctx.ui.notify('Retrying browser authentication...', 'info');
       }
@@ -398,7 +401,13 @@ function buildAuthCommand(key: string, alias: string): string[] {
 }
 
 async function executeSfdxUrlAuth(
-  pi: { exec: (cmd: string, args: string[], options?: { timeout?: number }) => Promise<{ stdout: string; stderr: string; code: number }> },
+  pi: {
+    exec: (
+      cmd: string,
+      args: string[],
+      options?: { timeout?: number },
+    ) => Promise<{ stdout: string; stderr: string; code: number }>;
+  },
   ctx: { ui: { notify: (msg: string, type?: 'info' | 'warning' | 'error') => void } },
   alias: string,
 ): Promise<void> {
