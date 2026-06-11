@@ -22,8 +22,39 @@ export function isSalesforceUrl(raw: string): boolean {
   }
 }
 
+function getSavedInstanceUrlPath(): string {
+  const os = require('node:os');
+  const path = require('node:path');
+  return path.join(os.homedir(), '.xcsh', 'salesforce-instance-url');
+}
+
+function saveInstanceUrl(url: string): void {
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    fs.mkdirSync(path.dirname(getSavedInstanceUrlPath()), { recursive: true });
+    fs.writeFileSync(getSavedInstanceUrlPath(), url, 'utf8');
+  } catch {
+    // best-effort
+  }
+}
+
+function loadSavedInstanceUrl(): string | undefined {
+  try {
+    const fs = require('node:fs');
+    const url = fs.readFileSync(getSavedInstanceUrlPath(), 'utf8').trim();
+    return url && isSalesforceUrl(url) ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function discoverInstanceUrls(): Promise<string[]> {
   const urls = new Set<string>();
+
+  // Strategy 0: Previously saved URL (survives sf logout)
+  const saved = loadSavedInstanceUrl();
+  if (saved) urls.add(saved);
 
   // Strategy 1: Cached sfdx auth files
   try {
@@ -108,7 +139,11 @@ export function sfIsInstalled(): boolean {
 
 export async function runSetupWizard(
   pi: {
-    exec: (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string; code: number }>;
+    exec: (
+      cmd: string,
+      args: string[],
+      options?: { timeout?: number },
+    ) => Promise<{ stdout: string; stderr: string; code: number; killed?: boolean }>;
   },
   ctx: {
     ui: {
@@ -123,6 +158,13 @@ export async function runSetupWizard(
   options?: { checkSfInstalled?: () => boolean },
 ): Promise<void> {
   const checkSf = options?.checkSfInstalled ?? sfIsInstalled;
+
+  // Bypass macOS keychain encryption — sf CLI crashes when /usr/bin/security
+  // is inaccessible (sandboxed Homebrew installs, CI, corporate MDM).
+  // Plain-text token storage is acceptable for local dev CLI use.
+  if (!process.env.SFDX_DISABLE_ENCRYPTION) {
+    process.env.SFDX_DISABLE_ENCRYPTION = 'true';
+  }
 
   // --- Platform detection (deterministic, no prompts) ---
   const platform = await detectPlatform();
@@ -209,9 +251,10 @@ export async function runSetupWizard(
     if (best.key === 'sfdx_url') {
       await executeSfdxUrlAuth(pi, ctx, alias);
     } else {
-      const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
+      const authResult = await pi.exec(authCmd[0], authCmd.slice(1), { timeout: 30_000 });
       if (authResult.code !== 0) {
-        ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
+        const errText = authResult.stderr || authResult.stdout;
+        ctx.ui.notify(`Authentication failed: ${authResult.killed ? 'timed out' : errText}`, 'error');
         return;
       }
     }
@@ -267,10 +310,32 @@ export async function runSetupWizard(
       webCmd.push('--instance-url', instanceUrl);
     }
 
-    ctx.ui.notify('Opening browser for authentication...', 'info');
-    const authResult = await pi.exec(webCmd[0], webCmd.slice(1));
-    if (authResult.code !== 0) {
-      ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
+    ctx.ui.notify('Opening browser for authentication (3 min timeout)...', 'info');
+    const AUTH_TIMEOUT_MS = 180_000;
+    let authenticated = false;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const authResult = await pi.exec(webCmd[0], webCmd.slice(1), { timeout: AUTH_TIMEOUT_MS });
+      if (authResult.code === 0) {
+        authenticated = true;
+        break;
+      }
+      const errText = authResult.stderr || authResult.stdout;
+      if (authResult.killed || /timed?\s*out/i.test(errText)) {
+        ctx.ui.notify(`Authentication timed out (attempt ${attempt}/2).`, 'warning');
+      } else {
+        ctx.ui.notify(`Authentication failed: ${errText}`, 'error');
+      }
+      if (attempt < 2) {
+        const retry = await ctx.ui.confirm(
+          'Retry Salesforce login?',
+          'The browser authentication did not complete. Try again?',
+        );
+        if (!retry) return;
+        ctx.ui.notify('Retrying browser authentication...', 'info');
+      }
+    }
+    if (!authenticated) {
+      ctx.ui.notify('Authentication failed after retries. Run /salesforce:setup to try again.', 'error');
       return;
     }
   }
@@ -282,6 +347,10 @@ export async function runSetupWizard(
     try {
       const data = JSON.parse(verifyResult.stdout);
       const org = data.result || {};
+      // Persist the instance URL for future auto-discovery
+      if (org.instanceUrl && isSalesforceUrl(org.instanceUrl)) {
+        saveInstanceUrl(org.instanceUrl);
+      }
       ctx.ui.notify(
         `Salesforce ready! Connected as ${org.username || 'unknown'} to ${org.instanceUrl || 'unknown'}`,
         'info',
@@ -332,7 +401,13 @@ function buildAuthCommand(key: string, alias: string): string[] {
 }
 
 async function executeSfdxUrlAuth(
-  pi: { exec: (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string; code: number }> },
+  pi: {
+    exec: (
+      cmd: string,
+      args: string[],
+      options?: { timeout?: number },
+    ) => Promise<{ stdout: string; stderr: string; code: number }>;
+  },
   ctx: { ui: { notify: (msg: string, type?: 'info' | 'warning' | 'error') => void } },
   alias: string,
 ): Promise<void> {
