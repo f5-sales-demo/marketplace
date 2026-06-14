@@ -1,6 +1,6 @@
 ---
 title: osint-framework
-description: 'OSINT 工具目錄與調查技能——涵蓋 34 個類別、1,064 種情報蒐集工具。'
+description: 'OSINT 工具目錄與調查技能，涵蓋 34 個類別的 1,064 個情報蒐集工具。'
 sidebar:
   order: 12
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**osint-framework** 外掛提供 OSINT 工具目錄與調查技能——來自 [osintframework.com](https://osintframework.com) 的 1,064 種免費情報蒐集工具，涵蓋 34 個類別。包含基於類別的技能、可執行的調查流程、CLI 工具執行、具備 OPSEC 意識的工作流程，以及用於跨調查關聯的持久化實體圖譜。
+**osint-framework** 插件提供 OSINT 工具目錄與調查技能——來自 [osintframework.com](https://osintframework.com) 的 1,064 個免費情報蒐集工具，涵蓋 34 個類別。其功能包括基於類別的技能、可執行的調查流程、CLI 工具執行、具備 OPSEC 意識的工作流程，以及用於跨調查關聯的持久化實體圖譜。
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
 
@@ -24,7 +24,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-investigate
 
-對任意目標執行完整的 OSINT 調查。自動偵測目標類型（電子郵件、網域、IP、使用者名稱、公司、人名），並路由至對應的類別技能。
+對任何目標執行完整的 OSINT 調查。自動偵測目標類型（電子郵件、網域、IP、用戶名稱、公司、人名），並路由至對應的類別技能。
 
 ```
 /osint-investigate j.smith@example.com
@@ -35,7 +35,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-search
 
-在工具目錄中搜尋符合指定能力查詢的工具。
+在工具目錄中搜尋符合特定能力查詢的工具。
 
 ```
 /osint-search subdomain enumeration
@@ -45,7 +45,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-catalog
 
-按類別瀏覽完整工具目錄。不帶參數時，顯示所有 34 個類別及其工具數量。
+依類別瀏覽完整工具目錄。不帶參數時，顯示所有 34 個類別及其工具數量。
 
 ```
 /osint-catalog
@@ -57,16 +57,16 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### osint-index
 
-頂層意圖路由器。當您說出「尋找相關資訊」、「調查」、「查詢」、「背景調查」，或描述任何開源情報任務時自動啟動。根據目標類型路由至對應的類別技能。
+頂層意圖路由器。當您說「查找關於...的資訊」、「調查」、「查詢」、「背景調查」，或描述任何開源情報任務時，將自動啟用。根據目標類型路由至對應的類別技能。
 
 | 目標 | 路由至 |
 |--------|----------|
-| 使用者名稱或帳號 | `username-recon` |
+| 用戶名稱或帳號 | `username-recon` |
 | 電子郵件地址 | `email-recon` |
 | 網域名稱 | `domain-recon` |
 | IP 位址 | `ip-address-recon` |
 | 人名 + 公司 | `people-search` + `business-records` |
-| 公司／組織 | `business-records` + `domain-recon` |
+| 公司 / 組織 | `business-records` + `domain-recon` |
 | 惡意程式雜湊值 | `malicious-file-analysis` + `threat-intelligence` |
 
 ### 類別技能（共 34 個）
@@ -86,7 +86,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
 | `search-engines` | 73 | gitleaks, pagodo, gobuster |
 | `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 種網路隱私工具 |
+| `opsec` | 47 | 47 個基於網頁的隱私工具 |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
 | *（另外 20 個類別）* | 500+ | — |
@@ -98,69 +98,69 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### osint-catalog
 
-工具目錄瀏覽器。提供完整工具登錄庫、類別索引、調查流程、速率限制參考及關聯引擎文件的存取功能。
+工具目錄瀏覽器。提供對完整工具註冊表、類別索引、調查流程、速率限制參考資料及關聯引擎文件的存取。
 
-## 代理程式
+## 代理人
 
 ### osint-investigator
 
-自主多工具調查協調器。執行完整調查工作流程——工具可用性檢查、目標類型偵測、順序工具執行（優先被動模式）、結果彙整，以及附帶信心等級與 OPSEC 分類的結構化報告生成。
+自主多工具調查協調器。執行完整的調查工作流程——包括工具可用性檢查、目標類型偵測、循序工具執行（被動優先）、結果彙整，以及附有可信度等級與 OPSEC 分類的結構化報告生成。
 
-與實體圖譜整合：每項工具結果均會在 `/tmp/osint-graph/` 中建立實體與關係，用於跨調查關聯分析。
+與實體圖譜整合：每次工具執行結果都會在 `/tmp/osint-graph/` 中建立實體與關聯，以供跨調查關聯使用。
 
 <Aside type="caution">
-  主動偵察工具（nmap、nuclei、sherlock）會直接接觸目標基礎設施。OPSEC 警告鉤子會在執行主動工具前發出提示。請務必確認您已獲得授權。
+  主動偵察工具（nmap、nuclei、sherlock）會直接接觸目標基礎架構。OPSEC 警告掛鉤將在執行主動工具前發出提示。請務必確認您已獲得授權。
 </Aside>
 
 ### osint-researcher
 
-唯讀目錄查詢代理程式。搜尋參考檔案以推薦最適合特定任務的工具。不執行任何工具——僅提供建議與說明。由類別技能內部呼叫以進行工具探索。
+唯讀目錄查詢代理人。搜尋參考檔案以推薦適合特定任務的最佳工具。從不執行工具——僅提供建議與說明。由類別技能內部使用以進行工具探索。
 
 ### osint-executor
 
-單一工具 CLI 執行代理程式。每次以特定參數執行一個工具，解析輸出並回傳結構化結果。包含 20 多種工具的執行方式說明，含精確旗標、輸出格式及 jq 解析模式。
+單一工具 CLI 執行代理人。一次執行一個工具，並帶有特定參數，解析輸出並回傳結構化結果。包含 20 多個工具的逐一執行配方，含確切旗標、輸出格式及 jq 解析模式。
 
 ## 速率限制
 
-所有 API 呼叫均使用 `osint_curl` 輔助函式，內建對 HTTP 429/503 的指數退避機制。主要限制如下：
+所有 API 呼叫均使用內建指數退避機制的 `osint_curl` 輔助工具，可應對 HTTP 429/503。主要限制如下：
 
-| API | 免費額度 | 環境變數 |
+| API | 免費限額 | 環境變數 |
 |-----|-----------|---------|
-| ipinfo.io | 1,000 次／天 | — |
-| crt.sh | 60 次／分鐘 | — |
-| NVD | 5 次／30 秒（無金鑰） | `NVD_API_KEY` |
+| ipinfo.io | 1,000 次/天 | — |
+| crt.sh | 60 次/分鐘 | — |
+| NVD | 5 次/30 秒（無金鑰） | `NVD_API_KEY` |
 | OpenCorporates | 需要金鑰 | `OPENCORPORATES_API_KEY` |
-| Shodan | 1 次／秒 | `SHODAN_API_KEY` |
-| GitHub API | 60 次／小時（未驗證） | `GH_TOKEN` |
+| Shodan | 1 次/秒 | `SHODAN_API_KEY` |
+| GitHub API | 60 次/小時（未驗證） | `GH_TOKEN` |
 
-需要金鑰的 API 若未設定對應環境變數，將自動跳過並顯示清楚的提示訊息。
+若未設定對應的環境變數，需要金鑰的 API 將自動略過，並顯示清楚的提示訊息。
 
 ## 關聯引擎
 
-此外掛包含位於 `/tmp/osint-graph/` 的持久化 JSON 實體圖譜，可跨調查累積發現結果。
+此插件在 `/tmp/osint-graph/` 包含一個持久化 JSON 實體圖譜，可在多次調查中累積發現的資料。
 
 ```bash
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# 新增實體
+# Add entities
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# 建立關聯
+# Link them
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# 查詢：與該人物在 2 跳以內的所有實體
+# Query: all entities within 2 hops of the person
 osint_graph_query "$P" 2
 
-# 生成報告
+# Generate report
 osint_graph_report
 ```
 
-**信心評分**採用多來源融合機制：
-`confidence = 1 - product(1 - ci)`，其中 ci 為每個確認來源的信心值。
-兩個各為 0.80 的來源合併後可達 0.96 的信心值。
+**可信度評分**採用多來源融合機制：
+`confidence = 1 - product(1 - ci)`，計算每個確認來源的信心值。
+兩個各為 0.80 的來源 → 合併可信度為 0.96。
 
 ## 法律聲明
 
-所有工具僅使用公開可取得的資訊。使用者有責任確保遵守適用法律、法規及平台服務條款。請勿將 OSINT 工具用於未經授權的存取、騷擾或任何違法活動。
+所有工具僅使用公開可取得的資訊。使用者須自行負責確保遵守適用法律、法規及平台服務條款。切勿將 OSINT 工具用於未經授權的存取、騷擾或任何非法活動。

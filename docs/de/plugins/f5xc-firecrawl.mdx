@@ -15,8 +15,8 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 Das **f5xc-firecrawl**-Plugin bietet lokales selbst gehostetes Web-Scraping
 über die Open-Source-Engine [firecrawl](https://github.com/mendableai/firecrawl).
 Keine API-Schlüssel, keine Abonnements, keine Cloud-Abhängigkeit. Alle
-Operationen laufen gegen die lokale Firecrawl-Instanz auf `localhost:3002`
-innerhalb des Entwicklungscontainers.
+Operationen werden gegen die lokale Firecrawl-Instanz auf `localhost:3002`
+innerhalb des Entwicklungscontainers ausgeführt.
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -30,7 +30,7 @@ innerhalb des Entwicklungscontainers.
 
 ### /scrape
 
-Eine einzelne URL scrapen und Inhalte als Markdown extrahieren.
+Eine einzelne URL scrapen und den Inhalt als Markdown extrahieren.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -47,7 +47,7 @@ Mehrere URLs gleichzeitig scrapen.
 
 ### /crawl
 
-Mehrere Seiten ab einer Start-URL crawlen.
+Mehrere Seiten von einer Start-URL aus crawlen.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -56,7 +56,7 @@ Mehrere Seiten ab einer Start-URL crawlen.
 
 ### /map
 
-Alle URLs einer Website ermitteln.
+Alle URLs einer Website entdecken.
 
 ```
 /map https://docs.example.com
@@ -74,7 +74,7 @@ Das Web durchsuchen und optional Ergebnisse scrapen.
 
 ### /extract
 
-LLM-gestützte strukturierte Datenextraktion aus Webseiten.
+KI-gestützte strukturierte Datenextraktion aus Webseiten.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -82,8 +82,8 @@ LLM-gestützte strukturierte Datenextraktion aus Webseiten.
 ```
 
 <Aside type="note">
-  Der extract-Befehl erfordert einen OpenAI-kompatiblen LLM-Proxy,
-  der über `OPENAI_BASE_URL` und `OPENAI_API_KEY` konfiguriert ist.
+  Der Befehl „extract" erfordert einen OpenAI-kompatiblen KI-Proxy,
+  der über `OPENAI_BASE_URL` und `OPENAI_API_KEY` konfiguriert wird.
 </Aside>
 
 ### /llmstxt
@@ -98,14 +98,16 @@ Eine llms.txt-Datei für eine Website generieren.
 
 ### web-scraper
 
-Wird automatisch aktiviert, wenn Sie darum bitten, eine URL zu scrapen, eine Website zu crawlen, Site-URLs zu kartieren, das Web zu durchsuchen, strukturierte Daten zu extrahieren, llms.txt zu generieren, mehrere URLs im Batch zu scrapen oder eine Webseite in Markdown umzuwandeln.
+Wird automatisch aktiviert, wenn Sie darum bitten, eine URL zu scrapen, eine Website zu crawlen, Site-URLs zu mappen, das Web zu durchsuchen, strukturierte Daten zu extrahieren, eine llms.txt zu generieren, mehrere URLs als Batch zu scrapen oder eine Webseite in Markdown zu konvertieren.
 Delegiert sofort an den firecrawl-operator-Agenten.
 
 ## Agenten
 
 ### firecrawl-operator
 
-Autonomer Web-Scraping-Agent, der `curl`- und `jq`-Sequenzen gegen die lokale Firecrawl-API ausführt. Unterstützt 11 Protokolle, die alle v1-Endpunkte abdecken. Nur-Lese-Agent (keine Schreib-, Bearbeitungs- oder Agenten-Werkzeuge).
+Autonomer Web-Scraping-Agent, der `curl`- und `jq`-Sequenzen
+gegen die lokale Firecrawl-API ausführt. Unterstützt 11 Protokolle,
+die alle v1-Endpunkte abdecken. Nur-Lese-Agent (keine Schreib-, Bearbeitungs- oder Agenten-Werkzeuge).
 
 | Protokoll | Endpunkt | Typ |
 |----------|----------|------|
@@ -123,19 +125,19 @@ Autonomer Web-Scraping-Agent, der `curl`- und `jq`-Sequenzen gegen die lokale Fi
 
 ## Infrastruktur
 
-Das Plugin erfordert den im Entwicklungscontainer laufenden Firecrawl-Stack:
+Das Plugin erfordert den Firecrawl-Stack, der im Entwicklungscontainer läuft:
 
 | Komponente | Port | Zweck |
 |-----------|------|---------|
 | Firecrawl API | 3002 | Alle Scrape/Crawl/Map/Search/Extract-Endpunkte |
 | Playwright | 3000 | JavaScript-Rendering-Engine |
 | Redis | 6379 | Job-Queue-Backend |
-| PostgreSQL | socket | Crawl/Batch-Job-Persistenz |
-| LiteLLM-Proxy | OPENAI_BASE_URL | LLM-Backend für Extract (optional) |
+| PostgreSQL | socket | Persistenz für Crawl-/Batch-Jobs |
+| LiteLLM-Proxy | OPENAI_BASE_URL | KI-Backend für Extract (optional) |
 
-Der Stack startet automatisch, wenn `ENABLE_FIRECRAWL=true` gesetzt ist (die
-Standardeinstellung). Ein SessionStart-Hook prüft, ob die API erreichbar ist, und
-warnt, wenn der Dienst nicht verfügbar ist.
+Der Stack startet automatisch, wenn `ENABLE_FIRECRAWL=true` gesetzt ist (der
+Standardwert). Ein SessionStart-Hook prüft, ob die API erreichbar ist, und
+gibt eine Warnung aus, wenn der Dienst nicht verfügbar ist.
 
 ## Unterschiede zur Cloud-Version von Firecrawl
 
@@ -145,5 +147,5 @@ Dieses Plugin verwendet die selbst gehostete Open-Source-Version:
 - Keine Kreditlimits oder Ratenbegrenzung
 - Verwendet v1-API-Endpunkte (nicht v2)
 - Browser-Sitzungen und Deep Research nicht verfügbar
-- Extract verwendet Ihren eigenen LLM-Proxy anstelle von gehosteten Modellen
+- Extract verwendet Ihren eigenen KI-Proxy anstelle von gehosteten Modellen
 - Läuft vollständig innerhalb des lokalen Container-Netzwerks

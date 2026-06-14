@@ -1,6 +1,6 @@
 ---
 title: osint-framework
-description: '34カテゴリにわたる1,064件の情報収集ツールを備えたOSINTツールカタログと調査スキル。'
+description: 'OSINTツールカタログおよび調査スキル — 34カテゴリーにわたる1,064件のインテリジェンス収集ツールを収録。'
 sidebar:
   order: 12
 i18n:
@@ -10,7 +10,8 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**osint-framework** プラグインは、OSINTツールカタログと調査スキルを提供します — [osintframework.com](https://osintframework.com) からマッピングされた34カテゴリにわたる1,064件の無料情報収集ツールを収録しています。カテゴリベースのスキル、実行可能な調査パイプライン、CLIツール実行、OPSECを考慮したワークフロー、そして調査間の相関分析のための永続的なエンティティグラフが含まれています。
+**osint-framework** プラグインは、OSINTツールカタログおよび調査スキルを提供します — [osintframework.com](https://osintframework.com) からマッピングされた34カテゴリーにわたる1,064件の無料インテリジェンス収集ツールを網羅しています。
+カテゴリーベースのスキル、実行可能な調査パイプライン、CLIツール実行、OPSECを考慮したワークフロー、および調査横断的な相関分析のための永続エンティティグラフを含みます。
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
 
@@ -24,7 +25,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-investigate
 
-任意のターゲットに対してOSINT調査を全実行します。ターゲットタイプ（メール、ドメイン、IP、ユーザー名、企業、人名）を自動検出し、適切なカテゴリスキルへルーティングします。
+任意のターゲットに対してOSINT調査をフルで実行します。ターゲットの種類（メールアドレス、ドメイン、IPアドレス、ユーザー名、企業、人名）を自動検出し、適切なカテゴリースキルにルーティングします。
 
 ```
 /osint-investigate j.smith@example.com
@@ -45,7 +46,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /osint-catalog
 
-カテゴリ別にツールカタログ全体を参照します。引数なしの場合、ツール数を含む全34カテゴリを表示します。
+カテゴリー別にツールカタログ全体を閲覧します。引数なしで実行すると、ツール数とともに全34カテゴリーが表示されます。
 
 ```
 /osint-catalog
@@ -57,7 +58,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### osint-index
 
-トップレベルのインテントルーター。「find information about」「investigate」「look up」「background check」などと入力した場合、またはオープンソースインテリジェンスタスクを説明した場合に自動起動します。ターゲットタイプに基づいて適切なカテゴリスキルへルーティングします。
+トップレベルのインテントルーター。「情報を見つける」「調査する」「検索する」「身元調査」などの表現や、オープンソースインテリジェンスタスクを説明すると自動的に有効化されます。ターゲットの種類に基づいて適切なカテゴリースキルにルーティングします。
 
 | ターゲット | ルーティング先 |
 |--------|----------|
@@ -65,15 +66,15 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | メールアドレス | `email-recon` |
 | ドメイン名 | `domain-recon` |
 | IPアドレス | `ip-address-recon` |
-| 人名＋企業名 | `people-search` + `business-records` |
-| 企業／組織 | `business-records` + `domain-recon` |
+| 人名 + 企業名 | `people-search` + `business-records` |
+| 企業 / 組織 | `business-records` + `domain-recon` |
 | マルウェアハッシュ | `malicious-file-analysis` + `threat-intelligence` |
 
-### カテゴリスキル（全34種）
+### カテゴリースキル（全34件）
 
-各カテゴリには、CLIツール、Webリソース、調査ワークフロー、カテゴリ間のピボット、OPSECノートを含む専用スキルがあります。
+各カテゴリーには、CLIツール、Webリソース、調査ワークフロー、カテゴリー横断ピボット、およびOPSECノートを含む専用スキルがあります。
 
-| カテゴリ | ツール数 | 主要CLIツール |
+| カテゴリー | ツール数 | 主なCLIツール |
 |----------|-------|--------------|
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
@@ -89,76 +90,78 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | `opsec` | 47 | 47件のWebベースプライバシーツール |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
-| *（他20カテゴリ）* | 500+ | — |
+| *（その他20カテゴリー）* | 500+ | — |
 
 <Aside type="tip">
-  `/osint-catalog` で全34カテゴリを参照するか、
-  `/osint-search <capability>` で特定タスクのツールを検索できます。
+  `/osint-catalog` で全34カテゴリーを閲覧するか、
+  `/osint-search <機能>` で特定のタスクに対応するツールを検索してください。
 </Aside>
 
 ### osint-catalog
 
-ツールカタログブラウザー。ツールレジストリ全体、カテゴリインデックス、調査パイプライン、レート制限リファレンス、および相関エンジンのドキュメントへのアクセスを提供します。
+ツールカタログブラウザー。ツールレジストリ全体、カテゴリーインデックス、調査パイプライン、レート制限リファレンス、および相関エンジンのドキュメントへのアクセスを提供します。
 
 ## エージェント
 
 ### osint-investigator
 
-自律型マルチツール調査オーケストレーター。ツールの利用可否確認、ターゲットタイプ検出、順次ツール実行（パッシブ優先）、結果の集約、信頼レベルとOPSEC分類を含む構造化レポート生成など、完全な調査ワークフローを実行します。
+自律型マルチツール調査オーケストレーター。ツール可用性チェック、ターゲットタイプ検出、逐次ツール実行（パッシブ優先）、結果集計、信頼度レベルおよびOPSEC分類を含む構造化レポート生成など、フルの調査ワークフローを実行します。
 
-エンティティグラフと統合されており、各ツールの結果は `/tmp/osint-graph/` にエンティティとリレーションシップを作成し、調査間の相関分析に活用されます。
+エンティティグラフと統合されており、各ツールの結果が `/tmp/osint-graph/` にエンティティとリレーションシップを作成し、調査横断的な相関分析を可能にします。
 
 <Aside type="caution">
-  アクティブリコンツール（nmap、nuclei、sherlock）はターゲットインフラストラクチャと直接通信します。OPSECワーニングフックはアクティブツール実行前に警告を表示します。必ず事前に認可を取得してください。
+  アクティブリコンツール（nmap、nuclei、sherlock）はターゲットのインフラと直接通信します。OPSECワーニングフックはアクティブツールの実行前に警告を表示します。必ず事前に適切な認可を取得してください。
 </Aside>
 
 ### osint-researcher
 
-読み取り専用のカタログ参照エージェント。リファレンスファイルを検索して特定タスクに最適なツールを推奨します。ツールは一切実行せず、推奨と説明のみを行います。カテゴリスキルがツール探索に内部的に使用します。
+読み取り専用カタログ参照エージェント。参照ファイルを検索して、特定のタスクに最適なツールを推奨します。ツールを実行せず、推奨と説明のみを行います。カテゴリースキルがツール検出のために内部的に使用します。
 
 ### osint-executor
 
-単一ツールCLI実行エージェント。特定のパラメーターで1つのツールを実行し、出力を解析して構造化された結果を返します。20以上のツールに対する実行レシピ（正確なフラグ、出力形式、jq解析パターン）を含みます。
+単一ツールCLI実行エージェント。特定のパラメーターで一度に1つのツールを実行し、出力を解析して構造化された結果を返します。20以上のツールに対して、正確なフラグ、出力形式、およびjq解析パターンを含む実行レシピを備えています。
 
 ## レート制限
 
-すべてのAPI呼び出しは、HTTP 429/503に対する指数バックオフを内蔵した `osint_curl` ヘルパーを使用します。主なレート制限：
+すべてのAPI呼び出しは、HTTP 429/503に対する指数バックオフを内蔵した `osint_curl` ヘルパーを使用します。主な制限は以下の通りです：
 
 | API | 無料制限 | 環境変数 |
 |-----|-----------|---------|
 | ipinfo.io | 1,000件/日 | — |
 | crt.sh | 60件/分 | — |
 | NVD | 5件/30秒（キーなし） | `NVD_API_KEY` |
-| OpenCorporates | キー必須 | `OPENCORPORATES_API_KEY` |
+| OpenCorporates | キーが必要 | `OPENCORPORATES_API_KEY` |
 | Shodan | 1件/秒 | `SHODAN_API_KEY` |
-| GitHub API | 60件/時間（認証なし） | `GH_TOKEN` |
+| GitHub API | 60件/時（認証なし） | `GH_TOKEN` |
 
 キーが必要なAPIは、環境変数が設定されていない場合、明確なメッセージとともに自動的にスキップされます。
 
 ## 相関エンジン
 
-プラグインは `/tmp/osint-graph/` に永続的なJSONエンティティグラフを保持し、調査をまたいで発見内容を蓄積します。
+プラグインには `/tmp/osint-graph/` に永続JSONエンティティグラフが含まれており、複数の調査にわたって結果を蓄積します。
 
 ```bash
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# Add entities
+# エンティティを追加
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# Link them
+# リンクを作成
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# Query: all entities within 2 hops of the person
+# クエリ: 対象者から2ホップ以内の全エンティティ
 osint_graph_query "$P" 2
 
-# Generate report
+# レポートを生成
 osint_graph_report
 ```
 
-**信頼スコアリング**はマルチソースフュージョンを使用します：各確認ソースに対して `confidence = 1 - product(1 - ci)` を計算します。2つのソースがそれぞれ0.80の場合、組み合わせ信頼度は0.96となります。
+**信頼度スコアリング** はマルチソースフュージョンを使用します：
+各確認ソースに対して `confidence = 1 - product(1 - ci)` を計算します。
+0.80の信頼度を持つ2つのソースの場合 → 統合信頼度は0.96になります。
 
-## 法的免責事項
+## 法的通知
 
-すべてのツールは公開情報のみを使用します。適用される法律、規制、およびプラットフォームの利用規約への準拠は、ユーザーの責任において確保してください。OSINTツールを不正アクセス、嫌がらせ、またはその他の違法行為に使用しないでください。
+すべてのツールは公開情報のみを使用します。適用される法律、規制、およびプラットフォームの利用規約への準拠は、ユーザーの責任において確保してください。不正アクセス、嫌がらせ、またはその他の違法行為にOSINTツールを使用しないでください。

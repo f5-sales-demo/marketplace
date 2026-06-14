@@ -1,8 +1,8 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Scraping et exploration web auto-hébergés en local via le moteur open-source
-  Firecrawl.
+  Extraction et exploration web auto-hébergées en local via le moteur
+  open-source Firecrawl.
 sidebar:
   order: 13
 i18n:
@@ -12,11 +12,11 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Le plugin **f5xc-firecrawl** fournit un scraping web auto-hébergé en local
+Le plugin **f5xc-firecrawl** fournit une extraction web auto-hébergée en local
 via le moteur open-source [firecrawl](https://github.com/mendableai/firecrawl).
-Aucune clé API, aucun abonnement, aucune dépendance cloud. Toutes les
+Aucune clé API, aucun abonnement, aucune dépendance au cloud. Toutes les
 opérations s'exécutent contre l'instance firecrawl locale sur `localhost:3002`
-à l'intérieur du devcontainer.
+à l'intérieur du conteneur de développement.
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -30,7 +30,7 @@ opérations s'exécutent contre l'instance firecrawl locale sur `localhost:3002`
 
 ### /scrape
 
-Scraper une URL unique et extraire le contenu en markdown.
+Extraire le contenu d'une seule URL au format markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Scraper une URL unique et extraire le contenu en markdown.
 
 ### /batch-scrape
 
-Scraper plusieurs URL en une seule fois.
+Extraire le contenu de plusieurs URLs simultanément.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -56,7 +56,7 @@ Explorer plusieurs pages à partir d'une URL de départ.
 
 ### /map
 
-Découvrir toutes les URL d'un site web.
+Découvrir toutes les URLs d'un site web.
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ Découvrir toutes les URL d'un site web.
 
 ### /search
 
-Rechercher sur le web et optionnellement scraper les résultats.
+Effectuer une recherche web et extraire optionnellement les résultats.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ Rechercher sur le web et optionnellement scraper les résultats.
 
 ### /extract
 
-Extraction de données structurées par LLM à partir de pages web.
+Extraction de données structurées à partir de pages web, alimentée par un LLM.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -98,18 +98,18 @@ Générer un fichier llms.txt pour un site.
 
 ### web-scraper
 
-S'active automatiquement lorsque vous demandez de scraper une URL, d'explorer un site web, de cartographier
-les URL d'un site, de rechercher sur le web, d'extraire des données structurées, de générer un llms.txt,
-de scraper plusieurs URL en lot, ou de convertir une page web en markdown.
+S'active automatiquement lorsque vous demandez à extraire une URL, explorer un site web, cartographier
+les URLs d'un site, effectuer une recherche web, extraire des données structurées, générer un fichier llms.txt,
+extraire plusieurs URLs en lot, ou convertir une page web en markdown.
 Délègue immédiatement à l'agent firecrawl-operator.
 
 ## Agents
 
 ### firecrawl-operator
 
-Agent de scraping web autonome qui exécute des séquences `curl` + `jq`
+Agent d'extraction web autonome qui exécute des séquences `curl` + `jq`
 contre l'API firecrawl locale. Prend en charge 11 protocoles couvrant tous
-les points de terminaison v1. Agent en lecture seule (sans outils Write, Edit ou Agent).
+les points de terminaison v1. Agent en lecture seule (aucun outil d'écriture, d'édition ou d'agent).
 
 | Protocole | Point de terminaison | Type |
 |----------|----------|------|
@@ -127,27 +127,27 @@ les points de terminaison v1. Agent en lecture seule (sans outils Write, Edit ou
 
 ## Infrastructure
 
-Le plugin nécessite la pile firecrawl en cours d'exécution dans le devcontainer :
+Le plugin nécessite que la pile firecrawl soit en cours d'exécution dans le conteneur de développement :
 
-| Composant | Port | Rôle |
+| Composant | Port | Fonction |
 |-----------|------|---------|
-| API Firecrawl | 3002 | Tous les points de terminaison scrape/crawl/map/search/extract |
+| Firecrawl API | 3002 | Tous les points de terminaison scrape/crawl/map/search/extract |
 | Playwright | 3000 | Moteur de rendu JavaScript |
 | Redis | 6379 | Backend de file d'attente des tâches |
 | PostgreSQL | socket | Persistance des tâches crawl/batch |
-| Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM pour extract (optionnel) |
+| LiteLLM proxy | OPENAI_BASE_URL | Backend LLM pour extract (optionnel) |
 
 La pile démarre automatiquement lorsque `ENABLE_FIRECRAWL=true` (valeur
 par défaut). Un hook SessionStart vérifie que l'API est accessible et
 avertit si le service est indisponible.
 
-## Différences par rapport à Firecrawl Cloud
+## Différences avec Firecrawl Cloud
 
 Ce plugin utilise la version open-source auto-hébergée :
 
-- Aucune authentification ni clé API requise pour le scraping
+- Aucune authentification ni clé API requise pour l'extraction
 - Aucune limite de crédits ni limitation du débit
 - Utilise les points de terminaison de l'API v1 (pas v2)
 - Les sessions de navigateur et la recherche approfondie ne sont pas disponibles
-- Extract utilise votre propre proxy LLM plutôt que des modèles hébergés
-- S'exécute entièrement au sein du réseau de conteneurs local
+- Extract utilise votre propre proxy LLM au lieu des modèles hébergés
+- S'exécute entièrement au sein du réseau du conteneur local

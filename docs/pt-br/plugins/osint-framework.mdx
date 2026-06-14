@@ -2,7 +2,7 @@
 title: osint-framework
 description: >-
   Catálogo de ferramentas OSINT e habilidades de investigação com 1.064
-  ferramentas de coleta de inteligência em 34 categorias.
+  ferramentas de coleta de inteligência distribuídas em 34 categorias.
 sidebar:
   order: 12
 i18n:
@@ -12,12 +12,12 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **osint-framework** fornece catálogo de ferramentas OSINT e
+O plugin **osint-framework** fornece um catálogo de ferramentas OSINT e
 habilidades de investigação — 1.064 ferramentas gratuitas de coleta de inteligência
-em 34 categorias mapeadas a partir de [osintframework.com](https://osintframework.com).
+distribuídas em 34 categorias mapeadas a partir do [osintframework.com](https://osintframework.com).
 Inclui habilidades baseadas em categorias, pipelines de investigação executáveis,
-execução de ferramentas via CLI, fluxos de trabalho com consciência de OPSEC e um
-grafo de entidades persistente para correlação entre investigações.
+execução de ferramentas via CLI, fluxos de trabalho com consciência de OPSEC e um grafo
+de entidades persistente para correlação entre investigações.
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
 
@@ -32,8 +32,8 @@ grafo de entidades persistente para correlação entre investigações.
 ### /osint-investigate
 
 Executa uma investigação OSINT completa contra qualquer alvo. Detecta
-automaticamente o tipo de alvo (e-mail, domínio, IP, nome de usuário, empresa,
-nome de pessoa) e direciona para as habilidades de categoria corretas.
+automaticamente o tipo do alvo (e-mail, domínio, IP, nome de usuário, empresa,
+nome de pessoa) e encaminha para as habilidades de categoria corretas.
 
 ```
 /osint-investigate j.smith@example.com
@@ -54,8 +54,8 @@ Pesquisa no catálogo de ferramentas por ferramentas que correspondam a uma cons
 
 ### /osint-catalog
 
-Navega pelo catálogo completo de ferramentas por categoria. Sem argumentos, exibe
-todas as 34 categorias com contagens de ferramentas.
+Navega pelo catálogo completo de ferramentas por categoria. Sem argumentos,
+exibe todas as 34 categorias com as contagens de ferramentas.
 
 ```
 /osint-catalog
@@ -67,13 +67,13 @@ todas as 34 categorias com contagens de ferramentas.
 
 ### osint-index
 
-Roteador de intenção de nível superior. Ativa-se automaticamente quando você diz "find
-information about", "investigate", "look up", "background check"
-ou descreve qualquer tarefa de inteligência de fonte aberta. Direciona para a
+Roteador de intenção de nível superior. Ativa-se automaticamente quando você diz "encontrar
+informações sobre", "investigar", "pesquisar", "verificar antecedentes",
+ou descreve qualquer tarefa de inteligência de fonte aberta. Encaminha para a
 habilidade de categoria correta com base no tipo de alvo.
 
-| Alvo | Direciona Para |
-|--------|----------|
+| Alvo | Encaminha Para |
+|------|---------------|
 | Nome de usuário ou identificador | `username-recon` |
 | Endereço de e-mail | `email-recon` |
 | Nome de domínio | `domain-recon` |
@@ -88,7 +88,7 @@ Cada categoria possui uma habilidade dedicada com ferramentas CLI, recursos web,
 fluxo de trabalho de investigação, pivôs entre categorias e notas de OPSEC.
 
 | Categoria | Ferramentas | Principais Ferramentas CLI |
-|----------|-------|--------------|
+|-----------|-------------|--------------------------|
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
 | `domain-recon` | 131 | subfinder, amass, whois, dig |
@@ -120,48 +120,47 @@ e documentação do mecanismo de correlação.
 
 ### osint-investigator
 
-Orquestrador autônomo de investigação com múltiplas ferramentas. Executa fluxos
-de trabalho completos de investigação — verificação de disponibilidade de ferramentas, detecção do tipo de
-alvo, execução sequencial de ferramentas (passivas primeiro), agregação de
-resultados e geração de relatórios estruturados com níveis de confiança e
-classificações de OPSEC.
+Orquestrador autônomo de investigações com múltiplas ferramentas. Executa fluxos
+de trabalho completos de investigação — verificação de disponibilidade de ferramentas, detecção do tipo de alvo,
+execução sequencial de ferramentas (passivas primeiro), agregação de resultados
+e geração de relatórios estruturados com níveis de confiança e classificações de OPSEC.
 
-Integra-se ao grafo de entidades: cada resultado de ferramenta cria entidades
+Integra-se com o grafo de entidades: cada resultado de ferramenta cria entidades
 e relacionamentos em `/tmp/osint-graph/` para correlação entre investigações.
 
 <Aside type="caution">
   Ferramentas de reconhecimento ativo (nmap, nuclei, sherlock) fazem contato direto
-  com a infraestrutura do alvo. O hook de aviso de OPSEC emite alertas antes
-  de executar ferramentas ativas. Certifique-se sempre de ter autorização.
+  com a infraestrutura do alvo. O hook de aviso de OPSEC alerta antes de
+  executar ferramentas ativas. Certifique-se sempre de ter autorização.
 </Aside>
 
 ### osint-researcher
 
 Agente de consulta ao catálogo somente leitura. Pesquisa arquivos de referência para
 recomendar as melhores ferramentas para uma determinada tarefa. Nunca executa ferramentas —
-apenas recomenda e explica. Usado internamente pelas habilidades de categoria
+apenas recomenda e explica. Utilizado internamente pelas habilidades de categoria
 para descoberta de ferramentas.
 
 ### osint-executor
 
-Agente de execução de ferramenta CLI única. Executa uma ferramenta por vez com
+Agente de execução CLI de ferramenta única. Executa uma ferramenta por vez com
 parâmetros específicos, analisa a saída e retorna resultados estruturados.
 Inclui receitas de execução por ferramenta para mais de 20 ferramentas com flags exatas,
 formatos de saída e padrões de análise com jq.
 
 ## Limitação de Taxa
 
-Todas as chamadas de API utilizam o auxiliar `osint_curl` com backoff exponencial
-integrado em HTTP 429/503. Limites principais:
+Todas as chamadas de API utilizam o helper `osint_curl` com backoff exponencial
+integrado em HTTP 429/503. Principais limites:
 
 | API | Limite Gratuito | Variável de Ambiente |
-|-----|-----------|---------|
+|-----|----------------|---------------------|
 | ipinfo.io | 1.000/dia | — |
 | crt.sh | 60/min | — |
 | NVD | 5/30s (sem chave) | `NVD_API_KEY` |
 | OpenCorporates | Requer chave | `OPENCORPORATES_API_KEY` |
 | Shodan | 1/seg | `SHODAN_API_KEY` |
-| GitHub API | 60/h (sem autenticação) | `GH_TOKEN` |
+| GitHub API | 60/hr (sem autenticação) | `GH_TOKEN` |
 
 APIs que requerem chaves são automaticamente ignoradas com uma mensagem clara
 caso a variável de ambiente não esteja definida.
@@ -190,7 +189,7 @@ osint_graph_report
 ```
 
 **Pontuação de confiança** utiliza fusão de múltiplas fontes:
-`confidence = 1 - product(1 - ci)` para cada fonte confirmadora.
+`confidence = 1 - product(1 - ci)` para cada fonte confirmante.
 Duas fontes com 0,80 → confiança combinada de 0,96.
 
 ## Aviso Legal

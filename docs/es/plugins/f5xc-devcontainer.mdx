@@ -15,7 +15,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 El plugin **f5xc-devcontainer** proporciona conciencia de contenedor para
 el entorno de desarrollo f5xc-salesdemos. Mantiene un
-catálogo completo de herramientas, habilita la introspección de contenedor en vivo
+catálogo completo de herramientas, habilita la introspección en vivo del contenedor
 y gestiona la instalación de herramientas con seguimiento de persistencia mediante
 issues de GitHub.
 
@@ -31,31 +31,31 @@ issues de GitHub.
 
 ### tool-catalog
 
-Base de conocimiento de cada herramienta de CLI instalada en el contenedor de desarrollo,
-organizada por categoría (nube, redes, seguridad, desarrollo,
-etc.). Se activa cuando se pregunta qué herramienta utilizar, cómo usar
-una herramienta, si algo está instalado, o cuando se necesita ayuda con una
+Base de conocimiento de todas las herramientas CLI instaladas en el contenedor de desarrollo,
+organizadas por categoría (nube, redes, seguridad, desarrollo,
+etc.). Se activa cuando pregunta qué herramienta utilizar, cómo usar
+una herramienta, si algo está instalado, o necesita ayuda con una
 operación específica.
 
 ### self-awareness
 
-Habilidad de identidad y autodiagnóstico del contenedor. Proporciona
-introspección en vivo del contenedor en ejecución mediante la API de GitHub y metadatos
-locales de compilación. Se activa ante preguntas sobre identidad, versión, información de compilación,
-verificaciones de estado e historial de colaboradores.
+Habilidad de identidad del contenedor y autodiagnóstico. Proporciona introspección
+en vivo del contenedor en ejecución mediante la API de GitHub y metadatos
+de compilación locales. Se activa para preguntas de identidad, versión, información de compilación,
+verificaciones de salud e historial de colaboradores.
 
 <Aside type="tip">
-  Pregunta "¿quién eres?" o "¿qué versión estoy ejecutando?" para activar
-  la habilidad de autoconciencia.
+  Pregunte "¿quién eres?" o "¿qué versión estoy ejecutando?" para activar
+  la autoconciencia.
 </Aside>
 
 ## Agentes
 
 ### tool-advisor
 
-Lee el catálogo de herramientas y devuelve recomendaciones con el propósito,
+Lee el catálogo de herramientas y devuelve recomendaciones con propósito,
 comandos de inicio rápido y requisitos de autenticación para cualquier pregunta
-sobre herramientas de CLI.
+sobre herramientas CLI.
 
 ### tool-auditor
 
@@ -68,10 +68,11 @@ eliminadas.
 
 Realiza introspección en vivo del contenedor mediante la API de GitHub y metadatos
 locales para identidad, genealogía, autodiagnóstico, historial de colaboradores
-y linaje de compilación. Solo operaciones de lectura.
+y linaje de compilación. Solo operaciones de solo lectura.
 
 ### container-maintainer
 
-Instala, elimina, busca y actualiza herramientas de CLI en el contenedor
-en ejecución utilizando los patrones correctos del gestor de paquetes. Registra issues de GitHub
-contra el repositorio del contenedor de desarrollo para el seguimiento de persistencia.
+Instala, elimina, busca y actualiza herramientas CLI en el contenedor
+en ejecución utilizando patrones correctos del gestor de paquetes. Crea issues de GitHub
+contra el repositorio del contenedor de desarrollo para el
+seguimiento de persistencia.

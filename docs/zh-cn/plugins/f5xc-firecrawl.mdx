@@ -1,6 +1,6 @@
 ---
 title: f5xc-firecrawl
-description: 通过开源 Firecrawl 引擎实现本地自托管的网页抓取与爬取。
+description: 通过开源 Firecrawl 引擎实现本地自托管网页抓取与爬取。
 sidebar:
   order: 13
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-firecrawl** 插件通过开源 [firecrawl](https://github.com/mendableai/firecrawl) 引擎提供本地自托管的网页抓取功能。无需 API 密钥、无需订阅、无需云端依赖。所有操作均在 devcontainer 内部 `localhost:3002` 上运行的本地 firecrawl 实例中执行。
+**f5xc-firecrawl** 插件通过开源 [firecrawl](https://github.com/mendableai/firecrawl) 引擎提供本地自托管网页抓取功能。无需 API 密钥，无需订阅，无需云端依赖。所有操作均在 devcontainer 内的本地 firecrawl 实例（`localhost:3002`）上运行。
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -41,7 +41,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /crawl
 
-从起始 URL 爬取多个页面。
+从起始 URL 开始爬取多个页面。
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -59,7 +59,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /search
 
-搜索网络并可选择性地抓取结果。
+搜索网页并可选择性地抓取结果。
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -91,13 +91,13 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### web-scraper
 
-当您请求抓取 URL、爬取网站、映射站点 URL、搜索网络、提取结构化数据、生成 llms.txt、批量抓取多个 URL 或将网页转换为 Markdown 时自动激活。立即委托给 firecrawl-operator 代理执行。
+当您请求抓取 URL、爬取网站、映射站点 URL、搜索网页、提取结构化数据、生成 llms.txt、批量抓取多个 URL 或将网页转换为 Markdown 时自动激活。立即委托给 firecrawl-operator 代理执行。
 
 ## 代理
 
 ### firecrawl-operator
 
-自主网页抓取代理，针对本地 firecrawl API 执行 `curl` + `jq` 序列。支持覆盖所有 v1 端点的 11 种协议。只读代理（无写入、编辑或代理工具）。
+自主网页抓取代理，针对本地 firecrawl API 执行 `curl` + `jq` 命令序列。支持涵盖所有 v1 端点的 11 种协议。只读代理（不具备 Write、Edit 或 Agent 工具权限）。
 
 | 协议 | 端点 | 类型 |
 |----------|----------|------|
@@ -115,7 +115,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 基础设施
 
-该插件需要在 devcontainer 中运行 firecrawl 服务栈：
+该插件需要在 devcontainer 中运行 firecrawl 技术栈：
 
 | 组件 | 端口 | 用途 |
 |-----------|------|---------|
@@ -123,17 +123,17 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 | Playwright | 3000 | JavaScript 渲染引擎 |
 | Redis | 6379 | 任务队列后端 |
 | PostgreSQL | socket | 爬取/批量任务持久化 |
-| LiteLLM proxy | OPENAI_BASE_URL | 用于提取的 LLM 后端（可选） |
+| LiteLLM proxy | OPENAI_BASE_URL | 用于 extract 的 LLM 后端（可选） |
 
-当 `ENABLE_FIRECRAWL=true`（默认值）时，服务栈将自动启动。SessionStart 钩子会检查 API 是否可访问，并在服务不可用时发出警告。
+当 `ENABLE_FIRECRAWL=true`（默认值）时，技术栈自动启动。SessionStart 钩子会检查 API 是否可访问，并在服务不可用时发出警告。
 
-## 与云端 Firecrawl 的差异
+## 与云端 Firecrawl 的区别
 
-本插件使用自托管的开源版本：
+本插件使用自托管开源版本：
 
 - 抓取无需身份验证或 API 密钥
 - 无积分限制或速率限制
 - 使用 v1 API 端点（非 v2）
-- 不支持浏览器会话和深度研究
-- 提取功能使用您自己的 LLM 代理，而非托管模型
+- 不支持浏览器会话和深度研究功能
+- extract 使用您自己的 LLM 代理，而非托管模型
 - 完全在本地容器网络内运行

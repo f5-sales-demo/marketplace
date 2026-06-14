@@ -1,6 +1,6 @@
 ---
 title: f5xc-firecrawl
-description: كشط الويب واستعراضه محلياً عبر محرك Firecrawl مفتوح المصدر.
+description: كشط الويب واستكشافه محلياً عبر محرك Firecrawl مفتوح المصدر.
 sidebar:
   order: 13
 i18n:
@@ -10,10 +10,10 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-يوفر إضافة **f5xc-firecrawl** كشط الويب المحلي المستضاف ذاتياً
-عبر محرك [firecrawl](https://github.com/mendableai/firecrawl)
+يوفر مكوّن **f5xc-firecrawl** خدمة كشط الويب محلياً باستخدام محرك
+[firecrawl](https://github.com/mendableai/firecrawl)
 مفتوح المصدر. لا مفاتيح API، ولا اشتراكات، ولا اعتماد على السحابة. تعمل جميع
-العمليات على مثيل firecrawl المحلي على `localhost:3002`
+العمليات على نسخة firecrawl المحلية على `localhost:3002`
 داخل حاوية التطوير.
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
@@ -28,7 +28,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /scrape
 
-كشط عنوان URL واحد واستخراج المحتوى بصيغة markdown.
+كشط رابط URL واحد واستخراج محتواه بصيغة markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -37,7 +37,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /batch-scrape
 
-كشط عناوين URL متعددة دفعةً واحدة.
+كشط روابط URL متعددة في آنٍ واحد.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -45,7 +45,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /crawl
 
-استعراض صفحات متعددة انطلاقاً من عنوان URL ابتدائي.
+استكشاف صفحات متعددة انطلاقاً من رابط URL ابتدائي.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -54,7 +54,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /map
 
-اكتشاف جميع عناوين URL في موقع ويب.
+اكتشاف جميع روابط URL على موقع ويب.
 
 ```
 /map https://docs.example.com
@@ -63,7 +63,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /search
 
-البحث في الويب واستخراج النتائج بشكل اختياري.
+البحث في الويب واختياري كشط النتائج.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -72,7 +72,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /extract
 
-استخراج بيانات منظمة من صفحات الويب بتقنية LLM.
+استخراج بيانات منظَّمة من صفحات الويب بتقنية نماذج اللغة الكبيرة (LLM).
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -80,13 +80,13 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 ```
 
 <Aside type="note">
-  يتطلب أمر extract وكيل LLM متوافق مع OpenAI
+  يتطلب أمر extract وجود وكيل LLM متوافق مع OpenAI
   مُهيَّأ عبر `OPENAI_BASE_URL` و`OPENAI_API_KEY`.
 </Aside>
 
 ### /llmstxt
 
-إنشاء ملف llms.txt لموقع ما.
+توليد ملف llms.txt لموقع ما.
 
 ```
 /llmstxt https://docs.example.com
@@ -96,56 +96,56 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### web-scraper
 
-يُفعَّل تلقائياً عند طلب كشط عنوان URL، أو استعراض موقع ويب، أو رسم خريطة
-لعناوين URL في الموقع، أو البحث في الويب، أو استخراج بيانات منظمة، أو إنشاء llms.txt،
-أو كشط عناوين URL متعددة دفعةً واحدة، أو تحويل صفحة ويب إلى markdown.
-يُفوَّض الأمر فوراً إلى عميل firecrawl-operator.
+يُفعَّل تلقائياً عند طلب كشط رابط URL، أو استكشاف موقع ويب، أو رسم خريطة
+لروابط الموقع، أو البحث في الويب، أو استخراج بيانات منظَّمة، أو توليد ملف llms.txt،
+أو الكشط الجماعي لروابط متعددة، أو تحويل صفحة ويب إلى markdown.
+يُفوِّض التنفيذ فوراً إلى وكيل firecrawl-operator.
 
-## العملاء
+## الوكلاء
 
 ### firecrawl-operator
 
-عميل كشط ويب مستقل ينفّذ تسلسلات `curl` + `jq`
+وكيل كشط ويب ذاتي يُنفِّذ تسلسلات `curl` + `jq`
 على واجهة firecrawl API المحلية. يدعم 11 بروتوكولاً تغطي جميع
-نقاط نهاية v1. عميل للقراءة فقط (بلا أدوات Write أو Edit أو Agent).
+نقاط نهاية v1. وكيل للقراءة فقط (لا أدوات Write أو Edit أو Agent).
 
 | البروتوكول | نقطة النهاية | النوع |
 |----------|----------|------|
-| HEALTH | `GET /` | Sync |
-| SCRAPE | `POST /v1/scrape` | Sync |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
-| CRAWL | `POST /v1/crawl` | Async |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
-| MAP | `POST /v1/map` | Sync |
-| SEARCH | `POST /v1/search` | Sync |
-| EXTRACT | `POST /v1/extract` | Async |
-| LLMSTXT | `POST /v1/llmstxt` | Async |
+| HEALTH | `GET /` | متزامن |
+| SCRAPE | `POST /v1/scrape` | متزامن |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | غير متزامن |
+| CRAWL | `POST /v1/crawl` | غير متزامن |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | متزامن |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | متزامن |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | متزامن |
+| MAP | `POST /v1/map` | متزامن |
+| SEARCH | `POST /v1/search` | متزامن |
+| EXTRACT | `POST /v1/extract` | غير متزامن |
+| LLMSTXT | `POST /v1/llmstxt` | غير متزامن |
 
 ## البنية التحتية
 
-تتطلب الإضافة تشغيل مجموعة firecrawl داخل حاوية التطوير:
+يتطلب المكوّن تشغيل حزمة firecrawl داخل حاوية التطوير:
 
 | المكوّن | المنفذ | الغرض |
 |-----------|------|---------|
-| Firecrawl API | 3002 | جميع نقاط نهاية scrape/crawl/map/search/extract |
+| Firecrawl API | 3002 | جميع نقاط نهاية الكشط/الاستكشاف/الخريطة/البحث/الاستخراج |
 | Playwright | 3000 | محرك عرض JavaScript |
-| Redis | 6379 | الواجهة الخلفية لقائمة انتظار المهام |
-| PostgreSQL | socket | استمرارية مهام Crawl/batch |
-| LiteLLM proxy | OPENAI_BASE_URL | الواجهة الخلفية لـ LLM للاستخراج (اختياري) |
+| Redis | 6379 | خلفية قائمة انتظار المهام |
+| PostgreSQL | socket | استمرارية مهام الاستكشاف والكشط الجماعي |
+| LiteLLM proxy | OPENAI_BASE_URL | خلفية LLM للاستخراج (اختياري) |
 
-تبدأ المجموعة تلقائياً عند تعيين `ENABLE_FIRECRAWL=true` (الإعداد
-الافتراضي). يتحقق خطاف SessionStart من إمكانية الوصول إلى API
-ويُصدر تحذيراً إذا كانت الخدمة معطّلة.
+تبدأ الحزمة تلقائياً عند تفعيل `ENABLE_FIRECRAWL=true` (الإعداد
+الافتراضي). تتحقق خطافة SessionStart من إمكانية الوصول إلى واجهة API
+وتُصدر تحذيراً إذا كانت الخدمة متوقفة.
 
-## الفروقات عن Firecrawl السحابي
+## الفوارق عن Firecrawl السحابي
 
-تستخدم هذه الإضافة الإصدار مفتوح المصدر المستضاف ذاتياً:
+يستخدم هذا المكوّن النسخة المستضافة ذاتياً مفتوحة المصدر:
 
-- لا يلزم توثيق أو مفاتيح API لعملية الكشط
-- لا حدود للاعتمادات ولا تقييد لمعدل الطلبات
-- يستخدم نقاط نهاية API بالإصدار v1 (وليس v2)
+- لا مصادقة أو مفاتيح API مطلوبة للكشط
+- لا حدود ائتمانية أو تقييد لمعدل الطلبات
+- يستخدم نقاط نهاية واجهة v1 API (وليس v2)
 - جلسات المتصفح والبحث المعمّق غير متاحَين
-- يستخدم Extract وكيل LLM الخاص بك بدلاً من النماذج المستضافة
+- يستخدم الاستخراج وكيل LLM الخاص بك عوضاً عن النماذج المستضافة
 - يعمل بالكامل داخل شبكة الحاوية المحلية

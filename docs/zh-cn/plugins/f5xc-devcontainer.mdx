@@ -1,6 +1,6 @@
 ---
 title: f5xc-devcontainer
-description: 用于工具目录、实时内省及带持久化跟踪的工具安装的容器感知插件。
+description: 工具目录的容器感知插件，支持实时内省和带持久化跟踪的工具安装。
 sidebar:
   order: 10
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-devcontainer** 插件为 f5xc-salesdemos 开发环境提供容器感知能力。它维护一个全面的工具目录，支持实时容器内省，并通过 GitHub Issues 处理带持久化跟踪的工具安装。
+**f5xc-devcontainer** 插件为 f5xc-salesdemos 开发环境提供容器感知能力。它维护一个全面的工具目录，支持实时容器内省，并通过 GitHub Issues 实现带持久化跟踪的工具安装管理。
 
 <Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,30 +24,30 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### tool-catalog
 
-devcontainer 中所有已安装 CLI 工具的知识库，按类别（云、网络、安全、开发等）组织。当您询问应使用哪个工具、如何使用某工具、某工具是否已安装，或需要特定操作的帮助时，该技能将被激活。
+devcontainer 中所有已安装 CLI 工具的知识库，按类别（云、网络、安全、开发等）进行组织。当您询问应使用哪个工具、如何使用某工具、某工具是否已安装，或需要特定操作帮助时，该技能将自动激活。
 
 ### self-awareness
 
-容器身份识别与自我诊断技能。通过 GitHub API 和本地构建元数据提供运行中容器的实时内省。适用于身份识别、版本信息、构建详情、健康检查及贡献者历史等问题时激活。
+容器身份识别与自我诊断技能。通过 GitHub API 和本地构建元数据提供运行中容器的实时内省功能。适用于身份、版本、构建信息、健康检查及贡献者历史等问题。
 
 <Aside type="tip">
-  输入"who are you?"或"what version am I running?"可触发自我感知技能。
+  输入"who are you?"或"what version am I running?"可触发自我感知功能。
 </Aside>
 
 ## 代理
 
 ### tool-advisor
 
-读取工具目录，并针对任何 CLI 工具问题返回包含用途说明、快速启动命令及身份验证要求的推荐建议。
+读取工具目录，并针对任何 CLI 工具问题返回包含用途说明、快速入门命令和认证要求的推荐建议。
 
 ### tool-auditor
 
-对照工具目录参考文件审计 devcontainer 的 Dockerfile，以检测漂移——即已添加到镜像但未入目录的工具，或已从目录中删除的工具条目。
+对照工具目录参考文件审计 devcontainer 的 Dockerfile，以检测偏差——包括已添加到镜像但未入目录的工具，以及目录中已记录但实际已被移除的工具条目。
 
 ### container-introspector
 
-通过 GitHub API 和本地元数据执行实时容器内省，涵盖身份识别、血缘关系、自我诊断、贡献者历史及构建溯源。仅支持只读操作。
+通过 GitHub API 和本地元数据执行实时容器内省，涵盖身份识别、溯源分析、自我诊断、贡献者历史和构建谱系。仅支持只读操作。
 
 ### container-maintainer
 
-使用正确的包管理器模式在运行中的容器内安装、移除、搜索和更新 CLI 工具。针对 devcontainer 仓库提交 GitHub Issues 以进行持久化跟踪。
+使用正确的包管理器模式在运行中的容器内安装、移除、搜索和更新 CLI 工具。同时向 devcontainer 仓库提交 GitHub Issues 以进行持久化跟踪。

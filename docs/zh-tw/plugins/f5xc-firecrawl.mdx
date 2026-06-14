@@ -1,6 +1,6 @@
 ---
 title: f5xc-firecrawl
-description: 透過開源 Firecrawl 引擎進行本地自託管網頁抓取與爬取。
+description: 透過開源 Firecrawl 引擎提供本地自託管網頁擷取與爬蟲功能。
 sidebar:
   order: 13
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-firecrawl** 外掛程式透過開源 [firecrawl](https://github.com/mendableai/firecrawl) 引擎提供本地自託管網頁抓取功能。無需 API 金鑰、無需訂閱、無雲端依賴。所有操作均在 devcontainer 內 `localhost:3002` 的本地 firecrawl 實例上執行。
+**f5xc-firecrawl** 外掛程式透過開源 [firecrawl](https://github.com/mendableai/firecrawl) 引擎提供本地自託管網頁擷取功能。無需 API 金鑰、無需訂閱、無雲端依賴。所有操作均在開發容器內 `localhost:3002` 上的本地 firecrawl 執行個體中運行。
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -24,7 +24,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /scrape
 
-抓取單一 URL 並將內容提取為 Markdown 格式。
+擷取單一 URL 並將內容提取為 Markdown 格式。
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -33,7 +33,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /batch-scrape
 
-一次抓取多個 URL。
+一次擷取多個 URL。
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -59,7 +59,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /search
 
-搜尋網頁並可選擇性地抓取結果。
+搜尋網路並可選擇性地擷取搜尋結果。
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -68,7 +68,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /extract
 
-以 LLM 驅動的方式從網頁中提取結構化資料。
+以 LLM 驅動從網頁提取結構化資料。
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -76,7 +76,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 ```
 
 <Aside type="note">
-  extract 指令需要透過 `OPENAI_BASE_URL` 和 `OPENAI_API_KEY` 設定相容於 OpenAI 的 LLM 代理。
+  extract 指令需要透過 `OPENAI_BASE_URL` 和 `OPENAI_API_KEY` 設定相容 OpenAI 的 LLM 代理。
 </Aside>
 
 ### /llmstxt
@@ -91,13 +91,13 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### web-scraper
 
-當您要求抓取 URL、爬取網站、映射網站 URL、搜尋網頁、提取結構化資料、產生 llms.txt、批次抓取多個 URL，或將網頁轉換為 Markdown 時，會自動啟用。並立即委派給 firecrawl-operator 代理。
+當您請求擷取 URL、爬取網站、映射網站 URL、搜尋網路、提取結構化資料、產生 llms.txt、批次擷取多個 URL 或將網頁轉換為 Markdown 時自動啟用。立即委派給 firecrawl-operator 代理。
 
 ## 代理
 
 ### firecrawl-operator
 
-自主網頁抓取代理，針對本地 firecrawl API 執行 `curl` + `jq` 指令序列。支援涵蓋所有 v1 端點的 11 種協定。唯讀代理（無寫入、編輯或代理工具）。
+自主網頁擷取代理，針對本地 firecrawl API 執行 `curl` + `jq` 序列。支援涵蓋所有 v1 端點的 11 種協定。唯讀代理（無寫入、編輯或代理工具）。
 
 | 協定 | 端點 | 類型 |
 |----------|----------|------|
@@ -115,25 +115,25 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 基礎架構
 
-此外掛程式需要在 devcontainer 中執行 firecrawl 堆疊：
+此外掛程式需要在開發容器中運行的 firecrawl 堆疊：
 
 | 元件 | 連接埠 | 用途 |
 |-----------|------|---------|
-| Firecrawl API | 3002 | 所有抓取/爬取/映射/搜尋/提取端點 |
+| Firecrawl API | 3002 | 所有擷取／爬取／映射／搜尋／提取端點 |
 | Playwright | 3000 | JavaScript 渲染引擎 |
 | Redis | 6379 | 工作佇列後端 |
-| PostgreSQL | socket | 爬取/批次工作持久化 |
-| LiteLLM proxy | OPENAI_BASE_URL | 用於 extract 的 LLM 後端（選用） |
+| PostgreSQL | socket | 爬取／批次工作持久化 |
+| LiteLLM proxy | OPENAI_BASE_URL | 用於提取的 LLM 後端（選用） |
 
 當 `ENABLE_FIRECRAWL=true`（預設值）時，堆疊會自動啟動。SessionStart 鉤子會檢查 API 是否可連線，並在服務中斷時發出警告。
 
 ## 與雲端 Firecrawl 的差異
 
-此外掛程式使用自託管的開源版本：
+此外掛程式使用自託管開源版本：
 
-- 抓取時不需要驗證或 API 金鑰
+- 擷取無需驗證或 API 金鑰
 - 無點數限制或速率限制
 - 使用 v1 API 端點（非 v2）
-- 瀏覽器工作階段與深度研究功能不可用
-- Extract 使用您自己的 LLM 代理，而非託管模型
-- 完全在本地容器網路內執行
+- 不支援瀏覽器工作階段與深度研究
+- 提取功能使用您自己的 LLM 代理，而非託管模型
+- 完全在本地容器網路內運行

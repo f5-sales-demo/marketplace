@@ -1,7 +1,7 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Web scraping e crawling self-hosted locali tramite il motore open-source
+  Web scraping e crawling self-hosted in locale tramite il motore open-source
   Firecrawl.
 sidebar:
   order: 13
@@ -12,7 +12,7 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-firecrawl** fornisce web scraping self-hosted locale
+Il plugin **f5xc-firecrawl** fornisce web scraping self-hosted in locale
 tramite il motore open-source [firecrawl](https://github.com/mendableai/firecrawl).
 Nessuna chiave API, nessun abbonamento, nessuna dipendenza cloud. Tutte
 le operazioni vengono eseguite sull'istanza firecrawl locale su `localhost:3002`
@@ -56,7 +56,7 @@ Esegue il crawling di più pagine a partire da un URL iniziale.
 
 ### /map
 
-Scopre tutti gli URL presenti su un sito web.
+Individua tutti gli URL di un sito web.
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ Scopre tutti gli URL presenti su un sito web.
 
 ### /search
 
-Esegue ricerche sul web e, facoltativamente, effettua lo scraping dei risultati.
+Esegue ricerche sul web con opzione di scraping dei risultati.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ Esegue ricerche sul web e, facoltativamente, effettua lo scraping dei risultati.
 
 ### /extract
 
-Estrazione di dati strutturati da pagine web tramite LLM.
+Estrazione di dati strutturati dalle pagine web tramite LLM.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -106,8 +106,8 @@ Delega immediatamente all'agente firecrawl-operator.
 ### firecrawl-operator
 
 Agente autonomo di web scraping che esegue sequenze `curl` + `jq`
-sull'API firecrawl locale. Supporta 11 protocolli che coprono tutti
-gli endpoint v1. Agente in sola lettura (nessuno strumento di scrittura, modifica o agente).
+contro l'API firecrawl locale. Supporta 11 protocolli che coprono tutti
+gli endpoint v1. Agente di sola lettura (nessuno strumento di scrittura, modifica o agente).
 
 | Protocollo | Endpoint | Tipo |
 |----------|----------|------|
@@ -135,17 +135,17 @@ Il plugin richiede lo stack firecrawl in esecuzione nel devcontainer:
 | PostgreSQL | socket | Persistenza dei job crawl/batch |
 | LiteLLM proxy | OPENAI_BASE_URL | Backend LLM per extract (opzionale) |
 
-Lo stack si avvia automaticamente quando `ENABLE_FIRECRAWL=true` (il
-valore predefinito). Un hook SessionStart verifica che l'API sia raggiungibile e
+Lo stack si avvia automaticamente quando `ENABLE_FIRECRAWL=true` (impostazione
+predefinita). Un hook SessionStart verifica che l'API sia raggiungibile e
 avvisa se il servizio non è disponibile.
 
-## Differenze rispetto a Firecrawl Cloud
+## Differenze rispetto a Cloud Firecrawl
 
 Questo plugin utilizza la versione open-source self-hosted:
 
 - Nessuna autenticazione o chiave API richiesta per lo scraping
-- Nessun limite di crediti o limitazione della velocità
+- Nessun limite di crediti o rate limiting
 - Utilizza gli endpoint API v1 (non v2)
 - Sessioni browser e ricerca approfondita non disponibili
 - Extract utilizza il proprio proxy LLM invece dei modelli ospitati
-- Viene eseguito interamente all'interno della rete del container locale
+- Funziona interamente all'interno della rete del container locale
