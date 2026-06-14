@@ -16,10 +16,10 @@ El plugin **osint-framework** proporciona un catálogo de herramientas OSINT y
 habilidades de investigación — 1.064 herramientas gratuitas de recopilación de inteligencia
 en 34 categorías mapeadas desde [osintframework.com](https://osintframework.com).
 Incluye habilidades basadas en categorías, pipelines de investigación ejecutables,
-ejecución de herramientas CLI, flujos de trabajo con conciencia de OPSEC y un grafo
+ejecución de herramientas CLI, flujos de trabajo con conciencia OPSEC y un grafo
 de entidades persistente para correlación entre investigaciones.
 
-<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+<Badge text="v1.0.1" variant="note" /> <Badge text="Seguridad" variant="tip" />
 
 ## Instalación
 
@@ -32,8 +32,8 @@ de entidades persistente para correlación entre investigaciones.
 ### /osint-investigate
 
 Ejecuta una investigación OSINT completa contra cualquier objetivo. Detecta
-automáticamente el tipo de objetivo (correo electrónico, dominio, IP, nombre de usuario, empresa,
-nombre de persona) y lo dirige a las habilidades de categoría correctas.
+automáticamente el tipo de objetivo (correo electrónico, dominio, IP, nombre de
+usuario, empresa, nombre de persona) y enruta a las habilidades de categoría correctas.
 
 ```
 /osint-investigate j.smith@example.com
@@ -54,8 +54,8 @@ Busca en el catálogo de herramientas aquellas que coincidan con una consulta de
 
 ### /osint-catalog
 
-Navega por el catálogo completo de herramientas por categoría. Sin argumentos muestra
-las 34 categorías con el recuento de herramientas.
+Navega el catálogo completo de herramientas por categoría. Sin argumentos, muestra
+las 34 categorías con el número de herramientas.
 
 ```
 /osint-catalog
@@ -67,13 +67,13 @@ las 34 categorías con el recuento de herramientas.
 
 ### osint-index
 
-Enrutador de intención de nivel superior. Se activa automáticamente cuando dices "buscar
-información sobre", "investigar", "consultar", "verificación de antecedentes",
-o describes cualquier tarea de inteligencia de fuentes abiertas. Dirige a la
-habilidad de categoría correcta según el tipo de objetivo.
+Enrutador de intención de nivel superior. Se activa automáticamente cuando se indica
+"find information about", "investigate", "look up", "background check" o se describe
+cualquier tarea de inteligencia de fuentes abiertas. Enruta a la habilidad de categoría
+correcta según el tipo de objetivo.
 
-| Objetivo | Dirige a |
-|----------|----------|
+| Objetivo | Enruta a |
+|--------|----------|
 | Nombre de usuario o identificador | `username-recon` |
 | Dirección de correo electrónico | `email-recon` |
 | Nombre de dominio | `domain-recon` |
@@ -82,13 +82,13 @@ habilidad de categoría correcta según el tipo de objetivo.
 | Empresa / organización | `business-records` + `domain-recon` |
 | Hash de malware | `malicious-file-analysis` + `threat-intelligence` |
 
-### Habilidades de categoría (34 en total)
+### Habilidades por categoría (34 en total)
 
 Cada categoría tiene una habilidad dedicada con herramientas CLI, recursos web,
-flujo de trabajo de investigación, pivotes entre categorías y notas de OPSEC.
+flujo de trabajo de investigación, pivotes entre categorías y notas OPSEC.
 
-| Categoría | Herramientas | Herramientas CLI clave |
-|-----------|-------------|----------------------|
+| Categoría | Herramientas | Herramientas CLI principales |
+|----------|-------|--------------|
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
 | `domain-recon` | 131 | subfinder, amass, whois, dig |
@@ -100,102 +100,102 @@ flujo de trabajo de investigación, pivotes entre categorías y notas de OPSEC.
 | `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
 | `search-engines` | 73 | gitleaks, pagodo, gobuster |
 | `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 herramientas de privacidad basadas en web |
+| `opsec` | 47 | 47 herramientas de privacidad web |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
 | *(20 categorías más)* | 500+ | — |
 
 <Aside type="tip">
-  Usa `/osint-catalog` para explorar las 34 categorías o
-  `/osint-search <capacidad>` para encontrar herramientas para una tarea específica.
+  Use `/osint-catalog` para navegar las 34 categorías o
+  `/osint-search <capability>` para encontrar herramientas para una tarea específica.
 </Aside>
 
 ### osint-catalog
 
-Navegador del catálogo de herramientas. Proporciona acceso al registro completo de herramientas,
-índice de categorías, pipelines de investigación, referencia de límites de tasa
-y documentación del motor de correlación.
+Navegador del catálogo de herramientas. Proporciona acceso al registro completo de
+herramientas, índice de categorías, pipelines de investigación, referencia de límites
+de velocidad y documentación del motor de correlación.
 
 ## Agentes
 
 ### osint-investigator
 
-Orquestador autónomo de investigación multiherramienta. Ejecuta flujos de trabajo
-de investigación completos — verificación de disponibilidad de herramientas, detección
-del tipo de objetivo, ejecución secuencial de herramientas (pasivas primero), agregación
-de resultados y generación de informes estructurados con niveles de confianza
-y clasificaciones de OPSEC.
+Orquestador autónomo de investigación con múltiples herramientas. Ejecuta flujos de
+trabajo de investigación completos — verificación de disponibilidad de herramientas,
+detección del tipo de objetivo, ejecución secuencial de herramientas (primero pasivas),
+agregación de resultados y generación de informes estructurados con niveles de
+confianza y clasificaciones OPSEC.
 
 Se integra con el grafo de entidades: cada resultado de herramienta crea entidades
 y relaciones en `/tmp/osint-graph/` para correlación entre investigaciones.
 
 <Aside type="caution">
-  Las herramientas de reconocimiento activo (nmap, nuclei, sherlock) realizan contacto directo
-  con la infraestructura del objetivo. El hook de advertencia OPSEC alerta antes de
-  ejecutar herramientas activas. Asegúrese siempre de contar con autorización.
+  Las herramientas de reconocimiento activo (nmap, nuclei, sherlock) realizan contacto
+  directo con la infraestructura del objetivo. El gancho de advertencia OPSEC alerta
+  antes de ejecutar herramientas activas. Asegúrese siempre de contar con autorización.
 </Aside>
 
 ### osint-researcher
 
-Agente de consulta de catálogo de solo lectura. Busca en los archivos de referencia para
-recomendar las mejores herramientas para una tarea dada. Nunca ejecuta herramientas —
-solo recomienda y explica. Utilizado internamente por las habilidades de categoría
-para el descubrimiento de herramientas.
+Agente de búsqueda en catálogo de solo lectura. Busca en archivos de referencia para
+recomendar las mejores herramientas para una tarea determinada. Nunca ejecuta
+herramientas — solo recomienda y explica. Utilizado internamente por las habilidades
+de categoría para el descubrimiento de herramientas.
 
 ### osint-executor
 
-Agente de ejecución CLI de herramienta individual. Ejecuta una herramienta a la vez con
-parámetros específicos, analiza la salida y devuelve resultados estructurados.
-Incluye recetas de ejecución por herramienta para más de 20 herramientas con flags exactos,
-formatos de salida y patrones de análisis con jq.
+Agente de ejecución CLI de una sola herramienta. Ejecuta una herramienta a la vez
+con parámetros específicos, analiza la salida y devuelve resultados estructurados.
+Incluye recetas de ejecución por herramienta para más de 20 herramientas con flags
+exactos, formatos de salida y patrones de análisis con jq.
 
-## Limitación de tasa
+## Límites de velocidad
 
-Todas las llamadas a API utilizan el helper `osint_curl` con retroceso exponencial
-integrado en HTTP 429/503. Límites clave:
+Todas las llamadas a la API utilizan el helper `osint_curl` con retroceso exponencial
+incorporado en HTTP 429/503. Límites principales:
 
 | API | Límite gratuito | Variable de entorno |
-|-----|-----------------|---------------------|
+|-----|-----------|---------|
 | ipinfo.io | 1.000/día | — |
 | crt.sh | 60/min | — |
 | NVD | 5/30s (sin clave) | `NVD_API_KEY` |
 | OpenCorporates | Requiere clave | `OPENCORPORATES_API_KEY` |
 | Shodan | 1/seg | `SHODAN_API_KEY` |
-| GitHub API | 60/hr (sin auth) | `GH_TOKEN` |
+| GitHub API | 60/hr (sin autenticación) | `GH_TOKEN` |
 
-Las APIs que requieren claves se omiten automáticamente con un mensaje
-claro si la variable de entorno no está configurada.
+Las API que requieren claves se omiten automáticamente con un mensaje claro
+si la variable de entorno no está configurada.
 
 ## Motor de correlación
 
 El plugin incluye un grafo de entidades JSON persistente en
-`/tmp/osint-graph/` que acumula hallazgos a través de las investigaciones.
+`/tmp/osint-graph/` que acumula hallazgos entre investigaciones.
 
 ```bash
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# Agregar entidades
+# Add entities
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# Vincularlas
+# Link them
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# Consulta: todas las entidades dentro de 2 saltos de la persona
+# Query: all entities within 2 hops of the person
 osint_graph_query "$P" 2
 
-# Generar informe
+# Generate report
 osint_graph_report
 ```
 
-**Puntuación de confianza** utiliza fusión de múltiples fuentes:
-`confidence = 1 - product(1 - ci)` para cada fuente confirmante.
-Dos fuentes a 0,80 → 0,96 de confianza combinada.
+**La puntuación de confianza** utiliza fusión de múltiples fuentes:
+`confidence = 1 - product(1 - ci)` para cada fuente de confirmación.
+Dos fuentes en 0,80 → 0,96 de confianza combinada.
 
 ## Aviso legal
 
-Todas las herramientas utilizan únicamente información disponible públicamente. Los usuarios son
-responsables de garantizar el cumplimiento de las leyes aplicables,
-regulaciones y términos de servicio de las plataformas. Nunca utilice herramientas OSINT
-para acceso no autorizado, acoso o cualquier actividad ilegal.
+Todas las herramientas utilizan únicamente información disponible públicamente. Los
+usuarios son responsables de garantizar el cumplimiento de las leyes, regulaciones
+y términos de servicio de las plataformas aplicables. Nunca utilice herramientas
+OSINT para acceso no autorizado, acoso o cualquier actividad ilegal.

@@ -15,11 +15,11 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 O plugin **f5xc-devcontainer** fornece reconhecimento de contêiner para
 o ambiente de desenvolvimento f5xc-salesdemos. Ele mantém um
-catálogo abrangente de ferramentas, habilita introspecção em tempo real
-do contêiner e gerencia a instalação de ferramentas com rastreamento
-de persistência via issues do GitHub.
+catálogo abrangente de ferramentas, habilita a introspecção em tempo real do contêiner
+e gerencia a instalação de ferramentas com rastreamento de persistência via
+issues do GitHub.
 
-<Badge text="v1.1.6" variant="note" /> <Badge text="Produtividade" variant="tip" />
+<Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
 
 ## Instalação
 
@@ -27,22 +27,22 @@ de persistência via issues do GitHub.
 /plugin install f5xc-devcontainer@f5xc-salesdemos-marketplace
 ```
 
-## Skills
+## Habilidades
 
 ### tool-catalog
 
 Base de conhecimento de todas as ferramentas CLI instaladas no devcontainer,
-organizadas por categoria (cloud, rede, segurança, desenvolvimento,
-etc.). Ativa quando você pergunta qual ferramenta usar, como usar uma
-ferramenta, se algo está instalado ou precisa de ajuda com uma
+organizadas por categoria (cloud, redes, segurança, desenvolvimento,
+etc.). Ativa quando você pergunta qual ferramenta usar, como usar
+uma ferramenta, se algo está instalado ou quando precisa de ajuda com uma
 operação específica.
 
 ### self-awareness
 
-Skill de identidade e autodiagnóstico do contêiner. Fornece
-introspecção em tempo real do contêiner em execução via API do GitHub e
-metadados locais de build. Ativa para perguntas sobre identidade, versão,
-informações de build, verificações de integridade e histórico de contribuidores.
+Habilidade de identidade e autodiagnóstico do contêiner. Fornece
+introspecção em tempo real do contêiner em execução via API do GitHub e metadados
+locais de build. Ativa para perguntas sobre identidade, versão, informações de build,
+verificações de integridade e histórico de contribuidores.
 
 <Aside type="tip">
   Pergunte "quem é você?" ou "qual versão estou executando?" para acionar
@@ -53,25 +53,25 @@ informações de build, verificações de integridade e histórico de contribuid
 
 ### tool-advisor
 
-Lê o catálogo de ferramentas e retorna recomendações com propósito,
-comandos de início rápido e requisitos de autenticação para qualquer
-pergunta sobre ferramentas CLI.
+Lê o catálogo de ferramentas e retorna recomendações com finalidade,
+comandos de início rápido e requisitos de autenticação para qualquer pergunta
+sobre ferramentas CLI.
 
 ### tool-auditor
 
-Audita o Dockerfile do devcontainer comparando com os arquivos de referência
-do catálogo de ferramentas para detectar desvios &mdash; ferramentas adicionadas
-à imagem mas não catalogadas, ou entradas no catálogo para ferramentas que
-foram removidas.
+Audita o Dockerfile do devcontainer em relação aos arquivos de referência do catálogo
+de ferramentas para detectar divergências &mdash; ferramentas adicionadas à imagem
+mas não catalogadas, ou entradas do catálogo para ferramentas que foram
+removidas.
 
 ### container-introspector
 
-Realiza introspecção em tempo real do contêiner via API do GitHub e
-metadados locais para identidade, genealogia, autodiagnóstico, histórico
-de contribuidores e linhagem de build. Apenas operações somente leitura.
+Realiza introspecção em tempo real do contêiner via API do GitHub e metadados
+locais para identidade, genealogia, autodiagnóstico, histórico de contribuidores
+e linhagem de build. Somente operações de leitura.
 
 ### container-maintainer
 
 Instala, remove, pesquisa e atualiza ferramentas CLI no contêiner
-em execução usando padrões corretos de gerenciador de pacotes. Cria issues
-no GitHub no repositório do devcontainer para rastreamento de persistência.
+em execução utilizando os padrões corretos de gerenciador de pacotes. Registra issues no GitHub
+no repositório do devcontainer para rastreamento de persistência.

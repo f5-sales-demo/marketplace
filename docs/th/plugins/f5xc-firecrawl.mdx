@@ -1,8 +1,8 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  การสแครปและครอว์ลเว็บแบบ self-hosted ในเครื่องผ่าน Firecrawl engine
-  แบบโอเพนซอร์ส
+  การขูดข้อมูลเว็บและการรวบรวมข้อมูลแบบโฮสต์ด้วยตนเองในเครื่องผ่านเครื่องมือ
+  Firecrawl แบบโอเพนซอร์ส
 sidebar:
   order: 13
 i18n:
@@ -12,10 +12,10 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-ปลั๊กอิน **f5xc-firecrawl** ให้บริการสแครปเว็บแบบ self-hosted ในเครื่อง
-ผ่าน [firecrawl](https://github.com/mendableai/firecrawl) engine แบบโอเพนซอร์ส
-ไม่ต้องใช้ API key ไม่ต้องสมัครสมาชิก ไม่ต้องพึ่งพาคลาวด์ การดำเนินการทั้งหมด
-ทำงานกับ firecrawl instance ในเครื่องบน `localhost:3002`
+ปลั๊กอิน **f5xc-firecrawl** ให้บริการขูดข้อมูลเว็บแบบโฮสต์ด้วยตนเองในเครื่อง
+ผ่านเครื่องมือ [firecrawl](https://github.com/mendableai/firecrawl)
+แบบโอเพนซอร์ส ไม่ต้องใช้คีย์ API ไม่ต้องสมัครสมาชิก ไม่พึ่งพาคลาวด์
+การดำเนินการทั้งหมดทำงานกับอินสแตนซ์ firecrawl ในเครื่องที่ `localhost:3002`
 ภายใน devcontainer
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
@@ -30,7 +30,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /scrape
 
-สแครป URL เดียวและดึงเนื้อหาเป็น markdown
+ขูดข้อมูล URL เดียวและแยกเนื้อหาเป็น markdown
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /batch-scrape
 
-สแครปหลาย URL พร้อมกัน
+ขูดข้อมูล URL หลายรายการพร้อมกัน
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -47,7 +47,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /crawl
 
-ครอว์ลหลายหน้าจาก URL เริ่มต้น
+รวบรวมข้อมูลหลายหน้าจาก URL เริ่มต้น
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -56,7 +56,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /map
 
-ค้นหา URL ทั้งหมดบนเว็บไซต์
+ค้นพบ URL ทั้งหมดบนเว็บไซต์
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /search
 
-ค้นหาเว็บและสแครปผลลัพธ์ได้ตามต้องการ
+ค้นหาเว็บและขูดข้อมูลผลลัพธ์ตามต้องการ
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### /extract
 
-การดึงข้อมูลแบบมีโครงสร้างจากหน้าเว็บโดยใช้ LLM
+การแยกข้อมูลแบบมีโครงสร้างจากหน้าเว็บด้วย LLM
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -82,7 +82,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 ```
 
 <Aside type="note">
-  คำสั่ง extract ต้องการ LLM proxy ที่เข้ากันได้กับ OpenAI
+  คำสั่ง extract ต้องใช้ LLM proxy ที่เข้ากันได้กับ OpenAI
   ซึ่งกำหนดค่าผ่าน `OPENAI_BASE_URL` และ `OPENAI_API_KEY`
 </Aside>
 
@@ -98,21 +98,21 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### web-scraper
 
-เปิดใช้งานอัตโนมัติเมื่อคุณขอให้สแครป URL, ครอว์ลเว็บไซต์, แมป
-URL ของเว็บไซต์, ค้นหาเว็บ, ดึงข้อมูลแบบมีโครงสร้าง, สร้าง llms.txt,
-สแครปหลาย URL พร้อมกัน หรือแปลงหน้าเว็บเป็น markdown
-มอบหมายให้ firecrawl-operator agent ดำเนินการทันที
+เปิดใช้งานอัตโนมัติเมื่อคุณขอขูดข้อมูล URL รวบรวมข้อมูลเว็บไซต์ แมป
+URL ของไซต์ ค้นหาเว็บ แยกข้อมูลแบบมีโครงสร้าง สร้าง llms.txt
+ขูดข้อมูล URL หลายรายการพร้อมกัน หรือแปลงหน้าเว็บเป็น markdown
+มอบหมายงานไปยังเอเจนต์ firecrawl-operator ทันที
 
 ## เอเจนต์
 
 ### firecrawl-operator
 
-เอเจนต์สแครปเว็บอัตโนมัติที่ดำเนินการลำดับ `curl` + `jq`
-กับ firecrawl API ในเครื่อง รองรับ 11 โปรโตคอลที่ครอบคลุม endpoint v1 ทั้งหมด
+เอเจนต์ขูดข้อมูลเว็บอัตโนมัติที่รันลำดับ `curl` + `jq`
+กับ API firecrawl ในเครื่อง รองรับ 11 โปรโตคอลครอบคลุม endpoint ทั้งหมดของ v1
 เป็นเอเจนต์แบบอ่านอย่างเดียว (ไม่มีเครื่องมือ Write, Edit หรือ Agent)
 
 | โปรโตคอล | Endpoint | ประเภท |
-|----------|----------|--------|
+|----------|----------|------|
 | HEALTH | `GET /` | Sync |
 | SCRAPE | `POST /v1/scrape` | Sync |
 | BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
@@ -127,26 +127,26 @@ URL ของเว็บไซต์, ค้นหาเว็บ, ดึงข
 
 ## โครงสร้างพื้นฐาน
 
-ปลั๊กอินนี้ต้องการ firecrawl stack ที่ทำงานอยู่ใน devcontainer:
+ปลั๊กอินต้องการสแต็ก firecrawl ที่ทำงานอยู่ใน devcontainer:
 
-| คอมโพเนนต์ | พอร์ต | วัตถุประสงค์ |
+| ส่วนประกอบ | พอร์ต | วัตถุประสงค์ |
 |-----------|------|---------|
 | Firecrawl API | 3002 | endpoint ทั้งหมดสำหรับ scrape/crawl/map/search/extract |
-| Playwright | 3000 | เอนจินเรนเดอร์ JavaScript |
+| Playwright | 3000 | เครื่องมือเรนเดอร์ JavaScript |
 | Redis | 6379 | แบ็กเอนด์คิวงาน |
-| PostgreSQL | socket | การจัดเก็บงาน crawl/batch |
+| PostgreSQL | socket | การคงอยู่ของงาน Crawl/batch |
 | LiteLLM proxy | OPENAI_BASE_URL | แบ็กเอนด์ LLM สำหรับ extract (ไม่บังคับ) |
 
-Stack จะเริ่มทำงานโดยอัตโนมัติเมื่อ `ENABLE_FIRECRAWL=true` (ค่าเริ่มต้น)
-SessionStart hook จะตรวจสอบว่า API สามารถเข้าถึงได้และแจ้งเตือนหากบริการไม่ทำงาน
+สแต็กเริ่มต้นอัตโนมัติเมื่อ `ENABLE_FIRECRAWL=true` (ค่าเริ่มต้น)
+hook SessionStart ตรวจสอบว่า API เข้าถึงได้และแจ้งเตือนหากบริการหยุดทำงาน
 
 ## ความแตกต่างจาก Cloud Firecrawl
 
-ปลั๊กอินนี้ใช้เวอร์ชันโอเพนซอร์สแบบ self-hosted:
+ปลั๊กอินนี้ใช้เวอร์ชันโอเพนซอร์สแบบโฮสต์ด้วยตนเอง:
 
-- ไม่ต้องใช้การยืนยันตัวตนหรือ API key สำหรับการสแครป
-- ไม่มีขีดจำกัดเครดิตหรือการจำกัดอัตราการใช้งาน
-- ใช้ v1 API endpoint (ไม่ใช่ v2)
-- ไม่รองรับ browser sessions และ deep research
-- Extract ใช้ LLM proxy ของคุณเองแทนโมเดลที่โฮสต์บนคลาวด์
+- ไม่ต้องมีการยืนยันตัวตนหรือคีย์ API สำหรับการขูดข้อมูล
+- ไม่มีขีดจำกัดเครดิตหรือการจำกัดอัตรา
+- ใช้ endpoint API v1 (ไม่ใช่ v2)
+- ไม่รองรับ browser session และการค้นคว้าเชิงลึก
+- Extract ใช้ LLM proxy ของคุณเองแทนโมเดลที่โฮสต์ไว้
 - ทำงานทั้งหมดภายในเครือข่ายคอนเทนเนอร์ในเครื่อง
