@@ -1,8 +1,8 @@
 ---
 title: osint-framework
 description: >-
-  OSINT-Werkzeugkatalog und Ermittlungsfähigkeiten mit 1.064 Tools zur
-  Informationsgewinnung in 34 Kategorien.
+  OSINT-Werkzeugkatalog und Ermittlungsfähigkeiten mit 1.064
+  Intelligence-Gathering-Werkzeugen in 34 Kategorien.
 sidebar:
   order: 12
 i18n:
@@ -13,11 +13,11 @@ i18n:
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 Das **osint-framework**-Plugin bietet einen OSINT-Werkzeugkatalog und
-Ermittlungsfähigkeiten — 1.064 kostenlose Tools zur Informationsgewinnung
-in 34 Kategorien, abgebildet von [osintframework.com](https://osintframework.com).
-Es umfasst kategoriebasierte Skills, ausführbare Ermittlungs-Pipelines,
-CLI-Tool-Ausführung, OPSEC-bewusste Workflows und einen persistenten
-Entitätsgraphen für untersuchungsübergreifende Korrelation.
+Ermittlungsfähigkeiten — 1.064 kostenlose Intelligence-Gathering-Werkzeuge
+in 34 Kategorien, zugeordnet von [osintframework.com](https://osintframework.com).
+Es umfasst kategoriebasierte Fähigkeiten, ausführbare Ermittlungs-Pipelines,
+CLI-Werkzeugausführung, OPSEC-bewusste Arbeitsabläufe und einen persistenten
+Entitätsgraphen für investigationsübergreifende Korrelation.
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
 
@@ -31,9 +31,9 @@ Entitätsgraphen für untersuchungsübergreifende Korrelation.
 
 ### /osint-investigate
 
-Führt eine vollständige OSINT-Ermittlung gegen ein beliebiges Ziel durch. Erkennt
+Führt eine vollständige OSINT-Untersuchung gegen ein beliebiges Ziel durch. Erkennt
 automatisch den Zieltyp (E-Mail, Domain, IP, Benutzername, Unternehmen,
-Personenname) und leitet an die entsprechenden Kategorie-Skills weiter.
+Personenname) und leitet zur richtigen Kategoriefähigkeit weiter.
 
 ```
 /osint-investigate j.smith@example.com
@@ -44,7 +44,7 @@ Personenname) und leitet an die entsprechenden Kategorie-Skills weiter.
 
 ### /osint-search
 
-Durchsucht den Werkzeugkatalog nach Tools, die einer Fähigkeitsabfrage entsprechen.
+Durchsucht den Werkzeugkatalog nach Werkzeugen, die einer Fähigkeitsabfrage entsprechen.
 
 ```
 /osint-search subdomain enumeration
@@ -54,8 +54,8 @@ Durchsucht den Werkzeugkatalog nach Tools, die einer Fähigkeitsabfrage entsprec
 
 ### /osint-catalog
 
-Durchsuchen Sie den vollständigen Werkzeugkatalog nach Kategorie. Ohne Argumente
-werden alle 34 Kategorien mit Tool-Anzahlen angezeigt.
+Durchsucht den vollständigen Werkzeugkatalog nach Kategorien. Ohne Argumente werden
+alle 34 Kategorien mit Werkzeuganzahlen angezeigt.
 
 ```
 /osint-catalog
@@ -63,17 +63,17 @@ werden alle 34 Kategorien mit Tool-Anzahlen angezeigt.
 /osint-catalog threat-intel
 ```
 
-## Skills
+## Fähigkeiten
 
 ### osint-index
 
-Top-Level-Intent-Router. Aktiviert sich automatisch, wenn Sie "Informationen finden
-über", "ermitteln", "nachschlagen", "Hintergrundprüfung" sagen oder eine beliebige
-Open-Source-Intelligence-Aufgabe beschreiben. Leitet basierend auf dem Zieltyp
-an den richtigen Kategorie-Skill weiter.
+Übergeordneter Intent-Router. Wird automatisch aktiviert, wenn Sie „find
+information about", „investigate", „look up", „background check"
+eingeben oder eine beliebige Open-Source-Intelligence-Aufgabe beschreiben. Leitet zur
+richtigen Kategoriefähigkeit basierend auf dem Zieltyp weiter.
 
-| Ziel | Weiterleitung an |
-|------|-----------------|
+| Ziel | Weiterleitung zu |
+|--------|----------|
 | Benutzername oder Handle | `username-recon` |
 | E-Mail-Adresse | `email-recon` |
 | Domainname | `domain-recon` |
@@ -82,13 +82,13 @@ an den richtigen Kategorie-Skill weiter.
 | Unternehmen / Organisation | `business-records` + `domain-recon` |
 | Malware-Hash | `malicious-file-analysis` + `threat-intelligence` |
 
-### Kategorie-Skills (34 insgesamt)
+### Kategoriefähigkeiten (insgesamt 34)
 
-Jede Kategorie verfügt über einen dedizierten Skill mit CLI-Tools, Webressourcen,
-Ermittlungs-Workflow, kategorieübergreifenden Pivots und OPSEC-Hinweisen.
+Jede Kategorie verfügt über eine dedizierte Fähigkeit mit CLI-Werkzeugen, Web-Ressourcen,
+Ermittlungsablauf, kategorieübergreifenden Pivots und OPSEC-Hinweisen.
 
-| Kategorie | Tools | Wichtige CLI-Tools |
-|-----------|-------|-------------------|
+| Kategorie | Werkzeuge | Wichtige CLI-Werkzeuge |
+|----------|-------|--------------|
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
 | `domain-recon` | 131 | subfinder, amass, whois, dig |
@@ -100,101 +100,102 @@ Ermittlungs-Workflow, kategorieübergreifenden Pivots und OPSEC-Hinweisen.
 | `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
 | `search-engines` | 73 | gitleaks, pagodo, gobuster |
 | `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 webbasierte Datenschutz-Tools |
+| `opsec` | 47 | 47 webbasierte Datenschutzwerkzeuge |
 | `people-search` | 18 | GitHub API, GitLab API |
 | `business-records` | 28 | SEC EDGAR, OpenCorporates |
 | *(20 weitere Kategorien)* | 500+ | — |
 
 <Aside type="tip">
   Verwenden Sie `/osint-catalog`, um alle 34 Kategorien zu durchsuchen, oder
-  `/osint-search <Fähigkeit>`, um Tools für eine bestimmte Aufgabe zu finden.
+  `/osint-search <capability>`, um Werkzeuge für eine bestimmte Aufgabe zu finden.
 </Aside>
 
 ### osint-catalog
 
-Werkzeugkatalog-Browser. Bietet Zugriff auf die vollständige Tool-Registry,
-den Kategorieindex, Ermittlungs-Pipelines, die Rate-Limit-Referenz
+Werkzeugkatalog-Browser. Bietet Zugriff auf die vollständige Werkzeugregistrierung,
+den Kategorieindex, Ermittlungs-Pipelines, die Ratenlimit-Referenz
 und die Dokumentation der Korrelations-Engine.
 
 ## Agenten
 
 ### osint-investigator
 
-Autonomer Multi-Tool-Ermittlungs-Orchestrator. Führt vollständige
-Ermittlungs-Workflows aus — Tool-Verfügbarkeitsprüfung, Zieltyp-Erkennung,
-sequenzielle Tool-Ausführung (passiv zuerst), Ergebnis-Aggregation und
-strukturierte Berichterstellung mit Konfidenzniveaus und OPSEC-Klassifizierungen.
+Autonomer Multi-Werkzeug-Ermittlungs-Orchestrator. Führt vollständige
+Ermittlungsabläufe durch — Werkzeugverfügbarkeitsprüfung, Zieltyperkennung,
+sequenzielle Werkzeugausführung (zuerst passiv), Ergebnisaggregation
+und strukturierte Berichtsgenerierung mit Konfidenzwerten und OPSEC-Klassifizierungen.
 
-Integriert sich mit dem Entitätsgraphen: Jedes Tool-Ergebnis erstellt Entitäten
-und Beziehungen in `/tmp/osint-graph/` für untersuchungsübergreifende Korrelation.
+Integriert sich in den Entitätsgraphen: Jedes Werkzeugergebnis erstellt Entitäten
+und Beziehungen in `/tmp/osint-graph/` für investigationsübergreifende
+Korrelation.
 
 <Aside type="caution">
-  Aktive Recon-Tools (nmap, nuclei, sherlock) nehmen direkten Kontakt
+  Aktive Recon-Werkzeuge (nmap, nuclei, sherlock) nehmen direkten Kontakt
   mit der Zielinfrastruktur auf. Der OPSEC-Warnungs-Hook warnt vor
-  der Ausführung aktiver Tools. Stellen Sie immer sicher, dass Sie eine Autorisierung haben.
+  der Ausführung aktiver Werkzeuge. Stellen Sie stets sicher, dass Sie eine Genehmigung haben.
 </Aside>
 
 ### osint-researcher
 
 Schreibgeschützter Katalog-Lookup-Agent. Durchsucht Referenzdateien, um
-die besten Tools für eine gegebene Aufgabe zu empfehlen. Führt niemals Tools aus —
-empfiehlt und erklärt nur. Wird intern von Kategorie-Skills
-für die Tool-Erkennung verwendet.
+die besten Werkzeuge für eine gegebene Aufgabe zu empfehlen. Führt niemals Werkzeuge aus —
+empfiehlt und erklärt nur. Wird intern von Kategoriefähigkeiten
+zur Werkzeugfindung verwendet.
 
 ### osint-executor
 
-Einzeltool-CLI-Ausführungsagent. Führt jeweils ein Tool mit
-bestimmten Parametern aus, parst die Ausgabe und liefert strukturierte Ergebnisse.
-Enthält Tool-spezifische Ausführungsrezepte für über 20 Tools mit exakten Flags,
+CLI-Ausführungsagent für einzelne Werkzeuge. Führt jeweils ein Werkzeug mit
+bestimmten Parametern aus, analysiert die Ausgabe und gibt strukturierte Ergebnisse zurück.
+Enthält werkzeugspezifische Ausführungsrezepte für 20+ Werkzeuge mit genauen Flags,
 Ausgabeformaten und jq-Parsing-Mustern.
 
-## Ratenbegrenzung
+## Ratenlimitierung
 
-Alle API-Aufrufe verwenden den `osint_curl`-Helper mit eingebautem exponentiellem
+Alle API-Aufrufe verwenden den `osint_curl`-Helfer mit integriertem exponentiellen
 Backoff bei HTTP 429/503. Wichtige Limits:
 
 | API | Kostenloses Limit | Umgebungsvariable |
-|-----|-------------------|-------------------|
+|-----|-----------|---------|
 | ipinfo.io | 1.000/Tag | — |
-| crt.sh | 60/Min | — |
-| NVD | 5/30s (ohne Schlüssel) | `NVD_API_KEY` |
+| crt.sh | 60/min | — |
+| NVD | 5/30s (kein Schlüssel) | `NVD_API_KEY` |
 | OpenCorporates | Schlüssel erforderlich | `OPENCORPORATES_API_KEY` |
-| Shodan | 1/Sek | `SHODAN_API_KEY` |
-| GitHub API | 60/Std (ohne Auth) | `GH_TOKEN` |
+| Shodan | 1/Sek. | `SHODAN_API_KEY` |
+| GitHub API | 60/Std. (ohne Auth) | `GH_TOKEN` |
 
-APIs, die Schlüssel erfordern, werden automatisch mit einer klaren
+APIs, die Schlüssel benötigen, werden automatisch mit einer klaren
 Meldung übersprungen, wenn die Umgebungsvariable nicht gesetzt ist.
 
 ## Korrelations-Engine
 
 Das Plugin enthält einen persistenten JSON-Entitätsgraphen unter
-`/tmp/osint-graph/`, der Erkenntnisse über Ermittlungen hinweg akkumuliert.
+`/tmp/osint-graph/`, der Erkenntnisse über Untersuchungen hinweg akkumuliert.
 
 ```bash
 source plugins/osint-framework/scripts/osint-graph.sh
 osint_graph_init
 
-# Entitäten hinzufügen
+# Add entities
 P=$(osint_entity_add "person" "J. Smith" --tool github-api)
 C=$(osint_entity_add "company" "F5" --tool github-api)
 
-# Verknüpfung erstellen
+# Link them
 osint_rel_add "$P" "$C" "works_at" --tool github-api
 
-# Abfrage: alle Entitäten innerhalb von 2 Hops von der Person
+# Query: all entities within 2 hops of the person
 osint_graph_query "$P" 2
 
-# Bericht generieren
+# Generate report
 osint_graph_report
 ```
 
-**Konfidenzbewertung** verwendet Multi-Source-Fusion:
+**Konfidenzwertung** verwendet Multi-Quellen-Fusion:
 `confidence = 1 - product(1 - ci)` für jede bestätigende Quelle.
-Zwei Quellen mit 0,80 → 0,96 kombinierte Konfidenz.
+Zwei Quellen bei 0,80 → kombinierte Konfidenz von 0,96.
 
 ## Rechtlicher Hinweis
 
-Alle Tools verwenden ausschließlich öffentlich verfügbare Informationen. Benutzer sind
-dafür verantwortlich, die Einhaltung geltender Gesetze, Vorschriften und
-Nutzungsbedingungen der Plattformen sicherzustellen. Verwenden Sie OSINT-Tools niemals
-für unbefugten Zugriff, Belästigung oder illegale Aktivitäten jeglicher Art.
+Alle Werkzeuge verwenden ausschließlich öffentlich zugängliche Informationen. Die Benutzer sind
+dafür verantwortlich, die Einhaltung geltender Gesetze,
+Vorschriften und Nutzungsbedingungen der Plattform sicherzustellen. Verwenden Sie OSINT-Werkzeuge niemals
+für unbefugten Zugriff, Belästigung oder illegale Aktivitäten.
