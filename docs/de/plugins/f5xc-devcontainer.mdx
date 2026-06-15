@@ -1,8 +1,8 @@
 ---
 title: f5xc-devcontainer
 description: >-
-  Container-Awareness-Plugin für Werkzeugkatalog, Live-Introspektion und
-  Werkzeuginstallation mit Persistenz-Tracking.
+  Container-Awareness-Plugin für den Werkzeugkatalog, Live-Introspektion und
+  Werkzeuginstallation mit Persistenzverfolgung.
 sidebar:
   order: 10
 i18n:
@@ -14,9 +14,9 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 Das **f5xc-devcontainer**-Plugin bietet Container-Awareness für
 die f5xc-salesdemos-Entwicklungsumgebung. Es pflegt einen
-umfassenden Werkzeugkatalog, ermöglicht Live-Introspektion des
-Containers und übernimmt die Werkzeuginstallation mit
-Persistenz-Tracking über GitHub Issues.
+umfassenden Werkzeugkatalog, ermöglicht Live-Container-Introspektion
+und übernimmt die Werkzeuginstallation mit Persistenzverfolgung
+über GitHub-Issues.
 
 <Badge text="v1.1.6" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
@@ -30,24 +30,22 @@ Persistenz-Tracking über GitHub Issues.
 
 ### tool-catalog
 
-Wissensbasis aller im Devcontainer installierten CLI-Werkzeuge,
-organisiert nach Kategorie (Cloud, Netzwerk, Sicherheit,
-Entwicklung usw.). Wird aktiviert, wenn Sie fragen, welches
-Werkzeug Sie verwenden sollen, wie ein Werkzeug verwendet wird,
-ob etwas installiert ist oder Hilfe bei einer bestimmten
-Operation benötigen.
+Wissensdatenbank aller im Entwicklungscontainer installierten CLI-Werkzeuge,
+geordnet nach Kategorien (Cloud, Netzwerk, Sicherheit, Entwicklung
+usw.). Wird aktiviert, wenn Sie fragen, welches Werkzeug zu verwenden ist,
+wie ein Werkzeug verwendet wird, ob etwas installiert ist, oder wenn Sie
+Hilfe bei einem bestimmten Vorgang benötigen.
 
 ### self-awareness
 
-Skill für Container-Identität und Selbstdiagnose. Bietet
-Live-Introspektion des laufenden Containers über die GitHub-API
-und lokale Build-Metadaten. Wird bei Fragen zu Identität,
-Version, Build-Informationen, Gesundheitsprüfungen und
-Mitwirkenden-Historie aktiviert.
+Skill für Container-Identität und Selbstdiagnose. Bietet Live-
+Introspektion des laufenden Containers über die GitHub-API und lokale
+Build-Metadaten. Wird aktiviert bei Fragen zu Identität, Version,
+Build-Informationen, Integritätsprüfungen und Contributor-Verlauf.
 
 <Aside type="tip">
-  Fragen Sie "Wer bist du?" oder "Welche Version verwende ich?",
-  um die Self-Awareness auszulösen.
+  Fragen Sie „who are you?" oder „what version am I running?", um
+  Self-Awareness auszulösen.
 </Aside>
 
 ## Agenten
@@ -55,27 +53,25 @@ Mitwirkenden-Historie aktiviert.
 ### tool-advisor
 
 Liest den Werkzeugkatalog und gibt Empfehlungen mit Zweck,
-Schnellstart-Befehlen und Authentifizierungsanforderungen für
-jede CLI-Werkzeug-Frage zurück.
+Schnellstart-Befehlen und Authentifizierungsanforderungen für alle
+CLI-Werkzeug-Fragen zurück.
 
 ### tool-auditor
 
-Prüft das Devcontainer-Dockerfile gegen die
-Werkzeugkatalog-Referenzdateien, um Abweichungen zu erkennen
-&mdash; Werkzeuge, die zum Image hinzugefügt, aber nicht
-katalogisiert wurden, oder Katalogeinträge für Werkzeuge, die
-entfernt wurden.
+Überprüft das Devcontainer-Dockerfile gegen die Referenzdateien des
+Werkzeugkatalogs, um Abweichungen zu erkennen &mdash; Werkzeuge, die zum
+Image hinzugefügt, aber nicht katalogisiert wurden, oder Katalogeinträge
+für Werkzeuge, die entfernt wurden.
 
 ### container-introspector
 
-Führt Live-Introspektion des Containers über die GitHub-API und
-lokale Metadaten durch – für Identität, Herkunft, Selbstdiagnose,
-Mitwirkenden-Historie und Build-Abstammung. Ausschließlich
-lesende Operationen.
+Führt Live-Container-Introspektion über die GitHub-API und lokale
+Metadaten durch für Identität, Genealogie, Selbstdiagnose,
+Contributor-Verlauf und Build-Herkunft. Ausschließlich Lesezugriff.
 
 ### container-maintainer
 
-Installiert, entfernt, sucht und aktualisiert CLI-Werkzeuge im
-laufenden Container unter Verwendung korrekter
-Paketmanager-Muster. Erstellt GitHub Issues im
-Devcontainer-Repository für das Persistenz-Tracking.
+Installiert, entfernt, sucht und aktualisiert CLI-Werkzeuge im laufenden
+Container unter Verwendung korrekter Paketmanager-Muster. Erstellt
+GitHub-Issues gegen das Devcontainer-Repository zur
+Persistenzverfolgung.

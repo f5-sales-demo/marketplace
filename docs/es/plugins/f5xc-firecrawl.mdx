@@ -1,7 +1,7 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Raspado y rastreo web local autoalojado mediante el motor de código abierto
+  Raspado y rastreo web local autohospedado mediante el motor de código abierto
   Firecrawl.
 sidebar:
   order: 13
@@ -12,11 +12,11 @@ i18n:
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-El plugin **f5xc-firecrawl** proporciona raspado web local autoalojado
+El plugin **f5xc-firecrawl** proporciona raspado web local autohospedado
 mediante el motor de código abierto [firecrawl](https://github.com/mendableai/firecrawl).
-Sin claves API, sin suscripciones, sin dependencia de la nube. Todas
+Sin claves de API, sin suscripciones, sin dependencia en la nube. Todas
 las operaciones se ejecutan contra la instancia local de firecrawl en `localhost:3002`
-dentro del devcontainer.
+dentro del contenedor de desarrollo.
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -30,7 +30,7 @@ dentro del devcontainer.
 
 ### /scrape
 
-Raspa una única URL y extrae el contenido como markdown.
+Raspar una única URL y extraer el contenido como markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Raspa una única URL y extrae el contenido como markdown.
 
 ### /batch-scrape
 
-Raspa múltiples URLs a la vez.
+Raspar múltiples URLs a la vez.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -47,7 +47,7 @@ Raspa múltiples URLs a la vez.
 
 ### /crawl
 
-Rastrea múltiples páginas a partir de una URL inicial.
+Rastrear múltiples páginas desde una URL de inicio.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -56,7 +56,7 @@ Rastrea múltiples páginas a partir de una URL inicial.
 
 ### /map
 
-Descubre todas las URLs de un sitio web.
+Descubrir todas las URLs de un sitio web.
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ Descubre todas las URLs de un sitio web.
 
 ### /search
 
-Busca en la web y opcionalmente raspa los resultados.
+Buscar en la web y, opcionalmente, raspar los resultados.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ Busca en la web y opcionalmente raspa los resultados.
 
 ### /extract
 
-Extracción de datos estructurados potenciada por LLM desde páginas web.
+Extracción de datos estructurados mediante LLM desde páginas web.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -88,7 +88,7 @@ Extracción de datos estructurados potenciada por LLM desde páginas web.
 
 ### /llmstxt
 
-Genera un archivo llms.txt para un sitio.
+Generar un archivo llms.txt para un sitio.
 
 ```
 /llmstxt https://docs.example.com
@@ -98,9 +98,9 @@ Genera un archivo llms.txt para un sitio.
 
 ### web-scraper
 
-Se activa automáticamente cuando solicita raspar una URL, rastrear un sitio web, mapear
+Se activa automáticamente cuando se solicita raspar una URL, rastrear un sitio web, mapear
 URLs del sitio, buscar en la web, extraer datos estructurados, generar llms.txt,
-raspar múltiples URLs por lotes o convertir una página web a markdown.
+raspar múltiples URLs en lote, o convertir una página web a markdown.
 Delega inmediatamente al agente firecrawl-operator.
 
 ## Agentes
@@ -108,46 +108,46 @@ Delega inmediatamente al agente firecrawl-operator.
 ### firecrawl-operator
 
 Agente autónomo de raspado web que ejecuta secuencias de `curl` + `jq`
-contra la API local de firecrawl. Soporta 11 protocolos que cubren todos
-los endpoints v1. Agente de solo lectura (sin herramientas de escritura, edición o agente).
+contra la API local de firecrawl. Admite 11 protocolos que cubren todos
+los endpoints de la v1. Agente de solo lectura (sin herramientas de escritura, edición o agente).
 
 | Protocolo | Endpoint | Tipo |
 |----------|----------|------|
-| HEALTH | `GET /` | Síncrono |
-| SCRAPE | `POST /v1/scrape` | Síncrono |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Asíncrono |
-| CRAWL | `POST /v1/crawl` | Asíncrono |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Síncrono |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Síncrono |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Síncrono |
-| MAP | `POST /v1/map` | Síncrono |
-| SEARCH | `POST /v1/search` | Síncrono |
-| EXTRACT | `POST /v1/extract` | Asíncrono |
-| LLMSTXT | `POST /v1/llmstxt` | Asíncrono |
+| HEALTH | `GET /` | Sync |
+| SCRAPE | `POST /v1/scrape` | Sync |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
+| CRAWL | `POST /v1/crawl` | Async |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
+| MAP | `POST /v1/map` | Sync |
+| SEARCH | `POST /v1/search` | Sync |
+| EXTRACT | `POST /v1/extract` | Async |
+| LLMSTXT | `POST /v1/llmstxt` | Async |
 
 ## Infraestructura
 
-El plugin requiere la pila de firecrawl ejecutándose en el devcontainer:
+El plugin requiere que el stack de firecrawl esté en ejecución dentro del contenedor de desarrollo:
 
 | Componente | Puerto | Propósito |
 |-----------|------|---------|
 | Firecrawl API | 3002 | Todos los endpoints de scrape/crawl/map/search/extract |
-| Playwright | 3000 | Motor de renderizado JavaScript |
+| Playwright | 3000 | Motor de renderizado de JavaScript |
 | Redis | 6379 | Backend de cola de trabajos |
-| PostgreSQL | socket | Persistencia de trabajos de rastreo/lotes |
-| Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
+| PostgreSQL | socket | Persistencia de trabajos de crawl/batch |
+| LiteLLM proxy | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
 
-La pila se inicia automáticamente cuando `ENABLE_FIRECRAWL=true` (el
-valor predeterminado). Un hook de SessionStart verifica que la API sea accesible y
+El stack se inicia automáticamente cuando `ENABLE_FIRECRAWL=true` (el
+valor predeterminado). Un hook SessionStart verifica que la API sea accesible y
 advierte si el servicio no está disponible.
 
 ## Diferencias con Firecrawl en la nube
 
-Este plugin utiliza la versión autoalojada de código abierto:
+Este plugin utiliza la versión autohospedada de código abierto:
 
-- No se requiere autenticación ni claves API para el raspado
-- Sin límites de crédito ni limitación de velocidad
-- Utiliza endpoints de la API v1 (no v2)
-- Las sesiones de navegador e investigación profunda no están disponibles
-- Extract utiliza su propio proxy LLM en lugar de modelos alojados
-- Se ejecuta completamente dentro de la red local del contenedor
+- No se requiere autenticación ni claves de API para el raspado
+- Sin límites de créditos ni limitación de velocidad
+- Utiliza endpoints de API v1 (no v2)
+- Las sesiones de navegador y la investigación profunda no están disponibles
+- Extract utiliza su propio proxy LLM en lugar de modelos hospedados
+- Se ejecuta completamente dentro de la red del contenedor local
