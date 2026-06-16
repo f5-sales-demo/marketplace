@@ -50,7 +50,7 @@ From the snapshot, determine the screen type:
 
 ### Step 3: Extract screen structure
 
-#### For list screens:
+#### For list screens
 
 Extract table metadata:
 ```
@@ -72,7 +72,7 @@ take_snapshot()
 Record available actions (Edit, Delete, Clone, etc.) and their
 selectors.
 
-#### For form screens:
+#### For form screens
 
 Click the "Add" or "Create" button to open the creation form:
 ```
@@ -100,7 +100,7 @@ click(uid=<collapsed-section>)
 take_snapshot()
 ```
 
-#### For detail screens:
+#### For detail screens
 
 Extract tab labels and their content areas:
 ```
