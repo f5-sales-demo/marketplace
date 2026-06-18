@@ -1,3 +1,17 @@
+🌐 English |
+[日本語](https://f5xc-salesdemos.github.io/marketplace/ja/) |
+[한국어](https://f5xc-salesdemos.github.io/marketplace/ko/) |
+[简体中文](https://f5xc-salesdemos.github.io/marketplace/zh-cn/) |
+[繁體中文](https://f5xc-salesdemos.github.io/marketplace/zh-tw/) |
+[Español](https://f5xc-salesdemos.github.io/marketplace/es/) |
+[Português](https://f5xc-salesdemos.github.io/marketplace/pt-br/) |
+[Français](https://f5xc-salesdemos.github.io/marketplace/fr/) |
+[Deutsch](https://f5xc-salesdemos.github.io/marketplace/de/) |
+[Italiano](https://f5xc-salesdemos.github.io/marketplace/it/) |
+[العربية](https://f5xc-salesdemos.github.io/marketplace/ar/) |
+[हिन्दी](https://f5xc-salesdemos.github.io/marketplace/hi/) |
+[ไทย](https://f5xc-salesdemos.github.io/marketplace/th/)
+
 # Marketplace
 
 [![GitHub Pages Deploy](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5xc-salesdemos/marketplace/actions/workflows/github-pages-deploy.yml)
