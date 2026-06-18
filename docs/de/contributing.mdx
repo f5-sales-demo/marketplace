@@ -2,18 +2,18 @@
 title: Ein Plugin beitragen
 description: >-
   Anleitung zum Erstellen, Strukturieren und Veröffentlichen von Plugins für den
-  f5xc-salesdemos Marktplatz.
+  f5xc-salesdemos-Marktplatz.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-Diese Anleitung erklärt, wie Sie ein neues Plugin erstellen und
-zum f5xc-salesdemos Marktplatz hinzufügen.
+Diese Anleitung erklärt, wie Sie ein neues Plugin erstellen und es dem
+f5xc-salesdemos-Marktplatz hinzufügen.
 
 ## Plugin-Struktur
 
@@ -22,18 +22,18 @@ folgt dieser Struktur:
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
@@ -44,24 +44,24 @@ folgt dieser Struktur:
 1. **Das Plugin-Verzeichnis erstellen**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **`plugin.json` schreiben**
 
-   Erstellen Sie `plugins/my-plugin/.claude-plugin/plugin.json`:
+   Erstellen Sie `plugins/example-plugin/.claude-plugin/plugin.json`:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
@@ -70,24 +70,24 @@ folgt dieser Struktur:
 
 3. **Skills hinzufügen**
 
-   Erstellen Sie `plugins/my-plugin/skills/my-skill/SKILL.md` mit
+   Erstellen Sie `plugins/example-plugin/skills/example-skill/SKILL.md` mit
    Frontmatter:
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   Platzieren Sie Referenzdaten in einem `references/`-Unterverzeichnis
-   neben `SKILL.md`.
+   Legen Sie alle Referenzdaten in einem `references/`-Unterverzeichnis
+   neben `SKILL.md` ab.
 
 4. **Befehle hinzufügen**
 
-   Erstellen Sie `plugins/my-plugin/commands/my-command.md`:
+   Erstellen Sie `plugins/example-plugin/commands/example-command.md`:
 
    ```markdown
    ---
@@ -102,20 +102,20 @@ folgt dieser Struktur:
    Instructions for Claude when the user invokes this command.
    ```
 
-5. **Das Plugin zur marketplace.json hinzufügen**
+5. **Das Plugin zu marketplace.json hinzufügen**
 
    Fügen Sie einen Eintrag zum `plugins`-Array in
    `.claude-plugin/marketplace.json` hinzu:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -129,41 +129,40 @@ folgt dieser Struktur:
    auf das lokale Verzeichnis verweisen:
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   Überprüfen Sie, dass Skills im richtigen Kontext aktiviert werden und
-   Befehle die erwartete Ausgabe liefern.
+   Überprüfen Sie, ob Skills im richtigen Kontext aktiviert werden und
+   Befehle die erwartete Ausgabe erzeugen.
 
 </Steps>
 
 ## Ihr Plugin einreichen
 
 <Aside type="tip" title="Repository-Workflow">
-  Dieses Repository setzt einen strikten Governance-Workflow durch.
-  Siehe [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
-  für den vollständigen Prozess.
+  Dieses Repository setzt einen strengen Governance-Workflow durch.
+  Weitere Informationen zum vollständigen Prozess finden Sie unter [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md).
 </Aside>
 
 <Steps>
 
 1. Erstellen Sie ein GitHub-Issue, das das neue Plugin beschreibt
-2. Erstellen Sie einen Feature-Branch von `main`
+2. Erstellen Sie einen Feature-Branch aus `main`
 3. Fügen Sie Ihr Plugin-Verzeichnis hinzu und aktualisieren Sie `marketplace.json`
-4. Fügen Sie eine Dokumentationsseite unter `docs/plugins/my-plugin.mdx` hinzu
-5. Öffnen Sie einen PR mit Verweis auf das Issue mit `Closes #N`
-6. Beheben Sie etwaige CI-Fehler und mergen Sie nach bestandenen Prüfungen
+4. Fügen Sie eine Dokumentationsseite unter `docs/plugins/example-plugin.mdx` hinzu
+5. Öffnen Sie einen PR mit Verweis auf das Issue über `Closes #N`
+6. Beheben Sie alle CI-Fehler und führen Sie den Merge nach bestandenen Prüfungen durch
 
 </Steps>
 
-## Bewährte Vorgehensweisen
+## Best Practices
 
 - **Skills fokussiert halten** — ein Skill sollte eine Sache gut erledigen
-- **Referenzdateien verwenden** — platzieren Sie große Datensätze, Schemata und
-  Nachschlagetabellen in `references/` anstatt sie inline in SKILL.md einzubetten
+- **Referenzdateien verwenden** — legen Sie große Datensätze, Schemata und
+  Nachschlagetabellen in `references/` ab, anstatt sie direkt in SKILL.md einzubetten
 - **Intelligent eingrenzen** — prüfen Sie auf nicht committete Änderungen, um
-  den Arbeitsbereich wenn möglich einzuschränken
-- **Ausgabe nach Schweregrad gruppieren** — verwenden Sie die Stufen ERROR, WARNING und INFO,
+  den Arbeitsbereich nach Möglichkeit einzuschränken
+- **Ausgabe nach Schweregrad gruppieren** — verwenden Sie die Ebenen ERROR, WARNING und INFO,
   damit Benutzer Korrekturen priorisieren können
 - **Eine README schreiben** — fügen Sie Verwendungsbeispiele und eine Beschreibung
-  dessen hinzu, was jeder Skill und Befehl tut
+  der einzelnen Skills und Befehle hinzu

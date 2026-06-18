@@ -1,65 +1,63 @@
 ---
 title: 플러그인 기여하기
-description: 'f5xc-salesdemos 마켓플레이스를 위한 플러그인 생성, 구조화 및 게시에 대한 가이드입니다.'
+description: 'f5xc-salesdemos 마켓플레이스용 플러그인을 생성, 구조화 및 게시하는 가이드.'
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-이 가이드는 새 플러그인을 만들고 f5xc-salesdemos 마켓플레이스에
-추가하는 방법을 설명합니다.
+이 가이드는 새로운 플러그인을 생성하고 f5xc-salesdemos 마켓플레이스에 추가하는 방법을 설명합니다.
 
 ## 플러그인 구조
 
-모든 플러그인은 `plugins/` 아래의 자체 디렉토리에 위치하며
-다음 구조를 따릅니다:
+모든 플러그인은 `plugins/` 하위에 각자의 디렉터리에 위치하며 다음 구조를 따릅니다:
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
-## 플러그인 만들기
+## 플러그인 생성하기
 
 <Steps>
 
-1. **플러그인 디렉토리 생성**
+1. **플러그인 디렉터리 생성**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **`plugin.json` 작성**
 
-   `plugins/my-plugin/.claude-plugin/plugin.json`을 생성합니다:
+   `plugins/example-plugin/.claude-plugin/plugin.json` 생성:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
@@ -68,24 +66,22 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 3. **스킬 추가**
 
-   프론트매터가 포함된 `plugins/my-plugin/skills/my-skill/SKILL.md`를
-   생성합니다:
+   프론트매터와 함께 `plugins/example-plugin/skills/example-skill/SKILL.md` 생성:
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   참조 데이터는 `SKILL.md` 옆에 있는 `references/` 하위 디렉토리에
-   배치합니다.
+   참조 데이터는 `SKILL.md`와 함께 `references/` 하위 디렉터리에 배치합니다.
 
-4. **커맨드 추가**
+4. **명령어 추가**
 
-   `plugins/my-plugin/commands/my-command.md`를 생성합니다:
+   `plugins/example-plugin/commands/example-command.md` 생성:
 
    ```markdown
    ---
@@ -102,18 +98,17 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 5. **marketplace.json에 플러그인 추가**
 
-   `.claude-plugin/marketplace.json`의 `plugins` 배열에
-   항목을 추가합니다:
+   `.claude-plugin/marketplace.json`의 `plugins` 배열에 항목을 추가합니다:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -123,41 +118,38 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 6. **로컬에서 테스트**
 
-   Claude Code를 로컬 디렉토리로 지정하여 게시 없이
-   플러그인을 테스트합니다:
+   Claude Code가 로컬 디렉터리를 참조하도록 설정하여 게시 없이 플러그인을 테스트합니다:
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   스킬이 올바른 컨텍스트에서 활성화되는지, 커맨드가
-   예상된 출력을 생성하는지 확인합니다.
+   스킬이 올바른 컨텍스트에서 활성화되고 명령어가 예상된 출력을 생성하는지 확인합니다.
 
 </Steps>
 
 ## 플러그인 제출하기
 
-<Aside type="tip" title="저장소 워크플로우">
-  이 저장소는 엄격한 거버넌스 워크플로우를 적용합니다.
-  전체 프로세스는 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)를
-  참조하세요.
+<Aside type="tip" title="리포지터리 워크플로">
+  이 리포지터리는 엄격한 거버넌스 워크플로를 적용합니다.
+  전체 프로세스는 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)를 참조하십시오.
 </Aside>
 
 <Steps>
 
-1. 새 플러그인을 설명하는 GitHub 이슈를 생성합니다
-2. `main`에서 기능 브랜치를 생성합니다
-3. 플러그인 디렉토리를 추가하고 `marketplace.json`을 업데이트합니다
-4. `docs/plugins/my-plugin.mdx`에 문서 페이지를 추가합니다
-5. `Closes #N`으로 이슈에 연결하는 PR을 엽니다
-6. CI 실패를 수정하고 모든 검사가 통과한 후 병합합니다
+1. 새 플러그인을 설명하는 GitHub 이슈 생성
+2. `main`에서 기능 브랜치 생성
+3. 플러그인 디렉터리 추가 및 `marketplace.json` 업데이트
+4. `docs/plugins/example-plugin.mdx`에 문서 페이지 추가
+5. `Closes #N`으로 이슈에 연결된 PR 생성
+6. CI 실패 수정 후 검사 통과 시 병합
 
 </Steps>
 
 ## 모범 사례
 
-- **스킬을 집중적으로 유지하세요** — 하나의 스킬은 하나의 작업을 잘 수행해야 합니다
-- **참조 파일을 사용하세요** — 대규모 데이터셋, 스키마, 조회 테이블은 SKILL.md에 인라인으로 넣지 말고 `references/`에 배치하세요
-- **지능적으로 범위를 설정하세요** — 가능한 경우 커밋되지 않은 변경 사항을 확인하여 작업 범위를 좁히세요
-- **심각도별로 출력을 그룹화하세요** — 사용자가 수정 사항의 우선순위를 정할 수 있도록 ERROR, WARNING, INFO 수준을 사용하세요
-- **README를 작성하세요** — 사용 예시와 각 스킬 및 커맨드가 수행하는 작업에 대한 설명을 포함하세요
+- **스킬을 집중적으로 유지** — 하나의 스킬은 하나의 일을 잘 수행해야 합니다
+- **참조 파일 활용** — 대용량 데이터셋, 스키마, 조회 테이블은 SKILL.md에 인라인으로 작성하지 말고 `references/`에 배치합니다
+- **지능적으로 범위 설정** — 가능한 경우 작업 집합을 좁히기 위해 커밋되지 않은 변경 사항을 확인합니다
+- **출력을 심각도별로 그룹화** — 사용자가 수정 사항의 우선순위를 정할 수 있도록 ERROR, WARNING, INFO 수준을 사용합니다
+- **README 작성** — 사용 예시와 각 스킬 및 명령어에 대한 설명을 포함합니다

@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 7
 i18n:
-  sourceHash: 15be095fe190
+  sourceHash: 34bc5641ff92
   translator: machine
 ---
 
@@ -14,46 +14,46 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Schéma marketplace.json
 
-Le manifeste du marketplace se trouve dans
+Le manifeste de la place de marché se trouve dans
 `.claude-plugin/marketplace.json` à la racine du dépôt.
 
-### Champs de premier niveau
+### Champs de niveau supérieur
 
 | Champ | Requis | Description |
 |-------|--------|-------------|
 | `$schema` | Non | URL du schéma JSON pour la validation |
-| `name` | Oui | Identifiant unique du marketplace |
-| `version` | Non | Version du schéma du marketplace (semver) |
-| `metadata.description` | Oui | Description lisible du marketplace |
-| `owner.name` | Oui | Organisation ou utilisateur propriétaire du marketplace |
+| `name` | Oui | Identifiant unique de la place de marché |
+| `version` | Non | Version du schéma de la place de marché (semver) |
+| `metadata.description` | Oui | Description lisible de la place de marché |
+| `owner.name` | Oui | Organisation ou utilisateur propriétaire de la place de marché |
 | `owner.url` | Non | URL vers le profil ou le site web du propriétaire |
 | `owner.email` | Non | Adresse e-mail de contact |
-| `plugins` | Oui | Tableau d'entrées de plugins |
+| `plugins` | Oui | Tableau des entrées de plugins |
 
-### Champs d'entrée de plugin
+### Champs d'une entrée de plugin
 
 | Champ | Requis | Description |
 |-------|--------|-------------|
 | `name` | Oui | Identifiant du plugin (doit correspondre à `plugin.json`) |
-| `description` | Oui | Courte description du plugin |
+| `description` | Oui | Description courte du plugin |
 | `version` | Oui | Chaîne de version sémantique |
 | `author.name` | Oui | Auteur du plugin |
 | `source` | Oui | Chemin ou URL vers le plugin (voir Types de sources) |
-| `category` | Oui | Catégorie du plugin (par ex., `productivity`) |
+| `category` | Oui | Catégorie du plugin (ex. : `productivity`) |
 | `homepage` | Non | URL vers la documentation ou la page d'accueil du plugin |
 | `license` | Non | Identifiant de licence SPDX |
 | `keywords` | Non | Tableau de mots-clés de recherche |
 | `tags` | Non | Tableau de tags pour le filtrage |
 | `repository` | Non | URL du dépôt |
 
-## Types de sources de plugin
+## Types de sources de plugins
 
 Le champ `source` dans marketplace.json prend en charge plusieurs
 formats :
 
 | Type | Exemple | Description |
 |------|---------|-------------|
-| Chemin relatif | `./plugins/my-plugin` | Plugin dans le même dépôt |
+| Chemin relatif | `./plugins/example-plugin` | Plugin dans le même dépôt |
 | Raccourci GitHub | `owner/repo` | Plugin à la racine du dépôt |
 | GitHub avec chemin | `owner/repo/path/to/plugin` | Plugin dans un sous-répertoire |
 | URL Git | `https://github.com/owner/repo.git` | Dépôt Git |
@@ -61,7 +61,7 @@ formats :
 
 ## Schéma plugin.json
 
-Chaque plugin possède un manifeste dans
+Chaque plugin possède un manifeste situé dans
 `.claude-plugin/plugin.json` à l'intérieur de son répertoire.
 
 | Champ | Requis | Description |
@@ -76,27 +76,26 @@ Chaque plugin possède un manifeste dans
 | `license` | Non | Identifiant de licence SPDX |
 | `repository` | Non | URL du dépôt |
 
-## Structure des répertoires d'un plugin
+## Structure du répertoire d'un plugin
 
 ```
-plugins/my-plugin/
+plugins/example-plugin/
   .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+    plugin.json          # Manifeste du plugin (requis)
   skills/
     skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+      SKILL.md           # Définition de la compétence (requis par compétence)
+      references/        # Fichiers de données de référence (optionnel)
   commands/
-    command-name.md      # Command definition (one per command)
+    command-name.md      # Définition de la commande (une par commande)
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    agent-name.md        # Définition de l'agent (une par agent)
+  README.md              # Documentation du plugin (recommandé)
 ```
 
 ## Variables d'environnement
 
-Les plugins peuvent utiliser ces variables dans leurs fichiers
-de compétences et de commandes :
+Les plugins peuvent utiliser ces variables dans leurs fichiers de compétences et de commandes :
 
 | Variable | Description |
 |----------|-------------|
@@ -104,25 +103,25 @@ de compétences et de commandes :
 
 ## Validation
 
-Validez vos manifestes de marketplace et de plugin localement :
+Validez localement vos manifestes de place de marché et de plugin :
 
 ```bash
 claude plugin validate .
 ```
 
-Cela vérifie :
+Cette commande vérifie :
 
-- La conformité au schéma de `marketplace.json`
+- La conformité du schéma `marketplace.json`
 - L'existence de tous les répertoires de plugins référencés
 - La présence d'un `plugin.json` valide pour chaque plugin
-- Le formatage correct du frontmatter de `SKILL.md` pour les compétences
-- La présence des champs frontmatter requis pour les commandes
+- Le format correct du frontmatter `SKILL.md` pour les compétences
+- La présence des champs de frontmatter requis pour les commandes
 
 ## Configuration d'équipe
 
-### Pré-configuration des marketplaces
+### Préconfiguration des places de marché
 
-Ajoutez dans `.claude/settings.json` de n'importe quel dépôt :
+Ajoutez dans `.claude/settings.json` dans n'importe quel dépôt :
 
 ```json
 {
@@ -132,7 +131,7 @@ Ajoutez dans `.claude/settings.json` de n'importe quel dépôt :
 }
 ```
 
-### Pré-activation des plugins
+### Préactivation des plugins
 
 ```json
 {
@@ -143,49 +142,47 @@ Ajoutez dans `.claude/settings.json` de n'importe quel dépôt :
 ```
 
 <Aside type="tip">
-  Commiter ces paramètres dans votre dépôt garantit que chaque
+  Valider ces paramètres dans votre dépôt garantit que chaque
   membre de l'équipe obtient automatiquement la même configuration
-  de marketplace et de plugins.
+  de place de marché et de plugins.
 </Aside>
 
-## Dépannage
+## Résolution des problèmes
 
-### Marketplace introuvable
+### Place de marché introuvable
 
-Vérifiez que le marketplace a été ajouté :
+Vérifiez que la place de marché a bien été ajoutée :
 
 ```
 /plugin marketplace list
 ```
 
-S'il est manquant, ajoutez-le à nouveau :
+Si elle est absente, ajoutez-la à nouveau :
 
 ```
 /plugin marketplace add f5xc-salesdemos/marketplace
 ```
 
-### Le plugin ne s'active pas
+### Plugin non activé
 
 - Confirmez que le plugin est installé :
   `/plugin list`
 - Vérifiez que votre version de Claude Code prend en charge les plugins
   (v1.0.33+)
-- Vérifiez que les conditions de déclenchement de la compétence correspondent
-  à votre contexte actuel
+- Vérifiez que les conditions de déclenchement de la compétence correspondent à votre
+  contexte actuel
 
-### Les compétences ne se déclenchent pas automatiquement
+### Compétences ne se déclenchant pas automatiquement
 
-Les compétences s'activent en fonction de leur champ `description` dans
-le frontmatter de SKILL.md. Si une compétence ne s'active pas comme
-prévu :
+Les compétences s'activent en fonction de leur champ `description` dans le frontmatter de SKILL.md. Si une compétence ne s'active pas comme prévu :
 
-- Vérifiez que la description décrit précisément le contexte
-  de déclenchement
-- Utilisez la commande directement (par ex., `/f5xc-docs-tools:review-mdx`)
+- Vérifiez que la description décrit précisément le
+  contexte de déclenchement
+- Utilisez la commande directement (ex. : `/f5xc-docs-tools:review-mdx`)
   comme solution de contournement
 
-### Erreurs de build après la revue
+### Erreurs de compilation après la révision
 
-Le plugin signale des problèmes mais ne les corrige pas automatiquement.
-Appliquez les corrections suggérées manuellement, puis relancez la revue
-pour confirmer la résolution.
+Le plugin signale les problèmes mais ne les corrige pas automatiquement. Appliquez
+les corrections suggérées manuellement, puis relancez la révision pour
+confirmer la résolution.

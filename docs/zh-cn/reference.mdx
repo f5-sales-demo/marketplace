@@ -1,47 +1,47 @@
 ---
-title: 参考
-description: marketplace.json 模式参考，包含字段定义、技能配置和验证规则。
+title: 参考文档
+description: marketplace.json 架构参考，包含字段定义、技能配置和验证规则。
 sidebar:
   order: 7
 i18n:
-  sourceHash: 15be095fe190
+  sourceHash: 34bc5641ff92
   translator: machine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-## marketplace.json 模式
+## marketplace.json 架构
 
-市场清单文件位于仓库根目录的
+Marketplace 清单文件位于仓库根目录的
 `.claude-plugin/marketplace.json`。
 
-### 顶层字段
+### 顶级字段
 
-| 字段 | 必需 | 描述 |
+| 字段 | 是否必填 | 描述 |
 |-------|----------|-------------|
 | `$schema` | 否 | 用于验证的 JSON Schema URL |
-| `name` | 是 | 唯一的市场标识符 |
-| `version` | 否 | 市场模式版本（语义化版本） |
-| `metadata.description` | 是 | 人类可读的市场描述 |
-| `owner.name` | 是 | 拥有该市场的组织或用户 |
+| `name` | 是 | 唯一的 Marketplace 标识符 |
+| `version` | 否 | Marketplace 架构版本（semver） |
+| `metadata.description` | 是 | 人类可读的 Marketplace 描述 |
+| `owner.name` | 是 | 拥有该 Marketplace 的组织或用户 |
 | `owner.url` | 否 | 所有者主页或网站的 URL |
 | `owner.email` | 否 | 联系邮箱 |
 | `plugins` | 是 | 插件条目数组 |
 
 ### 插件条目字段
 
-| 字段 | 必需 | 描述 |
+| 字段 | 是否必填 | 描述 |
 |-------|----------|-------------|
-| `name` | 是 | 插件标识符（必须与 `plugin.json` 匹配） |
+| `name` | 是 | 插件标识符（须与 `plugin.json` 匹配） |
 | `description` | 是 | 插件的简短描述 |
-| `version` | 是 | 语义化版本字符串 |
+| `version` | 是 | 语义版本字符串 |
 | `author.name` | 是 | 插件作者 |
 | `source` | 是 | 插件的路径或 URL（参见来源类型） |
-| `category` | 是 | 插件类别（例如 `productivity`） |
+| `category` | 是 | 插件分类（例如 `productivity`） |
 | `homepage` | 否 | 插件文档或主页的 URL |
 | `license` | 否 | SPDX 许可证标识符 |
 | `keywords` | 否 | 搜索关键词数组 |
-| `tags` | 否 | 用于筛选的标签数组 |
+| `tags` | 否 | 用于过滤的标签数组 |
 | `repository` | 否 | 仓库 URL |
 
 ## 插件来源类型
@@ -50,22 +50,21 @@ marketplace.json 中的 `source` 字段支持多种格式：
 
 | 类型 | 示例 | 描述 |
 |------|---------|-------------|
-| 相对路径 | `./plugins/my-plugin` | 同一仓库中的插件 |
+| 相对路径 | `./plugins/example-plugin` | 同一仓库中的插件 |
 | GitHub 简写 | `owner/repo` | 位于仓库根目录的插件 |
-| GitHub 带路径 | `owner/repo/path/to/plugin` | 位于子目录中的插件 |
+| 带路径的 GitHub | `owner/repo/path/to/plugin` | 位于子目录中的插件 |
 | Git URL | `https://github.com/owner/repo.git` | Git 仓库 |
 | npm 包 | `npm:@scope/package` | 已发布的 npm 包 |
 
-## plugin.json 模式
+## plugin.json 架构
 
-每个插件在其目录内的
-`.claude-plugin/plugin.json` 中有一个清单文件。
+每个插件在其目录内的 `.claude-plugin/plugin.json` 中包含一个清单文件。
 
-| 字段 | 必需 | 描述 |
+| 字段 | 是否必填 | 描述 |
 |-------|----------|-------------|
 | `name` | 是 | 插件标识符 |
-| `description` | 是 | 插件的功能描述 |
-| `version` | 是 | 语义化版本 |
+| `description` | 是 | 插件的功能说明 |
+| `version` | 是 | 语义版本 |
 | `author.name` | 是 | 插件作者 |
 | `author.url` | 否 | 作者主页或网站的 URL |
 | `homepage` | 否 | 文档 URL |
@@ -76,18 +75,18 @@ marketplace.json 中的 `source` 字段支持多种格式：
 ## 插件目录结构
 
 ```
-plugins/my-plugin/
+plugins/example-plugin/
   .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+    plugin.json          # 插件清单（必填）
   skills/
     skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+      SKILL.md           # 技能定义（每个技能必填）
+      references/        # 参考数据文件（可选）
   commands/
-    command-name.md      # Command definition (one per command)
+    command-name.md      # 命令定义（每个命令一个文件）
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    agent-name.md        # 代理定义（每个代理一个文件）
+  README.md              # 插件文档（推荐）
 ```
 
 ## 环境变量
@@ -100,23 +99,23 @@ plugins/my-plugin/
 
 ## 验证
 
-在本地验证您的市场和插件清单：
+在本地验证您的 Marketplace 和插件清单：
 
 ```bash
 claude plugin validate .
 ```
 
-此命令会检查：
+此命令将检查：
 
-- `marketplace.json` 模式合规性
+- `marketplace.json` 的架构合规性
 - 所有引用的插件目录是否存在
-- 每个插件是否有有效的 `plugin.json`
-- 技能是否有格式正确的 `SKILL.md` 前置元数据
-- 命令是否有必需的前置元数据字段
+- 每个插件是否具有有效的 `plugin.json`
+- 技能是否具有格式正确的 `SKILL.md` frontmatter
+- 命令是否包含必填的 frontmatter 字段
 
 ## 团队配置
 
-### 预配置市场
+### 预配置 Marketplace
 
 在任意仓库的 `.claude/settings.json` 中添加：
 
@@ -139,14 +138,15 @@ claude plugin validate .
 ```
 
 <Aside type="tip">
-  将这些设置提交到您的仓库中，可确保每位团队成员自动获得相同的市场和插件配置。
+  将这些设置提交到仓库后，每位团队成员都将自动获得相同的
+  Marketplace 和插件配置。
 </Aside>
 
-## 故障排除
+## 故障排查
 
-### 找不到市场
+### 找不到 Marketplace
 
-验证市场是否已添加：
+验证 Marketplace 是否已添加：
 
 ```
 /plugin marketplace list
@@ -164,15 +164,16 @@ claude plugin validate .
   `/plugin list`
 - 检查您的 Claude Code 版本是否支持插件
   （v1.0.33+）
-- 验证技能的触发条件是否与您当前的上下文匹配
+- 验证技能的触发条件是否与当前上下文匹配
 
 ### 技能未自动触发
 
-技能根据 SKILL.md 前置元数据中的 `description` 字段激活。如果技能未按预期激活：
+技能根据 SKILL.md frontmatter 中的 `description` 字段激活。如果技能未按预期触发：
 
 - 检查描述是否准确描述了触发上下文
-- 直接使用命令（例如 `/f5xc-docs-tools:review-mdx`）作为替代方案
+- 直接使用命令（例如 `/f5xc-docs-tools:review-mdx`）
+  作为临时解决方案
 
 ### 审查后出现构建错误
 
-插件会报告问题但不会自动修复。请手动应用建议的修复，然后重新运行审查以确认问题已解决。
+插件会报告问题，但不会自动修复。请手动应用建议的修复方案，然后重新运行审查以确认问题已解决。

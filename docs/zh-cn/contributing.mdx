@@ -1,10 +1,10 @@
 ---
 title: 贡献插件
-description: 创建、组织和发布 f5xc-salesdemos 市场插件的指南。
+description: 创建、构建和发布 f5xc-salesdemos 市场插件的指南。
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
@@ -15,23 +15,23 @@ f5xc-salesdemos 市场。
 
 ## 插件结构
 
-每个插件都位于 `plugins/` 下的独立目录中，
-遵循以下结构：
+每个插件都存放在 `plugins/` 下各自独立的目录中，
+并遵循以下结构：
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
@@ -42,24 +42,24 @@ f5xc-salesdemos 市场。
 1. **创建插件目录**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **编写 `plugin.json`**
 
-   创建 `plugins/my-plugin/.claude-plugin/plugin.json`：
+   创建 `plugins/example-plugin/.claude-plugin/plugin.json`：
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
@@ -68,24 +68,23 @@ f5xc-salesdemos 市场。
 
 3. **添加技能**
 
-   创建 `plugins/my-plugin/skills/my-skill/SKILL.md`，
-   包含 frontmatter：
+   创建 `plugins/example-plugin/skills/example-skill/SKILL.md`，
+   并包含以下 frontmatter：
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   将任何参考数据放在 `SKILL.md` 旁边的 `references/`
-   子目录中。
+   将所有参考数据放置在与 `SKILL.md` 同级的 `references/` 子目录中。
 
 4. **添加命令**
 
-   创建 `plugins/my-plugin/commands/my-command.md`：
+   创建 `plugins/example-plugin/commands/example-command.md`：
 
    ```markdown
    ---
@@ -102,18 +101,18 @@ f5xc-salesdemos 市场。
 
 5. **将插件添加到 marketplace.json**
 
-   在 `.claude-plugin/marketplace.json` 的 `plugins`
-   数组中添加一个条目：
+   在 `.claude-plugin/marketplace.json` 的 `plugins` 数组中
+   添加一条条目：
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -123,45 +122,39 @@ f5xc-salesdemos 市场。
 
 6. **本地测试**
 
-   无需发布即可测试您的插件，将 Claude Code
-   指向本地目录：
+   在发布之前，通过将 Claude Code 指向本地目录来测试插件：
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   验证技能在正确的上下文中激活，且命令产生
-   预期的输出。
+   验证技能是否在正确的上下文中激活，以及
+   命令是否产生预期输出。
 
 </Steps>
 
-## 提交您的插件
+## 提交插件
 
 <Aside type="tip" title="仓库工作流">
-  本仓库强制执行严格的治理工作流。
-  请参阅 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
-  了解完整流程。
+  本仓库执行严格的治理工作流。
+  完整流程请参阅 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)。
 </Aside>
 
 <Steps>
 
-1. 创建一个 GitHub issue 描述新插件
-2. 从 `main` 创建一个功能分支
-3. 添加您的插件目录并更新 `marketplace.json`
-4. 在 `docs/plugins/my-plugin.mdx` 添加文档页面
-5. 提交 PR 并通过 `Closes #N` 链接到对应 issue
-6. 修复所有 CI 失败问题，检查通过后合并
+1. 创建一个描述新插件的 GitHub Issue
+2. 从 `main` 创建功能分支
+3. 添加插件目录并更新 `marketplace.json`
+4. 在 `docs/plugins/example-plugin.mdx` 添加文档页面
+5. 开启 PR 并通过 `Closes #N` 关联对应 Issue
+6. 修复所有 CI 失败问题，待检查通过后合并
 
 </Steps>
 
 ## 最佳实践
 
-- **保持技能专注** — 一个技能应该只做好一件事
-- **使用参考文件** — 将大型数据集、模式和查找表放在
-  `references/` 中，而不是内联在 SKILL.md 中
-- **智能限定范围** — 尽可能检查未提交的更改以
-  缩小工作集
-- **按严重程度分组输出** — 使用 ERROR、WARNING 和 INFO
-  级别，以便用户优先处理修复
-- **编写 README** — 包含使用示例以及每个技能和
-  命令的功能描述
+- **保持技能聚焦** — 一个技能应当只做好一件事
+- **使用参考文件** — 将大型数据集、模式和查找表放在 `references/` 中，而非直接内联在 SKILL.md 中
+- **合理界定范围** — 尽可能通过检查未提交的变更来缩小工作集
+- **按严重程度分组输出** — 使用 ERROR、WARNING 和 INFO 级别，以便用户优先处理问题
+- **编写 README** — 包含使用示例，以及每个技能和命令的功能说明

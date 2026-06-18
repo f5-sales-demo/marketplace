@@ -1,35 +1,37 @@
 ---
 title: プラグインの貢献
-description: f5xc-salesdemos マーケットプレイス向けのプラグインの作成、構造化、公開に関するガイド。
+description: f5xc-salesdemos マーケットプレイス向けプラグインの作成、構造化、公開に関するガイド。
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-このガイドでは、新しいプラグインを作成し、f5xc-salesdemos マーケットプレイスに追加する方法を説明します。
+このガイドでは、新しいプラグインを作成し、
+f5xc-salesdemos マーケットプレイスに追加する方法を説明します。
 
 ## プラグインの構造
 
-すべてのプラグインは `plugins/` 配下の独自のディレクトリに配置され、以下の構造に従います：
+すべてのプラグインは `plugins/` 配下の専用ディレクトリに配置され、
+以下の構造に従います：
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
@@ -37,51 +39,51 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 <Steps>
 
-1. **プラグインディレクトリを作成する**
+1. **プラグインディレクトリの作成**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
-2. **`plugin.json` を記述する**
+2. **`plugin.json` の作成**
 
-   `plugins/my-plugin/.claude-plugin/plugin.json` を作成します：
+   `plugins/example-plugin/.claude-plugin/plugin.json` を作成します：
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
    }
    ```
 
-3. **スキルを追加する**
+3. **スキルの追加**
 
-   フロントマター付きで `plugins/my-plugin/skills/my-skill/SKILL.md` を作成します：
+   `plugins/example-plugin/skills/example-skill/SKILL.md` をフロントマター付きで作成します：
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   参照データは `SKILL.md` と同じ階層の `references/` サブディレクトリに配置します。
+   参照データは `SKILL.md` と同じ階層の `references/` サブディレクトリに配置してください。
 
-4. **コマンドを追加する**
+4. **コマンドの追加**
 
-   `plugins/my-plugin/commands/my-command.md` を作成します：
+   `plugins/example-plugin/commands/example-command.md` を作成します：
 
    ```markdown
    ---
@@ -96,19 +98,19 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    Instructions for Claude when the user invokes this command.
    ```
 
-5. **マーケットプレイスの marketplace.json にプラグインを追加する**
+5. **marketplace.json へのプラグイン登録**
 
    `.claude-plugin/marketplace.json` の `plugins` 配列にエントリを追加します：
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -116,40 +118,41 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    }
    ```
 
-6. **ローカルでテストする**
+6. **ローカルでのテスト**
 
-   公開せずにプラグインをテストするには、Claude Code をローカルディレクトリに向けます：
+   公開前に、Claude Code をローカルディレクトリに向けてプラグインをテストします：
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   スキルが適切なコンテキストでアクティベートされること、コマンドが期待通りの出力を生成することを確認します。
+   スキルが適切なコンテキストで起動すること、およびコマンドが期待通りの出力を生成することを確認してください。
 
 </Steps>
 
 ## プラグインの提出
 
 <Aside type="tip" title="リポジトリのワークフロー">
-  このリポジトリは厳格なガバナンスワークフローを適用しています。
-  完全なプロセスについては [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md) を参照してください。
+  このリポジトリは厳格なガバナンスワークフローを採用しています。
+  詳細なプロセスについては [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
+  を参照してください。
 </Aside>
 
 <Steps>
 
-1. 新しいプラグインについて説明する GitHub Issue を作成する
+1. 新しいプラグインを説明する GitHub Issue を作成する
 2. `main` からフィーチャーブランチを作成する
 3. プラグインディレクトリを追加し、`marketplace.json` を更新する
-4. `docs/plugins/my-plugin.mdx` にドキュメントページを追加する
-5. `Closes #N` を含めて Issue にリンクする PR を作成する
-6. CI の失敗を修正し、チェックが通った後にマージする
+4. `docs/plugins/example-plugin.mdx` にドキュメントページを追加する
+5. Issue に `Closes #N` でリンクした PR を作成する
+6. CI の失敗を修正し、チェックが通過した後にマージする
 
 </Steps>
 
 ## ベストプラクティス
 
-- **スキルは焦点を絞る** — 1つのスキルは1つのことをうまくこなすべきです
-- **参照ファイルを使用する** — 大きなデータセット、スキーマ、ルックアップテーブルは SKILL.md にインラインで記述するのではなく `references/` に配置します
-- **スコープを賢く設定する** — 可能な場合はコミットされていない変更をチェックして作業セットを絞り込みます
-- **出力を重要度別にグループ化する** — ユーザーが修正の優先順位を付けられるよう、ERROR、WARNING、INFO レベルを使用します
-- **README を記述する** — 使用例と各スキルおよびコマンドの説明を含めます
+- **スキルをフォーカスさせる** — 1 つのスキルは 1 つのことに特化させる
+- **参照ファイルを活用する** — 大規模なデータセット、スキーマ、ルックアップテーブルは `SKILL.md` にインラインで記述するのではなく `references/` に配置する
+- **スコープを適切に設定する** — 可能であれば未コミットの変更を確認して作業対象を絞り込む
+- **出力を重大度別にグループ化する** — ERROR、WARNING、INFO レベルを使用してユーザーが修正の優先順位を付けられるようにする
+- **README を作成する** — 各スキルとコマンドの使用例および説明を記載する

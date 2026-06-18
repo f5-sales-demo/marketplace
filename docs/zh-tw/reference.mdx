@@ -1,18 +1,18 @@
 ---
 title: 參考文件
-description: marketplace.json 結構參考，包含欄位定義、技能配置與驗證規則。
+description: marketplace.json 綱要參考，包含欄位定義、技能配置及驗證規則。
 sidebar:
   order: 7
 i18n:
-  sourceHash: 15be095fe190
+  sourceHash: 34bc5641ff92
   translator: machine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-## marketplace.json 結構
+## marketplace.json 綱要
 
-marketplace 清單檔案位於儲存庫根目錄的
+市集清單位於儲存庫根目錄的
 `.claude-plugin/marketplace.json`。
 
 ### 頂層欄位
@@ -20,24 +20,24 @@ marketplace 清單檔案位於儲存庫根目錄的
 | 欄位 | 必填 | 說明 |
 |-------|----------|-------------|
 | `$schema` | 否 | 用於驗證的 JSON Schema URL |
-| `name` | 是 | 唯一的 marketplace 識別碼 |
-| `version` | 否 | Marketplace 結構版本（語意化版本） |
-| `metadata.description` | 是 | 人類可讀的 marketplace 描述 |
-| `owner.name` | 是 | 擁有該 marketplace 的組織或使用者 |
-| `owner.url` | 否 | 擁有者的個人檔案或網站 URL |
+| `name` | 是 | 唯一的市集識別碼 |
+| `version` | 否 | 市集綱要版本（semver） |
+| `metadata.description` | 是 | 人類可讀的市集描述 |
+| `owner.name` | 是 | 擁有此市集的組織或使用者 |
+| `owner.url` | 否 | 擁有者個人檔案或網站的 URL |
 | `owner.email` | 否 | 聯絡電子郵件 |
-| `plugins` | 是 | 外掛程式條目陣列 |
+| `plugins` | 是 | 外掛程式項目陣列 |
 
-### 外掛程式條目欄位
+### 外掛程式項目欄位
 
 | 欄位 | 必填 | 說明 |
 |-------|----------|-------------|
-| `name` | 是 | 外掛程式識別碼（必須與 `plugin.json` 相符） |
-| `description` | 是 | 外掛程式的簡短描述 |
+| `name` | 是 | 外掛程式識別碼（須與 `plugin.json` 相符） |
+| `description` | 是 | 外掛程式的簡短說明 |
 | `version` | 是 | 語意化版本字串 |
 | `author.name` | 是 | 外掛程式作者 |
-| `source` | 是 | 外掛程式的路徑或 URL（參見來源類型） |
-| `category` | 是 | 外掛程式類別（例如 `productivity`） |
+| `source` | 是 | 外掛程式的路徑或 URL（請參閱來源類型） |
+| `category` | 是 | 外掛程式分類（例如 `productivity`） |
 | `homepage` | 否 | 外掛程式文件或首頁的 URL |
 | `license` | 否 | SPDX 授權識別碼 |
 | `keywords` | 否 | 搜尋關鍵字陣列 |
@@ -51,16 +51,16 @@ marketplace.json 中的 `source` 欄位支援多種
 
 | 類型 | 範例 | 說明 |
 |------|---------|-------------|
-| 相對路徑 | `./plugins/my-plugin` | 同一儲存庫中的外掛程式 |
+| 相對路徑 | `./plugins/example-plugin` | 位於相同儲存庫的外掛程式 |
 | GitHub 簡寫 | `owner/repo` | 位於儲存庫根目錄的外掛程式 |
-| GitHub 含路徑 | `owner/repo/path/to/plugin` | 位於子目錄的外掛程式 |
+| 含路徑的 GitHub | `owner/repo/path/to/plugin` | 位於子目錄的外掛程式 |
 | Git URL | `https://github.com/owner/repo.git` | Git 儲存庫 |
 | npm 套件 | `npm:@scope/package` | 已發佈的 npm 套件 |
 
-## plugin.json 結構
+## plugin.json 綱要
 
 每個外掛程式在其目錄內的
-`.claude-plugin/plugin.json` 都有一個清單檔案。
+`.claude-plugin/plugin.json` 中有一份清單。
 
 | 欄位 | 必填 | 說明 |
 |-------|----------|-------------|
@@ -68,7 +68,7 @@ marketplace.json 中的 `source` 欄位支援多種
 | `description` | 是 | 外掛程式的功能說明 |
 | `version` | 是 | 語意化版本 |
 | `author.name` | 是 | 外掛程式作者 |
-| `author.url` | 否 | 作者的個人檔案或網站 URL |
+| `author.url` | 否 | 作者個人檔案或網站的 URL |
 | `homepage` | 否 | 文件 URL |
 | `keywords` | 否 | 搜尋關鍵字 |
 | `license` | 否 | SPDX 授權識別碼 |
@@ -77,24 +77,23 @@ marketplace.json 中的 `source` 欄位支援多種
 ## 外掛程式目錄結構
 
 ```
-plugins/my-plugin/
+plugins/example-plugin/
   .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+    plugin.json          # 外掛程式清單（必要）
   skills/
     skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+      SKILL.md           # 技能定義（每個技能必要）
+      references/        # 參考資料檔案（可選）
   commands/
-    command-name.md      # Command definition (one per command)
+    command-name.md      # 指令定義（每個指令一個）
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    agent-name.md        # 代理程式定義（每個代理程式一個）
+  README.md              # 外掛程式文件（建議提供）
 ```
 
 ## 環境變數
 
-外掛程式可以在其技能和命令
-檔案中使用這些變數：
+外掛程式可在其技能和指令檔案中使用以下變數：
 
 | 變數 | 說明 |
 |----------|-------------|
@@ -102,25 +101,25 @@ plugins/my-plugin/
 
 ## 驗證
 
-在本機驗證您的 marketplace 和外掛程式清單：
+在本機驗證您的市集和外掛程式清單：
 
 ```bash
 claude plugin validate .
 ```
 
-這會檢查：
+此指令會檢查：
 
-- `marketplace.json` 結構合規性
-- 所有引用的外掛程式目錄是否存在
-- 每個外掛程式是否有有效的 `plugin.json`
-- 技能是否有正確格式的 `SKILL.md` 前置資料
-- 命令是否有必填的前置資料欄位
+- `marketplace.json` 綱要合規性
+- 所有參照的外掛程式目錄是否存在
+- 每個外掛程式是否具有有效的 `plugin.json`
+- 技能是否具有格式正確的 `SKILL.md` frontmatter
+- 指令是否具有必要的 frontmatter 欄位
 
 ## 團隊配置
 
-### 預先配置 marketplace
+### 預先配置市集
 
-在任何儲存庫的 `.claude/settings.json` 中新增：
+在任意儲存庫的 `.claude/settings.json` 中新增：
 
 ```json
 {
@@ -141,22 +140,22 @@ claude plugin validate .
 ```
 
 <Aside type="tip">
-  將這些設定提交到您的儲存庫，可確保每位
-  團隊成員自動獲得相同的 marketplace 和外掛程式
+  將這些設定提交至儲存庫，可確保每位
+  團隊成員自動獲得相同的市集和外掛程式
   配置。
 </Aside>
 
 ## 疑難排解
 
-### 找不到 Marketplace
+### 找不到市集
 
-確認 marketplace 是否已新增：
+確認市集已新增：
 
 ```
 /plugin marketplace list
 ```
 
-如果缺少，請重新新增：
+若缺少，請重新新增：
 
 ```
 /plugin marketplace add f5xc-salesdemos/marketplace
@@ -166,23 +165,19 @@ claude plugin validate .
 
 - 確認外掛程式已安裝：
   `/plugin list`
-- 檢查您的 Claude Code 版本是否支援外掛程式
+- 確認您的 Claude Code 版本支援外掛程式
   （v1.0.33+）
-- 確認技能的觸發條件是否與您目前的
-  環境相符
+- 確認技能的觸發條件與您目前的
+  情境相符
 
 ### 技能未自動觸發
 
-技能根據 SKILL.md 前置資料中的 `description` 欄位
-進行啟動。如果技能未在預期時啟動：
+技能根據 SKILL.md frontmatter 中的 `description` 欄位啟動。若技能未在預期時觸發：
 
-- 檢查描述是否準確地描述了
+- 確認說明內容是否準確描述了
   觸發情境
-- 直接使用命令（例如 `/f5xc-docs-tools:review-mdx`）
-  作為替代方案
+- 直接使用指令作為暫時解決方案（例如 `/f5xc-docs-tools:review-mdx`）
 
-### 審查後出現建置錯誤
+### 審查後發生建置錯誤
 
-外掛程式會回報問題但不會自動修復。請手動
-套用建議的修正，然後重新執行審查以
-確認問題已解決。
+外掛程式會回報問題，但不會自動修復。請手動套用建議的修正，然後重新執行審查以確認問題已解決。

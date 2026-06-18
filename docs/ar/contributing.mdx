@@ -1,91 +1,91 @@
 ---
-title: المساهمة بإضافة
-description: دليل لإنشاء الإضافات وتنظيمها ونشرها في سوق f5xc-salesdemos.
+title: المساهمة بإضافة Plugin
+description: دليل لإنشاء وهيكلة ونشر الإضافات (Plugins) في سوق f5xc-salesdemos.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-يشرح هذا الدليل كيفية إنشاء إضافة جديدة وإضافتها إلى
+يشرح هذا الدليل كيفية إنشاء إضافة (Plugin) جديدة وإضافتها إلى
 سوق f5xc-salesdemos.
 
-## هيكل الإضافة
+## هيكل الإضافة (Plugin)
 
-تتواجد كل إضافة في مجلدها الخاص ضمن `plugins/` وتتبع
-هذا الهيكل:
+تقع كل إضافة في دليلها الخاص ضمن `plugins/` وتتبع
+الهيكل التالي:
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
-## إنشاء إضافة
+## إنشاء إضافة (Plugin)
 
 <Steps>
 
-1. **إنشاء مجلد الإضافة**
+1. **إنشاء دليل الإضافة**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **كتابة `plugin.json`**
 
-   أنشئ الملف `plugins/my-plugin/.claude-plugin/plugin.json`:
+   أنشئ `plugins/example-plugin/.claude-plugin/plugin.json`:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
    }
    ```
 
-3. **إضافة المهارات**
+3. **إضافة المهارات (Skills)**
 
-   أنشئ الملف `plugins/my-plugin/skills/my-skill/SKILL.md` مع
-   البيانات الوصفية الأمامية:
+   أنشئ `plugins/example-plugin/skills/example-skill/SKILL.md` مع
+   بيانات أولية (frontmatter):
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   ضع أي بيانات مرجعية في مجلد فرعي `references/`
+   ضع أي بيانات مرجعية في دليل فرعي `references/`
    بجانب `SKILL.md`.
 
-4. **إضافة الأوامر**
+4. **إضافة الأوامر (Commands)**
 
-   أنشئ الملف `plugins/my-plugin/commands/my-command.md`:
+   أنشئ `plugins/example-plugin/commands/example-command.md`:
 
    ```markdown
    ---
@@ -107,13 +107,13 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -124,44 +124,40 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 6. **الاختبار محلياً**
 
    اختبر إضافتك دون نشرها عن طريق توجيه Claude Code
-   إلى المجلد المحلي:
+   إلى الدليل المحلي:
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
    تحقق من أن المهارات تُفعَّل في السياق الصحيح وأن
-   الأوامر تُنتج المخرجات المتوقعة.
+   الأوامر تنتج المخرجات المتوقعة.
 
 </Steps>
 
-## تقديم إضافتك
+## تقديم إضافتك (Plugin)
 
 <Aside type="tip" title="سير عمل المستودع">
-  يفرض هذا المستودع سير عمل حوكمة صارم.
+  يُطبّق هذا المستودع سير عمل صارماً للحوكمة.
   راجع [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   للاطلاع على العملية الكاملة.
 </Aside>
 
 <Steps>
 
-1. أنشئ مشكلة (issue) على GitHub تصف الإضافة الجديدة
-2. أنشئ فرعاً للميزة من `main`
-3. أضف مجلد إضافتك وحدّث `marketplace.json`
-4. أضف صفحة توثيق في `docs/plugins/my-plugin.mdx`
-5. افتح طلب سحب (PR) مرتبطاً بالمشكلة مع `Closes #N`
-6. أصلح أي إخفاقات في CI وادمج بعد نجاح جميع الفحوصات
+1. أنشئ issue على GitHub يصف الإضافة الجديدة
+2. أنشئ فرعاً (feature branch) من `main`
+3. أضف دليل إضافتك وحدّث `marketplace.json`
+4. أضف صفحة توثيق على المسار `docs/plugins/example-plugin.mdx`
+5. افتح طلب سحب (PR) مرتبطاً بالـ issue مع `Closes #N`
+6. أصلح أي أخطاء في CI وادمج التغييرات بعد اجتياز الفحوصات
 
 </Steps>
 
 ## أفضل الممارسات
 
-- **اجعل المهارات مركّزة** — يجب أن تؤدي كل مهارة شيئاً واحداً بشكل جيد
-- **استخدم الملفات المرجعية** — ضع مجموعات البيانات الكبيرة والمخططات
-  وجداول البحث في `references/` بدلاً من تضمينها في SKILL.md
-- **حدد النطاق بذكاء** — تحقق من التغييرات غير المُودعة
-  لتضييق نطاق العمل عند الإمكان
-- **جمّع المخرجات حسب الخطورة** — استخدم مستويات ERROR وWARNING وINFO
-  حتى يتمكن المستخدمون من ترتيب الإصلاحات حسب الأولوية
-- **اكتب ملف README** — أضف أمثلة استخدام ووصفاً
-  لما تفعله كل مهارة وكل أمر
+- **أبقِ المهارات مركّزة** — يجب أن تؤدي كل مهارة مهمة واحدة بشكل جيد
+- **استخدم ملفات المرجعية** — ضع مجموعات البيانات الكبيرة والمخططات وجداول البحث في `references/` بدلاً من تضمينها مباشرةً في SKILL.md
+- **حدّد النطاق بذكاء** — تحقق من التغييرات غير الملتزم بها لتضييق نطاق العمل عند الإمكان
+- **رتّب المخرجات حسب الخطورة** — استخدم مستويات ERROR وWARNING وINFO حتى يتمكن المستخدمون من تحديد أولويات الإصلاحات
+- **اكتب ملف README** — أدرج أمثلة استخدام ووصفاً لما تفعله كل مهارة وأمر

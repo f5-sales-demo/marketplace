@@ -1,39 +1,37 @@
 ---
-title: การมีส่วนร่วมในการพัฒนาปลั๊กอิน
-description: >-
-  คู่มือสำหรับการสร้าง จัดโครงสร้าง และเผยแพร่ปลั๊กอินสำหรับมาร์เก็ตเพลส
-  f5xc-salesdemos
+title: การมีส่วนร่วมในการสร้างปลั๊กอิน
+description: คู่มือการสร้าง จัดโครงสร้าง และเผยแพร่ปลั๊กอินสำหรับตลาดกลาง f5xc-salesdemos
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-คู่มือนี้อธิบายวิธีการสร้างปลั๊กอินใหม่และเพิ่มลงใน
-มาร์เก็ตเพลส f5xc-salesdemos
+คู่มือนี้อธิบายวิธีการสร้างปลั๊กอินใหม่และเพิ่มเข้าสู่
+ตลาดกลาง f5xc-salesdemos
 
-## โครงสร้างปลั๊กอิน
+## โครงสร้างของปลั๊กอิน
 
-ปลั๊กอินทุกตัวจะอยู่ในไดเรกทอรีของตัวเองภายใต้ `plugins/` และ
-มีโครงสร้างดังนี้:
+ปลั๊กอินทุกตัวอยู่ในไดเรกทอรีของตัวเองภายใต้ `plugins/` และ
+ปฏิบัติตามโครงสร้างนี้:
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
@@ -41,53 +39,53 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 <Steps>
 
-1. **สร้างไดเรกทอรีปลั๊กอิน**
+1. **สร้างไดเรกทอรีของปลั๊กอิน**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **เขียน `plugin.json`**
 
-   สร้างไฟล์ `plugins/my-plugin/.claude-plugin/plugin.json`:
+   สร้าง `plugins/example-plugin/.claude-plugin/plugin.json`:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
    }
    ```
 
-3. **เพิ่มทักษะ (skills)**
+3. **เพิ่ม skills**
 
-   สร้างไฟล์ `plugins/my-plugin/skills/my-skill/SKILL.md` พร้อม
+   สร้าง `plugins/example-plugin/skills/example-skill/SKILL.md` พร้อม
    frontmatter:
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   วางข้อมูลอ้างอิงในไดเรกทอรีย่อย `references/`
-   ที่อยู่ข้างๆ `SKILL.md`
+   วางข้อมูลอ้างอิงใดๆ ไว้ในไดเรกทอรีย่อย `references/`
+   ควบคู่กับ `SKILL.md`
 
-4. **เพิ่มคำสั่ง (commands)**
+4. **เพิ่ม commands**
 
-   สร้างไฟล์ `plugins/my-plugin/commands/my-command.md`:
+   สร้าง `plugins/example-plugin/commands/example-command.md`:
 
    ```markdown
    ---
@@ -104,18 +102,18 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 5. **เพิ่มปลั๊กอินลงใน marketplace.json**
 
-   เพิ่มรายการลงในอาร์เรย์ `plugins` ในไฟล์
+   เพิ่มรายการเข้าไปในอาร์เรย์ `plugins` ใน
    `.claude-plugin/marketplace.json`:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -125,45 +123,45 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 6. **ทดสอบในเครื่อง**
 
-   ทดสอบปลั๊กอินของคุณโดยไม่ต้องเผยแพร่ โดยชี้ Claude Code
+   ทดสอบปลั๊กอินของคุณโดยไม่ต้องเผยแพร่ด้วยการชี้ Claude Code
    ไปยังไดเรกทอรีในเครื่อง:
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   ตรวจสอบว่าทักษะถูกเปิดใช้งานในบริบทที่ถูกต้องและ
-   คำสั่งให้ผลลัพธ์ตามที่คาดหวัง
+   ตรวจสอบว่า skills เปิดใช้งานในบริบทที่ถูกต้องและ
+   commands ให้ผลลัพธ์ตามที่คาดหวัง
 
 </Steps>
 
 ## การส่งปลั๊กอินของคุณ
 
-<Aside type="tip" title="เวิร์กโฟลว์ของที่เก็บโค้ด">
-  ที่เก็บโค้ดนี้บังคับใช้เวิร์กโฟลว์การกำกับดูแลอย่างเข้มงวด
+<Aside type="tip" title="ขั้นตอนการทำงานของ Repository">
+  Repository นี้บังคับใช้ขั้นตอนการกำกับดูแลที่เข้มงวด
   ดู [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
-  สำหรับกระบวนการทั้งหมด
+  สำหรับขั้นตอนทั้งหมด
 </Aside>
 
 <Steps>
 
-1. สร้าง GitHub issue เพื่ออธิบายปลั๊กอินใหม่
+1. สร้าง GitHub issue ที่อธิบายปลั๊กอินใหม่
 2. สร้าง feature branch จาก `main`
 3. เพิ่มไดเรกทอรีปลั๊กอินของคุณและอัปเดต `marketplace.json`
-4. เพิ่มหน้าเอกสารที่ `docs/plugins/my-plugin.mdx`
-5. เปิด PR โดยลิงก์ไปยัง issue พร้อมข้อความ `Closes #N`
-6. แก้ไขข้อผิดพลาด CI ที่เกิดขึ้นและ merge หลังจากการตรวจสอบผ่าน
+4. เพิ่มหน้าเอกสารที่ `docs/plugins/example-plugin.mdx`
+5. เปิด PR ที่เชื่อมโยงไปยัง issue ด้วย `Closes #N`
+6. แก้ไขความล้มเหลวของ CI และรวมโค้ดหลังจากการตรวจสอบผ่าน
 
 </Steps>
 
-## แนวทางปฏิบัติที่ดี
+## แนวทางปฏิบัติที่ดีที่สุด
 
-- **ทำให้ทักษะมีจุดมุ่งหมายชัดเจน** — หนึ่งทักษะควรทำหนึ่งสิ่งให้ดี
+- **ทำให้ skills มุ่งเน้น** — skill หนึ่งตัวควรทำสิ่งเดียวได้ดี
 - **ใช้ไฟล์อ้างอิง** — วางชุดข้อมูลขนาดใหญ่ สคีมา และ
-  ตารางค้นหาใน `references/` แทนที่จะใส่ในบรรทัดใน SKILL.md
-- **กำหนดขอบเขตอย่างชาญฉลาด** — ตรวจสอบการเปลี่ยนแปลงที่ยังไม่ได้คอมมิตเพื่อ
-  จำกัดชุดงานเมื่อเป็นไปได้
-- **จัดกลุ่มผลลัพธ์ตามระดับความรุนแรง** — ใช้ระดับ ERROR, WARNING และ INFO
-  เพื่อให้ผู้ใช้สามารถจัดลำดับความสำคัญในการแก้ไข
+  ตารางค้นหาไว้ใน `references/` แทนที่จะฝังไว้ใน SKILL.md
+- **กำหนดขอบเขตอย่างชาญฉลาด** — ตรวจสอบการเปลี่ยนแปลงที่ยังไม่ได้ commit เพื่อ
+  จำกัดชุดการทำงานเมื่อเป็นไปได้
+- **จัดกลุ่มผลลัพธ์ตามความรุนแรง** — ใช้ระดับ ERROR, WARNING และ INFO
+  เพื่อให้ผู้ใช้สามารถจัดลำดับความสำคัญในการแก้ไขได้
 - **เขียน README** — รวมตัวอย่างการใช้งานและคำอธิบาย
-  ของสิ่งที่แต่ละทักษะและคำสั่งทำ
+  ว่า skill และ command แต่ละตัวทำอะไร
