@@ -1,65 +1,65 @@
 ---
-title: 貢獻外掛程式
-description: 建立、組織和發布 f5xc-salesdemos 市集外掛程式的指南。
+title: 貢獻插件
+description: 建立、組織及發布插件至 f5xc-salesdemos 市集的指南。
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-本指南說明如何建立新的外掛程式並將其新增至
+本指南說明如何建立新插件並將其加入
 f5xc-salesdemos 市集。
 
-## 外掛程式結構
+## 插件結構
 
-每個外掛程式都位於 `plugins/` 下的獨立目錄中，並
-遵循以下結構：
+每個插件都位於 `plugins/` 下的獨立目錄中，
+並遵循以下結構：
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
-## 建立外掛程式
+## 建立插件
 
 <Steps>
 
-1. **建立外掛程式目錄**
+1. **建立插件目錄**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **撰寫 `plugin.json`**
 
-   建立 `plugins/my-plugin/.claude-plugin/plugin.json`：
+   建立 `plugins/example-plugin/.claude-plugin/plugin.json`：
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
@@ -68,24 +68,23 @@ f5xc-salesdemos 市集。
 
 3. **新增技能**
 
-   建立 `plugins/my-plugin/skills/my-skill/SKILL.md` 並包含
-   前置資料：
+   建立 `plugins/example-plugin/skills/example-skill/SKILL.md`，
+   並加入 frontmatter：
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   將任何參考資料放置在 `SKILL.md` 旁邊的 `references/`
-   子目錄中。
+   將任何參考資料放置於 `SKILL.md` 旁的 `references/` 子目錄中。
 
 4. **新增命令**
 
-   建立 `plugins/my-plugin/commands/my-command.md`：
+   建立 `plugins/example-plugin/commands/example-command.md`：
 
    ```markdown
    ---
@@ -100,20 +99,20 @@ f5xc-salesdemos 市集。
    Instructions for Claude when the user invokes this command.
    ```
 
-5. **將外掛程式新增至 marketplace.json**
+5. **將插件加入 marketplace.json**
 
    在 `.claude-plugin/marketplace.json` 的 `plugins` 陣列中
-   新增一個項目：
+   新增一筆項目：
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -121,47 +120,47 @@ f5xc-salesdemos 市集。
    }
    ```
 
-6. **本機測試**
+6. **在本機測試**
 
-   將 Claude Code 指向本機目錄，無需發布即可測試您的
-   外掛程式：
+   在發布前先測試插件，方法是將 Claude Code
+   指向本機目錄：
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   驗證技能在正確的情境中啟動，且命令產生預期的
-   輸出結果。
+   確認技能在正確的情境下啟動，
+   且命令產生預期的輸出結果。
 
 </Steps>
 
-## 提交您的外掛程式
+## 提交插件
 
 <Aside type="tip" title="儲存庫工作流程">
-  此儲存庫執行嚴格的治理工作流程。
+  本儲存庫採用嚴格的治理工作流程。
   請參閱 [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   以了解完整流程。
 </Aside>
 
 <Steps>
 
-1. 建立 GitHub issue 描述新的外掛程式
+1. 建立一個描述新插件的 GitHub issue
 2. 從 `main` 建立功能分支
-3. 新增您的外掛程式目錄並更新 `marketplace.json`
-4. 在 `docs/plugins/my-plugin.mdx` 新增文件頁面
-5. 開啟 PR 並連結至 issue，使用 `Closes #N`
-6. 修正任何 CI 失敗並在檢查通過後合併
+3. 新增插件目錄並更新 `marketplace.json`
+4. 在 `docs/plugins/example-plugin.mdx` 新增說明文件頁面
+5. 開啟 PR 並透過 `Closes #N` 連結至對應的 issue
+6. 修正所有 CI 失敗問題，待檢查通過後合併
 
 </Steps>
 
-## 最佳實務
+## 最佳實踐
 
-- **保持技能專注** — 一個技能應該只做好一件事
-- **使用參考檔案** — 將大型資料集、結構描述和
-  對照表放在 `references/` 中，而非內嵌在 SKILL.md 中
-- **智慧限定範圍** — 盡可能檢查未提交的變更以
-  縮小工作集
+- **保持技能專注** — 每個技能應只做好一件事
+- **使用參考檔案** — 將大型資料集、結構描述及查找表
+  放置於 `references/` 中，而非內嵌於 SKILL.md
+- **善用範圍限制** — 盡可能透過檢查未提交的變更
+  來縮小工作範圍
 - **依嚴重性分組輸出** — 使用 ERROR、WARNING 和 INFO
-  等級，讓使用者能夠優先處理修正項目
-- **撰寫 README** — 包含使用範例以及每個技能和命令
-  的功能說明
+  等級，讓使用者能優先處理問題
+- **撰寫 README** — 包含使用範例，以及每個技能
+  和命令的功能說明

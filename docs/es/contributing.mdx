@@ -1,19 +1,19 @@
 ---
 title: Contribuir con un Plugin
 description: >-
-  Guía para crear, estructurar y publicar plugins para el marketplace de
+  Guía para crear, estructurar y publicar plugins en el marketplace
   f5xc-salesdemos.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-Esta guía explica cómo crear un nuevo plugin y añadirlo
-al marketplace de f5xc-salesdemos.
+Esta guía explica cómo crear un nuevo plugin y añadirlo al
+marketplace f5xc-salesdemos.
 
 ## Estructura del Plugin
 
@@ -22,18 +22,18 @@ sigue esta estructura:
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
@@ -44,24 +44,24 @@ sigue esta estructura:
 1. **Crear el directorio del plugin**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **Escribir `plugin.json`**
 
-   Cree `plugins/my-plugin/.claude-plugin/plugin.json`:
+   Crear `plugins/example-plugin/.claude-plugin/plugin.json`:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
@@ -70,24 +70,24 @@ sigue esta estructura:
 
 3. **Añadir skills**
 
-   Cree `plugins/my-plugin/skills/my-skill/SKILL.md` con
+   Crear `plugins/example-plugin/skills/example-skill/SKILL.md` con
    frontmatter:
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   Coloque cualquier dato de referencia en un subdirectorio `references/`
+   Coloque los datos de referencia en un subdirectorio `references/`
    junto a `SKILL.md`.
 
 4. **Añadir comandos**
 
-   Cree `plugins/my-plugin/commands/my-command.md`:
+   Crear `plugins/example-plugin/commands/example-command.md`:
 
    ```markdown
    ---
@@ -104,18 +104,18 @@ sigue esta estructura:
 
 5. **Añadir el plugin a marketplace.json**
 
-   Agregue una entrada al array `plugins` en
+   Añadir una entrada al array `plugins` en
    `.claude-plugin/marketplace.json`:
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -129,15 +129,15 @@ sigue esta estructura:
    al directorio local:
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
-   Verifique que los skills se activen en el contexto correcto y
-   que los comandos produzcan la salida esperada.
+   Verifique que los skills se activan en el contexto correcto y que
+   los comandos producen la salida esperada.
 
 </Steps>
 
-## Enviar Su Plugin
+## Enviar su Plugin
 
 <Aside type="tip" title="Flujo de trabajo del repositorio">
   Este repositorio aplica un flujo de trabajo de gobernanza estricto.
@@ -147,21 +147,21 @@ sigue esta estructura:
 
 <Steps>
 
-1. Cree un issue en GitHub describiendo el nuevo plugin
-2. Cree una rama de funcionalidad desde `main`
-3. Añada el directorio de su plugin y actualice `marketplace.json`
-4. Añada una página de documentación en `docs/plugins/my-plugin.mdx`
-5. Abra un PR vinculado al issue con `Closes #N`
-6. Corrija cualquier fallo de CI y haga merge una vez que las verificaciones pasen
+1. Crear un issue en GitHub describiendo el nuevo plugin
+2. Crear una rama de funcionalidad a partir de `main`
+3. Añadir el directorio de su plugin y actualizar `marketplace.json`
+4. Añadir una página de documentación en `docs/plugins/example-plugin.mdx`
+5. Abrir un PR vinculado al issue con `Closes #N`
+6. Corregir los fallos de CI y fusionar una vez que las comprobaciones pasen
 
 </Steps>
 
-## Mejores Prácticas
+## Buenas Prácticas
 
 - **Mantenga los skills enfocados** — un skill debe hacer una sola cosa bien
 - **Use archivos de referencia** — coloque conjuntos de datos grandes, esquemas y
-  tablas de consulta en `references/` en lugar de incluirlos directamente en SKILL.md
-- **Defina el alcance de forma inteligente** — verifique si hay cambios sin confirmar para
+  tablas de búsqueda en `references/` en lugar de incluirlos directamente en SKILL.md
+- **Defina el alcance de forma inteligente** — compruebe si hay cambios sin confirmar para
   reducir el conjunto de trabajo cuando sea posible
 - **Agrupe la salida por severidad** — use los niveles ERROR, WARNING e INFO
   para que los usuarios puedan priorizar las correcciones

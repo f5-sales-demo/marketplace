@@ -1,19 +1,19 @@
 ---
 title: Contribuer un plugin
 description: >-
-  Guide pour créer, structurer et publier des plugins pour le marketplace
+  Guide pour créer, structurer et publier des plugins pour la place de marché
   f5xc-salesdemos.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 36a56024cade
+  sourceHash: 865cf67796b3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-Ce guide explique comment créer un nouveau plugin et l'ajouter
-au marketplace f5xc-salesdemos.
+Ce guide explique comment créer un nouveau plugin et l'ajouter à
+la place de marché f5xc-salesdemos.
 
 ## Structure d'un plugin
 
@@ -22,18 +22,18 @@ suit cette structure :
 
 <FileTree>
 - plugins/
-  - my-plugin/
+  - example-plugin/
     - .claude-plugin/
       - plugin.json
     - skills/
-      - my-skill/
+      - example-skill/
         - SKILL.md
         - references/
           - reference-data.md
     - commands/
-      - my-command.md
+      - example-command.md
     - agents/
-      - my-agent.md
+      - example-agent.md
     - README.md
 </FileTree>
 
@@ -44,24 +44,24 @@ suit cette structure :
 1. **Créer le répertoire du plugin**
 
    ```bash
-   mkdir -p plugins/my-plugin/.claude-plugin
-   mkdir -p plugins/my-plugin/skills
-   mkdir -p plugins/my-plugin/commands
+   mkdir -p plugins/example-plugin/.claude-plugin
+   mkdir -p plugins/example-plugin/skills
+   mkdir -p plugins/example-plugin/commands
    ```
 
 2. **Rédiger `plugin.json`**
 
-   Créez `plugins/my-plugin/.claude-plugin/plugin.json` :
+   Créer `plugins/example-plugin/.claude-plugin/plugin.json` :
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": {
        "name": "f5xc-salesdemos"
      },
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "keywords": ["relevant", "keywords"],
      "license": "Apache-2.0",
      "repository": "https://github.com/f5xc-salesdemos/marketplace"
@@ -70,24 +70,24 @@ suit cette structure :
 
 3. **Ajouter des compétences (skills)**
 
-   Créez `plugins/my-plugin/skills/my-skill/SKILL.md` avec
-   le frontmatter :
+   Créer `plugins/example-plugin/skills/example-skill/SKILL.md` avec
+   un en-tête frontmatter :
 
    ```markdown
    ---
-   name: my-skill
+   name: example-skill
    description: One-line description of what this skill does
    ---
 
    Detailed instructions for Claude when this skill activates.
    ```
 
-   Placez toutes les données de référence dans un sous-répertoire
-   `references/` aux côtés de `SKILL.md`.
+   Placez les données de référence dans un sous-répertoire `references/`
+   situé à côté de `SKILL.md`.
 
 4. **Ajouter des commandes**
 
-   Créez `plugins/my-plugin/commands/my-command.md` :
+   Créer `plugins/example-plugin/commands/example-command.md` :
 
    ```markdown
    ---
@@ -104,18 +104,18 @@ suit cette structure :
 
 5. **Ajouter le plugin à marketplace.json**
 
-   Ajoutez une entrée dans le tableau `plugins` de
+   Ajouter une entrée dans le tableau `plugins` de
    `.claude-plugin/marketplace.json` :
 
    ```json
    {
-     "name": "my-plugin",
+     "name": "example-plugin",
      "description": "What this plugin does",
      "version": "1.0.0",
      "author": { "name": "f5xc-salesdemos" },
-     "source": "./plugins/my-plugin",
+     "source": "./plugins/example-plugin",
      "category": "productivity",
-     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/my-plugin",
+     "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/example-plugin",
      "license": "Apache-2.0",
      "keywords": ["relevant", "keywords"],
      "tags": ["searchable", "tags"],
@@ -125,11 +125,11 @@ suit cette structure :
 
 6. **Tester localement**
 
-   Testez votre plugin sans le publier en dirigeant Claude Code
+   Testez votre plugin sans le publier en pointant Claude Code
    vers le répertoire local :
 
    ```bash
-   claude --plugin-dir ./plugins/my-plugin
+   claude --plugin-dir ./plugins/example-plugin
    ```
 
    Vérifiez que les compétences s'activent dans le bon contexte et
@@ -139,31 +139,27 @@ suit cette structure :
 
 ## Soumettre votre plugin
 
-<Aside type="tip" title="Flux de travail du dépôt">
-  Ce dépôt applique un flux de travail de gouvernance strict.
+<Aside type="tip" title="Processus de contribution au dépôt">
+  Ce dépôt applique un processus de gouvernance strict.
   Consultez [CONTRIBUTING.md](https://github.com/f5xc-salesdemos/marketplace/blob/main/CONTRIBUTING.md)
   pour le processus complet.
 </Aside>
 
 <Steps>
 
-1. Créez une issue GitHub décrivant le nouveau plugin
-2. Créez une branche de fonctionnalité à partir de `main`
-3. Ajoutez le répertoire de votre plugin et mettez à jour `marketplace.json`
-4. Ajoutez une page de documentation à `docs/plugins/my-plugin.mdx`
-5. Ouvrez une PR liée à l'issue avec `Closes #N`
-6. Corrigez tout échec CI et fusionnez après la réussite des vérifications
+1. Créer une issue GitHub décrivant le nouveau plugin
+2. Créer une branche de fonctionnalité à partir de `main`
+3. Ajouter votre répertoire de plugin et mettre à jour `marketplace.json`
+4. Ajouter une page de documentation dans `docs/plugins/example-plugin.mdx`
+5. Ouvrir une PR en la liant à l'issue avec `Closes #N`
+6. Corriger les échecs CI et fusionner une fois les vérifications réussies
 
 </Steps>
 
 ## Bonnes pratiques
 
-- **Gardez les compétences ciblées** — une compétence doit faire une seule chose et la faire bien
-- **Utilisez les fichiers de référence** — placez les grands ensembles de données, schémas et
-  tables de correspondance dans `references/` plutôt qu'en ligne dans SKILL.md
-- **Définissez le périmètre intelligemment** — vérifiez les modifications non commitées pour
-  réduire l'ensemble de travail lorsque c'est possible
-- **Regroupez les résultats par sévérité** — utilisez les niveaux ERROR, WARNING et INFO
-  afin que les utilisateurs puissent prioriser les corrections
-- **Rédigez un README** — incluez des exemples d'utilisation et une description
-  de ce que chaque compétence et commande fait
+- **Gardez les compétences ciblées** — une compétence doit bien faire une seule chose
+- **Utilisez des fichiers de référence** — placez les jeux de données volumineux, les schémas et les tables de correspondance dans `references/` plutôt qu'en ligne dans SKILL.md
+- **Définissez une portée intelligente** — vérifiez l'existence de modifications non validées pour restreindre le périmètre de travail lorsque c'est possible
+- **Regroupez les sorties par gravité** — utilisez les niveaux ERROR, WARNING et INFO afin que les utilisateurs puissent prioriser les corrections
+- **Rédigez un README** — incluez des exemples d'utilisation et une description de ce que fait chaque compétence et chaque commande

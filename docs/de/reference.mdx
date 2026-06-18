@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 7
 i18n:
-  sourceHash: 15be095fe190
+  sourceHash: 34bc5641ff92
   translator: machine
 ---
 
@@ -17,15 +17,15 @@ import { Aside } from '@astrojs/starlight/components';
 Das Marketplace-Manifest befindet sich unter
 `.claude-plugin/marketplace.json` im Repository-Stammverzeichnis.
 
-### Felder auf oberster Ebene
+### Felder der obersten Ebene
 
 | Feld | Erforderlich | Beschreibung |
 |-------|----------|-------------|
-| `$schema` | Nein | JSON-Schema-URL zur Validierung |
-| `name` | Ja | Eindeutiger Marketplace-Bezeichner |
-| `version` | Nein | Marketplace-Schema-Version (semver) |
-| `metadata.description` | Ja | Menschenlesbare Marketplace-Beschreibung |
-| `owner.name` | Ja | Organisation oder Benutzer, dem der Marketplace gehört |
+| `$schema` | Nein | JSON Schema URL zur Validierung |
+| `name` | Ja | Eindeutiger Marktplatz-Bezeichner |
+| `version` | Nein | Marktplatz-Schema-Version (semver) |
+| `metadata.description` | Ja | Für Menschen lesbare Marktplatz-Beschreibung |
+| `owner.name` | Ja | Organisation oder Benutzer, dem der Marktplatz gehört |
 | `owner.url` | Nein | URL zum Profil oder zur Website des Eigentümers |
 | `owner.email` | Nein | Kontakt-E-Mail |
 | `plugins` | Ja | Array von Plugin-Einträgen |
@@ -41,9 +41,9 @@ Das Marketplace-Manifest befindet sich unter
 | `source` | Ja | Pfad oder URL zum Plugin (siehe Quelltypen) |
 | `category` | Ja | Plugin-Kategorie (z. B. `productivity`) |
 | `homepage` | Nein | URL zur Plugin-Dokumentation oder Homepage |
-| `license` | Nein | SPDX-Lizenzbezeichner |
+| `license` | Nein | SPDX-Lizenz-Bezeichner |
 | `keywords` | Nein | Array von Suchbegriffen |
-| `tags` | Nein | Array von Tags zum Filtern |
+| `tags` | Nein | Array von Tags zur Filterung |
 | `repository` | Nein | Repository-URL |
 
 ## Plugin-Quelltypen
@@ -53,7 +53,7 @@ Formate:
 
 | Typ | Beispiel | Beschreibung |
 |------|---------|-------------|
-| Relativer Pfad | `./plugins/my-plugin` | Plugin im selben Repository |
+| Relativer Pfad | `./plugins/example-plugin` | Plugin im selben Repository |
 | GitHub-Kurzform | `owner/repo` | Plugin im Repository-Stammverzeichnis |
 | GitHub mit Pfad | `owner/repo/path/to/plugin` | Plugin in einem Unterverzeichnis |
 | Git-URL | `https://github.com/owner/repo.git` | Git-Repository |
@@ -67,29 +67,29 @@ Jedes Plugin hat ein Manifest unter
 | Feld | Erforderlich | Beschreibung |
 |-------|----------|-------------|
 | `name` | Ja | Plugin-Bezeichner |
-| `description` | Ja | Was das Plugin macht |
+| `description` | Ja | Funktion des Plugins |
 | `version` | Ja | Semantische Version |
 | `author.name` | Ja | Plugin-Autor |
 | `author.url` | Nein | URL zum Profil oder zur Website des Autors |
 | `homepage` | Nein | Dokumentations-URL |
 | `keywords` | Nein | Suchbegriffe |
-| `license` | Nein | SPDX-Lizenzbezeichner |
+| `license` | Nein | SPDX-Lizenz-Bezeichner |
 | `repository` | Nein | Repository-URL |
 
 ## Plugin-Verzeichnisstruktur
 
 ```
-plugins/my-plugin/
+plugins/example-plugin/
   .claude-plugin/
     plugin.json          # Plugin-Manifest (erforderlich)
   skills/
     skill-name/
       SKILL.md           # Skill-Definition (pro Skill erforderlich)
-      references/        # Referenzdaten-Dateien (optional)
+      references/        # Referenzdatendateien (optional)
   commands/
     command-name.md      # Befehlsdefinition (eine pro Befehl)
   agents/
-    agent-name.md        # Agenten-Definition (eine pro Agent)
+    agent-name.md        # Agentendefinition (eine pro Agent)
   README.md              # Plugin-Dokumentation (empfohlen)
 ```
 
@@ -104,25 +104,25 @@ verwenden:
 
 ## Validierung
 
-Validieren Sie Ihre Marketplace- und Plugin-Manifeste lokal:
+Validieren Sie Ihre Marktplatz- und Plugin-Manifeste lokal:
 
 ```bash
 claude plugin validate .
 ```
 
-Dies prüft:
+Dabei wird Folgendes geprüft:
 
-- `marketplace.json` Schema-Konformität
-- Alle referenzierten Plugin-Verzeichnisse existieren
+- Konformität mit dem `marketplace.json`-Schema
+- Alle referenzierten Plugin-Verzeichnisse sind vorhanden
 - Jedes Plugin hat eine gültige `plugin.json`
-- Skills haben korrekt formatierte `SKILL.md`-Frontmatter
+- Skills haben korrekt formatiertes `SKILL.md`-Frontmatter
 - Befehle haben die erforderlichen Frontmatter-Felder
 
 ## Team-Konfiguration
 
-### Marketplaces vorkonfigurieren
+### Marktplätze vorab konfigurieren
 
-Fügen Sie dies zur `.claude/settings.json` in einem beliebigen Repository hinzu:
+Fügen Sie Folgendes zu `.claude/settings.json` in einem beliebigen Repository hinzu:
 
 ```json
 {
@@ -143,16 +143,16 @@ Fügen Sie dies zur `.claude/settings.json` in einem beliebigen Repository hinzu
 ```
 
 <Aside type="tip">
-  Wenn Sie diese Einstellungen in Ihr Repository committen, stellen Sie sicher,
-  dass jedes Teammitglied automatisch dieselbe Marketplace- und
-  Plugin-Konfiguration erhält.
+  Durch das Einchecken dieser Einstellungen in Ihr Repository wird sichergestellt, dass jedes
+  Teammitglied automatisch dieselbe Marktplatz- und Plugin-
+  Konfiguration erhält.
 </Aside>
 
 ## Fehlerbehebung
 
-### Marketplace nicht gefunden
+### Marktplatz nicht gefunden
 
-Überprüfen Sie, ob der Marketplace hinzugefügt wurde:
+Überprüfen Sie, ob der Marktplatz hinzugefügt wurde:
 
 ```
 /plugin marketplace list
@@ -168,24 +168,22 @@ Falls nicht vorhanden, fügen Sie ihn erneut hinzu:
 
 - Bestätigen Sie, dass das Plugin installiert ist:
   `/plugin list`
-- Prüfen Sie, ob Ihre Claude Code-Version Plugins unterstützt
+- Stellen Sie sicher, dass Ihre Claude Code-Version Plugins unterstützt
   (v1.0.33+)
 - Überprüfen Sie, ob die Auslösebedingungen des Skills zu Ihrem aktuellen
   Kontext passen
 
 ### Skills werden nicht automatisch ausgelöst
 
-Skills werden basierend auf ihrem `description`-Feld in der
-SKILL.md-Frontmatter aktiviert. Wenn ein Skill nicht wie
-erwartet aktiviert wird:
+Skills werden basierend auf ihrem Feld `description` im
+SKILL.md-Frontmatter aktiviert. Wenn ein Skill nicht wie erwartet ausgelöst wird:
 
-- Prüfen Sie, ob die Beschreibung den Auslösekontext
-  korrekt beschreibt
+- Prüfen Sie, ob die Beschreibung den Auslösekontext genau beschreibt
 - Verwenden Sie den Befehl direkt (z. B. `/f5xc-docs-tools:review-mdx`)
   als Workaround
 
 ### Build-Fehler nach der Überprüfung
 
-Das Plugin meldet Probleme, behebt sie aber nicht automatisch. Wenden Sie
-die vorgeschlagenen Korrekturen manuell an und führen Sie dann die Überprüfung
-erneut durch, um die Behebung zu bestätigen.
+Das Plugin meldet Probleme, behebt sie jedoch nicht automatisch. Wenden Sie
+die vorgeschlagenen Korrekturen manuell an und führen Sie die Überprüfung erneut aus,
+um die Behebung zu bestätigen.

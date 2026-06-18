@@ -6,15 +6,15 @@ description: >-
 sidebar:
   order: 7
 i18n:
-  sourceHash: 15be095fe190
+  sourceHash: 34bc5641ff92
   translator: machine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-## Esquema do marketplace.json
+## Esquema marketplace.json
 
-O manifesto do marketplace está localizado em
+O manifesto do marketplace fica em
 `.claude-plugin/marketplace.json` na raiz do repositório.
 
 ### Campos de nível superior
@@ -26,7 +26,7 @@ O manifesto do marketplace está localizado em
 | `version` | Não | Versão do esquema do marketplace (semver) |
 | `metadata.description` | Sim | Descrição legível do marketplace |
 | `owner.name` | Sim | Organização ou usuário proprietário do marketplace |
-| `owner.url` | Não | URL para o perfil ou site do proprietário |
+| `owner.url` | Não | URL do perfil ou site do proprietário |
 | `owner.email` | Não | E-mail de contato |
 | `plugins` | Sim | Array de entradas de plugins |
 
@@ -35,34 +35,34 @@ O manifesto do marketplace está localizado em
 | Campo | Obrigatório | Descrição |
 |-------|-------------|-----------|
 | `name` | Sim | Identificador do plugin (deve corresponder ao `plugin.json`) |
-| `description` | Sim | Descrição curta do plugin |
+| `description` | Sim | Descrição resumida do plugin |
 | `version` | Sim | String de versão semântica |
 | `author.name` | Sim | Autor do plugin |
-| `source` | Sim | Caminho ou URL para o plugin (veja Tipos de Source) |
-| `category` | Sim | Categoria do plugin (ex., `productivity`) |
+| `source` | Sim | Caminho ou URL para o plugin (consulte Tipos de Fonte) |
+| `category` | Sim | Categoria do plugin (ex.: `productivity`) |
 | `homepage` | Não | URL para a documentação ou página inicial do plugin |
 | `license` | Não | Identificador de licença SPDX |
-| `keywords` | Não | Array de palavras-chave de busca |
+| `keywords` | Não | Array de palavras-chave para busca |
 | `tags` | Não | Array de tags para filtragem |
 | `repository` | Não | URL do repositório |
 
-## Tipos de Source do Plugin
+## Tipos de Fonte de Plugin
 
 O campo `source` no marketplace.json suporta múltiplos
 formatos:
 
 | Tipo | Exemplo | Descrição |
 |------|---------|-----------|
-| Caminho relativo | `./plugins/my-plugin` | Plugin no mesmo repositório |
+| Caminho relativo | `./plugins/example-plugin` | Plugin no mesmo repositório |
 | Atalho GitHub | `owner/repo` | Plugin na raiz do repositório |
 | GitHub com caminho | `owner/repo/path/to/plugin` | Plugin em subdiretório |
 | URL Git | `https://github.com/owner/repo.git` | Repositório Git |
 | Pacote npm | `npm:@scope/package` | Pacote npm publicado |
 
-## Esquema do plugin.json
+## Esquema plugin.json
 
 Cada plugin possui um manifesto em
-`.claude-plugin/plugin.json` dentro de seu diretório.
+`.claude-plugin/plugin.json` dentro do seu diretório.
 
 | Campo | Obrigatório | Descrição |
 |-------|-------------|-----------|
@@ -70,33 +70,32 @@ Cada plugin possui um manifesto em
 | `description` | Sim | O que o plugin faz |
 | `version` | Sim | Versão semântica |
 | `author.name` | Sim | Autor do plugin |
-| `author.url` | Não | URL para o perfil ou site do autor |
+| `author.url` | Não | URL do perfil ou site do autor |
 | `homepage` | Não | URL da documentação |
-| `keywords` | Não | Palavras-chave de busca |
+| `keywords` | Não | Palavras-chave para busca |
 | `license` | Não | Identificador de licença SPDX |
 | `repository` | Não | URL do repositório |
 
-## Estrutura de Diretórios do Plugin
+## Estrutura de Diretório do Plugin
 
 ```
-plugins/my-plugin/
+plugins/example-plugin/
   .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+    plugin.json          # Manifesto do plugin (obrigatório)
   skills/
     skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+      SKILL.md           # Definição da skill (obrigatório por skill)
+      references/        # Arquivos de dados de referência (opcional)
   commands/
-    command-name.md      # Command definition (one per command)
+    command-name.md      # Definição de comando (um por comando)
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    agent-name.md        # Definição de agente (um por agente)
+  README.md              # Documentação do plugin (recomendado)
 ```
 
 ## Variáveis de Ambiente
 
-Plugins podem usar estas variáveis em seus arquivos de skill e
-comando:
+Os plugins podem usar estas variáveis em seus arquivos de skill e comando:
 
 | Variável | Descrição |
 |----------|-----------|
@@ -112,11 +111,11 @@ claude plugin validate .
 
 Isso verifica:
 
-- Conformidade do esquema do `marketplace.json`
-- Todos os diretórios de plugin referenciados existem
-- Cada plugin possui um `plugin.json` válido
-- Skills possuem frontmatter do `SKILL.md` formatado corretamente
-- Comandos possuem os campos obrigatórios no frontmatter
+- Conformidade do esquema `marketplace.json`
+- Existência de todos os diretórios de plugin referenciados
+- Que cada plugin possui um `plugin.json` válido
+- Que as skills possuem frontmatter `SKILL.md` corretamente formatado
+- Que os comandos possuem os campos de frontmatter obrigatórios
 
 ## Configuração de Equipe
 
@@ -132,7 +131,7 @@ Adicione ao `.claude/settings.json` em qualquer repositório:
 }
 ```
 
-### Pré-habilitando plugins
+### Pré-ativando plugins
 
 ```json
 {
@@ -143,8 +142,8 @@ Adicione ao `.claude/settings.json` em qualquer repositório:
 ```
 
 <Aside type="tip">
-  Fazer commit dessas configurações no seu repositório garante que cada
-  membro da equipe receba a mesma configuração de marketplace e plugin
+  Fazer commit dessas configurações no repositório garante que todos os
+  membros da equipe obtenham a mesma configuração de marketplace e plugin
   automaticamente.
 </Aside>
 
@@ -168,20 +167,19 @@ Se estiver ausente, adicione-o novamente:
 
 - Confirme que o plugin está instalado:
   `/plugin list`
-- Verifique se sua versão do Claude Code suporta plugins
+- Verifique se a versão do seu Claude Code suporta plugins
   (v1.0.33+)
-- Verifique se as condições de acionamento da skill correspondem ao seu
-  contexto atual
+- Verifique se as condições de acionamento da skill correspondem ao contexto atual
 
-### Skills não estão sendo acionadas automaticamente
+### Skills não acionando automaticamente
 
-Skills são ativadas com base no campo `description` no
-frontmatter do SKILL.md. Se uma skill não está sendo ativada quando
+As skills são ativadas com base no campo `description` no
+frontmatter do SKILL.md. Se uma skill não estiver ativando quando
 esperado:
 
 - Verifique se a descrição descreve com precisão o
   contexto de acionamento
-- Use o comando diretamente (ex., `/f5xc-docs-tools:review-mdx`)
+- Use o comando diretamente (ex.: `/f5xc-docs-tools:review-mdx`)
   como alternativa
 
 ### Erros de build após revisão
