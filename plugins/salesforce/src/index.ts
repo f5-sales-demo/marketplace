@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
+import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Salesforce');

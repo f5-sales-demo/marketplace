@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from '@f5xc-salesdemos/xcsh';
+import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
