@@ -53,10 +53,10 @@ Create `plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json`:
   "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API — status checks, incident tracking, maintenance windows, trend analysis, regional impact assessment, and stakeholder briefings. Generic Statuspage.io engine with F5 XC domain knowledge layered via reference files.",
   "version": "1.0.0",
   "author": {
-    "name": "f5xc-salesdemos",
-    "url": "https://github.com/f5xc-salesdemos"
+    "name": "f5-sales-demo",
+    "url": "https://github.com/f5-sales-demo"
   },
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-cloudstatus",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/f5xc-cloudstatus",
   "keywords": [
     "status",
     "monitoring",
@@ -68,7 +68,7 @@ Create `plugins/f5xc-cloudstatus/.xcsh-plugin/plugin.json`:
     "atlassian"
   ],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace"
 }
 ```
 
@@ -1375,15 +1375,15 @@ Insert before the closing `]` of the plugins array (after the last existing plug
       "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API — status checks, incident tracking, maintenance windows, trend analysis, regional impact assessment, and stakeholder briefings",
       "version": "1.0.0",
       "author": {
-        "name": "f5xc-salesdemos"
+        "name": "f5-sales-demo"
       },
       "source": "./plugins/f5xc-cloudstatus",
       "category": "productivity",
-      "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/f5xc-cloudstatus",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/f5xc-cloudstatus",
       "license": "Apache-2.0",
       "keywords": ["status", "monitoring", "incidents", "maintenance", "statuspage", "operational-intelligence", "f5xc", "atlassian"],
       "tags": ["status", "monitoring", "ops", "f5xc"],
-      "repository": "https://github.com/f5xc-salesdemos/marketplace"
+      "repository": "https://github.com/f5-sales-demo/marketplace"
     }
 ```
 

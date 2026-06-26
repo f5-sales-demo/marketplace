@@ -1,7 +1,7 @@
 /**
  * GitLab tool renderer — placeholder for TUI rendering.
  *
- * The full TUI renderer from xcsh core depends on @f5xc-salesdemos/pi-tui
+ * The full TUI renderer from xcsh core depends on @f5-sales-demo/pi-tui
  * (Theme, Component, CachedOutputBlock, etc.) which is not available as a
  * plugin peer dependency. This file preserves the rendering data shapes so
  * xcsh can wire up the TUI renderer when loading the plugin, and provides
