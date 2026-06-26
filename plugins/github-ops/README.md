@@ -1,7 +1,7 @@
 # github-ops
 
 GitHub operations automation plugin for
-`f5xc-salesdemos` — enforces the full task lifecycle
+`f5-sales-demo` — enforces the full task lifecycle
 from issue creation through post-merge verification.
 
 ## Skills
@@ -36,7 +36,7 @@ makes code changes, then delegates operational work.
 ### github-ops
 
 Exclusive GitHub operations agent that handles the full
-Git lifecycle for all f5xc-salesdemos repositories.
+Git lifecycle for all f5-sales-demo repositories.
 Supersedes `commit-commands` official plugin.
 
 **Responsibilities:**
@@ -113,5 +113,5 @@ network I/O.
 ## Installation
 
 ```bash
-claude /install github-ops@f5xc-salesdemos-marketplace
+claude /install github-ops@f5-sales-demo-marketplace
 ```

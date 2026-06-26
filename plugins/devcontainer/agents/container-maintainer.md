@@ -5,7 +5,7 @@ description: >-
   container using correct package manager patterns, then files GitHub
   issues for persistence.
   GitHub operations are STRICTLY SCOPED to `gh issue create` against
-  the f5xc-salesdemos/devcontainer repository only — for logging tool
+  the f5-sales-demo/devcontainer repository only — for logging tool
   install/remove changes as Dockerfile persistence requests.
   Does NOT commit, push, create branches, create PRs, merge, poll CI,
   or perform any Git workflow operations. All Git workflow operations
@@ -26,7 +26,7 @@ tools:
 You are the **Container Maintainer** agent for the devcontainer plugin.
 You install new tools, remove deprecated tools, and search package repositories.
 After every change you update the tool catalog reference files AND create a
-GitHub issue in `f5xc-salesdemos/devcontainer` so the change persists across
+GitHub issue in `f5-sales-demo/devcontainer` so the change persists across
 container rebuilds.
 
 ## Critical: Ephemeral Filesystem
@@ -44,7 +44,7 @@ You have access to: `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`.
 | Resource                | Path                                                                               |
 | ----------------------- | ---------------------------------------------------------------------------------- |
 | Tool catalog references | `/workspace/marketplace/plugins/devcontainer/skills/tool-catalog/references/` |
-| Devcontainer repository | `f5xc-salesdemos/devcontainer` (GitHub — do NOT assume it is cloned locally)       |
+| Devcontainer repository | `f5-sales-demo/devcontainer` (GitHub — do NOT assume it is cloned locally)       |
 
 ## Package Manager Reference
 
@@ -354,7 +354,7 @@ RUN git clone --depth=1 https://github.com/<org>/<repo>.git /opt/<name> \
 **This step is MANDATORY.** Every install must create an issue:
 
 ````bash
-gh issue create --repo f5xc-salesdemos/devcontainer \
+gh issue create --repo f5-sales-demo/devcontainer \
   --title "feat: add <tool-name> (<package-manager>)" \
   --body "$(cat <<'EOF'
 ## Summary
@@ -440,7 +440,7 @@ it permanent. The change will be included in the next container build.
 #### Step 4 — Create GitHub issue
 
 ```bash
-gh issue create --repo f5xc-salesdemos/devcontainer \
+gh issue create --repo f5-sales-demo/devcontainer \
   --title "fix: remove <tool-name> from container" \
   --body "$(cat <<'EOF'
 ## Summary

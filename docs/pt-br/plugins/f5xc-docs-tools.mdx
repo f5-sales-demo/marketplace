@@ -2,7 +2,7 @@
 title: f5xc-docs-tools
 description: >-
   Validação de conteúdo MDX e verificações de qualidade para o pipeline de
-  documentação f5xc-salesdemos.
+  documentação f5-sales-demo.
 sidebar:
   order: 4
 i18n:
@@ -13,7 +13,7 @@ i18n:
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 O plugin **f5xc-docs-tools** valida arquivos de conteúdo MDX para
-o pipeline de documentação f5xc-salesdemos. Ele captura problemas
+o pipeline de documentação f5-sales-demo. Ele captura problemas
 comuns que quebram o build antes que cheguem ao CI, incluindo
 caracteres JSX soltos, imports inválidos, referências de imagem
 quebradas e frontmatter incompleto.
@@ -23,7 +23,7 @@ quebradas e frontmatter incompleto.
 ## Instalação
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## Skills
@@ -32,7 +32,7 @@ quebradas e frontmatter incompleto.
 
 Esta skill é ativada automaticamente quando o Claude detecta que
 você está trabalhando com arquivos MDX em um repositório de
-conteúdo f5xc-salesdemos. Ela executa sete verificações de
+conteúdo f5-sales-demo. Ela executa sete verificações de
 validação:
 
 <CardGrid>
@@ -47,7 +47,7 @@ validação:
   </Card>
   <Card title="Validação de imports">
     Valida imports contra uma lista permitida de componentes
-    integrados do Starlight e componentes do tema f5xc-salesdemos.
+    integrados do Starlight e componentes do tema f5-sales-demo.
   </Card>
   <Card title="Atributos de componentes">
     Verifica props obrigatórias para componentes como Screenshot,
@@ -127,7 +127,7 @@ O plugin valida imports contra estas fontes:
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**Componentes do tema f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+**Componentes do tema f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

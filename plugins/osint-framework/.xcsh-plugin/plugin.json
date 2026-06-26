@@ -3,10 +3,10 @@
   "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
   "version": "1.0.1",
   "author": {
-    "name": "f5xc-salesdemos",
-    "url": "https://github.com/f5xc-salesdemos"
+    "name": "f5-sales-demo",
+    "url": "https://github.com/f5-sales-demo"
   },
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/osint-framework",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework",
   "keywords": [
     "osint",
     "reconnaissance",
@@ -23,5 +23,5 @@
     "metadata"
   ],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace"
 }

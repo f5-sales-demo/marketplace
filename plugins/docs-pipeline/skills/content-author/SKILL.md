@@ -1,7 +1,7 @@
 ---
 name: content-author
 description: >-
-  Content authoring guide for f5xc-salesdemos docs repos — file structure,
+  Content authoring guide for f5-sales-demo docs repos — file structure,
   MDX syntax rules, frontmatter requirements, image references, and local
   Docker preview. Use when creating or editing docs/ content, working with
   MDX files, setting up local preview, or when the user asks about content
@@ -39,7 +39,7 @@ docker run --rm -it \
   -v "$(pwd)/docs:/content/docs" \
   -p 4321:4321 \
   -e MODE=dev \
-  ghcr.io/f5xc-salesdemos/docs-builder:latest
+  ghcr.io/f5-sales-demo/docs-builder:latest
 ```
 
 Open `http://localhost:4321`. File changes on the host
@@ -52,11 +52,11 @@ docker run --rm \
   -v "$(pwd)/docs:/content/docs:ro" \
   -v "$(pwd)/output:/output" \
   -e GITHUB_REPOSITORY="<owner>/<repo>" \
-  ghcr.io/f5xc-salesdemos/docs-builder:latest
+  ghcr.io/f5-sales-demo/docs-builder:latest
 ```
 
 Serve with `npx serve output/ -l 8080` and open
 `http://localhost:8080/<repo>/`.
 
 Full content authoring guide:
-<https://f5xc-salesdemos.github.io/docs-builder/content-authors/>
+<https://f5-sales-demo.github.io/docs-builder/content-authors/>

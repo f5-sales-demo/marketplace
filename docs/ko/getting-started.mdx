@@ -1,6 +1,6 @@
 ---
 title: 시작하기
-description: f5xc-salesdemos 마켓플레이스를 추가하고 첫 번째 플러그인을 설치하는 단계별 가이드입니다.
+description: f5-sales-demo 마켓플레이스를 추가하고 첫 번째 플러그인을 설치하는 단계별 가이드입니다.
 sidebar:
   order: 2
 i18n:
@@ -10,12 +10,12 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-이 가이드는 f5xc-salesdemos 마켓플레이스를 Claude Code에 추가하고 첫 번째 플러그인을 설치하는 과정을 안내합니다.
+이 가이드는 f5-sales-demo 마켓플레이스를 Claude Code에 추가하고 첫 번째 플러그인을 설치하는 과정을 안내합니다.
 
 ## 사전 요구 사항
 
 - Claude Code **v1.0.33** 이상 (플러그인 마켓플레이스 지원)
-- [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+- [f5-sales-demo](https://github.com/f5-sales-demo)
   조직에 접근 권한이 있는 GitHub 계정
 
 ## 설치
@@ -27,7 +27,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    Claude Code 세션에서 다음 명령을 실행합니다:
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    이 명령은 마켓플레이스를 플러그인 소스로 등록합니다. 한 번만
@@ -38,7 +38,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    마켓플레이스에서 제공하는 항목을 확인합니다:
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **플러그인 설치**
@@ -46,13 +46,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    필요한 플러그인을 설치합니다:
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **플러그인 사용**
 
-   f5xc-salesdemos 콘텐츠 리포지토리로 이동합니다.
+   f5-sales-demo 콘텐츠 리포지토리로 이동합니다.
 
    **문서 도구**의 경우, MDX 검토 명령을 실행합니다:
 
@@ -71,8 +71,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 설치된 플러그인을 최신 버전으로 업데이트하려면:
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## 제거
@@ -80,14 +80,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 플러그인을 제거합니다:
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 마켓플레이스를 완전히 제거합니다:
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## 팀 구성
@@ -98,11 +98,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

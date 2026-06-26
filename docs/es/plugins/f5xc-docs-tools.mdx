@@ -2,7 +2,7 @@
 title: f5xc-docs-tools
 description: >-
   Validación de contenido MDX y comprobaciones de calidad para el pipeline de
-  documentación de f5xc-salesdemos.
+  documentación de f5-sales-demo.
 sidebar:
   order: 4
 i18n:
@@ -13,7 +13,7 @@ i18n:
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 El plugin **f5xc-docs-tools** valida archivos de contenido MDX para
-el pipeline de documentación de f5xc-salesdemos. Detecta problemas
+el pipeline de documentación de f5-sales-demo. Detecta problemas
 comunes que rompen la compilación antes de que lleguen a CI, incluyendo
 caracteres JSX sin escapar, importaciones inválidas, referencias de
 imágenes rotas y frontmatter incompleto.
@@ -23,7 +23,7 @@ imágenes rotas y frontmatter incompleto.
 ## Instalación
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## Habilidades
@@ -32,7 +32,7 @@ imágenes rotas y frontmatter incompleto.
 
 Esta habilidad se activa automáticamente cuando Claude detecta que está
 trabajando con archivos MDX en un repositorio de contenido de
-f5xc-salesdemos. Realiza siete comprobaciones de validación:
+f5-sales-demo. Realiza siete comprobaciones de validación:
 
 <CardGrid>
   <Card title="Validación de frontmatter">
@@ -47,7 +47,7 @@ f5xc-salesdemos. Realiza siete comprobaciones de validación:
   <Card title="Validación de importaciones">
     Valida las importaciones contra una lista permitida de
     componentes integrados de Starlight y componentes del tema
-    f5xc-salesdemos.
+    f5-sales-demo.
   </Card>
   <Card title="Atributos de componentes">
     Comprueba las props requeridas para componentes como Screenshot,
@@ -127,7 +127,7 @@ El plugin valida las importaciones contra estas fuentes:
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**Componentes del tema f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+**Componentes del tema f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

@@ -27,7 +27,7 @@ labels: enhancement
 
 ## Target Repositories
 
-<!-- Which f5xc-salesdemos repositories would use this plugin? -->
+<!-- Which f5-sales-demo repositories would use this plugin? -->
 
 - repo-name
 

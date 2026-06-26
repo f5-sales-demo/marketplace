@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: f5xc-salesdemos ドキュメントパイプライン向けの MDX コンテンツ検証および品質チェック。
+description: f5-sales-demo ドキュメントパイプライン向けの MDX コンテンツ検証および品質チェック。
 sidebar:
   order: 4
 i18n:
@@ -10,21 +10,21 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** プラグインは、f5xc-salesdemos ドキュメントパイプライン向けの MDX コンテンツファイルを検証します。ベア JSX 文字、無効なインポート、壊れた画像参照、不完全なフロントマターなど、ビルドを破壊する一般的な問題を CI に到達する前にキャッチします。
+**f5xc-docs-tools** プラグインは、f5-sales-demo ドキュメントパイプライン向けの MDX コンテンツファイルを検証します。ベア JSX 文字、無効なインポート、壊れた画像参照、不完全なフロントマターなど、ビルドを破壊する一般的な問題を CI に到達する前にキャッチします。
 
 <Badge text="v1.1.2" variant="note" /> <Badge text="生産性" variant="tip" />
 
 ## インストール
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## スキル
 
 ### mdx-content-reviewer
 
-このスキルは、f5xc-salesdemos コンテンツリポジトリで MDX ファイルを操作していることを Claude が検出すると自動的にアクティブになります。7 つの検証チェックを実行します：
+このスキルは、f5-sales-demo コンテンツリポジトリで MDX ファイルを操作していることを Claude が検出すると自動的にアクティブになります。7 つの検証チェックを実行します：
 
 <CardGrid>
   <Card title="フロントマター検証">
@@ -37,7 +37,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
     ブレースを検出します。
   </Card>
   <Card title="インポート検証">
-    Starlight 組み込みおよび f5xc-salesdemos テーマコンポーネントの
+    Starlight 組み込みおよび f5-sales-demo テーマコンポーネントの
     許可リストに対してインポートを検証します。
   </Card>
   <Card title="コンポーネント属性">
@@ -115,7 +115,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos テーマコンポーネント** (`@f5xc-salesdemos/docs-theme/components/`)：
+**f5-sales-demo テーマコンポーネント** (`@f5-sales-demo/docs-theme/components/`)：
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/f5xc-salesdemos/marketplace/plugins/meddpicc/schema/meddpicc-schema.json",
+  "$id": "https://github.com/f5-sales-demo/marketplace/plugins/meddpicc/schema/meddpicc-schema.json",
   "title": "MEDDPICC Deal Review",
   "description": "Complete MEDDPICC deal review with qualification scoring, stakeholder analysis, sales strategy, and close plan. Used by the meddpicc Claude Code plugin for guided deal qualification, JSON data capture, and XLS rendering.",
   "type": "object",

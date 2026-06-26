@@ -21,7 +21,7 @@ session. This skill translates user intent into a call to the
 - Browser open and authenticated to F5 XC console
   (invoke `console-auth` if needed)
 - Console catalog repository cloned locally
-  (default: `~/GIT/f5xc-salesdemos/console`)
+  (default: `~/GIT/f5-sales-demo/console`)
 
 ## Environment Variables
 
@@ -29,7 +29,7 @@ session. This skill translates user intent into a call to the
 | --- | --- | --- | --- |
 | `F5XC_API_URL` | No | Auto-detected from browser | Console base URL |
 | `F5XC_NAMESPACE` | No | — | Default namespace for operations |
-| `CONSOLE_CATALOG_PATH` | No | `~/GIT/f5xc-salesdemos/console` | Path to console catalog repo |
+| `CONSOLE_CATALOG_PATH` | No | `~/GIT/f5-sales-demo/console` | Path to console catalog repo |
 
 ## Procedure
 
@@ -53,7 +53,7 @@ Check if the browser is authenticated. If not, invoke
 
 Determine the catalog path:
 1. Check `CONSOLE_CATALOG_PATH` env var
-2. Fall back to `~/GIT/f5xc-salesdemos/console`
+2. Fall back to `~/GIT/f5-sales-demo/console`
 3. Verify the path exists and contains `catalog/workflows/`
 
 ### Step 4: Verify workflow exists

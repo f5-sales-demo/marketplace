@@ -2,7 +2,7 @@
 title: f5xc-docs-tools
 description: >-
   Validazione del contenuto MDX e controlli di qualità per la pipeline di
-  documentazione f5xc-salesdemos.
+  documentazione f5-sales-demo.
 sidebar:
   order: 4
 i18n:
@@ -13,7 +13,7 @@ i18n:
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 Il plugin **f5xc-docs-tools** valida i file di contenuto MDX per
-la pipeline di documentazione f5xc-salesdemos. Intercetta i
+la pipeline di documentazione f5-sales-demo. Intercetta i
 problemi comuni che interrompono la build prima che raggiungano
 la CI, inclusi caratteri JSX non protetti, import non validi,
 riferimenti a immagini non funzionanti e frontmatter incompleti.
@@ -23,7 +23,7 @@ riferimenti a immagini non funzionanti e frontmatter incompleti.
 ## Installazione
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## Competenze
@@ -32,7 +32,7 @@ riferimenti a immagini non funzionanti e frontmatter incompleti.
 
 Questa competenza si attiva automaticamente quando Claude rileva
 che si sta lavorando con file MDX in un repository di contenuti
-f5xc-salesdemos. Esegue sette controlli di validazione:
+f5-sales-demo. Esegue sette controlli di validazione:
 
 <CardGrid>
   <Card title="Validazione del frontmatter">
@@ -46,7 +46,7 @@ f5xc-salesdemos. Esegue sette controlli di validazione:
   </Card>
   <Card title="Validazione degli import">
     Valida gli import rispetto a una lista consentita di
-    componenti integrati di Starlight e del tema f5xc-salesdemos.
+    componenti integrati di Starlight e del tema f5-sales-demo.
   </Card>
   <Card title="Attributi dei componenti">
     Controlla le props obbligatorie per componenti come Screenshot,
@@ -126,7 +126,7 @@ Il plugin valida gli import rispetto a queste fonti:
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**Componenti del tema f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+**Componenti del tema f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

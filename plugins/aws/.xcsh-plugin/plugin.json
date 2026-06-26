@@ -2,9 +2,9 @@
   "name": "aws",
   "description": "AWS CLI integration \u2014 container-adapted auth, context injection, CLI operator agent, SSO expiry detection, and welcome screen status",
   "version": "1.1.0",
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/aws",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
   "license": "Apache-2.0",
   "author": {
-    "name": "f5xc-salesdemos"
+    "name": "f5-sales-demo"
   }
 }

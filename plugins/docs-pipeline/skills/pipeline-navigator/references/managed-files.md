@@ -1,14 +1,14 @@
 # Managed Files
 
 The following files are centrally managed by the
-[docs-control](https://github.com/f5xc-salesdemos/docs-control)
+[docs-control](https://github.com/f5-sales-demo/docs-control)
 repository and automatically synced to all repos in the
-`f5xc-salesdemos` organization. **Do not modify these
+`f5-sales-demo` organization. **Do not modify these
 files in downstream repos** — local changes will be
 overwritten on the next enforcement run.
 
 To change any of these files, open a PR in
-`f5xc-salesdemos/docs-control` instead.
+`f5-sales-demo/docs-control` instead.
 
 ## File List
 

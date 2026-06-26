@@ -3,10 +3,10 @@
   "description": "GitLab CLI integration — native xcsh tools (glab_setup, glab_issue_list, glab_issue_view, glab_search), welcome screen status, and issue management via glab CLI",
   "version": "1.1.0",
   "author": {
-    "name": "f5xc-salesdemos",
-    "url": "https://github.com/f5xc-salesdemos"
+    "name": "f5-sales-demo",
+    "url": "https://github.com/f5-sales-demo"
   },
   "keywords": ["gitlab", "glab", "issues", "git", "xcsh-extension"],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace"
 }

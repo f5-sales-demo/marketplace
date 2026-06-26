@@ -1,5 +1,5 @@
 {
-  "name": "@f5xc-salesdemos/xcsh-azure",
+  "name": "@f5-sales-demo/xcsh-azure",
   "version": "1.0.0",
   "description": "Azure CLI tools for xcsh — native az command execution, subscription/resource/VM management, and welcome screen status",
   "main": "src/index.ts",
@@ -15,7 +15,7 @@
     ]
   },
   "peerDependencies": {
-    "@f5xc-salesdemos/xcsh": ">=1.0.0"
+    "@f5-sales-demo/xcsh": ">=1.0.0"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.0",

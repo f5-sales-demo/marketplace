@@ -1,5 +1,5 @@
 {
-  "name": "@f5xc-salesdemos/xcsh-salesforce",
+  "name": "@f5-sales-demo/xcsh-salesforce",
   "version": "1.0.0",
   "description": "Salesforce pipeline intelligence for xcsh — native tools, context discovery, pipeline reports",
   "main": "src/index.ts",
@@ -16,8 +16,8 @@
     ]
   },
   "peerDependencies": {
-    "@f5xc-salesdemos/xcsh": ">=1.0.0",
-    "@f5xc-salesdemos/pi-utils": ">=1.0.0"
+    "@f5-sales-demo/xcsh": ">=1.0.0",
+    "@f5-sales-demo/pi-utils": ">=1.0.0"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.0",

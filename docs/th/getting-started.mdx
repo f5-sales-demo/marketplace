@@ -1,7 +1,7 @@
 ---
 title: เริ่มต้นใช้งาน
 description: >-
-  คู่มือทีละขั้นตอนสำหรับการเพิ่ม marketplace ของ f5xc-salesdemos
+  คู่มือทีละขั้นตอนสำหรับการเพิ่ม marketplace ของ f5-sales-demo
   และติดตั้งปลั๊กอินตัวแรกของคุณ
 sidebar:
   order: 2
@@ -12,14 +12,14 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-คู่มือนี้จะพาคุณผ่านขั้นตอนการเพิ่ม marketplace ของ f5xc-salesdemos
+คู่มือนี้จะพาคุณผ่านขั้นตอนการเพิ่ม marketplace ของ f5-sales-demo
 ไปยัง Claude Code และติดตั้งปลั๊กอินตัวแรกของคุณ
 
 ## ข้อกำหนดเบื้องต้น
 
 - Claude Code **v1.0.33** หรือใหม่กว่า (รองรับ plugin marketplace)
 - บัญชี GitHub ที่มีสิทธิ์เข้าถึงองค์กร
-  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  [f5-sales-demo](https://github.com/f5-sales-demo)
 
 ## การติดตั้ง
 
@@ -30,7 +30,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    ในเซสชัน Claude Code ใดก็ได้ ให้รันคำสั่ง:
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    คำสั่งนี้จะลงทะเบียน marketplace เป็นแหล่งที่มาของปลั๊กอิน คุณต้อง
@@ -41,7 +41,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    แสดงรายการปลั๊กอินที่ marketplace มีให้:
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **ติดตั้งปลั๊กอิน**
@@ -49,13 +49,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    ติดตั้งปลั๊กอินที่คุณต้องการ:
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **ใช้งานปลั๊กอิน**
 
-   นำทางไปยังรีโพซิทอรีเนื้อหา f5xc-salesdemos ใดก็ได้
+   นำทางไปยังรีโพซิทอรีเนื้อหา f5-sales-demo ใดก็ได้
 
    สำหรับ **docs tools** ให้รันคำสั่ง MDX review:
 
@@ -74,8 +74,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 เพื่ออัปเดตปลั๊กอินที่ติดตั้งแล้วเป็นเวอร์ชันล่าสุด:
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## การถอนการติดตั้ง
@@ -83,14 +83,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ลบปลั๊กอิน:
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ลบ marketplace ทั้งหมด:
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## การกำหนดค่าสำหรับทีม
@@ -101,11 +101,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

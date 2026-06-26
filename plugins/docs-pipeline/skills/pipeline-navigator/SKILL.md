@@ -1,7 +1,7 @@
 ---
 name: pipeline-navigator
 description: >-
-  Documentation pipeline architecture for f5xc-salesdemos — where to make
+  Documentation pipeline architecture for f5-sales-demo — where to make
   changes across docs-theme, docs-builder, docs-control, and docs-icons.
   Use when deciding which repository to modify, understanding config ownership
   (astro.config.mjs, content.config.ts), debugging the release dispatch chain,
@@ -13,7 +13,7 @@ user-invocable: false
 
 # Documentation Pipeline Navigator
 
-All `f5xc-salesdemos` repositories publish docs to
+All `f5-sales-demo` repositories publish docs to
 GitHub Pages using a shared pipeline.
 
 ## Repository Roles
@@ -81,7 +81,7 @@ managed files in downstream repos** — local changes will
 be overwritten on the next enforcement run.
 
 To change any managed file, open a PR in
-`f5xc-salesdemos/docs-control` instead.
+`f5-sales-demo/docs-control` instead.
 
 ## Other Infrastructure Repos
 

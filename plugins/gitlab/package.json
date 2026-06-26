@@ -1,5 +1,5 @@
 {
-  "name": "@f5xc-salesdemos/xcsh-gitlab",
+  "name": "@f5-sales-demo/xcsh-gitlab",
   "version": "1.0.0",
   "description": "GitLab CLI integration for xcsh — native tools, welcome screen status, issue management",
   "main": "src/index.ts",
@@ -16,7 +16,7 @@
     ]
   },
   "peerDependencies": {
-    "@f5xc-salesdemos/xcsh": ">=1.0.0"
+    "@f5-sales-demo/xcsh": ">=1.0.0"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.0",

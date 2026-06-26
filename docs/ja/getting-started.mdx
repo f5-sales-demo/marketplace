@@ -1,6 +1,6 @@
 ---
 title: はじめに
-description: f5xc-salesdemos マーケットプレイスの追加と最初のプラグインのインストールに関するステップバイステップガイド。
+description: f5-sales-demo マーケットプレイスの追加と最初のプラグインのインストールに関するステップバイステップガイド。
 sidebar:
   order: 2
 i18n:
@@ -10,12 +10,12 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-このガイドでは、f5xc-salesdemos マーケットプレイスを Claude Code に追加し、最初のプラグインをインストールする手順を説明します。
+このガイドでは、f5-sales-demo マーケットプレイスを Claude Code に追加し、最初のプラグインをインストールする手順を説明します。
 
 ## 前提条件
 
 - Claude Code **v1.0.33** 以降（プラグインマーケットプレイスサポート）
-- [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+- [f5-sales-demo](https://github.com/f5-sales-demo)
   組織へのアクセス権を持つ GitHub アカウント
 
 ## インストール
@@ -27,7 +27,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    任意の Claude Code セッションで、以下を実行します：
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    これにより、マーケットプレイスがプラグインソースとして登録されます。この操作は一度だけ行えば十分です。
@@ -37,7 +37,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    マーケットプレイスが提供するプラグインを一覧表示します：
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **プラグインをインストールする**
@@ -45,13 +45,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    必要なプラグインをインストールします：
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **プラグインを使用する**
 
-   任意の f5xc-salesdemos コンテンツリポジトリに移動します。
+   任意の f5-sales-demo コンテンツリポジトリに移動します。
 
    **docs tools** の場合、MDX レビューコマンドを実行します：
 
@@ -69,8 +69,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 インストール済みのプラグインを最新バージョンに更新するには：
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## アンインストール
@@ -78,14 +78,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 プラグインを削除します：
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 マーケットプレイスを完全に削除します：
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## チーム設定
@@ -95,11 +95,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

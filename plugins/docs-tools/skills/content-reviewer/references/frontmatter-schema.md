@@ -61,4 +61,4 @@ sidebar:
 - The `title` field is the only universal ERROR-level requirement
   because Astro/Starlight will fail the build without it
 - The `sidebar.order` field is technically optional for Starlight but
-  is required by f5xc-salesdemos convention for consistent navigation
+  is required by f5-sales-demo convention for consistent navigation

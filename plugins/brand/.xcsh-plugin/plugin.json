@@ -2,9 +2,9 @@
   "name": "brand",
   "description": "F5 corporate branding enforcement \u2014 colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
   "version": "1.0.2",
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/brand",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand",
   "license": "Apache-2.0",
   "author": {
-    "name": "f5xc-salesdemos"
+    "name": "f5-sales-demo"
   }
 }

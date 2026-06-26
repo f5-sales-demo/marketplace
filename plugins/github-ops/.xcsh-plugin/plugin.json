@@ -2,9 +2,9 @@
   "name": "github-ops",
   "description": "GitHub operations automation \u2014 issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
   "version": "2.3.1",
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/github-ops",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github-ops",
   "license": "Apache-2.0",
   "author": {
-    "name": "f5xc-salesdemos"
+    "name": "f5-sales-demo"
   }
 }

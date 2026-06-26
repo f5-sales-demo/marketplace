@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: التحقق من محتوى MDX وفحوصات الجودة لخط أنابيب توثيق f5xc-salesdemos.
+description: التحقق من محتوى MDX وفحوصات الجودة لخط أنابيب توثيق f5-sales-demo.
 sidebar:
   order: 4
 i18n:
@@ -10,21 +10,21 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-يتحقق إضافة **f5xc-docs-tools** من ملفات محتوى MDX لخط أنابيب توثيق f5xc-salesdemos. يكتشف المشكلات الشائعة التي تتسبب في فشل البناء قبل وصولها إلى CI، بما في ذلك أحرف JSX غير المُعالجة، والاستيرادات غير الصالحة، ومراجع الصور المعطلة، والبيانات الوصفية الأمامية غير المكتملة.
+يتحقق إضافة **f5xc-docs-tools** من ملفات محتوى MDX لخط أنابيب توثيق f5-sales-demo. يكتشف المشكلات الشائعة التي تتسبب في فشل البناء قبل وصولها إلى CI، بما في ذلك أحرف JSX غير المُعالجة، والاستيرادات غير الصالحة، ومراجع الصور المعطلة، والبيانات الوصفية الأمامية غير المكتملة.
 
 <Badge text="v1.1.2" variant="note" /> <Badge text="الإنتاجية" variant="tip" />
 
 ## التثبيت
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## المهارات
 
 ### mdx-content-reviewer
 
-تُفعَّل هذه المهارة تلقائيًا عندما يكتشف Claude أنك تعمل مع ملفات MDX في مستودع محتوى f5xc-salesdemos. تُجري سبعة فحوصات للتحقق:
+تُفعَّل هذه المهارة تلقائيًا عندما يكتشف Claude أنك تعمل مع ملفات MDX في مستودع محتوى f5-sales-demo. تُجري سبعة فحوصات للتحقق:
 
 <CardGrid>
   <Card title="التحقق من البيانات الوصفية الأمامية">
@@ -35,7 +35,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
     يكتشف أحرف `&lt;` غير المُعالجة والأقواس المتعرجة `\{` `\}` غير المُهرَّبة التي تُعطل تحليل MDX.
   </Card>
   <Card title="التحقق من الاستيرادات">
-    يتحقق من الاستيرادات مقابل قائمة مسموح بها من مكونات Starlight المدمجة ومكونات قالب f5xc-salesdemos.
+    يتحقق من الاستيرادات مقابل قائمة مسموح بها من مكونات Starlight المدمجة ومكونات قالب f5-sales-demo.
   </Card>
   <Card title="خصائص المكونات">
     يتحقق من الخصائص المطلوبة للمكونات مثل Screenshot وAside وCode وLinkCard وCard وBadge.
@@ -108,7 +108,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**مكونات قالب f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+**مكونات قالب f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

@@ -1,7 +1,7 @@
 ---
 title: f5xc-docs-tools
 description: >-
-  f5xc-salesdemos डॉक्यूमेंटेशन पाइपलाइन के लिए MDX कंटेंट सत्यापन और गुणवत्ता
+  f5-sales-demo डॉक्यूमेंटेशन पाइपलाइन के लिए MDX कंटेंट सत्यापन और गुणवत्ता
   जाँच।
 sidebar:
   order: 4
@@ -12,21 +12,21 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** प्लगइन f5xc-salesdemos डॉक्यूमेंटेशन पाइपलाइन के लिए MDX कंटेंट फ़ाइलों का सत्यापन करता है। यह CI तक पहुँचने से पहले सामान्य बिल्ड-ब्रेकिंग समस्याओं को पकड़ता है, जिसमें बेयर JSX कैरेक्टर, अमान्य इम्पोर्ट, टूटे हुए इमेज रेफरेंस, और अपूर्ण फ्रंटमैटर शामिल हैं।
+**f5xc-docs-tools** प्लगइन f5-sales-demo डॉक्यूमेंटेशन पाइपलाइन के लिए MDX कंटेंट फ़ाइलों का सत्यापन करता है। यह CI तक पहुँचने से पहले सामान्य बिल्ड-ब्रेकिंग समस्याओं को पकड़ता है, जिसमें बेयर JSX कैरेक्टर, अमान्य इम्पोर्ट, टूटे हुए इमेज रेफरेंस, और अपूर्ण फ्रंटमैटर शामिल हैं।
 
 <Badge text="v1.1.2" variant="note" /> <Badge text="उत्पादकता" variant="tip" />
 
 ## इंस्टॉलेशन
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## स्किल्स
 
 ### mdx-content-reviewer
 
-यह स्किल स्वचालित रूप से सक्रिय हो जाता है जब Claude यह पता लगाता है कि आप f5xc-salesdemos कंटेंट रिपॉजिटरी में MDX फ़ाइलों के साथ काम कर रहे हैं। यह सात सत्यापन जाँचें करता है:
+यह स्किल स्वचालित रूप से सक्रिय हो जाता है जब Claude यह पता लगाता है कि आप f5-sales-demo कंटेंट रिपॉजिटरी में MDX फ़ाइलों के साथ काम कर रहे हैं। यह सात सत्यापन जाँचें करता है:
 
 <CardGrid>
   <Card title="फ्रंटमैटर सत्यापन">
@@ -39,7 +39,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
     ब्रेसेज़ का पता लगाता है जो MDX पार्सिंग को तोड़ते हैं।
   </Card>
   <Card title="इम्पोर्ट सत्यापन">
-    Starlight बिल्ट-इन और f5xc-salesdemos थीम कंपोनेंट्स
+    Starlight बिल्ट-इन और f5-sales-demo थीम कंपोनेंट्स
     की अनुमति सूची के विरुद्ध इम्पोर्ट्स को मान्य करता है।
   </Card>
   <Card title="कंपोनेंट एट्रिब्यूट्स">
@@ -117,7 +117,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos थीम कंपोनेंट्स** (`@f5xc-salesdemos/docs-theme/components/`):
+**f5-sales-demo थीम कंपोनेंट्स** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

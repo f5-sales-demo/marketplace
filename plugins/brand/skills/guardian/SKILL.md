@@ -34,14 +34,14 @@ have been updated since this skill was written.
 
 | Dimension | Canonical source | Live docs |
 | --------- | ---------------- | --------- |
-| Colors (45 tokens) | `docs-theme/styles/custom.css` lines 1-48 | [Colors page](https://f5xc-salesdemos.github.io/docs-theme/colors/) |
-| Typography | `docs-theme/fonts/font-face.css` + `custom.css` lines 169-211 | [Typography page](https://f5xc-salesdemos.github.io/docs-theme/typography/) |
-| Logos | `docs-theme/assets/` | [Logo page](https://f5xc-salesdemos.github.io/docs-theme/logo/) |
+| Colors (45 tokens) | `docs-theme/styles/custom.css` lines 1-48 | [Colors page](https://f5-sales-demo.github.io/docs-theme/colors/) |
+| Typography | `docs-theme/fonts/font-face.css` + `custom.css` lines 169-211 | [Typography page](https://f5-sales-demo.github.io/docs-theme/typography/) |
+| Logos | `docs-theme/assets/` | [Logo page](https://f5-sales-demo.github.io/docs-theme/logo/) |
 | Design tokens | `docs-theme/styles/custom.css` lines 91-128 | — |
-| Icons (f5-brand) | `docs-icons/packages/f5-brand/` (665 icons) | [Icons page](https://f5xc-salesdemos.github.io/docs-icons/) |
-| Icons (f5xc) | `docs-icons/packages/f5xc/` (30 icons) | [F5 XC icons](https://f5xc-salesdemos.github.io/docs-icons/f5xc/) |
-| Mermaid theming | `docs-theme/config.ts` lines 319-337 | [Diagram instructions](https://f5xc-salesdemos.github.io/docs-theme/diagrams/instructions/) |
-| Screenshots | — | [Screenshot guide](https://f5xc-salesdemos.github.io/docs-theme/screenshots/) |
+| Icons (f5-brand) | `docs-icons/packages/f5-brand/` (665 icons) | [Icons page](https://f5-sales-demo.github.io/docs-icons/) |
+| Icons (f5xc) | `docs-icons/packages/f5xc/` (30 icons) | [F5 XC icons](https://f5-sales-demo.github.io/docs-icons/f5xc/) |
+| Mermaid theming | `docs-theme/config.ts` lines 319-337 | [Diagram instructions](https://f5-sales-demo.github.io/docs-theme/diagrams/instructions/) |
+| Screenshots | — | [Screenshot guide](https://f5-sales-demo.github.io/docs-theme/screenshots/) |
 | F5 Brand Center | — | [brand.f5.com](https://brand.f5.com) |
 
 ## Color rules
@@ -152,7 +152,7 @@ In Mermaid diagrams, reference icons as `pack-name:icon-name`
 In Astro components, import from the relevant package:
 
 ```astro
-import Icon from '@f5xc-salesdemos/icons-f5-brand/Icon.astro';
+import Icon from '@f5-sales-demo/icons-f5-brand/Icon.astro';
 ```
 
 ## Tone and voice
@@ -205,7 +205,7 @@ When writing an MDX page in a content repo's `docs/` directory:
   variables: `var(--f5-river)` for info callouts,
   `var(--f5-jade)` for success states
 - Reference F5 product icons with the `Icon` component from
-  `@f5xc-salesdemos/icons-f5-brand`
+  `@f5-sales-demo/icons-f5-brand`
 - Capture screenshots in both light and dark mode
 
 ### Choosing colors for a Mermaid diagram

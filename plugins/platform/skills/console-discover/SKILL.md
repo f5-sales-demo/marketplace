@@ -13,7 +13,7 @@ user-invocable: true
 
 Crawl the F5 XC console sidebar navigation and extract the
 complete menu tree with routes, labels, and page types. Outputs
-YAML files matching the `f5xc-salesdemos/console` catalog schemas.
+YAML files matching the `f5-sales-demo/console` catalog schemas.
 
 ## Prerequisites
 
@@ -129,7 +129,7 @@ Report:
 ## Output Schema
 
 All output files must validate against the JSON Schemas in
-`f5xc-salesdemos/console/schemas/`. Run `npm run validate`
+`f5-sales-demo/console/schemas/`. Run `npm run validate`
 in the console repo after writing files.
 
 ## Incremental Discovery

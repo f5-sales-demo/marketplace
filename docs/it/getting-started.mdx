@@ -1,7 +1,7 @@
 ---
 title: Guida Introduttiva
 description: >-
-  Guida passo-passo per aggiungere il marketplace f5xc-salesdemos e installare
+  Guida passo-passo per aggiungere il marketplace f5-sales-demo e installare
   il primo plugin.
 sidebar:
   order: 2
@@ -13,13 +13,13 @@ i18n:
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 Questa guida illustra come aggiungere il marketplace
-f5xc-salesdemos a Claude Code e installare il primo plugin.
+f5-sales-demo a Claude Code e installare il primo plugin.
 
 ## Prerequisiti
 
 - Claude Code **v1.0.33** o successiva (supporto marketplace plugin)
 - Un account GitHub con accesso all'organizzazione
-  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  [f5-sales-demo](https://github.com/f5-sales-demo)
 
 ## Installazione
 
@@ -30,7 +30,7 @@ f5xc-salesdemos a Claude Code e installare il primo plugin.
    In qualsiasi sessione di Claude Code, eseguire:
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    Questo registra il marketplace come sorgente di plugin. È
@@ -41,7 +41,7 @@ f5xc-salesdemos a Claude Code e installare il primo plugin.
    Elencare ciò che il marketplace offre:
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **Installare un plugin**
@@ -49,13 +49,13 @@ f5xc-salesdemos a Claude Code e installare il primo plugin.
    Installare il plugin necessario:
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **Utilizzare il plugin**
 
-   Navigare verso qualsiasi repository di contenuti f5xc-salesdemos.
+   Navigare verso qualsiasi repository di contenuti f5-sales-demo.
 
    Per **docs tools**, eseguire il comando di revisione MDX:
 
@@ -74,8 +74,8 @@ f5xc-salesdemos a Claude Code e installare il primo plugin.
 Per aggiornare un plugin installato all'ultima versione:
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## Disinstallazione
@@ -83,14 +83,14 @@ Per aggiornare un plugin installato all'ultima versione:
 Rimuovere un plugin:
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 Rimuovere completamente il marketplace:
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## Configurazione per il Team
@@ -101,11 +101,11 @@ al file `.claude/settings.json` del progetto:
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

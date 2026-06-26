@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: การตรวจสอบเนื้อหา MDX และการตรวจคุณภาพสำหรับไปป์ไลน์เอกสาร f5xc-salesdemos
+description: การตรวจสอบเนื้อหา MDX และการตรวจคุณภาพสำหรับไปป์ไลน์เอกสาร f5-sales-demo
 sidebar:
   order: 4
 i18n:
@@ -10,21 +10,21 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-ปลั๊กอิน **f5xc-docs-tools** ตรวจสอบความถูกต้องของไฟล์เนื้อหา MDX สำหรับไปป์ไลน์เอกสาร f5xc-salesdemos โดยจะตรวจจับปัญหาทั่วไปที่ทำให้การ build ล้มเหลวก่อนที่จะถึง CI รวมถึงอักขระ JSX ที่ไม่ได้ครอบ, การ import ที่ไม่ถูกต้อง, การอ้างอิงรูปภาพที่เสีย และ frontmatter ที่ไม่สมบูรณ์
+ปลั๊กอิน **f5xc-docs-tools** ตรวจสอบความถูกต้องของไฟล์เนื้อหา MDX สำหรับไปป์ไลน์เอกสาร f5-sales-demo โดยจะตรวจจับปัญหาทั่วไปที่ทำให้การ build ล้มเหลวก่อนที่จะถึง CI รวมถึงอักขระ JSX ที่ไม่ได้ครอบ, การ import ที่ไม่ถูกต้อง, การอ้างอิงรูปภาพที่เสีย และ frontmatter ที่ไม่สมบูรณ์
 
 <Badge text="v1.1.2" variant="note" /> <Badge text="ประสิทธิภาพการทำงาน" variant="tip" />
 
 ## การติดตั้ง
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## ทักษะ
 
 ### mdx-content-reviewer
 
-ทักษะนี้จะเปิดใช้งานโดยอัตโนมัติเมื่อ Claude ตรวจพบว่าคุณกำลังทำงานกับไฟล์ MDX ในรีโพซิทอรีเนื้อหา f5xc-salesdemos โดยจะทำการตรวจสอบ 7 รายการ:
+ทักษะนี้จะเปิดใช้งานโดยอัตโนมัติเมื่อ Claude ตรวจพบว่าคุณกำลังทำงานกับไฟล์ MDX ในรีโพซิทอรีเนื้อหา f5-sales-demo โดยจะทำการตรวจสอบ 7 รายการ:
 
 <CardGrid>
   <Card title="การตรวจสอบ Frontmatter">
@@ -38,7 +38,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
   </Card>
   <Card title="การตรวจสอบ Import">
     ตรวจสอบ import เทียบกับรายการที่อนุญาตของคอมโพเนนต์
-    ในตัวของ Starlight และคอมโพเนนต์ธีม f5xc-salesdemos
+    ในตัวของ Starlight และคอมโพเนนต์ธีม f5-sales-demo
   </Card>
   <Card title="แอตทริบิวต์คอมโพเนนต์">
     ตรวจสอบ props ที่จำเป็นสำหรับคอมโพเนนต์เช่น Screenshot,
@@ -114,7 +114,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**คอมโพเนนต์ธีม f5xc-salesdemos** (`@f5xc-salesdemos/docs-theme/components/`):
+**คอมโพเนนต์ธีม f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

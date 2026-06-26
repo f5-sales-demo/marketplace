@@ -1,7 +1,7 @@
 ---
 name: workflow-lifecycle
 description: >-
-  Repository governance workflow for f5xc-salesdemos — issue creation,
+  Repository governance workflow for f5-sales-demo — issue creation,
   branch naming, PR workflow, CI polling, post-merge monitoring,
   verification, and task completion criteria.
   Use when the user says "commit", "push", "create a pr", "open a pr",

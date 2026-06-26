@@ -4,7 +4,7 @@ Source: `docs-theme/fonts/font-face.css` and
 `docs-theme/styles/custom.css` lines 169-211
 
 Live documentation:
-<https://f5xc-salesdemos.github.io/docs-theme/typography/>
+<https://f5-sales-demo.github.io/docs-theme/typography/>
 
 ## Font families
 

@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: 用于 f5xc-salesdemos 文档流水线的 MDX 内容验证和质量检查。
+description: 用于 f5-sales-demo 文档流水线的 MDX 内容验证和质量检查。
 sidebar:
   order: 4
 i18n:
@@ -10,21 +10,21 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** 插件为 f5xc-salesdemos 文档流水线验证 MDX 内容文件。它能在问题到达 CI 之前捕获常见的构建中断问题，包括裸 JSX 字符、无效导入、损坏的图片引用以及不完整的 frontmatter。
+**f5xc-docs-tools** 插件为 f5-sales-demo 文档流水线验证 MDX 内容文件。它能在问题到达 CI 之前捕获常见的构建中断问题，包括裸 JSX 字符、无效导入、损坏的图片引用以及不完整的 frontmatter。
 
 <Badge text="v1.1.2" variant="note" /> <Badge text="生产力" variant="tip" />
 
 ## 安装
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## 技能
 
 ### mdx-content-reviewer
 
-当 Claude 检测到您正在 f5xc-salesdemos 内容仓库中处理 MDX 文件时，此技能会自动激活。它执行七项验证检查：
+当 Claude 检测到您正在 f5-sales-demo 内容仓库中处理 MDX 文件时，此技能会自动激活。它执行七项验证检查：
 
 <CardGrid>
   <Card title="Frontmatter 验证">
@@ -37,7 +37,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
     花括号，这些会破坏 MDX 解析。
   </Card>
   <Card title="导入验证">
-    根据 Starlight 内置组件和 f5xc-salesdemos 主题组件的允许列表验证导入。
+    根据 Starlight 内置组件和 f5-sales-demo 主题组件的允许列表验证导入。
   </Card>
   <Card title="组件属性">
     检查 Screenshot、Aside、Code、LinkCard、Card 和 Badge 等组件的必需属性。
@@ -110,7 +110,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos 主题组件**（`@f5xc-salesdemos/docs-theme/components/`）：
+**f5-sales-demo 主题组件**（`@f5-sales-demo/docs-theme/components/`）：
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

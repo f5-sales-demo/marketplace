@@ -5,7 +5,7 @@ description: >-
   files to detect drift — tools added but not cataloged, or catalog
   entries for removed tools.
   GitHub operations are STRICTLY READ-ONLY — may clone
-  f5xc-salesdemos/devcontainer to /tmp for Dockerfile comparison only.
+  f5-sales-demo/devcontainer to /tmp for Dockerfile comparison only.
   Does NOT create issues, branches, commits, PRs, or perform any
   mutative GitHub operations. All mutative Git/GitHub operations are
   the exclusive responsibility of github-ops:github-ops.
@@ -43,7 +43,7 @@ to act on.
 Check these locations in order:
 
 1. `/workspace/devcontainer/Dockerfile`
-2. Clone if not present: `gh repo clone f5xc-salesdemos/devcontainer /tmp/devcontainer-audit`
+2. Clone if not present: `gh repo clone f5-sales-demo/devcontainer /tmp/devcontainer-audit`
    then read `/tmp/devcontainer-audit/Dockerfile`
 
 Read the entire Dockerfile.

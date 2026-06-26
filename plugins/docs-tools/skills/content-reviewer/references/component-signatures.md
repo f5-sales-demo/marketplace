@@ -1,7 +1,7 @@
 # Component Attribute Signatures
 
 Required and optional attributes for components used in
-f5xc-salesdemos MDX content.
+f5-sales-demo MDX content.
 
 ## Screenshot
 
@@ -76,7 +76,7 @@ export const myScript = `console.log("hello");`;
 
 ## LinkCard (theme version)
 
-Enhanced link card supporting icons from the f5xc-salesdemos icon sets.
+Enhanced link card supporting icons from the f5-sales-demo icon sets.
 
 | Attribute | Required | Type | Notes |
 | ----------- | ---------- | ------ | ------- |

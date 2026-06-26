@@ -1,13 +1,13 @@
 ---
 name: content-reviewer
 description: >-
-  Review MDX content files for the f5xc-salesdemos documentation pipeline.
+  Review MDX content files for the f5-sales-demo documentation pipeline.
   Checks for bare < characters, unescaped {}, broken image references,
   incomplete frontmatter, invalid imports, and component attribute issues.
   Use this skill when the user asks to review MDX, check docs, validate
   content, lint MDX files, mentions MDX errors or build failures, or wants
   to check documentation quality before committing. Also use when working
-  in any f5xc-salesdemos content repository's docs/ directory.
+  in any f5-sales-demo content repository's docs/ directory.
 ---
 
 # MDX Content Reviewer
@@ -113,10 +113,10 @@ allowlist:
 | Source | Named exports |
 | -------- | --------------- |
 | `@astrojs/starlight/components` | `Aside`, `Code`, `Steps`, `CardGrid`, `Card`, `Tabs`, `TabItem`, `LinkCard`, `Badge`, `Icon`, `FileTree` |
-| `@f5xc-salesdemos/docs-theme/components/Screenshot.astro` | default import (`Screenshot`) |
-| `@f5xc-salesdemos/docs-theme/components/LinkCard.astro` | default import (`LinkCard`) |
-| `@f5xc-salesdemos/docs-theme/components/Banner.astro` | default import (`Banner`) |
-| `@f5xc-salesdemos/docs-theme/components/Icon.astro` | default import (`Icon`) |
+| `@f5-sales-demo/docs-theme/components/Screenshot.astro` | default import (`Screenshot`) |
+| `@f5-sales-demo/docs-theme/components/LinkCard.astro` | default import (`LinkCard`) |
+| `@f5-sales-demo/docs-theme/components/Banner.astro` | default import (`Banner`) |
+| `@f5-sales-demo/docs-theme/components/Icon.astro` | default import (`Icon`) |
 
 **Severities:**
 
