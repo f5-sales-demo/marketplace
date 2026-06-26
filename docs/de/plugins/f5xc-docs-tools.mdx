@@ -2,7 +2,7 @@
 title: f5xc-docs-tools
 description: >-
   MDX-Inhaltsvalidierung und Qualitätsprüfungen für die
-  f5xc-salesdemos-Dokumentationspipeline.
+  f5-sales-demo-Dokumentationspipeline.
 sidebar:
   order: 4
 i18n:
@@ -13,7 +13,7 @@ i18n:
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 Das Plugin **f5xc-docs-tools** validiert MDX-Inhaltsdateien für
-die f5xc-salesdemos-Dokumentationspipeline. Es erkennt häufige
+die f5-sales-demo-Dokumentationspipeline. Es erkennt häufige
 Build-brechende Probleme, bevor sie die CI erreichen, darunter
 nackte JSX-Zeichen, ungültige Imports, fehlerhafte
 Bildreferenzen und unvollständige Frontmatter-Daten.
@@ -23,7 +23,7 @@ Bildreferenzen und unvollständige Frontmatter-Daten.
 ## Installation
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## Skills
@@ -31,7 +31,7 @@ Bildreferenzen und unvollständige Frontmatter-Daten.
 ### mdx-content-reviewer
 
 Dieser Skill wird automatisch aktiviert, wenn Claude erkennt,
-dass Sie mit MDX-Dateien in einem f5xc-salesdemos-Content-
+dass Sie mit MDX-Dateien in einem f5-sales-demo-Content-
 Repository arbeiten. Er führt sieben Validierungsprüfungen
 durch:
 
@@ -47,7 +47,7 @@ durch:
   </Card>
   <Card title="Import-Validierung">
     Validiert Imports gegen eine Allowlist von Starlight-
-    Built-in- und f5xc-salesdemos-Theme-Komponenten.
+    Built-in- und f5-sales-demo-Theme-Komponenten.
   </Card>
   <Card title="Komponenten-Attribute">
     Prüft erforderliche Props für Komponenten wie Screenshot,
@@ -129,7 +129,7 @@ Das Plugin validiert Imports gegen diese Quellen:
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos-Theme-Komponenten** (`@f5xc-salesdemos/docs-theme/components/`):
+**f5-sales-demo-Theme-Komponenten** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

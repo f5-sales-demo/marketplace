@@ -1,6 +1,6 @@
 ---
 title: 開始使用
-description: 逐步指南：新增 f5xc-salesdemos 市場並安裝您的第一個外掛程式。
+description: 逐步指南：新增 f5-sales-demo 市場並安裝您的第一個外掛程式。
 sidebar:
   order: 2
 i18n:
@@ -10,14 +10,14 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-本指南將引導您新增 f5xc-salesdemos
+本指南將引導您新增 f5-sales-demo
 市場到 Claude Code 並安裝您的第一個外掛程式。
 
 ## 先決條件
 
 - Claude Code **v1.0.33** 或更新版本（支援外掛程式市場）
 - 擁有
-  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  [f5-sales-demo](https://github.com/f5-sales-demo)
   組織存取權限的 GitHub 帳號
 
 ## 安裝
@@ -29,7 +29,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    在任何 Claude Code 工作階段中，執行：
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    這會將市場註冊為外掛程式來源。您只需要
@@ -40,7 +40,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    列出市場提供的內容：
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **安裝外掛程式**
@@ -48,13 +48,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    安裝您需要的外掛程式：
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **使用外掛程式**
 
-   導覽至任何 f5xc-salesdemos 內容儲存庫。
+   導覽至任何 f5-sales-demo 內容儲存庫。
 
    若使用 **docs tools**，執行 MDX 審查命令：
 
@@ -73,8 +73,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 若要將已安裝的外掛程式更新至最新版本：
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## 解除安裝
@@ -82,14 +82,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 移除外掛程式：
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 完全移除市場：
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## 團隊設定
@@ -100,11 +100,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

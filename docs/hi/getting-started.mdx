@@ -1,7 +1,7 @@
 ---
 title: शुरुआत करें
 description: >-
-  f5xc-salesdemos मार्केटप्लेस जोड़ने और अपना पहला प्लगइन इंस्टॉल करने के लिए
+  f5-sales-demo मार्केटप्लेस जोड़ने और अपना पहला प्लगइन इंस्टॉल करने के लिए
   चरण-दर-चरण मार्गदर्शिका।
 sidebar:
   order: 2
@@ -12,13 +12,13 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-यह मार्गदर्शिका आपको Claude Code में f5xc-salesdemos
+यह मार्गदर्शिका आपको Claude Code में f5-sales-demo
 मार्केटप्लेस जोड़ने और अपना पहला प्लगइन इंस्टॉल करने की प्रक्रिया से परिचित कराती है।
 
 ## पूर्वापेक्षाएँ
 
 - Claude Code **v1.0.33** या बाद का संस्करण (प्लगइन मार्केटप्लेस समर्थन)
-- [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+- [f5-sales-demo](https://github.com/f5-sales-demo)
   संगठन तक पहुँच वाला एक GitHub खाता
 
 ## इंस्टॉलेशन
@@ -30,7 +30,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    किसी भी Claude Code सत्र में, यह कमांड चलाएँ:
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    यह मार्केटप्लेस को एक प्लगइन स्रोत के रूप में पंजीकृत करता है। आपको
@@ -41,7 +41,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    मार्केटप्लेस में उपलब्ध प्लगइन की सूची देखें:
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **प्लगइन इंस्टॉल करें**
@@ -49,13 +49,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    अपनी आवश्यकता का प्लगइन इंस्टॉल करें:
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **प्लगइन का उपयोग करें**
 
-   किसी भी f5xc-salesdemos कंटेंट रिपॉज़िटरी में नेविगेट करें।
+   किसी भी f5-sales-demo कंटेंट रिपॉज़िटरी में नेविगेट करें।
 
    **डॉक्स टूल्स** के लिए, MDX समीक्षा कमांड चलाएँ:
 
@@ -74,8 +74,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 इंस्टॉल किए गए प्लगइन को नवीनतम संस्करण में अपडेट करने के लिए:
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## अनइंस्टॉल करना
@@ -83,14 +83,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 प्लगइन हटाएँ:
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 मार्केटप्लेस को पूरी तरह हटाएँ:
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## टीम कॉन्फ़िगरेशन
@@ -101,11 +101,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

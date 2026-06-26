@@ -3,11 +3,11 @@
   "description": "GitHub CLI integration — native xcsh tools (gh_repo_view, gh_issue_view, gh_pr_view, gh_pr_diff, gh_pr_checkout, gh_pr_push, gh_run_watch, gh_search_issues, gh_search_prs), profile collection, and service status",
   "version": "1.1.0",
   "author": {
-    "name": "f5xc-salesdemos",
-    "url": "https://github.com/f5xc-salesdemos"
+    "name": "f5-sales-demo",
+    "url": "https://github.com/f5-sales-demo"
   },
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/github",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github",
   "keywords": ["github", "gh", "git", "pull-request", "issues", "actions", "xcsh-extension"],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace"
 }

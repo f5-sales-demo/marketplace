@@ -1,6 +1,6 @@
 # docs-pipeline
 
-Documentation pipeline plugin for `f5xc-salesdemos` —
+Documentation pipeline plugin for `f5-sales-demo` —
 guides navigation of the multi-repo build architecture,
 config ownership, and content authoring.
 
@@ -42,5 +42,5 @@ Starts a local Docker dev server for docs preview.
 ## Installation
 
 ```bash
-claude /install docs-pipeline@f5xc-salesdemos-marketplace
+claude /install docs-pipeline@f5-sales-demo-marketplace
 ```

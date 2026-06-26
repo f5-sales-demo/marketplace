@@ -14,7 +14,7 @@ user-invocable: true
 Inspect a single F5 XC console route and extract its complete
 UI structure — form sections, fields, table columns, controls,
 selectors, and available operations. Outputs resource mapping
-and workflow YAML files for the `f5xc-salesdemos/console` catalog.
+and workflow YAML files for the `f5-sales-demo/console` catalog.
 
 ## Prerequisites
 

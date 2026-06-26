@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: f5xc-salesdemos 문서화 파이프라인을 위한 MDX 콘텐츠 유효성 검사 및 품질 검사.
+description: f5-sales-demo 문서화 파이프라인을 위한 MDX 콘텐츠 유효성 검사 및 품질 검사.
 sidebar:
   order: 4
 i18n:
@@ -10,21 +10,21 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** 플러그인은 f5xc-salesdemos 문서화 파이프라인을 위한 MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 노출된 JSX 문자, 잘못된 임포트, 손상된 이미지 참조, 불완전한 프론트매터 등 빌드를 중단시키는 일반적인 문제를 CI에 도달하기 전에 감지합니다.
+**f5xc-docs-tools** 플러그인은 f5-sales-demo 문서화 파이프라인을 위한 MDX 콘텐츠 파일의 유효성을 검사합니다. 이 플러그인은 노출된 JSX 문자, 잘못된 임포트, 손상된 이미지 참조, 불완전한 프론트매터 등 빌드를 중단시키는 일반적인 문제를 CI에 도달하기 전에 감지합니다.
 
 <Badge text="v1.1.2" variant="note" /> <Badge text="생산성" variant="tip" />
 
 ## 설치
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## 스킬
 
 ### mdx-content-reviewer
 
-이 스킬은 Claude가 f5xc-salesdemos 콘텐츠 리포지토리에서 MDX 파일을 작업하고 있음을 감지하면 자동으로 활성화됩니다. 7가지 유효성 검사를 수행합니다:
+이 스킬은 Claude가 f5-sales-demo 콘텐츠 리포지토리에서 MDX 파일을 작업하고 있음을 감지하면 자동으로 활성화됩니다. 7가지 유효성 검사를 수행합니다:
 
 <CardGrid>
   <Card title="프론트매터 유효성 검사">
@@ -37,7 +37,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
     이스케이프되지 않은 `\{` `\}` 중괄호를 감지합니다.
   </Card>
   <Card title="임포트 유효성 검사">
-    Starlight 내장 및 f5xc-salesdemos 테마 컴포넌트의
+    Starlight 내장 및 f5-sales-demo 테마 컴포넌트의
     허용 목록을 기준으로 임포트의 유효성을 검사합니다.
   </Card>
   <Card title="컴포넌트 속성">
@@ -115,7 +115,7 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos 테마 컴포넌트** (`@f5xc-salesdemos/docs-theme/components/`):
+**f5-sales-demo 테마 컴포넌트** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

@@ -1,6 +1,6 @@
 ---
 title: f5xc-docs-tools
-description: 針對 f5xc-salesdemos 文件流程的 MDX 內容驗證與品質檢查。
+description: 針對 f5-sales-demo 文件流程的 MDX 內容驗證與品質檢查。
 sidebar:
   order: 4
 i18n:
@@ -10,7 +10,7 @@ i18n:
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-**f5xc-docs-tools** 外掛程式會驗證 f5xc-salesdemos 文件流程中的
+**f5xc-docs-tools** 外掛程式會驗證 f5-sales-demo 文件流程中的
 MDX 內容檔案。它能在問題進入 CI 之前，捕捉常見的建置中斷問題，
 包括裸露的 JSX 字元、無效的匯入、損壞的圖片參照以及不完整的
 frontmatter。
@@ -20,14 +20,14 @@ frontmatter。
 ## 安裝
 
 ```
-/plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
+/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
 ## 技能
 
 ### mdx-content-reviewer
 
-當 Claude 偵測到您正在 f5xc-salesdemos 內容儲存庫中處理 MDX 檔案時，
+當 Claude 偵測到您正在 f5-sales-demo 內容儲存庫中處理 MDX 檔案時，
 此技能會自動啟用。它執行七項驗證檢查：
 
 <CardGrid>
@@ -41,7 +41,7 @@ frontmatter。
     大括號，這些會導致 MDX 解析中斷。
   </Card>
   <Card title="匯入驗證">
-    根據 Starlight 內建元件和 f5xc-salesdemos 主題元件的
+    根據 Starlight 內建元件和 f5-sales-demo 主題元件的
     允許清單驗證匯入。
   </Card>
   <Card title="元件屬性">
@@ -121,7 +121,7 @@ frontmatter。
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**f5xc-salesdemos 主題元件**（`@f5xc-salesdemos/docs-theme/components/`）：
+**f5-sales-demo 主題元件**（`@f5-sales-demo/docs-theme/components/`）：
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 

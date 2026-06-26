@@ -9,7 +9,7 @@ Import from the docs-theme package:
 
 ```astro
 import Screenshot from
-  '@f5xc-salesdemos/docs-theme/components/Screenshot.astro';
+  '@f5-sales-demo/docs-theme/components/Screenshot.astro';
 ```
 
 ### Props

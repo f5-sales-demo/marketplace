@@ -14,7 +14,7 @@ docker run --rm -it \
   -v "$(pwd)/docs:/content/docs" \
   -p 4321:4321 \
   -e MODE=dev \
-  ghcr.io/f5xc-salesdemos/docs-builder:latest
+  ghcr.io/f5-sales-demo/docs-builder:latest
 ```
 
 Then tell the user to open `http://localhost:4321`.

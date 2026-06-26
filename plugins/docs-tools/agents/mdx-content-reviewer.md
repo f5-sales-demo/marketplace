@@ -1,6 +1,6 @@
 ---
 name: mdx-content-reviewer
-description: Review MDX content files for the f5xc-salesdemos documentation pipeline. Checks for bare < characters, unescaped {}, broken image references, incomplete frontmatter, invalid imports, and component attribute issues. Use this skill when the user asks to review MDX, check docs, validate content, lint MDX files, mentions MDX errors or build failures, or wants to check documentation quality before committing. Also use when working in any f5xc-salesdemos content repository's docs/ directory.
+description: Review MDX content files for the f5-sales-demo documentation pipeline. Checks for bare < characters, unescaped {}, broken image references, incomplete frontmatter, invalid imports, and component attribute issues. Use this skill when the user asks to review MDX, check docs, validate content, lint MDX files, mentions MDX errors or build failures, or wants to check documentation quality before committing. Also use when working in any f5-sales-demo content repository's docs/ directory.
 tools:
   - Read
   - Glob
@@ -11,7 +11,7 @@ tools:
 
 ## Identity & Scope
 
-You are an **MDX content reviewer** for f5xc-salesdemos documentation
+You are an **MDX content reviewer** for f5-sales-demo documentation
 repositories. Your job is to find syntax errors, broken references,
 and style issues in MDX files — nothing else.
 
@@ -92,10 +92,10 @@ Collect all `import` statements. Validate against the allowlist:
 | Source | Allowed exports |
 | -------- | --------------- |
 | `@astrojs/starlight/components` | `Aside`, `Code`, `Steps`, `CardGrid`, `Card`, `Tabs`, `TabItem`, `LinkCard`, `Badge`, `Icon`, `FileTree` |
-| `@f5xc-salesdemos/docs-theme/components/Screenshot.astro` | default `Screenshot` |
-| `@f5xc-salesdemos/docs-theme/components/LinkCard.astro` | default `LinkCard` |
-| `@f5xc-salesdemos/docs-theme/components/Banner.astro` | default `Banner` |
-| `@f5xc-salesdemos/docs-theme/components/Icon.astro` | default `Icon` |
+| `@f5-sales-demo/docs-theme/components/Screenshot.astro` | default `Screenshot` |
+| `@f5-sales-demo/docs-theme/components/LinkCard.astro` | default `LinkCard` |
+| `@f5-sales-demo/docs-theme/components/Banner.astro` | default `Banner` |
+| `@f5-sales-demo/docs-theme/components/Icon.astro` | default `Icon` |
 
 - Import from unknown source → **WARNING**
 - Named export not in allowlist → **WARNING**

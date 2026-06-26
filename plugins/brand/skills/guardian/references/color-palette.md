@@ -3,7 +3,7 @@
 Source: `docs-theme/styles/custom.css` lines 1-48
 
 Live documentation:
-<https://f5xc-salesdemos.github.io/docs-theme/colors/>
+<https://f5-sales-demo.github.io/docs-theme/colors/>
 
 ## Complete 45-color palette
 

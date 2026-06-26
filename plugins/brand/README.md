@@ -38,8 +38,8 @@ It points to:
 ## Brand reference
 
 - [F5 Brand Center](https://brand.f5.com)
-- [Colors](https://f5xc-salesdemos.github.io/docs-theme/colors/)
-- [Typography](https://f5xc-salesdemos.github.io/docs-theme/typography/)
-- [Logos](https://f5xc-salesdemos.github.io/docs-theme/logo/)
-- [Icons](https://f5xc-salesdemos.github.io/docs-icons/)
-- [Diagrams](https://f5xc-salesdemos.github.io/docs-theme/diagrams/instructions/)
+- [Colors](https://f5-sales-demo.github.io/docs-theme/colors/)
+- [Typography](https://f5-sales-demo.github.io/docs-theme/typography/)
+- [Logos](https://f5-sales-demo.github.io/docs-theme/logo/)
+- [Icons](https://f5-sales-demo.github.io/docs-icons/)
+- [Diagrams](https://f5-sales-demo.github.io/docs-theme/diagrams/instructions/)

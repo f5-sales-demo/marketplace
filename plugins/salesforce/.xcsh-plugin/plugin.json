@@ -3,11 +3,11 @@
   "description": "Salesforce pipeline intelligence — native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting",
   "version": "1.2.0",
   "author": {
-    "name": "f5xc-salesdemos",
-    "url": "https://github.com/f5xc-salesdemos"
+    "name": "f5-sales-demo",
+    "url": "https://github.com/f5-sales-demo"
   },
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/salesforce",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce",
   "keywords": ["salesforce", "sf", "soql", "pipeline", "xcsh-extension"],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5xc-salesdemos/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace"
 }

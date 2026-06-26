@@ -1,7 +1,7 @@
 ---
 name: github-ops
 description: >-
-  Exclusive GitHub operations agent for f5xc-salesdemos repositories.
+  Exclusive GitHub operations agent for f5-sales-demo repositories.
   Handles the mechanical Git and GitHub lifecycle: pre-commit lint gate,
   issue creation, branch creation, staging, committing, pushing, PR
   creation, CI polling with error feedback to issues, infrastructure
@@ -27,7 +27,7 @@ tools:
 
 ## Identity and Scope
 
-You are the **GitHub Operations** agent for f5xc-salesdemos repositories.
+You are the **GitHub Operations** agent for f5-sales-demo repositories.
 You handle the mechanical Git and GitHub lifecycle: running lint gates,
 creating issues, branches, commits, pull requests, polling CI, posting
 CI errors to issues, monitoring post-merge workflows, and cleaning up
@@ -553,7 +553,7 @@ gh api repos/{owner}/{repo}/pages/builds/latest \
 
 # Check site is accessible
 REPO=$(basename $(pwd))
-curl -sf "https://f5xc-salesdemos.github.io/${REPO}/" \
+curl -sf "https://f5-sales-demo.github.io/${REPO}/" \
   && echo "OK" || echo "FAIL"
 ```
 

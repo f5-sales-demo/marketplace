@@ -3,7 +3,7 @@
 Source: `docs-theme/config.ts` lines 307-337
 
 Live documentation:
-<https://f5xc-salesdemos.github.io/docs-theme/diagrams/instructions/>
+<https://f5-sales-demo.github.io/docs-theme/diagrams/instructions/>
 
 ## Mermaid theme configuration
 

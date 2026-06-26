@@ -3,7 +3,7 @@
 Source: `docs-theme/assets/` and `docs-theme/docs/logo.mdx`
 
 Live documentation:
-<https://f5xc-salesdemos.github.io/docs-theme/logo/>
+<https://f5-sales-demo.github.io/docs-theme/logo/>
 
 F5 Brand Center:
 <https://brand.f5.com/d/yYzHXTsZ4EGq/logos>
@@ -46,7 +46,7 @@ variants. The theme supports separate logo paths:
 ```javascript
 // Single logo (adapts via CSS)
 logo: {
-  src: '@f5xc-salesdemos/docs-theme/assets/f5-logo.svg'
+  src: '@f5-sales-demo/docs-theme/assets/f5-logo.svg'
 }
 
 // Separate light and dark variants

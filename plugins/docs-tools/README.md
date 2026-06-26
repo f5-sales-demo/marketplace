@@ -3,15 +3,15 @@
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
-MDX content validation and review tools for f5xc-salesdemos
+MDX content validation and review tools for f5-sales-demo
 documentation repositories.
 
-**[Full documentation](https://f5xc-salesdemos.github.io/marketplace/plugins/docs-tools/)**
+**[Full documentation](https://f5-sales-demo.github.io/marketplace/plugins/docs-tools/)**
 
 ## Installation
 
 ```text
-/plugin install docs-tools@f5xc-salesdemos-marketplace
+/plugin install docs-tools@f5-sales-demo-marketplace
 ```
 
 Or add to `.claude/settings.json`:
@@ -19,7 +19,7 @@ Or add to `.claude/settings.json`:
 ```json
 {
   "enabledPlugins": [
-    "docs-tools@f5xc-salesdemos-marketplace"
+    "docs-tools@f5-sales-demo-marketplace"
   ]
 }
 ```

@@ -1,10 +1,10 @@
 {
   "name": "docs-tools",
-  "description": "MDX content validation and review tools for f5xc-salesdemos docs repos",
+  "description": "MDX content validation and review tools for f5-sales-demo docs repos",
   "version": "1.1.2",
-  "homepage": "https://github.com/f5xc-salesdemos/marketplace/tree/main/plugins/docs-tools",
+  "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools",
   "license": "Apache-2.0",
   "author": {
-    "name": "f5xc-salesdemos"
+    "name": "f5-sales-demo"
   }
 }

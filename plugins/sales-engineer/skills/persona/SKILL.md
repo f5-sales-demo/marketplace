@@ -72,7 +72,7 @@ docker run --rm -it \
   -v "$(pwd)/docs:/content/docs" \
   -p 4321:4321 \
   -e MODE=dev \
-  ghcr.io/f5xc-salesdemos/docs-builder:latest
+  ghcr.io/f5-sales-demo/docs-builder:latest
 ```
 
 **Production build:**
@@ -81,8 +81,8 @@ docker run --rm -it \
 docker run --rm \
   -v "$(pwd)/docs:/content/docs:ro" \
   -v "$(pwd)/output:/output" \
-  -e GITHUB_REPOSITORY="f5xc-salesdemos/$(basename $(pwd))" \
-  ghcr.io/f5xc-salesdemos/docs-builder:latest
+  -e GITHUB_REPOSITORY="f5-sales-demo/$(basename $(pwd))" \
+  ghcr.io/f5-sales-demo/docs-builder:latest
 ```
 
 ### Content Authoring

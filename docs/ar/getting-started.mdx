@@ -1,6 +1,6 @@
 ---
 title: البدء
-description: دليل خطوة بخطوة لإضافة سوق f5xc-salesdemos وتثبيت أول إضافة لك.
+description: دليل خطوة بخطوة لإضافة سوق f5-sales-demo وتثبيت أول إضافة لك.
 sidebar:
   order: 2
 i18n:
@@ -10,14 +10,14 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-يرشدك هذا الدليل خلال إضافة سوق f5xc-salesdemos
+يرشدك هذا الدليل خلال إضافة سوق f5-sales-demo
 إلى Claude Code وتثبيت أول إضافة لك.
 
 ## المتطلبات الأساسية
 
 - Claude Code **الإصدار 1.0.33** أو أحدث (دعم سوق الإضافات)
 - حساب GitHub مع صلاحية الوصول إلى منظمة
-  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  [f5-sales-demo](https://github.com/f5-sales-demo)
 
 ## التثبيت
 
@@ -28,7 +28,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    في أي جلسة Claude Code، قم بتشغيل:
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    يسجّل هذا الأمر السوق كمصدر للإضافات. تحتاج إلى القيام
@@ -39,7 +39,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    اعرض قائمة ما يوفره السوق:
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **تثبيت إضافة**
@@ -47,13 +47,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    قم بتثبيت الإضافة التي تحتاجها:
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **استخدام الإضافة**
 
-   انتقل إلى أي مستودع محتوى تابع لـ f5xc-salesdemos.
+   انتقل إلى أي مستودع محتوى تابع لـ f5-sales-demo.
 
    لـ **أدوات التوثيق**، قم بتشغيل أمر مراجعة MDX:
 
@@ -72,8 +72,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 لتحديث إضافة مثبتة إلى أحدث إصدار:
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## إلغاء التثبيت
@@ -81,14 +81,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 إزالة إضافة:
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 إزالة السوق بالكامل:
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## إعداد الفريق
@@ -99,11 +99,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

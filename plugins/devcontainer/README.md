@@ -1,6 +1,6 @@
 # devcontainer
 
-Container awareness plugin for the f5xc-salesdemos devcontainer. Provides
+Container awareness plugin for the f5-sales-demo devcontainer. Provides
 Claude with tool knowledge, self-awareness, and maintenance capabilities —
 a unified "know thyself" system for the container.
 

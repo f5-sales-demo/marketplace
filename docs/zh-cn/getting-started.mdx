@@ -1,6 +1,6 @@
 ---
 title: 快速入门
-description: 添加 f5xc-salesdemos 市场并安装第一个插件的分步指南。
+description: 添加 f5-sales-demo 市场并安装第一个插件的分步指南。
 sidebar:
   order: 2
 i18n:
@@ -10,14 +10,14 @@ i18n:
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-本指南将引导您完成将 f5xc-salesdemos
+本指南将引导您完成将 f5-sales-demo
 市场添加到 Claude Code 并安装第一个插件的操作。
 
 ## 前提条件
 
 - Claude Code **v1.0.33** 或更高版本（支持插件市场功能）
 - 拥有
-  [f5xc-salesdemos](https://github.com/f5xc-salesdemos)
+  [f5-sales-demo](https://github.com/f5-sales-demo)
   组织访问权限的 GitHub 账户
 
 ## 安装
@@ -29,7 +29,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    在任意 Claude Code 会话中，运行：
 
    ```
-   /plugin marketplace add f5xc-salesdemos/marketplace
+   /plugin marketplace add f5-sales-demo/marketplace
    ```
 
    这将注册该市场为插件来源。此操作只需执行一次。
@@ -39,7 +39,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    列出市场提供的插件：
 
    ```
-   /plugin marketplace list f5xc-salesdemos-marketplace
+   /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **安装插件**
@@ -47,13 +47,13 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    安装您需要的插件：
 
    ```
-   /plugin install f5xc-docs-tools@f5xc-salesdemos-marketplace
-   /plugin install f5xc-sales-engineer@f5xc-salesdemos-marketplace
+   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **使用插件**
 
-   导航到任意 f5xc-salesdemos 内容仓库。
+   导航到任意 f5-sales-demo 内容仓库。
 
    对于 **docs tools**，运行 MDX 审查命令：
 
@@ -72,8 +72,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 将已安装的插件更新到最新版本：
 
 ```
-/plugin update f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin update f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## 卸载
@@ -81,14 +81,14 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 移除插件：
 
 ```
-/plugin uninstall f5xc-docs-tools@f5xc-salesdemos-marketplace
-/plugin uninstall f5xc-sales-engineer@f5xc-salesdemos-marketplace
+/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
+/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 完全移除市场：
 
 ```
-/plugin marketplace remove f5xc-salesdemos-marketplace
+/plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## 团队配置
@@ -99,11 +99,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```json
 {
   "extraKnownMarketplaces": [
-    "f5xc-salesdemos/marketplace"
+    "f5-sales-demo/marketplace"
   ],
   "enabledPlugins": [
-    "f5xc-docs-tools@f5xc-salesdemos-marketplace",
-    "f5xc-sales-engineer@f5xc-salesdemos-marketplace"
+    "f5xc-docs-tools@f5-sales-demo-marketplace",
+    "f5xc-sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

@@ -5,12 +5,12 @@
 
 Sales Engineer persona framework for F5 XC demo repositories.
 
-**[Full documentation](https://f5xc-salesdemos.github.io/marketplace/plugins/sales-engineer/)**
+**[Full documentation](https://f5-sales-demo.github.io/marketplace/plugins/sales-engineer/)**
 
 ## Installation
 
 ```text
-/plugin install sales-engineer@f5xc-salesdemos-marketplace
+/plugin install sales-engineer@f5-sales-demo-marketplace
 ```
 
 Or add to `.claude/settings.json`:
@@ -18,7 +18,7 @@ Or add to `.claude/settings.json`:
 ```json
 {
   "enabledPlugins": [
-    "sales-engineer@f5xc-salesdemos-marketplace"
+    "sales-engineer@f5-sales-demo-marketplace"
   ]
 }
 ```

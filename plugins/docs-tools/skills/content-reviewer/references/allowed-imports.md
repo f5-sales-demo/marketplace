@@ -1,6 +1,6 @@
 # Allowed Import Sources
 
-MDX files in f5xc-salesdemos content repositories may only import from
+MDX files in f5-sales-demo content repositories may only import from
 the sources listed below. Any other import source should be flagged.
 
 ## Starlight Built-in Components
@@ -29,9 +29,9 @@ Named exports (destructured import):
 import { Aside, Code, Steps } from "@astrojs/starlight/components";
 ```
 
-## f5xc-salesdemos Theme Components
+## f5-sales-demo Theme Components
 
-**Source pattern:** `@f5xc-salesdemos/docs-theme/components/<Name>.astro`
+**Source pattern:** `@f5-sales-demo/docs-theme/components/<Name>.astro`
 
 Each theme component is imported as a default import from its own
 `.astro` file:
@@ -46,8 +46,8 @@ Each theme component is imported as a default import from its own
 **Example:**
 
 ```mdx
-import Screenshot from "@f5xc-salesdemos/docs-theme/components/Screenshot.astro";
-import LinkCard from "@f5xc-salesdemos/docs-theme/components/LinkCard.astro";
+import Screenshot from "@f5-sales-demo/docs-theme/components/Screenshot.astro";
+import LinkCard from "@f5-sales-demo/docs-theme/components/LinkCard.astro";
 ```
 
 ## Invalid Import Patterns

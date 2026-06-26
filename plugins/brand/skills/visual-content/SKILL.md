@@ -141,7 +141,7 @@ dark mode variants of any UI being shown.
 
 ```astro
 import Screenshot from
-  '@f5xc-salesdemos/docs-theme/components/Screenshot.astro';
+  '@f5-sales-demo/docs-theme/components/Screenshot.astro';
 
 <Screenshot
   alt="Bot Defense dashboard showing 3 blocked requests"
