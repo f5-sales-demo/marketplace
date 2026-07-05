@@ -129,20 +129,23 @@ const factory: ExtensionFactory = async (pi) => {
     });
   }
 
-  // Session start: notify if CLI missing, check auth if available
-  pi.on('session_start', async (_event: unknown, _ctx: { cwd: string }) => {
+  // Session start: notify if CLI missing; probe auth in the background (non-blocking).
+  // The auth check is diagnostic-only (debug log) — never block the TUI paint for it.
+  pi.on('session_start', (_event: unknown, _ctx: { cwd: string }) => {
     if (!glabAvailable) {
       pi.logger.debug('GitLab: glab CLI not found');
       return;
     }
-    try {
-      const authResult = Bun.spawnSync(['glab', 'auth', 'status']);
-      if (authResult.exitCode !== 0) {
-        pi.logger.debug('GitLab: not authenticated (non-fatal)');
+    void (async () => {
+      try {
+        const proc = Bun.spawn(['glab', 'auth', 'status'], { stdout: 'ignore', stderr: 'ignore' });
+        if ((await proc.exited) !== 0) {
+          pi.logger.debug('GitLab: not authenticated (non-fatal)');
+        }
+      } catch {
+        pi.logger.debug('GitLab: welcome check failed (non-fatal)');
       }
-    } catch {
-      pi.logger.debug('GitLab: welcome check failed (non-fatal)');
-    }
+    })();
   });
 };
 
