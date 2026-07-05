@@ -1,18 +1,18 @@
 ---
 title: f5xc-docs-pipeline
-description: マルチリポジトリビルド、コンテンツ作成、ローカルプレビューのためのドキュメントパイプラインアーキテクチャの知識。
+description: マルチリポジトリビルド、コンテンツ作成、ローカルプレビューのためのドキュメントパイプラインアーキテクチャに関する知識。
 sidebar:
   order: 8
 i18n:
-  sourceHash: 858155aa1d2f
+  sourceHash: 2f56a6cc4513
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-docs-pipeline** プラグインは、f5-sales-demo リポジトリ向けのドキュメントパイプラインアーキテクチャの知識を提供します。コンテンツ作成をガイドし、マルチリポジトリビルド全体にわたる設定の所有権を明確にし、ローカルの Docker ベースのプレビューを提供します。
+**f5xc-docs-pipeline** プラグインは、f5-sales-demo リポジトリ向けのドキュメントパイプラインアーキテクチャに関する知識を提供します。コンテンツ作成のガイド、マルチリポジトリビルドにおける設定の所有権の明確化、およびローカル Docker ベースのプレビューを提供します。
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="生産性" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
 ## インストール
 
@@ -24,14 +24,14 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### content-author
 
-ファイル構造、MDX 構文ルール、フロントマター要件、画像参照、およびローカル Docker プレビューを網羅するコンテンツ作成ガイドです。`docs/` コンテンツの作成や編集、MDX ファイルの操作、またはローカルプレビューのセットアップ時にアクティブになります。
+ファイル構成、MDX 構文ルール、フロントマターの要件、画像参照、およびローカル Docker プレビューを網羅したコンテンツ作成ガイド。`docs/` コンテンツの作成・編集、MDX ファイルの操作、またはローカルプレビューのセットアップ時に有効になります。
 
 ### pipeline-navigator
 
-4つの上流リポジトリ（docs-theme、docs-builder、docs-control、docs-icons）全体にわたって、どこで変更を行うべきかを説明するドキュメントパイプラインアーキテクチャです。設定の所有権（`astro.config.mjs`、`content.config.ts`）、リリースディスパッチチェーン、および管理対象ファイルの追跡を明確にします。
+4 つの上流リポジトリ（docs-theme、docs-builder、docs-control、docs-icons）にわたる変更箇所を説明するドキュメントパイプラインアーキテクチャ。設定の所有権（`astro.config.mjs`、`content.config.ts`）、リリースディスパッチチェーン、および管理対象ファイルの追跡を明確にします。
 
 <Aside type="tip">
-  特定の設定ファイルやコンポーネントをどのリポジトリが所有しているかを理解する必要がある場合は、pipeline-navigator を使用してください。
+  特定の設定ファイルやコンポーネントを所有するリポジトリを把握する必要がある場合は、pipeline-navigator を使用してください。
 </Aside>
 
 ## コマンド
@@ -42,4 +42,4 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 /f5xc-docs-pipeline:preview-docs
 ```
 
-ドキュメントをプレビューするためのローカル Docker 開発サーバーを起動します。共有 Docker ビルドイメージを実行し、ローカルの `docs/` ディレクトリをマウントしてライブプレビューを行います。
+ドキュメントをプレビューするためのローカル Docker 開発サーバーを起動します。ライブプレビュー用にローカルの `docs/` ディレクトリをマウントした状態で、共有 Docker ビルドイメージを実行します。

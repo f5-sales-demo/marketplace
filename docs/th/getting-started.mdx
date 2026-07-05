@@ -1,23 +1,23 @@
 ---
 title: เริ่มต้นใช้งาน
 description: >-
-  คู่มือทีละขั้นตอนสำหรับการเพิ่ม marketplace ของ f5-sales-demo
-  และติดตั้งปลั๊กอินตัวแรกของคุณ
+  คู่มือทีละขั้นตอนสำหรับการเพิ่มตลาดกลาง f5-sales-demo
+  และติดตั้งปลั๊กอินแรกของคุณ
 sidebar:
   order: 2
 i18n:
-  sourceHash: 8b7375e24be2
+  sourceHash: dc222a0155a7
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-คู่มือนี้จะพาคุณผ่านขั้นตอนการเพิ่ม marketplace ของ f5-sales-demo
-ไปยัง Claude Code และติดตั้งปลั๊กอินตัวแรกของคุณ
+คู่มือนี้จะแนะนำขั้นตอนการเพิ่มตลาดกลาง f5-sales-demo
+ลงใน Claude Code และการติดตั้งปลั๊กอินแรกของคุณ
 
 ## ข้อกำหนดเบื้องต้น
 
-- Claude Code **v1.0.33** หรือใหม่กว่า (รองรับ plugin marketplace)
+- Claude Code **v1.0.33** หรือใหม่กว่า (รองรับตลาดกลางปลั๊กอิน)
 - บัญชี GitHub ที่มีสิทธิ์เข้าถึงองค์กร
   [f5-sales-demo](https://github.com/f5-sales-demo)
 
@@ -25,7 +25,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 <Steps>
 
-1. **เพิ่ม marketplace**
+1. **เพิ่มตลาดกลาง**
 
    ในเซสชัน Claude Code ใดก็ได้ ให้รันคำสั่ง:
 
@@ -33,12 +33,12 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   คำสั่งนี้จะลงทะเบียน marketplace เป็นแหล่งที่มาของปลั๊กอิน คุณต้อง
-   ทำขั้นตอนนี้เพียงครั้งเดียว
+   การดำเนินการนี้จะลงทะเบียนตลาดกลางเป็นแหล่งปลั๊กอิน
+   คุณต้องทำเพียงครั้งเดียวเท่านั้น
 
-2. **เรียกดูปลั๊กอินที่มีอยู่**
+2. **ดูปลั๊กอินที่มีให้บริการ**
 
-   แสดงรายการปลั๊กอินที่ marketplace มีให้:
+   แสดงรายการปลั๊กอินที่ตลาดกลางนำเสนอ:
 
    ```
    /plugin marketplace list f5-sales-demo-marketplace
@@ -55,9 +55,9 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 4. **ใช้งานปลั๊กอิน**
 
-   นำทางไปยังรีโพซิทอรีเนื้อหา f5-sales-demo ใดก็ได้
+   ไปที่ที่เก็บเนื้อหา f5-sales-demo ใดก็ได้
 
-   สำหรับ **docs tools** ให้รันคำสั่ง MDX review:
+   สำหรับ **docs tools** ให้รันคำสั่งตรวจสอบ MDX:
 
    ```
    /f5xc-docs-tools:review-mdx
@@ -71,7 +71,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## การอัปเดตปลั๊กอิน
 
-เพื่ออัปเดตปลั๊กอินที่ติดตั้งแล้วเป็นเวอร์ชันล่าสุด:
+หากต้องการอัปเดตปลั๊กอินที่ติดตั้งไว้เป็นเวอร์ชันล่าสุด:
 
 ```
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
@@ -87,7 +87,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-ลบ marketplace ทั้งหมด:
+ลบตลาดกลางทั้งหมด:
 
 ```
 /plugin marketplace remove f5-sales-demo-marketplace
@@ -95,8 +95,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## การกำหนดค่าสำหรับทีม
 
-เพื่อกำหนดค่า marketplace ล่วงหน้าสำหรับทีมทั้งหมดของคุณ ให้เพิ่ม
-ลงในไฟล์ `.claude/settings.json` ของโปรเจกต์:
+หากต้องการกำหนดค่าตลาดกลางล่วงหน้าสำหรับทีมทั้งหมด ให้เพิ่ม
+ลงใน `.claude/settings.json` ของโปรเจกต์:
 
 ```json
 {
@@ -111,10 +111,10 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="การตั้งค่าที่ใช้ร่วมกัน">
-  การคอมมิตไฟล์ `.claude/settings.json` เข้าไปในรีโพซิทอรีของคุณ
-  หมายความว่าสมาชิกทุกคนในทีมจะได้รับ marketplace และปลั๊กอิน
+  การคอมมิต `.claude/settings.json` ลงในที่เก็บของคุณ
+  หมายความว่าสมาชิกทุกคนในทีมจะได้รับตลาดกลางและปลั๊กอิน
   โดยอัตโนมัติ — ไม่ต้องตั้งค่าด้วยตนเอง
 </Aside>
 
-สิ่งนี้ช่วยให้มั่นใจว่าผู้ร่วมพัฒนาทุกคนมีเครื่องมือเดียวกันพร้อมใช้งาน
-ตั้งแต่เซสชัน Claude Code แรกในรีโพซิทอรี
+การดำเนินการนี้ทำให้ผู้มีส่วนร่วมทุกคนมีเครื่องมือเดียวกัน
+ตั้งแต่เซสชัน Claude Code แรกในที่เก็บ

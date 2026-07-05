@@ -1,20 +1,20 @@
 ---
 title: f5xc-platform
 description: >-
-  Automazione della piattaforma F5 Distributed Cloud — operazioni della console,
-  API REST, autenticazione e analisi della configurazione.
+  Automazione della piattaforma F5 Distributed Cloud — operazioni console, REST
+  API, autenticazione e analisi della configurazione.
 sidebar:
   order: 11
 i18n:
-  sourceHash: 7d49edf60846
+  sourceHash: baa710ac9093
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-platform** fornisce un'automazione completa per la
-piattaforma F5 Distributed Cloud. Copre le operazioni della console web
-tramite Chrome DevTools MCP, operazioni API REST spec-aware tramite cURL,
+Il plugin **f5xc-platform** fornisce un'Automazione completa per la
+Piattaforma F5 Distributed Cloud. Copre le operazioni della console web tramite
+Chrome DevTools MCP, operazioni REST API spec-aware tramite cURL,
 autenticazione multi-provider e analisi della configurazione su
 98 tipi di risorse in 38 domini.
 
@@ -33,41 +33,38 @@ autenticazione multi-provider e analisi della configurazione su
 Operazioni CRUD API spec-aware che coprono 98 tipi di risorse su
 38 domini. Fornisce endpoint precisi, template di payload,
 ordinamento delle dipendenze e composizioni di workflow multi-step per
-HTTP load balancer, origin pool, policy WAF, zone DNS,
-certificati, cloud site e altro ancora.
+load balancer HTTP, pool di origine, policy WAF, zone DNS,
+certificati, siti cloud e altro.
 
 ### config-analysis
 
-Capacità di analisi e consulenza sulla configurazione. Analizza le
-configurazioni JSON dei clienti per rispondere a domande sulla postura
-di sicurezza, abilitazione delle funzionalità, impostazioni di modalità,
-esclusioni e best practice. Supporta Q&A multi-turno con contesto
-compresso tra i dispatch.
+Capacità di analisi e consulenza della configurazione. Analizza le
+configurazioni JSON dei clienti per rispondere a domande sulla postura di sicurezza,
+abilitazione delle funzionalità, impostazioni della modalità, esclusioni e best practice.
+Supporta sessioni Q&A multi-turno con contesto compresso tra i dispatching.
 
 ### api-auth
 
-Autenticazione API che supporta l'autenticazione tramite header con
-token API e l'autenticazione con certificato P12 con procedure di
-validazione del token.
+Autenticazione API con supporto per l'autenticazione tramite header token API e
+autenticazione con certificato P12 con procedure di validazione del token.
 
 ### console-auth
 
 Autenticazione multi-provider per la console web F5 XC.
-Rileva automaticamente il tipo di login: login nativo F5 XC, SSO Azure
-con sessione memorizzata nella cache, oppure SSO Azure con MFA
-DUO verified push.
+Rileva automaticamente il tipo di login: login nativo F5 XC, Azure SSO con
+sessione memorizzata nella cache, o Azure SSO con MFA DUO verified push.
 
 ### console-navigator
 
-Navigazione deterministica verso le sezioni della console F5 XC. Traduce
-i nomi delle sezioni in percorsi URL, verifica lo stato della sessione
-e conferma il caricamento della pagina.
+Navigazione deterministica alle sezioni della console F5 XC. Traduce
+i nomi delle sezioni in percorsi URL, verifica l'integrità della sessione e conferma
+il caricamento della pagina.
 
 ### platform-index / api-index / console-index
 
-Router di intent che classificano le richieste dell'utente e le delegano
-alla competenza e all'agente appropriato. Si attivano automaticamente e
-non sono invocabili dall'utente.
+Router di intento che classificano le richieste degli utenti e le delegano alla
+competenza e all'agente appropriati. Si attivano automaticamente e non
+sono invocabili dall'utente.
 
 ## Comandi
 
@@ -77,7 +74,7 @@ non sono invocabili dall'utente.
 /f5xc-platform:check-api-token
 ```
 
-Valida il token API F5 XC delegando all'agente api-operator.
+Convalida il token API F5 XC delegando all'agente api-operator.
 
 ### /login-console
 
@@ -85,37 +82,34 @@ Valida il token API F5 XC delegando all'agente api-operator.
 /f5xc-platform:login-console
 ```
 
-Effettua l'autenticazione alla console F5 Distributed Cloud tramite
-l'agente console-operator.
+Autentica alla console F5 Distributed Cloud tramite l'agente
+console-operator.
 
 ## Agenti
 
 ### api-operator
 
-Agente autonomo per API REST che esegue sequenze cURL e jq per
-operazioni CRUD sulle risorse, validazione dei token e operazioni di
-configurazione. Viene eseguito in un sotto-agente per mantenere i
-payload JSON verbosi delle API fuori dal contesto della sessione
-principale.
+Agente REST API autonomo che esegue sequenze cURL e jq per
+operazioni CRUD sulle risorse, validazione dei token e operazioni di configurazione.
+Viene eseguito in un subagente per mantenere i payload JSON API verbose
+fuori dal contesto della sessione principale.
 
 ### console-operator
 
-Agente autonomo di automazione del browser che esegue sequenze di
-strumenti Chrome DevTools MCP per autenticazione, navigazione e
-interazioni con i form. Viene eseguito in un sotto-agente per mantenere
-gli snapshot del browser ricchi di token fuori dalla sessione principale.
+Agente di automazione del browser autonomo che esegue sequenze di strumenti
+Chrome DevTools MCP per autenticazione, navigazione e interazioni
+con i form. Viene eseguito in un subagente per mantenere le snapshot del browser
+ricche di token fuori dalla sessione principale.
 
 ### config-analyzer
 
-Agente di analisi della configurazione in sola lettura. Analizza le
-configurazioni JSON dei clienti confrontandole con i file di riferimento
-dei profili delle risorse per rispondere a domande sulla postura di
-sicurezza, abilitazione delle funzionalità, transizioni di modalità
-e best practice.
+Agente di analisi della configurazione in sola lettura. Analizza le configurazioni
+JSON dei clienti confrontandole con i file di riferimento dei profili delle risorse per rispondere
+a domande sulla postura di sicurezza, abilitazione delle funzionalità, transizioni
+di modalità e best practice.
 
 <Aside type="caution">
-  L'agente config-analyzer è **effimero** &mdash; viene creato ex novo
-  per ogni domanda senza memoria tra i dispatch. Le domande di
-  follow-up devono includere i risultati precedenti compressi nel
-  prompt di dispatch.
+  L'agente config-analyzer è **effimero** &mdash; viene avviato ex novo
+  per ogni domanda senza memoria tra i dispatching. Le domande di follow-up
+  devono includere i risultati precedenti compressi nel prompt di dispatching.
 </Aside>

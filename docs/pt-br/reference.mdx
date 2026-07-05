@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 7
 i18n:
-  sourceHash: 34bc5641ff92
+  sourceHash: 0805a577837d
   translator: machine
 ---
 
@@ -14,7 +14,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Esquema marketplace.json
 
-O manifesto do marketplace fica em
+O manifesto do marketplace está localizado em
 `.claude-plugin/marketplace.json` na raiz do repositório.
 
 ### Campos de nível superior
@@ -26,7 +26,7 @@ O manifesto do marketplace fica em
 | `version` | Não | Versão do esquema do marketplace (semver) |
 | `metadata.description` | Sim | Descrição legível do marketplace |
 | `owner.name` | Sim | Organização ou usuário proprietário do marketplace |
-| `owner.url` | Não | URL do perfil ou site do proprietário |
+| `owner.url` | Não | URL para o perfil ou site do proprietário |
 | `owner.email` | Não | E-mail de contato |
 | `plugins` | Sim | Array de entradas de plugins |
 
@@ -35,14 +35,14 @@ O manifesto do marketplace fica em
 | Campo | Obrigatório | Descrição |
 |-------|-------------|-----------|
 | `name` | Sim | Identificador do plugin (deve corresponder ao `plugin.json`) |
-| `description` | Sim | Descrição resumida do plugin |
+| `description` | Sim | Descrição curta do plugin |
 | `version` | Sim | String de versão semântica |
 | `author.name` | Sim | Autor do plugin |
 | `source` | Sim | Caminho ou URL para o plugin (consulte Tipos de Fonte) |
 | `category` | Sim | Categoria do plugin (ex.: `productivity`) |
 | `homepage` | Não | URL para a documentação ou página inicial do plugin |
 | `license` | Não | Identificador de licença SPDX |
-| `keywords` | Não | Array de palavras-chave para busca |
+| `keywords` | Não | Array de palavras-chave de busca |
 | `tags` | Não | Array de tags para filtragem |
 | `repository` | Não | URL do repositório |
 
@@ -62,7 +62,7 @@ formatos:
 ## Esquema plugin.json
 
 Cada plugin possui um manifesto em
-`.claude-plugin/plugin.json` dentro do seu diretório.
+`.claude-plugin/plugin.json` dentro de seu diretório.
 
 | Campo | Obrigatório | Descrição |
 |-------|-------------|-----------|
@@ -70,9 +70,9 @@ Cada plugin possui um manifesto em
 | `description` | Sim | O que o plugin faz |
 | `version` | Sim | Versão semântica |
 | `author.name` | Sim | Autor do plugin |
-| `author.url` | Não | URL do perfil ou site do autor |
+| `author.url` | Não | URL para o perfil ou site do autor |
 | `homepage` | Não | URL da documentação |
-| `keywords` | Não | Palavras-chave para busca |
+| `keywords` | Não | Palavras-chave de busca |
 | `license` | Não | Identificador de licença SPDX |
 | `repository` | Não | URL do repositório |
 
@@ -111,11 +111,11 @@ claude plugin validate .
 
 Isso verifica:
 
-- Conformidade do esquema `marketplace.json`
-- Existência de todos os diretórios de plugin referenciados
-- Que cada plugin possui um `plugin.json` válido
-- Que as skills possuem frontmatter `SKILL.md` corretamente formatado
-- Que os comandos possuem os campos de frontmatter obrigatórios
+- Conformidade com o esquema do `marketplace.json`
+- Existência de todos os diretórios de plugins referenciados
+- Validade do `plugin.json` em cada plugin
+- Formatação correta do frontmatter do `SKILL.md` nas skills
+- Campos obrigatórios de frontmatter nos comandos
 
 ## Configuração de Equipe
 
@@ -131,7 +131,7 @@ Adicione ao `.claude/settings.json` em qualquer repositório:
 }
 ```
 
-### Pré-ativando plugins
+### Pré-habilitando plugins
 
 ```json
 {
@@ -142,7 +142,7 @@ Adicione ao `.claude/settings.json` em qualquer repositório:
 ```
 
 <Aside type="tip">
-  Fazer commit dessas configurações no repositório garante que todos os
+  Fazer o commit dessas configurações no repositório garante que todos os
   membros da equipe obtenham a mesma configuração de marketplace e plugin
   automaticamente.
 </Aside>
@@ -157,30 +157,31 @@ Verifique se o marketplace foi adicionado:
 /plugin marketplace list
 ```
 
-Se estiver ausente, adicione-o novamente:
+Se estiver faltando, adicione-o novamente:
 
 ```
 /plugin marketplace add f5-sales-demo/marketplace
 ```
 
-### Plugin não está ativando
+### Plugin não está sendo ativado
 
 - Confirme que o plugin está instalado:
   `/plugin list`
-- Verifique se a versão do seu Claude Code suporta plugins
+- Verifique se sua versão do Claude Code suporta plugins
   (v1.0.33+)
-- Verifique se as condições de acionamento da skill correspondem ao contexto atual
+- Verifique se as condições de acionamento da skill correspondem ao seu
+  contexto atual
 
-### Skills não acionando automaticamente
+### Skills não estão sendo acionadas automaticamente
 
 As skills são ativadas com base no campo `description` no
-frontmatter do SKILL.md. Se uma skill não estiver ativando quando
+frontmatter do SKILL.md. Se uma skill não estiver sendo ativada quando
 esperado:
 
 - Verifique se a descrição descreve com precisão o
   contexto de acionamento
 - Use o comando diretamente (ex.: `/f5xc-docs-tools:review-mdx`)
-  como alternativa
+  como solução alternativa
 
 ### Erros de build após revisão
 

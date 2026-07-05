@@ -1,19 +1,19 @@
 ---
-title: Ein Plugin beitragen
+title: Einen Plugin beitragen
 description: >-
   Anleitung zum Erstellen, Strukturieren und Veröffentlichen von Plugins für den
   f5-sales-demo-Marktplatz.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-Diese Anleitung erklärt, wie Sie ein neues Plugin erstellen und es dem
-f5-sales-demo-Marktplatz hinzufügen.
+Diese Anleitung erklärt, wie ein neues Plugin erstellt und dem
+f5-sales-demo-Marktplatz hinzugefügt wird.
 
 ## Plugin-Struktur
 
@@ -51,7 +51,7 @@ folgt dieser Struktur:
 
 2. **`plugin.json` schreiben**
 
-   Erstellen Sie `plugins/example-plugin/.claude-plugin/plugin.json`:
+   `plugins/example-plugin/.claude-plugin/plugin.json` erstellen:
 
    ```json
    {
@@ -70,8 +70,8 @@ folgt dieser Struktur:
 
 3. **Skills hinzufügen**
 
-   Erstellen Sie `plugins/example-plugin/skills/example-skill/SKILL.md` mit
-   Frontmatter:
+   `plugins/example-plugin/skills/example-skill/SKILL.md` mit
+   Frontmatter erstellen:
 
    ```markdown
    ---
@@ -82,12 +82,12 @@ folgt dieser Struktur:
    Detailed instructions for Claude when this skill activates.
    ```
 
-   Legen Sie alle Referenzdaten in einem `references/`-Unterverzeichnis
-   neben `SKILL.md` ab.
+   Referenzdaten in einem `references/`-Unterverzeichnis
+   neben `SKILL.md` ablegen.
 
 4. **Befehle hinzufügen**
 
-   Erstellen Sie `plugins/example-plugin/commands/example-command.md`:
+   `plugins/example-plugin/commands/example-command.md` erstellen:
 
    ```markdown
    ---
@@ -104,8 +104,8 @@ folgt dieser Struktur:
 
 5. **Das Plugin zu marketplace.json hinzufügen**
 
-   Fügen Sie einen Eintrag zum `plugins`-Array in
-   `.claude-plugin/marketplace.json` hinzu:
+   Einen Eintrag zum `plugins`-Array in
+   `.claude-plugin/marketplace.json` hinzufügen:
 
    ```json
    {
@@ -125,44 +125,44 @@ folgt dieser Struktur:
 
 6. **Lokal testen**
 
-   Testen Sie Ihr Plugin ohne Veröffentlichung, indem Sie Claude Code
-   auf das lokale Verzeichnis verweisen:
+   Das Plugin ohne Veröffentlichung testen, indem Claude Code
+   auf das lokale Verzeichnis verwiesen wird:
 
    ```bash
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   Überprüfen Sie, ob Skills im richtigen Kontext aktiviert werden und
+   Überprüfen, dass Skills im richtigen Kontext aktiviert werden und
    Befehle die erwartete Ausgabe erzeugen.
 
 </Steps>
 
-## Ihr Plugin einreichen
+## Das Plugin einreichen
 
 <Aside type="tip" title="Repository-Workflow">
-  Dieses Repository setzt einen strengen Governance-Workflow durch.
-  Weitere Informationen zum vollständigen Prozess finden Sie unter [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md).
+  Dieses Repository setzt einen strikten Governance-Workflow durch.
+  Weitere Informationen zum vollständigen Prozess finden Sie in [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md).
 </Aside>
 
 <Steps>
 
-1. Erstellen Sie ein GitHub-Issue, das das neue Plugin beschreibt
-2. Erstellen Sie einen Feature-Branch aus `main`
-3. Fügen Sie Ihr Plugin-Verzeichnis hinzu und aktualisieren Sie `marketplace.json`
-4. Fügen Sie eine Dokumentationsseite unter `docs/plugins/example-plugin.mdx` hinzu
-5. Öffnen Sie einen PR mit Verweis auf das Issue über `Closes #N`
-6. Beheben Sie alle CI-Fehler und führen Sie den Merge nach bestandenen Prüfungen durch
+1. Ein GitHub-Issue erstellen, das das neue Plugin beschreibt
+2. Einen Feature-Branch von `main` erstellen
+3. Das Plugin-Verzeichnis hinzufügen und `marketplace.json` aktualisieren
+4. Eine Dokumentationsseite unter `docs/plugins/example-plugin.mdx` hinzufügen
+5. Einen PR öffnen, der mit `Closes #N` auf das Issue verweist
+6. CI-Fehler beheben und nach bestandenen Prüfungen zusammenführen
 
 </Steps>
 
 ## Best Practices
 
 - **Skills fokussiert halten** — ein Skill sollte eine Sache gut erledigen
-- **Referenzdateien verwenden** — legen Sie große Datensätze, Schemata und
-  Nachschlagetabellen in `references/` ab, anstatt sie direkt in SKILL.md einzubetten
-- **Intelligent eingrenzen** — prüfen Sie auf nicht committete Änderungen, um
-  den Arbeitsbereich nach Möglichkeit einzuschränken
-- **Ausgabe nach Schweregrad gruppieren** — verwenden Sie die Ebenen ERROR, WARNING und INFO,
-  damit Benutzer Korrekturen priorisieren können
-- **Eine README schreiben** — fügen Sie Verwendungsbeispiele und eine Beschreibung
-  der einzelnen Skills und Befehle hinzu
+- **Referenzdateien verwenden** — große Datensätze, Schemas und
+  Nachschlagetabellen in `references/` ablegen, anstatt sie direkt in SKILL.md einzubetten
+- **Intelligent eingrenzen** — nach Möglichkeit auf nicht committete Änderungen prüfen,
+  um den Arbeitsbereich einzuschränken
+- **Ausgabe nach Schweregrad gruppieren** — ERROR-, WARNING- und INFO-Ebenen
+  verwenden, damit Benutzer Korrekturen priorisieren können
+- **Eine README schreiben** — Verwendungsbeispiele und eine Beschreibung
+  der einzelnen Skills und Befehle einschließen

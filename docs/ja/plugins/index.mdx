@@ -1,40 +1,42 @@
 ---
 title: プラグイン
-description: f5-sales-demo マーケットプレイスで利用可能なプラグインのカタログ（バージョンとカテゴリ付き）。
+description: バージョンおよびカテゴリを含む、f5-sales-demo マーケットプレイスで利用可能なプラグインのカタログ。
 sidebar:
   order: 3
 i18n:
-  sourceHash: 1433e1146ae5
+  sourceHash: 7778acc24ba9
   translator: machine
 ---
 
 f5-sales-demo マーケットプレイスでは、以下のプラグインを提供しています。
-各プラグインは、ドキュメント作成、デモワークフロー、営業手法、
-ブランディング、開発運用に役立つスキル、コマンド、エージェントを
-Claude Code に追加します。
+各プラグインは、ドキュメント、デモワークフロー、セールス手法、
+ブランディング、および開発オペレーションを支援するスキル、コマンド、
+エージェントを Claude Code に追加します。
 
 ## プラグインカタログ
 
 | プラグイン | バージョン | カテゴリ | 説明 |
 |--------|---------|----------|-------------|
 | [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | 1.1.2 | 生産性 | MDX コンテンツの検証およびレビューツール |
-| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 1.0.6 | 生産性 | セールスエンジニアペルソナフレームワーク — デモ実行、プレゼンテーション、Q&A、環境管理 |
-| [f5xc-github-ops](/marketplace/plugins/f5xc-github-ops/) | 2.2.2 | 生産性 | GitHub 運用自動化 — Issue 駆動開発、PR ライフサイクル、CI ポーリング |
-| [f5xc-docs-pipeline](/marketplace/plugins/f5xc-docs-pipeline/) | 1.0.2 | 生産性 | ドキュメントパイプラインアーキテクチャ — コンテンツオーサリング、ローカルプレビュー、設定オーナーシップ |
-| [f5xc-brand](/marketplace/plugins/f5xc-brand/) | 1.0.2 | 生産性 | F5 企業ブランディング準拠 — カラー、タイポグラフィ、ロゴ、アイコン、アクセシビリティ |
-| [f5xc-meddpicc](/marketplace/plugins/f5xc-meddpicc/) | 1.0.4 | 生産性 | MEDDPICC 営業資格評価および案件遂行フレームワーク |
-| [f5xc-devcontainer](/marketplace/plugins/f5xc-devcontainer/) | 1.1.6 | 生産性 | コンテナ認識 — ツールカタログ、自己識別、自己診断、メンテナンス |
-| [f5xc-platform](/marketplace/plugins/f5xc-platform/) | 3.1.1 | 生産性 | F5 XC プラットフォーム自動化 — コンソール、REST API、98 リソースタイプにわたる設定分析 |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | 1.0.6 | 生産性 | セールスエンジニアのペルソナフレームワーク — デモ実行、プレゼンテーション、Q&A、環境管理 |
+| [f5xc-github-ops](/marketplace/plugins/f5xc-github-ops/) | 2.2.2 | 生産性 | GitHub オペレーションの自動化 — イシュー駆動開発、PR ライフサイクル、CI ポーリング |
+| [f5xc-docs-pipeline](/marketplace/plugins/f5xc-docs-pipeline/) | 1.0.2 | 生産性 | ドキュメントパイプラインアーキテクチャ — コンテンツオーサリング、ローカルプレビュー、設定管理 |
+| [f5xc-brand](/marketplace/plugins/f5xc-brand/) | 1.0.2 | 生産性 | F5 コーポレートブランディングの適用 — カラー、タイポグラフィ、ロゴ、アイコン、アクセシビリティ |
+| [f5xc-meddpicc](/marketplace/plugins/f5xc-meddpicc/) | 1.0.4 | 生産性 | MEDDPICC セールス資格認定およびディール実行フレームワーク |
+| [f5xc-devcontainer](/marketplace/plugins/f5xc-devcontainer/) | 1.1.6 | 生産性 | コンテナ認識 — ツールカタログ、セルフアイデンティティ、自己診断、およびメンテナンス |
+| [f5xc-platform](/marketplace/plugins/f5xc-platform/) | 3.1.1 | 生産性 | F5 XC プラットフォームの自動化 — コンソール、REST API、98 種類のリソースタイプにわたる設定分析 |
 | [osint-framework](/marketplace/plugins/osint-framework/) | 1.0.1 | セキュリティ | OSINT ツールカタログおよび調査スキル — 34 カテゴリにわたる 1,064 の無料ツール、調査パイプライン、相関エンジン |
-| [f5xc-firecrawl](/marketplace/plugins/f5xc-firecrawl/) | 1.1.0 | 生産性 | ローカルセルフホスト型 Web スクレイピング — localhost:3002 上の firecrawl によるスクレイプ、クロール、マップ、検索、抽出 |
+| [f5xc-firecrawl](/marketplace/plugins/f5xc-firecrawl/) | 1.1.0 | 生産性 | ローカルセルフホスト型 Web スクレイピング — localhost:3002 上の firecrawl を介したスクレイプ、クロール、マップ、検索、抽出 |
 
 ## プラグインの構成要素
 
-各プラグインには以下を含めることができます：
+各プラグインには以下を含めることができます。
 
-- **スキル** — 関連する場面で Claude が自動的に有効化するコンテキスト知識（例：MDX ファイルのレビュー時）
-- **コマンド** — 直接呼び出すスラッシュコマンド（例：`/f5xc-docs-tools:review-mdx`）
-- **エージェント** — 複雑なタスク向けの特化型サブエージェント
+- **スキル** — 関連性がある場合に Claude が自動的に有効化するコンテキスト知識
+  （例：MDX ファイルのレビュー）
+- **コマンド** — 直接呼び出すスラッシュコマンド
+  （例：`/f5xc-docs-tools:review-mdx`）
+- **エージェント** — 複雑なタスクに対応する専門サブエージェント
 
 ## プラグインのインストール
 
@@ -51,4 +53,4 @@ Claude Code に追加します。
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
-完全なセットアップ手順については、[はじめに](/marketplace/getting-started/)をご覧ください。
+完全なセットアップ手順については、[はじめに](/marketplace/getting-started/)を参照してください。

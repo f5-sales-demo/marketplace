@@ -1,12 +1,12 @@
 ---
-title: Contribuire a un Plugin
+title: Contribuire un Plugin
 description: >-
   Guida alla creazione, strutturazione e pubblicazione di plugin per il
   marketplace f5-sales-demo.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
@@ -147,23 +147,23 @@ segue questa struttura:
 
 <Steps>
 
-1. Creare una issue su GitHub che descriva il nuovo plugin
+1. Creare un issue su GitHub che descriva il nuovo plugin
 2. Creare un branch di funzionalità a partire da `main`
 3. Aggiungere la directory del plugin e aggiornare `marketplace.json`
 4. Aggiungere una pagina di documentazione in `docs/plugins/example-plugin.mdx`
-5. Aprire una PR collegata alla issue con `Closes #N`
-6. Correggere eventuali errori CI e fare il merge dopo il superamento dei controlli
+5. Aprire una PR che faccia riferimento all'issue con `Closes #N`
+6. Correggere eventuali errori di CI e unire dopo che i controlli sono superati
 
 </Steps>
 
 ## Buone Pratiche
 
-- **Mantenere le skill mirate** — ogni skill dovrebbe svolgere bene una sola funzione
-- **Usare i file di riferimento** — inserire dataset di grandi dimensioni, schemi e
-  tabelle di ricerca in `references/` anziché inline in SKILL.md
-- **Definire lo scope in modo intelligente** — verificare la presenza di modifiche non
-  committate per restringere il working set quando possibile
+- **Mantenere le skill focalizzate** — una skill dovrebbe svolgere un'unica funzione
+- **Utilizzare i file di riferimento** — inserire dataset di grandi dimensioni, schemi e
+  tabelle di lookup in `references/` anziché direttamente in SKILL.md
+- **Definire l'ambito in modo intelligente** — verificare la presenza di modifiche non committate per
+  restringere il set di lavoro quando possibile
 - **Raggruppare l'output per gravità** — utilizzare i livelli ERROR, WARNING e INFO
-  in modo che gli utenti possano dare priorità alle correzioni
-- **Scrivere un README** — includere esempi d'uso e una descrizione
-  di cosa fa ogni skill e comando
+  in modo che gli utenti possano stabilire le priorità delle correzioni
+- **Scrivere un README** — includere esempi di utilizzo e una descrizione
+  di ciò che ogni skill e comando esegue

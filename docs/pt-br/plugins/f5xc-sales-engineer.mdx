@@ -2,20 +2,17 @@
 title: f5xc-sales-engineer
 description: >-
   Framework de persona de Engenheiro de Vendas para execução de demos,
-  apresentações, perguntas e respostas, e encerramento.
+  apresentações, Q&A e encerramento.
 sidebar:
   order: 5
 i18n:
-  sourceHash: aa053700ebd2
+  sourceHash: 3424b6162949
   translator: machine
 ---
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-O plugin **f5xc-sales-engineer** fornece um framework reutilizável de persona
-de Engenheiro de Vendas para repositórios de demo do F5 XC. Ele gerencia o
-ciclo de vida completo de reuniões de demonstração — desde a verificação
-pré-reunião até a execução ao vivo, perguntas e respostas, e encerramento.
+O plugin **f5xc-sales-engineer** fornece um framework reutilizável de persona de Engenheiro de Vendas para repositórios de demo do F5 XC. Ele gerencia o ciclo de vida completo da reunião de demo — desde a verificação pré-reunião até a execução ao vivo, Q&A e encerramento.
 
 <Badge text="v1.0.6" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
@@ -31,76 +28,60 @@ pré-reunião até a execução ao vivo, perguntas e respostas, e encerramento.
 
 Execução de demo orientada por API com um ciclo de vida de reunião em quatro estágios:
 
-1. **Preparar** — verificação pré-reunião do ambiente via
-   agente `demo-housekeeping`
-2. **Executar** — execução determinística de fases com narração
-   voltada ao cliente
-3. **Perguntas e Respostas** — modo de improvisação com ambiente ao vivo
+1. **Preparar** — verificação do ambiente pré-reunião via agente `demo-housekeeping`
+2. **Executar** — execução de fase determinística com narração voltada ao cliente
+3. **Q&A** — modo improvisado com ambiente ao vivo
 4. **Encerramento** — limpeza pós-reunião via agente `demo-housekeeping`
 
-Lê conteúdo específico do produto em `DEMO_PRODUCT_EXPERTISE.md` e comandos
-de demo em `docs/demo/`.
+Lê conteúdo específico do produto em `DEMO_PRODUCT_EXPERTISE.md` e comandos de demo em `docs/demo/`.
 
 ### presenter
 
-Apresentação de walkthrough as-built usando um ambiente de demo
-pré-configurado. Segue um padrão de mostrar → narrar → conectar → pausar
-em cada etapa. Lê a ordem do walkthrough em `DEMO_WALKTHROUGH_CONFIG.md`.
+Apresentação de walkthrough como construído, utilizando um ambiente de demo pré-configurado. Segue o padrão mostrar → narrar → conectar → pausar em cada etapa. Lê a ordem do walkthrough em `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ### subject-matter-expert
 
-Perguntas e respostas com referências e requisitos rigorosos de citação. Nunca
-adivinha — cada resposta inclui uma referência ou prova. Delega
-pesquisa ao agente `demo-researcher` quando necessário.
+Q&A com respaldo em referências e requisitos rigorosos de citação. Nunca faz suposições — cada resposta inclui uma referência ou comprovação. Delega pesquisas ao agente `demo-researcher` quando necessário.
 
 ### sales-engineer
 
-Índice de papéis que direciona a intenção do usuário para a habilidade
-de persona correta. É ativado quando a solicitação está relacionada a demo,
-mas não corresponde a uma frase de gatilho específica.
+Índice de funções que direciona a intenção do usuário para a habilidade de persona correta. Ativado quando a solicitação está relacionada a demo, mas não corresponde a uma frase de gatilho específica.
 
 ## Agentes
 
 ### demo-housekeeping
 
-Agente autônomo para verificação pré-reunião e encerramento
-pós-reunião. Executa a Matriz de Verificação de Prontidão (T0–T5) definida
-em `DEMO_READINESS_MATRIX.md` e executa comandos de encerramento de
-`docs/demo/phase-4-teardown.mdx`.
+Agente autônomo para verificação pré-reunião e encerramento pós-reunião. Executa a Matriz de Verificação de Prontidão (T0–T5) definida em `DEMO_READINESS_MATRIX.md` e executa comandos de encerramento de `docs/demo/phase-4-teardown.mdx`.
 
 ### demo-researcher
 
-Bibliotecário de pesquisa somente leitura que encontra respostas verificadas com
-citações. Pesquisa primeiro em `docs/` local, depois em fontes externas
-indexadas de `DEMO_SOURCE_INDEX.md`, com WebSearch como fallback.
+Bibliotecário de pesquisa somente leitura que encontra respostas verificadas com citações. Pesquisa primeiro nos `docs/` locais, depois em fontes externas indexadas de `DEMO_SOURCE_INDEX.md`, com WebSearch como fallback.
 
 ## Arquivos de Convenção
 
 <Aside type="tip" title="Conteúdo específico do produto">
-  Este plugin é agnóstico de produto. Cada repositório fornece
-  conteúdo específico do produto através de arquivos de convenção padronizados.
+  Este plugin é agnóstico em relação ao produto. Cada repositório fornece conteúdo específico do produto por meio de arquivos de convenção padronizados.
 </Aside>
 
 Crie estes arquivos na raiz do seu repositório para configurar o plugin:
 
-| Arquivo | Finalidade | Necessário Para |
+| Arquivo | Finalidade | Obrigatório Para |
 | ---- | ------- | ------------ |
 | `DEMO_PRODUCT_EXPERTISE.md` | Capacidades do produto, sinais de detecção, cobertura de ameaças, alinhamento de conformidade, referência de API | Todas as habilidades |
-| `DEMO_WALKTHROUGH_CONFIG.md` | URL do app de demo, ordem do walkthrough, tempo de detecção | presenter |
-| `DEMO_SOURCE_INDEX.md` | Catálogo de fontes de pesquisa com docs locais e URLs externos | demo-researcher |
+| `DEMO_WALKTHROUGH_CONFIG.md` | URL do aplicativo de demo, ordem do walkthrough, temporização de detecção | presenter |
+| `DEMO_SOURCE_INDEX.md` | Catálogo de fontes de pesquisa com documentação local e URLs externas | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | Variáveis obrigatórias/opcionais, verificações de prontidão (T0–T5), endpoints de API | demo-housekeeping |
-| `docs/demo/` | Arquivos de fase com comandos cURL e portas de evidência | demo-executor |
+| `docs/demo/` | Arquivos de fase com comandos cURL e portões de evidência | demo-executor |
 
 ## Frases de Gatilho
 
-O mapa de gatilhos `.claude/CLAUDE.md` (gerenciado por `docs-control`)
-ativa habilidades com base na intenção do usuário:
+O mapa de gatilhos `.claude/CLAUDE.md` (gerenciado por `docs-control`) ativa habilidades com base na intenção do usuário:
 
 | Frase | Habilidade | Estágio |
 | ------ | ----- | ----- |
 | "run the demo", "execute the demo" | demo-executor | Executar |
 | "prepare the demo", "pre-flight" | demo-executor | Preparar |
-| "Q&A", "question and answer" | demo-executor | Perguntas e Respostas |
+| "Q&A", "question and answer" | demo-executor | Q&A |
 | "tear down", "clean up" | demo-executor | Encerramento |
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
@@ -109,11 +90,8 @@ ativa habilidades com base na intenção do usuário:
 
 Todas as personas compartilham um estilo de narração consistente:
 
-- **Tempo presente, primeira pessoa do plural** — "O que estamos vendo
-  aqui…"
-- **Uma questão por parágrafo** — cada narração responde: O que é
-  isso? Por que importa? O que devo fazer a respeito?
-- **Nomeie o sinal** — destaque qual capacidade está em ação
-- **Gancho de conformidade quando relevante** — mencione o alinhamento
-  regulatório naturalmente
-- **Marcador de pausa para ritmo** — `> ⏸ *[Pausa para o público — prontos para continuar?]*`
+- **Presente, primeira pessoa do plural** — "O que estamos vendo aqui…"
+- **Uma preocupação por parágrafo** — cada narração responde: O que é isso? Por que isso importa? O que devo fazer a respeito?
+- **Nomear o sinal** — identificar qual capacidade está em operação
+- **Gancho de conformidade quando relevante** — mencionar o alinhamento regulatório de forma natural
+- **Marcador de pausa de ritmo** — `> ⏸ *[Pause for audience — ready to continue?]*`

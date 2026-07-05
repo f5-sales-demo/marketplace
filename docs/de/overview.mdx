@@ -1,45 +1,44 @@
 ---
-title: Überblick
+title: Übersicht
 description: >-
-  Wie der Claude Code Plugin-Marktplatz funktioniert — Quellen hinzufügen,
+  So funktioniert der Claude Code Plugin-Marktplatz — Quellen hinzufügen,
   Plugins installieren und gemeinsame Werkzeuge nutzen.
 sidebar:
   order: 1
 i18n:
-  sourceHash: cbde599e6ac0
+  sourceHash: 239ce651439e
   translator: machine
 ---
 
 Ein **Claude Code Plugin-Marktplatz** ist eine kuratierte Sammlung von
 Plugins, die Claude Code um neue Fähigkeiten, Befehle und
 Agenten erweitern. Marktplätze ermöglichen es Teams, Werkzeuge zu teilen,
-sodass jeder Entwickler die gleichen Funktionen erhält, ohne manuelle Einrichtung.
+sodass jeder Entwickler dieselben Funktionen ohne manuelle Einrichtung erhält.
 
-Der **f5-sales-demo Marktplatz** bietet Plugins, die für die
+Der **f5-sales-demo Marktplatz** stellt Plugins bereit, die für die
 [f5-sales-demo](https://github.com/f5-sales-demo)
-Dokumentationsplattform entwickelt wurden — ein Ökosystem aus über 20 Repositories,
-die Astro/Starlight-Websites über GitHub Pages mit einer gemeinsamen
-Build-Pipeline veröffentlichen.
+Dokumentationsplattform entwickelt wurden — ein Ökosystem aus mehr als 20 Repositories, die
+Astro/Starlight-Seiten über eine gemeinsame Build-Pipeline auf GitHub Pages veröffentlichen.
 
-## Funktionsweise
+## So funktioniert es
 
-1. **Fügen Sie den Marktplatz** zu Claude Code hinzu — dadurch wird er
-   als Plugin-Quelle registriert
-2. **Installieren Sie Plugins** vom Marktplatz — jedes Plugin fügt
+1. **Marktplatz hinzufügen** zu Claude Code — dies registriert ihn
+   als Plugin-Quelle
+2. **Plugins installieren** aus dem Marktplatz — jedes Plugin fügt
    Ihrer Claude Code-Sitzung Fähigkeiten und Befehle hinzu
-3. **Nutzen Sie die Werkzeuge** — Plugins werden automatisch je nach
+3. **Werkzeuge verwenden** — Plugins werden automatisch basierend auf dem
    Kontext aktiviert, oder Sie rufen ihre Befehle direkt auf
 
 ## Verfügbare Plugins
 
 | Plugin | Kategorie | Beschreibung |
 |--------|-----------|--------------|
-| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Produktivität | MDX-Inhaltsvalidierung und Review-Werkzeuge für Dokumentations-Repositories |
-| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Produktivität | Sales Engineer Persona-Framework — Demo-Durchführung, Präsentation, Q&A, Umgebungsmanagement |
+| [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Produktivität | MDX-Inhaltsvalidierung und Prüfwerkzeuge für Dokumentations-Repositories |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Produktivität | Sales-Engineer-Persona-Framework — Demo-Durchführung, Präsentation, Q&A, Umgebungsverwaltung |
 
 ## Schnellstart
 
-Fügen Sie den Marktplatz hinzu und installieren Sie das Docs-Tools-Plugin:
+Marktplatz hinzufügen und das Docs-Tools-Plugin installieren:
 
 ```
 /plugin marketplace add f5-sales-demo/marketplace
@@ -53,7 +52,7 @@ vollständige Anleitung.
 
 Ein Marktplatz ist ein Git-Repository, das ein oder mehrere
 Plugins enthält. Jedes Plugin bündelt Fähigkeiten, Befehle und Agenten
-in einer einzelnen installierbaren Einheit.
+in eine einzelne installierbare Einheit.
 
 ```
 Marketplace (marketplace.json)
@@ -65,12 +64,12 @@ Marketplace (marketplace.json)
 ```
 
 - **Marktplatz** — die Registry. Listet verfügbare Plugins
-  mit Metadaten für Auffindbarkeit und Installation auf.
+  mit Metadaten zur Auffindbarkeit und Installation auf.
 - **Plugin** — die installierbare Einheit. Enthält eine oder mehrere
   Fähigkeiten, Befehle oder Agenten.
-- **Fähigkeit (Skill)** — kontextuelles Wissen, das Claude automatisch
-  basierend auf der jeweiligen Aufgabe aktiviert.
-- **Befehl (Command)** — ein Slash-Befehl, den der Benutzer direkt aufruft
+- **Skill** — kontextuelles Wissen, das Claude automatisch basierend
+  auf der jeweiligen Aufgabe aktiviert.
+- **Befehl** — ein Slash-Befehl, den der Benutzer direkt aufruft
   (z. B. `/review-mdx`).
-- **Agent** — ein spezialisierter Unter-Agent, der komplexe,
-  mehrstufige Aufgaben autonom bearbeitet.
+- **Agent** — ein spezialisierter Unteragent, der komplexe,
+  mehrstufige Aufgaben eigenständig bearbeitet.

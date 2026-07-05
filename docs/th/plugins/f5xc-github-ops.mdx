@@ -1,24 +1,20 @@
 ---
 title: f5xc-github-ops
 description: >-
-  ระบบอัตโนมัติสำหรับการดำเนินงาน GitHub สำหรับการพัฒนาที่ขับเคลื่อนด้วย Issue,
-  เวิร์กโฟลว์ PR และการตรวจสอบ CI
+  การทำงานอัตโนมัติสำหรับ GitHub operations สำหรับการพัฒนาแบบ issue-driven, PR
+  workflow, และการตรวจสอบ CI
 sidebar:
   order: 7
 i18n:
-  sourceHash: 2ba0b437f939
+  sourceHash: 5c4d592b9f8b
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-ปลั๊กอิน **f5xc-github-ops** ให้ระบบอัตโนมัติสำหรับการดำเนินงาน
-GitHub โดยเฉพาะสำหรับ repository ของ f5-sales-demo ปลั๊กอินนี้
-จัดการวงจรชีวิตของ Git และ GitHub ทั้งหมดตั้งแต่การสร้าง Issue
-จนถึงการตรวจสอบหลังการ merge โดยบังคับใช้การพัฒนาที่ขับเคลื่อนด้วย
-Issue และ lint gate ก่อนการ commit
+ปลั๊กอิน **f5xc-github-ops** ให้การทำงานอัตโนมัติสำหรับ GitHub operations โดยเฉพาะสำหรับ repositories ของ f5-sales-demo รองรับวงจรชีวิตของ Git และ GitHub ทั้งหมดตั้งแต่การสร้าง issue จนถึงการตรวจสอบหลัง merge พร้อมบังคับใช้การพัฒนาแบบ issue-driven และ lint gates ก่อน commit
 
-<Badge text="v2.2.2" variant="note" /> <Badge text="ผลิตภาพ" variant="tip" />
+<Badge text="v2.2.2" variant="note" /> <Badge text="ประสิทธิภาพการทำงาน" variant="tip" />
 
 ## การติดตั้ง
 
@@ -30,35 +26,21 @@ Issue และ lint gate ก่อนการ commit
 
 ### workflow-lifecycle
 
-เวิร์กโฟลว์การกำกับดูแล repository ที่จัดการการสร้าง Issue, กฎการตั้งชื่อ
-branch, การสร้าง PR, การ poll CI พร้อมส่งข้อผิดพลาดกลับไปที่ Issue,
-การตรวจสอบหลังการ merge, การตรวจยืนยัน และเกณฑ์การเสร็จสิ้นงาน
-จะทำงานเมื่อคุณพูดว่า "commit", "push", "create a PR", "merge"
-หรือดำเนินการ Git ใด ๆ
+การทำงานของ workflow สำหรับการกำกับดูแล repository ครอบคลุมการสร้าง issue, รูปแบบการตั้งชื่อ branch, การสร้าง PR, การ polling CI พร้อมส่ง feedback ข้อผิดพลาดกลับไปยัง issue, การตรวจสอบหลัง merge, การยืนยัน และเกณฑ์การเสร็จสิ้นงาน เปิดใช้งานเมื่อคุณพูดว่า "commit", "push", "create a PR", "merge", หรือดำเนินการ Git ใดๆ
 
 ### upstream-contribution
 
-เวิร์กโฟลว์การมีส่วนร่วมกับ upstream สำหรับการพัฒนาแบบ fork
-จัดการการตรวจจับ fork, การค้นคว้า upstream (issues, PRs, CONTRIBUTING.md,
-รูปแบบ CI), การสร้าง Issue และ PR ข้ามรีโพ, การจัดการ Issue ติดตาม
-ในเครื่อง, การตรวจสอบ CI ของ upstream และการแนะนำการแก้ไข
+workflow สำหรับการมีส่วนร่วมกับ upstream สำหรับการพัฒนาแบบ fork-based รองรับการตรวจจับ fork, การค้นคว้า upstream (issues, PRs, CONTRIBUTING.md, รูปแบบ CI), การสร้าง issue และ PR ข้ามที่เก็บ, การจัดการ tracking issue ภายใน, การตรวจสอบ upstream CI, และการแก้ไขแบบมีคำแนะนำ
 
-## เอเจนต์
+## Agent
 
 ### github-ops
 
-เอเจนต์เฉพาะสำหรับการดำเนินงาน Git และ GitHub เชิงกลไกทั้งหมด
-จัดการ lint gate ก่อนการ commit, การสร้าง Issue, การสร้าง branch,
-การ staging, การ commit, การ push, การสร้าง PR, การ poll CI
-พร้อมส่งข้อผิดพลาดกลับ, การลองใหม่เมื่อโครงสร้างพื้นฐานล้มเหลว,
-การตรวจสอบหลังการ merge, การล้าง branch และการจัดการการตั้งค่า
-repository ผ่าน GitHub API
+Agent เฉพาะสำหรับการดำเนินการ Git และ GitHub ทั้งหมด รองรับ lint gates ก่อน commit, การสร้าง issue, การสร้าง branch, การ staging, การ commit, การ push, การสร้าง PR, การ polling CI พร้อม feedback ข้อผิดพลาด, การลองใหม่เมื่อโครงสร้างพื้นฐานล้มเหลว, การตรวจสอบหลัง merge, การลบ branch, และการจัดการการตั้งค่า repository ผ่าน GitHub API
 
-ส่งรายงานสถานะแบบมีโครงสร้าง: `COMPLETE`,
-`PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` หรือ `FAILED`
+ส่งคืนรายงานสถานะแบบมีโครงสร้าง: `COMPLETE`,
+`PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED`, หรือ `FAILED`
 
 <Aside type="caution">
-  เอเจนต์นี้เป็นตัวจัดการ**เฉพาะ**สำหรับการดำเนินงาน Git
-  อย่ารัน `git commit`, `git push` หรือ `gh pr create` โดยตรง
-  ใน repository ที่ใช้ปลั๊กอินนี้
+  Agent นี้เป็น**ผู้จัดการเฉพาะ**สำหรับการดำเนินการ Git ห้ามรัน `git commit`, `git push`, หรือ `gh pr create` โดยตรงใน repositories ที่ใช้ปลั๊กอินนี้
 </Aside>

@@ -1,23 +1,23 @@
 ---
 title: Primeros pasos
 description: >-
-  Guía paso a paso para agregar el marketplace f5-sales-demo e instalar tu
+  Guía paso a paso para agregar el marketplace f5-sales-demo e instalar su
   primer plugin.
 sidebar:
   order: 2
 i18n:
-  sourceHash: 8b7375e24be2
+  sourceHash: dc222a0155a7
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-Esta guía te acompaña en el proceso de agregar el marketplace
-f5-sales-demo a Claude Code e instalar tu primer plugin.
+Esta guía le explica cómo agregar el marketplace f5-sales-demo
+a Claude Code e instalar su primer plugin.
 
 ## Requisitos previos
 
-- Claude Code **v1.0.33** o posterior (soporte para marketplace de plugins)
+- Claude Code **v1.0.33** o posterior (compatibilidad con marketplace de plugins)
 - Una cuenta de GitHub con acceso a la organización
   [f5-sales-demo](https://github.com/f5-sales-demo)
 
@@ -27,18 +27,18 @@ f5-sales-demo a Claude Code e instalar tu primer plugin.
 
 1. **Agregar el marketplace**
 
-   En cualquier sesión de Claude Code, ejecuta:
+   En cualquier sesión de Claude Code, ejecute:
 
    ```
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   Esto registra el marketplace como fuente de plugins. Solo
-   necesitas hacerlo una vez.
+   Esto registra el marketplace como una fuente de plugins. Solo
+   necesita hacerlo una vez.
 
 2. **Explorar los plugins disponibles**
 
-   Lista lo que el marketplace ofrece:
+   Liste lo que ofrece el marketplace:
 
    ```
    /plugin marketplace list f5-sales-demo-marketplace
@@ -46,7 +46,7 @@ f5-sales-demo a Claude Code e instalar tu primer plugin.
 
 3. **Instalar un plugin**
 
-   Instala el plugin que necesites:
+   Instale el plugin que necesita:
 
    ```
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
@@ -55,15 +55,15 @@ f5-sales-demo a Claude Code e instalar tu primer plugin.
 
 4. **Usar el plugin**
 
-   Navega a cualquier repositorio de contenido de f5-sales-demo.
+   Navegue a cualquier repositorio de contenido de f5-sales-demo.
 
-   Para **docs tools**, ejecuta el comando de revisión MDX:
+   Para las **herramientas de docs**, ejecute el comando de revisión MDX:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   Para **sales engineer**, usa frases de activación como
+   Para **sales engineer**, utilice frases de activación como
    "prepare the demo", "run the demo" o "walk through
    the demo" — el plugin se activa automáticamente.
 
@@ -71,7 +71,7 @@ f5-sales-demo a Claude Code e instalar tu primer plugin.
 
 ## Actualización de plugins
 
-Para actualizar un plugin instalado a la última versión:
+Para actualizar un plugin instalado a la versión más reciente:
 
 ```
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
@@ -80,23 +80,23 @@ Para actualizar un plugin instalado a la última versión:
 
 ## Desinstalación
 
-Eliminar un plugin:
+Elimine un plugin:
 
 ```
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-Eliminar el marketplace por completo:
+Elimine el marketplace por completo:
 
 ```
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
-## Configuración de equipo
+## Configuración para equipos
 
-Para preconfigurar el marketplace para todo tu equipo, agrégalo
-al archivo `.claude/settings.json` de tu proyecto:
+Para preconfigurar el marketplace para todo su equipo, agréguelo
+al archivo `.claude/settings.json` de su proyecto:
 
 ```json
 {
@@ -111,10 +111,10 @@ al archivo `.claude/settings.json` de tu proyecto:
 ```
 
 <Aside type="tip" title="Configuración compartida">
-  Hacer commit de `.claude/settings.json` en tu repositorio significa
-  que cada miembro del equipo obtiene el marketplace y los plugins
+  Confirmar `.claude/settings.json` en su repositorio significa que
+  cada miembro del equipo obtiene el marketplace y los plugins
   automáticamente — sin necesidad de configuración manual.
 </Aside>
 
-Esto asegura que cada colaborador tenga las mismas herramientas
-disponibles desde su primera sesión de Claude Code en el repositorio.
+Esto garantiza que cada colaborador tenga las mismas herramientas disponibles
+desde su primera sesión de Claude Code en el repositorio.
