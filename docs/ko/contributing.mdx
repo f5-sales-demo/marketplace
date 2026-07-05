@@ -1,20 +1,20 @@
 ---
 title: 플러그인 기여하기
-description: 'f5-sales-demo 마켓플레이스용 플러그인을 생성, 구조화 및 게시하는 가이드.'
+description: 'f5-sales-demo 마켓플레이스를 위한 플러그인 생성, 구조화 및 게시 가이드.'
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-이 가이드는 새로운 플러그인을 생성하고 f5-sales-demo 마켓플레이스에 추가하는 방법을 설명합니다.
+이 가이드는 새 플러그인을 생성하고 f5-sales-demo 마켓플레이스에 추가하는 방법을 설명합니다.
 
 ## 플러그인 구조
 
-모든 플러그인은 `plugins/` 하위에 각자의 디렉터리에 위치하며 다음 구조를 따릅니다:
+모든 플러그인은 `plugins/` 아래의 자체 디렉터리에 위치하며 다음 구조를 따릅니다:
 
 <FileTree>
 - plugins/
@@ -66,7 +66,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 3. **스킬 추가**
 
-   프론트매터와 함께 `plugins/example-plugin/skills/example-skill/SKILL.md` 생성:
+   프론트매터와 함께 `plugins/example-plugin/skills/example-skill/SKILL.md`를 생성합니다:
 
    ```markdown
    ---
@@ -118,38 +118,38 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 6. **로컬에서 테스트**
 
-   Claude Code가 로컬 디렉터리를 참조하도록 설정하여 게시 없이 플러그인을 테스트합니다:
+   Claude Code가 로컬 디렉터리를 가리키도록 하여 게시 없이 플러그인을 테스트합니다:
 
    ```bash
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   스킬이 올바른 컨텍스트에서 활성화되고 명령어가 예상된 출력을 생성하는지 확인합니다.
+   스킬이 올바른 컨텍스트에서 활성화되고 명령어가 예상 출력을 생성하는지 확인합니다.
 
 </Steps>
 
 ## 플러그인 제출하기
 
-<Aside type="tip" title="리포지터리 워크플로">
-  이 리포지터리는 엄격한 거버넌스 워크플로를 적용합니다.
-  전체 프로세스는 [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)를 참조하십시오.
+<Aside type="tip" title="저장소 워크플로우">
+  이 저장소는 엄격한 거버넌스 워크플로우를 시행합니다.
+  전체 프로세스는 [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)를 참조하세요.
 </Aside>
 
 <Steps>
 
 1. 새 플러그인을 설명하는 GitHub 이슈 생성
 2. `main`에서 기능 브랜치 생성
-3. 플러그인 디렉터리 추가 및 `marketplace.json` 업데이트
+3. 플러그인 디렉터리를 추가하고 `marketplace.json` 업데이트
 4. `docs/plugins/example-plugin.mdx`에 문서 페이지 추가
-5. `Closes #N`으로 이슈에 연결된 PR 생성
-6. CI 실패 수정 후 검사 통과 시 병합
+5. `Closes #N`으로 이슈에 연결하는 PR 오픈
+6. CI 실패 사항을 수정하고 검사 통과 후 병합
 
 </Steps>
 
 ## 모범 사례
 
-- **스킬을 집중적으로 유지** — 하나의 스킬은 하나의 일을 잘 수행해야 합니다
-- **참조 파일 활용** — 대용량 데이터셋, 스키마, 조회 테이블은 SKILL.md에 인라인으로 작성하지 말고 `references/`에 배치합니다
-- **지능적으로 범위 설정** — 가능한 경우 작업 집합을 좁히기 위해 커밋되지 않은 변경 사항을 확인합니다
-- **출력을 심각도별로 그룹화** — 사용자가 수정 사항의 우선순위를 정할 수 있도록 ERROR, WARNING, INFO 수준을 사용합니다
-- **README 작성** — 사용 예시와 각 스킬 및 명령어에 대한 설명을 포함합니다
+- **스킬을 집중적으로 유지** — 하나의 스킬은 하나의 작업을 잘 수행해야 합니다
+- **참조 파일 활용** — 대용량 데이터셋, 스키마, 조회 테이블은 SKILL.md에 인라인으로 포함하는 대신 `references/`에 배치하세요
+- **지능적인 범위 설정** — 가능한 경우 미커밋된 변경 사항을 확인하여 작업 범위를 좁히세요
+- **출력을 심각도 별로 그룹화** — 사용자가 수정 사항의 우선순위를 정할 수 있도록 ERROR, WARNING, INFO 레벨을 사용하세요
+- **README 작성** — 각 스킬과 명령어의 사용 예시 및 설명을 포함하세요

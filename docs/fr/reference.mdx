@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 7
 i18n:
-  sourceHash: 34bc5641ff92
+  sourceHash: 0805a577837d
   translator: machine
 ---
 
@@ -30,12 +30,12 @@ Le manifeste de la place de marché se trouve dans
 | `owner.email` | Non | Adresse e-mail de contact |
 | `plugins` | Oui | Tableau des entrées de plugins |
 
-### Champs d'une entrée de plugin
+### Champs d'entrée de plugin
 
 | Champ | Requis | Description |
 |-------|--------|-------------|
 | `name` | Oui | Identifiant du plugin (doit correspondre à `plugin.json`) |
-| `description` | Oui | Description courte du plugin |
+| `description` | Oui | Courte description du plugin |
 | `version` | Oui | Chaîne de version sémantique |
 | `author.name` | Oui | Auteur du plugin |
 | `source` | Oui | Chemin ou URL vers le plugin (voir Types de sources) |
@@ -43,10 +43,10 @@ Le manifeste de la place de marché se trouve dans
 | `homepage` | Non | URL vers la documentation ou la page d'accueil du plugin |
 | `license` | Non | Identifiant de licence SPDX |
 | `keywords` | Non | Tableau de mots-clés de recherche |
-| `tags` | Non | Tableau de tags pour le filtrage |
+| `tags` | Non | Tableau de balises pour le filtrage |
 | `repository` | Non | URL du dépôt |
 
-## Types de sources de plugins
+## Types de sources de plugin
 
 Le champ `source` dans marketplace.json prend en charge plusieurs
 formats :
@@ -70,13 +70,13 @@ Chaque plugin possède un manifeste situé dans
 | `description` | Oui | Ce que fait le plugin |
 | `version` | Oui | Version sémantique |
 | `author.name` | Oui | Auteur du plugin |
-| `author.url` | Non | URL vers le profil ou le site web de l'auteur |
+| `author.url` | Non | URL vers le profil de l'auteur ou son site web |
 | `homepage` | Non | URL de la documentation |
 | `keywords` | Non | Mots-clés de recherche |
 | `license` | Non | Identifiant de licence SPDX |
 | `repository` | Non | URL du dépôt |
 
-## Structure du répertoire d'un plugin
+## Structure du répertoire de plugin
 
 ```
 plugins/example-plugin/
@@ -84,18 +84,19 @@ plugins/example-plugin/
     plugin.json          # Manifeste du plugin (requis)
   skills/
     skill-name/
-      SKILL.md           # Définition de la compétence (requis par compétence)
+      SKILL.md           # Définition de la compétence (requise par compétence)
       references/        # Fichiers de données de référence (optionnel)
   commands/
     command-name.md      # Définition de la commande (une par commande)
   agents/
-    agent-name.md        # Définition de l'agent (une par agent)
+    agent-name.md        # Définition de l'agent (un par agent)
   README.md              # Documentation du plugin (recommandé)
 ```
 
 ## Variables d'environnement
 
-Les plugins peuvent utiliser ces variables dans leurs fichiers de compétences et de commandes :
+Les plugins peuvent utiliser ces variables dans leurs fichiers
+de compétences et de commandes :
 
 | Variable | Description |
 |----------|-------------|
@@ -103,7 +104,7 @@ Les plugins peuvent utiliser ces variables dans leurs fichiers de compétences e
 
 ## Validation
 
-Validez localement vos manifestes de place de marché et de plugin :
+Validez vos manifestes de place de marché et de plugin localement :
 
 ```bash
 claude plugin validate .
@@ -114,8 +115,8 @@ Cette commande vérifie :
 - La conformité du schéma `marketplace.json`
 - L'existence de tous les répertoires de plugins référencés
 - La présence d'un `plugin.json` valide pour chaque plugin
-- Le format correct du frontmatter `SKILL.md` pour les compétences
-- La présence des champs de frontmatter requis pour les commandes
+- Le formatage correct du frontmatter `SKILL.md` pour les compétences
+- La présence des champs de frontmatter requis dans les commandes
 
 ## Configuration d'équipe
 
@@ -131,7 +132,7 @@ Ajoutez dans `.claude/settings.json` dans n'importe quel dépôt :
 }
 ```
 
-### Préactivation des plugins
+### Activation préalable des plugins
 
 ```json
 {
@@ -142,7 +143,7 @@ Ajoutez dans `.claude/settings.json` dans n'importe quel dépôt :
 ```
 
 <Aside type="tip">
-  Valider ces paramètres dans votre dépôt garantit que chaque
+  L'enregistrement de ces paramètres dans votre dépôt garantit que chaque
   membre de l'équipe obtient automatiquement la même configuration
   de place de marché et de plugins.
 </Aside>
@@ -163,7 +164,7 @@ Si elle est absente, ajoutez-la à nouveau :
 /plugin marketplace add f5-sales-demo/marketplace
 ```
 
-### Plugin non activé
+### Plugin qui ne s'active pas
 
 - Confirmez que le plugin est installé :
   `/plugin list`
@@ -172,16 +173,17 @@ Si elle est absente, ajoutez-la à nouveau :
 - Vérifiez que les conditions de déclenchement de la compétence correspondent à votre
   contexte actuel
 
-### Compétences ne se déclenchant pas automatiquement
+### Compétences qui ne se déclenchent pas automatiquement
 
-Les compétences s'activent en fonction de leur champ `description` dans le frontmatter de SKILL.md. Si une compétence ne s'active pas comme prévu :
+Les compétences s'activent en fonction de leur champ `description` dans
+le frontmatter SKILL.md. Si une compétence ne s'active pas comme prévu :
 
 - Vérifiez que la description décrit précisément le
   contexte de déclenchement
 - Utilisez la commande directement (ex. : `/f5xc-docs-tools:review-mdx`)
   comme solution de contournement
 
-### Erreurs de compilation après la révision
+### Erreurs de build après la révision
 
 Le plugin signale les problèmes mais ne les corrige pas automatiquement. Appliquez
 les corrections suggérées manuellement, puis relancez la révision pour

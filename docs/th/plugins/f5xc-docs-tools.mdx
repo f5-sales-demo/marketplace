@@ -1,18 +1,21 @@
 ---
 title: f5xc-docs-tools
-description: การตรวจสอบเนื้อหา MDX และการตรวจคุณภาพสำหรับไปป์ไลน์เอกสาร f5-sales-demo
+description: การตรวจสอบเนื้อหา MDX และการตรวจสอบคุณภาพสำหรับ pipeline เอกสาร f5-sales-demo
 sidebar:
   order: 4
 i18n:
-  sourceHash: fc8929b2eaae
+  sourceHash: dfed83186567
   translator: machine
 ---
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
-ปลั๊กอิน **f5xc-docs-tools** ตรวจสอบความถูกต้องของไฟล์เนื้อหา MDX สำหรับไปป์ไลน์เอกสาร f5-sales-demo โดยจะตรวจจับปัญหาทั่วไปที่ทำให้การ build ล้มเหลวก่อนที่จะถึง CI รวมถึงอักขระ JSX ที่ไม่ได้ครอบ, การ import ที่ไม่ถูกต้อง, การอ้างอิงรูปภาพที่เสีย และ frontmatter ที่ไม่สมบูรณ์
+ปลั๊กอิน **f5xc-docs-tools** ตรวจสอบความถูกต้องของไฟล์เนื้อหา MDX สำหรับ
+pipeline เอกสาร f5-sales-demo โดยตรวจจับปัญหาที่อาจทำให้การ build ล้มเหลว
+ก่อนที่จะถึง CI รวมถึงอักขระ JSX เปล่า การ import ที่ไม่ถูกต้อง การอ้างอิงรูปภาพที่เสีย
+และ frontmatter ที่ไม่สมบูรณ์
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="ประสิทธิภาพการทำงาน" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
 ## การติดตั้ง
 
@@ -24,55 +27,60 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 
 ### mdx-content-reviewer
 
-ทักษะนี้จะเปิดใช้งานโดยอัตโนมัติเมื่อ Claude ตรวจพบว่าคุณกำลังทำงานกับไฟล์ MDX ในรีโพซิทอรีเนื้อหา f5-sales-demo โดยจะทำการตรวจสอบ 7 รายการ:
+ทักษะนี้จะเปิดใช้งานโดยอัตโนมัติเมื่อ Claude ตรวจพบว่าคุณกำลัง
+ทำงานกับไฟล์ MDX ใน repository เนื้อหา f5-sales-demo
+โดยจะดำเนินการตรวจสอบเจ็ดรายการ:
 
 <CardGrid>
   <Card title="การตรวจสอบ Frontmatter">
-    ตรวจสอบฟิลด์ที่จำเป็นเช่น `title` และ `sidebar.order`
+    ตรวจสอบฟิลด์ที่จำเป็น เช่น `title` และ `sidebar.order`
     หน้า Splash ต้องมีฟิลด์ `hero` และ
     `template: splash`
   </Card>
-  <Card title="ปัญหาไวยากรณ์ MDX">
-    ตรวจจับอักขระ `&lt;` ที่ไม่ได้ครอบ และ `\{` `\}`
-    วงเล็บปีกกาที่ไม่ได้ escape ซึ่งทำให้การแยกวิเคราะห์ MDX เสียหาย
+  <Card title="ข้อผิดพลาดทั่วไปใน MDX">
+    ตรวจจับอักขระ `&lt;` เปล่าและวงเล็บปีกกา `\{` `\}`
+    ที่ไม่ได้ escape ซึ่งทำให้การแปลง MDX ล้มเหลว
   </Card>
   <Card title="การตรวจสอบ Import">
-    ตรวจสอบ import เทียบกับรายการที่อนุญาตของคอมโพเนนต์
-    ในตัวของ Starlight และคอมโพเนนต์ธีม f5-sales-demo
+    ตรวจสอบ import เทียบกับรายการที่อนุญาตของ
+    ส่วนประกอบในตัวของ Starlight และส่วนประกอบธีม f5-sales-demo
   </Card>
-  <Card title="แอตทริบิวต์คอมโพเนนต์">
-    ตรวจสอบ props ที่จำเป็นสำหรับคอมโพเนนต์เช่น Screenshot,
+  <Card title="แอตทริบิวต์ของส่วนประกอบ">
+    ตรวจสอบ props ที่จำเป็นสำหรับส่วนประกอบ เช่น Screenshot,
     Aside, Code, LinkCard, Card และ Badge
   </Card>
   <Card title="การอ้างอิงรูปภาพ">
     ตรวจสอบว่ารูปภาพที่อ้างอิงมีอยู่ในไดเรกทอรี `docs/images/`
+    หรือไม่
   </Card>
   <Card title="การตรวจสอบโครงสร้าง">
-    ตรวจสอบว่า `docs/index.mdx` มีอยู่จริง และไดเรกทอรีรูปภาพ
-    ไม่มีไฟล์ MDX ที่หลุดเข้ามา
+    ตรวจสอบว่ามี `docs/index.mdx` อยู่ และไดเรกทอรีรูปภาพ
+    ไม่มีไฟล์ MDX ที่ไม่เกี่ยวข้อง
   </Card>
-  <Card title="Export และบล็อกโค้ด">
-    ตรวจสอบว่าตัวแปรที่ใช้ใน props `code` ของคอมโพเนนต์ `Code`
+  <Card title="Export และ Code Block">
+    ตรวจสอบว่าตัวแปรที่ใช้ใน props `code` ของส่วนประกอบ `Code`
     มี export ที่ตรงกัน
   </Card>
 </CardGrid>
 
 #### พฤติกรรมการกำหนดขอบเขต
 
-ทักษะนี้กำหนดขอบเขตการตรวจสอบอย่างชาญฉลาด:
+ทักษะนี้จะกำหนดขอบเขตการตรวจสอบอย่างชาญฉลาด:
 
-- หากมีการเปลี่ยนแปลงที่ยังไม่ได้ commit หรือ stage ในไฟล์ `docs/**/*.mdx` จะตรวจสอบเฉพาะไฟล์เหล่านั้น
+- หากมีการเปลี่ยนแปลงที่ยังไม่ได้ commit หรืออยู่ใน staged ในไฟล์ `docs/**/*.mdx`
+  จะตรวจสอบเฉพาะไฟล์เหล่านั้นเท่านั้น
 - มิฉะนั้น จะตรวจสอบไฟล์ `docs/**/*.mdx` ทั้งหมด
 
 #### รูปแบบผลลัพธ์
 
-ผลการตรวจพบจะถูกจัดกลุ่มตามระดับความรุนแรง:
+ผลการตรวจสอบจะถูกจัดกลุ่มตามระดับความรุนแรง:
 
-- **ERROR** — จะทำให้การ build ล้มเหลว; ต้องแก้ไขก่อน merge
-- **WARNING** — ปัญหาที่น่าจะเกิดขึ้นซึ่งควรได้รับการแก้ไข
-- **INFO** — ข้อเสนอแนะและแนวปฏิบัติที่ดี
+- **ERROR** — จะทำให้ build ล้มเหลว; ต้องแก้ไขก่อน merge
+- **WARNING** — ปัญหาที่น่าจะเกิดขึ้นและควรได้รับการแก้ไข
+- **INFO** — ข้อเสนอแนะและแนวทางปฏิบัติที่ดี
 
-ผลการตรวจพบแต่ละรายการจะรวมเส้นทางไฟล์ หมายเลขบรรทัด และคำอธิบายของปัญหา
+ผลการตรวจสอบแต่ละรายการจะแสดง path ของไฟล์ หมายเลขบรรทัด และ
+คำอธิบายของปัญหา
 
 ## คำสั่ง
 
@@ -82,13 +90,13 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 /f5xc-docs-tools:review-mdx [path-or-glob]
 ```
 
-รันทักษะ `mdx-content-reviewer` ตามต้องการ
+เรียกใช้ทักษะ `mdx-content-reviewer` ตามต้องการ
 
 **อาร์กิวเมนต์:**
 
 | อาร์กิวเมนต์ | จำเป็น | คำอธิบาย |
 |----------|----------|-------------|
-| `path-or-glob` | ไม่ | เส้นทางไฟล์หรือรูปแบบ glob เพื่อกำหนดขอบเขตการตรวจสอบ ค่าเริ่มต้นคือไฟล์ `docs/**/*.mdx` ทั้งหมด |
+| `path-or-glob` | ไม่ | Path ของไฟล์หรือรูปแบบ glob เพื่อกำหนดขอบเขตการตรวจสอบ ค่าเริ่มต้นคือไฟล์ `docs/**/*.mdx` ทั้งหมด |
 
 **ตัวอย่าง:**
 
@@ -96,42 +104,43 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 # ตรวจสอบไฟล์ MDX ทั้งหมดใน docs/
 /f5xc-docs-tools:review-mdx
 
-# ตรวจสอบไฟล์เฉพาะเจาะจง
+# ตรวจสอบไฟล์เฉพาะ
 /f5xc-docs-tools:review-mdx docs/getting-started.mdx
 
 # ตรวจสอบไฟล์ที่ตรงกับรูปแบบ glob
 /f5xc-docs-tools:review-mdx docs/guides/*.mdx
 ```
 
-**ผลลัพธ์:** บรรทัดสรุปท้ายจะรายงานจำนวนไฟล์ทั้งหมดที่ตรวจสอบ และจำนวนผลการตรวจพบแยกตามระดับความรุนแรง
+**ผลลัพธ์:** บรรทัดสรุปที่ท้ายรายงานจำนวนไฟล์ทั้งหมดที่ตรวจสอบ
+และจำนวนผลการตรวจสอบแยกตามระดับความรุนแรง
 
 ## Import ที่อนุญาต
 
-ปลั๊กอินตรวจสอบ import เทียบกับแหล่งเหล่านี้:
+ปลั๊กอินตรวจสอบ import เทียบกับแหล่งที่มาเหล่านี้:
 
-**คอมโพเนนต์ในตัวของ Starlight** (`@astrojs/starlight/components`):
+**ส่วนประกอบในตัวของ Starlight** (`@astrojs/starlight/components`):
 
 `Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
 `LinkCard` `Steps` `TabItem` `Tabs`
 
-**คอมโพเนนต์ธีม f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
+**ส่วนประกอบธีม f5-sales-demo** (`@f5-sales-demo/docs-theme/components/`):
 
 `Banner` `Icon` `LinkCard` `Screenshot`
 
 <Aside type="caution">
-  คอมโพเนนต์ธีมใช้ default import จากไฟล์ `.astro` แต่ละไฟล์
-  การ import จาก `node_modules` โดยตรง, เส้นทางสัมพัทธ์ และ
+  ส่วนประกอบธีมใช้ default imports จากไฟล์ `.astro` แต่ละไฟล์
+  การ import โดยตรงจาก `node_modules`, relative paths และ
   การเรียก `require()` จะถูกแจ้งเตือนเป็น warning
 </Aside>
 
-## ข้อมูลอ้างอิงคอมโพเนนต์อย่างรวดเร็ว
+## เอกสารอ้างอิงส่วนประกอบอย่างย่อ
 
-| คอมโพเนนต์ | Props ที่จำเป็น | Props เสริม |
+| ส่วนประกอบ | Props ที่จำเป็น | Props ที่ไม่บังคับ |
 |-----------|---------------|----------------|
 | Screenshot | `alt` + อย่างน้อยหนึ่งใน `light` หรือ `dark` | — |
 | Aside | `type` | `title` |
 | Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
-| LinkCard (ธีม) | `title`, `href` | `description`, `icon` |
+| LinkCard (theme) | `title`, `href` | `description`, `icon` |
 | Card | `title` | `icon` |
 | Badge | `text` | `variant` |
 | Steps | — | — |
@@ -139,12 +148,12 @@ import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/componen
 | CardGrid | — | — |
 | FileTree | — | — |
 
-## ปัญหาที่พบบ่อยใน MDX
+## ข้อผิดพลาดทั่วไปใน MDX
 
-ปัญหาทั่วไปที่ปลั๊กอินตรวจจับ:
+ปัญหาที่พบบ่อยซึ่งปลั๊กอินตรวจจับ:
 
-| ปัญหา | สาเหตุ | วิธีแก้ไข |
+| ข้อผิดพลาด | ปัญหา | วิธีแก้ไข |
 |---------|---------|-----|
-| `&lt;` ที่ไม่ได้ครอบ | MDX ตีความว่าเป็นแท็ก JSX | ใช้ `&amp;lt;`, inline code หรือเขียนใหม่ |
-| `\{` `\}` ที่ไม่ได้ escape | MDX ถือว่าเป็น JSX expression | ใช้ inline code, escape ด้วย `\` หรือใช้บล็อกโค้ด |
+| `&lt;` เปล่า | MDX ตีความเป็น JSX tag | ใช้ `&amp;lt;`, inline code หรือปรับถ้อยคำใหม่ |
+| `\{` `\}` ที่ไม่ได้ escape | MDX ถือว่าเป็น JSX expression | ใช้ inline code, escape ด้วย `\` หรือใช้ code block |
 | วงเล็บปีกกาในชื่อไฟล์ | Astro ไม่สามารถประมวลผลไฟล์ได้ | อย่าใช้ `\{` หรือ `\}` ในชื่อไฟล์ `.mdx` |

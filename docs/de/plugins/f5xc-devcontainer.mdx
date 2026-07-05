@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 10
 i18n:
-  sourceHash: 009cdb5bdd89
+  sourceHash: 0b73ae944d12
   translator: machine
 ---
 
@@ -15,8 +15,8 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 Das **f5xc-devcontainer**-Plugin bietet Container-Awareness für
 die f5-sales-demo-Entwicklungsumgebung. Es pflegt einen
 umfassenden Werkzeugkatalog, ermöglicht Live-Container-Introspektion
-und übernimmt die Werkzeuginstallation mit Persistenzverfolgung
-über GitHub-Issues.
+und verwaltet die Werkzeuginstallation mit Persistenzverfolgung über
+GitHub-Issues.
 
 <Badge text="v1.1.6" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
@@ -31,20 +31,20 @@ und übernimmt die Werkzeuginstallation mit Persistenzverfolgung
 ### tool-catalog
 
 Wissensdatenbank aller im Entwicklungscontainer installierten CLI-Werkzeuge,
-geordnet nach Kategorien (Cloud, Netzwerk, Sicherheit, Entwicklung
+organisiert nach Kategorie (Cloud, Netzwerk, Sicherheit, Entwicklung
 usw.). Wird aktiviert, wenn Sie fragen, welches Werkzeug zu verwenden ist,
-wie ein Werkzeug verwendet wird, ob etwas installiert ist, oder wenn Sie
+wie ein Werkzeug genutzt wird, ob etwas installiert ist, oder wenn Sie
 Hilfe bei einem bestimmten Vorgang benötigen.
 
 ### self-awareness
 
-Skill für Container-Identität und Selbstdiagnose. Bietet Live-
-Introspektion des laufenden Containers über die GitHub-API und lokale
-Build-Metadaten. Wird aktiviert bei Fragen zu Identität, Version,
-Build-Informationen, Integritätsprüfungen und Contributor-Verlauf.
+Skill für Container-Identität und Selbstdiagnose. Ermöglicht Live-
+Introspektion des laufenden Containers über die GitHub API und lokale
+Build-Metadaten. Wird für Fragen zu Identität, Version, Build-Informationen,
+Systemzustandsprüfungen und Mitwirkungshistorie aktiviert.
 
 <Aside type="tip">
-  Fragen Sie „who are you?" oder „what version am I running?", um
+  Fragen Sie „Wer bist du?" oder „Welche Version verwende ich?" um
   Self-Awareness auszulösen.
 </Aside>
 
@@ -53,25 +53,24 @@ Build-Informationen, Integritätsprüfungen und Contributor-Verlauf.
 ### tool-advisor
 
 Liest den Werkzeugkatalog und gibt Empfehlungen mit Zweck,
-Schnellstart-Befehlen und Authentifizierungsanforderungen für alle
-CLI-Werkzeug-Fragen zurück.
+Schnellstart-Befehlen und Authentifizierungsanforderungen für jede
+CLI-Werkzeugfrage zurück.
 
 ### tool-auditor
 
-Überprüft das Devcontainer-Dockerfile gegen die Referenzdateien des
-Werkzeugkatalogs, um Abweichungen zu erkennen &mdash; Werkzeuge, die zum
-Image hinzugefügt, aber nicht katalogisiert wurden, oder Katalogeinträge
-für Werkzeuge, die entfernt wurden.
+Prüft das Devcontainer-Dockerfile gegen die Referenzdateien des Werkzeugkatalogs,
+um Abweichungen zu erkennen &mdash; Werkzeuge, die dem Image hinzugefügt, aber
+nicht katalogisiert wurden, oder Katalogeinträge für Werkzeuge, die entfernt
+wurden.
 
 ### container-introspector
 
-Führt Live-Container-Introspektion über die GitHub-API und lokale
-Metadaten durch für Identität, Genealogie, Selbstdiagnose,
-Contributor-Verlauf und Build-Herkunft. Ausschließlich Lesezugriff.
+Führt Live-Container-Introspektion über die GitHub API und lokale
+Metadaten durch – für Identität, Genealogie, Selbstdiagnose, Mitwirkungshistorie
+und Build-Herkunft. Ausschließlich lesende Operationen.
 
 ### container-maintainer
 
 Installiert, entfernt, sucht und aktualisiert CLI-Werkzeuge im laufenden
-Container unter Verwendung korrekter Paketmanager-Muster. Erstellt
-GitHub-Issues gegen das Devcontainer-Repository zur
-Persistenzverfolgung.
+Container mithilfe korrekter Paketverwaltungsmuster. Erstellt GitHub-Issues
+gegen das Devcontainer-Repository zur Persistenzverfolgung.

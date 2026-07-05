@@ -1,16 +1,16 @@
 ---
 title: f5xc-github-ops
-description: イシュー駆動開発、PRワークフロー、CI監視のためのGitHub操作自動化。
+description: issue 駆動開発、PR ワークフロー、CI モニタリングのための GitHub 操作自動化。
 sidebar:
   order: 7
 i18n:
-  sourceHash: 2ba0b437f939
+  sourceHash: 5c4d592b9f8b
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-**f5xc-github-ops** プラグインは、f5-sales-demo リポジトリ専用の GitHub 操作自動化を提供します。イシューの作成からマージ後の監視まで、Git と GitHub のライフサイクル全体を処理し、イシュー駆動開発とプレコミットリントゲートを強制します。
+**f5xc-github-ops** プラグインは、f5-sales-demo リポジトリ向けの GitHub 操作自動化を専用に提供します。issue の作成からマージ後のモニタリングまで、Git および GitHub のライフサイクル全体を管理し、issue 駆動開発とコミット前のリントゲートを適用します。
 
 <Badge text="v2.2.2" variant="note" /> <Badge text="生産性" variant="tip" />
 
@@ -24,21 +24,21 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ### workflow-lifecycle
 
-イシューの作成、ブランチ命名規則、PR作成、エラーフィードバック付きCIポーリング、マージ後の監視、検証、タスク完了基準を処理するリポジトリガバナンスワークフロー。「commit」「push」「PRを作成」「merge」と言ったとき、またはGit操作を実行したときにアクティブになります。
+issue の作成、ブランチ命名規則、PR の作成、エラーフィードバックを issue に返す CI ポーリング、マージ後のモニタリング、検証、およびタスク完了基準を処理するリポジトリガバナンスワークフロー。「commit」、「push」、「create a PR」、「merge」と言ったとき、または Git 操作を実行したときに起動します。
 
 ### upstream-contribution
 
-フォークベース開発のためのアップストリームコントリビューションワークフロー。フォークの検出、アップストリームの調査（イシュー、PR、CONTRIBUTING.md、CIパターン）、クロスリポジトリのイシューおよびPR作成、ローカルトラッキングイシュー管理、アップストリームCI監視、およびガイド付き解決を処理します。
+フォークベースの開発向けアップストリーム貢献ワークフロー。フォーク検出、アップストリームのリサーチ（issue、PR、CONTRIBUTING.md、CI パターン）、クロスリポジトリの issue および PR の作成、ローカルトラッキング issue の管理、アップストリーム CI のモニタリング、およびガイド付き解決を処理します。
 
 ## エージェント
 
 ### github-ops
 
-すべての機械的なGitおよびGitHub操作の専用エージェント。プレコミットリントゲート、イシュー作成、ブランチ作成、ステージング、コミット、プッシュ、PR作成、エラーフィードバック付きCIポーリング、インフラ障害リトライ、マージ後の監視、ブランチクリーンアップ、およびGitHub APIを介したリポジトリ設定管理を処理します。
+すべての機械的な Git および GitHub 操作専用のエージェント。コミット前のリントゲート、issue の作成、ブランチの作成、ステージング、コミット、プッシュ、PR の作成、エラーフィードバック付き CI ポーリング、インフラ障害の再試行、マージ後のモニタリング、ブランチのクリーンアップ、および GitHub API を介したリポジトリ設定の管理を処理します。
 
-構造化されたステータスレポートを返します：`COMPLETE`、`PRE_COMMIT_FAILED`、`CI_FAILED`、`BLOCKED`、または `FAILED`。
+構造化されたステータスレポートを返します: `COMPLETE`、`PRE_COMMIT_FAILED`、`CI_FAILED`、`BLOCKED`、または `FAILED`。
 
 <Aside type="caution">
-  このエージェントはGit操作の**専用**ハンドラーです。
-  このプラグインを使用するリポジトリでは、`git commit`、`git push`、`gh pr create` を直接実行しないでください。
+  このエージェントは Git 操作の**専用**ハンドラーです。
+  このプラグインを使用するリポジトリでは、`git commit`、`git push`、または `gh pr create` を直接実行しないでください。
 </Aside>

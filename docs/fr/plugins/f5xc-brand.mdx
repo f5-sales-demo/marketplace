@@ -1,24 +1,20 @@
 ---
 title: f5xc-brand
 description: >-
-  Application de l'identité de marque corporative F5 — couleurs, typographie,
-  logos, icônes et accessibilité WCAG AA.
+  Application de l'identité de marque F5 — couleurs, typographie, logos, icônes
+  et accessibilité WCAG AA.
 sidebar:
   order: 9
 i18n:
-  sourceHash: f07061be8697
+  sourceHash: c20126be96e6
   translator: machine
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
-Le plugin **f5xc-brand** applique l'identité de marque corporative F5
-sur tous les types de contenu. Il couvre la palette de 45 couleurs F5,
-les règles typographiques (titres Neusa Next Pro Wide, corps de texte
-Proxima Nova), l'utilisation exclusive de logos SVG, la sélection de
-packs d'icônes, l'accessibilité WCAG AA et la terminologie produit.
+Le plugin **f5xc-brand** applique l'identité de marque F5 sur tous les types de contenu. Il couvre la palette de 45 couleurs F5, les règles typographiques (titres Neusa Next Pro Wide, corps Proxima Nova), l'utilisation exclusive de logos SVG, la sélection de paquets d'icônes, l'accessibilité WCAG AA et la terminologie produit.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivité" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
 ## Installation
 
@@ -30,29 +26,15 @@ packs d'icônes, l'accessibilité WCAG AA et la terminologie produit.
 
 ### brand-guardian
 
-Application proactive de l'identité de marque pour toute création de contenu.
-S'active automatiquement lors de la création de documentation, diagrammes,
-présentations, miniatures vidéo, graphiques pour réseaux sociaux, schémas
-Mermaid ou dessins Excalidraw. Garantit l'utilisation correcte des couleurs,
-de la typographie, des logos, des icônes, du ton rédactionnel et de
-l'accessibilité F5.
+Application proactive de l'identité de marque pour toute création de contenu. S'active automatiquement lors de la création de documentation, de diagrammes, de présentations, de miniatures vidéo, de graphiques pour les réseaux sociaux, de graphiques Mermaid ou de dessins Excalidraw. Garantit l'utilisation correcte des couleurs F5, de la typographie, des logos, des icônes, du ton éditorial et de l'accessibilité.
 
 ### brand-reviewer
 
-Examine le contenu existant pour vérifier sa conformité avec la marque F5.
-Audite les couleurs, la typographie, le format des logos, la sélection
-des icônes, le texte alternatif, les ratios de contraste et la terminologie
-produit. Produit des rapports structurés avec des VIOLATIONS, des
-AVERTISSEMENTS et des SUGGESTIONS.
+Examine le contenu existant pour vérifier sa conformité à la marque F5. Contrôle les couleurs, la typographie, le format des logos, la sélection des icônes, le texte alternatif, les ratios de contraste et la terminologie produit. Produit des rapports structurés avec les catégories VIOLATIONS, AVERTISSEMENTS et SUGGESTIONS.
 
 ### visual-content
 
-Règles spécifiques aux formats pour le contenu visuel de marque. Fournit
-des directives pour les diagrammes Mermaid, les dessins Excalidraw, les
-captures d'écran, les présentations PowerPoint, les miniatures YouTube,
-les scripts vidéo et les graphiques pour réseaux sociaux, incluant la
-sélection de packs d'icônes, les mises en page de diapositives, les
-polices de substitution et les dimensions spécifiques aux plateformes.
+Règles spécifiques par format pour le contenu visuel de marque. Fournit des recommandations pour les diagrammes Mermaid, les dessins Excalidraw, les captures d'écran, les présentations PowerPoint, les miniatures YouTube, les scripts vidéo et les graphiques pour les réseaux sociaux, avec la sélection des Paquets d'icônes, les mises en page de diapositives, les polices de substitution et les dimensions spécifiques à chaque plateforme.
 
 ## Commandes
 
@@ -62,6 +44,4 @@ polices de substitution et les dimensions spécifiques aux plateformes.
 /f5xc-brand:review-brand [path-or-glob]
 ```
 
-Examine le contenu pour vérifier sa conformité avec la marque F5. Accepte
-un chemin ou un motif glob optionnel pour délimiter la portée de l'examen.
-Sans argument, examine tout le contenu du répertoire courant.
+Examine le contenu pour vérifier sa conformité à la marque F5. Accepte un chemin ou un motif glob optionnel pour délimiter la portée de la révision. Sans arguments, examine l'ensemble du contenu du répertoire courant.

@@ -1,18 +1,18 @@
 ---
 title: Referenz
 description: >-
-  marketplace.json Schema-Referenz mit Felddefinitionen, Skill-Konfiguration und
+  marketplace.json-Schema-Referenz mit Felddefinitionen, Skill-Konfiguration und
   Validierungsregeln.
 sidebar:
   order: 7
 i18n:
-  sourceHash: 34bc5641ff92
+  sourceHash: 0805a577837d
   translator: machine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-## marketplace.json Schema
+## marketplace.json-Schema
 
 Das Marketplace-Manifest befindet sich unter
 `.claude-plugin/marketplace.json` im Repository-Stammverzeichnis.
@@ -21,27 +21,27 @@ Das Marketplace-Manifest befindet sich unter
 
 | Feld | Erforderlich | Beschreibung |
 |-------|----------|-------------|
-| `$schema` | Nein | JSON Schema URL zur Validierung |
+| `$schema` | Nein | JSON-Schema-URL zur Validierung |
 | `name` | Ja | Eindeutiger Marktplatz-Bezeichner |
-| `version` | Nein | Marktplatz-Schema-Version (semver) |
-| `metadata.description` | Ja | Für Menschen lesbare Marktplatz-Beschreibung |
-| `owner.name` | Ja | Organisation oder Benutzer, dem der Marktplatz gehört |
+| `version` | Nein | Marktplatz-Schema-Version (Semver) |
+| `metadata.description` | Ja | Menschenlesbare Marktplatz-Beschreibung |
+| `owner.name` | Ja | Organisation oder Benutzer, der den Marktplatz besitzt |
 | `owner.url` | Nein | URL zum Profil oder zur Website des Eigentümers |
 | `owner.email` | Nein | Kontakt-E-Mail |
 | `plugins` | Ja | Array von Plugin-Einträgen |
 
-### Felder eines Plugin-Eintrags
+### Felder des Plugin-Eintrags
 
 | Feld | Erforderlich | Beschreibung |
 |-------|----------|-------------|
 | `name` | Ja | Plugin-Bezeichner (muss mit `plugin.json` übereinstimmen) |
 | `description` | Ja | Kurzbeschreibung des Plugins |
-| `version` | Ja | Semantischer Versions-String |
+| `version` | Ja | Semantische Versionszeichenkette |
 | `author.name` | Ja | Plugin-Autor |
 | `source` | Ja | Pfad oder URL zum Plugin (siehe Quelltypen) |
 | `category` | Ja | Plugin-Kategorie (z. B. `productivity`) |
 | `homepage` | Nein | URL zur Plugin-Dokumentation oder Homepage |
-| `license` | Nein | SPDX-Lizenz-Bezeichner |
+| `license` | Nein | SPDX-Lizenzbezeichner |
 | `keywords` | Nein | Array von Suchbegriffen |
 | `tags` | Nein | Array von Tags zur Filterung |
 | `repository` | Nein | Repository-URL |
@@ -59,7 +59,7 @@ Formate:
 | Git-URL | `https://github.com/owner/repo.git` | Git-Repository |
 | npm-Paket | `npm:@scope/package` | Veröffentlichtes npm-Paket |
 
-## plugin.json Schema
+## plugin.json-Schema
 
 Jedes Plugin hat ein Manifest unter
 `.claude-plugin/plugin.json` in seinem Verzeichnis.
@@ -67,13 +67,13 @@ Jedes Plugin hat ein Manifest unter
 | Feld | Erforderlich | Beschreibung |
 |-------|----------|-------------|
 | `name` | Ja | Plugin-Bezeichner |
-| `description` | Ja | Funktion des Plugins |
+| `description` | Ja | Was das Plugin tut |
 | `version` | Ja | Semantische Version |
 | `author.name` | Ja | Plugin-Autor |
 | `author.url` | Nein | URL zum Profil oder zur Website des Autors |
 | `homepage` | Nein | Dokumentations-URL |
 | `keywords` | Nein | Suchbegriffe |
-| `license` | Nein | SPDX-Lizenz-Bezeichner |
+| `license` | Nein | SPDX-Lizenzbezeichner |
 | `repository` | Nein | Repository-URL |
 
 ## Plugin-Verzeichnisstruktur
@@ -84,7 +84,7 @@ plugins/example-plugin/
     plugin.json          # Plugin-Manifest (erforderlich)
   skills/
     skill-name/
-      SKILL.md           # Skill-Definition (pro Skill erforderlich)
+      SKILL.md           # Skill-Definition (erforderlich pro Skill)
       references/        # Referenzdatendateien (optional)
   commands/
     command-name.md      # Befehlsdefinition (eine pro Befehl)
@@ -110,9 +110,9 @@ Validieren Sie Ihre Marktplatz- und Plugin-Manifeste lokal:
 claude plugin validate .
 ```
 
-Dabei wird Folgendes geprüft:
+Dies prüft:
 
-- Konformität mit dem `marketplace.json`-Schema
+- `marketplace.json`-Schema-Konformität
 - Alle referenzierten Plugin-Verzeichnisse sind vorhanden
 - Jedes Plugin hat eine gültige `plugin.json`
 - Skills haben korrekt formatiertes `SKILL.md`-Frontmatter
@@ -120,9 +120,9 @@ Dabei wird Folgendes geprüft:
 
 ## Team-Konfiguration
 
-### Marktplätze vorab konfigurieren
+### Marktplätze vorkonfigurieren
 
-Fügen Sie Folgendes zu `.claude/settings.json` in einem beliebigen Repository hinzu:
+Fügen Sie folgendes zu `.claude/settings.json` in einem beliebigen Repository hinzu:
 
 ```json
 {
@@ -143,9 +143,8 @@ Fügen Sie Folgendes zu `.claude/settings.json` in einem beliebigen Repository h
 ```
 
 <Aside type="tip">
-  Durch das Einchecken dieser Einstellungen in Ihr Repository wird sichergestellt, dass jedes
-  Teammitglied automatisch dieselbe Marktplatz- und Plugin-
-  Konfiguration erhält.
+  Wenn Sie diese Einstellungen in Ihr Repository übertragen, stellen Sie sicher, dass jedes
+  Teammitglied automatisch dieselbe Marktplatz- und Plugin-Konfiguration erhält.
 </Aside>
 
 ## Fehlerbehebung
@@ -168,22 +167,22 @@ Falls nicht vorhanden, fügen Sie ihn erneut hinzu:
 
 - Bestätigen Sie, dass das Plugin installiert ist:
   `/plugin list`
-- Stellen Sie sicher, dass Ihre Claude Code-Version Plugins unterstützt
+- Überprüfen Sie, ob Ihre Claude Code-Version Plugins unterstützt
   (v1.0.33+)
-- Überprüfen Sie, ob die Auslösebedingungen des Skills zu Ihrem aktuellen
-  Kontext passen
+- Stellen Sie sicher, dass die Auslösebedingungen des Skills mit Ihrem aktuellen
+  Kontext übereinstimmen
 
 ### Skills werden nicht automatisch ausgelöst
 
 Skills werden basierend auf ihrem Feld `description` im
 SKILL.md-Frontmatter aktiviert. Wenn ein Skill nicht wie erwartet ausgelöst wird:
 
-- Prüfen Sie, ob die Beschreibung den Auslösekontext genau beschreibt
+- Überprüfen Sie, ob die Beschreibung den Auslösekontext genau beschreibt
 - Verwenden Sie den Befehl direkt (z. B. `/f5xc-docs-tools:review-mdx`)
   als Workaround
 
 ### Build-Fehler nach der Überprüfung
 
-Das Plugin meldet Probleme, behebt sie jedoch nicht automatisch. Wenden Sie
+Das Plugin meldet Probleme, behebt diese jedoch nicht automatisch. Wenden Sie
 die vorgeschlagenen Korrekturen manuell an und führen Sie die Überprüfung erneut aus,
 um die Behebung zu bestätigen.

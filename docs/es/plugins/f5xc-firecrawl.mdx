@@ -1,18 +1,18 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Raspado y rastreo web local autohospedado mediante el motor de código abierto
+  Raspado y rastreo web local autoalojado mediante el motor de código abierto
   Firecrawl.
 sidebar:
   order: 13
 i18n:
-  sourceHash: a9d67be9cf3e
+  sourceHash: aa94d7f346b1
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-El plugin **f5xc-firecrawl** proporciona raspado web local autohospedado
+El complemento **f5xc-firecrawl** proporciona raspado web local autoalojado
 mediante el motor de código abierto [firecrawl](https://github.com/mendableai/firecrawl).
 Sin claves de API, sin suscripciones, sin dependencia en la nube. Todas
 las operaciones se ejecutan contra la instancia local de firecrawl en `localhost:3002`
@@ -30,7 +30,7 @@ dentro del contenedor de desarrollo.
 
 ### /scrape
 
-Raspar una única URL y extraer el contenido como markdown.
+Raspa una sola URL y extrae el contenido como markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Raspar una única URL y extraer el contenido como markdown.
 
 ### /batch-scrape
 
-Raspar múltiples URLs a la vez.
+Raspa múltiples URLs a la vez.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -47,7 +47,7 @@ Raspar múltiples URLs a la vez.
 
 ### /crawl
 
-Rastrear múltiples páginas desde una URL de inicio.
+Rastrea múltiples páginas a partir de una URL de inicio.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -56,7 +56,7 @@ Rastrear múltiples páginas desde una URL de inicio.
 
 ### /map
 
-Descubrir todas las URLs de un sitio web.
+Descubre todas las URLs de un sitio web.
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ Descubrir todas las URLs de un sitio web.
 
 ### /search
 
-Buscar en la web y, opcionalmente, raspar los resultados.
+Busca en la web y opcionalmente raspa los resultados.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -74,7 +74,7 @@ Buscar en la web y, opcionalmente, raspar los resultados.
 
 ### /extract
 
-Extracción de datos estructurados mediante LLM desde páginas web.
+Extracción de datos estructurados con tecnología LLM desde páginas web.
 
 ```
 /extract https://example.com "Extract the main heading and any links"
@@ -88,7 +88,7 @@ Extracción de datos estructurados mediante LLM desde páginas web.
 
 ### /llmstxt
 
-Generar un archivo llms.txt para un sitio.
+Genera un archivo llms.txt para un sitio.
 
 ```
 /llmstxt https://docs.example.com
@@ -99,8 +99,8 @@ Generar un archivo llms.txt para un sitio.
 ### web-scraper
 
 Se activa automáticamente cuando se solicita raspar una URL, rastrear un sitio web, mapear
-URLs del sitio, buscar en la web, extraer datos estructurados, generar llms.txt,
-raspar múltiples URLs en lote, o convertir una página web a markdown.
+las URLs de un sitio, buscar en la web, extraer datos estructurados, generar llms.txt,
+raspar múltiples URLs en lote o convertir una página web a markdown.
 Delega inmediatamente al agente firecrawl-operator.
 
 ## Agentes
@@ -127,27 +127,27 @@ los endpoints de la v1. Agente de solo lectura (sin herramientas de escritura, e
 
 ## Infraestructura
 
-El plugin requiere que el stack de firecrawl esté en ejecución dentro del contenedor de desarrollo:
+El complemento requiere que el stack de firecrawl esté en ejecución en el contenedor de desarrollo:
 
 | Componente | Puerto | Propósito |
 |-----------|------|---------|
 | Firecrawl API | 3002 | Todos los endpoints de scrape/crawl/map/search/extract |
-| Playwright | 3000 | Motor de renderizado de JavaScript |
+| Playwright | 3000 | Motor de renderizado JavaScript |
 | Redis | 6379 | Backend de cola de trabajos |
 | PostgreSQL | socket | Persistencia de trabajos de crawl/batch |
 | LiteLLM proxy | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
 
 El stack se inicia automáticamente cuando `ENABLE_FIRECRAWL=true` (el
 valor predeterminado). Un hook SessionStart verifica que la API sea accesible y
-advierte si el servicio no está disponible.
+advierte si el servicio está inactivo.
 
-## Diferencias con Firecrawl en la nube
+## Diferencias respecto a Firecrawl en la nube
 
-Este plugin utiliza la versión autohospedada de código abierto:
+Este complemento utiliza la versión de código abierto autoalojada:
 
 - No se requiere autenticación ni claves de API para el raspado
-- Sin límites de créditos ni limitación de velocidad
-- Utiliza endpoints de API v1 (no v2)
+- Sin límites de crédito ni limitación de velocidad
+- Utiliza endpoints de la API v1 (no v2)
 - Las sesiones de navegador y la investigación profunda no están disponibles
-- Extract utiliza su propio proxy LLM en lugar de modelos hospedados
+- Extract utiliza su propio proxy LLM en lugar de modelos alojados
 - Se ejecuta completamente dentro de la red del contenedor local

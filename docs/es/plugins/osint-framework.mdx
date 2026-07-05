@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 12
 i18n:
-  sourceHash: 79499aa33fc5
+  sourceHash: 5eed9190f5b8
   translator: machine
 ---
 
@@ -16,7 +16,7 @@ El plugin **osint-framework** proporciona un catálogo de herramientas OSINT y
 habilidades de investigación — 1.064 herramientas gratuitas de recopilación de inteligencia
 en 34 categorías mapeadas desde [osintframework.com](https://osintframework.com).
 Incluye habilidades basadas en categorías, pipelines de investigación ejecutables,
-ejecución de herramientas CLI, flujos de trabajo con consciencia OPSEC y un grafo
+ejecución de herramientas CLI, flujos de trabajo con conciencia OPSEC, y un grafo
 de entidades persistente para correlación entre investigaciones.
 
 <Badge text="v1.0.1" variant="note" /> <Badge text="Seguridad" variant="tip" />
@@ -31,9 +31,9 @@ de entidades persistente para correlación entre investigaciones.
 
 ### /osint-investigate
 
-Ejecuta una investigación OSINT completa sobre cualquier objetivo. Detecta
-automáticamente el tipo de objetivo (correo electrónico, dominio, IP, nombre de usuario,
-empresa, nombre de persona) y enruta a las habilidades de categoría correspondientes.
+Ejecuta una investigación OSINT completa contra cualquier objetivo. Detecta
+automáticamente el tipo de objetivo (correo electrónico, dominio, IP, nombre de
+usuario, empresa, nombre de persona) y redirige a las habilidades de categoría correctas.
 
 ```
 /osint-investigate j.smith@example.com
@@ -54,8 +54,8 @@ Busca en el catálogo de herramientas aquellas que coincidan con una consulta de
 
 ### /osint-catalog
 
-Explora el catálogo completo de herramientas por categoría. Sin argumentos, muestra
-las 34 categorías con el recuento de herramientas.
+Navega por el catálogo completo de herramientas por categoría. Sin argumentos,
+muestra las 34 categorías con el recuento de herramientas.
 
 ```
 /osint-catalog
@@ -67,12 +67,12 @@ las 34 categorías con el recuento de herramientas.
 
 ### osint-index
 
-Enrutador de intención de nivel superior. Se activa automáticamente cuando se indica
-"buscar información sobre", "investigar", "consultar", "verificar antecedentes",
-o se describe cualquier tarea de inteligencia de fuentes abiertas. Enruta a la
+Enrutador de intención de nivel superior. Se activa automáticamente cuando se dice "find
+information about", "investigate", "look up", "background check",
+o cuando se describe cualquier tarea de inteligencia de fuentes abiertas. Redirige a la
 habilidad de categoría correcta según el tipo de objetivo.
 
-| Objetivo | Enruta a |
+| Objetivo | Redirige a |
 |--------|----------|
 | Nombre de usuario o alias | `username-recon` |
 | Dirección de correo electrónico | `email-recon` |
@@ -106,54 +106,53 @@ flujo de trabajo de investigación, pivotes entre categorías y notas OPSEC.
 | *(20 categorías más)* | 500+ | — |
 
 <Aside type="tip">
-  Utilice `/osint-catalog` para explorar las 34 categorías o
+  Use `/osint-catalog` para navegar por las 34 categorías o
   `/osint-search <capacidad>` para encontrar herramientas para una tarea específica.
 </Aside>
 
 ### osint-catalog
 
-Explorador del catálogo de herramientas. Proporciona acceso al registro completo
-de herramientas, índice de categorías, pipelines de investigación, referencia de
-límites de tasa y documentación del motor de correlación.
+Navegador del catálogo de herramientas. Proporciona acceso al registro completo de herramientas,
+índice de categorías, pipelines de investigación, referencia de límites de tasa
+y documentación del motor de correlación.
 
 ## Agentes
 
 ### osint-investigator
 
 Orquestador autónomo de investigación con múltiples herramientas. Ejecuta flujos
-de trabajo de investigación completos — verificación de disponibilidad de herramientas,
-detección del tipo de objetivo, ejecución secuencial de herramientas (pasivas primero),
-agregación de resultados y generación de informes estructurados con niveles de
-confianza y clasificaciones OPSEC.
+de trabajo de investigación completos — verificación de disponibilidad de herramientas, detección
+del tipo de objetivo, ejecución secuencial de herramientas (primero pasiva), agregación
+de resultados y generación de informes estructurados con niveles de confianza
+y clasificaciones OPSEC.
 
 Se integra con el grafo de entidades: cada resultado de herramienta crea entidades
 y relaciones en `/tmp/osint-graph/` para correlación entre investigaciones.
 
 <Aside type="caution">
-  Las herramientas de reconocimiento activo (nmap, nuclei, sherlock) establecen
-  contacto directo con la infraestructura objetivo. El gancho de advertencia OPSEC
-  alerta antes de ejecutar herramientas activas. Asegúrese siempre de contar con
-  autorización.
+  Las herramientas de reconocimiento activo (nmap, nuclei, sherlock) establecen contacto directo
+  con la infraestructura del objetivo. El hook de advertencia OPSEC alerta antes de
+  ejecutar herramientas activas. Asegúrese siempre de contar con la autorización correspondiente.
 </Aside>
 
 ### osint-researcher
 
-Agente de consulta del catálogo en modo solo lectura. Busca en los archivos de
-referencia para recomendar las mejores herramientas para una tarea determinada.
-Nunca ejecuta herramientas — solo recomienda y explica. Las habilidades de
-categoría lo utilizan internamente para el descubrimiento de herramientas.
+Agente de búsqueda en catálogo de solo lectura. Busca en archivos de referencia para
+recomendar las mejores herramientas para una tarea determinada. Nunca ejecuta herramientas —
+solo recomienda y explica. Las habilidades de categoría lo utilizan internamente
+para el descubrimiento de herramientas.
 
 ### osint-executor
 
-Agente de ejecución de herramientas CLI individuales. Ejecuta una herramienta a
-la vez con parámetros específicos, analiza la salida y devuelve resultados
-estructurados. Incluye recetas de ejecución por herramienta para más de 20
-herramientas con indicadores exactos, formatos de salida y patrones de análisis jq.
+Agente de ejecución CLI de herramienta única. Ejecuta una herramienta a la vez con
+parámetros específicos, analiza la salida y devuelve resultados estructurados.
+Incluye recetas de ejecución por herramienta para más de 20 herramientas con indicadores exactos,
+formatos de salida y patrones de análisis jq.
 
 ## Límites de tasa
 
-Todas las llamadas a la API utilizan el asistente `osint_curl` con retroceso
-exponencial integrado en HTTP 429/503. Límites principales:
+Todas las llamadas a la API utilizan el helper `osint_curl` con retroceso exponencial
+integrado en HTTP 429/503. Límites principales:
 
 | API | Límite gratuito | Variable de entorno |
 |-----|-----------|---------|
@@ -162,9 +161,9 @@ exponencial integrado en HTTP 429/503. Límites principales:
 | NVD | 5/30s (sin clave) | `NVD_API_KEY` |
 | OpenCorporates | Requiere clave | `OPENCORPORATES_API_KEY` |
 | Shodan | 1/seg | `SHODAN_API_KEY` |
-| GitHub API | 60/h (sin auth) | `GH_TOKEN` |
+| GitHub API | 60/hora (sin auth) | `GH_TOKEN` |
 
-Las API que requieren claves se omiten automáticamente con un mensaje claro
+Las APIs que requieren claves se omiten automáticamente con un mensaje claro
 si la variable de entorno no está configurada.
 
 ## Motor de correlación
@@ -191,12 +190,12 @@ osint_graph_report
 ```
 
 **La puntuación de confianza** utiliza fusión de múltiples fuentes:
-`confidence = 1 - product(1 - ci)` para cada fuente confirmada.
-Dos fuentes a 0,80 → confianza combinada de 0,96.
+`confidence = 1 - product(1 - ci)` para cada fuente confirmante.
+Dos fuentes con 0,80 → confianza combinada de 0,96.
 
 ## Aviso legal
 
-Todas las herramientas utilizan únicamente información de acceso público. Los
-usuarios son responsables de garantizar el cumplimiento de las leyes, reglamentos
-y términos de servicio de las plataformas aplicables. Nunca utilice herramientas
-OSINT para acceso no autorizado, acoso o cualquier actividad ilegal.
+Todas las herramientas utilizan únicamente información disponible públicamente. Los usuarios son
+responsables de garantizar el cumplimiento de las leyes aplicables,
+las regulaciones y los términos de servicio de la plataforma. Nunca utilice herramientas OSINT
+para acceso no autorizado, acoso o cualquier actividad ilegal.

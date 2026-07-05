@@ -4,7 +4,7 @@ description: دليل لإنشاء وهيكلة ونشر الإضافات (Plugi
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
@@ -15,7 +15,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 ## هيكل الإضافة (Plugin)
 
-تقع كل إضافة في دليلها الخاص ضمن `plugins/` وتتبع
+تعيش كل إضافة في مجلدها الخاص ضمن `plugins/` وتتبع
 الهيكل التالي:
 
 <FileTree>
@@ -39,7 +39,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 <Steps>
 
-1. **إنشاء دليل الإضافة**
+1. **إنشاء مجلد الإضافة**
 
    ```bash
    mkdir -p plugins/example-plugin/.claude-plugin
@@ -49,7 +49,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 2. **كتابة `plugin.json`**
 
-   أنشئ `plugins/example-plugin/.claude-plugin/plugin.json`:
+   أنشئ الملف `plugins/example-plugin/.claude-plugin/plugin.json`:
 
    ```json
    {
@@ -68,8 +68,8 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 3. **إضافة المهارات (Skills)**
 
-   أنشئ `plugins/example-plugin/skills/example-skill/SKILL.md` مع
-   بيانات أولية (frontmatter):
+   أنشئ الملف `plugins/example-plugin/skills/example-skill/SKILL.md` مع
+   البيانات الأولية (frontmatter):
 
    ```markdown
    ---
@@ -80,12 +80,12 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    Detailed instructions for Claude when this skill activates.
    ```
 
-   ضع أي بيانات مرجعية في دليل فرعي `references/`
+   ضع أي بيانات مرجعية في مجلد فرعي باسم `references/`
    بجانب `SKILL.md`.
 
 4. **إضافة الأوامر (Commands)**
 
-   أنشئ `plugins/example-plugin/commands/example-command.md`:
+   أنشئ الملف `plugins/example-plugin/commands/example-command.md`:
 
    ```markdown
    ---
@@ -102,7 +102,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 5. **إضافة الإضافة إلى marketplace.json**
 
-   أضف إدخالاً إلى مصفوفة `plugins` في
+   أضف مدخلاً إلى مصفوفة `plugins` في
    `.claude-plugin/marketplace.json`:
 
    ```json
@@ -124,40 +124,40 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 6. **الاختبار محلياً**
 
    اختبر إضافتك دون نشرها عن طريق توجيه Claude Code
-   إلى الدليل المحلي:
+   إلى المجلد المحلي:
 
    ```bash
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   تحقق من أن المهارات تُفعَّل في السياق الصحيح وأن
-   الأوامر تنتج المخرجات المتوقعة.
+   تحقق من أن المهارات (Skills) تُفعَّل في السياق الصحيح وأن
+   الأوامر تُنتج المخرجات المتوقعة.
 
 </Steps>
 
 ## تقديم إضافتك (Plugin)
 
 <Aside type="tip" title="سير عمل المستودع">
-  يُطبّق هذا المستودع سير عمل صارماً للحوكمة.
+  يُطبّق هذا المستودع سير عمل حوكمة صارمًا.
   راجع [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
   للاطلاع على العملية الكاملة.
 </Aside>
 
 <Steps>
 
-1. أنشئ issue على GitHub يصف الإضافة الجديدة
-2. أنشئ فرعاً (feature branch) من `main`
-3. أضف دليل إضافتك وحدّث `marketplace.json`
-4. أضف صفحة توثيق على المسار `docs/plugins/example-plugin.mdx`
-5. افتح طلب سحب (PR) مرتبطاً بالـ issue مع `Closes #N`
-6. أصلح أي أخطاء في CI وادمج التغييرات بعد اجتياز الفحوصات
+1. أنشئ طلب (Issue) على GitHub يصف الإضافة الجديدة
+2. أنشئ فرعاً (Branch) للميزة من `main`
+3. أضف مجلد إضافتك وحدّث `marketplace.json`
+4. أضف صفحة توثيق في المسار `docs/plugins/example-plugin.mdx`
+5. افتح طلب سحب (PR) مرتبطاً بالطلب باستخدام `Closes #N`
+6. أصلح أي إخفاقات في CI واندمج بعد اجتياز الفحوصات
 
 </Steps>
 
 ## أفضل الممارسات
 
-- **أبقِ المهارات مركّزة** — يجب أن تؤدي كل مهارة مهمة واحدة بشكل جيد
-- **استخدم ملفات المرجعية** — ضع مجموعات البيانات الكبيرة والمخططات وجداول البحث في `references/` بدلاً من تضمينها مباشرةً في SKILL.md
-- **حدّد النطاق بذكاء** — تحقق من التغييرات غير الملتزم بها لتضييق نطاق العمل عند الإمكان
-- **رتّب المخرجات حسب الخطورة** — استخدم مستويات ERROR وWARNING وINFO حتى يتمكن المستخدمون من تحديد أولويات الإصلاحات
-- **اكتب ملف README** — أدرج أمثلة استخدام ووصفاً لما تفعله كل مهارة وأمر
+- **أبقِ المهارات مُركّزة** — يجب أن تؤدي كل مهارة شيئاً واحداً بشكل جيد
+- **استخدم الملفات المرجعية** — ضع مجموعات البيانات الكبيرة والمخططات وجداول البحث في `references/` بدلاً من تضمينها مباشرةً في SKILL.md
+- **حدّد النطاق بذكاء** — تحقق من التغييرات غير المُقيَّدة (uncommitted changes) لتضييق نطاق العمل عند الإمكان
+- **جمّع المخرجات حسب الخطورة** — استخدم مستويات ERROR وWARNING وINFO حتى يتمكن المستخدمون من تحديد أولويات الإصلاحات
+- **اكتب ملف README** — أدرج أمثلة الاستخدام ووصفاً لما تفعله كل مهارة وأمر

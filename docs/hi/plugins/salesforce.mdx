@@ -1,28 +1,25 @@
 ---
 title: salesforce
 description: >-
-  Salesforce CLI स्वचालन जिसमें org प्रमाणीकरण, खाता प्रबंधन, पाइपलाइन विश्लेषण,
+  Salesforce CLI स्वचालन जिसमें org प्रमाणीकरण, खाता प्रबंधन, पाइपलाइन विश्लेषण
   और प्राकृतिक भाषा डेटा क्वेरी शामिल हैं।
 sidebar:
   label: Salesforce
   order: 14
 i18n:
-  sourceHash: d55112fac780
+  sourceHash: 0aee4b4350c8
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
 **salesforce** प्लगइन Salesforce CLI को Claude Code के साथ एकीकृत करता है,
-org प्रमाणीकरण और एक सामान्य-उद्देश्य CLI एजेंट प्रदान करता है जो
-SOQL क्वेरी सहित कोई भी `sf` कमांड चला सकता है। यह JWT, access-token, और SFDX URL
-प्रमाणीकरण फ्लो के साथ headless कंटेनर परिवेशों का समर्थन करता है। नीचे दिया गया उपयोग मार्गदर्शिका
-दर्शाता है कि CLI एजेंट के माध्यम से accounts, opportunities, cases, और contacts
-क्वेरी करने के लिए प्राकृतिक भाषा का उपयोग कैसे करें।
+जो org प्रमाणीकरण और एक सामान्य-उद्देश्य CLI एजेंट प्रदान करता है जो SOQL क्वेरी सहित कोई भी `sf` कमांड चला सकता है। यह JWT, access-token और SFDX URL
+प्रमाणीकरण फ्लो के साथ हेडलेस कंटेनर वातावरण का समर्थन करता है। नीचे दी गई उपयोग मार्गदर्शिका दर्शाती है कि CLI एजेंट के माध्यम से accounts, opportunities, cases और contacts को प्राकृतिक भाषा में क्वेरी करने के लिए इसका उपयोग कैसे करें।
 
 <Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
-## स्थापना
+## इंस्टॉलेशन
 
 ```
 /plugin install salesforce@f5-sales-demo-marketplace
@@ -32,15 +29,15 @@ SOQL क्वेरी सहित कोई भी `sf` कमांड च�
 
 - **Salesforce CLI** (`@salesforce/cli`)
 - **Salesforce org** API एक्सेस के साथ
-- ऑब्जेक्ट क्वेरी करने की अनुमति वाला उपयोगकर्ता खाता (Cases, Opportunities, Accounts, Contacts)
+- ऑब्जेक्ट (Cases, Opportunities, Accounts, Contacts) को क्वेरी करने की अनुमतियों वाला एक उपयोगकर्ता खाता
 
-अपने वर्कस्टेशन पर Salesforce CLI स्थापित करें:
+अपने वर्कस्टेशन पर Salesforce CLI इंस्टॉल करें:
 
 ```bash
 brew install sf
 ```
 
-स्थापना सत्यापित करें:
+इंस्टॉलेशन सत्यापित करें:
 
 ```bash
 sf --version
@@ -57,9 +54,10 @@ sf --version
 `https://acme.my.salesforce.com` है।
 
 <Aside type="tip">
-  यदि आपकी कंपनी SSO का उपयोग करती है, तो आपको `--instance-url` के साथ अपना कस्टम डोमेन
-  निर्दिष्ट करना होगा ताकि लॉगिन सामान्य Salesforce लॉगिन पेज के बजाय आपके SSO प्रदाता
-  के माध्यम से रीडायरेक्ट हो।
+  यदि आपकी कंपनी SSO का उपयोग करती है, तो आपको
+  `--instance-url` के साथ अपना कस्टम डोमेन निर्दिष्ट करना होगा ताकि लॉगिन
+  सामान्य Salesforce लॉगिन पेज के बजाय आपके SSO प्रोवाइडर के माध्यम से
+  रीडायरेक्ट हो।
 </Aside>
 
 ### चरण 2: ब्राउज़र के माध्यम से प्रमाणीकरण करें
@@ -68,8 +66,8 @@ sf --version
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
 ```
 
-चरण 1 से अपने कंपनी डोमेन से `YOUR-DOMAIN` बदलें। आपका ब्राउज़र खुलता है —
-SSO या लॉगिन फ्लो पूरा करें और ऐप को अधिकृत करें। आपको यह दिखना चाहिए:
+`YOUR-DOMAIN` को चरण 1 से अपने कंपनी डोमेन से बदलें। आपका ब्राउज़र
+खुलता है — SSO या लॉगिन फ्लो पूरा करें और ऐप को अधिकृत करें। आपको दिखना चाहिए:
 
 ```
 Successfully authorized history-4a95675d220b@example.com with org ID 00DXXXXXXXXXXXXXXX
@@ -81,18 +79,18 @@ Successfully authorized history-4a95675d220b@example.com with org ID 00DXXXXXXXX
 sf org display --target-org my-org
 ```
 
-पुष्टि करें कि आउटपुट में आपके username और instance URL के साथ `Connected Status: Connected` दिखता है।
+पुष्टि करें कि आउटपुट आपके उपयोगकर्ता नाम और इंस्टेंस URL के साथ `Connected Status: Connected` दिखाता है।
 
 ### चरण 4: कंटेनर के लिए पोर्टेबल auth (वैकल्पिक)
 
-यदि आपको headless परिवेश (CI/CD, कंटेनर, रिमोट सेशन) में प्रमाणीकरण करना है,
-तो अपने वर्कस्टेशन से SFDX auth URL निर्यात करें:
+यदि आपको हेडलेस वातावरण (CI/CD, कंटेनर, रिमोट सेशन) में प्रमाणीकरण करने की
+आवश्यकता है, तो अपने वर्कस्टेशन से SFDX auth URL एक्सपोर्ट करें:
 
 ```bash
 sf org display --verbose --target-org my-org
 ```
 
-**Sfdx Auth Url** मान कॉपी करें (जो `force://` से शुरू होता है)। कंटेनर में चलाएँ:
+**Sfdx Auth Url** मान कॉपी करें (जो `force://` से शुरू होता है)। कंटेनर में, चलाएं:
 
 ```bash
 export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
@@ -100,44 +98,47 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ```
 
 <Aside type="caution">
-  SFDX auth URL एक क्रेडेंशियल है — इसे पासवर्ड की तरह मानें। इसे फ़ाइलों में
-  कमिट न करें या चैट में पेस्ट न करें। केवल environment variables और stdin pipes
-  का उपयोग करें।
+  SFDX auth URL एक क्रेडेंशियल है — इसे पासवर्ड की तरह मानें। इसे
+  फ़ाइलों में कमिट न करें या चैट में पेस्ट न करें। केवल
+  एनवायरनमेंट वेरिएबल और stdin पाइप का उपयोग करें।
 </Aside>
 
 ### प्रमाणीकरण विधियों का संदर्भ
 
-| विधि | इसके लिए सर्वश्रेष्ठ | आवश्यकता |
+| विधि | सबसे उपयुक्त | आवश्यकता |
 |--------|----------|----------|
 | Web Login | ब्राउज़र वाले वर्कस्टेशन | Browser + SSO |
 | SFDX URL | कंटेनर, CI/CD, पोर्टेबल auth | प्रमाणीकृत सेशन से Auth URL |
-| JWT Bearer | स्वचालित पाइपलाइन | Connected App + private key + consumer key |
-| Access Token | Environment variable auth | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
+| JWT Bearer | स्वचालित पाइपलाइन | Connected App + प्राइवेट की + consumer key |
+| Access Token | एनवायरनमेंट वेरिएबल auth | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
 
-**नोट:** Device flow (`sf org login device`) अगस्त 2025 से अवरुद्ध है और समर्थित नहीं है।
+**नोट:** डिवाइस फ्लो (`sf org login device`) अगस्त 2025 से ब्लॉक है और
+समर्थित नहीं है।
 
-### Environment variables
+### एनवायरनमेंट वेरिएबल
 
-| Variable | उद्देश्य |
+| वेरिएबल | उद्देश्य |
 |----------|---------|
 | `SF_ACCESS_TOKEN` | access-token auth के लिए Bearer token |
 | `SFDX_AUTH_URL` | SFDX URL auth के लिए Force auth URL |
-| `SF_ORG_INSTANCE_URL` | Org instance URL |
-| `SF_JWT_KEY_FILE` | JWT private key का पथ |
+| `SF_ORG_INSTANCE_URL` | Org इंस्टेंस URL |
+| `SF_JWT_KEY_FILE` | JWT प्राइवेट की का पथ |
 | `SF_CLIENT_ID` | Connected App consumer key |
-| `SF_USERNAME` | JWT के लिए Salesforce username |
+| `SF_USERNAME` | JWT के लिए Salesforce उपयोगकर्ता नाम |
 
 ## कमांड
 
 ### /salesforce:sf-status
 
-अपना Salesforce org कनेक्शन स्थिति, CLI संस्करण, और प्रमाणीकृत orgs जाँचें।
+अपनी Salesforce org कनेक्शन स्थिति, CLI संस्करण और
+प्रमाणीकृत orgs की जाँच करें।
 
 ```
 /salesforce:sf-status
 ```
 
-**क्या अपेक्षित करें:** एक तालिका जो आपका sf CLI संस्करण, प्रमाणीकृत org alias, username, instance URL, कनेक्टेड स्थिति, और API संस्करण दिखाती है।
+**क्या उम्मीद करें:** एक तालिका जो आपके sf CLI संस्करण, प्रमाणीकृत
+org alias, उपयोगकर्ता नाम, इंस्टेंस URL, कनेक्टेड स्थिति और API संस्करण दिखाती है।
 
 ### /salesforce:sf-login
 
@@ -148,24 +149,30 @@ Salesforce org में प्रमाणीकरण करें। वै�
 /salesforce:sf-login my-org
 ```
 
-**क्या अपेक्षित करें:** यदि उस alias वाला org पहले से प्रमाणीकृत है, तो यह कनेक्शन विवरण रिपोर्ट करता है। यदि नहीं, तो यह उपलब्ध क्रेडेंशियल (environment variables) जाँचता है और पहली पूरी तरह से संतुष्ट विधि का उपयोग करके प्रमाणीकरण करता है।
+**क्या उम्मीद करें:** यदि उस alias वाला org पहले से प्रमाणीकृत है,
+तो यह कनेक्शन विवरण रिपोर्ट करता है। यदि नहीं, तो यह उपलब्ध
+क्रेडेंशियल (एनवायरनमेंट वेरिएबल) की जाँच करता है और पहली
+पूरी तरह से संतुष्ट विधि का उपयोग करके प्रमाणीकरण करता है।
 
-## कौशल
+## स्किल
 
 ### salesforce-index
 
-शीर्ष-स्तरीय intent राउटर। जब आप प्राकृतिक भाषा में Salesforce, org प्रबंधन, या डेटा क्वेरी का उल्लेख करते हैं तो स्वचालित रूप से सक्रिय होता है।
+शीर्ष-स्तरीय intent राउटर। जब आप प्राकृतिक भाषा में Salesforce, org प्रबंधन,
+या डेटा क्वेरी का उल्लेख करते हैं तो स्वचालित रूप से सक्रिय होता है।
 
-| आप कहते हैं | रूट करता है |
+| आप कहते हैं | रूट होता है |
 |---------|-----------|
-| "login to salesforce", "authenticate org" | `salesforce-auth` skill |
-| "check org status", "list orgs" | `cli-operator` agent |
-| "show me opportunities", "look up case" | `cli-operator` agent (SOQL query) |
-| "generate Apex class", "create Flow" | afv-library development skills |
+| "login to salesforce", "authenticate org" | `salesforce-auth` स्किल |
+| "check org status", "list orgs" | `cli-operator` एजेंट |
+| "show me opportunities", "look up case" | `cli-operator` एजेंट (SOQL क्वेरी) |
+| "generate Apex class", "create Flow" | afv-library डेवलपमेंट स्किल |
 
 ### salesforce-auth
 
-कंटेनर-अनुकूलित प्रमाणीकरण कौशल। चार auth विधियों का समर्थन करता है और स्वचालित रूप से पता लगाता है कि कौन से क्रेडेंशियल उपलब्ध हैं। प्राथमिकता: access-token, फिर JWT, फिर SFDX URL, फिर web login।
+कंटेनर-अनुकूलित प्रमाणीकरण स्किल। चार auth विधियों का समर्थन करती है और
+स्वचालित रूप से पता लगाती है कि कौन से क्रेडेंशियल उपलब्ध हैं। प्राथमिकता:
+access-token, फिर JWT, फिर SFDX URL, फिर web login।
 
 ## एजेंट
 
@@ -175,11 +182,11 @@ Salesforce org में प्रमाणीकरण करें। वै�
 
 **सुरक्षा नियम:**
 
-- डिफ़ॉल्ट रूप से केवल-पठन — write ऑपरेशन के लिए स्पष्ट अनुमोदन आवश्यक है
-- पूर्वावलोकन और पुष्टि चरण के बिना कभी deploy नहीं करता
-- आउटपुट में access tokens, auth URLs, या क्रेडेंशियल कभी नहीं दिखाता
-- सभी उपयोगकर्ता-प्रदत्त मानों को sanitize करता है (shell metacharacters अस्वीकार करता है)
-- संरचित, parseable परिणामों के लिए `--json` आउटपुट का उपयोग करता है
+- डिफ़ॉल्ट रूप से केवल पढ़ने योग्य — राइट ऑपरेशन के लिए स्पष्ट अनुमोदन आवश्यक है
+- बिना प्रिव्यू और पुष्टि चरण के कभी डिप्लॉय नहीं करता
+- आउटपुट में access tokens, auth URLs या क्रेडेंशियल कभी नहीं दिखाता
+- सभी उपयोगकर्ता-प्रदत्त मानों को सैनिटाइज़ करता है (shell मेटाकैरेक्टर अस्वीकार करता है)
+- संरचित, पार्स करने योग्य परिणामों के लिए `--json` आउटपुट का उपयोग करता है
 
 **प्रतिक्रिया प्रारूप:**
 
@@ -193,129 +200,151 @@ Salesforce org में प्रमाणीकरण करें। वै�
 ## उपयोग मार्गदर्शिका: खाता प्रबंधन
 
 <Aside type="note">
-  नीचे दिए गए prompts प्लगइन की hard-coded विशेषताएँ नहीं हैं। ये काम करते हैं
+  नीचे दिए गए प्रॉम्प्ट प्लगइन की हार्ड-कोडेड सुविधाएँ नहीं हैं। वे काम करते हैं
   क्योंकि cli-operator एजेंट कोई भी `sf` CLI कमांड चला सकता है, जिसमें
-  मनमानी SOQL क्वेरी शामिल हैं। परिणाम आपके org के डेटा मॉडल और आपकी
-  उपयोगकर्ता अनुमतियों पर निर्भर करते हैं। यहाँ दिए गए prompts मानक Salesforce
-  ऑब्जेक्ट (Account, Contact, Case, Opportunity, AccountTeamMember, OpportunityTeamMember)
-  के साथ परीक्षण और सत्यापित किए गए हैं।
+  मनमानी SOQL क्वेरी शामिल हैं। परिणाम आपके org के डेटा मॉडल और
+  आपकी उपयोगकर्ता अनुमतियों पर निर्भर करते हैं। यहाँ के प्रॉम्प्ट मानक Salesforce
+  ऑब्जेक्ट (Account, Contact, Case, Opportunity, AccountTeamMember,
+  OpportunityTeamMember) के साथ परीक्षित और सत्यापित किए गए हैं।
 </Aside>
 
-ये prompts किसी भी Salesforce org के साथ काम करते हैं। placeholder मानों को
-अपनी जानकारी से बदलें। प्रत्येक prompt आपकी भूमिका, खातों, और क्षेत्र के
-अनुसार परिणाम उत्पन्न करता है।
+ये प्रॉम्प्ट किसी भी Salesforce org के साथ काम करते हैं। प्लेसहोल्डर
+मानों को अपनी जानकारी से बदलें। प्रत्येक प्रॉम्प्ट आपकी भूमिका, accounts और
+टेरिटरी के लिए विशिष्ट परिणाम देता है।
 
 <Aside type="tip">
-  सर्वोत्तम परिणामों के लिए, उन prompts में अपना ईमेल पता शामिल करें जिन्हें
-  आपके उपयोगकर्ता रिकॉर्ड की पहचान करने की आवश्यकता है। Salesforce orgs में
-  समान नाम वाले कई उपयोगकर्ता हो सकते हैं।
+  सर्वोत्तम परिणामों के लिए, उन प्रॉम्प्ट में अपना ईमेल पता शामिल करें जिन्हें
+  आपके उपयोगकर्ता रिकॉर्ड की पहचान करनी हो। Salesforce orgs में समान नामों वाले
+  कई उपयोगकर्ता हो सकते हैं।
 </Aside>
 
 ### शुरुआत करना
 
-प्रमाणीकरण के बाद, सत्यापित करें कि सब कुछ काम करता है:
+प्रमाणीकरण के बाद, सब कुछ काम करता है यह सत्यापित करें:
 
 ```
 /salesforce:sf-status
 ```
 
-फिर एक सरल प्राकृतिक भाषा क्वेरी आज़माएँ:
+फिर एक सरल प्राकृतिक भाषा क्वेरी आज़माएं:
 
 ```
 list my authenticated salesforce orgs
 ```
 
-**क्या अपेक्षित करें:** एक तालिका जो alias, username, instance URL, और कनेक्शन स्थिति के साथ सभी कनेक्टेड orgs दिखाती है।
+**क्या उम्मीद करें:** एक तालिका जो सभी कनेक्टेड orgs को alias,
+उपयोगकर्ता नाम, इंस्टेंस URL और कनेक्शन स्थिति के साथ दिखाती है।
 
-### अपने खाते खोजें
+### अपने accounts खोजें
 
-जानें कि आप किन खातों पर account team में असाइन हैं:
+पता करें कि आप किन accounts पर असाइन हैं:
 
 ```
 what salesforce accounts am I on the account team for? My email is history-4a95675d220b@example.com
 ```
 
-**क्या अपेक्षित करें:** खाता स्वामी द्वारा समूहीकृत खातों की एक सूची, प्रत्येक पर आपकी team member भूमिका दिखाती है। यदि अधिकांश भूमिकाएँ खाली दिखती हैं, तो यह एक सामान्य डेटा स्वच्छता अंतर है — account team memberships मौजूद हैं लेकिन भूमिकाएँ populate नहीं की गई थीं।
+**क्या उम्मीद करें:** account owner के अनुसार समूहीकृत accounts की एक सूची,
+जो प्रत्येक पर आपकी टीम सदस्य भूमिका दिखाती है। यदि अधिकांश भूमिकाएं खाली दिखती हैं,
+तो यह एक सामान्य डेटा हाइजीन अंतर है — account team सदस्यताएं मौजूद हैं
+लेकिन भूमिकाएं भरी नहीं गई थीं।
 
-### एक सहकर्मी के साथ कवरेज का क्रॉस-रेफरेंस
+### किसी सहयोगी के साथ कवरेज क्रॉस-रेफरेंस करें
 
-अंतराल खोजने के लिए किसी टीममेट के साथ अपने account कवरेज की तुलना करें:
+गैप खोजने के लिए किसी टीममेट के साथ अपनी account कवरेज की तुलना करें:
 
 ```
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if history-4a95675d220b@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
-**क्या अपेक्षित करें:** overlap count और gap count दिखाने वाली एक सारांश तालिका, उसके बाद दो सूचियाँ। यदि आपने हाल ही में भूमिकाएँ बदली हैं, तो आपको शून्य overlap मिल सकता है — यह बताता है कि आपको किन खातों में जोड़ने की आवश्यकता है।
+**क्या उम्मीद करें:** ओवरलैप काउंट और गैप काउंट दिखाने वाली एक सारांश तालिका,
+उसके बाद दो सूचियाँ। यदि आपने हाल ही में भूमिकाएं बदली हैं, तो आपको शून्य
+ओवरलैप मिल सकता है — यह बताता है कि आपको किन accounts में जोड़ा जाना चाहिए।
 
 <Aside type="note">
-  आप यह जोड़कर किसी पूर्ववर्ती की भी जाँच कर सकते हैं: "Also check if
-  Previous Person Name appears on any of those accounts." यह किसी क्षेत्र में
-  किसी का स्थान लेते समय handoff अंतराल की पहचान करने में मदद करता है।
+  आप यह जोड़कर पूर्ववर्ती व्यक्ति की भी जाँच कर सकते हैं: "Also check if
+  Previous Person Name appears on any of those accounts." यह
+  टेरिटरी पर किसी को रिप्लेस करते समय हैंडऑफ गैप की पहचान करने में मदद करता है।
 </Aside>
 
-### क्षेत्र पाइपलाइन अवलोकन
+### टेरिटरी पाइपलाइन अवलोकन
 
-अपने खातों में सभी खुली opportunities देखें:
+अपने accounts पर सभी ओपन opportunities देखें:
 
 ```
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
-**क्या अपेक्षित करें:** कुल opportunity count, raw pipeline, और weighted pipeline के साथ एक सारांश। फिर एक stage distribution तालिका और राशि के अनुसार शीर्ष opportunities की सूची। आउटपुट डेटा स्वच्छता मुद्दों जैसे past-due close dates या null amounts को फ्लैग करता है।
+**क्या उम्मीद करें:** कुल opportunity काउंट, raw पाइपलाइन और
+वेटेड पाइपलाइन के साथ एक सारांश। फिर एक stage वितरण तालिका और
+amount के अनुसार शीर्ष opportunities की सूची। आउटपुट डेटा हाइजीन समस्याओं
+जैसे past-due close dates या null amounts को फ्लैग करता है।
 
-### Opportunity गहन विश्लेषण
+### Opportunity की गहन जाँच
 
-किसी विशिष्ट deal का पूरा चित्र प्राप्त करें:
+किसी विशिष्ट डील की पूरी तस्वीर प्राप्त करें:
 
 ```
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
-**क्या अपेक्षित करें:** opportunity अवलोकन (stage, amount, close date, probability, forecast category, owner), भूमिकाओं के साथ opportunity team members, tagged contacts, हाल के tasks और events, और field change history जो दिखाती है कि deal की राशि और close date समय के साथ कैसे बदली।
+**क्या उम्मीद करें:** opportunity अवलोकन (stage, amount, close date,
+probability, forecast category, owner), भूमिकाओं के साथ opportunity टीम सदस्य,
+टैग किए गए contacts, हालिया tasks और events, और field बदलाव
+इतिहास जो दिखाता है कि समय के साथ डील amount और close date कैसे बदले हैं।
 
-### क्षेत्र में सहायता cases
+### टेरिटरी में सपोर्ट cases
 
-अपने खातों पर खुले support cases जाँचें:
+अपने accounts पर ओपन सपोर्ट cases की जाँच करें:
 
 ```
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
-**क्या अपेक्षित करें:** priority और status breakdown के साथ खुले cases की संख्या, फिर खाते के अनुसार समूहीकृत case विवरण। पुराने cases (कोई activity नहीं के साथ महीनों या वर्षों पुराने) को hygiene उम्मीदवारों के रूप में फ्लैग किया जाता है।
+**क्या उम्मीद करें:** priority और status breakdown के साथ ओपन cases की गिनती,
+फिर account के अनुसार समूहीकृत case विवरण। Stale cases (बिना किसी गतिविधि के
+महीनों या वर्षों पुराने) को हाइजीन उम्मीदवारों के रूप में फ्लैग किया जाता है।
 
-### त्रैमासिक पाइपलाइन पूर्वानुमान
+### तिमाही पाइपलाइन पूर्वानुमान
 
-अपनी पाइपलाइन का forecast-ready दृश्य प्राप्त करें:
+अपनी पाइपलाइन का forecast-ready व्यू प्राप्त करें:
 
 ```
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
-**क्या अपेक्षित करें:** प्रति तिमाही opportunity count, कुल pipeline, और weighted pipeline दिखाने वाली एक पंक्ति के साथ एक तालिका। प्रति तिमाही stage mix breakdown और शीर्ष weighted deals को हाइलाइट करती है। Past-due opportunities को अलग से समूहीकृत किया जाता है।
+**क्या उम्मीद करें:** प्रति तिमाही एक पंक्ति वाली तालिका जो opportunity
+काउंट, कुल पाइपलाइन और वेटेड पाइपलाइन दिखाती है। प्रति तिमाही stage mix
+breakdown शामिल है और शीर्ष वेटेड deals को हाइलाइट करती है। Past-due
+opportunities को अलग से समूहीकृत किया जाता है।
 
-### पूर्ण खाता अवलोकन
+### पूर्ण account अवलोकन
 
-किसी विशिष्ट ग्राहक में गहराई से जाएँ:
+किसी विशिष्ट ग्राहक की गहन जाँच करें:
 
 ```
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
-**क्या अपेक्षित करें:** कंपनी प्रोफ़ाइल (industry, revenue, employees, location), शीर्षक और ईमेल के साथ मुख्य contacts, stages और amounts के साथ खुली opportunities, और status के साथ हाल के support cases।
+**क्या उम्मीद करें:** कंपनी प्रोफ़ाइल (industry, revenue, employees,
+location), titles और email के साथ प्रमुख contacts, stages और amounts के साथ
+ओपन opportunities, और status के साथ हालिया सपोर्ट cases।
 
 ### Case लुकअप
 
-नंबर के आधार पर एक विशिष्ट support case देखें:
+नंबर द्वारा एक विशिष्ट सपोर्ट case खोजें:
 
 ```
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
-**क्या अपेक्षित करें:** Case subject, status, priority, description, ग्राहक account प्रोफ़ाइल, और संपर्क जानकारी के साथ case owner।
+**क्या उम्मीद करें:** Case subject, status, priority, description,
+ग्राहक account प्रोफ़ाइल, और संपर्क जानकारी के साथ case owner।
 
 ## उपयोग मार्गदर्शिका: डेटा क्वेरी
 
-पावर उपयोगकर्ताओं के लिए, आप प्राकृतिक भाषा में विशिष्ट SOQL-शैली की क्वेरी माँग सकते हैं। प्लगइन आपके अनुरोध को उचित SOQL में अनुवादित करता है और चलाता है।
+पावर उपयोगकर्ताओं के लिए, आप प्राकृतिक भाषा में विशिष्ट SOQL-शैली की
+क्वेरी माँग सकते हैं। प्लगइन आपके अनुरोध को उचित SOQL में अनुवादित करता है
+और चलाता है।
 
 ### विशिष्ट फ़ील्ड
 
@@ -323,13 +352,13 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
-### दिनांक फ़िल्टरिंग
+### तारीख फ़िल्टरिंग
 
 ```
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
-### एकत्रीकरण
+### एग्रीगेशन
 
 ```
 count all open salesforce cases grouped by priority and status across my accounts
@@ -342,35 +371,35 @@ query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'A
 ```
 
 <Aside type="tip">
-  यदि कोई क्वेरी विफल होती है क्योंकि कोई फ़ील्ड मौजूद नहीं है, तो प्लगइन
-  स्वचालित रूप से उस फ़ील्ड के बिना पुनः प्रयास करता है। आपके org के कस्टम फ़ील्ड
-  अलग-अलग नाम उपयोग कर सकते हैं — यदि कोई फ़ील्ड नहीं मिलती है तो अपना
+  यदि कोई क्वेरी इसलिए विफल होती है क्योंकि कोई फ़ील्ड मौजूद नहीं है, तो प्लगइन
+  उस फ़ील्ड के बिना स्वचालित रूप से पुनः प्रयास करता है। आपके org में कस्टम फ़ील्ड
+  के अलग-अलग नाम हो सकते हैं — यदि कोई फ़ील्ड नहीं मिलती तो अपनी
   Salesforce Setup जाँचें।
 </Aside>
 
-## विकास कौशल
+## डेवलपमेंट स्किल
 
-[forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) से
-30 Salesforce विकास कौशल Apex, Flow, LWC, SOQL, metadata, Agentforce,
-और deployment कार्यों के लिए स्वचालित रूप से सक्रिय होते हैं। उन्हें अलग से स्थापित करें:
+[forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) की
+30 Salesforce डेवलपमेंट स्किल Apex, Flow, LWC, SOQL, metadata, Agentforce
+और deployment कार्यों के लिए स्वचालित रूप से सक्रिय होती हैं। इन्हें अलग से इंस्टॉल करें:
 
 ```bash
 npx skills add forcedotcom/afv-library
 ```
 
-| विषय | कौशल |
+| विषय | स्किल |
 |-------|-------|
-| Apex classes और services | `generating-apex` |
-| Apex tests | `generating-apex-test` |
+| Apex क्लास और सेवाएँ | `generating-apex` |
+| Apex टेस्ट | `generating-apex-test` |
 | Flows | `generating-flow` |
-| LWC और UI bundles | `building-ui-bundle-app` |
-| कस्टम objects | `generating-custom-object` |
-| कस्टम fields | `generating-custom-field` |
-| Validation rules | `generating-validation-rule` |
+| LWC और UI बंडल | `building-ui-bundle-app` |
+| कस्टम ऑब्जेक्ट | `generating-custom-object` |
+| कस्टम फ़ील्ड | `generating-custom-field` |
+| वैलिडेशन नियम | `generating-validation-rule` |
 | Permission sets | `generating-permission-set` |
 | FlexiPages | `generating-flexipage` |
-| Agentforce agents | `developing-agentforce` |
-| Agentforce testing | `testing-agentforce` |
+| Agentforce एजेंट | `developing-agentforce` |
+| Agentforce टेस्टिंग | `testing-agentforce` |
 | Deployment | `deploying-ui-bundle` |
-| SLDS2 migration | `uplifting-components-to-slds2` |
-| Trigger refactoring | `trigger-refactor-pipeline` |
+| SLDS2 माइग्रेशन | `uplifting-components-to-slds2` |
+| Trigger रिफैक्टरिंग | `trigger-refactor-pipeline` |

@@ -1,10 +1,10 @@
 ---
 title: 貢獻插件
-description: 建立、組織及發布插件至 f5-sales-demo 市集的指南。
+description: 為 f5-sales-demo 市集建立、組織和發布插件的指南。
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
@@ -15,7 +15,7 @@ f5-sales-demo 市集。
 
 ## 插件結構
 
-每個插件都位於 `plugins/` 下的獨立目錄中，
+每個插件都存放在 `plugins/` 下各自的目錄中，
 並遵循以下結構：
 
 <FileTree>
@@ -68,8 +68,8 @@ f5-sales-demo 市集。
 
 3. **新增技能**
 
-   建立 `plugins/example-plugin/skills/example-skill/SKILL.md`，
-   並加入 frontmatter：
+   建立 `plugins/example-plugin/skills/example-skill/SKILL.md`，並加入
+   frontmatter：
 
    ```markdown
    ---
@@ -80,7 +80,8 @@ f5-sales-demo 市集。
    Detailed instructions for Claude when this skill activates.
    ```
 
-   將任何參考資料放置於 `SKILL.md` 旁的 `references/` 子目錄中。
+   將任何參考資料放置於 `SKILL.md` 旁的
+   `references/` 子目錄中。
 
 4. **新增命令**
 
@@ -101,8 +102,8 @@ f5-sales-demo 市集。
 
 5. **將插件加入 marketplace.json**
 
-   在 `.claude-plugin/marketplace.json` 的 `plugins` 陣列中
-   新增一筆項目：
+   在 `.claude-plugin/marketplace.json` 的
+   `plugins` 陣列中新增一筆項目：
 
    ```json
    {
@@ -120,47 +121,45 @@ f5-sales-demo 市集。
    }
    ```
 
-6. **在本機測試**
+6. **在本地端進行測試**
 
-   在發布前先測試插件，方法是將 Claude Code
-   指向本機目錄：
+   在發布前，可透過將 Claude Code 指向本地目錄來
+   測試您的插件：
 
    ```bash
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   確認技能在正確的情境下啟動，
-   且命令產生預期的輸出結果。
+   確認技能是否在正確的情境下啟動，以及
+   命令是否產生預期的輸出結果。
 
 </Steps>
 
-## 提交插件
+## 提交您的插件
 
 <Aside type="tip" title="儲存庫工作流程">
-  本儲存庫採用嚴格的治理工作流程。
-  請參閱 [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
-  以了解完整流程。
+  此儲存庫執行嚴格的治理工作流程。
+  完整流程請參閱 [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)。
 </Aside>
 
 <Steps>
 
-1. 建立一個描述新插件的 GitHub issue
+1. 建立 GitHub Issue，說明新插件的內容
 2. 從 `main` 建立功能分支
-3. 新增插件目錄並更新 `marketplace.json`
+3. 新增您的插件目錄並更新 `marketplace.json`
 4. 在 `docs/plugins/example-plugin.mdx` 新增說明文件頁面
-5. 開啟 PR 並透過 `Closes #N` 連結至對應的 issue
-6. 修正所有 CI 失敗問題，待檢查通過後合併
+5. 開啟 PR 並以 `Closes #N` 連結至對應的 Issue
+6. 修正所有 CI 失敗項目，並在檢查通過後合併
 
 </Steps>
 
 ## 最佳實踐
 
-- **保持技能專注** — 每個技能應只做好一件事
-- **使用參考檔案** — 將大型資料集、結構描述及查找表
-  放置於 `references/` 中，而非內嵌於 SKILL.md
-- **善用範圍限制** — 盡可能透過檢查未提交的變更
-  來縮小工作範圍
-- **依嚴重性分組輸出** — 使用 ERROR、WARNING 和 INFO
-  等級，讓使用者能優先處理問題
-- **撰寫 README** — 包含使用範例，以及每個技能
-  和命令的功能說明
+- **保持技能專一** — 每個技能應只負責一件事
+- **善用參考檔案** — 將大型資料集、結構描述和
+  查找表放入 `references/`，而非直接內嵌於 SKILL.md 中
+- **合理縮小範圍** — 盡可能透過檢查未提交的變更來
+  縮小工作範圍
+- **依嚴重程度分組輸出** — 使用 ERROR、WARNING 和 INFO
+  等級，讓使用者能夠優先處理問題
+- **撰寫 README** — 包含使用範例，並說明每個技能和命令的功能

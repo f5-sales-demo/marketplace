@@ -6,7 +6,7 @@ description: >-
 sidebar:
   order: 13
 i18n:
-  sourceHash: a9d67be9cf3e
+  sourceHash: aa94d7f346b1
   translator: machine
 ---
 
@@ -30,7 +30,7 @@ innerhalb des Entwicklungscontainers ausgeführt.
 
 ### /scrape
 
-Eine einzelne URL scrapen und den Inhalt als Markdown extrahieren.
+Scrapt eine einzelne URL und extrahiert den Inhalt als Markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Eine einzelne URL scrapen und den Inhalt als Markdown extrahieren.
 
 ### /batch-scrape
 
-Mehrere URLs gleichzeitig scrapen.
+Scrapt mehrere URLs gleichzeitig.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -47,7 +47,7 @@ Mehrere URLs gleichzeitig scrapen.
 
 ### /crawl
 
-Mehrere Seiten von einer Start-URL aus crawlen.
+Crawlt mehrere Seiten ausgehend von einer Start-URL.
 
 ```
 /crawl https://docs.example.com --limit 20 --depth 2
@@ -56,7 +56,7 @@ Mehrere Seiten von einer Start-URL aus crawlen.
 
 ### /map
 
-Alle URLs einer Website entdecken.
+Findet alle URLs einer Website.
 
 ```
 /map https://docs.example.com
@@ -65,7 +65,7 @@ Alle URLs einer Website entdecken.
 
 ### /search
 
-Das Web durchsuchen und optional Ergebnisse scrapen.
+Durchsucht das Web und scrapt optional die Ergebnisse.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -88,7 +88,7 @@ KI-gestützte strukturierte Datenextraktion aus Webseiten.
 
 ### /llmstxt
 
-Eine llms.txt-Datei für eine Website generieren.
+Generiert eine llms.txt-Datei für eine Website.
 
 ```
 /llmstxt https://docs.example.com
@@ -98,34 +98,34 @@ Eine llms.txt-Datei für eine Website generieren.
 
 ### web-scraper
 
-Wird automatisch aktiviert, wenn Sie darum bitten, eine URL zu scrapen, eine Website zu crawlen, Site-URLs zu mappen, das Web zu durchsuchen, strukturierte Daten zu extrahieren, eine llms.txt zu generieren, mehrere URLs als Batch zu scrapen oder eine Webseite in Markdown zu konvertieren.
-Delegiert sofort an den firecrawl-operator-Agenten.
+Aktiviert sich automatisch, wenn Sie aufgefordert werden, eine URL zu scrapen, eine Website zu crawlen, Site-URLs zu mappen, das Web zu durchsuchen, strukturierte Daten zu extrahieren, eine llms.txt zu generieren, mehrere URLs als Batch zu scrapen oder eine Webseite in Markdown zu konvertieren.
+Delegiert unmittelbar an den firecrawl-operator-Agenten.
 
 ## Agenten
 
 ### firecrawl-operator
 
 Autonomer Web-Scraping-Agent, der `curl`- und `jq`-Sequenzen
-gegen die lokale Firecrawl-API ausführt. Unterstützt 11 Protokolle,
-die alle v1-Endpunkte abdecken. Nur-Lese-Agent (keine Schreib-, Bearbeitungs- oder Agenten-Werkzeuge).
+gegen die lokale Firecrawl-API ausführt. Unterstützt 11 Protokolle, die alle
+v1-Endpunkte abdecken. Nur-Lese-Agent (keine Schreib-, Bearbeitungs- oder Agentenwerkzeuge).
 
 | Protokoll | Endpunkt | Typ |
 |----------|----------|------|
-| HEALTH | `GET /` | Sync |
-| SCRAPE | `POST /v1/scrape` | Sync |
-| BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
-| CRAWL | `POST /v1/crawl` | Async |
-| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Sync |
-| CRAWL_ACTIVE | `GET /v1/crawl/active` | Sync |
-| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Sync |
-| MAP | `POST /v1/map` | Sync |
-| SEARCH | `POST /v1/search` | Sync |
-| EXTRACT | `POST /v1/extract` | Async |
-| LLMSTXT | `POST /v1/llmstxt` | Async |
+| HEALTH | `GET /` | Synchron |
+| SCRAPE | `POST /v1/scrape` | Synchron |
+| BATCH_SCRAPE | `POST /v1/batch/scrape` | Asynchron |
+| CRAWL | `POST /v1/crawl` | Asynchron |
+| CRAWL_CANCEL | `DELETE /v1/crawl/:id` | Synchron |
+| CRAWL_ACTIVE | `GET /v1/crawl/active` | Synchron |
+| CRAWL_ERRORS | `GET /v1/crawl/:id/errors` | Synchron |
+| MAP | `POST /v1/map` | Synchron |
+| SEARCH | `POST /v1/search` | Synchron |
+| EXTRACT | `POST /v1/extract` | Asynchron |
+| LLMSTXT | `POST /v1/llmstxt` | Asynchron |
 
 ## Infrastruktur
 
-Das Plugin erfordert den Firecrawl-Stack, der im Entwicklungscontainer läuft:
+Das Plugin erfordert den im Entwicklungscontainer laufenden Firecrawl-Stack:
 
 | Komponente | Port | Zweck |
 |-----------|------|---------|
@@ -135,9 +135,7 @@ Das Plugin erfordert den Firecrawl-Stack, der im Entwicklungscontainer läuft:
 | PostgreSQL | socket | Persistenz für Crawl-/Batch-Jobs |
 | LiteLLM-Proxy | OPENAI_BASE_URL | KI-Backend für Extract (optional) |
 
-Der Stack startet automatisch, wenn `ENABLE_FIRECRAWL=true` gesetzt ist (der
-Standardwert). Ein SessionStart-Hook prüft, ob die API erreichbar ist, und
-gibt eine Warnung aus, wenn der Dienst nicht verfügbar ist.
+Der Stack startet automatisch, wenn `ENABLE_FIRECRAWL=true` gesetzt ist (Standard). Ein SessionStart-Hook prüft, ob die API erreichbar ist, und warnt, wenn der Dienst nicht verfügbar ist.
 
 ## Unterschiede zur Cloud-Version von Firecrawl
 
@@ -146,6 +144,6 @@ Dieses Plugin verwendet die selbst gehostete Open-Source-Version:
 - Keine Authentifizierung oder API-Schlüssel für das Scraping erforderlich
 - Keine Kreditlimits oder Ratenbegrenzung
 - Verwendet v1-API-Endpunkte (nicht v2)
-- Browser-Sitzungen und Deep Research nicht verfügbar
+- Browser-Sitzungen und tiefgehende Recherche nicht verfügbar
 - Extract verwendet Ihren eigenen KI-Proxy anstelle von gehosteten Modellen
 - Läuft vollständig innerhalb des lokalen Container-Netzwerks

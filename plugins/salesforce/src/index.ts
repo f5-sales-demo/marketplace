@@ -146,24 +146,28 @@ const factory: ExtensionFactory = async (pi) => {
     });
   }
 
-  // Session start: notify if CLI missing, check org connectivity if available
-  pi.on('session_start', async (_event: unknown, ctx: { cwd: string }) => {
+  // Session start: notify if CLI missing; probe org connectivity in the background
+  // (non-blocking). The org check is diagnostic-only (debug log) — never block the
+  // TUI paint for it.
+  pi.on('session_start', (_event: unknown, ctx: { cwd: string }) => {
     if (!sfAvailable) {
       pi.logger.debug('Salesforce: sf CLI not found');
       return;
     }
-    try {
-      const { execSfJson } = await import('./sf/exec');
-      const { collectAllOrgs, makeExecApi } = await import('./tools/shared');
-      const api = makeExecApi(ctx.cwd);
-      const orgResult = await execSfJson(api, ['org', 'list']);
-      const allOrgs = collectAllOrgs(orgResult.result as Record<string, unknown[]>);
-      if (allOrgs.length === 0) {
-        pi.logger.debug('Salesforce: no authenticated orgs');
+    void (async () => {
+      try {
+        const { execSfJson } = await import('./sf/exec');
+        const { collectAllOrgs, makeExecApi } = await import('./tools/shared');
+        const api = makeExecApi(ctx.cwd);
+        const orgResult = await execSfJson(api, ['org', 'list']);
+        const allOrgs = collectAllOrgs(orgResult.result as Record<string, unknown[]>);
+        if (allOrgs.length === 0) {
+          pi.logger.debug('Salesforce: no authenticated orgs');
+        }
+      } catch {
+        pi.logger.debug('Salesforce: welcome check failed (non-fatal)');
       }
-    } catch {
-      pi.logger.debug('Salesforce: welcome check failed (non-fatal)');
-    }
+    })();
   });
 };
 

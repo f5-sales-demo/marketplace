@@ -1,17 +1,16 @@
 ---
 title: f5xc-sales-engineer
-description: 售前工程师角色框架，用于演示执行、演示文稿、问答和清理。
+description: 用于演示执行、演示文稿、问答及拆除的销售工程师角色框架。
 sidebar:
   order: 5
-  label: f5xc-sales-engineer
 i18n:
-  sourceHash: aa053700ebd2
+  sourceHash: 3424b6162949
   translator: machine
 ---
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-**f5xc-sales-engineer** 插件为 F5 XC 演示仓库提供了一个可复用的售前工程师角色框架。它处理完整的演示会议生命周期——从会前验证到现场执行、问答和清理。
+**f5xc-sales-engineer** 插件为 F5 XC 演示仓库提供可复用的销售工程师角色框架。它处理完整的演示会议生命周期——从会前验证、现场执行、问答，直至拆除清理。
 
 <Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -25,72 +24,72 @@ import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
 ### demo-executor
 
-API 驱动的演示执行，包含四阶段会议生命周期：
+基于 API 驱动的演示执行，包含四阶段会议生命周期：
 
-1. **准备** — 通过 `demo-housekeeping` 代理进行会前环境验证
-2. **执行** — 带有面向客户旁白的确定性阶段执行
-3. **问答** — 在实时环境中的即兴模式
-4. **清理** — 通过 `demo-housekeeping` 代理进行会后清理
+1. **准备（Prepare）** — 通过 `demo-housekeeping` 代理进行会前环境验证
+2. **执行（Execute）** — 带有面向客户解说的确定性阶段执行
+3. **问答（Q&A）** — 结合实时环境的即兴模式
+4. **拆除（Teardown）** — 通过 `demo-housekeeping` 代理进行会后清理
 
-从 `DEMO_PRODUCT_EXPERTISE.md` 读取产品特定内容，从 `docs/demo/` 读取演示命令。
+从 `DEMO_PRODUCT_EXPERTISE.md` 读取产品专属内容，从 `docs/demo/` 读取演示命令。
 
 ### presenter
 
-使用预配置演示环境的实际部署演练演示。在每个步骤遵循展示 → 旁白 → 关联 → 暂停的模式。从 `DEMO_WALKTHROUGH_CONFIG.md` 读取演练顺序。
+使用预配置演示环境进行竣工状态演练展示。在每个步骤遵循展示 → 解说 → 关联 → 暂停的模式。从 `DEMO_WALKTHROUGH_CONFIG.md` 读取演练顺序。
 
 ### subject-matter-expert
 
-带有严格引用要求的参考支持问答。从不猜测——每个答案都包含参考或证据。需要时将研究任务委托给 `demo-researcher` 代理。
+基于参考资料的问答，具有严格的引用要求。从不猜测——每个答案均包含参考来源或证明。在需要时将研究任务委派给 `demo-researcher` 代理。
 
 ### sales-engineer
 
-角色索引，将用户意图路由到正确的角色技能。当请求与演示相关但不匹配特定触发短语时激活。
+角色索引，将用户意图路由至正确的角色技能。当请求与演示相关但不匹配特定触发短语时激活。
 
 ## 代理
 
 ### demo-housekeeping
 
-用于会前验证和会后清理的自主代理。运行 `DEMO_READINESS_MATRIX.md` 中定义的就绪验证矩阵（T0–T5），并执行 `docs/demo/phase-4-teardown.mdx` 中的清理命令。
+用于会前验证和会后拆除的自主代理。执行 `DEMO_READINESS_MATRIX.md` 中定义的就绪验证矩阵（T0–T5），并执行来自 `docs/demo/phase-4-teardown.mdx` 的拆除命令。
 
 ### demo-researcher
 
-只读研究助手，查找带引用的已验证答案。首先搜索本地 `docs/`，然后搜索 `DEMO_SOURCE_INDEX.md` 中的索引外部资源，以 WebSearch 作为备选。
+只读研究助手，负责查找带引用的已验证答案。优先搜索本地 `docs/` 目录，其次搜索来自 `DEMO_SOURCE_INDEX.md` 的已索引外部来源，以 WebSearch 作为后备方案。
 
 ## 约定文件
 
-<Aside type="tip" title="产品特定内容">
-  此插件与产品无关。每个仓库通过标准化的约定文件提供产品特定内容。
+<Aside type="tip" title="产品专属内容">
+  此插件与产品无关。每个仓库通过标准化约定文件提供产品专属内容。
 </Aside>
 
-在仓库根目录创建这些文件以配置插件：
+在您的仓库根目录创建以下文件以配置插件：
 
-| 文件 | 用途 | 必需用于 |
+| 文件 | 用途 | 必需于 |
 | ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | 产品能力、检测信号、威胁覆盖、合规对齐、API 参考 | 所有技能 |
-| `DEMO_WALKTHROUGH_CONFIG.md` | 演示应用 URL、演练顺序、检测时间 | presenter |
-| `DEMO_SOURCE_INDEX.md` | 包含本地文档和外部 URL 的研究资源目录 | demo-researcher |
+| `DEMO_PRODUCT_EXPERTISE.md` | 产品能力、检测信号、威胁覆盖范围、合规对齐、API 参考 | 所有技能 |
+| `DEMO_WALKTHROUGH_CONFIG.md` | 演示应用 URL、演练顺序、检测时序 | presenter |
+| `DEMO_SOURCE_INDEX.md` | 包含本地文档和外部 URL 的研究来源目录 | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | 必需/可选变量、就绪检查（T0–T5）、API 端点 | demo-housekeeping |
-| `docs/demo/` | 包含 cURL 命令和证据关口的阶段文件 | demo-executor |
+| `docs/demo/` | 包含 cURL 命令和证据门控的阶段文件 | demo-executor |
 
 ## 触发短语
 
-`.claude/CLAUDE.md` 触发映射（由 `docs-control` 管理）根据用户意图激活技能：
+`.claude/CLAUDE.md` 触发映射（由 `docs-control` 管理）根据用户意图激活相应技能：
 
 | 短语 | 技能 | 阶段 |
 | ------ | ----- | ----- |
-| "run the demo", "execute the demo" | demo-executor | 执行 |
-| "prepare the demo", "pre-flight" | demo-executor | 准备 |
-| "Q&A", "question and answer" | demo-executor | 问答 |
-| "tear down", "clean up" | demo-executor | 清理 |
-| "walk through the demo", "present" | presenter | — |
-| "answer questions", "explain" | subject-matter-expert | — |
+| "run the demo"、"execute the demo" | demo-executor | 执行 |
+| "prepare the demo"、"pre-flight" | demo-executor | 准备 |
+| "Q&A"、"question and answer" | demo-executor | 问答 |
+| "tear down"、"clean up" | demo-executor | 拆除 |
+| "walk through the demo"、"present" | presenter | — |
+| "answer questions"、"explain" | subject-matter-expert | — |
 
-## 旁白风格
+## 解说风格
 
-所有角色共享一致的旁白风格：
+所有角色共享一致的解说风格：
 
-- **现在时，第一人称复数** — "我们现在看到的是……"
-- **每段一个关注点** — 每段旁白回答：这是什么？为什么重要？我应该怎么做？
-- **指明信号** — 明确指出正在发挥作用的功能
-- **适时的合规钩子** — 自然地提及合规对齐
-- **节奏暂停标记** — `> ⏸ *[暂停等待观众——准备好继续了吗？]*`
+- **现在时、第一人称复数** — "我们现在看到的是……"
+- **每段落一个关注点** — 每段解说回答：这是什么？为什么重要？应该怎么做？
+- **点明信号** — 指出当前发挥作用的是哪项能力
+- **适时加入合规钩子** — 自然地提及法规对齐情况
+- **节奏暂停标记** — `> ⏸ *[Pause for audience — ready to continue?]*`

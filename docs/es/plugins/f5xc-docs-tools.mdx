@@ -1,24 +1,24 @@
 ---
 title: f5xc-docs-tools
 description: >-
-  Validación de contenido MDX y comprobaciones de calidad para el pipeline de
-  documentación de f5-sales-demo.
+  Validación de contenido MDX y controles de calidad para el pipeline de
+  documentación f5-sales-demo.
 sidebar:
   order: 4
 i18n:
-  sourceHash: fc8929b2eaae
+  sourceHash: dfed83186567
   translator: machine
 ---
 
 import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 El plugin **f5xc-docs-tools** valida archivos de contenido MDX para
-el pipeline de documentación de f5-sales-demo. Detecta problemas
-comunes que rompen la compilación antes de que lleguen a CI, incluyendo
-caracteres JSX sin escapar, importaciones inválidas, referencias de
+el pipeline de documentación f5-sales-demo. Detecta problemas comunes
+que rompen la compilación antes de que lleguen a CI, incluyendo
+caracteres JSX sin procesar, importaciones inválidas, referencias de
 imágenes rotas y frontmatter incompleto.
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productividad" variant="tip" />
+<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
 
 ## Instalación
 
@@ -30,36 +30,35 @@ imágenes rotas y frontmatter incompleto.
 
 ### mdx-content-reviewer
 
-Esta habilidad se activa automáticamente cuando Claude detecta que está
-trabajando con archivos MDX en un repositorio de contenido de
-f5-sales-demo. Realiza siete comprobaciones de validación:
+Esta habilidad se activa automáticamente cuando Claude detecta que
+está trabajando con archivos MDX en un repositorio de contenido
+f5-sales-demo. Realiza siete verificaciones de validación:
 
 <CardGrid>
   <Card title="Validación de frontmatter">
-    Comprueba campos requeridos como `title` y `sidebar.order`.
-    Las páginas splash deben incluir campos `hero` y
+    Verifica los campos obligatorios como `title` y `sidebar.order`.
+    Las páginas de presentación deben incluir los campos `hero` y
     `template: splash`.
   </Card>
-  <Card title="Errores comunes de sintaxis MDX">
-    Detecta caracteres `&lt;` sin escapar y llaves `\{` `\}`
-    sin escapar que rompen el análisis MDX.
+  <Card title="Problemas de sintaxis MDX">
+    Detecta caracteres `&lt;` sin procesar y llaves `\{` `\}`
+    sin escapar que interrumpen el análisis de MDX.
   </Card>
   <Card title="Validación de importaciones">
-    Valida las importaciones contra una lista permitida de
-    componentes integrados de Starlight y componentes del tema
-    f5-sales-demo.
+    Valida las importaciones contra una lista de componentes
+    integrados de Starlight y componentes del tema f5-sales-demo.
   </Card>
   <Card title="Atributos de componentes">
-    Comprueba las props requeridas para componentes como Screenshot,
+    Verifica las props obligatorias de componentes como Screenshot,
     Aside, Code, LinkCard, Card y Badge.
   </Card>
   <Card title="Referencias de imágenes">
-    Verifica que las imágenes referenciadas existan en el directorio
+    Comprueba que las imágenes referenciadas existan en el directorio
     `docs/images/`.
   </Card>
-  <Card title="Comprobaciones de estructura">
+  <Card title="Verificaciones de estructura">
     Asegura que `docs/index.mdx` exista y que los directorios de
-    imágenes no contengan archivos MDX sueltos.
+    imágenes no contengan archivos MDX extraños.
   </Card>
   <Card title="Exportaciones y bloques de código">
     Verifica que las variables utilizadas en las props `code` del
@@ -69,17 +68,17 @@ f5-sales-demo. Realiza siete comprobaciones de validación:
 
 #### Comportamiento de alcance
 
-La habilidad determina de forma inteligente su alcance de revisión:
+La habilidad delimita su revisión de forma inteligente:
 
-- Si hay cambios no confirmados o en staging en archivos
-  `docs/**/*.mdx`, solo se revisan esos archivos
+- Si hay cambios sin confirmar o en staging en archivos `docs/**/*.mdx`,
+  solo se revisan esos archivos
 - De lo contrario, se revisan todos los archivos `docs/**/*.mdx`
 
 #### Formato de salida
 
 Los hallazgos se agrupan por severidad:
 
-- **ERROR** — romperá la compilación; debe corregirse antes de hacer merge
+- **ERROR** — romperá la compilación; debe corregirse antes de fusionar
 - **WARNING** — problemas probables que deben abordarse
 - **INFO** — sugerencias y mejores prácticas
 
@@ -98,9 +97,9 @@ Ejecuta la habilidad `mdx-content-reviewer` bajo demanda.
 
 **Argumentos:**
 
-| Argumento | Requerido | Descripción |
-|----------|----------|-------------|
-| `path-or-glob` | No | Ruta de archivo o patrón glob para delimitar el alcance de la revisión. Por defecto revisa todos los archivos `docs/**/*.mdx`. |
+| Argumento | Obligatorio | Descripción |
+|-----------|-------------|-------------|
+| `path-or-glob` | No | Ruta de archivo o patrón glob para delimitar la revisión. Por defecto, todos los archivos `docs/**/*.mdx`. |
 
 **Ejemplos:**
 
@@ -116,7 +115,7 @@ Ejecuta la habilidad `mdx-content-reviewer` bajo demanda.
 ```
 
 **Salida:** Una línea de resumen al final reporta el total de archivos
-revisados y el conteo de hallazgos por severidad.
+revisados y el recuento de hallazgos por severidad.
 
 ## Importaciones permitidas
 
@@ -134,18 +133,18 @@ El plugin valida las importaciones contra estas fuentes:
 <Aside type="caution">
   Los componentes del tema utilizan importaciones por defecto desde
   archivos `.astro` individuales. Las importaciones directas de
-  `node_modules`, rutas relativas y llamadas a `require()` se
-  marcan como advertencias.
+  `node_modules`, las rutas relativas y las llamadas a `require()`
+  se marcan como advertencias.
 </Aside>
 
 ## Referencia rápida de componentes
 
-| Componente | Props requeridas | Props opcionales |
-|-----------|---------------|----------------|
-| Screenshot | `alt` + al menos una de `light` o `dark` | — |
+| Componente | Props obligatorias | Props opcionales |
+|------------|--------------------|-----------------|
+| Screenshot | `alt` + al menos uno de `light` o `dark` | — |
 | Aside | `type` | `title` |
 | Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
-| LinkCard (tema) | `title`, `href` | `description`, `icon` |
+| LinkCard (theme) | `title`, `href` | `description`, `icon` |
 | Card | `title` | `icon` |
 | Badge | `text` | `variant` |
 | Steps | — | — |
@@ -153,12 +152,12 @@ El plugin valida las importaciones contra estas fuentes:
 | CardGrid | — | — |
 | FileTree | — | — |
 
-## Errores comunes de MDX
+## Problemas comunes de MDX
 
-Problemas comunes que el plugin detecta:
+Problemas habituales que detecta el plugin:
 
-| Error | Problema | Solución |
-|---------|---------|-----|
-| `&lt;` sin escapar | MDX lo interpreta como etiqueta JSX | Use `&amp;lt;`, código en línea o reformule |
-| `\{` `\}` sin escapar | MDX lo trata como expresión JSX | Use código en línea, escape con `\` o use un bloque de código |
-| Llaves en nombres de archivo | Astro no puede procesar el archivo | Nunca use `\{` o `\}` en nombres de archivos `.mdx` |
+| Problema | Descripción | Solución |
+|----------|-------------|----------|
+| `&lt;` sin procesar | MDX lo interpreta como etiqueta JSX | Usar `&amp;lt;`, código en línea o reformular |
+| `\{` `\}` sin escapar | MDX lo trata como expresión JSX | Usar código en línea, escapar con `\` o usar bloque de código |
+| Llaves en nombres de archivo | Astro no puede procesar el archivo | Nunca usar `\{` o `\}` en nombres de archivo `.mdx` |

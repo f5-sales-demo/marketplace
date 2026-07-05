@@ -6,19 +6,21 @@ description: >-
 sidebar:
   order: 1
 i18n:
-  sourceHash: cbde599e6ac0
+  sourceHash: 239ce651439e
   translator: machine
 ---
 
 Um **marketplace de plugins do Claude Code** é uma coleção curada de
 plugins que estendem o Claude Code com novas habilidades, comandos e
-agentes. Marketplaces permitem que equipes compartilhem ferramentas para que
-todo desenvolvedor tenha as mesmas capacidades sem configuração manual.
+agentes. Os marketplaces permitem que equipes compartilhem ferramentas
+para que todos os desenvolvedores tenham as mesmas capacidades sem
+configuração manual.
 
-O **Marketplace f5-sales-demo** fornece plugins construídos para
+O **Marketplace f5-sales-demo** fornece plugins desenvolvidos para
 a plataforma de documentação [f5-sales-demo](https://github.com/f5-sales-demo)
-— um ecossistema de mais de 20 repositórios que publicam sites
-Astro/Starlight no GitHub Pages usando um pipeline de build compartilhado.
+— um ecossistema de mais de 20 repositórios que
+publicam sites Astro/Starlight no GitHub Pages usando um pipeline
+de build compartilhado.
 
 ## Como Funciona
 
@@ -26,7 +28,7 @@ Astro/Starlight no GitHub Pages usando um pipeline de build compartilhado.
    como uma fonte de plugins
 2. **Instale plugins** do marketplace — cada plugin adiciona
    habilidades e comandos à sua sessão do Claude Code
-3. **Use as ferramentas** — plugins são ativados automaticamente com base no
+3. **Use as ferramentas** — os plugins são ativados automaticamente com base no
    contexto, ou você invoca seus comandos diretamente
 
 ## Plugins Disponíveis
@@ -34,7 +36,7 @@ Astro/Starlight no GitHub Pages usando um pipeline de build compartilhado.
 | Plugin | Categoria | Descrição |
 |--------|-----------|-----------|
 | [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Produtividade | Ferramentas de validação e revisão de conteúdo MDX para repositórios de documentação |
-| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Produtividade | Framework de persona de Engenheiro de Vendas — execução de demos, apresentações, Q&A, gerenciamento de ambientes |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Produtividade | Framework de persona para Engenheiro de Vendas — execução de demos, apresentação, Q&A, gerenciamento de ambiente |
 
 ## Início Rápido
 
@@ -63,13 +65,13 @@ Marketplace (marketplace.json)
     └── Agents (.md)
 ```
 
-- **Marketplace** — o registro. Lista plugins disponíveis
+- **Marketplace** — o registro. Lista os plugins disponíveis
   com metadados para descoberta e instalação.
 - **Plugin** — a unidade instalável. Contém uma ou mais
   habilidades, comandos ou agentes.
-- **Skill (Habilidade)** — conhecimento contextual que o Claude ativa
+- **Skill** — conhecimento contextual que o Claude ativa
   automaticamente com base na tarefa em questão.
-- **Command (Comando)** — um comando slash que o usuário invoca diretamente
+- **Command** — um comando de barra que o usuário invoca diretamente
   (ex.: `/review-mdx`).
-- **Agent (Agente)** — um sub-agente especializado que lida com tarefas
-  complexas e de múltiplas etapas de forma autônoma.
+- **Agent** — um sub-agente especializado que lida com tarefas complexas
+  e de múltiplas etapas de forma autônoma.

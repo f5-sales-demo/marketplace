@@ -1,12 +1,12 @@
 ---
-title: शुरुआत करें
+title: शुरुआत करना
 description: >-
   f5-sales-demo मार्केटप्लेस जोड़ने और अपना पहला प्लगइन इंस्टॉल करने के लिए
   चरण-दर-चरण मार्गदर्शिका।
 sidebar:
   order: 2
 i18n:
-  sourceHash: 8b7375e24be2
+  sourceHash: dc222a0155a7
   translator: machine
 ---
 
@@ -17,7 +17,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## पूर्वापेक्षाएँ
 
-- Claude Code **v1.0.33** या बाद का संस्करण (प्लगइन मार्केटप्लेस समर्थन)
+- Claude Code **v1.0.33** या बाद का संस्करण (प्लगइन मार्केटप्लेस समर्थन सहित)
 - [f5-sales-demo](https://github.com/f5-sales-demo)
   संगठन तक पहुँच वाला एक GitHub खाता
 
@@ -27,26 +27,26 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 1. **मार्केटप्लेस जोड़ें**
 
-   किसी भी Claude Code सत्र में, यह कमांड चलाएँ:
+   किसी भी Claude Code सत्र में, यह चलाएँ:
 
    ```
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   यह मार्केटप्लेस को एक प्लगइन स्रोत के रूप में पंजीकृत करता है। आपको
+   इससे मार्केटप्लेस एक प्लगइन स्रोत के रूप में पंजीकृत हो जाता है। आपको
    यह केवल एक बार करना होगा।
 
-2. **उपलब्ध प्लगइन ब्राउज़ करें**
+2. **उपलब्ध प्लगइन देखें**
 
-   मार्केटप्लेस में उपलब्ध प्लगइन की सूची देखें:
+   मार्केटप्लेस में उपलब्ध विकल्पों की सूची देखें:
 
    ```
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
-3. **प्लगइन इंस्टॉल करें**
+3. **एक प्लगइन इंस्टॉल करें**
 
-   अपनी आवश्यकता का प्लगइन इंस्टॉल करें:
+   आवश्यक प्लगइन इंस्टॉल करें:
 
    ```
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
@@ -55,23 +55,22 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 4. **प्लगइन का उपयोग करें**
 
-   किसी भी f5-sales-demo कंटेंट रिपॉज़िटरी में नेविगेट करें।
+   किसी भी f5-sales-demo कंटेंट रिपॉज़िटरी पर जाएँ।
 
-   **डॉक्स टूल्स** के लिए, MDX समीक्षा कमांड चलाएँ:
+   **docs tools** के लिए, MDX समीक्षा कमांड चलाएँ:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   **सेल्स इंजीनियर** के लिए, ट्रिगर वाक्यांशों का उपयोग करें जैसे
-   "prepare the demo", "run the demo", या "walk through
-   the demo" — प्लगइन स्वचालित रूप से सक्रिय हो जाता है।
+   **sales engineer** के लिए, "prepare the demo", "run the demo", या "walk through
+   the demo" जैसे ट्रिगर वाक्यांशों का उपयोग करें — प्लगइन स्वचालित रूप से सक्रिय हो जाता है।
 
 </Steps>
 
 ## प्लगइन अपडेट करना
 
-इंस्टॉल किए गए प्लगइन को नवीनतम संस्करण में अपडेट करने के लिए:
+किसी इंस्टॉल किए गए प्लगइन को नवीनतम संस्करण में अपडेट करने के लिए:
 
 ```
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
@@ -80,7 +79,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## अनइंस्टॉल करना
 
-प्लगइन हटाएँ:
+कोई प्लगइन हटाएँ:
 
 ```
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
@@ -95,8 +94,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## टीम कॉन्फ़िगरेशन
 
-अपनी पूरी टीम के लिए मार्केटप्लेस को पूर्व-कॉन्फ़िगर करने के लिए, इसे
-अपने प्रोजेक्ट की `.claude/settings.json` फ़ाइल में जोड़ें:
+अपनी पूरी टीम के लिए मार्केटप्लेस को पूर्व-कॉन्फ़िगर करने हेतु, इसे
+अपने प्रोजेक्ट की `.claude/settings.json` में जोड़ें:
 
 ```json
 {
@@ -111,10 +110,10 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="साझा सेटिंग्स">
-  `.claude/settings.json` को अपनी रिपॉज़िटरी में कमिट करने का मतलब है कि
-  हर टीम सदस्य को मार्केटप्लेस और प्लगइन
-  स्वचालित रूप से मिल जाते हैं — किसी मैनुअल सेटअप की आवश्यकता नहीं।
+  `.claude/settings.json` को अपनी रिपॉज़िटरी में कमिट करने का अर्थ है कि
+  प्रत्येक टीम सदस्य को मार्केटप्लेस और प्लगइन स्वचालित रूप से मिल जाते हैं —
+  किसी मैन्युअल सेटअप की आवश्यकता नहीं।
 </Aside>
 
-यह सुनिश्चित करता है कि हर योगदानकर्ता के पास रिपॉज़िटरी में अपने
-पहले Claude Code सत्र से ही समान टूलिंग उपलब्ध हो।
+इससे यह सुनिश्चित होता है कि प्रत्येक योगदानकर्ता के पास रिपॉज़िटरी में अपने
+पहले Claude Code सत्र से ही समान उपकरण उपलब्ध हों।

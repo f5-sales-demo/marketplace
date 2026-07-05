@@ -6,19 +6,21 @@ description: >-
 sidebar:
   order: 2
 i18n:
-  sourceHash: 8b7375e24be2
+  sourceHash: dc222a0155a7
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-Diese Anleitung führt Sie durch das Hinzufügen des f5-sales-demo-Marktplatzes zu Claude Code und die Installation Ihres ersten Plugins.
+Diese Anleitung führt Sie durch das Hinzufügen des f5-sales-demo-Marktplatzes
+zu Claude Code und die Installation Ihres ersten Plugins.
 
 ## Voraussetzungen
 
 - Claude Code **v1.0.33** oder höher (Plugin-Marktplatz-Unterstützung)
 - Ein GitHub-Konto mit Zugriff auf die
-  [f5-sales-demo](https://github.com/f5-sales-demo)-Organisation
+  [f5-sales-demo](https://github.com/f5-sales-demo)
+  Organisation
 
 ## Installation
 
@@ -26,17 +28,18 @@ Diese Anleitung führt Sie durch das Hinzufügen des f5-sales-demo-Marktplatzes 
 
 1. **Marktplatz hinzufügen**
 
-   Führen Sie in einer beliebigen Claude-Code-Sitzung folgenden Befehl aus:
+   Führen Sie in einer beliebigen Claude Code-Sitzung folgenden Befehl aus:
 
    ```
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   Damit wird der Marktplatz als Plugin-Quelle registriert. Dies müssen Sie nur einmal durchführen.
+   Dadurch wird der Marktplatz als Plugin-Quelle registriert. Dieser Schritt
+   muss nur einmal durchgeführt werden.
 
 2. **Verfügbare Plugins durchsuchen**
 
-   Lassen Sie sich anzeigen, was der Marktplatz bietet:
+   Zeigen Sie an, was der Marktplatz bietet:
 
    ```
    /plugin marketplace list f5-sales-demo-marketplace
@@ -53,23 +56,23 @@ Diese Anleitung führt Sie durch das Hinzufügen des f5-sales-demo-Marktplatzes 
 
 4. **Das Plugin verwenden**
 
-   Navigieren Sie zu einem beliebigen f5-sales-demo-Content-Repository.
+   Navigieren Sie zu einem beliebigen f5-sales-demo-Inhalts-Repository.
 
-   Für **Docs Tools** führen Sie den MDX-Überprüfungsbefehl aus:
+   Für **Dokumentationswerkzeuge** führen Sie den MDX-Überprüfungsbefehl aus:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   Für **Sales Engineer** verwenden Sie Auslösephrasen wie
-   "prepare the demo", "run the demo" oder "walk through
-   the demo" — das Plugin wird automatisch aktiviert.
+   Für den **Sales Engineer** verwenden Sie Trigger-Phrasen wie
+   „prepare the demo", „run the demo" oder „walk through
+   the demo" – das Plugin wird automatisch aktiviert.
 
 </Steps>
 
 ## Plugins aktualisieren
 
-Um ein installiertes Plugin auf die neueste Version zu aktualisieren:
+So aktualisieren Sie ein installiertes Plugin auf die neueste Version:
 
 ```
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
@@ -94,7 +97,7 @@ Den Marktplatz vollständig entfernen:
 ## Team-Konfiguration
 
 Um den Marktplatz für Ihr gesamtes Team vorzukonfigurieren, fügen Sie ihn
-in die `.claude/settings.json` Ihres Projekts ein:
+zur `.claude/settings.json` Ihres Projekts hinzu:
 
 ```json
 {
@@ -109,9 +112,10 @@ in die `.claude/settings.json` Ihres Projekts ein:
 ```
 
 <Aside type="tip" title="Gemeinsame Einstellungen">
-  Wenn Sie `.claude/settings.json` in Ihr Repository committen,
-  erhalten alle Teammitglieder den Marktplatz und die Plugins
-  automatisch — keine manuelle Einrichtung erforderlich.
+  Wenn Sie `.claude/settings.json` in Ihr Repository einchecken, erhalten
+  alle Teammitglieder den Marktplatz und die Plugins
+  automatisch – ohne manuelle Einrichtung.
 </Aside>
 
-Dies stellt sicher, dass jeder Mitwirkende ab der ersten Claude-Code-Sitzung im Repository dieselben Werkzeuge zur Verfügung hat.
+Dadurch wird sichergestellt, dass jeder Mitwirkende dieselben Werkzeuge
+bereits ab seiner ersten Claude Code-Sitzung im Repository zur Verfügung hat.

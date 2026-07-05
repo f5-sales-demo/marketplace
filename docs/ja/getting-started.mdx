@@ -1,10 +1,10 @@
 ---
 title: はじめに
-description: f5-sales-demo マーケットプレイスの追加と最初のプラグインのインストールに関するステップバイステップガイド。
+description: f5-sales-demo マーケットプレイスを追加し、最初のプラグインをインストールするためのステップバイステップガイド。
 sidebar:
   order: 2
 i18n:
-  sourceHash: 8b7375e24be2
+  sourceHash: dc222a0155a7
   translator: machine
 ---
 
@@ -14,9 +14,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## 前提条件
 
-- Claude Code **v1.0.33** 以降（プラグインマーケットプレイスサポート）
-- [f5-sales-demo](https://github.com/f5-sales-demo)
-  組織へのアクセス権を持つ GitHub アカウント
+- Claude Code **v1.0.33** 以降（プラグインマーケットプレイスのサポート）
+- [f5-sales-demo](https://github.com/f5-sales-demo) 組織へのアクセス権を持つ GitHub アカウント
 
 ## インストール
 
@@ -24,7 +23,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 1. **マーケットプレイスを追加する**
 
-   任意の Claude Code セッションで、以下を実行します：
+   任意の Claude Code セッションで、次のコマンドを実行します:
 
    ```
    /plugin marketplace add f5-sales-demo/marketplace
@@ -34,7 +33,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 2. **利用可能なプラグインを確認する**
 
-   マーケットプレイスが提供するプラグインを一覧表示します：
+   マーケットプレイスで提供されているプラグインの一覧を表示します:
 
    ```
    /plugin marketplace list f5-sales-demo-marketplace
@@ -42,7 +41,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 3. **プラグインをインストールする**
 
-   必要なプラグインをインストールします：
+   必要なプラグインをインストールします:
 
    ```
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
@@ -53,20 +52,19 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
    任意の f5-sales-demo コンテンツリポジトリに移動します。
 
-   **docs tools** の場合、MDX レビューコマンドを実行します：
+   **ドキュメントツール**の場合は、MDX レビューコマンドを実行します:
 
    ```
    /f5xc-docs-tools:review-mdx
    ```
 
-   **sales engineer** の場合、「prepare the demo」、「run the demo」、「walk through
-   the demo」などのトリガーフレーズを使用します。プラグインが自動的に起動します。
+   **セールスエンジニア**の場合は、「prepare the demo」、「run the demo」、「walk through the demo」などのトリガーフレーズを使用します — プラグインは自動的に起動します。
 
 </Steps>
 
 ## プラグインの更新
 
-インストール済みのプラグインを最新バージョンに更新するには：
+インストール済みプラグインを最新バージョンに更新するには:
 
 ```
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
@@ -75,22 +73,22 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 ## アンインストール
 
-プラグインを削除します：
+プラグインを削除するには:
 
 ```
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-マーケットプレイスを完全に削除します：
+マーケットプレイスを完全に削除するには:
 
 ```
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
-## チーム設定
+## チームの設定
 
-チーム全体にマーケットプレイスを事前設定するには、プロジェクトの `.claude/settings.json` に追加します：
+チーム全体に対してマーケットプレイスをあらかじめ設定するには、プロジェクトの `.claude/settings.json` に追加します:
 
 ```json
 {
@@ -105,7 +103,7 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 ```
 
 <Aside type="tip" title="共有設定">
-  `.claude/settings.json` をリポジトリにコミットすることで、すべてのチームメンバーがマーケットプレイスとプラグインを自動的に取得できます。手動でのセットアップは不要です。
+  `.claude/settings.json` をリポジトリにコミットすることで、すべてのチームメンバーがマーケットプレイスとプラグインを自動的に利用できるようになります — 手動のセットアップは不要です。
 </Aside>
 
-これにより、すべてのコントリビューターがリポジトリでの最初の Claude Code セッションから同じツールを利用できるようになります。
+これにより、すべてのコントリビューターがリポジトリで最初の Claude Code セッションから同じツールを利用できるようになります。

@@ -1,23 +1,22 @@
 ---
 title: f5xc-platform
 description: >-
-  Automação da plataforma F5 Distributed Cloud — operações de console, API REST,
+  Automação da plataforma F5 Distributed Cloud — operações no console, API REST,
   autenticação e análise de configuração.
 sidebar:
   order: 11
 i18n:
-  sourceHash: 7d49edf60846
+  sourceHash: baa710ac9093
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-platform** fornece automação completa para a
-plataforma F5 Distributed Cloud. Ele abrange operações do console
-web via Chrome DevTools MCP, operações de API REST com
-reconhecimento de especificação via cURL, autenticação
-multi-provedor e análise de configuração em 98 tipos de recursos
-em 38 domínios.
+O plugin **f5xc-platform** fornece automação completa para a plataforma
+F5 Distributed Cloud. Abrange operações no console web via
+Chrome DevTools MCP, operações de API REST com consciência de especificação via cURL,
+autenticação com múltiplos provedores e análise de configuração em
+98 tipos de recursos em 38 domínios.
 
 <Badge text="v3.1.1" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
@@ -31,45 +30,41 @@ em 38 domínios.
 
 ### api-operations
 
-Operações CRUD de API com reconhecimento de especificação,
-cobrindo 98 tipos de recursos em 38 domínios. Fornece endpoints
-precisos, modelos de payload, ordenação de dependências e
-composições de workflows multi-etapas para load balancers HTTP,
-origin pools, políticas WAF, zonas DNS, certificados, cloud sites
-e muito mais.
+Operações CRUD de API com consciência de especificação, cobrindo 98 tipos de recursos em
+38 domínios. Fornece endpoints precisos, templates de payload,
+ordenação de dependências e composições de fluxo de trabalho em múltiplas etapas para
+balanceadores de carga HTTP, pools de origem, políticas WAF, zonas DNS,
+certificados, sites em nuvem e mais.
 
 ### config-analysis
 
-Capacidade de análise e consultoria de configuração. Analisa
-configurações JSON de clientes para responder perguntas sobre
-postura de segurança, habilitação de funcionalidades, configurações
-de modo, exclusões e melhores práticas. Suporta Q&A multi-turno
-com contexto comprimido entre despachos.
+Capacidade de análise de configuração e consultoria. Analisa configurações
+JSON de clientes para responder perguntas sobre postura de segurança,
+habilitação de recursos, configurações de modo, exclusões e melhores práticas.
+Suporta perguntas e respostas em múltiplas rodadas com contexto comprimido entre despachos.
 
 ### api-auth
 
-Autenticação de API com suporte a autenticação por token de API
-via cabeçalho e autenticação por certificado P12 com procedimentos
-de validação de token.
+Autenticação de API com suporte a autenticação via cabeçalho de token de API e
+autenticação por certificado P12 com procedimentos de validação de token.
 
 ### console-auth
 
-Autenticação multi-provedor para o console web do F5 XC.
-Detecta automaticamente o tipo de login: login nativo do F5 XC,
-SSO Azure com sessão em cache ou SSO Azure com MFA por push
-verificado via DUO.
+Autenticação com múltiplos provedores para o console web F5 XC.
+Detecta automaticamente o tipo de login: login nativo F5 XC, SSO do Azure com
+sessão em cache, ou SSO do Azure com MFA de push verificado pelo DUO.
 
 ### console-navigator
 
-Navegação determinística para seções do console do F5 XC. Traduz
-nomes de seções para caminhos de URL, verifica a saúde da sessão
-e confirma o carregamento da página.
+Navegação determinística para seções do console F5 XC. Traduz
+nomes de seções em caminhos de URL, verifica a integridade da sessão e confirma
+o carregamento da página.
 
 ### platform-index / api-index / console-index
 
-Roteadores de intenção que classificam solicitações de usuários e
-delegam para a habilidade e agente apropriados. Estes são ativados
-automaticamente e não são invocáveis pelo usuário.
+Roteadores de intenção que classificam as solicitações do usuário e delegam para a
+habilidade e o agente apropriados. Ativam automaticamente e não
+são invocáveis pelo usuário.
 
 ## Comandos
 
@@ -79,7 +74,8 @@ automaticamente e não são invocáveis pelo usuário.
 /f5xc-platform:check-api-token
 ```
 
-Valida seu token de API do F5 XC delegando ao agente api-operator.
+Valida o seu token de API F5 XC delegando ao agente
+api-operator.
 
 ### /login-console
 
@@ -87,37 +83,33 @@ Valida seu token de API do F5 XC delegando ao agente api-operator.
 /f5xc-platform:login-console
 ```
 
-Autentica no console do F5 Distributed Cloud por meio do agente
-console-operator.
+Autentica no console do F5 Distributed Cloud por meio do
+agente console-operator.
 
 ## Agentes
 
 ### api-operator
 
-Agente autônomo de API REST que executa sequências de cURL e jq
-para CRUD de recursos, validação de tokens e operações de
-configuração. Executa em um subagente para manter payloads JSON
-verbosos de API fora do contexto da sessão principal.
+Agente autônomo de API REST que executa sequências de cURL e jq para
+CRUD de recursos, validação de token e operações de configuração.
+Executa em um subagente para manter os payloads JSON verbosos da API fora do
+contexto da sessão principal.
 
 ### console-operator
 
-Agente autônomo de automação de navegador que executa sequências
-de ferramentas Chrome DevTools MCP para autenticação, navegação e
-interações com formulários. Executa em um subagente para manter
-snapshots de navegador com uso intensivo de tokens fora da sessão
-principal.
+Agente autônomo de automação de navegador que executa sequências de ferramentas do Chrome DevTools MCP
+para autenticação, navegação e interações com formulários.
+Executa em um subagente para manter os snapshots do navegador com tokens pesados fora da sessão principal.
 
 ### config-analyzer
 
-Agente de análise de configuração somente leitura. Analisa
-configurações JSON de clientes contra arquivos de referência de
-perfil de recursos para responder perguntas sobre postura de
-segurança, habilitação de funcionalidades, transições de modo e
-melhores práticas.
+Agente de análise de configuração somente leitura. Analisa configurações
+JSON de clientes em relação a arquivos de referência de perfil de recursos para responder
+perguntas sobre postura de segurança, habilitação de recursos, transições
+de modo e melhores práticas.
 
 <Aside type="caution">
-  O agente config-analyzer é **efêmero** &mdash; instanciado do
-  zero para cada pergunta, sem memória entre despachos. Perguntas
-  de acompanhamento devem incluir as descobertas anteriores
-  comprimidas no prompt de despacho.
+  O agente config-analyzer é **efêmero** &mdash; instanciado do zero
+  para cada pergunta, sem memória entre os despachos. Perguntas de acompanhamento
+  devem incluir conclusões anteriores comprimidas no prompt de despacho.
 </Aside>

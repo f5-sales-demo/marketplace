@@ -1,24 +1,25 @@
 ---
 title: f5xc-devcontainer
 description: >-
-  Plugin de consciência de contêiner para catálogo de ferramentas, introspecção
-  ao vivo e instalação de ferramentas com rastreamento de persistência.
+  Plugin de reconhecimento de contêiner para catálogo de ferramentas,
+  introspecção ao vivo e instalação de ferramentas com rastreamento de
+  persistência.
 sidebar:
   order: 10
 i18n:
-  sourceHash: 009cdb5bdd89
+  sourceHash: 0b73ae944d12
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-devcontainer** fornece consciência de contêiner para
+O plugin **f5xc-devcontainer** fornece reconhecimento de contêiner para
 o ambiente de desenvolvimento f5-sales-demo. Ele mantém um
-catálogo abrangente de ferramentas, habilita introspecção ao vivo do contêiner
+catálogo abrangente de ferramentas, permite a introspecção ao vivo do contêiner
 e gerencia a instalação de ferramentas com rastreamento de persistência via
 issues do GitHub.
 
-<Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.6" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
 ## Instalação
 
@@ -26,51 +27,51 @@ issues do GitHub.
 /plugin install f5xc-devcontainer@f5-sales-demo-marketplace
 ```
 
-## Skills
+## Habilidades
 
 ### tool-catalog
 
-Base de conhecimento de todas as ferramentas CLI instaladas no devcontainer,
-organizadas por categoria (cloud, networking, segurança, desenvolvimento,
+Base de conhecimento de todas as ferramentas de CLI instaladas no devcontainer,
+organizadas por categoria (nuvem, redes, segurança, desenvolvimento,
 etc.). Ativa quando você pergunta qual ferramenta usar, como usar
-uma ferramenta, se algo está instalado, ou quando precisa de ajuda com uma
+uma ferramenta, se algo está instalado ou precisa de ajuda com uma
 operação específica.
 
 ### self-awareness
 
-Skill de identidade e autodiagnóstico do contêiner. Fornece introspecção
+Habilidade de identidade e autodiagnóstico do contêiner. Fornece introspecção
 ao vivo do contêiner em execução via API do GitHub e metadados locais
 de build. Ativa para perguntas sobre identidade, versão, informações de build,
-verificações de integridade e histórico de colaboradores.
+verificações de integridade e histórico de contribuidores.
 
 <Aside type="tip">
   Pergunte "quem é você?" ou "qual versão estou executando?" para acionar
   o self-awareness.
 </Aside>
 
-## Agents
+## Agentes
 
 ### tool-advisor
 
-Lê o catálogo de ferramentas e retorna recomendações com finalidade,
-comandos de início rápido e requisitos de autenticação para qualquer
-pergunta sobre ferramentas CLI.
+Lê o catálogo de ferramentas e retorna recomendações com propósito,
+comandos de início rápido e requisitos de autenticação para qualquer pergunta
+sobre ferramentas de CLI.
 
 ### tool-auditor
 
-Audita o Dockerfile do devcontainer em relação aos arquivos de referência
-do catálogo de ferramentas para detectar desvios &mdash; ferramentas adicionadas à imagem
+Audita o Dockerfile do devcontainer em relação aos arquivos de referência do catálogo
+de ferramentas para detectar divergências &mdash; ferramentas adicionadas à imagem
 mas não catalogadas, ou entradas do catálogo para ferramentas que foram
 removidas.
 
 ### container-introspector
 
 Realiza introspecção ao vivo do contêiner via API do GitHub e metadados
-locais para identidade, genealogia, autodiagnóstico, histórico de colaboradores
-e linhagem de build. Somente operações de leitura.
+locais para identidade, genealogia, autodiagnóstico, histórico de contribuidores
+e linhagem de build. Apenas operações de leitura.
 
 ### container-maintainer
 
-Instala, remove, pesquisa e atualiza ferramentas CLI no contêiner
-em execução usando padrões corretos de gerenciador de pacotes. Cria issues no GitHub
+Instala, remove, pesquisa e atualiza ferramentas de CLI no contêiner
+em execução usando padrões corretos de gerenciador de pacotes. Registra issues no GitHub
 no repositório do devcontainer para rastreamento de persistência.

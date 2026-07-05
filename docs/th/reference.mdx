@@ -1,81 +1,81 @@
 ---
 title: อ้างอิง
 description: >-
-  เอกสารอ้างอิง schema ของ marketplace.json พร้อมคำอธิบายฟิลด์ การกำหนดค่า skill
+  ข้อมูลอ้างอิงสคีมา marketplace.json พร้อมคำนิยามฟิลด์ การกำหนดค่าทักษะ
   และกฎการตรวจสอบ
 sidebar:
   order: 7
 i18n:
-  sourceHash: 34bc5641ff92
+  sourceHash: 0805a577837d
   translator: machine
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-## Schema ของ marketplace.json
+## สคีมา marketplace.json
 
 ไฟล์ manifest ของตลาดกลางอยู่ที่
-`.claude-plugin/marketplace.json` ในไดเรกทอรีราก repository
+`.claude-plugin/marketplace.json` ในไดเรกทอรีรากของ repository
 
 ### ฟิลด์ระดับบนสุด
 
 | ฟิลด์ | จำเป็น | คำอธิบาย |
 |-------|----------|-------------|
 | `$schema` | ไม่ | URL ของ JSON Schema สำหรับการตรวจสอบ |
-| `name` | ใช่ | ตัวระบุเฉพาะของตลาดกลาง |
-| `version` | ไม่ | เวอร์ชัน schema ของตลาดกลาง (semver) |
-| `metadata.description` | ใช่ | คำอธิบายตลาดกลางที่อ่านได้โดยมนุษย์ |
+| `name` | ใช่ | ตัวระบุตลาดกลางที่ไม่ซ้ำกัน |
+| `version` | ไม่ | เวอร์ชันสคีมาตลาดกลาง (semver) |
+| `metadata.description` | ใช่ | คำอธิบายตลาดกลางที่มนุษย์อ่านได้ |
 | `owner.name` | ใช่ | องค์กรหรือผู้ใช้ที่เป็นเจ้าของตลาดกลาง |
 | `owner.url` | ไม่ | URL ไปยังโปรไฟล์หรือเว็บไซต์ของเจ้าของ |
 | `owner.email` | ไม่ | อีเมลติดต่อ |
-| `plugins` | ใช่ | อาร์เรย์ของรายการ plugin |
+| `plugins` | ใช่ | อาร์เรย์ของรายการปลั๊กอิน |
 
-### ฟิลด์รายการ Plugin
+### ฟิลด์รายการปลั๊กอิน
 
 | ฟิลด์ | จำเป็น | คำอธิบาย |
 |-------|----------|-------------|
-| `name` | ใช่ | ตัวระบุ plugin (ต้องตรงกับ `plugin.json`) |
-| `description` | ใช่ | คำอธิบายสั้นของ plugin |
-| `version` | ใช่ | สตริงเวอร์ชันแบบ Semantic |
-| `author.name` | ใช่ | ผู้เขียน plugin |
-| `source` | ใช่ | พาธหรือ URL ไปยัง plugin (ดู ประเภท Source) |
-| `category` | ใช่ | หมวดหมู่ plugin (เช่น `productivity`) |
-| `homepage` | ไม่ | URL ไปยังเอกสารหรือหน้าหลักของ plugin |
-| `license` | ไม่ | ตัวระบุใบอนุญาต SPDX |
+| `name` | ใช่ | ตัวระบุปลั๊กอิน (ต้องตรงกับ `plugin.json`) |
+| `description` | ใช่ | คำอธิบายสั้นของปลั๊กอิน |
+| `version` | ใช่ | สตริงเวอร์ชัน Semantic |
+| `author.name` | ใช่ | ผู้เขียนปลั๊กอิน |
+| `source` | ใช่ | พาธหรือ URL ไปยังปลั๊กอิน (ดูประเภทแหล่งที่มา) |
+| `category` | ใช่ | หมวดหมู่ปลั๊กอิน (เช่น `productivity`) |
+| `homepage` | ไม่ | URL ไปยังเอกสารหรือหน้าหลักของปลั๊กอิน |
+| `license` | ไม่ | ตัวระบุสัญญาอนุญาต SPDX |
 | `keywords` | ไม่ | อาร์เรย์ของคำค้นหา |
 | `tags` | ไม่ | อาร์เรย์ของแท็กสำหรับการกรอง |
 | `repository` | ไม่ | URL ของ repository |
 
-## ประเภท Source ของ Plugin
+## ประเภทแหล่งที่มาของปลั๊กอิน
 
 ฟิลด์ `source` ใน marketplace.json รองรับหลายรูปแบบ:
 
 | ประเภท | ตัวอย่าง | คำอธิบาย |
 |------|---------|-------------|
-| พาธสัมพัทธ์ | `./plugins/example-plugin` | Plugin ใน repository เดียวกัน |
-| GitHub shorthand | `owner/repo` | Plugin ที่รากของ repository |
-| GitHub พร้อมพาธ | `owner/repo/path/to/plugin` | Plugin ในไดเรกทอรีย่อย |
+| พาธสัมพัทธ์ | `./plugins/example-plugin` | ปลั๊กอินใน repository เดียวกัน |
+| GitHub shorthand | `owner/repo` | ปลั๊กอินที่รากของ repository |
+| GitHub พร้อมพาธ | `owner/repo/path/to/plugin` | ปลั๊กอินในไดเรกทอรีย่อย |
 | Git URL | `https://github.com/owner/repo.git` | Git repository |
 | npm package | `npm:@scope/package` | npm package ที่เผยแพร่แล้ว |
 
-## Schema ของ plugin.json
+## สคีมา plugin.json
 
-Plugin แต่ละตัวมีไฟล์ manifest ที่
-`.claude-plugin/plugin.json` ภายในไดเรกทอรีของตัวเอง
+แต่ละปลั๊กอินมีไฟล์ manifest ที่
+`.claude-plugin/plugin.json` ภายในไดเรกทอรีของมัน
 
 | ฟิลด์ | จำเป็น | คำอธิบาย |
 |-------|----------|-------------|
-| `name` | ใช่ | ตัวระบุ plugin |
-| `description` | ใช่ | สิ่งที่ plugin ทำ |
+| `name` | ใช่ | ตัวระบุปลั๊กอิน |
+| `description` | ใช่ | สิ่งที่ปลั๊กอินทำ |
 | `version` | ใช่ | Semantic version |
-| `author.name` | ใช่ | ผู้เขียน plugin |
+| `author.name` | ใช่ | ผู้เขียนปลั๊กอิน |
 | `author.url` | ไม่ | URL ไปยังโปรไฟล์หรือเว็บไซต์ของผู้เขียน |
 | `homepage` | ไม่ | URL เอกสาร |
 | `keywords` | ไม่ | คำค้นหา |
-| `license` | ไม่ | ตัวระบุใบอนุญาต SPDX |
+| `license` | ไม่ | ตัวระบุสัญญาอนุญาต SPDX |
 | `repository` | ไม่ | URL ของ repository |
 
-## โครงสร้างไดเรกทอรี Plugin
+## โครงสร้างไดเรกทอรีปลั๊กอิน
 
 ```
 plugins/example-plugin/
@@ -94,31 +94,31 @@ plugins/example-plugin/
 
 ## ตัวแปรสภาพแวดล้อม
 
-Plugin สามารถใช้ตัวแปรเหล่านี้ในไฟล์ skill และ command ของตัวเอง:
+ปลั๊กอินสามารถใช้ตัวแปรเหล่านี้ในไฟล์ทักษะและคำสั่ง:
 
 | ตัวแปร | คำอธิบาย |
 |----------|-------------|
-| `$\{CLAUDE_PLUGIN_ROOT\}` | พาธสัมบูรณ์ไปยังไดเรกทอรีรากของ plugin |
+| `$\{CLAUDE_PLUGIN_ROOT\}` | พาธสัมบูรณ์ไปยังไดเรกทอรีรากของปลั๊กอิน |
 
-## การตรวจสอบ
+## การตรวจสอบความถูกต้อง
 
-ตรวจสอบ manifest ของตลาดกลางและ plugin ในเครื่องของคุณ:
+ตรวจสอบความถูกต้องของ manifest ตลาดกลางและปลั๊กอินในเครื่อง:
 
 ```bash
 claude plugin validate .
 ```
 
-ซึ่งจะตรวจสอบ:
+การตรวจสอบนี้ครอบคลุม:
 
-- ความสอดคล้องของ schema กับ `marketplace.json`
-- ไดเรกทอรี plugin ที่อ้างอิงทั้งหมดมีอยู่จริง
-- Plugin แต่ละตัวมี `plugin.json` ที่ถูกต้อง
-- Skill มี frontmatter ของ `SKILL.md` ที่มีรูปแบบถูกต้อง
-- Command มีฟิลด์ frontmatter ที่จำเป็น
+- การปฏิบัติตามสคีมา `marketplace.json`
+- ไดเรกทอรีปลั๊กอินที่อ้างถึงทั้งหมดมีอยู่จริง
+- ปลั๊กอินแต่ละตัวมี `plugin.json` ที่ถูกต้อง
+- ทักษะมี frontmatter ของ `SKILL.md` ที่จัดรูปแบบอย่างถูกต้อง
+- คำสั่งมีฟิลด์ frontmatter ที่จำเป็น
 
-## การกำหนดค่าสำหรับทีม
+## การกำหนดค่าทีม
 
-### การกำหนดค่า marketplace ล่วงหน้า
+### การกำหนดค่าตลาดกลางล่วงหน้า
 
 เพิ่มลงใน `.claude/settings.json` ใน repository ใดก็ได้:
 
@@ -130,7 +130,7 @@ claude plugin validate .
 }
 ```
 
-### การเปิดใช้งาน plugin ล่วงหน้า
+### การเปิดใช้งานปลั๊กอินล่วงหน้า
 
 ```json
 {
@@ -141,41 +141,43 @@ claude plugin validate .
 ```
 
 <Aside type="tip">
-  การ commit การตั้งค่าเหล่านี้ไปยัง repository ของคุณ จะทำให้สมาชิกในทีมทุกคนได้รับการกำหนดค่า marketplace และ plugin เดียวกันโดยอัตโนมัติ
+  การ commit การตั้งค่าเหล่านี้ลงใน repository ของคุณจะทำให้
+  สมาชิกในทีมทุกคนได้รับการกำหนดค่าตลาดกลางและปลั๊กอิน
+  เดียวกันโดยอัตโนมัติ
 </Aside>
 
 ## การแก้ไขปัญหา
 
 ### ไม่พบตลาดกลาง
 
-ตรวจสอบว่าได้เพิ่ม marketplace แล้ว:
+ตรวจสอบว่าได้เพิ่มตลาดกลางแล้ว:
 
 ```
 /plugin marketplace list
 ```
 
-หากไม่พบ ให้เพิ่มอีกครั้ง:
+หากไม่พบ ให้เพิ่มใหม่:
 
 ```
 /plugin marketplace add f5-sales-demo/marketplace
 ```
 
-### Plugin ไม่ทำงาน
+### ปลั๊กอินไม่เปิดใช้งาน
 
-- ยืนยันว่า plugin ถูกติดตั้งแล้ว:
+- ยืนยันว่าติดตั้งปลั๊กอินแล้ว:
   `/plugin list`
-- ตรวจสอบว่าเวอร์ชัน Claude Code ของคุณรองรับ plugin
+- ตรวจสอบว่าเวอร์ชัน Claude Code ของคุณรองรับปลั๊กอิน
   (v1.0.33+)
-- ตรวจสอบว่าเงื่อนไขการทริกเกอร์ของ skill ตรงกับบริบทปัจจุบันของคุณ
+- ตรวจสอบว่าเงื่อนไขทริกเกอร์ของทักษะตรงกับบริบทปัจจุบันของคุณ
 
-### Skill ไม่ทำงานอัตโนมัติ
+### ทักษะไม่ทริกเกอร์โดยอัตโนมัติ
 
-Skill จะทำงานตามฟิลด์ `description` ใน frontmatter ของ SKILL.md หาก skill ไม่ทำงานตามที่คาดไว้:
+ทักษะจะเปิดใช้งานตามฟิลด์ `description` ใน frontmatter ของ SKILL.md หากทักษะไม่ทริกเกอร์ตามที่คาดไว้:
 
-- ตรวจสอบว่า description อธิบายบริบทการทริกเกอร์ได้อย่างถูกต้อง
+- ตรวจสอบว่าคำอธิบายอธิบายบริบททริกเกอร์ได้อย่างถูกต้อง
 - ใช้คำสั่งโดยตรง (เช่น `/f5xc-docs-tools:review-mdx`)
   เป็นวิธีแก้ปัญหาชั่วคราว
 
-### ข้อผิดพลาดการ build หลังการตรวจสอบ
+### ข้อผิดพลาด Build หลังการตรวจสอบ
 
-Plugin รายงานปัญหาแต่ไม่แก้ไขให้อัตโนมัติ ใช้การแก้ไขที่แนะนำด้วยตนเอง จากนั้นรันการตรวจสอบอีกครั้งเพื่อยืนยันการแก้ไข
+ปลั๊กอินรายงานปัญหาแต่ไม่แก้ไขอัตโนมัติ ให้ใช้การแก้ไขที่แนะนำด้วยตนเอง จากนั้นรันการตรวจสอบอีกครั้งเพื่อยืนยันการแก้ไข
