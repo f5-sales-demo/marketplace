@@ -1,24 +1,24 @@
 ---
 title: f5xc-brand
 description: >-
-  Applicazione dell'identità aziendale F5 — colori, tipografia, loghi, icone e
-  accessibilità WCAG AA.
+  Applicazione dell'identità del brand aziendale F5 — colori, tipografia, loghi,
+  icone e accessibilità WCAG AA.
 sidebar:
   order: 9
 i18n:
-  sourceHash: f07061be8697
+  sourceHash: c20126be96e6
   translator: machine
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-brand** applica l'identità aziendale F5
-su tutti i tipi di contenuto. Copre la palette F5 a 45 colori,
-le regole tipografiche (titoli in Neusa Next Pro Wide, corpo del testo
-in Proxima Nova), l'utilizzo esclusivo di loghi in formato SVG, la selezione
-dei pacchetti di icone, l'accessibilità WCAG AA e la terminologia di prodotto.
+Il plugin **f5xc-brand** applica l'identità del brand aziendale F5
+su tutti i tipi di contenuto. Copre la palette F5 di 45 colori,
+le regole tipografiche (titoli Neusa Next Pro Wide, corpo testo Proxima Nova),
+l'utilizzo esclusivo di loghi SVG, la selezione dei pacchetti di icone, l'accessibilità
+WCAG AA e la terminologia di prodotto.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.2" variant="note" /> <Badge text="Produttività" variant="tip" />
 
 ## Installazione
 
@@ -30,25 +30,25 @@ dei pacchetti di icone, l'accessibilità WCAG AA e la terminologia di prodotto.
 
 ### brand-guardian
 
-Applicazione proattiva dell'identità del brand per tutta la creazione di contenuti.
+Applicazione proattiva dell'identità del brand per la creazione di tutti i contenuti.
 Si attiva automaticamente durante la creazione di documentazione, diagrammi,
-presentazioni, miniature video, grafiche per social media, grafici Mermaid
+presentazioni, miniature video, grafiche per i social media, grafici Mermaid
 o disegni Excalidraw. Garantisce l'uso corretto di colori F5,
 tipografia, loghi, icone, tono di voce e accessibilità.
 
 ### brand-reviewer
 
-Revisiona i contenuti esistenti per verificare la conformità al brand F5. Controlla colori,
-tipografia, formato dei loghi, selezione delle icone, testo alternativo, rapporti di contrasto
+Esamina i contenuti esistenti per verificarne la conformità al brand F5. Controlla colori,
+tipografia, formato del logo, selezione delle icone, testo alternativo, rapporti di contrasto
 e terminologia di prodotto. Produce report strutturati con
 VIOLAZIONI, AVVERTENZE e SUGGERIMENTI.
 
 ### visual-content
 
-Regole specifiche per formato per i contenuti visivi brandizzati. Fornisce
+Regole specifiche per formato relative ai contenuti visivi brandizzati. Fornisce
 indicazioni per diagrammi Mermaid, disegni Excalidraw, screenshot,
 presentazioni PowerPoint, miniature YouTube, script video e
-grafiche per social media con selezione del pacchetto icone, layout delle slide,
+grafiche per i social media, con selezione dei pacchetti di icone, layout delle diapositive,
 font di fallback e dimensioni specifiche per piattaforma.
 
 ## Comandi
@@ -59,6 +59,6 @@ font di fallback e dimensioni specifiche per piattaforma.
 /f5xc-brand:review-brand [path-or-glob]
 ```
 
-Revisiona i contenuti per verificare la conformità al brand F5. Accetta un percorso opzionale
-o un pattern glob per delimitare l'ambito della revisione. Senza argomenti, revisiona
+Esamina i contenuti per verificarne la conformità al brand F5. Accetta un percorso
+o un pattern glob opzionale per circoscrivere la revisione. Senza argomenti, esamina
 tutti i contenuti nella directory corrente.

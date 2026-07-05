@@ -1,24 +1,24 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Web scraping e rastreamento locais auto-hospedados via o motor open-source
+  Raspagem e rastreamento web local auto-hospedado por meio do motor open-source
   Firecrawl.
 sidebar:
   order: 13
 i18n:
-  sourceHash: a9d67be9cf3e
+  sourceHash: aa94d7f346b1
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-firecrawl** fornece web scraping local auto-hospedado
-via o motor open-source [firecrawl](https://github.com/mendableai/firecrawl).
-Sem chaves de API, sem assinaturas, sem dependência de nuvem. Todas as
-operações são executadas na instância local do firecrawl em `localhost:3002`
+O plugin **f5xc-firecrawl** fornece raspagem web local auto-hospedada
+por meio do motor open-source [firecrawl](https://github.com/mendableai/firecrawl).
+Sem chaves de API, sem assinaturas, sem dependência de nuvem. Todas
+as operações são executadas contra a instância local do firecrawl em `localhost:3002`
 dentro do devcontainer.
 
-<Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.1.0" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
 ## Instalação
 
@@ -30,7 +30,7 @@ dentro do devcontainer.
 
 ### /scrape
 
-Realiza o scraping de uma única URL e extrai o conteúdo como markdown.
+Raspa uma única URL e extrai o conteúdo como markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -39,7 +39,7 @@ Realiza o scraping de uma única URL e extrai o conteúdo como markdown.
 
 ### /batch-scrape
 
-Realiza o scraping de múltiplas URLs ao mesmo tempo.
+Raspa múltiplas URLs de uma vez.
 
 ```
 /batch-scrape https://example.com https://example.org https://example.net
@@ -65,7 +65,7 @@ Descobre todas as URLs de um site.
 
 ### /search
 
-Pesquisa na web e, opcionalmente, realiza o scraping dos resultados.
+Pesquisa na web e, opcionalmente, raspa os resultados.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -98,18 +98,18 @@ Gera um arquivo llms.txt para um site.
 
 ### web-scraper
 
-Ativa-se automaticamente quando você solicita o scraping de uma URL, rastreamento de um site, mapeamento
-de URLs do site, pesquisa na web, extração de dados estruturados, geração de llms.txt,
-scraping em lote de múltiplas URLs ou conversão de uma página web para markdown.
-Delega imediatamente para o agente firecrawl-operator.
+Ativa-se automaticamente quando você solicita raspar uma URL, rastrear um site, mapear
+URLs de um site, pesquisar na web, extrair dados estruturados, gerar llms.txt,
+raspar múltiplas URLs em lote ou converter uma página web para markdown.
+Delega imediatamente ao agente firecrawl-operator.
 
 ## Agentes
 
 ### firecrawl-operator
 
-Agente autônomo de web scraping que executa sequências de `curl` + `jq`
-contra a API local do firecrawl. Suporta 11 protocolos cobrindo todos os
-endpoints v1. Agente somente leitura (sem ferramentas de escrita, edição ou agente).
+Agente autônomo de raspagem web que executa sequências de `curl` + `jq`
+contra a API local do firecrawl. Suporta 11 protocolos cobrindo todos
+os endpoints v1. Agente somente leitura (sem ferramentas de Escrita, Edição ou Agente).
 
 | Protocolo | Endpoint | Tipo |
 |----------|----------|------|
@@ -127,27 +127,27 @@ endpoints v1. Agente somente leitura (sem ferramentas de escrita, edição ou ag
 
 ## Infraestrutura
 
-O plugin requer a stack do firecrawl em execução no devcontainer:
+O plugin requer a pilha do firecrawl em execução no devcontainer:
 
 | Componente | Porta | Finalidade |
 |-----------|------|---------|
 | Firecrawl API | 3002 | Todos os endpoints de scrape/crawl/map/search/extract |
 | Playwright | 3000 | Motor de renderização JavaScript |
-| Redis | 6379 | Backend da fila de jobs |
+| Redis | 6379 | Backend de fila de jobs |
 | PostgreSQL | socket | Persistência de jobs de crawl/batch |
-| Proxy LiteLLM | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
+| LiteLLM proxy | OPENAI_BASE_URL | Backend LLM para extract (opcional) |
 
-A stack inicia automaticamente quando `ENABLE_FIRECRAWL=true` (o
+A pilha inicia automaticamente quando `ENABLE_FIRECRAWL=true` (o
 padrão). Um hook SessionStart verifica se a API está acessível e
-emite um aviso caso o serviço esteja indisponível.
+emite um aviso caso o serviço esteja inativo.
 
-## Diferenças em relação ao Firecrawl na Nuvem
+## Diferenças em relação ao Firecrawl em Nuvem
 
 Este plugin utiliza a versão open-source auto-hospedada:
 
-- Nenhuma autenticação ou chave de API necessária para scraping
+- Sem autenticação ou chaves de API necessárias para raspagem
 - Sem limites de crédito ou limitação de taxa
 - Utiliza endpoints da API v1 (não v2)
-- Sessões de navegador e pesquisa aprofundada não estão disponíveis
-- O extract utiliza seu próprio proxy LLM em vez de modelos hospedados
-- Executa inteiramente dentro da rede local do container
+- Sessões de navegador e pesquisa profunda não estão disponíveis
+- Extract utiliza seu próprio proxy LLM em vez de modelos hospedados
+- Executa inteiramente dentro da rede do container local

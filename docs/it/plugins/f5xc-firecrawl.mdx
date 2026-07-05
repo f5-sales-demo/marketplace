@@ -1,22 +1,22 @@
 ---
 title: f5xc-firecrawl
 description: >-
-  Web scraping e crawling self-hosted in locale tramite il motore open-source
+  Web scraping e crawling locale self-hosted tramite il motore open-source
   Firecrawl.
 sidebar:
   order: 13
 i18n:
-  sourceHash: a9d67be9cf3e
+  sourceHash: aa94d7f346b1
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-firecrawl** fornisce web scraping self-hosted in locale
+Il plugin **f5xc-firecrawl** fornisce web scraping locale self-hosted
 tramite il motore open-source [firecrawl](https://github.com/mendableai/firecrawl).
 Nessuna chiave API, nessun abbonamento, nessuna dipendenza cloud. Tutte
 le operazioni vengono eseguite sull'istanza firecrawl locale su `localhost:3002`
-all'interno del devcontainer.
+all'interno del contenitore di sviluppo.
 
 <Badge text="v1.1.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
@@ -30,7 +30,7 @@ all'interno del devcontainer.
 
 ### /scrape
 
-Esegue lo scraping di un singolo URL ed estrae il contenuto come markdown.
+Esegue lo scraping di un singolo URL ed estrae il contenuto in markdown.
 
 ```
 /scrape https://docs.example.com/getting-started
@@ -65,7 +65,7 @@ Individua tutti gli URL di un sito web.
 
 ### /search
 
-Esegue ricerche sul web con opzione di scraping dei risultati.
+Esegue ricerche sul web con la possibilità di fare scraping dei risultati.
 
 ```
 /search "firecrawl web scraping" --limit 10
@@ -98,7 +98,7 @@ Genera un file llms.txt per un sito.
 
 ### web-scraper
 
-Si attiva automaticamente quando si richiede lo scraping di un URL, il crawling di un sito web, la mappatura degli URL del sito, la ricerca sul web, l'estrazione di dati strutturati, la generazione di llms.txt, lo scraping batch di più URL o la conversione di una pagina web in markdown.
+Si attiva automaticamente quando si richiede di eseguire lo scraping di un URL, il crawling di un sito web, la mappatura degli URL di un sito, la ricerca sul web, l'estrazione di dati strutturati, la generazione di llms.txt, lo scraping batch di più URL, o la conversione di una pagina web in markdown.
 Delega immediatamente all'agente firecrawl-operator.
 
 ## Agenti
@@ -106,8 +106,8 @@ Delega immediatamente all'agente firecrawl-operator.
 ### firecrawl-operator
 
 Agente autonomo di web scraping che esegue sequenze `curl` + `jq`
-contro l'API firecrawl locale. Supporta 11 protocolli che coprono tutti
-gli endpoint v1. Agente di sola lettura (nessuno strumento di scrittura, modifica o agente).
+sull'API firecrawl locale. Supporta 11 protocolli che coprono tutti
+gli endpoint v1. Agente di sola lettura (nessuno strumento Write, Edit o Agent).
 
 | Protocollo | Endpoint | Tipo |
 |----------|----------|------|
@@ -125,7 +125,7 @@ gli endpoint v1. Agente di sola lettura (nessuno strumento di scrittura, modific
 
 ## Infrastruttura
 
-Il plugin richiede lo stack firecrawl in esecuzione nel devcontainer:
+Il plugin richiede lo stack firecrawl in esecuzione nel contenitore di sviluppo:
 
 | Componente | Porta | Scopo |
 |-----------|------|---------|
@@ -135,8 +135,8 @@ Il plugin richiede lo stack firecrawl in esecuzione nel devcontainer:
 | PostgreSQL | socket | Persistenza dei job crawl/batch |
 | LiteLLM proxy | OPENAI_BASE_URL | Backend LLM per extract (opzionale) |
 
-Lo stack si avvia automaticamente quando `ENABLE_FIRECRAWL=true` (impostazione
-predefinita). Un hook SessionStart verifica che l'API sia raggiungibile e
+Lo stack si avvia automaticamente quando `ENABLE_FIRECRAWL=true` (il
+valore predefinito). Un hook SessionStart verifica che l'API sia raggiungibile e
 avvisa se il servizio non è disponibile.
 
 ## Differenze rispetto a Cloud Firecrawl
@@ -144,8 +144,8 @@ avvisa se il servizio non è disponibile.
 Questo plugin utilizza la versione open-source self-hosted:
 
 - Nessuna autenticazione o chiave API richiesta per lo scraping
-- Nessun limite di crediti o rate limiting
+- Nessun limite di crediti o limitazione della velocità
 - Utilizza gli endpoint API v1 (non v2)
 - Sessioni browser e ricerca approfondita non disponibili
-- Extract utilizza il proprio proxy LLM invece dei modelli ospitati
-- Funziona interamente all'interno della rete del container locale
+- Extract utilizza il proprio proxy LLM anziché i modelli hosted
+- Eseguito interamente all'interno della rete del container locale

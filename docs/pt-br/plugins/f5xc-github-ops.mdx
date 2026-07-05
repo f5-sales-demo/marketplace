@@ -2,21 +2,21 @@
 title: f5xc-github-ops
 description: >-
   Automação de operações GitHub para desenvolvimento orientado a issues, fluxo
-  de trabalho de PRs e monitoramento de CI.
+  de trabalho de PR e monitoramento de CI.
 sidebar:
   order: 7
 i18n:
-  sourceHash: 2ba0b437f939
+  sourceHash: 5c4d592b9f8b
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-O plugin **f5xc-github-ops** fornece automação exclusiva de operações
-GitHub para repositórios f5-sales-demo. Ele gerencia todo o ciclo
-de vida Git e GitHub, desde a criação de issues até o monitoramento
-pós-merge, aplicando desenvolvimento orientado a issues e gates de
-lint pré-commit.
+O plugin **f5xc-github-ops** fornece automação exclusiva de operações GitHub
+para repositórios f5-sales-demo. Ele gerencia o ciclo de vida completo
+do Git e do GitHub, desde a criação de issues até o monitoramento
+pós-merge, aplicando desenvolvimento orientado a issues e verificações
+de lint pré-commit.
 
 <Badge text="v2.2.2" variant="note" /> <Badge text="Produtividade" variant="tip" />
 
@@ -30,31 +30,22 @@ lint pré-commit.
 
 ### workflow-lifecycle
 
-Fluxo de trabalho de governança de repositório que lida com criação
-de issues, convenções de nomenclatura de branches, criação de PRs,
-polling de CI com feedback de erros para issues, monitoramento
-pós-merge, verificação e critérios de conclusão de tarefas. Ativa
-quando você diz "commit", "push", "criar um PR", "merge" ou
-realiza qualquer operação Git.
+Fluxo de trabalho de governança de repositório que gerencia a criação de issues, convenções de nomenclatura de branches, criação de PRs, monitoramento de CI com feedback de erros para issues, monitoramento pós-merge, verificação e critérios de conclusão de tarefas. Ativado quando você diz "commit", "push", "create a PR", "merge" ou realiza qualquer operação Git.
 
 ### upstream-contribution
 
-Fluxo de trabalho de contribuição upstream para desenvolvimento
-baseado em fork. Gerencia detecção de fork, pesquisa upstream
-(issues, PRs, CONTRIBUTING.md, padrões de CI), criação de issues
-e PRs cross-repo, gerenciamento de issues de rastreamento local,
-monitoramento de CI upstream e resolução guiada.
+Fluxo de trabalho de contribuição upstream para desenvolvimento baseado em fork. Gerencia detecção de forks, pesquisa upstream (issues, PRs, CONTRIBUTING.md, padrões de CI), criação de issues e PRs entre repositórios, gerenciamento de issues de rastreamento local, monitoramento de CI upstream e resolução guiada.
 
 ## Agentes
 
 ### github-ops
 
-Agente exclusivo para todas as operações mecânicas de Git e GitHub.
-Gerencia gates de lint pré-commit, criação de issues, criação de
-branches, staging, commits, push, criação de PRs, polling de CI
-com feedback de erros, retry de falhas de infraestrutura,
-monitoramento pós-merge, limpeza de branches e gerenciamento de
-configurações de repositório via API do GitHub.
+Agente exclusivo para todas as operações mecânicas do Git e do GitHub.
+Gerencia verificações de lint pré-commit, criação de issues, criação de branches,
+staging, commits, pushes, criação de PRs, monitoramento de CI com feedback
+de erros, nova tentativa em falhas de infraestrutura, monitoramento pós-merge,
+limpeza de branches e gerenciamento de configurações de repositório via
+API do GitHub.
 
 Retorna relatórios de status estruturados: `COMPLETE`,
 `PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED` ou `FAILED`.

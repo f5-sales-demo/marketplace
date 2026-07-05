@@ -1,23 +1,23 @@
 ---
-title: Contribuir con un Plugin
+title: Contribuir un Plugin
 description: >-
-  Guía para crear, estructurar y publicar plugins en el marketplace
+  Guía para crear, estructurar y publicar plugins en el marketplace de
   f5-sales-demo.
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 Esta guía explica cómo crear un nuevo plugin y añadirlo al
-marketplace f5-sales-demo.
+marketplace de f5-sales-demo.
 
 ## Estructura del Plugin
 
-Cada plugin reside en su propio directorio dentro de `plugins/` y
+Cada plugin reside en su propio directorio bajo `plugins/` y
 sigue esta estructura:
 
 <FileTree>
@@ -37,7 +37,7 @@ sigue esta estructura:
     - README.md
 </FileTree>
 
-## Crear un Plugin
+## Creación de un Plugin
 
 <Steps>
 
@@ -82,7 +82,7 @@ sigue esta estructura:
    Detailed instructions for Claude when this skill activates.
    ```
 
-   Coloque los datos de referencia en un subdirectorio `references/`
+   Coloque cualquier dato de referencia en un subdirectorio `references/`
    junto a `SKILL.md`.
 
 4. **Añadir comandos**
@@ -132,12 +132,12 @@ sigue esta estructura:
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   Verifique que los skills se activan en el contexto correcto y que
-   los comandos producen la salida esperada.
+   Verifique que los skills se activan en el contexto correcto y
+   que los comandos producen la salida esperada.
 
 </Steps>
 
-## Enviar su Plugin
+## Envío de su Plugin
 
 <Aside type="tip" title="Flujo de trabajo del repositorio">
   Este repositorio aplica un flujo de trabajo de gobernanza estricto.
@@ -152,16 +152,16 @@ sigue esta estructura:
 3. Añadir el directorio de su plugin y actualizar `marketplace.json`
 4. Añadir una página de documentación en `docs/plugins/example-plugin.mdx`
 5. Abrir un PR vinculado al issue con `Closes #N`
-6. Corregir los fallos de CI y fusionar una vez que las comprobaciones pasen
+6. Corregir cualquier fallo de CI y hacer merge una vez que pasen las verificaciones
 
 </Steps>
 
-## Buenas Prácticas
+## Mejores Prácticas
 
 - **Mantenga los skills enfocados** — un skill debe hacer una sola cosa bien
-- **Use archivos de referencia** — coloque conjuntos de datos grandes, esquemas y
-  tablas de búsqueda en `references/` en lugar de incluirlos directamente en SKILL.md
-- **Defina el alcance de forma inteligente** — compruebe si hay cambios sin confirmar para
+- **Use archivos de referencia** — coloque conjuntos de datos extensos, esquemas y
+  tablas de consulta en `references/` en lugar de incluirlos directamente en SKILL.md
+- **Defina el alcance de forma inteligente** — verifique si hay cambios sin confirmar para
   reducir el conjunto de trabajo cuando sea posible
 - **Agrupe la salida por severidad** — use los niveles ERROR, WARNING e INFO
   para que los usuarios puedan priorizar las correcciones

@@ -1,18 +1,18 @@
 ---
 title: f5xc-sales-engineer
 description: >-
-  Sales-Engineer-Persona-Framework für Demo-Durchführung, Präsentationen, Frage
-  & Antwort und Abbau.
+  Sales Engineer Persona-Framework für Demo-Durchführung, Präsentationen, Fragen
+  & Antworten und Abbau.
 sidebar:
   order: 5
 i18n:
-  sourceHash: aa053700ebd2
+  sourceHash: 3424b6162949
   translator: machine
 ---
 
 import { Aside, Badge, Steps } from '@astrojs/starlight/components';
 
-Das **f5xc-sales-engineer**-Plugin stellt ein wiederverwendbares Sales-Engineer-Persona-Framework für F5 XC Demo-Repositories bereit. Es deckt den gesamten Lebenszyklus eines Demo-Meetings ab — von der Überprüfung vor dem Meeting über die Live-Durchführung, Frage & Antwort bis hin zum Abbau.
+Das **f5xc-sales-engineer**-Plugin stellt ein wiederverwendbares Sales-Engineer-Persona-Framework für F5 XC Demo-Repositories bereit. Es verwaltet den vollständigen Demo-Meeting-Lebenszyklus — von der Vorbereitungsüberprüfung über die Live-Durchführung, Fragen & Antworten bis hin zum Abbau.
 
 <Badge text="v1.0.6" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
@@ -22,79 +22,79 @@ Das **f5xc-sales-engineer**-Plugin stellt ein wiederverwendbares Sales-Engineer-
 /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-## Skills
+## Fähigkeiten
 
 ### demo-executor
 
 API-gesteuerte Demo-Durchführung mit einem vierstufigen Meeting-Lebenszyklus:
 
-1. **Vorbereitung** — Umgebungsüberprüfung vor dem Meeting über den
+1. **Vorbereiten** — Umgebungsüberprüfung vor dem Meeting über den
    `demo-housekeeping`-Agenten
-2. **Durchführung** — deterministische Phasenausführung mit kundenorientierter
-   Narration
-3. **Frage & Antwort** — Improvisationsmodus mit Live-Umgebung
+2. **Ausführen** — deterministische Phasenausführung mit
+   kundenseitiger Kommentierung
+3. **Fragen & Antworten** — improvisierter Modus mit Live-Umgebung
 4. **Abbau** — Bereinigung nach dem Meeting über den `demo-housekeeping`-Agenten
 
 Liest produktspezifische Inhalte aus `DEMO_PRODUCT_EXPERTISE.md` und Demo-Befehle aus `docs/demo/`.
 
 ### presenter
 
-As-built-Walkthrough-Präsentation unter Verwendung einer vorkonfigurierten Demo-Umgebung. Folgt einem Zeigen → Erzählen → Verknüpfen → Pausieren-Muster bei jedem Schritt. Liest die Walkthrough-Reihenfolge aus `DEMO_WALKTHROUGH_CONFIG.md`.
+Walkthrough-Präsentation der tatsächlichen Konfiguration mithilfe einer vorkonfigurierten Demo-Umgebung. Folgt bei jedem Schritt dem Muster: Zeigen → Kommentieren → Verbinden → Pause. Liest die Walkthrough-Reihenfolge aus `DEMO_WALKTHROUGH_CONFIG.md`.
 
 ### subject-matter-expert
 
-Referenzgestütztes Q&A mit strikten Zitieranforderungen. Rät niemals — jede Antwort enthält eine Referenz oder einen Beleg. Delegiert Recherchen bei Bedarf an den `demo-researcher`-Agenten.
+Referenzgestütztes Fragen & Antworten mit strengen Zitatanforderungen. Rät niemals — jede Antwort enthält einen Beleg oder Nachweis. Delegiert Recherchen bei Bedarf an den `demo-researcher`-Agenten.
 
 ### sales-engineer
 
-Rollenindex, der Benutzerabsichten an den korrekten Persona-Skill weiterleitet. Wird aktiviert, wenn die Anfrage demo-bezogen ist, aber keiner bestimmten Trigger-Phrase entspricht.
+Rollenindex, der die Benutzerabsicht an die entsprechende Persona-Fähigkeit weiterleitet. Wird aktiviert, wenn die Anfrage demo-bezogen ist, aber keinem spezifischen Trigger-Ausdruck entspricht.
 
 ## Agenten
 
 ### demo-housekeeping
 
-Autonomer Agent für die Überprüfung vor dem Meeting und den Abbau nach dem Meeting. Führt die Readiness Verification Matrix (T0–T5) aus, die in `DEMO_READINESS_MATRIX.md` definiert ist, und führt Abbau-Befehle aus `docs/demo/phase-4-teardown.mdx` aus.
+Autonomer Agent für die Vorbereitungsüberprüfung vor dem Meeting und die Bereinigung nach dem Meeting. Führt die in `DEMO_READINESS_MATRIX.md` definierte Bereitschafts-Überprüfungsmatrix (T0–T5) aus und führt Abbaubefehle aus `docs/demo/phase-4-teardown.mdx` aus.
 
 ### demo-researcher
 
-Schreibgeschützter Recherche-Bibliothekar, der verifizierte Antworten mit Quellenangaben findet. Durchsucht zuerst lokale `docs/`, dann indexierte externe Quellen aus `DEMO_SOURCE_INDEX.md`, mit WebSearch als Fallback.
+Schreibgeschützter Recherche-Bibliothekar, der verifizierte Antworten mit Quellenangaben findet. Durchsucht zunächst das lokale `docs/`-Verzeichnis, dann indizierte externe Quellen aus `DEMO_SOURCE_INDEX.md`, mit WebSearch als Fallback.
 
 ## Konventionsdateien
 
-<Aside type="tip" title="Produktspezifische Inhalte">
-  Dieses Plugin ist produktagnostisch. Jedes Repository stellt
-  produktspezifische Inhalte über standardisierte Konventionsdateien bereit.
+<Aside type="tip" title="Produktspezifischer Inhalt">
+  Dieses Plugin ist produktunabhängig. Jedes Repository stellt
+  produktspezifischen Inhalt über standardisierte Konventionsdateien bereit.
 </Aside>
 
 Erstellen Sie diese Dateien im Stammverzeichnis Ihres Repositories, um das Plugin zu konfigurieren:
 
 | Datei | Zweck | Erforderlich für |
 | ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | Produktfähigkeiten, Erkennungssignale, Bedrohungsabdeckung, Compliance-Ausrichtung, API-Referenz | Alle Skills |
-| `DEMO_WALKTHROUGH_CONFIG.md` | Demo-App-URL, Walkthrough-Reihenfolge, Erkennungstiming | presenter |
+| `DEMO_PRODUCT_EXPERTISE.md` | Produktfunktionen, Erkennungssignale, Bedrohungsabdeckung, Compliance-Ausrichtung, API-Referenz | Alle Fähigkeiten |
+| `DEMO_WALKTHROUGH_CONFIG.md` | Demo-App-URL, Walkthrough-Reihenfolge, Erkennungszeitpunkt | presenter |
 | `DEMO_SOURCE_INDEX.md` | Recherchequellenkatalog mit lokalen Dokumenten und externen URLs | demo-researcher |
 | `DEMO_READINESS_MATRIX.md` | Erforderliche/optionale Variablen, Bereitschaftsprüfungen (T0–T5), API-Endpunkte | demo-housekeeping |
-| `docs/demo/` | Phasendateien mit cURL-Befehlen und Evidenz-Gates | demo-executor |
+| `docs/demo/` | Phasendateien mit cURL-Befehlen und Nachweisübergängen | demo-executor |
 
-## Trigger-Phrasen
+## Trigger-Ausdrücke
 
-Die `.claude/CLAUDE.md`-Trigger-Map (verwaltet durch `docs-control`) aktiviert Skills basierend auf der Benutzerabsicht:
+Die Trigger-Zuordnung in `.claude/CLAUDE.md` (verwaltet von `docs-control`) aktiviert Fähigkeiten basierend auf der Benutzerabsicht:
 
-| Phrase | Skill | Phase |
+| Ausdruck | Fähigkeit | Phase |
 | ------ | ----- | ----- |
-| "run the demo", "execute the demo" | demo-executor | Durchführung |
-| "prepare the demo", "pre-flight" | demo-executor | Vorbereitung |
-| "Q&A", "question and answer" | demo-executor | Frage & Antwort |
+| "run the demo", "execute the demo" | demo-executor | Ausführen |
+| "prepare the demo", "pre-flight" | demo-executor | Vorbereiten |
+| "Q&A", "question and answer" | demo-executor | Fragen & Antworten |
 | "tear down", "clean up" | demo-executor | Abbau |
 | "walk through the demo", "present" | presenter | — |
 | "answer questions", "explain" | subject-matter-expert | — |
 
-## Narrationsstil
+## Kommentierungsstil
 
-Alle Personas teilen einen konsistenten Narrationsstil:
+Alle Personas teilen einen konsistenten Kommentierungsstil:
 
-- **Präsens, erste Person Plural** — "Was wir hier sehen…"
-- **Ein Thema pro Absatz** — jede Narration beantwortet: Was ist das? Warum ist es wichtig? Was sollte ich dagegen tun?
-- **Das Signal benennen** — hervorheben, welche Fähigkeit am Werk ist
-- **Compliance-Bezug, wenn relevant** — regulatorische Ausrichtung natürlich erwähnen
-- **Pausenmarkierung für das Tempo** — `> ⏸ *[Pause für das Publikum — bereit weiterzumachen?]*`
+- **Präsens, erste Person Plural** — „Was wir hier sehen…"
+- **Ein Anliegen pro Absatz** — jede Kommentierung beantwortet: Was ist das? Warum ist es wichtig? Was sollte ich dagegen unternehmen?
+- **Signal benennen** — hervorheben, welche Fähigkeit gerade aktiv ist
+- **Compliance-Bezug bei Relevanz** — regulatorische Ausrichtung auf natürliche Weise erwähnen
+- **Pausenmarkierung für das Tempo** — `> ⏸ *[Pause for audience — ready to continue?]*`

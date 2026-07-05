@@ -2,11 +2,11 @@
 title: Riferimento
 description: >-
   Riferimento allo schema marketplace.json con definizioni dei campi,
-  configurazione delle competenze e regole di validazione.
+  configurazione delle skill e regole di validazione.
 sidebar:
   order: 7
 i18n:
-  sourceHash: 34bc5641ff92
+  sourceHash: 0805a577837d
   translator: machine
 ---
 
@@ -26,11 +26,11 @@ Il manifesto del marketplace si trova in
 | `version` | No | Versione dello schema del marketplace (semver) |
 | `metadata.description` | Sì | Descrizione leggibile del marketplace |
 | `owner.name` | Sì | Organizzazione o utente proprietario del marketplace |
-| `owner.url` | No | URL al profilo o sito web del proprietario |
-| `owner.email` | No | Email di contatto |
-| `plugins` | Sì | Array di voci di plugin |
+| `owner.url` | No | URL al profilo o al sito web del proprietario |
+| `owner.email` | No | E-mail di contatto |
+| `plugins` | Sì | Array delle voci dei plugin |
 
-### Campi delle voci di plugin
+### Campi delle voci dei plugin
 
 | Campo | Obbligatorio | Descrizione |
 |-------|----------|-------------|
@@ -39,14 +39,14 @@ Il manifesto del marketplace si trova in
 | `version` | Sì | Stringa della versione semantica |
 | `author.name` | Sì | Autore del plugin |
 | `source` | Sì | Percorso o URL del plugin (vedere Tipi di sorgente) |
-| `category` | Sì | Categoria del plugin (es. `productivity`) |
-| `homepage` | No | URL alla documentazione o homepage del plugin |
+| `category` | Sì | Categoria del plugin (ad es. `productivity`) |
+| `homepage` | No | URL alla documentazione o alla homepage del plugin |
 | `license` | No | Identificatore di licenza SPDX |
 | `keywords` | No | Array di parole chiave per la ricerca |
 | `tags` | No | Array di tag per il filtraggio |
 | `repository` | No | URL del repository |
 
-## Tipi di sorgente del plugin
+## Tipi di sorgente per i plugin
 
 Il campo `source` in marketplace.json supporta più
 formati:
@@ -61,8 +61,8 @@ formati:
 
 ## Schema plugin.json
 
-Ogni plugin ha un manifesto in
-`.claude-plugin/plugin.json` all'interno della propria directory.
+Ogni plugin dispone di un manifesto in
+`.claude-plugin/plugin.json` all'interno della sua directory.
 
 | Campo | Obbligatorio | Descrizione |
 |-------|----------|-------------|
@@ -70,7 +70,7 @@ Ogni plugin ha un manifesto in
 | `description` | Sì | Funzione del plugin |
 | `version` | Sì | Versione semantica |
 | `author.name` | Sì | Autore del plugin |
-| `author.url` | No | URL al profilo o sito web dell'autore |
+| `author.url` | No | URL al profilo o al sito web dell'autore |
 | `homepage` | No | URL della documentazione |
 | `keywords` | No | Parole chiave per la ricerca |
 | `license` | No | Identificatore di licenza SPDX |
@@ -81,21 +81,21 @@ Ogni plugin ha un manifesto in
 ```
 plugins/example-plugin/
   .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+    plugin.json          # Manifesto del plugin (obbligatorio)
   skills/
     skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+      SKILL.md           # Definizione della skill (obbligatoria per ogni skill)
+      references/        # File di dati di riferimento (opzionale)
   commands/
-    command-name.md      # Command definition (one per command)
+    command-name.md      # Definizione del comando (uno per comando)
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    agent-name.md        # Definizione dell'agente (uno per agente)
+  README.md              # Documentazione del plugin (consigliata)
 ```
 
 ## Variabili d'ambiente
 
-I plugin possono utilizzare queste variabili nei propri file di competenze e comandi:
+I plugin possono utilizzare queste variabili nei propri file di skill e comando:
 
 | Variabile | Descrizione |
 |----------|-------------|
@@ -103,7 +103,7 @@ I plugin possono utilizzare queste variabili nei propri file di competenze e com
 
 ## Validazione
 
-Convalidare i manifesti del marketplace e del plugin in locale:
+Validare i manifesti del marketplace e del plugin in locale:
 
 ```bash
 claude plugin validate .
@@ -112,10 +112,10 @@ claude plugin validate .
 Questo verifica:
 
 - Conformità allo schema di `marketplace.json`
-- Esistenza di tutte le directory di plugin referenziate
+- Esistenza di tutte le directory dei plugin referenziate
 - Presenza di un `plugin.json` valido per ogni plugin
-- Frontmatter correttamente formattato in `SKILL.md` per le competenze
-- Presenza dei campi frontmatter obbligatori per i comandi
+- Corretta formattazione del frontmatter di `SKILL.md` nelle skill
+- Presenza dei campi obbligatori nel frontmatter dei comandi
 
 ## Configurazione del team
 
@@ -143,7 +143,7 @@ Aggiungere a `.claude/settings.json` in qualsiasi repository:
 
 <Aside type="tip">
   Il commit di queste impostazioni nel repository garantisce che ogni
-  membro del team riceva automaticamente la stessa configurazione
+  membro del team ottenga automaticamente la stessa configurazione
   di marketplace e plugin.
 </Aside>
 
@@ -167,22 +167,23 @@ Se mancante, aggiungerlo nuovamente:
 
 - Confermare che il plugin sia installato:
   `/plugin list`
-- Verificare che la versione di Claude Code in uso supporti i plugin
+- Verificare che la versione di Claude Code supporti i plugin
   (v1.0.33+)
-- Verificare che le condizioni di attivazione della competenza corrispondano al contesto corrente
+- Verificare che le condizioni di attivazione della skill corrispondano al
+  contesto attuale
 
-### Competenze non attivate automaticamente
+### Skill che non si attivano automaticamente
 
-Le competenze si attivano in base al campo `description` nel
-frontmatter di SKILL.md. Se una competenza non si attiva come previsto:
+Le skill si attivano in base al campo `description` nel
+frontmatter di SKILL.md. Se una skill non si attiva come previsto:
 
 - Verificare che la descrizione descriva accuratamente il
   contesto di attivazione
-- Utilizzare il comando direttamente (es. `/f5xc-docs-tools:review-mdx`)
+- Utilizzare direttamente il comando (ad es. `/f5xc-docs-tools:review-mdx`)
   come soluzione alternativa
 
 ### Errori di build dopo la revisione
 
 Il plugin segnala i problemi ma non li corregge automaticamente. Applicare
-le correzioni suggerite manualmente, quindi eseguire nuovamente la revisione per
-confermare la risoluzione.
+manualmente le correzioni suggerite, quindi eseguire nuovamente la revisione per
+confermarne la risoluzione.

@@ -1,25 +1,24 @@
 ---
 title: f5xc-meddpicc
 description: >-
-  Framework di qualificazione commerciale e gestione delle trattative MEDDPICC
-  per vendite B2B enterprise complesse.
+  Framework di qualificazione delle vendite MEDDPICC e di esecuzione delle
+  trattative per vendite B2B enterprise complesse.
 sidebar:
   order: 6
 i18n:
-  sourceHash: d1dbbc7ad484
+  sourceHash: eff6b95319ad
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Il plugin **f5xc-meddpicc** fornisce un framework completo di
-qualificazione commerciale e gestione delle trattative MEDDPICC per
-vendite B2B enterprise complesse. Trasforma il MEDDPICC da un
-semplice esercizio di checklist in un sistema operativo di gestione
-delle trattative con qualificazione basata su evidenze, revisioni
-strutturate delle opportunità e coaching orientato all'azione.
+Il plugin **f5xc-meddpicc** fornisce un framework completo MEDDPICC per la qualificazione delle vendite
+e l'esecuzione delle trattative per vendite B2B enterprise
+complesse. Trasforma il MEDDPICC da un semplice esercizio di verifica in un sistema
+di esecuzione delle trattative dinamico, con qualificazione basata su prove,
+revisioni strutturate delle trattative e coaching operativo.
 
-<Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v1.0.4" variant="note" /> <Badge text="Produttività" variant="tip" />
 
 ## Installazione
 
@@ -27,104 +26,99 @@ strutturate delle opportunità e coaching orientato all'azione.
 /plugin install f5xc-meddpicc@f5-sales-demo-marketplace
 ```
 
-## Cos'è il MEDDPICC?
+## Che cos'è il MEDDPICC?
 
-Il MEDDPICC è un framework di qualificazione e gestione delle trattative
-progettato per vendite B2B complesse in cui molteplici stakeholder,
-rischi tecnici e passaggi di procurement possono rallentare lo
-slancio commerciale.
+Il MEDDPICC è un framework di qualificazione e di esecuzione delle trattative progettato per
+vendite B2B complesse, in cui più stakeholder, rischi tecnici e fasi
+di approvvigionamento possono compromettere lo slancio commerciale.
 
 | Lettera | Elemento | Scopo |
-| ------- | -------- | ----- |
-| **M** | Metrics | Risultati di business quantificati attesi dal cliente |
-| **E** | Economic Buyer | Individuo con autorità finale sul budget |
-| **D** | Decision Criteria | Requisiti utilizzati per valutare le opzioni |
-| **D** | Decision Process | Percorso step-by-step dalla valutazione all'accordo |
-| **P** | Paper Process | Meccanismi di procurement (legale, sicurezza, firma) |
-| **I** | Identify Pain | Problema di business critico che crea urgenza |
-| **C** | Champion | Sostenitore interno influente |
-| **C** | Competition | Tutte le alternative (vendor, sviluppo interno, non fare nulla) |
+| ------ | ------- | ------- |
+| **M** | Metriche | Risultati aziendali quantificati attesi dal cliente |
+| **E** | Acquirente economico | Individuo con autorità finale sul budget |
+| **D** | Criteri decisionali | Requisiti utilizzati per valutare le opzioni |
+| **D** | Processo decisionale | Percorso passo dopo passo dalla valutazione all'accordo |
+| **P** | Processo documentale | Meccanismi di approvvigionamento (legale, sicurezza, firma) |
+| **I** | Identificazione del problema | Problema aziendale rilevante che genera urgenza |
+| **C** | Champion | Referente interno influente |
+| **C** | Concorrenza | Tutte le alternative (fornitori, sviluppo interno, non fare nulla) |
 
-## Competenze
+## Funzionalità
 
 ### meddpicc-coach
 
-Coaching completo sulla metodologia MEDDPICC che si attiva
-automaticamente quando si discute di qualificazione delle trattative,
-salute della pipeline, accuratezza delle previsioni o qualsiasi
-elemento MEDDPICC. Fornisce indicazioni basate su evidenze,
-raccomandazioni sul ritmo operativo e link a materiale di
-riferimento dettagliato.
+Coaching metodologico MEDDPICC completo che si attiva
+automaticamente quando si discute di qualificazione delle trattative, stato della pipeline,
+accuratezza delle previsioni o qualsiasi elemento MEDDPICC. Fornisce indicazioni basate
+su prove, raccomandazioni sul ritmo operativo e collegamenti a materiale
+di riferimento dettagliato.
 
 <Aside type="tip" title="Attivazione automatica">
-  Questa competenza si attiva automaticamente quando pertinente — non è
-  necessario alcun comando slash.
+  Questa funzionalità si attiva automaticamente quando pertinente — non è necessario
+  alcun comando slash.
 </Aside>
 
 ### deal-qualification
 
-Produce una scorecard MEDDPICC con punteggio (0&ndash;24) con analisi
-delle lacune, valutazione dei rischi e raccomandazioni per le
-previsioni. Ogni elemento viene valutato da 0&ndash;3 sulla base di
-evidenze verificate.
+Produce una scorecard MEDDPICC con punteggio (0&ndash;24), analisi delle lacune,
+valutazione del rischio e raccomandazione di previsione. Ogni elemento viene valutato
+da 0 a 3 in base a prove verificate.
 
 ### deal-review
 
-Facilita ispezioni settimanali strutturate delle trattative con
-tracciamento del delta delle evidenze, identificazione dei rischi e
-azioni con responsabili nominati e scadenze.
+Facilita ispezioni settimanali strutturate delle trattative con monitoraggio dei delta di prove,
+identificazione dei rischi e azioni con responsabili nominati
+e date di scadenza.
 
 ### mutual-action-plan
 
-Costruisce un Piano d'Azione Condiviso orientato al cliente e
-collegato agli elementi MEDDPICC. Include milestone di valutazione,
-roadmap di procurement, preparazione all'implementazione e mappatura
-degli stakeholder.
+Crea un Piano d'Azione Condiviso orientato al cliente, collegato agli elementi
+MEDDPICC. Include tappe di valutazione, roadmap di approvvigionamento,
+preparazione all'implementazione e mappatura degli stakeholder.
 
 ### champion-test
 
-Applica una valutazione basata su 5 criteri (Potere, Vantaggio
-Personale, Accesso, Intelligence, Azione) con punteggio da 0&ndash;15
-per determinare se il contatto interno è un vero champion, un champion
-emergente, un coach o un contatto amichevole.
+Applica una valutazione basata su 5 criteri (Potere, Vantaggio personale, Accesso,
+Intelligence, Azione) con punteggio da 0 a 15 per determinare se il
+referente interno è un vero champion, un champion emergente, un coach o un
+contatto favorevole.
 
 ## Comandi
 
 | Comando | Scopo |
-| ------- | ----- |
+| ------- | ------- |
 | `/f5xc-meddpicc:qualify-deal [account]` | Valutare una trattativa con la scorecard MEDDPICC |
 | `/f5xc-meddpicc:deal-review [account]` | Facilitare l'ispezione settimanale della trattativa |
 | `/f5xc-meddpicc:champion-test [contact]` | Valutare se un contatto è un vero champion |
-| `/f5xc-meddpicc:build-map [account]` | Costruire un Piano d'Azione Condiviso |
+| `/f5xc-meddpicc:build-map [account]` | Creare un Piano d'Azione Condiviso |
 
 ## Agenti
 
 ### deal-analyst
 
-Agente di ricerca in sola lettura che analizza lo stato di salute
-delle trattative esaminando documentazione locale, note delle
-riunioni e piani account. Produce report di valutazione MEDDPICC
-strutturati con citazioni delle evidenze, analisi delle lacune e
-raccomandazioni di azione prioritizzate.
+Agente di ricerca in sola lettura che analizza la salute delle trattative esaminando
+documentazione locale, note di riunione e piani account. Produce
+report di valutazione MEDDPICC strutturati con citazioni di prove,
+analisi delle lacune e raccomandazioni di azioni prioritarie.
 
 ## Libreria di riferimento
 
-Il plugin include materiale di riferimento completo che viene caricato
-su richiesta:
+Il plugin include materiale di riferimento completo che viene caricato su
+richiesta:
 
-- **Framework MEDDPICC** &mdash; definizioni complete e requisiti
-  di evidenza per tutti gli 8 elementi
-- **Domande di Discovery** &mdash; domande testate sul campo per ogni
-  elemento durante il ciclo di vendita
-- **Ruoli e Responsabilità** &mdash; matrice di ownership RACI per
+- **Framework MEDDPICC** &mdash; definizioni complete e requisiti di prove
+  per tutti gli 8 elementi
+- **Domande di discovery** &mdash; domande testate sul campo per ogni
+  elemento lungo il ciclo di vendita
+- **Ruoli &amp; Responsabilità** &mdash; matrice RACI di ownership per
   ruolo del team (AE, SE, CSM, PS, Product, Channel, Deal Desk, Legal)
-- **Stage Gate delle Trattative** &mdash; cosa deve essere verificato
-  prima di avanzare (dalla Qualificazione Iniziale al Closed Won)
-- **Anti-Pattern** &mdash; 10 modalità di fallimento comuni con
-  rimedi basati su evidenze
-- **Rubrica di Punteggio** &mdash; criteri oggettivi di valutazione
-  da 0&ndash;3 per elemento
-- **Template di Revisione** &mdash; set di domande per ispezioni
-  settimanali con indicatori di allerta
-- **Template MAP** &mdash; struttura del piano d'azione orientata
-  al cliente con roadmap di valutazione, procurement e implementazione
+- **Gate per fase della trattativa** &mdash; condizioni che devono essere soddisfatte prima di avanzare
+  (dalla Qualificazione iniziale fino a Chiuso Vinto)
+- **Anti-pattern** &mdash; 10 modalità di errore comuni con
+  rimedi basati su prove
+- **Rubrica di punteggio** &mdash; criteri di valutazione oggettiva da 0 a 3
+  per elemento
+- **Template di revisione** &mdash; serie di domande per l'ispezione settimanale con
+  indicatori di segnale d'allarme
+- **Template MAP** &mdash; struttura del piano d'azione orientato al cliente
+  con roadmap di valutazione, approvvigionamento e implementazione

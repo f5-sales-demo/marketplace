@@ -1,10 +1,10 @@
 ---
 title: プラグインの貢献
-description: f5-sales-demo マーケットプレイス向けプラグインの作成、構造化、公開に関するガイド。
+description: f5-sales-demo マーケットプレイス向けプラグインの作成、構成、および公開に関するガイド。
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
@@ -15,7 +15,7 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
 
 ## プラグインの構造
 
-すべてのプラグインは `plugins/` 配下の専用ディレクトリに配置され、
+すべてのプラグインは `plugins/` 配下の独自ディレクトリに配置され、
 以下の構造に従います：
 
 <FileTree>
@@ -39,7 +39,7 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
 
 <Steps>
 
-1. **プラグインディレクトリの作成**
+1. **プラグインディレクトリを作成する**
 
    ```bash
    mkdir -p plugins/example-plugin/.claude-plugin
@@ -47,7 +47,7 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
    mkdir -p plugins/example-plugin/commands
    ```
 
-2. **`plugin.json` の作成**
+2. **`plugin.json` を記述する**
 
    `plugins/example-plugin/.claude-plugin/plugin.json` を作成します：
 
@@ -66,9 +66,9 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
    }
    ```
 
-3. **スキルの追加**
+3. **スキルを追加する**
 
-   `plugins/example-plugin/skills/example-skill/SKILL.md` をフロントマター付きで作成します：
+   フロントマターを含む `plugins/example-plugin/skills/example-skill/SKILL.md` を作成します：
 
    ```markdown
    ---
@@ -79,9 +79,9 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
    Detailed instructions for Claude when this skill activates.
    ```
 
-   参照データは `SKILL.md` と同じ階層の `references/` サブディレクトリに配置してください。
+   参照データは `SKILL.md` と並んで `references/` サブディレクトリに配置してください。
 
-4. **コマンドの追加**
+4. **コマンドを追加する**
 
    `plugins/example-plugin/commands/example-command.md` を作成します：
 
@@ -98,7 +98,7 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
    Instructions for Claude when the user invokes this command.
    ```
 
-5. **marketplace.json へのプラグイン登録**
+5. **プラグインを marketplace.json に追加する**
 
    `.claude-plugin/marketplace.json` の `plugins` 配列にエントリを追加します：
 
@@ -118,15 +118,15 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
    }
    ```
 
-6. **ローカルでのテスト**
+6. **ローカルでテストする**
 
-   公開前に、Claude Code をローカルディレクトリに向けてプラグインをテストします：
+   公開せずに Claude Code をローカルディレクトリに向けることで、プラグインをテストします：
 
    ```bash
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   スキルが適切なコンテキストで起動すること、およびコマンドが期待通りの出力を生成することを確認してください。
+   スキルが適切なコンテキストで有効化されること、およびコマンドが期待どおりの出力を生成することを確認してください。
 
 </Steps>
 
@@ -134,25 +134,25 @@ f5-sales-demo マーケットプレイスに追加する方法を説明します
 
 <Aside type="tip" title="リポジトリのワークフロー">
   このリポジトリは厳格なガバナンスワークフローを採用しています。
-  詳細なプロセスについては [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
+  全プロセスについては [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
   を参照してください。
 </Aside>
 
 <Steps>
 
-1. 新しいプラグインを説明する GitHub Issue を作成する
+1. 新しいプラグインを説明する GitHub イシューを作成する
 2. `main` からフィーチャーブランチを作成する
 3. プラグインディレクトリを追加し、`marketplace.json` を更新する
 4. `docs/plugins/example-plugin.mdx` にドキュメントページを追加する
-5. Issue に `Closes #N` でリンクした PR を作成する
+5. `Closes #N` でイシューにリンクする PR を開く
 6. CI の失敗を修正し、チェックが通過した後にマージする
 
 </Steps>
 
 ## ベストプラクティス
 
-- **スキルをフォーカスさせる** — 1 つのスキルは 1 つのことに特化させる
-- **参照ファイルを活用する** — 大規模なデータセット、スキーマ、ルックアップテーブルは `SKILL.md` にインラインで記述するのではなく `references/` に配置する
-- **スコープを適切に設定する** — 可能であれば未コミットの変更を確認して作業対象を絞り込む
-- **出力を重大度別にグループ化する** — ERROR、WARNING、INFO レベルを使用してユーザーが修正の優先順位を付けられるようにする
-- **README を作成する** — 各スキルとコマンドの使用例および説明を記載する
+- **スキルを集中させる** — 1 つのスキルは 1 つのことをうまく行う
+- **参照ファイルを使用する** — 大規模なデータセット、スキーマ、ルックアップテーブルは SKILL.md にインラインで記述するのではなく `references/` に配置する
+- **インテリジェントにスコープを設定する** — 可能な場合はコミットされていない変更を確認して、作業セットを絞り込む
+- **重大度別に出力をグループ化する** — ERROR、WARNING、INFO レベルを使用して、ユーザーが修正の優先順位を付けられるようにする
+- **README を記述する** — 各スキルとコマンドが何を行うかの使用例と説明を含める

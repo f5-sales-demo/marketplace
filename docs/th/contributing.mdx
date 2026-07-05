@@ -1,22 +1,22 @@
 ---
-title: การมีส่วนร่วมในการสร้างปลั๊กอิน
-description: คู่มือการสร้าง จัดโครงสร้าง และเผยแพร่ปลั๊กอินสำหรับตลาดกลาง f5-sales-demo
+title: การมีส่วนร่วมในการสร้าง Plugin
+description: คู่มือการสร้าง จัดโครงสร้าง และเผยแพร่ plugin สำหรับตลาดกลาง f5-sales-demo
 sidebar:
   order: 6
 i18n:
-  sourceHash: 865cf67796b3
+  sourceHash: f7f5bf0b8cb3
   translator: machine
 ---
 
 import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-คู่มือนี้อธิบายวิธีการสร้างปลั๊กอินใหม่และเพิ่มเข้าสู่
+คู่มือนี้อธิบายวิธีการสร้าง plugin ใหม่และเพิ่มเข้าสู่
 ตลาดกลาง f5-sales-demo
 
-## โครงสร้างของปลั๊กอิน
+## โครงสร้าง Plugin
 
-ปลั๊กอินทุกตัวอยู่ในไดเรกทอรีของตัวเองภายใต้ `plugins/` และ
-ปฏิบัติตามโครงสร้างนี้:
+Plugin แต่ละตัวอยู่ในไดเรกทอรีของตนเองภายใต้ `plugins/` และ
+ปฏิบัติตามโครงสร้างดังนี้:
 
 <FileTree>
 - plugins/
@@ -35,11 +35,11 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
     - README.md
 </FileTree>
 
-## การสร้างปลั๊กอิน
+## การสร้าง Plugin
 
 <Steps>
 
-1. **สร้างไดเรกทอรีของปลั๊กอิน**
+1. **สร้างไดเรกทอรี plugin**
 
    ```bash
    mkdir -p plugins/example-plugin/.claude-plugin
@@ -66,7 +66,7 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    }
    ```
 
-3. **เพิ่ม skills**
+3. **เพิ่ม skill**
 
    สร้าง `plugins/example-plugin/skills/example-skill/SKILL.md` พร้อม
    frontmatter:
@@ -80,10 +80,10 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    Detailed instructions for Claude when this skill activates.
    ```
 
-   วางข้อมูลอ้างอิงใดๆ ไว้ในไดเรกทอรีย่อย `references/`
+   วางข้อมูลอ้างอิงใด ๆ ไว้ในไดเรกทอรีย่อย `references/`
    ควบคู่กับ `SKILL.md`
 
-4. **เพิ่ม commands**
+4. **เพิ่ม command**
 
    สร้าง `plugins/example-plugin/commands/example-command.md`:
 
@@ -100,9 +100,9 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
    Instructions for Claude when the user invokes this command.
    ```
 
-5. **เพิ่มปลั๊กอินลงใน marketplace.json**
+5. **เพิ่ม plugin เข้าสู่ marketplace.json**
 
-   เพิ่มรายการเข้าไปในอาร์เรย์ `plugins` ใน
+   เพิ่มรายการในอาร์เรย์ `plugins` ใน
    `.claude-plugin/marketplace.json`:
 
    ```json
@@ -123,45 +123,45 @@ import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
 6. **ทดสอบในเครื่อง**
 
-   ทดสอบปลั๊กอินของคุณโดยไม่ต้องเผยแพร่ด้วยการชี้ Claude Code
+   ทดสอบ plugin ของคุณโดยไม่ต้องเผยแพร่ โดยชี้ Claude Code
    ไปยังไดเรกทอรีในเครื่อง:
 
    ```bash
    claude --plugin-dir ./plugins/example-plugin
    ```
 
-   ตรวจสอบว่า skills เปิดใช้งานในบริบทที่ถูกต้องและ
-   commands ให้ผลลัพธ์ตามที่คาดหวัง
+   ตรวจสอบว่า skill ทำงานในบริบทที่ถูกต้องและ
+   command สร้างผลลัพธ์ตามที่คาดหวัง
 
 </Steps>
 
-## การส่งปลั๊กอินของคุณ
+## การส่ง Plugin ของคุณ
 
-<Aside type="tip" title="ขั้นตอนการทำงานของ Repository">
-  Repository นี้บังคับใช้ขั้นตอนการกำกับดูแลที่เข้มงวด
+<Aside type="tip" title="ขั้นตอนการทำงานของ repository">
+  repository นี้บังคับใช้ขั้นตอนการกำกับดูแลที่เข้มงวด
   ดู [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
-  สำหรับขั้นตอนทั้งหมด
+  สำหรับกระบวนการทั้งหมด
 </Aside>
 
 <Steps>
 
-1. สร้าง GitHub issue ที่อธิบายปลั๊กอินใหม่
+1. สร้าง GitHub issue ที่อธิบาย plugin ใหม่
 2. สร้าง feature branch จาก `main`
-3. เพิ่มไดเรกทอรีปลั๊กอินของคุณและอัปเดต `marketplace.json`
+3. เพิ่มไดเรกทอรี plugin ของคุณและอัปเดต `marketplace.json`
 4. เพิ่มหน้าเอกสารที่ `docs/plugins/example-plugin.mdx`
-5. เปิด PR ที่เชื่อมโยงไปยัง issue ด้วย `Closes #N`
-6. แก้ไขความล้มเหลวของ CI และรวมโค้ดหลังจากการตรวจสอบผ่าน
+5. เปิด PR ที่เชื่อมโยงกับ issue ด้วย `Closes #N`
+6. แก้ไขข้อผิดพลาด CI ใด ๆ และ merge หลังจากการตรวจสอบผ่าน
 
 </Steps>
 
 ## แนวทางปฏิบัติที่ดีที่สุด
 
-- **ทำให้ skills มุ่งเน้น** — skill หนึ่งตัวควรทำสิ่งเดียวได้ดี
-- **ใช้ไฟล์อ้างอิง** — วางชุดข้อมูลขนาดใหญ่ สคีมา และ
-  ตารางค้นหาไว้ใน `references/` แทนที่จะฝังไว้ใน SKILL.md
+- **รักษา skill ให้มีจุดมุ่งเน้น** — skill หนึ่งตัวควรทำสิ่งเดียวได้ดี
+- **ใช้ไฟล์อ้างอิง** — วางชุดข้อมูลขนาดใหญ่ schema และ
+  ตารางค้นหาไว้ใน `references/` แทนที่จะฝังโดยตรงใน SKILL.md
 - **กำหนดขอบเขตอย่างชาญฉลาด** — ตรวจสอบการเปลี่ยนแปลงที่ยังไม่ได้ commit เพื่อ
-  จำกัดชุดการทำงานเมื่อเป็นไปได้
+  จำกัดชุดงานที่ต้องดำเนินการเมื่อเป็นไปได้
 - **จัดกลุ่มผลลัพธ์ตามความรุนแรง** — ใช้ระดับ ERROR, WARNING และ INFO
-  เพื่อให้ผู้ใช้สามารถจัดลำดับความสำคัญในการแก้ไขได้
-- **เขียน README** — รวมตัวอย่างการใช้งานและคำอธิบาย
-  ว่า skill และ command แต่ละตัวทำอะไร
+  เพื่อให้ผู้ใช้สามารถจัดลำดับความสำคัญของการแก้ไขได้
+- **เขียน README** — ระบุตัวอย่างการใช้งานและคำอธิบาย
+  ของ skill และ command แต่ละรายการ

@@ -1,22 +1,21 @@
 ---
 title: f5xc-docs-pipeline
 description: >-
-  Wissen über die Dokumentations-Pipeline-Architektur für Multi-Repo-Builds,
-  Inhalterstellung und lokale Vorschau.
+  Architekturwissen zur Dokumentations-Pipeline für Multi-Repo-Builds,
+  Content-Authoring und lokale Vorschau.
 sidebar:
   order: 8
 i18n:
-  sourceHash: 858155aa1d2f
+  sourceHash: 2f56a6cc4513
   translator: machine
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
 
-Das **f5xc-docs-pipeline**-Plugin stellt Wissen über die
-Dokumentations-Pipeline-Architektur für f5-sales-demo-Repositories
-bereit. Es unterstützt die Inhalterstellung, klärt die
-Konfigurationsverantwortung über Multi-Repo-Builds hinweg und
-ermöglicht eine lokale Docker-basierte Vorschau.
+Das **f5xc-docs-pipeline**-Plugin stellt Architekturwissen zur Dokumentations-Pipeline
+für f5-sales-demo-Repositories bereit. Es leitet beim Content-Authoring an,
+klärt die Konfigurationszuständigkeit in Multi-Repo-Builds und bietet eine lokale
+Docker-basierte Vorschau.
 
 <Badge text="v1.0.2" variant="note" /> <Badge text="Produktivität" variant="tip" />
 
@@ -26,27 +25,25 @@ ermöglicht eine lokale Docker-basierte Vorschau.
 /plugin install f5xc-docs-pipeline@f5-sales-demo-marketplace
 ```
 
-## Fähigkeiten
+## Funktionen
 
 ### content-author
 
-Leitfaden zur Inhalterstellung, der Dateistruktur, MDX-Syntaxregeln,
-Frontmatter-Anforderungen, Bildreferenzen und lokale Docker-Vorschau
-abdeckt. Wird aktiviert beim Erstellen oder Bearbeiten von `docs/`-Inhalten,
-beim Arbeiten mit MDX-Dateien oder beim Einrichten der lokalen Vorschau.
+Leitfaden für das Content-Authoring mit Informationen zu Dateistruktur, MDX-Syntaxregeln,
+Frontmatter-Anforderungen, Bildreferenzen und lokaler Docker-Vorschau. Wird aktiviert beim
+Erstellen oder Bearbeiten von `docs/`-Inhalten, beim Arbeiten mit MDX-Dateien oder beim
+Einrichten der lokalen Vorschau.
 
 ### pipeline-navigator
 
-Erklärung der Dokumentations-Pipeline-Architektur, die aufzeigt, wo
-Änderungen in den vier Upstream-Repositories vorgenommen werden müssen:
-docs-theme, docs-builder, docs-control und docs-icons. Klärt die
-Konfigurationsverantwortung (`astro.config.mjs`, `content.config.ts`),
-die Release-Dispatch-Kette und das Tracking verwalteter Dateien.
+Erläuterung der Dokumentations-Pipeline-Architektur, die beschreibt, wo Änderungen in
+den vier vorgelagerten Repositories vorgenommen werden: docs-theme, docs-builder,
+docs-control und docs-icons. Klärt die Konfigurationszuständigkeit (`astro.config.mjs`,
+`content.config.ts`), die Release-Dispatch-Kette und die Verwaltung nachverfolgter Dateien.
 
 <Aside type="tip">
   Verwenden Sie pipeline-navigator, wenn Sie verstehen möchten, welches
-  Repository für eine bestimmte Konfigurationsdatei oder Komponente
-  verantwortlich ist.
+  Repository für eine bestimmte Konfigurationsdatei oder Komponente zuständig ist.
 </Aside>
 
 ## Befehle
@@ -57,6 +54,6 @@ die Release-Dispatch-Kette und das Tracking verwalteter Dateien.
 /f5xc-docs-pipeline:preview-docs
 ```
 
-Startet einen lokalen Docker-Entwicklungsserver zur Vorschau der
-Dokumentation. Führt das gemeinsam genutzte Docker-Build-Image aus,
-wobei Ihr lokales `docs/`-Verzeichnis für die Live-Vorschau eingebunden wird.
+Startet einen lokalen Docker-Entwicklungsserver zur Vorschau der Dokumentation. Führt
+das gemeinsame Docker-Build-Image mit Ihrem lokalen `docs/`-Verzeichnis aus,
+das für die Live-Vorschau eingebunden wird.

@@ -1,60 +1,59 @@
 ---
 title: Descripción general
 description: >-
-  Cómo funciona el marketplace de plugins de Claude Code — añadir fuentes,
-  instalar plugins y utilizar herramientas compartidas.
+  Cómo funciona el mercado de plugins de Claude Code — agregar fuentes, instalar
+  plugins y usar herramientas compartidas.
 sidebar:
   order: 1
 i18n:
-  sourceHash: cbde599e6ac0
+  sourceHash: 239ce651439e
   translator: machine
 ---
 
-Un **marketplace de plugins de Claude Code** es una colección curada de
-plugins que extienden Claude Code con nuevas habilidades, comandos y
-agentes. Los marketplaces permiten a los equipos compartir herramientas
-para que cada desarrollador obtenga las mismas capacidades sin
-configuración manual.
+Un **mercado de plugins de Claude Code** es una colección curada de
+plugins que amplían Claude Code con nuevas habilidades, comandos y
+agentes. Los mercados permiten que los equipos compartan herramientas para que cada
+desarrollador obtenga las mismas capacidades sin configuración manual.
 
-El **Marketplace f5-sales-demo** proporciona plugins creados para
-la plataforma de documentación
-[f5-sales-demo](https://github.com/f5-sales-demo) — un ecosistema
-de más de 20 repositorios que publican sitios Astro/Starlight en
-GitHub Pages utilizando un pipeline de compilación compartido.
+El **Mercado f5-sales-demo** proporciona plugins creados para
+la plataforma de documentación [f5-sales-demo](https://github.com/f5-sales-demo)
+— un ecosistema de más de 20 repositorios que
+publican sitios Astro/Starlight en GitHub Pages mediante una canalización
+de compilación compartida.
 
 ## Cómo funciona
 
-1. **Añada el marketplace** a Claude Code — esto lo registra
+1. **Agregar el mercado** a Claude Code — esto lo registra
    como una fuente de plugins
-2. **Instale plugins** desde el marketplace — cada plugin añade
+2. **Instalar plugins** del mercado — cada plugin agrega
    habilidades y comandos a su sesión de Claude Code
-3. **Utilice las herramientas** — los plugins se activan automáticamente
-   según el contexto, o puede invocar sus comandos directamente
+3. **Usar las herramientas** — los plugins se activan automáticamente según el
+   contexto, o puede invocar sus comandos directamente
 
 ## Plugins disponibles
 
 | Plugin | Categoría | Descripción |
 |--------|-----------|-------------|
 | [f5xc-docs-tools](/marketplace/plugins/f5xc-docs-tools/) | Productividad | Herramientas de validación y revisión de contenido MDX para repositorios de documentación |
-| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Productividad | Marco de trabajo de persona Sales Engineer — ejecución de demos, presentaciones, preguntas y respuestas, gestión de entornos |
+| [f5xc-sales-engineer](/marketplace/plugins/f5xc-sales-engineer/) | Productividad | Marco de trabajo para la persona de Ingeniero de Ventas — ejecución de demos, presentación, preguntas y respuestas, gestión del entorno |
 
 ## Inicio rápido
 
-Añada el marketplace e instale el plugin de herramientas de documentación:
+Agregue el mercado e instale el plugin de herramientas de documentación:
 
 ```
 /plugin marketplace add f5-sales-demo/marketplace
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
-Consulte [Primeros pasos](/marketplace/getting-started/) para
-un tutorial completo.
+Consulte [Primeros pasos](/marketplace/getting-started/) para un
+recorrido completo.
 
 ## Arquitectura
 
-Un marketplace es un repositorio Git que contiene uno o más
+Un mercado es un repositorio de Git que contiene uno o más
 plugins. Cada plugin empaqueta habilidades, comandos y agentes
-en una única unidad instalable.
+en una unidad instalable única.
 
 ```
 Marketplace (marketplace.json)
@@ -69,9 +68,9 @@ Marketplace (marketplace.json)
   con metadatos para descubrimiento e instalación.
 - **Plugin** — la unidad instalable. Contiene una o más
   habilidades, comandos o agentes.
-- **Skill (Habilidad)** — conocimiento contextual que Claude activa
+- **Skill** — conocimiento contextual que Claude activa
   automáticamente según la tarea en cuestión.
-- **Command (Comando)** — un comando de barra que el usuario invoca
-  directamente (por ejemplo, `/review-mdx`).
-- **Agent (Agente)** — un sub-agente especializado que gestiona tareas
-  complejas de múltiples pasos de forma autónoma.
+- **Command** — un comando slash que el usuario invoca directamente
+  (p. ej., `/review-mdx`).
+- **Agent** — un subagente especializado que gestiona tareas complejas
+  de múltiples pasos de forma autónoma.
