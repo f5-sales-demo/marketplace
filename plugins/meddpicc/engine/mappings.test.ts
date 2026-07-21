@@ -15,6 +15,8 @@ describe("checkMappings", () => {
 		expect(r.ok).toBe(true);
 		expect(r.cell.failures).toEqual([]);
 		expect(r.sfdc.failures).toEqual([]);
+		expect(r.cell.checked).toBe(67);
+		expect(r.sfdc.checked).toBe(10);
 	});
 	test("detects a broken cell jsonPath", () => {
 		const broken = structuredClone(cell);
