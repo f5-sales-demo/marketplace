@@ -1,0 +1,13 @@
+{
+  "schema": "schema/meddpicc-schema.json",
+  "example": "schema/example-deal.json",
+  "engine": {
+    "runtime": "bun",
+    "entry": "engine/cli.ts",
+    "commands": ["validate", "next", "score", "check-mappings"]
+  },
+  "mappings": {
+    "cell": "skills/deal-qualification/references/cell-mapping.json",
+    "sfdc": "skills/deal-qualification/references/sfdc-field-mapping.json"
+  }
+}
