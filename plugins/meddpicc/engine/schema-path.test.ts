@@ -21,4 +21,7 @@ describe('resolveSchemaPath', () => {
     expect(resolveSchemaPath(schema, 'metadata.revenue.pAndIplusAcvxTYPO')).toBe(false);
     expect(resolveSchemaPath(schema, 'qualification.metrics.bogusField')).toBe(false);
   });
+  test('returns false for an empty path', () => {
+    expect(resolveSchemaPath(schema, '')).toBe(false);
+  });
 });

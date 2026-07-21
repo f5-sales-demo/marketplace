@@ -65,6 +65,7 @@ function normalize(node: unknown, root: Schema): Schema | undefined {
 }
 
 export function resolveSchemaPath(rootSchema: unknown, dottedPath: string): boolean {
+  if (dottedPath === '') return false;
   if (!rootSchema || typeof rootSchema !== 'object') return false;
   const root = rootSchema as Schema;
   let node: Schema | undefined = normalize(root, root);
