@@ -34,24 +34,22 @@ arrives throughout the deal cycle.
 - Prospect site or public filings analysis
 - News articles about the account or competitors
 
-## Element Key Reference
+## Engine (deterministic source of truth)
 
-The JSON schema uses these exact keys. Always use these paths in
-`jq` — never use display names or abbreviations:
+Ordering and scoring are computed by the plugin engine — never by
+hand. After applying confirmed writes, recompute scores with
+`bun xcsh://plugin/meddpicc/file/engine/cli.ts score <deal.json>`
+and relay `sum` / `overallScore` / `overallRating`. (Local/dev
+equivalent: `bun "$PLUGIN_ROOT/engine/cli.ts" score <deal.json>`.)
 
-| Display Name | JSON Key | jq Path |
-| ------------ | -------- | ------- |
-| Metrics (M) | `metrics` | `.qualification.metrics` |
-| Economic Buyer (E) | `economicBuyer` | `.qualification.economicBuyer` |
-| Decision Criteria (D1) | `decisionCriteria` | `.qualification.decisionCriteria` |
-| Decision Process (D2) | `decisionProcess` | `.qualification.decisionProcess` |
-| Paper Process (P) | `paperProcess` | `.qualification.paperProcess` |
-| Identify Pain (I) | `implicateThePain` | `.qualification.implicateThePain` |
-| Champion (C1) | `champion` | `.qualification.champion` |
-| Competition (C2) | `competition` | `.qualification.competition` |
-
-The corresponding `completionStatus` and `elementScores` keys use
-the same names: `.metadata.completionStatus.implicateThePain`,
+Element display names map to `qualification.<key>` where `<key>` is
+one of: metrics, economicBuyer, decisionCriteria, decisionProcess,
+paperProcess, implicateThePain, champion, competition (canonical
+order defined by the engine; do not re-derive by hand). Always use
+these exact keys in `jq` paths — never display names or
+abbreviations. The corresponding `completionStatus` and
+`elementScores` keys use the same names:
+`.metadata.completionStatus.implicateThePain`,
 `.scoring.elementScores.implicateThePain`, etc.
 
 ## Data Persistence Protocol
@@ -96,22 +94,15 @@ jq --arg new "[2026-05-06 meeting-notes] Board-level visibility on these metrics
 
 ### Score update pattern
 
-After updating an element, write the score and recalculate overall.
-Replace `metrics` with the correct key from the Element Key
-Reference table above:
+After updating an element, write its score with `jq` (replace
+`metrics` with the correct key — see the Engine section). Do **not**
+recalculate the overall score by hand; recompute it with the
+engine's `score` command afterward (see the Engine section).
 
 ```bash
 jq --argjson score 3 \
   '.qualification.metrics.score = $score |
    .scoring.elementScores.metrics = $score' \
-  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
-
-jq '(.scoring.elementScores | to_entries | map(.value) | add) as $sum |
-  .scoring.overallScore = ($sum / 32 * 100) |
-  .scoring.overallRating = (
-    if $sum <= 13 then "Red"
-    elif $sum <= 25 then "Yellow"
-    else "Green" end)' \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
 
@@ -128,9 +119,9 @@ jq --argjson s '{"name":"Jane Doe","title":"CISO","roleInDeal":"Influencer","mus
 
 ### Scorecard display
 
-`scoring.overallScore` stores a percentage (0–100). To display
-`X/32`, sum `scoring.elementScores` values directly — do not
-back-compute from the percentage.
+Take `sum` (the `X` in `X/32`), `overallScore` (percentage), and
+`overallRating` from the engine's `score` output — do not
+back-compute them from stored fields.
 
 ## Ingestion Protocol
 
@@ -157,8 +148,8 @@ If no date is explicit, use today's date.
 ### Step 3 — Extract MEDDPICC intelligence
 
 Read the input and systematically scan for signals relevant to
-each MEDDPICC element. Use the **Element Key Reference** table
-above for the correct JSON key when writing updates.
+each MEDDPICC element. Use the key mapping in the **Engine**
+section above for the correct JSON key when writing updates.
 
 If no signal is found for an element in the input, **leave it
 unchanged** — do not propose setting it to score 1 or adding
@@ -355,12 +346,15 @@ Write types:
 - **Evidence append:** Use the evidence append pattern above
 - **Notes append:** Same pattern but on `.notes` field
 - **Response replace:** Use `--arg` for string values
-- **Score update:** Update element score + recalculate overall
+- **Score update:** Write the element score with `jq` (see the
+  Score update pattern)
 - **Stakeholder add:** Use array append pattern
 - **Action item add:** Append to `closePlan.criticalActions`
 - **Milestone add:** Append to `closePlan.milestones`
 
-After all writes, run the overall score recalculation jq.
+After all writes, recompute scores with the engine's `score`
+command and relay `sum` / `overallScore` / `overallRating` (see
+the Engine section).
 
 ### Step 8 — Updated scorecard
 
