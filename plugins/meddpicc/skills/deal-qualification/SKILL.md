@@ -26,20 +26,18 @@ review produces a JSON file conforming to this schema. The schema
 embeds guiding questions and scoring rubric definitions for each
 MEDDPICC element.
 
-## Element Key Reference
+## Engine (deterministic source of truth)
 
-Use these exact JSON keys in all jq paths:
+State, ordering, scoring, validation, and mapping conformance are computed by the plugin engine — never by hand. Invoke it in bash:
 
-| Display Name | JSON Key | jq Path |
-| ------------ | -------- | ------- |
-| Metrics (M) | `metrics` | `.qualification.metrics` |
-| Economic Buyer (E) | `economicBuyer` | `.qualification.economicBuyer` |
-| Decision Criteria (D1) | `decisionCriteria` | `.qualification.decisionCriteria` |
-| Decision Process (D2) | `decisionProcess` | `.qualification.decisionProcess` |
-| Paper Process (P) | `paperProcess` | `.qualification.paperProcess` |
-| Identify Pain (I) | `implicateThePain` | `.qualification.implicateThePain` |
-| Champion (C1) | `champion` | `.qualification.champion` |
-| Competition (C2) | `competition` | `.qualification.competition` |
+- Resume point / status: `bun xcsh://plugin/meddpicc/file/engine/cli.ts next <deal.json>`
+  → JSON `{ order, completionStatus, nextIncompleteSection }`. Ask targeted questions for `nextIncompleteSection` and any `partial`/`not_started` sections, in `order`.
+- Scores: after each element write, run `bun xcsh://plugin/meddpicc/file/engine/cli.ts score <deal.json>` and relay `sum` / `overallScore` / `overallRating`.
+- Validation: after writes, run `bun xcsh://plugin/meddpicc/file/engine/cli.ts validate <deal.json>`; if `valid` is false, fix the reported `errors` before continuing.
+
+For local/dev use without the `xcsh://` resolver, the equivalent is `bun "$PLUGIN_ROOT/engine/cli.ts" <command> <deal.json>`.
+
+Element display names map to `qualification.<key>` where `<key>` is one of: metrics, economicBuyer, decisionCriteria, decisionProcess, paperProcess, implicateThePain, champion, competition (canonical order defined by the engine; do not re-derive by hand).
 
 ## Data Persistence Protocol
 
@@ -97,8 +95,8 @@ jq --arg status "Discovery" --arg close "2026-09-30" \
 
 **MEDDPICC element completion** — after scoring each element, write
 responses, score, evidence, notes, completionStatus, and
-elementScore. Replace `metrics` with the correct key from the
-Element Key Reference table:
+elementScore. Replace `metrics` with the correct key (see the
+Engine section for the display-name → key mapping):
 
 ```bash
 jq --arg r0 "Answer to question 1" \
@@ -115,17 +113,11 @@ jq --arg r0 "Answer to question 1" \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
 
-**Overall score calculation** — after all 8 elements are scored:
-
-```bash
-jq '(.scoring.elementScores | to_entries | map(.value) | add) as $sum |
-  .scoring.overallScore = ($sum / 32 * 100) |
-  .scoring.overallRating = (
-    if $sum <= 13 then "Red"
-    elif $sum <= 25 then "Yellow"
-    else "Green" end)' \
-  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
-```
+**Overall score** — do **not** compute this by hand. After element
+writes, read `sum` / `overallScore` / `overallRating` from the engine
+(`bun xcsh://plugin/meddpicc/file/engine/cli.ts score <deal.json>` —
+see the Engine section). The engine is the source of truth for the
+overall score; `jq` is used only for the individual field writes above.
 
 **Array append** — for stakeholders, milestones, actions, team.
 Stakeholders require `name`, `title`, and `roleInDeal`. Initialize
@@ -186,8 +178,9 @@ User provides a deal or account name with no existing JSON file.
 6. After all 8 elements: collect Three Whys, stakeholders, sales
    strategy, close plan, and team. **Write:** after each section,
    update the section data and its `completionStatus` with `jq`.
-7. **Write:** calculate and write `scoring.overallScore` and
-   `scoring.overallRating` with the overall score `jq` pattern.
+7. Report scores from the engine: run `score` for
+   `sum` / `overallScore` / `overallRating` and relay them (see the
+   Engine section). Do not compute the overall score by hand.
 
 The file is always up to date — there is no final "save" step. The
 user can pause at any time without data loss because every answer
@@ -201,9 +194,12 @@ is an existing JSON file for this deal.
 **If existing JSON file found:**
 
 1. Read the file and set the `DEAL_FILE` shell variable
-2. Check `completionStatus` for incomplete sections
+2. Run the engine's `next` command to get `completionStatus`,
+   the canonical `order`, and `nextIncompleteSection` — do not
+   scan `completionStatus` by hand (see the Engine section)
 3. Present a summary of what's complete and what's missing
-4. Ask targeted questions only for incomplete/partial sections
+4. Ask targeted questions for `nextIncompleteSection` and any
+   `partial`/`not_started` sections, in `order`
 5. **Write:** use `jq` to update each completed section
    immediately (same protocol as Mode 1)
 
@@ -228,8 +224,8 @@ User invokes with an existing complete deal.
 2. Present current scores and gaps
 3. Allow the user to update any section — **Write:** use `jq` to
    persist each change immediately
-4. **Write:** recalculate `scoring.overallScore` and
-   `scoring.overallRating` with the overall score `jq` pattern
+4. Report the recomputed scores from the engine's `score` output
+   (see the Engine section) — do not recalculate by hand
 
 ## File Location
 
@@ -259,6 +255,9 @@ detailed scoring criteria.
 | 0 | **Unknown** | No evidence or not yet explored |
 
 ### Overall Score Calculation
+
+The engine's `score` command computes this — do not calculate it by
+hand. For reference, it applies:
 
 - **Formula:** `(sum of 8 element scores / 32) × 100`
 - **Rating:** Red (0-13/32), Yellow (14-25/32), Green (26-32/32)

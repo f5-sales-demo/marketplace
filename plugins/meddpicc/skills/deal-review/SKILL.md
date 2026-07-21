@@ -51,20 +51,22 @@ jq '<expression>' "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_
 - Never use `!=` in jq — use `| not` instead
 - Never use `!` in Bash — use `cmd || { handle; }` instead
 
-## Element Key Reference
+## Engine (deterministic source of truth)
 
-Use these exact JSON keys in all jq paths (display name ≠ key):
+Ordering and scoring are computed by the plugin engine — never by
+hand. After element updates, recompute scores with
+`bun xcsh://plugin/meddpicc/file/engine/cli.ts score <deal.json>`
+and relay `sum` / `overallScore` / `overallRating`. (Local/dev
+equivalent: `bun "$PLUGIN_ROOT/engine/cli.ts" score <deal.json>`.)
+Build the weekly delta table by comparing the engine's per-element
+`elementScores` against the `previousElementScores` snapshot taken
+at Step 1 (load).
 
-| Display Name | JSON Key | jq Path |
-| ------------ | -------- | ------- |
-| Metrics (M) | `metrics` | `.qualification.metrics` |
-| Economic Buyer (E) | `economicBuyer` | `.qualification.economicBuyer` |
-| Decision Criteria (D1) | `decisionCriteria` | `.qualification.decisionCriteria` |
-| Decision Process (D2) | `decisionProcess` | `.qualification.decisionProcess` |
-| Paper Process (P) | `paperProcess` | `.qualification.paperProcess` |
-| Identify Pain (I) | `implicateThePain` | `.qualification.implicateThePain` |
-| Champion (C1) | `champion` | `.qualification.champion` |
-| Competition (C2) | `competition` | `.qualification.competition` |
+Element display names map to `qualification.<key>` where `<key>` is
+one of: metrics, economicBuyer, decisionCriteria, decisionProcess,
+paperProcess, implicateThePain, champion, competition (canonical
+order defined by the engine; do not re-derive by hand). Use these
+exact keys in all `jq` paths — display name ≠ key.
 
 ### Key jq patterns for reviews
 
@@ -79,7 +81,8 @@ jq --arg new "[2026-05-20 weekly-review] Fred confirmed ARB slot June 2" \
 ```
 
 **Score + completionStatus update** — update element score after
-evidence review. Replace `metrics` with the correct key above:
+evidence review. Replace `metrics` with the correct key (see the
+Engine section):
 
 ```bash
 jq --argjson score 3 \
@@ -114,20 +117,15 @@ jq '.scoring.previousElementScores = .scoring.elementScores' \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
 
-**Recalculate overall score** — run after all element updates:
+**Overall score** — do **not** recompute this by hand. After all
+element updates, read `sum` / `overallScore` / `overallRating` from
+the engine's `score` command (see the Engine section). `jq` is used
+only for the element writes and the `previousElementScores`
+snapshot above.
 
-```bash
-jq '(.scoring.elementScores | to_entries | map(.value) | add) as $sum |
-  .scoring.overallScore = ($sum / 32 * 100) |
-  .scoring.overallRating = (
-    if $sum <= 13 then "Red"
-    elif $sum <= 25 then "Yellow"
-    else "Green" end)' \
-  "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
-```
-
-**Scorecard display:** `scoring.overallScore` stores a percentage.
-To display `X/32`, sum `scoring.elementScores` values directly.
+**Scorecard display:** take `sum` (the `X` in `X/32`),
+`overallScore` (percentage), and `overallRating` from the engine's
+`score` output — do not back-compute them from stored fields.
 
 ## Review Protocol
 
@@ -147,11 +145,13 @@ Check for an existing deal JSON file:
 
 ### Step 2 — Establish context
 
-Present the current deal state from the JSON:
+Present the current deal state, taking scores from the engine's
+`score` output (see the Engine section) rather than reading them by
+hand:
 
 - Deal name, account, stage, close date
-- Current MEDDPICC scores (element-by-element)
-- Overall score and rating (Red/Yellow/Green)
+- Current MEDDPICC scores (element-by-element, from `elementScores`)
+- Overall score and rating (`overallScore` / `overallRating`)
 - Last review date
 
 ### Step 3 — Evidence inspection
@@ -225,8 +225,9 @@ For the final writes:
      "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
    ```
 
-2. **Write:** recalculate overall score and rating using the
-   recalculate jq pattern (see Data Persistence Protocol)
+2. Recompute scores with the engine's `score` command (see the
+   Engine section) and use `sum` / `overallScore` / `overallRating`
+   in the report — do not recalculate by hand
 3. Present the review output
 
 ## Output Format
@@ -268,6 +269,11 @@ For the final writes:
 
 ### Next Review: [date]
 ```
+
+In the Evidence Delta table, **Previous Score** is read from the
+`previousElementScores` snapshot (taken at Step 1) and **Current
+Score** from the engine's `score` `elementScores`; **Change** is
+their difference. Do not compute these from the raw JSON by hand.
 
 If the user requests XLS output, render using the same process as
 deal-qualification (template + cell mapping).

@@ -59,8 +59,20 @@ Competition), assess:
 
 ### Step 3 — Score and report
 
-Use the scoring rubric (0–4 per element) to produce an objective
-assessment. Include evidence citations for every score.
+You are read-only and **cannot run the plugin engine**. Source
+scores as follows:
+
+- **When a deal JSON with engine-computed scores is available**
+  (`scoring.elementScores`, `scoring.overallScore`,
+  `scoring.overallRating` populated by the qualification/update/review
+  skills), report those as the authoritative scores — the engine's
+  `score` output is the source of truth. Do not recompute or
+  contradict them.
+- **When no such file exists** (analyzing raw notes, CRM exports,
+  etc.), produce your own independent 0–4 assessment per element
+  using the scoring rubric, and label it as your estimate.
+
+Either way, include evidence citations for every element.
 
 ### Step 4 — Recommend actions
 
@@ -95,7 +107,7 @@ Every response must follow this structure:
 | Champion | X/4 | [citations] | [gaps] |
 | Competition | X/4 | [citations] | [gaps] |
 
-### Overall Score: X/32
+### Overall Score: X/32 [source: engine `score` output, or independent estimate]
 ### Risk Level: [Low / Medium / High / Critical]
 
 ### Priority Actions
@@ -113,9 +125,13 @@ Every response must follow this structure:
 
 ## Execution Rules
 
-1. **Read-only** — never create, modify, or delete files
-2. **Evidence-based** — every score must cite specific evidence
-3. **Honest** — do not inflate scores; gaps are valuable findings
-4. **Structured** — always use the output contract format
-5. **Actionable** — every gap must have a recommended next action
-6. **Role-aware** — assign actions to the appropriate team role
+1. **Read-only** — never create, modify, or delete files; you have
+   no Bash and cannot run the engine
+2. **Engine-authoritative** — when a deal JSON carries
+   engine-computed scores, report those; only produce an independent
+   0–4 estimate when no engine-scored file is available
+3. **Evidence-based** — every score must cite specific evidence
+4. **Honest** — do not inflate scores; gaps are valuable findings
+5. **Structured** — always use the output contract format
+6. **Actionable** — every gap must have a recommended next action
+7. **Role-aware** — assign actions to the appropriate team role
