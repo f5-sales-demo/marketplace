@@ -1,9 +1,101 @@
 import type { PluginInterface } from '../az/types';
-import { SAFE_ARG_PATTERN } from '../az/types';
 import azExecDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
 const MAX_OUTPUT_LENGTH = 50000;
+
+// `az` is spawned argv-style (Bun.spawn(['az', ...args])) with NO shell, so shell
+// metacharacters are inert — the argv boundary is the real command-injection control
+// (per OWASP / CISA guidance). We therefore do NOT filter shell metacharacters, which
+// would only break valid Azure CLI `--query` (JMESPath) syntax such as `||`, backtick
+// literals, and pipes. The one genuine hygiene concern is a NUL/control byte, which
+// malforms an execve argv.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control bytes for argv hygiene
+const CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
+
+export function hasControlChars(arg: string): boolean {
+  return CONTROL_CHAR_PATTERN.test(arg);
+}
+
+// Read-only-by-default guardrail. `az` verbs are conventional; we block clearly
+// mutating verbs so writes must go through an explicit, confirmed path (the
+// cli-operator agent). Reads (list*, show, get*, check*, ...) pass by default.
+export const MUTATING_VERBS: ReadonlySet<string> = new Set([
+  'create',
+  'new',
+  'delete',
+  'remove',
+  'purge',
+  'update',
+  'set',
+  'add',
+  'start',
+  'stop',
+  'restart',
+  'deallocate',
+  'redeploy',
+  'reset',
+  'regenerate',
+  'renew',
+  'rotate',
+  'move',
+  'invoke',
+  'execute',
+  'enable',
+  'disable',
+  'attach',
+  'detach',
+  'approve',
+  'reject',
+  'cancel',
+  'revoke',
+  'grant',
+  'assign',
+  'unassign',
+  'lock',
+  'unlock',
+  'register',
+  'unregister',
+  'scale',
+  'migrate',
+  'failover',
+  'restore',
+  'deploy',
+  'install',
+  'uninstall',
+  'upgrade',
+  'publish',
+  'import',
+  'upload',
+  'activate',
+  'deactivate',
+  'associate',
+  'disassociate',
+  'generate',
+]);
+
+// The az verb is the last positional token before the first flag, e.g.
+// `network routeserver peering list-learned-routes -g rg` -> `list-learned-routes`.
+export function findVerb(args: string[]): string | null {
+  let verb: string | null = null;
+  for (const arg of args) {
+    if (arg.startsWith('-')) break;
+    verb = arg;
+  }
+  return verb;
+}
+
+export function isMutating(args: string[]): boolean {
+  const verb = findVerb(args);
+  return verb !== null && MUTATING_VERBS.has(verb);
+}
+
+// Default to JSON for machine-readable output, but respect a caller-supplied
+// --output / -o so `-o table` and `-o tsv` work instead of being overridden.
+export function buildAzArgs(args: string[]): string[] {
+  const hasOutput = args.some((a) => a === '--output' || a === '-o');
+  return hasOutput ? [...args] : [...args, '--output', 'json'];
+}
 
 export function createAzExecTool(pi: PluginInterface) {
   const { Type } = pi.typebox;
@@ -33,16 +125,22 @@ export function createAzExecTool(pi: PluginInterface) {
       }
 
       for (const arg of params.args) {
-        if (!SAFE_ARG_PATTERN.test(arg)) {
-          return errorResult(
-            `Error: unsafe argument "${arg}". Shell metacharacters (;|$\`&&||) are not allowed.`,
-            base,
-          );
+        if (hasControlChars(arg)) {
+          return errorResult(`Error: argument contains a control character and cannot be passed to az: "${arg}"`, base);
         }
       }
 
+      if (isMutating(params.args)) {
+        return errorResult(
+          `Error: "${findVerb(params.args)}" is a mutating operation. az_exec is read-only by default. ` +
+            'Run write/destructive operations through an explicitly confirmed path (delegate to the ' +
+            'azure:cli-operator agent) rather than az_exec.',
+          base,
+        );
+      }
+
       const api = makeExecApi(ctx.cwd);
-      const args = [...params.args, '--output', 'json'];
+      const args = buildAzArgs(params.args);
 
       try {
         const result = await api.exec('az', args);
@@ -54,7 +152,7 @@ export function createAzExecTool(pi: PluginInterface) {
         }
         let output = result.stdout;
         if (output.length > MAX_OUTPUT_LENGTH) {
-          output = output.slice(0, MAX_OUTPUT_LENGTH) + `\n\n[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
+          output = `${output.slice(0, MAX_OUTPUT_LENGTH)}\n\n[Output truncated at ${MAX_OUTPUT_LENGTH} characters]`;
         }
         return textResult(output, base);
       } catch (err) {

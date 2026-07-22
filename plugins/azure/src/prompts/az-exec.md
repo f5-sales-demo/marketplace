@@ -14,9 +14,22 @@ Pass the subcommand and flags as an array of arguments. Do NOT include `az` itse
 
 ## Safety
 
-- Each argument is validated: no shell metacharacters (`;`, `|`, `$`, backticks, `&&`, `||`) are allowed
-- Arguments are passed as an array to `Bun.spawn` — no shell interpretation occurs
-- Output is capped to prevent context overflow
+- Arguments are passed as an array directly to the `az` binary — **no shell** is involved, so shell metacharacters are inert and never filtered. Any valid `az` invocation runs, including full JMESPath `--query` syntax.
+- **Read-only by default:** mutating verbs (`create`, `delete`, `update`, `set`, `purge`, `start`, `stop`, `restart`, `scale`, `restore`, …) are blocked. Run write/destructive operations through an explicitly confirmed path (delegate to the `cli-operator` agent), not `az_exec`.
+- Output is capped to prevent context overflow.
+
+## Querying with `--query` (JMESPath)
+
+The full JMESPath grammar is supported — pass the expression as a single argument value. Common patterns:
+
+- Field projection: `--query "[].{name:name, location:location}"`
+- Filter: `--query "[?location=='eastus']"`
+- Substring match: `--query "[?contains(name, 'prod')]"`
+- Backtick literals (numbers/booleans/quoted enums): `` --query "[?powerState==`VM running`]" ``
+- OR / AND / NOT: `--query "[?a=='x' || b=='y']"`, `--query "[?a && b]"`, `--query "[?!disabled]"`
+- Pipe to post-process a projection: `--query "[].name | [0]"`
+
+All of the above — including `||`, `|`, and backticks — are accepted verbatim.
 
 ## Common Subcommands Not Covered by Typed Tools
 
@@ -33,7 +46,7 @@ Pass the subcommand and flags as an array of arguments. Do NOT include `az` itse
 
 ## Tips
 
-- Always include `--output json` for machine-readable output (added automatically)
+- `--output json` is added automatically unless you pass your own `--output`/`-o` (e.g. `-o table`, `-o tsv`), which is respected
 - Use `--subscription NAME_OR_ID` to target a specific subscription
 - Use `--resource-group NAME` to scope to a resource group
 - Use `az_help` tool first if unsure about available flags
