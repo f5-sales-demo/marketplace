@@ -74,34 +74,33 @@ export const MUTATING_VERBS: ReadonlySet<string> = new Set([
   'generate',
 ]);
 
-// Positional tokens are the az command path + verb. Flags, and the value that
-// immediately follows a value-taking flag, are excluded. Global flags such as
-// `--subscription`/`--debug` may appear ANYWHERE, including before the command
-// group, so we must not stop scanning at the first flag — doing so would let a
-// destructive op hide behind a leading flag (e.g. `--subscription X group delete`).
+// Every argument that is not itself a flag. We deliberately do NOT try to exclude
+// "flag values" (the `foo` in `-n foo`): telling value-taking flags apart from
+// boolean switches (`--debug`, `--yes`, ...) without the full az grammar is
+// error-prone, and any mistake lets a destructive verb slip through a switch
+// (e.g. `group --debug delete`) or a leading global flag
+// (e.g. `--subscription X group delete`). For a read-only *security* guardrail we
+// fail safe and treat every non-flag token as a candidate verb.
 export function getPositionals(args: string[]): string[] {
-  const positionals: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg.startsWith('-')) continue;
-    const prev = args[i - 1];
-    // Skip the value of a space-form value-taking flag (e.g. `-n foo`, `--name foo`).
-    // `--flag=value` is itself flag-shaped and already skipped above.
-    if (prev?.startsWith('-') && !prev.includes('=')) continue;
-    positionals.push(arg);
-  }
-  return positionals;
+  return args.filter((arg) => !arg.startsWith('-'));
 }
 
-// The verb for messaging is the last positional (e.g.
-// `network routeserver peering list-learned-routes -g rg` -> `list-learned-routes`).
+// The command verb, for display only: the last positional token before the first
+// flag (e.g. `network routeserver peering list-learned-routes -g rg`
+// -> `list-learned-routes`).
 export function findVerb(args: string[]): string | null {
-  return getPositionals(args).at(-1) ?? null;
+  let verb: string | null = null;
+  for (const arg of args) {
+    if (arg.startsWith('-')) break;
+    verb = arg;
+  }
+  return verb;
 }
 
-// Fail safe: a command is mutating if ANY positional token is a mutating verb,
-// regardless of its position relative to flags. This prevents flag-first argument
-// ordering from bypassing the read-only guardrail.
+// Mutating if ANY non-flag token is a mutating verb, regardless of position.
+// Fail-safe: a flag value that happens to equal a verb (e.g. a resource literally
+// named "delete") is blocked rather than risk a destructive false negative — a
+// safe, rare failure that JMESPath `--query` values never trigger.
 export function findMutatingVerb(args: string[]): string | null {
   return getPositionals(args).find((tok) => MUTATING_VERBS.has(tok)) ?? null;
 }

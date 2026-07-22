@@ -79,10 +79,18 @@ describe('isMutating (read-only-by-default guardrail)', () => {
     expect(isMutating(['--only-show-errors', 'vm', 'create', '-n', 'x'])).toBe(true);
   });
 
-  it('does not false-positive on a mutating word used as a flag value', () => {
-    // A resource literally named "delete" passed as a flag value is not the verb.
-    expect(isMutating(['group', 'show', '--name', 'delete'])).toBe(false);
-    expect(isMutating(['group', 'show', '-n', 'create'])).toBe(false);
+  it('cannot be bypassed by a boolean switch immediately before the verb', () => {
+    // Boolean switches take no value, so the verb must not be treated as their value.
+    expect(isMutating(['group', '--debug', 'delete'])).toBe(true);
+    expect(isMutating(['vm', '--verbose', 'create', '-n', 'x'])).toBe(true);
+  });
+
+  it('fail-safe: blocks a mutating word even when used as a flag value', () => {
+    // Deliberate, safe over-block: distinguishing value-taking flags from boolean
+    // switches without the full az grammar is error-prone, so any non-flag token
+    // equal to a mutating verb is blocked. Reads keyed on names like "delete" are
+    // rare and fail safely; JMESPath --query values never trigger this.
+    expect(isMutating(['group', 'show', '--name', 'delete'])).toBe(true);
   });
 
   it('exposes a non-empty verb set', () => {
