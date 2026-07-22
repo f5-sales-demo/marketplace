@@ -52,6 +52,36 @@ test_engine_check_mappings_ok() {
   }
 }
 
+test_engine_hint_overview() {
+  _engine_precheck || return 0
+  local out
+  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" hint)
+  [ "$(jq -r '.elements | length' <<<"$out")" = "8" ] || {
+    echo "hint overview != 8 elements: $out"
+    return 1
+  }
+}
+
+test_engine_hint_element() {
+  _engine_precheck || return 0
+  local out
+  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" hint metrics)
+  [ "$(jq -r '.scoreDefinition."4"' <<<"$out")" != "null" ] || {
+    echo "metrics rubric missing"
+    return 1
+  }
+}
+
+test_engine_next_has_hint() {
+  _engine_precheck || return 0
+  local out
+  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" next "$PLUGIN_ROOT/schema/example-deal.json")
+  [ "$(jq -r '.hint.element' <<<"$out")" = "decisionProcess" ] || {
+    echo "next hint != decisionProcess: $out"
+    return 1
+  }
+}
+
 test_engine_check_mappings_detects_broken() {
   _engine_precheck || return 0
   local tmp

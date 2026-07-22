@@ -31,7 +31,8 @@ MEDDPICC element.
 State, ordering, scoring, validation, and mapping conformance are computed by the plugin engine — never by hand. Invoke it in bash:
 
 - Resume point / status: `bun xcsh://plugin/meddpicc/file/engine/cli.ts next <deal.json>`
-  → JSON `{ order, completionStatus, nextIncompleteSection }`. Ask targeted questions for `nextIncompleteSection` and any `partial`/`not_started` sections, in `order`.
+  → JSON `{ order, completionStatus, nextIncompleteSection, hint }`. Ask targeted questions for `nextIncompleteSection` and any `partial`/`not_started` sections, in `order`. The `hint` field is the **current section's** self-teaching payload — its `definition`, `questions`, and 0-4 `scoreDefinition` rubric — so drive the interview loop from it rather than re-listing questions or rubric from memory.
+- Framework hints (self-teaching ladder): `bun xcsh://plugin/meddpicc/file/engine/cli.ts hint` returns the L2 overview (the 8 elements + definitions + workflow); `bun xcsh://plugin/meddpicc/file/engine/cli.ts hint <element>` returns L3 for one element (its `questions` + 0-4 `scoreDefinition`). Prefer these over embedding schema questions/rubric in prose.
 - Scores: after each element write, run `bun xcsh://plugin/meddpicc/file/engine/cli.ts score <deal.json>` and relay `sum` / `overallScore` / `overallRating`.
 - Validation: after writes, run `bun xcsh://plugin/meddpicc/file/engine/cli.ts validate <deal.json>`; if `valid` is false, fix the reported `errors` before continuing.
 
@@ -167,10 +168,13 @@ User provides a deal or account name with no existing JSON file.
    probability, forecast stage, revenue breakdown, client
    interactions. **Write:** after each answer (or batch of related
    answers), update the metadata field(s) with `jq`.
-4. Walk through each MEDDPICC element sequentially using the
-   `questions` from the schema — ask one question at a time.
-5. After each element: assign a score (0-4) using the
-   `scoreDefinition` from the schema, ask for evidence. **Write:**
+4. Walk through each MEDDPICC element sequentially, asking one
+   question at a time. Source each element's `questions` from the
+   engine `hint` (the `hint` field `next` returns for the current
+   section, or `hint <element>`) rather than reciting them here.
+5. After each element: assign a score (0-4) using the 0-4
+   `scoreDefinition` rubric from that same engine `hint`, ask for
+   evidence. **Write:**
    immediately update `qualification.<element>.responses`,
    `.score`, `.evidence`, `.notes`, plus
    `metadata.completionStatus.<element>` = `"complete"` and
@@ -239,20 +243,23 @@ Deal JSON files are stored at a configurable path:
 
 ## Scoring Protocol
 
-For each MEDDPICC element, assess the evidence and assign a score
-using the 0-4 rubric defined in the schema's `scoreDefinition`
-for that element.
+For each MEDDPICC element, assess the evidence and assign a 0-4
+score. The authoritative per-element 0-4 rubric is engine-derived:
+read the `scoreDefinition` from the engine `hint` (the `hint` field
+`next` returns for the current section, or `hint <element>`). Do
+not re-embed per-element rubric text in this skill.
 
-Refer to [scoring-rubric.md](references/scoring-rubric.md) for
-detailed scoring criteria.
+The generic confidence gloss below is a cross-element quick
+reference only; when it differs from an element's engine `hint`
+`scoreDefinition`, the engine `hint` wins.
 
-| Score | Label | Meaning |
-| ----- | ----- | ------- |
-| 4 | **Verified+** | Full evidence with action — highest confidence |
-| 3 | **Strong** | Verified evidence from customer; multiple data points |
-| 2 | **Developing** | Partial evidence; some assumptions remain |
-| 1 | **Weak** | Minimal evidence; mostly assumptions |
-| 0 | **Unknown** | No evidence or not yet explored |
+| Score | Confidence gloss |
+| ----- | ------- |
+| 4 | Full evidence with action — highest confidence |
+| 3 | Verified evidence from customer; multiple data points |
+| 2 | Partial evidence; some assumptions remain |
+| 1 | Minimal evidence; mostly assumptions |
+| 0 | No evidence or not yet explored |
 
 ### Overall Score Calculation
 

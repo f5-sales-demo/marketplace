@@ -11,6 +11,16 @@ plugin engine — never count files or compute scores by hand.
 
 1. Verify the MEDDPICC schema exists: check for
    `schema/meddpicc-schema.json`. Report it as loaded or missing.
+   For an at-a-glance framework overview (the 8 elements +
+   definitions + workflow), run the engine's L2 hint:
+
+   ```bash
+   bun xcsh://plugin/meddpicc/file/engine/cli.ts hint
+   ```
+
+   (Add an element key — `… hint <element>` — for that element's
+   questions + 0-4 rubric. Local/dev equivalent:
+   `bun "$PLUGIN_ROOT/engine/cli.ts" hint …`.)
 2. Find deal data files in the current workspace (`*.json` files
    conforming to the schema).
 3. **If no deal file is found**, report schema status and the

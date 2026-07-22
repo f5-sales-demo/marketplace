@@ -4,7 +4,7 @@
   "engine": {
     "runtime": "bun",
     "entry": "engine/cli.ts",
-    "commands": ["validate", "next", "score", "check-mappings"]
+    "commands": ["validate", "next", "score", "check-mappings", "hint"]
   },
   "mappings": {
     "cell": "skills/deal-qualification/references/cell-mapping.json",
