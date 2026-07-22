@@ -52,8 +52,9 @@ files in this skill's `references/` directory:
 For the schema-derived, machine-readable view of the framework, run
 the engine's L2 hint —
 `bun xcsh://plugin/meddpicc/file/engine/cli.ts hint` (the 8 elements
-+ definitions + workflow), or `… hint <element>` for one element's
-questions + 0-4 rubric. This stays in lock-step with the schema, so
+with their definitions and the completion workflow), or
+`… hint <element>` for one element's questions and 0-4 rubric.
+This stays in lock-step with the schema, so
 prefer it over reciting element definitions or rubric from memory.
 
 ## Coaching Behavior

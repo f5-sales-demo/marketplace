@@ -32,8 +32,7 @@ export function computeElementHint(schema: unknown, element: string): ElementHin
     element,
     definition: constOf(props.definition),
     questions: Array.isArray(questions) ? (questions as string[]) : [],
-    scoreDefinition:
-      rubric && typeof rubric === 'object' ? (rubric as Record<string, string>) : {},
+    scoreDefinition: rubric && typeof rubric === 'object' ? (rubric as Record<string, string>) : {},
   };
 }
 
@@ -57,7 +56,7 @@ export function computeHintOverview(schema: unknown): HintOverview {
       'Use `next <deal.json>` to get the current section plus its questions and rubric, `score <deal.json>` ' +
       'for the rollup, and `validate <deal.json>` to check schema conformance.',
     deeper:
-      'Run `hint <element>` for one element\'s questions + 0-4 rubric. ' +
+      "Run `hint <element>` for one element's questions + 0-4 rubric. " +
       'Read xcsh://plugin/meddpicc/schema for the full contract and xcsh://plugin/meddpicc/example for a worked deal.',
   };
 }

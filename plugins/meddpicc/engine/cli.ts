@@ -61,9 +61,7 @@ async function main(): Promise<number> {
       const result = computeCompletion(deal);
       const next = result.nextIncompleteSection;
       const hint =
-        next && QUALIFICATION_ELEMENTS.includes(next)
-          ? computeElementHint(await readJson(SCHEMA_PATH), next)
-          : null;
+        next && QUALIFICATION_ELEMENTS.includes(next) ? computeElementHint(await readJson(SCHEMA_PATH), next) : null;
       print({ ...result, hint });
       return 0;
     }
@@ -98,7 +96,9 @@ async function main(): Promise<number> {
     return result.ok ? 0 : 1;
   }
 
-  process.stderr.write(`Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, check-mappings\n`);
+  process.stderr.write(
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, check-mappings\n`,
+  );
   return 1;
 }
 

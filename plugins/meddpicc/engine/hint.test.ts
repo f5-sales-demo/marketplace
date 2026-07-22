@@ -3,9 +3,7 @@ import * as path from 'node:path';
 import { computeElementHint, computeHintOverview } from './hint';
 import { QUALIFICATION_ELEMENTS } from './sections';
 
-const schema = JSON.parse(
-  await Bun.file(path.join(import.meta.dir, '..', 'schema', 'meddpicc-schema.json')).text(),
-);
+const schema = JSON.parse(await Bun.file(path.join(import.meta.dir, '..', 'schema', 'meddpicc-schema.json')).text());
 
 describe('computeHintOverview (L2)', () => {
   test('lists the 8 elements in canonical order with their definitions', () => {
