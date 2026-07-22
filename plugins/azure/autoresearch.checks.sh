@@ -49,7 +49,7 @@ fi
 # ── Check 4: Security patterns intact ─────────────────────────────────────
 echo ""
 echo "=== Check 4: security patterns ==="
-PATTERNS=("SAFE_ARG_PATTERN" "SUBSCRIPTION_ID_PATTERN" "RESOURCE_GROUP_PATTERN" "SUBSCRIPTION_NAME_PATTERN" "HELP_PATH_PATTERN" "RESOURCE_TYPE_PATTERN" "TAG_PATTERN")
+PATTERNS=("SUBSCRIPTION_ID_PATTERN" "RESOURCE_GROUP_PATTERN" "SUBSCRIPTION_NAME_PATTERN" "HELP_PATH_PATTERN" "RESOURCE_TYPE_PATTERN" "TAG_PATTERN")
 ALL_PATTERNS_OK=true
 for pattern in "${PATTERNS[@]}"; do
   if ! grep -q "export const $pattern" src/az/types.ts; then
@@ -58,8 +58,16 @@ for pattern in "${PATTERNS[@]}"; do
     ALL_PATTERNS_OK=false
   fi
 done
-if ! grep -q "SAFE_ARG_PATTERN" src/tools/az-exec.ts; then
-  echo "FAIL: SAFE_ARG_PATTERN not used in src/tools/az-exec.ts"
+# az_exec security invariant: argv-only spawn (no shell) is the injection control.
+# Per-character shell-metacharacter filtering must NOT be reintroduced (it breaks valid
+# JMESPath --query). Require the argv hygiene guard and the read-only verb guardrail.
+if ! grep -q "hasControlChars" src/tools/az-exec.ts; then
+  echo "FAIL: argv hygiene guard (hasControlChars) missing from src/tools/az-exec.ts"
+  ERRORS=$((ERRORS + 1))
+  ALL_PATTERNS_OK=false
+fi
+if ! grep -q "MUTATING_VERBS" src/tools/az-exec.ts; then
+  echo "FAIL: read-only guardrail (MUTATING_VERBS) missing from src/tools/az-exec.ts"
   ERRORS=$((ERRORS + 1))
   ALL_PATTERNS_OK=false
 fi
