@@ -74,20 +74,40 @@ export const MUTATING_VERBS: ReadonlySet<string> = new Set([
   'generate',
 ]);
 
-// The az verb is the last positional token before the first flag, e.g.
-// `network routeserver peering list-learned-routes -g rg` -> `list-learned-routes`.
-export function findVerb(args: string[]): string | null {
-  let verb: string | null = null;
-  for (const arg of args) {
-    if (arg.startsWith('-')) break;
-    verb = arg;
+// Positional tokens are the az command path + verb. Flags, and the value that
+// immediately follows a value-taking flag, are excluded. Global flags such as
+// `--subscription`/`--debug` may appear ANYWHERE, including before the command
+// group, so we must not stop scanning at the first flag — doing so would let a
+// destructive op hide behind a leading flag (e.g. `--subscription X group delete`).
+export function getPositionals(args: string[]): string[] {
+  const positionals: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('-')) continue;
+    const prev = args[i - 1];
+    // Skip the value of a space-form value-taking flag (e.g. `-n foo`, `--name foo`).
+    // `--flag=value` is itself flag-shaped and already skipped above.
+    if (prev?.startsWith('-') && !prev.includes('=')) continue;
+    positionals.push(arg);
   }
-  return verb;
+  return positionals;
+}
+
+// The verb for messaging is the last positional (e.g.
+// `network routeserver peering list-learned-routes -g rg` -> `list-learned-routes`).
+export function findVerb(args: string[]): string | null {
+  return getPositionals(args).at(-1) ?? null;
+}
+
+// Fail safe: a command is mutating if ANY positional token is a mutating verb,
+// regardless of its position relative to flags. This prevents flag-first argument
+// ordering from bypassing the read-only guardrail.
+export function findMutatingVerb(args: string[]): string | null {
+  return getPositionals(args).find((tok) => MUTATING_VERBS.has(tok)) ?? null;
 }
 
 export function isMutating(args: string[]): boolean {
-  const verb = findVerb(args);
-  return verb !== null && MUTATING_VERBS.has(verb);
+  return findMutatingVerb(args) !== null;
 }
 
 // Default to JSON for machine-readable output, but respect a caller-supplied
@@ -130,9 +150,10 @@ export function createAzExecTool(pi: PluginInterface) {
         }
       }
 
-      if (isMutating(params.args)) {
+      const mutatingVerb = findMutatingVerb(params.args);
+      if (mutatingVerb !== null) {
         return errorResult(
-          `Error: "${findVerb(params.args)}" is a mutating operation. az_exec is read-only by default. ` +
+          `Error: "${mutatingVerb}" is a mutating operation. az_exec is read-only by default. ` +
             'Run write/destructive operations through an explicitly confirmed path (delegate to the ' +
             'azure:cli-operator agent) rather than az_exec.',
           base,

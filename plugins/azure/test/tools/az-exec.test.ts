@@ -72,6 +72,19 @@ describe('isMutating (read-only-by-default guardrail)', () => {
     expect(isMutating(['network', 'nsg', 'rule', 'update', '-n', 'x'])).toBe(true);
   });
 
+  it('cannot be bypassed by placing a global flag before the command', () => {
+    // Global flags (--subscription, --debug, ...) may precede the command group.
+    expect(isMutating(['--subscription', 'my-sub', 'group', 'delete', '--name', 'x'])).toBe(true);
+    expect(isMutating(['--debug', 'group', 'delete'])).toBe(true);
+    expect(isMutating(['--only-show-errors', 'vm', 'create', '-n', 'x'])).toBe(true);
+  });
+
+  it('does not false-positive on a mutating word used as a flag value', () => {
+    // A resource literally named "delete" passed as a flag value is not the verb.
+    expect(isMutating(['group', 'show', '--name', 'delete'])).toBe(false);
+    expect(isMutating(['group', 'show', '-n', 'create'])).toBe(false);
+  });
+
   it('exposes a non-empty verb set', () => {
     expect(MUTATING_VERBS.size).toBeGreaterThan(10);
     expect(MUTATING_VERBS.has('delete')).toBe(true);
