@@ -1,11 +1,29 @@
 #!/usr/bin/env bun
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import { checkMappings } from './mappings';
 import { computeScore } from './score';
 import { validateDeal } from './validate';
 
-const PLUGIN_ROOT = path.join(import.meta.dir, '..');
+/**
+ * Resolve the plugin root by walking up from this file until we find the
+ * schema. Robust to where the engine directory sits relative to the plugin
+ * root, rather than assuming a fixed `../` depth.
+ */
+function findPluginRoot(start: string): string {
+  let dir = start;
+  for (let i = 0; i < 6; i++) {
+    if (fs.existsSync(path.join(dir, 'schema', 'meddpicc-schema.json'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Fallback: original assumption (source layout) so error messages stay sensible.
+  return path.join(start, '..');
+}
+
+const PLUGIN_ROOT = findPluginRoot(import.meta.dir);
 const SCHEMA_PATH = path.join(PLUGIN_ROOT, 'schema', 'meddpicc-schema.json');
 const CELL_PATH = path.join(PLUGIN_ROOT, 'skills', 'deal-qualification', 'references', 'cell-mapping.json');
 const SFDC_PATH = path.join(PLUGIN_ROOT, 'skills', 'deal-qualification', 'references', 'sfdc-field-mapping.json');
