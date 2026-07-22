@@ -52,7 +52,6 @@ export interface AzRawResult {
 export const SUBSCRIPTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const RESOURCE_GROUP_PATTERN = /^[a-zA-Z0-9._()-]+$/;
 export const SUBSCRIPTION_NAME_PATTERN = /^[a-zA-Z0-9 ._-]+$/;
-export const SAFE_ARG_PATTERN = /^[a-zA-Z0-9._@:/=[\]{},"'?*()!+ -]+$/;
 export const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
 export const RESOURCE_TYPE_PATTERN = /^[a-zA-Z0-9./]+$/;
 export const TAG_PATTERN = /^[a-zA-Z0-9._-]+(=[a-zA-Z0-9._@: -]*)?$/;

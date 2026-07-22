@@ -33,8 +33,8 @@ Composite formula: `accuracy * (1 / (1 + avg_turns / 10)) * (1 / (1 + avg_tokens
 ## Constraints
 
 - All existing tests must pass (bun test exit 0)
-- Security validation patterns must remain exported from src/az/types.ts: SAFE_ARG_PATTERN, SUBSCRIPTION_ID_PATTERN, RESOURCE_GROUP_PATTERN, SUBSCRIPTION_NAME_PATTERN, HELP_PATH_PATTERN, RESOURCE_TYPE_PATTERN, TAG_PATTERN
-- SAFE_ARG_PATTERN must be used in src/tools/az-exec.ts
+- Field-specific validation patterns must remain exported from src/az/types.ts: SUBSCRIPTION_ID_PATTERN, RESOURCE_GROUP_PATTERN, SUBSCRIPTION_NAME_PATTERN, HELP_PATH_PATTERN, RESOURCE_TYPE_PATTERN, TAG_PATTERN
+- Security invariant for az_exec: `az` is spawned argv-only (no shell), so the argv boundary is the injection control — do NOT reintroduce per-character "shell metacharacter" filtering, which only breaks valid `az --query` (JMESPath) syntax. Keep only argv hygiene (reject control/NUL bytes) and the read-only-by-default verb guardrail.
 - All 6 tool names must remain: az_account, az_group, az_resource, az_vm, az_exec, az_help
 - Tool parameter names and types must not change
 - Biome lint must pass with no new errors
