@@ -2,8 +2,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
+import { computeElementHint, computeHintOverview } from './hint';
 import { checkMappings } from './mappings';
 import { computeScore } from './score';
+import { QUALIFICATION_ELEMENTS } from './sections';
 import { validateDeal } from './validate';
 
 /**
@@ -56,13 +58,33 @@ async function main(): Promise<number> {
       return 0;
     }
     if (command === 'next') {
-      print(computeCompletion(deal));
+      const result = computeCompletion(deal);
+      const next = result.nextIncompleteSection;
+      const hint =
+        next && QUALIFICATION_ELEMENTS.includes(next) ? computeElementHint(await readJson(SCHEMA_PATH), next) : null;
+      print({ ...result, hint });
       return 0;
     }
     const schema = await readJson(SCHEMA_PATH);
     const result = validateDeal(deal, schema);
     print(result);
     return result.valid ? 0 : 1;
+  }
+
+  if (command === 'hint') {
+    const schema = await readJson(SCHEMA_PATH);
+    const element = rest[0];
+    if (!element) {
+      print(computeHintOverview(schema));
+      return 0;
+    }
+    try {
+      print(computeElementHint(schema, element));
+      return 0;
+    } catch (e) {
+      process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
   }
 
   if (command === 'check-mappings') {
@@ -74,7 +96,9 @@ async function main(): Promise<number> {
     return result.ok ? 0 : 1;
   }
 
-  process.stderr.write(`Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, check-mappings\n`);
+  process.stderr.write(
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, check-mappings\n`,
+  );
   return 1;
 }
 
