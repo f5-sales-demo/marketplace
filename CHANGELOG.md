@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the f5xc-salesdemos marketplace will
+All notable changes to the f5-sales-demo marketplace will
 be documented in this file.
 
 The format is based on
