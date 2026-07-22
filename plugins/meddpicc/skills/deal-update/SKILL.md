@@ -42,6 +42,14 @@ hand. After applying confirmed writes, recompute scores with
 and relay `sum` / `overallScore` / `overallRating`. (Local/dev
 equivalent: `bun "$PLUGIN_ROOT/engine/cli.ts" score <deal.json>`.)
 
+The 0-4 scoring rubric for each element is engine-derived, not
+embedded here. `next <deal.json>` returns a `hint` field carrying
+the **current section's** `definition`, `questions`, and 0-4
+`scoreDefinition`; `bun xcsh://plugin/meddpicc/file/engine/cli.ts hint <element>`
+returns the same L3 payload for any one element. When recommending
+a score change for an element, read that element's `scoreDefinition`
+from the engine `hint` rather than from memory.
+
 Element display names map to `qualification.<key>` where `<key>` is
 one of: metrics, economicBuyer, decisionCriteria, decisionProcess,
 paperProcess, implicateThePain, champion, competition (canonical
@@ -156,6 +164,13 @@ unchanged** — do not propose setting it to score 1 or adding
 empty evidence. Only propose updates for elements where the
 input contains relevant information.
 
+The extraction patterns below are for **locating** MEDDPICC
+signals in free text — that is genuinely skill-specific and not in
+the schema. To turn a signal into a 0-4 score, read the element's
+`scoreDefinition` from the engine `hint` (`next`'s `hint` field for
+the current section, or `hint <element>`) — do not score from the
+paraphrased rubric that used to live in this section.
+
 For each element, use these extraction patterns:
 
 #### Metrics (M)
@@ -167,9 +182,6 @@ Signals: "we're at X today", "target of Y", "tracked via Z",
 "1% improvement = $N", "success looks like", "OKR", "KPI",
 "SLA", "uptime", "MTTR", "cost per", "revenue impact".
 
-Score signals: Unquantified goal = 1, KPI confirmed = 2,
-baseline + target documented = 3, committed in writing = 4.
-
 #### Economic Buyer (E)
 
 Look for: budget ownership statements, approval authority,
@@ -178,10 +190,6 @@ funding source, executive names + titles + decisions.
 Signals: "owns the budget", "needs to approve", "VP of",
 "SVP of", "CFO", "CTO", "CIO", "has authority", "sign-off",
 "reallocate budget", "funded from".
-
-Score signals: Role known but name unknown = 1, named but
-not engaged = 2, met directly + priorities known = 3,
-actively sponsoring procurement = 4.
 
 #### Decision Criteria (D1)
 
@@ -192,10 +200,6 @@ Signals: "top requirements", "must have", "non-negotiable",
 "disqualify", "evaluation criteria", "scored on", "ranked
 by", "RFP requirement", "we need it to".
 
-Score signals: General requirements = 1, partially documented
-= 2, written + ranked + competitive position mapped = 3,
-criteria influenced toward our strengths = 4.
-
 #### Decision Process (D2)
 
 Look for: workflow steps, gate mentions, committee names,
@@ -204,10 +208,6 @@ named approvers, timelines, event-driven milestones.
 Signals: "from yes to signed", "approval process", "review
 board", "steering committee", "architecture review", "next
 step is", "then it goes to", "before we can".
-
-Score signals: High-level only = 1, major steps known = 2,
-step-by-step with names + dates = 3, all gates mapped
-including legal/security = 4.
 
 #### Paper Process (P)
 
@@ -220,10 +220,6 @@ questionnaire", "SOC2", "pen test", "DPIA", "vendor portal",
 "purchase order", "master agreement", "DPA", "standard
 contract terms".
 
-Score signals: Aware it exists = 1, some steps known = 2,
-documented with owners + artifacts submitted = 3, all steps
-done + PO format confirmed = 4.
-
 #### Identify Pain (I)
 
 Look for: problem statements, urgency markers, consequences
@@ -233,10 +229,6 @@ stakeholder pain confirmation.
 Signals: "if this doesn't change", "cost us", "SLA penalty",
 "incident", "downtime", "audit", "regulatory", "board
 mandate", "compliance deadline", "what triggered this".
-
-Score signals: Pain implied = 1, acknowledged by customer
-= 2, quantified with business impact = 3, multiple
-stakeholders confirm + triggering event + deadline = 4.
 
 #### Champion (C1)
 
@@ -249,10 +241,6 @@ Signals: "introduced us to", "shared the pricing",
 "my career depends on", "I'll make this happen", "they came
 back to me with".
 
-Score signals: Named friendly contact = 1, willing to help
-but passive = 2, influence + personal win documented = 3,
-actively coaching + taking concrete actions weekly = 4.
-
 #### Competition (C2)
 
 Look for: competitor names, comparison statements, customer
@@ -262,11 +250,6 @@ Signals: competitor vendor names (Vendor A, Vendor B, CDN providers, etc.),
 "also evaluating", "we like them because", "concerned about",
 "they're cheaper", "we could build this", "why not just use
 [existing vendor]".
-
-Score signals: Named only = 1, intelligence gathered but
-perception unclear = 2, customer perception documented +
-differentiation strategy = 3, competitive proof delivered
-and do-nothing assessed = 4.
 
 #### Also extract
 

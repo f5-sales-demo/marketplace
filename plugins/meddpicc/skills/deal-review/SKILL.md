@@ -62,6 +62,13 @@ Build the weekly delta table by comparing the engine's per-element
 `elementScores` against the `previousElementScores` snapshot taken
 at Step 1 (load).
 
+The 0-4 rubric used to contextualize scores is engine-derived, not
+embedded here: `next <deal.json>` returns a `hint` field carrying
+the **current section's** `definition`, `questions`, and 0-4
+`scoreDefinition`; `hint <element>` returns the same L3 payload for
+any one element. Use those to explain what a score means and what
+would move it up a level.
+
 Element display names map to `qualification.<key>` where `<key>` is
 one of: metrics, economicBuyer, decisionCriteria, decisionProcess,
 paperProcess, implicateThePain, champion, competition (canonical
@@ -161,9 +168,10 @@ For each MEDDPICC element, ask the inspection questions from
 on deal stage — early-stage deals focus on M, I, and initial D/C;
 late-stage deals focus on E, P, and Champion actions.
 
-Use the `scoreDefinition` from the schema to contextualize scores:
-explain what the current score means and what it would take to
-improve by one level.
+Use the 0-4 `scoreDefinition` from the engine `hint` (the `hint`
+field `next` returns for the current section, or `hint <element>`)
+to contextualize scores: explain what the current score means and
+what it would take to improve by one level.
 
 ### Step 4 — Weekly delta
 
