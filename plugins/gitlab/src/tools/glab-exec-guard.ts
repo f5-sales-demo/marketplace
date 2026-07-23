@@ -41,7 +41,12 @@ export function effectiveApiMethod(args: string[]): string {
 }
 
 export function findMutation(args: string[]): { blocked: boolean; reason?: string } {
-  const positionals = args.filter((a) => !a.startsWith('-'));
+  // Cobra/pflag consumes the token AFTER a flag token as that flag's value, so a
+  // value-taking flag can shift a command's real verb past positionals[1]. Mirror
+  // cobra by excluding both flag tokens AND the token immediately following one.
+  // This over-excludes tokens after boolean flags (fail-safe: at worst blocks a
+  // read; never allows a mutation) and realigns the verb with what glab dispatches.
+  const positionals = args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
   if (positionals.length === 0) return { blocked: true, reason: 'no glab command provided' };
   const top = positionals[0];
 

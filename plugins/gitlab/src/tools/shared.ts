@@ -48,11 +48,14 @@ export function renderError(err: unknown): string {
 
 // Blocks ASCII C0 control characters and DEL (0x7f), but allows tab (0x09),
 // LF (0x0A), and CR (0x0D) so multi-line `--jq`/field expressions survive intact.
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional argv hygiene (allow tab/LF/CR)
-const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
-
+// Uses a charCode scan (not a regex) so no control-char literal appears in source
+// and no lint suppression is needed.
 export function hasControlChars(arg: string): boolean {
-  return CONTROL_CHAR_PATTERN.test(arg);
+  for (let i = 0; i < arg.length; i++) {
+    const c = arg.charCodeAt(i);
+    if (c <= 8 || c === 11 || c === 12 || (c >= 14 && c <= 31) || c === 127) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
