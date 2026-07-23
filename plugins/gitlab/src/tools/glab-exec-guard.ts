@@ -17,26 +17,70 @@ const API_MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH
 // Resolve the HTTP method `glab api` will actually use:
 // explicit --method/-X (any form) wins; otherwise glab sends POST when any body
 // flag (-F/--field, -f/--raw-field, --input, --form) is present, else GET.
+//
+// glab is a cobra/pflag CLI, so a boolean short flag may CLUSTER ahead of a
+// value-taking short flag inside a single token: `-iF title=x` parses as
+// `-i` (include, boolean) + `-F` (field, value from the next arg), and `-iX POST`
+// as include + method. Prefix matching on the token misses these, so we inspect
+// the whole single-dash letter run — never just the char at index 1 — for the
+// field (f/F) and method (X) letters. Over-flagging here is fail-safe: at worst
+// it treats a read as a body/method write and blocks it; it never allows a write.
 export function effectiveApiMethod(args: string[]): string {
   let explicit: string | null = null;
+  let hasBody = false;
+
+  const setExplicit = (raw: string): void => {
+    const up = (raw ?? '').toUpperCase();
+    if (up) explicit = up;
+  };
+
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === '-X' || a === '--method') explicit = (args[i + 1] ?? '').toUpperCase() || explicit;
-    else if (a.startsWith('--method=')) explicit = a.slice('--method='.length).toUpperCase() || explicit;
-    else if (a.startsWith('-X') && a.length > 2) explicit = a.slice(2).replace(/^=/, '').toUpperCase() || explicit;
-  }
-  if (explicit) return explicit;
-  const hasBody = args.some(
-    (a) =>
-      a === '-f' ||
-      a === '-F' ||
+
+    // Long-form (double-dash) flags — unchanged detection.
+    if (a === '--method') {
+      setExplicit(args[i + 1] ?? '');
+      continue;
+    }
+    if (a.startsWith('--method=')) {
+      setExplicit(a.slice('--method='.length));
+      continue;
+    }
+    if (
       a === '--field' ||
       a === '--raw-field' ||
       a === '--input' ||
       a === '--form' ||
-      /^--(field|raw-field|input|form)=/.test(a) ||
-      /^-[fF]./.test(a),
-  );
+      /^--(field|raw-field|input|form)=/.test(a)
+    ) {
+      hasBody = true;
+      continue;
+    }
+    if (a.startsWith('--')) continue;
+
+    // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading
+    // '-' and inspect the letter run up to the first '=' (or end) so a boolean
+    // short flag clustered ahead of a value flag can't hide the value flag.
+    if (/^-[A-Za-z]/.test(a)) {
+      const body = a.slice(1);
+      const eq = body.indexOf('=');
+      const letters = eq === -1 ? body : body.slice(0, eq);
+
+      // Field flag anywhere in the cluster → this token carries a body.
+      if (letters.includes('f') || letters.includes('F')) hasBody = true;
+
+      // Method flag anywhere in the cluster → value is whatever follows the X
+      // in the same token (leading '=' stripped), else the next arg.
+      const xIdx = letters.indexOf('X');
+      if (xIdx !== -1) {
+        const after = body.slice(xIdx + 1).replace(/^=/, '');
+        if (after) setExplicit(after);
+        else setExplicit(args[i + 1] ?? '');
+      }
+    }
+  }
+
+  if (explicit) return explicit;
   return hasBody ? 'POST' : 'GET';
 }
 

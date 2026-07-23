@@ -61,6 +61,23 @@ describe('effectiveApiMethod', () => {
     expect(effectiveApiMethod(['api', 'x', '--method', 'GET', '-F', 'k=v'])).toBe('GET');
     expect(effectiveApiMethod(['api', '--method', 'GET', 'x', '--form', 'a=b'])).toBe('GET');
   });
+
+  it('parses short-flag clusters (boolean flag ahead of a value flag)', () => {
+    // -iF = -i (include) + -F (field, value from next arg) → body → POST.
+    expect(effectiveApiMethod(['api', 'projects/1/issues', '-iF', 'title=x'])).toBe('POST');
+    // -iX = -i + -X (method, value from next arg).
+    expect(effectiveApiMethod(['api', 'x', '-iX', 'POST'])).toBe('POST');
+    // Method value attached inside the same token.
+    expect(effectiveApiMethod(['api', 'x', '-iXPUT'])).toBe('PUT');
+    // `=` cluster form: field letter still detected → POST.
+    expect(effectiveApiMethod(['api', 'x', '-iF=title=y'])).toBe('POST');
+    // Field letter before the boolean.
+    expect(effectiveApiMethod(['api', 'x', '-Fi', 'title=x'])).toBe('POST');
+    // Explicit GET inside a cluster still wins → read.
+    expect(effectiveApiMethod(['api', 'x', '-iX', 'GET'])).toBe('GET');
+    // Include-only boolean cluster → no body, no method → GET.
+    expect(effectiveApiMethod(['api', 'x', '-i'])).toBe('GET');
+  });
 });
 
 describe('findMutation allowlist', () => {
@@ -94,11 +111,21 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'projects/1/uploads', '--form', 'file=@-']).blocked).toBe(true);
   });
 
+  it('blocks glab api short-flag-cluster mutations (pflag clustering bypass)', () => {
+    expect(findMutation(['api', 'projects/1/issues', '-iF', 'title=x']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-iX', 'POST']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-iXPUT']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-iF=title=y']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-Fi', 'title=x']).blocked).toBe(true);
+  });
+
   it('allows glab api GET requests', () => {
     expect(findMutation(['api', '-XGET', 'projects/1']).blocked).toBe(false);
     expect(findMutation(['api', '-X=GET', 'user']).blocked).toBe(false);
     expect(findMutation(['api', 'projects/1']).blocked).toBe(false);
     expect(findMutation(['api', '--method', 'GET', 'x', '--form', 'a=b']).blocked).toBe(false);
+    expect(findMutation(['api', 'x', '-iX', 'GET']).blocked).toBe(false);
+    expect(findMutation(['api', 'x', '-i']).blocked).toBe(false);
   });
 
   it('allows the ci trace streaming read', () => {
