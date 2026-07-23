@@ -1,0 +1,17 @@
+{
+  "Reservations": [
+    {
+      "Instances": [
+        {
+          "InstanceId": "i-0123456789abcdef0",
+          "State": { "Name": "running" },
+          "InstanceType": "t3.medium",
+          "Placement": { "AvailabilityZone": "us-east-1a" },
+          "PrivateIpAddress": "10.0.1.15",
+          "PublicIpAddress": "54.12.34.56",
+          "Tags": [{ "Key": "Name", "Value": "demo-web-1" }]
+        }
+      ]
+    }
+  ]
+}
