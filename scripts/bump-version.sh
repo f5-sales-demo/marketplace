@@ -110,6 +110,16 @@ for name in "${PLUGINS[@]}"; do
   jq --arg v "$NEW_VER" '.version = $v' \
     "$PLUGIN_JSON" >"$PLUGIN_JSON.tmp" && command mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
 
+  # Keep package.json in lockstep when present (TS plugins carry a separate `version`
+  # and `xcsh.version`). package.json is not release-authoritative — marketplace.json +
+  # plugin.json are — but syncing it prevents the manifests from drifting.
+  PKG_JSON="$REPO_ROOT/plugins/$name/package.json"
+  if [[ -f "$PKG_JSON" ]]; then
+    jq --arg v "$NEW_VER" \
+      '.version = $v | (if .xcsh then .xcsh.version = $v else . end)' \
+      "$PKG_JSON" >"$PKG_JSON.tmp" && command mv "$PKG_JSON.tmp" "$PKG_JSON"
+  fi
+
   echo "  $name: $OLD_VER → $NEW_VER"
   CHANGELOG_ENTRIES+=("- **$name** bumped to v$NEW_VER")
 done
@@ -118,14 +128,28 @@ done
 
 CHANGELOG="$REPO_ROOT/CHANGELOG.md"
 if [[ -f "$CHANGELOG" ]]; then
-  # Build the insertion block
-  INSERT=""
+  # Build the insertion block: a leading blank line, entries separated by blank lines
+  # (matching the loose-list style under "## [Unreleased]"), and a trailing newline.
+  INSERT=$'\n'
+  first=true
   for entry in "${CHANGELOG_ENTRIES[@]}"; do
-    INSERT="${INSERT}\n${entry}"
+    if $first; then
+      INSERT+="$entry"
+      first=false
+    else
+      INSERT+=$'\n\n'"$entry"
+    fi
   done
+  INSERT+=$'\n'
 
-  # Insert after the ## [Unreleased] line
-  sed -i "s/^## \[Unreleased\]$/\0\n${INSERT}/" "$CHANGELOG"
+  # Insert immediately after the "## [Unreleased]" line. Portable in-place edit
+  # (awk + temp file via ENVIRON, preserving real newlines) — avoids the GNU-only
+  # `sed -i` that breaks on BSD/macOS.
+  export INSERT
+  awk '
+    { print }
+    !inserted && /^## \[Unreleased\]$/ { printf "%s", ENVIRON["INSERT"]; inserted = 1 }
+  ' "$CHANGELOG" >"$CHANGELOG.tmp" && command mv "$CHANGELOG.tmp" "$CHANGELOG"
   echo ""
   echo "Updated CHANGELOG.md — edit the entries before committing."
 fi
