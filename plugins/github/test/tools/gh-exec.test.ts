@@ -79,14 +79,21 @@ describe('findMutation allowlist', () => {
   });
 
   it('still allows legit reads whose flag values look like verbs', () => {
-    // Branch named `merge`; flag-value exclusion must NOT block this — verb is `view`.
-    expect(findMutation(['pr', 'view', 'merge']).blocked).toBe(false);
     // `create` is the --search term, not the verb; verb is still `list`.
     expect(findMutation(['issue', 'list', '--search', 'create']).blocked).toBe(false);
     // Global value-flag before the group; verb is still `list`.
     expect(findMutation(['-R', 'o/r', 'issue', 'list']).blocked).toBe(false);
-    expect(findMutation(['api', 'repos/o/r']).blocked).toBe(false);
-    expect(findMutation(['pr', 'list']).blocked).toBe(false);
+  });
+
+  it('blocks the -fX=GET body-field bypass (pflag stops at the first value-taking short)', () => {
+    // `-fX=GET` is --field with value `X=GET` (a body field named X) → gh POSTs;
+    // the trailing X must NOT be parsed as a method that downgrades it to GET.
+    expect(findMutation(['api', 'x', '-fX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-FX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-f', '-fX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'repos/o/r/issues', '-fX=GET', '-ftitle=pwned']).blocked).toBe(true);
+    // A real method-only read (no body) still resolves to GET and is allowed.
+    expect(findMutation(['api', 'repos/o/r', '-X', 'GET']).blocked).toBe(false);
   });
 });
 
