@@ -38,6 +38,12 @@ export function detectErrorType(err: unknown): SfErrorType {
   return 'exec_error';
 }
 
+// Local renderer for the central withErrorType wrapper. Kept LOCAL (not imported
+// from @f5-sales-demo/xcsh) because that import fails in the compiled plugin.
+export function renderError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 // ---------------------------------------------------------------------------
 // Argv hygiene (shared with the sf_exec guard)
 // ---------------------------------------------------------------------------

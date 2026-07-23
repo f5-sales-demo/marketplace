@@ -1,4 +1,35 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import type { SfToolDetails } from './tools/shared';
+import { detectErrorType, errorResult, renderError } from './tools/shared';
+
+/**
+ * Wrap a factory tool so any error that still propagates out of its execute()
+ * is converted into a structured error result carrying details.errorType.
+ *
+ * The per-tool handlers already catch Sf*Error and return their own
+ * errorResult(message, { ...base, errorType }); those never reach this wrapper.
+ * A genuine cancellation (xcsh's ToolAbortError, or the web-standard AbortError
+ * raised when an AbortSignal fires) is re-thrown untouched so the agent loop can
+ * distinguish user cancellation from a real tool failure. Cancellation is matched
+ * by error name (not instanceof) to avoid a runtime dependency on xcsh internals.
+ */
+export function withErrorType<T extends { name?: string; execute: (...args: never[]) => Promise<unknown> }>(
+  tool: T,
+): T {
+  const originalExecute = tool.execute.bind(tool) as (...args: unknown[]) => Promise<unknown>;
+  const toolName = tool.name as SfToolDetails['tool'];
+  return {
+    ...tool,
+    execute: (async (...args: unknown[]) => {
+      try {
+        return await originalExecute(...args);
+      } catch (err) {
+        if (err instanceof Error && (err.name === 'AbortError' || err.name === 'ToolAbortError')) throw err;
+        return errorResult(renderError(err), { tool: toolName, errorType: detectErrorType(err) });
+      }
+    }) as T['execute'],
+  };
+}
 
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Salesforce');
@@ -91,10 +122,10 @@ const factory: ExtensionFactory = async (pi) => {
     const { createSfOrgDisplayTool } = await import('./tools/sf-org-display');
     const { createSfPipelineReportTool } = await import('./tools/sf-pipeline-report');
 
-    pi.registerTool(createSfSetupTool(pi));
-    pi.registerTool(createSfQueryTool(pi));
-    pi.registerTool(createSfOrgDisplayTool(pi));
-    pi.registerTool(createSfPipelineReportTool(pi));
+    pi.registerTool(withErrorType(createSfSetupTool(pi)));
+    pi.registerTool(withErrorType(createSfQueryTool(pi)));
+    pi.registerTool(withErrorType(createSfOrgDisplayTool(pi)));
+    pi.registerTool(withErrorType(createSfPipelineReportTool(pi)));
 
     // Context injection (only when sf available)
     pi.on('before_agent_start', async () => {
