@@ -9,7 +9,7 @@ import type { SfOrg, SfQueryResult, SfRawResult } from '../sf/types';
 export type SfErrorType = 'auth_required' | 'session_expired' | 'no_default_org' | 'invalid_query' | 'exec_error';
 
 export interface SfToolDetails {
-  tool: 'sf_setup' | 'sf_query' | 'sf_org_display' | 'sf_pipeline_report';
+  tool: 'sf_setup' | 'sf_query' | 'sf_org_display' | 'sf_pipeline_report' | 'sf_help' | 'sf_exec';
   action?: string;
   orgs?: SfOrg[];
   queryResult?: SfQueryResult;
@@ -38,22 +38,56 @@ export function detectErrorType(err: unknown): SfErrorType {
   return 'exec_error';
 }
 
+// Local renderer for the central withErrorType wrapper. Kept LOCAL (not imported
+// from @f5-sales-demo/xcsh) because that import fails in the compiled plugin.
+export function renderError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// ---------------------------------------------------------------------------
+// Argv hygiene (shared with the sf_exec guard)
+// ---------------------------------------------------------------------------
+
+// Blocks ASCII C0 control characters and DEL (0x7f), but allows tab (0x09),
+// LF (0x0A), and CR (0x0D) so multi-line SOQL/field expressions survive intact.
+// Uses a charCode scan (not a regex) so no control-char literal appears in source
+// and no lint suppression is needed.
+export function hasControlChars(arg: string): boolean {
+  for (let i = 0; i < arg.length; i++) {
+    const c = arg.charCodeAt(i);
+    if (c <= 8 || c === 11 || c === 12 || (c >= 14 && c <= 31) || c === 127) return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Exec API factory
 // ---------------------------------------------------------------------------
 
 export function makeExecApi(cwd: string): SfExecApi {
   return {
-    async exec(command: string, args: string[], _options?: { signal?: AbortSignal }): Promise<SfRawResult> {
-      // Never pass signal to Bun.spawn and never pre-check signal.aborted.
-      // sf commands finish in 1-5s. Passing the signal or pre-checking causes
-      // false cancellations when xcsh's AbortSignal fires between multi-turn
-      // tool calls (the signal is stale from a prior turn).
+    async exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<SfRawResult> {
+      // Thread the AbortSignal so a genuine in-flight cancellation actually
+      // terminates the child: Bun kills the process, which surfaces as a
+      // non-zero exit that execSf* treats as a real failure/cancellation.
+      //
+      // We must NOT reintroduce the stale-signal false-cancel this call site
+      // previously guarded against by refusing the signal entirely: xcsh can
+      // hand us an AbortSignal that already fired in a PRIOR multi-turn tool
+      // call, and a stale abort must never cancel a fresh sf command (they
+      // finish in 1-5s). So we never pre-check signal.aborted to throw a
+      // "cancelled" before running, and we only wire the signal into Bun.spawn
+      // while it is still live at spawn time — handing an already-aborted
+      // (stale) signal to Bun.spawn would kill the fresh process immediately,
+      // resurrecting exactly that false cancel. A signal that aborts *during*
+      // the run is still honored and cancels for real.
+      const signal = options?.signal;
       const child = Bun.spawn([command, ...args], {
         cwd,
         stdin: 'ignore',
         stdout: 'pipe',
         stderr: 'pipe',
+        ...(signal && !signal.aborted ? { signal } : {}),
       });
       if (!child.stdout || !child.stderr) {
         return { stdout: '', stderr: 'Failed to capture output', exitCode: 1 };
