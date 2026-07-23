@@ -103,6 +103,19 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['auth', 'login']).blocked).toBe(true);
   });
 
+  it('blocks the boolean-short-cluster verb-shift bypass (-xy… does not consume the next arg)', () => {
+    // A single-dash cluster of length >= 3 is all in-token flags; pflag does NOT read
+    // its value from the following arg, so the real write verb stays a positional and
+    // must not be dropped. Previously the token after any dash was excluded, misreading
+    // the verb as a later read and allowing the write.
+    expect(findMutation(['mr', '-dm', 'merge', 'view']).blocked).toBe(true);
+    expect(findMutation(['release', '-dp', 'create', 'view']).blocked).toBe(true);
+    // A genuine long flag without `=` (or a lone 2-char short) still consumes its value,
+    // so these reads whose verb follows a real value flag remain allowed.
+    expect(findMutation(['issue', 'list', '--label', 'create']).blocked).toBe(false);
+    expect(findMutation(['-R', 'o/r', 'mr', 'list']).blocked).toBe(false);
+  });
+
   it('blocks glab api mutating requests in every flag form', () => {
     expect(findMutation(['api', '-XPOST', 'projects/1/issues']).blocked).toBe(true);
     expect(findMutation(['api', '-X=POST', 'x']).blocked).toBe(true);

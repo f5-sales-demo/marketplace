@@ -90,13 +90,24 @@ export function effectiveApiMethod(args: string[]): string {
   return hasBody ? 'POST' : 'GET';
 }
 
+// Does the flag token `prev` consume the NEXT argv token as its value, per cobra/pflag
+// `stripFlags`? Only a long flag without `=` (`--repo x` → consumes `x`) or an
+// exactly-2-char short (`-R x` → consumes `x`) take their value from the following
+// token. A single-dash CLUSTER of length >= 3 (`-dp`, `-dm`) does NOT — pflag reads any
+// in-cluster value flag's value from the token REMAINDER, not the next arg. Excluding
+// the token after every dash token (the earlier code) dropped the real verb after a
+// boolean cluster and let a write through; long/2-char over-exclusion is retained
+// (it can only block a read, never allow a write), cluster over-exclusion is removed.
+function consumesNextAsValue(prev: string): boolean {
+  if (prev.startsWith('--')) return !prev.includes('=');
+  return /^-[A-Za-z]$/.test(prev);
+}
+
 export function findMutation(args: string[]): { blocked: boolean; reason?: string } {
-  // Cobra/pflag consumes the token AFTER a flag token as that flag's value, so a
-  // value-taking flag can shift a command's real verb past positionals[1]. Mirror
-  // cobra by excluding both flag tokens AND the token immediately following one.
-  // This over-excludes tokens after boolean flags (fail-safe: at worst blocks a
-  // read; never allows a mutation) and realigns the verb with what glab dispatches.
-  const positionals = args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
+  const positionals = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    return !(i > 0 && consumesNextAsValue(args[i - 1]));
+  });
   if (positionals.length === 0) return { blocked: true, reason: 'no glab command provided' };
   const top = positionals[0];
 

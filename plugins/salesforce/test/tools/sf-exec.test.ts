@@ -116,6 +116,19 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['bogus']).blocked).toBe(true);
   });
 
+  it('blocks the boolean-short-cluster path-shift bypass (-xy… does not consume the next arg)', () => {
+    // A single-dash cluster of length >= 3 is all in-token flags; its value (if any) is
+    // the token remainder, never the next arg. Previously the token after any dash was
+    // excluded, which dropped a write subcommand and shifted a read prefix into place.
+    // `data -fp create query` must stay `data create …`, not collapse to `data query`.
+    expect(findMutation(['data', '-fp', 'create', 'query']).blocked).toBe(true);
+    expect(findMutation(['org', '-fp', 'create', 'list']).blocked).toBe(true);
+    // A genuine long flag without `=` (or a lone 2-char short) still consumes its value,
+    // so these reads whose verb follows a real value flag remain allowed.
+    expect(findMutation(['org', 'list', '--target-org', 'create']).blocked).toBe(false);
+    expect(findMutation(['org', 'list', '-o', 'create']).blocked).toBe(false);
+  });
+
   it('blocks the colon grammar identically to the space grammar', () => {
     expect(findMutation(['apex:run']).blocked).toBe(true);
     expect(findMutation(['org:create']).blocked).toBe(true);

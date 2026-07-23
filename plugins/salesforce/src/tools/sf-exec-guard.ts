@@ -45,13 +45,29 @@ const READ_PREFIXES: ReadonlyArray<readonly string[]> = [
 // Single-token top-level read commands (meta topics with no write subcommands).
 const READ_TOP: ReadonlySet<string> = new Set(['version', 'help', 'commands', 'which', 'info']);
 
-// Compute the command path used for allowlisting: non-flag tokens, EXCLUDING the token
-// immediately after any flag (its value), with each surviving positional split on ':'
+// Does the flag token `prev` consume the NEXT argv token as its value? Only a long flag
+// without `=` (`--target-org x` → consumes `x`) or an exactly-2-char short (`-o x` →
+// consumes `x`) take their value from the following token. A single-dash CLUSTER of
+// length >= 3 (`-fp`, combined booleans) does NOT — its value, if any, is the token
+// remainder, not the next arg. Excluding the token after every dash token (the earlier
+// code) dropped the real subcommand after a boolean cluster and could let a write path
+// resolve to a read prefix; long/2-char over-exclusion is retained (it can only block a
+// read, never allow a write), cluster over-exclusion is removed.
+function consumesNextAsValue(prev: string): boolean {
+  if (prev.startsWith('--')) return !prev.includes('=');
+  return /^-[A-Za-z]$/.test(prev);
+}
+
+// Compute the command path used for allowlisting: non-flag tokens, EXCLUDING a flag's
+// value token (per consumesNextAsValue), with each surviving positional split on ':'
 // so the colon grammar is normalized to the space grammar. Flag tokens keep their form
-// and never contribute path parts. Excluding the post-flag token first means a flag
+// and never contribute path parts. Excluding the post-flag value first means a flag
 // value that itself contains a ':' can never leak a path segment.
 export function normalizeArgs(args: string[]): string[] {
-  const positionals = args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
+  const positionals = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    return !(i > 0 && consumesNextAsValue(args[i - 1]));
+  });
   const path: string[] = [];
   for (const token of positionals) {
     for (const part of token.split(':')) {
