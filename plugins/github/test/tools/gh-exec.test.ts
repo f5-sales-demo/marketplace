@@ -1,44 +1,55 @@
 import { describe, expect, it } from 'bun:test';
 import { GhExecTool } from '../../src/tools/gh';
-import { findMutation, hasControlChars, MUTATING_VERBS } from '../../src/tools/gh-exec-guard';
+import { findMutation, hasControlChars } from '../../src/tools/gh-exec-guard';
 
 const NUL = String.fromCharCode(0);
 const TAB = String.fromCharCode(9);
 
 describe('hasControlChars', () => {
-  it('rejects NUL/control bytes, allows normal args', () => {
-    expect(hasControlChars(`pr${NUL}list`)).toBe(true);
-    expect(hasControlChars(`pr${TAB}list`)).toBe(true);
-    expect(hasControlChars("pr list --json number,title --jq '.[].title'")).toBe(false);
+  it('rejects NUL/control bytes but allows tab (multi-line --jq) and normal args', () => {
+    expect(hasControlChars(`a${NUL}b`)).toBe(true);
+    expect(hasControlChars(`a${TAB}b`)).toBe(false);
+    expect(hasControlChars("pr list --jq '.[].title'")).toBe(false);
   });
 });
 
-describe('MUTATING_VERBS', () => {
-  it('is a non-empty set covering common write verbs', () => {
-    expect(MUTATING_VERBS.has('create')).toBe(true);
-    expect(MUTATING_VERBS.has('merge')).toBe(true);
-    expect(MUTATING_VERBS.has('delete')).toBe(true);
-  });
-});
-
-describe('findMutation', () => {
-  it('allows reads', () => {
+describe('findMutation allowlist', () => {
+  it('allows recognized read-only commands', () => {
     expect(findMutation(['pr', 'list']).blocked).toBe(false);
     expect(findMutation(['repo', 'view', '--json', 'nameWithOwner']).blocked).toBe(false);
     expect(findMutation(['api', 'repos/o/r/pulls']).blocked).toBe(false);
+    expect(findMutation(['pr', 'checks']).blocked).toBe(false);
+    expect(findMutation(['run', 'watch', '5']).blocked).toBe(false);
+    expect(findMutation(['auth', 'status']).blocked).toBe(false);
+    expect(findMutation(['search', 'prs', 'cli']).blocked).toBe(false);
+    expect(findMutation(['status']).blocked).toBe(false);
   });
-  it('blocks mutating verbs anywhere', () => {
+
+  it('blocks writes and unrecognized commands (fail-safe)', () => {
     expect(findMutation(['pr', 'merge', '123']).blocked).toBe(true);
     expect(findMutation(['issue', 'create', '--title', 'x']).blocked).toBe(true);
     expect(findMutation(['repo', 'delete', 'o/r']).blocked).toBe(true);
+    expect(findMutation(['workflow', 'run', 'ci.yml']).blocked).toBe(true);
+    expect(findMutation(['extension', 'install', 'x/y']).blocked).toBe(true);
+    expect(findMutation(['secret', 'set', 'N', '--body', 'v']).blocked).toBe(true);
+    expect(findMutation(['auth', 'login']).blocked).toBe(true);
+    expect(findMutation(['label', 'create', 'list']).blocked).toBe(true);
   });
-  it('blocks mutating gh api methods and body fields', () => {
-    expect(findMutation(['api', '-X', 'POST', 'repos/o/r/issues']).blocked).toBe(true);
-    expect(findMutation(['api', '--method', 'DELETE', 'x']).blocked).toBe(true);
-    expect(findMutation(['api', '--method=PATCH', 'x']).blocked).toBe(true);
-    expect(findMutation(['api', 'x', '-f', 'title=y']).blocked).toBe(true);
-    expect(findMutation(['api', '--method', 'GET', 'x']).blocked).toBe(false);
-    expect(findMutation(['api', '--method', 'GET', 'x', '-f', 'q=y']).blocked).toBe(false);
+
+  it('blocks gh api attached-shorthand bypasses', () => {
+    expect(findMutation(['api', '-XPOST', 'repos/o/r/issues']).blocked).toBe(true);
+    expect(findMutation(['api', '-XDELETE', 'repos/o/r']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-fbody=spam']).blocked).toBe(true);
+    expect(findMutation(['api', '--method=PUT', 'x']).blocked).toBe(true);
+  });
+
+  it('allows gh api GET requests', () => {
+    expect(findMutation(['api', '-XGET', 'repos/o/r']).blocked).toBe(false);
+    expect(findMutation(['api', '--method', 'GET', 'x', '-f', 'a=b']).blocked).toBe(false);
+  });
+
+  it('does not false-positive on read args that contain a verb word', () => {
+    expect(findMutation(['pr', 'view', 'merge']).blocked).toBe(false);
   });
 });
 
