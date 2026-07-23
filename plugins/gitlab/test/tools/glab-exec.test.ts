@@ -77,6 +77,10 @@ describe('effectiveApiMethod', () => {
     expect(effectiveApiMethod(['api', 'x', '-iX', 'GET'])).toBe('GET');
     // Include-only boolean cluster → no body, no method → GET.
     expect(effectiveApiMethod(['api', 'x', '-i'])).toBe('GET');
+    // pflag stops at the first value-taking short: `-fX=GET` / `-FX=GET` are a body
+    // field whose value contains `X=GET` → POST; the trailing X is data, not a method.
+    expect(effectiveApiMethod(['api', 'x', '-fX=GET'])).toBe('POST');
+    expect(effectiveApiMethod(['api', 'x', '-FX=GET'])).toBe('POST');
   });
 });
 
@@ -99,6 +103,19 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['auth', 'login']).blocked).toBe(true);
   });
 
+  it('blocks the boolean-short-cluster verb-shift bypass (-xy… does not consume the next arg)', () => {
+    // A single-dash cluster of length >= 3 is all in-token flags; pflag does NOT read
+    // its value from the following arg, so the real write verb stays a positional and
+    // must not be dropped. Previously the token after any dash was excluded, misreading
+    // the verb as a later read and allowing the write.
+    expect(findMutation(['mr', '-dm', 'merge', 'view']).blocked).toBe(true);
+    expect(findMutation(['release', '-dp', 'create', 'view']).blocked).toBe(true);
+    // A genuine long flag without `=` (or a lone 2-char short) still consumes its value,
+    // so these reads whose verb follows a real value flag remain allowed.
+    expect(findMutation(['issue', 'list', '--label', 'create']).blocked).toBe(false);
+    expect(findMutation(['-R', 'o/r', 'mr', 'list']).blocked).toBe(false);
+  });
+
   it('blocks glab api mutating requests in every flag form', () => {
     expect(findMutation(['api', '-XPOST', 'projects/1/issues']).blocked).toBe(true);
     expect(findMutation(['api', '-X=POST', 'x']).blocked).toBe(true);
@@ -117,6 +134,26 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'x', '-iXPUT']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-iF=title=y']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-Fi', 'title=x']).blocked).toBe(true);
+  });
+
+  it('blocks the -fX=GET / -FX=GET body-field cluster bypass (#813)', () => {
+    // pflag stops at the first value-taking short: `-fX=GET` is `-f`/--raw-field with
+    // value `X=GET` (a field literally named X) → body → POST, NOT `-X GET`. The
+    // trailing `X` must not be mis-read as an explicit GET that allows the write.
+    expect(findMutation(['api', 'x', '-fX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-FX=GET']).blocked).toBe(true);
+    // A genuine bodyless `-X GET` remains an allowed read.
+    expect(findMutation(['api', 'x', '-X', 'GET']).blocked).toBe(false);
+  });
+
+  it('does not misread a value-flag value as -X/method (header consumes its value)', () => {
+    // `-H`/`--header` take the FOLLOWING token as their value; a value like `-XGET` is
+    // data, not a method flag. The `-F`/`--form` body still makes glab POST, so the
+    // forged method must not downgrade it to an allowed read.
+    expect(findMutation(['api', 'projects/1/issues', '-F', 'title=x', '-H', '-XGET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '--form', 'a=b', '--header', '-XGET']).blocked).toBe(true);
+    // A genuine header read (no body/method) is still an allowed GET.
+    expect(findMutation(['api', 'projects/1', '-H', 'Accept: application/json']).blocked).toBe(false);
   });
 
   it('allows glab api GET requests', () => {

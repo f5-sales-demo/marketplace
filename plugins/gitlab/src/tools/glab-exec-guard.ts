@@ -21,10 +21,42 @@ const API_MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH
 // glab is a cobra/pflag CLI, so a boolean short flag may CLUSTER ahead of a
 // value-taking short flag inside a single token: `-iF title=x` parses as
 // `-i` (include, boolean) + `-F` (field, value from the next arg), and `-iX POST`
-// as include + method. Prefix matching on the token misses these, so we inspect
-// the whole single-dash letter run — never just the char at index 1 — for the
-// field (f/F) and method (X) letters. Over-flagging here is fail-safe: at worst
-// it treats a read as a body/method write and blocks it; it never allows a write.
+// as include + method. Crucially, pflag stops at the FIRST value-taking short in a
+// cluster: the REST of the token becomes that flag's value. So `-fX=GET` is
+// `--raw-field` with value `X=GET` (a body field literally named X) — the trailing
+// X is data, NOT a method flag — and glab sends POST. We therefore scan the letter
+// run left→right and STOP at the first value-taking short: f/F marks a body (rest is
+// the field value, never a method); X takes the token remainder (or next arg) as the
+// method. Over-flagging here is fail-safe: at worst it blocks a read; never allows a write.
+// glab api long flags that take a VALUE (consume the next token when written without
+// `=`). Every OTHER `--long` is a boolean (--include, --silent, --paginate) and
+// consumes nothing.
+const LONG_VALUE_FLAGS: ReadonlySet<string> = new Set([
+  '--method',
+  '--field',
+  '--raw-field',
+  '--input',
+  '--form',
+  '--header',
+  '--hostname',
+]);
+// glab api long flags whose presence implies a request BODY (→ POST).
+const LONG_BODY_FLAGS: ReadonlySet<string> = new Set(['--field', '--raw-field', '--input', '--form']);
+// glab api single-char shorts that take a VALUE (from the token remainder, else the
+// next token). glab swaps gh's convention: -F = --field, -f = --raw-field, -H =
+// --header, -X = --method. Every other short (i, and any unknown letter) is boolean.
+const SHORT_VALUE_FLAGS: ReadonlySet<string> = new Set(['X', 'F', 'f', 'H']);
+// Shorts that imply a request BODY.
+const SHORT_BODY_FLAGS: ReadonlySet<string> = new Set(['F', 'f']);
+
+// Resolve the HTTP method glab will actually use for `glab api`. glab is a cobra/pflag
+// CLI, so a value-taking flag consumes the following token (or, for a short, the cluster
+// remainder) as its VALUE — that value must NEVER be reinterpreted as another flag.
+// Scanning every token let a value consumed by another flag (`-H -XGET`, `--header
+// -XGET`) be misread as `-X <method>`, forging a non-mutating method that overrode a
+// real body POST. We therefore consume each value-taking flag's value explicitly. Body
+// shorts/longs always set hasBody even when their value is attached; over-flagging a
+// body is fail-safe (blocks a read), under-detecting one is the danger.
 export function effectiveApiMethod(args: string[]): string {
   let explicit: string | null = null;
   let hasBody = false;
@@ -37,45 +69,32 @@ export function effectiveApiMethod(args: string[]): string {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
 
-    // Long-form (double-dash) flags — unchanged detection.
-    if (a === '--method') {
-      setExplicit(args[i + 1] ?? '');
+    // Long-form (double-dash) flags.
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=');
+      const name = eq === -1 ? a : a.slice(0, eq);
+      const inlineVal = eq === -1 ? undefined : a.slice(eq + 1);
+      if (name === '--method') setExplicit(inlineVal ?? args[i + 1] ?? '');
+      if (LONG_BODY_FLAGS.has(name)) hasBody = true;
+      if (inlineVal === undefined && LONG_VALUE_FLAGS.has(name)) i += 1; // consume value token
       continue;
     }
-    if (a.startsWith('--method=')) {
-      setExplicit(a.slice('--method='.length));
-      continue;
-    }
-    if (
-      a === '--field' ||
-      a === '--raw-field' ||
-      a === '--input' ||
-      a === '--form' ||
-      /^--(field|raw-field|input|form)=/.test(a)
-    ) {
-      hasBody = true;
-      continue;
-    }
-    if (a.startsWith('--')) continue;
 
-    // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading
-    // '-' and inspect the letter run up to the first '=' (or end) so a boolean
-    // short flag clustered ahead of a value flag can't hide the value flag.
+    // Single-dash cluster token: scan letters left→right; the FIRST value-taking short
+    // consumes the token remainder (or the next token) as its value and ENDS the cluster.
     if (/^-[A-Za-z]/.test(a)) {
       const body = a.slice(1);
-      const eq = body.indexOf('=');
-      const letters = eq === -1 ? body : body.slice(0, eq);
-
-      // Field flag anywhere in the cluster → this token carries a body.
-      if (letters.includes('f') || letters.includes('F')) hasBody = true;
-
-      // Method flag anywhere in the cluster → value is whatever follows the X
-      // in the same token (leading '=' stripped), else the next arg.
-      const xIdx = letters.indexOf('X');
-      if (xIdx !== -1) {
-        const after = body.slice(xIdx + 1).replace(/^=/, '');
-        if (after) setExplicit(after);
-        else setExplicit(args[i + 1] ?? '');
+      for (let j = 0; j < body.length; j++) {
+        const c = body[j];
+        if (!SHORT_VALUE_FLAGS.has(c)) continue; // boolean short (e.g. -i); keep scanning
+        let value = body.slice(j + 1).replace(/^=/, '');
+        if (value === '') {
+          i += 1;
+          value = args[i] ?? '';
+        }
+        if (c === 'X') setExplicit(value);
+        if (SHORT_BODY_FLAGS.has(c)) hasBody = true;
+        break; // remainder/next token is this flag's value, not more flags
       }
     }
   }
@@ -84,13 +103,24 @@ export function effectiveApiMethod(args: string[]): string {
   return hasBody ? 'POST' : 'GET';
 }
 
+// Does the flag token `prev` consume the NEXT argv token as its value, per cobra/pflag
+// `stripFlags`? Only a long flag without `=` (`--repo x` → consumes `x`) or an
+// exactly-2-char short (`-R x` → consumes `x`) take their value from the following
+// token. A single-dash CLUSTER of length >= 3 (`-dp`, `-dm`) does NOT — pflag reads any
+// in-cluster value flag's value from the token REMAINDER, not the next arg. Excluding
+// the token after every dash token (the earlier code) dropped the real verb after a
+// boolean cluster and let a write through; long/2-char over-exclusion is retained
+// (it can only block a read, never allow a write), cluster over-exclusion is removed.
+function consumesNextAsValue(prev: string): boolean {
+  if (prev.startsWith('--')) return !prev.includes('=');
+  return /^-[A-Za-z]$/.test(prev);
+}
+
 export function findMutation(args: string[]): { blocked: boolean; reason?: string } {
-  // Cobra/pflag consumes the token AFTER a flag token as that flag's value, so a
-  // value-taking flag can shift a command's real verb past positionals[1]. Mirror
-  // cobra by excluding both flag tokens AND the token immediately following one.
-  // This over-excludes tokens after boolean flags (fail-safe: at worst blocks a
-  // read; never allows a mutation) and realigns the verb with what glab dispatches.
-  const positionals = args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
+  const positionals = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    return !(i > 0 && consumesNextAsValue(args[i - 1]));
+  });
   if (positionals.length === 0) return { blocked: true, reason: 'no glab command provided' };
   const top = positionals[0];
 
