@@ -6,6 +6,7 @@ import { hasControlChars } from '../../src/tools/shared';
 
 const NUL = String.fromCharCode(0);
 const TAB = String.fromCharCode(9);
+const SOH = String.fromCharCode(1);
 
 const mockPi = { typebox: { Type } };
 
@@ -18,6 +19,12 @@ describe('hasControlChars', () => {
     expect(hasControlChars(`a${NUL}b`)).toBe(true);
     expect(hasControlChars(`a${TAB}b`)).toBe(false);
     expect(hasControlChars('issue list --output json')).toBe(false);
+  });
+
+  it('allows tab, rejects C0 controls, allows normal text (charCode scan)', () => {
+    expect(hasControlChars(`a${TAB}b`)).toBe(false);
+    expect(hasControlChars(`a${SOH}b`)).toBe(true);
+    expect(hasControlChars('normal text here')).toBe(false);
   });
 });
 
@@ -100,6 +107,21 @@ describe('findMutation allowlist', () => {
 
   it('does not false-positive on read args that contain a verb word', () => {
     expect(findMutation(['mr', 'view', 'merge']).blocked).toBe(false);
+  });
+
+  it('blocks the flag-value-shift bypass (cobra consumes the token after a value flag)', () => {
+    // `--title`'s value `list` is consumed by glab; real verb `create` is a mutation.
+    expect(findMutation(['issue', '--title', 'list', 'create']).blocked).toBe(true);
+    // `--reviewer`'s value `view` is consumed; real verb `merge` is a mutation.
+    expect(findMutation(['mr', '--reviewer', 'view', 'merge', '5']).blocked).toBe(true);
+  });
+
+  it('still allows legit reads whose flag values look like verbs', () => {
+    // `create` is the --search term, not the verb; verb is still `list`.
+    expect(findMutation(['issue', 'list', '--search', 'create']).blocked).toBe(false);
+    // Global value-flag before the group; verb is still `list`.
+    expect(findMutation(['-R', 'owner/repo', 'issue', 'list']).blocked).toBe(false);
+    expect(findMutation(['mr', 'view', '5']).blocked).toBe(false);
   });
 });
 
