@@ -38,6 +38,7 @@ export function setTypebox(tb: { Type: typeof Type }): void {
   Type = tb.Type;
 }
 
+import type { GhErrorType } from '../gh/exec';
 import ghIssueViewDescription from '../prompts/gh-issue-view.md' with { type: 'text' };
 import ghPrCheckoutDescription from '../prompts/gh-pr-checkout.md' with { type: 'text' };
 import ghPrDiffDescription from '../prompts/gh-pr-diff.md' with { type: 'text' };
@@ -406,6 +407,7 @@ type GhSearchPrsInput = Static<typeof ghSearchPrsSchema>;
 type GhRunWatchInput = Static<typeof ghRunWatchSchema>;
 
 export interface GhToolDetails {
+  errorType?: GhErrorType;
   tool?: string;
   meta?: OutputMeta;
   artifactId?: string;

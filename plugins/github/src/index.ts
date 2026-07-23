@@ -1,4 +1,6 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import { detectGhErrorType } from './gh/exec';
+import { renderError, ToolAbortError } from './utils/tool-errors';
 
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
@@ -93,8 +95,17 @@ const factory: ExtensionFactory = async (pi) => {
         ) {
           // Update session cwd from context
           sessionProxy.cwd = ctx?.cwd ?? process.cwd();
-          // biome-ignore lint/suspicious/noExplicitAny: bridging xcsh internal types
-          return originalExecute(toolCallId, params, signal, onUpdate as any, ctx as any); // eslint-disable-line
+          try {
+            // biome-ignore lint/suspicious/noExplicitAny: bridging xcsh internal types
+            return await originalExecute(toolCallId, params, signal, onUpdate as any, ctx as any);
+          } catch (err) {
+            if (err instanceof ToolAbortError) throw err;
+            return {
+              content: [{ type: 'text' as const, text: renderError(err) }],
+              isError: true,
+              details: { errorType: detectGhErrorType(err) },
+            };
+          }
         },
       });
     }
