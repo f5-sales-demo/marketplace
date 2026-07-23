@@ -1,0 +1,13 @@
+{
+  "author": { "login": "octocat" },
+  "body": "Something is broken and needs attention.",
+  "comments": [],
+  "createdAt": "2026-06-01T08:00:00Z",
+  "labels": [{ "name": "bug" }],
+  "number": 7,
+  "state": "OPEN",
+  "stateReason": null,
+  "title": "Fix the startup crash",
+  "updatedAt": "2026-06-02T08:00:00Z",
+  "url": "https://github.com/octo-org/hello-world/issues/7"
+}
