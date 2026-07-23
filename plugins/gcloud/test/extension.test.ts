@@ -30,6 +30,44 @@ describe('GCloud Status extension', () => {
     }
   });
 
+  it('registers the tool set (wrapped) when gcloud is available', async () => {
+    const tools: { name: string }[] = [];
+    const mockPi = {
+      setLabel() {},
+      logger: { debug() {} },
+      registerCommand() {},
+      registerServiceStatus() {},
+      registerTool(t: { name: string }) {
+        tools.push(t);
+      },
+      typebox: {
+        Type: {
+          Object: (s: Record<string, unknown>) => s,
+          Array: (s: unknown) => ({ type: 'array', items: s }),
+          String: (o?: Record<string, unknown>) => ({ type: 'string', ...o }),
+          Number: (o?: Record<string, unknown>) => ({ type: 'number', ...o }),
+          Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
+        },
+      },
+    };
+    await factory(mockPi);
+
+    // gcloud may be absent on the runner; when present, the full set registers.
+    if (tools.length > 0) {
+      const names = tools.map((t) => t.name).sort();
+      expect(names).toEqual(
+        [
+          'gcloud_compute_instances_list',
+          'gcloud_config_list',
+          'gcloud_exec',
+          'gcloud_help',
+          'gcloud_projects_list',
+          'gcloud_storage_buckets_list',
+        ].sort(),
+      );
+    }
+  });
+
   it('service check returns valid state', async () => {
     let checkFn: (() => Promise<{ state: string }>) | undefined;
     const mockPi = {

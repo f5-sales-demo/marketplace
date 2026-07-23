@@ -51,17 +51,17 @@ Legend: ✅ present · ◑ partial · ❌ missing
 
 | Dimension | Azure | aws | gcloud | GitLab | salesforce | GitHub |
 |---|---|---|---|---|---|---|
-| 1 argv/no-shell | ✅ | n/a | n/a | ✅ | ✅ | ✅ |
-| 1 control-char hygiene | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 1 signal-aware exec | ❌ | n/a | n/a | ❌ | ❌ | ✅ |
-| 2 `<cli>_help` tool | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 2 query-language docs | ✅ | ❌ | ❌ | ◑ | ✅ | ◑ |
-| 3 error taxonomy | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
-| 4 read-only guardrail | ✅ | n/a | n/a | n/a | n/a | ❌ |
+| 1 argv/no-shell | ✅ | n/a | ✅ | ✅ | ✅ | ✅ |
+| 1 control-char hygiene | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| 1 signal-aware exec | ❌ | n/a | ✅ | ❌ | ❌ | ✅ |
+| 2 `<cli>_help` tool | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| 2 query-language docs | ✅ | ❌ | ✅ | ◑ | ✅ | ◑ |
+| 3 error taxonomy | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| 4 read-only guardrail | ✅ | n/a | ✅ | n/a | n/a | ❌ |
 | 4 confirmed-mutation | n/a | n/a | n/a | n/a | n/a | ◑ (this spec) |
-| 5 typed tools + formatters | ✅ | ❌ | ❌ | ✅ | ✅ | ◑ |
+| 5 typed tools + formatters | ✅ | ❌ | ✅ | ✅ | ✅ | ◑ |
 | 6 consistency layer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 7 tests + benchmark + autoresearch | ✅ | ◑ | ◑ | ◑ | ◑ | ◑ |
+| 7 tests + benchmark + autoresearch | ✅ | ◑ | ✅ | ◑ | ◑ | ◑ |
 
 Follow-on specs (2 GitHub, 3 GitLab, 4 salesforce, 5 aws, 6 gcloud) drive each
 column to ✅.
