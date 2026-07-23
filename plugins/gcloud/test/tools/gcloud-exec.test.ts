@@ -143,6 +143,9 @@ describe('checkGcloud BLOCK', () => {
     ['empty', []],
     // `run deploy` blocks via the mutating `deploy` (run itself is the Cloud Run group).
     ['run deploy', ['run', 'deploy', 'svc']],
+    // Cloud Run Jobs / Workflows execution — `execute` is a dangerous execution vector.
+    ['run jobs execute', ['run', 'jobs', 'execute', 'my-job']],
+    ['workflows execute', ['workflows', 'execute', 'wf']],
   ];
 
   for (const [name, args] of block) {

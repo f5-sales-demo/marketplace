@@ -86,7 +86,8 @@ Verb sets (grounded in the gcloud surface):
 - `READ_PREFIXES` = `list-` (e.g. `list-instances`), `describe-`.
 - `READ_TOP` (top-level, no group/verb) = `version`, `info`, `help`, `topic`,
   `cheat-sheet`. These resolve when positionals[0] is one of them.
-- `DANGEROUS_VERBS` = `ssh`, `scp`, `connect`, `call`, `interactive`, `login`, `revoke`,
+- `DANGEROUS_VERBS` = `ssh`, `scp`, `connect`, `call`, `execute` (`run jobs execute`,
+  `workflows execute` — code execution), `interactive`, `login`, `revoke`,
   `get-credentials` (writes kubeconfig + grants cluster access — a `get-*` that is NOT a
   read), `print-access-token`, `print-identity-token` (mint/print usable bearer
   credentials to stdout — credential exposure), `reset-windows-password`,

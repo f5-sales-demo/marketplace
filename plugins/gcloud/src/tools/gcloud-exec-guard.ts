@@ -42,10 +42,13 @@ export const DANGEROUS_VERBS: ReadonlySet<string> = new Set([
   'scp',
   'connect',
   'call',
-  // NB: `run` is deliberately NOT here — it collides with the Cloud Run group, so
-  // blocking it would refuse legitimate reads like `gcloud run services list`. The real
-  // vectors are covered elsewhere: `functions call` by `call`, `run deploy` by `deploy`
-  // (mutating).
+  // `execute` is a genuine execution vector — `gcloud run jobs execute`, `gcloud
+  // workflows execute` run code — so it is named explicitly (rather than left to the
+  // fail-safe unrecognized-verb block) to route through the cli-operator with a clear
+  // reason. NB: `run` is deliberately NOT a dangerous verb — it collides with the Cloud
+  // Run group and would refuse legitimate reads like `gcloud run services list`; its
+  // real vectors are covered by `execute` (run jobs execute) and `deploy` (run deploy).
+  'execute',
   'interactive',
   'login',
   'revoke',
