@@ -61,12 +61,14 @@ const factory: ExtensionFactory = async (pi) => {
     const { createGlabIssueViewTool } = await import('./tools/glab-issue-view');
     const { createGlabSearchTool } = await import('./tools/glab-search');
     const { createGlabHelpTool } = await import('./tools/glab-help');
+    const { createGlabExecTool } = await import('./tools/glab-exec');
 
     pi.registerTool(withErrorType(createGlabSetupTool(pi)));
     pi.registerTool(withErrorType(createGlabIssueListTool(pi)));
     pi.registerTool(withErrorType(createGlabIssueViewTool(pi)));
     pi.registerTool(withErrorType(createGlabSearchTool(pi)));
     pi.registerTool(withErrorType(createGlabHelpTool(pi)));
+    pi.registerTool(withErrorType(createGlabExecTool(pi)));
   }
 
   // Always register service status (shows unavailable when CLI missing)
