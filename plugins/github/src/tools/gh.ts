@@ -2393,7 +2393,12 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
       const sourceRef = currentBranch === localBranch ? 'HEAD' : toLocalBranchRef(localBranch);
       const refspec = `${sourceRef}:refs/heads/${target.remoteBranch}`;
 
-      if (mode === 'interactive' && context?.ui) {
+      if (mode === 'interactive') {
+        if (!context?.ui) {
+          throw new ToolError(
+            'Interactive confirmation required but no UI is available. Set GITHUB_ALLOW_MUTATIONS=1 to allow headless operation without a prompt.',
+          );
+        }
         const approved = await confirmMutation(context.ui, {
           title: 'Push PR branch',
           message: `Push ${localBranch} to ${target.remoteName}/${target.remoteBranch}?`,
