@@ -1,12 +1,12 @@
 import type { GlabExecApi } from '../glab/exec';
-import { GlabAuthError } from '../glab/exec';
+import { GlabAuthError, GlabNotFoundError, GlabRateLimitError } from '../glab/exec';
 import type { GlabIssue, GlabProject } from '../glab/types';
 
 // ---------------------------------------------------------------------------
 // Shared types
 // ---------------------------------------------------------------------------
 
-export type GlabErrorType = 'auth_required' | 'not_found' | 'exec_error';
+export type GlabErrorType = 'auth_required' | 'not_found' | 'rate_limited' | 'exec_error';
 
 export interface GlabToolDetails {
   tool?: 'glab_setup' | 'glab_issue_list' | 'glab_issue_view' | 'glab_search';
@@ -33,6 +33,8 @@ export function errorResult(text: string, details?: GlabToolDetails) {
 
 export function detectErrorType(err: unknown): GlabErrorType {
   if (err instanceof GlabAuthError) return 'auth_required';
+  if (err instanceof GlabNotFoundError) return 'not_found';
+  if (err instanceof GlabRateLimitError) return 'rate_limited';
   return 'exec_error';
 }
 
