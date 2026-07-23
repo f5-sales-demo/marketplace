@@ -69,7 +69,7 @@ in the same way.
   GitHub. Add pointers in the existing tool prompts.
 - **Benchmark + autoresearch harness:** `benchmarks/{mock-glab.sh, scenarios.ts,
   fixtures/*}` + `autoresearch.{sh,checks.sh,md,ideas.md}`, wired to the real
-  `createGlab*Tool` exports and gitlab security invariants (`findMutation`,
+  `createGlab*Tool` exports and GitLab security invariants (`findMutation`,
   `hasControlChars`); reference `plugins/gitlab`.
 
 ## Task sequencing (single branch)

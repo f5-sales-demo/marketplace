@@ -28,6 +28,6 @@
 
 ## Guardrail Coverage
 
-- [ ] Extend benchmark scenarios for glab_exec: graphql-with-body block, `-F` body implies POST block
-- [ ] Add a REST-plus-GraphQL dedup search scenario driven by a populated graphql fixture
+- [ ] Extend benchmark scenarios for glab_exec: GraphQL-with-body block, `-F` body implies POST block
+- [ ] Add a REST-plus-GraphQL dedup search scenario driven by a populated GraphQL fixture
 - [ ] Keep the read-only allowlist fail-safe: new read verbs are opt-in, never a blanket allow
