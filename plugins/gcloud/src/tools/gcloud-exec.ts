@@ -1,3 +1,4 @@
+import { detectGcloudError } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
 import gcloudExecDescription from '../prompts/gcloud-exec.md' with { type: 'text' };
 import { buildGcloudArgs, checkGcloud } from './gcloud-exec-guard';
@@ -55,9 +56,12 @@ export function createGcloudExecTool(pi: PluginInterface) {
         const api = makeExecApi(ctx.cwd);
         const result = await api.exec('gcloud', buildGcloudArgs(args), { signal });
         if (result.exitCode !== 0) {
+          // Classify the failure (auth / session-expired / permission / not-found) from
+          // stderr so the agent gets the same errorType the typed tools surface, instead
+          // of a blanket exec_error.
           return errorResult(`gcloud command failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`, {
             ...base,
-            errorType: 'exec_error',
+            errorType: detectErrorType(detectGcloudError(result.stderr, result.exitCode)),
           });
         }
         let output = result.stdout;

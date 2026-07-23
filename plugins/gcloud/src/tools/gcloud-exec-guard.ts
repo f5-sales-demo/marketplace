@@ -9,7 +9,7 @@
 // The read/write decision scans ALL non-flag tokens (see getPositionals) — the
 // azure "all-positionals" model — rather than trying to isolate the verb by
 // position. Any flag-value exclusion / "drop the token after a flag" logic
-// over-excludes and is exactly the bug class that broke the github/gitlab/salesforce
+// over-excludes and is exactly the bug class that broke the GitHub/GitLab/Salesforce
 // guards (`-dp create`, `-fX=GET` slipping a write past the guard). Taking every
 // non-flag token is fail-safe: a flag value that happens to equal a verb is blocked
 // (rare, safe) and a write verb can never be hidden by exclusion.
@@ -42,7 +42,10 @@ export const DANGEROUS_VERBS: ReadonlySet<string> = new Set([
   'scp',
   'connect',
   'call',
-  'run',
+  // NB: `run` is deliberately NOT here — it collides with the Cloud Run group, so
+  // blocking it would refuse legitimate reads like `gcloud run services list`. The real
+  // vectors are covered elsewhere: `functions call` by `call`, `run deploy` by `deploy`
+  // (mutating).
   'interactive',
   'login',
   'revoke',

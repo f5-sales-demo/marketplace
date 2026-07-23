@@ -110,6 +110,9 @@ describe('checkGcloud ALLOW', () => {
     ['list with filter + format', ['compute', 'instances', 'list', '--filter=status=RUNNING', '--format=value(name)']],
     ['leading global value flag', ['--project', 'p', 'compute', 'instances', 'list']],
     ['describe with zone', ['compute', 'instances', 'describe', 'my-vm', '--zone', 'us-central1-a']],
+    // `run` is the Cloud Run group here (not a dangerous verb); the leaf `list` is a read.
+    ['cloud run services list', ['run', 'services', 'list']],
+    ['cloud run revisions describe', ['run', 'revisions', 'describe', 'r1']],
   ];
 
   for (const [name, args] of allow) {
@@ -138,6 +141,7 @@ describe('checkGcloud BLOCK', () => {
     ['auth print-identity-token', ['auth', 'print-identity-token']],
     ['unknown verb', ['compute', 'instances', 'frobnicate', 'x']],
     ['empty', []],
+    // `run deploy` blocks via the mutating `deploy` (run itself is the Cloud Run group).
     ['run deploy', ['run', 'deploy', 'svc']],
   ];
 
@@ -161,9 +165,9 @@ describe('checkGcloud BLOCK', () => {
     expect(checkGcloud(['compute', 'instances', 'delete', 'x']).reason).toContain('delete');
   });
 
-  it('dangerous takes precedence over mutating (run deploy → run)', () => {
-    // `run` is a dangerous execution vector; it must be reported, not `deploy`.
-    expect(checkGcloud(['run', 'deploy', 'svc']).reason).toContain('run');
+  it('dangerous takes precedence over mutating (ssh + delete → ssh)', () => {
+    // A dangerous execution vector must be reported ahead of any mutating verb present.
+    expect(checkGcloud(['compute', 'ssh', 'vm', 'delete']).reason).toContain('ssh');
   });
 });
 

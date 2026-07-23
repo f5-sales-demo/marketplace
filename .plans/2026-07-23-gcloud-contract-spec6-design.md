@@ -86,12 +86,14 @@ Verb sets (grounded in the gcloud surface):
 - `READ_PREFIXES` = `list-` (e.g. `list-instances`), `describe-`.
 - `READ_TOP` (top-level, no group/verb) = `version`, `info`, `help`, `topic`,
   `cheat-sheet`. These resolve when positionals[0] is one of them.
-- `DANGEROUS_VERBS` = `ssh`, `scp`, `connect`, `call`, `run` (as a verb, e.g.
-  `functions call`/`run`), `interactive`, `login`, `revoke`, `get-credentials` (writes
-  kubeconfig + grants cluster access — a `get-*` that is NOT a read), `print-access-token`,
-  `print-identity-token` (mint/print usable bearer credentials to stdout — credential
-  exposure), `reset-windows-password`, `simulate-maintenance-event`, `enable-service`,
-  `configure-docker`.
+- `DANGEROUS_VERBS` = `ssh`, `scp`, `connect`, `call`, `interactive`, `login`, `revoke`,
+  `get-credentials` (writes kubeconfig + grants cluster access — a `get-*` that is NOT a
+  read), `print-access-token`, `print-identity-token` (mint/print usable bearer
+  credentials to stdout — credential exposure), `reset-windows-password`,
+  `simulate-maintenance-event`, `enable-service`, `configure-docker`.
+  (NB: `run` is intentionally excluded — it collides with the Cloud Run group and would
+  block reads like `gcloud run services list`; `functions call` is covered by `call` and
+  `run deploy` by `deploy`.)
 - `MUTATING_VERBS` = `create`, `delete`, `update`, `patch`, `remove`, `add`, `set`,
   `set-iam-policy`, `add-iam-policy-binding`, `remove-iam-policy-binding`, `deploy`,
   `import`, `export`, `apply`, `enable`, `disable`, `start`, `stop`, `restart`, `resize`,
@@ -101,7 +103,7 @@ Verb sets (grounded in the gcloud surface):
   `seek`, `purge`, `cancel`, `override`, `unset`, `snapshot`, `upgrade`, `downgrade`,
   `repair`, `drain`, `uncordon`, `cordon`, `add-tags`, `remove-tags`.
 
-Verbs appearing in BOTH `MUTATING_VERBS` and `DANGEROUS_VERBS`: none — `run`/`call` are
+Verbs appearing in BOTH `MUTATING_VERBS` and `DANGEROUS_VERBS`: none — `call` is
 dangerous only; `set-iam-policy` is mutating. `set` covers `config set`, `set-*` covered
 explicitly where the hyphenated form matters.
 
