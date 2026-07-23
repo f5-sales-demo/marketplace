@@ -70,10 +70,11 @@ describe('ExtensionFactory integration', () => {
     await factory(pi);
 
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['sf_org_display', 'sf_pipeline_report', 'sf_query', 'sf_setup']);
+    expect(names).toEqual(['sf_help', 'sf_org_display', 'sf_pipeline_report', 'sf_query', 'sf_setup']);
 
     const labels = tools.map((t) => t.label).sort();
     expect(labels).toEqual([
+      'Salesforce CLI Help',
       'Salesforce Org Display',
       'Salesforce Pipeline Report',
       'Salesforce Query',
