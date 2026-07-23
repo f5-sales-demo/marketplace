@@ -1,8 +1,34 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
+/**
+ * Wrap a factory tool so any error that still propagates out of its execute()
+ * is converted into a structured error result carrying details.errorType.
+ *
+ * The per-tool handlers already catch GlabAuthError and return a friendly
+ * textResult (a normal, non-error result); those never reach this wrapper.
+ * A cancellation (thrown by execGlab as `Error('Command was cancelled')`) is
+ * re-thrown so the agent loop can distinguish user cancellation from a genuine
+ * tool failure.
+ */
+export function withErrorType<T extends { execute: (...args: never[]) => Promise<unknown> }>(tool: T): T {
+  const originalExecute = tool.execute.bind(tool) as (...args: unknown[]) => Promise<unknown>;
+  return {
+    ...tool,
+    execute: (async (...args: unknown[]) => {
+      try {
+        return await originalExecute(...args);
+      } catch (err) {
+        if (err instanceof Error && err.message === 'Command was cancelled') throw err;
+        return errorResult(renderError(err), { errorType: detectErrorType(err) });
+      }
+    }) as T['execute'],
+  };
 }
 
 const factory: ExtensionFactory = async (pi) => {
@@ -34,11 +60,15 @@ const factory: ExtensionFactory = async (pi) => {
     const { createGlabIssueListTool } = await import('./tools/glab-issue-list');
     const { createGlabIssueViewTool } = await import('./tools/glab-issue-view');
     const { createGlabSearchTool } = await import('./tools/glab-search');
+    const { createGlabHelpTool } = await import('./tools/glab-help');
+    const { createGlabExecTool } = await import('./tools/glab-exec');
 
-    pi.registerTool(createGlabSetupTool(pi));
-    pi.registerTool(createGlabIssueListTool(pi));
-    pi.registerTool(createGlabIssueViewTool(pi));
-    pi.registerTool(createGlabSearchTool(pi));
+    pi.registerTool(withErrorType(createGlabSetupTool(pi)));
+    pi.registerTool(withErrorType(createGlabIssueListTool(pi)));
+    pi.registerTool(withErrorType(createGlabIssueViewTool(pi)));
+    pi.registerTool(withErrorType(createGlabSearchTool(pi)));
+    pi.registerTool(withErrorType(createGlabHelpTool(pi)));
+    pi.registerTool(withErrorType(createGlabExecTool(pi)));
   }
 
   // Always register service status (shows unavailable when CLI missing)

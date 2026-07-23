@@ -1,0 +1,18 @@
+[
+  {
+    "id": 303,
+    "iid": 15,
+    "title": "Login timeout on Safari",
+    "description": "Timeout observed only on Safari.",
+    "state": "opened",
+    "labels": ["bug"],
+    "assignees": [],
+    "author": { "username": "carol", "name": "Carol" },
+    "milestone": null,
+    "created_at": "2026-05-01T00:00:00Z",
+    "updated_at": "2026-05-02T00:00:00Z",
+    "web_url": "https://gitlab.com/group/repo/-/issues/15",
+    "references": { "full": "group/repo#15" },
+    "issue_type": "issue"
+  }
+]
