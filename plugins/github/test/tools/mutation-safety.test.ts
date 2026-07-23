@@ -35,19 +35,34 @@ describe('resolveApprovalMode', () => {
 describe('confirmMutation', () => {
   it('returns true when confirmed and no rewrite', async () => {
     const calls: string[] = [];
-    const ui = { confirm: async (t: string) => { calls.push(t); return true; } };
+    const ui = {
+      confirm: async (t: string) => {
+        calls.push(t);
+        return true;
+      },
+    };
     expect(await confirmMutation(ui, { title: 'A', message: 'm' })).toBe(true);
     expect(calls).toEqual(['A']);
   });
   it('returns false immediately when the base confirm is denied', async () => {
     const calls: string[] = [];
-    const ui = { confirm: async (t: string) => { calls.push(t); return false; } };
+    const ui = {
+      confirm: async (t: string) => {
+        calls.push(t);
+        return false;
+      },
+    };
     expect(await confirmMutation(ui, { title: 'A', message: 'm', rewrite: { title: 'B', message: 'm2' } })).toBe(false);
     expect(calls).toEqual(['A']); // rewrite confirm not reached
   });
   it('requires the rewrite confirm when a rewrite is present', async () => {
     const calls: string[] = [];
-    const ui = { confirm: async (t: string) => { calls.push(t); return t === 'A' ? true : false; } };
+    const ui = {
+      confirm: async (t: string) => {
+        calls.push(t);
+        return t === 'A';
+      },
+    };
     expect(await confirmMutation(ui, { title: 'A', message: 'm', rewrite: { title: 'B', message: 'm2' } })).toBe(false);
     expect(calls).toEqual(['A', 'B']);
   });
