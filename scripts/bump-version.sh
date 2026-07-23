@@ -121,7 +121,10 @@ for name in "${PLUGINS[@]}"; do
   fi
 
   echo "  $name: $OLD_VER → $NEW_VER"
-  CHANGELOG_ENTRIES+=("- **$name** bumped to v$NEW_VER")
+  # Backtick the plugin name (it is a literal identifier) so the CHANGELOG entry does not
+  # trip the Lint Code Base textlint terminology rule for names like azure/github/gitlab
+  # (code spans are exempt). The release-notes grep in release-plugins.yml still matches.
+  CHANGELOG_ENTRIES+=("- **\`$name\`** bumped to v$NEW_VER")
 done
 
 # ── Update CHANGELOG.md ─────────────────────────────────────

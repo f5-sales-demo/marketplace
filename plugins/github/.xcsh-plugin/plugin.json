@@ -1,7 +1,7 @@
 {
   "name": "github",
   "description": "GitHub CLI integration — native xcsh tools (gh_repo_view, gh_issue_view, gh_pr_view, gh_pr_diff, gh_pr_checkout, gh_pr_push, gh_run_watch, gh_search_issues, gh_search_prs), profile collection, and service status",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
