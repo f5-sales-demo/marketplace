@@ -77,6 +77,10 @@ describe('effectiveApiMethod', () => {
     expect(effectiveApiMethod(['api', 'x', '-iX', 'GET'])).toBe('GET');
     // Include-only boolean cluster → no body, no method → GET.
     expect(effectiveApiMethod(['api', 'x', '-i'])).toBe('GET');
+    // pflag stops at the first value-taking short: `-fX=GET` / `-FX=GET` are a body
+    // field whose value contains `X=GET` → POST; the trailing X is data, not a method.
+    expect(effectiveApiMethod(['api', 'x', '-fX=GET'])).toBe('POST');
+    expect(effectiveApiMethod(['api', 'x', '-FX=GET'])).toBe('POST');
   });
 });
 
@@ -117,6 +121,16 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'x', '-iXPUT']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-iF=title=y']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-Fi', 'title=x']).blocked).toBe(true);
+  });
+
+  it('blocks the -fX=GET / -FX=GET body-field cluster bypass (#813)', () => {
+    // pflag stops at the first value-taking short: `-fX=GET` is `-f`/--raw-field with
+    // value `X=GET` (a field literally named X) → body → POST, NOT `-X GET`. The
+    // trailing `X` must not be mis-read as an explicit GET that allows the write.
+    expect(findMutation(['api', 'x', '-fX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-FX=GET']).blocked).toBe(true);
+    // A genuine bodyless `-X GET` remains an allowed read.
+    expect(findMutation(['api', 'x', '-X', 'GET']).blocked).toBe(false);
   });
 
   it('allows glab api GET requests', () => {

@@ -21,10 +21,13 @@ const API_MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH
 // glab is a cobra/pflag CLI, so a boolean short flag may CLUSTER ahead of a
 // value-taking short flag inside a single token: `-iF title=x` parses as
 // `-i` (include, boolean) + `-F` (field, value from the next arg), and `-iX POST`
-// as include + method. Prefix matching on the token misses these, so we inspect
-// the whole single-dash letter run — never just the char at index 1 — for the
-// field (f/F) and method (X) letters. Over-flagging here is fail-safe: at worst
-// it treats a read as a body/method write and blocks it; it never allows a write.
+// as include + method. Crucially, pflag stops at the FIRST value-taking short in a
+// cluster: the REST of the token becomes that flag's value. So `-fX=GET` is
+// `--raw-field` with value `X=GET` (a body field literally named X) — the trailing
+// X is data, NOT a method flag — and glab sends POST. We therefore scan the letter
+// run left→right and STOP at the first value-taking short: f/F marks a body (rest is
+// the field value, never a method); X takes the token remainder (or next arg) as the
+// method. Over-flagging here is fail-safe: at worst it blocks a read; never allows a write.
 export function effectiveApiMethod(args: string[]): string {
   let explicit: string | null = null;
   let hasBody = false;
@@ -59,23 +62,26 @@ export function effectiveApiMethod(args: string[]): string {
     if (a.startsWith('--')) continue;
 
     // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading
-    // '-' and inspect the letter run up to the first '=' (or end) so a boolean
-    // short flag clustered ahead of a value flag can't hide the value flag.
+    // '-' and scan the letters left→right, stopping at the FIRST value-taking
+    // short flag (pflag consumes the token remainder as that flag's value).
     if (/^-[A-Za-z]/.test(a)) {
       const body = a.slice(1);
-      const eq = body.indexOf('=');
-      const letters = eq === -1 ? body : body.slice(0, eq);
-
-      // Field flag anywhere in the cluster → this token carries a body.
-      if (letters.includes('f') || letters.includes('F')) hasBody = true;
-
-      // Method flag anywhere in the cluster → value is whatever follows the X
-      // in the same token (leading '=' stripped), else the next arg.
-      const xIdx = letters.indexOf('X');
-      if (xIdx !== -1) {
-        const after = body.slice(xIdx + 1).replace(/^=/, '');
-        if (after) setExplicit(after);
-        else setExplicit(args[i + 1] ?? '');
+      for (let j = 0; j < body.length; j++) {
+        const c = body[j];
+        if (c === 'f' || c === 'F') {
+          // First value-taking short is a body field: the rest of the token
+          // (including any 'X') is this field's VALUE — never a method flag.
+          hasBody = true;
+          break;
+        }
+        if (c === 'X') {
+          // First value-taking short is the method flag: value is the token
+          // remainder after X (leading '=' stripped), else the next arg.
+          const after = body.slice(j + 1).replace(/^=/, '');
+          setExplicit(after || (args[i + 1] ?? ''));
+          break;
+        }
+        // Any other letter is a boolean short (e.g. -i); keep scanning.
       }
     }
   }

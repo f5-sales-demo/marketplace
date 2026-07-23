@@ -74,6 +74,10 @@ describe('effectiveApiMethod', () => {
     expect(effectiveApiMethod(['api', 'request', 'rest', '-iX', 'GET', 'x'])).toBe('GET');
     // Include-only boolean cluster → no method → GET.
     expect(effectiveApiMethod(['api', 'request', 'rest', '-i', 'x'])).toBe('GET');
+    // Parser stops at the first value-taking short: `-fX=GET` / `-bX=GET` are a
+    // body/file flag whose value contains `X=GET` → POST; the trailing X is data.
+    expect(effectiveApiMethod(['api', 'request', 'rest', '-fX=GET', 'x'])).toBe('POST');
+    expect(effectiveApiMethod(['api', 'request', 'rest', '-bX=GET', 'x'])).toBe('POST');
   });
 });
 
@@ -148,6 +152,16 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'request', 'rest', '-if', 'req.json']).blocked).toBe(true);
     // attached form: `-freq.json`
     expect(findMutation(['api', 'request', 'rest', '-freq.json']).blocked).toBe(true);
+  });
+
+  it('blocks the -fX=GET / -bX=GET body-field cluster bypass (#813)', () => {
+    // The parser stops at the first value-taking short: `-fX=GET` is `-f`/--file with
+    // value `X=GET` (data, incl. a trailing X) → body → POST, NOT `-X GET`. The
+    // trailing `X` must not be mis-read as an explicit GET that allows the write.
+    expect(findMutation(['api', 'request', 'rest', '-fX=GET', 'proj']).blocked).toBe(true);
+    expect(findMutation(['api', 'request', 'rest', '-bX=GET', 'proj']).blocked).toBe(true);
+    // A genuine bodyless `-X GET` remains an allowed read.
+    expect(findMutation(['api', 'request', 'rest', '-X', 'GET', 'proj']).blocked).toBe(false);
   });
 
   it('blocks the flag-value-shift bypass (token after a value flag is consumed)', () => {

@@ -71,10 +71,14 @@ function startsWith(path: string[], prefix: readonly string[]): boolean {
 
 // Resolve the HTTP method `sf api request rest|graphql` will actually use. An explicit
 // --method/-X (any form) wins; sf otherwise defaults to GET. sf is an oclif CLI, so a
-// boolean short flag may CLUSTER ahead of the method short inside one token: `-iX POST`
-// parses as `-i` (include) + `-X` (method, value from the next arg). We inspect the
-// whole single-dash letter run — never just index 1 — for the method letter X.
-// --body/--file are body flags; their presence forces a mutating shape (reported as
+// boolean short flag may CLUSTER ahead of a value-taking short inside one token: `-iX POST`
+// parses as `-i` (include) + `-X` (method, value from the next arg). Crucially, the
+// parser stops at the FIRST value-taking short in a cluster: the REST of the token
+// becomes that flag's value. So `-fX=GET` is `--file` with value `X=GET` (the trailing
+// X is data, NOT a method flag) — a body → POST. We therefore scan the letter run
+// left→right and STOP at the first value-taking short: b/f marks a body (rest is that
+// flag's value, never a method); X takes the token remainder (or next arg) as the method.
+// --body/--file are body flags too; their presence forces a mutating shape (reported as
 // POST here, and additionally blocked outright by findMutation). Over-flagging is
 // fail-safe: at worst it treats a read as a write and blocks it; it never allows a write.
 export function effectiveApiMethod(args: string[]): string {
@@ -104,22 +108,30 @@ export function effectiveApiMethod(args: string[]): string {
     if (a.startsWith('--')) continue;
 
     // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading '-' and
-    // inspect the letter run up to the first '=' so a boolean short flag clustered
-    // ahead of the method short can't hide it. sf's body/file shorts are `-b`/`-f`, so
-    // a `b` or `f` anywhere in the cluster (`-f`, `-b`, `-if`, `-Sf`, `-bX`, attached
-    // `-freq.json`) implies a body/write, mirroring the method-letter `X` detection.
+    // scan the letters left→right, stopping at the FIRST value-taking short flag (the
+    // parser consumes the token remainder as that flag's value). sf's body/file shorts
+    // are `-b`/`-f`, so a leading `b`/`f` (`-f`, `-b`, `-if`, `-bX`, attached
+    // `-freq.json`) marks a body — the rest of the token, including any `X`, is that
+    // flag's value and is never parsed as a method.
     if (/^-[A-Za-z]/.test(a)) {
       const body = a.slice(1);
-      const eq = body.indexOf('=');
-      const letters = eq === -1 ? body : body.slice(0, eq);
-
-      const xIdx = letters.indexOf('X');
-      if (xIdx !== -1) {
-        const after = body.slice(xIdx + 1).replace(/^=/, '');
-        if (after) setExplicit(after);
-        else setExplicit(args[i + 1] ?? '');
+      for (let j = 0; j < body.length; j++) {
+        const c = body[j];
+        if (c === 'b' || c === 'f') {
+          // First value-taking short is a body/file field: the rest of the token
+          // (including any 'X') is this flag's VALUE — never a method flag.
+          hasBody = true;
+          break;
+        }
+        if (c === 'X') {
+          // First value-taking short is the method flag: value is the token
+          // remainder after X (leading '=' stripped), else the next arg.
+          const after = body.slice(j + 1).replace(/^=/, '');
+          setExplicit(after || (args[i + 1] ?? ''));
+          break;
+        }
+        // Any other letter is a boolean short (e.g. -i); keep scanning.
       }
-      if (letters.includes('b') || letters.includes('f')) hasBody = true;
     }
   }
 
