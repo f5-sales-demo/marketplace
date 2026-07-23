@@ -1,0 +1,12 @@
+{
+  "status": 0,
+  "result": {
+    "username": "demo@f5.com",
+    "id": "00D000000000001EAA",
+    "instanceUrl": "https://f5--demo.my.salesforce.com",
+    "connectedStatus": "Connected",
+    "alias": "SFDC",
+    "isSandbox": false
+  },
+  "warnings": []
+}

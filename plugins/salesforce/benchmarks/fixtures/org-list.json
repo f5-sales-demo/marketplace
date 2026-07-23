@@ -1,0 +1,21 @@
+{
+  "status": 0,
+  "result": {
+    "nonScratchOrgs": [
+      {
+        "alias": "SFDC",
+        "username": "demo@f5.com",
+        "orgId": "00D000000000001EAA",
+        "instanceUrl": "https://f5--demo.my.salesforce.com",
+        "connectedStatus": "Connected",
+        "isDefaultUsername": true,
+        "isSandbox": false
+      }
+    ],
+    "scratchOrgs": [],
+    "sandboxes": [],
+    "devHubs": [],
+    "other": []
+  },
+  "warnings": []
+}
