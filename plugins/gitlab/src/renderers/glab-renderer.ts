@@ -8,17 +8,10 @@
  * a plain-text fallback for non-TUI contexts.
  */
 
-import type { GlabIssue } from '../glab/types';
+import type { GlabToolDetails } from '../tools/shared';
 
-// Re-export the details type for renderer consumers
-export interface GlabToolDetails {
-  tool?: 'glab_setup' | 'glab_issue_list' | 'glab_issue_view' | 'glab_search';
-  items?: GlabIssue[];
-  issue?: GlabIssue;
-  total?: number;
-  project?: string;
-  query?: string;
-}
+// Re-export the single details type definition for renderer consumers
+export type { GlabToolDetails };
 
 export type GlabRenderArgs = {
   action?: string;

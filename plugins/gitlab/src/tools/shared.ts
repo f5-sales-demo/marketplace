@@ -1,15 +1,15 @@
 import type { GlabExecApi } from '../glab/exec';
-import { GlabAuthError } from '../glab/exec';
+import { GlabAuthError, GlabNotFoundError, GlabRateLimitError } from '../glab/exec';
 import type { GlabIssue, GlabProject } from '../glab/types';
 
 // ---------------------------------------------------------------------------
 // Shared types
 // ---------------------------------------------------------------------------
 
-export type GlabErrorType = 'auth_required' | 'not_found' | 'exec_error';
+export type GlabErrorType = 'auth_required' | 'not_found' | 'rate_limited' | 'exec_error';
 
 export interface GlabToolDetails {
-  tool?: 'glab_setup' | 'glab_issue_list' | 'glab_issue_view' | 'glab_search';
+  tool?: 'glab_setup' | 'glab_issue_list' | 'glab_issue_view' | 'glab_search' | 'glab_help' | 'glab_exec';
   items?: GlabIssue[];
   issue?: GlabIssue;
   projects?: GlabProject[];
@@ -33,7 +33,29 @@ export function errorResult(text: string, details?: GlabToolDetails) {
 
 export function detectErrorType(err: unknown): GlabErrorType {
   if (err instanceof GlabAuthError) return 'auth_required';
+  if (err instanceof GlabNotFoundError) return 'not_found';
+  if (err instanceof GlabRateLimitError) return 'rate_limited';
   return 'exec_error';
+}
+
+export function renderError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// ---------------------------------------------------------------------------
+// Argv hygiene (shared with the glab_exec guard — Task 5)
+// ---------------------------------------------------------------------------
+
+// Blocks ASCII C0 control characters and DEL (0x7f), but allows tab (0x09),
+// LF (0x0A), and CR (0x0D) so multi-line `--jq`/field expressions survive intact.
+// Uses a charCode scan (not a regex) so no control-char literal appears in source
+// and no lint suppression is needed.
+export function hasControlChars(arg: string): boolean {
+  for (let i = 0; i < arg.length; i++) {
+    const c = arg.charCodeAt(i);
+    if (c <= 8 || c === 11 || c === 12 || (c >= 14 && c <= 31) || c === 127) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,15 +66,26 @@ export function makeExecApi(cwd: string): GlabExecApi {
   return {
     cwd,
     async exec(command: string, args: string[], options?: { signal?: AbortSignal; cwd?: string }) {
-      // Never pass signal to Bun.spawn and never pre-check signal.aborted.
-      // glab commands finish in 1-3s. Passing the signal or pre-checking causes
-      // false cancellations when xcsh's AbortSignal fires between multi-turn
-      // tool calls (the signal is stale from a prior turn).
+      // Thread the AbortSignal so a genuine in-flight cancellation actually
+      // terminates the child: Bun kills the process, leaving empty stdout + a
+      // non-zero exit, which execGlab recognizes as a real cancellation.
+      //
+      // We must NOT reintroduce the stale-signal false-cancel this call site
+      // used to guard against: xcsh can hand us an AbortSignal that already
+      // fired in a PRIOR multi-turn tool call, and a stale abort must never
+      // cancel a fresh command. So we never pre-check signal.aborted to throw a
+      // "cancelled" before running, and we only wire the signal into Bun.spawn
+      // while it is still live at spawn time — handing an already-aborted
+      // (stale) signal to Bun.spawn would kill the fresh process immediately,
+      // resurrecting exactly that false cancel. A signal that aborts *during*
+      // the run is still honored and cancels for real.
+      const signal = options?.signal;
       const child = Bun.spawn([command, ...args], {
         cwd: options?.cwd ?? cwd,
         stdin: 'ignore',
         stdout: 'pipe',
         stderr: 'pipe',
+        ...(signal && !signal.aborted ? { signal } : {}),
       });
       if (!child.stdout || !child.stderr) {
         return { stdout: '', stderr: 'Failed to capture output', code: 1, killed: false };

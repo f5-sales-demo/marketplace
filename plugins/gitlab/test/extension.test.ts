@@ -39,11 +39,18 @@ describe('GitLab extension', () => {
 
     await factory(mockPi);
 
-    // If glab CLI is installed, should register 4 tools; if not, should skip gracefully
+    // If glab CLI is installed, should register 6 tools; if not, should skip gracefully
     if (mockPi._tools.length > 0) {
-      expect(mockPi._tools.length).toBe(4);
+      expect(mockPi._tools.length).toBe(6);
       const names = mockPi._tools.map((t) => t.name).sort();
-      expect(names).toEqual(['glab_issue_list', 'glab_issue_view', 'glab_search', 'glab_setup']);
+      expect(names).toEqual([
+        'glab_exec',
+        'glab_help',
+        'glab_issue_list',
+        'glab_issue_view',
+        'glab_search',
+        'glab_setup',
+      ]);
     }
   });
 
@@ -106,6 +113,24 @@ describe('Tool factories', () => {
     const tool = createGlabSearchTool(mockPi);
     expect(tool.name).toBe('glab_search');
     expect(tool.label).toBe('GitLab Search');
+    expect(typeof tool.description).toBe('string');
+    expect(tool.description.length).toBeGreaterThan(20);
+  });
+
+  it('createGlabHelpTool returns correct name and label', async () => {
+    const { createGlabHelpTool } = await import('../src/tools/glab-help');
+    const tool = createGlabHelpTool(mockPi);
+    expect(tool.name).toBe('glab_help');
+    expect(tool.label).toBe('GitLab CLI Help');
+    expect(typeof tool.description).toBe('string');
+    expect(tool.description.length).toBeGreaterThan(20);
+  });
+
+  it('createGlabExecTool returns correct name and label', async () => {
+    const { createGlabExecTool } = await import('../src/tools/glab-exec');
+    const tool = createGlabExecTool(mockPi);
+    expect(tool.name).toBe('glab_exec');
+    expect(tool.label).toBe('GitLab CLI Execute');
     expect(typeof tool.description).toBe('string');
     expect(tool.description.length).toBeGreaterThan(20);
   });
