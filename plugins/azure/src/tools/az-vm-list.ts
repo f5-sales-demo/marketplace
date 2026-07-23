@@ -22,7 +22,7 @@ export function createAzVmListTool(pi: PluginInterface) {
     async execute(
       _toolCallId: string,
       params: { resource_group?: string; subscription?: string; show_details?: boolean },
-      _signal: unknown,
+      signal: AbortSignal | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
     ) {
@@ -50,7 +50,7 @@ export function createAzVmListTool(pi: PluginInterface) {
       if (params.show_details) args.push('--show-details');
 
       try {
-        const raw = await execAzJson<Record<string, unknown>[]>(api, args);
+        const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);
         const vms = raw.map(normalizeVm);
         return textResult(formatVmTable(vms), { ...base, vms });
       } catch (err) {
