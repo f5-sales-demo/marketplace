@@ -9,12 +9,14 @@ on:
       - "plugins/**"
       - ".xcsh-plugin/**"
       - "scripts/validate-plugins.sh"
+      - "scripts/check-version-bumps.sh"
   push:
     branches: [main]
     paths:
       - "plugins/**"
       - ".xcsh-plugin/**"
       - "scripts/validate-plugins.sh"
+      - "scripts/check-version-bumps.sh"
 
 permissions:
   contents: read
@@ -32,6 +34,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          # Full history so check-version-bumps.sh can diff against the PR base sha.
+          fetch-depth: 0
 
       - name: Install jq
         run: |
@@ -41,3 +46,9 @@ jobs:
 
       - name: Run plugin validation
         run: ./scripts/validate-plugins.sh
+
+      - name: Enforce plugin version bumps
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: ./scripts/check-version-bumps.sh "$BASE_SHA"

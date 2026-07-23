@@ -80,11 +80,16 @@ for plugin_name in "${STAGED_PLUGINS[@]}"; do
   echo "auto-bump: bumping '$plugin_name' patch ($head_version → patch)"
   "$REPO_ROOT/scripts/bump-version.sh" "$plugin_name" patch
 
-  # Stage the version file changes produced by bump-version.sh.
+  # Stage the version file changes produced by bump-version.sh. bump-version.sh also
+  # rewrites the plugin's package.json (version + xcsh.version) when present, so stage
+  # it too — otherwise the auto-bump commit would leave package.json dirty/unstaged,
+  # reintroducing the very drift this prevents.
+  pkg_json_abs="$REPO_ROOT/plugins/${plugin_name}/package.json"
   git -C "$REPO_ROOT" add \
     "$plugin_json_abs" \
     "$MARKETPLACE" \
     "$REPO_ROOT/CHANGELOG.md"
+  [[ -f "$pkg_json_abs" ]] && git -C "$REPO_ROOT" add "$pkg_json_abs"
 
   echo "auto-bump: staged version files for '$plugin_name'"
 done
