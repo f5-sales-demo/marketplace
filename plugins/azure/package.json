@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-azure",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Azure CLI tools for xcsh — native az command execution, subscription/resource/VM management, and welcome screen status",
   "main": "src/index.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "Azure",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "extensions": [
       "src/index.ts"
     ]

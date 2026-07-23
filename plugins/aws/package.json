@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-aws",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "AWS CLI status for xcsh welcome screen",
   "main": "src/index.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "AWS",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "extensions": [
       "src/index.ts"
     ]
