@@ -4,6 +4,7 @@ Searches GitHub pull requests through the local GitHub CLI.
 - `query` supports normal GitHub pull request search syntax
 - Use `repo` to scope results to a single repository when relevant
 - Prefer small limits and refine the query instead of pulling large result sets
+- For custom field projection or uncovered commands, use `gh_exec` with `--json`/`--jq` (jq syntax)
 </instruction>
 
 <output>

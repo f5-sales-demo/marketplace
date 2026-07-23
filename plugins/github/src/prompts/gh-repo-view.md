@@ -4,6 +4,7 @@ Reads GitHub repository metadata using the local GitHub CLI.
 - Prefer this when you need authenticated repository context or GitHub CLI default-repo resolution
 - Use `repo` to target an explicit `OWNER/REPO`; otherwise the current checkout or `gh` default repo is used
 - This tool is read-only and returns repository metadata, not raw file contents
+- For custom field projection or uncovered commands, use `gh_exec` with `--json`/`--jq` (jq syntax)
 </instruction>
 
 <output>

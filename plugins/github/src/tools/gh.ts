@@ -38,7 +38,8 @@ export function setTypebox(tb: { Type: typeof Type }): void {
   Type = tb.Type;
 }
 
-import type { GhErrorType } from '../gh/exec';
+import { detectGhError, type GhErrorType } from '../gh/exec';
+import ghExecDescription from '../prompts/gh-exec.md' with { type: 'text' };
 import ghHelpDescription from '../prompts/gh-help.md' with { type: 'text' };
 import ghIssueViewDescription from '../prompts/gh-issue-view.md' with { type: 'text' };
 import ghPrCheckoutDescription from '../prompts/gh-pr-checkout.md' with { type: 'text' };
@@ -51,6 +52,7 @@ import ghSearchIssuesDescription from '../prompts/gh-search-issues.md' with { ty
 import ghSearchPrsDescription from '../prompts/gh-search-prs.md' with { type: 'text' };
 import * as git from '../utils/git';
 import { ToolError, throwIfAborted } from '../utils/tool-errors';
+import { findMutation, hasControlChars } from './gh-exec-guard';
 import { confirmMutation, HEADLESS_BLOCKED_MESSAGE, resolveApprovalMode } from './mutation-safety';
 
 // ---------------------------------------------------------------------------
@@ -2603,6 +2605,66 @@ export class GhHelpTool implements AgentTool<typeof ghHelpSchema, GhToolDetails>
       const result = await git.github.run(this.session.cwd, [...parts, '--help'], signal);
       const output = result.stdout || result.stderr;
       return buildTextResult(output || `No help output for "gh ${commandPath}".`, undefined, { tool: 'gh_help' });
+    });
+  }
+}
+
+const GH_EXEC_MAX_OUTPUT = 50000;
+
+export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
+  readonly name = 'gh_exec';
+  readonly label = 'GitHub CLI Execute';
+  readonly description = prompt.render(ghExecDescription);
+  readonly parameters = Type.Object({
+    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "gh")' }), {
+      description: 'gh subcommand and flags as an array, e.g. ["pr", "list", "--json", "number,title"]',
+    }),
+  });
+
+  constructor(private readonly session: ToolSession) {}
+
+  static createIf(session: ToolSession): GhExecTool | null {
+    if (!git.github.available()) return null;
+    return new GhExecTool(session);
+  }
+
+  async execute(
+    _toolCallId: string,
+    params: { args: string[] },
+    signal?: AbortSignal,
+    _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
+    _context?: AgentToolContext,
+  ): Promise<AgentToolResult<GhToolDetails>> {
+    const args = params.args ?? [];
+    const fail = (text: string): AgentToolResult<GhToolDetails> => ({
+      content: [{ type: 'text', text }],
+      isError: true,
+      details: { tool: 'gh_exec' },
+    });
+    if (args.length === 0) {
+      return fail('Error: args array must not be empty.');
+    }
+    for (const a of args) {
+      if (hasControlChars(a)) {
+        return fail(`Error: argument contains a control character: "${a}"`);
+      }
+    }
+    const mutation = findMutation(args);
+    if (mutation.blocked) {
+      return fail(
+        `Error: ${mutation.reason}. gh_exec is read-only by default. Run write operations through an explicitly confirmed path, not gh_exec.`,
+      );
+    }
+    return untilAborted(signal, async () => {
+      const result = await git.github.run(this.session.cwd, args, signal);
+      if (result.exitCode !== 0) {
+        throw detectGhError(result.stderr, result.stdout, result.exitCode, { args });
+      }
+      let out = result.stdout;
+      if (out.length > GH_EXEC_MAX_OUTPUT) {
+        out = `${out.slice(0, GH_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
+      }
+      return buildTextResult(out, undefined, { tool: 'gh_exec' });
     });
   }
 }
