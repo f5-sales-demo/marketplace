@@ -8,6 +8,15 @@ function sanitizeHintField(value: unknown, maxLen = 200): string {
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GitHub');
 
+  // Headless opt-in for mutating tools (checkout/push). Mirrors the GITHUB_ALLOW_MUTATIONS env var.
+  if (typeof pi.registerFlag === 'function') {
+    pi.registerFlag('github-allow-mutations', {
+      type: 'boolean',
+      description: 'Allow gh_pr_checkout/gh_pr_push to run without an interactive confirmation prompt.',
+    });
+    if (pi.getFlag?.('github-allow-mutations')) process.env.GITHUB_ALLOW_MUTATIONS = '1';
+  }
+
   // Always register setup command (even without gh CLI)
   if (typeof pi.registerCommand === 'function') {
     pi.registerCommand('github:setup', {
