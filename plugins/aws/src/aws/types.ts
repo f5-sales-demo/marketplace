@@ -39,7 +39,10 @@ export interface PluginInterface {
 export const INSTANCE_ID_PATTERN = /^i-[0-9a-f]{8,17}$/;
 export const REGION_PATTERN = /^[a-z]{2}-[a-z]+-\d$/;
 export const S3_URI_PATTERN = /^s3:\/\/[a-z0-9./-]+$/;
-export const RESOURCE_NAME_PATTERN = /^[a-zA-Z0-9._:/-]+$/;
+// Require a non-dash first character so a value like `--profile -foo` (which would
+// otherwise pass the charset check) cannot be a leading dash and be mistaken for a
+// flag. Subsequent characters may still include a dash.
+export const RESOURCE_NAME_PATTERN = /^[A-Za-z0-9._:/][A-Za-z0-9._:/-]*$/;
 // Allow digits (ec2, s3, s3api, route53, ec2-instance-connect) but never as the
 // first character, keeping the pattern strict.
 export const HELP_PATH_PATTERN = /^[a-z][a-z0-9 -]*$/;

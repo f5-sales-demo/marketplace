@@ -80,10 +80,39 @@ describe('findMutation — flag-value-shift bypass (port gitlab exclusion)', () 
     expect(r.blocked).toBe(false);
   });
 
-  it('does not let a value flag between service and op break a read', () => {
-    // --table-name X excluded → positionals = [dynamodb, query].
-    expect(findMutation(['dynamodb', '--table-name', 'X', 'query']).blocked).toBe(false);
+  it('does not let a global value flag between service and op break a read', () => {
+    // --region's value us-east-1 excluded → positionals = [ec2, describe-instances].
+    expect(findMutation(['ec2', '--region', 'us-east-1', 'describe-instances']).blocked).toBe(false);
   });
+});
+
+describe('findMutation — boolean-flag guard bypass (value-taking exclusion only)', () => {
+  const block: string[][] = [
+    // A boolean flag before the op must NOT drop the write verb.
+    ['lambda', '--no-cli-pager', 'invoke', '--function-name', 'x', 'get-out.json'],
+    ['ec2', '--debug', 'run-instances'],
+    // synthesize-speech is a write; it matches no read prefix.
+    ['polly', 'synthesize-speech', 'out.mp3'],
+    ['--no-paginate', 'iam', 'create-user', '--user-name', 'x'],
+  ];
+  for (const args of block) {
+    it(`blocks ${JSON.stringify(args)}`, () => {
+      expect(findMutation(args).blocked).toBe(true);
+    });
+  }
+
+  const allow: string[][] = [
+    // --debug is boolean → s3 kept → positionals [s3, ls] → allowed.
+    ['--debug', 's3', 'ls'],
+    ['--region', 'us-east-1', 'ec2', 'describe-instances'],
+    ['ec2', 'describe-instances', '--query', 'Reservations[].Instances[]'],
+    ['sts', 'get-caller-identity'],
+  ];
+  for (const args of allow) {
+    it(`allows ${JSON.stringify(args)}`, () => {
+      expect(findMutation(args).blocked).toBe(false);
+    });
+  }
 });
 
 describe('findMutation — s3 special-case', () => {

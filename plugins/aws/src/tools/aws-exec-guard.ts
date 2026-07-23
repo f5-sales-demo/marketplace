@@ -40,14 +40,44 @@ export const READ_PREFIXES: readonly string[] = [
 // Exact read operations that do not fit the prefix convention.
 export const READ_EXACT: ReadonlySet<string> = new Set(['ls', 'wait', 'help', 'scan', 'select', 'query']);
 
-// Port of the gitlab guard's positional extraction with FLAG-VALUE EXCLUSION: drop
-// every flag token AND the token immediately following a flag. This prevents a
-// value-taking global flag (e.g. `--region us-east-1`) from shifting the real
-// operation out of positionals[1] (which would let `--region us-east-1 ec2
-// run-instances` masquerade as a read). Over-excluding the token after a boolean
-// flag is fail-safe: at worst it blocks a read; it never allows a write.
+// Global value-taking flags whose NEXT token (in space form) is a value, not a
+// positional. These can precede or interleave the service+operation, so their
+// value must be excluded from positional extraction — otherwise a value-taking
+// flag (e.g. `--region us-east-1`) would shift the real operation out of
+// positionals[1] and let `--region us-east-1 ec2 run-instances` masquerade as a
+// read.
+const VALUE_FLAGS: ReadonlySet<string> = new Set([
+  '--region',
+  '--profile',
+  '--output',
+  '--query',
+  '--endpoint-url',
+  '--color',
+  '--ca-bundle',
+  '--cli-read-timeout',
+  '--cli-connect-timeout',
+  '--page-size',
+  '--max-items',
+  '--starting-token',
+]);
+
+// Positional extraction with FLAG-VALUE EXCLUSION restricted to KNOWN value-taking
+// flags. A token is a positional iff it does NOT start with `-` AND its preceding
+// token is not a value-taking flag in space form. Boolean flags (e.g.
+// `--no-cli-pager`, `--debug`) take no value, so the token after them is NOT
+// dropped — this closes the bypass where a boolean placed before the operation
+// dropped the real (write) verb and promoted a later read-prefixed bare positional
+// into the operation slot. `--flag=value` forms consume no separate token, so
+// nothing extra is dropped for them.
 export function getPositionals(args: string[]): string[] {
-  return args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
+  return args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    if (i > 0) {
+      const prev = args[i - 1];
+      if (VALUE_FLAGS.has(prev) && !prev.includes('=')) return false;
+    }
+    return true;
+  });
 }
 
 const WRITE_DELEGATION =
