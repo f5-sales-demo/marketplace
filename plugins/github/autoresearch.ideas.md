@@ -19,7 +19,7 @@
 - [ ] Shorten column labels in PR/issue summaries without losing meaning
 - [ ] Abbreviate long commit SHAs to short form in run-watch output
 - [ ] Consistent "no results" messaging across formatRepoView, formatIssueView, formatSearchResults
-- [ ] Trim redundant blank lines emitted by pushLine sequences
+- [ ] Trim redundant empty lines emitted by pushLine sequences
 
 ## Token Efficiency
 
