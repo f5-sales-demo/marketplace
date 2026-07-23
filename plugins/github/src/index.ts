@@ -55,6 +55,7 @@ const factory: ExtensionFactory = async (pi) => {
       GhRunWatchTool,
       GhSearchIssuesTool,
       GhSearchPrsTool,
+      GhHelpTool,
     } = ghModule;
 
     // Each tool class has a createIf() that checks gh availability and returns
@@ -72,6 +73,7 @@ const factory: ExtensionFactory = async (pi) => {
       GhRunWatchTool,
       GhSearchIssuesTool,
       GhSearchPrsTool,
+      GhHelpTool,
     ] as const;
 
     for (const ToolClass of toolClasses) {

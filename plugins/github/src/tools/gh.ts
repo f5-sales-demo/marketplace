@@ -39,6 +39,7 @@ export function setTypebox(tb: { Type: typeof Type }): void {
 }
 
 import type { GhErrorType } from '../gh/exec';
+import ghHelpDescription from '../prompts/gh-help.md' with { type: 'text' };
 import ghIssueViewDescription from '../prompts/gh-issue-view.md' with { type: 'text' };
 import ghPrCheckoutDescription from '../prompts/gh-pr-checkout.md' with { type: 'text' };
 import ghPrDiffDescription from '../prompts/gh-pr-diff.md' with { type: 'text' };
@@ -281,6 +282,7 @@ const RUN_WATCH_TAIL_DEFAULT = 15;
 const RUN_WATCH_TAIL_MAX = 200;
 const REVIEW_COMMENTS_PAGE_SIZE = 100;
 const RUN_JOBS_PAGE_SIZE = 100;
+const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
 const PR_URL_PATTERN = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)(?:\/.*)?$/;
 const RUN_URL_PATTERN = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)(?:\/.*)?$/;
 const RUN_SUCCESS_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
@@ -396,6 +398,14 @@ const ghRunWatchSchema = Type.Object({
   ),
 });
 
+const ghHelpSchema = Type.Object({
+  command_path: Type.Optional(
+    Type.String({
+      description: 'Command path without the "gh" prefix, e.g. "pr view" or "run". Empty for top-level help.',
+    }),
+  ),
+});
+
 type GhRepoViewInput = Static<typeof ghRepoViewSchema>;
 type GhIssueViewInput = Static<typeof ghIssueViewSchema>;
 type GhPrViewInput = Static<typeof ghPrViewSchema>;
@@ -405,6 +415,7 @@ type GhPrPushInput = Static<typeof ghPrPushSchema>;
 type GhSearchIssuesInput = Static<typeof ghSearchIssuesSchema>;
 type GhSearchPrsInput = Static<typeof ghSearchPrsSchema>;
 type GhRunWatchInput = Static<typeof ghRunWatchSchema>;
+type GhHelpInput = Static<typeof ghHelpSchema>;
 
 export interface GhToolDetails {
   errorType?: GhErrorType;
@@ -2541,6 +2552,50 @@ export class GhSearchPrsTool implements AgentTool<typeof ghSearchPrsSchema, GhTo
       return buildTextResult(formatSearchResults('pull requests', query, repo, items), undefined, {
         tool: 'gh_search_prs',
       });
+    });
+  }
+}
+
+export class GhHelpTool implements AgentTool<typeof ghHelpSchema, GhToolDetails> {
+  readonly name = 'gh_help';
+  readonly label = 'GitHub CLI Help';
+  readonly description = prompt.render(ghHelpDescription);
+  readonly parameters = ghHelpSchema;
+  readonly strict = true;
+
+  constructor(private readonly session: ToolSession) {}
+
+  static createIf(session: ToolSession): GhHelpTool | null {
+    if (!git.github.available()) return null;
+    return new GhHelpTool(session);
+  }
+
+  async execute(
+    _toolCallId: string,
+    params: GhHelpInput,
+    signal?: AbortSignal,
+    _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
+    _context?: AgentToolContext,
+  ): Promise<AgentToolResult<GhToolDetails>> {
+    const commandPath = params.command_path?.trim() ?? '';
+    if (commandPath.length > 0 && !HELP_PATH_PATTERN.test(commandPath)) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error: invalid command path "${commandPath}". Only lowercase letters, hyphens, and spaces are allowed.`,
+          },
+        ],
+        isError: true,
+        details: { tool: 'gh_help' },
+      };
+    }
+
+    return untilAborted(signal, async () => {
+      const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
+      const result = await git.github.run(this.session.cwd, [...parts, '--help'], signal);
+      const output = result.stdout || result.stderr;
+      return buildTextResult(output || `No help output for "gh ${commandPath}".`, undefined, { tool: 'gh_help' });
     });
   }
 }
