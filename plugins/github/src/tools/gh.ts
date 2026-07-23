@@ -49,6 +49,7 @@ import ghSearchIssuesDescription from '../prompts/gh-search-issues.md' with { ty
 import ghSearchPrsDescription from '../prompts/gh-search-prs.md' with { type: 'text' };
 import * as git from '../utils/git';
 import { ToolError, throwIfAborted } from '../utils/tool-errors';
+import { confirmMutation, HEADLESS_BLOCKED_MESSAGE, resolveApprovalMode } from './mutation-safety';
 
 // ---------------------------------------------------------------------------
 // Shims for xcsh internals removed during extraction
@@ -119,6 +120,8 @@ type AgentToolUpdateCallback<TDetails = unknown> = (update: {
 
 interface AgentToolContext {
   cwd: string;
+  hasUI?: boolean;
+  ui?: { confirm(title: string, message: string, dialogOptions?: unknown): Promise<boolean> };
 }
 
 /** Minimal AgentTool interface matching xcsh's pi-agent-core contract. */
@@ -2372,9 +2375,12 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
     params: GhPrPushInput,
     signal?: AbortSignal,
     _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
-    _context?: AgentToolContext,
+    context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
+      const mode = resolveApprovalMode(context);
+      if (mode === 'headless-blocked') throw new ToolError(HEADLESS_BLOCKED_MESSAGE);
+
       const repoRoot = await requireGitRepoRoot(this.session.cwd, signal);
       const localBranch = normalizeOptionalString(params.branch) ?? (await requireCurrentGitBranch(repoRoot, signal));
       const refExists = await git.ref.exists(repoRoot, toLocalBranchRef(localBranch), signal);
@@ -2386,6 +2392,21 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
       const currentBranch = await git.branch.current(repoRoot, signal);
       const sourceRef = currentBranch === localBranch ? 'HEAD' : toLocalBranchRef(localBranch);
       const refspec = `${sourceRef}:refs/heads/${target.remoteBranch}`;
+
+      if (mode === 'interactive' && context?.ui) {
+        const approved = await confirmMutation(context.ui, {
+          title: 'Push PR branch',
+          message: `Push ${localBranch} to ${target.remoteName}/${target.remoteBranch}?`,
+          rewrite: params.forceWithLease
+            ? {
+                title: 'Force-with-lease push',
+                message: `This can overwrite remote history on ${target.remoteBranch}. Continue?`,
+              }
+            : undefined,
+        });
+        if (!approved) throw new ToolError('Push cancelled: not confirmed.');
+      }
+
       await git.push(repoRoot, {
         forceWithLease: params.forceWithLease,
         refspec,
