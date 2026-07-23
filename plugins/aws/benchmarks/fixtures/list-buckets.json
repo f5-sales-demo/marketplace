@@ -1,0 +1,7 @@
+{
+  "Buckets": [
+    { "Name": "demo-assets", "CreationDate": "2026-01-15T10:00:00Z" },
+    { "Name": "demo-logs", "CreationDate": "2026-02-20T12:30:00Z" }
+  ],
+  "Owner": { "DisplayName": "demo", "ID": "abc123" }
+}
