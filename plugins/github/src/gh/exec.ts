@@ -63,7 +63,7 @@ export function detectGhError(
     );
   }
   if (raw.length > 0) return new GhExecError(raw);
-  return new GhExecError(`GitHub CLI command failed: gh ${(opts?.args ?? []).join(' ')}`.trim());
+  return new GhExecError(`GitHub CLI command failed (exit ${exitCode}): gh ${(opts?.args ?? []).join(' ')}`.trim());
 }
 
 export function detectGhErrorType(err: unknown): GhErrorType {

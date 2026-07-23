@@ -37,6 +37,28 @@ describe('detectGhError', () => {
     const e = detectGhError('', '', 1, { args: ['pr', 'view', '999'] });
     expect(e.message).toContain('gh pr view 999');
   });
+  it('prefers rate-limit over not-found when both signals present', () => {
+    const e = detectGhError('gh: HTTP 404 - API rate limit exceeded for user', '', 1);
+    expect(e).toBeInstanceOf(GhRateLimitError);
+  });
+  it('prefers auth over rate-limit when both signals present', () => {
+    const e = detectGhError('run `gh auth login`; API rate limit exceeded for user', '', 1);
+    expect(e).toBeInstanceOf(GhAuthError);
+  });
+  it('bypasses the repo-context branch when repoProvided is true', () => {
+    const e = detectGhError('no git remotes found', '', 1, { repoProvided: true });
+    expect(e).toBeInstanceOf(GhExecError);
+    expect(e.message.toLowerCase()).not.toContain('repository context');
+    expect(e.message).toContain('no git remotes found');
+  });
+  it('classifies "no issues found" as not-found', () => {
+    expect(detectGhError('no issues found', '', 1)).toBeInstanceOf(GhNotFoundError);
+  });
+  it('includes the exit code in the synthesized fallback message', () => {
+    const e = detectGhError('', '', 2, { args: ['pr', 'view', '9'] });
+    expect(e.message).toContain('exit 2');
+    expect(e.message).toContain('gh pr view 9');
+  });
 });
 
 describe('detectGhErrorType', () => {
