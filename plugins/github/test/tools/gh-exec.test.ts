@@ -43,9 +43,20 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', '--method=PUT', 'x']).blocked).toBe(true);
   });
 
+  it('blocks gh api attached-equals -X and --input body bypasses', () => {
+    expect(findMutation(['api', '-X=POST', 'repos/o/r/issues']).blocked).toBe(true);
+    expect(findMutation(['api', '-X=DELETE', 'repos/o/r']).blocked).toBe(true);
+    expect(findMutation(['api', '-X=patch', 'x']).blocked).toBe(true);
+    expect(findMutation(['api', 'repos/o/r', '--input', 'body.json']).blocked).toBe(true);
+    expect(findMutation(['api', '--input=body.json', 'x']).blocked).toBe(true);
+    expect(findMutation(['api', 'graphql', '--input', 'mut.json']).blocked).toBe(true);
+  });
+
   it('allows gh api GET requests', () => {
     expect(findMutation(['api', '-XGET', 'repos/o/r']).blocked).toBe(false);
     expect(findMutation(['api', '--method', 'GET', 'x', '-f', 'a=b']).blocked).toBe(false);
+    expect(findMutation(['api', '-X=GET', 'user']).blocked).toBe(false);
+    expect(findMutation(['api', 'repos/o/r']).blocked).toBe(false);
   });
 
   it('does not false-positive on read args that contain a verb word', () => {

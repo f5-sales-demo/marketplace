@@ -23,34 +23,36 @@ export const READ_VERBS: ReadonlySet<string> = new Set([
   'get',
   'show',
   'ls',
-  'browse',
 ]);
 
 // Top-level read commands that do not follow the group+verb shape.
 const READ_TOP: ReadonlySet<string> = new Set(['search', 'status', 'version', 'help']);
 
-const MUTATING_API_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const API_MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-function parseApiMethod(args: string[]): string | null {
+// Resolve the HTTP method gh will actually use for `gh api`:
+// explicit --method/-X (any form) wins; otherwise gh sends POST when any body/input
+// flag is present, else GET.
+function effectiveApiMethod(args: string[]): string {
+  let explicit: string | null = null;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === '-X' || a === '--method') return (args[i + 1] ?? '').toUpperCase() || null;
-    if (a.startsWith('--method=')) return a.slice('--method='.length).toUpperCase() || null;
-    if (a.startsWith('-X') && a.length > 2) return a.slice(2).toUpperCase();
+    if (a === '-X' || a === '--method') explicit = (args[i + 1] ?? '').toUpperCase() || explicit;
+    else if (a.startsWith('--method=')) explicit = a.slice('--method='.length).toUpperCase() || explicit;
+    else if (a.startsWith('-X') && a.length > 2) explicit = a.slice(2).replace(/^=/, '').toUpperCase() || explicit;
   }
-  return null;
-}
-
-function hasApiBodyField(args: string[]): boolean {
-  return args.some(
+  if (explicit) return explicit;
+  const hasBody = args.some(
     (a) =>
       a === '-f' ||
       a === '-F' ||
       a === '--field' ||
       a === '--raw-field' ||
-      /^--(field|raw-field)=/.test(a) ||
+      a === '--input' ||
+      /^--(field|raw-field|input)=/.test(a) ||
       /^-[fF]./.test(a),
   );
+  return hasBody ? 'POST' : 'GET';
 }
 
 export function findMutation(args: string[]): { blocked: boolean; reason?: string } {
@@ -59,12 +61,9 @@ export function findMutation(args: string[]): { blocked: boolean; reason?: strin
   const top = positionals[0];
 
   if (top === 'api') {
-    const method = parseApiMethod(args);
-    if (method && MUTATING_API_METHODS.has(method)) {
-      return { blocked: true, reason: `gh api with method ${method} is a mutating request` };
-    }
-    if (method === null && hasApiBodyField(args)) {
-      return { blocked: true, reason: 'gh api with body fields implies a mutating (POST) request' };
+    const method = effectiveApiMethod(args);
+    if (API_MUTATING_METHODS.has(method)) {
+      return { blocked: true, reason: `gh api resolves to a ${method} request (mutating)` };
     }
     return { blocked: false };
   }
