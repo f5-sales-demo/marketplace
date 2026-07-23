@@ -122,12 +122,14 @@ const factory: ExtensionFactory = async (pi) => {
     const { createSfOrgDisplayTool } = await import('./tools/sf-org-display');
     const { createSfPipelineReportTool } = await import('./tools/sf-pipeline-report');
     const { createSfHelpTool } = await import('./tools/sf-help');
+    const { createSfExecTool } = await import('./tools/sf-exec');
 
     pi.registerTool(withErrorType(createSfSetupTool(pi)));
     pi.registerTool(withErrorType(createSfQueryTool(pi)));
     pi.registerTool(withErrorType(createSfOrgDisplayTool(pi)));
     pi.registerTool(withErrorType(createSfPipelineReportTool(pi)));
     pi.registerTool(withErrorType(createSfHelpTool(pi)));
+    pi.registerTool(withErrorType(createSfExecTool(pi)));
 
     // Context injection (only when sf available)
     pi.on('before_agent_start', async () => {

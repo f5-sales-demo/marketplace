@@ -9,7 +9,7 @@ import type { SfOrg, SfQueryResult, SfRawResult } from '../sf/types';
 export type SfErrorType = 'auth_required' | 'session_expired' | 'no_default_org' | 'invalid_query' | 'exec_error';
 
 export interface SfToolDetails {
-  tool: 'sf_setup' | 'sf_query' | 'sf_org_display' | 'sf_pipeline_report' | 'sf_help';
+  tool: 'sf_setup' | 'sf_query' | 'sf_org_display' | 'sf_pipeline_report' | 'sf_help' | 'sf_exec';
   action?: string;
   orgs?: SfOrg[];
   queryResult?: SfQueryResult;
