@@ -96,6 +96,7 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'request', 'rest', 'projects']).blocked).toBe(false);
     expect(findMutation(['api', 'request', 'rest', '-X', 'GET', 'projects']).blocked).toBe(false);
     expect(findMutation(['api', 'request', 'rest', '-iX', 'GET', 'projects']).blocked).toBe(false);
+    expect(findMutation(['api', 'request', 'rest', '--method', 'GET', 'projects']).blocked).toBe(false);
   });
 
   it('blocks writes and unrecognized commands (fail-safe)', () => {
@@ -138,6 +139,15 @@ describe('findMutation allowlist', () => {
   it('blocks the sf api request short-flag-cluster method bypass', () => {
     expect(findMutation(['api', 'request', 'rest', '-iX', 'POST', 'x']).blocked).toBe(true);
     expect(findMutation(['api', 'request', 'rest', '-iXPUT', 'x']).blocked).toBe(true);
+  });
+
+  it('blocks the sf api request short body-flag (-b/-f) mutation bypass', () => {
+    expect(findMutation(['api', 'request', 'rest', '-f', 'req.json']).blocked).toBe(true);
+    expect(findMutation(['api', 'request', 'rest', '-b', '{}', 'url']).blocked).toBe(true);
+    // cluster: `-if` = -i (include) + -f (file)
+    expect(findMutation(['api', 'request', 'rest', '-if', 'req.json']).blocked).toBe(true);
+    // attached form: `-freq.json`
+    expect(findMutation(['api', 'request', 'rest', '-freq.json']).blocked).toBe(true);
   });
 
   it('blocks the flag-value-shift bypass (token after a value flag is consumed)', () => {

@@ -105,7 +105,9 @@ export function effectiveApiMethod(args: string[]): string {
 
     // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading '-' and
     // inspect the letter run up to the first '=' so a boolean short flag clustered
-    // ahead of the method short can't hide it.
+    // ahead of the method short can't hide it. sf's body/file shorts are `-b`/`-f`, so
+    // a `b` or `f` anywhere in the cluster (`-f`, `-b`, `-if`, `-Sf`, `-bX`, attached
+    // `-freq.json`) implies a body/write, mirroring the method-letter `X` detection.
     if (/^-[A-Za-z]/.test(a)) {
       const body = a.slice(1);
       const eq = body.indexOf('=');
@@ -117,6 +119,7 @@ export function effectiveApiMethod(args: string[]): string {
         if (after) setExplicit(after);
         else setExplicit(args[i + 1] ?? '');
       }
+      if (letters.includes('b') || letters.includes('f')) hasBody = true;
     }
   }
 
@@ -124,11 +127,21 @@ export function effectiveApiMethod(args: string[]): string {
   return hasBody ? 'POST' : 'GET';
 }
 
-// Does the api request carry a body payload flag (--body/--file, any form)? Such a flag
-// can smuggle a mutating method/body the method check alone cannot see, so its mere
-// presence blocks the request regardless of the resolved method.
+// Does the api request carry a body payload flag? Such a flag can smuggle a mutating
+// method/body the method check alone cannot see, so its mere presence blocks the request
+// regardless of the resolved method. sf exposes both long forms (--body/--file, any form)
+// and single-dash shorts (`-b`/`-f`), and shorts may cluster or attach a value
+// (`-if`, `-freq.json`, `-b{}`), so any single-dash token whose letter run includes
+// `b` or `f` counts too.
 function hasApiBodyFlag(args: string[]): boolean {
-  return args.some((a) => a === '--body' || a === '--file' || a.startsWith('--body=') || a.startsWith('--file='));
+  return args.some((a) => {
+    if (a === '--body' || a === '--file' || a.startsWith('--body=') || a.startsWith('--file=')) return true;
+    if (a.startsWith('--') || !/^-[A-Za-z]/.test(a)) return false;
+    const body = a.slice(1);
+    const eq = body.indexOf('=');
+    const letters = eq === -1 ? body : body.slice(0, eq);
+    return letters.includes('b') || letters.includes('f');
+  });
 }
 
 export function findMutation(args: string[]): { blocked: boolean; reason?: string } {
