@@ -62,6 +62,60 @@ describe('findMutation allowlist', () => {
   it('does not false-positive on read args that contain a verb word', () => {
     expect(findMutation(['pr', 'view', 'merge']).blocked).toBe(false);
   });
+
+  it('blocks the flag-value-shift bypass (cobra consumes the token after a value flag)', () => {
+    // `--title`'s value `list` is consumed by gh; real verb `create` is a mutation.
+    expect(findMutation(['issue', '--title', 'list', 'create']).blocked).toBe(true);
+  });
+
+  it('blocks gh api short-flag-cluster mutations (pflag clustering bypass)', () => {
+    // -iF = -i (include) + -F (raw-field, value from next arg) → body → POST.
+    expect(findMutation(['api', 'repos/o/r/issues', '-iF', 'field=y']).blocked).toBe(true);
+    // -iX = -i + -X (method, value from next arg).
+    expect(findMutation(['api', 'x', '-iX', 'POST']).blocked).toBe(true);
+  });
+
+  it('does not misread a value-flag value as -X/method (jq/header/template consume their value)', () => {
+    // `--jq`/`-q`/`-H` take the FOLLOWING token as their value; a value that looks like
+    // `-Xhack`/`-XGET` is data, not a method flag. The `-f` body still makes gh POST, so
+    // the forged method must not downgrade it to an allowed read.
+    expect(findMutation(['api', '-f', 'title=x', '/repos/o/r/issues', '--jq', '-Xhack']).blocked).toBe(true);
+    expect(findMutation(['api', '-f', 'a=b', '--jq', '-XGET']).blocked).toBe(true);
+    expect(findMutation(['api', '-f', 'a=b', '-q', '-XGET']).blocked).toBe(true);
+    expect(findMutation(['api', '-f', 'a=b', '-H', '-XGET']).blocked).toBe(true);
+    // A genuine jq read with a normal expression is still an allowed GET.
+    expect(findMutation(['api', 'repos/o/r', '--jq', '.name']).blocked).toBe(false);
+  });
+
+  it('blocks the boolean-short-cluster verb-shift bypass (pflag: -xy... does not consume next arg)', () => {
+    // A single-dash cluster of length >= 3 is all in-token flags; pflag does NOT read
+    // its value from the following arg, so the real write verb stays a positional and
+    // must not be dropped. `gh release -dp create view` dispatches `release create`.
+    expect(findMutation(['release', '-dp', 'create', 'view']).blocked).toBe(true);
+    expect(findMutation(['pr', '-dm', 'merge', 'view']).blocked).toBe(true);
+    // A genuine long flag without `=` (or a lone 2-char short) still consumes its value,
+    // so these reads whose verb follows a real value flag remain allowed.
+    expect(findMutation(['issue', 'list', '--label', 'create']).blocked).toBe(false);
+    expect(findMutation(['-R', 'o/r', 'pr', 'list']).blocked).toBe(false);
+  });
+
+  it('still allows legit reads whose flag values look like verbs', () => {
+    // `create` is the --search term, not the verb; verb is still `list`.
+    expect(findMutation(['issue', 'list', '--search', 'create']).blocked).toBe(false);
+    // Global value-flag before the group; verb is still `list`.
+    expect(findMutation(['-R', 'o/r', 'issue', 'list']).blocked).toBe(false);
+  });
+
+  it('blocks the -fX=GET body-field bypass (pflag stops at the first value-taking short)', () => {
+    // `-fX=GET` is --field with value `X=GET` (a body field named X) → gh POSTs;
+    // the trailing X must NOT be parsed as a method that downgrades it to GET.
+    expect(findMutation(['api', 'x', '-fX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-FX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-f', '-fX=GET']).blocked).toBe(true);
+    expect(findMutation(['api', 'repos/o/r/issues', '-fX=GET', '-ftitle=pwned']).blocked).toBe(true);
+    // A real method-only read (no body) still resolves to GET and is allowed.
+    expect(findMutation(['api', 'repos/o/r', '-X', 'GET']).blocked).toBe(false);
+  });
 });
 
 describe('gh_exec execute', () => {
