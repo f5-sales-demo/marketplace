@@ -80,15 +80,18 @@ Guard algorithm (`gcloud-exec-guard.ts`), fail-safe **read allowlist**:
 Verb sets (grounded in the gcloud surface):
 
 - `READ_EXACT` = `list`, `describe`, `get-iam-policy`, `get-value`, `get-server-config`,
-  `get-ancestors`, `list-grantable-roles`, `print-access-token`, `print-identity-token`,
-  `print-settings`, `version`, `info`.
+  `get-ancestors`, `list-grantable-roles`, `print-settings`, `version`, `info`.
+  (`print-access-token` / `print-identity-token` are NOT reads — they mint/print usable
+  bearer credentials to stdout, so they live in `DANGEROUS_VERBS`.)
 - `READ_PREFIXES` = `list-` (e.g. `list-instances`), `describe-`.
 - `READ_TOP` (top-level, no group/verb) = `version`, `info`, `help`, `topic`,
   `cheat-sheet`. These resolve when positionals[0] is one of them.
 - `DANGEROUS_VERBS` = `ssh`, `scp`, `connect`, `call`, `run` (as a verb, e.g.
   `functions call`/`run`), `interactive`, `login`, `revoke`, `get-credentials` (writes
-  kubeconfig + grants cluster access — a `get-*` that is NOT a read), `reset-windows-password`,
-  `simulate-maintenance-event`, `enable-service`, `configure-docker`.
+  kubeconfig + grants cluster access — a `get-*` that is NOT a read), `print-access-token`,
+  `print-identity-token` (mint/print usable bearer credentials to stdout — credential
+  exposure), `reset-windows-password`, `simulate-maintenance-event`, `enable-service`,
+  `configure-docker`.
 - `MUTATING_VERBS` = `create`, `delete`, `update`, `patch`, `remove`, `add`, `set`,
   `set-iam-policy`, `add-iam-policy-binding`, `remove-iam-policy-binding`, `deploy`,
   `import`, `export`, `apply`, `enable`, `disable`, `start`, `stop`, `restart`, `resize`,

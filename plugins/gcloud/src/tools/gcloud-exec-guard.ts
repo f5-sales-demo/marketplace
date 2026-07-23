@@ -23,8 +23,6 @@ export const READ_EXACT: ReadonlySet<string> = new Set([
   'get-server-config',
   'get-ancestors',
   'list-grantable-roles',
-  'print-access-token',
-  'print-identity-token',
   'print-settings',
   'version',
   'info',
@@ -49,6 +47,12 @@ export const DANGEROUS_VERBS: ReadonlySet<string> = new Set([
   'login',
   'revoke',
   'get-credentials',
+  // print-access-token / print-identity-token mint and print usable bearer credentials
+  // to stdout, which would flow into agent context and logs — a credential-exposure
+  // vector. Route token minting through the confirmed cli-operator path, not the
+  // read-only passthrough.
+  'print-access-token',
+  'print-identity-token',
   'reset-windows-password',
   'simulate-maintenance-event',
   'enable-service',

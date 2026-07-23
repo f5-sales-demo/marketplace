@@ -132,6 +132,10 @@ describe('checkGcloud BLOCK', () => {
     ['app deploy', ['app', 'deploy']],
     ['auth login', ['auth', 'login']],
     ['auth revoke', ['auth', 'revoke']],
+    // Token-minting reads print usable bearer credentials to stdout → credential
+    // exposure; they must route through the confirmed path, not the passthrough.
+    ['auth print-access-token', ['auth', 'print-access-token']],
+    ['auth print-identity-token', ['auth', 'print-identity-token']],
     ['unknown verb', ['compute', 'instances', 'frobnicate', 'x']],
     ['empty', []],
     ['run deploy', ['run', 'deploy', 'svc']],
