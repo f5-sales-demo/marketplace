@@ -49,6 +49,7 @@ import ghSearchIssuesDescription from '../prompts/gh-search-issues.md' with { ty
 import ghSearchPrsDescription from '../prompts/gh-search-prs.md' with { type: 'text' };
 import * as git from '../utils/git';
 import { ToolError, throwIfAborted } from '../utils/tool-errors';
+import { confirmMutation, HEADLESS_BLOCKED_MESSAGE, resolveApprovalMode } from './mutation-safety';
 
 // ---------------------------------------------------------------------------
 // Shims for xcsh internals removed during extraction
@@ -119,6 +120,8 @@ type AgentToolUpdateCallback<TDetails = unknown> = (update: {
 
 interface AgentToolContext {
   cwd: string;
+  hasUI?: boolean;
+  ui?: { confirm(title: string, message: string, dialogOptions?: unknown): Promise<boolean> };
 }
 
 /** Minimal AgentTool interface matching xcsh's pi-agent-core contract. */
@@ -2240,9 +2243,12 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
     params: GhPrCheckoutInput,
     signal?: AbortSignal,
     _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
-    _context?: AgentToolContext,
+    context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
+      const mode = resolveApprovalMode(context);
+      if (mode === 'headless-blocked') throw new ToolError(HEADLESS_BLOCKED_MESSAGE);
+
       const pr = normalizeOptionalString(params.pr);
       const repo = normalizeOptionalString(params.repo);
       const requestedBranch = normalizeOptionalString(params.branch);
@@ -2274,6 +2280,43 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
       const existingWorktrees = await git.worktree.list(repoRoot, signal);
       const existingWorktree = existingWorktrees.find((entry) => entry.branch === toLocalBranchRef(localBranch));
 
+      // Decide whether this checkout will RESET an existing divergent local branch
+      // (history-affecting) before performing any mutation.
+      let willReset = false;
+      if (!existingWorktree) {
+        const localBranchRef = toLocalBranchRef(localBranch);
+        if (await git.ref.exists(repoRoot, localBranchRef, signal)) {
+          const existingOid = await git.ref.resolve(repoRoot, localBranchRef, signal);
+          if (existingOid !== headRefOid) {
+            if (!force) {
+              throw new ToolError(
+                `local branch ${localBranch} already exists at ${formatShortSha(existingOid ?? undefined) ?? existingOid ?? 'unknown commit'}; pass force=true to reset it`,
+              );
+            }
+            willReset = true;
+          }
+        }
+      }
+
+      if (mode === 'interactive') {
+        if (!context?.ui) {
+          throw new ToolError(
+            'Interactive confirmation required but no UI is available. Set GITHUB_ALLOW_MUTATIONS=1 to allow headless operation without a prompt.',
+          );
+        }
+        const approved = await confirmMutation(context.ui, {
+          title: 'Checkout PR branch',
+          message: `Create/update local branch ${localBranch} and worktree at ${worktreePath}?`,
+          rewrite: willReset
+            ? {
+                title: 'Reset existing branch',
+                message: `Branch ${localBranch} will be reset to the PR head. Continue?`,
+              }
+            : undefined,
+        });
+        if (!approved) throw new ToolError('Checkout cancelled: not confirmed.');
+      }
+
       const remote = await ensurePrRemote(repoRoot, data, signal);
       await git.fetch(
         repoRoot,
@@ -2284,20 +2327,9 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
       );
 
       if (!existingWorktree) {
-        const localBranchRef = toLocalBranchRef(localBranch);
-        const localBranchExists = await git.ref.exists(repoRoot, localBranchRef, signal);
-        if (localBranchExists) {
-          const existingOid = await git.ref.resolve(repoRoot, localBranchRef, signal);
-          if (existingOid !== headRefOid) {
-            if (!force) {
-              throw new ToolError(
-                `local branch ${localBranch} already exists at ${formatShortSha(existingOid ?? undefined) ?? existingOid ?? 'unknown commit'}; pass force=true to reset it`,
-              );
-            }
-
-            await git.branch.force(repoRoot, localBranch, `refs/remotes/${remote.name}/${headRefName}`, signal);
-          }
-        } else {
+        if (willReset) {
+          await git.branch.force(repoRoot, localBranch, `refs/remotes/${remote.name}/${headRefName}`, signal);
+        } else if (!(await git.ref.exists(repoRoot, toLocalBranchRef(localBranch), signal))) {
           await git.branch.create(repoRoot, localBranch, `refs/remotes/${remote.name}/${headRefName}`, signal);
         }
       }
@@ -2372,9 +2404,12 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
     params: GhPrPushInput,
     signal?: AbortSignal,
     _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
-    _context?: AgentToolContext,
+    context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
+      const mode = resolveApprovalMode(context);
+      if (mode === 'headless-blocked') throw new ToolError(HEADLESS_BLOCKED_MESSAGE);
+
       const repoRoot = await requireGitRepoRoot(this.session.cwd, signal);
       const localBranch = normalizeOptionalString(params.branch) ?? (await requireCurrentGitBranch(repoRoot, signal));
       const refExists = await git.ref.exists(repoRoot, toLocalBranchRef(localBranch), signal);
@@ -2386,6 +2421,26 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
       const currentBranch = await git.branch.current(repoRoot, signal);
       const sourceRef = currentBranch === localBranch ? 'HEAD' : toLocalBranchRef(localBranch);
       const refspec = `${sourceRef}:refs/heads/${target.remoteBranch}`;
+
+      if (mode === 'interactive') {
+        if (!context?.ui) {
+          throw new ToolError(
+            'Interactive confirmation required but no UI is available. Set GITHUB_ALLOW_MUTATIONS=1 to allow headless operation without a prompt.',
+          );
+        }
+        const approved = await confirmMutation(context.ui, {
+          title: 'Push PR branch',
+          message: `Push ${localBranch} to ${target.remoteName}/${target.remoteBranch}?`,
+          rewrite: params.forceWithLease
+            ? {
+                title: 'Force-with-lease push',
+                message: `This can overwrite remote history on ${target.remoteBranch}. Continue?`,
+              }
+            : undefined,
+        });
+        if (!approved) throw new ToolError('Push cancelled: not confirmed.');
+      }
+
       await git.push(repoRoot, {
         forceWithLease: params.forceWithLease,
         refspec,
