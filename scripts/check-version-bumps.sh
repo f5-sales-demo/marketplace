@@ -58,6 +58,13 @@ for p in "${CHANGED_PLUGINS[@]}"; do
     continue
   fi
 
+  # Removed/renamed plugin — plugin.json is gone at HEAD; nothing to bump. Skip so
+  # legitimate deletion/rename PRs are not blocked by an unsatisfiable version check.
+  if [[ ! -f "$REPO_ROOT/$rel" ]]; then
+    echo "check-version-bumps: '$p' removed at HEAD — skipping"
+    continue
+  fi
+
   head_ver=$(jq -r '.version // empty' "$REPO_ROOT/$rel" 2>/dev/null) || head_ver=""
   if [[ -z "$head_ver" ]]; then
     echo "::error::Plugin '$p' is missing $rel .version"
