@@ -1,7 +1,7 @@
 # xcsh CLI-Plugin Capability Contract
 
-The standard every xcsh CLI-integration plugin (azure, aws, gcloud, gitlab,
-salesforce, github) conforms to. Best-of-breed: each dimension names the plugin
+The standard every xcsh CLI-integration plugin (Azure, aws, gcloud, GitLab,
+salesforce, GitHub) conforms to. Best-of-breed: each dimension names the plugin
 whose current implementation is the reference.
 
 ## Dimensions
@@ -9,24 +9,24 @@ whose current implementation is the reference.
 1. **Execution & hygiene** — spawn the CLI argv-style via `Bun.spawn([cli, ...args])`;
    never a shell, never `shell:true`, never a command string. Reject arguments
    containing control/NUL bytes. Support cancellation by threading `AbortSignal`
-   into the spawn. (Ref: azure argv model + `hasControlChars`; github signal-aware exec.)
+   into the spawn. (Ref: Azure argv model + `hasControlChars`; GitHub signal-aware exec.)
 2. **Discovery** — ship a `<cli>_help` tool that runs the CLI's own `--help`, and
    document the CLI's native query grammar in the passthrough/query prompt:
    - aws: JMESPath `--query` (+ server-side `--filters`)
    - gcloud: `--filter` (server) + `--format` projection (client)
-   - github: `--json` + `--jq`
-   - gitlab: `--output json`
+   - GitHub: `--json` + `--jq`
+   - GitLab: `--output json`
    - salesforce: SOQL
-   (Ref: azure `az_help`; salesforce `sf-query.md` for depth.)
+   (Ref: Azure `az_help`; salesforce `sf-query.md` for depth.)
 3. **Error taxonomy** — classify stderr into `auth_required | session_expired |
    not_found | exec_error` (+ domain-specific), surface as `details.errorType`, and
    return teaching messages naming the fix. (Ref: salesforce's 6-class model.)
 4. **Safety policy** — two modes:
    - Generic passthrough (`<cli>_exec`): read-only by default; block mutating verbs
-     via a fail-safe check on every non-flag token. (Ref: azure `MUTATING_VERBS`.)
+     via a fail-safe check on every non-flag token. (Ref: Azure `MUTATING_VERBS`.)
    - Purpose-built mutating tools: explicit confirmed mutation via `ctx.ui.confirm`,
      fail-safe refusal when headless unless an explicit opt-in is set, and an extra
-     confirm for history-rewriting operations. (Ref: github, this spec.)
+     confirm for history-rewriting operations. (Ref: GitHub, this spec.)
 5. **Typed tools + formatters** — 3–5 typed reads with TypeBox params, per-field
    validation, JSON→struct normalizers, and markdown tables with empty states.
 6. **Consistency layer** — container-adapted auth skill; intent-router skill
@@ -49,7 +49,7 @@ harness can gate mutations centrally.
 
 Legend: ✅ present · ◑ partial · ❌ missing
 
-| Dimension | azure | aws | gcloud | gitlab | salesforce | github |
+| Dimension | Azure | aws | gcloud | GitLab | salesforce | GitHub |
 |---|---|---|---|---|---|---|
 | 1 argv/no-shell | ✅ | n/a | n/a | ✅ | ✅ | ✅ |
 | 1 control-char hygiene | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -63,5 +63,5 @@ Legend: ✅ present · ◑ partial · ❌ missing
 | 6 consistency layer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 7 tests + benchmark + autoresearch | ✅ | ◑ | ◑ | ◑ | ◑ | ◑ |
 
-Follow-on specs (2 github, 3 gitlab, 4 salesforce, 5 aws, 6 gcloud) drive each
+Follow-on specs (2 GitHub, 3 GitLab, 4 salesforce, 5 aws, 6 gcloud) drive each
 column to ✅.
