@@ -10,10 +10,16 @@ Run any read-only `glab` (GitLab CLI) command. Pass arguments as an array withou
 
 ## Querying with `--output json`
 
-The GitLab CLI shapes output with `--output json` (NOT gh's `--json`/`--jq` — glab has no built-in jq projection). It emits the full JSON payload; pipe or post-process fields yourself:
+The GitLab CLI shapes output with `--output json` (NOT gh's `--json`/`--jq` — glab has no built-in field projection or jq). It emits the full JSON payload; select fields client-side yourself (the tool result is JSON you can read directly):
 
 - Full JSON: `glab issue list --output json`
 - Single resource: `glab mr view 5 --output json`
+
+Because there is no projection grammar, narrow results with glab's **server-side filter flags** (they are the query surface), then read the JSON:
+
+- Issues: `--assignee`, `--author`, `--label`, `--milestone`, `--state` (`opened`/`closed`/`all`), `--search`, `--per-page`, `--page` — e.g. `glab issue list --assignee @me --label bug --state opened --output json`
+- MRs: `--reviewer`, `--assignee`, `--label`, `--milestone`, `--state`, `--source-branch`, `--target-branch` — e.g. `glab mr list --reviewer @me --state opened --output json`
+- Pagination: `--per-page N` (default 30, max 100) plus `--page N`; there is no cursor.
 
 Note the flag differences from the GitHub CLI: glab uses `--output json` where gh uses `--json <fields>`, and glab's `glab api` body flags are `-F`/`--field` (typed field) and `-f`/`--raw-field` (raw string field) — the opposite letters carry different typing semantics than you might expect, so both trigger a POST and are blocked here.
 

@@ -8,6 +8,36 @@ import { detectGhError } from '../gh/exec';
 import { ToolAbortError, ToolError, throwIfAborted } from './tool-errors';
 
 // ---------------------------------------------------------------------------
+// Argv hygiene (shared by every gh/git spawn wrapper below and re-exported by
+// the gh_exec guard, so control-char rejection has a single source of truth)
+// ---------------------------------------------------------------------------
+
+// Blocks ASCII C0 control characters and DEL (0x7f) but allows tab (0x09),
+// LF (0x0A), and CR (0x0D) so multi-line `--jq` expressions survive. charCode scan
+// (not a regex) so no control-char literal appears in source and no lint suppression
+// is needed.
+export function hasControlChars(arg: string): boolean {
+  for (let i = 0; i < arg.length; i++) {
+    const c = arg.charCodeAt(i);
+    if (c <= 8 || c === 11 || c === 12 || (c >= 14 && c <= 31) || c === 127) return true;
+  }
+  return false;
+}
+
+// Reject any argv element carrying a control/NUL byte before it reaches Bun.spawn.
+// A NUL malforms an execve argv; other control bytes have no legitimate place in a
+// gh/git argument. Throws a ToolError naming the offending argument.
+export function assertNoControlChars(args: readonly string[]): void {
+  for (const arg of args) {
+    if (hasControlChars(arg)) {
+      throw new ToolError(
+        `Argument contains a control character and cannot be passed to the CLI: ${JSON.stringify(arg)}`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -28,6 +58,7 @@ function which(binary: string): boolean {
 
 async function runCommand(cwd: string, args: readonly string[], signal?: AbortSignal): Promise<GitCommandResult> {
   throwIfAborted(signal);
+  assertNoControlChars(args);
   const child = Bun.spawn(['git', '--no-optional-locks', ...args], {
     cwd,
     stdin: 'ignore',
@@ -294,6 +325,7 @@ export const github = {
 
   async run(cwd: string, args: string[], signal?: AbortSignal, options?: GhCommandOptions): Promise<GhCommandResult> {
     throwIfAborted(signal);
+    assertNoControlChars(args);
     if (!which('gh')) {
       throw new ToolError('GitHub CLI (gh) is not installed. Install it from https://cli.github.com/.');
     }
