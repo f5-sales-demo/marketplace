@@ -7,7 +7,7 @@
 //
 // gcloud grammar: `gcloud [alpha|beta] <group> [<subgroup>…] <verb> [positional args] [--flags]`.
 // The read/write decision scans ALL non-flag tokens (see getPositionals) — the
-// azure "all-positionals" model — rather than trying to isolate the verb by
+// Azure "all-positionals" model — rather than trying to isolate the verb by
 // position. Any flag-value exclusion / "drop the token after a flag" logic
 // over-excludes and is exactly the bug class that broke the GitHub/GitLab/Salesforce
 // guards (`-dp create`, `-fX=GET` slipping a write past the guard). Taking every

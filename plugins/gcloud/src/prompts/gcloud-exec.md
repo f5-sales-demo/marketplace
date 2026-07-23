@@ -20,7 +20,8 @@ Pass the group, verb, and flags as an array of arguments. Do NOT include `gcloud
   - Read prefixes: any verb starting with `list-` or `describe-`.
   - Top-level: `version`, `info`, `help`, `topic`, `cheat-sheet`.
 - **Mutating verbs are blocked** (`create`, `delete`, `update`, `patch`, `set`, `deploy`, `enable`, `disable`, `set-iam-policy`, `add-iam-policy-binding`, …). Run write/destructive operations through an explicitly confirmed path — delegate to the `gcloud:cli-operator` agent, not `gcloud_exec`.
-- **Execution and credential vectors are blocked** even though some look read-shaped: `ssh`, `scp`, `connect`, `call`, `interactive`, `login`, `revoke`, `get-credentials`, `print-access-token`, `print-identity-token`, `reset-windows-password`, `simulate-maintenance-event`, `enable-service`, `configure-docker`. These open sessions, run code, or mint/print credentials — route them through the `gcloud:cli-operator` agent.
+- **Execution and credential vectors are blocked** even though some look read-shaped: `ssh`, `scp`, `connect`, `call`, `execute`, `interactive`, `login`, `revoke`, `get-credentials`, `print-access-token`, `print-identity-token`, `reset-windows-password`, `simulate-maintenance-event`, `enable-service`, `configure-docker`.
+  These open sessions, run code, or mint/print credentials — route them through the `gcloud:cli-operator` agent.
 - Unrecognized verbs are blocked (fail-safe): provide an explicit read-only verb.
 - Output is capped to prevent context overflow.
 

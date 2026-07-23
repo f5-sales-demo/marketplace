@@ -18,16 +18,16 @@ the heaviest spec on new-file volume, but it has the fullest set of merged refer
 The **reference for the tool layer is aws (Spec 5, #812)** for structure (from-zero
 `src/<cli>/` + `src/tools/` split, signal-aware `shared.ts`, charCode `hasControlChars`,
 `withErrorType` wrapper in `index.ts`, typed-tool + formatter + benchmark shape) and
-**azure (Spec 1) for the guard model**: gcloud's grammar is deep
+**Azure (Spec 1) for the guard model**: gcloud's grammar is deep
 `gcloud <group> [<subgroup>…] <verb> [args] [--flags]` with a leaf verb and trailing
-positional args — the same shape azure's `az` guard solved, NOT aws's flat 2-level
-`<service> <operation>` prefix model. So the `gcloud_exec` guard ports azure's
+positional args — the same shape Azure's `az` guard solved, NOT aws's flat 2-level
+`<service> <operation>` prefix model. So the `gcloud_exec` guard ports Azure's
 scan-all-positionals fail-safe design, adapted to gcloud verbs, inverted to a **read
 allowlist** (gcloud has too many mutating verbs and dangerous non-`create/delete`
 execution vectors — `get-credentials`, `ssh`, `scp`, `connect`, `call` — to enumerate as a
 denylist safely).
 
-Registration style: gcloud uses the aws/azure `ExtensionFactory` + `createGcloud*Tool(pi)`
+Registration style: gcloud uses the aws/Azure `ExtensionFactory` + `createGcloud*Tool(pi)`
 factory idiom reading `pi.typebox.Type` (no `setTypebox` shim).
 
 ## Gaps to close (all contract dimensions)
@@ -60,7 +60,7 @@ positional args (project IDs, resource names, `gs://` URIs) follow it
 
 Guard algorithm (`gcloud-exec-guard.ts`), fail-safe **read allowlist**:
 
-- `getPositionals(args)` — every non-flag token (azure's fail-safe model: do NOT try to
+- `getPositionals(args)` — every non-flag token (Azure's fail-safe model: do NOT try to
   exclude flag values; a `--filter`/`--format` value that happens to equal a mutating verb
   is blocked rather than risk a destructive false negative — a rare, safe failure that
   gcloud filter/format values do not trigger in practice since they are `key=value` /
@@ -72,7 +72,7 @@ Guard algorithm (`gcloud-exec-guard.ts`), fail-safe **read allowlist**:
 - Decision:
   1. If any positional is in `DANGEROUS_VERBS` (execution/credential-exfil vectors) →
      **block** with a specific message, regardless of position (defense in depth).
-  2. If any positional is in `MUTATING_VERBS` → **block** (defense in depth, azure-style
+  2. If any positional is in `MUTATING_VERBS` → **block** (defense in depth, Azure-style
      scan-anywhere).
   3. Else if `findVerb` resolves to a `READ_EXACT` / `READ_PREFIXES` verb → **allow**.
   4. Else → **block** (fail-safe: unrecognized verb).
@@ -138,7 +138,7 @@ explicitly where the hyphenated form matters.
   blocks unchanged.
 - **`gcloud_help`** (`src/tools/gcloud-help.ts`): `gcloud <path> --help` via the exec
   layer, `HELP_PATH_PATTERN = /^[a-z][a-z0-9 -]*$/`, reject parts starting with `-`.
-- **Typed reads (4)** mirroring aws/azure, each with a prompt + formatter + validation:
+- **Typed reads (4)** mirroring aws/Azure, each with a prompt + formatter + validation:
   1. `gcloud_config_list` — `gcloud config list --format=json` → active project / account
      / region / zone (context + identity; mirrors `az_account_show`).
   2. `gcloud_projects_list` — `gcloud projects list --format=json` → projectId / name /
