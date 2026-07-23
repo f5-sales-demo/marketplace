@@ -4,7 +4,7 @@ Run any read-only `glab` (GitLab CLI) command. Pass arguments as an array withou
 
 - Arguments are passed argv-style to `glab` with no shell, so shell metacharacters are inert.
 - Read-only by an allowlist (fail-safe: anything unrecognized is blocked). A command is allowed only when its leaf verb is a known read (`list`, `view`, `diff`, `show`, `get`, `status`), plus the top-level `glab search`, `glab version`, and `glab help`.
-- `glab api` is allowed only when it resolves to a GET: no `-X`/`--method` naming a mutating method, and no body flag (`-F`/`--field`, `-f`/`--raw-field`, `--input`), since any of those makes glab send a POST. Use `glab api` through `glab_exec` for GET reads only.
+- `glab api` is allowed only when it resolves to a GET: no `-X`/`--method` naming a mutating method, and no body flag (`-F`/`--field`, `-f`/`--raw-field`, `--input`, `--form`), since any of those makes glab send a POST. Use `glab api` through `glab_exec` for GET reads only.
 - Everything else is blocked: write verbs (`create`, `merge`, `close`, `delete`, `update`, ...), `glab api` POST/PUT/PATCH/DELETE requests, and custom aliases. Run writes through an explicitly confirmed path, not `glab_exec`.
 - Prefer the typed tools (`glab_issue_view`, `glab_issue_list`, `glab_search`, ...) when they cover your need — they return structured data.
 
