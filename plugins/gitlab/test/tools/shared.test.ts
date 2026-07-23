@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { execGlab, type GlabExecApi } from '../../src/glab/exec';
 import { hasControlChars, makeExecApi } from '../../src/tools/shared';
 
@@ -80,5 +80,57 @@ describe('makeExecApi signal threading', () => {
     const r = await api.exec('sh', ['-c', 'echo no-signal']);
     expect(r.stdout).toBe('no-signal');
     expect(r.code).toBe(0);
+  });
+});
+
+// Proves the *forwarding* contract deterministically by spying on Bun.spawn:
+// a live signal must reach Bun.spawn, an already-aborted (stale) one must not.
+// No real process, no sleep+abort race — we inspect the options object directly.
+describe('makeExecApi forwards AbortSignal to Bun.spawn only while live', () => {
+  const realSpawn = Bun.spawn;
+
+  // A minimal fake child: empty stdout/stderr streams (truthy, so makeExecApi's
+  // `!child.stdout` guard passes), a resolved `exited`, and killed=false.
+  const emptyStream = () => new ReadableStream<Uint8Array>({ start: (c) => c.close() });
+  const fakeChild = () => ({
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+    exited: Promise.resolve(0),
+    exitCode: 0,
+    killed: false,
+  });
+
+  let recordedOptions: { signal?: AbortSignal } | undefined;
+
+  function installSpawnSpy() {
+    recordedOptions = undefined;
+    Bun.spawn = ((_cmd: string[], options: { signal?: AbortSignal }) => {
+      recordedOptions = options;
+      return fakeChild();
+    }) as unknown as typeof Bun.spawn;
+  }
+
+  afterEach(() => {
+    Bun.spawn = realSpawn;
+  });
+
+  it('hands a live (non-aborted) signal to Bun.spawn', async () => {
+    installSpawnSpy();
+    const controller = new AbortController();
+    await makeExecApi('/tmp').exec('glab', ['issue', 'list'], { signal: controller.signal });
+    expect(recordedOptions).toBeDefined();
+    expect('signal' in (recordedOptions ?? {})).toBe(true);
+    expect(recordedOptions?.signal).toBe(controller.signal);
+  });
+
+  it('withholds an already-aborted (stale) signal from Bun.spawn', async () => {
+    installSpawnSpy();
+    const controller = new AbortController();
+    controller.abort(); // stale abort left over from a prior turn
+    await makeExecApi('/tmp').exec('glab', ['issue', 'list'], { signal: controller.signal });
+    expect(recordedOptions).toBeDefined();
+    // The stale-abort path must build `{}` (no signal), never `{ signal }` —
+    // otherwise Bun would kill the fresh child immediately (false-cancel).
+    expect('signal' in (recordedOptions ?? {})).toBe(false);
   });
 });
