@@ -1,0 +1,13 @@
+[
+  {
+    "author": { "login": "octocat" },
+    "createdAt": "2026-07-01T00:00:00Z",
+    "labels": [{ "name": "enhancement" }],
+    "number": 200,
+    "repository": { "nameWithOwner": "octo-org/hello-world" },
+    "state": "OPEN",
+    "title": "Improve the docs",
+    "updatedAt": "2026-07-02T00:00:00Z",
+    "url": "https://github.com/octo-org/hello-world/pull/200"
+  }
+]

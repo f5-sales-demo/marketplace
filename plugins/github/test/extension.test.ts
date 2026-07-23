@@ -87,6 +87,8 @@ describe('GitHub ExtensionFactory integration', () => {
 
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'gh_exec',
+      'gh_help',
       'gh_issue_view',
       'gh_pr_checkout',
       'gh_pr_diff',
@@ -100,6 +102,8 @@ describe('GitHub ExtensionFactory integration', () => {
 
     const labels = tools.map((t) => t.label).sort();
     expect(labels).toEqual([
+      'GitHub CLI Execute',
+      'GitHub CLI Help',
       'GitHub Issue',
       'GitHub Issue Search',
       'GitHub PR',

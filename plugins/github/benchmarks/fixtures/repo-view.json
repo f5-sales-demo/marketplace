@@ -1,0 +1,16 @@
+{
+  "nameWithOwner": "octo-org/hello-world",
+  "description": "A sample repository used for benchmark fixtures.",
+  "url": "https://github.com/octo-org/hello-world",
+  "defaultBranchRef": { "name": "main" },
+  "homepageUrl": "https://example.com",
+  "forkCount": 12,
+  "isArchived": false,
+  "isFork": false,
+  "primaryLanguage": { "name": "TypeScript" },
+  "repositoryTopics": [{ "name": "cli" }, { "name": "github" }],
+  "stargazerCount": 42,
+  "updatedAt": "2026-07-01T12:00:00Z",
+  "viewerPermission": "ADMIN",
+  "visibility": "PUBLIC"
+}

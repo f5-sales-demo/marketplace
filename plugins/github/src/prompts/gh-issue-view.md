@@ -4,6 +4,7 @@ Reads a GitHub issue through the local GitHub CLI.
 - Accepts an issue number or full GitHub issue URL
 - Use `repo` when you have a number but no active GitHub repository context
 - Keep `comments` enabled when discussion context matters; disable it for a lighter summary
+- For custom field projection or uncovered commands, use `gh_exec` with `--json`/`--jq` (jq syntax)
 </instruction>
 
 <output>

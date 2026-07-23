@@ -1,0 +1,13 @@
+[
+  {
+    "author": { "login": "hubot" },
+    "createdAt": "2026-05-01T00:00:00Z",
+    "labels": [{ "name": "bug" }],
+    "number": 88,
+    "repository": { "nameWithOwner": "octo-org/hello-world" },
+    "state": "CLOSED",
+    "title": "Crash on startup",
+    "updatedAt": "2026-05-02T00:00:00Z",
+    "url": "https://github.com/octo-org/hello-world/issues/88"
+  }
+]

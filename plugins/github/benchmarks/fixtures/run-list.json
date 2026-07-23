@@ -1,0 +1,16 @@
+{
+  "workflow_runs": [
+    {
+      "id": 555,
+      "name": "CI",
+      "display_title": "Add benchmark fixtures",
+      "status": "completed",
+      "conclusion": "success",
+      "head_branch": "feat/benchmarks",
+      "head_sha": "abc1234",
+      "created_at": "2026-07-03T10:00:00Z",
+      "updated_at": "2026-07-03T10:05:00Z",
+      "html_url": "https://github.com/octo-org/hello-world/actions/runs/555"
+    }
+  ]
+}
