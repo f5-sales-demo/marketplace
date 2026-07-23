@@ -100,13 +100,26 @@ export function effectiveApiMethod(args: string[]): string {
   return hasBody ? 'POST' : 'GET';
 }
 
+// Does the flag token `prev` consume the NEXT argv token as its value, per cobra/pflag
+// `stripFlags`? Only two forms take their value from the following token:
+//   - a long flag written without `=`   (`--repo owner/x` → consumes `owner/x`)
+//   - an exactly-2-char short            (`-R owner/x`     → consumes `owner/x`)
+// A single-dash CLUSTER of length ≥ 3 (`-dp`, `-dm`) does NOT consume the next token —
+// pflag reads any in-cluster value flag's value from the token REMAINDER, not the next
+// arg. The earlier code excluded the token after *every* dash token, which dropped the
+// real verb after a boolean cluster (`gh release -dp create view` → verb misread as
+// `view`, a read) and let a write through — a false-negative. Long/2-char over-exclusion
+// stays (can only block a read, never allow a write); cluster over-exclusion is removed.
+function consumesNextAsValue(prev: string): boolean {
+  if (prev.startsWith('--')) return !prev.includes('=');
+  return /^-[A-Za-z]$/.test(prev);
+}
+
 export function findMutation(args: string[]): { blocked: boolean; reason?: string } {
-  // Cobra/pflag consumes the token AFTER a flag token as that flag's value, so a
-  // value-taking flag can shift a command's real verb past positionals[1]. Mirror
-  // cobra by excluding both flag tokens AND the token immediately following one.
-  // This over-excludes tokens after boolean flags (fail-safe: at worst blocks a
-  // read; never allows a mutation) and realigns the verb with what gh dispatches.
-  const positionals = args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
+  const positionals = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    return !(i > 0 && consumesNextAsValue(args[i - 1]));
+  });
   if (positionals.length === 0) return { blocked: true, reason: 'no gh command provided' };
   const top = positionals[0];
 

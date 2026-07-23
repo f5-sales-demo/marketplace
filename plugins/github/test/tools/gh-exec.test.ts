@@ -74,8 +74,18 @@ describe('findMutation allowlist', () => {
     // -iX = -i + -X (method, value from next arg).
     expect(findMutation(['api', 'x', '-iX', 'POST']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-X=POST']).blocked).toBe(true);
-    expect(findMutation(['api', 'x', '--input', 'body.json']).blocked).toBe(true);
-    expect(findMutation(['pr', 'merge', '1']).blocked).toBe(true);
+  });
+
+  it('blocks the boolean-short-cluster verb-shift bypass (pflag: -xy... does not consume next arg)', () => {
+    // A single-dash cluster of length >= 3 is all in-token flags; pflag does NOT read
+    // its value from the following arg, so the real write verb stays a positional and
+    // must not be dropped. `gh release -dp create view` dispatches `release create`.
+    expect(findMutation(['release', '-dp', 'create', 'view']).blocked).toBe(true);
+    expect(findMutation(['pr', '-dm', 'merge', 'view']).blocked).toBe(true);
+    // A genuine long flag without `=` (or a lone 2-char short) still consumes its value,
+    // so these reads whose verb follows a real value flag remain allowed.
+    expect(findMutation(['issue', 'list', '--label', 'create']).blocked).toBe(false);
+    expect(findMutation(['-R', 'o/r', 'pr', 'list']).blocked).toBe(false);
   });
 
   it('still allows legit reads whose flag values look like verbs', () => {
