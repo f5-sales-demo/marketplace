@@ -45,13 +45,29 @@ const READ_PREFIXES: ReadonlyArray<readonly string[]> = [
 // Single-token top-level read commands (meta topics with no write subcommands).
 const READ_TOP: ReadonlySet<string> = new Set(['version', 'help', 'commands', 'which', 'info']);
 
-// Compute the command path used for allowlisting: non-flag tokens, EXCLUDING the token
-// immediately after any flag (its value), with each surviving positional split on ':'
+// Does the flag token `prev` consume the NEXT argv token as its value? Only a long flag
+// without `=` (`--target-org x` → consumes `x`) or an exactly-2-char short (`-o x` →
+// consumes `x`) take their value from the following token. A single-dash CLUSTER of
+// length >= 3 (`-fp`, combined booleans) does NOT — its value, if any, is the token
+// remainder, not the next arg. Excluding the token after every dash token (the earlier
+// code) dropped the real subcommand after a boolean cluster and could let a write path
+// resolve to a read prefix; long/2-char over-exclusion is retained (it can only block a
+// read, never allow a write), cluster over-exclusion is removed.
+function consumesNextAsValue(prev: string): boolean {
+  if (prev.startsWith('--')) return !prev.includes('=');
+  return /^-[A-Za-z]$/.test(prev);
+}
+
+// Compute the command path used for allowlisting: non-flag tokens, EXCLUDING a flag's
+// value token (per consumesNextAsValue), with each surviving positional split on ':'
 // so the colon grammar is normalized to the space grammar. Flag tokens keep their form
-// and never contribute path parts. Excluding the post-flag token first means a flag
+// and never contribute path parts. Excluding the post-flag value first means a flag
 // value that itself contains a ':' can never leak a path segment.
 export function normalizeArgs(args: string[]): string[] {
-  const positionals = args.filter((a, i) => !a.startsWith('-') && !(i > 0 && args[i - 1].startsWith('-')));
+  const positionals = args.filter((a, i) => {
+    if (a.startsWith('-')) return false;
+    return !(i > 0 && consumesNextAsValue(args[i - 1]));
+  });
   const path: string[] = [];
   for (const token of positionals) {
     for (const part of token.split(':')) {
@@ -71,12 +87,36 @@ function startsWith(path: string[], prefix: readonly string[]): boolean {
 
 // Resolve the HTTP method `sf api request rest|graphql` will actually use. An explicit
 // --method/-X (any form) wins; sf otherwise defaults to GET. sf is an oclif CLI, so a
-// boolean short flag may CLUSTER ahead of the method short inside one token: `-iX POST`
-// parses as `-i` (include) + `-X` (method, value from the next arg). We inspect the
-// whole single-dash letter run — never just index 1 — for the method letter X.
-// --body/--file are body flags; their presence forces a mutating shape (reported as
+// boolean short flag may CLUSTER ahead of a value-taking short inside one token: `-iX POST`
+// parses as `-i` (include) + `-X` (method, value from the next arg). Crucially, the
+// parser stops at the FIRST value-taking short in a cluster: the REST of the token
+// becomes that flag's value. So `-fX=GET` is `--file` with value `X=GET` (the trailing
+// X is data, NOT a method flag) — a body → POST. We therefore scan the letter run
+// left→right and STOP at the first value-taking short: b/f marks a body (rest is that
+// flag's value, never a method); X takes the token remainder (or next arg) as the method.
+// --body/--file are body flags too; their presence forces a mutating shape (reported as
 // POST here, and additionally blocked outright by findMutation). Over-flagging is
 // fail-safe: at worst it treats a read as a write and blocks it; it never allows a write.
+// sf api request long flags that take a VALUE (consume the next token when written
+// without `=`). Every OTHER `--long` is a boolean (--include, --stream-to-file) and
+// consumes nothing.
+const LONG_VALUE_FLAGS: ReadonlySet<string> = new Set(['--method', '--body', '--file', '--header']);
+// Long flags whose presence implies a request BODY (→ POST).
+const LONG_BODY_FLAGS: ReadonlySet<string> = new Set(['--body', '--file']);
+// sf api request single-char shorts that take a VALUE (from the token remainder, else
+// the next token): X = --method, b = --body, f = --file, h = --header. Every other short
+// (i, S, and any unknown letter) is boolean.
+const SHORT_VALUE_FLAGS: ReadonlySet<string> = new Set(['X', 'b', 'f', 'h']);
+// Shorts that imply a request BODY.
+const SHORT_BODY_FLAGS: ReadonlySet<string> = new Set(['b', 'f']);
+
+// Resolve the HTTP method `sf api request rest|graphql` will actually use. A value-taking
+// flag consumes the following token (or, for a short, the cluster remainder) as its
+// VALUE — that value must NEVER be reinterpreted as another flag. Scanning every token
+// let a value consumed by another flag (`--header -XGET`, `-h -XGET`) be misread as
+// `-X <method>`, forging a method that overrode a real `--method`/body. We consume each
+// value-taking flag's value explicitly. (hasApiBodyFlag below is an independent
+// belt-and-suspenders that blocks any api request carrying a body flag at all.)
 export function effectiveApiMethod(args: string[]): string {
   let explicit: string | null = null;
   let hasBody = false;
@@ -89,37 +129,33 @@ export function effectiveApiMethod(args: string[]): string {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
 
-    if (a === '--method') {
-      setExplicit(args[i + 1] ?? '');
+    // Long-form (double-dash) flags.
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=');
+      const name = eq === -1 ? a : a.slice(0, eq);
+      const inlineVal = eq === -1 ? undefined : a.slice(eq + 1);
+      if (name === '--method') setExplicit(inlineVal ?? args[i + 1] ?? '');
+      if (LONG_BODY_FLAGS.has(name)) hasBody = true;
+      if (inlineVal === undefined && LONG_VALUE_FLAGS.has(name)) i += 1; // consume value token
       continue;
     }
-    if (a.startsWith('--method=')) {
-      setExplicit(a.slice('--method='.length));
-      continue;
-    }
-    if (a === '--body' || a === '--file' || /^--(body|file)=/.test(a)) {
-      hasBody = true;
-      continue;
-    }
-    if (a.startsWith('--')) continue;
 
-    // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading '-' and
-    // inspect the letter run up to the first '=' so a boolean short flag clustered
-    // ahead of the method short can't hide it. sf's body/file shorts are `-b`/`-f`, so
-    // a `b` or `f` anywhere in the cluster (`-f`, `-b`, `-if`, `-Sf`, `-bX`, attached
-    // `-freq.json`) implies a body/write, mirroring the method-letter `X` detection.
+    // Single-dash cluster token: scan letters left→right; the FIRST value-taking short
+    // consumes the token remainder (or the next token) as its value and ENDS the cluster.
     if (/^-[A-Za-z]/.test(a)) {
       const body = a.slice(1);
-      const eq = body.indexOf('=');
-      const letters = eq === -1 ? body : body.slice(0, eq);
-
-      const xIdx = letters.indexOf('X');
-      if (xIdx !== -1) {
-        const after = body.slice(xIdx + 1).replace(/^=/, '');
-        if (after) setExplicit(after);
-        else setExplicit(args[i + 1] ?? '');
+      for (let j = 0; j < body.length; j++) {
+        const c = body[j];
+        if (!SHORT_VALUE_FLAGS.has(c)) continue; // boolean short (e.g. -i); keep scanning
+        let value = body.slice(j + 1).replace(/^=/, '');
+        if (value === '') {
+          i += 1;
+          value = args[i] ?? '';
+        }
+        if (c === 'X') setExplicit(value);
+        if (SHORT_BODY_FLAGS.has(c)) hasBody = true;
+        break; // remainder/next token is this flag's value, not more flags
       }
-      if (letters.includes('b') || letters.includes('f')) hasBody = true;
     }
   }
 
