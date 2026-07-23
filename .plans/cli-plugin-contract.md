@@ -65,5 +65,5 @@ Legend: ✅ present · ◑ partial · ❌ missing
 
 The parity program (Specs 1–6, plus the follow-on hardening) is complete: every plugin
 conforms on every dimension. `confirmed-mutation` is `n/a` where a plugin exposes only
-read tools (azure, aws, gcloud, GitLab, salesforce) and `✅` for GitHub, the one plugin
+read tools (Azure, aws, gcloud, GitLab, salesforce) and `✅` for GitHub, the one plugin
 with purpose-built mutating tools (`gh_pr_checkout`/`gh_pr_push`) behind `ctx.ui.confirm`.
