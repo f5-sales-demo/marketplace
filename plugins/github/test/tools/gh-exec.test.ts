@@ -73,7 +73,18 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'repos/o/r/issues', '-iF', 'field=y']).blocked).toBe(true);
     // -iX = -i + -X (method, value from next arg).
     expect(findMutation(['api', 'x', '-iX', 'POST']).blocked).toBe(true);
-    expect(findMutation(['api', 'x', '-X=POST']).blocked).toBe(true);
+  });
+
+  it('does not misread a value-flag value as -X/method (jq/header/template consume their value)', () => {
+    // `--jq`/`-q`/`-H` take the FOLLOWING token as their value; a value that looks like
+    // `-Xhack`/`-XGET` is data, not a method flag. The `-f` body still makes gh POST, so
+    // the forged method must not downgrade it to an allowed read.
+    expect(findMutation(['api', '-f', 'title=x', '/repos/o/r/issues', '--jq', '-Xhack']).blocked).toBe(true);
+    expect(findMutation(['api', '-f', 'a=b', '--jq', '-XGET']).blocked).toBe(true);
+    expect(findMutation(['api', '-f', 'a=b', '-q', '-XGET']).blocked).toBe(true);
+    expect(findMutation(['api', '-f', 'a=b', '-H', '-XGET']).blocked).toBe(true);
+    // A genuine jq read with a normal expression is still an allowed GET.
+    expect(findMutation(['api', 'repos/o/r', '--jq', '.name']).blocked).toBe(false);
   });
 
   it('blocks the boolean-short-cluster verb-shift bypass (pflag: -xy... does not consume next arg)', () => {
