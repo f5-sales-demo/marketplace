@@ -10,31 +10,31 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **azure** bumped to v1.2.0 — `az_exec` now accepts valid JMESPath `--query`
+- **`azure`** bumped to v1.2.0 — `az_exec` now accepts valid JMESPath `--query`
   (dropped the char filter that rejected `||`, backticks, and pipes); read-only guard,
   `az_help`, error taxonomy with `errorType`, and signal-aware exec. CLI-Plugin
   Capability Contract conformant.
 
-- **aws** bumped to v1.2.0 — native tool layer: `aws_exec` read-only guard, `aws_help`,
+- **`aws`** bumped to v1.2.0 — native tool layer: `aws_exec` read-only guard, `aws_help`,
   typed reads (`sts`/`s3`/`ec2`) with formatters, 6-class error taxonomy, JMESPath query
   docs, and a benchmark + autoresearch harness.
 
-- **gcloud** bumped to v1.2.0 — native tool layer built from status-only: `gcloud_exec`
+- **`gcloud`** bumped to v1.2.0 — native tool layer built from status-only: `gcloud_exec`
   read-only guard, `gcloud_help`, typed reads (config/projects/compute/storage) with
   formatters, error taxonomy, `--filter`/`--format` query docs, and a benchmark +
   autoresearch harness.
 
-- **gitlab** bumped to v1.2.0 — `glab_exec` read-only guard + `glab_help`, error taxonomy
+- **`gitlab`** bumped to v1.2.0 — `glab_exec` read-only guard + `glab_help`, error taxonomy
   with a central `errorType` wrapper, `--output json` query docs, signal-aware exec +
   control-char hygiene, adversarial guard hardening (pflag cluster and value-flag
   method-forgery fixes), and per-tool tests.
 
-- **github** bumped to v1.2.0 — `gh_exec` read-only guard plus confirmed-mutation safety
+- **`github`** bumped to v1.2.0 — `gh_exec` read-only guard plus confirmed-mutation safety
   (`gh_pr_checkout`/`gh_pr_push` behind `ctx.ui.confirm` with a headless fail-safe),
   guard hardening (boolean-cluster verb-shift and value-flag method-forgery), and
   control-char hygiene enforced across every gh/git spawn.
 
-- **salesforce** bumped to v1.3.0 — `sf_exec` read-only guard (colon-grammar normalize,
+- **`salesforce`** bumped to v1.3.0 — `sf_exec` read-only guard (colon-grammar normalize,
   `apex run` and api-body blocks) + `sf_help`, 6-class error taxonomy, adversarial guard
   hardening (pflag cluster and value-flag method-forgery fixes), and a `sf_pipeline_report`
   test.
