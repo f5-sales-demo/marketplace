@@ -20,7 +20,11 @@ Salesforce accepts both the `topic command` (space) and `topic:command` (colon) 
 
 ## Querying with `--json` and `--result-format`
 
-The Salesforce CLI shapes output with the global `--json` flag (full structured JSON payload) or, on commands that support it, `--result-format` (e.g. `csv`, `human`, `json`). This is NOT the GitHub CLI's `--json <fields>`/`--jq` projection, and NOT the GitLab CLI's `--output json` — `sf` has no built-in field selection or jq projection, so it emits the full payload and you post-process fields yourself:
+The Salesforce CLI shapes output with the global `--json` flag (full structured JSON
+payload) or, on commands that support it, `--result-format` (e.g. `csv`, `human`,
+`json`). This is NOT the GitHub CLI's `--json <fields>`/`--jq` projection, and NOT the
+GitLab CLI's `--output json` — `sf` has no built-in field selection or jq projection,
+so it emits the full payload and you post-process fields yourself:
 
 - Full JSON: `sf org list --json`
 - SOQL as JSON: `sf data query --query "SELECT Id FROM Account" --json`
