@@ -1,6 +1,5 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
-import { renderError, ToolAbortError } from '@f5-sales-demo/xcsh/tools/tool-errors';
-import { detectErrorType, errorResult } from './tools/shared';
+import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
@@ -13,10 +12,11 @@ function sanitizeHintField(value: unknown, maxLen = 200): string {
  *
  * The per-tool handlers already catch GlabAuthError and return a friendly
  * textResult (a normal, non-error result); those never reach this wrapper.
- * A ToolAbortError is re-thrown so the agent loop can distinguish user
- * cancellation from a genuine tool failure.
+ * A cancellation (thrown by execGlab as `Error('Command was cancelled')`) is
+ * re-thrown so the agent loop can distinguish user cancellation from a genuine
+ * tool failure.
  */
-function withErrorType<T extends { execute: (...args: never[]) => Promise<unknown> }>(tool: T): T {
+export function withErrorType<T extends { execute: (...args: never[]) => Promise<unknown> }>(tool: T): T {
   const originalExecute = tool.execute.bind(tool) as (...args: unknown[]) => Promise<unknown>;
   return {
     ...tool,
@@ -24,7 +24,7 @@ function withErrorType<T extends { execute: (...args: never[]) => Promise<unknow
       try {
         return await originalExecute(...args);
       } catch (err) {
-        if (err instanceof ToolAbortError) throw err;
+        if (err instanceof Error && err.message === 'Command was cancelled') throw err;
         return errorResult(renderError(err), { errorType: detectErrorType(err) });
       }
     }) as T['execute'],
