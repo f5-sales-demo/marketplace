@@ -1,0 +1,10 @@
+{
+  "core": {
+    "project": "demo-project-123",
+    "account": "demo-engineer@example.com"
+  },
+  "compute": {
+    "region": "us-central1",
+    "zone": "us-central1-a"
+  }
+}

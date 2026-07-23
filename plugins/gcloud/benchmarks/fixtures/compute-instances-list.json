@@ -1,0 +1,21 @@
+[
+  {
+    "name": "demo-web-1",
+    "zone": "https://www.googleapis.com/compute/v1/projects/demo-project-123/zones/us-central1-a",
+    "machineType": "https://www.googleapis.com/compute/v1/projects/demo-project-123/zones/us-central1-a/machineTypes/e2-medium",
+    "status": "RUNNING",
+    "networkInterfaces": [
+      {
+        "networkIP": "10.128.0.2",
+        "accessConfigs": [{ "natIP": "34.68.1.2" }]
+      }
+    ]
+  },
+  {
+    "name": "demo-db-1",
+    "zone": "https://www.googleapis.com/compute/v1/projects/demo-project-123/zones/us-central1-b",
+    "machineType": "https://www.googleapis.com/compute/v1/projects/demo-project-123/zones/us-central1-b/machineTypes/e2-standard-4",
+    "status": "TERMINATED",
+    "networkInterfaces": [{ "networkIP": "10.128.0.3", "accessConfigs": [] }]
+  }
+]

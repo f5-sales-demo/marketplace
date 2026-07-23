@@ -1,8 +1,34 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import { detectErrorType, errorResult, renderError } from './tools/shared';
 
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
+/**
+ * Wrap a factory tool so any error that still propagates out of its execute()
+ * is converted into a structured error result carrying details.errorType.
+ *
+ * The per-tool handlers already catch gcloud errors and return a friendly
+ * errorResult (a normal result); those never reach this wrapper. A genuine
+ * cancellation (AbortError / ToolAbortError) is re-thrown so the agent loop
+ * can distinguish user cancellation from a real tool failure.
+ */
+export function withErrorType<T extends { name: string; execute: (...args: never[]) => Promise<unknown> }>(tool: T): T {
+  const originalExecute = tool.execute.bind(tool) as (...args: unknown[]) => Promise<unknown>;
+  return {
+    ...tool,
+    execute: (async (...args: unknown[]) => {
+      try {
+        return await originalExecute(...args);
+      } catch (err) {
+        const name = (err as { name?: string } | null | undefined)?.name;
+        if (name === 'AbortError' || name === 'ToolAbortError') throw err;
+        return errorResult(renderError(err), { tool: tool.name, errorType: detectErrorType(err) });
+      }
+    }) as T['execute'],
+  };
 }
 
 const factory: ExtensionFactory = async (pi) => {
@@ -26,6 +52,23 @@ const factory: ExtensionFactory = async (pi) => {
     gcloudAvailable = Bun.spawnSync([checker, 'gcloud']).exitCode === 0;
   } catch {
     // gcloud not available
+  }
+
+  // Only register tools when the gcloud CLI is present.
+  if (gcloudAvailable && typeof pi.registerTool === 'function') {
+    const { createGcloudConfigListTool } = await import('./tools/gcloud-config-list');
+    const { createGcloudProjectsListTool } = await import('./tools/gcloud-projects-list');
+    const { createGcloudComputeInstancesListTool } = await import('./tools/gcloud-compute-instances-list');
+    const { createGcloudStorageBucketsListTool } = await import('./tools/gcloud-storage-buckets-list');
+    const { createGcloudExecTool } = await import('./tools/gcloud-exec');
+    const { createGcloudHelpTool } = await import('./tools/gcloud-help');
+
+    pi.registerTool(withErrorType(createGcloudConfigListTool(pi)));
+    pi.registerTool(withErrorType(createGcloudProjectsListTool(pi)));
+    pi.registerTool(withErrorType(createGcloudComputeInstancesListTool(pi)));
+    pi.registerTool(withErrorType(createGcloudStorageBucketsListTool(pi)));
+    pi.registerTool(withErrorType(createGcloudExecTool(pi)));
+    pi.registerTool(withErrorType(createGcloudHelpTool(pi)));
   }
 
   // Always register service status (shows unavailable when CLI missing)
