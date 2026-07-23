@@ -9,7 +9,7 @@ import type { GlabIssue, GlabProject } from '../glab/types';
 export type GlabErrorType = 'auth_required' | 'not_found' | 'rate_limited' | 'exec_error';
 
 export interface GlabToolDetails {
-  tool?: 'glab_setup' | 'glab_issue_list' | 'glab_issue_view' | 'glab_search';
+  tool?: 'glab_setup' | 'glab_issue_list' | 'glab_issue_view' | 'glab_search' | 'glab_help';
   items?: GlabIssue[];
   issue?: GlabIssue;
   projects?: GlabProject[];
