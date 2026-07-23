@@ -32,8 +32,10 @@ export function createGcloudProjectsListTool(pi: PluginInterface) {
 
       const api = makeExecApi(ctx.cwd);
       const args = ['projects', 'list'];
-      if (params.filter) args.push('--filter', params.filter);
-      if (params.limit !== undefined) args.push('--limit', String(params.limit));
+      // Bind value flags with the `=` form so a value beginning with `-` can never be
+      // re-tokenised by gcloud as a separate flag (argv flag-smuggling defense).
+      if (params.filter) args.push(`--filter=${params.filter}`);
+      if (params.limit !== undefined) args.push(`--limit=${String(params.limit)}`);
 
       try {
         const raw = await execGcloudJson<unknown[]>(api, args, signal);
