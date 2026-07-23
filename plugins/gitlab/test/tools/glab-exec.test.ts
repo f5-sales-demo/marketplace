@@ -46,10 +46,13 @@ describe('effectiveApiMethod', () => {
     expect(effectiveApiMethod(['api', 'x', '-fbody=spam'])).toBe('POST');
     expect(effectiveApiMethod(['api', 'x', '--field=k=v'])).toBe('POST');
     expect(effectiveApiMethod(['api', 'x', '--input=body.json'])).toBe('POST');
+    expect(effectiveApiMethod(['api', '--form', 'title=x', 'projects/1/issues'])).toBe('POST');
+    expect(effectiveApiMethod(['api', '--form=title=x', 'x'])).toBe('POST');
   });
 
   it('lets an explicit method win over an inferred body POST', () => {
     expect(effectiveApiMethod(['api', 'x', '--method', 'GET', '-F', 'k=v'])).toBe('GET');
+    expect(effectiveApiMethod(['api', '--method', 'GET', 'x', '--form', 'a=b'])).toBe('GET');
   });
 });
 
@@ -79,12 +82,20 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'x', '--input', 'f']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-F', 'k=v']).blocked).toBe(true);
     expect(findMutation(['api', 'x', '-fbody=spam']).blocked).toBe(true);
+    expect(findMutation(['api', '--form', 'title=x', 'projects/1/issues']).blocked).toBe(true);
+    expect(findMutation(['api', '--form=title=x', 'x']).blocked).toBe(true);
+    expect(findMutation(['api', 'projects/1/uploads', '--form', 'file=@-']).blocked).toBe(true);
   });
 
   it('allows glab api GET requests', () => {
     expect(findMutation(['api', '-XGET', 'projects/1']).blocked).toBe(false);
     expect(findMutation(['api', '-X=GET', 'user']).blocked).toBe(false);
     expect(findMutation(['api', 'projects/1']).blocked).toBe(false);
+    expect(findMutation(['api', '--method', 'GET', 'x', '--form', 'a=b']).blocked).toBe(false);
+  });
+
+  it('allows the ci trace streaming read', () => {
+    expect(findMutation(['ci', 'trace', '123']).blocked).toBe(false);
   });
 
   it('does not false-positive on read args that contain a verb word', () => {

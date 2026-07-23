@@ -7,7 +7,7 @@
 
 // Leaf read verbs — the token immediately after the command group in `glab <group> <verb>`.
 // glab uses `view`/`show` (NOT gh's `checks`/`watch`/`download`).
-export const READ_VERBS: ReadonlySet<string> = new Set(['list', 'view', 'diff', 'show', 'get', 'status']);
+export const READ_VERBS: ReadonlySet<string> = new Set(['list', 'view', 'diff', 'show', 'get', 'status', 'trace']);
 
 // Top-level read commands that do not follow the group+verb shape.
 const READ_TOP: ReadonlySet<string> = new Set(['search', 'version', 'help']);
@@ -16,7 +16,7 @@ const API_MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH
 
 // Resolve the HTTP method `glab api` will actually use:
 // explicit --method/-X (any form) wins; otherwise glab sends POST when any body
-// flag (-F/--field, -f/--raw-field, --input) is present, else GET.
+// flag (-F/--field, -f/--raw-field, --input, --form) is present, else GET.
 export function effectiveApiMethod(args: string[]): string {
   let explicit: string | null = null;
   for (let i = 0; i < args.length; i++) {
@@ -33,7 +33,8 @@ export function effectiveApiMethod(args: string[]): string {
       a === '--field' ||
       a === '--raw-field' ||
       a === '--input' ||
-      /^--(field|raw-field|input)=/.test(a) ||
+      a === '--form' ||
+      /^--(field|raw-field|input|form)=/.test(a) ||
       /^-[fF]./.test(a),
   );
   return hasBody ? 'POST' : 'GET';
