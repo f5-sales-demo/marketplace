@@ -1,0 +1,14 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 999,
+      "name": "build",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-07-03T10:00:10Z",
+      "completed_at": "2026-07-03T10:04:00Z",
+      "html_url": "https://github.com/octo-org/hello-world/actions/runs/555/jobs/999"
+    }
+  ]
+}

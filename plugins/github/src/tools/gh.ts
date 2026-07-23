@@ -38,6 +38,29 @@ export function setTypebox(tb: { Type: typeof Type }): void {
   Type = tb.Type;
 }
 
+import { detectGhError, type GhErrorType } from '../gh/exec';
+import {
+  appendArtifactReference,
+  formatCommitRunWatchResult,
+  formatCommitRunWatchSnapshot,
+  formatIssueView,
+  formatPrCheckoutResult,
+  formatPrPushResult,
+  formatPrView,
+  formatRepoView,
+  formatRunWatchResult,
+  formatRunWatchSnapshot,
+  formatSearchResults,
+  formatShortSha,
+  getRunCollectionOutcome,
+  getRunCollectionSignature,
+  isFailedJob,
+  normalizeBlock,
+  normalizeOptionalString,
+  tailLogLines,
+} from '../gh/formatters';
+import ghExecDescription from '../prompts/gh-exec.md' with { type: 'text' };
+import ghHelpDescription from '../prompts/gh-help.md' with { type: 'text' };
 import ghIssueViewDescription from '../prompts/gh-issue-view.md' with { type: 'text' };
 import ghPrCheckoutDescription from '../prompts/gh-pr-checkout.md' with { type: 'text' };
 import ghPrDiffDescription from '../prompts/gh-pr-diff.md' with { type: 'text' };
@@ -49,6 +72,7 @@ import ghSearchIssuesDescription from '../prompts/gh-search-issues.md' with { ty
 import ghSearchPrsDescription from '../prompts/gh-search-prs.md' with { type: 'text' };
 import * as git from '../utils/git';
 import { ToolError, throwIfAborted } from '../utils/tool-errors';
+import { findMutation, hasControlChars } from './gh-exec-guard';
 import { confirmMutation, HEADLESS_BLOCKED_MESSAGE, resolveApprovalMode } from './mutation-safety';
 
 // ---------------------------------------------------------------------------
@@ -273,18 +297,15 @@ const GH_SEARCH_FIELDS = [
 ];
 const SEARCH_LIMIT_DEFAULT = 10;
 const SEARCH_LIMIT_MAX = 50;
-const FILE_PREVIEW_LIMIT = 50;
 const RUN_WATCH_INTERVAL_DEFAULT = 3;
 const RUN_WATCH_GRACE_DEFAULT = 5;
 const RUN_WATCH_TAIL_DEFAULT = 15;
 const RUN_WATCH_TAIL_MAX = 200;
 const REVIEW_COMMENTS_PAGE_SIZE = 100;
 const RUN_JOBS_PAGE_SIZE = 100;
+const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
 const PR_URL_PATTERN = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)(?:\/.*)?$/;
 const RUN_URL_PATTERN = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)(?:\/.*)?$/;
-const RUN_SUCCESS_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
-const RUN_FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure']);
-const JOB_FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'action_required']);
 
 const ghRepoViewSchema = Type.Object({
   repo: Type.Optional(
@@ -395,17 +416,27 @@ const ghRunWatchSchema = Type.Object({
   ),
 });
 
-type GhRepoViewInput = Static<typeof ghRepoViewSchema>;
-type GhIssueViewInput = Static<typeof ghIssueViewSchema>;
-type GhPrViewInput = Static<typeof ghPrViewSchema>;
+const ghHelpSchema = Type.Object({
+  command_path: Type.Optional(
+    Type.String({
+      description: 'Command path without the "gh" prefix, e.g. "pr view" or "run". Empty for top-level help.',
+    }),
+  ),
+});
+
+export type GhRepoViewInput = Static<typeof ghRepoViewSchema>;
+export type GhIssueViewInput = Static<typeof ghIssueViewSchema>;
+export type GhPrViewInput = Static<typeof ghPrViewSchema>;
 type GhPrDiffInput = Static<typeof ghPrDiffSchema>;
 type GhPrCheckoutInput = Static<typeof ghPrCheckoutSchema>;
 type GhPrPushInput = Static<typeof ghPrPushSchema>;
 type GhSearchIssuesInput = Static<typeof ghSearchIssuesSchema>;
 type GhSearchPrsInput = Static<typeof ghSearchPrsSchema>;
 type GhRunWatchInput = Static<typeof ghRunWatchSchema>;
+type GhHelpInput = Static<typeof ghHelpSchema>;
 
 export interface GhToolDetails {
+  errorType?: GhErrorType;
   tool?: string;
   meta?: OutputMeta;
   artifactId?: string;
@@ -466,16 +497,16 @@ export interface GhRunWatchViewDetails {
   failedLogs?: GhRunWatchFailedLogDetails[];
 }
 
-interface GhUser {
+export interface GhUser {
   login?: string;
   name?: string | null;
 }
 
-interface GhLabel {
+export interface GhLabel {
   name?: string;
 }
 
-interface GhComment {
+export interface GhComment {
   author?: GhUser | null;
   body?: string;
   createdAt?: string;
@@ -497,7 +528,7 @@ interface GhRepoBranch {
   name?: string;
 }
 
-interface GhRepoViewData {
+export interface GhRepoViewData {
   nameWithOwner?: string;
   description?: string | null;
   url?: string;
@@ -515,7 +546,7 @@ interface GhRepoViewData {
   visibility?: string | null;
 }
 
-interface GhIssueViewData {
+export interface GhIssueViewData {
   author?: GhUser | null;
   body?: string | null;
   comments?: GhComment[];
@@ -529,14 +560,14 @@ interface GhIssueViewData {
   url?: string;
 }
 
-interface GhPrFile {
+export interface GhPrFile {
   path?: string;
   additions?: number;
   deletions?: number;
   changeType?: string;
 }
 
-interface GhPrViewData extends GhIssueViewData {
+export interface GhPrViewData extends GhIssueViewData {
   baseRefName?: string;
   files?: GhPrFile[];
   headRefName?: string;
@@ -556,7 +587,7 @@ interface GhPrReviewCommit {
   oid?: string | null;
 }
 
-interface GhPrReview {
+export interface GhPrReview {
   author?: GhUser | null;
   body?: string | null;
   commit?: GhPrReviewCommit | null;
@@ -577,7 +608,7 @@ interface GhPrReviewCommentApi {
   user?: GhUser | null;
 }
 
-interface GhPrReviewComment {
+export interface GhPrReviewComment {
   author?: GhUser | null;
   body?: string | null;
   createdAt?: string;
@@ -600,7 +631,7 @@ interface GhSearchRepository {
   nameWithOwner?: string;
 }
 
-interface GhSearchResult {
+export interface GhSearchResult {
   author?: GhUser | null;
   createdAt?: string;
   labels?: GhLabel[];
@@ -649,7 +680,7 @@ interface GhActionsJobApi {
   html_url?: string | null;
 }
 
-interface GhRunJobSnapshot {
+export interface GhRunJobSnapshot {
   id: number;
   name: string;
   status?: string;
@@ -659,7 +690,7 @@ interface GhRunJobSnapshot {
   url?: string;
 }
 
-interface GhRunSnapshot {
+export interface GhRunSnapshot {
   id: number;
   workflowName?: string;
   displayTitle?: string;
@@ -673,7 +704,7 @@ interface GhRunSnapshot {
   jobs: GhRunJobSnapshot[];
 }
 
-interface GhFailedJobLog {
+export interface GhFailedJobLog {
   run: GhRunSnapshot;
   job: GhRunJobSnapshot;
   full?: string;
@@ -681,29 +712,8 @@ interface GhFailedJobLog {
   available: boolean;
 }
 
-function normalizeText(value: string | null | undefined): string {
-  return (value ?? '').replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll('\t', '    ').trim();
-}
-
-function normalizeBlock(value: string | null | undefined): string {
-  return (value ?? '').replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll('\t', '    ').trimEnd();
-}
-
 function looksLikeGitHubUrl(value: string | undefined): boolean {
   return value?.startsWith('https://github.com/') ?? false;
-}
-
-function normalizeOptionalString(value: string | null | undefined): string | undefined {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
-}
-
-function formatShortSha(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  return value.slice(0, 12);
 }
 
 function requireNonEmpty(value: string | null | undefined, label: string): string {
@@ -959,24 +969,6 @@ async function resolvePrBranchPushTarget(
   };
 }
 
-function formatAuthor(author: GhUser | null | undefined): string | undefined {
-  if (!author) return undefined;
-  if (author.login) return `@${author.login}`;
-  if (author.name) return author.name;
-  return undefined;
-}
-
-function formatLabels(labels: GhLabel[] | undefined): string | undefined {
-  const names = labels?.map((label) => label.name).filter((value): value is string => Boolean(value)) ?? [];
-  if (names.length === 0) return undefined;
-  return names.join(', ');
-}
-
-function pushLine(lines: string[], label: string, value: string | number | boolean | undefined): void {
-  if (value === undefined || value === '') return;
-  lines.push(`${label}: ${value}`);
-}
-
 function parseRunReference(value: string | undefined): GhRunReference {
   const run = normalizeOptionalString(value);
   if (!run) {
@@ -1070,68 +1062,6 @@ function normalizeRunSnapshot(run: GhActionsRunApi, jobs: GhRunJobSnapshot[]): G
   };
 }
 
-function getRunOutcome(value: string | undefined): 'success' | 'failure' | 'pending' {
-  if (!value) {
-    return 'pending';
-  }
-
-  if (RUN_SUCCESS_CONCLUSIONS.has(value)) {
-    return 'success';
-  }
-
-  if (RUN_FAILURE_CONCLUSIONS.has(value)) {
-    return 'failure';
-  }
-
-  return 'pending';
-}
-
-function getRunSnapshotOutcome(run: GhRunSnapshot): 'success' | 'failure' | 'pending' {
-  if (run.status !== 'completed') {
-    return 'pending';
-  }
-
-  return getRunOutcome(run.conclusion);
-}
-
-function getRunCollectionOutcome(runs: GhRunSnapshot[]): 'success' | 'failure' | 'pending' {
-  if (runs.length === 0) {
-    return 'pending';
-  }
-
-  let pending = false;
-  for (const run of runs) {
-    if (run.jobs.some(isFailedJob)) {
-      return 'failure';
-    }
-
-    const outcome = getRunSnapshotOutcome(run);
-    if (outcome === 'failure') {
-      return 'failure';
-    }
-    if (outcome === 'pending') {
-      pending = true;
-    }
-  }
-
-  return pending ? 'pending' : 'success';
-}
-
-function getRunCollectionSignature(runs: GhRunSnapshot[]): string {
-  return runs
-    .map((run) => run.id)
-    .sort((left, right) => left - right)
-    .join(',');
-}
-
-function isFailedJob(job: GhRunJobSnapshot): boolean {
-  return job.conclusion !== undefined && JOB_FAILURE_CONCLUSIONS.has(job.conclusion);
-}
-
-function formatJobState(job: GhRunJobSnapshot): string {
-  return job.conclusion ?? job.status ?? 'unknown';
-}
-
 function parseTimestampMs(value: string | undefined): number | undefined {
   if (!value) {
     return undefined;
@@ -1185,233 +1115,6 @@ function buildFailedLogDetails(failedJobLogs: GhFailedJobLog[]): GhRunWatchFaile
     tail: entry.tail,
     available: entry.available,
   }));
-}
-
-function renderJobsSection(jobs: GhRunJobSnapshot[]): string[] {
-  if (jobs.length === 0) {
-    return ['## Jobs', '', 'No jobs reported yet.'];
-  }
-
-  const lines: string[] = [`## Jobs (${jobs.length})`, ''];
-  for (const job of jobs) {
-    lines.push(`- [${formatJobState(job)}] ${job.name}`);
-    if (job.startedAt) {
-      pushLine(lines, '  Started', job.startedAt);
-    }
-    if (job.completedAt) {
-      pushLine(lines, '  Completed', job.completedAt);
-    }
-    if (job.url) {
-      pushLine(lines, '  URL', job.url);
-    }
-  }
-
-  return lines;
-}
-
-function renderFailedJobLogs(
-  failedJobLogs: GhFailedJobLog[],
-  options: { mode: 'tail'; tail: number } | { mode: 'full' },
-): string[] {
-  if (failedJobLogs.length === 0) {
-    return [];
-  }
-
-  const lines: string[] = ['## Failed Jobs', ''];
-  for (const entry of failedJobLogs) {
-    lines.push(`### ${entry.job.name} [${entry.job.conclusion ?? 'failed'}]`);
-    pushLine(lines, 'Run', `#${entry.run.id}`);
-    pushLine(lines, 'Workflow', entry.run.workflowName ?? undefined);
-    if (entry.job.startedAt) {
-      pushLine(lines, 'Started', entry.job.startedAt);
-    }
-    if (entry.job.completedAt) {
-      pushLine(lines, 'Completed', entry.job.completedAt);
-    }
-    if (entry.job.url) {
-      pushLine(lines, 'URL', entry.job.url);
-    }
-    lines.push('');
-    const logText = options.mode === 'full' ? entry.full : entry.tail;
-    if (entry.available && logText) {
-      lines.push(options.mode === 'full' ? 'Full log:' : `Last ${options.tail} log lines:`);
-      lines.push('```text');
-      lines.push(logText);
-      lines.push('```');
-    } else {
-      lines.push(options.mode === 'full' ? 'Full log unavailable.' : 'Log tail unavailable.');
-    }
-    lines.push('');
-  }
-
-  return lines;
-}
-
-function renderRunSection(run: GhRunSnapshot): string[] {
-  const label = run.workflowName ? `### Run #${run.id} - ${run.workflowName}` : `### Run #${run.id}`;
-  const lines: string[] = [label, ''];
-  pushLine(lines, 'Title', run.displayTitle ?? undefined);
-  pushLine(lines, 'Branch', run.branch ?? undefined);
-  pushLine(lines, 'Commit', formatShortSha(run.headSha));
-  pushLine(lines, 'Status', run.status);
-  pushLine(lines, 'Conclusion', run.conclusion ?? undefined);
-  pushLine(lines, 'Created', run.createdAt);
-  pushLine(lines, 'Updated', run.updatedAt);
-  pushLine(lines, 'URL', run.url);
-  lines.push('');
-  lines.push(...renderJobsSection(run.jobs));
-  return lines;
-}
-
-function formatRunWatchSnapshot(
-  repo: string,
-  run: GhRunSnapshot,
-  pollCount: number,
-  note?: string,
-  includeOutcome: boolean = false,
-): string {
-  const failedJobs = run.jobs.filter(isFailedJob);
-  const lines: string[] = [`# Watching GitHub Actions Run #${run.id}`, ''];
-  pushLine(lines, 'Repository', repo);
-  pushLine(lines, 'Workflow', run.workflowName ?? undefined);
-  pushLine(lines, 'Title', run.displayTitle ?? undefined);
-  pushLine(lines, 'Branch', run.branch ?? undefined);
-  pushLine(lines, 'Status', run.status);
-  pushLine(lines, 'Conclusion', run.conclusion ?? undefined);
-  pushLine(lines, 'Created', run.createdAt);
-  pushLine(lines, 'Updated', run.updatedAt);
-  pushLine(lines, 'URL', run.url);
-  pushLine(lines, 'Poll', pollCount);
-  pushLine(lines, 'Failed jobs', failedJobs.length || undefined);
-
-  if (note) {
-    lines.push('');
-    lines.push(`Note: ${note}`);
-  }
-
-  lines.push('');
-  lines.push(...renderJobsSection(run.jobs));
-
-  if (includeOutcome) {
-    lines.push('');
-    lines.push(failedJobs.length > 0 ? 'Failures detected.' : 'All jobs passed.');
-  }
-
-  return lines.join('\n').trim();
-}
-
-function formatRunWatchResult(
-  repo: string,
-  run: GhRunSnapshot,
-  failedJobLogs: GhFailedJobLog[],
-  tail: number,
-  options?: { mode?: 'tail' | 'full' },
-): string {
-  const failedJobs = run.jobs.filter(isFailedJob);
-  const lines: string[] = [`# GitHub Actions Run #${run.id}`, ''];
-  pushLine(lines, 'Repository', repo);
-  pushLine(lines, 'Workflow', run.workflowName ?? undefined);
-  pushLine(lines, 'Title', run.displayTitle ?? undefined);
-  pushLine(lines, 'Branch', run.branch ?? undefined);
-  pushLine(lines, 'Status', run.status);
-  pushLine(lines, 'Conclusion', run.conclusion ?? undefined);
-  pushLine(lines, 'Created', run.createdAt);
-  pushLine(lines, 'Updated', run.updatedAt);
-  pushLine(lines, 'URL', run.url);
-  lines.push('');
-  lines.push(...renderJobsSection(run.jobs));
-
-  if (failedJobs.length > 0) {
-    lines.push('');
-    lines.push(
-      ...renderFailedJobLogs(failedJobLogs, options?.mode === 'full' ? { mode: 'full' } : { mode: 'tail', tail }),
-    );
-    lines.push('Run failed.');
-  } else if (getRunOutcome(run.conclusion) === 'success') {
-    lines.push('');
-    lines.push('All jobs passed.');
-  } else {
-    lines.push('');
-    lines.push('Run completed without successful jobs, but no failed job logs were available.');
-  }
-
-  return lines.join('\n').trim();
-}
-
-function formatCommitRunWatchSnapshot(
-  repo: string,
-  headSha: string,
-  branch: string | undefined,
-  runs: GhRunSnapshot[],
-  pollCount: number,
-  note?: string,
-): string {
-  const failedJobs = runs.flatMap((run) => run.jobs.filter(isFailedJob));
-  const completedRuns = runs.filter((run) => run.status === 'completed').length;
-  const lines: string[] = [`# Watching GitHub Actions for ${formatShortSha(headSha) ?? headSha}`, ''];
-  pushLine(lines, 'Repository', repo);
-  pushLine(lines, 'Branch', branch);
-  pushLine(lines, 'Commit', headSha);
-  pushLine(lines, 'Poll', pollCount);
-  pushLine(lines, 'Runs', runs.length);
-  pushLine(lines, 'Completed runs', `${completedRuns}/${runs.length}`);
-  pushLine(lines, 'Failed jobs', failedJobs.length || undefined);
-
-  if (note) {
-    lines.push('');
-    lines.push(`Note: ${note}`);
-  }
-
-  if (runs.length === 0) {
-    lines.push('');
-    lines.push('Waiting for workflow runs for this commit.');
-    return lines.join('\n').trim();
-  }
-
-  for (const run of runs) {
-    lines.push('');
-    lines.push(...renderRunSection(run));
-  }
-
-  return lines.join('\n').trim();
-}
-
-function formatCommitRunWatchResult(
-  repo: string,
-  headSha: string,
-  branch: string | undefined,
-  runs: GhRunSnapshot[],
-  failedJobLogs: GhFailedJobLog[],
-  tail: number,
-  options?: { mode?: 'tail' | 'full' },
-): string {
-  const outcome = getRunCollectionOutcome(runs);
-  const lines: string[] = [`# GitHub Actions for ${formatShortSha(headSha) ?? headSha}`, ''];
-  pushLine(lines, 'Repository', repo);
-  pushLine(lines, 'Branch', branch);
-  pushLine(lines, 'Commit', headSha);
-  pushLine(lines, 'Runs', runs.length);
-
-  for (const run of runs) {
-    lines.push('');
-    lines.push(...renderRunSection(run));
-  }
-
-  if (failedJobLogs.length > 0) {
-    lines.push('');
-    lines.push(
-      ...renderFailedJobLogs(failedJobLogs, options?.mode === 'full' ? { mode: 'full' } : { mode: 'tail', tail }),
-    );
-    lines.push('Workflow runs for this commit failed.');
-  } else if (outcome === 'success') {
-    lines.push('');
-    lines.push('All workflow runs for this commit passed.');
-  } else {
-    lines.push('');
-    lines.push('Workflow runs for this commit did not complete successfully.');
-  }
-
-  return lines.join('\n').trim();
 }
 
 function buildGhDetails(repo: string, run: GhRunSnapshot): GhToolDetails {
@@ -1679,16 +1382,6 @@ async function fetchRunSnapshot(
   return normalizeRunSnapshot(run, jobs);
 }
 
-function tailLogLines(log: string, tail: number): string | undefined {
-  const normalized = normalizeBlock(log);
-  if (!normalized) {
-    return undefined;
-  }
-
-  const lines = normalized.split('\n');
-  return lines.slice(-tail).join('\n').trimEnd();
-}
-
 async function fetchFailedJobLogs(
   cwd: string,
   repo: string,
@@ -1712,307 +1405,6 @@ async function fetchFailedJobLogs(
   );
 }
 
-function formatCommentsSection(comments: GhComment[] | undefined): string[] {
-  if (!comments || comments.length === 0) {
-    return [];
-  }
-
-  const visible = comments.filter((comment) => !comment.isMinimized);
-  const hiddenCount = comments.length - visible.length;
-  const lines: string[] = ['## Comments', ''];
-
-  if (visible.length === 0) {
-    lines.push(`No visible comments. Minimized comments omitted: ${hiddenCount}.`);
-    return lines;
-  }
-
-  lines[0] = `## Comments (${visible.length})`;
-
-  for (const comment of visible) {
-    const author = formatAuthor(comment.author) ?? 'unknown';
-    const createdAt = comment.createdAt ? ` · ${comment.createdAt}` : '';
-    lines.push(`### ${author}${createdAt}`);
-    lines.push('');
-    lines.push(normalizeText(comment.body) || 'No comment body.');
-    if (comment.url) {
-      lines.push('');
-      lines.push(`URL: ${comment.url}`);
-    }
-    lines.push('');
-  }
-
-  if (hiddenCount > 0) {
-    lines.push(`Minimized comments omitted: ${hiddenCount}.`);
-  }
-
-  return lines;
-}
-
-function formatReviewsSection(reviews: GhPrReview[] | undefined): string[] {
-  if (!reviews || reviews.length === 0) {
-    return [];
-  }
-
-  const lines: string[] = [`## Reviews (${reviews.length})`, ''];
-  for (const review of reviews) {
-    const author = formatAuthor(review.author) ?? 'unknown';
-    const submittedAt = review.submittedAt ? ` - ${review.submittedAt}` : '';
-    const state = review.state ? ` [${review.state}]` : '';
-    lines.push(`### ${author}${submittedAt}${state}`);
-    if (review.commit?.oid) {
-      lines.push('');
-      lines.push(`Commit: ${formatShortSha(review.commit.oid)}`);
-    }
-    lines.push('');
-    lines.push(normalizeText(review.body) || 'No review body.');
-    lines.push('');
-  }
-
-  return lines;
-}
-
-function formatReviewCommentLocation(comment: GhPrReviewComment): string | undefined {
-  if (!comment.path) {
-    return undefined;
-  }
-
-  const line = comment.line ?? comment.originalLine;
-  return line === undefined ? comment.path : `${comment.path}:${line}`;
-}
-
-function formatReviewCommentsSection(comments: GhPrReviewComment[] | undefined): string[] {
-  if (!comments || comments.length === 0) {
-    return [];
-  }
-
-  const lines: string[] = [`## Review Comments (${comments.length})`, ''];
-  for (const comment of comments) {
-    const author = formatAuthor(comment.author) ?? 'unknown';
-    const createdAt = comment.createdAt ? ` · ${comment.createdAt}` : '';
-    lines.push(`### ${author}${createdAt}`);
-    lines.push('');
-    pushLine(lines, 'Location', formatReviewCommentLocation(comment));
-    pushLine(lines, 'Side', comment.side);
-    pushLine(lines, 'Reply to', comment.inReplyToId);
-    pushLine(lines, 'URL', comment.url);
-    lines.push('');
-    lines.push(normalizeText(comment.body) || 'No review comment body.');
-    lines.push('');
-  }
-
-  return lines;
-}
-
-function formatRepoView(data: GhRepoViewData, input: GhRepoViewInput): string {
-  const lines: string[] = [];
-  const name = data.nameWithOwner ?? input.repo ?? 'GitHub Repository';
-  lines.push(`# ${name}`);
-  lines.push('');
-  lines.push(normalizeText(data.description) || 'No description provided.');
-  lines.push('');
-  pushLine(lines, 'URL', data.url);
-  pushLine(lines, 'Default branch', data.defaultBranchRef?.name);
-  pushLine(lines, 'Branch', normalizeOptionalString(input.branch));
-  pushLine(lines, 'Visibility', data.visibility ?? undefined);
-  pushLine(lines, 'Viewer permission', data.viewerPermission ?? undefined);
-  pushLine(lines, 'Primary language', data.primaryLanguage?.name);
-  pushLine(lines, 'Stars', data.stargazerCount);
-  pushLine(lines, 'Forks', data.forkCount);
-  pushLine(lines, 'Archived', data.isArchived);
-  pushLine(lines, 'Fork', data.isFork);
-  pushLine(lines, 'Updated', data.updatedAt);
-  pushLine(lines, 'Homepage', data.homepageUrl ?? undefined);
-  const topics = data.repositoryTopics
-    ?.map((topic) => topic.name ?? topic.topic?.name)
-    .filter((value): value is string => Boolean(value))
-    .join(', ');
-  pushLine(lines, 'Topics', topics || undefined);
-  return lines.join('\n').trim();
-}
-
-function formatIssueView(data: GhIssueViewData, input: GhIssueViewInput): string {
-  const lines: string[] = [];
-  const issueNumber = data.number ?? input.issue;
-  lines.push(`# Issue #${issueNumber}: ${data.title ?? 'Untitled'}`);
-  lines.push('');
-  pushLine(lines, 'State', data.state);
-  pushLine(lines, 'State reason', data.stateReason ?? undefined);
-  pushLine(lines, 'Author', formatAuthor(data.author));
-  pushLine(lines, 'Created', data.createdAt);
-  pushLine(lines, 'Updated', data.updatedAt);
-  pushLine(lines, 'Labels', formatLabels(data.labels));
-  pushLine(lines, 'URL', data.url);
-  lines.push('');
-  lines.push('## Body');
-  lines.push('');
-  lines.push(normalizeText(data.body) || 'No description provided.');
-
-  if ((input.comments ?? true) && data.comments) {
-    const commentSection = formatCommentsSection(data.comments);
-    if (commentSection.length > 0) {
-      lines.push('');
-      lines.push(...commentSection);
-    }
-  }
-
-  return lines.join('\n').trim();
-}
-
-function formatPrFiles(files: GhPrFile[] | undefined): string[] {
-  if (!files || files.length === 0) return [];
-
-  const lines: string[] = [`## Files (${files.length})`, ''];
-  for (const file of files.slice(0, FILE_PREVIEW_LIMIT)) {
-    const changeType = file.changeType ?? 'CHANGED';
-    const additions = file.additions ?? 0;
-    const deletions = file.deletions ?? 0;
-    lines.push(`- ${file.path ?? '(unknown file)'} [${changeType}] (+${additions} -${deletions})`);
-  }
-
-  if (files.length > FILE_PREVIEW_LIMIT) {
-    lines.push(`- ... ${files.length - FILE_PREVIEW_LIMIT} more files`);
-  }
-
-  return lines;
-}
-
-function formatPrView(data: GhPrViewData, input: GhPrViewInput): string {
-  const lines: string[] = [];
-  const prIdentifier = data.number ?? input.pr ?? 'current';
-  lines.push(`# Pull Request #${prIdentifier}: ${data.title ?? 'Untitled'}`);
-  lines.push('');
-  pushLine(lines, 'State', data.state);
-  pushLine(lines, 'Draft', data.isDraft);
-  pushLine(lines, 'Author', formatAuthor(data.author));
-  pushLine(lines, 'Base', data.baseRefName);
-  pushLine(lines, 'Head', data.headRefName);
-  pushLine(lines, 'Review decision', data.reviewDecision ?? undefined);
-  pushLine(lines, 'Merge state', data.mergeStateStatus);
-  pushLine(lines, 'Created', data.createdAt);
-  pushLine(lines, 'Updated', data.updatedAt);
-  pushLine(lines, 'Labels', formatLabels(data.labels));
-  pushLine(lines, 'URL', data.url);
-  lines.push('');
-  lines.push('## Body');
-  lines.push('');
-  lines.push(normalizeText(data.body) || 'No description provided.');
-
-  const fileSection = formatPrFiles(data.files);
-  if (fileSection.length > 0) {
-    lines.push('');
-    lines.push(...fileSection);
-  }
-
-  if ((input.comments ?? true) && data.reviews) {
-    const reviewSection = formatReviewsSection(data.reviews);
-    if (reviewSection.length > 0) {
-      lines.push('');
-      lines.push(...reviewSection);
-    }
-  }
-
-  if ((input.comments ?? true) && data.reviewComments) {
-    const reviewCommentsSection = formatReviewCommentsSection(data.reviewComments);
-    if (reviewCommentsSection.length > 0) {
-      lines.push('');
-      lines.push(...reviewCommentsSection);
-    }
-  }
-
-  if ((input.comments ?? true) && data.comments) {
-    const commentSection = formatCommentsSection(data.comments);
-    if (commentSection.length > 0) {
-      lines.push('');
-      lines.push(...commentSection);
-    }
-  }
-
-  return lines.join('\n').trim();
-}
-
-function formatPrCheckoutResult(options: {
-  data: GhPrViewData;
-  localBranch: string;
-  worktreePath: string;
-  remoteName: string;
-  remoteUrl: string;
-  reused: boolean;
-}): string {
-  const { data, localBranch, worktreePath, remoteName, remoteUrl, reused } = options;
-  const lines: string[] = [
-    reused ? `# Pull Request #${data.number ?? '?'} Worktree` : `# Checked Out Pull Request #${data.number ?? '?'}`,
-    '',
-  ];
-  pushLine(lines, 'Title', data.title ?? undefined);
-  pushLine(lines, 'URL', data.url);
-  pushLine(lines, 'Base', data.baseRefName);
-  pushLine(lines, 'Head', data.headRefName);
-  pushLine(lines, 'Local branch', localBranch);
-  pushLine(lines, 'Worktree', worktreePath);
-  pushLine(lines, 'Remote', remoteName);
-  pushLine(lines, 'Remote URL', remoteUrl);
-  pushLine(lines, 'Cross repository', data.isCrossRepository);
-  pushLine(lines, 'Maintainer can modify', data.maintainerCanModify);
-  lines.push('');
-  lines.push(
-    reused
-      ? 'Reused the existing PR worktree.'
-      : 'Created a dedicated worktree for this PR and configured the local branch to push back to the PR head branch.',
-  );
-  return lines.join('\n').trim();
-}
-
-function formatPrPushResult(options: {
-  localBranch: string;
-  remoteName: string;
-  remoteBranch: string;
-  remoteUrl?: string;
-  prUrl?: string;
-  forceWithLease: boolean;
-}): string {
-  const lines: string[] = ['# Pushed Pull Request Branch', ''];
-  pushLine(lines, 'Local branch', options.localBranch);
-  pushLine(lines, 'Remote', options.remoteName);
-  pushLine(lines, 'Remote branch', options.remoteBranch);
-  pushLine(lines, 'Remote URL', options.remoteUrl);
-  pushLine(lines, 'PR', options.prUrl);
-  pushLine(lines, 'Force with lease', options.forceWithLease);
-  lines.push('');
-  lines.push(`Pushed ${options.localBranch} to ${options.remoteName}:${options.remoteBranch}.`);
-  return lines.join('\n').trim();
-}
-
-function formatSearchResults(
-  kind: 'issues' | 'pull requests',
-  query: string,
-  repo: string | undefined,
-  items: GhSearchResult[],
-): string {
-  const lines: string[] = [`# GitHub ${kind} search`, '', `Query: ${query}`];
-  pushLine(lines, 'Repository', repo);
-  pushLine(lines, 'Results', items.length);
-
-  if (items.length === 0) {
-    lines.push('');
-    lines.push(`No ${kind} found.`);
-    return lines.join('\n').trim();
-  }
-
-  for (const item of items) {
-    lines.push('');
-    lines.push(`- #${item.number ?? '?'} ${item.title ?? 'Untitled'}`);
-    pushLine(lines, '  Repo', item.repository?.nameWithOwner);
-    pushLine(lines, '  State', item.state);
-    pushLine(lines, '  Author', formatAuthor(item.author));
-    pushLine(lines, '  Labels', formatLabels(item.labels));
-    pushLine(lines, '  Created', item.createdAt);
-    pushLine(lines, '  Updated', item.updatedAt);
-    pushLine(lines, '  URL', item.url);
-  }
-
-  return lines.join('\n').trim();
-}
-
 async function saveArtifactText(session: ToolSession, toolType: string, text: string): Promise<string | undefined> {
   const { path: artifactPath, id: artifactId } = (await session.allocateOutputArtifact?.(toolType)) ?? {};
   if (!artifactPath || !artifactId) {
@@ -2021,14 +1413,6 @@ async function saveArtifactText(session: ToolSession, toolType: string, text: st
 
   await Bun.write(artifactPath, text);
   return artifactId;
-}
-
-function appendArtifactReference(text: string, artifactId: string | undefined, label: string): string {
-  if (!artifactId) {
-    return text;
-  }
-
-  return `${text}\n\n${label}: artifact://${artifactId}`;
 }
 
 function buildTextResult(
@@ -2539,6 +1923,117 @@ export class GhSearchPrsTool implements AgentTool<typeof ghSearchPrsSchema, GhTo
       return buildTextResult(formatSearchResults('pull requests', query, repo, items), undefined, {
         tool: 'gh_search_prs',
       });
+    });
+  }
+}
+
+export class GhHelpTool implements AgentTool<typeof ghHelpSchema, GhToolDetails> {
+  readonly name = 'gh_help';
+  readonly label = 'GitHub CLI Help';
+  readonly description = prompt.render(ghHelpDescription);
+  readonly parameters = ghHelpSchema;
+  readonly strict = true;
+
+  constructor(private readonly session: ToolSession) {}
+
+  static createIf(session: ToolSession): GhHelpTool | null {
+    if (!git.github.available()) return null;
+    return new GhHelpTool(session);
+  }
+
+  async execute(
+    _toolCallId: string,
+    params: GhHelpInput,
+    signal?: AbortSignal,
+    _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
+    _context?: AgentToolContext,
+  ): Promise<AgentToolResult<GhToolDetails>> {
+    const commandPath = params.command_path?.trim() ?? '';
+    if (commandPath.length > 0 && !HELP_PATH_PATTERN.test(commandPath)) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error: invalid command path "${commandPath}". Only lowercase letters, hyphens, and spaces are allowed.`,
+          },
+        ],
+        isError: true,
+        details: { tool: 'gh_help' },
+      };
+    }
+
+    return untilAborted(signal, async () => {
+      const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
+      if (parts.some((p) => p.startsWith('-'))) {
+        return {
+          content: [{ type: 'text', text: 'Error: command path parts must not start with "-".' }],
+          isError: true,
+          details: { tool: 'gh_help' },
+        };
+      }
+      const result = await git.github.run(this.session.cwd, [...parts, '--help'], signal);
+      const output = result.stdout || result.stderr;
+      return buildTextResult(output || `No help output for "gh ${commandPath}".`, undefined, { tool: 'gh_help' });
+    });
+  }
+}
+
+const GH_EXEC_MAX_OUTPUT = 50000;
+
+export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
+  readonly name = 'gh_exec';
+  readonly label = 'GitHub CLI Execute';
+  readonly description = prompt.render(ghExecDescription);
+  readonly parameters = Type.Object({
+    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "gh")' }), {
+      description: 'gh subcommand and flags as an array, e.g. ["pr", "list", "--json", "number,title"]',
+    }),
+  });
+
+  constructor(private readonly session: ToolSession) {}
+
+  static createIf(session: ToolSession): GhExecTool | null {
+    if (!git.github.available()) return null;
+    return new GhExecTool(session);
+  }
+
+  async execute(
+    _toolCallId: string,
+    params: { args: string[] },
+    signal?: AbortSignal,
+    _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
+    _context?: AgentToolContext,
+  ): Promise<AgentToolResult<GhToolDetails>> {
+    const args = params.args ?? [];
+    const fail = (text: string): AgentToolResult<GhToolDetails> => ({
+      content: [{ type: 'text', text }],
+      isError: true,
+      details: { tool: 'gh_exec' },
+    });
+    if (args.length === 0) {
+      return fail('Error: args array must not be empty.');
+    }
+    for (const a of args) {
+      if (hasControlChars(a)) {
+        return fail(`Error: argument contains a control character: "${a}"`);
+      }
+    }
+    const mutation = findMutation(args);
+    if (mutation.blocked) {
+      return fail(
+        `Error: ${mutation.reason}. gh_exec is read-only by default. Run write operations through an explicitly confirmed path, not gh_exec.`,
+      );
+    }
+    return untilAborted(signal, async () => {
+      const result = await git.github.run(this.session.cwd, args, signal);
+      if (result.exitCode !== 0) {
+        throw detectGhError(result.stderr, result.stdout, result.exitCode, { args });
+      }
+      let out = result.stdout;
+      if (out.length > GH_EXEC_MAX_OUTPUT) {
+        out = `${out.slice(0, GH_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
+      }
+      return buildTextResult(out, undefined, { tool: 'gh_exec' });
     });
   }
 }

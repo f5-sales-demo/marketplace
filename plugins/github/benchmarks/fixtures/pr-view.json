@@ -1,0 +1,18 @@
+{
+  "author": { "login": "octocat" },
+  "baseRefName": "main",
+  "body": "This pull request adds benchmark fixtures.",
+  "createdAt": "2026-07-02T09:30:00Z",
+  "files": [{ "path": "src/index.ts", "additions": 10, "deletions": 2, "changeType": "MODIFIED" }],
+  "headRefName": "feat/benchmarks",
+  "isDraft": false,
+  "labels": [{ "name": "enhancement" }],
+  "mergeStateStatus": "CLEAN",
+  "number": 123,
+  "reviews": [],
+  "reviewDecision": "APPROVED",
+  "state": "OPEN",
+  "title": "Add benchmark fixtures",
+  "updatedAt": "2026-07-03T10:00:00Z",
+  "url": "https://github.com/octo-org/hello-world/pull/123"
+}
