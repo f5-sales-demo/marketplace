@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { detectGlabError, GlabAuthError, GlabExecError, GlabNotFoundError, GlabRateLimitError } from '../../src/glab/exec';
+import {
+  detectGlabError,
+  GlabAuthError,
+  GlabExecError,
+  GlabNotFoundError,
+  GlabRateLimitError,
+} from '../../src/glab/exec';
 import { detectErrorType } from '../../src/tools/shared';
 
 describe('detectGlabError', () => {

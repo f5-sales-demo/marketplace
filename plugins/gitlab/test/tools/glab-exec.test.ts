@@ -17,7 +17,7 @@ describe('hasControlChars', () => {
   it('rejects NUL/control bytes but allows tab and normal args', () => {
     expect(hasControlChars(`a${NUL}b`)).toBe(true);
     expect(hasControlChars(`a${TAB}b`)).toBe(false);
-    expect(hasControlChars("issue list --output json")).toBe(false);
+    expect(hasControlChars('issue list --output json')).toBe(false);
   });
 });
 
