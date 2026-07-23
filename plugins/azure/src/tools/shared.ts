@@ -1,4 +1,4 @@
-import { AzAuthError, AzNotFoundError, AzSessionExpiredError } from '../az/exec';
+import { AzAuthError, type AzExecApi, AzNotFoundError, AzSessionExpiredError } from '../az/exec';
 import type { AzRawResult, AzResource, AzResourceGroup, AzSubscription, AzVm } from '../az/types';
 
 export type AzErrorType = 'auth_required' | 'session_expired' | 'not_found' | 'exec_error';
@@ -30,10 +30,22 @@ export function detectErrorType(err: unknown): AzErrorType {
   return 'exec_error';
 }
 
-export function makeExecApi(cwd: string): { exec: (command: string, args: string[]) => Promise<AzRawResult> } {
+export function makeExecApi(cwd: string): AzExecApi {
   return {
-    async exec(command: string, args: string[]): Promise<AzRawResult> {
-      const proc = Bun.spawn([command, ...args], { cwd, stdout: 'pipe', stderr: 'pipe', env: process.env });
+    async exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<AzRawResult> {
+      // Thread the AbortSignal so a genuine in-flight cancellation terminates the child.
+      // Only wire it in while still live at spawn time — handing an already-aborted
+      // (stale) signal to Bun.spawn would kill the fresh process immediately, resurrecting
+      // a false cancel from a prior multi-turn tool call. Do NOT pre-check signal.aborted
+      // to throw. A signal that aborts *during* the run still cancels for real.
+      const signal = options?.signal;
+      const proc = Bun.spawn([command, ...args], {
+        cwd,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: process.env,
+        ...(signal && !signal.aborted ? { signal } : {}),
+      });
       const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
       const exitCode = await proc.exited;
       return { stdout, stderr, exitCode };

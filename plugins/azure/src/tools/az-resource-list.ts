@@ -29,7 +29,7 @@ export function createAzResourceListTool(pi: PluginInterface) {
     async execute(
       _toolCallId: string,
       params: { resource_group: string; subscription?: string; resource_type?: string },
-      _signal: unknown,
+      signal: AbortSignal | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
     ) {
@@ -63,7 +63,7 @@ export function createAzResourceListTool(pi: PluginInterface) {
       if (params.resource_type) args.push('--resource-type', params.resource_type);
 
       try {
-        const raw = await execAzJson<Record<string, unknown>[]>(api, args);
+        const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);
         const resources = raw.map(normalizeResource);
         return textResult(formatResourceTable(resources), { ...base, resources });
       } catch (err) {

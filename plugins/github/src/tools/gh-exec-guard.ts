@@ -2,14 +2,9 @@
 // Keeps argv hygiene and read-only enforcement free of I/O so they are trivially testable.
 // Fail-safe allowlist design: unknown commands are blocked.
 
-// Blocks ASCII control characters except tab (0x09), LF (0x0A), and CR (0x0D),
-// so multi-line `--jq` expressions survive; plus DEL (0x7F).
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional argv hygiene (allow tab/LF/CR)
-const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
-
-export function hasControlChars(arg: string): boolean {
-  return CONTROL_CHAR_PATTERN.test(arg);
-}
+// Argv control-char hygiene lives in ../utils/git (the single source used by every
+// gh/git spawn wrapper); re-exported here so gh_exec and its tests keep one import site.
+export { hasControlChars } from '../utils/git';
 
 // Leaf read verbs — the token immediately after the command group in `gh <group> <verb>`.
 export const READ_VERBS: ReadonlySet<string> = new Set([

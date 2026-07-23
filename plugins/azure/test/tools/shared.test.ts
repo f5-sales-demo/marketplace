@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { AzAuthError, AzExecError, AzNotFoundError, AzSessionExpiredError } from '../../src/az/exec';
 import {
   detectErrorType,
   errorResult,
+  makeExecApi,
   normalizeResource,
   normalizeResourceGroup,
   normalizeSubscription,
@@ -164,5 +165,76 @@ describe('normalizeVm', () => {
     expect(result.powerState).toBe('');
     expect(result.publicIps).toBe('');
     expect(result.fqdns).toBe('');
+  });
+});
+
+describe('makeExecApi forwards AbortSignal to Bun.spawn only while live', () => {
+  const realSpawn = Bun.spawn;
+
+  const emptyStream = () => new ReadableStream<Uint8Array>({ start: (c) => c.close() });
+  const fakeChild = () => ({
+    stdout: emptyStream(),
+    stderr: emptyStream(),
+    exited: Promise.resolve(0),
+    exitCode: 0,
+    killed: false,
+  });
+
+  let recordedOptions: { signal?: AbortSignal } | undefined;
+
+  function installSpawnSpy() {
+    recordedOptions = undefined;
+    Bun.spawn = ((_cmd: string[], options: { signal?: AbortSignal }) => {
+      recordedOptions = options;
+      return fakeChild();
+    }) as unknown as typeof Bun.spawn;
+  }
+
+  afterEach(() => {
+    Bun.spawn = realSpawn;
+  });
+
+  it('hands a live (non-aborted) signal to Bun.spawn', async () => {
+    installSpawnSpy();
+    const controller = new AbortController();
+    await makeExecApi('/tmp').exec('az', ['account', 'show'], { signal: controller.signal });
+    expect(recordedOptions).toBeDefined();
+    expect('signal' in (recordedOptions ?? {})).toBe(true);
+    expect(recordedOptions?.signal).toBe(controller.signal);
+  });
+
+  it('withholds an already-aborted (stale) signal from Bun.spawn', async () => {
+    installSpawnSpy();
+    const controller = new AbortController();
+    controller.abort(); // stale abort left over from a prior turn
+    await makeExecApi('/tmp').exec('az', ['account', 'show'], { signal: controller.signal });
+    expect(recordedOptions).toBeDefined();
+    expect('signal' in (recordedOptions ?? {})).toBe(false);
+  });
+});
+
+describe('makeExecApi live execution', () => {
+  it('a non-aborted signal still returns output', async () => {
+    const api = makeExecApi(process.cwd());
+    const controller = new AbortController();
+    const r = await api.exec('sh', ['-c', 'echo hello-live'], { signal: controller.signal });
+    expect(r.stdout.trim()).toBe('hello-live');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('a stale, already-aborted signal does NOT false-cancel a fresh command', async () => {
+    const api = makeExecApi(process.cwd());
+    const controller = new AbortController();
+    controller.abort();
+    const r = await api.exec('sh', ['-c', 'echo still-runs'], { signal: controller.signal });
+    expect(r.stdout.trim()).toBe('still-runs');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('runs without any signal supplied', async () => {
+    const api = makeExecApi(process.cwd());
+    const r = await api.exec('sh', ['-c', 'echo no-signal']);
+    expect(r.stdout.trim()).toBe('no-signal');
+    expect(r.exitCode).toBe(0);
   });
 });

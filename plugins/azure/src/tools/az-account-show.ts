@@ -23,7 +23,7 @@ export function createAzAccountShowTool(pi: PluginInterface) {
     async execute(
       _toolCallId: string,
       params: { action?: string; subscription?: string },
-      _signal: unknown,
+      signal: AbortSignal | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
     ) {
@@ -44,7 +44,7 @@ export function createAzAccountShowTool(pi: PluginInterface) {
 
       try {
         if (params.action === 'list') {
-          const raw = await execAzJson<Record<string, unknown>[]>(api, ['account', 'list']);
+          const raw = await execAzJson<Record<string, unknown>[]>(api, ['account', 'list'], signal);
           let subs = raw.map(normalizeSubscription);
           if (params.subscription) {
             const filter = params.subscription.toLowerCase();
@@ -55,7 +55,7 @@ export function createAzAccountShowTool(pi: PluginInterface) {
 
         const args = ['account', 'show'];
         if (params.subscription) args.push('--subscription', params.subscription);
-        const raw = await execAzJson<Record<string, unknown>>(api, args);
+        const raw = await execAzJson<Record<string, unknown>>(api, args, signal);
         const sub = normalizeSubscription(raw);
         return textResult(formatSubscriptionDetail(sub), { ...base, subscriptions: [sub] });
       } catch (err) {

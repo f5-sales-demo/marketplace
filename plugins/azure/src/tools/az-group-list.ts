@@ -25,7 +25,7 @@ export function createAzGroupListTool(pi: PluginInterface) {
     async execute(
       _toolCallId: string,
       params: { action?: string; name?: string; subscription?: string; tag?: string },
-      _signal: unknown,
+      signal: AbortSignal | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
     ) {
@@ -62,7 +62,7 @@ export function createAzGroupListTool(pi: PluginInterface) {
           }
           const args = ['group', 'show', '--name', params.name];
           if (params.subscription) args.push('--subscription', params.subscription);
-          const raw = await execAzJson<Record<string, unknown>>(api, args);
+          const raw = await execAzJson<Record<string, unknown>>(api, args, signal);
           const group = normalizeResourceGroup(raw);
           return textResult(formatResourceGroupTable([group]), { ...base, resourceGroups: [group] });
         }
@@ -70,7 +70,7 @@ export function createAzGroupListTool(pi: PluginInterface) {
         const args = ['group', 'list'];
         if (params.subscription) args.push('--subscription', params.subscription);
         if (params.tag) args.push('--tag', params.tag);
-        const raw = await execAzJson<Record<string, unknown>[]>(api, args);
+        const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);
         const groups = raw.map(normalizeResourceGroup);
         return textResult(formatResourceGroupTable(groups), { ...base, resourceGroups: groups });
       } catch (err) {

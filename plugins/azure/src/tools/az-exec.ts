@@ -133,7 +133,7 @@ export function createAzExecTool(pi: PluginInterface) {
     async execute(
       _toolCallId: string,
       params: { args: string[] },
-      _signal: unknown,
+      signal: AbortSignal | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
     ) {
@@ -163,7 +163,7 @@ export function createAzExecTool(pi: PluginInterface) {
       const args = buildAzArgs(params.args);
 
       try {
-        const result = await api.exec('az', args);
+        const result = await api.exec('az', args, { signal });
         if (result.exitCode !== 0) {
           return errorResult(`az command failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`, {
             ...base,
