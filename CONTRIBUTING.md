@@ -299,6 +299,13 @@ apply what fits.
 
 ### Local checks vs CI
 
+- Install the hooks once per clone: `pre-commit install`. Until you do, the local hooks
+  (including the plugin version auto-bump — `scripts/pre-commit-local.sh` →
+  `scripts/auto-bump-version.sh`, which patch-bumps any plugin whose content you staged)
+  do not run. The bump requirement is enforced regardless by CI
+  (`scripts/check-version-bumps.sh` in the `Validate Plugins` workflow): a PR that changes
+  a plugin's content without bumping its version fails. For a `minor`/`major` bump, or to
+  bump without the hook, run `scripts/bump-version.sh <plugin> <major|minor|patch>`.
 - The authoritative lint gate is CI's `Lint Code Base` (Super-Linter). It runs more
   validators than the local `pre-commit` hooks — notably textlint (`NATURAL_LANGUAGE`)
   prose and terminology, which `pre-commit` does not run.
