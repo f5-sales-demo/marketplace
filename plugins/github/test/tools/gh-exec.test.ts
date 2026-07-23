@@ -62,6 +62,32 @@ describe('findMutation allowlist', () => {
   it('does not false-positive on read args that contain a verb word', () => {
     expect(findMutation(['pr', 'view', 'merge']).blocked).toBe(false);
   });
+
+  it('blocks the flag-value-shift bypass (cobra consumes the token after a value flag)', () => {
+    // `--title`'s value `list` is consumed by gh; real verb `create` is a mutation.
+    expect(findMutation(['issue', '--title', 'list', 'create']).blocked).toBe(true);
+  });
+
+  it('blocks gh api short-flag-cluster mutations (pflag clustering bypass)', () => {
+    // -iF = -i (include) + -F (raw-field, value from next arg) → body → POST.
+    expect(findMutation(['api', 'repos/o/r/issues', '-iF', 'field=y']).blocked).toBe(true);
+    // -iX = -i + -X (method, value from next arg).
+    expect(findMutation(['api', 'x', '-iX', 'POST']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '-X=POST']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '--input', 'body.json']).blocked).toBe(true);
+    expect(findMutation(['pr', 'merge', '1']).blocked).toBe(true);
+  });
+
+  it('still allows legit reads whose flag values look like verbs', () => {
+    // Branch named `merge`; flag-value exclusion must NOT block this — verb is `view`.
+    expect(findMutation(['pr', 'view', 'merge']).blocked).toBe(false);
+    // `create` is the --search term, not the verb; verb is still `list`.
+    expect(findMutation(['issue', 'list', '--search', 'create']).blocked).toBe(false);
+    // Global value-flag before the group; verb is still `list`.
+    expect(findMutation(['-R', 'o/r', 'issue', 'list']).blocked).toBe(false);
+    expect(findMutation(['api', 'repos/o/r']).blocked).toBe(false);
+    expect(findMutation(['pr', 'list']).blocked).toBe(false);
+  });
 });
 
 describe('gh_exec execute', () => {
