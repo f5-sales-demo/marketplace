@@ -2243,9 +2243,12 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
     params: GhPrCheckoutInput,
     signal?: AbortSignal,
     _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
-    _context?: AgentToolContext,
+    context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
+      const mode = resolveApprovalMode(context);
+      if (mode === 'headless-blocked') throw new ToolError(HEADLESS_BLOCKED_MESSAGE);
+
       const pr = normalizeOptionalString(params.pr);
       const repo = normalizeOptionalString(params.repo);
       const requestedBranch = normalizeOptionalString(params.branch);
@@ -2277,6 +2280,43 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
       const existingWorktrees = await git.worktree.list(repoRoot, signal);
       const existingWorktree = existingWorktrees.find((entry) => entry.branch === toLocalBranchRef(localBranch));
 
+      // Decide whether this checkout will RESET an existing divergent local branch
+      // (history-affecting) before performing any mutation.
+      let willReset = false;
+      if (!existingWorktree) {
+        const localBranchRef = toLocalBranchRef(localBranch);
+        if (await git.ref.exists(repoRoot, localBranchRef, signal)) {
+          const existingOid = await git.ref.resolve(repoRoot, localBranchRef, signal);
+          if (existingOid !== headRefOid) {
+            if (!force) {
+              throw new ToolError(
+                `local branch ${localBranch} already exists at ${formatShortSha(existingOid ?? undefined) ?? existingOid ?? 'unknown commit'}; pass force=true to reset it`,
+              );
+            }
+            willReset = true;
+          }
+        }
+      }
+
+      if (mode === 'interactive') {
+        if (!context?.ui) {
+          throw new ToolError(
+            'Interactive confirmation required but no UI is available. Set GITHUB_ALLOW_MUTATIONS=1 to allow headless operation without a prompt.',
+          );
+        }
+        const approved = await confirmMutation(context.ui, {
+          title: 'Checkout PR branch',
+          message: `Create/update local branch ${localBranch} and worktree at ${worktreePath}?`,
+          rewrite: willReset
+            ? {
+                title: 'Reset existing branch',
+                message: `Branch ${localBranch} will be reset to the PR head. Continue?`,
+              }
+            : undefined,
+        });
+        if (!approved) throw new ToolError('Checkout cancelled: not confirmed.');
+      }
+
       const remote = await ensurePrRemote(repoRoot, data, signal);
       await git.fetch(
         repoRoot,
@@ -2287,20 +2327,9 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
       );
 
       if (!existingWorktree) {
-        const localBranchRef = toLocalBranchRef(localBranch);
-        const localBranchExists = await git.ref.exists(repoRoot, localBranchRef, signal);
-        if (localBranchExists) {
-          const existingOid = await git.ref.resolve(repoRoot, localBranchRef, signal);
-          if (existingOid !== headRefOid) {
-            if (!force) {
-              throw new ToolError(
-                `local branch ${localBranch} already exists at ${formatShortSha(existingOid ?? undefined) ?? existingOid ?? 'unknown commit'}; pass force=true to reset it`,
-              );
-            }
-
-            await git.branch.force(repoRoot, localBranch, `refs/remotes/${remote.name}/${headRefName}`, signal);
-          }
-        } else {
+        if (willReset) {
+          await git.branch.force(repoRoot, localBranch, `refs/remotes/${remote.name}/${headRefName}`, signal);
+        } else if (!(await git.ref.exists(repoRoot, toLocalBranchRef(localBranch), signal))) {
           await git.branch.create(repoRoot, localBranch, `refs/remotes/${remote.name}/${headRefName}`, signal);
         }
       }
