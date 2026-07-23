@@ -2593,6 +2593,13 @@ export class GhHelpTool implements AgentTool<typeof ghHelpSchema, GhToolDetails>
 
     return untilAborted(signal, async () => {
       const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
+      if (parts.some((p) => p.startsWith('-'))) {
+        return {
+          content: [{ type: 'text', text: 'Error: command path parts must not start with "-".' }],
+          isError: true,
+          details: { tool: 'gh_help' },
+        };
+      }
       const result = await git.github.run(this.session.cwd, [...parts, '--help'], signal);
       const output = result.stdout || result.stderr;
       return buildTextResult(output || `No help output for "gh ${commandPath}".`, undefined, { tool: 'gh_help' });

@@ -10,4 +10,10 @@ describe('gh_help', () => {
     expect(res.isError).toBe(true);
     expect(res.content[0].text.toLowerCase()).toContain('invalid command path');
   });
+
+  it('rejects a command path part that starts with a dash (flag smuggling)', async () => {
+    const res = await tool.execute('id', { command_path: 'pr -x' }, undefined, undefined, { cwd: '/tmp' } as never);
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain('must not start with');
+  });
 });
