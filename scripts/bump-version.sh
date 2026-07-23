@@ -91,6 +91,7 @@ fi
 # ── Bump each plugin ────────────────────────────────────────
 
 CHANGELOG_ENTRIES=()
+JSON_FILES=("$MARKETPLACE")
 
 for name in "${PLUGINS[@]}"; do
   OLD_VER=$(jq -r --arg n "$name" '.plugins[] | select(.name == $n) | .version' "$MARKETPLACE")
@@ -109,6 +110,7 @@ for name in "${PLUGINS[@]}"; do
 
   jq --arg v "$NEW_VER" '.version = $v' \
     "$PLUGIN_JSON" >"$PLUGIN_JSON.tmp" && command mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
+  JSON_FILES+=("$PLUGIN_JSON")
 
   # Keep package.json in lockstep when present (TS plugins carry a separate `version`
   # and `xcsh.version`). package.json is not release-authoritative — marketplace.json +
@@ -118,6 +120,7 @@ for name in "${PLUGINS[@]}"; do
     jq --arg v "$NEW_VER" \
       '.version = $v | (if .xcsh then .xcsh.version = $v else . end)' \
       "$PKG_JSON" >"$PKG_JSON.tmp" && command mv "$PKG_JSON.tmp" "$PKG_JSON"
+    JSON_FILES+=("$PKG_JSON")
   fi
 
   echo "  $name: $OLD_VER → $NEW_VER"
@@ -126,6 +129,19 @@ for name in "${PLUGINS[@]}"; do
   # (code spans are exempt). The release-notes grep in release-plugins.yml still matches.
   CHANGELOG_ENTRIES+=("- **\`$name\`** bumped to v$NEW_VER")
 done
+
+# ── Format the written JSON with Biome ──────────────────────
+# jq's output does not match Biome's JSON formatter, so the files it just wrote would
+# fail `biome check` (the local pre-commit hook and the Lint Code Base gate). Format
+# them in place so a bump — manual or via the auto-bump hook — is lint-clean with no
+# manual step. Biome is the repo's JSON formatter (see .pre-commit-config.yaml).
+if command -v biome >/dev/null 2>&1; then
+  biome check --write "${JSON_FILES[@]}" >/dev/null 2>&1 || true
+elif command -v npx >/dev/null 2>&1; then
+  npx --yes @biomejs/biome check --write "${JSON_FILES[@]}" >/dev/null 2>&1 || true
+else
+  echo "WARN: biome not found; run 'biome check --write' on the bumped JSON before committing." >&2
+fi
 
 # ── Update CHANGELOG.md ─────────────────────────────────────
 
