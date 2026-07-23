@@ -3,10 +3,10 @@ import { generatePipelineReport, type SfQueryFn } from '../pipeline-report/gener
 import { renderPipelineReport } from '../pipeline-report/renderer';
 import type { PipelineReportData, PipelineReportOptions } from '../pipeline-report/types';
 import sfPipelineReportDescription from '../prompts/sf-pipeline-report.md' with { type: 'text' };
-import { execSfJson, SfAuthError, SfNoDefaultOrgError, SfSessionExpiredError } from '../sf/exec';
+import { execSfJson } from '../sf/exec';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { SfErrorType, SfToolDetails } from './shared';
-import { makeExecApi } from './shared';
+import { detectErrorType, makeExecApi } from './shared';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,13 +55,6 @@ function buildQueryFn(cwd: string, orgAlias?: string): SfQueryFn {
       return [];
     }
   };
-}
-
-function detectErrorType(err: unknown): SfErrorType {
-  if (err instanceof SfAuthError) return 'auth_required';
-  if (err instanceof SfSessionExpiredError) return 'session_expired';
-  if (err instanceof SfNoDefaultOrgError) return 'no_default_org';
-  return 'exec_error';
 }
 
 // ---------------------------------------------------------------------------

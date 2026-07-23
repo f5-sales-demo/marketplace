@@ -1,0 +1,22 @@
+{
+  "status": 0,
+  "result": {
+    "totalSize": 2,
+    "done": true,
+    "records": [
+      {
+        "attributes": { "type": "Opportunity", "url": "/services/data/v60.0/sobjects/Opportunity/0060000000000001" },
+        "Name": "Acme Renewal",
+        "Amount": 50000,
+        "StageName": "Closed Won"
+      },
+      {
+        "attributes": { "type": "Opportunity", "url": "/services/data/v60.0/sobjects/Opportunity/0060000000000002" },
+        "Name": "Globex Expansion",
+        "Amount": 75000,
+        "StageName": "Negotiation"
+      }
+    ]
+  },
+  "warnings": []
+}
