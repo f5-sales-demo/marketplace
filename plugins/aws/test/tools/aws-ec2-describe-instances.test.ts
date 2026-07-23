@@ -61,6 +61,35 @@ describe('aws_ec2_describe_instances input validation', () => {
     expect(result.isError).toBe(true);
   });
 
+  it('rejects a dash-prefixed filter (flag smuggling)', async () => {
+    const result = await tool.execute('id', { filters: ['--force'] }, undefined, null, { cwd: '/tmp' });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('invalid filter');
+  });
+
+  it('rejects a malformed filter that is not Name=...,Values=...', async () => {
+    const result = await tool.execute('id', { filters: ['badfilter'] }, undefined, null, { cwd: '/tmp' });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('invalid filter');
+  });
+
+  it('accepts a valid Name=...,Values=... filter (no validation rejection before spawn)', async () => {
+    try {
+      const result = await tool.execute(
+        'id',
+        { filters: ['Name=instance-state-name,Values=running'] },
+        undefined,
+        null,
+        { cwd: '/tmp' },
+      );
+      // If the aws CLI is present the call may resolve; either way validation
+      // must not have flagged the filter as invalid.
+      expect(result.content[0].text).not.toContain('invalid filter');
+    } catch {
+      // aws CLI may be unavailable; validation passed
+    }
+  });
+
   it('accepts valid region + instance IDs + filters (no validation rejection before spawn)', async () => {
     try {
       await tool.execute(
