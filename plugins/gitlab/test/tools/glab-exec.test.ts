@@ -146,6 +146,16 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'x', '-X', 'GET']).blocked).toBe(false);
   });
 
+  it('does not misread a value-flag value as -X/method (header consumes its value)', () => {
+    // `-H`/`--header` take the FOLLOWING token as their value; a value like `-XGET` is
+    // data, not a method flag. The `-F`/`--form` body still makes glab POST, so the
+    // forged method must not downgrade it to an allowed read.
+    expect(findMutation(['api', 'projects/1/issues', '-F', 'title=x', '-H', '-XGET']).blocked).toBe(true);
+    expect(findMutation(['api', 'x', '--form', 'a=b', '--header', '-XGET']).blocked).toBe(true);
+    // A genuine header read (no body/method) is still an allowed GET.
+    expect(findMutation(['api', 'projects/1', '-H', 'Accept: application/json']).blocked).toBe(false);
+  });
+
   it('allows glab api GET requests', () => {
     expect(findMutation(['api', '-XGET', 'projects/1']).blocked).toBe(false);
     expect(findMutation(['api', '-X=GET', 'user']).blocked).toBe(false);

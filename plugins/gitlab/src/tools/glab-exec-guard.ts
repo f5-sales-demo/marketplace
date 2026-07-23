@@ -28,6 +28,35 @@ const API_MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH
 // run left→right and STOP at the first value-taking short: f/F marks a body (rest is
 // the field value, never a method); X takes the token remainder (or next arg) as the
 // method. Over-flagging here is fail-safe: at worst it blocks a read; never allows a write.
+// glab api long flags that take a VALUE (consume the next token when written without
+// `=`). Every OTHER `--long` is a boolean (--include, --silent, --paginate) and
+// consumes nothing.
+const LONG_VALUE_FLAGS: ReadonlySet<string> = new Set([
+  '--method',
+  '--field',
+  '--raw-field',
+  '--input',
+  '--form',
+  '--header',
+  '--hostname',
+]);
+// glab api long flags whose presence implies a request BODY (→ POST).
+const LONG_BODY_FLAGS: ReadonlySet<string> = new Set(['--field', '--raw-field', '--input', '--form']);
+// glab api single-char shorts that take a VALUE (from the token remainder, else the
+// next token). glab swaps gh's convention: -F = --field, -f = --raw-field, -H =
+// --header, -X = --method. Every other short (i, and any unknown letter) is boolean.
+const SHORT_VALUE_FLAGS: ReadonlySet<string> = new Set(['X', 'F', 'f', 'H']);
+// Shorts that imply a request BODY.
+const SHORT_BODY_FLAGS: ReadonlySet<string> = new Set(['F', 'f']);
+
+// Resolve the HTTP method glab will actually use for `glab api`. glab is a cobra/pflag
+// CLI, so a value-taking flag consumes the following token (or, for a short, the cluster
+// remainder) as its VALUE — that value must NEVER be reinterpreted as another flag.
+// Scanning every token let a value consumed by another flag (`-H -XGET`, `--header
+// -XGET`) be misread as `-X <method>`, forging a non-mutating method that overrode a
+// real body POST. We therefore consume each value-taking flag's value explicitly. Body
+// shorts/longs always set hasBody even when their value is attached; over-flagging a
+// body is fail-safe (blocks a read), under-detecting one is the danger.
 export function effectiveApiMethod(args: string[]): string {
   let explicit: string | null = null;
   let hasBody = false;
@@ -40,48 +69,32 @@ export function effectiveApiMethod(args: string[]): string {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
 
-    // Long-form (double-dash) flags — unchanged detection.
-    if (a === '--method') {
-      setExplicit(args[i + 1] ?? '');
+    // Long-form (double-dash) flags.
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=');
+      const name = eq === -1 ? a : a.slice(0, eq);
+      const inlineVal = eq === -1 ? undefined : a.slice(eq + 1);
+      if (name === '--method') setExplicit(inlineVal ?? args[i + 1] ?? '');
+      if (LONG_BODY_FLAGS.has(name)) hasBody = true;
+      if (inlineVal === undefined && LONG_VALUE_FLAGS.has(name)) i += 1; // consume value token
       continue;
     }
-    if (a.startsWith('--method=')) {
-      setExplicit(a.slice('--method='.length));
-      continue;
-    }
-    if (
-      a === '--field' ||
-      a === '--raw-field' ||
-      a === '--input' ||
-      a === '--form' ||
-      /^--(field|raw-field|input|form)=/.test(a)
-    ) {
-      hasBody = true;
-      continue;
-    }
-    if (a.startsWith('--')) continue;
 
-    // Single-dash cluster token: /^-[A-Za-z]/ and NOT '--'. Strip the leading
-    // '-' and scan the letters left→right, stopping at the FIRST value-taking
-    // short flag (pflag consumes the token remainder as that flag's value).
+    // Single-dash cluster token: scan letters left→right; the FIRST value-taking short
+    // consumes the token remainder (or the next token) as its value and ENDS the cluster.
     if (/^-[A-Za-z]/.test(a)) {
       const body = a.slice(1);
       for (let j = 0; j < body.length; j++) {
         const c = body[j];
-        if (c === 'f' || c === 'F') {
-          // First value-taking short is a body field: the rest of the token
-          // (including any 'X') is this field's VALUE — never a method flag.
-          hasBody = true;
-          break;
+        if (!SHORT_VALUE_FLAGS.has(c)) continue; // boolean short (e.g. -i); keep scanning
+        let value = body.slice(j + 1).replace(/^=/, '');
+        if (value === '') {
+          i += 1;
+          value = args[i] ?? '';
         }
-        if (c === 'X') {
-          // First value-taking short is the method flag: value is the token
-          // remainder after X (leading '=' stripped), else the next arg.
-          const after = body.slice(j + 1).replace(/^=/, '');
-          setExplicit(after || (args[i + 1] ?? ''));
-          break;
-        }
-        // Any other letter is a boolean short (e.g. -i); keep scanning.
+        if (c === 'X') setExplicit(value);
+        if (SHORT_BODY_FLAGS.has(c)) hasBody = true;
+        break; // remainder/next token is this flag's value, not more flags
       }
     }
   }

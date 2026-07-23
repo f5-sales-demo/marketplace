@@ -177,6 +177,15 @@ describe('findMutation allowlist', () => {
     expect(findMutation(['api', 'request', 'rest', '-X', 'GET', 'proj']).blocked).toBe(false);
   });
 
+  it('does not let a value-flag value forge a GET over a real method (header consumes its value)', () => {
+    // `--header`/`-h` take the FOLLOWING token as their value; a value like `-XGET` is
+    // data, not a method flag, so it must not overwrite a real `--method POST`.
+    expect(findMutation(['api', 'request', 'rest', '--method', 'POST', '--header', '-XGET', 'x']).blocked).toBe(true);
+    expect(findMutation(['api', 'request', 'rest', '-XPOST', '-h', '-XGET', 'x']).blocked).toBe(true);
+    // A genuine header read (no body/method) is still an allowed GET.
+    expect(findMutation(['api', 'request', 'rest', '-h', 'Accept: application/json', 'projects']).blocked).toBe(false);
+  });
+
   it('blocks the flag-value-shift bypass (token after a value flag is consumed)', () => {
     // `-s`'s value `list` is consumed; real verb `create` follows → mutation.
     expect(findMutation(['org', '-s', 'list', 'create']).blocked).toBe(true);
