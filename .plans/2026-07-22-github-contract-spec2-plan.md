@@ -4,7 +4,7 @@
 
 **Goal:** Bring the `github` plugin up to the CLI-Plugin Capability Contract: typed error taxonomy, a `gh_exec` passthrough, a `gh_help` discovery tool, `--json`/`--jq` docs, a formatters module, and a benchmark/autoresearch harness.
 
-**Architecture:** A new `src/gh/exec.ts` holds `Gh*Error` classes + `detectGhError`. The exec layer (`git.ts`) throws typed errors; the `index.ts` registration wrapper maps a thrown `Gh*Error` to an `isError` result carrying `details.errorType` — so the 9 existing tools' happy paths and the Spec 1 mutation-safety throw sites stay untouched. `gh_exec`/`gh_help` are `AgentTool` classes (matching the existing 9) that slot into the `index.ts` tool loop. Pure renderers move to `src/gh/formatters.ts`. A `benchmarks/` + `autoresearch.*` harness mirrors azure, wired to gh's real exports.
+**Architecture:** A new `src/gh/exec.ts` holds `Gh*Error` classes + `detectGhError`. The exec layer (`git.ts`) throws typed errors; the `index.ts` registration wrapper maps a thrown `Gh*Error` to an `isError` result carrying `details.errorType` — so the 9 existing tools' happy paths and the Spec 1 mutation-safety throw sites stay untouched. `gh_exec`/`gh_help` are `AgentTool` classes (matching the existing 9) that slot into the `index.ts` tool loop. Pure renderers move to `src/gh/formatters.ts`. A `benchmarks/` + `autoresearch.*` harness mirrors Azure, wired to gh's real exports.
 
 **Tech Stack:** TypeScript on Bun; `bun test`; Biome; TypeBox (module-level `Type` via `setTypebox`); `gh` CLI via `git.github.*` (argv `Bun.spawn`, no shell).
 
@@ -753,14 +753,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:** none in `src/` — self-contained harness.
 
-- [ ] **Step 1: Mirror the azure harness, adapted to gh**
+- [ ] **Step 1: Mirror the Azure harness, adapted to gh**
 
 Copy the structure of `plugins/azure/benchmarks/` and `plugins/azure/autoresearch.*` into `plugins/github/`, adapting:
 
 - `mock-gh.sh`: like `mock-az.sh` — cat `$MOCK_GH_FIXTURE` when set, else echo `$MOCK_GH_HELP`, else exit non-zero. Handle a `--json`/`-q` arg path (gh writes JSON to stdout).
 - `benchmarks/fixtures/`: create `repo-view.json`, `issue-view.json`, `pr-view.json`, `pr-diff.txt`, `search-issues.json`, `search-prs.json`, `run-list.json`, `run-jobs.json` with minimal valid shapes matching the `GH_*_FIELDS`.
 - `benchmarks/scenarios.ts`: mirror azure's PATH-injected mock harness + `checkResult` scorer + composite metric, but **wire gh's real exports** — instantiate tools via `GhRepoViewTool.createIf({cwd})`, `GhExecTool`, `GhHelpTool`, etc. (Do NOT copy azure's stale `createAz*Tool` import names.) Scenarios: a repo view, a pr view, a search, a `gh_help`, a `gh_exec` read, and injection/guardrail cases (control-char reject, `pr merge` blocked, `api -X POST` blocked).
-- `autoresearch.md`: composite formula (same as azure), Files in Scope (`src/prompts/`, `src/tools/`, `src/gh/formatters.ts`, `src/gh/exec.ts`), Off Limits (`src/index.ts`, `src/utils/git.ts`, `src/wizard.ts`, `test/`, `benchmarks/`), Constraints: all tests pass; mutation-safety gate intact (`resolveApprovalMode`/`HEADLESS_BLOCKED_MESSAGE` present); `gh_exec` guardrail present (`findMutation`, `hasControlChars`); the 11 tool names stable; biome clean.
+- `autoresearch.md`: composite formula (same as Azure), Files in Scope (`src/prompts/`, `src/tools/`, `src/gh/formatters.ts`, `src/gh/exec.ts`), Off Limits (`src/index.ts`, `src/utils/git.ts`, `src/wizard.ts`, `test/`, `benchmarks/`), Constraints: all tests pass; mutation-safety gate intact (`resolveApprovalMode`/`HEADLESS_BLOCKED_MESSAGE` present); `gh_exec` guardrail present (`findMutation`, `hasControlChars`); the 11 tool names stable; biome clean.
 - `autoresearch.checks.sh`: reference `plugins/github` (NOT `plugins/azure-status`). Check: `bun test`, `biome check plugins/github/src/`, all tool classes present in `index.ts` (`GhRepoViewTool … GhExecTool GhHelpTool`), security invariants present (`findMutation`, `hasControlChars`, `resolveApprovalMode`).
 - `autoresearch.sh`: `bun test` then `bun run benchmarks/scenarios.ts`.
 
