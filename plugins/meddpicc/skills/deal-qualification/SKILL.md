@@ -319,18 +319,44 @@ After writing the JSON file, display a scorecard summary:
    - **By when:** [timeframe]
 ```
 
-### Optional output: XLS spreadsheet
+### Optional output: spreadsheet
 
-If the user requests XLS output or says "render", "spreadsheet",
-or "export":
+Triggered when the user says "render", "spreadsheet", "export", or
+asks for a report. Which route you take depends on where you are
+running — the JSON file is the source of truth either way, and the
+spreadsheet is disposable.
 
-1. Read the template from
-   [meddpicc-template.xlsx](references/meddpicc-template.xlsx)
-2. Use the cell mapping from
-   [cell-mapping.json](references/cell-mapping.json) to populate
-   the template with data from the deal JSON
+**In an Excel task pane** (you have the `write_range` host tool):
+build the sheet in the OPEN workbook. Never hand-place cells — the
+engine emits the whole plan:
+
+```bash
+bun xcsh://plugin/meddpicc/file/engine/cli.ts render <deal.json>
+```
+
+It returns `{sheetName, writes[], rowCount}`, where each write is
+`{address, values}` shaped exactly for `write_range`. Then:
+
+1. Call `add_sheet` with the plan's `sheetName`. It is idempotent —
+   an existing sheet of that name is reused, so a re-render
+   overwrites rather than duplicating.
+2. For each entry in `writes`, call `write_range` with
+   `"<sheetName>!<address>"` and its `values`, in order.
+3. Report the sheet name and row count. Do not re-read the sheet to
+   "confirm" — `write_range` already did.
+
+The layout comes from `cell-mapping.json` (which fields, in what
+order, with which units and table columns) laid out in a fixed
+two-column form. It is deterministic: the same deal renders the same
+sheet every time.
+
+**In the terminal** (no host tools): the template is the better
+route, because it carries the F5 sheet's formatting.
+
+1. Resolve the template at `xcsh://plugin/meddpicc/template`
+2. Populate it using `xcsh://plugin/meddpicc/cellMapping`, whose
+   coordinates match that template exactly
 3. Save as `{accountName}-{dealName}-{YYYY-MM-DD}.xlsx`
-4. The XLS is disposable — the JSON file is the source of truth
 
 ## Coaching Behavior
 

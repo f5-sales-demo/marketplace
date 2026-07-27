@@ -96,3 +96,38 @@ test_engine_check_mappings_detects_broken() {
   fi
   rm -rf "$tmp"
 }
+
+test_engine_render_produces_a_writable_plan() {
+  _engine_precheck || return 0
+  local out
+  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" render "$PLUGIN_ROOT/schema/example-deal.json")
+  [ "$(jq -r '.sheetName' <<<"$out")" != "null" ] || {
+    echo "render produced no sheetName: $out"
+    return 1
+  }
+  # Every write must be directly executable by the pane's write_range: an A1-style
+  # address whose row span equals the number of value rows.
+  local bad
+  bad=$(jq -r '
+    [ .writes[]
+      | (.address | capture("^[A-Z]+(?<top>[0-9]+):[A-Z]+(?<bottom>[0-9]+)$"))
+        as $a
+      | select((($a.bottom | tonumber) - ($a.top | tonumber) + 1) != (.values | length))
+      | .address
+    ] | join(",")' <<<"$out")
+  [ -z "$bad" ] || {
+    echo "write address/row-count mismatch at: $bad"
+    return 1
+  }
+}
+
+test_engine_render_is_deterministic() {
+  _engine_precheck || return 0
+  local a b
+  a=$(bun "$PLUGIN_ROOT/engine/cli.ts" render "$PLUGIN_ROOT/schema/example-deal.json")
+  b=$(bun "$PLUGIN_ROOT/engine/cli.ts" render "$PLUGIN_ROOT/schema/example-deal.json")
+  [ "$a" = "$b" ] || {
+    echo "render is not deterministic across runs"
+    return 1
+  }
+}
