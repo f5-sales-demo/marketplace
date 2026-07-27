@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import { computeElementHint, computeHintOverview } from './hint';
 import { checkMappings } from './mappings';
+import { renderSheet } from './render';
 import { computeScore } from './score';
 import { QUALIFICATION_ELEMENTS } from './sections';
 import { validateDeal } from './validate';
@@ -87,6 +88,18 @@ async function main(): Promise<number> {
     }
   }
 
+  if (command === 'render') {
+    const dealPath = rest[0];
+    if (!dealPath) {
+      process.stderr.write('Usage: cli.ts render <deal.json> [--cell <cell-mapping.json>]\n');
+      return 1;
+    }
+    const deal = await readJson(dealPath);
+    const cell = await readJson(flag(rest, '--cell') ?? CELL_PATH);
+    print(renderSheet(deal, cell as Parameters<typeof renderSheet>[1]));
+    return 0;
+  }
+
   if (command === 'check-mappings') {
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const cell = await readJson(flag(rest, '--cell') ?? CELL_PATH);
@@ -97,7 +110,7 @@ async function main(): Promise<number> {
   }
 
   process.stderr.write(
-    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, check-mappings\n`,
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, render, check-mappings\n`,
   );
   return 1;
 }
