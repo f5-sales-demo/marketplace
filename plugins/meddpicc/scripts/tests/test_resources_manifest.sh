@@ -38,12 +38,12 @@ test_resources_manifest_declares_reachable_keys() {
   done
 }
 
-# `render` is what the Office pane calls to build the deal sheet; a manifest that does
+# `fill` is what both surfaces call to produce the report; a manifest that does
 # not advertise it leaves the pane guessing at the engine's surface.
 test_resources_manifest_advertises_engine_commands() {
   local manifest="$PLUGIN_ROOT/.xcsh-plugin/resources.json"
   local cmd
-  for cmd in validate next score hint render check-mappings; do
+  for cmd in validate next score hint fill check-mappings; do
     jq -e --arg c "$cmd" '.engine.commands | index($c)' "$manifest" >/dev/null || {
       echo "engine.commands does not advertise \"$cmd\""
       return 1
