@@ -116,8 +116,43 @@ OSA
 [ -z "${errors// /}" ] || fail "Excel error values present: $errors"
 echo "    no Excel error values on any sheet"
 
-osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
 echo "PASS: Excel opened the generated workbook and its Scorecard agrees with the engine"
+
+# Stage 2 added Excel Tables, conditional formatting and dropdowns. The file opening proves
+# the XML is well-formed; it does not prove Excel made anything of it. Ask Excel directly.
+#
+# A heredoc, not `osascript -e`: the AppleScript needs its own double quotes around sheet and
+# workbook names, and nesting those inside a shell string is how the first version of this
+# silently produced empty answers that looked like missing features.
+ask() {
+  osascript <<OSA 2>/dev/null
+tell application "Microsoft Excel"
+  return ($1) as string
+end tell
+OSA
+}
+
+tables_seen="$(ask "count of list objects of worksheet \"Stakeholders\" of workbook \"$BOOK\"")"
+echo "    Excel sees ${tables_seen:-<none>} table(s) on Stakeholders"
+[ "$tables_seen" = "1" ] || fail "expected 1 Excel Table on Stakeholders, Excel reports '$tables_seen'"
+
+rules_seen="$(ask "count of format conditions of range \"C2:C9\" of worksheet \"Qualification\" of workbook \"$BOOK\"")"
+echo "    Excel sees ${rules_seen:-<none>} conditional-format rule(s) on the score column"
+[ "$rules_seen" = "3" ] || fail "expected 3 conditional-format rules on the score column, Excel reports '$rules_seen'"
+
+# The point of deriving dropdowns from the schema is that they cannot drift from it, so compare
+# what Excel offers against what the schema says rather than against a literal repeated here.
+want_roles="$(jq -r '.properties.stakeholders.items.properties.roleInDeal.enum | join(",")' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+got_roles="$(ask "formula1 of (validation of range \"C2\" of worksheet \"Stakeholders\" of workbook \"$BOOK\")")"
+echo "    role dropdown: Excel=[$got_roles] schema=[$want_roles]"
+[ "$got_roles" = "$want_roles" ] || fail "the role dropdown does not match the schema enum"
+
+got_scores="$(ask "formula1 of (validation of range \"C2\" of worksheet \"Qualification\" of workbook \"$BOOK\")")"
+echo "    score dropdown: Excel=[$got_scores]"
+[ "$got_scores" = "0,1,2,3,4" ] || fail "the score dropdown is '$got_scores', expected 0,1,2,3,4"
+echo "PASS: Excel recognises the tables, the conditional formats and the schema-derived dropdowns"
+
+osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
 
 # The same comparison on a deal where most elements are unscored — the case that was wrong.
 #

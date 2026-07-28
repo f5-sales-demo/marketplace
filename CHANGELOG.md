@@ -10,6 +10,38 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v2.6.0 — the workbook is now a working spreadsheet, not just a rendered one.
+
+  **Excel Tables** over all eight collections, so they filter, sort, stripe, and extend when
+  someone types below the last row. This is what stops a collection being capped: the legacy
+  sheet formatted eight team rows and dropped the rest.
+
+  **Conditional formatting** from a curated set of named presets — `score` (0-1 red, 2 amber,
+  3-4 green), `ragText`, `statusText` and `overdueDate`. `ragText` colours the rating *word*
+  rather than re-deriving the engine's brackets from a percentage, so the colours cannot drift
+  from `computeScore` by a rounding step.
+
+  **Dropdowns read from the schema, never authored.** A column says `"validate": true` and the
+  values come from that path's `enum` — or, for a bounded integer like a 0-4 score, from its
+  `minimum`/`maximum`. Add a `roleInDeal` member to the schema and the dropdown gains it; there
+  is no second list to remember. `check-spec` rejects `validate: true` on a path the schema
+  does not constrain, since a dropdown offering nothing looks deliberate and is worse than
+  none.
+
+  Verified by asking Excel what it made of the file, not just whether it opened: 1 Table on
+  Stakeholders, 3 conditional-format rules on the score column, and the role dropdown compared
+  against the schema enum rather than a literal. Mutation-checked both ways — dropping
+  `asTable` makes Excel report 0 tables, and hardcoding a dropdown list makes it disagree with
+  the schema.
+
+  `schemaConstraint` shares one walker with `resolveSchemaPath`, so a path the guard accepts is
+  a path the generator can read constraints from. Two walkers would eventually disagree about
+  `$ref` or `allOf`, silently.
+
+  No Reference sheet: inline validation lists made it redundant, and the 0-4 rubric text
+  already sits on the Qualification row it describes.
+
+
 - **`meddpicc`** v2.5.0 — the workbook generator. `engine/generate.ts` turns the spec plus a
   deal into a real `.xlsx`: `generate <deal.json> --out <file>`, or `--plan` to print where
   every input cell landed without writing anything.

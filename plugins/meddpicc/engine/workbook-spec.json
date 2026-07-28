@@ -4,12 +4,37 @@
     {
       "name": "Deal",
       "kind": "form",
-      "columns": [{ "min": 1, "max": 1, "width": 34 }, { "min": 2, "max": 2, "width": 78 }],
+      "columns": [
+        {
+          "min": 1,
+          "max": 1,
+          "width": 34
+        },
+        {
+          "min": 2,
+          "max": 2,
+          "width": 78
+        }
+      ],
       "blocks": [
-        { "kind": "title", "text": "MEDDPICC Deal Review" },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Deal" },
-        { "kind": "field", "id": "dealId", "label": "Deal ID", "jsonPath": "metadata.dealId", "valueType": "string" },
+        {
+          "kind": "title",
+          "text": "MEDDPICC Deal Review"
+        },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Deal"
+        },
+        {
+          "kind": "field",
+          "id": "dealId",
+          "label": "Deal ID",
+          "jsonPath": "metadata.dealId",
+          "valueType": "string"
+        },
         {
           "kind": "field",
           "id": "accountName",
@@ -36,14 +61,16 @@
           "id": "dealStatus",
           "label": "Deal status",
           "jsonPath": "metadata.dealStatus",
-          "valueType": "string"
+          "valueType": "string",
+          "validate": true
         },
         {
           "kind": "field",
           "id": "forecastStage",
           "label": "Forecast stage",
           "jsonPath": "metadata.forecastStage",
-          "valueType": "string"
+          "valueType": "string",
+          "validate": true
         },
         {
           "kind": "field",
@@ -80,8 +107,13 @@
           "jsonPath": "metadata.reviewDate",
           "valueType": "date"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Revenue" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Revenue"
+        },
         {
           "kind": "field",
           "id": "revenuePandI",
@@ -131,33 +163,38 @@
           "formula": "IF({{ref:closeDate}}=\"\",\"\",{{ref:closeDate}}-TODAY())",
           "valueType": "number"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Client interaction" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Client interaction"
+        },
         {
           "kind": "field",
           "id": "lastInteractionDate",
-          "label": "Last interaction — date",
+          "label": "Last interaction \u2014 date",
           "jsonPath": "metadata.lastClientInteraction.date",
           "valueType": "date"
         },
         {
           "kind": "field",
           "id": "lastInteractionOutcome",
-          "label": "Last interaction — outcome",
+          "label": "Last interaction \u2014 outcome",
           "jsonPath": "metadata.lastClientInteraction.outcome",
           "valueType": "text"
         },
         {
           "kind": "field",
           "id": "nextInteractionDate",
-          "label": "Next interaction — date",
+          "label": "Next interaction \u2014 date",
           "jsonPath": "metadata.nextClientInteraction.date",
           "valueType": "date"
         },
         {
           "kind": "field",
           "id": "nextInteractionObjective",
-          "label": "Next interaction — objective",
+          "label": "Next interaction \u2014 objective",
           "jsonPath": "metadata.nextClientInteraction.objective",
           "valueType": "text"
         },
@@ -168,8 +205,13 @@
           "formula": "IF({{ref:lastInteractionDate}}=\"\",\"\",TODAY()-{{ref:lastInteractionDate}})",
           "valueType": "number"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Three Whys — F5" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Three Whys \u2014 F5"
+        },
         {
           "kind": "field",
           "id": "whyAnything",
@@ -194,8 +236,13 @@
           "valueType": "text",
           "height": 44
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Three Whys — Partner" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Three Whys \u2014 Partner"
+        },
         {
           "kind": "field",
           "id": "partnerName",
@@ -227,8 +274,13 @@
           "valueType": "text",
           "height": 44
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Sales strategy" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Sales strategy"
+        },
         {
           "kind": "field",
           "id": "differentiatedValueProposition",
@@ -245,8 +297,13 @@
           "valueType": "text",
           "height": 60
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Salesforce" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Salesforce"
+        },
         {
           "kind": "field",
           "id": "salesforceOpportunityId",
@@ -290,19 +347,35 @@
       "tables": [
         {
           "id": "elements",
-          "source": { "kind": "elements" },
+          "source": {
+            "kind": "elements"
+          },
           "anchorColumn": 1,
           "headerRow": 1,
           "columns": [
-            { "id": "element", "header": "Element", "role": "derived", "valueType": "string", "width": 20 },
-            { "id": "definition", "header": "Definition", "role": "derived", "valueType": "text", "width": 56 },
+            {
+              "id": "element",
+              "header": "Element",
+              "role": "derived",
+              "valueType": "string",
+              "width": 20
+            },
+            {
+              "id": "definition",
+              "header": "Definition",
+              "role": "derived",
+              "valueType": "text",
+              "width": 56
+            },
             {
               "id": "score",
               "header": "Score (0-4)",
               "role": "input",
               "jsonPath": "qualification.*.score",
               "valueType": "score",
-              "width": 12
+              "width": 12,
+              "conditionalFormat": "score",
+              "validate": true
             },
             {
               "id": "previousScore",
@@ -310,7 +383,9 @@
               "role": "input",
               "jsonPath": "scoring.previousElementScores.*",
               "valueType": "score",
-              "width": 11
+              "width": 11,
+              "conditionalFormat": "score",
+              "validate": true
             },
             {
               "id": "change",
@@ -320,7 +395,13 @@
               "valueType": "number",
               "width": 10
             },
-            { "id": "rubric", "header": "What this score means", "role": "derived", "valueType": "text", "width": 56 },
+            {
+              "id": "rubric",
+              "header": "What this score means",
+              "role": "derived",
+              "valueType": "text",
+              "width": 56
+            },
             {
               "id": "evidence",
               "header": "Evidence",
@@ -337,7 +418,8 @@
               "valueType": "text",
               "width": 52
             }
-          ]
+          ],
+          "asTable": true
         }
       ]
     },
@@ -347,13 +429,33 @@
       "tables": [
         {
           "id": "responses",
-          "source": { "kind": "elementResponses" },
+          "source": {
+            "kind": "elementResponses"
+          },
           "anchorColumn": 1,
           "headerRow": 1,
           "columns": [
-            { "id": "element", "header": "Element", "role": "derived", "valueType": "string", "width": 20 },
-            { "id": "position", "header": "#", "role": "derived", "valueType": "integer", "width": 6 },
-            { "id": "question", "header": "Question", "role": "derived", "valueType": "text", "width": 62 },
+            {
+              "id": "element",
+              "header": "Element",
+              "role": "derived",
+              "valueType": "string",
+              "width": 20
+            },
+            {
+              "id": "position",
+              "header": "#",
+              "role": "derived",
+              "valueType": "integer",
+              "width": 6
+            },
+            {
+              "id": "question",
+              "header": "Question",
+              "role": "derived",
+              "valueType": "text",
+              "width": 62
+            },
             {
               "id": "response",
               "header": "Response",
@@ -362,7 +464,8 @@
               "valueType": "text",
               "width": 84
             }
-          ]
+          ],
+          "asTable": true
         }
       ]
     },
@@ -372,12 +475,22 @@
       "tables": [
         {
           "id": "stakeholders",
-          "source": { "kind": "list", "jsonPath": "stakeholders" },
+          "source": {
+            "kind": "list",
+            "jsonPath": "stakeholders"
+          },
           "anchorColumn": 1,
           "headerRow": 1,
           "minRows": 12,
           "columns": [
-            { "id": "name", "header": "Name", "role": "input", "jsonPath": "name", "valueType": "string", "width": 24 },
+            {
+              "id": "name",
+              "header": "Name",
+              "role": "input",
+              "jsonPath": "name",
+              "valueType": "string",
+              "width": 24
+            },
             {
               "id": "title",
               "header": "Title",
@@ -392,7 +505,8 @@
               "role": "input",
               "jsonPath": "roleInDeal",
               "valueType": "string",
-              "width": 18
+              "width": 18,
+              "validate": true
             },
             {
               "id": "mustSayYes",
@@ -424,7 +538,8 @@
               "role": "input",
               "jsonPath": "viewOfF5",
               "valueType": "string",
-              "width": 14
+              "width": 14,
+              "validate": true
             },
             {
               "id": "f5Owner",
@@ -434,7 +549,8 @@
               "valueType": "string",
               "width": 22
             }
-          ]
+          ],
+          "asTable": true
         }
       ]
     },
@@ -444,7 +560,10 @@
       "tables": [
         {
           "id": "milestones",
-          "source": { "kind": "list", "jsonPath": "closePlan.milestones" },
+          "source": {
+            "kind": "list",
+            "jsonPath": "closePlan.milestones"
+          },
           "anchorColumn": 1,
           "headerRow": 1,
           "minRows": 10,
@@ -463,7 +582,8 @@
               "role": "input",
               "jsonPath": "targetDate",
               "valueType": "date",
-              "width": 14
+              "width": 14,
+              "conditionalFormat": "overdueDate"
             },
             {
               "id": "status",
@@ -471,13 +591,19 @@
               "role": "input",
               "jsonPath": "status",
               "valueType": "string",
-              "width": 14
+              "width": 14,
+              "conditionalFormat": "statusText",
+              "validate": true
             }
-          ]
+          ],
+          "asTable": true
         },
         {
           "id": "actions",
-          "source": { "kind": "list", "jsonPath": "closePlan.criticalActions" },
+          "source": {
+            "kind": "list",
+            "jsonPath": "closePlan.criticalActions"
+          },
           "anchorColumn": 5,
           "headerRow": 1,
           "minRows": 12,
@@ -504,7 +630,8 @@
               "role": "input",
               "jsonPath": "dueDate",
               "valueType": "date",
-              "width": 14
+              "width": 14,
+              "conditionalFormat": "overdueDate"
             },
             {
               "id": "status",
@@ -512,9 +639,12 @@
               "role": "input",
               "jsonPath": "status",
               "valueType": "string",
-              "width": 14
+              "width": 14,
+              "conditionalFormat": "statusText",
+              "validate": true
             }
-          ]
+          ],
+          "asTable": true
         }
       ]
     },
@@ -524,13 +654,30 @@
       "tables": [
         {
           "id": "teamF5",
-          "source": { "kind": "list", "jsonPath": "team.f5" },
+          "source": {
+            "kind": "list",
+            "jsonPath": "team.f5"
+          },
           "anchorColumn": 1,
           "headerRow": 1,
           "minRows": 16,
           "columns": [
-            { "id": "name", "header": "Name", "role": "input", "jsonPath": "name", "valueType": "string", "width": 26 },
-            { "id": "role", "header": "Role", "role": "input", "jsonPath": "role", "valueType": "string", "width": 34 },
+            {
+              "id": "name",
+              "header": "Name",
+              "role": "input",
+              "jsonPath": "name",
+              "valueType": "string",
+              "width": 26
+            },
+            {
+              "id": "role",
+              "header": "Role",
+              "role": "input",
+              "jsonPath": "role",
+              "valueType": "string",
+              "width": 34
+            },
             {
               "id": "dateRequiredFrom",
               "header": "Required from",
@@ -547,17 +694,35 @@
               "valueType": "boolean",
               "width": 11
             }
-          ]
+          ],
+          "asTable": true
         },
         {
           "id": "teamPartner",
-          "source": { "kind": "list", "jsonPath": "team.partner" },
+          "source": {
+            "kind": "list",
+            "jsonPath": "team.partner"
+          },
           "anchorColumn": 6,
           "headerRow": 1,
           "minRows": 10,
           "columns": [
-            { "id": "name", "header": "Name", "role": "input", "jsonPath": "name", "valueType": "string", "width": 26 },
-            { "id": "role", "header": "Role", "role": "input", "jsonPath": "role", "valueType": "string", "width": 34 },
+            {
+              "id": "name",
+              "header": "Name",
+              "role": "input",
+              "jsonPath": "name",
+              "valueType": "string",
+              "width": 26
+            },
+            {
+              "id": "role",
+              "header": "Role",
+              "role": "input",
+              "jsonPath": "role",
+              "valueType": "string",
+              "width": 34
+            },
             {
               "id": "dateRequiredFrom",
               "header": "Required from",
@@ -574,7 +739,8 @@
               "valueType": "boolean",
               "width": 11
             }
-          ]
+          ],
+          "asTable": true
         }
       ]
     },
@@ -584,24 +750,59 @@
       "tables": [
         {
           "id": "sections",
-          "source": { "kind": "sections" },
+          "source": {
+            "kind": "sections"
+          },
           "anchorColumn": 1,
           "headerRow": 1,
           "columns": [
-            { "id": "section", "header": "Section", "role": "derived", "valueType": "string", "width": 26 },
-            { "id": "status", "header": "Status", "role": "derived", "valueType": "string", "width": 16 }
-          ]
+            {
+              "id": "section",
+              "header": "Section",
+              "role": "derived",
+              "valueType": "string",
+              "width": 26
+            },
+            {
+              "id": "status",
+              "header": "Status",
+              "role": "derived",
+              "valueType": "string",
+              "width": 16,
+              "conditionalFormat": "statusText"
+            }
+          ],
+          "asTable": true
         }
       ]
     },
     {
       "name": "Scorecard",
       "kind": "form",
-      "columns": [{ "min": 1, "max": 1, "width": 34 }, { "min": 2, "max": 2, "width": 22 }],
+      "columns": [
+        {
+          "min": 1,
+          "max": 1,
+          "width": 34
+        },
+        {
+          "min": 2,
+          "max": 2,
+          "width": 22
+        }
+      ],
       "blocks": [
-        { "kind": "title", "text": "Scorecard" },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Qualification" },
+        {
+          "kind": "title",
+          "text": "Scorecard"
+        },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Qualification"
+        },
         {
           "kind": "computed",
           "id": "scoreTotal",
@@ -628,7 +829,8 @@
           "id": "scoreRating",
           "label": "Rating",
           "formula": "IF({{ref:scoreTotal}}>=26,\"Green\",IF({{ref:scoreTotal}}>=14,\"Yellow\",\"Red\"))",
-          "valueType": "rating"
+          "valueType": "rating",
+          "conditionalFormat": "ragText"
         },
         {
           "kind": "computed",
@@ -644,8 +846,13 @@
           "formula": "{{ref:scoreTotal}}-{{ref:scorePreviousTotal}}",
           "valueType": "number"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Weakest links" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Weakest links"
+        },
         {
           "kind": "computed",
           "id": "lowestElement",
@@ -681,8 +888,13 @@
           "formula": "{{row:elements.score@champion}}",
           "valueType": "score"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Completion" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Completion"
+        },
         {
           "kind": "computed",
           "id": "sectionsComplete",
@@ -718,8 +930,13 @@
           "formula": "COUNTA({{col:responses.response}})",
           "valueType": "number"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Stakeholders" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Stakeholders"
+        },
         {
           "kind": "computed",
           "id": "stakeholdersMapped",
@@ -755,8 +972,13 @@
           "formula": "COUNTIF({{col:stakeholders.viewOfF5}},\"Negative\")",
           "valueType": "number"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Close plan" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Close plan"
+        },
         {
           "kind": "computed",
           "id": "milestonesTotal",
@@ -785,8 +1007,13 @@
           "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>\"complete\"))",
           "valueType": "number"
         },
-        { "kind": "spacer" },
-        { "kind": "section", "text": "Team" },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Team"
+        },
         {
           "kind": "computed",
           "id": "teamF5Count",
