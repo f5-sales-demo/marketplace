@@ -512,6 +512,39 @@ describe('buildWorkbook — presentation', () => {
     expect(sheet).toContain('fitToPage="1"');
   });
 
+  test("a header over Excel's limit is truncated, not dropped", () => {
+    // Excel does not complain about a header past 255 characters — it drops it, so a printout
+    // comes out unidentified while generation reports success. Nothing bounds a deal name.
+    const headerOf = (text: string) => {
+      const odd =
+        /<oddHeader>(.*?)<\/oddHeader>/s.exec(presented({ print: { orientation: 'landscape', header: text } }))?.[1] ??
+        '';
+      // Count what Excel counts: the header string itself, format codes included.
+      return odd.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    };
+
+    const long = `${'A'.repeat(130)} — ${'B'.repeat(130)}`;
+    const truncated = headerOf(long);
+    expect(truncated.length).toBeLessThanOrEqual(255);
+    expect(truncated).toContain('…');
+    expect(truncated.startsWith('&L' + 'A'.repeat(50))).toBe(true);
+
+    // An ampersand encodes to two characters, so 200 of them would emit a 406-character header.
+    const amps = headerOf('&'.repeat(200));
+    expect(amps.length).toBeLessThanOrEqual(255);
+    // Every literal ampersand must still be a pair: a lone trailing & would eat the &R after it.
+    const body = amps.replace(/^&L/, '').replace(/&R&D$/, '').replace(/…$/, '');
+    expect(body.length % 2).toBe(0);
+    expect(/(^|[^&])&([^&]|$)/.test(body)).toBe(false);
+  });
+
+  test('a header inside the limit is emitted whole', () => {
+    const odd = /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+      presented({ print: { orientation: 'landscape', header: 'Visa, Inc. — XC WAF-API' } }),
+    )?.[1];
+    expect(odd).toBe('&amp;LVisa, Inc. — XC WAF-API&amp;R&amp;D');
+  });
+
   test('parts appear in CT_Worksheet sequence order', () => {
     // CT_Worksheet is a sequence, not a bag. Out of order, Excel offers to repair the file
     // and names nothing useful — so assert the ORDER, not merely the presence.

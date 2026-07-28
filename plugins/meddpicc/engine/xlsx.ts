@@ -600,13 +600,45 @@ function dataValidationsXml(validations: Validation[] | undefined): string {
  *
  * `pageMargins` is not optional decoration: Excel wants it present before `pageSetup`.
  */
+/** Excel's cap on a header string, format codes and all. One character over and it is dropped. */
+const HEADER_LIMIT = 255;
+
+/** The codes wrapped around the caller's text: left-align it, and put the date on the right. */
+const HEADER_CODES = '&L&R&D';
+
+/**
+ * Encode a header, fitting it inside Excel's limit.
+ *
+ * Two things conspire here. A deal name has no length bound — nothing stops an account being
+ * called something 200 characters long — and "&" has to be doubled because it opens a format
+ * code, so an ampersand-heavy name grows on the way in: 200 of them encode to 400. Excel does
+ * not complain about a header over the limit, it drops it, so a printout would come out
+ * unidentified while generation reported success.
+ *
+ * Truncating is the right answer rather than refusing: the header is a convenience, the deal
+ * name is not ours to shorten, and an ellipsis says plainly that there was more. Whole encoded
+ * units only, so a truncation can never split a `&&` pair and leave a dangling `&` that would
+ * swallow whatever follows it as a format code.
+ */
+function fitHeader(text: string): string {
+  const budget = HEADER_LIMIT - HEADER_CODES.length;
+  const encode = (c: string) => (c === '&' ? '&&' : c);
+  const full = [...text].map(encode).join('');
+  if (full.length <= budget) return full;
+  let out = '';
+  for (const ch of text) {
+    const unit = encode(ch);
+    if (out.length + unit.length > budget - 1) break; // one unit back for the ellipsis
+    out += unit;
+  }
+  return `${out}…`;
+}
+
 function printXml(print: PrintSetup | undefined): string {
   if (!print) return '';
   const fit = print.fitToWidth ? ' fitToWidth="1" fitToHeight="0"' : '';
-  // In a header, "&" opens a format code (&D is the date, &P the page) — so a literal
-  // ampersand in the deal name has to be doubled, on top of the usual XML escaping.
   const header = print.header
-    ? `<headerFooter><oddHeader>&amp;L${escapeXml(print.header.replace(/&/g, '&&'))}&amp;R&amp;D</oddHeader></headerFooter>`
+    ? `<headerFooter><oddHeader>&amp;L${escapeXml(fitHeader(print.header))}&amp;R&amp;D</oddHeader></headerFooter>`
     : '';
   return (
     `<printOptions horizontalCentered="1"/>` +

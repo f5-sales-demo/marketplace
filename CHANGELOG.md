@@ -50,6 +50,13 @@ and this project adheres to
   two minutes. Measured at the new cap, rescanning against indexing: `A1:B5000` 700ms against 9ms,
   `A1:A9999` 942ms against 7ms. The cap bounds the damage; the index makes it free.
 
+  One more from a second review pass: Excel caps a print header at 255 characters and **drops** one
+  that is longer rather than complaining, so a printout would come out unidentified while generation
+  reported success. Nothing bounds a deal name, and the ampersand doubling grows the string on the way
+  in — 200 ampersands encode to 400 characters. Measured: two 130-character names produced a
+  269-character header. It is now truncated with an ellipsis, in whole encoded units so a cut can
+  never split a `&&` pair and leave a dangling `&` to swallow what follows it.
+
   Verified against real Excel: the file opens with no repair prompt, and Excel confirms the merge, the
   preserved anchor value, the absence of any merge inside a table range, the hidden grid, and the
   landscape fit-to-width setup.
