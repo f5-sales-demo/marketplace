@@ -352,3 +352,63 @@ describe('the Completion sheet is coloured with its own vocabulary', () => {
     }
   });
 });
+
+describe('planWorkbook — where a list can grow', () => {
+  test('growth starts one row past the mapped rows, at the next list index', () => {
+    const growth = plan.listGrowth.find((g) => g.jsonPath === 'stakeholders');
+    expect(growth).toBeDefined();
+    const rows = plan.inputCells
+      .filter((c) => c.jsonPath.startsWith('stakeholders['))
+      .map((c) => Number((/(\d+)$/.exec(c.address) as RegExpExecArray)[1]));
+    expect(growth?.firstRow).toBe(Math.max(...rows) + 1);
+    expect(growth?.nextIndex).toBe(new Set(rows).size);
+  });
+
+  test('only tables bound to a list can grow', () => {
+    // `elements` and `elementResponses` have one row per element or question, not per item, so
+    // there is nothing to append to and a row under them means something else entirely.
+    const sources = plan.listGrowth.map((g) => g.jsonPath);
+    expect(sources).toContain('stakeholders');
+    expect(sources).toContain('team.internal');
+    expect(sources).not.toContain('elements');
+    expect(sources).not.toContain('qualification');
+  });
+
+  test('a computed column in a list table is NOT offered as somewhere to write', () => {
+    // No shipped list table has one today, so this is the guard against adding one and having the
+    // reader take its formula result as a human's entry — the one thing `read` must never do.
+    const synthetic = {
+      sheets: [
+        {
+          kind: 'table',
+          name: 'People',
+          tables: [
+            {
+              id: 'people',
+              source: { kind: 'list', jsonPath: 'stakeholders' },
+              anchorColumn: 1,
+              headerRow: 1,
+              minRows: 2,
+              columns: [
+                { id: 'name', header: 'Name', role: 'input', valueType: 'string', jsonPath: 'name' },
+                {
+                  id: 'shout',
+                  header: 'Shout',
+                  role: 'computed',
+                  valueType: 'string',
+                  formula: 'UPPER({{this:name}})',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as unknown as WorkbookSpec;
+    const growth = planWorkbook(schema, synthetic, deal).listGrowth;
+    expect(growth).toHaveLength(1);
+    // toStrictEqual, not toEqual: toEqual ignores undefined, so ['name', undefined] would compare
+    // equal to ['name'] and this assertion could not fail if the computed column slipped through.
+    expect(growth[0].columns).toHaveLength(1);
+    expect(growth[0].columns.map((c) => c.relativePath)).toStrictEqual(['name']);
+  });
+});

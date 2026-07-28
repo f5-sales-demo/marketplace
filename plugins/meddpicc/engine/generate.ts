@@ -119,11 +119,29 @@ export interface InputCell {
   valueType: ValueType;
 }
 
+/**
+ * Where a list table can grow, so the reader can pick up rows a user added below the ones this plan
+ * maps. An Excel Table extends the moment somebody types under its last row, which is the ordinary
+ * way to add a stakeholder once the padded rows are used up.
+ */
+export interface ListGrowth {
+  sheet: string;
+  /** The list a new row would extend. */
+  jsonPath: string;
+  /** The first row past the ones this plan maps. */
+  firstRow: number;
+  /** The list index that first row would become. */
+  nextIndex: number;
+  /** Input columns only: where each sits, and the path it takes inside a new item. */
+  columns: Array<{ column: number; relativePath: string; valueType: ValueType }>;
+}
+
 export interface WorkbookPlan {
   sheets: SheetSpec[];
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
   inputCells: InputCell[];
+  listGrowth: ListGrowth[];
 }
 
 /**
@@ -475,10 +493,33 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     });
   }
 
+  // Row r of a list table holds item r, so the row after the last mapped one is item `rowCount`.
+  const listGrowth: ListGrowth[] = [];
+  for (const info of tables.values()) {
+    if (info.table.source.kind !== 'list') continue;
+    const columns = info.table.columns
+      .map((column, i) => ({ column: info.table.anchorColumn + i, spec: column }))
+      // A jsonPath is what makes a column writable, and `checkWorkbookSpec` already refuses a
+      // computed column that claims one ("a derived value must not flow back"). Both `generate` and
+      // `read` run that check, so asking about the role here as well would be a second opinion on a
+      // settled question.
+      .filter((c) => typeof c.spec.jsonPath === 'string')
+      .map((c) => ({ column: c.column, relativePath: c.spec.jsonPath as string, valueType: c.spec.valueType }));
+    if (columns.length === 0) continue;
+    listGrowth.push({
+      sheet: info.sheet,
+      jsonPath: info.table.source.jsonPath,
+      firstRow: info.firstDataRow + info.rowCount,
+      nextIndex: info.rowCount,
+      columns,
+    });
+  }
+
   return {
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),
     inputCells,
+    listGrowth,
   };
 }
 

@@ -10,6 +10,49 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v4.2.0 — a row typed **under** a table is now read as a new list entry instead of
+  merely being reported.
+
+  An Excel Table extends the moment somebody types below its last row, which is simply how you add a
+  stakeholder once the padded rows are used up. v2.7.0 reported those cells rather than dropping them
+  — which was the honest minimum — but it still left the user to add the entry by hand.
+
+  `planWorkbook` now returns `listGrowth` for every list-bound table: where its rows end, which list
+  index comes next, and which columns are writable. The reader continues the same
+  `list[index].field` shape `inputPathFor` builds, so a grown row goes through exactly the same
+  coercion, schema check and append rule as a planned one — filling row 13 of a list holding four
+  items is still refused for the holes it would leave.
+
+  **A wholly blank row ends the scan.** Without that, a stray note a few rows under the table would
+  be read as a stakeholder; with it, anything past the gap is still reported as content below the
+  table, which is what it is.
+
+  Only tables bound to a list can grow — `elements` and `elementResponses` have one row per element
+  or question, so a row underneath them means something else entirely and is reported as before.
+
+  `read` now also refuses a workbook spec that does not check out, as `generate` already did. Reading
+  leans on the spec being well-formed: a column claiming both a formula and a `jsonPath` would have
+  the reader take a computed value as somebody's answer, and `check-spec` already refuses that with
+  the right words — "a derived value must not flow back". With one authority consulted on both
+  paths, the reader no longer needs its own opinion about column roles.
+
+  **Verified in real Excel**, because this is precisely the behaviour that cannot be simulated: the
+  UAT now types a whole stakeholder into the row below the table, saves, and reads back three
+  proposals under `stakeholders[12]`, applies them, and confirms 13 stakeholders in a deal that still
+  validates. Two things that fixed themselves in the writing: filling only the name produced a deal
+  that does not validate — a stakeholder needs a title and a role — and the UAT's own failure handler
+  closed only the first workbook, so a mid-script failure left Excel holding a stale one and the next
+  run read the Scorecard out of it and blamed the code. It now closes its own workbooks by name,
+  waits until a known cell reads back before writing, and **verifies each write instead of discarding
+  the AppleScript's errors** — which is what had made the round-trip block fail about one run in
+  three. Three consecutive runs, seven blocks each, green.
+
+  The review caught the dangerous version of that cleanup: my first fix closed *every* open workbook
+  with `saving no`, which on the machine that runs this would have discarded unsaved changes in the
+  operator's own spreadsheets. A test has no business touching a document it did not create, so it
+  closes only the four names it ever produces, each wrapped so an absent one is a no-op. Verified by
+  leaving an unrelated workbook open across a full run and confirming it survived.
+
 - **`meddpicc`** v4.1.0 — `migrate` now settles the conflicts that were never actually ambiguous.
 
   v4.0.0 refused whenever a field was set under both its old and its new name, on the grounds that

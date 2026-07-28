@@ -192,6 +192,16 @@ async function main(): Promise<number> {
     const legacy = refuseLegacyDeal(deal, dealPath);
     if (legacy !== null) return legacy;
 
+    // `generate` refuses a spec that does not check out; so must this. Reading leans on the spec
+    // being well-formed — a column claiming both a formula and a jsonPath would have the reader
+    // take a computed value as somebody's answer, which is the one thing it must never do.
+    const specCheck = checkWorkbookSpec(schema, spec);
+    if (!specCheck.ok) {
+      process.stderr.write('Refusing to read: the workbook spec does not check out.\n');
+      print(specCheck);
+      return 1;
+    }
+
     const bytes = new Uint8Array(await Bun.file(workbookPath).arrayBuffer());
     const report = readWorkbook(schema, spec, deal, bytes);
 

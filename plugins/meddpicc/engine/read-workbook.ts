@@ -26,12 +26,12 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
-import { dateToSerial, planWorkbook, workbookFingerprint } from './generate';
+import { dateToSerial, type InputCell, planWorkbook, type WorkbookPlan, workbookFingerprint } from './generate';
 import { readPath, writePath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
-import { FINGERPRINT_PROPERTY } from './xlsx';
+import { A1, FINGERPRINT_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -296,6 +296,52 @@ export interface CellRejection {
 
 const A1_REF = /^([A-Z]+)(\d+)$/;
 
+/** Whether a cell holds anything at all — a formula counts, because a formula is content. */
+function hasContent(cell: RawCell | undefined): boolean {
+  if (!cell) return false;
+  return cell.formula !== undefined || (cell.text !== undefined && cell.text.trim() !== '');
+}
+
+/**
+ * Input cells for rows somebody added below the ones the plan maps.
+ *
+ * An Excel Table extends when you type under its last row, which is simply how you add a
+ * stakeholder once the padded rows are used up. Those cells belong to no `jsonPath` in the plan, so
+ * the paths are derived here from the table's geometry — the same `list[index].field` shape
+ * `inputPathFor` builds, continuing from where the plan stopped.
+ *
+ * **A wholly blank row ends the scan.** Without that, a stray note a few rows under the table would
+ * be read as a stakeholder; with it, anything past the gap falls to `reportUnmappedRows` and is
+ * reported instead. Appending still obeys the array rule, so filling row 13 of a list holding four
+ * items is refused for the holes it would leave, exactly as before.
+ */
+function growthCells(plan: WorkbookPlan, cells: Map<string, Map<string, RawCell>>): InputCell[] {
+  const out: InputCell[] = [];
+
+  for (const growth of plan.listGrowth) {
+    const sheetCells = cells.get(growth.sheet);
+    if (!sheetCells) continue;
+    const lastRow = Math.max(0, ...[...sheetCells.keys()].map((ref) => Number(A1_REF.exec(ref)?.[2] ?? 0)));
+
+    for (let row = growth.firstRow; row <= lastRow; row++) {
+      const rowCells = growth.columns.map((column) => ({ ...column, address: A1(column.column, row) }));
+      if (!rowCells.some((cell) => hasContent(sheetCells.get(cell.address)))) break;
+
+      const index = growth.nextIndex + (row - growth.firstRow);
+      for (const cell of rowCells) {
+        out.push({
+          jsonPath: `${growth.jsonPath}[${index}].${cell.relativePath}`,
+          sheet: growth.sheet,
+          address: cell.address,
+          valueType: cell.valueType,
+        });
+      }
+    }
+  }
+
+  return out;
+}
+
 /**
  * Report anything typed below the rows the workbook actually maps.
  *
@@ -330,8 +376,8 @@ function reportUnmappedRows(
       if (!m) continue;
       const limit = lastMapped.get(`${sheetName}!${m[1]}`);
       if (limit === undefined || Number(m[2]) <= limit) continue;
-      const content = cell.formula === undefined ? cell.text : `=${cell.formula}`;
-      if (content === undefined || content.trim() === '') continue;
+      if (!hasContent(cell)) continue;
+      const content = cell.formula === undefined ? (cell.text as string) : `=${cell.formula}`;
       rejections.push({
         sheet: sheetName,
         address: cell.ref,
@@ -399,8 +445,11 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   }
 
   const cells = readWorkbookCells(bytes);
+  // Grown rows come last, so the planned rows have already been applied and appending a new item
+  // lands at the index the array has actually reached.
+  const inputs = [...plan.inputCells, ...growthCells(plan, cells)];
 
-  for (const input of plan.inputCells) {
+  for (const input of inputs) {
     const { jsonPath, sheet, address, valueType } = input;
     const reject = (reason: string) => rejections.push({ jsonPath, sheet, address, reason });
     const sheetCells = cells.get(sheet);
@@ -452,12 +501,12 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     });
   }
 
-  reportUnmappedRows(plan.inputCells, cells, rejections);
+  reportUnmappedRows(inputs, cells, rejections);
 
   const validation = validateDeal(working, schema);
   return {
     ok: rejections.length === 0 && validation.valid,
-    cellsRead: plan.inputCells.length,
+    cellsRead: inputs.length,
     unchanged,
     proposals,
     rejections,
