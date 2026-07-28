@@ -10,8 +10,13 @@
  * every cell that holds a human's value, with the `jsonPath` it came from — and this walks
  * exactly that list. A second idea of where cells live is how the two directions would drift.
  *
- * Three things a reader of hand-written OOXML has to get right, each learned the hard way:
+ * Four things a reader of hand-written OOXML has to get right, each learned the hard way:
  *
+ * - **An address only means something in the workbook it came from.** A table's row count
+ *   depends on the deal, so answering one more question moves every row below it. Reading an
+ *   older workbook cell by cell produced 14 confident proposals that put one element's answers
+ *   onto another, with no rejection and `ok` true. Hence the stamp, checked before anything
+ *   else: a workbook is read against the deal it was generated from, or not at all.
  * - **Excel rewrites the file when it saves.** The generator emits `t="inlineStr"`; Excel
  *   re-saves the same text through `sharedStrings.xml` as `t="s"`. A reader that only
  *   understands its own output works perfectly on a file nobody has edited.
@@ -21,11 +26,12 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
-import { dateToSerial, planWorkbook } from './generate';
+import { dateToSerial, planWorkbook, workbookFingerprint } from './generate';
 import { readPath, writePath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
+import { FINGERPRINT_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -122,6 +128,16 @@ function sheetParts(entries: Map<string, { data: Uint8Array }>, rels: Map<string
     if (target) parts.set(unescapeXml(name), resolvePart(target));
   }
   return parts;
+}
+
+/** The round-trip stamp a workbook was generated with, or null when it carries none. */
+export function readWorkbookFingerprint(bytes: Uint8Array): string | null {
+  const entry = readZip(bytes).get('docProps/custom.xml');
+  if (!entry) return null;
+  const xml = new TextDecoder().decode(entry.data);
+  const property = new RegExp(`<property\\b[^>]*name="${FINGERPRINT_PROPERTY}"[^>]*>([\\s\\S]*?)</property>`).exec(xml);
+  if (!property) return null;
+  return unescapeXml(/<vt:lpwstr>([\s\S]*?)<\/vt:lpwstr>/.exec(property[1])?.[1] ?? '') || null;
 }
 
 /** Every cell of every sheet, keyed by sheet name then by A1 reference. */
@@ -276,6 +292,56 @@ export interface CellRejection {
   reason: string;
 }
 
+const A1_REF = /^([A-Z]+)(\d+)$/;
+
+/**
+ * Report anything typed below the rows the workbook actually maps.
+ *
+ * The tables are padded with blank rows to grow into, and an Excel Table extends further still
+ * the moment someone types under the last one — so a seller who runs out of padded stakeholder
+ * rows just adds another, reasonably. Those cells belong to no `jsonPath`, and passing over
+ * them without a word would be the legacy sheet's own bug in a new place: it formatted eight
+ * team rows and dropped the rest. Better to refuse the run and say which cell.
+ *
+ * Only columns that hold inputs are considered, and only rows past the last input in that same
+ * column. That is already enough to leave a Table's own extended formulas alone: they land in
+ * computed columns, which hold no inputs and so are never examined. A formula in an *input*
+ * column below the range is reported like any other content, because it is content, and losing
+ * it quietly is the thing being prevented.
+ */
+function reportUnmappedRows(
+  inputCells: readonly { sheet: string; address: string }[],
+  cells: Map<string, Map<string, RawCell>>,
+  rejections: CellRejection[],
+): void {
+  const lastMapped = new Map<string, number>();
+  for (const input of inputCells) {
+    const m = A1_REF.exec(input.address);
+    if (!m) continue;
+    const key = `${input.sheet}!${m[1]}`;
+    lastMapped.set(key, Math.max(lastMapped.get(key) ?? 0, Number(m[2])));
+  }
+
+  for (const [sheetName, sheetCells] of cells) {
+    for (const cell of sheetCells.values()) {
+      const m = A1_REF.exec(cell.ref);
+      if (!m) continue;
+      const limit = lastMapped.get(`${sheetName}!${m[1]}`);
+      if (limit === undefined || Number(m[2]) <= limit) continue;
+      const content = cell.formula === undefined ? cell.text : `=${cell.formula}`;
+      if (content === undefined || content.trim() === '') continue;
+      rejections.push({
+        jsonPath: '',
+        sheet: sheetName,
+        address: cell.ref,
+        reason:
+          `holds "${content}" below row ${limit}, the last row this workbook maps — ` +
+          'add the entry to the deal JSON, then regenerate the workbook so it has room for it',
+      });
+    }
+  }
+}
+
 export interface ReadReport {
   /** No cell was refused and the result validates. This is what an exit code should follow. */
   ok: boolean;
@@ -295,15 +361,46 @@ export interface ReadReport {
  * Proposals are applied to a copy as they are accepted, in the order the cells were laid out,
  * so that filling two consecutive blank rows of a table appends two items rather than
  * refusing the second for a gap that the first had already closed.
+ *
+ * The stamp is checked first and refuses the whole workbook, rather than every cell in turn:
+ * if the addresses do not mean what this deal thinks they mean, no individual reading of one
+ * is worth reporting.
  */
 export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown, bytes: Uint8Array): ReadReport {
   const plan = planWorkbook(schema, spec, deal);
-  const cells = readWorkbookCells(bytes);
   const working = JSON.parse(JSON.stringify(deal)) as unknown;
 
   const proposals: CellProposal[] = [];
   const rejections: CellRejection[] = [];
   let unchanged = 0;
+
+  const stamp = readWorkbookFingerprint(bytes);
+  const expected = workbookFingerprint(plan, deal);
+  if (stamp !== expected) {
+    return {
+      ok: false,
+      cellsRead: 0,
+      unchanged: 0,
+      proposals: [],
+      rejections: [
+        {
+          jsonPath: '',
+          sheet: '',
+          address: '',
+          reason:
+            stamp === null
+              ? 'this workbook carries no round-trip stamp — regenerate it from this deal before reading it back'
+              : 'this workbook was generated from a different deal, or from this one before its rows moved — ' +
+                'regenerate it from the current deal before reading it back',
+        },
+      ],
+      deal: working,
+      valid: true,
+      errors: [],
+    };
+  }
+
+  const cells = readWorkbookCells(bytes);
 
   for (const input of plan.inputCells) {
     const { jsonPath, sheet, address, valueType } = input;
@@ -356,6 +453,8 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       to: coerced.value === undefined ? null : coerced.value,
     });
   }
+
+  reportUnmappedRows(plan.inputCells, cells, rejections);
 
   const validation = validateDeal(working, schema);
   return {

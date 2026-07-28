@@ -28,7 +28,23 @@ and this project adheres to
   pointer, because the person who has to fix it is looking at Excel. Rejections never reach the
   deal, and the rest of the workbook still round-trips around them.
 
-  Four things that only look obvious afterwards, each of which would have made the reader
+  **A workbook is read against the deal it came from, or not at all.** `generate` stamps each
+  file with a fingerprint of the deal's identity and its layout, kept in a custom document
+  property that Excel carries through a save; `read` refuses a workbook whose stamp does not
+  match. This is not belt-and-braces. A table's row count depends on the deal, so answering one
+  more question moves every Questions row below it, and reading a workbook from before that
+  cell by cell produced **14 confident proposals — no rejections, `ok` true** — that wrote
+  metrics' answers onto economicBuyer and economicBuyer's onto decisionCriteria. The stamp
+  covers identity and layout only, never the whole deal, so a workbook already on someone's
+  desk survives a JSON edit that moves no cell.
+
+  **Nothing is dropped in silence.** The tables are padded with blank rows and an Excel Table
+  extends further still when someone types under the last one — perfectly reasonable, and those
+  cells belong to no field. They are now reported by address rather than passed over, because
+  passing over them is the legacy sheet's own bug in a new place: it formatted eight team rows
+  and dropped the rest.
+
+  Five things that only look obvious afterwards, each of which would have made the reader
   useless in a different way:
 
   - **Excel rewrites the file when it saves.** The generator writes strings inline
@@ -50,9 +66,21 @@ and this project adheres to
   stored as a serial, and a boolean. The UAT was itself mutation-checked, and the 86-proposal
   measurement above is what it reports when the reader is broken.
 
+  - **A refused write must change nothing.** Reaching `responses[1]` in a deal with no
+    `responses` at all builds the array on the way to the leaf, and refusing the index
+    afterwards left an empty array behind in a deal reported as unchanged. `writePath` now
+    decides whether a write is possible before making it.
+
   `readPath` moved into `engine/json-path.ts` alongside the new `writePath`, so one walker
   serves both directions. The redundant integer check in the reader's coercion is gone: whether
   a whole number is required is the schema's call, and a second opinion could only disagree.
+
+  The review found all three of the above independently of the two that were found while
+  mutation-checking, and every one was reproduced before being fixed. Mutation testing was the
+  more useful of the two passes on the reader's own guards: 24 deliberate breakages, all caught,
+  and three of them changed the code rather than the tests — an error-cell test that proved
+  nothing because it used a currency cell where `NaN` already rejected the value, an integer
+  check duplicating the schema's, and a formula skip that was both untested and wrong.
 
 - **`meddpicc`** v2.6.0 — the workbook is now a working spreadsheet, not just a rendered one.
 

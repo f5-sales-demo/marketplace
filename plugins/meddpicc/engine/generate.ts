@@ -11,6 +11,7 @@
  * value, with the `jsonPath` it came from. That map is the contract the round-trip reader
  * will consume, and stating it here keeps the two directions from drifting.
  */
+import { createHash } from 'node:crypto';
 import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
@@ -493,6 +494,30 @@ function inputPathFor(table: SpecTable, column: SpecColumn, entry: TableLayout['
   return relative.replace('*', entry.key as string);
 }
 
+/**
+ * What a workbook may be read back against: this deal, laid out this way.
+ *
+ * Both are needed, and for different reasons. The **identity** stops a workbook for one deal
+ * being applied to another — an easy mistake when every deal's file is called `meddpicc.json`
+ * in a different directory, and one that `--apply` would otherwise resolve by overwriting the
+ * second deal with the first one's figures.
+ *
+ * The **layout** stops something quieter and worse. A table's row count depends on the deal:
+ * answer one more question and every Questions row below it moves down one. The addresses in
+ * an older workbook then name a different element's answer, and reading it row by row produces
+ * a confident set of proposals that put metrics' answers onto economicBuyer. Measured on the
+ * example deal: 14 proposals, no rejections, and nothing to suggest anything was wrong.
+ *
+ * Deliberately NOT a hash of the whole deal: a workbook on someone's desk must survive an edit
+ * to the JSON that moves no cell, or the two would have to be regenerated in lockstep forever.
+ */
+export function workbookFingerprint(plan: WorkbookPlan, deal: unknown): string {
+  const identity = String(readPath(deal, 'metadata.dealId') ?? '');
+  const layout = plan.inputCells.map((c) => `${c.jsonPath}|${c.sheet}|${c.address}`).join('\n');
+  return createHash('sha256').update(`${identity}\n${layout}`).digest('hex').slice(0, 32);
+}
+
 export function generateWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): Uint8Array {
-  return buildWorkbook(planWorkbook(schema, spec, deal).sheets);
+  const plan = planWorkbook(schema, spec, deal);
+  return buildWorkbook(plan.sheets, workbookFingerprint(plan, deal));
 }

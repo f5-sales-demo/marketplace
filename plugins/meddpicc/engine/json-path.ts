@@ -54,51 +54,103 @@ export function writePath(root: unknown, dottedPath: string, value: unknown): st
   const tokens = tokenize(dottedPath);
   if (tokens.length === 0) return `"${dottedPath}" names nothing to write`;
 
+  // Decided before anything is touched, because a write that gives up halfway leaves the
+  // objects it built on the way in. Reaching `responses[1]` in a deal with no `responses` at
+  // all creates the array first; refusing the index afterwards would leave an empty array in a
+  // deal the caller was told had changed in no way.
+  const problem = checkPath(root, tokens, dottedPath, value === undefined);
+  if (problem) return problem;
+
   let node: unknown = root;
   for (let i = 0; i < tokens.length - 1; i++) {
     const token = tokens[i];
-    const nextIsIndex = typeof tokens[i + 1] === 'number';
+    const fresh = typeof tokens[i + 1] === 'number' ? [] : {};
 
     if (typeof token === 'number') {
-      if (!Array.isArray(node)) return `${dottedPath} expects a list at step ${i + 1}`;
-      if (token > node.length) {
-        return `row ${token + 1} cannot be filled in while row ${node.length + 1} is still empty`;
-      }
-      if (token === node.length) node.push(nextIsIndex ? [] : {});
-      node = node[token];
+      const list = node as unknown[];
+      if (token === list.length) list.push(fresh);
+      node = list[token];
       continue;
     }
 
-    if (node === null || typeof node !== 'object' || Array.isArray(node)) {
-      return `${dottedPath} expects an object at step ${i + 1}`;
-    }
     const holder = node as Record<string, unknown>;
+    // Clearing never builds a path: `checkPath` has already established there is nothing there.
     if (holder[token] === undefined || holder[token] === null) {
-      // Clearing a value never needs to build the path to it.
       if (value === undefined) return null;
-      holder[token] = nextIsIndex ? [] : {};
+      holder[token] = fresh;
     }
     node = holder[token];
   }
 
   const last = tokens[tokens.length - 1];
   if (typeof last === 'number') {
-    if (!Array.isArray(node)) return `${dottedPath} expects a list`;
-    if (last > node.length) {
-      return `row ${last + 1} cannot be filled in while row ${node.length + 1} is still empty`;
-    }
+    const list = node as unknown[];
     if (value === undefined) {
-      // Deleting from the middle would renumber every element after it.
-      if (last < node.length) node[last] = '';
+      // Deleting from the middle would renumber every element after it, and a response's
+      // position is which question it answers.
+      if (last < list.length) list[last] = '';
       return null;
     }
-    node[last] = value;
+    list[last] = value;
     return null;
   }
 
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) return `${dottedPath} expects an object`;
   const holder = node as Record<string, unknown>;
   if (value === undefined) delete holder[last];
   else holder[last] = value;
+  return null;
+}
+
+/**
+ * Whether the write can be made, without making it.
+ *
+ * Walks the same tokens against the same data, tracking one extra thing: whether the node it
+ * is standing on is one the write would have to create. A created node is empty, so an index
+ * into it may only be 0 — which is what makes the array rule hold for a path that does not
+ * exist yet, not just for one that does.
+ */
+function checkPath(
+  root: unknown,
+  tokens: Array<string | number>,
+  dottedPath: string,
+  clearing: boolean,
+): string | null {
+  let node: unknown = root;
+  let fresh = false;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const isLast = i === tokens.length - 1;
+
+    if (typeof token === 'number') {
+      const length = fresh ? 0 : Array.isArray(node) ? node.length : -1;
+      if (length < 0) return `${dottedPath} expects a list at step ${i + 1}`;
+      if (token > length) return `row ${token + 1} cannot be filled in while row ${length + 1} is still empty`;
+      if (isLast) return null;
+      if (token === length) {
+        fresh = true;
+        node = undefined;
+      } else {
+        node = (node as unknown[])[token];
+      }
+      continue;
+    }
+
+    if (!fresh && (node === null || typeof node !== 'object' || Array.isArray(node))) {
+      return `${dottedPath} expects an object at step ${i + 1}`;
+    }
+    if (isLast) return null;
+
+    const child = fresh ? undefined : (node as Record<string, unknown>)[token];
+    if (child === undefined || child === null) {
+      if (clearing) return null;
+      fresh = true;
+      node = undefined;
+    } else {
+      fresh = false;
+      node = child;
+    }
+  }
+
   return null;
 }

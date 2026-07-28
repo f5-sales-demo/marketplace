@@ -449,7 +449,28 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
  * absent from `[Content_Types].xml` (or missing its relationship) is the usual cause of
  * Excel's "we found a problem with some content" prompt.
  */
-export function buildWorkbook(sheets: readonly SheetSpec[]): Uint8Array {
+const NS_CUSTOM_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
+const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
+/** The format id every custom document property carries; it is fixed, not ours to choose. */
+const CUSTOM_PROPS_FMTID = '{D5CDD505-2E9C-101B-9397-08002B2CF9AE}';
+
+/** The name of the custom document property carrying the round-trip stamp. */
+export const FINGERPRINT_PROPERTY = 'MeddpiccFingerprint';
+
+/**
+ * A custom document property, which is where a stamp belongs: Excel carries it through a save
+ * untouched, and it is not a cell, so nobody can retype it by accident or wonder what the
+ * hidden sheet full of hex is for.
+ */
+function customPropsXml(fingerprint: string): string {
+  return (
+    `${XML_HEADER}<Properties xmlns="${NS_CUSTOM_PROPS}" xmlns:vt="${NS_VT}">` +
+    `<property fmtid="${CUSTOM_PROPS_FMTID}" pid="2" name="${FINGERPRINT_PROPERTY}">` +
+    `<vt:lpwstr>${escapeXml(fingerprint)}</vt:lpwstr></property></Properties>`
+  );
+}
+
+export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string): Uint8Array {
   if (sheets.length === 0) throw new Error('A workbook needs at least one sheet');
 
   const enc = (s: string) => new TextEncoder().encode(s);
@@ -494,11 +515,17 @@ export function buildWorkbook(sheets: readonly SheetSpec[]): Uint8Array {
           `<Override PartName="/xl/tables/table${id}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`,
       )
       .join('') +
+    (fingerprint === undefined
+      ? ''
+      : `<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>`) +
     `</Types>`;
 
   const rootRels =
     `${XML_HEADER}<Relationships xmlns="${NS_REL_PKG}">` +
     `<Relationship Id="rId1" Type="${NS_REL_DOC}/officeDocument" Target="xl/workbook.xml"/>` +
+    (fingerprint === undefined
+      ? ''
+      : `<Relationship Id="rId2" Type="${NS_REL_DOC}/custom-properties" Target="docProps/custom.xml"/>`) +
     `</Relationships>`;
 
   // Sheets take rId1..rIdN; styles takes the next id after them.
@@ -543,5 +570,6 @@ export function buildWorkbook(sheets: readonly SheetSpec[]): Uint8Array {
     ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s, tableIdsBySheet[i])) })),
     ...sheetRels,
     ...allTables.map(({ table, id }) => ({ name: `xl/tables/table${id}.xml`, data: enc(tableXml(table, id)) })),
+    ...(fingerprint === undefined ? [] : [{ name: 'docProps/custom.xml', data: enc(customPropsXml(fingerprint)) }]),
   ]);
 }
