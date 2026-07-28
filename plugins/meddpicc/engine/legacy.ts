@@ -130,6 +130,9 @@ function settle(legacy: unknown, current: unknown, path: string, legacyPath: str
     for (const [key, legacyValue] of Object.entries(legacy)) {
       if (!(key in current)) {
         merged[key] = legacyValue;
+        // Reported, not just copied. A value that moves without a line against it leaves the
+        // caller believing the file was already current — see the invariant in `migrateDeal`.
+        resolved.push(`${legacyPath}.${key} moved to ${path}.${key}`);
         continue;
       }
       const inner = settle(legacyValue, current[key], `${path}.${key}`, `${legacyPath}.${key}`);
@@ -177,7 +180,16 @@ export function migrateDeal(deal: unknown): MigrationResult {
         }
         holder[rename.to] = settled.value;
         delete holder[rename.from];
-        resolved.push(...settled.resolved);
+        // A removed legacy key must ALWAYS leave a line behind. Callers decide whether a deal needs
+        // migrating by asking whether anything was reported, so a silent settlement would tell them
+        // the file is current while its legacy values stay unread — which is the whole failure this
+        // module exists to stop, arrived at from the inside. An empty object is the one case that
+        // reaches here with nothing of its own to say.
+        resolved.push(
+          ...(settled.resolved.length > 0
+            ? settled.resolved
+            : [`${container}.${rename.from} removed — it held nothing ${container}.${rename.to} lacks`]),
+        );
         continue;
       }
 

@@ -227,6 +227,36 @@ describe('migrateDeal', () => {
     for (const line of result.resolved) expect(line).toMatch(/stakeholders\[[01]\]/);
   });
 
+  test('a legacy key present ALWAYS produces a report — that is what makes callers refuse', () => {
+    // The invariant the refusal depends on. Merging correctly in memory while reporting nothing
+    // makes `refuseLegacyDeal` accept the file, so the workbook goes on ignoring the legacy value:
+    // the exact silent loss this module exists to prevent, reached by the code meant to prevent it.
+    for (const deal of [
+      { threeWhys: { f5: { whyAnything: 'legacy answer' }, us: {} } },
+      { threeWhys: { f5: { whyAnything: 'a' }, us: { whyNow: 'b' } } },
+      { threeWhys: { f5: {}, us: { whyNow: 'b' } } },
+      { team: { f5: [{ name: 'A' }], internal: [] } },
+    ]) {
+      const result = migrateDeal(deal);
+      const reported = result.changes.length + result.resolved.length + result.conflicts.length;
+      expect(reported).toBeGreaterThan(0);
+    }
+  });
+
+  test('each key taken from the legacy side is named', () => {
+    const result = migrateDeal({ threeWhys: { f5: { whyAnything: 'a' }, us: { whyNow: 'b' } } });
+    expect(result.conflicts).toEqual([]);
+    expect(result.resolved.some((r) => r.includes('threeWhys.f5.whyAnything'))).toBe(true);
+    expect(shape(result.deal).threeWhys.us).toEqual({ whyNow: 'b', whyAnything: 'a' });
+  });
+
+  test('a legacy key that held nothing is still reported before being removed', () => {
+    const result = migrateDeal({ threeWhys: { f5: {}, us: { whyNow: 'b' } } });
+    expect(result.resolved).toHaveLength(1);
+    expect(result.resolved[0]).toContain('threeWhys.f5');
+    expect(shape(result.deal).threeWhys.f5).toBeUndefined();
+  });
+
   test('migrating twice changes nothing the second time', () => {
     const once = migrateDeal(asLegacyDeal());
     const twice = migrateDeal(once.deal);
