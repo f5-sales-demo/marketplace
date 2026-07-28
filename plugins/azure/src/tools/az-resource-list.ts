@@ -1,3 +1,4 @@
+import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatResourceTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
@@ -10,7 +11,11 @@ import {
 import azResourceDescription from '../prompts/az-resource-list.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeResource, textResult } from './shared';
 
-export function createAzResourceListTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAzResourceListTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -57,7 +62,7 @@ export function createAzResourceListTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const args = ['resource', 'list', '--resource-group', params.resource_group];
       if (params.subscription) args.push('--subscription', params.subscription);
       if (params.resource_type) args.push('--resource-type', params.resource_type);

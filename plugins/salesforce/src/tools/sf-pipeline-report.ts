@@ -3,6 +3,7 @@ import { generatePipelineReport, type SfQueryFn } from '../pipeline-report/gener
 import { renderPipelineReport } from '../pipeline-report/renderer';
 import type { PipelineReportData, PipelineReportOptions } from '../pipeline-report/types';
 import sfPipelineReportDescription from '../prompts/sf-pipeline-report.md' with { type: 'text' };
+import type { SfExecApi } from '../sf/exec';
 import { execSfJson } from '../sf/exec';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
@@ -42,8 +43,8 @@ function fiscalQuarterDates(): { start: string; end: string } {
   return { start: fmt(start), end: fmt(end) };
 }
 
-function buildQueryFn(cwd: string, orgAlias?: string): SfQueryFn {
-  const api = makeExecApi(cwd);
+function buildQueryFn(makeApi: (cwd: string) => SfExecApi, cwd: string, orgAlias?: string): SfQueryFn {
+  const api = makeApi(cwd);
   return async (soql: string, queryOrgAlias?: string): Promise<Record<string, unknown>[]> => {
     const org = queryOrgAlias ?? orgAlias;
     const args = ['data', 'query', '--query', soql];
@@ -62,7 +63,11 @@ function buildQueryFn(cwd: string, orgAlias?: string): SfQueryFn {
 // Tool factory
 // ---------------------------------------------------------------------------
 
-export function createSfPipelineReportTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string) => SfExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -141,7 +146,7 @@ export function createSfPipelineReportTool(pi: PluginHost) {
       };
 
       try {
-        const queryFn = buildQueryFn(ctx.cwd, orgAlias);
+        const queryFn = buildQueryFn(makeApi, ctx.cwd, orgAlias);
         const data: PipelineReportData = await generatePipelineReport(options, queryFn);
         const report = renderPipelineReport(data, sfContext?.instanceUrl ?? '');
 

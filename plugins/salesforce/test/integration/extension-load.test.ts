@@ -172,7 +172,7 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
     }
     expect(result.details.tool).toBe('sf_setup');
     expect(result.details.action).toBe('check');
-  });
+  }, 60000);
 
   it('sf_setup status action returns org list', async () => {
     const { pi, tools } = await buildMockPi({
@@ -189,7 +189,7 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
       const text = result.content[0].text;
       expect(text.includes('Alias') || text.includes('No authenticated orgs')).toBe(true);
     }
-  });
+  }, 60000);
 
   it('sf_query executes a real SOQL query', async () => {
     const { pi, tools } = await buildMockPi();
@@ -216,7 +216,7 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
       expect(result.details.queryResult).toBeDefined();
       expect(typeof result.details.queryResult?.totalSize).toBe('number');
     }
-  });
+  }, 60000);
 
   it('sf_org_display returns structured org data or structured error', async () => {
     const { pi, tools } = await buildMockPi();
@@ -241,7 +241,7 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
     } else {
       expect(result.details.errorType).toBeDefined();
     }
-  });
+  }, 60000);
 
   it('before_agent_start hook returns hint or undefined', async () => {
     const { pi, events } = await buildMockPi();

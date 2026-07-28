@@ -1,5 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
+/**
+ * These cases drive the real `gh` binary, so they are meaningful only where it is
+ * installed. A visible skip beats an `if (…)` that quietly asserts nothing, and the
+ * generous timeout is because a cloud CLI answering in under five seconds is not a
+ * property this repo controls.
+ */
+const GH_INSTALLED = Bun.spawnSync([process.platform === 'win32' ? 'where' : 'which', 'gh']).exitCode === 0;
+
 interface ToolDef {
   name: string;
   label: string;
@@ -138,23 +146,31 @@ describe('GitHub ExtensionFactory integration', () => {
     }
   });
 
-  it('service status check returns valid state', async () => {
-    const { pi, serviceStatuses } = await buildMockPi();
-    await factory(pi);
+  it.skipIf(!GH_INSTALLED)(
+    'service status check returns valid state',
+    async () => {
+      const { pi, serviceStatuses } = await buildMockPi();
+      await factory(pi);
 
-    if (serviceStatuses.length === 0) return; // gh not installed
+      if (serviceStatuses.length === 0) return; // gh not installed
 
-    const status = await serviceStatuses[0].check();
-    expect(['connected', 'unauthenticated', 'unavailable']).toContain(status.state);
-  });
+      const status = await serviceStatuses[0].check();
+      expect(['connected', 'unauthenticated', 'unavailable']).toContain(status.state);
+    },
+    60000,
+  );
 
-  it('session_start hook runs without throwing', async () => {
-    const { pi, events } = await buildMockPi();
-    await factory(pi);
+  it.skipIf(!GH_INSTALLED)(
+    'session_start hook runs without throwing',
+    async () => {
+      const { pi, events } = await buildMockPi();
+      await factory(pi);
 
-    const handler = events.session_start?.[0];
-    if (!handler) return; // gh not installed
+      const handler = events.session_start?.[0];
+      if (!handler) return; // gh not installed
 
-    await expect(handler({}, { cwd: '/tmp' })).resolves.toBeUndefined();
-  });
+      await expect(handler({}, { cwd: '/tmp' })).resolves.toBeUndefined();
+    },
+    60000,
+  );
 });

@@ -10,6 +10,18 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **Plugin tests no longer depend on a real cloud CLI** (`aws` v1.2.2, `azure` v1.2.2,
+  `gcloud` v1.2.2, `github` v1.2.2, `gitlab` v1.2.3, `salesforce` v1.3.3) — 32 tests across
+  six plugins spawned `aws`, `az`, `gcloud`, `gh` or `sf`, because every tool factory built
+  its executor from `ctx.cwd`. Whether they passed depended on which binaries the machine
+  had and how fast they answered, which is how the CI job broke twice. All 27 factories now
+  accept an injected executor, the validation suites use a stub, and the cases that
+  genuinely drive a CLI are gated on its presence with an explicit timeout.
+
+- `scripts/check-tests-are-hermetic.sh` proves it and keeps it that way: it replaces every
+  cloud CLI with a sleeping stub, so a test that still spawns one trips bun's timeout and
+  names itself. Wired into the Validate Plugins workflow.
+
 Every plugin test suite now runs in CI, and the failures that surfaced are fixed.
 
 - **Portable setup-wizard tests** (`aws` v1.2.1, `azure` v1.2.1, `gcloud` v1.2.1,
@@ -60,10 +72,6 @@ Every plugin test suite now runs in CI, and the failures that surfaced are fixed
   template's own text. Adds `metadata.accountTeam`.
 
 - **`meddpicc`** bumped to v2.2.1
-
-- **`salesforce`** bumped to v1.3.1
-
-- **`gitlab`** bumped to v1.2.1
 
 - **`azure`** bumped to v1.2.0 — `az_exec` now accepts valid JMESPath `--query`
   (dropped the char filter that rejected `||`, backticks, and pipes); read-only guard,

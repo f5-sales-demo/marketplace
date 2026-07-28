@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAwsHelpTool } from '../../src/tools/aws-help';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -10,7 +16,7 @@ const mockTypebox = {
 };
 
 describe('createAwsHelpTool', () => {
-  const tool = createAwsHelpTool({ typebox: mockTypebox });
+  const tool = createAwsHelpTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('aws_help');
@@ -26,7 +32,7 @@ describe('createAwsHelpTool', () => {
 });
 
 describe('aws_help command path validation', () => {
-  const tool = createAwsHelpTool({ typebox: mockTypebox });
+  const tool = createAwsHelpTool({ typebox: mockTypebox }, stubExec);
 
   it('accepts a service with digits ("ec2")', async () => {
     try {

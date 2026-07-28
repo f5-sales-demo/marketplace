@@ -1,3 +1,4 @@
+import type { AwsExecApi } from '../aws/exec';
 import { execAwsJson } from '../aws/exec';
 import { formatIdentityDetail, normalizeIdentity } from '../aws/formatters';
 import type { PluginInterface } from '../aws/types';
@@ -5,7 +6,11 @@ import { RESOURCE_NAME_PATTERN } from '../aws/types';
 import awsStsWhoamiDescription from '../prompts/aws-sts-whoami.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, renderError, textResult } from './shared';
 
-export function createAwsStsWhoamiTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAwsStsWhoamiTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -33,7 +38,7 @@ export function createAwsStsWhoamiTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const args = ['sts', 'get-caller-identity'];
       if (params.profile) args.push('--profile', params.profile);
 

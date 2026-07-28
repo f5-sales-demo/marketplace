@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createGcloudComputeInstancesListTool } from '../../src/tools/gcloud-compute-instances-list';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -11,7 +17,7 @@ const mockTypebox = {
 };
 
 describe('createGcloudComputeInstancesListTool metadata', () => {
-  const tool = createGcloudComputeInstancesListTool({ typebox: mockTypebox });
+  const tool = createGcloudComputeInstancesListTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('gcloud_compute_instances_list');
@@ -31,7 +37,7 @@ describe('createGcloudComputeInstancesListTool metadata', () => {
 });
 
 describe('gcloud_compute_instances_list input validation', () => {
-  const tool = createGcloudComputeInstancesListTool({ typebox: mockTypebox });
+  const tool = createGcloudComputeInstancesListTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects an invalid zone', async () => {
     const r = await tool.execute('id', { zone: 'Not_A_Zone' }, undefined, null, { cwd: '/tmp' });

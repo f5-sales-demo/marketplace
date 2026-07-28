@@ -1,3 +1,4 @@
+import type { GlabExecApi } from '../glab/exec';
 import { execGlab } from '../glab/exec';
 import glabExecDescription from '../prompts/glab-exec.md' with { type: 'text' };
 import { findMutation } from './glab-exec-guard';
@@ -6,7 +7,11 @@ import { errorResult, hasControlChars, makeExecApi, textResult } from './shared'
 
 const GLAB_EXEC_MAX_OUTPUT = 50000;
 
-export function createGlabExecTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGlabExecTool(pi: PluginHost, makeApi: (cwd: string) => GlabExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -44,7 +49,7 @@ export function createGlabExecTool(pi: PluginHost) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const result = await execGlab(api, args, signal);
       let out = result.stdout;
       if (out.length > GLAB_EXEC_MAX_OUTPUT) {

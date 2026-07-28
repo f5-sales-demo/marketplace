@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAzVmListTool } from '../../src/tools/az-vm-list';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -11,7 +17,7 @@ const mockTypebox = {
 };
 
 describe('createAzVmListTool', () => {
-  const tool = createAzVmListTool({ typebox: mockTypebox });
+  const tool = createAzVmListTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('az_vm_list');
@@ -31,7 +37,7 @@ describe('createAzVmListTool', () => {
 });
 
 describe('az_vm input validation', () => {
-  const tool = createAzVmListTool({ typebox: mockTypebox });
+  const tool = createAzVmListTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects resource group with shell injection', async () => {
     const result = await tool.execute('id', { resource_group: '$(whoami)' }, null, null, { cwd: '/tmp' });

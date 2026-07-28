@@ -1,4 +1,5 @@
 import { resolveProject } from '../glab/config';
+import type { GlabExecApi } from '../glab/exec';
 import { execGlabJson, GlabAuthError } from '../glab/exec';
 import { formatIssueTable } from '../glab/formatters';
 import { executeGraphQL } from '../glab/graphql';
@@ -7,7 +8,11 @@ import glabSearchDescription from '../prompts/glab-search.md' with { type: 'text
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { makeExecApi, textResult } from './shared';
 
-export function createGlabSearchTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGlabSearchTool(pi: PluginHost, makeApi: (cwd: string) => GlabExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -34,7 +39,7 @@ export function createGlabSearchTool(pi: PluginHost) {
       _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const project = await resolveProject(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
       if (!project) {
         return textResult('No GitLab project configured. Run glab_setup to set one up.');

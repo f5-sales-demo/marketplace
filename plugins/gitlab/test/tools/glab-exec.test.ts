@@ -4,6 +4,12 @@ import { createGlabExecTool } from '../../src/tools/glab-exec';
 import { effectiveApiMethod, findMutation } from '../../src/tools/glab-exec-guard';
 import { hasControlChars } from '../../src/tools/shared';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const NUL = String.fromCharCode(0);
 const TAB = String.fromCharCode(9);
 const SOH = String.fromCharCode(1);
@@ -11,7 +17,7 @@ const SOH = String.fromCharCode(1);
 const mockPi = { typebox: { Type } };
 
 function makeTool() {
-  return createGlabExecTool(mockPi);
+  return createGlabExecTool(mockPi, stubExec);
 }
 
 describe('hasControlChars', () => {

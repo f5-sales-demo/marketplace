@@ -1,11 +1,16 @@
 import { loadConfig, saveConfig } from '../glab/config';
+import type { GlabExecApi } from '../glab/exec';
 import { checkAuth, checkInstalled, execGlabJson } from '../glab/exec';
 import type { GlabProject } from '../glab/types';
 import glabSetupDescription from '../prompts/glab-setup.md' with { type: 'text' };
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { makeExecApi, textResult } from './shared';
 
-export function createGlabSetupTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGlabSetupTool(pi: PluginHost, makeApi: (cwd: string) => GlabExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -34,7 +39,7 @@ export function createGlabSetupTool(pi: PluginHost) {
       _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
 
       switch (params.action) {
         case 'check': {

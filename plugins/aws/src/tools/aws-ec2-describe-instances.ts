@@ -1,3 +1,4 @@
+import type { AwsExecApi } from '../aws/exec';
 import { execAwsJson } from '../aws/exec';
 import { formatInstanceTable, normalizeReservations } from '../aws/formatters';
 import type { PluginInterface } from '../aws/types';
@@ -10,7 +11,14 @@ import { detectErrorType, errorResult, hasControlChars, makeExecApi, renderError
 // so only known-safe characters appear on either side of the Name/Values pair.
 const EC2_FILTER_PATTERN = /^Name=[A-Za-z0-9:._/-]+,Values=[A-Za-z0-9:._/,*-]+$/;
 
-export function createAwsEc2DescribeInstancesTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAwsEc2DescribeInstancesTool(
+  pi: PluginInterface,
+  makeApi: (cwd: string) => AwsExecApi = makeExecApi,
+) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -65,7 +73,7 @@ export function createAwsEc2DescribeInstancesTool(pi: PluginInterface) {
         }
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const args = ['ec2', 'describe-instances'];
       if (params.region) args.push('--region', params.region);
       if (params.instanceIds && params.instanceIds.length > 0) args.push('--instance-ids', ...params.instanceIds);
