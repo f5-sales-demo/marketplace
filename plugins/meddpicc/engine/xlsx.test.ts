@@ -495,7 +495,7 @@ describe('buildWorkbook — presentation', () => {
   });
 
   test('emits print setup, escaping the header text', () => {
-    const sheet = presented({ print: { orientation: 'landscape', fitToWidth: true, header: 'Visa & Co' } });
+    const sheet = presented({ print: { orientation: 'landscape', fitToWidth: true, header: ['Visa & Co'] } });
     expect(sheet).toContain('<pageSetup');
     expect(sheet).toContain('orientation="landscape"');
     expect(sheet).toContain('fitToWidth="1"');
@@ -517,8 +517,9 @@ describe('buildWorkbook — presentation', () => {
     // comes out unidentified while generation reports success. Nothing bounds a deal name.
     const headerOf = (text: string) => {
       const odd =
-        /<oddHeader>(.*?)<\/oddHeader>/s.exec(presented({ print: { orientation: 'landscape', header: text } }))?.[1] ??
-        '';
+        /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+          presented({ print: { orientation: 'landscape', header: [text] } }),
+        )?.[1] ?? '';
       // Count what Excel counts: the header string itself, format codes included.
       return odd.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
     };
@@ -538,9 +539,44 @@ describe('buildWorkbook — presentation', () => {
     expect(/(^|[^&])&([^&]|$)/.test(body)).toBe(false);
   });
 
+  test('every header part survives truncation, however long an earlier one is', () => {
+    // Composed account-first, a 300-character account name would consume the whole budget and
+    // emit a header with no deal name in it — so two deals for that account print identically.
+    const odd =
+      /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+        presented({ print: { orientation: 'landscape', header: ['A'.repeat(300), 'DISTINCT-DEAL'] } }),
+      )?.[1] ?? '';
+    const header = odd.replace(/&amp;/g, '&');
+    expect(header.length).toBeLessThanOrEqual(255);
+    expect(header).toContain('DISTINCT-DEAL');
+    expect(header).toContain('…');
+  });
+
+  test('an empty part is dropped rather than leaving a dangling separator', () => {
+    const oddOf = (header: string[]) =>
+      /<oddHeader>(.*?)<\/oddHeader>/s.exec(presented({ print: { orientation: 'landscape', header } }))?.[1];
+    expect(oddOf(['Visa', ''])).toBe('&amp;LVisa&amp;R&amp;D');
+    expect(oddOf(['', 'XC WAF-API'])).toBe('&amp;LXC WAF-API&amp;R&amp;D');
+    // Nothing to say: no header element at all, rather than an empty one.
+    expect(presented({ print: { orientation: 'landscape', header: ['', ''] } })).not.toContain('headerFooter');
+    expect(presented({ print: { orientation: 'landscape', header: [] } })).not.toContain('headerFooter');
+  });
+
+  test('a part short enough to fit gives its surplus budget to the others', () => {
+    const odd =
+      /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+        presented({ print: { orientation: 'landscape', header: ['Visa', 'D'.repeat(300)] } }),
+      )?.[1] ?? '';
+    const header = odd.replace(/&amp;/g, '&');
+    expect(header.length).toBeLessThanOrEqual(255);
+    expect(header).toContain('Visa');
+    // Visa needed 4 of its ~124 share, so the deal name should get far more than half.
+    expect((/D+/.exec(header)?.[0] ?? '').length).toBeGreaterThan(200);
+  });
+
   test('a header inside the limit is emitted whole', () => {
     const odd = /<oddHeader>(.*?)<\/oddHeader>/s.exec(
-      presented({ print: { orientation: 'landscape', header: 'Visa, Inc. — XC WAF-API' } }),
+      presented({ print: { orientation: 'landscape', header: ['Visa, Inc.', 'XC WAF-API'] } }),
     )?.[1];
     expect(odd).toBe('&amp;LVisa, Inc. — XC WAF-API&amp;R&amp;D');
   });
@@ -557,7 +593,7 @@ describe('buildWorkbook — presentation', () => {
             zoom: 75,
             freezeAtRow: 1,
             merges: ['B1:D1'],
-            print: { orientation: 'landscape', fitToWidth: true, header: 'Deal' },
+            print: { orientation: 'landscape', fitToWidth: true, header: ['Deal'] },
             rows: [
               { row: 1, cells: [{ ref: 'B1', value: 'Element', style: 'columnHeader' }] },
               { row: 2, cells: [{ ref: 'B2', value: 1, style: 'score' }] },

@@ -423,9 +423,12 @@ describe('planWorkbook — presentation', () => {
   });
 
   test('the print header names the deal, so a printout is identifiable', () => {
-    const header = plan.sheets[0].print?.header ?? '';
-    expect(header).toContain(String(deal.metadata.accountName));
-    expect(header).toContain(String(deal.metadata.dealName));
+    // Parts, so the writer can budget each one: a joined string lets a long account name crowd
+    // the deal name out entirely.
+    expect(plan.sheets[0].print?.header).toStrictEqual([
+      String(deal.metadata.accountName),
+      String(deal.metadata.dealName),
+    ]);
   });
 
   test('a title and every section banner span the form width', () => {

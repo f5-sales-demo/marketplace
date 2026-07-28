@@ -57,6 +57,12 @@ and this project adheres to
   269-character header. It is now truncated with an ellipsis, in whole encoded units so a cut can
   never split a `&&` pair and leave a dangling `&` to swallow what follows it.
 
+  And truncating the *joined* string was not good enough either — a third pass caught that. The parts
+  are ordered account-then-deal, so a 300-character account name consumed the whole budget and emitted
+  a header with no deal name in it, which makes every deal for that account print identically.
+  `PrintSetup.header` now takes parts and shares the budget across them, with a part that does not
+  need its share releasing the surplus to the ones that do.
+
   Verified against real Excel: the file opens with no repair prompt, and Excel confirms the merge, the
   preserved anchor value, the absence of any merge inside a table range, the hidden grid, and the
   landscape fit-to-width setup.

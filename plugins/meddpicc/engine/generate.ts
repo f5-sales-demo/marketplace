@@ -349,12 +349,15 @@ function derivedValue(
  * between this and a sheet somebody laid out by hand.
  */
 function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'> {
-  const account = readPath(deal, 'metadata.accountName');
-  const name = readPath(deal, 'metadata.dealName');
-  const header = [account, name].filter((p): p is string => typeof p === 'string' && p !== '').join(' — ');
+  // Parts, not one joined string: the writer shares Excel's 255-character header budget across
+  // them, so a very long account name cannot crowd the deal name out and leave every deal for
+  // that account printing identically.
+  const header = ['metadata.accountName', 'metadata.dealName']
+    .map((path) => readPath(deal, path))
+    .filter((part): part is string => typeof part === 'string' && part !== '');
   return {
     hideGridlines: true,
-    print: { orientation: 'landscape', fitToWidth: true, header: header || undefined },
+    print: { orientation: 'landscape', fitToWidth: true, header: header.length ? header : undefined },
   };
 }
 

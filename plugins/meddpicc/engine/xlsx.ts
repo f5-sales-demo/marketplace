@@ -357,8 +357,13 @@ export interface PrintSetup {
   orientation: 'landscape' | 'portrait';
   /** Squeeze the used width onto one page. Needs `fitToPage` on the sheet, which we emit. */
   fitToWidth?: boolean;
-  /** Left-hand header text. The date is added on the right. */
-  header?: string;
+  /**
+   * Left-hand header parts, joined with an em dash. The date is added on the right.
+   *
+   * Parts rather than one string so that a long first part cannot crowd out a later one: see
+   * {@link fitHeader}.
+   */
+  header?: string[];
 }
 
 export interface SheetSpec {
@@ -606,39 +611,79 @@ const HEADER_LIMIT = 255;
 /** The codes wrapped around the caller's text: left-align it, and put the date on the right. */
 const HEADER_CODES = '&L&R&D';
 
-/**
- * Encode a header, fitting it inside Excel's limit.
- *
- * Two things conspire here. A deal name has no length bound — nothing stops an account being
- * called something 200 characters long — and "&" has to be doubled because it opens a format
- * code, so an ampersand-heavy name grows on the way in: 200 of them encode to 400. Excel does
- * not complain about a header over the limit, it drops it, so a printout would come out
- * unidentified while generation reported success.
- *
- * Truncating is the right answer rather than refusing: the header is a convenience, the deal
- * name is not ours to shorten, and an ellipsis says plainly that there was more. Whole encoded
- * units only, so a truncation can never split a `&&` pair and leave a dangling `&` that would
- * swallow whatever follows it as a format code.
- */
-function fitHeader(text: string): string {
-  const budget = HEADER_LIMIT - HEADER_CODES.length;
-  const encode = (c: string) => (c === '&' ? '&&' : c);
-  const full = [...text].map(encode).join('');
-  if (full.length <= budget) return full;
+/** What joins the header parts, and counts against the budget like anything else. */
+const HEADER_SEPARATOR = ' — ';
+
+/** `&` opens a format code, so a literal one has to be doubled — and then costs two. */
+const encodeHeaderChar = (c: string) => (c === '&' ? '&&' : c);
+
+/** Encoded length, which is what Excel counts — not the source length. */
+function encodedLength(text: string): number {
+  let n = 0;
+  for (const ch of text) n += encodeHeaderChar(ch).length;
+  return n;
+}
+
+/** Encode up to `budget` characters, appending an ellipsis if anything was left behind. */
+function elide(text: string, budget: number): string {
+  if (encodedLength(text) <= budget) return [...text].map(encodeHeaderChar).join('');
   let out = '';
   for (const ch of text) {
-    const unit = encode(ch);
+    const unit = encodeHeaderChar(ch);
     if (out.length + unit.length > budget - 1) break; // one unit back for the ellipsis
     out += unit;
   }
   return `${out}…`;
 }
 
+/**
+ * Encode the header parts, fitting them inside Excel's limit with every part represented.
+ *
+ * Three things conspire. Nothing bounds a deal or account name. "&" doubles on the way in, so
+ * 200 ampersands encode to 400 characters. And Excel does not complain about a header past the
+ * limit — it drops it, so a printout comes out unidentified while generation reports success.
+ *
+ * Truncating beats refusing: the header is a convenience and the account name is not ours to
+ * shorten. But truncating the *joined* string is not good enough, because the parts are ordered
+ * account-then-deal and a 300-character account name would then consume the whole budget and
+ * emit a header with no deal name in it — so every deal for that account prints identically.
+ * Each part gets its own share instead, and a part that does not need its share releases the
+ * surplus to the ones that do.
+ */
+function fitHeader(parts: string[]): string {
+  const kept = parts.filter((p) => p !== '');
+  if (kept.length === 0) return '';
+  const budget = HEADER_LIMIT - HEADER_CODES.length - HEADER_SEPARATOR.length * (kept.length - 1);
+  if (budget < kept.length) return '';
+
+  // Redistribute in passes: each pass gives the parts still over their share the budget freed by
+  // the parts under it. It settles once nothing is under its share, at most one pass per part.
+  const shares = new Array(kept.length).fill(0);
+  let pool = budget;
+  let open = kept.map((_, i) => i);
+  while (open.length > 0 && pool > 0) {
+    const share = Math.floor(pool / open.length);
+    if (share === 0) break;
+    const settled = open.filter((i) => encodedLength(kept[i]) <= share);
+    if (settled.length === 0) {
+      for (const i of open) shares[i] = share;
+      break;
+    }
+    for (const i of settled) {
+      shares[i] = encodedLength(kept[i]);
+      pool -= shares[i];
+    }
+    open = open.filter((i) => !settled.includes(i));
+  }
+  return kept.map((part, i) => elide(part, shares[i])).join(HEADER_SEPARATOR);
+}
+
 function printXml(print: PrintSetup | undefined): string {
   if (!print) return '';
   const fit = print.fitToWidth ? ' fitToWidth="1" fitToHeight="0"' : '';
-  const header = print.header
-    ? `<headerFooter><oddHeader>&amp;L${escapeXml(fitHeader(print.header))}&amp;R&amp;D</oddHeader></headerFooter>`
+  const headerText = print.header?.length ? fitHeader(print.header) : '';
+  const header = headerText
+    ? `<headerFooter><oddHeader>&amp;L${escapeXml(headerText)}&amp;R&amp;D</oddHeader></headerFooter>`
     : '';
   return (
     `<printOptions horizontalCentered="1"/>` +
