@@ -108,37 +108,153 @@ describe('migrateDeal', () => {
     );
   });
 
-  test('both names present is a conflict, and nothing is thrown away to resolve it', () => {
-    // Picking a winner here would be the very thing this module exists to prevent: discarding a
-    // value the user cannot see. Only they know which of the two is right.
+  test('identical values on both sides resolve — there is nothing to weigh', () => {
+    const legacy = asLegacyDeal();
+    legacy.stakeholders[0].sentiment = legacy.stakeholders[0].viewOfF5;
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toEqual([]);
+    expect(shape(result.deal).stakeholders[0].sentiment).toBe(shape(asLegacyDeal()).stakeholders[0].viewOfF5);
+    expect(result.resolved.some((r) => r.includes('stakeholders[0]') && /identical/.test(r))).toBe(true);
+  });
+
+  test('an empty value on the current side resolves to the legacy one', () => {
+    const legacy = asLegacyDeal();
+    legacy.stakeholders[0].sentiment = '   ';
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toEqual([]);
+    expect(shape(result.deal).stakeholders[0].sentiment).toBe(shape(asLegacyDeal()).stakeholders[0].viewOfF5);
+    expect(result.resolved.length).toBeGreaterThan(0);
+  });
+
+  test('an empty legacy value resolves to the current one', () => {
+    const legacy = asLegacyDeal();
+    legacy.stakeholders[0].viewOfF5 = '';
+    legacy.stakeholders[0].sentiment = 'Negative';
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toEqual([]);
+    expect(shape(result.deal).stakeholders[0].sentiment).toBe('Negative');
+    expect(shape(result.deal).stakeholders[0].viewOfF5).toBeUndefined();
+  });
+
+  test('a partly hand-migrated subtree merges key by key, with nothing left to adjudicate', () => {
+    // The realistic case: someone added `threeWhys.us` by hand and left `threeWhys.f5` in place.
+    // Two keys exist on one side only and the third is identical, so none of it is ambiguous.
+    const legacy = asLegacyDeal();
+    const populated = { ...shape(legacy).threeWhys.f5 };
+    legacy.threeWhys.us = { whyNow: populated.whyNow };
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toEqual([]);
+    expect(shape(result.deal).threeWhys.f5).toBeUndefined();
+    expect(shape(result.deal).threeWhys.us).toEqual({
+      whyNow: populated.whyNow,
+      whyAnything: populated.whyAnything,
+      whyUs: populated.whyF5,
+    });
+  });
+
+  test('an object whose every answer is blank counts as empty', () => {
+    // A hand-added stub like `{whyNow: ""}` holds no answers, so the populated legacy subtree wins
+    // outright rather than being merged key by key against nothing.
+    const legacy = asLegacyDeal();
+    const populated = { ...shape(legacy).threeWhys.f5 };
+    legacy.threeWhys.us = { whyAnything: '', whyNow: '   ' };
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toEqual([]);
+    expect(shape(result.deal).threeWhys.us.whyAnything).toBe(populated.whyAnything);
+    expect(shape(result.deal).threeWhys.us.whyUs).toBe(populated.whyF5);
+    expect(shape(result.deal).threeWhys.us.whyNow).toBe(populated.whyNow);
+  });
+
+  test('two different non-empty values are still a conflict, and neither is touched', () => {
     const legacy = asLegacyDeal();
     legacy.stakeholders[0].sentiment = 'Negative';
     const result = migrateDeal(legacy);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0]).toContain('stakeholders[0].viewOfF5');
-    expect(result.conflicts[0]).toContain('stakeholders[0].sentiment');
-    // Both values are still there, untouched, for the user to adjudicate.
     expect(shape(result.deal).stakeholders[0].sentiment).toBe('Negative');
     expect(shape(result.deal).stakeholders[0].viewOfF5).toBe(shape(asLegacyDeal()).stakeholders[0].viewOfF5);
   });
 
-  test('a conflict on a renamed parent does not discard the whole subtree', () => {
-    // The worst case: `threeWhys.f5` is a populated object. Deleting it to make room for a
-    // half-filled `threeWhys.us` would lose every answer inside it at once.
+  test('0 and false are answers, not emptiness', () => {
+    // Treating them as empty would silently overwrite a deliberate zero score or a deliberate no.
     const legacy = asLegacyDeal();
-    const populated = shape(legacy).threeWhys.f5;
-    legacy.threeWhys.us = { whyNow: 'only this one filled in' };
+    legacy.metadata.revenue.pAndIplusAcvx = 0;
+    legacy.metadata.revenue.subscription = 150000;
     const result = migrateDeal(legacy);
     expect(result.conflicts).toHaveLength(1);
-    expect(shape(result.deal).threeWhys.f5).toEqual(populated);
-    expect(shape(result.deal).threeWhys.us).toEqual({ whyNow: 'only this one filled in' });
+    expect(shape(result.deal).metadata.revenue.pAndIplusAcvx).toBe(0);
+    expect(shape(result.deal).metadata.revenue.subscription).toBe(150000);
   });
 
-  test('a conflict still counts as legacy, so callers keep refusing the file', () => {
+  test('two non-empty lists are never merged — that would invent people', () => {
+    // Concatenating would duplicate whoever appears in both, and no order is defensible.
+    const legacy = asLegacyDeal();
+    legacy.team.internal = [{ name: '<HISTORICAL_IDENTITY_D73DFF7C7A>', role: 'AE' }];
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toHaveLength(1);
+    expect(shape(result.deal).team.internal).toEqual([{ name: '<HISTORICAL_IDENTITY_D73DFF7C7A>', role: 'AE' }]);
+    expect(shape(result.deal).team.f5).toEqual(shape(asLegacyDeal()).team.f5);
+  });
+
+  test('an empty list on one side does resolve', () => {
     const legacy = asLegacyDeal();
     legacy.team.internal = [];
     const result = migrateDeal(legacy);
-    expect(result.conflicts.length).toBeGreaterThan(0);
+    expect(result.conflicts).toEqual([]);
+    expect(shape(result.deal).team.internal).toEqual(shape(asLegacyDeal()).team.f5);
+  });
+
+  test('a subtree with one conflicting leaf leaves BOTH sides alone', () => {
+    // A half-merged object is the worst outcome: it looks migrated, and the disagreement that
+    // stopped it is now buried inside instead of being reported.
+    const legacy = asLegacyDeal();
+    const populated = { ...shape(legacy).threeWhys.f5 };
+    legacy.threeWhys.us = { whyNow: 'a different answer entirely' };
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toContain('whyNow');
+    expect(shape(result.deal).threeWhys.f5).toEqual(populated);
+    expect(shape(result.deal).threeWhys.us).toEqual({ whyNow: 'a different answer entirely' });
+  });
+
+  test('every resolution is reported, so nothing is dropped without saying so', () => {
+    const legacy = asLegacyDeal();
+    legacy.stakeholders[0].sentiment = legacy.stakeholders[0].viewOfF5;
+    legacy.stakeholders[1].sentiment = '';
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toEqual([]);
+    expect(result.resolved).toHaveLength(2);
+    for (const line of result.resolved) expect(line).toMatch(/stakeholders\[[01]\]/);
+  });
+
+  test('a legacy key present ALWAYS produces a report — that is what makes callers refuse', () => {
+    // The invariant the refusal depends on. Merging correctly in memory while reporting nothing
+    // makes `refuseLegacyDeal` accept the file, so the workbook goes on ignoring the legacy value:
+    // the exact silent loss this module exists to prevent, reached by the code meant to prevent it.
+    for (const deal of [
+      { threeWhys: { f5: { whyAnything: 'legacy answer' }, us: {} } },
+      { threeWhys: { f5: { whyAnything: 'a' }, us: { whyNow: 'b' } } },
+      { threeWhys: { f5: {}, us: { whyNow: 'b' } } },
+      { team: { f5: [{ name: 'A' }], internal: [] } },
+    ]) {
+      const result = migrateDeal(deal);
+      const reported = result.changes.length + result.resolved.length + result.conflicts.length;
+      expect(reported).toBeGreaterThan(0);
+    }
+  });
+
+  test('each key taken from the legacy side is named', () => {
+    const result = migrateDeal({ threeWhys: { f5: { whyAnything: 'a' }, us: { whyNow: 'b' } } });
+    expect(result.conflicts).toEqual([]);
+    expect(result.resolved.some((r) => r.includes('threeWhys.f5.whyAnything'))).toBe(true);
+    expect(shape(result.deal).threeWhys.us).toEqual({ whyNow: 'b', whyAnything: 'a' });
+  });
+
+  test('a legacy key that held nothing is still reported before being removed', () => {
+    const result = migrateDeal({ threeWhys: { f5: {}, us: { whyNow: 'b' } } });
+    expect(result.resolved).toHaveLength(1);
+    expect(result.resolved[0]).toContain('threeWhys.f5');
+    expect(shape(result.deal).threeWhys.f5).toBeUndefined();
   });
 
   test('migrating twice changes nothing the second time', () => {

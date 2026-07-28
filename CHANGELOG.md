@@ -10,6 +10,49 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v4.1.0 — `migrate` now settles the conflicts that were never actually ambiguous.
+
+  v4.0.0 refused whenever a field was set under both its old and its new name, on the grounds that
+  only a human knows which value is right. True for a genuine disagreement, needlessly obstructive
+  for everything else — and everything else is the common case. The realistic conflict is a partial
+  hand-edit: someone adds the new field and leaves the old one. Measured on the example deal, that
+  case has **no ambiguous field at all** — two keys exist on one side only and the third is
+  identical — and the previous version refused the whole subtree and made the user merge it by hand.
+
+  The rule that makes settling it safe: **resolve only when the value being dropped carries no
+  information the kept value lacks.**
+
+  | case | resolution |
+  | --- | --- |
+  | the values are deep-equal | keep either — nothing is lost |
+  | the legacy value is empty | keep the current one |
+  | the current value is empty | move the legacy one across |
+  | both are objects | merge key by key, recursing with these same rules |
+  | both non-empty and different | still a **conflict**, still refused |
+
+  `0` and `false` are not empty: a zero score and a "no" are answers, and treating them as absence
+  would overwrite them with whatever the other side held. **Lists are never merged** — two non-empty
+  team lists cannot be combined without inventing which entries are the same person and what order
+  they belong in, so concatenating them would silently duplicate people.
+
+  **Nothing is settled silently.** Every resolution is reported with its path and the reason it was
+  safe, separately from plain renames, so an applied migration can be audited line by line. And
+  merging stays atomic per field: if any leaf inside an object conflicts, neither side is touched
+  and the conflicting leaf is named — a half-merged subtree would look migrated while burying the
+  disagreement that stopped it.
+
+  **Every value that moves is reported, and that is load-bearing.** Callers decide whether a deal
+  needs migrating by asking whether anything was reported, so a settlement that changed the deal
+  while saying nothing would tell them the file was already current — and its legacy values would go
+  on being ignored. Reaching that failure from inside the code written to prevent it is exactly what
+  happened during this change: `isEmpty` had also treated a recursively-blank object as empty, and
+  mutation testing said that branch was unobservable, so I removed it. It was unobservable in the
+  merged *values* and not in the *reports* — with `{}` now falling to the merge, a disjoint key was
+  copied across with no line against it, and `validate` accepted the unmigrated file. Found by the
+  review. Fixed at the root: every key taken from the legacy side is named, and a settled field
+  always emits at least one line, so "a legacy key was removed" and "something was reported" cannot
+  come apart.
+
 - **`meddpicc`** v4.0.0 — **breaking: the plugin names no vendor.** MEDDPICC is an industry-standard
   framework and this repository is public, so the schema, the workbook and the skills no longer
   carry one company's names. `engine/cli.ts migrate <deal.json> --apply` moves an existing deal
