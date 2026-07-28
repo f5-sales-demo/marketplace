@@ -42,10 +42,16 @@ and this project adheres to
   validates. Two things that fixed themselves in the writing: filling only the name produced a deal
   that does not validate — a stakeholder needs a title and a role — and the UAT's own failure handler
   closed only the first workbook, so a mid-script failure left Excel holding a stale one and the next
-  run read the Scorecard out of it and blamed the code. It now closes every workbook, waits until a
-  known cell reads back before writing, and **verifies each write instead of discarding the
-  AppleScript's errors** — which is what had made the round-trip block fail about one run in three.
-  Three consecutive runs, seven blocks each, green.
+  run read the Scorecard out of it and blamed the code. It now closes its own workbooks by name,
+  waits until a known cell reads back before writing, and **verifies each write instead of discarding
+  the AppleScript's errors** — which is what had made the round-trip block fail about one run in
+  three. Three consecutive runs, seven blocks each, green.
+
+  The review caught the dangerous version of that cleanup: my first fix closed *every* open workbook
+  with `saving no`, which on the machine that runs this would have discarded unsaved changes in the
+  operator's own spreadsheets. A test has no business touching a document it did not create, so it
+  closes only the four names it ever produces, each wrapped so an absent one is a no-op. Verified by
+  leaving an unrelated workbook open across a full run and confirming it survived.
 
 - **`meddpicc`** v4.1.0 — `migrate` now settles the conflicts that were never actually ambiguous.
 

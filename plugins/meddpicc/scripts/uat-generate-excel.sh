@@ -29,30 +29,39 @@ command -v bun >/dev/null 2>&1 || skip "bun unavailable"
 command -v osascript >/dev/null 2>&1 || skip "not macOS (no osascript)"
 [ -d "/Applications/Microsoft Excel.app" ] || skip "Microsoft Excel is not installed"
 
-# Close EVERY workbook, not just the first one this script opened. A failure part-way through used
-# to leave a later workbook open, and the next run then read the Scorecard out of the stale one and
-# reported an empty rating — a confusing failure with nothing to do with the code under test.
-close_all_workbooks() {
-  osascript >/dev/null 2>&1 <<'OSA'
+# Every workbook this script can open, by the name Excel knows it as. Closing is BY NAME and never
+# "every workbook": the operator has their own spreadsheets open, `saving no` discards unsaved
+# changes, and a test has no business touching a document it did not create. These four names are
+# ours — they are basenames of files under this run's temp directory — so a stale one left by an
+# earlier failed run is safe to close, which is the point.
+OUR_WORKBOOKS=(uat-deal.xlsx rt.xlsx grown.xlsx uat-partial.xlsx)
+
+close_our_workbooks() {
+  local book
+  for book in "${OUR_WORKBOOKS[@]}"; do
+    osascript >/dev/null 2>&1 <<OSA
 tell application "Microsoft Excel"
   set display alerts to false
-  repeat with wb in (get every workbook)
-    close wb saving no
-  end repeat
+  try
+    close workbook "$book" saving no
+  end try
   set display alerts to true
 end tell
 OSA
+  done
 }
 
+# A failure part-way through used to leave a LATER workbook open — the handler closed only the first
+# one — and the next run then read the Scorecard out of the stale copy and reported an empty rating,
+# blaming the code under test for Excel's state.
 fail() {
   echo "FAIL: $1" >&2
-  close_all_workbooks
+  close_our_workbooks
   exit 1
 }
 
-# Start from a clean slate for the same reason: a workbook left open by anything else is a workbook
-# this script might read by mistake.
-close_all_workbooks
+# Start from a clean slate for the same reason, still only among our own names.
+close_our_workbooks
 
 # Appearing in `get name of every workbook` means Excel has ACCEPTED the file, not that it has
 # finished with it. Writing too early fails silently, and the symptom is a later assertion reporting
