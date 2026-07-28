@@ -116,9 +116,9 @@
         },
         {
           "kind": "field",
-          "id": "revenuePandI",
-          "label": "P&I + ACVx",
-          "jsonPath": "metadata.revenue.pAndIplusAcvx",
+          "id": "revenueSubscription",
+          "label": "Subscription",
+          "jsonPath": "metadata.revenue.subscription",
           "valueType": "currency"
         },
         {
@@ -146,7 +146,7 @@
           "kind": "computed",
           "id": "revenueTotal",
           "label": "Total booked value",
-          "formula": "{{ref:revenuePandI}}+{{ref:revenueHardware}}+{{ref:revenueSoftware}}",
+          "formula": "{{ref:revenueSubscription}}+{{ref:revenueHardware}}+{{ref:revenueSoftware}}",
           "valueType": "currency"
         },
         {
@@ -210,21 +210,21 @@
         },
         {
           "kind": "section",
-          "text": "Three Whys \u2014 F5"
+          "text": "Three Whys \u2014 Us"
         },
         {
           "kind": "field",
           "id": "whyAnything",
           "label": "Why anything?",
-          "jsonPath": "threeWhys.f5.whyAnything",
+          "jsonPath": "threeWhys.us.whyAnything",
           "valueType": "text",
           "height": 44
         },
         {
           "kind": "field",
-          "id": "whyF5",
-          "label": "Why F5?",
-          "jsonPath": "threeWhys.f5.whyF5",
+          "id": "whyUs",
+          "label": "Why us?",
+          "jsonPath": "threeWhys.us.whyUs",
           "valueType": "text",
           "height": 44
         },
@@ -232,7 +232,7 @@
           "kind": "field",
           "id": "whyNow",
           "label": "Why now?",
-          "jsonPath": "threeWhys.f5.whyNow",
+          "jsonPath": "threeWhys.us.whyNow",
           "valueType": "text",
           "height": 44
         },
@@ -534,19 +534,19 @@
               "width": 56
             },
             {
-              "id": "viewOfF5",
-              "header": "View of F5",
+              "id": "sentiment",
+              "header": "Sentiment",
               "role": "input",
-              "jsonPath": "viewOfF5",
+              "jsonPath": "sentiment",
               "valueType": "string",
               "width": 14,
               "validate": true
             },
             {
-              "id": "f5Owner",
-              "header": "F5 owner",
+              "id": "relationshipOwner",
+              "header": "Relationship owner",
               "role": "input",
-              "jsonPath": "f5Owner",
+              "jsonPath": "relationshipOwner",
               "valueType": "string",
               "width": 22
             }
@@ -654,10 +654,10 @@
       "kind": "table",
       "tables": [
         {
-          "id": "teamF5",
+          "id": "teamInternal",
           "source": {
             "kind": "list",
-            "jsonPath": "team.f5"
+            "jsonPath": "team.internal"
           },
           "anchorColumn": 1,
           "headerRow": 1,
@@ -964,14 +964,14 @@
           "kind": "computed",
           "id": "sentimentUnknown",
           "label": "Sentiment unknown",
-          "formula": "COUNTIF({{col:stakeholders.viewOfF5}},\"Unknown\")",
+          "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Unknown\")",
           "valueType": "number"
         },
         {
           "kind": "computed",
           "id": "sentimentNegative",
           "label": "Sentiment negative",
-          "formula": "COUNTIF({{col:stakeholders.viewOfF5}},\"Negative\")",
+          "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Negative\")",
           "valueType": "number"
         },
         {
@@ -1018,16 +1018,16 @@
         },
         {
           "kind": "computed",
-          "id": "teamF5Count",
-          "label": "F5 team members",
-          "formula": "COUNTA({{col:teamF5.name}})",
+          "id": "teamInternalCount",
+          "label": "Internal team members",
+          "formula": "COUNTA({{col:teamInternal.name}})",
           "valueType": "number"
         },
         {
           "kind": "computed",
-          "id": "teamF5Assigned",
-          "label": "F5 assigned to deal",
-          "formula": "COUNTIF({{col:teamF5.assignedToDeal}},TRUE)",
+          "id": "teamInternalAssigned",
+          "label": "Internal team assigned",
+          "formula": "COUNTIF({{col:teamInternal.assignedToDeal}},TRUE)",
           "valueType": "number"
         },
         {

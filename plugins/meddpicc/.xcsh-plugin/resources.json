@@ -6,6 +6,6 @@
   "engine": {
     "runtime": "bun",
     "entry": "engine/cli.ts",
-    "commands": ["validate", "next", "score", "hint", "check-sfdc", "check-spec", "generate", "read"]
+    "commands": ["validate", "next", "score", "hint", "check-sfdc", "check-spec", "generate", "read", "migrate"]
   }
 }

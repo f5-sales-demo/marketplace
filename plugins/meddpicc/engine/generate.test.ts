@@ -66,7 +66,7 @@ describe('planWorkbook — form layout', () => {
       .filter((c) => c.ref.startsWith('A'))
       .map((c) => c.value);
     expect(labels).toContain('Revenue');
-    expect(labels).toContain('Three Whys — F5');
+    expect(labels).toContain('Three Whys — Us');
   });
 
   test('rows are unique and ascending — nothing lands on top of anything else', () => {
@@ -161,14 +161,14 @@ describe('planWorkbook — collections are not capped', () => {
   test('a team larger than the legacy sheet formatted still fits', () => {
     // The F5 template formats 8 team rows and silently drops the rest.
     const big = JSON.parse(JSON.stringify(deal));
-    big.team.f5 = Array.from({ length: 14 }, (_, i) => ({ name: `Person ${i + 1}`, role: 'SE' }));
+    big.team.internal = Array.from({ length: 14 }, (_, i) => ({ name: `Person ${i + 1}`, role: 'SE' }));
     const p = planWorkbook(schema, spec, big);
     const team = p.sheets.find((s) => s.name === 'Team');
     const written = Array.from(
       { length: 14 },
       (_, i) => team?.rows.find((r) => r.row === i + 2)?.cells.find((c) => c.ref === `A${i + 2}`)?.value,
     );
-    expect(written).toEqual(big.team.f5.map((m: { name: string }) => m.name));
+    expect(written).toEqual(big.team.internal.map((m: { name: string }) => m.name));
   });
 
   test('an empty collection still leaves the header and the blank rows the spec asks for', () => {

@@ -415,7 +415,7 @@ describe('checkWorkbookSpec — identity and layout', () => {
     if (sh.kind !== 'table') throw new Error('fixture drift');
     sh.tables.push({
       id: 'second',
-      source: { kind: 'list', jsonPath: 'team.f5' },
+      source: { kind: 'list', jsonPath: 'team.internal' },
       anchorColumn: 2,
       headerRow: 1,
       columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string' }],
@@ -430,7 +430,7 @@ describe('checkWorkbookSpec — identity and layout', () => {
     if (sh.kind !== 'table') throw new Error('fixture drift');
     sh.tables.push({
       id: 'second',
-      source: { kind: 'list', jsonPath: 'team.f5' },
+      source: { kind: 'list', jsonPath: 'team.internal' },
       anchorColumn: 4,
       headerRow: 1,
       columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string' }],
@@ -471,7 +471,7 @@ describe('the shipped workbook-spec.json', () => {
       'stakeholders',
       'closePlan.milestones',
       'closePlan.criticalActions',
-      'team.f5',
+      'team.internal',
       'team.partner',
     ]) {
       expect(tableSources).toContain(collection);

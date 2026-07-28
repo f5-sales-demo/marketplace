@@ -9,14 +9,14 @@
     "winProbability": 0.5,
     "forecastStage": "Best Case",
     "revenue": {
-      "pAndIplusAcvx": 150000,
+      "subscription": 150000,
       "hardware": 0,
       "software": 85000,
       "acv": 85000
     },
     "lastClientInteraction": {
       "date": "2026-05-01",
-      "outcome": "Validated decision criteria with CTO — F5 ranked #1 on security and API protection"
+      "outcome": "Validated decision criteria with CTO — we ranked #1 on security and API protection"
     },
     "nextClientInteraction": {
       "date": "2026-05-12",
@@ -102,7 +102,7 @@
         "3": "Differentiated — Written criteria with priority ranking; competitive position mapped per criterion",
         "4": "Locked — Criteria influenced toward our strengths; key stakeholders aligned"
       },
-      "evidence": "Evaluation matrix shared by CTO 2026-04-22. F5 ranked #1 on security and API protection, #2 on multi-cloud.",
+      "evidence": "Evaluation matrix shared by CTO 2026-04-22. We ranked #1 on security and API protection, #2 on multi-cloud.",
       "notes": ""
     },
     "decisionProcess": {
@@ -191,7 +191,7 @@
       ],
       "responses": [
         "Vendor A (primary) — leading on price, positioning as simpler to deploy. Vendor B (secondary) — incumbent for CDN, trying to upsell API security.",
-        "Vendor A: strong brand, lower price point, but lacks F5's depth on API discovery and Kubernetes-native integration. Vendor B: existing relationship but their API security product is immature."
+        "Vendor A: strong brand, lower price point, but lacks our depth on API discovery and Kubernetes-native integration. Vendor B: existing relationship but their API security product is immature."
       ],
       "score": 2,
       "scoreDefinition": {
@@ -202,19 +202,19 @@
         "4": "Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer"
       },
       "evidence": "Champion shared Vendor A quote. CTO mentioned Vendor B in initial call. No formal competitive proof test done yet.",
-      "notes": "Need customer's perception of Vendor A vs F5 on key criteria. Plan competitive demo for week of May 19."
+      "notes": "Need customer's perception of Vendor A versus us on key criteria. Plan competitive demo for week of May 19."
     }
   },
   "threeWhys": {
-    "f5": {
+    "us": {
       "whyAnything": "3 API security incidents in Q1 cost $400K in SLA penalties; board mandated a fix by Q3; regulatory audit in September requires documented controls",
-      "whyF5": "Only vendor with unified app + API security that integrates natively with their Kubernetes platform; deepest API discovery and threat detection",
+      "whyUs": "Only vendor with unified app + API security that integrates natively with their Kubernetes platform; deepest API discovery and threat detection",
       "whyNow": "Board mandate deadline is Q3 2026; regulatory audit in September; every month of delay is another month of exposure to SLA penalties"
     },
     "partner": {
       "name": "PartnerCo",
       "whyAnything": "Acme needs implementation support — their platform team is at capacity with the Kubernetes migration",
-      "whyThisPartner": "PartnerCo has 3 certified F5 engineers and prior Acme relationship from the load balancer deployment",
+      "whyThisPartner": "PartnerCo has 3 certified engineers on our stack and prior Acme relationship from the load balancer deployment",
       "whyNow": "PartnerCo has a team available in June; if we wait, they're committed to another project through Q4"
     }
   },
@@ -225,9 +225,9 @@
       "roleInDeal": "Economic buyer",
       "mustSayYes": true,
       "canSayNo": true,
-      "whatTheyNeedToBelieve": "F5 will reduce security incidents by 60% within 6 months and the TCO stays under $100K/yr",
-      "viewOfF5": "Positive",
-      "f5Owner": "Jane Smith"
+      "whatTheyNeedToBelieve": "We will reduce security incidents by 60% within 6 months and the TCO stays under $100K/yr",
+      "sentiment": "Positive",
+      "relationshipOwner": "Jane Smith"
     },
     {
       "name": "David Park",
@@ -235,9 +235,9 @@
       "roleInDeal": "Decision maker",
       "mustSayYes": true,
       "canSayNo": true,
-      "whatTheyNeedToBelieve": "F5 integrates with existing Kubernetes platform without migration risk and passes architecture review",
-      "viewOfF5": "Positive",
-      "f5Owner": "Bob Johnson"
+      "whatTheyNeedToBelieve": "Our platform integrates with their existing Kubernetes platform without migration risk and passes architecture review",
+      "sentiment": "Positive",
+      "relationshipOwner": "Bob Johnson"
     },
     {
       "name": "Mike Torres",
@@ -245,9 +245,9 @@
       "roleInDeal": "Influencer",
       "mustSayYes": false,
       "canSayNo": false,
-      "whatTheyNeedToBelieve": "F5 makes his team more productive and helps him hit the MTTR target that gets him headcount",
-      "viewOfF5": "Positive",
-      "f5Owner": "Jane Smith"
+      "whatTheyNeedToBelieve": "Our platform makes his team more productive and helps him hit the MTTR target that gets him headcount",
+      "sentiment": "Positive",
+      "relationshipOwner": "Jane Smith"
     },
     {
       "name": "Lisa Wang",
@@ -255,13 +255,13 @@
       "roleInDeal": "Influencer",
       "mustSayYes": false,
       "canSayNo": true,
-      "whatTheyNeedToBelieve": "F5 meets SOC2 and regulatory requirements without creating new compliance gaps",
-      "viewOfF5": "Neutral",
-      "f5Owner": "Bob Johnson"
+      "whatTheyNeedToBelieve": "Our platform meets SOC2 and regulatory requirements without creating new compliance gaps",
+      "sentiment": "Neutral",
+      "relationshipOwner": "Bob Johnson"
     }
   ],
   "salesStrategy": {
-    "differentiatedValueProposition": "F5 is the only vendor that provides unified application and API security with native Kubernetes integration — eliminating the need to deploy separate tools for north-south and east-west API protection. This directly addresses Acme's MTTR target by providing a single pane of glass for API discovery, threat detection, and incident response across all 3 data centers.",
+    "differentiatedValueProposition": "We are the only vendor that provides unified application and API security with native Kubernetes integration — eliminating the need to deploy separate tools for north-south and east-west API protection. This directly addresses Acme's MTTR target by providing a single pane of glass for API discovery, threat detection, and incident response across all 3 data centers.",
     "winStrategy": "Lead with the pain: $400K SLA penalties and board mandate create urgency. Differentiate on Kubernetes-native integration (Vendor A can't match this). Use the POC to prove MTTR improvement quantitatively. Get EB alignment on business case before architecture review board. Neutralize Vendor A's price advantage by quantifying the cost of deploying and managing a separate API discovery tool."
   },
   "closePlan": {
@@ -314,7 +314,7 @@
     ]
   },
   "team": {
-    "f5": [
+    "internal": [
       { "name": "Jane Smith", "role": "Account Executive", "dateRequiredFrom": "2026-03-01", "assignedToDeal": true },
       { "name": "Bob Johnson", "role": "Solutions Engineer", "dateRequiredFrom": "2026-04-01", "assignedToDeal": true },
       { "name": "Amy Chen", "role": "CSM", "dateRequiredFrom": "2026-06-15", "assignedToDeal": false }

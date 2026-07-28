@@ -19,7 +19,7 @@
         },
         "accountTeam": {
           "type": "string",
-          "description": "The account team owning the relationship (the sellers), e.g. \"Randy Dotson and Tyler Brown\". Distinct from `team.f5`, which is the specialist bench assigned to the deal."
+          "description": "The account team owning the relationship (the sellers), e.g. \"Randy Dotson and Tyler Brown\". Distinct from `team.internal`, which is the specialist bench assigned to the deal."
         },
         "dealName": {
           "type": "string",
@@ -54,7 +54,7 @@
           "type": "object",
           "description": "Revenue breakdown in dollars",
           "properties": {
-            "pAndIplusAcvx": { "type": "number", "default": 0, "description": "P&I + ACVx revenue" },
+            "subscription": { "type": "number", "default": 0, "description": "Subscription revenue" },
             "hardware": { "type": "number", "default": 0, "description": "Hardware revenue" },
             "software": { "type": "number", "default": 0, "description": "Software revenue" },
             "acv": { "type": "number", "default": 0, "description": "Annual Contract Value" }
@@ -300,16 +300,16 @@
     },
     "threeWhys": {
       "type": "object",
-      "description": "F5-specific: Why Anything, Why Us, Why Now — for both F5 and the partner",
+      "description": "The Three Whys — Why Anything, Why Us, Why Now — for your own company and for the partner",
       "properties": {
-        "f5": {
+        "us": {
           "type": "object",
           "properties": {
             "whyAnything": {
               "type": "string",
               "description": "Why does the client need to change from the status quo?"
             },
-            "whyF5": { "type": "string", "description": "Why is F5 the right choice over alternatives?" },
+            "whyUs": { "type": "string", "description": "Why are you the right choice over the alternatives?" },
             "whyNow": { "type": "string", "description": "Why must this happen on the current timeline?" }
           }
         },
@@ -343,14 +343,14 @@
             "type": "string",
             "description": "What this person needs to believe to say yes to the deal"
           },
-          "viewOfF5": {
+          "sentiment": {
             "type": "string",
             "enum": ["Positive", "Negative", "Neutral", "Unknown"],
-            "description": "Current sentiment toward F5"
+            "description": "Current sentiment toward you"
           },
-          "f5Owner": {
+          "relationshipOwner": {
             "type": "string",
-            "description": "F5 team member responsible for this relationship"
+            "description": "Team member responsible for this relationship"
           }
         },
         "required": ["name", "title", "roleInDeal"]
@@ -403,9 +403,9 @@
     },
     "team": {
       "type": "object",
-      "description": "F5 and partner team members assigned to the deal",
+      "description": "Internal and partner team members assigned to the deal",
       "properties": {
-        "f5": {
+        "internal": {
           "type": "array",
           "items": {
             "type": "object",

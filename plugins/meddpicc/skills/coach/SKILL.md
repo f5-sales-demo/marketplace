@@ -64,7 +64,7 @@ When coaching on MEDDPICC:
 ### For general methodology questions
 
 - Explain the relevant element(s) with concrete examples
-- Tie guidance to the F5 Distributed Cloud sales context when possible
+- Tie guidance to the seller's own product and market context when the deal data makes it clear
 - Reference the appropriate reference file for deeper detail
 
 ### For deal-specific coaching

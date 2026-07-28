@@ -117,11 +117,11 @@ Deals are stored as JSON files conforming to the [MEDDPICC schema](schema/meddpi
 
 - **Metadata** — deal identification, stage, financials, client interactions, Salesforce integration, completion tracking
 - **Qualification** — all 8 MEDDPICC elements with definitions, questions, responses, scores, score definitions, evidence, and notes
-- **Three Whys** — Why Anything, Why F5, Why Now (for both F5 and partner)
-- **Stakeholders** — name, title, role in deal, veto power, beliefs needed, sentiment, F5 owner
+- **Three Whys** — Why Anything, Why Us, Why Now (for both your own company and the partner)
+- **Stakeholders** — name, title, role in deal, veto power, beliefs needed, sentiment, relationship owner
 - **Sales Strategy** — differentiated value proposition and win strategy
 - **Close Plan** — milestones and critical actions with dates and owners
-- **Team** — F5 and partner team members assigned to the deal
+- **Team** — internal and partner team members assigned to the deal
 - **Scoring** — element scores, previous scores (for deltas), overall score, and rating
 
 ### File naming
@@ -205,7 +205,7 @@ The AI extracts MEDDPICC signals, presents a proposed update diff with score rec
 /meddpicc:update-deal Acme Corp
 FW: RE: API Gateway eval - internal update
 Hey John, wanted to give you a heads up. The architecture review
-board approved F5 for the shortlist. Vendor A pricing came in at
+board approved us for the shortlist. Vendor A pricing came in at
 $85K/yr vs your $120K. Legal confirmed their standard review takes
 3 weeks. Talk soon, Barney
 ```
