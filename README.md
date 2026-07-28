@@ -22,7 +22,6 @@
 
 AI-powered marketplace for F5 Distributed Cloud solutions
 
-
 ## Documentation
 
 Full documentation is available at **[https://f5-sales-demo.github.io/marketplace/](https://f5-sales-demo.github.io/marketplace/)**.
