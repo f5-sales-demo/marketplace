@@ -191,6 +191,129 @@ echo "PASS: keyed references follow the key, so sorting the table cannot mislabe
 
 osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
 
+# Stage 3: the round trip, through a real save.
+#
+# This is the only check that can catch what Excel does to the file on the way out. The
+# generator writes every string inline (`t="inlineStr"`); Excel re-saves the same text through
+# `sharedStrings.xml` as `t="s"`. A reader that understands only its own output passes every
+# unit test and then finds nothing in the one file that matters — the one a person edited.
+#
+# Two separate claims, in order:
+#   1. Open and save WITHOUT editing anything, and the reader must still propose nothing.
+#      Any proposal here is the reader misreading Excel's own format, not a human's edit.
+#   2. Edit four cells of four different types, save, and each edit comes back exactly.
+command -v jq >/dev/null 2>&1 || skip "jq unavailable for the round-trip case"
+
+RT_DEAL="$WORK/rt-deal.json"
+RT_OUT="$WORK/rt.xlsx"
+RT_BOOK="$(basename "$RT_OUT")"
+cp "$DEAL" "$RT_DEAL" || fail "could not copy the deal"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$RT_DEAL" --out "$RT_OUT" >/dev/null || fail "generate failed for the round trip"
+
+# Ask the plan where each field landed. Hard-coding an address here would make this pass while
+# reading the wrong cell, which is the entire failure mode the inputCells map exists to prevent.
+rt_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$RT_DEAL" --plan)" || fail "generate --plan failed"
+at() {
+  jq -r --arg p "$1" --arg f "$2" '(.inputCells[] | select(.jsonPath == $p) | .[$f]) // "MISSING"' <<<"$rt_plan"
+}
+for field in metadata.accountName qualification.champion.score metadata.closeDate stakeholders[0].mustSayYes; do
+  [ "$(at "$field" address)" != "MISSING" ] || fail "the plan has no input cell for $field"
+done
+
+echo "==> opening the round-trip workbook in Excel"
+open -a "Microsoft Excel" "$RT_OUT" || fail "could not open the round-trip workbook"
+for _ in $(seq 1 30); do
+  if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$RT_BOOK"; then
+    rt_opened=1
+    break
+  fi
+  sleep 2
+done
+[ "${rt_opened:-0}" = "1" ] || fail "Excel never listed $RT_BOOK"
+
+# Claim 1: a save with no edits at all.
+osascript <<OSA >/dev/null 2>&1
+tell application "Microsoft Excel"
+  set display alerts to false
+  save workbook "$RT_BOOK"
+  close workbook "$RT_BOOK" saving no
+  set display alerts to true
+end tell
+OSA
+untouched="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")"
+rt_code=$?
+untouched_count="$(jq -r '.proposals | length' <<<"$untouched")"
+untouched_rejects="$(jq -r '.rejections | length' <<<"$untouched")"
+echo "    after Excel saved it untouched: $untouched_count proposal(s), $untouched_rejects rejection(s)"
+[ "$rt_code" = "0" ] || fail "read exited $rt_code on a workbook Excel had merely saved"
+[ "$untouched_count" = "0" ] || fail "Excel's own save produced $untouched_count phantom proposal(s): $(jq -c '.proposals' <<<"$untouched")"
+[ "$untouched_rejects" = "0" ] || fail "Excel's own save produced rejections: $(jq -c '.rejections' <<<"$untouched")"
+echo "PASS: a save by Excel does not read as an edit"
+
+# Claim 2: four edits, four types — a string, a 0-4 score, a date typed as text, a boolean.
+echo "==> editing four cells in Excel and saving"
+open -a "Microsoft Excel" "$RT_OUT" || fail "could not reopen the round-trip workbook"
+for _ in $(seq 1 30); do
+  if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$RT_BOOK"; then
+    break
+  fi
+  sleep 2
+done
+
+# `range`, not `cell`: reads work through either, but a write through `cell` fails.
+osascript <<OSA >/dev/null 2>&1
+tell application "Microsoft Excel"
+  set display alerts to false
+  set wb to workbook "$RT_BOOK"
+  set value of range "$(at metadata.accountName address)" of worksheet "$(at metadata.accountName sheet)" of wb to "Globex Corporation"
+  set value of range "$(at qualification.champion.score address)" of worksheet "$(at qualification.champion.score sheet)" of wb to 2
+  set value of range "$(at metadata.closeDate address)" of worksheet "$(at metadata.closeDate sheet)" of wb to "2026-09-15"
+  set value of range "$(at 'stakeholders[0].mustSayYes' address)" of worksheet "$(at 'stakeholders[0].mustSayYes' sheet)" of wb to false
+  save wb
+  close wb saving no
+  set display alerts to true
+end tell
+OSA
+
+edited="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")"
+edited_code=$?
+echo "    proposals: $(jq -c '[.proposals[] | {jsonPath, to}]' <<<"$edited")"
+[ "$edited_code" = "0" ] || fail "read exited $edited_code after four hand edits: $(jq -c '.rejections' <<<"$edited")"
+[ "$(jq -r '.rejections | length' <<<"$edited")" = "0" ] || fail "hand edits were rejected: $(jq -c '.rejections' <<<"$edited")"
+
+proposed() {
+  jq -r --arg p "$1" '(.proposals[] | select(.jsonPath == $p) | .to | tostring) // "MISSING"' <<<"$edited"
+}
+for pair in \
+  "metadata.accountName=Globex Corporation" \
+  "qualification.champion.score=2" \
+  "metadata.closeDate=2026-09-15" \
+  "stakeholders[0].mustSayYes=false"; do
+  want="${pair#*=}"
+  got="$(proposed "${pair%%=*}")"
+  echo "    ${pair%%=*}: Excel proposed [$got], expected [$want]"
+  [ "$got" = "$want" ] || fail "${pair%%=*} came back as '$got', expected '$want'"
+done
+[ "$(jq -r '.proposals | length' <<<"$edited")" = "4" ] || fail "expected exactly 4 proposals, got $(jq -r '.proposals | length' <<<"$edited")"
+
+# And applying them lands a deal that still validates.
+bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL" --apply >/dev/null || fail "read --apply exited non-zero"
+bun "$PLUGIN_ROOT/engine/cli.ts" validate "$RT_DEAL" >/dev/null || fail "the applied deal does not validate"
+applied_name="$(jq -r '.metadata.accountName' "$RT_DEAL")"
+applied_date="$(jq -r '.metadata.closeDate' "$RT_DEAL")"
+applied_score="$(jq -r '.qualification.champion.score' "$RT_DEAL")"
+applied_flag="$(jq -r '.stakeholders[0].mustSayYes' "$RT_DEAL")"
+echo "    applied: $applied_name / $applied_date / score $applied_score / mustSayYes $applied_flag"
+[ "$applied_name" = "Globex Corporation" ] || fail "the applied deal says accountName='$applied_name'"
+[ "$applied_date" = "2026-09-15" ] || fail "the applied deal says closeDate='$applied_date'"
+[ "$applied_score" = "2" ] || fail "the applied deal says champion score='$applied_score'"
+[ "$applied_flag" = "false" ] || fail "the applied deal says mustSayYes='$applied_flag'"
+
+# Applying is idempotent: with the JSON now agreeing with the sheet, there is nothing to propose.
+again="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")" || fail "the second read exited non-zero"
+[ "$(jq -r '.proposals | length' <<<"$again")" = "0" ] || fail "a second read still proposes $(jq -c '.proposals' <<<"$again")"
+echo "PASS: edits made in Excel round-trip into the deal JSON, and applying them twice changes nothing"
+
 # The same comparison on a deal where most elements are unscored — the case that was wrong.
 #
 # MEDDPICC scores out of 32 whether or not anyone has assessed an element yet. With the

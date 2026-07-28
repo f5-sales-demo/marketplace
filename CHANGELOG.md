@@ -10,6 +10,50 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v2.7.0 — the workbook reads back. `engine/cli.ts read <workbook.xlsx> --deal
+  <deal.json>` reports what the spreadsheet proposes changing, and `--apply` writes it.
+
+  **Read, diff, propose — never overwrite.** The JSON stays the source of truth, so a cell that
+  differs is a *proposal*, printed with its old and new value. Nothing is written without
+  `--apply`, and `--apply` writes only a deal that validates: a partly-applied file would be
+  worse than none. The run's exit code follows the outcome, so a script can gate on it.
+
+  **The reader walks `inputCells`**, the map `planWorkbook` already returns. It has no second
+  idea of where a field lives, which is the only way the two directions cannot drift. `computed`
+  and `derived` cells are outputs and are never read — including a formula found at an input
+  address, which is refused rather than having the number beside it taken as somebody's answer.
+
+  **Every rejection names its cell.** A score of 7, a status outside the enum, prose in a
+  currency cell, `#REF!` in a text cell: each is reported as `Qualification!C8`, not as a JSON
+  pointer, because the person who has to fix it is looking at Excel. Rejections never reach the
+  deal, and the rest of the workbook still round-trips around them.
+
+  Four things that only look obvious afterwards, each of which would have made the reader
+  useless in a different way:
+
+  - **Excel rewrites the file when it saves.** The generator writes strings inline
+    (`t="inlineStr"`); Excel re-saves the same text through `sharedStrings.xml` as `t="s"`.
+    Measured: with shared strings unresolved, opening the workbook and saving it *without
+    editing anything* produced 86 phantom proposals and 18 rejections. Every unit test passed.
+  - **A date cell can only hold a day.** `2026-06-30T09:15:00Z` in the JSON against `2026-06-30`
+    in the sheet is not an edit, so dates are compared as serials. Compared as text, the reader
+    would have cried wolf on every read until nobody read it.
+  - **An unscored element is written as `0`, not blank** — deliberately, since `COUNT` over
+    blanks made a partly-qualified deal show 100%. So a `0` read back cannot be told from "not
+    assessed", and a missing score must not become a proposal to set `score: 0`.
+  - **A list may only be appended to.** The tables carry blank rows to grow into, and filling
+    the sixth row of a three-item list would write `stakeholders[5]` into an array of length 3.
+    Refused by cell address, with the row that is still empty named.
+
+  Verified in real Excel end to end: four cells of four types edited by hand, saved, and read
+  back exactly — a string through shared strings, a 0-4 score, `2026-09-15` typed as text and
+  stored as a serial, and a boolean. The UAT was itself mutation-checked, and the 86-proposal
+  measurement above is what it reports when the reader is broken.
+
+  `readPath` moved into `engine/json-path.ts` alongside the new `writePath`, so one walker
+  serves both directions. The redundant integer check in the reader's coercion is gone: whether
+  a whole number is required is the schema's call, and a second opinion could only disagree.
+
 - **`meddpicc`** v2.6.0 — the workbook is now a working spreadsheet, not just a rendered one.
 
   **Excel Tables** over all eight collections, so they filter, sort, stripe, and extend when

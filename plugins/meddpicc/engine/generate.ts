@@ -13,6 +13,7 @@
  */
 import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
+import { readPath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
 import {
@@ -60,24 +61,6 @@ export function dateToSerial(value: unknown): number | null {
   const back = new Date(utc);
   if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
   return Math.round((utc - EXCEL_EPOCH_UTC) / MS_PER_DAY);
-}
-
-/** Follow a dotted/indexed path into the deal. Returns undefined rather than throwing. */
-function readPath(root: unknown, dottedPath: string): unknown {
-  let node: unknown = root;
-  for (const part of dottedPath.split('.')) {
-    const m = /^([^[\]]*)((?:\[\d+\])*)$/.exec(part);
-    const key = m?.[1] ?? part;
-    if (key) {
-      if (node === null || typeof node !== 'object') return undefined;
-      node = (node as Record<string, unknown>)[key];
-    }
-    for (const idx of m?.[2]?.match(/\d+/g) ?? []) {
-      if (!Array.isArray(node)) return undefined;
-      node = node[Number(idx)];
-    }
-  }
-  return node;
 }
 
 /** Coerce a deal value for a cell of this type. `undefined` means leave the cell blank. */
