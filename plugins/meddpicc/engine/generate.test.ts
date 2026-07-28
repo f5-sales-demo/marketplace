@@ -5,7 +5,7 @@ import { computeCompletion } from './completion';
 import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
 import type { WorkbookSpec } from './workbook-spec';
-import { COMPLETION_STATUSES } from './xlsx';
+import { A1, COMPLETION_STATUSES } from './xlsx';
 import { readZip } from './zip';
 
 const here = import.meta.dir;
@@ -410,5 +410,40 @@ describe('planWorkbook — where a list can grow', () => {
     // equal to ['name'] and this assertion could not fail if the computed column slipped through.
     expect(growth[0].columns).toHaveLength(1);
     expect(growth[0].columns.map((c) => c.relativePath)).toStrictEqual(['name']);
+  });
+});
+
+describe('planWorkbook — presentation', () => {
+  test('every sheet hides the grid and carries a print setup', () => {
+    for (const s of plan.sheets) {
+      expect(s.hideGridlines, `${s.name} shows the grid`).toBe(true);
+      expect(s.print?.orientation, `${s.name} print orientation`).toBe('landscape');
+      expect(s.print?.fitToWidth, `${s.name} fit-to-width`).toBe(true);
+    }
+  });
+
+  test('the print header names the deal, so a printout is identifiable', () => {
+    const header = plan.sheets[0].print?.header ?? '';
+    expect(header).toContain(String(deal.metadata.accountName));
+    expect(header).toContain(String(deal.metadata.dealName));
+  });
+
+  test('a title and every section banner span the form width', () => {
+    // A banner that stops at the label column reads as a mislabelled cell, not a heading.
+    const deals = sheet('Deal');
+    const width = deals.columns?.reduce((w, c) => Math.max(w, c.max), 0) ?? 0;
+    expect(width).toBeGreaterThan(1);
+    const banners = deals.rows.filter((r) => r.cells.some((c) => c.style === 'title' || c.style === 'sectionHeader'));
+    expect(banners.length).toBeGreaterThan(1);
+    for (const row of banners) {
+      expect(deals.merges ?? []).toContain(`${A1(1, row.row)}:${A1(width, row.row)}`);
+    }
+  });
+
+  test('a table sheet declares no merges, because a merge would break its table', () => {
+    // Excel drops a table whose range contains a merged cell, and repairs the file to say so.
+    for (const s of plan.sheets.filter((x) => x.tables?.length)) {
+      expect(s.merges, `${s.name} merges`).toBeUndefined();
+    }
   });
 });

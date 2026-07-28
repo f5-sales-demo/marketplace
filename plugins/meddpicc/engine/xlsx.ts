@@ -58,6 +58,29 @@ export function A1(col: number, row: number): string {
   return `${columnLetter(col)}${row}`;
 }
 
+/** "A" -> 1, "AA" -> 27. The inverse of {@link columnLetter}. */
+export function columnIndex(letters: string): number {
+  return [...letters].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0);
+}
+
+interface Range {
+  c1: number;
+  r1: number;
+  c2: number;
+  r2: number;
+}
+
+/** Parse `B2:Q7` into 1-based bounds, rejecting anything Excel would not accept as a range. */
+function parseRange(ref: string, what: string): Range {
+  const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref);
+  if (!m) throw new Error(`${what} "${ref}" is not a range like B2:Q7`);
+  const range = { c1: columnIndex(m[1]), r1: Number(m[2]), c2: columnIndex(m[3]), r2: Number(m[4]) };
+  if (range.c2 < range.c1 || range.r2 < range.r1) {
+    throw new Error(`${what} "${ref}" runs backwards — write it top-left first, as B2:Q7`);
+  }
+  return range;
+}
+
 /**
  * The style palette, in `cellXfs` order — the index of each name IS its `s=` attribute.
  *
@@ -69,7 +92,9 @@ const STYLE_ORDER = [
   'default',
   'title',
   'sectionHeader',
+  'groupHeader',
   'columnHeader',
+  'fieldLabel',
   'label',
   'text',
   'number',
@@ -93,18 +118,19 @@ export const STYLE_IDS: Record<StyleName, number> = Object.fromEntries(
 /** Font index per style, into the `<fonts>` list below. */
 const FONT_DEFAULT = 0;
 const FONT_BOLD = 1;
-const FONT_TITLE = 2;
-const FONT_WHITE_BOLD = 3;
-const FONT_ITALIC_GREY = 4;
+const FONT_WHITE_BOLD = 2;
+const FONT_ITALIC_GREY = 3;
+const FONT_WHITE_TITLE = 4;
 
 /** Fill index per style, into the `<fills>` list below. */
 const FILL_NONE = 0;
 // index 1 is the format-reserved gray125 placeholder; Excel expects it present and unused
 const FILL_DARK = 2;
-const FILL_HEADER = 3;
-const FILL_RED = 4;
-const FILL_AMBER = 5;
-const FILL_GREEN = 6;
+const FILL_RED = 3;
+const FILL_AMBER = 4;
+const FILL_GREEN = 5;
+const FILL_TEAL = 6;
+const FILL_ACCENT = 7;
 
 interface StyleDef {
   font: number;
@@ -112,13 +138,17 @@ interface StyleDef {
   numFmt: number;
   wrap?: boolean;
   center?: boolean;
+  /** Sit the text in the middle of the row. Banners are twice the height of their text. */
+  middle?: boolean;
 }
 
 const STYLE_DEFS: Record<StyleName, StyleDef> = {
   default: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0 },
-  title: { font: FONT_TITLE, fill: FILL_NONE, numFmt: 0 },
-  sectionHeader: { font: FONT_WHITE_BOLD, fill: FILL_DARK, numFmt: 0 },
-  columnHeader: { font: FONT_BOLD, fill: FILL_HEADER, numFmt: 0 },
+  title: { font: FONT_WHITE_TITLE, fill: FILL_DARK, numFmt: 0, center: true, middle: true },
+  sectionHeader: { font: FONT_WHITE_BOLD, fill: FILL_DARK, numFmt: 0, center: true, middle: true },
+  groupHeader: { font: FONT_WHITE_BOLD, fill: FILL_ACCENT, numFmt: 0, center: true, middle: true },
+  columnHeader: { font: FONT_WHITE_BOLD, fill: FILL_TEAL, numFmt: 0, center: true, middle: true, wrap: true },
+  fieldLabel: { font: FONT_WHITE_BOLD, fill: FILL_TEAL, numFmt: 0, middle: true, wrap: true },
   label: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0 },
   text: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, wrap: true },
   number: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0 },
@@ -226,18 +256,22 @@ function stylesXml(): string {
   const fonts = [
     '<font><sz val="11"/><name val="Calibri"/></font>',
     '<font><b/><sz val="11"/><name val="Calibri"/></font>',
-    '<font><b/><sz val="16"/><name val="Calibri"/></font>',
     '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
     '<font><i/><sz val="10"/><color rgb="FF6B6B6B"/><name val="Calibri"/></font>',
+    '<font><b/><sz val="16"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
   ];
+  // Navy, teal and light blue are dk2, accent1 and accent4 of the stock modern Office theme —
+  // resolved to literal RGB rather than referenced by theme index, because we ship no theme
+  // part and a `theme=` reference with nothing to resolve against renders as black on black.
   const fills = [
     '<fill><patternFill patternType="none"/></fill>',
     '<fill><patternFill patternType="gray125"/></fill>',
-    '<fill><patternFill patternType="solid"><fgColor rgb="FF1F3864"/><bgColor indexed="64"/></patternFill></fill>',
-    '<fill><patternFill patternType="solid"><fgColor rgb="FFD9E2F3"/><bgColor indexed="64"/></patternFill></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF0E2841"/><bgColor indexed="64"/></patternFill></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FFF8CBAD"/><bgColor indexed="64"/></patternFill></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FFFFE699"/><bgColor indexed="64"/></patternFill></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FFC6E0B4"/><bgColor indexed="64"/></patternFill></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF156082"/><bgColor indexed="64"/></patternFill></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF0F9ED5"/><bgColor indexed="64"/></patternFill></fill>',
   ];
   const border =
     '<border><left style="thin"><color rgb="FFD0D0D0"/></left><right style="thin"><color rgb="FFD0D0D0"/></right>' +
@@ -245,9 +279,10 @@ function stylesXml(): string {
 
   const xfs = STYLE_ORDER.map((name) => {
     const d = STYLE_DEFS[name];
+    const vertical = d.middle ? ' vertical="center"' : d.wrap ? ' vertical="top"' : '';
     const align =
-      d.wrap || d.center
-        ? `<alignment${d.wrap ? ' wrapText="1" vertical="top"' : ''}${d.center ? ' horizontal="center"' : ''}/>`
+      d.wrap || d.center || d.middle
+        ? `<alignment${d.wrap ? ' wrapText="1"' : ''}${vertical}${d.center ? ' horizontal="center"' : ''}/>`
         : '';
     const applies = `${d.numFmt ? ' applyNumberFormat="1"' : ''}${d.font ? ' applyFont="1"' : ''}${d.fill ? ' applyFill="1"' : ''}${align ? ' applyAlignment="1"' : ''}`;
     return `<xf numFmtId="${d.numFmt}" fontId="${d.font}" fillId="${d.fill}" borderId="1" xfId="0"${applies}>${align}</xf>`;
@@ -290,6 +325,15 @@ export interface RowSpec {
   height?: number;
 }
 
+/** How the sheet prints. Omitted entirely, Excel uses its own defaults. */
+export interface PrintSetup {
+  orientation: 'landscape' | 'portrait';
+  /** Squeeze the used width onto one page. Needs `fitToPage` on the sheet, which we emit. */
+  fitToWidth?: boolean;
+  /** Left-hand header text. The date is added on the right. */
+  header?: string;
+}
+
 export interface SheetSpec {
   name: string;
   rows: RowSpec[];
@@ -297,9 +341,104 @@ export interface SheetSpec {
   columns?: { min: number; max: number; width: number }[];
   /** Freeze everything above this row (a header freeze). */
   freezeAtRow?: number;
+  /**
+   * Merged ranges, as `B2:Q2`. Write the value into the top-left cell only; the writer fills
+   * the rest of the range with that cell's style, which is what Excel needs to paint a fill
+   * or a border across a merge.
+   */
+  merges?: string[];
+  /** Hide the grid, so the sheet reads as a designed page rather than a spreadsheet. */
+  hideGridlines?: boolean;
+  /** Opening zoom percentage. Excel accepts 10 to 400. */
+  zoom?: number;
+  print?: PrintSetup;
   tables?: TablePart[];
   conditionalFormats?: ConditionalFormat[];
   validations?: Validation[];
+}
+
+/**
+ * Fill every cell a merge covers with the anchor's style, and return the rows sorted.
+ *
+ * Excel paints a merged range from the styles of ALL its cells, not the top-left alone: style
+ * only the anchor and a banner's fill stops after its first column with its border box left
+ * open. Real Excel files write every covered cell — the sample deal-review sheet writes all
+ * sixteen cells of `B2:Q2` with the same `s=`. So the caller declares the range and writes one
+ * cell; keeping the other fifteen in step is this function's job, not theirs.
+ *
+ * Pure: the caller's rows and cells are never mutated.
+ */
+export function expandMerges(sheet: SheetSpec): RowSpec[] {
+  const merges = sheet.merges ?? [];
+  const rows = sheet.rows.map((r) => ({ ...r, cells: [...r.cells] }));
+  if (merges.length === 0) return rows;
+
+  const cellAt = (ref: string) => {
+    for (const row of rows) {
+      const found = row.cells.find((c) => c.ref === ref);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const rowAt = (n: number) => {
+    let row = rows.find((r) => r.row === n);
+    if (!row) {
+      row = { row: n, cells: [] };
+      rows.push(row);
+    }
+    return row;
+  };
+
+  /** ref -> the merge that already covers it, so an overlap can name both. */
+  const covered = new Map<string, string>();
+
+  for (const ref of merges) {
+    const { c1, r1, c2, r2 } = parseRange(ref, `Merge on sheet "${sheet.name}"`);
+    if (c1 === c2 && r1 === r2) {
+      throw new Error(`Merge "${ref}" on sheet "${sheet.name}" covers one cell — that is not a merge`);
+    }
+    const anchorRef = A1(c1, r1);
+    const anchor = cellAt(anchorRef);
+    if (!anchor) {
+      throw new Error(
+        `Merge "${ref}" on sheet "${sheet.name}" has no cell at ${anchorRef} to anchor it — ` +
+          'the top-left cell carries the value and the style for the whole range',
+      );
+    }
+    for (let c = c1; c <= c2; c++) {
+      for (let r = r1; r <= r2; r++) {
+        const at = A1(c, r);
+        const already = covered.get(at);
+        if (already !== undefined) {
+          throw new Error(`Merges "${already}" and "${ref}" on sheet "${sheet.name}" both cover ${at}`);
+        }
+        covered.set(at, ref);
+        if (at === anchorRef) continue;
+
+        const existing = cellAt(at);
+        if (existing && (existing.value !== undefined || existing.formula !== undefined)) {
+          throw new Error(
+            `Merge "${ref}" on sheet "${sheet.name}" would hide the value at ${at} — ` +
+              'a merged range shows only its top-left cell',
+          );
+        }
+        const row = rowAt(r);
+        const index = row.cells.findIndex((cell) => cell.ref === at);
+        const filled: CellSpec = { ref: at, style: anchor.style };
+        if (index === -1) row.cells.push(filled);
+        else row.cells[index] = filled;
+      }
+    }
+  }
+
+  // sheetData is a sequence: Excel repairs a file whose rows do not ascend, and a vertical
+  // merge creates rows wherever its range reaches.
+  rows.sort((a, b) => a.row - b.row);
+  for (const row of rows)
+    row.cells.sort(
+      (a, b) => columnIndex(/^[A-Z]+/.exec(a.ref)?.[0] ?? '') - columnIndex(/^[A-Z]+/.exec(b.ref)?.[0] ?? ''),
+    );
+  return rows;
 }
 
 function cellXml(cell: CellSpec): string {
@@ -331,10 +470,9 @@ function headerTextsFor(sheet: SheetSpec, ref: string): string[] {
   if (lastRow <= headerRow) {
     throw new Error(`Table ref "${ref}" on sheet "${sheet.name}" has no data row — Excel rejects a header-only table`);
   }
-  const colIndex = (letters: string) => [...letters].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0);
   const row = sheet.rows.find((r) => r.row === headerRow);
   const out: string[] = [];
-  for (let c = colIndex(firstCol); c <= colIndex(lastCol); c++) {
+  for (let c = columnIndex(firstCol); c <= columnIndex(lastCol); c++) {
     const cell = row?.cells.find((x) => x.ref === A1(c, headerRow));
     out.push(typeof cell?.value === 'string' ? cell.value : '');
   }
@@ -392,6 +530,27 @@ function dataValidationsXml(validations: Validation[] | undefined): string {
   return `<dataValidations count="${validations.length}">${entries}</dataValidations>`;
 }
 
+/**
+ * `printOptions`, `pageMargins`, `pageSetup` and `headerFooter`, in that order.
+ *
+ * `pageMargins` is not optional decoration: Excel wants it present before `pageSetup`.
+ */
+function printXml(print: PrintSetup | undefined): string {
+  if (!print) return '';
+  const fit = print.fitToWidth ? ' fitToWidth="1" fitToHeight="0"' : '';
+  // In a header, "&" opens a format code (&D is the date, &P the page) — so a literal
+  // ampersand in the deal name has to be doubled, on top of the usual XML escaping.
+  const header = print.header
+    ? `<headerFooter><oddHeader>&amp;L${escapeXml(print.header.replace(/&/g, '&&'))}&amp;R&amp;D</oddHeader></headerFooter>`
+    : '';
+  return (
+    `<printOptions horizontalCentered="1"/>` +
+    `<pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>` +
+    `<pageSetup paperSize="9" orientation="${print.orientation}"${fit}/>` +
+    header
+  );
+}
+
 function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
   const cols = sheet.columns?.length
     ? `<cols>${sheet.columns.map((c) => `<col min="${c.min}" max="${c.max}" width="${c.width}" customWidth="1"/>`).join('')}</cols>`
@@ -399,7 +558,22 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
   const pane = sheet.freezeAtRow
     ? `<pane ySplit="${sheet.freezeAtRow}" topLeftCell="A${sheet.freezeAtRow + 1}" activePane="bottomLeft" state="frozen"/>`
     : '';
-  const rows = sheet.rows
+  if (sheet.zoom !== undefined && (!Number.isInteger(sheet.zoom) || sheet.zoom < 10 || sheet.zoom > 400)) {
+    throw new Error(
+      `Sheet "${sheet.name}" asks for zoom ${sheet.zoom}; Excel accepts whole percentages from 10 to 400`,
+    );
+  }
+  const viewAttrs =
+    `${sheet.hideGridlines ? ' showGridLines="0"' : ''}` +
+    `${sheet.zoom === undefined ? '' : ` zoomScale="${sheet.zoom}" zoomScaleNormal="${sheet.zoom}"`}`;
+  // fitToWidth on pageSetup is ignored unless the sheet itself says its page setup is
+  // fit-to-page, which is a sheetPr child and so has to come before everything else.
+  const sheetPr = sheet.print?.fitToWidth ? `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>` : '';
+  const merged = expandMerges(sheet);
+  const mergeCells = sheet.merges?.length
+    ? `<mergeCells count="${sheet.merges.length}">${sheet.merges.map((ref) => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`
+    : '';
+  const rows = merged
     .map(
       (r) =>
         `<row r="${r.row}"${r.height ? ` ht="${r.height}" customHeight="1"` : ''}>${r.cells.map(cellXml).join('')}</row>`,
@@ -426,16 +600,21 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
     ? `<tableParts count="${tableIds.length}">${tableIds.map((_, i) => `<tablePart r:id="rId${i + 1}"/>`).join('')}</tableParts>`
     : '';
 
-  // CT_Worksheet is a sequence, not a bag: sheetData, then conditionalFormatting, then
-  // dataValidations, with tableParts last. Emitting these out of order does not warn — it
-  // makes Excel offer to repair the file, with a message that names nothing useful.
+  // CT_Worksheet is a sequence, not a bag: sheetPr, sheetViews, sheetFormatPr, cols,
+  // sheetData, mergeCells, conditionalFormatting, dataValidations, then the print group
+  // (printOptions, pageMargins, pageSetup, headerFooter), with tableParts last. Emitting
+  // these out of order does not warn — it makes Excel offer to repair the file, with a
+  // message that names nothing useful.
   return (
     `${XML_HEADER}<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL_DOC}">` +
-    `<sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews>` +
+    sheetPr +
+    `<sheetViews><sheetView${viewAttrs} workbookViewId="0">${pane}</sheetView></sheetViews>` +
     `<sheetFormatPr defaultRowHeight="15"/>${cols}` +
     `<sheetData>${rows}</sheetData>` +
+    mergeCells +
     conditionalFormattingXml(sheet.conditionalFormats) +
     dataValidationsXml(sheet.validations) +
+    printXml(sheet.print) +
     tableParts +
     `</worksheet>`
   );

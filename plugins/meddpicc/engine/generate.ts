@@ -340,6 +340,24 @@ function derivedValue(
   return undefined;
 }
 
+/**
+ * Presentation settings every sheet shares: no grid, and a print setup that puts the deal on
+ * paper the way a review expects rather than spread over six portrait pages.
+ *
+ * The grid is what makes a generated workbook read as a data dump. Hiding it costs nothing —
+ * the cells and their borders are unchanged — and is the single largest visual difference
+ * between this and a sheet somebody laid out by hand.
+ */
+function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'> {
+  const account = readPath(deal, 'metadata.accountName');
+  const name = readPath(deal, 'metadata.dealName');
+  const header = [account, name].filter((p): p is string => typeof p === 'string' && p !== '').join(' — ');
+  return {
+    hideGridlines: true,
+    print: { orientation: 'landscape', fitToWidth: true, header: header || undefined },
+  };
+}
+
 export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): WorkbookPlan {
   const { named, tables, formRows } = layout(schema, spec, deal);
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
@@ -349,6 +367,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   for (const s of spec.sheets) {
     if (s.kind === 'form') {
       const rows: RowSpec[] = [];
+      const merges: string[] = [];
+      // A form is label-then-value, so its width is however many columns the spec sizes.
+      const formWidth = s.columns?.reduce((widest, c) => Math.max(widest, c.max), 0) ?? 0;
       for (const { block, row } of formRows.get(s.name) ?? []) {
         const cells: CellSpec[] = [];
 
@@ -373,6 +394,11 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         }
 
         if (cells.length > 0) rows.push({ row, cells, height: 'height' in block ? block.height : undefined });
+        // A banner that stops at the label column reads as a mislabelled cell rather than a
+        // heading, so a title or section spans the width the sheet actually uses.
+        if ((block.kind === 'title' || block.kind === 'section') && formWidth > 1) {
+          merges.push(`${A1(1, row)}:${A1(formWidth, row)}`);
+        }
       }
       const formFormats: ConditionalFormat[] = [];
       const formValidations: Validation[] = [];
@@ -391,6 +417,8 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         rows,
         columns: s.columns,
         freezeAtRow: 1,
+        merges: merges.length ? merges : undefined,
+        ...presentation(deal),
         conditionalFormats: formFormats.length ? formFormats : undefined,
         validations: formValidations.length ? formValidations : undefined,
       });
@@ -487,6 +515,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       rows: [...byRow.entries()].sort(([a], [b]) => a - b).map(([row, cells]) => ({ row, cells })),
       columns,
       freezeAtRow: 1,
+      ...presentation(deal),
       tables: tableParts.length ? tableParts : undefined,
       conditionalFormats: tableFormats.length ? tableFormats : undefined,
       validations: tableValidations.length ? tableValidations : undefined,
