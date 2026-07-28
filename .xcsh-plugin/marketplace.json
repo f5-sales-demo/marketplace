@@ -385,6 +385,21 @@
           "authLoginCmd": "gh auth login"
         }
       ]
+    },
+    {
+      "name": "herdr",
+      "description": "Control Herdr, a terminal multiplexer for coding agents — inspect workspaces, tabs and panes, split panes, run commands without stealing focus, read pane output, and coordinate sibling agents. Requires HERDR_ENV=1.",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/herdr",
+      "category": "development",
+      "keywords": ["herdr", "terminal", "multiplexer", "panes", "agents"],
+      "tags": ["terminal", "orchestration", "agents", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
+      "repository": "https://github.com/f5-sales-demo/marketplace"
     }
   ]
 }
