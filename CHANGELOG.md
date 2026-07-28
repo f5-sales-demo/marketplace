@@ -32,6 +32,17 @@ and this project adheres to
   (Excel says 14, the engine says 21). It runs on request via `MEDDPICC_EXCEL_UAT=1`, since
   opening Excel takes over the foreground.
 
+  Three defects the review found, all reproduced before being fixed. **A partly-qualified deal
+  displayed as 100%**: `COUNT` ignores blank cells, so an unscored element shrank the
+  denominator instead of counting as zero — one element at 4 and seven unscored showed 4/4
+  beside a Red rating, where the engine said 12.5%. Score cells now write 0 when the deal has
+  no score, matching `computeScore`, and the maximum counts the always-populated element
+  column. `generate` now **validates the spec and the deal before writing**, so a mistyped
+  `jsonPath` fails loudly instead of becoming an empty cell that reads as "not filled in yet".
+  And `dateToSerial` **rejects impossible dates** rather than rolling them forward: it was
+  turning `2026-02-31` into `2026-03-03`, a close date three days late that nothing downstream
+  would question.
+
 
 - **Plugin tests no longer depend on a real cloud CLI** (`aws` v1.2.2, `azure` v1.2.2,
   `gcloud` v1.2.2, `github` v1.2.2, `gitlab` v1.2.3, `salesforce` v1.3.3) — 32 tests across
