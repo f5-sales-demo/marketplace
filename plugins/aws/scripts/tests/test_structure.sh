@@ -22,8 +22,8 @@ test_plugin_json_valid() {
 
   local name
   name=$(jq -r '.name' "$pj")
-  [ "$name" = "aws-status" ] || {
-    echo "name=$name, expected aws-status"
+  [ "$name" = "aws" ] || {
+    echo "name=$name, expected aws"
     return 1
   }
 
@@ -35,20 +35,20 @@ test_plugin_json_valid() {
   }
 }
 
-# T1.2 — marketplace.json has a matching aws-status entry
+# T1.2 — marketplace.json has a matching aws entry
 test_marketplace_entry() {
   local mj="$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json"
   local pj="$PLUGIN_ROOT/.xcsh-plugin/plugin.json"
 
   local mp_name
-  mp_name=$(jq -r '.plugins[] | select(.name == "aws-status") | .name' "$mj")
-  [ "$mp_name" = "aws-status" ] || {
-    echo "aws-status entry missing from marketplace.json"
+  mp_name=$(jq -r '.plugins[] | select(.name == "aws") | .name' "$mj")
+  [ "$mp_name" = "aws" ] || {
+    echo "aws entry missing from marketplace.json"
     return 1
   }
 
   local mp_ver
-  mp_ver=$(jq -r '.plugins[] | select(.name == "aws-status") | .version' "$mj")
+  mp_ver=$(jq -r '.plugins[] | select(.name == "aws") | .version' "$mj")
   local pj_ver
   pj_ver=$(jq -r '.version' "$pj")
   [ "$mp_ver" = "$pj_ver" ] || {
@@ -57,9 +57,9 @@ test_marketplace_entry() {
   }
 
   local src
-  src=$(jq -r '.plugins[] | select(.name == "aws-status") | .source' "$mj")
-  [ "$src" = "./plugins/aws-status" ] || {
-    echo "source=$src, expected ./plugins/aws-status"
+  src=$(jq -r '.plugins[] | select(.name == "aws") | .source' "$mj")
+  [ "$src" = "./plugins/aws" ] || {
+    echo "source=$src, expected ./plugins/aws"
     return 1
   }
 }
@@ -225,9 +225,9 @@ test_T1_12_src_index_exports_default_factory() {
   fi
 }
 
-# T1.13 — extension tool count (skipped: aws-status registers 0 tools)
+# T1.13 — extension tool count (skipped: aws registers 0 tools)
 test_T1_13_extension_registers_tools() {
-  echo "SKIP: aws-status does not register tools"
+  echo "SKIP: aws does not register tools"
   return 0
 }
 
@@ -240,15 +240,15 @@ test_T1_14_tool_factories_exist() {
   fi
 }
 
-# T1.15 — hooks.json references /aws-status:setup, not brew
+# T1.15 — hooks.json references /aws:setup, not brew
 test_T1_15_hook_references_setup_command() {
   local hook="$PLUGIN_ROOT/hooks/hooks.json"
   if [[ ! -f "$hook" ]]; then
     echo "FAIL: hooks.json missing"
     return 1
   fi
-  if ! grep -q "aws-status:setup" "$hook"; then
-    echo "FAIL: hooks.json should reference /aws-status:setup"
+  if ! grep -q "aws:setup" "$hook"; then
+    echo "FAIL: hooks.json should reference /aws:setup"
     return 1
   fi
   if grep -q "brew install" "$hook"; then

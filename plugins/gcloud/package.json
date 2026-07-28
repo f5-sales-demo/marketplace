@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-gcloud",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Google Cloud CLI status for xcsh welcome screen",
   "main": "src/index.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "GCloud",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "extensions": [
       "src/index.ts"
     ]

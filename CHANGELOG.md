@@ -10,6 +10,39 @@ and this project adheres to
 
 ## [Unreleased]
 
+Every plugin test suite now runs in CI, and the failures that surfaced are fixed.
+
+- **Portable setup-wizard tests** (`aws` v1.2.1, `azure` v1.2.1, `gcloud` v1.2.1,
+  `github` v1.2.1, `gitlab` v1.2.2, `salesforce` v1.3.2) — `runSetupWizard` resolved the
+  install command from `process.platform` and shelled out to `which`, so the tests asserted
+  `brew` and passed only on macOS. Each wizard now accepts an injected `detectPlatform`, and
+  each suite covers macOS, Linux and a host with no package manager — the last of which was
+  a live branch nobody asserted.
+
+- **Tests no longer drive real cloud CLIs** (`salesforce` v1.3.2, `azure` v1.2.1) — a
+  `sf_setup` validation test ran four genuine `sf config set target-org … --global`
+  commands, writing to the developer's own `~/.sf/config.json`, and `az_exec` spawned `az`
+  to check argument validation. Both tools take an injected executor now. The
+  Salesforce extension-load suite genuinely needs the CLI and is skipped, visibly, when it
+  is absent.
+
+- **Stale plugin names** (`aws` v1.2.1, `azure` v1.2.1, `gcloud` v1.2.1,
+  `salesforce-legacy` v1.0.1) — the suites asserted the pre-rename names
+  (`aws-status`, `salesforce`) that nothing else in the repo still used, and azure's
+  tool-factory list predated the rename that gave each file its verb.
+
+- **Credential scanners no longer search `node_modules`** (12 plugins) — with dependencies
+  installed, the scan reported five lines of `bun-types`' own npmrc documentation as
+  hardcoded credentials. Six plugins already excluded it; the rest do now.
+
+- **`salesforce-legacy` hook test** v1.0.1 — it symlinked `/usr/bin/bash`, which does not
+  exist on macOS, so the scrubbed `PATH` held no usable shell and the hook never ran.
+
+- **`meddpicc`** v2.4.1 — credential-scanner exclusion only.
+
+- No plugin is exempt from the gate any more: `run-plugin-tests.sh` drops its `KNOWN_RED`
+  list, since every named plugin is green.
+
 - **`meddpicc`** bumped to v2.4.0 — foundations for a formula-driven workbook generated
   from the schema. Adds `engine/xlsx.ts`, an OOXML writer that emits a complete `.xlsx`
   from scratch with a fixed, named style palette, and `engine/workbook-spec.json`, a

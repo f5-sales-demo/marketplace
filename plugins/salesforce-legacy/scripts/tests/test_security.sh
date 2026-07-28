@@ -12,6 +12,7 @@ test_no_hardcoded_credentials() {
 
   local matches
   matches=$(grep -rIin -E "$patterns" "${scan_dirs[@]}" \
+    --exclude-dir=node_modules \
     --include='*.md' --include='*.json' --include='*.mdx' |
     grep -v 'README.md' |
     grep -v '\$SF_ACCESS_TOKEN' |

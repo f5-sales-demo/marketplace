@@ -1,12 +1,17 @@
 import { getLoadProfile } from '../context/salesforce-context';
 import sfSetupDescription from '../prompts/sf-setup.md' with { type: 'text' };
-import { execSfJson, execSfRaw } from '../sf/exec';
+import { execSfJson, execSfRaw, type SfExecApi } from '../sf/exec';
 import { formatOrgTable } from '../sf/formatters';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { collectAllOrgs, detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
-export function createSfSetupTool(pi: PluginHost) {
+/**
+ * `makeApi` exists so tests can supply an executor instead of spawning the real `sf`.
+ * Without it a validation test ran four genuine `sf config set target-org … --global`
+ * commands against whatever machine it happened to run on.
+ */
+export function createSfSetupTool(pi: PluginHost, makeApi: (cwd: string) => SfExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -35,7 +40,7 @@ export function createSfSetupTool(pi: PluginHost) {
       _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const base = { tool: 'sf_setup' as const, action: params.action };
 
       try {

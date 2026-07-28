@@ -1,10 +1,41 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PlatformInfo } from '../src/platform';
 import { buildAuthStep, buildInstallStep, buildVerifyCommand, runSetupWizard } from '../src/wizard';
 
 // ---------------------------------------------------------------------------
 // Helper builders — exact command assertions
 // ---------------------------------------------------------------------------
+
+/**
+ * The wizard branches on credential environment variables, so a developer machine or CI
+ * runner with cloud credentials exported takes a different auth path and these tests fail
+ * for a reason that has nothing to do with the code. Clear them around every case; the ones
+ * that exercise a credential path set what they need themselves.
+ */
+const CREDENTIAL_VARS = [
+  'SFDX_AUTH_URL',
+  'SFDX_DISABLE_ENCRYPTION',
+  'SF_ACCESS_TOKEN',
+  'SF_CLIENT_ID',
+  'SF_JWT_KEY_FILE',
+  'SF_ORG_INSTANCE_URL',
+  'SF_USERNAME',
+];
+let savedCredentials: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  savedCredentials = Object.fromEntries(CREDENTIAL_VARS.map((key) => [key, process.env[key]]));
+  for (const key of CREDENTIAL_VARS) delete process.env[key];
+});
+
+afterEach(() => {
+  for (const key of CREDENTIAL_VARS) {
+    const value = savedCredentials[key];
+    // Assigning undefined would store the string "undefined", so absent means delete.
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 describe('buildInstallStep', () => {
   it('macOS brew command is exactly brew install sf', () => {
@@ -226,6 +257,15 @@ describe('runSetupWizard — sf installed, web auth', () => {
 // runSetupWizard — sf NOT installed (auto-install flow)
 // ---------------------------------------------------------------------------
 
+// The wizard resolves the install command from the host it runs on. These tests inject the
+// platform instead, so each one asserts the same thing on a developer's Mac and on a Linux
+// CI runner — previously they asserted `brew` and so passed only on macOS.
+const MACOS: PlatformInfo = { os: 'darwin', arch: 'arm64', packageManagers: ['brew'], isCorporateManaged: false };
+const LINUX: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: ['apt'], isCorporateManaged: false };
+const BARE: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: [], isCorporateManaged: false };
+
+const on = (platform: PlatformInfo) => ({ detectPlatform: async () => platform });
+
 describe('runSetupWizard — sf not installed', () => {
   let installCount = 0;
   const sfNotInstalledThenInstalled = {
@@ -235,7 +275,7 @@ describe('runSetupWizard — sf not installed', () => {
     },
   };
 
-  it('auto-installs via preferred package manager and notifies restart', async () => {
+  it('auto-installs via brew on macOS and notifies restart', async () => {
     installCount = 0;
     const { pi, calls } = buildMockPi({
       'brew install sf': { stdout: 'installed', stderr: '', code: 0 },
@@ -250,7 +290,7 @@ describe('runSetupWizard — sf not installed', () => {
       selectResponses: ['https://login.salesforce.com (standard)'],
     });
 
-    await runSetupWizard(pi, ctx, sfNotInstalledThenInstalled);
+    await runSetupWizard(pi, ctx, { ...sfNotInstalledThenInstalled, ...on(MACOS) });
 
     const installCall = calls.find((c) => c.cmd === 'brew' && c.args.includes('sf'));
     expect(installCall).toBeDefined();
@@ -259,13 +299,35 @@ describe('runSetupWizard — sf not installed', () => {
     expect(notifications.find((n) => n.message.includes('Restart xcsh'))).toBeDefined();
   });
 
+  it('auto-installs via apt on Linux', async () => {
+    installCount = 0;
+    const { pi, calls } = buildMockPi({
+      'apt install': { stdout: 'installed', stderr: '', code: 0 },
+    });
+    const { ctx } = buildMockCtx();
+
+    await runSetupWizard(pi, ctx, { ...sfNotInstalledThenInstalled, ...on(LINUX) });
+
+    expect(calls.find((call) => call.cmd === 'sudo')?.args).toEqual(['apt', 'install', '-y', 'sf']);
+  });
+
+  it('no package manager shows the manual install link', async () => {
+    const { pi, calls } = buildMockPi();
+    const { ctx, notifications } = buildMockCtx();
+
+    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false, ...on(BARE) });
+
+    expect(notifications.find((n) => n.message.includes('developer.salesforce.com'))?.type).toBe('error');
+    expect(calls).toHaveLength(0);
+  });
+
   it('install failure shows error', async () => {
     const { pi } = buildMockPi({
       'brew install sf': { stdout: '', stderr: 'permission denied', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip'] });
 
-    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false });
+    await runSetupWizard(pi, ctx, { checkSfInstalled: () => false, ...on(MACOS) });
 
     expect(notifications.find((n) => n.message.includes('Installation failed'))?.type).toBe('error');
   });

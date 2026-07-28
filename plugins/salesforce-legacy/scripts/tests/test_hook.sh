@@ -30,7 +30,10 @@ test_hook_warns_when_sf_missing() {
   cmd=$(_get_hook_command)
   local tmp
   tmp=$(mktemp -d)
-  ln -s /usr/bin/bash "$tmp/bash"
+  # Resolve bash rather than assuming /usr/bin/bash: that path exists on Linux but not on
+  # macOS, where bash lives in /bin. The dangling symlink made the scrubbed PATH contain no
+  # usable shell at all, so the hook never ran and the test failed for the wrong reason.
+  ln -s "$(command -v bash)" "$tmp/bash"
   ln -s "$(command -v command)" "$tmp/command" 2>/dev/null || true
   local out
   out=$(PATH="$tmp" bash -c "$cmd" 2>&1) || true

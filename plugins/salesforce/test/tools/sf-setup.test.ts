@@ -66,17 +66,50 @@ describe('sf_setup execute — validation', () => {
     expect(result.isError).toBe(true);
   });
 
-  it('set_default accepts valid aliases', async () => {
-    const tool = createSfSetupTool(mockPi);
+  it('set_default accepts valid aliases and asks sf to set each one', async () => {
+    // This used to run the real `sf` binary. On a machine with the CLI installed that meant
+    // four genuine `sf config set target-org <alias> --global` writes to ~/.sf/config.json
+    // — a unit test mutating the developer's own Salesforce config — and it blew the 5 s
+    // timeout. Injecting the executor keeps the assertion (validation lets these through)
+    // and removes the side effect.
+    const calls: string[][] = [];
+    const tool = createSfSetupTool(mockPi, () => ({
+      async exec(_command: string, args: string[]) {
+        calls.push(args);
+        return { stdout: '', stderr: '', exitCode: 0 };
+      },
+    }));
+
     for (const alias of ['my-org', 'prod.org', 'user@domain', 'org_123']) {
       const result = await tool.execute('t1', { action: 'set_default', org: alias }, undefined, undefined, {
         cwd: '/tmp',
       });
-      // Will fail on exec (sf not mocked) but should NOT fail on validation
-      if (result.isError) {
-        expect(result.content[0].text).not.toContain('invalid org alias');
-      }
+      expect(result.isError).toBeFalsy();
     }
+
+    expect(calls).toEqual([
+      ['config', 'set', 'target-org', 'my-org', '--global'],
+      ['config', 'set', 'target-org', 'prod.org', '--global'],
+      ['config', 'set', 'target-org', 'user@domain', '--global'],
+      ['config', 'set', 'target-org', 'org_123', '--global'],
+    ]);
+  });
+
+  it('rejects an invalid alias before running anything', async () => {
+    const calls: string[][] = [];
+    const tool = createSfSetupTool(mockPi, () => ({
+      async exec(_command: string, args: string[]) {
+        calls.push(args);
+        return { stdout: '', stderr: '', exitCode: 0 };
+      },
+    }));
+
+    const result = await tool.execute('t1', { action: 'set_default', org: 'x;rm -rf /' }, undefined, undefined, {
+      cwd: '/tmp',
+    });
+
+    expect(result.isError).toBe(true);
+    expect(calls).toHaveLength(0);
   });
 
   it('returns unknown action for unrecognized action', async () => {

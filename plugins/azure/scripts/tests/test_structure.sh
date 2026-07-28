@@ -22,8 +22,8 @@ test_plugin_json_valid() {
 
   local name
   name=$(jq -r '.name' "$pj")
-  [ "$name" = "azure-status" ] || {
-    echo "name=$name, expected azure-status"
+  [ "$name" = "azure" ] || {
+    echo "name=$name, expected azure"
     return 1
   }
 
@@ -35,20 +35,20 @@ test_plugin_json_valid() {
   }
 }
 
-# T1.2 — marketplace.json has a matching azure-status entry
+# T1.2 — marketplace.json has a matching azure entry
 test_marketplace_entry() {
   local mj="$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json"
   local pj="$PLUGIN_ROOT/.xcsh-plugin/plugin.json"
 
   local mp_name
-  mp_name=$(jq -r '.plugins[] | select(.name == "azure-status") | .name' "$mj")
-  [ "$mp_name" = "azure-status" ] || {
-    echo "azure-status entry missing from marketplace.json"
+  mp_name=$(jq -r '.plugins[] | select(.name == "azure") | .name' "$mj")
+  [ "$mp_name" = "azure" ] || {
+    echo "azure entry missing from marketplace.json"
     return 1
   }
 
   local mp_ver
-  mp_ver=$(jq -r '.plugins[] | select(.name == "azure-status") | .version' "$mj")
+  mp_ver=$(jq -r '.plugins[] | select(.name == "azure") | .version' "$mj")
   local pj_ver
   pj_ver=$(jq -r '.version' "$pj")
   [ "$mp_ver" = "$pj_ver" ] || {
@@ -57,9 +57,9 @@ test_marketplace_entry() {
   }
 
   local src
-  src=$(jq -r '.plugins[] | select(.name == "azure-status") | .source' "$mj")
-  [ "$src" = "./plugins/azure-status" ] || {
-    echo "source=$src, expected ./plugins/azure-status"
+  src=$(jq -r '.plugins[] | select(.name == "azure") | .source' "$mj")
+  [ "$src" = "./plugins/azure" ] || {
+    echo "source=$src, expected ./plugins/azure"
     return 1
   }
 }
@@ -248,7 +248,7 @@ test_T1_14_tool_factories_exist() {
     return 0
   fi
   local missing=()
-  for f in az-account.ts az-group.ts az-resource.ts az-vm.ts az-exec.ts az-help.ts; do
+  for f in az-account-show.ts az-group-list.ts az-resource-list.ts az-vm-list.ts az-exec.ts az-help.ts; do
     [[ -f "$tools_dir/$f" ]] || missing+=("$f")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
@@ -257,15 +257,15 @@ test_T1_14_tool_factories_exist() {
   fi
 }
 
-# T1.15 — hooks.json references /azure-status:setup, not brew
+# T1.15 — hooks.json references /azure:setup, not brew
 test_T1_15_hook_references_setup_command() {
   local hook="$PLUGIN_ROOT/hooks/hooks.json"
   if [[ ! -f "$hook" ]]; then
     echo "FAIL: hooks.json missing"
     return 1
   fi
-  if ! grep -q "azure-status:setup" "$hook"; then
-    echo "FAIL: hooks.json should reference /azure-status:setup"
+  if ! grep -q "azure:setup" "$hook"; then
+    echo "FAIL: hooks.json should reference /azure:setup"
     return 1
   fi
   if grep -q "brew install" "$hook"; then

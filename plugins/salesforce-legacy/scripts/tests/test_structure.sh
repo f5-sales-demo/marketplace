@@ -22,7 +22,7 @@ test_plugin_json_valid() {
 
   local name
   name=$(jq -r '.name' "$pj")
-  [ "$name" = "salesforce" ] || {
+  [ "$name" = "salesforce-legacy" ] || {
     echo "name=$name, expected salesforce"
     return 1
   }
@@ -41,14 +41,14 @@ test_marketplace_entry() {
   local pj="$PLUGIN_ROOT/.xcsh-plugin/plugin.json"
 
   local mp_name
-  mp_name=$(jq -r '.plugins[] | select(.name == "salesforce") | .name' "$mj")
-  [ "$mp_name" = "salesforce" ] || {
+  mp_name=$(jq -r '.plugins[] | select(.name == "salesforce-legacy") | .name' "$mj")
+  [ "$mp_name" = "salesforce-legacy" ] || {
     echo "salesforce entry missing from marketplace.json"
     return 1
   }
 
   local mp_ver
-  mp_ver=$(jq -r '.plugins[] | select(.name == "salesforce") | .version' "$mj")
+  mp_ver=$(jq -r '.plugins[] | select(.name == "salesforce-legacy") | .version' "$mj")
   local pj_ver
   pj_ver=$(jq -r '.version' "$pj")
   [ "$mp_ver" = "$pj_ver" ] || {
@@ -57,8 +57,8 @@ test_marketplace_entry() {
   }
 
   local src
-  src=$(jq -r '.plugins[] | select(.name == "salesforce") | .source' "$mj")
-  [ "$src" = "./plugins/salesforce" ] || {
+  src=$(jq -r '.plugins[] | select(.name == "salesforce-legacy") | .source' "$mj")
+  [ "$src" = "./plugins/salesforce-legacy" ] || {
     echo "source=$src, expected ./plugins/salesforce"
     return 1
   }
