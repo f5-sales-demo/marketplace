@@ -64,14 +64,21 @@ function normalize(node: unknown, root: Schema): Schema | undefined {
   return flatten(d, root);
 }
 
-export function resolveSchemaPath(rootSchema: unknown, dottedPath: string): boolean {
-  if (dottedPath === '') return false;
-  if (!rootSchema || typeof rootSchema !== 'object') return false;
+/**
+ * Walk to the schema node a dotted path names, or undefined when it does not resolve.
+ *
+ * `resolveSchemaPath` is this with the node thrown away. Keeping one walker means a path that
+ * the guard accepts is a path the generator can read constraints from — two walkers would
+ * eventually disagree about `$ref` or `allOf` and the disagreement would be silent.
+ */
+export function findSchemaNode(rootSchema: unknown, dottedPath: string): Schema | undefined {
+  if (dottedPath === '') return undefined;
+  if (!rootSchema || typeof rootSchema !== 'object') return undefined;
   const root = rootSchema as Schema;
   let node: Schema | undefined = normalize(root, root);
 
   for (const tok of tokenize(dottedPath)) {
-    if (!node) return false;
+    if (!node) return undefined;
 
     if (tok.startsWith('[')) {
       node = node.items ? normalize(node.items, root) : undefined;
@@ -81,13 +88,43 @@ export function resolveSchemaPath(rootSchema: unknown, dottedPath: string): bool
     // Auto-descend an array when the next token is a property name (column-style path).
     if (node.type === 'array' || node.items) {
       node = node.items ? normalize(node.items, root) : undefined;
-      if (!node) return false;
+      if (!node) return undefined;
     }
 
     const props = (node.properties as Record<string, unknown>) ?? {};
-    if (!(tok in props)) return false;
+    if (!(tok in props)) return undefined;
     node = normalize(props[tok], root);
   }
 
-  return node !== undefined;
+  return node;
+}
+
+export function resolveSchemaPath(rootSchema: unknown, dottedPath: string): boolean {
+  return findSchemaNode(rootSchema, dottedPath) !== undefined;
+}
+
+export interface SchemaConstraint {
+  type?: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+}
+
+/**
+ * The constraints the schema puts on a path: its type, its allowed values, its bounds.
+ *
+ * This is what makes a dropdown impossible to drift. The workbook's validation lists are not
+ * authored anywhere — they are read from the same `enum` the validator enforces, so adding a
+ * deal status in the schema adds it to the dropdown and nothing has to remember to.
+ */
+export function schemaConstraint(rootSchema: unknown, dottedPath: string): SchemaConstraint | undefined {
+  const node = findSchemaNode(rootSchema, dottedPath);
+  if (!node) return undefined;
+  const values = Array.isArray(node.enum) ? node.enum.filter((v): v is string => typeof v === 'string') : undefined;
+  return {
+    type: typeof node.type === 'string' ? node.type : undefined,
+    enum: values && values.length > 0 ? values : undefined,
+    minimum: typeof node.minimum === 'number' ? node.minimum : undefined,
+    maximum: typeof node.maximum === 'number' ? node.maximum : undefined,
+  };
 }

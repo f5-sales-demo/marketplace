@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { computeCompletion } from './completion';
 import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
 import type { WorkbookSpec } from './workbook-spec';
+import { COMPLETION_STATUSES } from './xlsx';
 import { readZip } from './zip';
 
 const here = import.meta.dir;
@@ -193,10 +195,10 @@ describe('planWorkbook — formula references resolve to addresses', () => {
     expect(cell?.formula).toBe('SUM(Qualification!C2:C9)');
   });
 
-  test('a keyed row reference points at that key own row', () => {
+  test('a keyed row reference looks the key up in the table', () => {
+    // Not the key's row ADDRESS: see "a keyed reference survives the user sorting the table".
     const cell = cellAt('Scorecard', plan.namedCells.championScore.split('!')[1] ?? '');
-    const championRow = QUALIFICATION_ELEMENTS.indexOf('champion') + 2;
-    expect(cell?.formula).toBe(`Qualification!C${championRow}`);
+    expect(cell?.formula).toBe('INDEX(Qualification!C2:C9,MATCH("champion",Qualification!A2:A9,0))');
   });
 
   test('a same-sheet reference is not sheet-qualified, a cross-sheet one is', () => {
@@ -311,5 +313,42 @@ describe('dateToSerial rejects what is not a date', () => {
 
   test('still accepts the date-time form the schema uses for lastSyncDate', () => {
     expect(dateToSerial('2026-05-05T14:30:00Z')).toBe(dateToSerial('2026-05-05'));
+  });
+});
+
+describe('a keyed reference survives the user sorting the table', () => {
+  // Putting a Table on Qualification hands the user a sort button. A formula written as
+  // `Qualification!C8` means "champion" only while the rows are in their original order —
+  // after a sort by score it silently reports a different element under the Champion label.
+  // So a keyed reference has to look the key up, not remember where it was.
+  test('resolves through MATCH on the key column rather than a fixed row', () => {
+    const champion = cellAt('Scorecard', plan.namedCells.championScore.split('!')[1] ?? '')?.formula ?? '';
+    expect(champion).toContain('MATCH("champion"');
+    expect(champion).toMatch(/^INDEX\(Qualification!C\$?2:C\$?9,MATCH\("champion",Qualification!A\$?2:A\$?9,0\)\)$/);
+  });
+
+  test('the economic buyer reference is looked up the same way', () => {
+    const eb = cellAt('Scorecard', plan.namedCells.economicBuyerScore.split('!')[1] ?? '')?.formula ?? '';
+    expect(eb).toContain('MATCH("economicBuyer"');
+    expect(eb).not.toMatch(/Qualification!C\d+$/);
+  });
+});
+
+describe('the Completion sheet is coloured with its own vocabulary', () => {
+  // computeCompletion emits not_started / partial / complete. The closePlan status enum is
+  // pending / in_progress / complete. One preset cannot serve both, and pointing the
+  // Completion column at the closePlan preset left two of its three states uncoloured.
+  test('uses a preset that matches the statuses it actually writes', () => {
+    const completion = spec.sheets.find((s) => s.name === 'Completion');
+    if (completion?.kind !== 'table') throw new Error('Completion must be a table sheet');
+    const status = completion.tables[0].columns.find((c) => c.id === 'status');
+    expect(status?.conditionalFormat).toBe('completionText');
+  });
+
+  test('every status the engine can emit is one the preset colours', () => {
+    const emitted = new Set(Object.values(computeCompletion(deal).completionStatus));
+    for (const status of emitted) {
+      expect(COMPLETION_STATUSES).toContain(status);
+    }
   });
 });

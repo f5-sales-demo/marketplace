@@ -54,6 +54,8 @@ function baseSpec(): WorkbookSpec {
             source: { kind: 'elements' },
             anchorColumn: 1,
             headerRow: 1,
+            // A `{{row:…}}` reference below needs a column to match the key against.
+            keyColumn: 'element',
             columns: [
               { id: 'element', header: 'Element', role: 'derived', valueType: 'string' },
               { id: 'score', header: 'Score', role: 'input', jsonPath: 'qualification.*.score', valueType: 'score' },
