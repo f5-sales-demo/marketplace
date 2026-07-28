@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # End-to-end acceptance for the MEDDPICC engine CLI.
 
+# Skipping when bun is absent keeps the suite usable on a bare machine, but in CI a skip
+# would be a green gate that ran nothing. REQUIRE_BUN makes the absence a failure instead.
 _engine_precheck() {
-  command -v bun >/dev/null 2>&1 || {
-    echo "SKIP: bun unavailable"
-    return 1
-  }
+  command -v bun >/dev/null 2>&1 && return 0
+  # Aborts the whole run rather than returning: a missing runtime is a configuration error,
+  # and every one of these tests would otherwise report a green skip having run nothing.
+  if [ "${REQUIRE_BUN:-0}" = "1" ]; then
+    echo "FATAL: bun is required (REQUIRE_BUN=1) but is not installed" >&2
+    exit 1
+  fi
+  echo "SKIP: bun unavailable"
+  return 1
 }
 
 test_engine_score_matches_example() {
@@ -157,6 +164,46 @@ test_engine_fill_is_deterministic() {
     echo "fill --plan is not deterministic"
     return 1
   }
+}
+
+test_engine_check_spec_ok() {
+  _engine_precheck || return 0
+  bun "$PLUGIN_ROOT/engine/cli.ts" check-spec >/dev/null || {
+    echo "check-spec failed on the shipped workbook spec"
+    return 1
+  }
+}
+
+test_engine_check_spec_detects_a_dropped_element() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  # Pin the wildcard to seven of the eight elements. The workbook still looks complete and
+  # every path still resolves; the deal is just quietly scored out of 28.
+  jq '(.sheets[] | select(.name == "Qualification") | .tables[0].source) =
+        {"kind": "fixed", "keys": ["metrics","economicBuyer","decisionCriteria","decisionProcess","paperProcess","implicateThePain","competition"]}' \
+    "$PLUGIN_ROOT/engine/workbook-spec.json" >"$tmp/spec.json"
+  if bun "$PLUGIN_ROOT/engine/cli.ts" check-spec --spec "$tmp/spec.json" >/dev/null 2>&1; then
+    echo "expected non-zero exit for a spec missing an element score"
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$tmp"
+}
+
+test_engine_check_spec_detects_a_broken_formula_reference() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  # Rename a column the Scorecard's formulas point at. Nothing else changes.
+  jq '(.sheets[] | select(.name == "Qualification") | .tables[0].columns[] | select(.id == "score") | .id) = "renamed"' \
+    "$PLUGIN_ROOT/engine/workbook-spec.json" >"$tmp/spec.json"
+  if bun "$PLUGIN_ROOT/engine/cli.ts" check-spec --spec "$tmp/spec.json" >/dev/null 2>&1; then
+    echo "expected non-zero exit for a formula naming a column that no longer exists"
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$tmp"
 }
 
 test_engine_check_mappings_detects_a_target_aimed_at_a_label() {
