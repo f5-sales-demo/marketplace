@@ -1,0 +1,81 @@
+---
+name: Herdr Skill Freshness
+
+# `plugins/herdr/skills/herdr/SKILL.md` is vendored verbatim from ogulcancelik/herdr.
+# Nothing in this repo can detect upstream edits, so without this job the vendored copy
+# silently rots — and it documents a CLI whose command surface changes.
+#
+# Deliberately GitHub-hosted: the self-hosted `code-review` runners were decommissioned,
+# so this must not depend on a runner label that no longer exists.
+#
+# NOT a required check, and it carries a `paths:` filter. Required + filtered deadlocks
+# PRs that touch nothing relevant (see the header of validate-plugins.yml for why).
+on:
+  schedule:
+    # Mondays 06:17 UTC — off the :00 mark so this does not pile onto the hour boundary.
+    - cron: '17 6 * * 1'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'plugins/herdr/**'
+      - '.github/workflows/herdr-skill-freshness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{
+    github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  freshness:
+    name: Vendored SKILL.md matches upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Ref is pinned here and recorded in plugins/herdr/UPSTREAM.md. Keep both in step.
+      - name: Fetch upstream SKILL.md
+        env:
+          UPSTREAM_URL: https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md
+        run: |
+          set -euo pipefail
+          # A failed fetch must FAIL the job. Falling through on a network blip would make
+          # "upstream unreachable" indistinguishable from "no drift".
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 60 \
+            "$UPSTREAM_URL" -o /tmp/upstream-SKILL.md
+          test -s /tmp/upstream-SKILL.md
+
+      - name: Compare against vendored copy
+        run: |
+          set -euo pipefail
+          VENDORED=plugins/herdr/skills/herdr/SKILL.md
+          test -f "$VENDORED"
+
+          if diff -u "$VENDORED" /tmp/upstream-SKILL.md; then
+            echo "Vendored SKILL.md matches upstream."
+            echo "sha256: $(sha256sum "$VENDORED" | cut -d' ' -f1)"
+            exit 0
+          fi
+
+          # Quoted heredoc: contents are literal, so backticks and trailing
+          # backslashes in the remediation snippet need no shell escaping.
+          cat >> "$GITHUB_STEP_SUMMARY" <<'MD'
+          ## Herdr skill drift detected
+
+          The vendored `SKILL.md` no longer matches upstream `ogulcancelik/herdr@master`.
+
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md \
+            -o plugins/herdr/skills/herdr/SKILL.md
+          scripts/bump-version.sh herdr patch
+          # then update the table in plugins/herdr/UPSTREAM.md
+          ```
+          MD
+
+          echo "::error::Vendored plugins/herdr/skills/herdr/SKILL.md differs from upstream. Re-vendor and bump the plugin version."
+          exit 1
