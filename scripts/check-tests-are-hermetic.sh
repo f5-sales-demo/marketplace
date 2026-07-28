@@ -38,7 +38,7 @@ trap 'rm -rf "$STUB_BIN"' EXIT
 
 # The stubs are PREPENDED to the real PATH, so every genuine utility stays reachable and
 # only the cloud CLIs are shadowed. Rebuilding a minimal PATH instead would make a missing
-# coreutil look like a hermeticity failure.
+# ordinary utility look like a hermeticity failure.
 for cli in "${CLIS[@]}"; do
   printf '#!/bin/sh\nsleep %s\n' "$SLEEP_SECONDS" >"$STUB_BIN/$cli"
   chmod +x "$STUB_BIN/$cli"
