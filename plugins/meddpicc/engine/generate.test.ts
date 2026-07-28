@@ -259,3 +259,57 @@ describe('generateWorkbook', () => {
     expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
   });
 });
+
+describe('a partly-qualified deal is not flattered by the workbook', () => {
+  // Excel's COUNT ignores blanks, so a denominator of COUNT(score)*4 shrank with the data:
+  // one element scored 4 and seven unscored displayed 4/4 = 100% next to a Red rating, while
+  // the engine said 12.5%. MEDDPICC scores out of 32 whether or not anyone has looked yet.
+  const partial = (() => {
+    const d = JSON.parse(JSON.stringify(deal));
+    for (const el of QUALIFICATION_ELEMENTS) {
+      if (el !== 'metrics') delete d.qualification[el].score;
+    }
+    d.qualification.metrics.score = 4;
+    d.scoring = { elementScores: { metrics: 4 } };
+    return d;
+  })();
+
+  test('an unscored element is written as 0, matching how the engine counts it', () => {
+    const p = planWorkbook(schema, spec, partial);
+    const q = p.sheets.find((s) => s.name === 'Qualification');
+    const scores = QUALIFICATION_ELEMENTS.map(
+      (_, i) => q?.rows.find((r) => r.row === i + 2)?.cells.find((c) => c.ref === `C${i + 2}`)?.value,
+    );
+    expect(scores).toEqual([4, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  test('the maximum does not shrink when scores are missing', () => {
+    // Counting the element-name column keeps the denominator at the number of elements.
+    const maximum = cellAt('Scorecard', plan.namedCells.scoreMaximum.split('!')[1] ?? '');
+    expect(maximum?.formula).toBe('COUNTA(Qualification!A2:A9)*4');
+  });
+});
+
+describe('dateToSerial rejects what is not a date', () => {
+  test('refuses an impossible calendar date instead of rolling it forward', () => {
+    // Date.UTC turns 2026-02-31 into 2026-03-03 — a close date silently three days late.
+    expect(dateToSerial('2026-02-31')).toBeNull();
+    expect(dateToSerial('2026-04-31')).toBeNull();
+    expect(dateToSerial('2026-13-01')).toBeNull();
+    expect(dateToSerial('2026-00-10')).toBeNull();
+  });
+
+  test('accepts a real leap day and rejects a fake one', () => {
+    expect(dateToSerial('2024-02-29')).not.toBeNull();
+    expect(dateToSerial('2026-02-29')).toBeNull();
+  });
+
+  test('refuses trailing garbage', () => {
+    expect(dateToSerial('2026-06-30XYZ')).toBeNull();
+    expect(dateToSerial('2026-06-30-01')).toBeNull();
+  });
+
+  test('still accepts the date-time form the schema uses for lastSyncDate', () => {
+    expect(dateToSerial('2026-05-05T14:30:00Z')).toBe(dateToSerial('2026-05-05'));
+  });
+});

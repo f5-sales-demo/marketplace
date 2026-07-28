@@ -16,7 +16,8 @@ set -uo pipefail
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLUGIN_ROOT="$(cd -- "$HERE/.." && pwd -P)"
 DEAL="${1:-$PLUGIN_ROOT/schema/example-deal.json}"
-OUT="$(mktemp -d)/uat-deal.xlsx"
+WORK="$(mktemp -d)"
+OUT="$WORK/uat-deal.xlsx"
 BOOK="$(basename "$OUT")"
 
 skip() {
@@ -57,10 +58,6 @@ for _ in $(seq 1 30); do
 done
 [ "${opened:-0}" = "1" ] || fail "Excel never listed $BOOK — it most likely offered to repair the file"
 echo "    opened with no repair prompt"
-
-read_cell() {
-  osascript -e "tell application \"Microsoft Excel\" to get value of cell \"$2\" of worksheet \"$1\" of workbook \"$BOOK\"" 2>/dev/null
-}
 
 # Find the Scorecard rows by their labels rather than hard-coded addresses: the layout comes
 # from the spec, so pinning row numbers here would make this fail on a harmless reorder.
@@ -120,5 +117,62 @@ OSA
 echo "    no Excel error values on any sheet"
 
 osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
-rm -rf "$(dirname "$OUT")"
 echo "PASS: Excel opened the generated workbook and its Scorecard agrees with the engine"
+
+# The same comparison on a deal where most elements are unscored — the case that was wrong.
+#
+# MEDDPICC scores out of 32 whether or not anyone has assessed an element yet. With the
+# denominator written as COUNT(score)*4, blanks shrank it: one element at 4 and seven unscored
+# displayed 4/4 = 100% beside a Red rating. The engine said 12.5%. A forecast document that
+# flatters an unqualified deal is worse than no document, so this stays checked.
+command -v jq >/dev/null 2>&1 || {
+  echo "SKIP: jq unavailable for the partial-deal case"
+  exit 0
+}
+
+PARTIAL="$WORK/partial.json"
+jq '(.qualification | keys[]) as $k | .' "$DEAL" >/dev/null 2>&1 || fail "cannot read $DEAL as JSON"
+jq '
+  .qualification |= with_entries(if .key == "metrics" then . else (.value |= del(.score)) end)
+  | .qualification.metrics.score = 4
+  | .scoring = { elementScores: { metrics: 4 } }
+' "$DEAL" >"$PARTIAL" || fail "could not build the partial deal"
+
+PARTIAL_OUT="$WORK/uat-partial.xlsx"
+PARTIAL_BOOK="$(basename "$PARTIAL_OUT")"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PARTIAL" --out "$PARTIAL_OUT" >/dev/null || fail "generate failed on the partial deal"
+
+partial_score="$(bun "$PLUGIN_ROOT/engine/cli.ts" score "$PARTIAL")" || fail "score failed on the partial deal"
+want_partial_pct="$(jq -r '.overallScore' <<<"$partial_score")"
+
+echo "==> opening the partial deal in Excel"
+open -a "Microsoft Excel" "$PARTIAL_OUT" || fail "could not open the partial workbook"
+for _ in $(seq 1 30); do
+  if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$PARTIAL_BOOK"; then
+    partial_opened=1
+    break
+  fi
+  sleep 2
+done
+[ "${partial_opened:-0}" = "1" ] || fail "Excel never listed $PARTIAL_BOOK"
+
+got_partial_raw="$(
+  osascript <<OSA 2>/dev/null
+tell application "Microsoft Excel"
+  repeat with r from 1 to 60
+    set a to (get value of cell ("A" & r) of worksheet "Scorecard" of workbook "$PARTIAL_BOOK")
+    if (a as string) is "Overall score" then
+      return (get value of cell ("B" & r) of worksheet "Scorecard" of workbook "$PARTIAL_BOOK") as string
+    end if
+  end repeat
+  return "NOT-FOUND"
+end tell
+OSA
+)"
+got_partial="$(awk -v v="$got_partial_raw" 'BEGIN { printf "%.1f", v * 100 }')"
+echo "    partly-qualified overall score: Excel=$got_partial% engine=$want_partial_pct%"
+osascript -e "tell application \"Microsoft Excel\" to close workbook \"$PARTIAL_BOOK\" saving no" >/dev/null 2>&1
+[ "$got_partial" = "$want_partial_pct" ] || fail "Excel showed $got_partial% for a partly-qualified deal, engine says $want_partial_pct%"
+
+rm -rf "$WORK"
+echo "PASS: a partly-qualified deal reads the same in Excel as in the engine"

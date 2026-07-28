@@ -38,11 +38,17 @@ const MS_PER_DAY = 86_400_000;
  */
 export function dateToSerial(value: unknown): number | null {
   if (typeof value !== 'string') return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  // Anchored, and a time part only in the `T…` form the schema uses for lastSyncDate.
+  // Left open-ended, the pattern accepted `2026-06-30XYZ` and quietly used the date.
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(value);
   if (!m) return null;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const utc = Date.UTC(y, mo - 1, d);
   if (Number.isNaN(utc)) return null;
+  // Date.UTC rolls impossible components forward — 2026-02-31 becomes 2026-03-03, a close
+  // date three days late that nothing downstream would question. Reject rather than shift.
+  const back = new Date(utc);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
   return Math.round((utc - EXCEL_EPOCH_UTC) / MS_PER_DAY);
 }
 
@@ -66,7 +72,12 @@ function readPath(root: unknown, dottedPath: string): unknown {
 
 /** Coerce a deal value for a cell of this type. `undefined` means leave the cell blank. */
 function toCellValue(value: unknown, valueType: ValueType): string | number | boolean | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
+  if (value === undefined || value === null || value === '') {
+    // An unscored element is 0, not blank. `computeScore` already counts it as 0, and Excel's
+    // COUNT/COUNTIF skip blanks — so leaving it empty made the sheet disagree with the engine
+    // and, with COUNT in the denominator, display a partly-qualified deal as 100%.
+    return valueType === 'score' ? 0 : undefined;
+  }
   if (valueType === 'date') return dateToSerial(value) ?? String(value);
   if (valueType === 'boolean') return typeof value === 'boolean' ? value : String(value);
   if (valueType === 'integer' || valueType === 'number' || valueType === 'currency' || valueType === 'percent') {

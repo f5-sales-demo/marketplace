@@ -145,6 +145,23 @@ async function main(): Promise<number> {
     const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
     const deal = await readJson(dealPath);
 
+    // Refuse before writing rather than producing a plausible-looking workbook from bad
+    // input. A mistyped jsonPath becomes an empty cell and a wrong type becomes a blank
+    // one, and either reads as "that field is not filled in yet" instead of "the spec is
+    // broken". Both checks are cheap and deterministic, so there is no reason to skip them.
+    const specCheck = checkWorkbookSpec(schema, spec);
+    if (!specCheck.ok) {
+      process.stderr.write('Refusing to generate: the workbook spec does not check out.\n');
+      print(specCheck);
+      return 1;
+    }
+    const dealCheck = validateDeal(deal, schema);
+    if (!dealCheck.valid) {
+      process.stderr.write(`Refusing to generate: ${dealPath} does not validate against the schema.\n`);
+      print(dealCheck);
+      return 1;
+    }
+
     // `--plan` reports where every input landed without writing a file — that map is what
     // the round-trip reader consumes, so being able to inspect it is worth a flag.
     if (rest.includes('--plan')) {
