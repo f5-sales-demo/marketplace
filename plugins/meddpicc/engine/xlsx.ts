@@ -70,6 +70,20 @@ interface Range {
   r2: number;
 }
 
+/** The last cell Excel has: column XFD, row 1048576. Anything past it is not a cell at all. */
+const MAX_COLUMN = 16384;
+const MAX_ROW = 1048576;
+
+/**
+ * How many cells one merge may materialise.
+ *
+ * A full-width banner is sixteen cells and the tallest prose block is a few hundred, so this is
+ * three orders of magnitude of headroom. It exists because `A1:XFD1048576` is a syntactically
+ * valid, in-bounds range covering seventeen billion cells: without a cap the writer does not
+ * fail, it stops responding, which is the one failure mode with no error message.
+ */
+const MAX_MERGE_CELLS = 10_000;
+
 /** Parse `B2:Q7` into 1-based bounds, rejecting anything Excel would not accept as a range. */
 function parseRange(ref: string, what: string): Range {
   const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref);
@@ -78,7 +92,20 @@ function parseRange(ref: string, what: string): Range {
   if (range.c2 < range.c1 || range.r2 < range.r1) {
     throw new Error(`${what} "${ref}" runs backwards — write it top-left first, as B2:Q7`);
   }
+  for (const [axis, low, high, limit] of [
+    ['row', range.r1, range.r2, MAX_ROW],
+    ['column', range.c1, range.c2, MAX_COLUMN],
+  ] as const) {
+    if (low < 1 || high > limit) {
+      throw new Error(`${what} "${ref}" is outside Excel's grid — ${axis}s run from 1 to ${limit}`);
+    }
+  }
   return range;
+}
+
+/** Do two ranges share a cell? */
+function overlaps(a: Range, b: Range): boolean {
+  return a.c1 <= b.c2 && b.c1 <= a.c2 && a.r1 <= b.r2 && b.r1 <= a.r2;
 }
 
 /**
@@ -373,32 +400,67 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
   const rows = sheet.rows.map((r) => ({ ...r, cells: [...r.cells] }));
   if (merges.length === 0) return rows;
 
-  const cellAt = (ref: string) => {
-    for (const row of rows) {
-      const found = row.cells.find((c) => c.ref === ref);
-      if (found) return found;
+  // Indexed once, not scanned per cell. Looking a cell up by walking every row inside the
+  // expansion loop makes this quadratic: a 200,000-cell merge did not finish in two minutes.
+  //
+  // Measured at MAX_MERGE_CELLS, rescanning against indexing: A1:B5000 700ms vs 9ms, A1:A9999
+  // 942ms vs 7ms. So the cap is what bounds the damage and the index is what makes it free.
+  // No test asserts the timing — at these sizes a threshold either cannot fail or flakes.
+  const rowByNumber = new Map<number, RowSpec>();
+  for (const row of rows) {
+    if (rowByNumber.has(row.row)) {
+      throw new Error(
+        `Sheet "${sheet.name}" declares row ${row.row} twice — Excel repairs a sheet with a repeated row`,
+      );
     }
-    return undefined;
-  };
+    rowByNumber.set(row.row, row);
+  }
+  const cellByRef = new Map<string, CellSpec>();
+  for (const row of rows) for (const cell of row.cells) cellByRef.set(cell.ref, cell);
+
   const rowAt = (n: number) => {
-    let row = rows.find((r) => r.row === n);
+    let row = rowByNumber.get(n);
     if (!row) {
       row = { row: n, cells: [] };
+      rowByNumber.set(n, row);
       rows.push(row);
     }
     return row;
   };
 
+  const tableRanges = (sheet.tables ?? []).map((t) => ({
+    name: t.name,
+    range: parseRange(t.ref, `Table "${t.name}" on sheet "${sheet.name}"`),
+  }));
+
   /** ref -> the merge that already covers it, so an overlap can name both. */
   const covered = new Map<string, string>();
 
   for (const ref of merges) {
-    const { c1, r1, c2, r2 } = parseRange(ref, `Merge on sheet "${sheet.name}"`);
+    const area = parseRange(ref, `Merge on sheet "${sheet.name}"`);
+    const { c1, r1, c2, r2 } = area;
     if (c1 === c2 && r1 === r2) {
       throw new Error(`Merge "${ref}" on sheet "${sheet.name}" covers one cell — that is not a merge`);
     }
+    const size = (c2 - c1 + 1) * (r2 - r1 + 1);
+    if (size > MAX_MERGE_CELLS) {
+      throw new Error(
+        `Merge "${ref}" on sheet "${sheet.name}" covers ${size} cells; the writer materialises at most ${MAX_MERGE_CELLS}`,
+      );
+    }
+    // Excel does not merely dislike a merge inside a table — it drops the table and repairs the
+    // file, so the sort button, the structured references and the auto-extend all disappear
+    // with nothing to notice but a table count that fell to zero.
+    for (const table of tableRanges) {
+      if (overlaps(area, table.range)) {
+        throw new Error(
+          `Merge "${ref}" on sheet "${sheet.name}" overlaps table "${table.name}" (${sheet.tables?.find((t) => t.name === table.name)?.ref}) — ` +
+            'Excel drops a table whose range contains a merged cell',
+        );
+      }
+    }
     const anchorRef = A1(c1, r1);
-    const anchor = cellAt(anchorRef);
+    const anchor = cellByRef.get(anchorRef);
     if (!anchor) {
       throw new Error(
         `Merge "${ref}" on sheet "${sheet.name}" has no cell at ${anchorRef} to anchor it — ` +
@@ -415,18 +477,21 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
         covered.set(at, ref);
         if (at === anchorRef) continue;
 
-        const existing = cellAt(at);
+        const existing = cellByRef.get(at);
         if (existing && (existing.value !== undefined || existing.formula !== undefined)) {
           throw new Error(
             `Merge "${ref}" on sheet "${sheet.name}" would hide the value at ${at} — ` +
               'a merged range shows only its top-left cell',
           );
         }
+        // Replace, never mutate: the cell objects still belong to the caller's spec, and only
+        // the rows and their arrays were copied.
         const row = rowAt(r);
         const index = row.cells.findIndex((cell) => cell.ref === at);
         const filled: CellSpec = { ref: at, style: anchor.style };
         if (index === -1) row.cells.push(filled);
         else row.cells[index] = filled;
+        cellByRef.set(at, filled);
       }
     }
   }

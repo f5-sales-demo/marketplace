@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { A1, buildWorkbook, columnIndex, columnLetter, STYLE_IDS } from './xlsx';
+import { A1, buildWorkbook, columnIndex, columnLetter, expandMerges, STYLE_IDS } from './xlsx';
 import { readZip } from './zip';
 
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -392,6 +392,71 @@ describe('buildWorkbook — merges', () => {
     for (const bad of ['B2:A2', 'B2:B1']) {
       expect(() => merged([bad])).toThrow(/runs backwards/);
     }
+  });
+
+  test("refuses a range outside Excel's grid", () => {
+    // Syntax and direction are not enough: A0, XFE and row 1048577 are all well-formed and
+    // are not cells, and the writer would materialise them into a file Excel must repair.
+    for (const bad of ['A0:B0', 'XFE1:XFF1', 'A1048576:A1048577']) {
+      expect(() => merged([bad]), bad).toThrow(/outside Excel's grid/);
+    }
+  });
+
+  test('refuses a merge too large to materialise, rather than not responding', () => {
+    // A1:XFD1048576 is valid, in bounds, and seventeen billion cells. Without a cap the writer
+    // does not fail — it stops responding, which is the one failure mode with no message.
+    expect(() => merged(['A1:XFD1048576'])).toThrow(/covers 17179869184 cells/);
+  });
+
+  test('refuses a merge that overlaps an Excel table', () => {
+    // Excel does not merely dislike this: it drops the table and repairs the file, so the sort
+    // button, the structured references and the auto-extend all vanish with nothing to notice.
+    expect(() =>
+      buildWorkbook([
+        {
+          name: 'Data',
+          merges: ['A2:B2'],
+          rows: [
+            {
+              row: 1,
+              cells: [
+                { ref: 'A1', value: 'Name' },
+                { ref: 'B1', value: 'Score' },
+              ],
+            },
+            { row: 2, cells: [{ ref: 'A2', value: 'x' }] },
+            { row: 3, cells: [{ ref: 'A3' }, { ref: 'B3' }] },
+          ],
+          tables: [{ name: 'people', displayName: 'people', ref: 'A1:B3', columns: ['Name', 'Score'] }],
+        },
+      ]),
+    ).toThrow(/overlaps table "people"/);
+  });
+
+  test('refuses a sheet that declares the same row twice', () => {
+    expect(() =>
+      buildWorkbook([
+        {
+          name: 'S',
+          merges: ['A1:B1'],
+          rows: [
+            { row: 1, cells: [{ ref: 'A1', value: 'x' }] },
+            { row: 1, cells: [{ ref: 'C1', value: 'y' }] },
+          ],
+        },
+      ]),
+    ).toThrow(/row 1 twice/);
+  });
+
+  test("leaves the caller's cells untouched", () => {
+    // The rows and their arrays are copied; the cell objects are not, so a fill that mutated
+    // one in place would edit the spec the caller still holds.
+    const anchor = { ref: 'B2', value: 'Banner', style: 'sectionHeader' as const };
+    const blank = { ref: 'C2', style: 'default' as const };
+    const spec = { name: 'Deal', merges: ['B2:C2'], rows: [{ row: 2, cells: [anchor, blank] }] };
+    expandMerges(spec);
+    expect(blank).toStrictEqual({ ref: 'C2', style: 'default' });
+    expect(spec.rows[0].cells).toHaveLength(2);
   });
 
   test('a single-cell range is not a merge', () => {

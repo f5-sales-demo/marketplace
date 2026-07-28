@@ -38,6 +38,18 @@ and this project adheres to
   a table whose range contains one. Every sheet hides the grid and prints landscape, one page wide,
   with the deal named in the header.
 
+  Three more refusals came out of review. A range outside Excel's grid (`A0`, `XFE`, row 1048577) is
+  well-formed and is not a cell. A merge overlapping an Excel table is worse than it sounds: Excel
+  drops the table and repairs the file, so the sort button, the structured references and the
+  auto-extend all vanish, leaving only a table count that fell to zero. And `A1:XFD1048576` is valid,
+  in bounds and seventeen billion cells — without a cap the writer did not fail, it stopped
+  responding.
+
+  Chasing that last one turned up the real defect: cells were looked up by walking every row from
+  inside the expansion loop, making the whole thing quadratic. A 200,000-cell merge did not finish in
+  two minutes. Measured at the new cap, rescanning against indexing: `A1:B5000` 700ms against 9ms,
+  `A1:A9999` 942ms against 7ms. The cap bounds the damage; the index makes it free.
+
   Verified against real Excel: the file opens with no repair prompt, and Excel confirms the merge, the
   preserved anchor value, the absence of any merge inside a table range, the hidden grid, and the
   landscape fit-to-width setup.
