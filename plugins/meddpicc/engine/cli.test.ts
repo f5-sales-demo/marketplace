@@ -23,6 +23,28 @@ async function fixture(name: string): Promise<{ deal: string; workbook: string }
   return { deal, workbook };
 }
 
+/** A copy of the example deal with every field put back to its retired name. */
+function legacyDeal(name: string): string {
+  const deal = JSON.parse(fs.readFileSync(example, 'utf8'));
+  deal.metadata.revenue.pAndIplusAcvx = deal.metadata.revenue.subscription;
+  delete deal.metadata.revenue.subscription;
+  deal.threeWhys.f5 = deal.threeWhys.us;
+  delete deal.threeWhys.us;
+  deal.threeWhys.f5.whyF5 = deal.threeWhys.f5.whyUs;
+  delete deal.threeWhys.f5.whyUs;
+  for (const s of deal.stakeholders) {
+    s.viewOfF5 = s.sentiment;
+    delete s.sentiment;
+    s.f5Owner = s.relationshipOwner;
+    delete s.relationshipOwner;
+  }
+  deal.team.f5 = deal.team.internal;
+  delete deal.team.internal;
+  const at = path.join(scratch, `${name}.json`);
+  fs.writeFileSync(at, `${JSON.stringify(deal, null, 2)}\n`);
+  return at;
+}
+
 async function run(args: string[]): Promise<{ code: number; out: string }> {
   const proc = Bun.spawn(['bun', path.join(engineDir, 'cli.ts'), ...args], { stdout: 'pipe', stderr: 'pipe' });
   const out = await new Response(proc.stdout).text();
@@ -186,5 +208,90 @@ describe('cli read', () => {
     const second = JSON.parse((await run(['read', workbook, '--deal', deal, '--apply'])).out);
     expect(second.proposals).toEqual([]);
     expect(second.applied).toBe(false);
+  });
+});
+
+describe('cli migrate', () => {
+  test('a deal using retired field names is refused by validate, generate and read', async () => {
+    // The schema tolerates them silently, so refusing is the only thing standing between an old
+    // file and a workbook full of blanks where its answers used to be.
+    const deal = legacyDeal('refused');
+    const workbook = path.join(scratch, 'refused.xlsx');
+    expect((await run(['validate', deal])).code).toBe(1);
+    expect((await run(['generate', deal, '--out', workbook])).code).toBe(1);
+    expect(fs.existsSync(workbook)).toBe(false);
+
+    // `read` needs a workbook to be handed, so build one from a current deal and read it against
+    // the legacy one: the refusal must come before any cell is compared.
+    const current = await fixture('refused-current');
+    expect((await run(['read', current.workbook, '--deal', deal])).code).toBe(1);
+  });
+
+  test('next and score refuse a legacy deal too, not just validate', async () => {
+    // `next` drives the qualification workflow. Reading a legacy deal it finds no `threeWhys.us`
+    // and no `team.internal`, so it would report two completed sections as not_started and send
+    // the user back through them with no hint that anything was wrong.
+    const deal = legacyDeal('refused-next');
+    expect((await run(['next', deal])).code).toBe(1);
+    expect((await run(['score', deal])).code).toBe(1);
+  });
+
+  test('a conflicting deal is refused and never half-applied', async () => {
+    const deal = legacyDeal('conflict');
+    const parsed = JSON.parse(fs.readFileSync(deal, 'utf8'));
+    parsed.threeWhys.us = { whyNow: 'partly filled in by hand' };
+    fs.writeFileSync(deal, `${JSON.stringify(parsed, null, 2)}\n`);
+    const before = fs.readFileSync(deal, 'utf8');
+
+    const { code, out } = await run(['migrate', deal, '--apply']);
+    expect(code).toBe(1);
+    const report = JSON.parse(out);
+    expect(report.conflicts.length).toBeGreaterThan(0);
+    expect(report.applied).toBe(false);
+    expect(fs.readFileSync(deal, 'utf8')).toBe(before);
+  });
+
+  test('migrate lists what it would change and writes nothing', async () => {
+    const deal = legacyDeal('dry');
+    const before = fs.readFileSync(deal, 'utf8');
+    const { code, out } = await run(['migrate', deal]);
+    expect(code).toBe(0);
+    const report = JSON.parse(out);
+    expect(report.applied).toBe(false);
+    expect(report.changes.length).toBeGreaterThan(0);
+    expect(report.changes).toContain('team.f5 → team.internal');
+    expect(fs.readFileSync(deal, 'utf8')).toBe(before);
+  });
+
+  test('--apply moves every value, and the result then validates and generates', async () => {
+    const deal = legacyDeal('applied');
+    const original = JSON.parse(fs.readFileSync(deal, 'utf8'));
+    expect((await run(['migrate', deal, '--apply'])).code).toBe(0);
+
+    const after = JSON.parse(fs.readFileSync(deal, 'utf8'));
+    // Values, not just key names: a rename that lost the value would still look renamed.
+    expect(after.threeWhys.us.whyUs).toBe(original.threeWhys.f5.whyF5);
+    expect(after.stakeholders[0].sentiment).toBe(original.stakeholders[0].viewOfF5);
+    expect(after.stakeholders[0].relationshipOwner).toBe(original.stakeholders[0].f5Owner);
+    expect(after.team.internal).toEqual(original.team.f5);
+    expect(after.metadata.revenue.subscription).toBe(original.metadata.revenue.pAndIplusAcvx);
+
+    expect((await run(['validate', deal])).code).toBe(0);
+    expect((await run(['generate', deal, '--out', path.join(scratch, 'applied.xlsx')])).code).toBe(0);
+  });
+
+  test('migrating an already-current deal reports nothing and writes nothing', async () => {
+    const { deal } = await fixture('current');
+    const before = fs.readFileSync(deal, 'utf8');
+    const { code, out } = await run(['migrate', deal, '--apply']);
+    expect(code).toBe(0);
+    const report = JSON.parse(out);
+    expect(report.changes).toEqual([]);
+    expect(report.applied).toBe(false);
+    expect(fs.readFileSync(deal, 'utf8')).toBe(before);
+  });
+
+  test('migrate without a deal exits 1', async () => {
+    expect((await run(['migrate'])).code).toBe(1);
   });
 });

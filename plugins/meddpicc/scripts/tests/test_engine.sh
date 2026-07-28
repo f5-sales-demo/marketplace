@@ -104,6 +104,51 @@ test_engine_next_has_hint() {
   }
 }
 
+test_engine_migrate_refuses_and_then_fixes_a_legacy_deal() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  # A deal using the retired field names. The schema tolerates them silently, so the engine has to
+  # refuse rather than read a workbook full of blanks where the answers used to be.
+  jq '
+    .metadata.revenue.pAndIplusAcvx = .metadata.revenue.subscription
+    | del(.metadata.revenue.subscription)
+    | .threeWhys.f5 = .threeWhys.us | del(.threeWhys.us)
+    | .threeWhys.f5.whyF5 = .threeWhys.f5.whyUs | del(.threeWhys.f5.whyUs)
+    | .team.f5 = .team.internal | del(.team.internal)
+  ' "$PLUGIN_ROOT/schema/example-deal.json" >"$tmp/legacy.json" || {
+    echo "could not build the legacy fixture"
+    rm -rf "$tmp"
+    return 1
+  }
+
+  if bun "$PLUGIN_ROOT/engine/cli.ts" validate "$tmp/legacy.json" >/dev/null 2>&1; then
+    echo "expected non-zero exit for a deal using retired field names"
+    rm -rf "$tmp"
+    return 1
+  fi
+
+  # A dry run must change nothing on disk.
+  bun "$PLUGIN_ROOT/engine/cli.ts" migrate "$tmp/legacy.json" >/dev/null 2>&1
+  if ! grep -q "whyF5" "$tmp/legacy.json"; then
+    echo "migrate without --apply rewrote the file"
+    rm -rf "$tmp"
+    return 1
+  fi
+
+  bun "$PLUGIN_ROOT/engine/cli.ts" migrate "$tmp/legacy.json" --apply >/dev/null || {
+    echo "migrate --apply exited non-zero"
+    rm -rf "$tmp"
+    return 1
+  }
+  bun "$PLUGIN_ROOT/engine/cli.ts" validate "$tmp/legacy.json" >/dev/null || {
+    echo "the migrated deal does not validate"
+    rm -rf "$tmp"
+    return 1
+  }
+  rm -rf "$tmp"
+}
+
 test_engine_check_spec_ok() {
   _engine_precheck || return 0
   bun "$PLUGIN_ROOT/engine/cli.ts" check-spec >/dev/null || {

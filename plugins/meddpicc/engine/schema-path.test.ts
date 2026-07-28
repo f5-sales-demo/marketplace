@@ -7,7 +7,7 @@ const schema = JSON.parse(await Bun.file(path.join(import.meta.dir, '..', 'schem
 describe('resolveSchemaPath', () => {
   test('resolves simple nested object paths', () => {
     expect(resolveSchemaPath(schema, 'metadata.accountName')).toBe(true);
-    expect(resolveSchemaPath(schema, 'metadata.revenue.pAndIplusAcvx')).toBe(true);
+    expect(resolveSchemaPath(schema, 'metadata.revenue.subscription')).toBe(true);
   });
   test('resolves through allOf + $ref + array items', () => {
     expect(resolveSchemaPath(schema, 'qualification.metrics.responses[0]')).toBe(true);

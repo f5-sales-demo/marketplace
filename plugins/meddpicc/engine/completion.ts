@@ -27,11 +27,11 @@ function qualStatus(el: Record<string, unknown> | undefined): SectionStatus {
 type Deal = Record<string, unknown>;
 
 function threeWhysStatus(deal: Deal): SectionStatus {
-  const tw = deal.threeWhys as { f5?: Record<string, unknown> } | undefined;
-  if (!tw?.f5) return 'not_started';
-  const f5 = tw.f5;
-  const all = nonEmptyString(f5.whyAnything) && nonEmptyString(f5.whyF5) && nonEmptyString(f5.whyNow);
-  const any = nonEmptyString(f5.whyAnything) || nonEmptyString(f5.whyF5) || nonEmptyString(f5.whyNow);
+  const tw = deal.threeWhys as { us?: Record<string, unknown> } | undefined;
+  if (!tw?.us) return 'not_started';
+  const us = tw.us;
+  const all = nonEmptyString(us.whyAnything) && nonEmptyString(us.whyUs) && nonEmptyString(us.whyNow);
+  const any = nonEmptyString(us.whyAnything) || nonEmptyString(us.whyUs) || nonEmptyString(us.whyNow);
   return all ? 'complete' : any ? 'partial' : 'not_started';
 }
 
@@ -66,11 +66,11 @@ function closePlanStatus(deal: Deal): SectionStatus {
 }
 
 function teamStatus(deal: Deal): SectionStatus {
-  const team = deal.team as { f5?: unknown; partner?: unknown } | undefined;
+  const team = deal.team as { internal?: unknown; partner?: unknown } | undefined;
   if (!team) return 'not_started';
-  const f5 = Array.isArray(team.f5) && team.f5.length > 0;
+  const internal = Array.isArray(team.internal) && team.internal.length > 0;
   const partner = Array.isArray(team.partner) && team.partner.length > 0;
-  if (f5) return 'complete';
+  if (internal) return 'complete';
   return partner ? 'partial' : 'not_started';
 }
 
