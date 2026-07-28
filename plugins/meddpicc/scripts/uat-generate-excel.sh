@@ -157,29 +157,63 @@ echo "    Overall score: Excel=$got_pct% engine=$want_pct%"
 
 # A formula pointing at the wrong range is well-formed and wrong; an error value is at least
 # loud. Check for the loud ones across every sheet.
-errors="$(
-  osascript <<OSA 2>/dev/null
+# This check was vacuous for two independent reasons, either of which was enough (#904).
+#
+#   1. `repeat with ws in every worksheet of workbook "X"` raises "Parameter error. (-50)" when the
+#      collection reference is iterated. osascript exited 1 with empty stdout, the stderr went to
+#      /dev/null, and an empty result read as "no errors found". Enumerating by index works.
+#   2. An error cell read through `value as string` yields "missing value", never "#DIV/0!", so the
+#      comparison could not have matched even with a working loop. `string value` is the accessor
+#      that surfaces the error text.
+#
+# So the detector now proves itself on every run instead of being trusted: clean, then with a
+# deliberate =1/0, then clean again. An assertion nobody has watched fail is not an assertion.
+error_values() {
+  osascript <<OSA 2>&1
 tell application "Microsoft Excel"
   set errs to ""
-  repeat with ws in every worksheet of workbook "$BOOK"
-    try
-      set vals to (get value of (get used range of ws))
-      repeat with rw in vals
-        repeat with v in rw
-          set s to (v as string)
-          if s is in {"#REF!", "#VALUE!", "#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!"} then
-            set errs to errs & (get name of ws) & ":" & s & " "
-          end if
-        end repeat
+  set n to count of worksheets of workbook "$BOOK"
+  repeat with i from 1 to n
+    set ws to worksheet i of workbook "$BOOK"
+    set vals to (get string value of (get used range of ws))
+    repeat with rw in vals
+      repeat with v in rw
+        if (v as string) is in {"#REF!", "#VALUE!", "#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!"} then
+          set errs to errs & (get name of ws) & ":" & (v as string) & " "
+        end if
       end repeat
-    end try
+    end repeat
   end repeat
   return errs
 end tell
 OSA
-)"
+}
+
+check_error_values() {
+  local errors
+  errors="$(error_values)"
+  # An AppleScript failure must fail the run, not read as "there are no errors".
+  case "$errors" in
+    *"execution error"* | *"syntax error"*) fail "the error-value check could not run: $errors" ;;
+  esac
+  printf '%s' "$errors"
+}
+
+errors="$(check_error_values)"
 [ -z "${errors// /}" ] || fail "Excel error values present: $errors"
-echo "    no Excel error values on any sheet"
+
+# Now break it on purpose. A detector that has never fired is indistinguishable from one that cannot.
+SENTINEL_CELL="Z1"
+excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\" to \"=1/0\""
+planted="$(check_error_values)"
+case "$planted" in
+  *"#DIV/0!"*) ;;
+  *) fail "the error-value detector did not notice a deliberate #DIV/0! in Deal!$SENTINEL_CELL: [${planted}]" ;;
+esac
+excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\""
+errors="$(check_error_values)"
+[ -z "${errors// /}" ] || fail "the deliberate error value did not clear: $errors"
+echo "    no Excel error values on any sheet (detector verified: it catches a planted #DIV/0!)"
 
 echo "PASS: Excel opened the generated workbook and its Scorecard agrees with the engine"
 
@@ -257,6 +291,189 @@ echo "    print orientation: ${orientation:-<none>}, fit to pages wide/tall: ${f
 [ "$fit_wide" = "1" ] || fail "expected fit to 1 page wide, Excel reports '$fit_wide'"
 [ "$fit_tall" = "0" ] || fail "expected unlimited page height, Excel reports '$fit_tall'"
 echo "PASS: Excel accepts the merges, hides the grid and honours the print setup"
+
+# ── Screenshots ────────────────────────────────────────────────────────────────────────────────
+#
+# Everything above proves the workbook COMPUTES. None of it can see the sheet, and the current work
+# is about how it looks — a column too narrow for its content, text clipped by a row height, a
+# banner that stops short of the edge all pass every assertion above. So capture the thing and let a
+# person look at it.
+#
+# Not a pixel baseline: no images are committed and nothing is compared. Baselines across Excel
+# versions, fonts and display scales are a maintenance tax that buys less than one honest look.
+# Deliberately NOT under $WORK: the script ends with `rm -rf "$WORK"`, so images written there are
+# deleted the instant the run finishes and every path it printed is already dead. These exist to be
+# looked at, so they outlive the run.
+#
+# Outside the repository too — .gitignore is governance-managed here, so a directory of PNGs inside
+# the working tree would show up as untracked work in every later `git status`.
+SHOT_DIR="${MEDDPICC_UAT_SHOT_DIR:-${TMPDIR:-/tmp}/meddpicc-uat-shots}"
+rm -rf "$SHOT_DIR"
+mkdir -p "$SHOT_DIR"
+
+# `screencapture` needs Screen Recording permission, which a CI host will not have. Find out once,
+# with a throwaway capture, so the stage can skip for a stated reason rather than emit black images.
+#
+# Two things about this tool, both learned the hard way:
+#
+#   1. It **exits 0 when it fails to write the file**, printing the reason on stderr. So the exit
+#      code proves nothing, and every capture has to be checked by looking for the file.
+#   2. It **refuses any destination whose name begins with a dot**. The first version of this probe
+#      wrote `.probe.png`, which made a machine that captures perfectly well report that it had no
+#      Screen Recording permission — and silently skip the whole stage on every run.
+shots_available() {
+  local probe="$SHOT_DIR/permission-probe.png"
+  rm -f "$probe"
+  screencapture -x -R "0,0,8,8" "$probe" >/dev/null 2>&1
+  [ -s "$probe" ] || return 1
+  rm -f "$probe"
+  return 0
+}
+
+# One capture. Places OUR workbook's window — never `window 1`, which may be the operator's own
+# spreadsheet — then captures exactly that rectangle.
+#
+# Excel names its windows WITHOUT the file extension, which is why addressing them by "$BOOK" reads
+# as "the object you are trying to access does not exist".
+capture() {
+  local book="$1" sheet="$2" at_row="$3" out="$4"
+  local win="${book%.xlsx}" geom
+  geom="$(
+    osascript 2>/dev/null <<OSA
+tell application "Microsoft Excel"
+  activate
+  set w to window "$win"
+  activate object worksheet "$sheet" of workbook "$book"
+  set left position of w to $SHOT_LEFT
+  set top of w to $SHOT_TOP
+  set width of w to $SHOT_WIDTH
+  set height of w to $SHOT_HEIGHT
+  set scroll row of w to $at_row
+  set scroll column of w to 1
+  return (((left position of w) as integer) as string) & "," & (((top of w) as integer) as string) & "," & (((width of w) as integer) as string) & "," & (((height of w) as integer) as string)
+end tell
+OSA
+  )"
+  case "$geom" in
+    [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
+    *)
+      echo "    could not place the window for $sheet: ${geom:-<no output>}" >&2
+      return 1
+      ;;
+  esac
+  # Excel repaints asynchronously; capturing the instant after a scroll catches the old contents.
+  sleep 1
+  # No `|| return 1`: screencapture exits 0 even when it writes nothing. The checks below are the
+  # only thing standing between a failed capture and a passing run.
+  screencapture -x -R "$geom" "$out" >/dev/null 2>&1
+
+  # An image that is missing, empty, or not the size we asked for is a failed capture, not a pass.
+  # The pixel size is the point size times the display's backing scale, so check the RATIO rather
+  # than hard-coding 2x — the same run must work on a Retina laptop and an external 1x monitor.
+  local px py want_w want_h
+  px="$(sips -g pixelWidth "$out" 2>/dev/null | awk '/pixelWidth/ {print $2}')"
+  py="$(sips -g pixelHeight "$out" 2>/dev/null | awk '/pixelHeight/ {print $2}')"
+  want_w="${geom#*,*,}"
+  want_w="${want_w%,*}"
+  want_h="${geom##*,}"
+  [ -n "$px" ] && [ -n "$py" ] || {
+    echo "    $out is not a readable image" >&2
+    return 1
+  }
+  [ "$px" -ge "$want_w" ] && [ "$py" -ge "$want_h" ] || {
+    echo "    $out is ${px}x${py}, smaller than the ${want_w}x${want_h} points requested" >&2
+    return 1
+  }
+  # Same scale on both axes, or the rectangle captured is not the one asked for.
+  [ $((px * want_h)) -eq $((py * want_w)) ] || {
+    echo "    $out is ${px}x${py}, not proportional to the ${want_w}x${want_h} points requested" >&2
+    return 1
+  }
+  return 0
+}
+
+SHOT_LEFT=1
+SHOT_TOP=1
+SHOT_WIDTH=1400
+SHOT_HEIGHT=880
+# A cap so a runaway sheet cannot produce fifty images. It reports when it bites: a silent cap reads
+# as "that is the whole sheet".
+SHOT_MAX_SCREENS=6
+
+if [ -n "${MEDDPICC_UAT_NO_SHOTS:-}" ]; then
+  echo "SKIP: screenshots disabled by MEDDPICC_UAT_NO_SHOTS"
+elif ! shots_available; then
+  echo "SKIP: screenshots need Screen Recording permission for this terminal" \
+    "(System Settings > Privacy & Security > Screen Recording) — the rest of the UAT still ran"
+else
+  shot_count=0
+  # Ask Excel, not the plan: what is on screen is what is being judged.
+  # `2>&1`, not `2>/dev/null`: an AppleScript error thrown away here reads as "there are no
+  # worksheets", which is how this stage first failed with nothing to go on.
+  sheets="$(
+    osascript 2>&1 <<OSA
+tell application "Microsoft Excel"
+  set out to ""
+  set n to count of worksheets of workbook "$BOOK"
+  repeat with i from 1 to n
+    set out to out & (get name of worksheet i of workbook "$BOOK") & linefeed
+  end repeat
+  return out
+end tell
+OSA
+  )"
+  case "$sheets" in
+    '' | *"error"* | *"Can’t "* | *"Can't "*) fail "could not list the worksheets to capture: ${sheets:-<no output>}" ;;
+  esac
+
+  while IFS= read -r sheet; do
+    [ -n "$sheet" ] || continue
+    # How far down the sheet goes, and how much of it fits, decide the number of captures.
+    metrics="$(
+      osascript 2>/dev/null <<OSA
+tell application "Microsoft Excel"
+  set w to window "${BOOK%.xlsx}"
+  activate object worksheet "$sheet" of workbook "$BOOK"
+  set r to used range of worksheet "$sheet" of workbook "$BOOK"
+  -- Joining an integer to a string builds a LIST in AppleScript, which then coerces to
+  -- "52, ,, 38". Both sides have to be text before they are joined.
+  return (((count of rows of r) as integer) as string) & "," & (((count of rows of (visible range of w)) as integer) as string)
+end tell
+OSA
+    )"
+    used_rows="${metrics%,*}"
+    visible_rows="${metrics#*,}"
+    case "$used_rows,$visible_rows" in
+      [0-9]*,[0-9]*) ;;
+      *) fail "could not measure sheet \"$sheet\": ${metrics:-<no output>}" ;;
+    esac
+    # Overlap by two rows so nothing falls between two captures.
+    step=$((visible_rows > 3 ? visible_rows - 2 : 1))
+    screens=$(((used_rows + step - 1) / step))
+    [ "$screens" -lt 1 ] && screens=1
+    capped=""
+    if [ "$screens" -gt "$SHOT_MAX_SCREENS" ]; then
+      capped=" (capped from $screens)"
+      screens="$SHOT_MAX_SCREENS"
+    fi
+
+    n=0
+    while [ "$n" -lt "$screens" ]; do
+      row=$((n * step + 1))
+      safe="$(printf '%s' "$sheet" | tr -c 'A-Za-z0-9' '-')"
+      out="$SHOT_DIR/$(printf '%02d' "$shot_count")-$safe-row$row.png"
+      capture "$BOOK" "$sheet" "$row" "$out" || fail "capturing \"$sheet\" at row $row failed"
+      echo "    $out"
+      shot_count=$((shot_count + 1))
+      n=$((n + 1))
+    done
+    echo "    $sheet: $used_rows used row(s), $screens capture(s)$capped"
+  done <<<"$sheets"
+
+  [ "$shot_count" -gt 0 ] || fail "the screenshot stage produced no images"
+  echo "PASS: captured $shot_count verified screenshot(s)"
+  echo "      look at them: open $SHOT_DIR"
+fi
 
 # Putting a Table on Qualification hands the user a sort button, and a formula written as
 # `Qualification!C8` means "champion" only until they press it. Moving the key to another row

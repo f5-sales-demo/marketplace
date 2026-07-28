@@ -10,6 +10,35 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v4.3.1 — the Excel UAT can see the sheet, and its error-value check can fail.
+
+  Everything the UAT asserted proved the workbook *computes*. Nothing could see it, and the current
+  work is about how it looks: a column too narrow for its header, text clipped by a row height, a
+  banner stopping short of the edge — all of these passed every assertion. So it now screenshots each
+  sheet through `screencapture`, verifies every image, and prints where to look. No baselines are
+  committed; comparing pixels across Excel versions, fonts and display scales is a tax that buys less
+  than one honest look. The first look found two defects immediately: the "Must say yes" and "Can say
+  no" headers are clipped, and booleans render as `TRUE`/`FALSE` where a deal review says Yes/No.
+
+  Three things about `screencapture` that cost time, recorded so they need not again: it **exits 0
+  when it fails to write the file**, so its exit code proves nothing; it **refuses any destination
+  whose name begins with a dot**, which made a machine that captures perfectly well report having no
+  Screen Recording permission; and images written under the run's temp directory are deleted by the
+  script's own `rm -rf`, so every path it printed was already dead.
+
+  **The error-value check had never been able to fail.** It claimed to scan every sheet for `#REF!`
+  and friends and print "no Excel error values on any sheet". Two independent breakages, either
+  sufficient: `repeat with ws in every worksheet of workbook "X"` raises "Parameter error. (-50)" when
+  the collection is iterated, so `osascript` exited 1 with empty stdout and its stderr went to
+  `/dev/null` — an empty result read as "no errors"; and an error cell read through `value as string`
+  yields "missing value", never `#DIV/0!`, so the comparison could not have matched even had the loop
+  worked. Measured with a planted `=1/0`: the old form reported `[]`, the new one reports
+  `Deal:#DIV/0!`.
+
+  Rather than fix it and ask to be trusted, the detector now **proves itself on every run** — clean,
+  then with a deliberate `=1/0`, then clean again. An assertion nobody has watched fail is not an
+  assertion.
+
 - **`meddpicc`** v4.3.0 — the workbook writer can lay a sheet out: merged ranges, a hidden grid, and
   a print setup.
 
