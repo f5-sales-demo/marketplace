@@ -37,7 +37,7 @@ and this project adheres to
   writes anything — the same propose-then-apply posture as `read`.
 
   There is deliberately no separate detector: a deal has legacy fields exactly when `migrateDeal`
-  reports changes, so the check cannot drift from the transform that fixes it. Renames preserve
+  reports changes or conflicts, so the check cannot drift from the transform that fixes it. Renames preserve
   each key's position too, so an applied migration reads as a rename rather than a rewrite.
 
   Two things worth knowing. `metadata.revenue.pAndIplusAcvx` turned out to be **an addend, not a
