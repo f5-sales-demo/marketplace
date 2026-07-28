@@ -340,6 +340,9 @@ function derivedValue(
   return undefined;
 }
 
+/** What the header says when the deal names nothing — see {@link presentation}. */
+const FALLBACK_HEADER = 'MEDDPICC Deal Review';
+
 /**
  * Presentation settings every sheet shares: no grid, and a print setup that puts the deal on
  * paper the way a review expects rather than spread over six portrait pages.
@@ -350,14 +353,24 @@ function derivedValue(
  */
 function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'> {
   // Parts, not one joined string: the writer shares Excel's 255-character header budget across
-  // them, so a very long account name cannot crowd the deal name out and leave every deal for
-  // that account printing identically.
-  const header = ['metadata.accountName', 'metadata.dealName']
+  // them, so a very long account name cannot crowd a later part out and leave every deal for that
+  // account printing identically.
+  //
+  // `dealId` is in there because it is the only part guaranteed to identify the deal. The schema
+  // requires all three of these but bounds none of them, so a deal whose account and deal names
+  // are both empty strings still validates — and a printout of it would carry nothing to file it
+  // by. The id is short, so per-part budgeting always lets it through.
+  const header = ['metadata.accountName', 'metadata.dealName', 'metadata.dealId']
     .map((path) => readPath(deal, path))
     .filter((part): part is string => typeof part === 'string' && part !== '');
   return {
     hideGridlines: true,
-    print: { orientation: 'landscape', fitToWidth: true, header: header.length ? header : undefined },
+    print: {
+      orientation: 'landscape',
+      fitToWidth: true,
+      // Never nothing: an unlabelled printout is worse than a generic one.
+      header: header.length ? header : [FALLBACK_HEADER],
+    },
   };
 }
 

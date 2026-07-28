@@ -63,9 +63,21 @@ and this project adheres to
   `PrintSetup.header` now takes parts and shares the budget across them, with a part that does not
   need its share releasing the surplus to the ones that do.
 
+  The header also now carries `dealId`, and falls back to a constant when a deal names nothing at all.
+  The schema requires `dealId`, `accountName` and `dealName` but bounds none of them, so all three can
+  be empty strings and still validate — filed as #901, because that laxness reaches further than
+  headers.
+
   Verified against real Excel: the file opens with no repair prompt, and Excel confirms the merge, the
   preserved anchor value, the absence of any merge inside a table range, the hidden grid, and the
   landscape fit-to-width setup.
+
+  One UAT honesty fix came out of a real failure during that verification. The round-trip block wrote
+  four cells, saved and closed in a single AppleScript, so when a save did not reach disk the reader
+  saw the untouched file, found nothing to propose, and the script reported that
+  `metadata.accountName` "came back as MISSING" — an accurate symptom pointing at the wrong component.
+  The write is now checked in the open workbook, and the save is checked against the file on disk,
+  each naming itself. Three consecutive runs, eight blocks each, green.
 
 - **`meddpicc`** v4.2.0 — a row typed **under** a table is now read as a new list entry instead of
   merely being reported.

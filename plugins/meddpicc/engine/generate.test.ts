@@ -428,7 +428,18 @@ describe('planWorkbook — presentation', () => {
     expect(plan.sheets[0].print?.header).toStrictEqual([
       String(deal.metadata.accountName),
       String(deal.metadata.dealName),
+      String(deal.metadata.dealId),
     ]);
+  });
+
+  test('the header falls back to the deal id, then to a constant, so it is never absent', () => {
+    // The schema requires accountName, dealName and dealId but bounds none of them, so all three
+    // can be empty strings and still validate. A printout with no header cannot be filed.
+    const nameless = { ...deal, metadata: { ...deal.metadata, accountName: '', dealName: '' } };
+    expect(planWorkbook(schema, spec, nameless).sheets[0].print?.header).toStrictEqual([String(deal.metadata.dealId)]);
+
+    const anonymous = { ...deal, metadata: { ...deal.metadata, accountName: '', dealName: '', dealId: '' } };
+    expect(planWorkbook(schema, spec, anonymous).sheets[0].print?.header).toStrictEqual(['MEDDPICC Deal Review']);
   });
 
   test('a title and every section banner span the form width', () => {

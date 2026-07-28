@@ -365,14 +365,34 @@ done
 wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.accountName address)" ||
   fail "Excel never finished opening $RT_BOOK"
 
+# Writing, saving and closing in one breath hid which of the three failed. When the save did not
+# reach disk the reader saw the untouched file, reported no proposals, and this script blamed
+# `metadata.accountName` for "coming back as MISSING" — an accurate symptom pointing at the wrong
+# component. So each step is now checked on its own terms.
+#
 # `range`, not `cell`: reads work through either, but a write through `cell` fails.
 excel_do "the four hand edits" "  set wb to workbook \"$RT_BOOK\"
   set value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb to \"Globex Corporation\"
   set value of range \"$(at qualification.champion.score address)\" of worksheet \"$(at qualification.champion.score sheet)\" of wb to 2
   set value of range \"$(at metadata.closeDate address)\" of worksheet \"$(at metadata.closeDate sheet)\" of wb to \"2026-09-15\"
   set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to false
+  if ((get value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb) as string) is not \"Globex Corporation\" then error \"the accountName write did not take in the open workbook\""
+
+# What the file looked like before Excel was asked to save it.
+rt_before="$(stat -f '%m %z' "$RT_OUT")"
+
+excel_do "saving and closing the edited workbook" "  set wb to workbook \"$RT_BOOK\"
   save wb
   close wb saving no"
+
+# Excel reports a successful `save` before the bytes are necessarily on disk, and a workbook that
+# closes without flushing leaves the reader looking at the file as it was.
+for _ in $(seq 1 30); do
+  [ "$(stat -f '%m %z' "$RT_OUT")" != "$rt_before" ] && break
+  sleep 1
+done
+[ "$(stat -f '%m %z' "$RT_OUT")" != "$rt_before" ] ||
+  fail "Excel reported saving $RT_BOOK but the file on disk is unchanged ($rt_before) — the edits never reached it"
 
 edited="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")"
 edited_code=$?
