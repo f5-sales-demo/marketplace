@@ -120,7 +120,7 @@ Stakeholders require `name`, `title`, and `roleInDeal` (schema
 required fields). Initialize the array if absent:
 
 ```bash
-jq --argjson s '{"name":"Jane Doe","title":"CISO","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"Meets compliance","viewOfF5":"Neutral","f5Owner":"John Smith"}' \
+jq --argjson s '{"name":"Jane Doe","title":"CISO","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"Meets compliance","sentiment":"Neutral","relationshipOwner":"John Smith"}' \
   'if .stakeholders then .stakeholders += [$s] else .stakeholders = [$s] end' \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
@@ -254,7 +254,7 @@ Signals: competitor vendor names (Vendor A, Vendor B, CDN providers, etc.),
 #### Also extract
 
 - **Stakeholder mentions:** new names, titles, roles, sentiments
-  toward F5
+  toward us
 - **Timeline/milestone changes:** dates, deadlines, events
 - **Action items:** next steps mentioned by customer or rep
 - **Three Whys signals:** urgency, differentiation, timing

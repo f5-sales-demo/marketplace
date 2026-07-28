@@ -10,6 +10,58 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v4.0.0 — **breaking: the plugin names no vendor.** MEDDPICC is an industry-standard
+  framework and this repository is public, so the schema, the workbook and the skills no longer
+  carry one company's names. `engine/cli.ts migrate <deal.json> --apply` moves an existing deal
+  across.
+
+  | was | is |
+  | --- | --- |
+  | `threeWhys.f5` / `whyF5` | `threeWhys.us` / `whyUs` |
+  | `stakeholders[].viewOfF5` | `stakeholders[].sentiment` |
+  | `stakeholders[].f5Owner` | `stakeholders[].relationshipOwner` |
+  | `team.f5` | `team.internal` |
+  | `metadata.revenue.pAndIplusAcvx` | `metadata.revenue.subscription` |
+
+  `whyUs` is not only de-branded, it is more correct: "Why anything? Why us? Why now?" is the
+  canonical Three Whys wording. The workbook labels follow — "Why us?", "Sentiment", "Relationship
+  owner", "Internal team members", "Three Whys — Us", "Subscription" — and `skills/coach` no longer
+  instructs the agent to tie its coaching to one company's product line.
+
+  **The rename could not be made safely without a migration.** The schema sets
+  `additionalProperties: false` nowhere, so a deal using the old names does not fail validation —
+  it passes, while its values sit unreachable: present in the JSON, invisible to the workbook and
+  to scoring. Silent data loss is a worse outcome than the branding it replaces. So `validate`,
+  `generate` and `read` all **refuse** a deal that still uses the old names, listing them and
+  naming the command that fixes it, and `migrate` reports what it would move before `--apply`
+  writes anything — the same propose-then-apply posture as `read`.
+
+  There is deliberately no separate detector: a deal has legacy fields exactly when `migrateDeal`
+  reports changes or conflicts, so the check cannot drift from the transform that fixes it. Renames preserve
+  each key's position too, so an applied migration reads as a rename rather than a rewrite.
+
+  Two things worth knowing. `metadata.revenue.pAndIplusAcvx` turned out to be **an addend, not a
+  total** — the workbook sums it with hardware and software — so the first generic name chosen for
+  it, `totalContractValue`, would have been actively misleading; it is `subscription`. And a new
+  guard test asserts that no schema field, label or instruction anywhere in the plugin names the
+  vendor, excluding this repository's own URL. Its first version used `\bf5\b`, which matches none
+  of `viewOfF5`, `whyF5` or `f5Owner` — camelCase leaves no word boundary — and would have passed a
+  schema still full of them. Only the test's own self-check caught it.
+
+  Renaming the input paths changes every workbook's stamp, so previously generated workbooks no
+  longer read back. They are ephemeral by design: regenerate.
+
+  Two findings from the review, both confirmed. **A field set under both names is now a conflict,
+  not a decision the tool makes.** The first version deleted the legacy key so the migration would
+  terminate — and for `threeWhys.f5`, which is an object, that discarded every answer inside it to
+  make room for a possibly half-filled `threeWhys.us`. Silently dropping a value the user cannot
+  see is the exact failure this migration exists to prevent, so `migrate` now reports both paths,
+  writes nothing at all while a conflict stands, and leaves the choice to the person who made the
+  edit. **And `next` and `score` refuse a legacy deal too**, not just `validate`: `next` drives the
+  qualification workflow, and reading an unmigrated deal it found no `threeWhys.us` or
+  `team.internal` and would have called two finished sections `not_started`, walking the user back
+  through completed work without a word.
+
 - **`meddpicc`** v3.0.0 — **breaking: `fill` is gone, and F5's Deal Review Sheet is no longer
   shipped.** One spreadsheet now, generated from `workbook-spec.json`, ephemeral by design:
   produced on demand and regenerated rather than kept.

@@ -125,7 +125,7 @@ Stakeholders require `name`, `title`, and `roleInDeal`. Initialize
 the array if absent:
 
 ```bash
-jq --argjson item '{"name":"Jane","title":"VP","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"...","viewOfF5":"Neutral","f5Owner":"John Smith"}' \
+jq --argjson item '{"name":"Jane","title":"VP","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"...","sentiment":"Neutral","relationshipOwner":"John Smith"}' \
   'if .stakeholders then .stakeholders += [$item] else .stakeholders = [$item] end' \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
@@ -162,7 +162,7 @@ User provides a deal or account name with no existing JSON file.
    - `scoring.elementScores` with all 8 keys set to `0`
    - `scoring.overallScore: 0` and `scoring.overallRating: "Red"`
    - Empty `stakeholders: []`, `closePlan: {milestones: [],
-     criticalActions: []}`, `team: {f5: [], partner: []}`
+     criticalActions: []}`, `team: {internal: [], partner: []}`
 2. Set the `DEAL_FILE` shell variable to the file path.
 3. Collect metadata: deal status, close date, competition, win
    probability, forecast stage, revenue breakdown, client

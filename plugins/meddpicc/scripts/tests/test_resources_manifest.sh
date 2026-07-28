@@ -45,7 +45,7 @@ test_resources_manifest_advertises_engine_commands() {
   local cmd
   # Every command the engine implements, not a subset. This list once lagged the manifest by
   # two commands, so dropping either of them from the manifest would have gone unnoticed.
-  for cmd in validate next score hint check-sfdc check-spec generate read; do
+  for cmd in validate next score hint check-sfdc check-spec generate read migrate; do
     jq -e --arg c "$cmd" '.engine.commands | index($c)' "$manifest" >/dev/null || {
       echo "engine.commands does not advertise \"$cmd\""
       return 1
