@@ -2,10 +2,16 @@ import { describe, expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
 import { createGlabHelpTool } from '../../src/tools/glab-help';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockPi = { typebox: { Type } };
 
 function makeTool() {
-  return createGlabHelpTool(mockPi);
+  return createGlabHelpTool(mockPi, stubExec);
 }
 
 describe('createGlabHelpTool', () => {

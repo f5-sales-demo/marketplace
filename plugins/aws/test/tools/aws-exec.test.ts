@@ -5,6 +5,12 @@ import { buildAwsArgs, findMutation } from '../../src/tools/aws-exec-guard';
 import { createAwsHelpTool } from '../../src/tools/aws-help';
 import { hasControlChars } from '../../src/tools/shared';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const NUL = String.fromCharCode(0);
 const TAB = String.fromCharCode(9);
 const SOH = String.fromCharCode(1);
@@ -12,10 +18,10 @@ const SOH = String.fromCharCode(1);
 const mockPi = { typebox: { Type } };
 
 function makeExec() {
-  return createAwsExecTool(mockPi);
+  return createAwsExecTool(mockPi, stubExec);
 }
 function makeHelp() {
-  return createAwsHelpTool(mockPi);
+  return createAwsHelpTool(mockPi, stubExec);
 }
 
 describe('findMutation — ALLOW read-only aws commands', () => {

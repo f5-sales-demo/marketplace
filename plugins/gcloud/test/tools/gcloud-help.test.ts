@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createGcloudHelpTool } from '../../src/tools/gcloud-help';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -10,7 +16,7 @@ const mockTypebox = {
 };
 
 describe('createGcloudHelpTool metadata', () => {
-  const tool = createGcloudHelpTool({ typebox: mockTypebox });
+  const tool = createGcloudHelpTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('gcloud_help');
@@ -30,7 +36,7 @@ describe('createGcloudHelpTool metadata', () => {
 });
 
 describe('gcloud_help command path validation', () => {
-  const tool = createGcloudHelpTool({ typebox: mockTypebox });
+  const tool = createGcloudHelpTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects a dash-led command path ("-x")', async () => {
     const r = await tool.execute('id', { command_path: '-x' }, undefined, null, { cwd: '/tmp' });

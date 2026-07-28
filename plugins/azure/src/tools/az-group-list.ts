@@ -1,3 +1,4 @@
+import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatResourceGroupTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
@@ -5,7 +6,11 @@ import { RESOURCE_GROUP_PATTERN, SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATT
 import azGroupDescription from '../prompts/az-group-list.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeResourceGroup, textResult } from './shared';
 
-export function createAzGroupListTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAzGroupListTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -53,7 +58,7 @@ export function createAzGroupListTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
 
       try {
         if (params.action === 'show') {

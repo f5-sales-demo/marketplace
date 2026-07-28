@@ -1,9 +1,14 @@
+import type { AwsExecApi } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
 import { HELP_PATH_PATTERN } from '../aws/types';
 import awsHelpDescription from '../prompts/aws-help.md' with { type: 'text' };
 import { errorResult, makeExecApi, textResult } from './shared';
 
-export function createAwsHelpTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAwsHelpTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -46,7 +51,7 @@ export function createAwsHelpTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       // NOTE: aws uses the `help` subcommand, NOT a `--help` flag.
       const args = [...parts, 'help'];
 

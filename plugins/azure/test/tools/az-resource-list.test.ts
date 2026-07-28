@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAzResourceListTool } from '../../src/tools/az-resource-list';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -10,7 +16,7 @@ const mockTypebox = {
 };
 
 describe('createAzResourceListTool', () => {
-  const tool = createAzResourceListTool({ typebox: mockTypebox });
+  const tool = createAzResourceListTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('az_resource_list');
@@ -30,7 +36,7 @@ describe('createAzResourceListTool', () => {
 });
 
 describe('az_resource input validation', () => {
-  const tool = createAzResourceListTool({ typebox: mockTypebox });
+  const tool = createAzResourceListTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects resource group with semicolons', async () => {
     const result = await tool.execute('id', { resource_group: ';rm -rf /' }, null, null, { cwd: '/tmp' });

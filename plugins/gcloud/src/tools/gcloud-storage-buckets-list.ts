@@ -1,10 +1,18 @@
+import type { GcloudExecApi } from '../gcloud/exec';
 import { execGcloudJson } from '../gcloud/exec';
 import { formatBucketTable, normalizeBuckets } from '../gcloud/formatters';
 import type { PluginInterface } from '../gcloud/types';
 import gcloudStorageBucketsListDescription from '../prompts/gcloud-storage-buckets-list.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, renderError, textResult } from './shared';
 
-export function createGcloudStorageBucketsListTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGcloudStorageBucketsListTool(
+  pi: PluginInterface,
+  makeApi: (cwd: string) => GcloudExecApi = makeExecApi,
+) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -30,7 +38,7 @@ export function createGcloudStorageBucketsListTool(pi: PluginInterface) {
         return errorResult(`Error: limit must be a positive integer, got "${params.limit}".`, base);
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const args = ['storage', 'buckets', 'list'];
       // Bind value flags with the `=` form so a value beginning with `-` can never be
       // re-tokenised by gcloud as a separate flag (argv flag-smuggling defense).

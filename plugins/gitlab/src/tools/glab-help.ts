@@ -1,3 +1,4 @@
+import type { GlabExecApi } from '../glab/exec';
 import { execGlab, GlabAuthError } from '../glab/exec';
 import glabHelpDescription from '../prompts/glab-help.md' with { type: 'text' };
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
@@ -8,7 +9,11 @@ import { errorResult, makeExecApi, textResult } from './shared';
 // any space-split segment that would still reach glab as a flag.
 const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
 
-export function createGlabHelpTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGlabHelpTool(pi: PluginHost, makeApi: (cwd: string) => GlabExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -44,7 +49,7 @@ export function createGlabHelpTool(pi: PluginHost) {
         return errorResult("Error: command path parts must not start with '-'.", { tool: 'glab_help' });
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       try {
         const result = await execGlab(api, [...parts, '--help'], signal);
         const output = result.stdout || result.stderr;

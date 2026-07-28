@@ -1,3 +1,4 @@
+import type { AwsExecApi } from '../aws/exec';
 import { execAwsJson, execAwsRaw } from '../aws/exec';
 import { formatBucketTable, formatS3ObjectTable, normalizeBucket, parseS3LsOutput } from '../aws/formatters';
 import type { PluginInterface } from '../aws/types';
@@ -5,7 +6,11 @@ import { S3_URI_PATTERN } from '../aws/types';
 import awsS3LsDescription from '../prompts/aws-s3-ls.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, renderError, textResult } from './shared';
 
-export function createAwsS3LsTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAwsS3LsTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -33,7 +38,7 @@ export function createAwsS3LsTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
 
       try {
         if (params.target) {

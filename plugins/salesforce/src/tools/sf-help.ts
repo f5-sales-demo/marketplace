@@ -1,4 +1,5 @@
 import sfHelpDescription from '../prompts/sf-help.md' with { type: 'text' };
+import type { SfExecApi } from '../sf/exec';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { errorResult, makeExecApi, textResult } from './shared';
 
@@ -8,7 +9,11 @@ import { errorResult, makeExecApi, textResult } from './shared';
 // space AND ':') that would still reach sf as a flag.
 const HELP_PATH_PATTERN = /^[a-z][a-z :-]*$/;
 
-export function createSfHelpTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createSfHelpTool(pi: PluginHost, makeApi: (cwd: string) => SfExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -48,7 +53,7 @@ export function createSfHelpTool(pi: PluginHost) {
         return errorResult("Error: command path parts must not start with '-'.", base);
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const result = await api.exec('sf', [...parts, '--help'], { signal });
       const output = result.stdout || result.stderr;
       return textResult(output || `No help output for "sf ${commandPath}".`, base);

@@ -1,9 +1,14 @@
+import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { HELP_PATH_PATTERN } from '../az/types';
 import azHelpDescription from '../prompts/az-help.md' with { type: 'text' };
 import { errorResult, makeExecApi, textResult } from './shared';
 
-export function createAzHelpTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAzHelpTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -37,7 +42,7 @@ export function createAzHelpTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
       const args = [...parts, '--help'];
 

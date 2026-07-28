@@ -1,9 +1,14 @@
+import type { GcloudExecApi } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
 import { HELP_PATH_PATTERN } from '../gcloud/types';
 import gcloudHelpDescription from '../prompts/gcloud-help.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
-export function createGcloudHelpTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGcloudHelpTool(pi: PluginInterface, makeApi: (cwd: string) => GcloudExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -49,7 +54,7 @@ export function createGcloudHelpTool(pi: PluginInterface) {
 
       // Help output is plain text; do NOT append --format=json.
       const args = [...parts, '--help'];
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
 
       try {
         const result = await api.exec('gcloud', args, { signal });

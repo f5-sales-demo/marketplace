@@ -10,6 +10,12 @@ import {
   isRead,
 } from '../../src/tools/gcloud-exec-guard';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -204,7 +210,7 @@ describe('buildGcloudArgs', () => {
 // ---------------------------------------------------------------------------
 
 describe('createGcloudExecTool metadata', () => {
-  const tool = createGcloudExecTool({ typebox: mockTypebox });
+  const tool = createGcloudExecTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('gcloud_exec');
@@ -221,7 +227,7 @@ describe('createGcloudExecTool metadata', () => {
 });
 
 describe('createGcloudExecTool execute guards', () => {
-  const tool = createGcloudExecTool({ typebox: mockTypebox });
+  const tool = createGcloudExecTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects empty args', async () => {
     const r = await tool.execute('id', { args: [] }, undefined, null, { cwd: '/tmp' });

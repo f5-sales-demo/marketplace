@@ -1,4 +1,5 @@
 import sfExecDescription from '../prompts/sf-exec.md' with { type: 'text' };
+import type { SfExecApi } from '../sf/exec';
 import { execSfRaw } from '../sf/exec';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { findMutation } from './sf-exec-guard';
@@ -6,7 +7,11 @@ import { errorResult, hasControlChars, makeExecApi, textResult } from './shared'
 
 const SF_EXEC_MAX_OUTPUT = 50000;
 
-export function createSfExecTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createSfExecTool(pi: PluginHost, makeApi: (cwd: string) => SfExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -45,7 +50,7 @@ export function createSfExecTool(pi: PluginHost) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const result = await execSfRaw(api, args, signal);
       let out = result.stdout;
       if (out.length > SF_EXEC_MAX_OUTPUT) {
