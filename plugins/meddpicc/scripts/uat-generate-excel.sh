@@ -343,37 +343,53 @@ shots_available() {
   return 0
 }
 
-# One capture. Places OUR workbook's window — never `window 1`, which may be the operator's own
-# spreadsheet — then captures exactly that rectangle.
+# Place OUR workbook's window at a known rectangle — never `window 1`, which may be the operator's
+# own spreadsheet — and report the geometry it actually got.
+#
+# This runs BEFORE the pagination is measured, not inside each capture. Measuring the visible range
+# of a window that is about to be made smaller overestimates how much fits, so the page count comes
+# out too low and the bottom of the sheet is quietly never captured.
 #
 # Excel names its windows WITHOUT the file extension, which is why addressing them by "$BOOK" reads
 # as "the object you are trying to access does not exist".
-capture() {
-  local book="$1" sheet="$2" at_row="$3" at_col="$4" out="$5"
-  local win="${book%.xlsx}" geom
-  geom="$(
-    osascript 2>/dev/null <<OSA
+place_window() {
+  local book="$1"
+  osascript 2>&1 <<OSA
 tell application "Microsoft Excel"
   activate
-  set w to window "$win"
-  activate object worksheet "$sheet" of workbook "$book"
+  set w to window "${book%.xlsx}"
   set left position of w to $SHOT_LEFT
   set top of w to $SHOT_TOP
   set width of w to $SHOT_WIDTH
   set height of w to $SHOT_HEIGHT
-  set scroll row of w to $at_row
-  set scroll column of w to $at_col
   return (((left position of w) as integer) as string) & "," & (((top of w) as integer) as string) & "," & (((width of w) as integer) as string) & "," & (((height of w) as integer) as string)
 end tell
 OSA
+}
+
+# One capture, of a window already placed.
+capture() {
+  local book="$1" sheet="$2" at_row="$3" at_col="$4" out="$5" geom="$6"
+  local ok
+  ok="$(
+    osascript 2>&1 <<OSA
+tell application "Microsoft Excel"
+  activate
+  set w to window "${book%.xlsx}"
+  activate object worksheet "$sheet" of workbook "$book"
+  set scroll row of w to $at_row
+  set scroll column of w to $at_col
+  -- Capturing a screen rectangle says nothing about which window is in it, so at least insist Excel
+  -- is the application in front. It does not rule out a notification sitting on top.
+  if not (frontmost) then error "Excel is not frontmost"
+  return "ok"
+end tell
+OSA
   )"
-  case "$geom" in
-    [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
-    *)
-      echo "    could not place the window for $sheet: ${geom:-<no output>}" >&2
-      return 1
-      ;;
-  esac
+  [ "$ok" = "ok" ] || {
+    echo "    could not scroll $sheet to row $at_row column $at_col: ${ok:-<no output>}" >&2
+    return 1
+  }
   # Excel repaints asynchronously; capturing the instant after a scroll catches the old contents.
   sleep 1
   # No `|| return 1`: screencapture exits 0 even when it writes nothing. The checks below are the
@@ -383,7 +399,7 @@ OSA
   # An image that is missing, empty, or not the size we asked for is a failed capture, not a pass.
   # The pixel size is the point size times the display's backing scale, so check the RATIO rather
   # than hard-coding 2x — the same run must work on a Retina laptop and an external 1x monitor.
-  local px py want_w want_h
+  local px py want_w want_h bytes
   px="$(sips -g pixelWidth "$out" 2>/dev/null | awk '/pixelWidth/ {print $2}')"
   py="$(sips -g pixelHeight "$out" 2>/dev/null | awk '/pixelHeight/ {print $2}')"
   want_w="${geom#*,*,}"
@@ -400,6 +416,14 @@ OSA
   # Same scale on both axes, or the rectangle captured is not the one asked for.
   [ $((px * want_h)) -eq $((py * want_w)) ] || {
     echo "    $out is ${px}x${py}, not proportional to the ${want_w}x${want_h} points requested" >&2
+    return 1
+  }
+  # A blank or single-colour capture — a black frame from a refused permission, an unpainted window —
+  # compresses to almost nothing, while a spreadsheet screenshot is hundreds of kilobytes. Crude, but
+  # it separates "an image" from "an image of something".
+  bytes="$(stat -f %z "$out" 2>/dev/null || echo 0)"
+  [ "$bytes" -ge 20000 ] || {
+    echo "    $out is only ${bytes} bytes — a blank or unpainted capture" >&2
     return 1
   }
   return 0
@@ -441,12 +465,21 @@ OSA
 
   while IFS= read -r sheet; do
     [ -n "$sheet" ] || continue
-    # How far down the sheet goes, and how much of it fits, decide the number of captures.
+    # Place the window FIRST, then measure what fits in it. Measuring a window that is about to be
+    # resized is how the bottom of a sheet goes uncaptured while the stage still reports PASS.
+    geom="$(place_window "$BOOK")"
+    case "$geom" in
+      [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
+      *) fail "could not place the Excel window for \"$sheet\": ${geom:-<no output>}" ;;
+    esac
+
     metrics="$(
-      osascript 2>/dev/null <<OSA
+      osascript 2>&1 <<OSA
 tell application "Microsoft Excel"
   set w to window "${BOOK%.xlsx}"
   activate object worksheet "$sheet" of workbook "$BOOK"
+  set scroll row of w to 1
+  set scroll column of w to 1
   set r to used range of worksheet "$sheet" of workbook "$BOOK"
   -- Joining an integer to a string builds a LIST in AppleScript, which then coerces to
   -- "52, ,, 38". Both sides have to be text before they are joined.
@@ -485,7 +518,8 @@ OSA
       while [ "$rn" -lt "$row_screens" ] && [ "$taken" -lt "$SHOT_MAX_SCREENS" ]; do
         row=$((rn * row_step + 1))
         out="$SHOT_DIR/$(printf '%02d' "$shot_count")-$safe-r$row-c$col.png"
-        capture "$BOOK" "$sheet" "$row" "$col" "$out" || fail "capturing \"$sheet\" at row $row column $col failed"
+        capture "$BOOK" "$sheet" "$row" "$col" "$out" "$geom" ||
+          fail "capturing \"$sheet\" at row $row column $col failed"
         echo "    $out"
         shot_count=$((shot_count + 1))
         taken=$((taken + 1))

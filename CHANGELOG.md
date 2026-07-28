@@ -53,6 +53,15 @@ and this project adheres to
     sheet were never captured while the stage still reported PASS. The Qualification sheet's `Notes`
     column was invisible. Both axes are paginated now, and when the per-sheet cap bites it names what
     was left out instead of implying that was the whole sheet.
+  - Pagination was measured from Excel's *current* visible range, before the window was resized to the
+    capture rectangle. Measuring a window that is about to be made smaller overestimates how much
+    fits, so the page count came out too low and the bottom of a sheet went uncaptured while the stage
+    reported PASS. The window is placed first, then measured.
+  - Verifying an image's dimensions says nothing about *what* is in it: `screencapture` records a
+    screen rectangle, not a window. It now insists Excel is the frontmost application, and rejects a
+    capture under 20 KB, since a blank or unpainted frame compresses to almost nothing while a
+    spreadsheet screenshot is hundreds of kilobytes. Neither rules out a notification banner sitting
+    on top of the sheet — that residual limit is worth knowing rather than papering over.
   - The refactor that made the detector self-verifying moved `fail` inside a command substitution,
     where it exits only the subshell — and this script runs `set -uo pipefail` with no `-e`, so the
     parent would have carried on with an empty result, which reads as "no errors found". Exactly the
