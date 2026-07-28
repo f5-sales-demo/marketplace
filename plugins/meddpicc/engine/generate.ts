@@ -11,8 +11,10 @@
  * value, with the `jsonPath` it came from. That map is the contract the round-trip reader
  * will consume, and stating it here keeps the two directions from drifting.
  */
+import { createHash } from 'node:crypto';
 import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
+import { readPath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
 import {
@@ -60,24 +62,6 @@ export function dateToSerial(value: unknown): number | null {
   const back = new Date(utc);
   if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
   return Math.round((utc - EXCEL_EPOCH_UTC) / MS_PER_DAY);
-}
-
-/** Follow a dotted/indexed path into the deal. Returns undefined rather than throwing. */
-function readPath(root: unknown, dottedPath: string): unknown {
-  let node: unknown = root;
-  for (const part of dottedPath.split('.')) {
-    const m = /^([^[\]]*)((?:\[\d+\])*)$/.exec(part);
-    const key = m?.[1] ?? part;
-    if (key) {
-      if (node === null || typeof node !== 'object') return undefined;
-      node = (node as Record<string, unknown>)[key];
-    }
-    for (const idx of m?.[2]?.match(/\d+/g) ?? []) {
-      if (!Array.isArray(node)) return undefined;
-      node = node[Number(idx)];
-    }
-  }
-  return node;
 }
 
 /** Coerce a deal value for a cell of this type. `undefined` means leave the cell blank. */
@@ -510,6 +494,30 @@ function inputPathFor(table: SpecTable, column: SpecColumn, entry: TableLayout['
   return relative.replace('*', entry.key as string);
 }
 
+/**
+ * What a workbook may be read back against: this deal, laid out this way.
+ *
+ * Both are needed, and for different reasons. The **identity** stops a workbook for one deal
+ * being applied to another — an easy mistake when every deal's file is called `meddpicc.json`
+ * in a different directory, and one that `--apply` would otherwise resolve by overwriting the
+ * second deal with the first one's figures.
+ *
+ * The **layout** stops something quieter and worse. A table's row count depends on the deal:
+ * answer one more question and every Questions row below it moves down one. The addresses in
+ * an older workbook then name a different element's answer, and reading it row by row produces
+ * a confident set of proposals that put metrics' answers onto economicBuyer. Measured on the
+ * example deal: 14 proposals, no rejections, and nothing to suggest anything was wrong.
+ *
+ * Deliberately NOT a hash of the whole deal: a workbook on someone's desk must survive an edit
+ * to the JSON that moves no cell, or the two would have to be regenerated in lockstep forever.
+ */
+export function workbookFingerprint(plan: WorkbookPlan, deal: unknown): string {
+  const identity = String(readPath(deal, 'metadata.dealId') ?? '');
+  const layout = plan.inputCells.map((c) => `${c.jsonPath}|${c.sheet}|${c.address}`).join('\n');
+  return createHash('sha256').update(`${identity}\n${layout}`).digest('hex').slice(0, 32);
+}
+
 export function generateWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): Uint8Array {
-  return buildWorkbook(planWorkbook(schema, spec, deal).sheets);
+  const plan = planWorkbook(schema, spec, deal);
+  return buildWorkbook(plan.sheets, workbookFingerprint(plan, deal));
 }

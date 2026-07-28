@@ -6,6 +6,7 @@ import { applyFill, planFill } from './fill';
 import { generateWorkbook, planWorkbook } from './generate';
 import { computeElementHint, computeHintOverview } from './hint';
 import { checkMappings } from './mappings';
+import { readWorkbook } from './read-workbook';
 import { computeScore } from './score';
 import { QUALIFICATION_ELEMENTS } from './sections';
 import { readTemplateText } from './template';
@@ -185,6 +186,42 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  if (command === 'read') {
+    const workbookPath = rest[0];
+    const dealPath = flag(rest, '--deal');
+    if (!workbookPath || !dealPath) {
+      process.stderr.write('Usage: cli.ts read <workbook.xlsx> --deal <deal.json> [--apply]\n');
+      return 1;
+    }
+    const schema = await readJson(SCHEMA_PATH);
+    const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
+    const deal = await readJson(dealPath);
+    const bytes = new Uint8Array(await Bun.file(workbookPath).arrayBuffer());
+    const report = readWorkbook(schema, spec, deal, bytes);
+
+    // The deal JSON is the source of truth, so the default is to say what the workbook
+    // proposes and change nothing. `--apply` is the only path that writes, and it writes only
+    // a deal that validates — a partly-applied file would be worse than no file.
+    const apply = rest.includes('--apply') && report.ok && report.proposals.length > 0;
+    if (apply) await Bun.write(dealPath, `${JSON.stringify(report.deal, null, 2)}\n`);
+
+    print({
+      workbook: workbookPath,
+      deal: dealPath,
+      cellsRead: report.cellsRead,
+      unchanged: report.unchanged,
+      proposals: report.proposals,
+      rejections: report.rejections,
+      valid: report.valid,
+      errors: report.errors,
+      applied: apply,
+    });
+    if (rest.includes('--apply') && !report.ok) {
+      process.stderr.write('Refusing to apply: fix the cells listed above, or edit the JSON directly.\n');
+    }
+    return report.ok ? 0 : 1;
+  }
+
   if (command === 'check-spec') {
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
@@ -194,7 +231,7 @@ async function main(): Promise<number> {
   }
 
   process.stderr.write(
-    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, generate, check-mappings, check-spec\n`,
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, generate, read, check-mappings, check-spec\n`,
   );
   return 1;
 }
