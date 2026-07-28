@@ -38,6 +38,17 @@ and this project adheres to
   a path the generator can read constraints from. Two walkers would eventually disagree about
   `$ref` or `allOf`, silently.
 
+  Two defects the review found, both reproduced in Excel before being fixed. **A keyed
+  reference broke under sorting**: `asTable` hands the user a sort button, and
+  `{{row:elements.score@champion}}` had resolved to `Qualification!C8` — champion's row only
+  until someone sorted by score. Measured: after moving that row, the Scorecard went on
+  reporting 3.0 (economicBuyer's score) under the Champion label. Keyed references are now
+  `INDEX(range,MATCH("champion",keyRange,0))`, a table must declare its `keyColumn`, and
+  `check-spec` refuses a `{{row:…}}` into a table that has not. **The Completion column was
+  two-thirds uncoloured**: `computeCompletion` emits `not_started`/`partial`/`complete` while
+  the `statusText` preset matches the closePlan enum `pending`/`in_progress`/`complete` — one
+  shared word, two vocabularies. Added a `completionText` preset for the one it actually uses.
+
   No Reference sheet: inline validation lists made it redundant, and the 0-4 rubric text
   already sits on the Qualification row it describes.
 

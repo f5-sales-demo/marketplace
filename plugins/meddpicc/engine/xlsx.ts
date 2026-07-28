@@ -154,7 +154,17 @@ export const DXF_IDS: Record<DxfName, number> = Object.fromEntries(DXF_ORDER.map
  * `%FIRST%` is replaced with the first cell of the range, which is how an expression rule
  * refers to "this cell" — Excel evaluates it relatively across the range.
  */
-export type CfPreset = 'score' | 'ragText' | 'statusText' | 'overdueDate';
+export type CfPreset = 'score' | 'ragText' | 'statusText' | 'completionText' | 'overdueDate';
+
+/**
+ * The section statuses `computeCompletion` emits.
+ *
+ * Deliberately NOT the closePlan `status` enum (pending / in_progress / complete): they are
+ * two different vocabularies that happen to share one word. Colouring the completion column
+ * with the closePlan preset left `not_started` and `partial` — two of its three states, and
+ * the two that matter — with no colour at all.
+ */
+export const COMPLETION_STATUSES = ['not_started', 'partial', 'complete'] as const;
 
 interface CfRule {
   type: string;
@@ -176,6 +186,11 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
     { type: 'cellIs', operator: 'equal', formulas: ['"Red"'], dxf: 'red' },
     { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'amber' },
     { type: 'cellIs', operator: 'equal', formulas: ['"Green"'], dxf: 'green' },
+  ],
+  completionText: [
+    { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: ['"partial"'], dxf: 'amber' },
+    { type: 'cellIs', operator: 'equal', formulas: ['"not_started"'], dxf: 'red' },
   ],
   statusText: [
     { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },

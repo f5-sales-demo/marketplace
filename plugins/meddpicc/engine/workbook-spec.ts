@@ -108,6 +108,12 @@ export interface SpecTable {
   minRows?: number;
   /** Emit a real Excel Table over the range, so it filters, sorts and extends on typing. */
   asTable?: boolean;
+  /**
+   * The column whose cells hold the row key. Required when a formula points at one row of
+   * this table: a Table can be sorted, so a keyed reference has to look the key up rather
+   * than remember which row it was on.
+   */
+  keyColumn?: string;
   columns: SpecColumn[];
 }
 
@@ -419,6 +425,14 @@ function checkReferences(collected: Collected): { checked: number; failures: str
           failures.push(`${where}: ${ref.raw} points at one row of "${tableId}", whose rows depend on the deal`);
         } else if (!rowKey || !keys.includes(rowKey)) {
           failures.push(`${where}: ${ref.raw} names no row "${rowKey ?? ''}" of "${tableId}"`);
+        }
+        // Resolving this needs a column to MATCH the key against. Without one the only
+        // option is a fixed row address, which the table's own sort button invalidates.
+        const keyColumn = found.table.keyColumn;
+        if (!keyColumn) {
+          failures.push(`${where}: ${ref.raw} needs "${tableId}" to declare a keyColumn`);
+        } else if (!found.table.columns.some((c) => c.id === keyColumn)) {
+          failures.push(`${where}: "${tableId}" declares keyColumn "${keyColumn}", which is not one of its columns`);
         }
       }
     }

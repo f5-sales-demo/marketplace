@@ -419,7 +419,8 @@
               "width": 52
             }
           ],
-          "asTable": true
+          "asTable": true,
+          "keyColumn": "element"
         }
       ]
     },
@@ -769,10 +770,11 @@
               "role": "derived",
               "valueType": "string",
               "width": 16,
-              "conditionalFormat": "statusText"
+              "conditionalFormat": "completionText"
             }
           ],
-          "asTable": true
+          "asTable": true,
+          "keyColumn": "section"
         }
       ]
     },

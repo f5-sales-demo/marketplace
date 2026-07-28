@@ -271,7 +271,18 @@ function resolveFormula(
       if (ref.kind === 'row') {
         const index = found.rowKeys?.indexOf(rowKey ?? '') ?? -1;
         if (index < 0) throw new Error(`${ctx.sheet}: ${ref.raw} names no row`);
-        replacement = `${prefix}${A1(col, found.firstDataRow + index)}`;
+        // INDEX/MATCH rather than the row's address. `asTable` gives the user a sort button,
+        // and after a sort `Qualification!C8` is a different element than it was — the
+        // Scorecard would go on reporting it under the Champion label.
+        const keyColumnId = found.table.keyColumn;
+        const keyCol = keyColumnId ? found.columns.get(keyColumnId) : undefined;
+        if (!keyCol) {
+          throw new Error(`${ctx.sheet}: ${ref.raw} needs table "${found.table.id}" to declare a valid keyColumn`);
+        }
+        const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
+        const valueRange = `${prefix}${A1(col, found.firstDataRow)}:${A1(col, last)}`;
+        const keyRange = `${prefix}${A1(keyCol, found.firstDataRow)}:${A1(keyCol, last)}`;
+        replacement = `INDEX(${valueRange},MATCH("${rowKey}",${keyRange},0))`;
       } else {
         // An empty table still needs a syntactically valid range, so span at least one row.
         const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
