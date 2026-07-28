@@ -74,7 +74,8 @@ export interface SpecColumn {
   jsonPath?: string;
   /** For `computed`. May use `{{this:…}}` to name another column in the same row. */
   formula?: string;
-  width?: number;
+  /** Grid columns this column covers. A span over one becomes a merge on every row. */
+  span?: number;
   /** A named conditional-format preset (see xlsx.ts). Formatting is spec data, not code. */
   conditionalFormat?: CfPreset;
   /**
@@ -101,13 +102,10 @@ export type SpecTableSource =
 export interface SpecTable {
   id: string;
   source: SpecTableSource;
-  /** 1-based column the table starts at. Two tables share a sheet by sitting side by side. */
+  /** 1-based grid column the table starts at. Two tables sit side by side on the same rows. */
   anchorColumn: number;
-  headerRow: number;
   /** Blank rows to keep below the data so the table has room to grow in Excel. */
   minRows?: number;
-  /** Emit a real Excel Table over the range, so it filters, sorts and extends on typing. */
-  asTable?: boolean;
   /**
    * The column whose cells hold the row key. Required when a formula points at one row of
    * this table: a Table can be sorted, so a keyed reference has to look the key up rather
@@ -117,33 +115,60 @@ export interface SpecTable {
   columns: SpecColumn[];
 }
 
-export type SpecBlock =
-  | { kind: 'title'; text: string }
-  | { kind: 'section'; text: string }
-  | { kind: 'spacer' }
+/**
+ * One cell of a grid row, and how many grid columns it covers.
+ *
+ * A span of more than one becomes a merge. Everything on the sheet — a full-width banner, a
+ * three-pairs-per-row metadata block, a label beside a paragraph — is this same primitive, so the
+ * layout is data and the generator has one rule to apply rather than a shape per section.
+ */
+export type SpecRowCell =
+  | { kind: 'blank'; span: number }
+  | { kind: 'label'; span: number; text: string }
   | {
       kind: 'field';
+      span: number;
       id: string;
-      label: string;
       jsonPath: string;
       valueType: ValueType;
-      height?: number;
       conditionalFormat?: CfPreset;
       validate?: boolean;
     }
   | {
       kind: 'computed';
+      span: number;
       id: string;
-      label: string;
       formula: string;
       valueType: ValueType;
-      height?: number;
       conditionalFormat?: CfPreset;
     };
 
-export type SpecSheet =
-  | { name: string; kind: 'form'; blocks: SpecBlock[]; columns?: { min: number; max: number; width: number }[] }
-  | { name: string; kind: 'table'; tables: SpecTable[] };
+export type SpecBlock =
+  /** The sheet's one heading, banner-styled across the full content width. */
+  | { kind: 'title'; text: string }
+  /** A section banner across the full content width. */
+  | { kind: 'section'; text: string }
+  /** Sub-headers over column ranges — "Us" and "Partner" side by side, say. */
+  | { kind: 'group'; cells: { span: number; text: string }[] }
+  /** A blank row. Narrow by default, because vertical space is the scarce resource. */
+  | { kind: 'spacer'; height?: number }
+  /** A row of cells whose spans must add up to the content width. */
+  | { kind: 'row'; cells: SpecRowCell[]; height?: number }
+  /** A grid of repeating rows: a list, the eight elements, the section statuses. */
+  | { kind: 'table'; table: SpecTable };
+
+/**
+ * One worksheet, laid out.
+ *
+ * `columns` sizes the grid: entry one is a narrow gutter so no content touches the left edge, and
+ * the rest are the content columns every block's spans are measured against.
+ */
+export interface SpecSheet {
+  name: string;
+  kind: 'grid';
+  columns: { min: number; max: number; width: number }[];
+  blocks: SpecBlock[];
+}
 
 export interface WorkbookSpec {
   version: number;
