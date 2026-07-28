@@ -13,6 +13,7 @@
  */
 import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
+import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
 import {
   parseReferences,
@@ -24,7 +25,16 @@ import {
   type ValueType,
   type WorkbookSpec,
 } from './workbook-spec';
-import { A1, buildWorkbook, type CellSpec, type RowSpec, type SheetSpec } from './xlsx';
+import {
+  A1,
+  buildWorkbook,
+  type CellSpec,
+  type ConditionalFormat,
+  type RowSpec,
+  type SheetSpec,
+  type TablePart,
+  type Validation,
+} from './xlsx';
 
 /** Excel's 1900 date system counts from 1899-12-30, and that offset is the whole trick. */
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -130,6 +140,22 @@ export interface WorkbookPlan {
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
   inputCells: InputCell[];
+}
+
+/**
+ * The values a dropdown offers, read from the schema.
+ *
+ * An enum lists them directly. A bounded integer — which is what a 0-4 score is — enumerates
+ * its range instead, so the score column gets 0,1,2,3,4 without anyone typing that anywhere.
+ */
+function validationValues(schema: unknown, jsonPath: string): string[] | undefined {
+  const constraint = schemaConstraint(schema, jsonPath);
+  if (!constraint) return undefined;
+  if (constraint.enum) return constraint.enum;
+  const { minimum, maximum } = constraint;
+  if (minimum === undefined || maximum === undefined) return undefined;
+  if (!Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum - minimum > 20) return undefined;
+  return Array.from({ length: maximum - minimum + 1 }, (_, i) => String(minimum + i));
 }
 
 /** Rows for a table, resolved against the deal. */
@@ -245,7 +271,18 @@ function resolveFormula(
       if (ref.kind === 'row') {
         const index = found.rowKeys?.indexOf(rowKey ?? '') ?? -1;
         if (index < 0) throw new Error(`${ctx.sheet}: ${ref.raw} names no row`);
-        replacement = `${prefix}${A1(col, found.firstDataRow + index)}`;
+        // INDEX/MATCH rather than the row's address. `asTable` gives the user a sort button,
+        // and after a sort `Qualification!C8` is a different element than it was — the
+        // Scorecard would go on reporting it under the Champion label.
+        const keyColumnId = found.table.keyColumn;
+        const keyCol = keyColumnId ? found.columns.get(keyColumnId) : undefined;
+        if (!keyCol) {
+          throw new Error(`${ctx.sheet}: ${ref.raw} needs table "${found.table.id}" to declare a valid keyColumn`);
+        }
+        const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
+        const valueRange = `${prefix}${A1(col, found.firstDataRow)}:${A1(col, last)}`;
+        const keyRange = `${prefix}${A1(keyCol, found.firstDataRow)}:${A1(keyCol, last)}`;
+        replacement = `INDEX(${valueRange},MATCH("${rowKey}",${keyRange},0))`;
       } else {
         // An empty table still needs a syntactically valid range, so span at least one row.
         const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
@@ -335,7 +372,26 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
         if (cells.length > 0) rows.push({ row, cells, height: 'height' in block ? block.height : undefined });
       }
-      sheets.push({ name: s.name, rows, columns: s.columns, freezeAtRow: 1 });
+      const formFormats: ConditionalFormat[] = [];
+      const formValidations: Validation[] = [];
+      for (const { block, row } of formRows.get(s.name) ?? []) {
+        if (block.kind !== 'field' && block.kind !== 'computed') continue;
+        const ref = A1(2, row);
+        if (block.conditionalFormat) formFormats.push({ sqref: ref, preset: block.conditionalFormat });
+        if (block.kind === 'field' && block.validate) {
+          const values = validationValues(schema, block.jsonPath);
+          if (values) formValidations.push({ sqref: ref, values });
+        }
+      }
+
+      sheets.push({
+        name: s.name,
+        rows,
+        columns: s.columns,
+        freezeAtRow: 1,
+        conditionalFormats: formFormats.length ? formFormats : undefined,
+        validations: formValidations.length ? formValidations : undefined,
+      });
       continue;
     }
 
@@ -391,11 +447,47 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     const columns = s.tables.flatMap((t) =>
       t.columns.map((c, i) => ({ min: t.anchorColumn + i, max: t.anchorColumn + i, width: c.width ?? 18 })),
     );
+
+    const tableParts: TablePart[] = [];
+    const tableFormats: ConditionalFormat[] = [];
+    const tableValidations: Validation[] = [];
+
+    for (const table of s.tables) {
+      const info = tables.get(table.id);
+      if (!info) continue;
+      // An Excel Table needs at least one data row in its range, so a collection that is
+      // empty and has no minRows still gets one — a header-only table is rejected outright.
+      const lastRow = info.firstDataRow + Math.max(info.rowCount, 1) - 1;
+
+      if (table.asTable) {
+        tableParts.push({
+          name: table.id,
+          displayName: table.id,
+          ref: `${A1(table.anchorColumn, table.headerRow)}:${A1(table.anchorColumn + table.columns.length - 1, lastRow)}`,
+          columns: table.columns.map((c) => c.header),
+        });
+      }
+
+      table.columns.forEach((column, i) => {
+        const col = table.anchorColumn + i;
+        const sqref = `${A1(col, info.firstDataRow)}:${A1(col, lastRow)}`;
+        if (column.conditionalFormat) tableFormats.push({ sqref, preset: column.conditionalFormat });
+        if (column.role === 'input' && column.validate && column.jsonPath) {
+          // Any row's path resolves to the same schema node, so the first one answers for all.
+          const values = validationValues(schema, inputPathFor(table, column, info.items[0] ?? {}));
+          if (values) tableValidations.push({ sqref, values });
+        }
+      });
+    }
+
     sheets.push({
       name: s.name,
       rows: [...byRow.entries()].sort(([a], [b]) => a - b).map(([row, cells]) => ({ row, cells })),
       columns,
       freezeAtRow: 1,
+      tables: tableParts.length ? tableParts : undefined,
+      conditionalFormats: tableFormats.length ? tableFormats : undefined,
+      validations: tableValidations.length ? tableValidations : undefined,
     });
   }
 

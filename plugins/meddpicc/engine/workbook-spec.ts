@@ -22,9 +22,9 @@
  * Collections live in tables on sheets where they can grow downward, so nothing is capped —
  * the legacy sheet formatted eight team rows and quietly dropped the rest.
  */
-import { resolveSchemaPath } from './schema-path';
+import { resolveSchemaPath, schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
-import type { StyleName } from './xlsx';
+import type { CfPreset, StyleName } from './xlsx';
 
 /** What a cell holds. Determines its style, and later its coercion on the way back in. */
 export type ValueType =
@@ -75,6 +75,14 @@ export interface SpecColumn {
   /** For `computed`. May use `{{this:…}}` to name another column in the same row. */
   formula?: string;
   width?: number;
+  /** A named conditional-format preset (see xlsx.ts). Formatting is spec data, not code. */
+  conditionalFormat?: CfPreset;
+  /**
+   * Offer a dropdown of the values the schema allows. The list is READ from the schema, never
+   * written here — that is the whole point, since a hand-copied list drifts the moment someone
+   * adds an enum member and the workbook goes on offering the old set.
+   */
+  validate?: boolean;
 }
 
 /**
@@ -98,6 +106,14 @@ export interface SpecTable {
   headerRow: number;
   /** Blank rows to keep below the data so the table has room to grow in Excel. */
   minRows?: number;
+  /** Emit a real Excel Table over the range, so it filters, sorts and extends on typing. */
+  asTable?: boolean;
+  /**
+   * The column whose cells hold the row key. Required when a formula points at one row of
+   * this table: a Table can be sorted, so a keyed reference has to look the key up rather
+   * than remember which row it was on.
+   */
+  keyColumn?: string;
   columns: SpecColumn[];
 }
 
@@ -105,8 +121,25 @@ export type SpecBlock =
   | { kind: 'title'; text: string }
   | { kind: 'section'; text: string }
   | { kind: 'spacer' }
-  | { kind: 'field'; id: string; label: string; jsonPath: string; valueType: ValueType; height?: number }
-  | { kind: 'computed'; id: string; label: string; formula: string; valueType: ValueType; height?: number };
+  | {
+      kind: 'field';
+      id: string;
+      label: string;
+      jsonPath: string;
+      valueType: ValueType;
+      height?: number;
+      conditionalFormat?: CfPreset;
+      validate?: boolean;
+    }
+  | {
+      kind: 'computed';
+      id: string;
+      label: string;
+      formula: string;
+      valueType: ValueType;
+      height?: number;
+      conditionalFormat?: CfPreset;
+    };
 
 export type SpecSheet =
   | { name: string; kind: 'form'; blocks: SpecBlock[]; columns?: { min: number; max: number; width: number }[] }
@@ -133,6 +166,8 @@ export interface SpecCheck {
   references: { checked: number; failures: string[] };
   /** Sheet names Excel accepts, and tables that do not sit on top of each other. */
   layout: { failures: string[] };
+  /** Every `validate: true` names a path the schema actually constrains. */
+  validation: { checked: number; failures: string[] };
 }
 
 const WILDCARD = '*';
@@ -238,10 +273,19 @@ interface Collected {
   formulas: Array<{ where: string; formula: string; table: SpecTable | null }>;
   /** Inputs whose path could not even be formed — before any schema lookup. */
   pathIssues: string[];
+  /** Cells asking for a schema-derived dropdown, with the path the values come from. */
+  validated: Array<{ where: string; path: string }>;
 }
 
 function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected {
-  const out: Collected = { namedCells: new Map(), tables: new Map(), inputs: [], formulas: [], pathIssues: [] };
+  const out: Collected = {
+    namedCells: new Map(),
+    tables: new Map(),
+    inputs: [],
+    formulas: [],
+    pathIssues: [],
+    validated: [],
+  };
 
   const checkValueType = (where: string, valueType: ValueType) => {
     if (!(valueType in VALUE_TYPE_STYLE)) roles.push(`${where}: unknown valueType "${valueType}"`);
@@ -265,6 +309,7 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
             roles.push(`${where}: a form field cannot use a wildcard — there is no key axis to expand it over`);
           } else {
             out.inputs.push({ where, paths: [block.jsonPath] });
+            if (block.validate) out.validated.push({ where, path: block.jsonPath });
           }
         } else {
           out.formulas.push({ where, formula: block.formula, table: null });
@@ -306,8 +351,12 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
               continue;
             }
             out.inputs.push({ where, paths });
+            if (column.validate) out.validated.push({ where, path: paths[0] });
           } catch (e) {
             roles.push(`${where}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+          if (column.validate === true && column.role !== 'input') {
+            roles.push(`${where}: only an input column can carry a dropdown`);
           }
         } else if (column.role === 'computed') {
           if (column.jsonPath) {
@@ -376,6 +425,14 @@ function checkReferences(collected: Collected): { checked: number; failures: str
           failures.push(`${where}: ${ref.raw} points at one row of "${tableId}", whose rows depend on the deal`);
         } else if (!rowKey || !keys.includes(rowKey)) {
           failures.push(`${where}: ${ref.raw} names no row "${rowKey ?? ''}" of "${tableId}"`);
+        }
+        // Resolving this needs a column to MATCH the key against. Without one the only
+        // option is a fixed row address, which the table's own sort button invalidates.
+        const keyColumn = found.table.keyColumn;
+        if (!keyColumn) {
+          failures.push(`${where}: ${ref.raw} needs "${tableId}" to declare a keyColumn`);
+        } else if (!found.table.columns.some((c) => c.id === keyColumn)) {
+          failures.push(`${where}: "${tableId}" declares keyColumn "${keyColumn}", which is not one of its columns`);
         }
       }
     }
@@ -450,6 +507,24 @@ export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecChec
   const references = checkReferences(collected);
   const layoutFailures = checkLayout(spec);
 
+  // A dropdown is only honest if the schema says what belongs in it. `validate: true` on a
+  // free-text field would otherwise emit an empty list, which Excel renders as a dropdown
+  // offering nothing — worse than no dropdown, because it looks deliberate.
+  const validationFailures: string[] = [];
+  for (const { where, path } of collected.validated) {
+    const constraint = schemaConstraint(schema, path);
+    if (!constraint) {
+      validationFailures.push(`${where}: "${path}" does not resolve, so there is nothing to build a dropdown from`);
+      continue;
+    }
+    const bounded = constraint.minimum !== undefined && constraint.maximum !== undefined;
+    if (!constraint.enum && !bounded) {
+      validationFailures.push(
+        `${where}: "${path}" has neither an enum nor numeric bounds in the schema — remove validate, or add the constraint there`,
+      );
+    }
+  }
+
   return {
     ok:
       schemaFailures.length === 0 &&
@@ -458,7 +533,8 @@ export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecChec
       idFailures.length === 0 &&
       roleFailures.length === 0 &&
       references.failures.length === 0 &&
-      layoutFailures.length === 0,
+      layoutFailures.length === 0 &&
+      validationFailures.length === 0,
     schemaPaths: { checked: allPaths.length, failures: schemaFailures },
     elements: { failures: elementFailures },
     duplicates: { failures: duplicateFailures },
@@ -466,5 +542,6 @@ export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecChec
     roles: { failures: roleFailures },
     references,
     layout: { failures: layoutFailures },
+    validation: { checked: collected.validated.length, failures: validationFailures },
   };
 }

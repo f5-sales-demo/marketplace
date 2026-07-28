@@ -171,3 +171,118 @@ describe('styles.xml', () => {
     }
   });
 });
+
+describe('buildWorkbook — tables, conditional formatting and validation', () => {
+  const withExtras = () =>
+    buildWorkbook([
+      {
+        name: 'Data',
+        rows: [
+          {
+            row: 1,
+            cells: [
+              { ref: 'A1', value: 'Name', style: 'columnHeader' },
+              { ref: 'B1', value: 'Score', style: 'columnHeader' },
+            ],
+          },
+          {
+            row: 2,
+            cells: [
+              { ref: 'A2', value: 'x' },
+              { ref: 'B2', value: 1, style: 'score' },
+            ],
+          },
+          { row: 3, cells: [{ ref: 'A3' }, { ref: 'B3', style: 'score' }] },
+        ],
+        tables: [{ name: 'people', displayName: 'people', ref: 'A1:B3', columns: ['Name', 'Score'] }],
+        conditionalFormats: [{ sqref: 'B2:B3', preset: 'score' }],
+        validations: [{ sqref: 'B2:B3', values: ['0', '1', '2', '3', '4'] }],
+      },
+    ]);
+
+  // CT_Worksheet is a SEQUENCE: sheetData, then conditionalFormatting, then dataValidations,
+  // and tableParts last. Out of order is not a warning — Excel offers to repair the file.
+  test('emits the worksheet children in the order the schema demands', () => {
+    const sheet = dec(readZip(withExtras()).get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    const order = ['<sheetData>', '<conditionalFormatting', '<dataValidations', '<tableParts'];
+    const positions = order.map((tag) => sheet.indexOf(tag));
+    for (const p of positions) expect(p).toBeGreaterThan(-1);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  test('ships the table part, its relationship and its content type', () => {
+    const parts = readZip(withExtras());
+    expect(parts.has('xl/tables/table1.xml')).toBe(true);
+    expect(parts.has('xl/worksheets/_rels/sheet1.xml.rels')).toBe(true);
+    const ct = dec(parts.get('[Content_Types].xml')?.data as Uint8Array);
+    expect(ct).toContain('/xl/tables/table1.xml');
+    const rels = dec(parts.get('xl/worksheets/_rels/sheet1.xml.rels')?.data as Uint8Array);
+    const sheet = dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    const id = /<tablePart r:id="(rId\d+)"\/>/.exec(sheet)?.[1];
+    expect(id).toBeDefined();
+    expect(rels).toContain(`Id="${id}"`);
+  });
+
+  test("a table column's name matches the header cell, which is what Excel checks", () => {
+    const parts = readZip(withExtras());
+    const table = dec(parts.get('xl/tables/table1.xml')?.data as Uint8Array);
+    expect(table).toContain('name="Name"');
+    expect(table).toContain('name="Score"');
+    expect(table).toContain('ref="A1:B3"');
+    expect(table).toContain('headerRowCount="1"');
+  });
+
+  test('rejects a table whose declared columns do not match its cells', () => {
+    // A mismatch here is precisely what makes Excel repair the file, and the message it gives
+    // says nothing useful — so fail at build time with something that does.
+    expect(() =>
+      buildWorkbook([
+        {
+          name: 'Data',
+          rows: [
+            { row: 1, cells: [{ ref: 'A1', value: 'Name' }] },
+            { row: 2, cells: [{ ref: 'A2', value: 'x' }] },
+          ],
+          tables: [{ name: 't', displayName: 't', ref: 'A1:A2', columns: ['NotTheHeader'] }],
+        },
+      ]),
+    ).toThrow(/NotTheHeader/);
+  });
+
+  test('rejects a table range with no data row', () => {
+    expect(() =>
+      buildWorkbook([
+        {
+          name: 'Data',
+          rows: [{ row: 1, cells: [{ ref: 'A1', value: 'Name' }] }],
+          tables: [{ name: 't', displayName: 't', ref: 'A1:A1', columns: ['Name'] }],
+        },
+      ]),
+    ).toThrow(/data row/);
+  });
+
+  test('every dxfId a rule cites is defined in styles.xml', () => {
+    const parts = readZip(withExtras());
+    const sheet = dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    const styles = dec(parts.get('xl/styles.xml')?.data as Uint8Array);
+    const declared = Number(/<dxfs count="(\d+)"/.exec(styles)?.[1] ?? 0);
+    expect(declared).toBeGreaterThan(0);
+    const used = [...sheet.matchAll(/dxfId="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(used.length).toBeGreaterThan(0);
+    for (const id of used) expect(id).toBeLessThan(declared);
+  });
+
+  test('a validation list is quoted the way Excel expects', () => {
+    const sheet = dec(readZip(withExtras()).get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    expect(sheet).toContain('type="list"');
+    expect(sheet).toContain('<formula1>&quot;0,1,2,3,4&quot;</formula1>');
+  });
+
+  test('a sheet with no extras emits none of those elements', () => {
+    const sheet = dec(readZip(minimal()).get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    expect(sheet).not.toContain('conditionalFormatting');
+    expect(sheet).not.toContain('dataValidations');
+    expect(sheet).not.toContain('tableParts');
+    expect(readZip(minimal()).has('xl/tables/table1.xml')).toBe(false);
+  });
+});
