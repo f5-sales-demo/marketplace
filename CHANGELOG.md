@@ -10,6 +10,40 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v2.5.0 — the workbook generator. `engine/generate.ts` turns the spec plus a
+  deal into a real `.xlsx`: `generate <deal.json> --out <file>`, or `--plan` to print where
+  every input cell landed without writing anything.
+
+  It resolves in two passes, because a formula's text depends on where other cells ended up.
+  The first decides addresses, the second substitutes `{{ref:…}}`, `{{col:…}}`, `{{row:…}}`
+  and `{{this:…}}` for them — so nothing in the spec names a coordinate and inserting a field
+  cannot break a formula on another sheet. Dates are written as Excel serials rather than
+  text, without which `closeDate - TODAY()` is a `#VALUE!` error.
+
+  `planWorkbook` also returns `inputCells`: every cell holding a human's value, with the
+  `jsonPath` it came from. That is the contract the round-trip reader will consume, so both
+  directions are defined by one map.
+
+  **Verified against real Excel, not just against our own writer.** `scripts/uat-generate-excel.sh`
+  generates a workbook, opens it, reads the Scorecard back and compares it with what
+  `engine score` computes by a completely different route: 21/32, 65.6%, Yellow from both, no
+  error values on any sheet, no repair prompt. Mutation-checked — pointing one formula at the
+  neighbouring column keeps `check-spec` green and the file valid, and the UAT catches it
+  (Excel says 14, the engine says 21). It runs on request via `MEDDPICC_EXCEL_UAT=1`, since
+  opening Excel takes over the foreground.
+
+  Three defects the review found, all reproduced before being fixed. **A partly-qualified deal
+  displayed as 100%**: `COUNT` ignores blank cells, so an unscored element shrank the
+  denominator instead of counting as zero — one element at 4 and seven unscored showed 4/4
+  beside a Red rating, where the engine said 12.5%. Score cells now write 0 when the deal has
+  no score, matching `computeScore`, and the maximum counts the always-populated element
+  column. `generate` now **validates the spec and the deal before writing**, so a mistyped
+  `jsonPath` fails loudly instead of becoming an empty cell that reads as "not filled in yet".
+  And `dateToSerial` **rejects impossible dates** rather than rolling them forward: it was
+  turning `2026-02-31` into `2026-03-03`, a close date three days late that nothing downstream
+  would question.
+
+
 - **Plugin tests no longer depend on a real cloud CLI** (`aws` v1.2.2, `azure` v1.2.2,
   `gcloud` v1.2.2, `github` v1.2.2, `gitlab` v1.2.3, `salesforce` v1.3.3) — 32 tests across
   six plugins spawned `aws`, `az`, `gcloud`, `gh` or `sf`, because every tool factory built

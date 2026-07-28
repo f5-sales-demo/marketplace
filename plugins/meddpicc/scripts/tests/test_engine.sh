@@ -206,6 +206,83 @@ test_engine_check_spec_detects_a_broken_formula_reference() {
   rm -rf "$tmp"
 }
 
+test_engine_generate_plan_maps_every_input() {
+  _engine_precheck || return 0
+  local out
+  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PLUGIN_ROOT/schema/example-deal.json" --plan)
+  [ "$(jq -r '.sheets | length' <<<"$out")" = "8" ] || {
+    echo "expected 8 sheets: $(jq -c '.sheets' <<<"$out")"
+    return 1
+  }
+  # Every input cell must name a real address; a malformed one would throw at write time.
+  local bad
+  bad=$(jq -r '[.inputCells[].address | select(test("^[A-Z]+[0-9]+$") | not)] | join(",")' <<<"$out")
+  [ -z "$bad" ] || {
+    echo "malformed addresses: $bad"
+    return 1
+  }
+  # The Scorecard is entirely computed, so nothing on it may be reported as an input.
+  [ "$(jq -r '[.inputCells[] | select(.sheet == "Scorecard")] | length' <<<"$out")" = "0" ] || {
+    echo "Scorecard reported as holding inputs"
+    return 1
+  }
+}
+
+test_engine_generate_writes_a_workbook() {
+  _engine_precheck || return 0
+  command -v unzip >/dev/null 2>&1 || {
+    echo "SKIP: unzip unavailable"
+    return 0
+  }
+  local tmp
+  tmp=$(mktemp -d)
+  bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PLUGIN_ROOT/schema/example-deal.json" --out "$tmp/out.xlsx" >/dev/null || {
+    echo "generate --out failed"
+    rm -rf "$tmp"
+    return 1
+  }
+  # No placeholder may survive into a worksheet: Excel would show the literal braces.
+  if unzip -p "$tmp/out.xlsx" 'xl/worksheets/sheet*.xml' | grep -q '{{'; then
+    echo "an unresolved {{...}} placeholder reached the workbook"
+    rm -rf "$tmp"
+    return 1
+  fi
+  unzip -p "$tmp/out.xlsx" xl/workbook.xml | grep -q "Scorecard" || {
+    echo "Scorecard sheet missing from the workbook"
+    rm -rf "$tmp"
+    return 1
+  }
+  rm -rf "$tmp"
+}
+
+test_engine_generate_is_deterministic() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PLUGIN_ROOT/schema/example-deal.json" --out "$tmp/a.xlsx" >/dev/null
+  bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PLUGIN_ROOT/schema/example-deal.json" --out "$tmp/b.xlsx" >/dev/null
+  cmp -s "$tmp/a.xlsx" "$tmp/b.xlsx" || {
+    echo "generate is not byte-deterministic"
+    rm -rf "$tmp"
+    return 1
+  }
+  rm -rf "$tmp"
+}
+
+# Real Excel is the only thing that can tell us a formula computes what we meant. Opening it
+# hijacks the operator's foreground app, so it runs on request rather than on every suite run.
+test_engine_generate_excel_uat() {
+  _engine_precheck || return 0
+  if [ "${MEDDPICC_EXCEL_UAT:-0}" != "1" ]; then
+    echo "SKIP: set MEDDPICC_EXCEL_UAT=1 to drive real Excel"
+    return 0
+  fi
+  bash "$PLUGIN_ROOT/scripts/uat-generate-excel.sh" || {
+    echo "Excel UAT failed"
+    return 1
+  }
+}
+
 test_engine_check_mappings_detects_a_target_aimed_at_a_label() {
   _engine_precheck || return 0
   local tmp
