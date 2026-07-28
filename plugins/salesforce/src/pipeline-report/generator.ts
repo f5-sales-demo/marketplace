@@ -610,7 +610,7 @@ export async function generatePipelineReport(
     );
   }
 
-  // Parse and classify renewal opps, dedup by Id
+  // Parse and classify renewal opportunities, dedup by Id
   const seenIds = new Set<string>();
   const renewalItems: LineItemRecord[] = [];
   for (const r of renewalRecords) {

@@ -123,6 +123,18 @@ for name in "${PLUGINS[@]}"; do
     JSON_FILES+=("$PKG_JSON")
   fi
 
+  # …and any NESTED package.json the plugin ships (meddpicc carries `engine/`). These are
+  # private sub-packages, not published, but a stale version there is a lie in a file that
+  # looks authoritative — and it drifts silently, because the version-consistency test only
+  # covers the three top-level manifests. Depth 2 is deliberate: deep enough for a plugin's
+  # own sub-package, shallow enough never to walk into node_modules.
+  while IFS= read -r nested; do
+    [[ -n "$nested" ]] || continue
+    jq --arg v "$NEW_VER" '.version = $v' "$nested" >"$nested.tmp" &&
+      command mv "$nested.tmp" "$nested"
+    JSON_FILES+=("$nested")
+  done < <(find "$REPO_ROOT/plugins/$name" -mindepth 2 -maxdepth 2 -name package.json -not -path '*/node_modules/*' 2>/dev/null)
+
   echo "  $name: $OLD_VER → $NEW_VER"
   # Backtick the plugin name (it is a literal identifier) so the CHANGELOG entry does not
   # trip the Lint Code Base textlint terminology rule for names like azure/github/gitlab
