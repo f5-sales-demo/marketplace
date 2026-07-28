@@ -10,6 +10,64 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v4.3.1 — the Excel UAT can see the sheet, and its error-value check can fail.
+
+  Everything the UAT asserted proved the workbook *computes*. Nothing could see it, and the current
+  work is about how it looks: a column too narrow for its header, text clipped by a row height, a
+  banner stopping short of the edge — all of these passed every assertion. So it now screenshots each
+  sheet through `screencapture`, verifies every image, and prints where to look. No baselines are
+  committed; comparing pixels across Excel versions, fonts and display scales is a tax that buys less
+  than one honest look. The first look found two defects immediately: the "Must say yes" and "Can say
+  no" headers are clipped, and booleans render as `TRUE`/`FALSE` where a deal review says Yes/No.
+
+  Three things about `screencapture` that cost time, recorded so they need not again: it **exits 0
+  when it fails to write the file**, so its exit code proves nothing; it **refuses any destination
+  whose name begins with a dot**, which made a machine that captures perfectly well report having no
+  Screen Recording permission; and images written under the run's temp directory are deleted by the
+  script's own `rm -rf`, so every path it printed was already dead.
+
+  **The error-value check had never been able to fail.** It claimed to scan every sheet for `#REF!`
+  and friends and print "no Excel error values on any sheet". Two independent breakages, either
+  sufficient: `repeat with ws in every worksheet of workbook "X"` raises "Parameter error. (-50)" when
+  the collection is iterated, so `osascript` exited 1 with empty stdout and its stderr went to
+  `/dev/null` — an empty result read as "no errors"; and an error cell read through `value as string`
+  yields "missing value", never `#DIV/0!`, so the comparison could not have matched even had the loop
+  worked. Measured with a planted `=1/0`: the old form reported `[]`, the new one reports
+  `Deal:#DIV/0!`.
+
+  Rather than fix it and ask to be trusted, the detector now **proves itself on every run** — clean,
+  then with a deliberate `=1/0`, then clean again. An assertion nobody has watched fail is not an
+  assertion.
+
+  Review then found three problems in the new stage, one of them dangerous:
+
+  - The screenshot directory was a fixed path cleared with `rm -rf` before use, so
+    `MEDDPICC_UAT_SHOT_DIR=$HOME` would have recursively destroyed the operator's home directory —
+    and it ran before the "screenshots disabled" check, so turning the stage off did not save you
+    either. It now uses a fresh directory per run and **never deletes anything**. Verified by pointing
+    it at a directory holding a file and a subdirectory and confirming both survived a full run. A
+    second pass narrowed it further: the variable now names a **parent**, and each run gets a fresh
+    subdirectory beneath it, because the permission probe still removed a file of its own chosen name
+    inside the caller's directory and two runs shared output names there.
+  - Captures paginated rows only and reset the scroll column to 1, so the right-hand columns of a wide
+    sheet were never captured while the stage still reported PASS. The Qualification sheet's `Notes`
+    column was invisible. Both axes are paginated now, and when the per-sheet cap bites it names what
+    was left out instead of implying that was the whole sheet.
+  - Pagination was measured from Excel's *current* visible range, before the window was resized to the
+    capture rectangle. Measuring a window that is about to be made smaller overestimates how much
+    fits, so the page count came out too low and the bottom of a sheet went uncaptured while the stage
+    reported PASS. The window is placed first, then measured.
+  - Verifying an image's dimensions says nothing about *what* is in it: `screencapture` records a
+    screen rectangle, not a window. It now insists Excel is the frontmost application, and rejects a
+    capture under 20 KB, since a blank or unpainted frame compresses to almost nothing while a
+    spreadsheet screenshot is hundreds of kilobytes. Neither rules out a notification banner sitting
+    on top of the sheet — that residual limit is worth knowing rather than papering over.
+  - The refactor that made the detector self-verifying moved `fail` inside a command substitution,
+    where it exits only the subshell — and this script runs `set -uo pipefail` with no `-e`, so the
+    parent would have carried on with an empty result, which reads as "no errors found". Exactly the
+    bug being fixed, reintroduced one level down. `error_values` now only ever returns text, and every
+    decision about it is taken in the parent.
+
 - **`meddpicc`** v4.3.0 — the workbook writer can lay a sheet out: merged ranges, a hidden grid, and
   a print setup.
 
