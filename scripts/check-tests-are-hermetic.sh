@@ -13,6 +13,13 @@
 # tolerate the stub.
 #
 # The sleep is deliberately shorter than those explicit timeouts and longer than the default.
+#
+# Two limits worth stating. It only covers the bun suites: the shell suites have no
+# per-test timeout, so a sleeping stub would not reveal anything there, only make the run
+# take minutes. And a fire-and-forget spawn — one the test never awaits — does not block, so
+# it slips through. Neither is load-bearing, because `run-plugin-tests.sh` removes the cloud
+# CLIs from PATH altogether: this script is the diagnostic that names an offending test,
+# not the thing that stops one reaching a CLI.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

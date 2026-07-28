@@ -23,6 +23,35 @@ command -v bun >/dev/null 2>&1 || {
   exit 2
 }
 
+# The gate never calls a real cloud CLI.
+#
+# The runner ships aws, az, gcloud and gh, so the integration cases — the ones deliberately
+# gated on a binary being present — would otherwise fire live commands against whatever
+# credentials and network the runner happens to have. There is nothing to learn from that
+# here: CI has no cloud account, so those tests assert only that an unauthenticated CLI
+# answers, while importing every hang and rate limit the network can offer.
+#
+# Removing the binaries from PATH makes each of them skip, visibly. They still run for real
+# on a developer machine, which is where a CLI and credentials actually exist.
+CLI_FREE_PATH=""
+IFS=':' read -r -a _path_entries <<<"$PATH"
+for _entry in "${_path_entries[@]}"; do
+  _has_cli=0
+  for _cli in aws az gcloud gh glab sf; do
+    [ -x "$_entry/$_cli" ] && _has_cli=1
+  done
+  # Keep a directory that holds a cloud CLI only if dropping it would cost us bun.
+  if [ "$_has_cli" -eq 1 ] && [ ! -x "$_entry/bun" ]; then continue; fi
+  CLI_FREE_PATH="${CLI_FREE_PATH:+$CLI_FREE_PATH:}$_entry"
+done
+export PATH="$CLI_FREE_PATH"
+
+for _cli in aws az gcloud gh glab sf; do
+  if command -v "$_cli" >/dev/null 2>&1; then
+    printf 'note: %s is still reachable at %s (it shares a directory with bun)\n' "$_cli" "$(command -v "$_cli")"
+  fi
+done
+
 failed=()
 
 for suite in plugins/*/scripts/tests/run-tests.sh; do
