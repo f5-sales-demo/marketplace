@@ -315,12 +315,14 @@ echo "PASS: Excel accepts the merges, hides the grid and honours the print setup
 # operator's home directory — and it ran before the "screenshots disabled" check, so turning the stage
 # off did not save you either. A unique directory also stops two concurrent runs from overwriting each
 # other's evidence.
-if [ -n "${MEDDPICC_UAT_SHOT_DIR:-}" ]; then
-  SHOT_DIR="$MEDDPICC_UAT_SHOT_DIR"
-  mkdir -p "$SHOT_DIR" || fail "could not create the screenshot directory $SHOT_DIR"
-else
-  SHOT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/meddpicc-uat-shots.XXXXXX")"
-fi
+# MEDDPICC_UAT_SHOT_DIR names a PARENT, not the output directory: every run gets a fresh
+# `run-XXXXXX` beneath it. That keeps "never deletes anything" literally true — even the permission
+# probe only ever writes and removes a file inside a directory created moments earlier — and it stops
+# two runs sharing output names in a caller-chosen directory.
+SHOT_PARENT="${MEDDPICC_UAT_SHOT_DIR:-${TMPDIR:-/tmp}}"
+mkdir -p "$SHOT_PARENT" || fail "could not create the screenshot parent directory $SHOT_PARENT"
+SHOT_DIR="$(mktemp -d "$SHOT_PARENT/meddpicc-uat-shots.XXXXXX")" ||
+  fail "could not create a screenshot directory under $SHOT_PARENT"
 
 # `screencapture` needs Screen Recording permission, which a CI host will not have. Find out once,
 # with a throwaway capture, so the stage can skip for a stated reason rather than emit black images.

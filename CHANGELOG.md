@@ -45,7 +45,10 @@ and this project adheres to
     `MEDDPICC_UAT_SHOT_DIR=$HOME` would have recursively destroyed the operator's home directory —
     and it ran before the "screenshots disabled" check, so turning the stage off did not save you
     either. It now uses a fresh directory per run and **never deletes anything**. Verified by pointing
-    it at a directory holding a file and a subdirectory and confirming both survived a full run.
+    it at a directory holding a file and a subdirectory and confirming both survived a full run. A
+    second pass narrowed it further: the variable now names a **parent**, and each run gets a fresh
+    subdirectory beneath it, because the permission probe still removed a file of its own chosen name
+    inside the caller's directory and two runs shared output names there.
   - Captures paginated rows only and reset the scroll column to 1, so the right-hand columns of a wide
     sheet were never captured while the stage still reported PASS. The Qualification sheet's `Notes`
     column was invisible. Both axes are paginated now, and when the per-sheet cap bites it names what
