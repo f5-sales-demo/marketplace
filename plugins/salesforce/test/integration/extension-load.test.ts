@@ -51,26 +51,66 @@ async function buildMockPi(overrides?: Partial<MockPi>): Promise<{
 }
 
 /**
- * The factory registers its tools only when the `sf` binary is on PATH (src/index.ts), and
- * several of these cases then drive that binary for real. So the whole suite is an
- * integration suite: it is meaningful on a machine with the Salesforce CLI and impossible
- * without one. It used to fail on such a machine, which reads as "the plugin is broken"
- * rather than "this environment cannot run these"; a visible skip says the true thing.
+ * The factory registers its TOOLS only when the `sf` binary is on PATH (src/index.ts), and
+ * several cases below then drive that binary for real — those cannot run without the CLI.
  *
- * Running them in CI needs the CLI installed and an authenticated org — see the PR.
+ * What the factory does unconditionally — exporting, registering its command, wiring
+ * hooks — does not need the CLI, and is kept out of the gated block. Skipping it too would
+ * mean a registration regression could ship past a green CI that had simply run nothing.
  */
 const SF_INSTALLED = Bun.spawnSync([process.platform === 'win32' ? 'where' : 'which', 'sf']).exitCode === 0;
 
-describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration', () => {
+async function loadFactory(): Promise<FactoryFn> {
+  const mod = await import('../../src/index');
+  return mod.default as FactoryFn;
+}
+
+describe('ExtensionFactory — no CLI required', () => {
   let factory: FactoryFn;
 
   beforeAll(async () => {
-    const mod = await import('../../src/index');
-    factory = mod.default as FactoryFn;
+    factory = await loadFactory();
   });
 
   it('exports a default function (ExtensionFactory)', () => {
     expect(typeof factory).toBe('function');
+  });
+
+  it('session_start hook returns immediately and does not throw', async () => {
+    // The handler is deliberately synchronous: it kicks the org lookup off in the
+    // background so session start never waits on a CLI call (src/index.ts). The previous
+    // assertion used `.resolves`, which requires a thenable, so it asserted an async
+    // contract the handler was never written to have.
+    const { pi, events } = await buildMockPi();
+    await factory(pi);
+
+    const handler = events.session_start?.[0];
+    expect(handler).toBeDefined();
+
+    expect(handler({}, { cwd: '/tmp' })).toBeUndefined();
+  });
+
+  it('registers salesforce:setup command', async () => {
+    const commands: { name: string; description?: string }[] = [];
+    const { pi } = await buildMockPi();
+
+    (pi as Record<string, unknown>).registerCommand = (name: string, opts: { description?: string }) => {
+      commands.push({ name, description: opts.description });
+    };
+
+    await factory(pi);
+
+    const setup = commands.find((c) => c.name === 'salesforce:setup');
+    expect(setup).toBeDefined();
+    expect(setup?.description).toContain('Install');
+  });
+});
+
+describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf CLI', () => {
+  let factory: FactoryFn;
+
+  beforeAll(async () => {
+    factory = await loadFactory();
   });
 
   it('factory executes without throwing when sf is available', async () => {
@@ -100,6 +140,10 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration', () => {
   it('each registered tool has required ToolDefinition fields', async () => {
     const { pi, tools } = await buildMockPi();
     await factory(pi);
+
+    // Without this the loop below has nothing to iterate when no tools were registered,
+    // and the test passes having asserted nothing.
+    expect(tools).toHaveLength(6);
 
     for (const tool of tools) {
       expect(typeof tool.name).toBe('string');
@@ -212,35 +256,5 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration', () => {
       expect(result.message?.customType).toBe('salesforce_hint');
       expect(result.message?.display).toBe(false);
     }
-  });
-
-  it('session_start hook returns immediately and does not throw', async () => {
-    // The handler is deliberately synchronous: it kicks the org lookup off in the
-    // background so session start never waits on a CLI call (src/index.ts). The previous
-    // assertion used `.resolves`, which requires a thenable, so it asserted an async
-    // contract the handler was never written to have.
-    const { pi, events } = await buildMockPi();
-    await factory(pi);
-
-    const handler = events.session_start?.[0];
-    expect(handler).toBeDefined();
-
-    expect(handler({}, { cwd: '/tmp' })).toBeUndefined();
-  });
-
-  it('registers salesforce:setup command', async () => {
-    const commands: { name: string; description?: string }[] = [];
-    const { pi } = await buildMockPi();
-
-    // Add registerCommand to the mock
-    (pi as Record<string, unknown>).registerCommand = (name: string, opts: { description?: string }) => {
-      commands.push({ name, description: opts.description });
-    };
-
-    await factory(pi);
-
-    const setup = commands.find((c) => c.name === 'salesforce:setup');
-    expect(setup).toBeDefined();
-    expect(setup?.description).toContain('Install');
   });
 });
