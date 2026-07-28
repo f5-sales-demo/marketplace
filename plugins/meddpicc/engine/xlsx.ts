@@ -167,10 +167,18 @@ interface StyleDef {
   center?: boolean;
   /** Sit the text in the middle of the row. Banners are twice the height of their text. */
   middle?: boolean;
+  /**
+   * Pin the text to the left of its cell.
+   *
+   * Excel right-aligns numbers, which is right in a column of figures and wrong in a form: merged
+   * across four columns, a date drifts to the far edge and reads as belonging to whatever is next to
+   * it rather than to the label on its left.
+   */
+  left?: boolean;
 }
 
 const STYLE_DEFS: Record<StyleName, StyleDef> = {
-  default: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0 },
+  default: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, left: true, middle: true },
   title: { font: FONT_WHITE_TITLE, fill: FILL_DARK, numFmt: 0, center: true, middle: true },
   sectionHeader: { font: FONT_WHITE_BOLD, fill: FILL_DARK, numFmt: 0, center: true, middle: true },
   groupHeader: { font: FONT_WHITE_BOLD, fill: FILL_ACCENT, numFmt: 0, center: true, middle: true },
@@ -178,11 +186,11 @@ const STYLE_DEFS: Record<StyleName, StyleDef> = {
   fieldLabel: { font: FONT_WHITE_BOLD, fill: FILL_TEAL, numFmt: 0, middle: true, wrap: true },
   label: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0 },
   text: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, wrap: true },
-  number: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0 },
-  currency: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_CURRENCY },
-  percent: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_PERCENT },
-  date: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_DATE },
-  score: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0, center: true },
+  number: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, left: true, middle: true },
+  currency: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_CURRENCY, left: true, middle: true },
+  percent: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_PERCENT, left: true, middle: true },
+  date: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_DATE, left: true, middle: true },
+  score: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0, center: true, middle: true },
   ragRed: { font: FONT_BOLD, fill: FILL_RED, numFmt: 0, center: true },
   ragAmber: { font: FONT_BOLD, fill: FILL_AMBER, numFmt: 0, center: true },
   ragGreen: { font: FONT_BOLD, fill: FILL_GREEN, numFmt: 0, center: true },
@@ -307,9 +315,10 @@ function stylesXml(): string {
   const xfs = STYLE_ORDER.map((name) => {
     const d = STYLE_DEFS[name];
     const vertical = d.middle ? ' vertical="center"' : d.wrap ? ' vertical="top"' : '';
+    const horizontal = d.center ? ' horizontal="center"' : d.left ? ' horizontal="left"' : '';
     const align =
-      d.wrap || d.center || d.middle
-        ? `<alignment${d.wrap ? ' wrapText="1"' : ''}${vertical}${d.center ? ' horizontal="center"' : ''}/>`
+      d.wrap || d.center || d.middle || d.left
+        ? `<alignment${d.wrap ? ' wrapText="1"' : ''}${vertical}${horizontal}/>`
         : '';
     const applies = `${d.numFmt ? ' applyNumberFormat="1"' : ''}${d.font ? ' applyFont="1"' : ''}${d.fill ? ' applyFill="1"' : ''}${align ? ' applyAlignment="1"' : ''}`;
     return `<xf numFmtId="${d.numFmt}" fontId="${d.font}" fillId="${d.fill}" borderId="1" xfId="0"${applies}>${align}</xf>`;

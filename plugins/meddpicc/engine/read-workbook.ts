@@ -376,32 +376,34 @@ function growthCells(plan: WorkbookPlan, cells: Map<string, Map<string, RawCell>
  * column below the range is reported like any other content, because it is content, and losing
  * it quietly is the thing being prevented.
  */
+/**
+ * Report content in cells the workbook never wrote.
+ *
+ * The purpose is to catch a person typing where there is no room — a stakeholder in the row below the
+ * last spare one, a note wandering off the side — rather than dropping it silently, which is the bug
+ * the legacy sheet had.
+ *
+ * It used to guess, flagging anything below the deepest mapped row of a column. That held while every
+ * table had a sheet to itself. On one laid-out sheet it produced 77 false rejections in a row,
+ * because the Scorecard and the Salesforce block legitimately sit below the tables in the same
+ * columns. The plan already knows exactly which cells it wrote, so ask it.
+ */
 function reportUnmappedRows(
-  inputCells: readonly { sheet: string; address: string }[],
+  plan: WorkbookPlan,
   cells: Map<string, Map<string, RawCell>>,
   rejections: CellRejection[],
 ): void {
-  const lastMapped = new Map<string, number>();
-  for (const input of inputCells) {
-    const m = A1_REF.exec(input.address);
-    if (!m) continue;
-    const key = `${input.sheet}!${m[1]}`;
-    lastMapped.set(key, Math.max(lastMapped.get(key) ?? 0, Number(m[2])));
-  }
-
+  const written = new Set(plan.writtenCells);
   for (const [sheetName, sheetCells] of cells) {
     for (const cell of sheetCells.values()) {
-      const m = A1_REF.exec(cell.ref);
-      if (!m) continue;
-      const limit = lastMapped.get(`${sheetName}!${m[1]}`);
-      if (limit === undefined || Number(m[2]) <= limit) continue;
+      if (written.has(`${sheetName}!${cell.ref}`)) continue;
       if (!hasContent(cell)) continue;
       const content = cell.formula === undefined ? (cell.text as string) : `=${cell.formula}`;
       rejections.push({
         sheet: sheetName,
         address: cell.ref,
         reason:
-          `holds "${content}" below row ${limit}, the last row this workbook maps — ` +
+          `holds "${content}" in a cell this workbook does not map — ` +
           'add the entry to the deal JSON, then regenerate the workbook so it has room for it',
       });
     }
@@ -544,7 +546,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     });
   }
 
-  reportUnmappedRows(inputs, cells, rejections);
+  reportUnmappedRows(plan, cells, rejections);
 
   const validation = validateDeal(working, schema);
   return {

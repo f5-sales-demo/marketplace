@@ -16,7 +16,7 @@ import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { schemaConstraint } from './schema-path';
-import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
+import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel } from './sections';
 import { estimateRowHeight } from './text-metrics';
 import {
   parseReferences,
@@ -148,6 +148,15 @@ export interface WorkbookPlan {
   namedCells: Record<string, string>;
   inputCells: InputCell[];
   listGrowth: ListGrowth[];
+  /**
+   * `sheet!ref` for every cell the generator wrote.
+   *
+   * This is what makes "somebody typed something the workbook has no room for" answerable exactly
+   * rather than by heuristic. The reader used to guess: anything below the deepest mapped row in a
+   * column was stray. True when each table had a sheet to itself; wrong on one laid-out sheet, where
+   * the Scorecard sits below the tables in the same columns and produced 77 false rejections.
+   */
+  writtenCells: string[];
 }
 
 /**
@@ -344,7 +353,8 @@ function resolveFormula(
         const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
         const valueRange = `${prefix}${A1(col, found.firstDataRow)}:${A1(col, last)}`;
         const keyRange = `${prefix}${A1(keyCol, found.firstDataRow)}:${A1(keyCol, last)}`;
-        replacement = `INDEX(${valueRange},MATCH("${rowKey}",${keyRange},0))`;
+        // The key column displays a label, so that is what MATCH has to look for.
+        replacement = `INDEX(${valueRange},MATCH("${sectionLabel(rowKey)}",${keyRange},0))`;
       } else {
         // An empty table still needs a syntactically valid range, so span at least one row.
         const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
@@ -371,7 +381,7 @@ function derivedValue(
   if (source === 'elements') {
     const element = entry.key as string;
     const hint = computeElementHint(schema, element);
-    if (column.id === 'element') return element;
+    if (column.id === 'element') return sectionLabel(element);
     if (column.id === 'definition') return hint.definition;
     if (column.id === 'rubric') {
       const score = readPath(deal, `qualification.${element}.score`);
@@ -383,7 +393,7 @@ function derivedValue(
 
   if (source === 'sections') {
     const section = entry.key as string;
-    if (column.id === 'section') return section;
+    if (column.id === 'section') return sectionLabel(section);
     if (column.id === 'status') return completion[section];
     return undefined;
   }
@@ -391,7 +401,7 @@ function derivedValue(
   if (source === 'elementResponses') {
     const element = entry.element as string;
     const index = entry.index as number;
-    if (column.id === 'element') return element;
+    if (column.id === 'element') return sectionLabel(element);
     if (column.id === 'position') return index + 1;
     if (column.id === 'question') return computeElementHint(schema, element).questions[index];
     return undefined;
@@ -439,6 +449,8 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
   const inputCells: InputCell[] = [];
   const sheets: SheetSpec[] = [];
+  /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
+  const writtenCells: string[] = [];
 
   for (const s of spec.sheets) {
     const byRow = new Map<number, CellSpec[]>();
@@ -450,6 +462,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       const list = byRow.get(row) ?? [];
       list.push(cell);
       byRow.set(row, list);
+      writtenCells.push(`${s.name}!${cell.ref}`);
     };
     /** Column widths by grid index, so a span can be turned into a character count. */
     const widthOf = (column: number) =>
@@ -638,6 +651,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   }
 
   return {
+    writtenCells,
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),
     inputCells,
