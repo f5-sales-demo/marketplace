@@ -260,7 +260,7 @@ describe('runSetupWizard — sf not installed', () => {
   });
 
   it('install failure shows error', async () => {
-    const { pi, notifications: n } = buildMockPi({
+    const { pi } = buildMockPi({
       'brew install sf': { stdout: '', stderr: 'permission denied', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip'] });

@@ -9,7 +9,7 @@ import {
 
 describe('setLoadProfile / getLoadProfile', () => {
   beforeEach(() => {
-    setLoadProfile(null as any);
+    setLoadProfile(null);
   });
 
   it('returns null when no profile loader is set', () => {
@@ -25,7 +25,8 @@ describe('setLoadProfile / getLoadProfile', () => {
 
 describe('salesforceContextIsStale', () => {
   it('returns true when collectedAt is missing', () => {
-    expect(salesforceContextIsStale({ userId: 'x' } as any)).toBe(true);
+    // A context with no `fetchedAt` is stale by definition — that is the case under test.
+    expect(salesforceContextIsStale({ userId: 'x' } as Parameters<typeof salesforceContextIsStale>[0])).toBe(true);
   });
 
   it('returns true when older than 4 hours', () => {

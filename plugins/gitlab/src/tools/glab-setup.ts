@@ -2,9 +2,10 @@ import { loadConfig, saveConfig } from '../glab/config';
 import { checkAuth, checkInstalled, execGlabJson } from '../glab/exec';
 import type { GlabProject } from '../glab/types';
 import glabSetupDescription from '../prompts/glab-setup.md' with { type: 'text' };
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { makeExecApi, textResult } from './shared';
 
-export function createGlabSetupTool(pi: any) {
+export function createGlabSetupTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -29,8 +30,8 @@ export function createGlabSetupTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { action: string; project?: string },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const api = makeExecApi(ctx.cwd);
