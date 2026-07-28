@@ -33,11 +33,11 @@ export async function runSetupWizard(
   },
   options?: {
     checkGlabInstalled?: () => boolean;
-  /**
-   * Injected by tests. The real one reads `process.platform` and shells out to `which`,
-   * which made every install assertion below depend on the machine running it — they
-   * asserted `brew` and so passed on macOS and failed on a Linux CI runner.
-   */
+    /**
+     * Injected by tests. The real one reads `process.platform` and shells out to `which`,
+     * which made every install assertion below depend on the machine running it — they
+     * asserted `brew` and so passed on macOS and failed on a Linux CI runner.
+     */
     detectPlatform?: () => Promise<PlatformInfo>;
   },
 ): Promise<void> {

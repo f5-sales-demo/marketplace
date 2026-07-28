@@ -50,7 +50,18 @@ async function buildMockPi(overrides?: Partial<MockPi>): Promise<{
   return { pi, tools, events };
 }
 
-describe('ExtensionFactory integration', () => {
+/**
+ * The factory registers its tools only when the `sf` binary is on PATH (src/index.ts), and
+ * several of these cases then drive that binary for real. So the whole suite is an
+ * integration suite: it is meaningful on a machine with the Salesforce CLI and impossible
+ * without one. It used to fail on such a machine, which reads as "the plugin is broken"
+ * rather than "this environment cannot run these"; a visible skip says the true thing.
+ *
+ * Running them in CI needs the CLI installed and an authenticated org — see the PR.
+ */
+const SF_INSTALLED = Bun.spawnSync([process.platform === 'win32' ? 'where' : 'which', 'sf']).exitCode === 0;
+
+describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration', () => {
   let factory: FactoryFn;
 
   beforeAll(async () => {
@@ -203,14 +214,18 @@ describe('ExtensionFactory integration', () => {
     }
   });
 
-  it('session_start hook runs without throwing', async () => {
+  it('session_start hook returns immediately and does not throw', async () => {
+    // The handler is deliberately synchronous: it kicks the org lookup off in the
+    // background so session start never waits on a CLI call (src/index.ts). The previous
+    // assertion used `.resolves`, which requires a thenable, so it asserted an async
+    // contract the handler was never written to have.
     const { pi, events } = await buildMockPi();
     await factory(pi);
 
     const handler = events.session_start?.[0];
     expect(handler).toBeDefined();
 
-    await expect(handler({}, { cwd: '/tmp' })).resolves.toBeUndefined();
+    expect(handler({}, { cwd: '/tmp' })).toBeUndefined();
   });
 
   it('registers salesforce:setup command', async () => {

@@ -1,10 +1,33 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PlatformInfo } from '../src/platform';
 import { buildAuthStep, buildInstallStep, buildVerifyCommand, runSetupWizard } from '../src/wizard';
 
 // ---------------------------------------------------------------------------
 // Helper builders — exact command assertions
 // ---------------------------------------------------------------------------
+
+/**
+ * The wizard branches on credential environment variables, so a developer machine or CI
+ * runner with cloud credentials exported takes a different auth path and these tests fail
+ * for a reason that has nothing to do with the code. Clear them around every case; the ones
+ * that exercise a credential path set what they need themselves.
+ */
+const CREDENTIAL_VARS = ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID'];
+let savedCredentials: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  savedCredentials = Object.fromEntries(CREDENTIAL_VARS.map((key) => [key, process.env[key]]));
+  for (const key of CREDENTIAL_VARS) delete process.env[key];
+});
+
+afterEach(() => {
+  for (const key of CREDENTIAL_VARS) {
+    const value = savedCredentials[key];
+    // Assigning undefined would store the string "undefined", so absent means delete.
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 describe('buildInstallStep', () => {
   it('macOS brew command is exactly brew install azure-cli', () => {
@@ -226,7 +249,17 @@ describe('runSetupWizard — az not installed', () => {
 
     await runSetupWizard(pi, ctx, { ...azNotInstalledThenInstalled, ...on(LINUX) });
 
-    expect(calls.find((call) => call.cmd === 'sudo')?.args).toEqual(["apt","install","-y","azure-cli"]);
+    expect(calls.find((call) => call.cmd === 'sudo')?.args).toEqual(['apt', 'install', '-y', 'azure-cli']);
+  });
+
+  it('no package manager shows the manual install link', async () => {
+    const { pi, calls } = buildMockPi();
+    const { ctx, notifications } = buildMockCtx();
+
+    await runSetupWizard(pi, ctx, { checkCliInstalled: () => false, ...on(BARE) });
+
+    expect(notifications.find((n) => n.message.includes('learn.microsoft.com'))?.type).toBe('error');
+    expect(calls).toHaveLength(0);
   });
 
   it('install failure shows error', async () => {
@@ -247,13 +280,12 @@ describe('runSetupWizard — az not installed', () => {
 
 describe('runSetupWizard — service principal auth', () => {
   const azInstalled = { checkCliInstalled: () => true };
-  const originalEnv = { ...process.env };
 
   it('auto-detects service principal from environment', async () => {
     process.env.AZURE_CLIENT_ID = 'test-client-id';
     process.env.AZURE_CLIENT_SECRET = 'test-secret';
     process.env.AZURE_TENANT_ID = 'test-tenant-id';
-    try {
+    {
       const { pi, calls } = buildMockPi({
         '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
         '--service-principal': { stdout: '', stderr: '', code: 0 },
@@ -270,10 +302,6 @@ describe('runSetupWizard — service principal auth', () => {
       const spCall = calls.find((c) => c.args.includes('--service-principal'));
       expect(spCall).toBeDefined();
       expect(notifications.find((n) => n.message.includes('service principal'))).toBeDefined();
-    } finally {
-      process.env.AZURE_CLIENT_ID = originalEnv.AZURE_CLIENT_ID;
-      process.env.AZURE_CLIENT_SECRET = originalEnv.AZURE_CLIENT_SECRET;
-      process.env.AZURE_TENANT_ID = originalEnv.AZURE_TENANT_ID;
     }
   });
 
@@ -281,7 +309,7 @@ describe('runSetupWizard — service principal auth', () => {
     process.env.AZURE_CLIENT_ID = 'test-client-id';
     process.env.AZURE_CLIENT_SECRET = 'test-secret';
     process.env.AZURE_TENANT_ID = 'test-tenant-id';
-    try {
+    {
       const { pi } = buildMockPi({
         '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
         '--service-principal': { stdout: '', stderr: 'AADSTS7000215', code: 1 },
@@ -291,10 +319,6 @@ describe('runSetupWizard — service principal auth', () => {
       await runSetupWizard(pi, ctx, azInstalled);
 
       expect(notifications.find((n) => n.message.includes('Authentication failed'))?.type).toBe('error');
-    } finally {
-      process.env.AZURE_CLIENT_ID = originalEnv.AZURE_CLIENT_ID;
-      process.env.AZURE_CLIENT_SECRET = originalEnv.AZURE_CLIENT_SECRET;
-      process.env.AZURE_TENANT_ID = originalEnv.AZURE_TENANT_ID;
     }
   });
 });

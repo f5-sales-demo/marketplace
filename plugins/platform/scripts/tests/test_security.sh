@@ -8,6 +8,7 @@ test_no_hardcoded_api_tokens() {
   local patterns='F5XC_API_TOKEN=[A-Za-z0-9]|APIToken [A-Za-z0-9]{20,}|Bearer [A-Za-z0-9]{20,}'
   local matches
   matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT" \
+    --exclude-dir=node_modules \
     --include='*.md' --include='*.json' |
     grep -v 'README.md' |
     grep -v '\$F5XC_API_TOKEN' |
@@ -27,6 +28,7 @@ test_no_credential_echo_in_agents() {
   local agents_dir="$PLUGIN_ROOT/agents"
   local matches
   matches=$(grep -rIin -E 'echo.*\$F5XC_API_TOKEN|echo.*\$F5XC_API_URL.*TOKEN|print.*TOKEN' "$agents_dir" \
+    --exclude-dir=node_modules \
     --include='*.md' ||
     true)
 
@@ -42,6 +44,7 @@ test_no_eval_user_input() {
   local agents_dir="$PLUGIN_ROOT/agents"
   local matches
   matches=$(grep -rIin -E 'eval.*\$|eval.*user|eval.*input' "$agents_dir" \
+    --exclude-dir=node_modules \
     --include='*.md' ||
     true)
 

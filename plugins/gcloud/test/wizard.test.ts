@@ -1,10 +1,33 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PlatformInfo } from '../src/platform';
 import { buildAuthStep, buildInstallStep, buildVerifyCommand, runSetupWizard } from '../src/wizard';
 
 // ---------------------------------------------------------------------------
 // Helper builders — exact command assertions
 // ---------------------------------------------------------------------------
+
+/**
+ * The wizard branches on credential environment variables, so a developer machine or CI
+ * runner with cloud credentials exported takes a different auth path and these tests fail
+ * for a reason that has nothing to do with the code. Clear them around every case; the ones
+ * that exercise a credential path set what they need themselves.
+ */
+const CREDENTIAL_VARS = ['GOOGLE_APPLICATION_CREDENTIALS'];
+let savedCredentials: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  savedCredentials = Object.fromEntries(CREDENTIAL_VARS.map((key) => [key, process.env[key]]));
+  for (const key of CREDENTIAL_VARS) delete process.env[key];
+});
+
+afterEach(() => {
+  for (const key of CREDENTIAL_VARS) {
+    const value = savedCredentials[key];
+    // Assigning undefined would store the string "undefined", so absent means delete.
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 describe('buildInstallStep', () => {
   it('macOS brew command is exactly brew install --cask google-cloud-sdk', () => {
@@ -218,7 +241,17 @@ describe('runSetupWizard — gcloud not installed', () => {
 
     await runSetupWizard(pi, ctx, { ...gcloudNotInstalledThenInstalled, ...on(LINUX) });
 
-    expect(calls.find((call) => call.cmd === 'sudo')?.args).toEqual(["apt","install","-y","google-cloud-sdk"]);
+    expect(calls.find((call) => call.cmd === 'sudo')?.args).toEqual(['apt', 'install', '-y', 'google-cloud-sdk']);
+  });
+
+  it('no package manager shows the manual install link', async () => {
+    const { pi, calls } = buildMockPi();
+    const { ctx, notifications } = buildMockCtx();
+
+    await runSetupWizard(pi, ctx, { checkCliInstalled: () => false, ...on(BARE) });
+
+    expect(notifications.find((n) => n.message.includes('cloud.google.com'))?.type).toBe('error');
+    expect(calls).toHaveLength(0);
   });
 
   it('install failure shows error', async () => {

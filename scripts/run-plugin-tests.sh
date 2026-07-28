@@ -2,26 +2,17 @@
 # run-plugin-tests.sh — run every plugin's test suite.
 #
 # Each plugin ships `scripts/tests/run-tests.sh` (shell acceptance) and, where it has a
-# TypeScript engine, `*.test.ts` files run by bun. Until now nothing ran either in CI, so a
+# TypeScript engine, `*.test.ts` files run by bun. Nothing ran either in CI until #874, so a
 # plugin could merge with its own guards failing — including the workbook-spec guard, whose
 # entire job is to fail the build.
 #
-# KNOWN_RED is deliberately not an allowlist of green plugins. An allowlist rots silently: a
-# newly added plugin would inherit no gate at all, which is the same failure this script
-# exists to close. Instead every plugin must pass, and the few that are already red are
-# named here against a tracking issue.
+# Every plugin must pass. There is no exemption list: the five plugins that were red when
+# this script landed are fixed (#873), and an allowlist would silently exempt the next
+# plugin someone adds, which is the same failure this exists to close.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT" || exit 2
-
-# Plugins with pre-existing failures, tracked in issue #873. Remove a name when its suite
-# goes green; the run warns when one of these passes, so the list has a visible expiry.
-#
-# The warning is not a failure on purpose. Some of these suites shell out to a cloud CLI and
-# so fail differently on a developer's machine than on a CI runner, and a gate that flaps
-# between the two gets switched off rather than fixed.
-KNOWN_RED=(aws azure gcloud salesforce salesforce-legacy)
 
 # A missing runtime must not read as a pass: the per-plugin suites skip themselves when bun
 # is absent, which in CI would be a silent no-op gate.
@@ -32,14 +23,7 @@ command -v bun >/dev/null 2>&1 || {
   exit 2
 }
 
-is_known_red() {
-  local name="$1" p
-  for p in "${KNOWN_RED[@]}"; do [ "$p" = "$name" ] && return 0; done
-  return 1
-}
-
 failed=()
-unexpectedly_green=()
 
 for suite in plugins/*/scripts/tests/run-tests.sh; do
   [ -f "$suite" ] || continue
@@ -60,28 +44,12 @@ for suite in plugins/*/scripts/tests/run-tests.sh; do
     (cd "plugins/$plugin" && bun test .) || ok=1
   fi
 
-  if is_known_red "$plugin"; then
-    if [ "$ok" -eq 0 ]; then
-      unexpectedly_green+=("$plugin")
-    else
-      printf '    (known red — not failing the build)\n'
-    fi
-  elif [ "$ok" -ne 0 ]; then
-    failed+=("$plugin")
-  fi
+  [ "$ok" -ne 0 ] && failed+=("$plugin")
 done
-
-status=0
 
 if [ "${#failed[@]}" -gt 0 ]; then
   printf '\nFAILED: %s\n' "${failed[*]}" >&2
-  status=1
+  exit 1
 fi
 
-if [ "${#unexpectedly_green[@]}" -gt 0 ]; then
-  printf '\nWARNING: listed in KNOWN_RED but now passing: %s\n' "${unexpectedly_green[*]}" >&2
-  printf 'Remove them from KNOWN_RED in %s so the gate starts holding them green.\n' "$0" >&2
-fi
-
-[ "$status" -eq 0 ] && printf '\nAll gated plugin suites passed.\n'
-exit "$status"
+printf '\nAll plugin suites passed.\n'

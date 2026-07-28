@@ -1,3 +1,4 @@
+import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import azExecDescription from '../prompts/az-exec.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
@@ -116,7 +117,12 @@ export function buildAzArgs(args: string[]): string[] {
   return hasOutput ? [...args] : [...args, '--output', 'json'];
 }
 
-export function createAzExecTool(pi: PluginInterface) {
+/**
+ * `makeApi` exists so a validation test can assert what the tool lets through without
+ * spawning the real `az`. Two of them did, which made the suite depend on whether the CLI
+ * was installed and how long it took to answer.
+ */
+export function createAzExecTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -159,7 +165,7 @@ export function createAzExecTool(pi: PluginInterface) {
         );
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const args = buildAzArgs(params.args);
 
       try {
