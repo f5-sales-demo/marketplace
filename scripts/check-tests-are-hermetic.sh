@@ -36,11 +36,9 @@ command -v bun >/dev/null 2>&1 || {
 STUB_BIN="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN"' EXIT
 
-# Keep only what the suites genuinely need; everything else resolves from /usr/bin and /bin.
-for tool in bun jq git node npm; do
-  path="$(command -v "$tool" 2>/dev/null)" && ln -sf "$path" "$STUB_BIN/$tool"
-done
-
+# The stubs are PREPENDED to the real PATH, so every genuine utility stays reachable and
+# only the cloud CLIs are shadowed. Rebuilding a minimal PATH instead would make a missing
+# coreutil look like a hermeticity failure.
 for cli in "${CLIS[@]}"; do
   printf '#!/bin/sh\nsleep %s\n' "$SLEEP_SECONDS" >"$STUB_BIN/$cli"
   chmod +x "$STUB_BIN/$cli"
@@ -53,7 +51,7 @@ for dir in plugins/*/; do
   find "$dir" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q . || continue
 
   printf '\n==> %s\n' "$plugin"
-  if ! (cd "$dir" && PATH="$STUB_BIN:/usr/bin:/bin" bun test .); then
+  if ! (cd "$dir" && PATH="$STUB_BIN:$PATH" bun test .); then
     failed+=("$plugin")
   fi
 done
