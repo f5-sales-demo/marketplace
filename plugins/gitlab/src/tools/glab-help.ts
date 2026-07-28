@@ -1,5 +1,6 @@
 import { execGlab, GlabAuthError } from '../glab/exec';
 import glabHelpDescription from '../prompts/glab-help.md' with { type: 'text' };
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { errorResult, makeExecApi, textResult } from './shared';
 
 // Lowercase letters, spaces, and hyphens only. This blocks shell metacharacters
@@ -7,7 +8,7 @@ import { errorResult, makeExecApi, textResult } from './shared';
 // any space-split segment that would still reach glab as a flag.
 const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
 
-export function createGlabHelpTool(pi: any) {
+export function createGlabHelpTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -26,8 +27,8 @@ export function createGlabHelpTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { command_path?: string },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const commandPath = params.command_path?.trim() ?? '';

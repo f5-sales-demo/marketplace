@@ -1,11 +1,12 @@
 import sfExecDescription from '../prompts/sf-exec.md' with { type: 'text' };
 import { execSfRaw } from '../sf/exec';
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { findMutation } from './sf-exec-guard';
 import { errorResult, hasControlChars, makeExecApi, textResult } from './shared';
 
 const SF_EXEC_MAX_OUTPUT = 50000;
 
-export function createSfExecTool(pi: any) {
+export function createSfExecTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -19,7 +20,13 @@ export function createSfExecTool(pi: any) {
     label: 'Salesforce CLI Execute',
     description: sfExecDescription,
     parameters,
-    async execute(_toolCallId: string, params: { args: string[] }, signal: any, _onUpdate: any, ctx: { cwd: string }) {
+    async execute(
+      _toolCallId: string,
+      params: { args: string[] },
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
+      ctx: { cwd: string },
+    ) {
       const base = { tool: 'sf_exec' as const };
       const args = params.args ?? [];
       if (args.length === 0) {

@@ -28,7 +28,7 @@ type Deal = Record<string, unknown>;
 
 function threeWhysStatus(deal: Deal): SectionStatus {
   const tw = deal.threeWhys as { f5?: Record<string, unknown> } | undefined;
-  if (!tw || !tw.f5) return 'not_started';
+  if (!tw?.f5) return 'not_started';
   const f5 = tw.f5;
   const all = nonEmptyString(f5.whyAnything) && nonEmptyString(f5.whyF5) && nonEmptyString(f5.whyNow);
   const any = nonEmptyString(f5.whyAnything) || nonEmptyString(f5.whyF5) || nonEmptyString(f5.whyNow);

@@ -4,9 +4,10 @@ import { formatIssueTable } from '../glab/formatters';
 import { executeGraphQL } from '../glab/graphql';
 import type { GlabIssue, GraphQLIssueNode } from '../glab/types';
 import glabSearchDescription from '../prompts/glab-search.md' with { type: 'text' };
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { makeExecApi, textResult } from './shared';
 
-export function createGlabSearchTool(pi: any) {
+export function createGlabSearchTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -29,8 +30,8 @@ export function createGlabSearchTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { query: string; project?: string; state?: string; labels?: string[]; limit?: number },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const api = makeExecApi(ctx.cwd);
