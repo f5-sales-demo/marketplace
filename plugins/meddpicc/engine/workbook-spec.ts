@@ -480,8 +480,8 @@ function checkLayout(spec: WorkbookSpec): string[] {
  *
  * The check that matters most is `elements`: MEDDPICC is a 0-4 score across eight elements,
  * and a spec that captures seven of them looks entirely plausible while quietly scoring the
- * deal out of 28. The same class of near-miss shipped once already in `cell-mapping.json`,
- * where every target resolved against the schema and every one of them named a label cell.
+ * deal out of 28. That class of near-miss has shipped here before: in the retired cell mapping,
+ * every target resolved against the schema and every one of them named a label cell.
  */
 export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecCheck {
   const roleFailures: string[] = [];

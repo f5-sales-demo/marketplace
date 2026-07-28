@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { generateWorkbook } from './generate';
+import type { WorkbookSpec } from './workbook-spec';
 import { readZip, writeZip } from './zip';
+
+const here = import.meta.dir;
+const schema = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'meddpicc-schema.json'), 'utf8'));
+const spec = JSON.parse(fs.readFileSync(path.join(here, 'workbook-spec.json'), 'utf8')) as WorkbookSpec;
+const deal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example-deal.json'), 'utf8'));
 
 /** A tiny zip built by the writer itself, used to exercise the reader. */
 function roundTrip(files: Array<{ name: string; text: string }>): Map<string, Uint8Array> {
@@ -45,21 +54,24 @@ describe('zip round trip', () => {
 });
 
 describe('reading a real xlsx', () => {
-  const XLSX = new URL('../skills/deal-qualification/references/meddpicc-template.xlsx', import.meta.url).pathname;
+  // A workbook we generate, rather than one we ship. The archive is a genuine multi-part,
+  // deflated xlsx — which is all these tests need — and the alternative was carrying F5's own
+  // Deal Review Sheet in the repository purely as a test fixture.
+  const workbook = () => generateWorkbook(schema, spec, deal);
 
-  test('opens the shipped template and finds the parts a fill touches', async () => {
-    const entries = readZip(new Uint8Array(await Bun.file(XLSX).arrayBuffer()));
+  test('opens a generated workbook and finds every part Excel requires', () => {
+    const entries = readZip(workbook());
     for (const part of ['[Content_Types].xml', 'xl/workbook.xml', 'xl/styles.xml', 'xl/worksheets/sheet1.xml']) {
       expect(entries.has(part)).toBe(true);
     }
-    expect(dec(entries.get('xl/worksheets/sheet1.xml')?.data as Uint8Array)).toContain('<c r="C4" s="18"/>');
+    expect(dec(entries.get('xl/workbook.xml')?.data as Uint8Array)).toContain('Scorecard');
   });
 
-  test('rewriting one part leaves every other part byte-identical', async () => {
-    // The whole formatting guarantee rests on this: untouched entries are copied as
-    // their ORIGINAL compressed bytes, never re-deflated, so styles/validation/merges
-    // cannot drift even by a byte.
-    const original = new Uint8Array(await Bun.file(XLSX).arrayBuffer());
+  test('rewriting one part leaves every other part byte-identical', () => {
+    // Untouched entries are copied as their ORIGINAL compressed bytes, never re-deflated, so
+    // rewriting one part of an archive cannot perturb the others even by a byte. The round-trip
+    // reader's own test helpers stand on this when they simulate an edit in Excel.
+    const original = workbook();
     const before = readZip(original);
     const rebuilt = readZip(
       writeZip(
@@ -87,13 +99,13 @@ describe('reading a real xlsx', () => {
     expect(dec(rebuilt.get('xl/worksheets/sheet1.xml')?.data as Uint8Array)).toBe('<worksheet/>');
   });
 
-  test('the rebuilt archive is still readable by a real xlsx consumer', async () => {
-    // Structural sanity the reader alone cannot prove: local headers, the central
-    // directory and the EOCD all have to agree or Excel refuses the file.
-    const original = new Uint8Array(await Bun.file(XLSX).arrayBuffer());
+  test('the rebuilt archive is still structurally sound', () => {
+    // Structural sanity the reader alone cannot prove: local headers, the central directory
+    // and the EOCD all have to agree or Excel refuses the file.
+    const original = workbook();
     const rebuilt = writeZip([...readZip(original)].map(([name, e]) => ({ name, raw: e })));
     const again = readZip(rebuilt);
     expect(again.size).toBe(readZip(original).size);
-    expect(dec(again.get('xl/worksheets/sheet1.xml')?.data as Uint8Array)).toContain('<c r="C4" s="18"/>');
+    expect(dec(again.get('xl/workbook.xml')?.data as Uint8Array)).toContain('Scorecard');
   });
 });

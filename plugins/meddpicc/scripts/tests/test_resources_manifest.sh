@@ -30,7 +30,7 @@ test_resources_manifest_paths_exist() {
 test_resources_manifest_declares_reachable_keys() {
   local manifest="$PLUGIN_ROOT/.xcsh-plugin/resources.json"
   local key
-  for key in schema example template cellMapping sfdcMapping; do
+  for key in schema example sfdcMapping workbookSpec; do
     [ "$(jq -r --arg k "$key" '.[$k] | type' "$manifest")" = "string" ] || {
       echo "resources.json must declare \"$key\" as a top-level string"
       return 1
@@ -38,15 +38,14 @@ test_resources_manifest_declares_reachable_keys() {
   done
 }
 
-# `fill` is what both surfaces call to produce the report; a manifest that does
-# not advertise it leaves the pane guessing at the engine's surface.
+# The pane discovers the engine's surface from this list; a command missing from it is a
+# command the pane does not know exists.
 test_resources_manifest_advertises_engine_commands() {
   local manifest="$PLUGIN_ROOT/.xcsh-plugin/resources.json"
   local cmd
-  # Every command the engine implements, not a subset: `generate` and `check-spec` were both
-  # advertised in the manifest while this list still stopped at `check-mappings`, so dropping
-  # either from the manifest would have gone unnoticed.
-  for cmd in validate next score hint fill check-mappings check-spec generate read; do
+  # Every command the engine implements, not a subset. This list once lagged the manifest by
+  # two commands, so dropping either of them from the manifest would have gone unnoticed.
+  for cmd in validate next score hint check-sfdc check-spec generate read; do
     jq -e --arg c "$cmd" '.engine.commands | index($c)' "$manifest" >/dev/null || {
       echo "engine.commands does not advertise \"$cmd\""
       return 1

@@ -323,59 +323,25 @@ After writing the JSON file, display a scorecard summary:
 
 Triggered when the user says "render", "spreadsheet", "export", or asks
 for a report. The JSON file remains the source of truth; the
-spreadsheet is disposable.
+spreadsheet is **ephemeral** — generated on demand, thrown away after,
+and regenerated whenever it is wanted again.
 
-**The format is the template, not something you compose.** The plugin
-ships `meddpicc-template.xlsx` — the F5 Deal Review Sheet, with its
-fonts, borders, 207 merged ranges, Pick List dropdowns and the
-`=N4*I5` Factored Pipe formula. Your job is only to put values into
-the cells it leaves for data. Never lay out a sheet by hand, and never
-write a label, heading or question — the template already has them.
-
-The engine decides every coordinate:
-
-```bash
-bun xcsh://plugin/meddpicc/file/engine/cli.ts fill <deal.json> --plan
-```
-
-That returns `{sheetName, cells:[{address, value}]}`.
-
-**In an Excel task pane, with the template open** (you have the
-`write_cells` host tool): pass the plan's `cells` straight to
-`write_cells`. It applies them in one batch. Do not re-read the sheet
-to confirm — the tool already reported what it wrote.
-
-**Anywhere else** — the terminal, or a pane whose open workbook is not
-the template — produce a file instead:
-
-```bash
-bun xcsh://plugin/meddpicc/file/engine/cli.ts fill <deal.json> \
-  --out "{accountName}-MEDDPICC-{YYYY-MM-DD}.xlsx"
-```
-
-This copies the template and injects the values, leaving every other
-part of the workbook byte-identical. Tell the user the path.
-
-Rules that matter:
-
-- A field the deal has not answered is **omitted**, leaving the
-  template's blank cell. Do not write "N/A" or "TBD" to fill space.
-- Numbers stay numbers. Never write a currency as `"$473,687"` — the
-  sheet computes Factored Pipe from `N4` and `I5`.
-- Never target `I7`; it is the template's own formula.
-
-### The generated workbook, and reading it back
-
-`fill` above puts values into the F5 Deal Review Sheet. There is also a
-workbook the plugin builds itself, from `engine/workbook-spec.json`:
-eight sheets, a Scorecard that is entirely formulas, Excel Tables that
-grow, conditional formatting, dropdowns read from the schema — and,
-unlike the template, it reads back.
+**The format is the spec, not something you compose.**
+`engine/workbook-spec.json` describes the whole workbook: eight sheets,
+a Scorecard that is entirely formulas, Excel Tables that grow,
+conditional formatting, and dropdowns read from the deal schema. Never
+lay out a sheet by hand and never write a label or heading — the spec
+already has them, and the engine decides every coordinate.
 
 ```bash
 bun xcsh://plugin/meddpicc/file/engine/cli.ts generate <deal.json> \
   --out "{accountName}-MEDDPICC-{YYYY-MM-DD}.xlsx"
 ```
+
+Tell the user the path. In an Excel task pane, open that file rather
+than writing cells into whatever workbook happens to be open: the
+workbook is eight sheets with tables and formulas, so it has to be
+created as a file, not typed into an existing one.
 
 Once someone has edited it in Excel, pull their work back into the JSON:
 
@@ -385,12 +351,6 @@ bun xcsh://plugin/meddpicc/file/engine/cli.ts read <workbook.xlsx> \
 bun xcsh://plugin/meddpicc/file/engine/cli.ts read <workbook.xlsx> \
   --deal <deal.json> --apply    # writes it
 ```
-
-**Which one to produce is the user's call, not yours.** The F5 Deal
-Review Sheet is the artefact leadership recognises; the generated
-workbook is the better tool for working the deal. If they say "render"
-or "export" without saying which, produce the template and mention the
-other exists.
 
 Rules that matter:
 
