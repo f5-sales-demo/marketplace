@@ -7,13 +7,6 @@
   "engine": {
     "runtime": "bun",
     "entry": "engine/cli.ts",
-    "commands": [
-      "validate",
-      "next",
-      "score",
-      "hint",
-      "fill",
-      "check-mappings"
-    ]
+    "commands": ["validate", "next", "score", "hint", "fill", "check-mappings"]
   }
 }

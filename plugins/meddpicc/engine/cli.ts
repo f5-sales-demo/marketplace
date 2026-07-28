@@ -2,12 +2,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
+import { applyFill, planFill } from './fill';
 import { computeElementHint, computeHintOverview } from './hint';
 import { checkMappings } from './mappings';
-import { readTemplateText } from './template';
-import { applyFill, planFill } from './fill';
 import { computeScore } from './score';
 import { QUALIFICATION_ELEMENTS } from './sections';
+import { readTemplateText } from './template';
 import { validateDeal } from './validate';
 
 /**
@@ -93,7 +93,9 @@ async function main(): Promise<number> {
   if (command === 'fill') {
     const dealPath = rest[0];
     if (!dealPath) {
-      process.stderr.write('Usage: cli.ts fill <deal.json> [--plan | --out <file.xlsx>] [--cell <cell-mapping.json>]\n');
+      process.stderr.write(
+        'Usage: cli.ts fill <deal.json> [--plan | --out <file.xlsx>] [--cell <cell-mapping.json>]\n',
+      );
       return 1;
     }
     const deal = await readJson(dealPath);

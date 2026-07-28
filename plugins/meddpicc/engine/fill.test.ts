@@ -10,9 +10,7 @@ const mapping = {
     { jsonPath: 'metadata.winProbability', cell: 'I5', format: 'percentage' },
     { jsonPath: 'qualification.metrics.responses[0]', cell: 'H14' },
   ],
-  textBlocks: [
-    { jsonPath: 'closePlan.milestones', cell: 'B67', line: '{description} — {targetDate} ({status})' },
-  ],
+  textBlocks: [{ jsonPath: 'closePlan.milestones', cell: 'B67', line: '{description} — {targetDate} ({status})' }],
   mirrored: [{ jsonPath: 'threeWhys.partner.name', cells: ['J33', 'J80'] }],
   tables: [
     {

@@ -191,10 +191,7 @@
     {
       "$comment": "The template asks for the partner name twice, once per section header.",
       "jsonPath": "threeWhys.partner.name",
-      "cells": [
-        "J33",
-        "J80"
-      ]
+      "cells": ["J33", "J80"]
     }
   ],
   "tables": [

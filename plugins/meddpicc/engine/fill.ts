@@ -102,7 +102,8 @@ function sanitize(value: string): string {
 function toCell(value: unknown, booleanFormat?: TableSection['booleanFormat']): CellValue | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'boolean') return sanitize(value ? (booleanFormat?.true ?? 'Yes') : (booleanFormat?.false ?? 'No'));
+  if (typeof value === 'boolean')
+    return sanitize(value ? (booleanFormat?.true ?? 'Yes') : (booleanFormat?.false ?? 'No'));
   if (typeof value === 'string') return value.trim() === '' ? null : sanitize(value);
   if (Array.isArray(value)) {
     const parts = value.map((v) => toCell(v, booleanFormat)).filter((v): v is CellValue => v !== null);

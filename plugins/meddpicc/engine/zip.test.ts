@@ -3,11 +3,7 @@ import { readZip, writeZip } from './zip';
 
 /** A tiny zip built by the writer itself, used to exercise the reader. */
 function roundTrip(files: Array<{ name: string; text: string }>): Map<string, Uint8Array> {
-  const entries = readZip(
-    writeZip(
-      files.map((f) => ({ name: f.name, data: new TextEncoder().encode(f.text) })),
-    ),
-  );
+  const entries = readZip(writeZip(files.map((f) => ({ name: f.name, data: new TextEncoder().encode(f.text) }))));
   return new Map([...entries].map(([k, v]) => [k, v.data]));
 }
 
