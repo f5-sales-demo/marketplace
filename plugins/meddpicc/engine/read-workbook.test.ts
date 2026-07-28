@@ -2,9 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
-import { readWorkbook, readWorkbookCells, serialToDate } from './read-workbook';
+import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { validateDeal } from './validate';
 import type { WorkbookSpec } from './workbook-spec';
+import { buildWorkbook } from './xlsx';
 import { readZip, writeZip } from './zip';
 
 const here = import.meta.dir;
@@ -744,5 +745,91 @@ describe('booleans', () => {
     const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'sort of'));
     expect(report.rejections).toHaveLength(1);
     expect(report.rejections[0].reason).toMatch(/TRUE/);
+  });
+});
+
+describe('readWorkbookProperty', () => {
+  test('reads back each property the writer put in', () => {
+    const bytes = buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
+      MeddpiccFingerprint: 'the-stamp',
+      MeddpiccSchemaHash: 'the-hash',
+      MeddpiccLocale: 'ko',
+    });
+    expect(readWorkbookProperty(bytes, 'MeddpiccFingerprint')).toBe('the-stamp');
+    expect(readWorkbookProperty(bytes, 'MeddpiccSchemaHash')).toBe('the-hash');
+    expect(readWorkbookProperty(bytes, 'MeddpiccLocale')).toBe('ko');
+  });
+
+  test('a name that is not there reads null, not the wrong property', () => {
+    // The properties sit in one XML file, so a loose pattern happily returns a neighbour's value.
+    const bytes = buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
+      MeddpiccFingerprint: 'the-stamp',
+    });
+    expect(readWorkbookProperty(bytes, 'MeddpiccSchemaHash')).toBeNull();
+    expect(readWorkbookProperty(bytes, 'Meddpicc')).toBeNull();
+  });
+
+  test('an unstamped workbook reads null for everything', () => {
+    const bytes = buildWorkbook([{ name: 'Deal', rows: [] }]);
+    expect(readWorkbookProperty(bytes, 'MeddpiccFingerprint')).toBeNull();
+  });
+});
+
+describe('schema drift', () => {
+  test('a workbook generated against a different schema is noted, not refused', () => {
+    // Additive schema changes are the common case and harmless, so this must not refuse. But it is
+    // the only explanation for the symptom that looks like a bug: the sheet offering a dropdown
+    // value the schema no longer allows, then the read rejecting it by cell address.
+    const bytes = generateWorkbook(schema, spec, exampleDeal);
+    const moved = JSON.parse(JSON.stringify(schema));
+    moved.description = `${moved.description} (changed)`;
+
+    const before = readWorkbook(schema, spec, exampleDeal, bytes);
+    expect(before.notes).toEqual([]);
+    expect(before.ok).toBe(true);
+
+    const after = readWorkbook(moved, spec, exampleDeal, bytes);
+    expect(after.notes.length).toBe(1);
+    expect(after.notes[0]).toMatch(/different schema/);
+    // Still read, still fine: a note is not a refusal.
+    expect(after.rejections).toEqual([]);
+    expect(after.cellsRead).toBe(before.cellsRead);
+  });
+
+  test('a workbook carrying no schema hash is not accused of drift', () => {
+    // An older workbook, or one built by a caller that passed no properties.
+    const bytes = buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }]);
+    expect(readWorkbook(schema, spec, exampleDeal, bytes).notes).toEqual([]);
+  });
+});
+
+describe('metadata.locale', () => {
+  test('the workbook records the language it was generated in', () => {
+    expect(readWorkbookProperty(generateWorkbook(schema, spec, exampleDeal), 'MeddpiccLocale')).toBe('en');
+    const korean = {
+      ...(exampleDeal as object),
+      metadata: { ...(exampleDeal as { metadata: object }).metadata, locale: 'ko' },
+    };
+    expect(readWorkbookProperty(generateWorkbook(schema, spec, korean), 'MeddpiccLocale')).toBe('ko');
+  });
+
+  test('a exampleDeal naming a language the fleet does not have is refused by the schema', () => {
+    const bogus = {
+      ...(exampleDeal as object),
+      metadata: { ...(exampleDeal as { metadata: object }).metadata, locale: 'kr' },
+    };
+    expect(validateDeal(bogus, schema).valid).toBe(false);
+  });
+
+  test('the locale enum matches the fleet registry in shape and size', () => {
+    // Read from the schema rather than restated here, so the two cannot disagree — and so this file
+    // does not become the hardcoded locale list that scripts/locale-lint.sh exists to forbid.
+    const locales = (schema as { properties: { metadata: { properties: { locale: { enum: string[] } } } } }).properties
+      .metadata.properties.locale.enum;
+    expect(locales.length).toBe(13);
+    expect(locales[0]).toBe('en');
+    expect(locales).toContain('ko');
+    for (const slug of locales) expect(slug).toMatch(/^[a-z]{2}(-[a-z]{2})?$/);
+    expect(new Set(locales).size).toBe(locales.length);
   });
 });

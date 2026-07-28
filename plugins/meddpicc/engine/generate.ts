@@ -32,10 +32,15 @@ import {
   buildWorkbook,
   type CellSpec,
   type ConditionalFormat,
+  ENGINE_VERSION_PROPERTY,
+  FINGERPRINT_PROPERTY,
+  LOCALE_PROPERTY,
   type RowSpec,
+  SCHEMA_HASH_PROPERTY,
   type SheetSpec,
   type TablePart,
   type Validation,
+  type WorkbookProperties,
 } from './xlsx';
 
 /** Excel's 1900 date system counts from 1899-12-30, and that offset is the whole trick. */
@@ -603,7 +608,48 @@ export function workbookFingerprint(plan: WorkbookPlan, deal: unknown): string {
   return createHash('sha256').update(`${identity}\n${layout}`).digest('hex').slice(0, 32);
 }
 
-export function generateWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): Uint8Array {
+/** The default when a deal names no language. */
+export const DEFAULT_LOCALE = 'en';
+
+/**
+ * A stable reference to the schema the workbook was generated against.
+ *
+ * The schema carries `$id` and `title` but no version, so there is nothing to cite — and a version
+ * number somebody has to remember to bump is worse than no version at all, because a stale one lies.
+ * A content hash is derived, so it cannot drift.
+ */
+export function schemaHash(schema: unknown): string {
+  return createHash('sha256').update(JSON.stringify(schema)).digest('hex');
+}
+
+/**
+ * What the workbook records about where it came from.
+ *
+ * All of it derived from the deal, the schema and the plugin — never from the clock, so generating
+ * twice from an unchanged deal produces an unchanged file and "did Excel touch this?" stays a
+ * question with an answer.
+ */
+export function workbookProperties(
+  schema: unknown,
+  plan: WorkbookPlan,
+  deal: unknown,
+  engineVersion?: string,
+): WorkbookProperties {
+  const locale = readPath(deal, 'metadata.locale');
+  return {
+    [FINGERPRINT_PROPERTY]: workbookFingerprint(plan, deal),
+    [SCHEMA_HASH_PROPERTY]: schemaHash(schema),
+    [LOCALE_PROPERTY]: typeof locale === 'string' && locale !== '' ? locale : DEFAULT_LOCALE,
+    ...(engineVersion === undefined ? {} : { [ENGINE_VERSION_PROPERTY]: engineVersion }),
+  };
+}
+
+export function generateWorkbook(
+  schema: unknown,
+  spec: WorkbookSpec,
+  deal: unknown,
+  engineVersion?: string,
+): Uint8Array {
   const plan = planWorkbook(schema, spec, deal);
-  return buildWorkbook(plan.sheets, workbookFingerprint(plan, deal));
+  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion));
 }

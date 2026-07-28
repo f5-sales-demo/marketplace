@@ -779,23 +779,42 @@ const CUSTOM_PROPS_FMTID = '{D5CDD505-2E9C-101B-9397-08002B2CF9AE}';
 export const FINGERPRINT_PROPERTY = 'MeddpiccFingerprint';
 
 /**
+ * What the workbook says about its own provenance.
+ *
+ * The layout stamp lives here, and so does everything a reader or a puzzled human needs to place
+ * the file: which schema it was generated against, which engine built it, which language its labels
+ * are in. All of it derived from the deal and the plugin, never from the clock — generation stays
+ * reproducible, so an unchanged deal produces an unchanged workbook.
+ */
+export type WorkbookProperties = Record<string, string>;
+
+export const SCHEMA_HASH_PROPERTY = 'MeddpiccSchemaHash';
+export const ENGINE_VERSION_PROPERTY = 'MeddpiccEngineVersion';
+export const LOCALE_PROPERTY = 'MeddpiccLocale';
+
+/**
  * A custom document property, which is where a stamp belongs: Excel carries it through a save
  * untouched, and it is not a cell, so nobody can retype it by accident or wonder what the
  * hidden sheet full of hex is for.
  */
-function customPropsXml(fingerprint: string): string {
-  return (
-    `${XML_HEADER}<Properties xmlns="${NS_CUSTOM_PROPS}" xmlns:vt="${NS_VT}">` +
-    `<property fmtid="${CUSTOM_PROPS_FMTID}" pid="2" name="${FINGERPRINT_PROPERTY}">` +
-    `<vt:lpwstr>${escapeXml(fingerprint)}</vt:lpwstr></property></Properties>`
+function customPropsXml(props: WorkbookProperties): string {
+  // pids identify a property and start at 2; two properties sharing one makes Excel repair the file.
+  const entries = Object.entries(props).map(
+    ([name, value], i) =>
+      `<property fmtid="${CUSTOM_PROPS_FMTID}" pid="${i + 2}" name="${escapeXml(name)}">` +
+      `<vt:lpwstr>${escapeXml(value)}</vt:lpwstr></property>`,
   );
+  return `${XML_HEADER}<Properties xmlns="${NS_CUSTOM_PROPS}" xmlns:vt="${NS_VT}">${entries.join('')}</Properties>`;
 }
 
-export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string): Uint8Array {
+export function buildWorkbook(sheets: readonly SheetSpec[], properties?: WorkbookProperties): Uint8Array {
   if (sheets.length === 0) throw new Error('A workbook needs at least one sheet');
 
   const enc = (s: string) => new TextEncoder().encode(s);
   const sheetPath = (i: number) => `xl/worksheets/sheet${i + 1}.xml`;
+  // An empty property set ships no part: an empty <Properties/> is legal and would make a reader
+  // report the workbook as stamped when it carries nothing.
+  const hasProperties = properties !== undefined && Object.keys(properties).length > 0;
 
   // Tables are numbered across the whole workbook, and each sheet keeps its own relationship
   // ids starting at rId1 — a table's r:id is scoped to the worksheet that references it.
@@ -836,7 +855,7 @@ export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string
           `<Override PartName="/xl/tables/table${id}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`,
       )
       .join('') +
-    (fingerprint === undefined
+    (!hasProperties
       ? ''
       : `<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>`) +
     `</Types>`;
@@ -844,7 +863,7 @@ export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string
   const rootRels =
     `${XML_HEADER}<Relationships xmlns="${NS_REL_PKG}">` +
     `<Relationship Id="rId1" Type="${NS_REL_DOC}/officeDocument" Target="xl/workbook.xml"/>` +
-    (fingerprint === undefined
+    (!hasProperties
       ? ''
       : `<Relationship Id="rId2" Type="${NS_REL_DOC}/custom-properties" Target="docProps/custom.xml"/>`) +
     `</Relationships>`;
@@ -891,6 +910,6 @@ export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string
     ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s, tableIdsBySheet[i])) })),
     ...sheetRels,
     ...allTables.map(({ table, id }) => ({ name: `xl/tables/table${id}.xml`, data: enc(tableXml(table, id)) })),
-    ...(fingerprint === undefined ? [] : [{ name: 'docProps/custom.xml', data: enc(customPropsXml(fingerprint)) }]),
+    ...(hasProperties ? [{ name: 'docProps/custom.xml', data: enc(customPropsXml(properties)) }] : []),
   ]);
 }

@@ -25,9 +25,33 @@
           "type": "string",
           "description": "Deal or project name"
         },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "fr",
+            "es",
+            "de",
+            "pt-br",
+            "ja",
+            "ko",
+            "zh-cn",
+            "zh-tw",
+            "ar",
+            "it",
+            "hi",
+            "th"
+          ],
+          "description": "Language for the generated workbook labels, headings and dropdown values. The deal data itself is always stored in English. A default only: --locale and the environment override it, because the language belongs to whoever is reading the report rather than to the deal."
+        },
         "dealStatus": {
           "type": "string",
-          "enum": ["Discovery", "Validated", "Qualified", "Proposal"],
+          "enum": [
+            "Discovery",
+            "Validated",
+            "Qualified",
+            "Proposal"
+          ],
           "description": "Current deal stage from pick list"
         },
         "closeDate": {
@@ -47,31 +71,61 @@
         },
         "forecastStage": {
           "type": "string",
-          "enum": ["Pipeline", "Best Case", "Commit"],
+          "enum": [
+            "Pipeline",
+            "Best Case",
+            "Commit"
+          ],
           "description": "Forecast category"
         },
         "revenue": {
           "type": "object",
           "description": "Revenue breakdown in dollars",
           "properties": {
-            "subscription": { "type": "number", "default": 0, "description": "Subscription revenue" },
-            "hardware": { "type": "number", "default": 0, "description": "Hardware revenue" },
-            "software": { "type": "number", "default": 0, "description": "Software revenue" },
-            "acv": { "type": "number", "default": 0, "description": "Annual Contract Value" }
+            "subscription": {
+              "type": "number",
+              "default": 0,
+              "description": "Subscription revenue"
+            },
+            "hardware": {
+              "type": "number",
+              "default": 0,
+              "description": "Hardware revenue"
+            },
+            "software": {
+              "type": "number",
+              "default": 0,
+              "description": "Software revenue"
+            },
+            "acv": {
+              "type": "number",
+              "default": 0,
+              "description": "Annual Contract Value"
+            }
           }
         },
         "lastClientInteraction": {
           "type": "object",
           "properties": {
-            "date": { "type": "string", "format": "date" },
-            "outcome": { "type": "string" }
+            "date": {
+              "type": "string",
+              "format": "date"
+            },
+            "outcome": {
+              "type": "string"
+            }
           }
         },
         "nextClientInteraction": {
           "type": "object",
           "properties": {
-            "date": { "type": "string", "format": "date" },
-            "objective": { "type": "string" }
+            "date": {
+              "type": "string",
+              "format": "date"
+            },
+            "objective": {
+              "type": "string"
+            }
           }
         },
         "reviewDate": {
@@ -87,10 +141,25 @@
           "type": "object",
           "description": "Optional Salesforce integration fields — present when SFDC data has been imported",
           "properties": {
-            "opportunityId": { "type": "string", "pattern": "^006", "description": "Salesforce Opportunity ID" },
-            "accountId": { "type": "string", "pattern": "^001", "description": "Salesforce Account ID" },
-            "ownerId": { "type": "string", "pattern": "^005", "description": "Salesforce Opportunity Owner ID" },
-            "stageName": { "type": "string", "description": "Salesforce stage name (raw value)" },
+            "opportunityId": {
+              "type": "string",
+              "pattern": "^006",
+              "description": "Salesforce Opportunity ID"
+            },
+            "accountId": {
+              "type": "string",
+              "pattern": "^001",
+              "description": "Salesforce Account ID"
+            },
+            "ownerId": {
+              "type": "string",
+              "pattern": "^005",
+              "description": "Salesforce Opportunity Owner ID"
+            },
+            "stageName": {
+              "type": "string",
+              "description": "Salesforce stage name (raw value)"
+            },
             "lastSyncDate": {
               "type": "string",
               "format": "date-time",
@@ -102,30 +171,64 @@
           "type": "object",
           "description": "Tracks which sections are complete for resume support. The AI reads this to determine where to pick up.",
           "properties": {
-            "metrics": { "$ref": "#/$defs/sectionStatus" },
-            "economicBuyer": { "$ref": "#/$defs/sectionStatus" },
-            "decisionCriteria": { "$ref": "#/$defs/sectionStatus" },
-            "decisionProcess": { "$ref": "#/$defs/sectionStatus" },
-            "paperProcess": { "$ref": "#/$defs/sectionStatus" },
-            "implicateThePain": { "$ref": "#/$defs/sectionStatus" },
-            "champion": { "$ref": "#/$defs/sectionStatus" },
-            "competition": { "$ref": "#/$defs/sectionStatus" },
-            "threeWhys": { "$ref": "#/$defs/sectionStatus" },
-            "stakeholders": { "$ref": "#/$defs/sectionStatus" },
-            "salesStrategy": { "$ref": "#/$defs/sectionStatus" },
-            "closePlan": { "$ref": "#/$defs/sectionStatus" },
-            "team": { "$ref": "#/$defs/sectionStatus" }
+            "metrics": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "economicBuyer": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "decisionCriteria": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "decisionProcess": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "paperProcess": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "implicateThePain": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "champion": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "competition": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "threeWhys": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "stakeholders": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "salesStrategy": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "closePlan": {
+              "$ref": "#/$defs/sectionStatus"
+            },
+            "team": {
+              "$ref": "#/$defs/sectionStatus"
+            }
           }
         }
       },
-      "required": ["dealId", "accountName", "dealName"]
+      "required": [
+        "dealId",
+        "accountName",
+        "dealName"
+      ]
     },
     "qualification": {
       "type": "object",
       "description": "The 8 MEDDPICC qualification elements with embedded questions, scoring rubrics, and responses",
       "properties": {
         "metrics": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
             "definition": {
               "const": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value"
@@ -148,13 +251,20 @@
           }
         },
         "economicBuyer": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
             "definition": {
               "const": "The individual with final budget authority and political power to fund the purchase"
             },
             "questions": {
-              "default": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"]
+              "default": [
+                "Who makes the buying decision?",
+                "How are we engaged with them to address their priorities?"
+              ]
             },
             "scoreDefinition": {
               "default": {
@@ -168,7 +278,11 @@
           }
         },
         "decisionCriteria": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
             "definition": {
               "const": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial"
@@ -191,9 +305,15 @@
           }
         },
         "decisionProcess": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
-            "definition": { "const": "The step-by-step path from evaluation to signed agreement" },
+            "definition": {
+              "const": "The step-by-step path from evaluation to signed agreement"
+            },
             "questions": {
               "default": [
                 "What is the client's technical approval process for the solution you are proposing?",
@@ -212,7 +332,11 @@
           }
         },
         "paperProcess": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
             "definition": {
               "const": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process"
@@ -235,9 +359,15 @@
           }
         },
         "implicateThePain": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
-            "definition": { "const": "The compelling business pain that creates urgency to act" },
+            "definition": {
+              "const": "The compelling business pain that creates urgency to act"
+            },
             "questions": {
               "default": [
                 "What is the problem the client is solving for and how does it impact them?",
@@ -256,11 +386,20 @@
           }
         },
         "champion": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
-            "definition": { "const": "A powerful internal advocate who sells for you when you're not in the room" },
+            "definition": {
+              "const": "A powerful internal advocate who sells for you when you're not in the room"
+            },
             "questions": {
-              "default": ["Who will benefit most from this transaction?", "Can they influence the buying process?"]
+              "default": [
+                "Who will benefit most from this transaction?",
+                "Can they influence the buying process?"
+              ]
             },
             "scoreDefinition": {
               "default": {
@@ -274,7 +413,11 @@
           }
         },
         "competition": {
-          "allOf": [{ "$ref": "#/$defs/meddpiccElement" }],
+          "allOf": [
+            {
+              "$ref": "#/$defs/meddpiccElement"
+            }
+          ],
           "properties": {
             "definition": {
               "const": "Any alternative the buyer might choose — another vendor, internal build, or do nothing"
@@ -309,17 +452,35 @@
               "type": "string",
               "description": "Why does the client need to change from the status quo?"
             },
-            "whyUs": { "type": "string", "description": "Why are you the right choice over the alternatives?" },
-            "whyNow": { "type": "string", "description": "Why must this happen on the current timeline?" }
+            "whyUs": {
+              "type": "string",
+              "description": "Why are you the right choice over the alternatives?"
+            },
+            "whyNow": {
+              "type": "string",
+              "description": "Why must this happen on the current timeline?"
+            }
           }
         },
         "partner": {
           "type": "object",
           "properties": {
-            "name": { "type": "string", "description": "Partner organization name" },
-            "whyAnything": { "type": "string", "description": "Why does the partner need to engage?" },
-            "whyThisPartner": { "type": "string", "description": "Why is this the right partner?" },
-            "whyNow": { "type": "string", "description": "Why must the partner engage now?" }
+            "name": {
+              "type": "string",
+              "description": "Partner organization name"
+            },
+            "whyAnything": {
+              "type": "string",
+              "description": "Why does the partner need to engage?"
+            },
+            "whyThisPartner": {
+              "type": "string",
+              "description": "Why is this the right partner?"
+            },
+            "whyNow": {
+              "type": "string",
+              "description": "Why must the partner engage now?"
+            }
           }
         }
       }
@@ -330,22 +491,41 @@
       "items": {
         "type": "object",
         "properties": {
-          "name": { "type": "string" },
-          "title": { "type": "string" },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
           "roleInDeal": {
             "type": "string",
-            "enum": ["Economic buyer", "Decision maker", "Influencer"],
+            "enum": [
+              "Economic buyer",
+              "Decision maker",
+              "Influencer"
+            ],
             "description": "Role from pick list"
           },
-          "mustSayYes": { "type": "boolean", "description": "Must this person say yes for the deal to proceed?" },
-          "canSayNo": { "type": "boolean", "description": "Can this person veto or block the deal?" },
+          "mustSayYes": {
+            "type": "boolean",
+            "description": "Must this person say yes for the deal to proceed?"
+          },
+          "canSayNo": {
+            "type": "boolean",
+            "description": "Can this person veto or block the deal?"
+          },
           "whatTheyNeedToBelieve": {
             "type": "string",
             "description": "What this person needs to believe to say yes to the deal"
           },
           "sentiment": {
             "type": "string",
-            "enum": ["Positive", "Negative", "Neutral", "Unknown"],
+            "enum": [
+              "Positive",
+              "Negative",
+              "Neutral",
+              "Unknown"
+            ],
             "description": "Current sentiment toward you"
           },
           "relationshipOwner": {
@@ -353,7 +533,11 @@
             "description": "Team member responsible for this relationship"
           }
         },
-        "required": ["name", "title", "roleInDeal"]
+        "required": [
+          "name",
+          "title",
+          "roleInDeal"
+        ]
       }
     },
     "salesStrategy": {
@@ -380,9 +564,21 @@
           "items": {
             "type": "object",
             "properties": {
-              "description": { "type": "string" },
-              "targetDate": { "type": "string", "format": "date" },
-              "status": { "type": "string", "enum": ["pending", "in_progress", "complete"] }
+              "description": {
+                "type": "string"
+              },
+              "targetDate": {
+                "type": "string",
+                "format": "date"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "in_progress",
+                  "complete"
+                ]
+              }
             }
           }
         },
@@ -392,10 +588,24 @@
           "items": {
             "type": "object",
             "properties": {
-              "action": { "type": "string" },
-              "owner": { "type": "string" },
-              "dueDate": { "type": "string", "format": "date" },
-              "status": { "type": "string", "enum": ["pending", "in_progress", "complete"] }
+              "action": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              },
+              "dueDate": {
+                "type": "string",
+                "format": "date"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "in_progress",
+                  "complete"
+                ]
+              }
             }
           }
         }
@@ -410,10 +620,19 @@
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "role": { "type": "string" },
-              "dateRequiredFrom": { "type": "string", "format": "date" },
-              "assignedToDeal": { "type": "boolean" }
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "dateRequiredFrom": {
+                "type": "string",
+                "format": "date"
+              },
+              "assignedToDeal": {
+                "type": "boolean"
+              }
             }
           }
         },
@@ -422,10 +641,19 @@
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "role": { "type": "string" },
-              "dateRequiredFrom": { "type": "string", "format": "date" },
-              "assignedToDeal": { "type": "boolean" }
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "dateRequiredFrom": {
+                "type": "string",
+                "format": "date"
+              },
+              "assignedToDeal": {
+                "type": "boolean"
+              }
             }
           }
         }
@@ -438,28 +666,92 @@
         "elementScores": {
           "type": "object",
           "properties": {
-            "metrics": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "economicBuyer": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "decisionCriteria": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "decisionProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "paperProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "implicateThePain": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "champion": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "competition": { "type": "integer", "minimum": 0, "maximum": 4 }
+            "metrics": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "economicBuyer": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "decisionCriteria": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "decisionProcess": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "paperProcess": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "implicateThePain": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "champion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "competition": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
           }
         },
         "previousElementScores": {
           "type": "object",
           "description": "Snapshot of element scores from the previous review — used by deal-review to compute score deltas",
           "properties": {
-            "metrics": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "economicBuyer": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "decisionCriteria": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "decisionProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "paperProcess": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "implicateThePain": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "champion": { "type": "integer", "minimum": 0, "maximum": 4 },
-            "competition": { "type": "integer", "minimum": 0, "maximum": 4 }
+            "metrics": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "economicBuyer": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "decisionCriteria": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "decisionProcess": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "paperProcess": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "implicateThePain": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "champion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "competition": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
           }
         },
         "overallScore": {
@@ -470,17 +762,28 @@
         },
         "overallRating": {
           "type": "string",
-          "enum": ["Red", "Yellow", "Green"],
+          "enum": [
+            "Red",
+            "Yellow",
+            "Green"
+          ],
           "description": "Traffic light based on raw score: Red (0-13/32, ~0-41%), Yellow (14-25/32, ~44-78%), Green (26-32/32, ~81-100%). Use raw score brackets as the definitive boundary."
         }
       }
     }
   },
-  "required": ["metadata", "qualification"],
+  "required": [
+    "metadata",
+    "qualification"
+  ],
   "$defs": {
     "sectionStatus": {
       "type": "string",
-      "enum": ["not_started", "partial", "complete"],
+      "enum": [
+        "not_started",
+        "partial",
+        "complete"
+      ],
       "default": "not_started"
     },
     "meddpiccElement": {
@@ -492,12 +795,16 @@
         },
         "questions": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Guiding questions the AI asks the rep"
         },
         "responses": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Rep's answers, ordered to match questions array"
         },
         "score": {
@@ -510,11 +817,21 @@
           "type": "object",
           "description": "What each score level means for this specific element",
           "properties": {
-            "0": { "type": "string" },
-            "1": { "type": "string" },
-            "2": { "type": "string" },
-            "3": { "type": "string" },
-            "4": { "type": "string" }
+            "0": {
+              "type": "string"
+            },
+            "1": {
+              "type": "string"
+            },
+            "2": {
+              "type": "string"
+            },
+            "3": {
+              "type": "string"
+            },
+            "4": {
+              "type": "string"
+            }
           }
         },
         "evidence": {

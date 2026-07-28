@@ -26,12 +26,19 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
-import { dateToSerial, type InputCell, planWorkbook, type WorkbookPlan, workbookFingerprint } from './generate';
+import {
+  dateToSerial,
+  type InputCell,
+  planWorkbook,
+  schemaHash,
+  type WorkbookPlan,
+  workbookFingerprint,
+} from './generate';
 import { readPath, writePath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
-import { A1, FINGERPRINT_PROPERTY } from './xlsx';
+import { A1, FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -130,14 +137,26 @@ function sheetParts(entries: Map<string, { data: Uint8Array }>, rels: Map<string
   return parts;
 }
 
-/** The round-trip stamp a workbook was generated with, or null when it carries none. */
-export function readWorkbookFingerprint(bytes: Uint8Array): string | null {
+/**
+ * One custom document property, by name.
+ *
+ * The name is matched exactly, closing quote and all: the properties share a single XML file, so a
+ * pattern that merely starts with the name would happily return a neighbour's value — asking for
+ * `Meddpicc` and getting the fingerprint.
+ */
+export function readWorkbookProperty(bytes: Uint8Array, name: string): string | null {
   const entry = readZip(bytes).get('docProps/custom.xml');
   if (!entry) return null;
   const xml = new TextDecoder().decode(entry.data);
-  const property = new RegExp(`<property\\b[^>]*name="${FINGERPRINT_PROPERTY}"[^>]*>([\\s\\S]*?)</property>`).exec(xml);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const property = new RegExp(`<property\\b[^>]*name="${escaped}"[^>]*>([\\s\\S]*?)</property>`).exec(xml);
   if (!property) return null;
   return unescapeXml(/<vt:lpwstr>([\s\S]*?)<\/vt:lpwstr>/.exec(property[1])?.[1] ?? '') || null;
+}
+
+/** The round-trip stamp a workbook was generated with, or null when it carries none. */
+export function readWorkbookFingerprint(bytes: Uint8Array): string | null {
+  return readWorkbookProperty(bytes, FINGERPRINT_PROPERTY);
 }
 
 /** Every cell of every sheet, keyed by sheet name then by A1 reference. */
@@ -400,6 +419,15 @@ export interface ReadReport {
   deal: unknown;
   valid: boolean;
   errors: ValidationResult['errors'];
+  /**
+   * Things worth saying that are not refusals.
+   *
+   * The schema drifting since the workbook was written is the one this exists for. It is not a
+   * reason to refuse — nearly every schema change is additive and harmless — but it is the
+   * explanation for the one case that looks like a bug: a dropdown offering a value the schema no
+   * longer allows, so the sheet suggests something and the read then rejects it.
+   */
+  notes: string[];
 }
 
 /**
@@ -421,6 +449,20 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   const rejections: CellRejection[] = [];
   let unchanged = 0;
 
+  // Said, not enforced. Nearly every schema change is additive and harmless, so a difference is no
+  // reason to refuse a workbook — but it is the explanation for the one symptom that looks like a
+  // bug: a dropdown offering a value the schema no longer allows, so the sheet suggests something
+  // and the read then rejects it by cell address with no hint as to why.
+  const notes: string[] = [];
+  const wroteAgainst = readWorkbookProperty(bytes, SCHEMA_HASH_PROPERTY);
+  const now = schemaHash(schema);
+  if (wroteAgainst !== null && wroteAgainst !== now) {
+    notes.push(
+      `this workbook was generated against a different schema (${wroteAgainst.slice(0, 12)}, now ${now.slice(0, 12)}) — ` +
+        'its dropdowns and labels are the older ones, so a value it offered may no longer be allowed',
+    );
+  }
+
   const stamp = readWorkbookFingerprint(bytes);
   const expected = workbookFingerprint(plan, deal);
   if (stamp !== expected) {
@@ -441,6 +483,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       deal: working,
       valid: true,
       errors: [],
+      notes,
     };
   }
 
@@ -513,5 +556,6 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     deal: working,
     valid: validation.valid,
     errors: validation.errors,
+    notes,
   };
 }

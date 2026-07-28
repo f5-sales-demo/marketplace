@@ -692,3 +692,40 @@ describe('styles.xml — a named style resolves to the look it promises', () => 
     }
   });
 });
+
+describe('buildWorkbook — provenance properties', () => {
+  const propsOf = (props: Record<string, string>) =>
+    new TextDecoder().decode(
+      readZip(buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], props)).get(
+        'docProps/custom.xml',
+      )?.data as Uint8Array,
+    );
+
+  test('writes every property with a distinct pid', () => {
+    // Two properties sharing a pid make Excel repair the file, and pids start at 2.
+    const xml = propsOf({ MeddpiccFingerprint: 'abc', MeddpiccSchemaHash: 'def', MeddpiccLocale: 'ko' });
+    const pids = [...xml.matchAll(/pid="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(pids).toEqual([2, 3, 4]);
+    expect(new Set(pids).size).toBe(pids.length);
+    for (const name of ['MeddpiccFingerprint', 'MeddpiccSchemaHash', 'MeddpiccLocale']) {
+      expect(xml).toContain(`name="${name}"`);
+    }
+  });
+
+  test('escapes a property value rather than injecting it', () => {
+    expect(propsOf({ MeddpiccLocale: 'a & b <c>' })).toContain('a &amp; b &lt;c&gt;');
+  });
+
+  test('a workbook with no properties ships no custom.xml at all', () => {
+    const parts = readZip(buildWorkbook([{ name: 'Deal', rows: [] }]));
+    expect(parts.has('docProps/custom.xml')).toBe(false);
+    const ct = new TextDecoder().decode(parts.get('[Content_Types].xml')?.data as Uint8Array);
+    expect(ct).not.toContain('custom-properties');
+  });
+
+  test('an empty property set ships no custom.xml either', () => {
+    // An empty <Properties/> is legal but pointless, and it would make the reader report a
+    // workbook as stamped when it carries nothing.
+    expect(readZip(buildWorkbook([{ name: 'Deal', rows: [] }], {})).has('docProps/custom.xml')).toBe(false);
+  });
+});

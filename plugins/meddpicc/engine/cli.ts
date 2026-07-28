@@ -1,8 +1,20 @@
 #!/usr/bin/env bun
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import pkg from '../package.json' with { type: 'json' };
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
+
+/**
+ * What built the workbook, recorded in the file.
+ *
+ * Read from the PLUGIN's package.json, which `test_versions_match` compares against `plugin.json`
+ * and `marketplace.json` — so the number here is the one the release actually publishes. The
+ * engine's own package.json was the obvious choice and the wrong one: that file was not covered by
+ * the gate, so it could drift and the workbook would record a version nobody shipped.
+ */
+const ENGINE_VERSION: string = (pkg as { version: string }).version;
+
 import { computeElementHint, computeHintOverview } from './hint';
 import { migrateDeal } from './legacy';
 import { checkSfdcMapping } from './mappings';
@@ -173,7 +185,7 @@ async function main(): Promise<number> {
       process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
       return 1;
     }
-    await Bun.write(outPath, generateWorkbook(schema, spec, deal));
+    await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION));
     const plan = planWorkbook(schema, spec, deal);
     print({ out: outPath, sheets: plan.sheets.length, inputCells: plan.inputCells.length });
     return 0;
@@ -218,6 +230,9 @@ async function main(): Promise<number> {
       unchanged: report.unchanged,
       proposals: report.proposals,
       rejections: report.rejections,
+      // Not refusals: things worth knowing, such as the schema having moved since the workbook was
+      // generated. Omitted when there is nothing to say, so quiet output stays quiet.
+      ...(report.notes.length > 0 ? { notes: report.notes } : {}),
       valid: report.valid,
       errors: report.errors,
       applied: apply,
