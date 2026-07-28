@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import { applyFill, planFill } from './fill';
+import { generateWorkbook, planWorkbook } from './generate';
 import { computeElementHint, computeHintOverview } from './hint';
 import { checkMappings } from './mappings';
 import { computeScore } from './score';
@@ -132,6 +133,41 @@ async function main(): Promise<number> {
     return result.ok ? 0 : 1;
   }
 
+  if (command === 'generate') {
+    const dealPath = rest[0];
+    if (!dealPath) {
+      process.stderr.write(
+        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--spec <workbook-spec.json>]\n',
+      );
+      return 1;
+    }
+    const schema = await readJson(SCHEMA_PATH);
+    const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
+    const deal = await readJson(dealPath);
+
+    // `--plan` reports where every input landed without writing a file — that map is what
+    // the round-trip reader consumes, so being able to inspect it is worth a flag.
+    if (rest.includes('--plan')) {
+      const plan = planWorkbook(schema, spec, deal);
+      print({
+        sheets: plan.sheets.map((s) => ({ name: s.name, rows: s.rows.length })),
+        namedCells: plan.namedCells,
+        inputCells: plan.inputCells,
+      });
+      return 0;
+    }
+
+    const outPath = flag(rest, '--out');
+    if (!outPath) {
+      process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
+      return 1;
+    }
+    await Bun.write(outPath, generateWorkbook(schema, spec, deal));
+    const plan = planWorkbook(schema, spec, deal);
+    print({ out: outPath, sheets: plan.sheets.length, inputCells: plan.inputCells.length });
+    return 0;
+  }
+
   if (command === 'check-spec') {
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
@@ -141,7 +177,7 @@ async function main(): Promise<number> {
   }
 
   process.stderr.write(
-    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, check-mappings, check-spec\n`,
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, generate, check-mappings, check-spec\n`,
   );
   return 1;
 }
