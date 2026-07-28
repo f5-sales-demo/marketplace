@@ -197,7 +197,7 @@ assert_no_error_values() {
   local when="$1" errors
   errors="$(error_values)"
   case "$errors" in
-    *"execution error"* | *"syntax error"*) fail "the error-value check could not run ($when): $errors" ;;
+  *"execution error"* | *"syntax error"*) fail "the error-value check could not run ($when): $errors" ;;
   esac
   [ -z "${errors// /}" ] || fail "Excel error values present ($when): $errors"
 }
@@ -209,9 +209,9 @@ SENTINEL_CELL="Z1"
 excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\" to \"=1/0\""
 planted="$(error_values)"
 case "$planted" in
-  *"execution error"* | *"syntax error"*) fail "the error-value check could not run (planted): $planted" ;;
-  *"#DIV/0!"*) ;;
-  *) fail "the error-value detector did not notice a deliberate #DIV/0! in Deal!$SENTINEL_CELL: [${planted}]" ;;
+*"execution error"* | *"syntax error"*) fail "the error-value check could not run (planted): $planted" ;;
+*"#DIV/0!"*) ;;
+*) fail "the error-value detector did not notice a deliberate #DIV/0! in Deal!$SENTINEL_CELL: [${planted}]" ;;
 esac
 excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\""
 assert_no_error_values "after clearing the planted one"
@@ -460,7 +460,7 @@ end tell
 OSA
   )"
   case "$sheets" in
-    '' | *"error"* | *"Can’t "* | *"Can't "*) fail "could not list the worksheets to capture: ${sheets:-<no output>}" ;;
+  '' | *"error"* | *"Can’t "* | *"Can't "*) fail "could not list the worksheets to capture: ${sheets:-<no output>}" ;;
   esac
 
   while IFS= read -r sheet; do
@@ -469,8 +469,8 @@ OSA
     # resized is how the bottom of a sheet goes uncaptured while the stage still reports PASS.
     geom="$(place_window "$BOOK")"
     case "$geom" in
-      [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
-      *) fail "could not place the Excel window for \"$sheet\": ${geom:-<no output>}" ;;
+    [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
+    *) fail "could not place the Excel window for \"$sheet\": ${geom:-<no output>}" ;;
     esac
 
     metrics="$(
@@ -489,8 +489,8 @@ OSA
     )"
     IFS=, read -r used_rows visible_rows used_cols visible_cols <<<"$metrics"
     case "${used_rows:-},${visible_rows:-},${used_cols:-},${visible_cols:-}" in
-      [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
-      *) fail "could not measure sheet \"$sheet\": ${metrics:-<no output>}" ;;
+    [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
+    *) fail "could not measure sheet \"$sheet\": ${metrics:-<no output>}" ;;
     esac
 
     # Paginate BOTH axes. Scrolling rows only meant the right-hand columns of a wide sheet were never
