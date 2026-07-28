@@ -9,6 +9,7 @@ import { computeScore } from './score';
 import { QUALIFICATION_ELEMENTS } from './sections';
 import { readTemplateText } from './template';
 import { validateDeal } from './validate';
+import { checkWorkbookSpec, type WorkbookSpec } from './workbook-spec';
 
 /**
  * Resolve the plugin root by walking up from this file until we find the
@@ -32,6 +33,7 @@ const SCHEMA_PATH = path.join(PLUGIN_ROOT, 'schema', 'meddpicc-schema.json');
 const CELL_PATH = path.join(PLUGIN_ROOT, 'skills', 'deal-qualification', 'references', 'cell-mapping.json');
 const TEMPLATE_RELPATH = 'skills/deal-qualification/references/meddpicc-template.xlsx';
 const SFDC_PATH = path.join(PLUGIN_ROOT, 'skills', 'deal-qualification', 'references', 'sfdc-field-mapping.json');
+const WORKBOOK_SPEC_PATH = path.join(PLUGIN_ROOT, 'engine', 'workbook-spec.json');
 
 async function readJson(p: string): Promise<unknown> {
   return JSON.parse(await Bun.file(p).text());
@@ -130,8 +132,16 @@ async function main(): Promise<number> {
     return result.ok ? 0 : 1;
   }
 
+  if (command === 'check-spec') {
+    const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
+    const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
+    const result = checkWorkbookSpec(schema, spec);
+    print(result);
+    return result.ok ? 0 : 1;
+  }
+
   process.stderr.write(
-    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, check-mappings\n`,
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, check-mappings, check-spec\n`,
   );
   return 1;
 }

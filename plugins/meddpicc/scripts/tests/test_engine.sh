@@ -159,6 +159,46 @@ test_engine_fill_is_deterministic() {
   }
 }
 
+test_engine_check_spec_ok() {
+  _engine_precheck || return 0
+  bun "$PLUGIN_ROOT/engine/cli.ts" check-spec >/dev/null || {
+    echo "check-spec failed on the shipped workbook spec"
+    return 1
+  }
+}
+
+test_engine_check_spec_detects_a_dropped_element() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  # Pin the wildcard to seven of the eight elements. The workbook still looks complete and
+  # every path still resolves; the deal is just quietly scored out of 28.
+  jq '(.sheets[] | select(.name == "Qualification") | .tables[0].source) =
+        {"kind": "fixed", "keys": ["metrics","economicBuyer","decisionCriteria","decisionProcess","paperProcess","implicateThePain","competition"]}' \
+    "$PLUGIN_ROOT/engine/workbook-spec.json" >"$tmp/spec.json"
+  if bun "$PLUGIN_ROOT/engine/cli.ts" check-spec --spec "$tmp/spec.json" >/dev/null 2>&1; then
+    echo "expected non-zero exit for a spec missing an element score"
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$tmp"
+}
+
+test_engine_check_spec_detects_a_broken_formula_reference() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  # Rename a column the Scorecard's formulas point at. Nothing else changes.
+  jq '(.sheets[] | select(.name == "Qualification") | .tables[0].columns[] | select(.id == "score") | .id) = "renamed"' \
+    "$PLUGIN_ROOT/engine/workbook-spec.json" >"$tmp/spec.json"
+  if bun "$PLUGIN_ROOT/engine/cli.ts" check-spec --spec "$tmp/spec.json" >/dev/null 2>&1; then
+    echo "expected non-zero exit for a formula naming a column that no longer exists"
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$tmp"
+}
+
 test_engine_check_mappings_detects_a_target_aimed_at_a_label() {
   _engine_precheck || return 0
   local tmp

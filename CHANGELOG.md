@@ -10,6 +10,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** bumped to v2.4.0 — foundations for a formula-driven workbook generated
+  from the schema. Adds `engine/xlsx.ts`, an OOXML writer that emits a complete `.xlsx`
+  from scratch with a fixed, named style palette, and `engine/workbook-spec.json`, a
+  declarative description of the workbook that names a `jsonPath` for every input cell and
+  writes formulas as symbolic references (`{{ref:acv}}`, `{{col:elements.score}}`) rather
+  than addresses. `check-spec` validates the two against the deal schema: every input path
+  resolves, all eight scored elements are captured exactly once, no two cells claim one
+  value, every formula reference names something that exists, and side-by-side tables do
+  not overlap. No output changes yet — `fill` is still what produces the report.
+
 - **`meddpicc`** bumped to v2.3.0 — the deal review now fills the shipped F5 Deal
   Review Sheet template instead of a layout of its own: corrected `cell-mapping.json`
   (every scalar coordinate previously named the label cell, not the value cell),
