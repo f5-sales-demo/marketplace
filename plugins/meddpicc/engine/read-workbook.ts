@@ -286,9 +286,11 @@ export interface CellProposal {
 }
 
 export interface CellRejection {
-  jsonPath: string;
-  sheet: string;
-  address: string;
+  /** Absent when the cell belongs to no field — which is itself the problem being reported. */
+  jsonPath?: string;
+  /** Both absent when the whole workbook was refused, rather than one cell in it. */
+  sheet?: string;
+  address?: string;
   reason: string;
 }
 
@@ -331,7 +333,6 @@ function reportUnmappedRows(
       const content = cell.formula === undefined ? cell.text : `=${cell.formula}`;
       if (content === undefined || content.trim() === '') continue;
       rejections.push({
-        jsonPath: '',
         sheet: sheetName,
         address: cell.ref,
         reason:
@@ -384,9 +385,6 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       proposals: [],
       rejections: [
         {
-          jsonPath: '',
-          sheet: '',
-          address: '',
           reason:
             stamp === null
               ? 'this workbook carries no round-trip stamp — regenerate it from this deal before reading it back'
