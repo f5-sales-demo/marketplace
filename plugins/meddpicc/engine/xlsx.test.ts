@@ -243,10 +243,10 @@ describe('buildWorkbook — tables, conditional formatting and validation', () =
             { row: 1, cells: [{ ref: 'A1', value: 'Name' }] },
             { row: 2, cells: [{ ref: 'A2', value: 'x' }] },
           ],
-          tables: [{ name: 't', displayName: 't', ref: 'A1:A2', columns: ['Nome'] }],
+          tables: [{ name: 't', displayName: 't', ref: 'A1:A2', columns: ['NotTheHeader'] }],
         },
       ]),
-    ).toThrow(/Nome/);
+    ).toThrow(/NotTheHeader/);
   });
 
   test('rejects a table range with no data row', () => {
