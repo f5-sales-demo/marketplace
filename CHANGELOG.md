@@ -10,6 +10,38 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v3.0.0 — **breaking: `fill` is gone, and F5's Deal Review Sheet is no longer
+  in this repository.** One spreadsheet now, generated from `workbook-spec.json`, ephemeral by
+  design: produced on demand and regenerated rather than kept.
+
+  `meddpicc-template.xlsx` was F5's own internal Deal Review Sheet, carried here as a 91KB
+  binary — in a **public** repository — so that `fill` could type values into its blank cells.
+  We never designed that layout; we shipped a copy of someone else's document and filled it in.
+  The curated template is `workbook-spec.json`, written by studying the F5 sheet to learn what
+  belongs in a deal review, and it owes the original nothing at runtime.
+
+  Removed: `meddpicc-template.xlsx`, `cell-mapping.json`, `engine/fill.ts`, `engine/template.ts`,
+  the `fill` command, and the `template`/`cellMapping` resource keys.
+
+  **The Salesforce guard survives.** `check-mappings` validated two different mappings against
+  the schema, and only one of them is going away — `sfdc-field-mapping.json` is still how the
+  skill moves values to and from Salesforce, and a mistyped `schemaPath` there does not fail, it
+  maps to nothing, so a field silently never syncs. It continues as **`check-sfdc`**, named for
+  what it actually checks now.
+
+  Stated plainly, because it is the cost of this change: there is no longer any way to produce a
+  document that *looks like* the F5 Deal Review Sheet. Anyone who needs that exact artefact for
+  an exec review fills it in by hand. The generated workbook is not a lookalike — it was designed
+  from the schema and covers the same material plus the 0-4 scoring the F5 sheet had nowhere to
+  put.
+
+  `zip.test.ts` proved the verbatim-copy guarantee against the shipped template; it now proves it
+  against a workbook we generate, which is a real multi-part deflated `.xlsx` and needs no
+  fixture in the tree. The task-pane flow in the skill changes with it: it used to type cells
+  into an open copy of the template, and now opens a generated workbook, because eight sheets
+  with tables and formulas have to be created as a file rather than typed into whatever happens
+  to be open.
+
 - **`meddpicc`** v2.7.0 — the workbook reads back. `engine/cli.ts read <workbook.xlsx> --deal
   <deal.json>` reports what the spreadsheet proposes changing, and `--apply` writes it.
 

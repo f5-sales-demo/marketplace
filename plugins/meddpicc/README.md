@@ -58,7 +58,7 @@ Creates a new MEDDPICC deal file through a guided interview. Walks through each 
 - **Import** — resume a partial deal file, or import from Salesforce via `--sfdc <opportunity-id>`
 - **Review and update** — update an existing complete deal
 
-Output: JSON deal file (source of truth) + Markdown scorecard. Add `render` or `export` to generate an XLS spreadsheet from the deal data.
+Output: JSON deal file (source of truth) + Markdown scorecard. Add `render` or `export` to generate a formula-driven Excel workbook from the deal data; edits made in it can be read back into the JSON.
 
 ### Deal update (`/meddpicc:update-deal`)
 
@@ -152,7 +152,7 @@ The plugin includes reference material loaded automatically by skills:
 | Scoring Rubric | `deal-qualification`, `deal-review` | Objective 0-4 scoring criteria per element |
 | Review Template | `deal-review` | Weekly inspection question sets adapted by deal stage |
 | MAP Template | `mutual-action-plan` | Customer-facing action plan structure |
-| Cell Mapping | `deal-qualification` | JSON-to-Excel cell coordinate mapping for XLS export |
+| Workbook Spec | `engine` | Declarative description of the generated workbook — sheets, formulas, formats, dropdowns |
 | SFDC Field Mapping | `deal-qualification` | Salesforce opportunity field mapping with transforms |
 
 ## Installation
@@ -240,7 +240,7 @@ Creates a customer-facing document working backward from the target close date, 
 /meddpicc:qualify-deal Acme Corp render
 ```
 
-Generates an XLS spreadsheet from the deal JSON using the built-in template.
+Generates an Excel workbook from the deal JSON, built from the workbook spec: a formula-driven Scorecard, RAG conditional formatting, tables that grow, and schema-derived dropdowns. `read` pulls edits back out.
 
 ### Get coaching (auto-activates)
 
