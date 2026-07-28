@@ -31,12 +31,20 @@ export async function runSetupWizard(
     cwd: string;
     reload?: () => Promise<void>;
   },
-  options?: { checkGhInstalled?: () => boolean },
+  options?: {
+    checkGhInstalled?: () => boolean;
+  /**
+   * Injected by tests. The real one reads `process.platform` and shells out to `which`,
+   * which made every install assertion below depend on the machine running it — they
+   * asserted `brew` and so passed on macOS and failed on a Linux CI runner.
+   */
+    detectPlatform?: () => Promise<PlatformInfo>;
+  },
 ): Promise<void> {
   const checkGh = options?.checkGhInstalled ?? ghIsInstalled;
 
   // --- Platform detection (deterministic, no prompts) ---
-  const platform = await detectPlatform();
+  const platform = await (options?.detectPlatform ?? detectPlatform)();
   const osLabel = platform.os === 'darwin' ? 'macOS' : platform.os === 'win32' ? 'Windows' : 'Linux';
   ctx.ui.notify(`Detected: ${osLabel} (${platform.arch})`, 'info');
 

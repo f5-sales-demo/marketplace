@@ -176,6 +176,15 @@ describe('runSetupWizard — gh installed, auth', () => {
 // runSetupWizard — gh NOT installed (auto-install flow)
 // ---------------------------------------------------------------------------
 
+// The wizard resolves the install command from the host it runs on. These tests inject the
+// platform instead, so each one asserts the same thing on a developer's Mac and on a Linux
+// CI runner — previously they asserted `brew` and passed only on macOS.
+const MACOS: PlatformInfo = { os: 'darwin', arch: 'arm64', packageManagers: ['brew'], isCorporateManaged: false };
+const LINUX: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: ['apt'], isCorporateManaged: false };
+const BARE: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: [], isCorporateManaged: false };
+
+const on = (platform: PlatformInfo) => ({ detectPlatform: async () => platform });
+
 describe('runSetupWizard — gh not installed', () => {
   let installCount = 0;
   const ghNotInstalledThenInstalled = {
@@ -185,7 +194,7 @@ describe('runSetupWizard — gh not installed', () => {
     },
   };
 
-  it('auto-installs via preferred package manager and notifies restart', async () => {
+  it('auto-installs via brew on macOS and notifies restart', async () => {
     installCount = 0;
     const { pi, calls } = buildMockPi({
       'brew install gh': { stdout: 'installed', stderr: '', code: 0 },
@@ -198,7 +207,7 @@ describe('runSetupWizard — gh not installed', () => {
     });
     const { ctx, notifications } = buildMockCtx();
 
-    await runSetupWizard(pi, ctx, ghNotInstalledThenInstalled);
+    await runSetupWizard(pi, ctx, { ...ghNotInstalledThenInstalled, ...on(MACOS) });
 
     const installCall = calls.find((c) => c.cmd === 'brew' && c.args.includes('gh'));
     expect(installCall).toBeDefined();
@@ -207,29 +216,43 @@ describe('runSetupWizard — gh not installed', () => {
     expect(notifications.find((n) => n.message.includes('Restart xcsh'))).toBeDefined();
   });
 
+  it('auto-installs via apt on Linux', async () => {
+    installCount = 0;
+    const { pi, calls } = buildMockPi({
+      'apt install': { stdout: 'installed', stderr: '', code: 0 },
+      '--version': { stdout: 'gh version 2.50.0', stderr: '', code: 0 },
+      'auth status': { stdout: 'Logged in to github.com as octocat', stderr: '', code: 0 },
+    });
+    const { ctx } = buildMockCtx();
+
+    await runSetupWizard(pi, ctx, { ...ghNotInstalledThenInstalled, ...on(LINUX) });
+
+    const installCall = calls.find((c) => c.cmd === 'sudo');
+    expect(installCall?.args).toEqual(['apt', 'install', '-y', 'gh']);
+  });
+
   it('install failure shows error', async () => {
     const { pi } = buildMockPi({
       'brew install gh': { stdout: '', stderr: 'permission denied', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip'] });
 
-    await runSetupWizard(pi, ctx, { checkGhInstalled: () => false });
+    await runSetupWizard(pi, ctx, { checkGhInstalled: () => false, ...on(MACOS) });
 
     expect(notifications.find((n) => n.message.includes('Installation failed'))?.type).toBe('error');
   });
 
   it('no package manager shows manual install link', async () => {
-    const { pi } = buildMockPi();
+    // Previously this asserted only "some error was notified", which the install-failure
+    // path satisfies too — so it passed without ever reaching the branch it names. With the
+    // platform injected it can state the actual expectation.
+    const { pi, calls } = buildMockPi();
     const { ctx, notifications } = buildMockCtx();
 
-    // Override detectPlatform — wizard calls it internally, but we test the downstream effect
-    // by using a checkGhInstalled that always returns false and empty install options
-    await runSetupWizard(pi, ctx, { checkGhInstalled: () => false });
+    await runSetupWizard(pi, ctx, { checkGhInstalled: () => false, ...on(BARE) });
 
-    // On macOS with brew available this won't trigger — but the flow exits on install failure
-    // This test validates the error path exists
-    const hasError = notifications.some((n) => n.type === 'error');
-    expect(hasError).toBe(true);
+    expect(notifications.find((n) => n.message.includes('cli.github.com'))?.type).toBe('error');
+    expect(calls).toHaveLength(0);
   });
 });
 

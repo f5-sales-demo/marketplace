@@ -175,6 +175,15 @@ describe('runSetupWizard — glab installed, auth', () => {
 // runSetupWizard — glab NOT installed (auto-install flow)
 // ---------------------------------------------------------------------------
 
+// The wizard resolves the install command from the host it runs on. These tests inject the
+// platform instead, so each one asserts the same thing on a developer's Mac and on a Linux
+// CI runner — previously they asserted `brew` and so passed only on macOS.
+const MACOS: PlatformInfo = { os: 'darwin', arch: 'arm64', packageManagers: ['brew'], isCorporateManaged: false };
+const LINUX: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: ['apt'], isCorporateManaged: false };
+const BARE: PlatformInfo = { os: 'linux', arch: 'x64', packageManagers: [], isCorporateManaged: false };
+
+const on = (platform: PlatformInfo) => ({ detectPlatform: async () => platform });
+
 describe('runSetupWizard — glab not installed', () => {
   let installCount = 0;
   const glabNotInstalledThenInstalled = {
@@ -184,7 +193,7 @@ describe('runSetupWizard — glab not installed', () => {
     },
   };
 
-  it('auto-installs via preferred package manager and notifies restart', async () => {
+  it('auto-installs via brew on macOS and notifies restart', async () => {
     installCount = 0;
     const { pi, calls } = buildMockPi({
       'brew install glab': { stdout: 'installed', stderr: '', code: 0 },
@@ -197,7 +206,7 @@ describe('runSetupWizard — glab not installed', () => {
     });
     const { ctx, notifications } = buildMockCtx();
 
-    await runSetupWizard(pi, ctx, glabNotInstalledThenInstalled);
+    await runSetupWizard(pi, ctx, { ...glabNotInstalledThenInstalled, ...on(MACOS) });
 
     const installCall = calls.find((c) => c.cmd === 'brew' && c.args.includes('glab'));
     expect(installCall).toBeDefined();
@@ -206,25 +215,40 @@ describe('runSetupWizard — glab not installed', () => {
     expect(notifications.find((n) => n.message.includes('Restart xcsh'))).toBeDefined();
   });
 
+  it('offers no installer on Linux, so it points at the manual instructions', async () => {
+    // gitlab only builds install options for macOS and Windows. Asserting that here
+    // makes the gap visible rather than leaving Linux untested — see the PR discussion.
+    installCount = 0;
+    const { pi, calls } = buildMockPi();
+    const { ctx, notifications } = buildMockCtx();
+
+    await runSetupWizard(pi, ctx, { checkGlabInstalled: () => false, ...on(LINUX) });
+
+    expect(notifications.find((n) => n.message.includes('gitlab.com/gitlab-org/cli'))?.type).toBe('error');
+    expect(calls).toHaveLength(0);
+  });
+
   it('install failure shows error', async () => {
     const { pi } = buildMockPi({
       'brew install glab': { stdout: '', stderr: 'permission denied', code: 1 },
     });
     const { ctx, notifications } = buildMockCtx({ selectResponses: ['Skip'] });
 
-    await runSetupWizard(pi, ctx, { checkGlabInstalled: () => false });
+    await runSetupWizard(pi, ctx, { checkGlabInstalled: () => false, ...on(MACOS) });
 
     expect(notifications.find((n) => n.message.includes('Installation failed'))?.type).toBe('error');
   });
 
   it('no package manager shows manual install link', async () => {
-    const { pi } = buildMockPi();
+    // Previously this asserted only "some error was notified", which the install-failure
+    // path satisfies too — so it passed without ever reaching the branch it names.
+    const { pi, calls } = buildMockPi();
     const { ctx, notifications } = buildMockCtx();
 
-    await runSetupWizard(pi, ctx, { checkGlabInstalled: () => false });
+    await runSetupWizard(pi, ctx, { checkGlabInstalled: () => false, ...on(BARE) });
 
-    const hasError = notifications.some((n) => n.type === 'error');
-    expect(hasError).toBe(true);
+    expect(notifications.find((n) => n.message.includes('gitlab.com/gitlab-org/cli'))?.type).toBe('error');
+    expect(calls).toHaveLength(0);
   });
 });
 
