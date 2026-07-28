@@ -2,9 +2,9 @@
  * A small OOXML writer: enough of the `.xlsx` format to emit a real, formula-driven
  * workbook from scratch.
  *
- * `fill.ts` injects values into a template someone else authored. This builds the workbook
- * itself, which is what a formula-driven sheet needs — formulas, named styles and (later)
- * tables and conditional formatting have to be authored, not injected.
+ * The workbook is authored here rather than injected into a template someone else made, which
+ * is what a formula-driven sheet needs: formulas, named styles, tables and conditional
+ * formatting all have to be written, not filled in.
  *
  * The hard part of hand-writing xlsx is `styles.xml`: cells reference styles by INDEX into
  * `cellXfs`, so an off-by-one silently mis-styles every cell after the gap, and a dangling
@@ -14,8 +14,8 @@
  * name a style; they never write an index.
  *
  * Strings are written inline (`t="inlineStr"`) rather than through `sharedStrings.xml`.
- * That trades a little file size for one fewer part to keep consistent, and it is the same
- * choice `fill.ts` already makes.
+ * That trades a little file size for one fewer part to keep consistent. Excel re-saves them
+ * through `sharedStrings.xml` anyway, which the round-trip reader handles.
  */
 import { writeZip } from './zip';
 

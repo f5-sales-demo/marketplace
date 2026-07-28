@@ -22,8 +22,8 @@ than re-interviewing.
   before starting the guided interview
 
 **Output:** JSON deal file (source of truth) + Markdown scorecard.
-Add "render" or "export" for the spreadsheet too. That is always the
-shipped F5 Deal Review Sheet template with values injected — filled
-in place when the template is the open workbook, otherwise written
-out as a new copy. The engine's `fill` command owns every
+Add "render" or "export" for the spreadsheet too. That is generated
+from `engine/workbook-spec.json` — formulas, a Scorecard, colour
+coding and dropdowns — and it reads back, so edits made in Excel can
+return to the JSON. The engine's `generate` command owns every
 coordinate; never lay a sheet out by hand.

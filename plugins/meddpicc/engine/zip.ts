@@ -1,17 +1,17 @@
 /**
- * A minimal ZIP reader/writer, sized for one job: rewrite a single part of an `.xlsx`
- * and leave everything else exactly as it was.
+ * A minimal ZIP reader/writer — the container half of reading and writing an `.xlsx`.
  *
- * That last clause is the whole point. An `.xlsx` is a ZIP, and the template's value comes
- * from parts this code must never touch — `xl/styles.xml`, the 207 `mergeCells`, the 14
- * `x14:dataValidation` dropdowns, the `Pick List` sheet. So an untouched entry is copied as
- * its **original compressed bytes**: never inflated, never re-deflated. Byte-identity is
- * then a property of the algorithm rather than a hope about deflate being deterministic,
- * and `zip.test.ts` asserts it.
+ * `writeZip` builds the archive the generator emits, and `readZip` opens the one the reader
+ * parses. Both directions of the workbook go through here.
  *
- * Written rather than taken off the shelf because the alternatives each cost something
- * real: openpyxl silently drops `x14` data validation on save, and shelling out to
- * `zip`/`unzip` adds a runtime dependency the plugin does not otherwise have.
+ * An entry may also be copied **verbatim**, as its original compressed bytes: never inflated,
+ * never re-deflated. That makes it possible to rewrite one part of an archive and leave every
+ * other byte alone, which is a property of the algorithm rather than a hope about deflate being
+ * deterministic. `zip.test.ts` asserts it.
+ *
+ * Written rather than taken off the shelf because the alternatives each cost something real:
+ * openpyxl silently drops `x14` data validation on save, and shelling out to `zip`/`unzip` adds
+ * a runtime dependency the plugin does not otherwise have.
  *
  * Scope, deliberately: STORE (0) and DEFLATE (8), no ZIP64, no encryption, no data
  * descriptors. Office writes plain deflated entries, and `readZip` throws on anything else

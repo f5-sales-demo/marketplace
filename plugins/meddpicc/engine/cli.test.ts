@@ -48,10 +48,15 @@ describe('cli', () => {
     expect(code).toBe(0);
     expect(JSON.parse(out).valid).toBe(true);
   });
-  test('check-mappings', async () => {
-    const { code, out } = await run(['check-mappings']);
+  test('check-sfdc', async () => {
+    const { code, out } = await run(['check-sfdc']);
     expect(code).toBe(0);
-    expect(JSON.parse(out).ok).toBe(true);
+    const r = JSON.parse(out);
+    expect(r.ok).toBe(true);
+    expect(r.checked).toBeGreaterThan(0);
+  });
+  test('fill is gone, and asking for it fails rather than doing something else', async () => {
+    expect((await run(['fill', example])).code).toBe(1);
   });
   test('unknown command exits non-zero', async () => {
     const { code } = await run(['bogus', example]);

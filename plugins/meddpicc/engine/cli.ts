@@ -2,14 +2,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
-import { applyFill, planFill } from './fill';
 import { generateWorkbook, planWorkbook } from './generate';
 import { computeElementHint, computeHintOverview } from './hint';
-import { checkMappings } from './mappings';
+import { checkSfdcMapping } from './mappings';
 import { readWorkbook } from './read-workbook';
 import { computeScore } from './score';
 import { QUALIFICATION_ELEMENTS } from './sections';
-import { readTemplateText } from './template';
 import { validateDeal } from './validate';
 import { checkWorkbookSpec, type WorkbookSpec } from './workbook-spec';
 
@@ -32,8 +30,6 @@ function findPluginRoot(start: string): string {
 
 const PLUGIN_ROOT = findPluginRoot(import.meta.dir);
 const SCHEMA_PATH = path.join(PLUGIN_ROOT, 'schema', 'meddpicc-schema.json');
-const CELL_PATH = path.join(PLUGIN_ROOT, 'skills', 'deal-qualification', 'references', 'cell-mapping.json');
-const TEMPLATE_RELPATH = 'skills/deal-qualification/references/meddpicc-template.xlsx';
 const SFDC_PATH = path.join(PLUGIN_ROOT, 'skills', 'deal-qualification', 'references', 'sfdc-field-mapping.json');
 const WORKBOOK_SPEC_PATH = path.join(PLUGIN_ROOT, 'engine', 'workbook-spec.json');
 
@@ -94,42 +90,10 @@ async function main(): Promise<number> {
     }
   }
 
-  if (command === 'fill') {
-    const dealPath = rest[0];
-    if (!dealPath) {
-      process.stderr.write(
-        'Usage: cli.ts fill <deal.json> [--plan | --out <file.xlsx>] [--cell <cell-mapping.json>]\n',
-      );
-      return 1;
-    }
-    const deal = await readJson(dealPath);
-    const cell = (await readJson(flag(rest, '--cell') ?? CELL_PATH)) as Parameters<typeof planFill>[1];
-    const plan = planFill(deal, cell);
-
-    // `--plan` is what the Excel task pane consumes: it writes these cells into an open
-    // copy of the template itself, so the formatting is the workbook's, not ours.
-    if (rest.includes('--plan') || !flag(rest, '--out')) {
-      print(plan);
-      return 0;
-    }
-
-    const outPath = flag(rest, '--out') as string;
-    const templatePath = path.join(PLUGIN_ROOT, (cell as { template?: string }).template ?? TEMPLATE_RELPATH);
-    const templateBytes = new Uint8Array(await Bun.file(templatePath).arrayBuffer());
-    await Bun.write(outPath, applyFill(templateBytes, plan));
-    print({ out: outPath, sheetName: plan.sheetName, cellsWritten: plan.cells.length });
-    return 0;
-  }
-
-  if (command === 'check-mappings') {
+  if (command === 'check-sfdc') {
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
-    const cell = await readJson(flag(rest, '--cell') ?? CELL_PATH);
     const sfdc = await readJson(flag(rest, '--sfdc') ?? SFDC_PATH);
-    // Pass the template reader so the check can catch a target aimed at a label —
-    // schema-validity alone let an entirely mis-aimed mapping ship.
-    const templatePath = path.join(PLUGIN_ROOT, (cell as { template?: string }).template ?? TEMPLATE_RELPATH);
-    const cellText = readTemplateText(new Uint8Array(await Bun.file(templatePath).arrayBuffer()));
-    const result = checkMappings(schema, cell, sfdc, cellText);
+    const result = checkSfdcMapping(schema, sfdc);
     print(result);
     return result.ok ? 0 : 1;
   }
@@ -231,7 +195,7 @@ async function main(): Promise<number> {
   }
 
   process.stderr.write(
-    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, fill, generate, read, check-mappings, check-spec\n`,
+    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, generate, read, check-sfdc, check-spec\n`,
   );
   return 1;
 }
