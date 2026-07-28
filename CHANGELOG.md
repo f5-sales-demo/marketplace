@@ -11,14 +11,22 @@ and this project adheres to
 ## [Unreleased]
 
 - **`meddpicc`** v3.0.0 — **breaking: `fill` is gone, and F5's Deal Review Sheet is no longer
-  in this repository.** One spreadsheet now, generated from `workbook-spec.json`, ephemeral by
-  design: produced on demand and regenerated rather than kept.
+  shipped.** One spreadsheet now, generated from `workbook-spec.json`, ephemeral by design:
+  produced on demand and regenerated rather than kept.
 
   `meddpicc-template.xlsx` was F5's own internal Deal Review Sheet, carried here as a 91KB
   binary — in a **public** repository — so that `fill` could type values into its blank cells.
   We never designed that layout; we shipped a copy of someone else's document and filled it in.
   The curated template is `workbook-spec.json`, written by studying the F5 sheet to learn what
   belongs in a deal review, and it owes the original nothing at runtime.
+
+  **It is out of the working tree, not out of the history.** `git rm` removes a file from HEAD;
+  every earlier commit still carries it, and it stays fetchable from this public repository at
+  91,251 bytes for as long as those commits exist. Nobody who clones today gets it, and no
+  release ships it — but "deleted" and "unpublished" are different claims, and only the first is
+  true here. Actually unpublishing it means rewriting history and force-pushing, which
+  invalidates every clone and fork; that is a call for the repository's owner, not a side effect
+  of a plugin change.
 
   Removed: `meddpicc-template.xlsx`, `cell-mapping.json`, `engine/fill.ts`, `engine/template.ts`,
   the `fill` command, and the `template`/`cellMapping` resource keys.

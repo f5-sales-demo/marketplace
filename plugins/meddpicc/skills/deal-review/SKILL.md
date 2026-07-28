@@ -284,4 +284,5 @@ Score** from the engine's `score` `elementScores`; **Change** is
 their difference. Do not compute these from the raw JSON by hand.
 
 If the user requests XLS output, render using the same process as
-deal-qualification (template + cell mapping).
+deal-qualification: `generate` builds the workbook from the workbook
+spec, and `read` pulls any edits made in Excel back into the JSON.
