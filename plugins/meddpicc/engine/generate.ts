@@ -17,6 +17,7 @@ import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
+import { estimateRowHeight } from './text-metrics';
 import {
   parseReferences,
   type SpecBlock,
@@ -194,6 +195,36 @@ function resolveRows(table: SpecTable, deal: unknown, schema: unknown): TableLay
   return Array.from({ length: padded }, (_, i) => ({ listIndex: i }));
 }
 
+/**
+ * The sheet's vertical rhythm, in points, measured off the manual deal-review sheet.
+ *
+ * A banner is roughly twice the height of its text and a standard row a little over one line, which
+ * is what stops a dense grid reading as a wall. Prose rows are computed instead — see
+ * {@link estimateRowHeight} — and always take the taller of the two.
+ */
+const TITLE_HEIGHT = 34;
+const BANNER_HEIGHT = 27;
+const HEADER_HEIGHT = 30;
+const ROW_HEIGHT = 24;
+/** A gap between sections, deliberately short: vertical space is the scarce resource. */
+const SPACER_HEIGHT = 8;
+/** Excel's own default, for a column the spec does not size. */
+const DEFAULT_COLUMN_WIDTH = 8.43;
+/**
+ * Opening zoom. The sheet is about 230 characters wide, so at 100% a reader lands on the left third
+ * and has to go looking for the rest; at 75% the whole width is on screen, which is how the manual
+ * sheet is read.
+ */
+const SHEET_ZOOM = 75;
+
+/** Where a block landed, so pass 2 can render it without re-deriving the arithmetic. */
+export interface PlacedBlock {
+  block: SpecBlock;
+  row: number;
+  /** For a `row` block: the first grid column of each cell, in order. */
+  columns?: number[];
+}
+
 /** Pass 1: decide where everything goes. */
 function layout(
   schema: unknown,
@@ -202,47 +233,71 @@ function layout(
 ): {
   named: Map<string, { sheet: string; address: string }>;
   tables: Map<string, TableLayout>;
-  formRows: Map<string, Array<{ block: SpecBlock; row: number }>>;
+  placed: Map<string, PlacedBlock[]>;
 } {
   const named = new Map<string, { sheet: string; address: string }>();
   const tables = new Map<string, TableLayout>();
-  const formRows = new Map<string, Array<{ block: SpecBlock; row: number }>>();
+  const placed = new Map<string, PlacedBlock[]>();
 
   for (const s of spec.sheets) {
-    if (s.kind === 'form') {
-      const rows: Array<{ block: SpecBlock; row: number }> = [];
-      let row = 1;
-      for (const block of s.blocks) {
-        rows.push({ block, row });
-        if (block.kind === 'field' || block.kind === 'computed') {
-          named.set(block.id, { sheet: s.name, address: A1(2, row) });
-        }
-        row++;
-      }
-      formRows.set(s.name, rows);
-      continue;
-    }
+    const contentStart = 2;
+    const blocks: PlacedBlock[] = [];
+    let row = 1;
+    let bandRow: number | null = null;
+    let bandDepth = 0;
 
-    for (const table of s.tables) {
-      const columns = new Map<string, number>();
-      table.columns.forEach((c, i) => {
-        columns.set(c.id, table.anchorColumn + i);
-      });
-      const items = resolveRows(table, deal, schema);
-      tables.set(table.id, {
-        sheet: s.name,
-        table,
-        headerRow: table.headerRow,
-        firstDataRow: table.headerRow + 1,
-        rowCount: items.length,
-        columns,
-        rowKeys: keysOf(table.source),
-        items,
-      });
+    for (const block of s.blocks) {
+      if (block.kind === 'table') {
+        // Consecutive tables share their rows: the band opens on the first and every later one in
+        // the run starts on the same header row, so two lists sit side by side.
+        const headerRow = bandRow ?? row;
+        bandRow = headerRow;
+        const table = block.table;
+        const columns = new Map<string, number>();
+        let column = table.anchorColumn;
+        for (const c of table.columns) {
+          columns.set(c.id, column);
+          column += c.span ?? 1;
+        }
+        const items = resolveRows(table, deal, schema);
+        // At least one data row, and at least `minRows` so the list has room to grow into.
+        const depth = 1 + Math.max(items.length, table.minRows ?? 1);
+        tables.set(table.id, {
+          sheet: s.name,
+          table,
+          headerRow,
+          firstDataRow: headerRow + 1,
+          rowCount: items.length,
+          columns,
+          rowKeys: keysOf(table.source),
+          items,
+        });
+        blocks.push({ block, row: headerRow });
+        bandDepth = Math.max(bandDepth, depth);
+        row = headerRow + bandDepth;
+        continue;
+      }
+
+      bandRow = null;
+      bandDepth = 0;
+      const columns: number[] = [];
+      if (block.kind === 'row') {
+        let column = contentStart;
+        for (const cell of block.cells) {
+          columns.push(column);
+          if (cell.kind === 'field' || cell.kind === 'computed') {
+            named.set(cell.id, { sheet: s.name, address: A1(column, row) });
+          }
+          column += cell.span;
+        }
+      }
+      blocks.push({ block, row, columns: block.kind === 'row' ? columns : undefined });
+      row++;
     }
+    placed.set(s.name, blocks);
   }
 
-  return { named, tables, formRows };
+  return { named, tables, placed };
 }
 
 /** Replace every `{{…}}` with an address, relative to the sheet (and row) doing the asking. */
@@ -380,166 +435,183 @@ function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'>
 }
 
 export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): WorkbookPlan {
-  const { named, tables, formRows } = layout(schema, spec, deal);
+  const { named, tables, placed } = layout(schema, spec, deal);
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
   const inputCells: InputCell[] = [];
   const sheets: SheetSpec[] = [];
 
   for (const s of spec.sheets) {
-    if (s.kind === 'form') {
-      const rows: RowSpec[] = [];
-      const merges: string[] = [];
-      // A form is label-then-value, so its width is however many columns the spec sizes.
-      const formWidth = s.columns?.reduce((widest, c) => Math.max(widest, c.max), 0) ?? 0;
-      for (const { block, row } of formRows.get(s.name) ?? []) {
-        const cells: CellSpec[] = [];
-
-        if (block.kind === 'title') cells.push({ ref: A1(1, row), value: block.text, style: 'title' });
-        if (block.kind === 'section') cells.push({ ref: A1(1, row), value: block.text, style: 'sectionHeader' });
-
-        if (block.kind === 'field' || block.kind === 'computed') {
-          cells.push({ ref: A1(1, row), value: block.label, style: 'label' });
-          const style = VALUE_TYPE_STYLE[block.valueType];
-          const ref = A1(2, row);
-          if (block.kind === 'field') {
-            const value = toCellValue(readPath(deal, block.jsonPath), block.valueType);
-            cells.push({ ref, value, style });
-            inputCells.push({ jsonPath: block.jsonPath, sheet: s.name, address: ref, valueType: block.valueType });
-          } else {
-            cells.push({
-              ref,
-              formula: resolveFormula(block.formula, { sheet: s.name }, named, tables),
-              style,
-            });
-          }
-        }
-
-        if (cells.length > 0) rows.push({ row, cells, height: 'height' in block ? block.height : undefined });
-        // A banner that stops at the label column reads as a mislabelled cell rather than a
-        // heading, so a title or section spans the width the sheet actually uses.
-        if ((block.kind === 'title' || block.kind === 'section') && formWidth > 1) {
-          merges.push(`${A1(1, row)}:${A1(formWidth, row)}`);
-        }
-      }
-      const formFormats: ConditionalFormat[] = [];
-      const formValidations: Validation[] = [];
-      for (const { block, row } of formRows.get(s.name) ?? []) {
-        if (block.kind !== 'field' && block.kind !== 'computed') continue;
-        const ref = A1(2, row);
-        if (block.conditionalFormat) formFormats.push({ sqref: ref, preset: block.conditionalFormat });
-        if (block.kind === 'field' && block.validate) {
-          const values = validationValues(schema, block.jsonPath);
-          if (values) formValidations.push({ sqref: ref, values });
-        }
-      }
-
-      sheets.push({
-        name: s.name,
-        rows,
-        columns: s.columns,
-        freezeAtRow: 1,
-        merges: merges.length ? merges : undefined,
-        ...presentation(deal),
-        conditionalFormats: formFormats.length ? formFormats : undefined,
-        validations: formValidations.length ? formValidations : undefined,
-      });
-      continue;
-    }
-
-    // A table sheet: header row(s) then data rows, one table per column band.
     const byRow = new Map<number, CellSpec[]>();
+    const heights = new Map<number, number>();
+    const merges: string[] = [];
+    const formats: ConditionalFormat[] = [];
+    const validations: Validation[] = [];
     const push = (row: number, cell: CellSpec) => {
       const list = byRow.get(row) ?? [];
       list.push(cell);
       byRow.set(row, list);
     };
-    let widest = 0;
+    /** Column widths by grid index, so a span can be turned into a character count. */
+    const widthOf = (column: number) =>
+      s.columns.find((c) => column >= c.min && column <= c.max)?.width ?? DEFAULT_COLUMN_WIDTH;
+    const spanWidth = (column: number, span: number) => {
+      let total = 0;
+      for (let c = column; c < column + span; c++) total += widthOf(c);
+      return total;
+    };
+    const contentStart = 2;
+    const contentEnd = s.columns.reduce((widest, c) => Math.max(widest, c.max), contentStart);
+    /** Declare a merge, unless the cell is only one column wide. */
+    const mergeSpan = (column: number, row: number, span: number) => {
+      if (span > 1) merges.push(`${A1(column, row)}:${A1(column + span - 1, row)}`);
+    };
+    /** A row's height is the tallest thing on it, and prose decides it. */
+    const needHeight = (row: number, height: number) => {
+      heights.set(row, Math.max(heights.get(row) ?? 0, height));
+    };
 
-    for (const table of s.tables) {
-      const info = tables.get(table.id);
-      if (!info) continue;
-      widest = Math.max(widest, table.anchorColumn + table.columns.length - 1);
-
-      table.columns.forEach((column, i) => {
-        const col = table.anchorColumn + i;
-        push(table.headerRow, { ref: A1(col, table.headerRow), value: column.header, style: 'columnHeader' });
-
-        info.items.forEach((entry, r) => {
-          const row = info.firstDataRow + r;
-          const ref = A1(col, row);
-          const style = VALUE_TYPE_STYLE[column.valueType];
-
-          if (column.role === 'computed' && column.formula) {
-            push(row, {
-              ref,
-              formula: resolveFormula(column.formula, { sheet: s.name, table: info, row }, named, tables),
-              style,
-            });
-            return;
-          }
-
-          if (column.role === 'input' && column.jsonPath) {
-            const jsonPath = inputPathFor(table, column, entry);
-            const value = toCellValue(readPath(deal, jsonPath), column.valueType);
-            push(row, { ref, value, style });
-            inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: column.valueType });
-            return;
-          }
-
-          push(row, {
-            ref,
-            value: derivedValue(column, entry, table, schema, deal, completion),
-            style,
-          });
-        });
-      });
-    }
-
-    const columns = s.tables.flatMap((t) =>
-      t.columns.map((c, i) => ({ min: t.anchorColumn + i, max: t.anchorColumn + i, width: c.width ?? 18 })),
-    );
-
-    const tableParts: TablePart[] = [];
-    const tableFormats: ConditionalFormat[] = [];
-    const tableValidations: Validation[] = [];
-
-    for (const table of s.tables) {
-      const info = tables.get(table.id);
-      if (!info) continue;
-      // An Excel Table needs at least one data row in its range, so a collection that is
-      // empty and has no minRows still gets one — a header-only table is rejected outright.
-      const lastRow = info.firstDataRow + Math.max(info.rowCount, 1) - 1;
-
-      if (table.asTable) {
-        tableParts.push({
-          name: table.id,
-          displayName: table.id,
-          ref: `${A1(table.anchorColumn, table.headerRow)}:${A1(table.anchorColumn + table.columns.length - 1, lastRow)}`,
-          columns: table.columns.map((c) => c.header),
-        });
+    for (const { block, row, columns } of placed.get(s.name) ?? []) {
+      if (block.kind === 'title' || block.kind === 'section') {
+        const style = block.kind === 'title' ? 'title' : 'sectionHeader';
+        push(row, { ref: A1(contentStart, row), value: block.text, style });
+        mergeSpan(contentStart, row, contentEnd - contentStart + 1);
+        needHeight(row, block.kind === 'title' ? TITLE_HEIGHT : BANNER_HEIGHT);
+        continue;
       }
 
-      table.columns.forEach((column, i) => {
-        const col = table.anchorColumn + i;
-        const sqref = `${A1(col, info.firstDataRow)}:${A1(col, lastRow)}`;
-        if (column.conditionalFormat) tableFormats.push({ sqref, preset: column.conditionalFormat });
-        if (column.role === 'input' && column.validate && column.jsonPath) {
-          // Any row's path resolves to the same schema node, so the first one answers for all.
-          const values = validationValues(schema, inputPathFor(table, column, info.items[0] ?? {}));
-          if (values) tableValidations.push({ sqref, values });
+      if (block.kind === 'group') {
+        let column = contentStart;
+        for (const cell of block.cells) {
+          push(row, { ref: A1(column, row), value: cell.text, style: 'groupHeader' });
+          mergeSpan(column, row, cell.span);
+          column += cell.span;
         }
-      });
+        needHeight(row, BANNER_HEIGHT);
+        continue;
+      }
+
+      if (block.kind === 'spacer') {
+        needHeight(row, block.height ?? SPACER_HEIGHT);
+        continue;
+      }
+
+      if (block.kind === 'row') {
+        needHeight(row, block.height ?? ROW_HEIGHT);
+        block.cells.forEach((cell, i) => {
+          const column = columns?.[i] ?? contentStart;
+          const ref = A1(column, row);
+          if (cell.kind === 'blank') return;
+          mergeSpan(column, row, cell.span);
+
+          if (cell.kind === 'label') {
+            push(row, { ref, value: cell.text, style: 'fieldLabel' });
+            return;
+          }
+
+          const style = VALUE_TYPE_STYLE[cell.valueType];
+          if (cell.kind === 'field') {
+            const value = toCellValue(readPath(deal, cell.jsonPath), cell.valueType);
+            push(row, { ref, value, style });
+            inputCells.push({ jsonPath: cell.jsonPath, sheet: s.name, address: ref, valueType: cell.valueType });
+            // Excel autofits a wrapped cell but not a merged one, and every span over one column is
+            // merged — so a prose cell's row has to be measured here or its text is simply cut off.
+            if (cell.valueType === 'text' && typeof value === 'string') {
+              needHeight(row, estimateRowHeight(value, spanWidth(column, cell.span), ROW_HEIGHT));
+            }
+            if (cell.validate) {
+              const values = validationValues(schema, cell.jsonPath);
+              if (values) validations.push({ sqref: ref, values });
+            }
+          } else {
+            push(row, { ref, formula: resolveFormula(cell.formula, { sheet: s.name }, named, tables), style });
+          }
+          if (cell.conditionalFormat) formats.push({ sqref: ref, preset: cell.conditionalFormat });
+        });
+        continue;
+      }
+
+      // A table: its header row, its data rows, and the blank rows it keeps to grow into.
+      const table = block.table;
+      const info = tables.get(table.id);
+      if (!info) continue;
+      const padded = Math.max(info.items.length, table.minRows ?? 1);
+      needHeight(info.headerRow, HEADER_HEIGHT);
+
+      let column = table.anchorColumn;
+      for (const spec of table.columns) {
+        const span = spec.span ?? 1;
+        push(info.headerRow, { ref: A1(column, info.headerRow), value: spec.header, style: 'columnHeader' });
+        mergeSpan(column, info.headerRow, span);
+
+        for (let r = 0; r < padded; r++) {
+          const dataRow = info.firstDataRow + r;
+          const ref = A1(column, dataRow);
+          const style = VALUE_TYPE_STYLE[spec.valueType];
+          mergeSpan(column, dataRow, span);
+          needHeight(dataRow, ROW_HEIGHT);
+          const entry = info.items[r];
+
+          // Past the data, the row exists to be typed into: styled, empty, and still merged so it
+          // lines up with the header above it.
+          if (entry === undefined) {
+            push(dataRow, { ref, style });
+            continue;
+          }
+
+          if (spec.role === 'computed' && spec.formula) {
+            push(dataRow, {
+              ref,
+              formula: resolveFormula(spec.formula, { sheet: s.name, table: info, row: dataRow }, named, tables),
+              style,
+            });
+            continue;
+          }
+
+          if (spec.role === 'input' && spec.jsonPath) {
+            const jsonPath = inputPathFor(table, spec, entry);
+            const value = toCellValue(readPath(deal, jsonPath), spec.valueType);
+            push(dataRow, { ref, value, style });
+            inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: spec.valueType });
+            if (spec.valueType === 'text' && typeof value === 'string') {
+              needHeight(dataRow, estimateRowHeight(value, spanWidth(column, span), ROW_HEIGHT));
+            }
+            continue;
+          }
+
+          const derived = derivedValue(spec, entry, table, schema, deal, completion);
+          push(dataRow, { ref, value: derived, style });
+          if (spec.valueType === 'text' && typeof derived === 'string') {
+            needHeight(dataRow, estimateRowHeight(derived, spanWidth(column, span), ROW_HEIGHT));
+          }
+        }
+
+        // Formats and dropdowns cover the padded rows too: a value typed into a blank row should
+        // colour and validate like one that was there when the file was written.
+        const lastRow = info.firstDataRow + padded - 1;
+        const sqref = `${A1(column, info.firstDataRow)}:${A1(column, lastRow)}`;
+        if (spec.conditionalFormat) formats.push({ sqref, preset: spec.conditionalFormat });
+        if (spec.role === 'input' && spec.validate && spec.jsonPath) {
+          // Any row's path resolves to the same schema node, so the first one answers for all.
+          const values = validationValues(schema, inputPathFor(table, spec, info.items[0] ?? {}));
+          if (values) validations.push({ sqref, values });
+        }
+        column += span;
+      }
     }
 
     sheets.push({
       name: s.name,
-      rows: [...byRow.entries()].sort(([a], [b]) => a - b).map(([row, cells]) => ({ row, cells })),
-      columns,
+      rows: [...byRow.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([row, cells]) => ({ row, cells, height: heights.get(row) })),
+      columns: s.columns,
+      // Freeze under the title so the deal's name stays put while the rest scrolls.
       freezeAtRow: 1,
+      zoom: SHEET_ZOOM,
+      merges: merges.length ? merges : undefined,
       ...presentation(deal),
-      tables: tableParts.length ? tableParts : undefined,
-      conditionalFormats: tableFormats.length ? tableFormats : undefined,
-      validations: tableValidations.length ? tableValidations : undefined,
+      conditionalFormats: formats.length ? formats : undefined,
+      validations: validations.length ? validations : undefined,
     });
   }
 

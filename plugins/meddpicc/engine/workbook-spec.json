@@ -1,19 +1,24 @@
 {
-  "version": 1,
+  "version": 2,
   "sheets": [
     {
-      "name": "Deal",
-      "kind": "form",
+      "name": "MEDDPICC Deal Review",
+      "kind": "grid",
       "columns": [
         {
           "min": 1,
           "max": 1,
-          "width": 34
+          "width": 3.5
         },
         {
           "min": 2,
           "max": 2,
-          "width": 78
+          "width": 18
+        },
+        {
+          "min": 3,
+          "max": 17,
+          "width": 13.9
         }
       ],
       "blocks": [
@@ -22,90 +27,167 @@
           "text": "MEDDPICC Deal Review"
         },
         {
-          "kind": "spacer"
-        },
-        {
           "kind": "section",
           "text": "Deal"
         },
         {
-          "kind": "field",
-          "id": "dealId",
-          "label": "Deal ID",
-          "jsonPath": "metadata.dealId",
-          "valueType": "string"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Account Name"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "accountName",
+              "jsonPath": "metadata.accountName",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Deal ID"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "dealId",
+              "jsonPath": "metadata.dealId",
+              "valueType": "string"
+            }
+          ]
         },
         {
-          "kind": "field",
-          "id": "accountName",
-          "label": "Account name",
-          "jsonPath": "metadata.accountName",
-          "valueType": "string"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Deal/Project Name"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "dealName",
+              "jsonPath": "metadata.dealName",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Account Team"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "accountTeam",
+              "jsonPath": "metadata.accountTeam",
+              "valueType": "string"
+            }
+          ]
         },
         {
-          "kind": "field",
-          "id": "dealName",
-          "label": "Deal name",
-          "jsonPath": "metadata.dealName",
-          "valueType": "string"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Deal Status"
+            },
+            {
+              "kind": "field",
+              "span": 3,
+              "id": "dealStatus",
+              "jsonPath": "metadata.dealStatus",
+              "valueType": "string",
+              "validate": true
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Forecast Stage"
+            },
+            {
+              "kind": "field",
+              "span": 3,
+              "id": "forecastStage",
+              "jsonPath": "metadata.forecastStage",
+              "valueType": "string",
+              "validate": true
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Close Date"
+            },
+            {
+              "kind": "field",
+              "span": 4,
+              "id": "closeDate",
+              "jsonPath": "metadata.closeDate",
+              "valueType": "date"
+            }
+          ]
         },
         {
-          "kind": "field",
-          "id": "accountTeam",
-          "label": "Account team",
-          "jsonPath": "metadata.accountTeam",
-          "valueType": "string"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Win Probability (%)"
+            },
+            {
+              "kind": "field",
+              "span": 2,
+              "id": "winProbability",
+              "jsonPath": "metadata.winProbability",
+              "valueType": "percent"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Reviewer"
+            },
+            {
+              "kind": "field",
+              "span": 4,
+              "id": "reviewer",
+              "jsonPath": "metadata.reviewer",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Review Date"
+            },
+            {
+              "kind": "field",
+              "span": 3,
+              "id": "reviewDate",
+              "jsonPath": "metadata.reviewDate",
+              "valueType": "date"
+            }
+          ]
         },
         {
-          "kind": "field",
-          "id": "dealStatus",
-          "label": "Deal status",
-          "jsonPath": "metadata.dealStatus",
-          "valueType": "string",
-          "validate": true
-        },
-        {
-          "kind": "field",
-          "id": "forecastStage",
-          "label": "Forecast stage",
-          "jsonPath": "metadata.forecastStage",
-          "valueType": "string",
-          "validate": true
-        },
-        {
-          "kind": "field",
-          "id": "competition",
-          "label": "Primary competition",
-          "jsonPath": "metadata.competition",
-          "valueType": "text"
-        },
-        {
-          "kind": "field",
-          "id": "closeDate",
-          "label": "Expected close date",
-          "jsonPath": "metadata.closeDate",
-          "valueType": "date"
-        },
-        {
-          "kind": "field",
-          "id": "winProbability",
-          "label": "Win probability",
-          "jsonPath": "metadata.winProbability",
-          "valueType": "percent"
-        },
-        {
-          "kind": "field",
-          "id": "reviewer",
-          "label": "Reviewer",
-          "jsonPath": "metadata.reviewer",
-          "valueType": "string"
-        },
-        {
-          "kind": "field",
-          "id": "reviewDate",
-          "label": "Review date",
-          "jsonPath": "metadata.reviewDate",
-          "valueType": "date"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Competition"
+            },
+            {
+              "kind": "field",
+              "span": 14,
+              "id": "competition",
+              "jsonPath": "metadata.competition",
+              "valueType": "text"
+            }
+          ]
         },
         {
           "kind": "spacer"
@@ -115,688 +197,180 @@
           "text": "Revenue"
         },
         {
-          "kind": "field",
-          "id": "revenueSubscription",
-          "label": "Subscription",
-          "jsonPath": "metadata.revenue.subscription",
-          "valueType": "currency"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Subscription"
+            },
+            {
+              "kind": "field",
+              "span": 2,
+              "id": "revenueSubscription",
+              "jsonPath": "metadata.revenue.subscription",
+              "valueType": "currency"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Hardware"
+            },
+            {
+              "kind": "field",
+              "span": 2,
+              "id": "revenueHardware",
+              "jsonPath": "metadata.revenue.hardware",
+              "valueType": "currency"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Software"
+            },
+            {
+              "kind": "field",
+              "span": 2,
+              "id": "revenueSoftware",
+              "jsonPath": "metadata.revenue.software",
+              "valueType": "currency"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "ACV"
+            },
+            {
+              "kind": "field",
+              "span": 2,
+              "id": "acv",
+              "jsonPath": "metadata.revenue.acv",
+              "valueType": "currency"
+            }
+          ]
         },
         {
-          "kind": "field",
-          "id": "revenueHardware",
-          "label": "Hardware",
-          "jsonPath": "metadata.revenue.hardware",
-          "valueType": "currency"
-        },
-        {
-          "kind": "field",
-          "id": "revenueSoftware",
-          "label": "Software",
-          "jsonPath": "metadata.revenue.software",
-          "valueType": "currency"
-        },
-        {
-          "kind": "field",
-          "id": "acv",
-          "label": "Annual contract value",
-          "jsonPath": "metadata.revenue.acv",
-          "valueType": "currency"
-        },
-        {
-          "kind": "computed",
-          "id": "revenueTotal",
-          "label": "Total booked value",
-          "formula": "{{ref:revenueSubscription}}+{{ref:revenueHardware}}+{{ref:revenueSoftware}}",
-          "valueType": "currency"
-        },
-        {
-          "kind": "computed",
-          "id": "factoredPipeline",
-          "label": "Factored pipeline",
-          "formula": "{{ref:acv}}*{{ref:winProbability}}",
-          "valueType": "currency"
-        },
-        {
-          "kind": "computed",
-          "id": "daysToClose",
-          "label": "Days to close",
-          "formula": "IF({{ref:closeDate}}=\"\",\"\",{{ref:closeDate}}-TODAY())",
-          "valueType": "number"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Total Booked Value"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "revenueTotal",
+              "formula": "{{ref:revenueSubscription}}+{{ref:revenueHardware}}+{{ref:revenueSoftware}}",
+              "valueType": "currency"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Factored Pipeline"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "factoredPipeline",
+              "formula": "{{ref:acv}}*{{ref:winProbability}}",
+              "valueType": "currency"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Days To Close"
+            },
+            {
+              "kind": "computed",
+              "span": 3,
+              "id": "daysToClose",
+              "formula": "IF({{ref:closeDate}}=\"\",\"\",{{ref:closeDate}}-TODAY())",
+              "valueType": "number"
+            }
+          ]
         },
         {
           "kind": "spacer"
         },
         {
           "kind": "section",
-          "text": "Client interaction"
+          "text": "Client Interaction"
         },
         {
-          "kind": "field",
-          "id": "lastInteractionDate",
-          "label": "Last interaction \u2014 date",
-          "jsonPath": "metadata.lastClientInteraction.date",
-          "valueType": "date"
-        },
-        {
-          "kind": "field",
-          "id": "lastInteractionOutcome",
-          "label": "Last interaction \u2014 outcome",
-          "jsonPath": "metadata.lastClientInteraction.outcome",
-          "valueType": "text"
-        },
-        {
-          "kind": "field",
-          "id": "nextInteractionDate",
-          "label": "Next interaction \u2014 date",
-          "jsonPath": "metadata.nextClientInteraction.date",
-          "valueType": "date"
-        },
-        {
-          "kind": "field",
-          "id": "nextInteractionObjective",
-          "label": "Next interaction \u2014 objective",
-          "jsonPath": "metadata.nextClientInteraction.objective",
-          "valueType": "text"
-        },
-        {
-          "kind": "computed",
-          "id": "daysSinceLastInteraction",
-          "label": "Days since last interaction",
-          "formula": "IF({{ref:lastInteractionDate}}=\"\",\"\",TODAY()-{{ref:lastInteractionDate}})",
-          "valueType": "number"
-        },
-        {
-          "kind": "spacer"
-        },
-        {
-          "kind": "section",
-          "text": "Three Whys \u2014 Us"
-        },
-        {
-          "kind": "field",
-          "id": "whyAnything",
-          "label": "Why anything?",
-          "jsonPath": "threeWhys.us.whyAnything",
-          "valueType": "text",
-          "height": 44
-        },
-        {
-          "kind": "field",
-          "id": "whyUs",
-          "label": "Why us?",
-          "jsonPath": "threeWhys.us.whyUs",
-          "valueType": "text",
-          "height": 44
-        },
-        {
-          "kind": "field",
-          "id": "whyNow",
-          "label": "Why now?",
-          "jsonPath": "threeWhys.us.whyNow",
-          "valueType": "text",
-          "height": 44
-        },
-        {
-          "kind": "spacer"
-        },
-        {
-          "kind": "section",
-          "text": "Three Whys \u2014 Partner"
-        },
-        {
-          "kind": "field",
-          "id": "partnerName",
-          "label": "Partner",
-          "jsonPath": "threeWhys.partner.name",
-          "valueType": "string"
-        },
-        {
-          "kind": "field",
-          "id": "partnerWhyAnything",
-          "label": "Why anything?",
-          "jsonPath": "threeWhys.partner.whyAnything",
-          "valueType": "text",
-          "height": 44
-        },
-        {
-          "kind": "field",
-          "id": "partnerWhyThisPartner",
-          "label": "Why this partner?",
-          "jsonPath": "threeWhys.partner.whyThisPartner",
-          "valueType": "text",
-          "height": 44
-        },
-        {
-          "kind": "field",
-          "id": "partnerWhyNow",
-          "label": "Why now?",
-          "jsonPath": "threeWhys.partner.whyNow",
-          "valueType": "text",
-          "height": 44
-        },
-        {
-          "kind": "spacer"
-        },
-        {
-          "kind": "section",
-          "text": "Sales strategy"
-        },
-        {
-          "kind": "field",
-          "id": "differentiatedValueProposition",
-          "label": "Differentiated value proposition",
-          "jsonPath": "salesStrategy.differentiatedValueProposition",
-          "valueType": "text",
-          "height": 60
-        },
-        {
-          "kind": "field",
-          "id": "winStrategy",
-          "label": "Win strategy",
-          "jsonPath": "salesStrategy.winStrategy",
-          "valueType": "text",
-          "height": 60
-        },
-        {
-          "kind": "spacer"
-        },
-        {
-          "kind": "section",
-          "text": "Salesforce"
-        },
-        {
-          "kind": "field",
-          "id": "salesforceOpportunityId",
-          "label": "Opportunity ID",
-          "jsonPath": "metadata.salesforce.opportunityId",
-          "valueType": "string"
-        },
-        {
-          "kind": "field",
-          "id": "salesforceAccountId",
-          "label": "Account ID",
-          "jsonPath": "metadata.salesforce.accountId",
-          "valueType": "string"
-        },
-        {
-          "kind": "field",
-          "id": "salesforceOwnerId",
-          "label": "Owner ID",
-          "jsonPath": "metadata.salesforce.ownerId",
-          "valueType": "string"
-        },
-        {
-          "kind": "field",
-          "id": "salesforceStageName",
-          "label": "Stage name",
-          "jsonPath": "metadata.salesforce.stageName",
-          "valueType": "string"
-        },
-        {
-          "kind": "field",
-          "id": "salesforceLastSync",
-          "label": "Last sync",
-          "jsonPath": "metadata.salesforce.lastSyncDate",
-          "valueType": "string"
-        }
-      ]
-    },
-    {
-      "name": "Qualification",
-      "kind": "table",
-      "tables": [
-        {
-          "id": "elements",
-          "source": {
-            "kind": "elements"
-          },
-          "anchorColumn": 1,
-          "headerRow": 1,
-          "columns": [
+          "kind": "row",
+          "cells": [
             {
-              "id": "element",
-              "header": "Element",
-              "role": "derived",
-              "valueType": "string",
-              "width": 20
+              "kind": "label",
+              "span": 3,
+              "text": "Last Client Interaction"
             },
             {
-              "id": "definition",
-              "header": "Definition",
-              "role": "derived",
-              "valueType": "text",
-              "width": 56
+              "kind": "field",
+              "span": 2,
+              "id": "lastInteractionDate",
+              "jsonPath": "metadata.lastClientInteraction.date",
+              "valueType": "date"
             },
             {
-              "id": "score",
-              "header": "Score (0-4)",
-              "role": "input",
-              "jsonPath": "qualification.*.score",
-              "valueType": "score",
-              "width": 12,
-              "conditionalFormat": "score",
-              "validate": true
+              "kind": "label",
+              "span": 3,
+              "text": "Next Client Interaction"
             },
             {
-              "id": "previousScore",
-              "header": "Previous",
-              "role": "input",
-              "jsonPath": "scoring.previousElementScores.*",
-              "valueType": "score",
-              "width": 11,
-              "conditionalFormat": "score",
-              "validate": true
+              "kind": "field",
+              "span": 2,
+              "id": "nextInteractionDate",
+              "jsonPath": "metadata.nextClientInteraction.date",
+              "valueType": "date"
             },
             {
-              "id": "change",
-              "header": "Change",
-              "role": "computed",
-              "formula": "{{this:score}}-{{this:previousScore}}",
-              "valueType": "number",
-              "width": 10
+              "kind": "label",
+              "span": 4,
+              "text": "Days Since Last"
             },
             {
-              "id": "rubric",
-              "header": "What this score means",
-              "role": "derived",
-              "valueType": "text",
-              "width": 56
-            },
-            {
-              "id": "evidence",
-              "header": "Evidence",
-              "role": "input",
-              "jsonPath": "qualification.*.evidence",
-              "valueType": "text",
-              "width": 52
-            },
-            {
-              "id": "notes",
-              "header": "Notes",
-              "role": "input",
-              "jsonPath": "qualification.*.notes",
-              "valueType": "text",
-              "width": 52
+              "kind": "computed",
+              "span": 2,
+              "id": "daysSinceLastInteraction",
+              "formula": "IF({{ref:lastInteractionDate}}=\"\",\"\",TODAY()-{{ref:lastInteractionDate}})",
+              "valueType": "number"
             }
-          ],
-          "asTable": true,
-          "keyColumn": "element"
-        }
-      ]
-    },
-    {
-      "name": "Questions",
-      "kind": "table",
-      "tables": [
-        {
-          "id": "responses",
-          "source": {
-            "kind": "elementResponses"
-          },
-          "anchorColumn": 1,
-          "headerRow": 1,
-          "columns": [
-            {
-              "id": "element",
-              "header": "Element",
-              "role": "derived",
-              "valueType": "string",
-              "width": 20
-            },
-            {
-              "id": "position",
-              "header": "#",
-              "role": "derived",
-              "valueType": "integer",
-              "width": 6
-            },
-            {
-              "id": "question",
-              "header": "Question",
-              "role": "derived",
-              "valueType": "text",
-              "width": 62
-            },
-            {
-              "id": "response",
-              "header": "Response",
-              "role": "input",
-              "jsonPath": "qualification.*.responses[]",
-              "valueType": "text",
-              "width": 84
-            }
-          ],
-          "asTable": true
-        }
-      ]
-    },
-    {
-      "name": "Stakeholders",
-      "kind": "table",
-      "tables": [
-        {
-          "id": "stakeholders",
-          "source": {
-            "kind": "list",
-            "jsonPath": "stakeholders"
-          },
-          "anchorColumn": 1,
-          "headerRow": 1,
-          "minRows": 12,
-          "columns": [
-            {
-              "id": "name",
-              "header": "Name",
-              "role": "input",
-              "jsonPath": "name",
-              "valueType": "string",
-              "width": 24
-            },
-            {
-              "id": "title",
-              "header": "Title",
-              "role": "input",
-              "jsonPath": "title",
-              "valueType": "string",
-              "width": 30
-            },
-            {
-              "id": "roleInDeal",
-              "header": "Role in deal",
-              "role": "input",
-              "jsonPath": "roleInDeal",
-              "valueType": "string",
-              "width": 18,
-              "validate": true
-            },
-            {
-              "id": "mustSayYes",
-              "header": "Must say yes",
-              "role": "input",
-              "jsonPath": "mustSayYes",
-              "valueType": "boolean",
-              "width": 14
-            },
-            {
-              "id": "canSayNo",
-              "header": "Can say no",
-              "role": "input",
-              "jsonPath": "canSayNo",
-              "valueType": "boolean",
-              "width": 13
-            },
-            {
-              "id": "whatTheyNeedToBelieve",
-              "header": "What they need to believe",
-              "role": "input",
-              "jsonPath": "whatTheyNeedToBelieve",
-              "valueType": "text",
-              "width": 56
-            },
-            {
-              "id": "sentiment",
-              "header": "Sentiment",
-              "role": "input",
-              "jsonPath": "sentiment",
-              "valueType": "string",
-              "width": 14,
-              "validate": true
-            },
-            {
-              "id": "relationshipOwner",
-              "header": "Relationship owner",
-              "role": "input",
-              "jsonPath": "relationshipOwner",
-              "valueType": "string",
-              "width": 22
-            }
-          ],
-          "asTable": true
-        }
-      ]
-    },
-    {
-      "name": "Close Plan",
-      "kind": "table",
-      "tables": [
-        {
-          "id": "milestones",
-          "source": {
-            "kind": "list",
-            "jsonPath": "closePlan.milestones"
-          },
-          "anchorColumn": 1,
-          "headerRow": 1,
-          "minRows": 10,
-          "columns": [
-            {
-              "id": "description",
-              "header": "Milestone",
-              "role": "input",
-              "jsonPath": "description",
-              "valueType": "text",
-              "width": 56
-            },
-            {
-              "id": "targetDate",
-              "header": "Target date",
-              "role": "input",
-              "jsonPath": "targetDate",
-              "valueType": "date",
-              "width": 14,
-              "conditionalFormat": "overdueDate"
-            },
-            {
-              "id": "status",
-              "header": "Status",
-              "role": "input",
-              "jsonPath": "status",
-              "valueType": "string",
-              "width": 14,
-              "conditionalFormat": "statusText",
-              "validate": true
-            }
-          ],
-          "asTable": true
+          ]
         },
         {
-          "id": "actions",
-          "source": {
-            "kind": "list",
-            "jsonPath": "closePlan.criticalActions"
-          },
-          "anchorColumn": 5,
-          "headerRow": 1,
-          "minRows": 12,
-          "columns": [
+          "kind": "row",
+          "cells": [
             {
-              "id": "action",
-              "header": "Critical action",
-              "role": "input",
-              "jsonPath": "action",
-              "valueType": "text",
-              "width": 56
+              "kind": "label",
+              "span": 3,
+              "text": "Outcome"
             },
             {
-              "id": "owner",
-              "header": "Owner",
-              "role": "input",
-              "jsonPath": "owner",
-              "valueType": "string",
-              "width": 22
-            },
-            {
-              "id": "dueDate",
-              "header": "Due date",
-              "role": "input",
-              "jsonPath": "dueDate",
-              "valueType": "date",
-              "width": 14,
-              "conditionalFormat": "overdueDate"
-            },
-            {
-              "id": "status",
-              "header": "Status",
-              "role": "input",
-              "jsonPath": "status",
-              "valueType": "string",
-              "width": 14,
-              "conditionalFormat": "statusText",
-              "validate": true
+              "kind": "field",
+              "span": 13,
+              "id": "lastInteractionOutcome",
+              "jsonPath": "metadata.lastClientInteraction.outcome",
+              "valueType": "text"
             }
-          ],
-          "asTable": true
-        }
-      ]
-    },
-    {
-      "name": "Team",
-      "kind": "table",
-      "tables": [
-        {
-          "id": "teamInternal",
-          "source": {
-            "kind": "list",
-            "jsonPath": "team.internal"
-          },
-          "anchorColumn": 1,
-          "headerRow": 1,
-          "minRows": 16,
-          "columns": [
-            {
-              "id": "name",
-              "header": "Name",
-              "role": "input",
-              "jsonPath": "name",
-              "valueType": "string",
-              "width": 26
-            },
-            {
-              "id": "role",
-              "header": "Role",
-              "role": "input",
-              "jsonPath": "role",
-              "valueType": "string",
-              "width": 34
-            },
-            {
-              "id": "dateRequiredFrom",
-              "header": "Required from",
-              "role": "input",
-              "jsonPath": "dateRequiredFrom",
-              "valueType": "date",
-              "width": 15
-            },
-            {
-              "id": "assignedToDeal",
-              "header": "Assigned",
-              "role": "input",
-              "jsonPath": "assignedToDeal",
-              "valueType": "boolean",
-              "width": 11
-            }
-          ],
-          "asTable": true
+          ]
         },
         {
-          "id": "teamPartner",
-          "source": {
-            "kind": "list",
-            "jsonPath": "team.partner"
-          },
-          "anchorColumn": 6,
-          "headerRow": 1,
-          "minRows": 10,
-          "columns": [
+          "kind": "row",
+          "cells": [
             {
-              "id": "name",
-              "header": "Name",
-              "role": "input",
-              "jsonPath": "name",
-              "valueType": "string",
-              "width": 26
+              "kind": "label",
+              "span": 3,
+              "text": "Objective"
             },
             {
-              "id": "role",
-              "header": "Role",
-              "role": "input",
-              "jsonPath": "role",
-              "valueType": "string",
-              "width": 34
-            },
-            {
-              "id": "dateRequiredFrom",
-              "header": "Required from",
-              "role": "input",
-              "jsonPath": "dateRequiredFrom",
-              "valueType": "date",
-              "width": 15
-            },
-            {
-              "id": "assignedToDeal",
-              "header": "Assigned",
-              "role": "input",
-              "jsonPath": "assignedToDeal",
-              "valueType": "boolean",
-              "width": 11
+              "kind": "field",
+              "span": 13,
+              "id": "nextInteractionObjective",
+              "jsonPath": "metadata.nextClientInteraction.objective",
+              "valueType": "text"
             }
-          ],
-          "asTable": true
-        }
-      ]
-    },
-    {
-      "name": "Completion",
-      "kind": "table",
-      "tables": [
-        {
-          "id": "sections",
-          "source": {
-            "kind": "sections"
-          },
-          "anchorColumn": 1,
-          "headerRow": 1,
-          "columns": [
-            {
-              "id": "section",
-              "header": "Section",
-              "role": "derived",
-              "valueType": "string",
-              "width": 26
-            },
-            {
-              "id": "status",
-              "header": "Status",
-              "role": "derived",
-              "valueType": "string",
-              "width": 16,
-              "conditionalFormat": "completionText"
-            }
-          ],
-          "asTable": true,
-          "keyColumn": "section"
-        }
-      ]
-    },
-    {
-      "name": "Scorecard",
-      "kind": "form",
-      "columns": [
-        {
-          "min": 1,
-          "max": 1,
-          "width": 34
-        },
-        {
-          "min": 2,
-          "max": 2,
-          "width": 22
-        }
-      ],
-      "blocks": [
-        {
-          "kind": "title",
-          "text": "Scorecard"
+          ]
         },
         {
           "kind": "spacer"
@@ -806,208 +380,490 @@
           "text": "Qualification"
         },
         {
-          "kind": "computed",
-          "id": "scoreTotal",
-          "label": "Total score",
-          "formula": "SUM({{col:elements.score}})",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "elements",
+            "source": {
+              "kind": "elements"
+            },
+            "anchorColumn": 2,
+            "keyColumn": "element",
+            "columns": [
+              {
+                "id": "element",
+                "header": "Element",
+                "role": "derived",
+                "valueType": "string",
+                "span": 2
+              },
+              {
+                "id": "definition",
+                "header": "Definition",
+                "role": "derived",
+                "valueType": "text",
+                "span": 3
+              },
+              {
+                "id": "score",
+                "header": "Score",
+                "role": "input",
+                "jsonPath": "qualification.*.score",
+                "valueType": "score",
+                "conditionalFormat": "score",
+                "validate": true,
+                "span": 1
+              },
+              {
+                "id": "previousScore",
+                "header": "Previous",
+                "role": "input",
+                "jsonPath": "scoring.previousElementScores.*",
+                "valueType": "score",
+                "conditionalFormat": "score",
+                "validate": true,
+                "span": 1
+              },
+              {
+                "id": "change",
+                "header": "Change",
+                "role": "computed",
+                "formula": "{{this:score}}-{{this:previousScore}}",
+                "valueType": "number",
+                "span": 1
+              },
+              {
+                "id": "rubric",
+                "header": "What This Score Means",
+                "role": "derived",
+                "valueType": "text",
+                "span": 3
+              },
+              {
+                "id": "evidence",
+                "header": "Evidence",
+                "role": "input",
+                "jsonPath": "qualification.*.evidence",
+                "valueType": "text",
+                "span": 3
+              },
+              {
+                "id": "notes",
+                "header": "Notes",
+                "role": "input",
+                "jsonPath": "qualification.*.notes",
+                "valueType": "text",
+                "span": 2
+              }
+            ]
+          }
         },
         {
-          "kind": "computed",
-          "id": "scoreMaximum",
-          "label": "Maximum possible",
-          "formula": "COUNTA({{col:elements.element}})*4",
-          "valueType": "number"
+          "kind": "spacer"
         },
         {
-          "kind": "computed",
-          "id": "scorePercent",
-          "label": "Overall score",
-          "formula": "IF({{ref:scoreMaximum}}=0,0,{{ref:scoreTotal}}/{{ref:scoreMaximum}})",
-          "valueType": "percent"
-        },
-        {
-          "kind": "computed",
-          "id": "scoreRating",
-          "label": "Rating",
-          "formula": "IF({{ref:scoreTotal}}>=26,\"Green\",IF({{ref:scoreTotal}}>=14,\"Yellow\",\"Red\"))",
-          "valueType": "rating",
-          "conditionalFormat": "ragText"
-        },
-        {
-          "kind": "computed",
-          "id": "scorePreviousTotal",
-          "label": "Previous total",
-          "formula": "SUM({{col:elements.previousScore}})",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "scoreChange",
-          "label": "Change since last review",
-          "formula": "{{ref:scoreTotal}}-{{ref:scorePreviousTotal}}",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "responses",
+            "source": {
+              "kind": "elementResponses"
+            },
+            "anchorColumn": 2,
+            "columns": [
+              {
+                "id": "element",
+                "header": "Element",
+                "role": "derived",
+                "valueType": "string",
+                "span": 2
+              },
+              {
+                "id": "position",
+                "header": "#",
+                "role": "derived",
+                "valueType": "integer",
+                "span": 1
+              },
+              {
+                "id": "question",
+                "header": "Question",
+                "role": "derived",
+                "valueType": "text",
+                "span": 6
+              },
+              {
+                "id": "response",
+                "header": "Response",
+                "role": "input",
+                "jsonPath": "qualification.*.responses[]",
+                "valueType": "text",
+                "span": 7
+              }
+            ]
+          }
         },
         {
           "kind": "spacer"
         },
         {
           "kind": "section",
-          "text": "Weakest links"
+          "text": "3 Whys — (Why Anything, Why Us, Why Now)"
         },
         {
-          "kind": "computed",
-          "id": "lowestElement",
-          "label": "Lowest-scoring element",
-          "formula": "INDEX({{col:elements.element}},MATCH(MIN({{col:elements.score}}),{{col:elements.score}},0))",
-          "valueType": "string"
+          "kind": "group",
+          "cells": [
+            {
+              "span": 8,
+              "text": "Us"
+            },
+            {
+              "span": 8,
+              "text": "Partner"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "elementsAtZero",
-          "label": "Elements still at zero",
-          "formula": "COUNTIF({{col:elements.score}},0)",
-          "valueType": "number"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Why Anything"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "whyAnything",
+              "jsonPath": "threeWhys.us.whyAnything",
+              "valueType": "text"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Why Anything"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "partnerWhyAnything",
+              "jsonPath": "threeWhys.partner.whyAnything",
+              "valueType": "text"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "elementsBelowThree",
-          "label": "Elements below 3",
-          "formula": "COUNTIF({{col:elements.score}},\"<3\")",
-          "valueType": "number"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Why Us"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "whyUs",
+              "jsonPath": "threeWhys.us.whyUs",
+              "valueType": "text"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Why This Partner"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "partnerWhyThisPartner",
+              "jsonPath": "threeWhys.partner.whyThisPartner",
+              "valueType": "text"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "economicBuyerScore",
-          "label": "Economic buyer",
-          "formula": "{{row:elements.score@economicBuyer}}",
-          "valueType": "score"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Why Now"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "whyNow",
+              "jsonPath": "threeWhys.us.whyNow",
+              "valueType": "text"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Why Now"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "partnerWhyNow",
+              "jsonPath": "threeWhys.partner.whyNow",
+              "valueType": "text"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "championScore",
-          "label": "Champion",
-          "formula": "{{row:elements.score@champion}}",
-          "valueType": "score"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "blank",
+              "span": 8
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Partner Name"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "partnerName",
+              "jsonPath": "threeWhys.partner.name",
+              "valueType": "string"
+            }
+          ]
         },
         {
           "kind": "spacer"
         },
         {
           "kind": "section",
-          "text": "Completion"
+          "text": "Stakeholder Analysis"
         },
         {
-          "kind": "computed",
-          "id": "sectionsComplete",
-          "label": "Sections complete",
-          "formula": "COUNTIF({{col:sections.status}},\"complete\")",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "sectionsTracked",
-          "label": "Sections tracked",
-          "formula": "COUNTA({{col:sections.section}})",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "completionPercent",
-          "label": "Completion",
-          "formula": "IF({{ref:sectionsTracked}}=0,0,{{ref:sectionsComplete}}/{{ref:sectionsTracked}})",
-          "valueType": "percent"
-        },
-        {
-          "kind": "computed",
-          "id": "questionsAsked",
-          "label": "Questions asked",
-          "formula": "COUNTA({{col:responses.question}})",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "questionsAnswered",
-          "label": "Questions answered",
-          "formula": "COUNTA({{col:responses.response}})",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "stakeholders",
+            "source": {
+              "kind": "list",
+              "jsonPath": "stakeholders"
+            },
+            "anchorColumn": 2,
+            "minRows": 10,
+            "columns": [
+              {
+                "id": "name",
+                "header": "Name",
+                "role": "input",
+                "jsonPath": "name",
+                "valueType": "string",
+                "span": 2
+              },
+              {
+                "id": "title",
+                "header": "Title",
+                "role": "input",
+                "jsonPath": "title",
+                "valueType": "string",
+                "span": 3
+              },
+              {
+                "id": "roleInDeal",
+                "header": "Role In Deal",
+                "role": "input",
+                "jsonPath": "roleInDeal",
+                "valueType": "string",
+                "validate": true,
+                "span": 2
+              },
+              {
+                "id": "mustSayYes",
+                "header": "Must Say Yes?",
+                "role": "input",
+                "jsonPath": "mustSayYes",
+                "valueType": "boolean",
+                "span": 1
+              },
+              {
+                "id": "canSayNo",
+                "header": "Can Say No?",
+                "role": "input",
+                "jsonPath": "canSayNo",
+                "valueType": "boolean",
+                "span": 1
+              },
+              {
+                "id": "whatTheyNeedToBelieve",
+                "header": "What Do They Need To Believe To Say Yes To The Deal?",
+                "role": "input",
+                "jsonPath": "whatTheyNeedToBelieve",
+                "valueType": "text",
+                "span": 4
+              },
+              {
+                "id": "sentiment",
+                "header": "Sentiment",
+                "role": "input",
+                "jsonPath": "sentiment",
+                "valueType": "string",
+                "validate": true,
+                "span": 1
+              },
+              {
+                "id": "relationshipOwner",
+                "header": "Relationship Owner",
+                "role": "input",
+                "jsonPath": "relationshipOwner",
+                "valueType": "string",
+                "span": 2
+              }
+            ]
+          }
         },
         {
           "kind": "spacer"
         },
         {
           "kind": "section",
-          "text": "Stakeholders"
+          "text": "Sales Strategy"
         },
         {
-          "kind": "computed",
-          "id": "stakeholdersMapped",
-          "label": "Stakeholders mapped",
-          "formula": "COUNTA({{col:stakeholders.name}})",
-          "valueType": "number"
+          "kind": "group",
+          "cells": [
+            {
+              "span": 8,
+              "text": "What Is Our Differentiated Value Proposition"
+            },
+            {
+              "span": 8,
+              "text": "What Is Our Sales/Win Strategy?"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "mustSayYesCount",
-          "label": "Must say yes",
-          "formula": "COUNTIF({{col:stakeholders.mustSayYes}},TRUE)",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "canSayNoCount",
-          "label": "Can say no",
-          "formula": "COUNTIF({{col:stakeholders.canSayNo}},TRUE)",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "sentimentUnknown",
-          "label": "Sentiment unknown",
-          "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Unknown\")",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "sentimentNegative",
-          "label": "Sentiment negative",
-          "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Negative\")",
-          "valueType": "number"
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "field",
+              "span": 8,
+              "id": "differentiatedValueProposition",
+              "jsonPath": "salesStrategy.differentiatedValueProposition",
+              "valueType": "text"
+            },
+            {
+              "kind": "field",
+              "span": 8,
+              "id": "winStrategy",
+              "jsonPath": "salesStrategy.winStrategy",
+              "valueType": "text"
+            }
+          ]
         },
         {
           "kind": "spacer"
         },
         {
           "kind": "section",
-          "text": "Close plan"
+          "text": "Close Plan"
         },
         {
-          "kind": "computed",
-          "id": "milestonesTotal",
-          "label": "Milestones",
-          "formula": "COUNTA({{col:milestones.description}})",
-          "valueType": "number"
+          "kind": "group",
+          "cells": [
+            {
+              "span": 8,
+              "text": "High Level Milestones Agreed With Customer"
+            },
+            {
+              "span": 8,
+              "text": "Critical Actions & Next Steps To Support Close Plan"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "milestonesComplete",
-          "label": "Milestones complete",
-          "formula": "COUNTIF({{col:milestones.status}},\"complete\")",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "milestones",
+            "source": {
+              "kind": "list",
+              "jsonPath": "closePlan.milestones"
+            },
+            "anchorColumn": 2,
+            "minRows": 8,
+            "columns": [
+              {
+                "id": "description",
+                "header": "Milestone",
+                "role": "input",
+                "jsonPath": "description",
+                "valueType": "text",
+                "span": 4
+              },
+              {
+                "id": "targetDate",
+                "header": "Target Date",
+                "role": "input",
+                "jsonPath": "targetDate",
+                "valueType": "date",
+                "conditionalFormat": "overdueDate",
+                "span": 2
+              },
+              {
+                "id": "status",
+                "header": "Status",
+                "role": "input",
+                "jsonPath": "status",
+                "valueType": "string",
+                "conditionalFormat": "statusText",
+                "validate": true,
+                "span": 2
+              }
+            ]
+          }
         },
         {
-          "kind": "computed",
-          "id": "actionsOpen",
-          "label": "Actions open",
-          "formula": "COUNTA({{col:actions.action}})-COUNTIF({{col:actions.status}},\"complete\")",
-          "valueType": "number"
-        },
-        {
-          "kind": "computed",
-          "id": "actionsOverdue",
-          "label": "Actions overdue",
-          "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>\"complete\"))",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "actions",
+            "source": {
+              "kind": "list",
+              "jsonPath": "closePlan.criticalActions"
+            },
+            "anchorColumn": 10,
+            "minRows": 8,
+            "columns": [
+              {
+                "id": "action",
+                "header": "Critical Action",
+                "role": "input",
+                "jsonPath": "action",
+                "valueType": "text",
+                "span": 4
+              },
+              {
+                "id": "owner",
+                "header": "Owner",
+                "role": "input",
+                "jsonPath": "owner",
+                "valueType": "string",
+                "span": 2
+              },
+              {
+                "id": "dueDate",
+                "header": "Due Date",
+                "role": "input",
+                "jsonPath": "dueDate",
+                "valueType": "date",
+                "conditionalFormat": "overdueDate",
+                "span": 1
+              },
+              {
+                "id": "status",
+                "header": "Status",
+                "role": "input",
+                "jsonPath": "status",
+                "valueType": "string",
+                "conditionalFormat": "statusText",
+                "validate": true,
+                "span": 1
+              }
+            ]
+          }
         },
         {
           "kind": "spacer"
@@ -1017,25 +873,613 @@
           "text": "Team"
         },
         {
-          "kind": "computed",
-          "id": "teamInternalCount",
-          "label": "Internal team members",
-          "formula": "COUNTA({{col:teamInternal.name}})",
-          "valueType": "number"
+          "kind": "group",
+          "cells": [
+            {
+              "span": 8,
+              "text": "Internal Team"
+            },
+            {
+              "span": 8,
+              "text": "Partner Team"
+            }
+          ]
         },
         {
-          "kind": "computed",
-          "id": "teamInternalAssigned",
-          "label": "Internal team assigned",
-          "formula": "COUNTIF({{col:teamInternal.assignedToDeal}},TRUE)",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "teamInternal",
+            "source": {
+              "kind": "list",
+              "jsonPath": "team.internal"
+            },
+            "anchorColumn": 2,
+            "minRows": 8,
+            "columns": [
+              {
+                "id": "name",
+                "header": "Name",
+                "role": "input",
+                "jsonPath": "name",
+                "valueType": "string",
+                "span": 3
+              },
+              {
+                "id": "role",
+                "header": "Role",
+                "role": "input",
+                "jsonPath": "role",
+                "valueType": "string",
+                "span": 3
+              },
+              {
+                "id": "dateRequiredFrom",
+                "header": "Date Required From",
+                "role": "input",
+                "jsonPath": "dateRequiredFrom",
+                "valueType": "date",
+                "span": 1
+              },
+              {
+                "id": "assignedToDeal",
+                "header": "Assigned To Deal?",
+                "role": "input",
+                "jsonPath": "assignedToDeal",
+                "valueType": "boolean",
+                "span": 1
+              }
+            ]
+          }
         },
         {
-          "kind": "computed",
-          "id": "teamPartnerCount",
-          "label": "Partner team members",
-          "formula": "COUNTA({{col:teamPartner.name}})",
-          "valueType": "number"
+          "kind": "table",
+          "table": {
+            "id": "teamPartner",
+            "source": {
+              "kind": "list",
+              "jsonPath": "team.partner"
+            },
+            "anchorColumn": 10,
+            "minRows": 6,
+            "columns": [
+              {
+                "id": "name",
+                "header": "Name",
+                "role": "input",
+                "jsonPath": "name",
+                "valueType": "string",
+                "span": 3
+              },
+              {
+                "id": "role",
+                "header": "Role",
+                "role": "input",
+                "jsonPath": "role",
+                "valueType": "string",
+                "span": 3
+              },
+              {
+                "id": "dateRequiredFrom",
+                "header": "Date Required From",
+                "role": "input",
+                "jsonPath": "dateRequiredFrom",
+                "valueType": "date",
+                "span": 1
+              },
+              {
+                "id": "assignedToDeal",
+                "header": "Assigned To Deal?",
+                "role": "input",
+                "jsonPath": "assignedToDeal",
+                "valueType": "boolean",
+                "span": 1
+              }
+            ]
+          }
+        },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Scorecard"
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Total Score"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "scoreTotal",
+              "formula": "SUM({{col:elements.score}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Maximum"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "scoreMaximum",
+              "formula": "COUNTA({{col:elements.element}})*4",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Overall"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "scorePercent",
+              "formula": "IF({{ref:scoreMaximum}}=0,0,{{ref:scoreTotal}}/{{ref:scoreMaximum}})",
+              "valueType": "percent"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Rating"
+            },
+            {
+              "kind": "computed",
+              "span": 3,
+              "id": "scoreRating",
+              "formula": "IF({{ref:scoreTotal}}>=26,\"Green\",IF({{ref:scoreTotal}}>=14,\"Yellow\",\"Red\"))",
+              "valueType": "rating",
+              "conditionalFormat": "ragText"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Previous Total"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "scorePreviousTotal",
+              "formula": "SUM({{col:elements.previousScore}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Change"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "scoreChange",
+              "formula": "{{ref:scoreTotal}}-{{ref:scorePreviousTotal}}",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Elements At Zero"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "elementsAtZero",
+              "formula": "COUNTIF({{col:elements.score}},0)",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Below Three"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "elementsBelowThree",
+              "formula": "COUNTIF({{col:elements.score}},\"<3\")",
+              "valueType": "number"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Weakest Element"
+            },
+            {
+              "kind": "computed",
+              "span": 5,
+              "id": "lowestElement",
+              "formula": "INDEX({{col:elements.element}},MATCH(MIN({{col:elements.score}}),{{col:elements.score}},0))",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Economic Buyer"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "economicBuyerScore",
+              "formula": "{{row:elements.score@economicBuyer}}",
+              "valueType": "score"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Champion"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "championScore",
+              "formula": "{{row:elements.score@champion}}",
+              "valueType": "score"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Sections Complete"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "sectionsComplete",
+              "formula": "COUNTIF({{col:sections.status}},\"complete\")",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Tracked"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "sectionsTracked",
+              "formula": "COUNTA({{col:sections.section}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Completion"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "completionPercent",
+              "formula": "IF({{ref:sectionsTracked}}=0,0,{{ref:sectionsComplete}}/{{ref:sectionsTracked}})",
+              "valueType": "percent"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Questions"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "questionsAsked",
+              "formula": "COUNTA({{col:responses.question}})",
+              "valueType": "number"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Questions Answered"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "questionsAnswered",
+              "formula": "COUNTA({{col:responses.response}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Stakeholders"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "stakeholdersMapped",
+              "formula": "COUNTA({{col:stakeholders.name}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Must Say Yes"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "mustSayYesCount",
+              "formula": "COUNTIF({{col:stakeholders.mustSayYes}},TRUE)",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Can Say No"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "canSayNoCount",
+              "formula": "COUNTIF({{col:stakeholders.canSayNo}},TRUE)",
+              "valueType": "number"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Sentiment Unknown"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "sentimentUnknown",
+              "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Unknown\")",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Sentiment Negative"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "sentimentNegative",
+              "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Negative\")",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Milestones"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "milestonesTotal",
+              "formula": "COUNTA({{col:milestones.description}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Milestones Complete"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "milestonesComplete",
+              "formula": "COUNTIF({{col:milestones.status}},\"complete\")",
+              "valueType": "number"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Actions Open"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "actionsOpen",
+              "formula": "COUNTA({{col:actions.action}})-COUNTIF({{col:actions.status}},\"complete\")",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Actions Overdue"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "actionsOverdue",
+              "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>\"complete\"))",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Internal Team"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "teamInternalCount",
+              "formula": "COUNTA({{col:teamInternal.name}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Assigned"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "teamInternalAssigned",
+              "formula": "COUNTIF({{col:teamInternal.assignedToDeal}},TRUE)",
+              "valueType": "number"
+            },
+            {
+              "kind": "blank",
+              "span": 1
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Partner Team"
+            },
+            {
+              "kind": "computed",
+              "span": 1,
+              "id": "teamPartnerCount",
+              "formula": "COUNTA({{col:teamPartner.name}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "blank",
+              "span": 12
+            }
+          ]
+        },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Completion By Section"
+        },
+        {
+          "kind": "table",
+          "table": {
+            "id": "sections",
+            "source": {
+              "kind": "sections"
+            },
+            "anchorColumn": 2,
+            "keyColumn": "section",
+            "columns": [
+              {
+                "id": "section",
+                "header": "Section",
+                "role": "derived",
+                "valueType": "string",
+                "span": 4
+              },
+              {
+                "id": "status",
+                "header": "Status",
+                "role": "derived",
+                "valueType": "string",
+                "conditionalFormat": "completionText",
+                "span": 2
+              }
+            ]
+          }
+        },
+        {
+          "kind": "spacer"
+        },
+        {
+          "kind": "section",
+          "text": "Salesforce"
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Opportunity ID"
+            },
+            {
+              "kind": "field",
+              "span": 3,
+              "id": "salesforceOpportunityId",
+              "jsonPath": "metadata.salesforce.opportunityId",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Account ID"
+            },
+            {
+              "kind": "field",
+              "span": 3,
+              "id": "salesforceAccountId",
+              "jsonPath": "metadata.salesforce.accountId",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Owner ID"
+            },
+            {
+              "kind": "field",
+              "span": 3,
+              "id": "salesforceOwnerId",
+              "jsonPath": "metadata.salesforce.ownerId",
+              "valueType": "string"
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Stage Name"
+            },
+            {
+              "kind": "field",
+              "span": 4,
+              "id": "salesforceStageName",
+              "jsonPath": "metadata.salesforce.stageName",
+              "valueType": "string"
+            },
+            {
+              "kind": "label",
+              "span": 3,
+              "text": "Last Sync"
+            },
+            {
+              "kind": "field",
+              "span": 6,
+              "id": "salesforceLastSync",
+              "jsonPath": "metadata.salesforce.lastSyncDate",
+              "valueType": "string"
+            }
+          ]
         }
       ]
     }

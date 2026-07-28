@@ -302,6 +302,36 @@ interface Collected {
   validated: Array<{ where: string; path: string }>;
 }
 
+/** The tables a sheet declares, in the order the layout puts them. */
+export function specTables(sheet: SpecSheet): SpecTable[] {
+  return sheet.blocks.filter((b): b is Extract<SpecBlock, { kind: 'table' }> => b.kind === 'table').map((b) => b.table);
+}
+
+/**
+ * Tables grouped into the row-bands they occupy.
+ *
+ * **Consecutive `table` blocks share their rows**, which is how two lists sit side by side — the
+ * milestones beside the critical actions, the internal team beside the partner's. Any other block
+ * between them ends the band, so the next table starts below rather than alongside. One rule, and it
+ * is what tells "these two are a pair" from "these two are stacked".
+ */
+export function specTableBands(sheet: SpecSheet): SpecTable[][] {
+  const bands: SpecTable[][] = [];
+  let current: SpecTable[] | null = null;
+  for (const block of sheet.blocks) {
+    if (block.kind === 'table') {
+      if (!current) {
+        current = [];
+        bands.push(current);
+      }
+      current.push(block.table);
+    } else {
+      current = null;
+    }
+  }
+  return bands;
+}
+
 function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected {
   const out: Collected = {
     namedCells: new Map(),
@@ -317,33 +347,33 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
   };
 
   for (const sheet of spec.sheets) {
-    if (sheet.kind === 'form') {
-      for (const block of sheet.blocks) {
-        if (block.kind !== 'field' && block.kind !== 'computed') continue;
-        const where = `${sheet.name}.${block.id}`;
-        if (out.namedCells.has(block.id)) {
-          ids.push(`duplicate cell id "${block.id}" (${out.namedCells.get(block.id)?.sheet} and ${sheet.name})`);
+    for (const block of sheet.blocks) {
+      if (block.kind !== 'row') continue;
+      for (const cell of block.cells) {
+        if (cell.kind !== 'field' && cell.kind !== 'computed') continue;
+        const where = `${sheet.name}.${cell.id}`;
+        if (out.namedCells.has(cell.id)) {
+          ids.push(`duplicate cell id "${cell.id}" (${out.namedCells.get(cell.id)?.sheet} and ${sheet.name})`);
         }
-        out.namedCells.set(block.id, { sheet: sheet.name, label: block.label });
-        checkValueType(where, block.valueType);
+        out.namedCells.set(cell.id, { sheet: sheet.name, label: cell.id });
+        checkValueType(where, cell.valueType);
 
-        if (block.kind === 'field') {
-          if (!block.jsonPath) {
+        if (cell.kind === 'field') {
+          if (!cell.jsonPath) {
             roles.push(`${where}: a field must name a jsonPath`);
-          } else if (block.jsonPath.includes(WILDCARD)) {
-            roles.push(`${where}: a form field cannot use a wildcard — there is no key axis to expand it over`);
+          } else if (cell.jsonPath.includes(WILDCARD)) {
+            roles.push(`${where}: a grid field cannot use a wildcard — there is no key axis to expand it over`);
           } else {
-            out.inputs.push({ where, paths: [block.jsonPath] });
-            if (block.validate) out.validated.push({ where, path: block.jsonPath });
+            out.inputs.push({ where, paths: [cell.jsonPath] });
+            if (cell.validate) out.validated.push({ where, path: cell.jsonPath });
           }
         } else {
-          out.formulas.push({ where, formula: block.formula, table: null });
+          out.formulas.push({ where, formula: cell.formula, table: null });
         }
       }
-      continue;
     }
 
-    for (const table of sheet.tables) {
+    for (const table of specTables(sheet)) {
       if (out.tables.has(table.id)) {
         ids.push(`duplicate table id "${table.id}" (${out.tables.get(table.id)?.sheet} and ${sheet.name})`);
       }
@@ -479,19 +509,22 @@ function checkLayout(spec: WorkbookSpec): string[] {
     if (ILLEGAL_SHEET_CHARS.test(sheet.name)) {
       failures.push(`sheet name "${sheet.name}" contains a character Excel forbids`);
     }
-    if (sheet.kind !== 'table') continue;
-
-    // Two tables share a sheet by sitting side by side; both grow downward for ever, so
-    // overlapping column ranges means one eventually writes over the other.
-    const spans = sheet.tables.map((t) => ({
-      id: t.id,
-      from: t.anchorColumn,
-      to: t.anchorColumn + t.columns.length - 1,
-    }));
-    for (let i = 0; i < spans.length; i++) {
-      for (let j = i + 1; j < spans.length; j++) {
-        if (spans[i].from <= spans[j].to && spans[j].from <= spans[i].to) {
-          failures.push(`tables "${spans[i].id}" and "${spans[j].id}" overlap on sheet "${sheet.name}"`);
+    // Two tables sit side by side on the same rows, so overlapping column ranges means one
+    // writes over the other. A column may span several grid columns, so the width is the sum of
+    // the spans rather than the number of columns.
+    // Only tables sharing rows can collide. Stacked ones are free to use the same columns — that is
+    // the whole point of a single laid-out sheet.
+    for (const band of specTableBands(sheet)) {
+      const spans = band.map((t) => ({
+        id: t.id,
+        from: t.anchorColumn,
+        to: t.anchorColumn + t.columns.reduce((n, c) => n + (c.span ?? 1), 0) - 1,
+      }));
+      for (let i = 0; i < spans.length; i++) {
+        for (let j = i + 1; j < spans.length; j++) {
+          if (spans[i].from <= spans[j].to && spans[j].from <= spans[i].to) {
+            failures.push(`tables "${spans[i].id}" and "${spans[j].id}" share rows and columns on "${sheet.name}"`);
+          }
         }
       }
     }
