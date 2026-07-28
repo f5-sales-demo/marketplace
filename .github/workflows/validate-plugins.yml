@@ -10,6 +10,7 @@ on:
       - ".xcsh-plugin/**"
       - "scripts/validate-plugins.sh"
       - "scripts/check-version-bumps.sh"
+      - "scripts/run-plugin-tests.sh"
   push:
     branches: [main]
     paths:
@@ -17,6 +18,7 @@ on:
       - ".xcsh-plugin/**"
       - "scripts/validate-plugins.sh"
       - "scripts/check-version-bumps.sh"
+      - "scripts/run-plugin-tests.sh"
 
 permissions:
   contents: read
@@ -52,3 +54,26 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: ./scripts/check-version-bumps.sh "$BASE_SHA"
+
+  test:
+    name: Run plugin test suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install jq
+        run: |
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq jq
+          fi
+
+      # Pinned, not a range: a floating runtime turns an unrelated bun release into a
+      # mystery CI failure.
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - name: Run plugin test suites
+        run: ./scripts/run-plugin-tests.sh
