@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { A1, buildWorkbook, columnLetter, STYLE_IDS } from './xlsx';
+import { A1, buildWorkbook, columnIndex, columnLetter, expandMerges, STYLE_IDS } from './xlsx';
 import { readZip } from './zip';
 
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -284,5 +284,411 @@ describe('buildWorkbook — tables, conditional formatting and validation', () =
     expect(sheet).not.toContain('dataValidations');
     expect(sheet).not.toContain('tableParts');
     expect(readZip(minimal()).has('xl/tables/table1.xml')).toBe(false);
+  });
+});
+
+describe('buildWorkbook — merges', () => {
+  const merged = (merges: string[], extra: Parameters<typeof buildWorkbook>[0][number]['rows'] = []) =>
+    dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Deal',
+            merges,
+            rows: [{ row: 2, cells: [{ ref: 'B2', value: 'MEDDPICC Deal Review', style: 'sectionHeader' }] }, ...extra],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+
+  test('declares the range once, with a count', () => {
+    const sheet = merged(['B2:Q2']);
+    expect(sheet).toContain('<mergeCells count="1"><mergeCell ref="B2:Q2"/></mergeCells>');
+  });
+
+  test('every covered cell carries the anchor style, and only the anchor carries the value', () => {
+    // Excel paints a merged range from the styles of all its cells, not the top-left alone:
+    // style only the anchor and the banner's fill stops after one column and its border box
+    // is left open. The sample workbook writes all sixteen cells of B2:Q2 with the same s=.
+    const sheet = merged(['B2:E2']);
+    const row = /<row r="2".*?<\/row>/s.exec(sheet)?.[0] ?? '';
+    const cells = [...row.matchAll(/<c r="([A-Z]+2)"([^>]*?)(\/>|>(.*?)<\/c>)/g)].map((m) => ({
+      ref: m[1],
+      attrs: m[2],
+      body: m[4] ?? '',
+    }));
+    expect(cells.map((c) => c.ref)).toEqual(['B2', 'C2', 'D2', 'E2']);
+    const anchorStyle = `s="${STYLE_IDS.sectionHeader}"`;
+    for (const c of cells) expect(c.attrs).toContain(anchorStyle);
+    expect(cells[0].body).toContain('MEDDPICC Deal Review');
+    for (const c of cells.slice(1)) expect(c.body).toBe('');
+  });
+
+  test('a vertical merge fills the rows below, creating them if the caller did not', () => {
+    const sheet = merged(['B2:B4']);
+    expect(sheet).toContain('<row r="3"');
+    expect(sheet).toContain('<row r="4"');
+    for (const ref of ['B3', 'B4']) expect(sheet).toContain(`<c r="${ref}" s="${STYLE_IDS.sectionHeader}"/>`);
+  });
+
+  test('rows stay in ascending order once a merge has created some', () => {
+    // sheetData is a sequence: Excel repairs a file whose rows descend.
+    const sheet = merged(['B2:B6'], [{ row: 9, cells: [{ ref: 'B9', value: 'later' }] }]);
+    const order = [...sheet.matchAll(/<row r="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order).toContain(9);
+  });
+
+  test('cells stay in ascending column order once merges have added some', () => {
+    // A merge declared after one further right appends its filled cells behind them, so the
+    // row ends up C after D unless it is re-sorted. Excel repairs a row whose cells descend.
+    const sheet = dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Deal',
+            merges: ['D2:E2', 'B2:C2'],
+            rows: [
+              {
+                row: 2,
+                cells: [
+                  { ref: 'B2', value: 'left', style: 'fieldLabel' },
+                  { ref: 'D2', value: 'right', style: 'fieldLabel' },
+                ],
+              },
+            ],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+    const row = /<row r="2".*?<\/row>/s.exec(sheet)?.[0] ?? '';
+    const cols = [...row.matchAll(/<c r="([A-Z]+)2"/g)].map((m) => columnIndex(m[1]));
+    expect(cols).toEqual([2, 3, 4, 5]);
+  });
+
+  test('refuses a merge with no cell to anchor it', () => {
+    expect(() => merged(['D8:F8'])).toThrow(/D8:F8/);
+  });
+
+  test('refuses two merges that overlap, naming both', () => {
+    expect(() => merged(['B2:E2', 'D2:G2'])).toThrow(/B2:E2[\s\S]*D2:G2|D2:G2[\s\S]*B2:E2/);
+  });
+
+  test('refuses a merge that would hide a value the caller wrote', () => {
+    // A value in a covered cell is invisible once merged. Silently dropping it is how two
+    // sections that overlap by one row look fine and lose a field.
+    expect(() => merged(['B2:B3'], [{ row: 3, cells: [{ ref: 'B3', value: 'hidden' }] }])).toThrow(/B3/);
+  });
+
+  test('refuses a malformed range', () => {
+    for (const bad of ['B2', 'B2:', 'not-a-ref', '2B:4C']) {
+      expect(() => merged([bad])).toThrow(/is not a range/);
+    }
+  });
+
+  test('refuses a range written bottom-right first', () => {
+    // Assert the REASON, not merely that it threw: an inverted range whose anchor happens to
+    // be absent throws the anchor error instead, which let a missing bounds check survive.
+    for (const bad of ['B2:A2', 'B2:B1']) {
+      expect(() => merged([bad])).toThrow(/runs backwards/);
+    }
+  });
+
+  test("refuses a range outside Excel's grid", () => {
+    // Syntax and direction are not enough: A0, XFE and row 1048577 are all well-formed and
+    // are not cells, and the writer would materialise them into a file Excel must repair.
+    for (const bad of ['A0:B0', 'XFE1:XFF1', 'A1048576:A1048577']) {
+      expect(() => merged([bad]), bad).toThrow(/outside Excel's grid/);
+    }
+  });
+
+  test('refuses a merge too large to materialise, rather than not responding', () => {
+    // A1:XFD1048576 is valid, in bounds, and seventeen billion cells. Without a cap the writer
+    // does not fail — it stops responding, which is the one failure mode with no message.
+    expect(() => merged(['A1:XFD1048576'])).toThrow(/covers 17179869184 cells/);
+  });
+
+  test('refuses a merge that overlaps an Excel table', () => {
+    // Excel does not merely dislike this: it drops the table and repairs the file, so the sort
+    // button, the structured references and the auto-extend all vanish with nothing to notice.
+    expect(() =>
+      buildWorkbook([
+        {
+          name: 'Data',
+          merges: ['A2:B2'],
+          rows: [
+            {
+              row: 1,
+              cells: [
+                { ref: 'A1', value: 'Name' },
+                { ref: 'B1', value: 'Score' },
+              ],
+            },
+            { row: 2, cells: [{ ref: 'A2', value: 'x' }] },
+            { row: 3, cells: [{ ref: 'A3' }, { ref: 'B3' }] },
+          ],
+          tables: [{ name: 'people', displayName: 'people', ref: 'A1:B3', columns: ['Name', 'Score'] }],
+        },
+      ]),
+    ).toThrow(/overlaps table "people"/);
+  });
+
+  test('refuses a sheet that declares the same row twice', () => {
+    expect(() =>
+      buildWorkbook([
+        {
+          name: 'S',
+          merges: ['A1:B1'],
+          rows: [
+            { row: 1, cells: [{ ref: 'A1', value: 'x' }] },
+            { row: 1, cells: [{ ref: 'C1', value: 'y' }] },
+          ],
+        },
+      ]),
+    ).toThrow(/row 1 twice/);
+  });
+
+  test("leaves the caller's cells untouched", () => {
+    // The rows and their arrays are copied; the cell objects are not, so a fill that mutated
+    // one in place would edit the spec the caller still holds.
+    const anchor = { ref: 'B2', value: 'Banner', style: 'sectionHeader' as const };
+    const blank = { ref: 'C2', style: 'default' as const };
+    const spec = { name: 'Deal', merges: ['B2:C2'], rows: [{ row: 2, cells: [anchor, blank] }] };
+    expandMerges(spec);
+    expect(blank).toStrictEqual({ ref: 'C2', style: 'default' });
+    expect(spec.rows[0].cells).toHaveLength(2);
+  });
+
+  test('a single-cell range is not a merge', () => {
+    expect(() => merged(['B2:B2'])).toThrow(/B2:B2/);
+  });
+});
+
+describe('buildWorkbook — presentation', () => {
+  const presented = (extra: Partial<Parameters<typeof buildWorkbook>[0][number]>) =>
+    dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Deal',
+            rows: [{ row: 1, cells: [{ ref: 'B1', value: 'Deal Review', style: 'sectionHeader' }] }],
+            ...extra,
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+
+  test('hides the grid on request, and leaves it alone otherwise', () => {
+    expect(presented({ hideGridlines: true })).toContain('showGridLines="0"');
+    expect(presented({})).not.toContain('showGridLines');
+  });
+
+  test('opens at the requested zoom so the full width is visible', () => {
+    const sheet = presented({ zoom: 75 });
+    expect(sheet).toContain('zoomScale="75"');
+    expect(sheet).toContain('zoomScaleNormal="75"');
+    expect(presented({})).not.toContain('zoomScale');
+  });
+
+  test('refuses a zoom Excel would reject', () => {
+    for (const bad of [0, 9, 401, 1.5]) expect(() => presented({ zoom: bad })).toThrow(/zoom/i);
+  });
+
+  test('emits print setup, escaping the header text', () => {
+    const sheet = presented({ print: { orientation: 'landscape', fitToWidth: true, header: ['Visa & Co'] } });
+    expect(sheet).toContain('<pageSetup');
+    expect(sheet).toContain('orientation="landscape"');
+    expect(sheet).toContain('fitToWidth="1"');
+    expect(sheet).toContain('<pageMargins');
+    // "&" opens a format code in a header (&D is the date), so a literal ampersand has to be
+    // doubled before the usual XML escaping — otherwise Excel eats the " C" after it.
+    expect(sheet).toContain('Visa &amp;&amp; Co');
+    expect(presented({})).not.toContain('pageSetup');
+  });
+
+  test('fit-to-width needs the sheet-level flag Excel actually reads', () => {
+    // pageSetup fitToWidth is ignored unless sheetPr says the page setup is fit-to-page.
+    const sheet = presented({ print: { orientation: 'landscape', fitToWidth: true } });
+    expect(sheet).toContain('fitToPage="1"');
+  });
+
+  test("a header over Excel's limit is truncated, not dropped", () => {
+    // Excel does not complain about a header past 255 characters — it drops it, so a printout
+    // comes out unidentified while generation reports success. Nothing bounds a deal name.
+    const headerOf = (text: string) => {
+      const odd =
+        /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+          presented({ print: { orientation: 'landscape', header: [text] } }),
+        )?.[1] ?? '';
+      // Count what Excel counts: the header string itself, format codes included.
+      return odd.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    };
+
+    const long = `${'A'.repeat(130)} — ${'B'.repeat(130)}`;
+    const truncated = headerOf(long);
+    expect(truncated.length).toBeLessThanOrEqual(255);
+    expect(truncated).toContain('…');
+    expect(truncated.startsWith('&L' + 'A'.repeat(50))).toBe(true);
+
+    // An ampersand encodes to two characters, so 200 of them would emit a 406-character header.
+    const amps = headerOf('&'.repeat(200));
+    expect(amps.length).toBeLessThanOrEqual(255);
+    // Every literal ampersand must still be a pair: a lone trailing & would eat the &R after it.
+    const body = amps.replace(/^&L/, '').replace(/&R&D$/, '').replace(/…$/, '');
+    expect(body.length % 2).toBe(0);
+    expect(/(^|[^&])&([^&]|$)/.test(body)).toBe(false);
+  });
+
+  test('every header part survives truncation, however long an earlier one is', () => {
+    // Composed account-first, a 300-character account name would consume the whole budget and
+    // emit a header with no deal name in it — so two deals for that account print identically.
+    const odd =
+      /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+        presented({ print: { orientation: 'landscape', header: ['A'.repeat(300), 'DISTINCT-DEAL'] } }),
+      )?.[1] ?? '';
+    const header = odd.replace(/&amp;/g, '&');
+    expect(header.length).toBeLessThanOrEqual(255);
+    expect(header).toContain('DISTINCT-DEAL');
+    expect(header).toContain('…');
+  });
+
+  test('an empty part is dropped rather than leaving a dangling separator', () => {
+    const oddOf = (header: string[]) =>
+      /<oddHeader>(.*?)<\/oddHeader>/s.exec(presented({ print: { orientation: 'landscape', header } }))?.[1];
+    expect(oddOf(['Visa', ''])).toBe('&amp;LVisa&amp;R&amp;D');
+    expect(oddOf(['', 'XC WAF-API'])).toBe('&amp;LXC WAF-API&amp;R&amp;D');
+    // Nothing to say: no header element at all, rather than an empty one.
+    expect(presented({ print: { orientation: 'landscape', header: ['', ''] } })).not.toContain('headerFooter');
+    expect(presented({ print: { orientation: 'landscape', header: [] } })).not.toContain('headerFooter');
+  });
+
+  test('a part short enough to fit gives its surplus budget to the others', () => {
+    const odd =
+      /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+        presented({ print: { orientation: 'landscape', header: ['Visa', 'D'.repeat(300)] } }),
+      )?.[1] ?? '';
+    const header = odd.replace(/&amp;/g, '&');
+    expect(header.length).toBeLessThanOrEqual(255);
+    expect(header).toContain('Visa');
+    // Visa needed 4 of its ~124 share, so the deal name should get far more than half.
+    expect((/D+/.exec(header)?.[0] ?? '').length).toBeGreaterThan(200);
+  });
+
+  test('a header inside the limit is emitted whole', () => {
+    const odd = /<oddHeader>(.*?)<\/oddHeader>/s.exec(
+      presented({ print: { orientation: 'landscape', header: ['Visa, Inc.', 'XC WAF-API'] } }),
+    )?.[1];
+    expect(odd).toBe('&amp;LVisa, Inc. — XC WAF-API&amp;R&amp;D');
+  });
+
+  test('parts appear in CT_Worksheet sequence order', () => {
+    // CT_Worksheet is a sequence, not a bag. Out of order, Excel offers to repair the file
+    // and names nothing useful — so assert the ORDER, not merely the presence.
+    const sheet = dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Deal',
+            hideGridlines: true,
+            zoom: 75,
+            freezeAtRow: 1,
+            merges: ['B1:D1'],
+            print: { orientation: 'landscape', fitToWidth: true, header: ['Deal'] },
+            rows: [
+              { row: 1, cells: [{ ref: 'B1', value: 'Element', style: 'columnHeader' }] },
+              { row: 2, cells: [{ ref: 'B2', value: 1, style: 'score' }] },
+            ],
+            conditionalFormats: [{ sqref: 'B2:B2', preset: 'score' }],
+            validations: [{ sqref: 'B2:B2', values: ['0', '1'] }],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+    const expected = [
+      '<sheetPr',
+      '<sheetViews',
+      '<sheetFormatPr',
+      '<sheetData',
+      '<mergeCells',
+      '<conditionalFormatting',
+      '<dataValidations',
+      '<printOptions',
+      '<pageMargins',
+      '<pageSetup',
+      '<headerFooter',
+    ];
+    const found = expected.map((tag) => ({ tag, at: sheet.indexOf(tag) }));
+    for (const { tag, at } of found) expect(at, `${tag} missing`).toBeGreaterThan(-1);
+    expect(found.map(({ at }) => at)).toEqual([...found.map(({ at }) => at)].sort((a, b) => a - b));
+  });
+});
+
+describe('styles.xml — a named style resolves to the look it promises', () => {
+  /** The font and fill XML that a style name actually lands on, via its cellXf. */
+  const lookOf = (name: keyof typeof STYLE_IDS) => {
+    const styles = dec(readZip(minimal()).get('xl/styles.xml')?.data as Uint8Array);
+    const fonts = [...styles.matchAll(/<font>.*?<\/font>/gs)].map((m) => m[0]);
+    const fills = [...styles.matchAll(/<fill>.*?<\/fill>/gs)].map((m) => m[0]);
+    const xfs = [...styles.slice(styles.indexOf('<cellXfs')).matchAll(/<xf [^>]*?(?:\/>|>.*?<\/xf>)/gs)].map(
+      (m) => m[0],
+    );
+    const xf = xfs[STYLE_IDS[name]];
+    const fontId = Number(/fontId="(\d+)"/.exec(xf)?.[1]);
+    const fillId = Number(/fillId="(\d+)"/.exec(xf)?.[1]);
+    expect(fonts[fontId], `${name} fontId ${fontId} is past the end of <fonts>`).toBeDefined();
+    expect(fills[fillId], `${name} fillId ${fillId} is past the end of <fills>`).toBeDefined();
+    return { xf, font: fonts[fontId], fill: fills[fillId] };
+  };
+
+  // Indexes into <fonts> and <fills> are positional, so a renumber that misses one silently
+  // paints a banner in italic grey and no other test notices. Bind each name to what a person
+  // would SEE, not to a number.
+  test('the banner styles are white bold text on the dark fill', () => {
+    for (const name of ['title', 'sectionHeader'] as const) {
+      const { font, fill } = lookOf(name);
+      expect(font, name).toContain('<b/>');
+      expect(font, name).toContain('FFFFFFFF');
+      expect(fill, name).toContain('FF0E2841');
+    }
+  });
+
+  test('the header and label styles are white bold on teal or light blue', () => {
+    expect(lookOf('columnHeader').fill).toContain('FF156082');
+    expect(lookOf('fieldLabel').fill).toContain('FF156082');
+    expect(lookOf('groupHeader').fill).toContain('FF0F9ED5');
+    for (const name of ['columnHeader', 'fieldLabel', 'groupHeader'] as const) {
+      expect(lookOf(name).font, name).toContain('FFFFFFFF');
+    }
+  });
+
+  test('the RAG styles keep their own three fills, all different', () => {
+    const fills = (['ragRed', 'ragAmber', 'ragGreen'] as const).map((n) => lookOf(n).fill);
+    expect(new Set(fills).size).toBe(3);
+    expect(fills[0]).toContain('FFF8CBAD');
+    expect(fills[1]).toContain('FFFFE699');
+    expect(fills[2]).toContain('FFC6E0B4');
+  });
+
+  test('plain styles carry no fill, so they do not paint over the page', () => {
+    for (const name of ['default', 'text', 'label', 'currency', 'date'] as const) {
+      expect(lookOf(name).fill, name).toContain('patternType="none"');
+    }
+  });
+
+  test('every declared font and fill is reachable from some style', () => {
+    // An entry nothing points at is either a mistake or a leftover; the two reserved
+    // placeholders Excel requires are the only exceptions.
+    const styles = dec(readZip(minimal()).get('xl/styles.xml')?.data as Uint8Array);
+    const cellXfs = styles.slice(styles.indexOf('<cellXfs'));
+    const usedFonts = new Set([...cellXfs.matchAll(/fontId="(\d+)"/g)].map((m) => Number(m[1])));
+    const usedFills = new Set([...cellXfs.matchAll(/fillId="(\d+)"/g)].map((m) => Number(m[1])));
+    const fontCount = Number(/<fonts count="(\d+)"/.exec(styles)?.[1]);
+    const fillCount = Number(/<fills count="(\d+)"/.exec(styles)?.[1]);
+    for (let i = 0; i < fontCount; i++) expect(usedFonts.has(i), `font ${i} is unreachable`).toBe(true);
+    // Fill 1 is the format-reserved gray125 placeholder, which nothing may use.
+    for (let i = 0; i < fillCount; i++) {
+      if (i === 1) continue;
+      expect(usedFills.has(i), `fill ${i} is unreachable`).toBe(true);
+    }
   });
 });

@@ -10,6 +10,75 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v4.3.0 — the workbook writer can lay a sheet out: merged ranges, a hidden grid, and
+  a print setup.
+
+  The generated workbook was functionally complete but presented as a data dump — a grid of cells
+  with no heading that spanned anything. There was no way to express a banner, because the writer had
+  no merge support at all.
+
+  `SheetSpec` gains `merges`, `hideGridlines`, `zoom` and `print`. A merge is declared as a range and
+  anchored by its top-left cell, and the writer fills every other covered cell with that cell's
+  style — which is what Excel needs, because it paints a merged range from the styles of all its
+  cells. Styling the anchor alone stops a banner's fill after its first column and leaves its border
+  box open.
+
+  Five things are refused rather than emitted for Excel to repair: a range that is malformed, one
+  written bottom-right first, one covering a single cell, two that overlap, and one that would hide a
+  value the caller wrote. The last is the one worth having — a merge silently swallowing a field is
+  how two sections that overlap by a row look fine and lose data.
+
+  The palette moves to the stock modern Office theme the manual sheet uses — `#0E2841` navy banners,
+  `#156082` teal labels, `#0F9ED5` sub-headers — and two orphaned entries are gone. A new test binds
+  each style name to the font and fill a person would actually see, so the positional-index mistake
+  this writer has always been exposed to now fails loudly instead of quietly painting a banner in
+  italic grey.
+
+  Titles and section headers span the form width; table sheets declare no merges, because Excel drops
+  a table whose range contains one. Every sheet hides the grid and prints landscape, one page wide,
+  with the deal named in the header.
+
+  Three more refusals came out of review. A range outside Excel's grid (`A0`, `XFE`, row 1048577) is
+  well-formed and is not a cell. A merge overlapping an Excel table is worse than it sounds: Excel
+  drops the table and repairs the file, so the sort button, the structured references and the
+  auto-extend all vanish, leaving only a table count that fell to zero. And `A1:XFD1048576` is valid,
+  in bounds and seventeen billion cells — without a cap the writer did not fail, it stopped
+  responding.
+
+  Chasing that last one turned up the real defect: cells were looked up by walking every row from
+  inside the expansion loop, making the whole thing quadratic. A 200,000-cell merge did not finish in
+  two minutes. Measured at the new cap, rescanning against indexing: `A1:B5000` 700ms against 9ms,
+  `A1:A9999` 942ms against 7ms. The cap bounds the damage; the index makes it free.
+
+  One more from a second review pass: Excel caps a print header at 255 characters and **drops** one
+  that is longer rather than complaining, so a printout would come out unidentified while generation
+  reported success. Nothing bounds a deal name, and the ampersand doubling grows the string on the way
+  in — 200 ampersands encode to 400 characters. Measured: two 130-character names produced a
+  269-character header. It is now truncated with an ellipsis, in whole encoded units so a cut can
+  never split a `&&` pair and leave a dangling `&` to swallow what follows it.
+
+  And truncating the *joined* string was not good enough either — a third pass caught that. The parts
+  are ordered account-then-deal, so a 300-character account name consumed the whole budget and emitted
+  a header with no deal name in it, which makes every deal for that account print identically.
+  `PrintSetup.header` now takes parts and shares the budget across them, with a part that does not
+  need its share releasing the surplus to the ones that do.
+
+  The header also now carries `dealId`, and falls back to a constant when a deal names nothing at all.
+  The schema requires `dealId`, `accountName` and `dealName` but bounds none of them, so all three can
+  be empty strings and still validate — filed as #901, because that laxness reaches further than
+  headers.
+
+  Verified against real Excel: the file opens with no repair prompt, and Excel confirms the merge, the
+  preserved anchor value, the absence of any merge inside a table range, the hidden grid, and the
+  landscape fit-to-width setup.
+
+  One UAT honesty fix came out of a real failure during that verification. The round-trip block wrote
+  four cells, saved and closed in a single AppleScript, so when a save did not reach disk the reader
+  saw the untouched file, found nothing to propose, and the script reported that
+  `metadata.accountName` "came back as MISSING" — an accurate symptom pointing at the wrong component.
+  The write is now checked in the open workbook, and the save is checked against the file on disk,
+  each naming itself. Three consecutive runs, eight blocks each, green.
+
 - **`meddpicc`** v4.2.0 — a row typed **under** a table is now read as a new list entry instead of
   merely being reported.
 

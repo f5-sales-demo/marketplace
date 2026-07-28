@@ -217,6 +217,47 @@ echo "    score dropdown: Excel=[$got_scores]"
 [ "$got_scores" = "0,1,2,3,4" ] || fail "the score dropdown is '$got_scores', expected 0,1,2,3,4"
 echo "PASS: Excel recognises the tables, the conditional formats and the schema-derived dropdowns"
 
+# The presentation primitives are the ones a unit test can least vouch for: a merge Excel
+# rejects, a print setup it ignores, a gridline flag in the wrong place — all of them produce a
+# file that still opens. So ask Excel what it made of them.
+merged_title="$(ask "merge cells of range \"A1:B1\" of worksheet \"Deal\" of workbook \"$BOOK\"")"
+echo "    Deal!A1:B1 merged: ${merged_title:-<none>}"
+[ "$merged_title" = "true" ] || fail "expected the title banner to be merged, Excel reports '$merged_title'"
+
+# The value belongs to the top-left cell; a merge that lost it would read back empty.
+merged_text="$(ask "value of range \"A1\" of worksheet \"Deal\" of workbook \"$BOOK\"")"
+echo "    Deal!A1 reads: ${merged_text:-<empty>}"
+[ -n "$merged_text" ] || fail "the merged title cell is empty — the merge swallowed its value"
+
+# A table sheet must have NO merge anywhere in its table range: Excel silently drops a table
+# that contains one, and the drop is only visible as the table count falling to zero.
+merged_in_table="$(ask "merge cells of range \"A1:H2\" of worksheet \"Stakeholders\" of workbook \"$BOOK\"")"
+echo "    Stakeholders!A1:H2 merged: ${merged_in_table:-<none>}"
+[ "$merged_in_table" = "false" ] || fail "a merge inside the Stakeholders table range would make Excel drop the table"
+
+gridlines="$(
+  osascript <<OSA 2>/dev/null
+tell application "Microsoft Excel"
+  activate object worksheet "Deal" of workbook "$BOOK"
+  return (display gridlines of active window) as string
+end tell
+OSA
+)"
+echo "    gridlines shown on Deal: ${gridlines:-<none>}"
+[ "$gridlines" = "false" ] || fail "expected gridlines hidden on Deal, Excel reports '$gridlines'"
+
+# `page orientation`, not `orientation` — the latter is a different property that reads back
+# "missing value" for a worksheet page setup, which looks exactly like Excel ignoring us.
+orientation="$(ask "page orientation of page setup object of worksheet \"Deal\" of workbook \"$BOOK\"")"
+fit_wide="$(ask "fit to pages wide of page setup object of worksheet \"Deal\" of workbook \"$BOOK\"")"
+fit_tall="$(ask "fit to pages tall of page setup object of worksheet \"Deal\" of workbook \"$BOOK\"")"
+echo "    print orientation: ${orientation:-<none>}, fit to pages wide/tall: ${fit_wide:-<none>}/${fit_tall:-<none>}"
+[ "$orientation" = "landscape" ] || fail "expected landscape print orientation, Excel reports '$orientation'"
+# One page wide, unlimited tall: a deal review is read by scrolling, not shrunk to nothing.
+[ "$fit_wide" = "1" ] || fail "expected fit to 1 page wide, Excel reports '$fit_wide'"
+[ "$fit_tall" = "0" ] || fail "expected unlimited page height, Excel reports '$fit_tall'"
+echo "PASS: Excel accepts the merges, hides the grid and honours the print setup"
+
 # Putting a Table on Qualification hands the user a sort button, and a formula written as
 # `Qualification!C8` means "champion" only until they press it. Moving the key to another row
 # is what a sort does; the Scorecard must follow the key, not the address.
@@ -324,14 +365,34 @@ done
 wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.accountName address)" ||
   fail "Excel never finished opening $RT_BOOK"
 
+# Writing, saving and closing in one breath hid which of the three failed. When the save did not
+# reach disk the reader saw the untouched file, reported no proposals, and this script blamed
+# `metadata.accountName` for "coming back as MISSING" — an accurate symptom pointing at the wrong
+# component. So each step is now checked on its own terms.
+#
 # `range`, not `cell`: reads work through either, but a write through `cell` fails.
 excel_do "the four hand edits" "  set wb to workbook \"$RT_BOOK\"
   set value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb to \"Globex Corporation\"
   set value of range \"$(at qualification.champion.score address)\" of worksheet \"$(at qualification.champion.score sheet)\" of wb to 2
   set value of range \"$(at metadata.closeDate address)\" of worksheet \"$(at metadata.closeDate sheet)\" of wb to \"2026-09-15\"
   set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to false
+  if ((get value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb) as string) is not \"Globex Corporation\" then error \"the accountName write did not take in the open workbook\""
+
+# What the file looked like before Excel was asked to save it.
+rt_before="$(stat -f '%m %z' "$RT_OUT")"
+
+excel_do "saving and closing the edited workbook" "  set wb to workbook \"$RT_BOOK\"
   save wb
   close wb saving no"
+
+# Excel reports a successful `save` before the bytes are necessarily on disk, and a workbook that
+# closes without flushing leaves the reader looking at the file as it was.
+for _ in $(seq 1 30); do
+  [ "$(stat -f '%m %z' "$RT_OUT")" != "$rt_before" ] && break
+  sleep 1
+done
+[ "$(stat -f '%m %z' "$RT_OUT")" != "$rt_before" ] ||
+  fail "Excel reported saving $RT_BOOK but the file on disk is unchanged ($rt_before) — the edits never reached it"
 
 edited="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")"
 edited_code=$?
