@@ -43,7 +43,10 @@ test_resources_manifest_declares_reachable_keys() {
 test_resources_manifest_advertises_engine_commands() {
   local manifest="$PLUGIN_ROOT/.xcsh-plugin/resources.json"
   local cmd
-  for cmd in validate next score hint fill check-mappings; do
+  # Every command the engine implements, not a subset: `generate` and `check-spec` were both
+  # advertised in the manifest while this list still stopped at `check-mappings`, so dropping
+  # either from the manifest would have gone unnoticed.
+  for cmd in validate next score hint fill check-mappings check-spec generate read; do
     jq -e --arg c "$cmd" '.engine.commands | index($c)' "$manifest" >/dev/null || {
       echo "engine.commands does not advertise \"$cmd\""
       return 1

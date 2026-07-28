@@ -364,6 +364,49 @@ Rules that matter:
   sheet computes Factored Pipe from `N4` and `I5`.
 - Never target `I7`; it is the template's own formula.
 
+### The generated workbook, and reading it back
+
+`fill` above puts values into the F5 Deal Review Sheet. There is also a
+workbook the plugin builds itself, from `engine/workbook-spec.json`:
+eight sheets, a Scorecard that is entirely formulas, Excel Tables that
+grow, conditional formatting, dropdowns read from the schema — and,
+unlike the template, it reads back.
+
+```bash
+bun xcsh://plugin/meddpicc/file/engine/cli.ts generate <deal.json> \
+  --out "{accountName}-MEDDPICC-{YYYY-MM-DD}.xlsx"
+```
+
+Once someone has edited it in Excel, pull their work back into the JSON:
+
+```bash
+bun xcsh://plugin/meddpicc/file/engine/cli.ts read <workbook.xlsx> \
+  --deal <deal.json>            # says what it proposes; writes nothing
+bun xcsh://plugin/meddpicc/file/engine/cli.ts read <workbook.xlsx> \
+  --deal <deal.json> --apply    # writes it
+```
+
+**Which one to produce is the user's call, not yours.** The F5 Deal
+Review Sheet is the artefact leadership recognises; the generated
+workbook is the better tool for working the deal. If they say "render"
+or "export" without saying which, produce the template and mention the
+other exists.
+
+Rules that matter:
+
+- **Show the proposals before applying.** `read` without `--apply`
+  changes nothing, and that is the default for a reason: the JSON is
+  the source of truth and a cell that differs is a proposal.
+- **Relay a rejection by its cell address**, as the tool gives it —
+  `Qualification!C8`, not a JSON path. The user is looking at Excel.
+  A non-zero exit means something was refused; do not apply anyway.
+- **A workbook only reads back against the deal it was generated
+  from.** It carries a stamp, and `read` refuses it otherwise. If the
+  deal has gained a stakeholder or an answer since, regenerate — do
+  not try to make the old file work.
+- After applying edits that added rows, regenerate the workbook so it
+  has blank rows to grow into again.
+
 ## Coaching Behavior
 
 After presenting the scorecard:
