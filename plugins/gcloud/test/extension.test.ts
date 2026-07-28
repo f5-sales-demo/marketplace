@@ -1,5 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
+/**
+ * These cases drive the real `gcloud` binary, so they are meaningful only where it is
+ * installed. A visible skip beats an `if (…)` that quietly asserts nothing, and the
+ * generous timeout is because a cloud CLI answering in under five seconds is not a
+ * property this repo controls.
+ */
+const GCLOUD_INSTALLED = Bun.spawnSync([process.platform === 'win32' ? 'where' : 'which', 'gcloud']).exitCode === 0;
+
 describe('GCloud Status extension', () => {
   let factory: (pi: unknown) => Promise<void>;
 
@@ -68,21 +76,25 @@ describe('GCloud Status extension', () => {
     }
   });
 
-  it('service check returns valid state', async () => {
-    let checkFn: (() => Promise<{ state: string }>) | undefined;
-    const mockPi = {
-      setLabel() {},
-      logger: { debug() {} },
-      registerCommand() {},
-      registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
-        checkFn = c.check;
-      },
-    };
-    await factory(mockPi);
+  it.skipIf(!GCLOUD_INSTALLED)(
+    'service check returns valid state',
+    async () => {
+      let checkFn: (() => Promise<{ state: string }>) | undefined;
+      const mockPi = {
+        setLabel() {},
+        logger: { debug() {} },
+        registerCommand() {},
+        registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
+          checkFn = c.check;
+        },
+      };
+      await factory(mockPi);
 
-    if (checkFn) {
-      const result = await checkFn();
-      expect(['connected', 'unauthenticated', 'unavailable']).toContain(result.state);
-    }
-  });
+      if (checkFn) {
+        const result = await checkFn();
+        expect(['connected', 'unauthenticated', 'unavailable']).toContain(result.state);
+      }
+    },
+    60000,
+  );
 });

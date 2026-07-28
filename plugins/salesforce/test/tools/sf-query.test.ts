@@ -2,18 +2,24 @@ import { describe, expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
 import { createSfQueryTool } from '../../src/tools/sf-query';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockPi = { typebox: { Type }, logger: { debug() {} } };
 
 describe('createSfQueryTool', () => {
   it('returns a tool definition with correct name', () => {
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     expect(tool.name).toBe('sf_query');
     expect(tool.label).toBe('Salesforce Query');
     expect(tool.description).toBeTruthy();
   });
 
   it('has description loaded from prompt template', () => {
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     expect(typeof tool.description).toBe('string');
     expect(tool.description.length).toBeGreaterThan(50);
   });
@@ -21,7 +27,7 @@ describe('createSfQueryTool', () => {
 
 describe('sf_query execute — validation', () => {
   it('rejects shell injection in org alias', async () => {
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     const result = await tool.execute(
       't1',
       { query: 'SELECT Id FROM Account', target_org: 'bad;whoami' },
@@ -34,7 +40,7 @@ describe('sf_query execute — validation', () => {
   });
 
   it('rejects backtick injection in org alias', async () => {
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     const result = await tool.execute(
       't1',
       { query: 'SELECT Id FROM Account', target_org: '`id`' },
@@ -46,7 +52,7 @@ describe('sf_query execute — validation', () => {
   });
 
   it('rejects dollar sign injection', async () => {
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     const result = await tool.execute(
       't1',
       { query: 'SELECT Id FROM Account', target_org: '$(whoami)' },
@@ -58,7 +64,7 @@ describe('sf_query execute — validation', () => {
   });
 
   it('accepts valid org alias without error on validation', async () => {
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     const result = await tool.execute(
       't1',
       { query: 'SELECT Id FROM Account', target_org: 'valid-org.123' },
@@ -74,7 +80,7 @@ describe('sf_query execute — validation', () => {
 
   it('does not reject when target_org is omitted', () => {
     // Verify the tool definition itself doesn't require target_org
-    const tool = createSfQueryTool(mockPi);
+    const tool = createSfQueryTool(mockPi, stubExec);
     expect(tool.parameters).toBeTruthy();
     // target_org is optional — the tool should accept calls without it
     // (actual exec behavior tested in integration tests)

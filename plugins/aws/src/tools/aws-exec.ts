@@ -1,3 +1,4 @@
+import type { AwsExecApi } from '../aws/exec';
 import { detectAwsError } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
 import awsExecDescription from '../prompts/aws-exec.md' with { type: 'text' };
@@ -6,7 +7,11 @@ import { errorResult, hasControlChars, makeExecApi, textResult } from './shared'
 
 const MAX_OUTPUT_LENGTH = 50000;
 
-export function createAwsExecTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAwsExecTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -54,7 +59,7 @@ export function createAwsExecTool(pi: PluginInterface) {
         return errorResult(`Error: ${mutation.reason}`, base);
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const builtArgs = buildAwsArgs(args);
       const result = await api.exec('aws', builtArgs, { signal });
       if (result.exitCode !== 0) {

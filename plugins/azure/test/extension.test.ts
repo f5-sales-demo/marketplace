@@ -1,5 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
+/**
+ * These cases drive the real `az` binary, so they are meaningful only where it is
+ * installed. A visible skip beats an `if (…)` that quietly asserts nothing, and the
+ * generous timeout is because a cloud CLI answering in under five seconds is not a
+ * property this repo controls.
+ */
+const AZ_INSTALLED = Bun.spawnSync([process.platform === 'win32' ? 'where' : 'which', 'az']).exitCode === 0;
+
 const mockTypebox = {
   Type: {
     Object: (s: unknown) => s,
@@ -71,20 +79,24 @@ describe('Azure Status extension', () => {
     expect(events).toContain('session_start');
   });
 
-  it('service check returns valid state', async () => {
-    let checkFn: (() => Promise<{ state: string }>) | undefined;
-    const mockPi = baseMockPi({
-      registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
-        checkFn = c.check;
-      },
-    });
-    await factory(mockPi);
-    expect(checkFn).toBeDefined();
-    if (checkFn) {
-      const result = await checkFn();
-      expect(['connected', 'unauthenticated', 'unavailable']).toContain(result.state);
-    }
-  });
+  it.skipIf(!AZ_INSTALLED)(
+    'service check returns valid state',
+    async () => {
+      let checkFn: (() => Promise<{ state: string }>) | undefined;
+      const mockPi = baseMockPi({
+        registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
+          checkFn = c.check;
+        },
+      });
+      await factory(mockPi);
+      expect(checkFn).toBeDefined();
+      if (checkFn) {
+        const result = await checkFn();
+        expect(['connected', 'unauthenticated', 'unavailable']).toContain(result.state);
+      }
+    },
+    60000,
+  );
 
   it('registers 6 tools when az CLI is available', async () => {
     const tools: Array<{ name: string }> = [];

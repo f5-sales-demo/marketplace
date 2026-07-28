@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createGcloudStorageBucketsListTool } from '../../src/tools/gcloud-storage-buckets-list';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -11,7 +17,7 @@ const mockTypebox = {
 };
 
 describe('createGcloudStorageBucketsListTool metadata', () => {
-  const tool = createGcloudStorageBucketsListTool({ typebox: mockTypebox });
+  const tool = createGcloudStorageBucketsListTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('gcloud_storage_buckets_list');
@@ -31,7 +37,7 @@ describe('createGcloudStorageBucketsListTool metadata', () => {
 });
 
 describe('gcloud_storage_buckets_list limit validation', () => {
-  const tool = createGcloudStorageBucketsListTool({ typebox: mockTypebox });
+  const tool = createGcloudStorageBucketsListTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects a zero limit', async () => {
     const r = await tool.execute('id', { limit: 0 }, undefined, null, { cwd: '/tmp' });

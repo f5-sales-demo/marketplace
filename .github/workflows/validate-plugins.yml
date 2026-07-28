@@ -11,6 +11,7 @@ on:
       - "scripts/validate-plugins.sh"
       - "scripts/check-version-bumps.sh"
       - "scripts/run-plugin-tests.sh"
+      - "scripts/check-tests-are-hermetic.sh"
   push:
     branches: [main]
     paths:
@@ -19,6 +20,7 @@ on:
       - "scripts/validate-plugins.sh"
       - "scripts/check-version-bumps.sh"
       - "scripts/run-plugin-tests.sh"
+      - "scripts/check-tests-are-hermetic.sh"
 
 permissions:
   contents: read
@@ -77,3 +79,9 @@ jobs:
 
       - name: Run plugin test suites
         run: ./scripts/run-plugin-tests.sh
+
+      # The runner ships aws, az, gcloud and gh. A test that quietly spawns one passes here
+      # and fails on a machine where that CLI is slower or absent — which is how this job
+      # broke twice. Replacing the CLIs with sleeping stubs makes any such test name itself.
+      - name: Check tests do not depend on a real cloud CLI
+        run: ./scripts/check-tests-are-hermetic.sh

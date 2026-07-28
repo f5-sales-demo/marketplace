@@ -1,3 +1,4 @@
+import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatSubscriptionDetail, formatSubscriptionTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
@@ -5,7 +6,11 @@ import { SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATTERN } from '../az/types'
 import azAccountDescription from '../prompts/az-account-show.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeSubscription, textResult } from './shared';
 
-export function createAzAccountShowTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAzAccountShowTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -40,7 +45,7 @@ export function createAzAccountShowTool(pi: PluginInterface) {
         }
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
 
       try {
         if (params.action === 'list') {

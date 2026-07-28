@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAwsEc2DescribeInstancesTool } from '../../src/tools/aws-ec2-describe-instances';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -11,7 +17,7 @@ const mockTypebox = {
 };
 
 describe('createAwsEc2DescribeInstancesTool', () => {
-  const tool = createAwsEc2DescribeInstancesTool({ typebox: mockTypebox });
+  const tool = createAwsEc2DescribeInstancesTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('aws_ec2_describe_instances');
@@ -31,7 +37,7 @@ describe('createAwsEc2DescribeInstancesTool', () => {
 });
 
 describe('aws_ec2_describe_instances input validation', () => {
-  const tool = createAwsEc2DescribeInstancesTool({ typebox: mockTypebox });
+  const tool = createAwsEc2DescribeInstancesTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects an invalid region', async () => {
     const result = await tool.execute('id', { region: 'us_east_1' }, undefined, null, { cwd: '/tmp' });

@@ -1,4 +1,5 @@
 import sfQueryDescription from '../prompts/sf-query.md' with { type: 'text' };
+import type { SfExecApi } from '../sf/exec';
 import { execSfJson } from '../sf/exec';
 import { deriveQueryLabel, formatQueryResults } from '../sf/formatters';
 import type { SfQueryResult } from '../sf/types';
@@ -6,7 +7,11 @@ import { ORG_ALIAS_PATTERN } from '../sf/types';
 import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
-export function createSfQueryTool(pi: PluginHost) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createSfQueryTool(pi: PluginHost, makeApi: (cwd: string) => SfExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -42,7 +47,7 @@ export function createSfQueryTool(pi: PluginHost) {
       _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const queryDescription = params.description ?? deriveQueryLabel(params.query);
       const base = { tool: 'sf_query' as const, action: 'query', queryDescription };
 

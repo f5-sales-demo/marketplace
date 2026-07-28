@@ -1,3 +1,4 @@
+import type { GcloudExecApi } from '../gcloud/exec';
 import { detectGcloudError } from '../gcloud/exec';
 import type { PluginInterface } from '../gcloud/types';
 import gcloudExecDescription from '../prompts/gcloud-exec.md' with { type: 'text' };
@@ -6,7 +7,11 @@ import { detectErrorType, errorResult, hasControlChars, makeExecApi, textResult 
 
 const MAX_OUTPUT_LENGTH = 50000;
 
-export function createGcloudExecTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createGcloudExecTool(pi: PluginInterface, makeApi: (cwd: string) => GcloudExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -53,7 +58,7 @@ export function createGcloudExecTool(pi: PluginInterface) {
       }
 
       try {
-        const api = makeExecApi(ctx.cwd);
+        const api = makeApi(ctx.cwd);
         const result = await api.exec('gcloud', buildGcloudArgs(args), { signal });
         if (result.exitCode !== 0) {
           // Classify the failure (auth / session-expired / permission / not-found) from

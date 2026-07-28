@@ -1,3 +1,4 @@
+import type { AzExecApi } from '../az/exec';
 import { execAzJson } from '../az/exec';
 import { formatVmTable } from '../az/formatters';
 import type { PluginInterface } from '../az/types';
@@ -5,7 +6,11 @@ import { RESOURCE_GROUP_PATTERN, SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATT
 import azVmDescription from '../prompts/az-vm-list.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeVm, textResult } from './shared';
 
-export function createAzVmListTool(pi: PluginInterface) {
+/**
+ * `makeApi` is injected by tests so a validation case can assert what the tool lets
+ * through without spawning the real CLI.
+ */
+export function createAzVmListTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -43,7 +48,7 @@ export function createAzVmListTool(pi: PluginInterface) {
         }
       }
 
-      const api = makeExecApi(ctx.cwd);
+      const api = makeApi(ctx.cwd);
       const args = ['vm', 'list'];
       if (params.resource_group) args.push('--resource-group', params.resource_group);
       if (params.subscription) args.push('--subscription', params.subscription);

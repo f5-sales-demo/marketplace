@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAzGroupListTool } from '../../src/tools/az-group-list';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -12,7 +18,7 @@ const mockTypebox = {
 };
 
 describe('createAzGroupListTool', () => {
-  const tool = createAzGroupListTool({ typebox: mockTypebox });
+  const tool = createAzGroupListTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('az_group_list');
@@ -32,7 +38,7 @@ describe('createAzGroupListTool', () => {
 });
 
 describe('az_group input validation', () => {
-  const tool = createAzGroupListTool({ typebox: mockTypebox });
+  const tool = createAzGroupListTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects subscription with shell injection', async () => {
     const result = await tool.execute('id', { action: 'list', subscription: ';rm -rf /' }, null, null, { cwd: '/tmp' });

@@ -3,13 +3,19 @@ import { Type } from '@sinclair/typebox';
 import { createSfExecTool } from '../../src/tools/sf-exec';
 import { effectiveApiMethod, findMutation, normalizeArgs } from '../../src/tools/sf-exec-guard';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const NUL = String.fromCharCode(0);
 const TAB = String.fromCharCode(9);
 
 const mockPi = { typebox: { Type } };
 
 function makeTool() {
-  return createSfExecTool(mockPi);
+  return createSfExecTool(mockPi, stubExec);
 }
 
 describe('normalizeArgs', () => {

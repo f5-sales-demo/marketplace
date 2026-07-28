@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAwsS3LsTool } from '../../src/tools/aws-s3-ls';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -10,7 +16,7 @@ const mockTypebox = {
 };
 
 describe('createAwsS3LsTool', () => {
-  const tool = createAwsS3LsTool({ typebox: mockTypebox });
+  const tool = createAwsS3LsTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('aws_s3_ls');
@@ -30,7 +36,7 @@ describe('createAwsS3LsTool', () => {
 });
 
 describe('aws_s3_ls input validation', () => {
-  const tool = createAwsS3LsTool({ typebox: mockTypebox });
+  const tool = createAwsS3LsTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects a target that is not an s3:// URI', async () => {
     const result = await tool.execute('id', { target: '/etc/passwd' }, undefined, null, { cwd: '/tmp' });

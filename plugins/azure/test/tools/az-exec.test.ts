@@ -8,6 +8,12 @@ import {
   MUTATING_VERBS,
 } from '../../src/tools/az-exec';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -17,7 +23,7 @@ const mockTypebox = {
 };
 
 describe('createAzExecTool', () => {
-  const tool = createAzExecTool({ typebox: mockTypebox });
+  const tool = createAzExecTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('az_exec');

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createAzHelpTool } from '../../src/tools/az-help';
 
+// Validation tests must never reach a real CLI: whether one is installed, and how long it
+// takes to answer, is not part of what they are asserting.
+const stubExec = () => ({
+  exec: async () => ({ stdout: '{}', stderr: '', exitCode: 0 }),
+});
+
 const mockTypebox = {
   Type: {
     Object: (schema: Record<string, unknown>) => schema,
@@ -10,7 +16,7 @@ const mockTypebox = {
 };
 
 describe('createAzHelpTool', () => {
-  const tool = createAzHelpTool({ typebox: mockTypebox });
+  const tool = createAzHelpTool({ typebox: mockTypebox }, stubExec);
 
   it('has correct name', () => {
     expect(tool.name).toBe('az_help');
@@ -30,7 +36,7 @@ describe('createAzHelpTool', () => {
 });
 
 describe('az_help input validation', () => {
-  const tool = createAzHelpTool({ typebox: mockTypebox });
+  const tool = createAzHelpTool({ typebox: mockTypebox }, stubExec);
 
   it('rejects command_path with semicolons', async () => {
     const result = await tool.execute('id', { command_path: 'vm;rm' }, null, null, { cwd: '/tmp' });
