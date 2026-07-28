@@ -61,7 +61,7 @@ and this project adheres to
     the sixth row of a three-item list would write `stakeholders[5]` into an array of length 3.
     Refused by cell address, with the row that is still empty named.
 
-  Verified in real Excel end to end: four cells of four types edited by hand, saved, and read
+  Verified in real Excel end-to-end: four cells of four types edited by hand, saved, and read
   back exactly — a string through shared strings, a 0-4 score, `2026-09-15` typed as text and
   stored as a serial, and a boolean. The UAT was itself mutation-checked, and the 86-proposal
   measurement above is what it reports when the reader is broken.
