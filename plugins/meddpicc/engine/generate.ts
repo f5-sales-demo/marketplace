@@ -340,6 +340,40 @@ function derivedValue(
   return undefined;
 }
 
+/** What the header says when the deal names nothing — see {@link presentation}. */
+const FALLBACK_HEADER = 'MEDDPICC Deal Review';
+
+/**
+ * Presentation settings every sheet shares: no grid, and a print setup that puts the deal on
+ * paper the way a review expects rather than spread over six portrait pages.
+ *
+ * The grid is what makes a generated workbook read as a data dump. Hiding it costs nothing —
+ * the cells and their borders are unchanged — and is the single largest visual difference
+ * between this and a sheet somebody laid out by hand.
+ */
+function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'> {
+  // Parts, not one joined string: the writer shares Excel's 255-character header budget across
+  // them, so a very long account name cannot crowd a later part out and leave every deal for that
+  // account printing identically.
+  //
+  // `dealId` is in there because it is the only part guaranteed to identify the deal. The schema
+  // requires all three of these but bounds none of them, so a deal whose account and deal names
+  // are both empty strings still validates — and a printout of it would carry nothing to file it
+  // by. The id is short, so per-part budgeting always lets it through.
+  const header = ['metadata.accountName', 'metadata.dealName', 'metadata.dealId']
+    .map((path) => readPath(deal, path))
+    .filter((part): part is string => typeof part === 'string' && part !== '');
+  return {
+    hideGridlines: true,
+    print: {
+      orientation: 'landscape',
+      fitToWidth: true,
+      // Never nothing: an unlabelled printout is worse than a generic one.
+      header: header.length ? header : [FALLBACK_HEADER],
+    },
+  };
+}
+
 export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): WorkbookPlan {
   const { named, tables, formRows } = layout(schema, spec, deal);
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
@@ -349,6 +383,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   for (const s of spec.sheets) {
     if (s.kind === 'form') {
       const rows: RowSpec[] = [];
+      const merges: string[] = [];
+      // A form is label-then-value, so its width is however many columns the spec sizes.
+      const formWidth = s.columns?.reduce((widest, c) => Math.max(widest, c.max), 0) ?? 0;
       for (const { block, row } of formRows.get(s.name) ?? []) {
         const cells: CellSpec[] = [];
 
@@ -373,6 +410,11 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         }
 
         if (cells.length > 0) rows.push({ row, cells, height: 'height' in block ? block.height : undefined });
+        // A banner that stops at the label column reads as a mislabelled cell rather than a
+        // heading, so a title or section spans the width the sheet actually uses.
+        if ((block.kind === 'title' || block.kind === 'section') && formWidth > 1) {
+          merges.push(`${A1(1, row)}:${A1(formWidth, row)}`);
+        }
       }
       const formFormats: ConditionalFormat[] = [];
       const formValidations: Validation[] = [];
@@ -391,6 +433,8 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         rows,
         columns: s.columns,
         freezeAtRow: 1,
+        merges: merges.length ? merges : undefined,
+        ...presentation(deal),
         conditionalFormats: formFormats.length ? formFormats : undefined,
         validations: formValidations.length ? formValidations : undefined,
       });
@@ -487,6 +531,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       rows: [...byRow.entries()].sort(([a], [b]) => a - b).map(([row, cells]) => ({ row, cells })),
       columns,
       freezeAtRow: 1,
+      ...presentation(deal),
       tables: tableParts.length ? tableParts : undefined,
       conditionalFormats: tableFormats.length ? tableFormats : undefined,
       validations: tableValidations.length ? tableValidations : undefined,

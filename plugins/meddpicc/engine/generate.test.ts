@@ -5,7 +5,7 @@ import { computeCompletion } from './completion';
 import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
 import type { WorkbookSpec } from './workbook-spec';
-import { COMPLETION_STATUSES } from './xlsx';
+import { A1, COMPLETION_STATUSES } from './xlsx';
 import { readZip } from './zip';
 
 const here = import.meta.dir;
@@ -410,5 +410,54 @@ describe('planWorkbook — where a list can grow', () => {
     // equal to ['name'] and this assertion could not fail if the computed column slipped through.
     expect(growth[0].columns).toHaveLength(1);
     expect(growth[0].columns.map((c) => c.relativePath)).toStrictEqual(['name']);
+  });
+});
+
+describe('planWorkbook — presentation', () => {
+  test('every sheet hides the grid and carries a print setup', () => {
+    for (const s of plan.sheets) {
+      expect(s.hideGridlines, `${s.name} shows the grid`).toBe(true);
+      expect(s.print?.orientation, `${s.name} print orientation`).toBe('landscape');
+      expect(s.print?.fitToWidth, `${s.name} fit-to-width`).toBe(true);
+    }
+  });
+
+  test('the print header names the deal, so a printout is identifiable', () => {
+    // Parts, so the writer can budget each one: a joined string lets a long account name crowd
+    // the deal name out entirely.
+    expect(plan.sheets[0].print?.header).toStrictEqual([
+      String(deal.metadata.accountName),
+      String(deal.metadata.dealName),
+      String(deal.metadata.dealId),
+    ]);
+  });
+
+  test('the header falls back to the deal id, then to a constant, so it is never absent', () => {
+    // The schema requires accountName, dealName and dealId but bounds none of them, so all three
+    // can be empty strings and still validate. A printout with no header cannot be filed.
+    const nameless = { ...deal, metadata: { ...deal.metadata, accountName: '', dealName: '' } };
+    expect(planWorkbook(schema, spec, nameless).sheets[0].print?.header).toStrictEqual([String(deal.metadata.dealId)]);
+
+    const anonymous = { ...deal, metadata: { ...deal.metadata, accountName: '', dealName: '', dealId: '' } };
+    expect(planWorkbook(schema, spec, anonymous).sheets[0].print?.header).toStrictEqual(['MEDDPICC Deal Review']);
+  });
+
+  test('a title and every section banner span the form width', () => {
+    // A banner that stops at the label column reads as a mislabelled cell, not a heading.
+    const deals = sheet('Deal');
+    const width = deals.columns?.reduce((w, c) => Math.max(w, c.max), 0) ?? 0;
+    expect(width).toBeGreaterThan(1);
+    const banners = deals.rows.filter((r) => r.cells.some((c) => c.style === 'title' || c.style === 'sectionHeader'));
+    expect(banners.length).toBeGreaterThan(1);
+    for (const row of banners) {
+      expect(deals.merges ?? []).toContain(`${A1(1, row.row)}:${A1(width, row.row)}`);
+    }
+  });
+
+  test('a table sheet declares no merges, because a merge would break its table', () => {
+    // Excel drops a table whose range contains a merged cell, and repairs the file to say so.
+    for (const s of plan.sheets.filter((x) => x.tables?.length)) {
+      expect(s.merges, `${s.name} merges`).toBeUndefined();
+    }
   });
 });
