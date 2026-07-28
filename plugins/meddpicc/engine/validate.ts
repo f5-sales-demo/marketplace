@@ -30,7 +30,8 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+/** Structural equality for JSON values. Exported so the migration compares the same way. */
+export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((x, i) => deepEqual(x, b[i]));
