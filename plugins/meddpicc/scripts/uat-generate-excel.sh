@@ -29,10 +29,66 @@ command -v bun >/dev/null 2>&1 || skip "bun unavailable"
 command -v osascript >/dev/null 2>&1 || skip "not macOS (no osascript)"
 [ -d "/Applications/Microsoft Excel.app" ] || skip "Microsoft Excel is not installed"
 
+# Close EVERY workbook, not just the first one this script opened. A failure part-way through used
+# to leave a later workbook open, and the next run then read the Scorecard out of the stale one and
+# reported an empty rating — a confusing failure with nothing to do with the code under test.
+close_all_workbooks() {
+  osascript >/dev/null 2>&1 <<'OSA'
+tell application "Microsoft Excel"
+  set display alerts to false
+  repeat with wb in (get every workbook)
+    close wb saving no
+  end repeat
+  set display alerts to true
+end tell
+OSA
+}
+
 fail() {
   echo "FAIL: $1" >&2
-  osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
+  close_all_workbooks
   exit 1
+}
+
+# Start from a clean slate for the same reason: a workbook left open by anything else is a workbook
+# this script might read by mistake.
+close_all_workbooks
+
+# Appearing in `get name of every workbook` means Excel has ACCEPTED the file, not that it has
+# finished with it. Writing too early fails silently, and the symptom is a later assertion reporting
+# a value that was never written — which is how this script twice blamed the code under test for
+# Excel still being busy. So wait until a known cell reads back, then verify every write.
+wait_until_ready() {
+  local book="$1" sheet="$2" cell="$3" seen
+  for _ in $(seq 1 30); do
+    seen="$(
+      osascript 2>/dev/null <<OSA
+tell application "Microsoft Excel"
+  return (get value of cell "$cell" of worksheet "$sheet" of workbook "$book") as string
+end tell
+OSA
+    )"
+    [ -n "${seen// /}" ] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+# Run an AppleScript body that must end by returning "ok". Anything else — including an error
+# AppleScript would otherwise print to stderr and lose — fails the run with the text.
+excel_do() {
+  local label="$1" body="$2" result
+  result="$(
+    osascript 2>&1 <<OSA
+tell application "Microsoft Excel"
+  set display alerts to false
+$body
+  set display alerts to true
+  return "ok"
+end tell
+OSA
+  )"
+  [ "$result" = "ok" ] || fail "$label did not apply: ${result:-<no output>}"
 }
 
 echo "==> generating $OUT"
@@ -232,14 +288,10 @@ done
 [ "${rt_opened:-0}" = "1" ] || fail "Excel never listed $RT_BOOK"
 
 # Claim 1: a save with no edits at all.
-osascript <<OSA >/dev/null 2>&1
-tell application "Microsoft Excel"
-  set display alerts to false
-  save workbook "$RT_BOOK"
-  close workbook "$RT_BOOK" saving no
-  set display alerts to true
-end tell
-OSA
+wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.accountName address)" ||
+  fail "Excel never finished opening $RT_BOOK"
+excel_do "the untouched save" "  save workbook \"$RT_BOOK\"
+  close workbook \"$RT_BOOK\" saving no"
 untouched="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")"
 rt_code=$?
 untouched_count="$(jq -r '.proposals | length' <<<"$untouched")"
@@ -260,20 +312,17 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
+wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.accountName address)" ||
+  fail "Excel never finished opening $RT_BOOK"
+
 # `range`, not `cell`: reads work through either, but a write through `cell` fails.
-osascript <<OSA >/dev/null 2>&1
-tell application "Microsoft Excel"
-  set display alerts to false
-  set wb to workbook "$RT_BOOK"
-  set value of range "$(at metadata.accountName address)" of worksheet "$(at metadata.accountName sheet)" of wb to "Globex Corporation"
-  set value of range "$(at qualification.champion.score address)" of worksheet "$(at qualification.champion.score sheet)" of wb to 2
-  set value of range "$(at metadata.closeDate address)" of worksheet "$(at metadata.closeDate sheet)" of wb to "2026-09-15"
-  set value of range "$(at 'stakeholders[0].mustSayYes' address)" of worksheet "$(at 'stakeholders[0].mustSayYes' sheet)" of wb to false
+excel_do "the four hand edits" "  set wb to workbook \"$RT_BOOK\"
+  set value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb to \"Globex Corporation\"
+  set value of range \"$(at qualification.champion.score address)\" of worksheet \"$(at qualification.champion.score sheet)\" of wb to 2
+  set value of range \"$(at metadata.closeDate address)\" of worksheet \"$(at metadata.closeDate sheet)\" of wb to \"2026-09-15\"
+  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to false
   save wb
-  close wb saving no
-  set display alerts to true
-end tell
-OSA
+  close wb saving no"
 
 edited="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")"
 edited_code=$?
@@ -313,6 +362,74 @@ echo "    applied: $applied_name / $applied_date / score $applied_score / mustSa
 again="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")" || fail "the second read exited non-zero"
 [ "$(jq -r '.proposals | length' <<<"$again")" = "0" ] || fail "a second read still proposes $(jq -c '.proposals' <<<"$again")"
 echo "PASS: edits made in Excel round-trip into the deal JSON, and applying them twice changes nothing"
+
+# A row typed UNDER the table, which is how an Excel Table grows.
+#
+# The reader derives a path for such a row from the table's geometry, and only real Excel can show
+# that the row it creates when you type below the last one is a row the reader then finds. The unit
+# tests inject the cell into the XML themselves; Excel decides where it actually lands, whether the
+# Table absorbs it, and what it looks like afterwards.
+#
+# The padded rows have to be FULL for this: a list of four items with twelve padded rows would leave
+# holes, and appending is refused for exactly that reason. So the fixture fills every one.
+GROWN_DEAL="$WORK/grown.json"
+jq '
+  .stakeholders = [range(12) | {name: ("Person " + (.+1|tostring)), title: "VP", roleInDeal: "Influencer"}]
+' "$DEAL" >"$GROWN_DEAL" || fail "could not build the full-table deal"
+
+GROWN_OUT="$WORK/grown.xlsx"
+GROWN_BOOK="$(basename "$GROWN_OUT")"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --out "$GROWN_OUT" >/dev/null || fail "generate failed for the grown-row case"
+
+# Ask the plan where the table ends rather than assuming; the row below it is the one to type into.
+grown_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --plan)" || fail "generate --plan failed"
+grown_sheet="$(jq -r 'first(.inputCells[] | select(.jsonPath | startswith("stakeholders[")) | .sheet)' <<<"$grown_plan")"
+# A stakeholder needs name, title and roleInDeal — the schema requires all three — so type a whole
+# one. Filling only the name leaves a deal that does not validate, which `read` rightly refuses.
+col_for() {
+  jq -r --arg suffix "].$1" 'first(.inputCells[] | select(.jsonPath | startswith("stakeholders[") and endswith($suffix)) | .address) | sub("[0-9]+$"; "")' <<<"$grown_plan"
+}
+last_row="$(jq -r '[.inputCells[] | select(.jsonPath | startswith("stakeholders[")) | .address | capture("(?<r>[0-9]+)$") | .r | tonumber] | max' <<<"$grown_plan")"
+grown_row=$((last_row + 1))
+grown_ref="$(col_for name)$grown_row"
+echo "==> typing a stakeholder into $grown_sheet row $grown_row, one row under the table"
+
+open -a "Microsoft Excel" "$GROWN_OUT" || fail "could not open the grown-row workbook"
+for _ in $(seq 1 30); do
+  if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$GROWN_BOOK"; then
+    break
+  fi
+  sleep 2
+done
+
+wait_until_ready "$GROWN_BOOK" "$grown_sheet" "$(col_for name)$last_row" ||
+  fail "Excel never finished opening $GROWN_BOOK"
+excel_do "the grown stakeholder row" "  set wb to workbook \"$GROWN_BOOK\"
+  set value of range \"$(col_for name)$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Dana Reyes\"
+  set value of range \"$(col_for title)$grown_row\" of worksheet \"$grown_sheet\" of wb to \"VP Platform\"
+  set value of range \"$(col_for roleInDeal)$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Influencer\"
+  save wb
+  close wb saving no"
+
+grown_report="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$GROWN_OUT" --deal "$GROWN_DEAL")"
+grown_code=$?
+echo "    proposals: $(jq -c '[.proposals[] | {jsonPath, to}]' <<<"$grown_report")"
+[ "$grown_code" = "0" ] || fail "read exited $grown_code on the grown row: $(jq -c '.rejections' <<<"$grown_report")"
+[ "$(jq -r '.rejections | length' <<<"$grown_report")" = "0" ] || fail "the grown row was rejected: $(jq -c '.rejections' <<<"$grown_report")"
+[ "$(jq -r '.proposals | length' <<<"$grown_report")" = "3" ] || fail "expected 3 proposals for the grown row"
+[ "$(jq -r '[.proposals[].jsonPath] | sort | join(",")' <<<"$grown_report")" = "stakeholders[12].name,stakeholders[12].roleInDeal,stakeholders[12].title" ] || fail "the grown row mapped to $(jq -c '[.proposals[].jsonPath]' <<<"$grown_report")"
+[ "$(jq -r '.valid' <<<"$grown_report")" = "true" ] || fail "the deal with the appended stakeholder does not validate"
+
+bun "$PLUGIN_ROOT/engine/cli.ts" read "$GROWN_OUT" --deal "$GROWN_DEAL" --apply >/dev/null || fail "applying the grown row failed"
+grown_count="$(jq -r '.stakeholders | length' "$GROWN_DEAL")"
+grown_name="$(jq -r '.stakeholders[12].name' "$GROWN_DEAL")"
+grown_role="$(jq -r '.stakeholders[12].roleInDeal' "$GROWN_DEAL")"
+echo "    stakeholders after applying: $grown_count, last = $grown_name"
+[ "$grown_count" = "13" ] || fail "expected 13 stakeholders after applying, got $grown_count"
+[ "$grown_name" = "Dana Reyes" ] || fail "the appended stakeholder is '$grown_name'"
+[ "$grown_role" = "Influencer" ] || fail "the appended stakeholder's role is '$grown_role'"
+bun "$PLUGIN_ROOT/engine/cli.ts" validate "$GROWN_DEAL" >/dev/null || fail "the deal does not validate after appending a grown row"
+echo "PASS: a row typed under the table in Excel becomes a new list entry"
 
 # The same comparison on a deal where most elements are unscored — the case that was wrong.
 #

@@ -199,6 +199,23 @@ describe('cli read', () => {
     expect(fs.readFileSync(deal, 'utf8')).toBe(before);
   });
 
+  test('read refuses a spec that does not check out, as generate does', async () => {
+    // Reading leans on the spec: a column claiming both a formula and a jsonPath would have the
+    // reader take a computed value as somebody's answer.
+    const { deal, workbook } = await fixture('badspec');
+    const spec = JSON.parse(fs.readFileSync(path.join(engineDir, 'workbook-spec.json'), 'utf8'));
+    const table = spec.sheets.flatMap((s: { tables?: unknown[] }) => s.tables ?? []).find(Boolean) as {
+      columns: Array<Record<string, unknown>>;
+    };
+    table.columns[0] = { ...table.columns[0], role: 'computed', formula: '1', jsonPath: 'name' };
+    const badSpec = path.join(scratch, 'bad-spec.json');
+    fs.writeFileSync(badSpec, JSON.stringify(spec));
+
+    const { code, out } = await run(['read', workbook, '--deal', deal, '--spec', badSpec]);
+    expect(code).toBe(1);
+    expect(JSON.parse(out).ok).toBe(false);
+  });
+
   test('applying twice is a no-op the second time', async () => {
     const { deal, workbook } = await fixture('idempotent');
     const address = await addressOf(deal, 'metadata.accountName');
