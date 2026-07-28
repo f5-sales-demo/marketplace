@@ -39,6 +39,23 @@ and this project adheres to
   then with a deliberate `=1/0`, then clean again. An assertion nobody has watched fail is not an
   assertion.
 
+  Review then found three problems in the new stage, one of them dangerous:
+
+  - The screenshot directory was a fixed path cleared with `rm -rf` before use, so
+    `MEDDPICC_UAT_SHOT_DIR=$HOME` would have recursively destroyed the operator's home directory —
+    and it ran before the "screenshots disabled" check, so turning the stage off did not save you
+    either. It now uses a fresh directory per run and **never deletes anything**. Verified by pointing
+    it at a directory holding a file and a subdirectory and confirming both survived a full run.
+  - Captures paginated rows only and reset the scroll column to 1, so the right-hand columns of a wide
+    sheet were never captured while the stage still reported PASS. The Qualification sheet's `Notes`
+    column was invisible. Both axes are paginated now, and when the per-sheet cap bites it names what
+    was left out instead of implying that was the whole sheet.
+  - The refactor that made the detector self-verifying moved `fail` inside a command substitution,
+    where it exits only the subshell — and this script runs `set -uo pipefail` with no `-e`, so the
+    parent would have carried on with an empty result, which reads as "no errors found". Exactly the
+    bug being fixed, reintroduced one level down. `error_values` now only ever returns text, and every
+    decision about it is taken in the parent.
+
 - **`meddpicc`** v4.3.0 — the workbook writer can lay a sheet out: merged ranges, a hidden grid, and
   a print setup.
 

@@ -189,30 +189,32 @@ end tell
 OSA
 }
 
-check_error_values() {
-  local errors
+# `fail` must not be called from inside a command substitution: it would exit only the subshell, and
+# this script runs under `set -uo pipefail` with no `-e`, so the parent would carry on with an empty
+# result — which reads as "no errors found". So `error_values` only ever returns text, and every
+# decision about that text is taken in the parent shell.
+assert_no_error_values() {
+  local when="$1" errors
   errors="$(error_values)"
-  # An AppleScript failure must fail the run, not read as "there are no errors".
   case "$errors" in
-    *"execution error"* | *"syntax error"*) fail "the error-value check could not run: $errors" ;;
+    *"execution error"* | *"syntax error"*) fail "the error-value check could not run ($when): $errors" ;;
   esac
-  printf '%s' "$errors"
+  [ -z "${errors// /}" ] || fail "Excel error values present ($when): $errors"
 }
 
-errors="$(check_error_values)"
-[ -z "${errors// /}" ] || fail "Excel error values present: $errors"
+assert_no_error_values "before planting one"
 
 # Now break it on purpose. A detector that has never fired is indistinguishable from one that cannot.
 SENTINEL_CELL="Z1"
 excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\" to \"=1/0\""
-planted="$(check_error_values)"
+planted="$(error_values)"
 case "$planted" in
+  *"execution error"* | *"syntax error"*) fail "the error-value check could not run (planted): $planted" ;;
   *"#DIV/0!"*) ;;
   *) fail "the error-value detector did not notice a deliberate #DIV/0! in Deal!$SENTINEL_CELL: [${planted}]" ;;
 esac
 excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\""
-errors="$(check_error_values)"
-[ -z "${errors// /}" ] || fail "the deliberate error value did not clear: $errors"
+assert_no_error_values "after clearing the planted one"
 echo "    no Excel error values on any sheet (detector verified: it catches a planted #DIV/0!)"
 
 echo "PASS: Excel opened the generated workbook and its Scorecard agrees with the engine"
@@ -307,9 +309,18 @@ echo "PASS: Excel accepts the merges, hides the grid and honours the print setup
 #
 # Outside the repository too — .gitignore is governance-managed here, so a directory of PNGs inside
 # the working tree would show up as untracked work in every later `git status`.
-SHOT_DIR="${MEDDPICC_UAT_SHOT_DIR:-${TMPDIR:-/tmp}/meddpicc-uat-shots}"
-rm -rf "$SHOT_DIR"
-mkdir -p "$SHOT_DIR"
+#
+# A FRESH directory per run, and **nothing is ever deleted**. The first version cleared a fixed path
+# with `rm -rf` before using it, which meant `MEDDPICC_UAT_SHOT_DIR=$HOME` recursively destroyed the
+# operator's home directory — and it ran before the "screenshots disabled" check, so turning the stage
+# off did not save you either. A unique directory also stops two concurrent runs from overwriting each
+# other's evidence.
+if [ -n "${MEDDPICC_UAT_SHOT_DIR:-}" ]; then
+  SHOT_DIR="$MEDDPICC_UAT_SHOT_DIR"
+  mkdir -p "$SHOT_DIR" || fail "could not create the screenshot directory $SHOT_DIR"
+else
+  SHOT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/meddpicc-uat-shots.XXXXXX")"
+fi
 
 # `screencapture` needs Screen Recording permission, which a CI host will not have. Find out once,
 # with a throwaway capture, so the stage can skip for a stated reason rather than emit black images.
@@ -336,7 +347,7 @@ shots_available() {
 # Excel names its windows WITHOUT the file extension, which is why addressing them by "$BOOK" reads
 # as "the object you are trying to access does not exist".
 capture() {
-  local book="$1" sheet="$2" at_row="$3" out="$4"
+  local book="$1" sheet="$2" at_row="$3" at_col="$4" out="$5"
   local win="${book%.xlsx}" geom
   geom="$(
     osascript 2>/dev/null <<OSA
@@ -349,7 +360,7 @@ tell application "Microsoft Excel"
   set width of w to $SHOT_WIDTH
   set height of w to $SHOT_HEIGHT
   set scroll row of w to $at_row
-  set scroll column of w to 1
+  set scroll column of w to $at_col
   return (((left position of w) as integer) as string) & "," & (((top of w) as integer) as string) & "," & (((width of w) as integer) as string) & "," & (((height of w) as integer) as string)
 end tell
 OSA
@@ -437,37 +448,50 @@ tell application "Microsoft Excel"
   set r to used range of worksheet "$sheet" of workbook "$BOOK"
   -- Joining an integer to a string builds a LIST in AppleScript, which then coerces to
   -- "52, ,, 38". Both sides have to be text before they are joined.
-  return (((count of rows of r) as integer) as string) & "," & (((count of rows of (visible range of w)) as integer) as string)
+  return (((count of rows of r) as integer) as string) & "," & (((count of rows of (visible range of w)) as integer) as string) & "," & (((count of columns of r) as integer) as string) & "," & (((count of columns of (visible range of w)) as integer) as string)
 end tell
 OSA
     )"
-    used_rows="${metrics%,*}"
-    visible_rows="${metrics#*,}"
-    case "$used_rows,$visible_rows" in
-      [0-9]*,[0-9]*) ;;
+    IFS=, read -r used_rows visible_rows used_cols visible_cols <<<"$metrics"
+    case "${used_rows:-},${visible_rows:-},${used_cols:-},${visible_cols:-}" in
+      [0-9]*,[0-9]*,[0-9]*,[0-9]*) ;;
       *) fail "could not measure sheet \"$sheet\": ${metrics:-<no output>}" ;;
     esac
-    # Overlap by two rows so nothing falls between two captures.
-    step=$((visible_rows > 3 ? visible_rows - 2 : 1))
-    screens=$(((used_rows + step - 1) / step))
-    [ "$screens" -lt 1 ] && screens=1
+
+    # Paginate BOTH axes. Scrolling rows only meant the right-hand columns of a wide sheet were never
+    # captured at all, while the stage still reported PASS — and the columns most likely to be
+    # mis-sized are the wide prose ones that fall off the right edge.
+    row_step=$((visible_rows > 3 ? visible_rows - 2 : 1))
+    col_step=$((visible_cols > 2 ? visible_cols - 1 : 1))
+    row_screens=$(((used_rows + row_step - 1) / row_step))
+    col_screens=$(((used_cols + col_step - 1) / col_step))
+    [ "$row_screens" -lt 1 ] && row_screens=1
+    [ "$col_screens" -lt 1 ] && col_screens=1
+    screens=$((row_screens * col_screens))
     capped=""
     if [ "$screens" -gt "$SHOT_MAX_SCREENS" ]; then
-      capped=" (capped from $screens)"
-      screens="$SHOT_MAX_SCREENS"
+      # Say what was dropped. A silent cap reads as "that is the whole sheet".
+      capped=" (capped at $SHOT_MAX_SCREENS of $screens — part of this sheet was NOT captured)"
     fi
 
-    n=0
-    while [ "$n" -lt "$screens" ]; do
-      row=$((n * step + 1))
-      safe="$(printf '%s' "$sheet" | tr -c 'A-Za-z0-9' '-')"
-      out="$SHOT_DIR/$(printf '%02d' "$shot_count")-$safe-row$row.png"
-      capture "$BOOK" "$sheet" "$row" "$out" || fail "capturing \"$sheet\" at row $row failed"
-      echo "    $out"
-      shot_count=$((shot_count + 1))
-      n=$((n + 1))
+    safe="$(printf '%s' "$sheet" | tr -c 'A-Za-z0-9' '-')"
+    taken=0
+    cn=0
+    while [ "$cn" -lt "$col_screens" ] && [ "$taken" -lt "$SHOT_MAX_SCREENS" ]; do
+      col=$((cn * col_step + 1))
+      rn=0
+      while [ "$rn" -lt "$row_screens" ] && [ "$taken" -lt "$SHOT_MAX_SCREENS" ]; do
+        row=$((rn * row_step + 1))
+        out="$SHOT_DIR/$(printf '%02d' "$shot_count")-$safe-r$row-c$col.png"
+        capture "$BOOK" "$sheet" "$row" "$col" "$out" || fail "capturing \"$sheet\" at row $row column $col failed"
+        echo "    $out"
+        shot_count=$((shot_count + 1))
+        taken=$((taken + 1))
+        rn=$((rn + 1))
+      done
+      cn=$((cn + 1))
     done
-    echo "    $sheet: $used_rows used row(s), $screens capture(s)$capped"
+    echo "    $sheet: ${used_rows}x${used_cols} used, $taken capture(s)$capped"
   done <<<"$sheets"
 
   [ "$shot_count" -gt 0 ] || fail "the screenshot stage produced no images"
