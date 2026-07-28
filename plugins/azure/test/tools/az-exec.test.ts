@@ -127,7 +127,11 @@ describe('buildAzArgs (output flag handling)', () => {
 });
 
 describe('az_exec execute', () => {
-  const tool = createAzExecTool({ typebox: mockTypebox });
+  // These cases are about what validation lets through, not about what `az` replies. They
+  // used to spawn the real binary to find out, so they passed or timed out depending on
+  // whether the CLI was installed on the machine running them.
+  const stubbedAz = async () => ({ stdout: '[]', stderr: '', exitCode: 0 });
+  const tool = createAzExecTool({ typebox: mockTypebox }, () => ({ exec: stubbedAz }));
 
   it('rejects empty args array', async () => {
     const result = await tool.execute('id', { args: [] }, null, null, { cwd: '/tmp' });
