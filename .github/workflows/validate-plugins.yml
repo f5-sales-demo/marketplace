@@ -1,26 +1,23 @@
 ---
 name: Validate Plugins
 
+# No `paths:` filter, deliberately.
+#
+# `Run plugin test suites` is a REQUIRED check (docs-control #846). GitHub treats a required
+# context that never reports as permanently pending, so a path filter would deadlock every
+# PR that touches no plugin or script file — which is most of them: five of the last twelve
+# merged here were governance sync PRs editing only root and .github files.
+#
+# Running unconditionally costs about two minutes per PR and removes a whole class of
+# unmergeable-through-no-fault-of-yours. If that ever becomes the wrong trade, the fix is a
+# companion job that reports the same context trivially when nothing relevant changed —
+# not restoring the filter under a required check.
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
-    paths:
-      - "plugins/**"
-      - ".xcsh-plugin/**"
-      - "scripts/validate-plugins.sh"
-      - "scripts/check-version-bumps.sh"
-      - "scripts/run-plugin-tests.sh"
-      - "scripts/check-tests-are-hermetic.sh"
   push:
     branches: [main]
-    paths:
-      - "plugins/**"
-      - ".xcsh-plugin/**"
-      - "scripts/validate-plugins.sh"
-      - "scripts/check-version-bumps.sh"
-      - "scripts/run-plugin-tests.sh"
-      - "scripts/check-tests-are-hermetic.sh"
 
 permissions:
   contents: read
