@@ -55,13 +55,15 @@ function flag(args: string[], name: string): string | undefined {
  * stop and say which fields, exactly as the workbook stamp refuses a workbook from another deal.
  */
 function refuseLegacyDeal(deal: unknown, dealPath: string): number | null {
-  const { changes } = migrateDeal(deal);
-  if (changes.length === 0) return null;
+  const { changes, conflicts } = migrateDeal(deal);
+  if (changes.length === 0 && conflicts.length === 0) return null;
   process.stderr.write(
     `${dealPath} uses field names this plugin has retired. Their values would be ignored rather than read.\n` +
-      `Run: cli.ts migrate ${dealPath} --apply\n`,
+      (conflicts.length > 0
+        ? 'Some fields are set under BOTH names; resolve those by hand first, then migrate.\n'
+        : `Run: cli.ts migrate ${dealPath} --apply\n`),
   );
-  print({ ok: false, legacyFields: changes });
+  print({ ok: false, legacyFields: changes, conflicts });
   return 1;
 }
 
@@ -75,6 +77,11 @@ async function main(): Promise<number> {
       return 1;
     }
     const deal = await readJson(dealPath);
+    // Before `score` and `next`, not just `validate`: `computeCompletion` reads `threeWhys.us` and
+    // `team.internal`, so on an unmigrated deal `next` would call two finished sections
+    // not_started and walk the user back through them without a word.
+    const legacyBlock = refuseLegacyDeal(deal, dealPath);
+    if (legacyBlock !== null) return legacyBlock;
     if (command === 'score') {
       print(computeScore(deal));
       return 0;
@@ -87,8 +94,6 @@ async function main(): Promise<number> {
       print({ ...result, hint });
       return 0;
     }
-    const legacy = refuseLegacyDeal(deal, dealPath);
-    if (legacy !== null) return legacy;
     const schema = await readJson(SCHEMA_PATH);
     const result = validateDeal(deal, schema);
     print(result);
@@ -220,15 +225,21 @@ async function main(): Promise<number> {
       return 1;
     }
     const deal = await readJson(dealPath);
-    const { deal: migrated, changes } = migrateDeal(deal);
+    const { deal: migrated, changes, conflicts } = migrateDeal(deal);
 
-    // Same posture as `read`: say what would change and write nothing unless asked.
-    const apply = rest.includes('--apply') && changes.length > 0;
+    // Same posture as `read`: say what would change and write nothing unless asked — and write
+    // nothing at all while a field is set under both names, since applying the rest would leave a
+    // half-migrated file whose remaining conflict is easy to miss.
+    const apply = rest.includes('--apply') && changes.length > 0 && conflicts.length === 0;
     if (apply) await Bun.write(dealPath, `${JSON.stringify(migrated, null, 2)}\n`);
 
     const schema = await readJson(SCHEMA_PATH);
     const check = validateDeal(migrated, schema);
-    print({ deal: dealPath, changes, applied: apply, valid: check.valid, errors: check.errors });
+    print({ deal: dealPath, changes, conflicts, applied: apply, valid: check.valid, errors: check.errors });
+    if (conflicts.length > 0) {
+      process.stderr.write('Refusing to migrate: resolve the fields listed above, then run this again.\n');
+      return 1;
+    }
     return check.valid ? 0 : 1;
   }
 

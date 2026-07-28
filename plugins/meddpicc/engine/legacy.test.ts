@@ -108,15 +108,37 @@ describe('migrateDeal', () => {
     );
   });
 
-  test('when both names are present the current one wins and the legacy one is dropped', () => {
-    // Leaving the legacy key would keep the file legacy forever, so every read would go on
-    // refusing it — the migration has to terminate.
+  test('both names present is a conflict, and nothing is thrown away to resolve it', () => {
+    // Picking a winner here would be the very thing this module exists to prevent: discarding a
+    // value the user cannot see. Only they know which of the two is right.
     const legacy = asLegacyDeal();
     legacy.stakeholders[0].sentiment = 'Negative';
     const result = migrateDeal(legacy);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toContain('stakeholders[0].viewOfF5');
+    expect(result.conflicts[0]).toContain('stakeholders[0].sentiment');
+    // Both values are still there, untouched, for the user to adjudicate.
     expect(shape(result.deal).stakeholders[0].sentiment).toBe('Negative');
-    expect(shape(result.deal).stakeholders[0].viewOfF5).toBeUndefined();
-    expect(result.changes.some((c) => c.includes('dropped') && c.includes('viewOfF5'))).toBe(true);
+    expect(shape(result.deal).stakeholders[0].viewOfF5).toBe(shape(asLegacyDeal()).stakeholders[0].viewOfF5);
+  });
+
+  test('a conflict on a renamed parent does not discard the whole subtree', () => {
+    // The worst case: `threeWhys.f5` is a populated object. Deleting it to make room for a
+    // half-filled `threeWhys.us` would lose every answer inside it at once.
+    const legacy = asLegacyDeal();
+    const populated = shape(legacy).threeWhys.f5;
+    legacy.threeWhys.us = { whyNow: 'only this one filled in' };
+    const result = migrateDeal(legacy);
+    expect(result.conflicts).toHaveLength(1);
+    expect(shape(result.deal).threeWhys.f5).toEqual(populated);
+    expect(shape(result.deal).threeWhys.us).toEqual({ whyNow: 'only this one filled in' });
+  });
+
+  test('a conflict still counts as legacy, so callers keep refusing the file', () => {
+    const legacy = asLegacyDeal();
+    legacy.team.internal = [];
+    const result = migrateDeal(legacy);
+    expect(result.conflicts.length).toBeGreaterThan(0);
   });
 
   test('migrating twice changes nothing the second time', () => {

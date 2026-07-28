@@ -51,6 +51,17 @@ and this project adheres to
   Renaming the input paths changes every workbook's stamp, so previously generated workbooks no
   longer read back. They are ephemeral by design: regenerate.
 
+  Two findings from the review, both confirmed. **A field set under both names is now a conflict,
+  not a decision the tool makes.** The first version deleted the legacy key so the migration would
+  terminate — and for `threeWhys.f5`, which is an object, that discarded every answer inside it to
+  make room for a possibly half-filled `threeWhys.us`. Silently dropping a value the user cannot
+  see is the exact failure this migration exists to prevent, so `migrate` now reports both paths,
+  writes nothing at all while a conflict stands, and leaves the choice to the person who made the
+  edit. **And `next` and `score` refuse a legacy deal too**, not just `validate`: `next` drives the
+  qualification workflow, and reading an unmigrated deal it found no `threeWhys.us` or
+  `team.internal` and would have called two finished sections `not_started`, walking the user back
+  through completed work without a word.
+
 - **`meddpicc`** v3.0.0 — **breaking: `fill` is gone, and F5's Deal Review Sheet is no longer
   shipped.** One spreadsheet now, generated from `workbook-spec.json`, ephemeral by design:
   produced on demand and regenerated rather than kept.

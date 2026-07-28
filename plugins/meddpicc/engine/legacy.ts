@@ -11,8 +11,12 @@
  * all refuse a deal that still uses them, and `migrate` moves them across.
  *
  * There is deliberately no separate detector. A deal has legacy fields exactly when
- * `migrateDeal` reports changes, so the check cannot drift from the transform that fixes it —
- * the same reason one schema walker serves both the spec guard and the generator.
+ * `migrateDeal` reports changes or conflicts, so the check cannot drift from the transform that
+ * fixes it — the same reason one schema walker serves both the spec guard and the generator.
+ *
+ * A **conflict** is a field where both the old and the new name hold a value. The migration will
+ * not pick a winner: doing so would discard a value nobody can see, which is the failure this
+ * whole module exists to prevent. It reports both paths and stops, leaving the file for a person.
  */
 import { readPath } from './json-path';
 
@@ -59,15 +63,21 @@ function renameInPlace(holder: Record<string, unknown>, from: string, to: string
 export interface MigrationResult {
   /** A copy with every legacy field moved. The input is never touched. */
   deal: unknown;
-  /** One line per field moved or dropped, naming concrete paths. Empty means nothing to do. */
+  /** One line per field moved, naming concrete paths. Empty means nothing to do. */
   changes: string[];
+  /**
+   * Fields where BOTH names hold a value. Only the person who edited the file knows which is
+   * right, so the migration reports them and refuses rather than choosing — see below.
+   */
+  conflicts: string[];
 }
 
 export function migrateDeal(deal: unknown): MigrationResult {
-  if (deal === null || typeof deal !== 'object') return { deal, changes: [] };
+  if (deal === null || typeof deal !== 'object') return { deal, changes: [], conflicts: [] };
 
   const working = JSON.parse(JSON.stringify(deal)) as unknown;
   const changes: string[] = [];
+  const conflicts: string[] = [];
 
   for (const rename of RENAMED_FIELDS) {
     for (const container of expand(working, rename.container)) {
@@ -75,10 +85,14 @@ export function migrateDeal(deal: unknown): MigrationResult {
       if (!isObject(holder) || !(rename.from in holder)) continue;
 
       if (rename.to in holder) {
-        // Both names present: the current one is authoritative and the legacy one is stale. It has
-        // to go, or the file stays legacy and every later read goes on refusing it.
-        delete holder[rename.from];
-        changes.push(`${container}.${rename.from} dropped — ${container}.${rename.to} is already set`);
+        // Both names hold a value, and nothing here can tell which one the user meant. Choosing
+        // would destroy the other — and for `threeWhys.f5`, which is a whole object, that is every
+        // answer inside it at once. Discarding a value the user cannot see is the exact failure
+        // this module exists to prevent, so it is reported and the migration stops.
+        conflicts.push(
+          `${container}.${rename.from} and ${container}.${rename.to} are both set — ` +
+            'delete whichever is wrong, then migrate again',
+        );
         continue;
       }
 
@@ -87,5 +101,5 @@ export function migrateDeal(deal: unknown): MigrationResult {
     }
   }
 
-  return { deal: working, changes };
+  return { deal: working, changes, conflicts };
 }

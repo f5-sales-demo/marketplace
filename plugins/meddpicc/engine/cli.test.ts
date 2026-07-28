@@ -227,6 +227,30 @@ describe('cli migrate', () => {
     expect((await run(['read', current.workbook, '--deal', deal])).code).toBe(1);
   });
 
+  test('next and score refuse a legacy deal too, not just validate', async () => {
+    // `next` drives the qualification workflow. Reading a legacy deal it finds no `threeWhys.us`
+    // and no `team.internal`, so it would report two completed sections as not_started and send
+    // the user back through them with no hint that anything was wrong.
+    const deal = legacyDeal('refused-next');
+    expect((await run(['next', deal])).code).toBe(1);
+    expect((await run(['score', deal])).code).toBe(1);
+  });
+
+  test('a conflicting deal is refused and never half-applied', async () => {
+    const deal = legacyDeal('conflict');
+    const parsed = JSON.parse(fs.readFileSync(deal, 'utf8'));
+    parsed.threeWhys.us = { whyNow: 'partly filled in by hand' };
+    fs.writeFileSync(deal, `${JSON.stringify(parsed, null, 2)}\n`);
+    const before = fs.readFileSync(deal, 'utf8');
+
+    const { code, out } = await run(['migrate', deal, '--apply']);
+    expect(code).toBe(1);
+    const report = JSON.parse(out);
+    expect(report.conflicts.length).toBeGreaterThan(0);
+    expect(report.applied).toBe(false);
+    expect(fs.readFileSync(deal, 'utf8')).toBe(before);
+  });
+
   test('migrate lists what it would change and writes nothing', async () => {
     const deal = legacyDeal('dry');
     const before = fs.readFileSync(deal, 'utf8');
