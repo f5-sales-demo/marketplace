@@ -319,44 +319,50 @@ After writing the JSON file, display a scorecard summary:
    - **By when:** [timeframe]
 ```
 
-### Optional output: spreadsheet
+### Spreadsheet output
 
-Triggered when the user says "render", "spreadsheet", "export", or
-asks for a report. Which route you take depends on where you are
-running — the JSON file is the source of truth either way, and the
+Triggered when the user says "render", "spreadsheet", "export", or asks
+for a report. The JSON file remains the source of truth; the
 spreadsheet is disposable.
 
-**In an Excel task pane** (you have the `write_range` host tool):
-build the sheet in the OPEN workbook. Never hand-place cells — the
-engine emits the whole plan:
+**The format is the template, not something you compose.** The plugin
+ships `meddpicc-template.xlsx` — the F5 Deal Review Sheet, with its
+fonts, borders, 207 merged ranges, Pick List dropdowns and the
+`=N4*I5` Factored Pipe formula. Your job is only to put values into
+the cells it leaves for data. Never lay out a sheet by hand, and never
+write a label, heading or question — the template already has them.
+
+The engine decides every coordinate:
 
 ```bash
-bun xcsh://plugin/meddpicc/file/engine/cli.ts render <deal.json>
+bun xcsh://plugin/meddpicc/file/engine/cli.ts fill <deal.json> --plan
 ```
 
-It returns `{sheetName, writes[], rowCount}`, where each write is
-`{address, values}` shaped exactly for `write_range`. Then:
+That returns `{sheetName, cells:[{address, value}]}`.
 
-1. Call `add_sheet` with the plan's `sheetName`. It is idempotent —
-   an existing sheet of that name is reused, so a re-render
-   overwrites rather than duplicating.
-2. For each entry in `writes`, call `write_range` with
-   `"<sheetName>!<address>"` and its `values`, in order.
-3. Report the sheet name and row count. Do not re-read the sheet to
-   "confirm" — `write_range` already did.
+**In an Excel task pane, with the template open** (you have the
+`write_cells` host tool): pass the plan's `cells` straight to
+`write_cells`. It applies them in one batch. Do not re-read the sheet
+to confirm — the tool already reported what it wrote.
 
-The layout comes from `cell-mapping.json` (which fields, in what
-order, with which units and table columns) laid out in a fixed
-two-column form. It is deterministic: the same deal renders the same
-sheet every time.
+**Anywhere else** — the terminal, or a pane whose open workbook is not
+the template — produce a file instead:
 
-**In the terminal** (no host tools): the template is the better
-route, because it carries the F5 sheet's formatting.
+```bash
+bun xcsh://plugin/meddpicc/file/engine/cli.ts fill <deal.json> \
+  --out "{accountName}-MEDDPICC-{YYYY-MM-DD}.xlsx"
+```
 
-1. Resolve the template at `xcsh://plugin/meddpicc/template`
-2. Populate it using `xcsh://plugin/meddpicc/cellMapping`, whose
-   coordinates match that template exactly
-3. Save as `{accountName}-{dealName}-{YYYY-MM-DD}.xlsx`
+This copies the template and injects the values, leaving every other
+part of the workbook byte-identical. Tell the user the path.
+
+Rules that matter:
+
+- A field the deal has not answered is **omitted**, leaving the
+  template's blank cell. Do not write "N/A" or "TBD" to fill space.
+- Numbers stay numbers. Never write a currency as `"$473,687"` — the
+  sheet computes Factored Pipe from `N4` and `I5`.
+- Never target `I7`; it is the template's own formula.
 
 ## Coaching Behavior
 

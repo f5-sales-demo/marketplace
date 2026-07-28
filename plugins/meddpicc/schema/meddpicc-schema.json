@@ -17,6 +17,10 @@
           "type": "string",
           "description": "Client/account name"
         },
+        "accountTeam": {
+          "type": "string",
+          "description": "The account team owning the relationship (the sellers), e.g. \"Randy Dotson and Tyler Brown\". Distinct from `team.f5`, which is the specialist bench assigned to the deal."
+        },
         "dealName": {
           "type": "string",
           "description": "Deal or project name"

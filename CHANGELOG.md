@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** bumped to v2.3.0 — the deal review now fills the shipped F5 Deal
+  Review Sheet template instead of a layout of its own: corrected `cell-mapping.json`
+  (every scalar coordinate previously named the label cell, not the value cell),
+  `fill` replaces `render`, and `check-mappings` now rejects a target that holds the
+  template's own text. Adds `metadata.accountTeam`.
+
 - **`meddpicc`** bumped to v2.2.1
 
 - **`salesforce`** bumped to v1.3.1

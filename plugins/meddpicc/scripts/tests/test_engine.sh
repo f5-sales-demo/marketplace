@@ -87,8 +87,8 @@ test_engine_check_mappings_detects_broken() {
   local tmp
   tmp=$(mktemp -d)
   cp "$PLUGIN_ROOT/skills/deal-qualification/references/cell-mapping.json" "$tmp/cell.json"
-  # Corrupt the first staticFields jsonPath.
-  jq '.staticFields[0].jsonPath = (.staticFields[0].jsonPath + "TYPO")' "$tmp/cell.json" >"$tmp/cell-broken.json"
+  # Corrupt the first mapped jsonPath.
+  jq '.cells[0].jsonPath = (.cells[0].jsonPath + "TYPO")' "$tmp/cell.json" >"$tmp/cell-broken.json"
   if bun "$PLUGIN_ROOT/engine/cli.ts" check-mappings --cell "$tmp/cell-broken.json" >/dev/null 2>&1; then
     echo "expected non-zero exit for broken mapping"
     rm -rf "$tmp"
@@ -97,37 +97,80 @@ test_engine_check_mappings_detects_broken() {
   rm -rf "$tmp"
 }
 
-test_engine_render_produces_a_writable_plan() {
+test_engine_fill_plan_targets_the_template() {
   _engine_precheck || return 0
   local out
-  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" render "$PLUGIN_ROOT/schema/example-deal.json")
-  [ "$(jq -r '.sheetName' <<<"$out")" != "null" ] || {
-    echo "render produced no sheetName: $out"
+  out=$(bun "$PLUGIN_ROOT/engine/cli.ts" fill "$PLUGIN_ROOT/schema/example-deal.json" --plan)
+  [ "$(jq -r '.sheetName' <<<"$out")" = "MEDDPICC Deal Review Sheet" ] || {
+    echo "fill --plan targets the wrong sheet: $out"
     return 1
   }
-  # Every write must be directly executable by the pane's write_range: an A1-style
-  # address whose row span equals the number of value rows.
+  # Every address must be a real A1 reference; a malformed one would throw at write time.
   local bad
-  bad=$(jq -r '
-    [ .writes[]
-      | (.address | capture("^[A-Z]+(?<top>[0-9]+):[A-Z]+(?<bottom>[0-9]+)$"))
-        as $a
-      | select((($a.bottom | tonumber) - ($a.top | tonumber) + 1) != (.values | length))
-      | .address
-    ] | join(",")' <<<"$out")
+  bad=$(jq -r '[.cells[].address | select(test("^[A-Z]+[0-9]+$") | not)] | join(",")' <<<"$out")
   [ -z "$bad" ] || {
-    echo "write address/row-count mismatch at: $bad"
+    echo "malformed cell addresses: $bad"
+    return 1
+  }
+  # I7 is the template's own formula and must never be a target.
+  jq -e '[.cells[].address] | index("I7") | not' <<<"$out" >/dev/null || {
+    echo "fill would overwrite the I7 formula"
     return 1
   }
 }
 
-test_engine_render_is_deterministic() {
+test_engine_fill_writes_a_workbook_that_keeps_the_template() {
   _engine_precheck || return 0
-  local a b
-  a=$(bun "$PLUGIN_ROOT/engine/cli.ts" render "$PLUGIN_ROOT/schema/example-deal.json")
-  b=$(bun "$PLUGIN_ROOT/engine/cli.ts" render "$PLUGIN_ROOT/schema/example-deal.json")
-  [ "$a" = "$b" ] || {
-    echo "render is not deterministic across runs"
+  command -v unzip >/dev/null 2>&1 || {
+    echo "SKIP: unzip unavailable"
+    return 0
+  }
+  local tmp
+  tmp=$(mktemp -d)
+  bun "$PLUGIN_ROOT/engine/cli.ts" fill "$PLUGIN_ROOT/schema/example-deal.json" --out "$tmp/out.xlsx" >/dev/null || {
+    echo "fill --out failed"
+    rm -rf "$tmp"
     return 1
   }
+  # The workbook must still carry both sheets and its data validation.
+  unzip -p "$tmp/out.xlsx" xl/workbook.xml | grep -q "Pick List" || {
+    echo "the Pick List sheet did not survive the fill"
+    rm -rf "$tmp"
+    return 1
+  }
+  local dv
+  dv=$(unzip -p "$tmp/out.xlsx" xl/worksheets/sheet1.xml | grep -c "x14:dataValidation " || true)
+  [ "$dv" -ge 1 ] || {
+    echo "data validation was stripped by the fill"
+    rm -rf "$tmp"
+    return 1
+  }
+  rm -rf "$tmp"
+}
+
+test_engine_fill_is_deterministic() {
+  _engine_precheck || return 0
+  local a b
+  a=$(bun "$PLUGIN_ROOT/engine/cli.ts" fill "$PLUGIN_ROOT/schema/example-deal.json" --plan)
+  b=$(bun "$PLUGIN_ROOT/engine/cli.ts" fill "$PLUGIN_ROOT/schema/example-deal.json" --plan)
+  [ "$a" = "$b" ] || {
+    echo "fill --plan is not deterministic"
+    return 1
+  }
+}
+
+test_engine_check_mappings_detects_a_target_aimed_at_a_label() {
+  _engine_precheck || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  # B4 is the words "Account Name". Aiming a value at it is schema-valid and wrong — this
+  # is exactly the defect the mapping shipped with before the template was ever filled.
+  jq '(.cells[] | select(.jsonPath == "metadata.accountName") | .cell) = "B4"' \
+    "$PLUGIN_ROOT/skills/deal-qualification/references/cell-mapping.json" >"$tmp/cell-label.json"
+  if bun "$PLUGIN_ROOT/engine/cli.ts" check-mappings --cell "$tmp/cell-label.json" >/dev/null 2>&1; then
+    echo "expected non-zero exit for a mapping aimed at a label cell"
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$tmp"
 }
