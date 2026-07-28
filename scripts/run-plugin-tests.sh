@@ -33,23 +33,44 @@ command -v bun >/dev/null 2>&1 || {
 #
 # Removing the binaries from PATH makes each of them skip, visibly. They still run for real
 # on a developer machine, which is where a CLI and credentials actually exist.
-CLI_FREE_PATH=""
+#
+# Exclusion is per BINARY, not per directory. Dropping whole directories looked simpler and
+# broke the runner immediately: `gh` lives in /usr/bin there, so the whole of /usr/bin went,
+# taking dirname, basename and everything else with it. On a Mac the CLIs sit in
+# /opt/homebrew/bin next to bun, so the flaw was invisible locally.
+CLI_NAMES=(aws az gcloud gh glab sf)
+SANITIZED_BIN="$(mktemp -d)"
+# Resolve rm before PATH changes: the trap fires with the sanitized PATH in effect.
+RM_BIN="$(command -v rm)"
+trap '"$RM_BIN" -rf "$SANITIZED_BIN"' EXIT
+
 IFS=':' read -r -a _path_entries <<<"$PATH"
 for _entry in "${_path_entries[@]}"; do
-  _has_cli=0
-  for _cli in aws az gcloud gh glab sf; do
-    [ -x "$_entry/$_cli" ] && _has_cli=1
+  [ -d "$_entry" ] || continue
+  for _exe in "$_entry"/*; do
+    [ -f "$_exe" ] && [ -x "$_exe" ] || continue
+    _name="${_exe##*/}"
+    for _cli in "${CLI_NAMES[@]}"; do
+      [ "$_name" = "$_cli" ] && continue 2
+    done
+    # First one wins, which preserves the precedence the original PATH had.
+    [ -e "$SANITIZED_BIN/$_name" ] || ln -s "$_exe" "$SANITIZED_BIN/$_name"
   done
-  # Keep a directory that holds a cloud CLI only if dropping it would cost us bun.
-  if [ "$_has_cli" -eq 1 ] && [ ! -x "$_entry/bun" ]; then continue; fi
-  CLI_FREE_PATH="${CLI_FREE_PATH:+$CLI_FREE_PATH:}$_entry"
 done
-export PATH="$CLI_FREE_PATH"
+export PATH="$SANITIZED_BIN"
 
-for _cli in aws az gcloud gh glab sf; do
+# Fail loudly rather than run a gate that is quietly not what it claims to be.
+for _cli in "${CLI_NAMES[@]}"; do
   if command -v "$_cli" >/dev/null 2>&1; then
-    printf 'note: %s is still reachable at %s (it shares a directory with bun)\n' "$_cli" "$(command -v "$_cli")"
+    printf 'FATAL: %s is still on PATH at %s after sanitising\n' "$_cli" "$(command -v "$_cli")" >&2
+    exit 2
   fi
+done
+for _needed in bun jq git bash dirname basename; do
+  command -v "$_needed" >/dev/null 2>&1 || {
+    printf 'FATAL: sanitising PATH lost %s\n' "$_needed" >&2
+    exit 2
+  }
 done
 
 failed=()
