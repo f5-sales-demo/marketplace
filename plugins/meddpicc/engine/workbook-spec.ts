@@ -158,7 +158,9 @@ export interface SpecReference {
   raw: string;
 }
 
-const REFERENCE = /\{\{(ref|col|row|this):([^}]+)\}\}/g;
+const REFERENCE = /\{\{(ref|col|row|this):([^{}]+)\}\}/g;
+/** Any `{{…}}`, well formed or not — what the parser above ignores, this one still sees. */
+const PLACEHOLDER = /\{\{([^{}]*)\}\}/g;
 
 /** Pull the symbolic cell references out of a formula, in the order they appear. */
 export function parseReferences(formula: string): SpecReference[] {
@@ -167,6 +169,25 @@ export function parseReferences(formula: string): SpecReference[] {
     target: m[2],
     raw: m[0],
   }));
+}
+
+/**
+ * Placeholders that look like references but are not.
+ *
+ * {@link parseReferences} only matches the four kinds it knows, so a typo — `{{reff:…}}`,
+ * a missing kind, an unclosed brace — is invisible to it and to every check built on it.
+ * Silence would mean the placeholder survived into the generated formula, where Excel would
+ * see literal braces. So the malformed ones are found separately and always reported.
+ */
+export function findMalformedReferences(formula: string): string[] {
+  const bad = [...formula.matchAll(PLACEHOLDER)].filter((m) => !/^(ref|col|row|this):.+$/.test(m[1])).map((m) => m[0]);
+
+  // An unclosed `{{` matches neither pattern, so it can only be caught by counting.
+  const opens = formula.match(/\{\{/g)?.length ?? 0;
+  const closes = formula.match(/\}\}/g)?.length ?? 0;
+  if (opens !== closes) bad.push(`unbalanced braces in "${formula}"`);
+
+  return bad;
 }
 
 /** The keys a `*` expands over for this source, or [] when the source has no key axis. */
@@ -215,10 +236,12 @@ interface Collected {
   inputs: Array<{ where: string; paths: string[] }>;
   /** Every formula, with the table it belongs to when it is a column formula. */
   formulas: Array<{ where: string; formula: string; table: SpecTable | null }>;
+  /** Inputs whose path could not even be formed — before any schema lookup. */
+  pathIssues: string[];
 }
 
 function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected {
-  const out: Collected = { namedCells: new Map(), tables: new Map(), inputs: [], formulas: [] };
+  const out: Collected = { namedCells: new Map(), tables: new Map(), inputs: [], formulas: [], pathIssues: [] };
 
   const checkValueType = (where: string, valueType: ValueType) => {
     if (!(valueType in VALUE_TYPE_STYLE)) roles.push(`${where}: unknown valueType "${valueType}"`);
@@ -272,7 +295,17 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
           const relative =
             table.source.kind === 'list' ? `${table.source.jsonPath}.${column.jsonPath}` : column.jsonPath;
           try {
-            out.inputs.push({ where, paths: expandJsonPath(relative, expansionKeys(table.source)) });
+            // A source with no key axis has nothing for a wildcard to expand over, so the
+            // expansion would silently produce zero paths and the column would vanish from
+            // the schema check — present in the workbook, writing nowhere.
+            const paths = expandJsonPath(relative, expansionKeys(table.source));
+            if (paths.length === 0) {
+              out.pathIssues.push(
+                `${where}: "${relative}" expands to no path — table "${table.id}" has no keys to expand a wildcard over`,
+              );
+              continue;
+            }
+            out.inputs.push({ where, paths });
           } catch (e) {
             roles.push(`${where}: ${e instanceof Error ? e.message : String(e)}`);
           }
@@ -301,6 +334,10 @@ function checkReferences(collected: Collected): { checked: number; failures: str
   let checked = 0;
 
   for (const { where, formula, table } of collected.formulas) {
+    for (const bad of findMalformedReferences(formula)) {
+      checked++;
+      failures.push(`${where}: ${bad} is not a reference this spec understands`);
+    }
     for (const ref of parseReferences(formula)) {
       checked++;
       if (ref.kind === 'ref') {
@@ -395,7 +432,10 @@ export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecChec
   const collected = collect(spec, roleFailures, idFailures);
 
   const allPaths = collected.inputs.flatMap((i) => i.paths);
-  const schemaFailures = [...new Set(allPaths)].filter((p) => !resolveSchemaPath(schema, p));
+  const schemaFailures = [
+    ...collected.pathIssues,
+    ...[...new Set(allPaths)].filter((p) => !resolveSchemaPath(schema, p)),
+  ];
 
   const counts = new Map<string, number>();
   for (const p of allPaths) counts.set(p, (counts.get(p) ?? 0) + 1);

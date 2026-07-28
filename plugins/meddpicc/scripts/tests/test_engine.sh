@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # End-to-end acceptance for the MEDDPICC engine CLI.
 
+# Skipping when bun is absent keeps the suite usable on a bare machine, but in CI a skip
+# would be a green gate that ran nothing. REQUIRE_BUN makes the absence a failure instead.
 _engine_precheck() {
-  command -v bun >/dev/null 2>&1 || {
-    echo "SKIP: bun unavailable"
-    return 1
-  }
+  command -v bun >/dev/null 2>&1 && return 0
+  # Aborts the whole run rather than returning: a missing runtime is a configuration error,
+  # and every one of these tests would otherwise report a green skip having run nothing.
+  if [ "${REQUIRE_BUN:-0}" = "1" ]; then
+    echo "FATAL: bun is required (REQUIRE_BUN=1) but is not installed" >&2
+    exit 1
+  fi
+  echo "SKIP: bun unavailable"
+  return 1
 }
 
 test_engine_score_matches_example() {

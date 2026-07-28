@@ -5,6 +5,7 @@ import { QUALIFICATION_ELEMENTS } from './sections';
 import {
   checkWorkbookSpec,
   expandJsonPath,
+  findMalformedReferences,
   parseReferences,
   type SpecSheet,
   VALUE_TYPE_STYLE,
@@ -163,6 +164,26 @@ describe('parseReferences', () => {
   });
 });
 
+describe('findMalformedReferences', () => {
+  // A placeholder the parser does not recognise is invisible to it, so without this the
+  // guard would pass a formula that reaches Excel with `{{reff:…}}` still in it.
+  test('catches a misspelled reference kind', () => {
+    expect(findMalformedReferences('{{reff:scoreTotal}}')).toEqual(['{{reff:scoreTotal}}']);
+  });
+
+  test('catches a placeholder with no kind at all', () => {
+    expect(findMalformedReferences('SUM({{elements.score}})')).toEqual(['{{elements.score}}']);
+  });
+
+  test('catches an unclosed placeholder', () => {
+    expect(findMalformedReferences('SUM({{col:elements.score)').join()).toMatch(/unbalanced/);
+  });
+
+  test('passes a formula whose placeholders are all well formed', () => {
+    expect(findMalformedReferences('{{ref:acv}}*{{col:elements.score}}')).toEqual([]);
+  });
+});
+
 describe('checkWorkbookSpec — the good spec', () => {
   test('passes every rule', () => {
     const result = checkWorkbookSpec(schema, baseSpec());
@@ -196,6 +217,31 @@ describe('checkWorkbookSpec — schema paths', () => {
     const result = checkWorkbookSpec(schema, spec);
     expect(result.ok).toBe(false);
     expect(result.schemaPaths.failures.join()).toContain('stakeholders.nameTYPO');
+  });
+
+  test('rejects a wildcard in a list column, where it would expand to nothing', () => {
+    // The failure this closes: a list source has no key axis, so a wildcard expanded to an
+    // empty set of paths and the column dropped out of the check entirely — ok, and
+    // writing nowhere.
+    const spec = clone(baseSpec());
+    const sh = sheet(spec, 'Stakeholders');
+    if (sh.kind !== 'table') throw new Error('fixture drift');
+    sh.tables[0].columns[0].jsonPath = '*.nameTYPO';
+
+    const result = checkWorkbookSpec(schema, spec);
+    expect(result.ok).toBe(false);
+    expect(result.schemaPaths.failures.join()).toContain('stakeholders.name');
+  });
+
+  test('rejects an input that expands to no path at all', () => {
+    const spec = clone(baseSpec());
+    const q = sheet(spec, 'Qualification');
+    if (q.kind !== 'table') throw new Error('fixture drift');
+    q.tables[0].source = { kind: 'fixed', keys: [] };
+
+    const result = checkWorkbookSpec(schema, spec);
+    expect(result.ok).toBe(false);
+    expect(result.schemaPaths.failures.join()).toMatch(/no path/);
   });
 
   test('rejects a wildcard in a form field, where there is nothing to expand it over', () => {
@@ -314,6 +360,19 @@ describe('checkWorkbookSpec — references', () => {
     block.formula = '{{row:stakeholders.name@0}}';
 
     expect(checkWorkbookSpec(schema, spec).references.failures.join()).toContain('stakeholders');
+  });
+
+  test('rejects a formula with a placeholder the parser does not recognise', () => {
+    const spec = clone(baseSpec());
+    const sc = sheet(spec, 'Scorecard');
+    if (sc.kind !== 'form') throw new Error('fixture drift');
+    const block = sc.blocks[0];
+    if (block.kind !== 'computed') throw new Error('fixture drift');
+    block.formula = 'SUM({{colm:elements.score}})';
+
+    const result = checkWorkbookSpec(schema, spec);
+    expect(result.ok).toBe(false);
+    expect(result.references.failures.join()).toContain('{{colm:elements.score}}');
   });
 
   test('rejects {{this:…}} outside a table column', () => {
