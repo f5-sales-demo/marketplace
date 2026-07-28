@@ -613,7 +613,7 @@
           "kind": "computed",
           "id": "scoreMaximum",
           "label": "Maximum possible",
-          "formula": "COUNT({{col:elements.score}})*4",
+          "formula": "COUNTA({{col:elements.element}})*4",
           "valueType": "number"
         },
         {
