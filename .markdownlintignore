@@ -1,0 +1,8 @@
+# Vendored third-party markdown. These files are redistributed VERBATIM from
+# upstream and must stay byte-identical — herdr-skill-freshness.yml fails when
+# they drift. House markdown style therefore cannot be applied to them: fixing a
+# lint finding here would break the very check that proves the copy is authentic.
+#
+# Keep this list minimal and scoped to exact files, never whole directories, so
+# first-party markdown in the same plugin is still linted.
+plugins/herdr/skills/herdr/SKILL.md
