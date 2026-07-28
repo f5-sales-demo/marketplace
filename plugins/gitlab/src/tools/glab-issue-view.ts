@@ -3,9 +3,10 @@ import { execGlabJson, GlabAuthError } from '../glab/exec';
 import { formatIssueDetail } from '../glab/formatters';
 import type { GlabIssue } from '../glab/types';
 import glabIssueViewDescription from '../prompts/glab-issue-view.md' with { type: 'text' };
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { makeExecApi, textResult } from './shared';
 
-export function createGlabIssueViewTool(pi: any) {
+export function createGlabIssueViewTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -22,8 +23,8 @@ export function createGlabIssueViewTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { issue: number | string; project?: string; comments?: boolean },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const api = makeExecApi(ctx.cwd);

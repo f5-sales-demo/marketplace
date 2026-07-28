@@ -1,11 +1,12 @@
 import { execGlab } from '../glab/exec';
 import glabExecDescription from '../prompts/glab-exec.md' with { type: 'text' };
 import { findMutation } from './glab-exec-guard';
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { errorResult, hasControlChars, makeExecApi, textResult } from './shared';
 
 const GLAB_EXEC_MAX_OUTPUT = 50000;
 
-export function createGlabExecTool(pi: any) {
+export function createGlabExecTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -19,7 +20,13 @@ export function createGlabExecTool(pi: any) {
     label: 'GitLab CLI Execute',
     description: glabExecDescription,
     parameters,
-    async execute(_toolCallId: string, params: { args: string[] }, signal: any, _onUpdate: any, ctx: { cwd: string }) {
+    async execute(
+      _toolCallId: string,
+      params: { args: string[] },
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
+      ctx: { cwd: string },
+    ) {
       const args = params.args ?? [];
       if (args.length === 0) {
         return errorResult('Error: args array must not be empty.', { tool: 'glab_exec' });

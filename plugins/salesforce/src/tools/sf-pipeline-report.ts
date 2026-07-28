@@ -5,6 +5,7 @@ import type { PipelineReportData, PipelineReportOptions } from '../pipeline-repo
 import sfPipelineReportDescription from '../prompts/sf-pipeline-report.md' with { type: 'text' };
 import { execSfJson } from '../sf/exec';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import type { SfErrorType, SfToolDetails } from './shared';
 import { detectErrorType, makeExecApi } from './shared';
 
@@ -37,7 +38,7 @@ function fiscalQuarterDates(): { start: string; end: string } {
     end = new Date(y, 10, 0);
   }
 
-  const fmt = (d: Date) => d.toISOString().split('T')[0]!;
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return { start: fmt(start), end: fmt(end) };
 }
 
@@ -61,7 +62,7 @@ function buildQueryFn(cwd: string, orgAlias?: string): SfQueryFn {
 // Tool factory
 // ---------------------------------------------------------------------------
 
-export function createSfPipelineReportTool(pi: any) {
+export function createSfPipelineReportTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -76,8 +77,8 @@ export function createSfPipelineReportTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { target_org?: string },
-      _signal: any,
-      _onUpdate: any,
+      _signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const base: SfToolDetails = { tool: 'sf_pipeline_report' };
@@ -96,7 +97,9 @@ export function createSfPipelineReportTool(pi: any) {
       }
 
       const loadProfile = getLoadProfile();
-      const profile = loadProfile ? await loadProfile() : ({} as any);
+      // Only `identifiers.salesforceId` is read below; an absent profile is an empty
+      // object rather than a throw, so the report still renders unattributed.
+      const profile: { identifiers?: { salesforceId?: string } } = loadProfile ? await loadProfile() : {};
       const sfContext = await loadSalesforceContext();
 
       const userId = profile.identifiers?.salesforceId;
@@ -119,7 +122,7 @@ export function createSfPipelineReportTool(pi: any) {
 
       const staleDate = new Date();
       staleDate.setFullYear(staleDate.getFullYear() - 1);
-      const staleCutoff = staleDate.toISOString().split('T')[0]!;
+      const staleCutoff = staleDate.toISOString().slice(0, 10);
 
       const partnerName = profile.partner?.name;
       const selfName = [profile.givenName, profile.familyName].filter(Boolean).join(' ').trim();

@@ -3,9 +3,10 @@ import { execSfJson } from '../sf/exec';
 import { deriveQueryLabel, formatQueryResults } from '../sf/formatters';
 import type { SfQueryResult } from '../sf/types';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
-export function createSfQueryTool(pi: any) {
+export function createSfQueryTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -37,8 +38,8 @@ export function createSfQueryTool(pi: any) {
         use_tooling_api?: boolean;
         all_rows?: boolean;
       },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const api = makeExecApi(ctx.cwd);

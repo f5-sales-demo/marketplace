@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** bumped to v2.2.1
+
+- **`salesforce`** bumped to v1.3.1
+
+- **`gitlab`** bumped to v1.2.1
+
 - **`azure`** bumped to v1.2.0 — `az_exec` now accepts valid JMESPath `--query`
   (dropped the char filter that rejected `||`, backticks, and pipes); read-only guard,
   `az_help`, error taxonomy with `errorType`, and signal-aware exec. CLI-Plugin

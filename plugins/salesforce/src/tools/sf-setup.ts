@@ -3,9 +3,10 @@ import sfSetupDescription from '../prompts/sf-setup.md' with { type: 'text' };
 import { execSfJson, execSfRaw } from '../sf/exec';
 import { formatOrgTable } from '../sf/formatters';
 import { ORG_ALIAS_PATTERN } from '../sf/types';
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { collectAllOrgs, detectErrorType, errorResult, makeExecApi, textResult } from './shared';
 
-export function createSfSetupTool(pi: any) {
+export function createSfSetupTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -30,8 +31,8 @@ export function createSfSetupTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { action: string; org?: string },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const api = makeExecApi(ctx.cwd);

@@ -30,7 +30,7 @@ async function runSfQuery(soql: string, orgAlias?: string): Promise<Record<strin
       result?: { records?: Record<string, unknown>[] };
     };
     return parsed.result?.records ?? [];
-  } catch (err) {
+  } catch {
     // Silently swallow — the caller handles empty results
     return [];
   }
@@ -330,7 +330,7 @@ function detectAnomalies(
   }
 
   // 5. Open deals with close dates that have slipped past TODAY (requires CloseDate in data)
-  const today = new Date().toISOString().split('T')[0]!;
+  const today = new Date().toISOString().slice(0, 10);
   const slippedAccounts = new Map<string, string>(); // accountName → earliest slipped closeDate
   for (const item of netNew) {
     if (item.closeDate && item.closeDate < today) {
@@ -358,7 +358,7 @@ function detectAnomalies(
   // the account is not stalled.
   const staleThreshold = new Date();
   staleThreshold.setDate(staleThreshold.getDate() - 30);
-  const staleStr = staleThreshold.toISOString().split('T')[0]!;
+  const staleStr = staleThreshold.toISOString().slice(0, 10);
   const acctLastActivity = new Map<string, string | null>(); // accountName → best lastActivityDate
   for (const item of netNew) {
     const existing = acctLastActivity.get(item.accountName);
@@ -393,7 +393,7 @@ function detectAnomalies(
   // 7. Urgent renewals — closing within 30 days
   const urgentThreshold = new Date();
   urgentThreshold.setDate(urgentThreshold.getDate() + 30);
-  const urgentStr = urgentThreshold.toISOString().split('T')[0]!;
+  const urgentStr = urgentThreshold.toISOString().slice(0, 10);
   const urgentRenewals = new Map<string, string>(); // accountName → closeDate
   for (const item of renewals) {
     if (item.closeDate && item.closeDate <= urgentStr) {
@@ -500,7 +500,7 @@ export async function generatePipelineReport(
   const fyStartYear = qMonth >= 10 ? qYear : qYear - 1;
   const fyStart = `${fyStartYear}-11-01`;
   const fyLabel = `FY${(fyStartYear + 1) % 100}`;
-  const todayStr = new Date().toISOString().split('T')[0]!;
+  const todayStr = new Date().toISOString().slice(0, 10);
   const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
   const fyBookedQuery = `SELECT SUM(Amount) total FROM Opportunity WHERE ${oppTeamScope} AND IsWon = true AND CloseDate >= ${fyStart} AND CloseDate <= ${todayStr}`;
 
@@ -610,7 +610,7 @@ export async function generatePipelineReport(
     );
   }
 
-  // Parse and classify renewal opps, dedup by Id
+  // Parse and classify renewal opportunities, dedup by Id
   const seenIds = new Set<string>();
   const renewalItems: LineItemRecord[] = [];
   for (const r of renewalRecords) {

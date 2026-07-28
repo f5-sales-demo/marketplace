@@ -1,20 +1,26 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
 
+// Declared up front so the recorder methods can close over them. Reading them off
+// `mockPi` inside its own literal needed an `as any` cast, because the object's type is
+// not yet known at that point.
+const recordedTools: { name: string }[] = [];
+const recordedServiceStatus: { name: string; check: () => Promise<{ state: string }> }[] = [];
+
 const mockPi = {
   typebox: { Type },
   logger: { debug() {} },
   setLabel() {},
   registerTool(t: { name: string }) {
-    (mockPi as any)._tools.push(t);
+    recordedTools.push(t);
   },
   registerCommand(_name: string, _def: { description: string; handler: (...args: unknown[]) => Promise<void> }) {},
   registerServiceStatus(c: { name: string; check: () => Promise<{ state: string }> }) {
-    (mockPi as any)._serviceStatus.push(c);
+    recordedServiceStatus.push(c);
   },
   on(_event: string, _handler: (...args: unknown[]) => Promise<unknown>) {},
-  _tools: [] as { name: string }[],
-  _serviceStatus: [] as { name: string; check: () => Promise<{ state: string }> }[],
+  _tools: recordedTools,
+  _serviceStatus: recordedServiceStatus,
 };
 
 describe('GitLab extension', () => {

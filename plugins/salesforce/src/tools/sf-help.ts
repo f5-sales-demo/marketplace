@@ -1,4 +1,5 @@
 import sfHelpDescription from '../prompts/sf-help.md' with { type: 'text' };
+import type { PluginHost, ToolUpdateCallback } from './plugin-host';
 import { errorResult, makeExecApi, textResult } from './shared';
 
 // Lowercase letters, spaces, colons, and hyphens only. The colon supports sf's
@@ -7,7 +8,7 @@ import { errorResult, makeExecApi, textResult } from './shared';
 // space AND ':') that would still reach sf as a flag.
 const HELP_PATH_PATTERN = /^[a-z][a-z :-]*$/;
 
-export function createSfHelpTool(pi: any) {
+export function createSfHelpTool(pi: PluginHost) {
   const { Type } = pi.typebox;
 
   const parameters = Type.Object({
@@ -27,8 +28,8 @@ export function createSfHelpTool(pi: any) {
     async execute(
       _toolCallId: string,
       params: { command_path?: string },
-      signal: any,
-      _onUpdate: any,
+      signal: AbortSignal | undefined,
+      _onUpdate: ToolUpdateCallback | undefined,
       ctx: { cwd: string },
     ) {
       const base = { tool: 'sf_help' as const };
