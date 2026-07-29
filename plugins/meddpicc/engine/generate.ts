@@ -178,6 +178,18 @@ export interface PlannedTable {
 /**
  * A cell whose text nobody may change, and the text it must still hold.
  *
+ * Only rows with an identity of their own get one, and that is the whole distinction. An element row
+ * IS metrics; a question row IS that question. Move one and the sheet still reads correctly while the
+ * reader, which goes by position, hands the value to a different element — the sheet and the deal
+ * disagree, and neither says so.
+ *
+ * A plain list row has no such identity: row one is simply the first stakeholder. Swap two names there
+ * and the sheet says "David Park" beside "SVP Infrastructure", the deal ends up saying exactly that,
+ * and the two agree. The reader has transcribed a sheet somebody made odd, which is its job. Sorting a
+ * single column of a list is the way to make that happen by accident — and it makes the SHEET wrong
+ * before any reading occurs, so no read-back policy can recover it. Regenerate instead; the skills say
+ * so.
+ *
  * The stamp proves "this workbook came from this deal, laid out this way". It cannot see a change
  * made INSIDE the workbook, and every address the reader uses is only meaningful while the rows are
  * where the generator put them. Re-order two element rows — which is what tidying a sheet looks like
@@ -666,10 +678,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
      */
     const measureProse = (row: number, ref: string, text: string, column: number, span: number) => {
       const width = spanWidth(column, span);
-      needHeight(row, estimateRowHeight(text, width, ROW_HEIGHT));
+      const height = estimateRowHeight(text, width, ROW_HEIGHT);
+      needHeight(row, height);
       proseCells.push({ sheet: s.name, address: ref, row, width, text });
       const needed = neededRowHeight(text, width);
       if (needed > MAX_ROW_HEIGHT) clippedCells.push({ sheet: s.name, address: ref, row, needed });
+      return height;
     };
     /** A row's height is the tallest thing on it, and prose decides it. */
     const needHeight = (row: number, height: number) => {
@@ -774,6 +788,15 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             runStart.set(r, start);
           }
         }
+        /**
+         * Rows of this column that are blank and merged, and the tallest height any filled one needed.
+         *
+         * A padded row is there to be typed into, and Excel cannot autofit a merged cell — so left at
+         * the standard height the first sentence entered into one is clipped, with no error and nothing
+         * to click. There is no knowing what somebody will type, so the room comes from the rows above.
+         */
+        const blankProseRows: number[] = [];
+        let tallestProse = 0;
         const runLength = (r: number) => {
           let n = 1;
           while (r + n < padded && runStart.get(r + n) === r) n++;
@@ -805,6 +828,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
           // lines up with the header above it.
           if (entry === undefined) {
             push(dataRow, { ref, style });
+            if (spec.valueType === 'text') blankProseRows.push(dataRow);
             continue;
           }
 
@@ -822,8 +846,15 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             const value = displayValue(schema, jsonPath, toCellValue(readPath(deal, jsonPath), spec.valueType));
             push(dataRow, { ref, value, style });
             inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: spec.valueType });
-            if (spec.valueType === 'text' && typeof value === 'string') {
-              measureProse(dataRow, ref, value, column, span);
+            if (spec.valueType === 'text') {
+              // A list's padded rows are real entries whose values are simply absent, so blankness is
+              // decided here rather than by the `entry === undefined` branch above — which only fires
+              // for a keyed table with fewer keys than rows.
+              if (typeof value === 'string') {
+                tallestProse = Math.max(tallestProse, measureProse(dataRow, ref, value, column, span));
+              } else {
+                blankProseRows.push(dataRow);
+              }
             }
             continue;
           }
@@ -859,9 +890,14 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             anchors.push({ sheet: s.name, address: ref, text: derived });
           }
           if (spec.valueType === 'text' && typeof derived === 'string') {
-            measureProse(dataRow, ref, derived, column, span);
+            tallestProse = Math.max(tallestProse, measureProse(dataRow, ref, derived, column, span));
           }
         }
+
+        // Give every blank prose row the room the filled ones needed. Applied after the walk because
+        // the tallest is not known until the last row has been measured, and `needHeight` takes the
+        // greater of what it is given — so a row shared with a taller cell keeps that height.
+        for (const blankRow of blankProseRows) needHeight(blankRow, tallestProse);
 
         // Formats and dropdowns cover the padded rows too: a value typed into a blank row should
         // colour and validate like one that was there when the file was written.

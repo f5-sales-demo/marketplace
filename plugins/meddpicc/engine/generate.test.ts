@@ -639,6 +639,39 @@ describe('the rubric follows the score in Excel, not just at generation time', (
   });
 });
 
+describe('a blank prose row has room to type into', () => {
+  // A padded row is there to be typed into, and a prose cell in one is merged — so Excel cannot
+  // autofit it afterwards. Left at the standard 24 points, the first sentence somebody enters is
+  // clipped, with no error and nothing to click.
+  //
+  // There is no way to know what they will type, so the room comes from the rows above: as tall as the
+  // tallest filled cell in the same column. A list of four stakeholders with two-line answers gives
+  // its spare rows two lines each, which is both a better guess than one line and a tidier grid.
+  test('a padded prose row is as tall as the tallest filled one in its column', () => {
+    const t = table('stakeholders');
+    const filled = (deal.stakeholders as unknown[]).length;
+    expect(t.rows).toBeGreaterThan(filled);
+    const rowHeight = (offset: number) => theSheet().rows.find((r) => r.row === t.firstDataRow + offset)?.height ?? 0;
+    const tallestFilled = Math.max(...Array.from({ length: filled }, (_, i) => rowHeight(i)));
+    // The filled rows have to be taller than the default, or this asserts nothing.
+    expect(tallestFilled).toBeGreaterThan(24);
+    for (let i = filled; i < t.rows; i++) {
+      expect(rowHeight(i), `padded row ${i}`).toBe(tallestFilled);
+    }
+  });
+
+  test('a list with nothing in it still gets more than one line', () => {
+    const empty = clone(deal);
+    empty.stakeholders = [];
+    const p = planWorkbook(schema, spec, empty);
+    const t = table('stakeholders', p);
+    for (let i = 0; i < t.rows; i++) {
+      const height = p.sheets[0].rows.find((r) => r.row === t.firstDataRow + i)?.height ?? 0;
+      expect(height, `padded row ${i}`).toBeGreaterThanOrEqual(24);
+    }
+  });
+});
+
 describe('prose too tall for any row is reported, not clipped in silence', () => {
   // Excel's tallest row is 409.5 points, so text needing more cannot be shown in full in one row —
   // and the cell is merged, so it cannot autofit to reveal the rest either. Nothing about that is

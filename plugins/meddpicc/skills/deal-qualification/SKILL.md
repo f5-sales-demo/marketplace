@@ -364,6 +364,13 @@ Rules that matter:
   from.** It carries a stamp, and `read` refuses it otherwise. If the
   deal has gained a stakeholder or an answer since, regenerate — do
   not try to make the old file work.
+- **Never sort or move a single column.** The rows are laid out, not tabled: a
+  list row is identified by its position, so sorting one column detaches every
+  value in it from the rest of its row — and the sheet is then wrong before
+  anything is read back. Rows with an identity of their own (the eight elements,
+  the questions, the section statuses) are checked, and a workbook whose rows
+  have moved is refused by cell address. For a list, regenerate rather than
+  rearrange.
 - **A list holds exactly the rows it shows.** Each one is laid out with
   blank rows to spare, and content typed *below* them is refused rather
   than read — there is nowhere for it to go, because the rows under a
