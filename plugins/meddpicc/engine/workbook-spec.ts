@@ -72,9 +72,41 @@ export interface SpecColumn {
   valueType: ValueType;
   /** For `input`. Relative to the item for a list source; may carry one `*` for a keyed source. */
   jsonPath?: string;
+  /**
+   * For `derived`: this column's value is computed from an INPUT, so it is not an anchor.
+   *
+   * Every other derived cell is one — an element's name and definition, a question's text, a
+   * section's name — because those follow only the schema and the row's key. A cell that no longer
+   * holds what the generator wrote there therefore means the rows have moved, and the reader refuses
+   * the workbook.
+   *
+   * A value following an input cannot be treated that way. The rubric wording follows a score: apply
+   * a score change to the deal, read the same workbook again, and the plan now expects the NEW
+   * wording while the file still holds the old one. Anchoring it would refuse the ordinary
+   * read-apply-read sequence — which is exactly what the Excel acceptance test caught when this flag
+   * was briefly removed, after a unit-test mutation failed to notice its absence.
+   */
+  followsInput?: boolean;
   /** For `computed`. May use `{{this:…}}` to name another column in the same row. */
   formula?: string;
-  width?: number;
+  /** Grid columns this column covers. A span over one becomes a merge on every row. */
+  span?: number;
+  /**
+   * This column labels its row rather than holding data.
+   *
+   * Rendered like a field label — the element name beside its questions is a heading for them, and
+   * the manual sheet colours it as one. Still not a style name: the spec says what a cell IS and the
+   * palette decides how that looks.
+   */
+  heading?: boolean;
+  /**
+   * Merge consecutive rows holding the same value into one cell.
+   *
+   * The element name beside its questions, as the manual sheet has it: "Metrics" written once and
+   * spanning both of its question rows, rather than repeated on each. It reads as one block per
+   * element instead of a column of duplicates.
+   */
+  groupRuns?: boolean;
   /** A named conditional-format preset (see xlsx.ts). Formatting is spec data, not code. */
   conditionalFormat?: CfPreset;
   /**
@@ -101,13 +133,10 @@ export type SpecTableSource =
 export interface SpecTable {
   id: string;
   source: SpecTableSource;
-  /** 1-based column the table starts at. Two tables share a sheet by sitting side by side. */
+  /** 1-based grid column the table starts at. Two tables sit side by side on the same rows. */
   anchorColumn: number;
-  headerRow: number;
   /** Blank rows to keep below the data so the table has room to grow in Excel. */
   minRows?: number;
-  /** Emit a real Excel Table over the range, so it filters, sorts and extends on typing. */
-  asTable?: boolean;
   /**
    * The column whose cells hold the row key. Required when a formula points at one row of
    * this table: a Table can be sorted, so a keyed reference has to look the key up rather
@@ -117,33 +146,60 @@ export interface SpecTable {
   columns: SpecColumn[];
 }
 
-export type SpecBlock =
-  | { kind: 'title'; text: string }
-  | { kind: 'section'; text: string }
-  | { kind: 'spacer' }
+/**
+ * One cell of a grid row, and how many grid columns it covers.
+ *
+ * A span of more than one becomes a merge. Everything on the sheet — a full-width banner, a
+ * three-pairs-per-row metadata block, a label beside a paragraph — is this same primitive, so the
+ * layout is data and the generator has one rule to apply rather than a shape per section.
+ */
+export type SpecRowCell =
+  | { kind: 'blank'; span: number }
+  | { kind: 'label'; span: number; text: string }
   | {
       kind: 'field';
+      span: number;
       id: string;
-      label: string;
       jsonPath: string;
       valueType: ValueType;
-      height?: number;
       conditionalFormat?: CfPreset;
       validate?: boolean;
     }
   | {
       kind: 'computed';
+      span: number;
       id: string;
-      label: string;
       formula: string;
       valueType: ValueType;
-      height?: number;
       conditionalFormat?: CfPreset;
     };
 
-export type SpecSheet =
-  | { name: string; kind: 'form'; blocks: SpecBlock[]; columns?: { min: number; max: number; width: number }[] }
-  | { name: string; kind: 'table'; tables: SpecTable[] };
+export type SpecBlock =
+  /** The sheet's one heading, banner-styled across the full content width. */
+  | { kind: 'title'; text: string }
+  /** A section banner across the full content width. */
+  | { kind: 'section'; text: string }
+  /** Sub-headers over column ranges — "Us" and "Partner" side by side, say. */
+  | { kind: 'group'; cells: { span: number; text: string }[] }
+  /** A blank row. Narrow by default, because vertical space is the scarce resource. */
+  | { kind: 'spacer'; height?: number }
+  /** A row of cells whose spans must add up to the content width. */
+  | { kind: 'row'; cells: SpecRowCell[]; height?: number }
+  /** A grid of repeating rows: a list, the eight elements, the section statuses. */
+  | { kind: 'table'; table: SpecTable };
+
+/**
+ * One worksheet, laid out.
+ *
+ * `columns` sizes the grid: entry one is a narrow gutter so no content touches the left edge, and
+ * the rest are the content columns every block's spans are measured against.
+ */
+export interface SpecSheet {
+  name: string;
+  kind: 'grid';
+  columns: { min: number; max: number; width: number }[];
+  blocks: SpecBlock[];
+}
 
 export interface WorkbookSpec {
   version: number;
@@ -188,12 +244,21 @@ export function expandJsonPath(jsonPath: string, keys: readonly string[]): strin
 }
 
 export interface SpecReference {
-  kind: 'ref' | 'col' | 'row' | 'this';
+  /**
+   * `ref` a named cell, `col` a table column's data range, `row` one keyed row of a column,
+   * `this` another column of the same row — and `word`, which is not a cell at all.
+   *
+   * `word` resolves to a quoted string the SHEET shows: `{{word:booleanYes}}` becomes `"Yes"`.
+   * A boolean cell holds that text rather than a logical TRUE, so `COUNTIF(range,TRUE)` counts
+   * nothing and the scorecard reports 0 where the deal has 2 — well-formed, silently wrong. The
+   * spec cannot import a TypeScript constant, so it names one instead of repeating its spelling.
+   */
+  kind: 'ref' | 'col' | 'row' | 'this' | 'word';
   target: string;
   raw: string;
 }
 
-const REFERENCE = /\{\{(ref|col|row|this):([^{}]+)\}\}/g;
+const REFERENCE = /\{\{(ref|col|row|this|word):([^{}]+)\}\}/g;
 /** Any `{{…}}`, well formed or not — what the parser above ignores, this one still sees. */
 const PLACEHOLDER = /\{\{([^{}]*)\}\}/g;
 
@@ -215,7 +280,9 @@ export function parseReferences(formula: string): SpecReference[] {
  * see literal braces. So the malformed ones are found separately and always reported.
  */
 export function findMalformedReferences(formula: string): string[] {
-  const bad = [...formula.matchAll(PLACEHOLDER)].filter((m) => !/^(ref|col|row|this):.+$/.test(m[1])).map((m) => m[0]);
+  const bad = [...formula.matchAll(PLACEHOLDER)]
+    .filter((m) => !/^(ref|col|row|this|word):.+$/.test(m[1]))
+    .map((m) => m[0]);
 
   // An unclosed `{{` matches neither pattern, so it can only be caught by counting.
   const opens = formula.match(/\{\{/g)?.length ?? 0;
@@ -274,7 +341,37 @@ interface Collected {
   /** Inputs whose path could not even be formed — before any schema lookup. */
   pathIssues: string[];
   /** Cells asking for a schema-derived dropdown, with the path the values come from. */
-  validated: Array<{ where: string; path: string }>;
+  validated: Array<{ where: string; path: string; valueType: ValueType }>;
+}
+
+/** The tables a sheet declares, in the order the layout puts them. */
+export function specTables(sheet: SpecSheet): SpecTable[] {
+  return sheet.blocks.filter((b): b is Extract<SpecBlock, { kind: 'table' }> => b.kind === 'table').map((b) => b.table);
+}
+
+/**
+ * Tables grouped into the row-bands they occupy.
+ *
+ * **Consecutive `table` blocks share their rows**, which is how two lists sit side by side — the
+ * milestones beside the critical actions, the internal team beside the partner's. Any other block
+ * between them ends the band, so the next table starts below rather than alongside. One rule, and it
+ * is what tells "these two are a pair" from "these two are stacked".
+ */
+export function specTableBands(sheet: SpecSheet): SpecTable[][] {
+  const bands: SpecTable[][] = [];
+  let current: SpecTable[] | null = null;
+  for (const block of sheet.blocks) {
+    if (block.kind === 'table') {
+      if (!current) {
+        current = [];
+        bands.push(current);
+      }
+      current.push(block.table);
+    } else {
+      current = null;
+    }
+  }
+  return bands;
 }
 
 function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected {
@@ -292,33 +389,33 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
   };
 
   for (const sheet of spec.sheets) {
-    if (sheet.kind === 'form') {
-      for (const block of sheet.blocks) {
-        if (block.kind !== 'field' && block.kind !== 'computed') continue;
-        const where = `${sheet.name}.${block.id}`;
-        if (out.namedCells.has(block.id)) {
-          ids.push(`duplicate cell id "${block.id}" (${out.namedCells.get(block.id)?.sheet} and ${sheet.name})`);
+    for (const block of sheet.blocks) {
+      if (block.kind !== 'row') continue;
+      for (const cell of block.cells) {
+        if (cell.kind !== 'field' && cell.kind !== 'computed') continue;
+        const where = `${sheet.name}.${cell.id}`;
+        if (out.namedCells.has(cell.id)) {
+          ids.push(`duplicate cell id "${cell.id}" (${out.namedCells.get(cell.id)?.sheet} and ${sheet.name})`);
         }
-        out.namedCells.set(block.id, { sheet: sheet.name, label: block.label });
-        checkValueType(where, block.valueType);
+        out.namedCells.set(cell.id, { sheet: sheet.name, label: cell.id });
+        checkValueType(where, cell.valueType);
 
-        if (block.kind === 'field') {
-          if (!block.jsonPath) {
+        if (cell.kind === 'field') {
+          if (!cell.jsonPath) {
             roles.push(`${where}: a field must name a jsonPath`);
-          } else if (block.jsonPath.includes(WILDCARD)) {
-            roles.push(`${where}: a form field cannot use a wildcard — there is no key axis to expand it over`);
+          } else if (cell.jsonPath.includes(WILDCARD)) {
+            roles.push(`${where}: a grid field cannot use a wildcard — there is no key axis to expand it over`);
           } else {
-            out.inputs.push({ where, paths: [block.jsonPath] });
-            if (block.validate) out.validated.push({ where, path: block.jsonPath });
+            out.inputs.push({ where, paths: [cell.jsonPath] });
+            if (cell.validate) out.validated.push({ where, path: cell.jsonPath, valueType: cell.valueType });
           }
         } else {
-          out.formulas.push({ where, formula: block.formula, table: null });
+          out.formulas.push({ where, formula: cell.formula, table: null });
         }
       }
-      continue;
     }
 
-    for (const table of sheet.tables) {
+    for (const table of specTables(sheet)) {
       if (out.tables.has(table.id)) {
         ids.push(`duplicate table id "${table.id}" (${out.tables.get(table.id)?.sheet} and ${sheet.name})`);
       }
@@ -351,7 +448,7 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
               continue;
             }
             out.inputs.push({ where, paths });
-            if (column.validate) out.validated.push({ where, path: paths[0] });
+            if (column.validate) out.validated.push({ where, path: paths[0], valueType: column.valueType });
           } catch (e) {
             roles.push(`${where}: ${e instanceof Error ? e.message : String(e)}`);
           }
@@ -391,6 +488,15 @@ function checkReferences(collected: Collected): { checked: number; failures: str
       checked++;
       if (ref.kind === 'ref') {
         if (!collected.namedCells.has(ref.target)) failures.push(`${where}: ${ref.raw} names no cell`);
+        continue;
+      }
+      if (ref.kind === 'word') {
+        // Not a cell: `{{word:booleanYes}}` is the spelling the sheet uses, quoted into the formula.
+        // The set is decided in `generate.ts`, which throws on an unknown name, so the only thing to
+        // check here is that a name was given at all.
+        if (!/^[A-Za-z][A-Za-z0-9]*$/.test(ref.target)) {
+          failures.push(`${where}: ${ref.raw} must name a word, like {{word:booleanYes}}`);
+        }
         continue;
       }
       if (ref.kind === 'this') {
@@ -454,19 +560,22 @@ function checkLayout(spec: WorkbookSpec): string[] {
     if (ILLEGAL_SHEET_CHARS.test(sheet.name)) {
       failures.push(`sheet name "${sheet.name}" contains a character Excel forbids`);
     }
-    if (sheet.kind !== 'table') continue;
-
-    // Two tables share a sheet by sitting side by side; both grow downward for ever, so
-    // overlapping column ranges means one eventually writes over the other.
-    const spans = sheet.tables.map((t) => ({
-      id: t.id,
-      from: t.anchorColumn,
-      to: t.anchorColumn + t.columns.length - 1,
-    }));
-    for (let i = 0; i < spans.length; i++) {
-      for (let j = i + 1; j < spans.length; j++) {
-        if (spans[i].from <= spans[j].to && spans[j].from <= spans[i].to) {
-          failures.push(`tables "${spans[i].id}" and "${spans[j].id}" overlap on sheet "${sheet.name}"`);
+    // Two tables sit side by side on the same rows, so overlapping column ranges means one
+    // writes over the other. A column may span several grid columns, so the width is the sum of
+    // the spans rather than the number of columns.
+    // Only tables sharing rows can collide. Stacked ones are free to use the same columns — that is
+    // the whole point of a single laid-out sheet.
+    for (const band of specTableBands(sheet)) {
+      const spans = band.map((t) => ({
+        id: t.id,
+        from: t.anchorColumn,
+        to: t.anchorColumn + t.columns.reduce((n, c) => n + (c.span ?? 1), 0) - 1,
+      }));
+      for (let i = 0; i < spans.length; i++) {
+        for (let j = i + 1; j < spans.length; j++) {
+          if (spans[i].from <= spans[j].to && spans[j].from <= spans[i].to) {
+            failures.push(`tables "${spans[i].id}" and "${spans[j].id}" share rows and columns on "${sheet.name}"`);
+          }
         }
       }
     }
@@ -511,7 +620,11 @@ export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecChec
   // free-text field would otherwise emit an empty list, which Excel renders as a dropdown
   // offering nothing — worse than no dropdown, because it looks deliberate.
   const validationFailures: string[] = [];
-  for (const { where, path } of collected.validated) {
+  for (const { where, path, valueType } of collected.validated) {
+    // A boolean enumerates itself: the type has exactly two values, and the workbook decides how they
+    // read. The schema declares no enum for one, so asking it for the list would refuse a dropdown
+    // that is not only honest but the reason a boolean cell and the count beside it agree at all.
+    if (valueType === 'boolean') continue;
     const constraint = schemaConstraint(schema, path);
     if (!constraint) {
       validationFailures.push(`${where}: "${path}" does not resolve, so there is nothing to build a dropdown from`);

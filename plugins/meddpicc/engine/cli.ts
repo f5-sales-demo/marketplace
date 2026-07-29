@@ -1,8 +1,20 @@
 #!/usr/bin/env bun
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import pkg from '../package.json' with { type: 'json' };
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
+
+/**
+ * What built the workbook, recorded in the file.
+ *
+ * Read from the PLUGIN's package.json, which `test_versions_match` compares against `plugin.json`
+ * and `marketplace.json` — so the number here is the one the release actually publishes. The
+ * engine's own package.json was the obvious choice and the wrong one: that file was not covered by
+ * the gate, so it could drift and the workbook would record a version nobody shipped.
+ */
+const ENGINE_VERSION: string = (pkg as { version: string }).version;
+
 import { computeElementHint, computeHintOverview } from './hint';
 import { migrateDeal } from './legacy';
 import { checkSfdcMapping } from './mappings';
@@ -128,7 +140,7 @@ async function main(): Promise<number> {
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write(
-        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--spec <workbook-spec.json>]\n',
+        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>]\n',
       );
       return 1;
     }
@@ -156,6 +168,34 @@ async function main(): Promise<number> {
       return 1;
     }
 
+    // Every prose cell, the width its height was computed against, and the height that row ended up
+    // with. Only Excel can say whether a computed height is enough — it autofits a wrapped cell but
+    // not a merged one, and nearly every prose cell here is merged — so the acceptance test copies
+    // each string into a scratch cell of the same width, autofits it, and compares.
+    if (rest.includes('--prose-heights')) {
+      const plan = planWorkbook(schema, spec, deal);
+      const heightOf = new Map<string, number>();
+      for (const sheet of plan.sheets) {
+        for (const row of sheet.rows) heightOf.set(`${sheet.name}!${row.row}`, row.height ?? 0);
+      }
+      const withNewlines = plan.proseCells.filter((c) => c.text.includes('\n'));
+      for (const cell of plan.proseCells) {
+        // A tab-separated line, text last, so a shell can read it field by field. A text containing a
+        // newline would break that, and measuring a mangled copy of it would be worse than not
+        // measuring it — so those are reported on stderr and left out.
+        if (cell.text.includes('\n')) continue;
+        const height = heightOf.get(`${cell.sheet}!${cell.row}`) ?? 0;
+        process.stdout.write(`${cell.address}\t${cell.width}\t${height}\t${cell.text}\n`);
+      }
+      if (withNewlines.length > 0) {
+        process.stderr.write(
+          `${withNewlines.length} prose cell(s) contain a newline and were not reported: ` +
+            `${withNewlines.map((c) => c.address).join(', ')}\n`,
+        );
+      }
+      return 0;
+    }
+
     // `--plan` reports where every input landed without writing a file — that map is what
     // the round-trip reader consumes, so being able to inspect it is worth a flag.
     if (rest.includes('--plan')) {
@@ -163,6 +203,10 @@ async function main(): Promise<number> {
       print({
         sheets: plan.sheets.map((s) => ({ name: s.name, rows: s.rows.length })),
         namedCells: plan.namedCells,
+        // Where each table landed. Nothing on one laid-out sheet has a fixed address, so anything
+        // that needs to name a cell of a table — the Excel acceptance test above all — reads it from
+        // here rather than counting rows and hoping the count still holds.
+        tables: plan.tables,
         inputCells: plan.inputCells,
       });
       return 0;
@@ -173,9 +217,26 @@ async function main(): Promise<number> {
       process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
       return 1;
     }
-    await Bun.write(outPath, generateWorkbook(schema, spec, deal));
+    await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION));
     const plan = planWorkbook(schema, spec, deal);
-    print({ out: outPath, sheets: plan.sheets.length, inputCells: plan.inputCells.length });
+    // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a
+    // merged cell cannot autofit and Excel's tallest row is 409.5 points, so text needing more ends
+    // mid-sentence with nothing on the sheet to show it — which is precisely the kind of silence this
+    // plugin exists to break.
+    print({
+      out: outPath,
+      sheets: plan.sheets.length,
+      inputCells: plan.inputCells.length,
+      ...(plan.clippedCells.length === 0
+        ? {}
+        : {
+            clipped: plan.clippedCells.map((c) => ({
+              address: c.address,
+              needed: c.needed,
+              note: 'longer than any Excel row can show — shorten it in the deal JSON, or accept that the end is hidden',
+            })),
+          }),
+    });
     return 0;
   }
 
@@ -218,6 +279,9 @@ async function main(): Promise<number> {
       unchanged: report.unchanged,
       proposals: report.proposals,
       rejections: report.rejections,
+      // Not refusals: things worth knowing, such as the schema having moved since the workbook was
+      // generated. Omitted when there is nothing to say, so quiet output stays quiet.
+      ...(report.notes.length > 0 ? { notes: report.notes } : {}),
       valid: report.valid,
       errors: report.errors,
       applied: apply,

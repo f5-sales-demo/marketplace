@@ -6,7 +6,7 @@
 # repair rather than open, a date written as text turns arithmetic into #VALUE!, and a
 # formula referring to the wrong range is perfectly well-formed and silently wrong.
 #
-# So this drives the real application: generate, open, read the Scorecard back, and compare
+# So this drives the real application: generate, open, read the scorecard back, and compare
 # it against what `engine score` computes from the same deal by a completely different route.
 # Agreement between the two is the evidence; either alone proves much less.
 #
@@ -19,15 +19,34 @@ DEAL="${1:-$PLUGIN_ROOT/schema/example-deal.json}"
 WORK="$(mktemp -d)"
 OUT="$WORK/uat-deal.xlsx"
 BOOK="$(basename "$OUT")"
-
 skip() {
   echo "SKIP: $1"
   exit 0
 }
 
 command -v bun >/dev/null 2>&1 || skip "bun unavailable"
+command -v jq >/dev/null 2>&1 || skip "jq unavailable"
 command -v osascript >/dev/null 2>&1 || skip "not macOS (no osascript)"
 [ -d "/Applications/Microsoft Excel.app" ] || skip "Microsoft Excel is not installed"
+
+# The workbook is ONE laid-out sheet, and nothing on it has a fixed address: a table starts wherever
+# the blocks above it end. So every address this script types into comes from `generate --plan` —
+# the generator's own map — rather than from a row number written here, which would go stale the
+# first time a section moved.
+SHEET="$(jq -r '.sheets[0].name' "$PLUGIN_ROOT/engine/workbook-spec.json")"
+# The content columns: from the one past the gutter to the last one the spec sizes. Both come from
+# the spec, so widening the grid moves every assertion built on them.
+content_start="$(jq -r '.sheets[0].columns[0].max + 1' "$PLUGIN_ROOT/engine/workbook-spec.json")"
+content_end="$(jq -r '[.sheets[0].columns[].max] | max' "$PLUGIN_ROOT/engine/workbook-spec.json")"
+
+# 1-based column number to Excel letters: 1 -> A, 27 -> AA.
+letters() {
+  awk -v n="$1" 'BEGIN {
+    out = ""
+    while (n > 0) { r = (n - 1) % 26; out = sprintf("%c", 65 + r) out; n = int((n - 1) / 26) }
+    print out
+  }'
+}
 
 # Every workbook this script can open, by the name Excel knows it as. Closing is BY NAME and never
 # "every workbook": the operator has their own spreadsheets open, `saving no` discards unsaved
@@ -52,7 +71,7 @@ OSA
 }
 
 # A failure part-way through used to leave a LATER workbook open — the handler closed only the first
-# one — and the next run then read the Scorecard out of the stale copy and reported an empty rating,
+# one — and the next run then read the scorecard out of the stale copy and reported an empty rating,
 # blaming the code under test for Excel's state.
 fail() {
   echo "FAIL: $1" >&2
@@ -124,25 +143,29 @@ done
 [ "${opened:-0}" = "1" ] || fail "Excel never listed $BOOK — it most likely offered to repair the file"
 echo "    opened with no repair prompt"
 
-# Find the Scorecard rows by their labels rather than hard-coded addresses: the layout comes
-# from the spec, so pinning row numbers here would make this fail on a harmless reorder.
-find_value() {
+# The scorecard cells by NAME, from the plan. Scanning for a label was how this used to find them,
+# and it cannot survive translation: a Korean workbook has no cell reading "Total score", while
+# `scoreTotal` is the same id in every language.
+uat_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan)" || fail "generate --plan failed"
+named() {
+  local ref
+  ref="$(jq -r --arg id "$1" '.namedCells[$id] // "MISSING"' <<<"$uat_plan")"
+  [ "$ref" != "MISSING" ] || fail "the plan has no named cell \"$1\""
+  # `Sheet!Address` — this script asks for the sheet separately, so hand back the address.
+  echo "${ref##*!}"
+}
+
+read_named() {
   osascript <<OSA 2>/dev/null
 tell application "Microsoft Excel"
-  repeat with r from 1 to 60
-    set a to (get value of cell ("A" & r) of worksheet "Scorecard" of workbook "$BOOK")
-    if (a as string) is "$1" then
-      return (get value of cell ("B" & r) of worksheet "Scorecard" of workbook "$BOOK") as string
-    end if
-  end repeat
-  return "NOT-FOUND"
+  return (get value of cell "$(named "$1")" of worksheet "$SHEET" of workbook "$BOOK") as string
 end tell
 OSA
 }
 
-got_sum="$(find_value 'Total score')"
-got_rating="$(find_value 'Rating')"
-got_pct_raw="$(find_value 'Overall score')"
+got_sum="$(read_named scoreTotal)"
+got_rating="$(read_named scoreRating)"
+got_pct_raw="$(read_named scorePercent)"
 
 echo "    Total score: Excel=$got_sum engine=$want_sum"
 [ "${got_sum%.*}" = "$want_sum" ] || fail "Excel computed $got_sum, engine says $want_sum"
@@ -154,6 +177,38 @@ echo "    Rating: Excel=$got_rating engine=$want_rating"
 got_pct="$(awk -v v="$got_pct_raw" 'BEGIN { printf "%.1f", v * 100 }')"
 echo "    Overall score: Excel=$got_pct% engine=$want_pct%"
 [ "$got_pct" = "$want_pct" ] || fail "Excel computed $got_pct%, engine says $want_pct%"
+
+# Three cells agreeing with the engine is not the same as the scorecard being right. Every count
+# below is derivable from the deal JSON by a completely different route, so ask Excel for each one
+# and compare.
+#
+# This stage exists because its absence hid a real defect for a whole session: booleans are written
+# as the word "Yes", and the counts still compared against a logical TRUE. Excel does not treat text
+# "Yes" as TRUE, so Must Say Yes, Can Say No and Assigned all reported 0 where the deal has 2, 3 and
+# 2 — well-formed, silently wrong, and invisible to every assertion there was.
+check_count() {
+  local id="$1" want="$2" got
+  got="$(read_named "$id")"
+  echo "    $id: Excel=${got:-<none>} deal=$want"
+  # A zero expectation would let a formula that counts nothing agree with it, so refuse to compare.
+  [ "$want" != "0" ] || fail "$id expects 0 from the deal — this comparison cannot fail, pick a fixture that exercises it"
+  [ "${got%.*}" = "$want" ] || fail "Excel computed $id = $got, the deal says $want"
+}
+
+deal_count() { jq -r "$1" "$DEAL"; }
+check_count mustSayYesCount "$(deal_count '[.stakeholders[] | select(.mustSayYes)] | length')"
+check_count canSayNoCount "$(deal_count '[.stakeholders[] | select(.canSayNo)] | length')"
+check_count teamInternalAssigned "$(deal_count '[.team.internal[] | select(.assignedToDeal)] | length')"
+check_count stakeholdersMapped "$(deal_count '.stakeholders | length')"
+check_count teamInternalCount "$(deal_count '.team.internal | length')"
+check_count teamPartnerCount "$(deal_count '.team.partner | length')"
+check_count milestonesTotal "$(deal_count '.closePlan.milestones | length')"
+check_count questionsAnswered "$(deal_count '[.qualification[].responses // [] | .[] | select(. != "")] | length')"
+# From `engine score`, not from jq: an unscored element counts as 0 and that rule belongs to the
+# engine. Deriving it here again would be a second opinion that could disagree with both.
+check_count elementsBelowThree "$(jq -r '[.elementScores[] | select(. < 3)] | length' <<<"$score_json")"
+check_count scorePreviousTotal "$(deal_count '[.scoring.previousElementScores[]] | add')"
+echo "PASS: every scorecard count Excel computes agrees with the deal JSON"
 
 # A formula pointing at the wrong range is well-formed and wrong; an error value is at least
 # loud. Check for the loud ones across every sheet.
@@ -205,19 +260,21 @@ assert_no_error_values() {
 assert_no_error_values "before planting one"
 
 # Now break it on purpose. A detector that has never fired is indistinguishable from one that cannot.
-SENTINEL_CELL="Z1"
-excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\" to \"=1/0\""
+# Outside the content columns on purpose: planting the sentinel inside them would overwrite a real
+# cell, and clearing it afterwards would not put the value back.
+SENTINEL_CELL="$(letters "$((content_end + 4))")1"
+excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"$SHEET\" of workbook \"$BOOK\" to \"=1/0\""
 planted="$(error_values)"
 case "$planted" in
 *"execution error"* | *"syntax error"*) fail "the error-value check could not run (planted): $planted" ;;
 *"#DIV/0!"*) ;;
-*) fail "the error-value detector did not notice a deliberate #DIV/0! in Deal!$SENTINEL_CELL: [${planted}]" ;;
+*) fail "the error-value detector did not notice a deliberate #DIV/0! in $SHEET!$SENTINEL_CELL: [${planted}]" ;;
 esac
-excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\""
+excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"$SHEET\" of workbook \"$BOOK\""
 assert_no_error_values "after clearing the planted one"
 echo "    no Excel error values on any sheet (detector verified: it catches a planted #DIV/0!)"
 
-echo "PASS: Excel opened the generated workbook and its Scorecard agrees with the engine"
+echo "PASS: Excel opened the generated workbook and its scorecard agrees with the engine"
 
 # Stage 2 added Excel Tables, conditional formatting and dropdowns. The file opening proves
 # the XML is well-formed; it does not prove Excel made anything of it. Ask Excel directly.
@@ -233,66 +290,203 @@ end tell
 OSA
 }
 
-tables_seen="$(ask "count of list objects of worksheet \"Stakeholders\" of workbook \"$BOOK\"")"
-echo "    Excel sees ${tables_seen:-<none>} table(s) on Stakeholders"
-[ "$tables_seen" = "1" ] || fail "expected 1 Excel Table on Stakeholders, Excel reports '$tables_seen'"
+# A cell of a table, by table id, column id and row offset, from the plan's own geometry. `at`
+# below does the same for form fields; both exist so that no row number is written down in here.
+table_column() {
+  local col
+  col="$(jq -r --arg t "$1" --arg c "$2" '(.tables[] | select(.id == $t) | .columns[$c]) // "MISSING"' <<<"$uat_plan")"
+  [ "$col" != "MISSING" ] || fail "the plan has no column \"$2\" in table \"$1\""
+  echo "$col"
+}
+table_row() {
+  jq -r --arg t "$1" '(.tables[] | select(.id == $t) | .firstDataRow) // "MISSING"' <<<"$uat_plan"
+}
+table_cell() {
+  local row
+  row="$(table_row "$1")"
+  [ "$row" != "MISSING" ] || fail "the plan has no table \"$1\""
+  echo "$(letters "$(table_column "$1" "$2")")$((row + ${3:-0}))"
+}
+table_header_cell() {
+  local header
+  header="$(jq -r --arg t "$1" '(.tables[] | select(.id == $t) | .headerRow) // "MISSING"' <<<"$uat_plan")"
+  [ "$header" != "MISSING" ] || fail "the plan has no table \"$1\""
+  echo "$(letters "$(table_column "$1" "$2")")$header"
+}
 
-rules_seen="$(ask "count of format conditions of range \"C2:C9\" of worksheet \"Qualification\" of workbook \"$BOOK\"")"
-echo "    Excel sees ${rules_seen:-<none>} conditional-format rule(s) on the score column"
+# NO Excel Tables, anywhere. This is the one-sheet layout's hard constraint rather than an
+# oversight: Excel silently drops a table whose range contains a merged cell, and every span over
+# one column on this sheet is a merge. A table appearing here would mean the generator had started
+# writing `<tableParts>` again, and the drop would only show up as data quietly not extending.
+tables_seen="$(ask "count of list objects of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+echo "    Excel sees ${tables_seen:-<none>} Excel Table(s) on $SHEET"
+[ "$tables_seen" = "0" ] || fail "expected no Excel Tables on one laid-out sheet, Excel reports '$tables_seen'"
+
+score_first="$(table_cell elements score 0)"
+score_last="$(table_cell elements score 7)"
+rules_seen="$(ask "count of format conditions of range \"$score_first:$score_last\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+echo "    Excel sees ${rules_seen:-<none>} conditional-format rule(s) on the score column ($score_first:$score_last)"
 [ "$rules_seen" = "3" ] || fail "expected 3 conditional-format rules on the score column, Excel reports '$rules_seen'"
 
 # The point of deriving dropdowns from the schema is that they cannot drift from it, so compare
 # what Excel offers against what the schema says rather than against a literal repeated here.
 want_roles="$(jq -r '.properties.stakeholders.items.properties.roleInDeal.enum | join(",")' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
-got_roles="$(ask "formula1 of (validation of range \"C2\" of worksheet \"Stakeholders\" of workbook \"$BOOK\")")"
-echo "    role dropdown: Excel=[$got_roles] schema=[$want_roles]"
+role_cell="$(table_cell stakeholders roleInDeal 0)"
+got_roles="$(ask "formula1 of (validation of range \"$role_cell\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
+echo "    role dropdown at $role_cell: Excel=[$got_roles] schema=[$want_roles]"
 [ "$got_roles" = "$want_roles" ] || fail "the role dropdown does not match the schema enum"
 
-got_scores="$(ask "formula1 of (validation of range \"C2\" of worksheet \"Qualification\" of workbook \"$BOOK\")")"
-echo "    score dropdown: Excel=[$got_scores]"
+got_scores="$(ask "formula1 of (validation of range \"$score_first\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
+echo "    score dropdown at $score_first: Excel=[$got_scores]"
 [ "$got_scores" = "0,1,2,3,4" ] || fail "the score dropdown is '$got_scores', expected 0,1,2,3,4"
-echo "PASS: Excel recognises the tables, the conditional formats and the schema-derived dropdowns"
+
+# A boolean cell holds the WORD "Yes", and the scorecard counts that word. Without a dropdown Excel
+# accepts anything — and the reader is deliberately lenient, so TRUE typed into the cell is applied
+# to the deal while the count beside it stays wrong until the workbook is regenerated. The dropdown
+# is what stops the two from disagreeing, so ask Excel whether it really has one.
+bool_cell="$(table_cell stakeholders mustSayYes 0)"
+got_bool="$(ask "formula1 of (validation of range \"$bool_cell\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
+echo "    boolean dropdown at $bool_cell: Excel=[$got_bool]"
+[ "$got_bool" = "Yes,No" ] || fail "the boolean dropdown is '$got_bool', expected Yes,No"
+echo "PASS: Excel recognises the conditional formats and the schema-derived dropdowns, and sees no Excel Table"
 
 # The presentation primitives are the ones a unit test can least vouch for: a merge Excel
 # rejects, a print setup it ignores, a gridline flag in the wrong place — all of them produce a
 # file that still opens. So ask Excel what it made of them.
-merged_title="$(ask "merge cells of range \"A1:B1\" of worksheet \"Deal\" of workbook \"$BOOK\"")"
-echo "    Deal!A1:B1 merged: ${merged_title:-<none>}"
-[ "$merged_title" = "true" ] || fail "expected the title banner to be merged, Excel reports '$merged_title'"
+#
+title_range="$(letters "$content_start")1:$(letters "$content_end")1"
+merged_title="$(ask "merge cells of range \"$title_range\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+echo "    $SHEET!$title_range merged: ${merged_title:-<none>}"
+[ "$merged_title" = "true" ] || fail "expected the title banner to be merged across $title_range, Excel reports '$merged_title'"
 
 # The value belongs to the top-left cell; a merge that lost it would read back empty.
-merged_text="$(ask "value of range \"A1\" of worksheet \"Deal\" of workbook \"$BOOK\"")"
-echo "    Deal!A1 reads: ${merged_text:-<empty>}"
+merged_text="$(ask "value of range \"$(letters "$content_start")1\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+echo "    the title cell reads: ${merged_text:-<empty>}"
 [ -n "$merged_text" ] || fail "the merged title cell is empty — the merge swallowed its value"
 
-# A table sheet must have NO merge anywhere in its table range: Excel silently drops a table
-# that contains one, and the drop is only visible as the table count falling to zero.
-merged_in_table="$(ask "merge cells of range \"A1:H2\" of worksheet \"Stakeholders\" of workbook \"$BOOK\"")"
-echo "    Stakeholders!A1:H2 merged: ${merged_in_table:-<none>}"
-[ "$merged_in_table" = "false" ] || fail "a merge inside the Stakeholders table range would make Excel drop the table"
+# Every cell a merge covers has to carry the merge's own style, or the banner's fill stops at the
+# first column and its border box breaks — a defect that is invisible to every assertion above.
+#
+# Asked through the FONT, not the interior: `color of interior` and `color index of interior` both
+# read back "missing value" for a theme fill, which is non-empty and compares equal to itself, so an
+# assertion built on them passes whatever the generator did. The banner's font is white and an
+# unstyled cell's is black, which is a difference Excel will actually report.
+banner_anchor="$(letters "$content_start")1"
+banner_far="$(letters "$content_end")1"
+banner_none="$(letters "$((content_end + 4))")1"
+font_anchor="$(ask "color of font object of range \"$banner_anchor\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+font_far="$(ask "color of font object of range \"$banner_far\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+font_none="$(ask "color of font object of range \"$banner_none\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+echo "    banner font at $banner_anchor=${font_anchor:-<none>} at $banner_far=${font_far:-<none>}, unstyled $banner_none=${font_none:-<none>}"
+[ -n "${font_anchor// /}" ] && [ "$font_anchor" != "missing value" ] || fail "could not read the banner's font colour ($font_anchor)"
+# The styled and unstyled colours must differ, or comparing the two ends of the banner proves
+# nothing: an unstyled sheet would satisfy it everywhere.
+[ "$font_anchor" != "$font_none" ] || fail "a styled banner cell and an unstyled cell read the same font colour ($font_anchor) — this check cannot fail"
+[ "$font_anchor" = "$font_far" ] || fail "the banner's style stops before $banner_far ($font_anchor vs $font_far) — a merge styled only at its anchor"
+
+# A table's header row must NOT be merged into the row above it, which is what a mis-sized span
+# looks like from here.
+header_cell="$(table_header_cell stakeholders name)"
+echo "    the stakeholders header sits at $header_cell"
+[ -n "$header_cell" ] && [ "$header_cell" != "MISSING" ] || fail "the plan does not place the stakeholders header"
 
 gridlines="$(
   osascript <<OSA 2>/dev/null
 tell application "Microsoft Excel"
-  activate object worksheet "Deal" of workbook "$BOOK"
+  activate object worksheet "$SHEET" of workbook "$BOOK"
   return (display gridlines of active window) as string
 end tell
 OSA
 )"
-echo "    gridlines shown on Deal: ${gridlines:-<none>}"
-[ "$gridlines" = "false" ] || fail "expected gridlines hidden on Deal, Excel reports '$gridlines'"
+echo "    gridlines shown on $SHEET: ${gridlines:-<none>}"
+[ "$gridlines" = "false" ] || fail "expected gridlines hidden on $SHEET, Excel reports '$gridlines'"
 
 # `page orientation`, not `orientation` — the latter is a different property that reads back
 # "missing value" for a worksheet page setup, which looks exactly like Excel ignoring us.
-orientation="$(ask "page orientation of page setup object of worksheet \"Deal\" of workbook \"$BOOK\"")"
-fit_wide="$(ask "fit to pages wide of page setup object of worksheet \"Deal\" of workbook \"$BOOK\"")"
-fit_tall="$(ask "fit to pages tall of page setup object of worksheet \"Deal\" of workbook \"$BOOK\"")"
+orientation="$(ask "page orientation of page setup object of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+fit_wide="$(ask "fit to pages wide of page setup object of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+fit_tall="$(ask "fit to pages tall of page setup object of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
 echo "    print orientation: ${orientation:-<none>}, fit to pages wide/tall: ${fit_wide:-<none>}/${fit_tall:-<none>}"
 [ "$orientation" = "landscape" ] || fail "expected landscape print orientation, Excel reports '$orientation'"
 # One page wide, unlimited tall: a deal review is read by scrolling, not shrunk to nothing.
 [ "$fit_wide" = "1" ] || fail "expected fit to 1 page wide, Excel reports '$fit_wide'"
 [ "$fit_tall" = "0" ] || fail "expected unlimited page height, Excel reports '$fit_tall'"
 echo "PASS: Excel accepts the merges, hides the grid and honours the print setup"
+
+# ── Row heights, measured against Excel rather than argued about ────────────────────────────────
+#
+# Excel autofits a wrapped cell but NOT a merged one, and nearly every prose cell here is merged. So
+# the generator computes each height, and if it computes short the text is clipped with nothing to
+# notice: no error, no marker, just a sentence that ends early.
+#
+# Arithmetic cannot settle whether it computed enough — only Excel's own font metrics can. So each
+# prose string is copied into a scratch cell of the same width in an UNMERGED column, Excel is asked
+# to autofit that row, and its answer is compared with the height we wrote. Ours must be at least as
+# tall.
+#
+# The scratch cell sits beyond the content in both directions, so it is off-screen for the
+# screenshots below, and every measurement clears it and restores the row height afterwards.
+scratch_col="$(letters "$((content_end + 8))")"
+scratch_row=$(($(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan | jq -r '.sheets[0].rows') + 40))
+height_failures=0
+height_checked=0
+
+# The text goes to AppleScript as an ARGUMENT, and the script body is a quoted heredoc the shell does
+# not touch. Interpolating it into the body instead was both wrong and dangerous: the example deal's
+# strategy mentions "$400K SLA penalties", and the shell expanded `$4` to nothing, so Excel measured
+# "00K SLA penalties" and the stage reported a pass for a string that was never in the workbook. A
+# `$(…)` in a deal file would have run as a command. Neither is possible now, and a quote or a
+# backslash in somebody's evidence measures correctly rather than being refused.
+#
+# `autofit (entire row of r)` — `autofit row N of ws` raises -10006 and `autofit range "…"` raises
+# -50, and both of those return empty text that awk turns into 0, which compares as "Excel wants
+# nothing" and makes this whole stage pass unconditionally. Verified against a deliberately
+# under-allocating estimator: it reports SHORT for 33 of 83 cells.
+measure_height() {
+  osascript - "$SHEET" "$BOOK" "${scratch_col}${scratch_row}" "$1" "$2" 2>&1 <<'OSA'
+on run argv
+  set sheetName to item 1 of argv
+  set bookName to item 2 of argv
+  set cellRef to item 3 of argv
+  set cellWidth to (item 4 of argv) as real
+  set cellText to item 5 of argv
+  tell application "Microsoft Excel"
+    set r to range cellRef of worksheet sheetName of workbook bookName
+    set column width of r to cellWidth
+    set wrap text of r to true
+    set value of r to cellText
+    autofit (entire row of r)
+    set h to (height of r)
+    clear contents r
+    set row height of r to 15
+    return h as string
+  end tell
+end run
+OSA
+}
+
+prose_rows="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --prose-heights)" || fail "generate --prose-heights failed"
+[ -n "$prose_rows" ] || fail "the plan reports no prose cells, so this stage cannot fail"
+while IFS=$'\t' read -r ref width ours text; do
+  [ -n "$ref" ] || continue
+  theirs="$(measure_height "$width" "$text")"
+  case "$theirs" in
+  *"execution error"* | *"syntax error"*) fail "the height measurement could not run at $ref: $theirs" ;;
+  esac
+  [ -n "${theirs// /}" ] || fail "the height measurement returned nothing at $ref"
+  height_checked=$((height_checked + 1))
+  # Excel reports a float; compare as tenths so the shell never does float arithmetic.
+  ours_tenths="$(awk -v v="$ours" 'BEGIN { printf "%d", v * 10 }')"
+  theirs_tenths="$(awk -v v="$theirs" 'BEGIN { printf "%d", v * 10 }')"
+  if [ "$theirs_tenths" -gt "$ours_tenths" ]; then
+    echo "    SHORT $ref: ours=${ours}pt, Excel wants ${theirs}pt (${#text} characters at width $width)"
+    height_failures=$((height_failures + 1))
+  fi
+done <<<"$prose_rows"
+[ "$height_checked" -gt 0 ] || fail "the height stage measured nothing — it cannot fail as written"
+echo "    measured $height_checked prose cell(s) against Excel's own autofit"
+[ "$height_failures" = "0" ] || fail "$height_failures prose cell(s) are shorter than Excel needs — text is clipped"
+echo "PASS: every computed row height is at least what Excel's autofit asks for"
 
 # ── Screenshots ────────────────────────────────────────────────────────────────────────────────
 #
@@ -535,44 +729,119 @@ OSA
   echo "      look at them: open $SHOT_DIR"
 fi
 
-# Putting a Table on Qualification hands the user a sort button, and a formula written as
-# `Qualification!C8` means "champion" only until they press it. Moving the key to another row
-# is what a sort does; the Scorecard must follow the key, not the address.
+# A formula written as `C21` means "champion" only while the element rows are in their original
+# order. Re-typing two of them is what a sort or a tidy-up does, and the scorecard has to follow the
+# key rather than the address.
 #
 # Measured with the fixed-address form this replaced: Champion read 4.0, then 3.0 after the
 # swap — economicBuyer's score, reported under the Champion label, with nothing to notice.
+champ_cell="$(named championScore)"
+elem_a="$(table_cell elements element 0)"
+elem_b="$(table_cell elements element 7)"
+score_a="$(table_cell elements score 0)"
+score_b="$(table_cell elements score 7)"
+echo "==> swapping the first and last element rows ($elem_a/$score_a <-> $elem_b/$score_b)"
 swap_result="$(
   osascript <<OSA 2>/dev/null
 tell application "Microsoft Excel"
-  set wb to workbook "$BOOK"
-  set sc to worksheet "Scorecard" of wb
-  set q to worksheet "Qualification" of wb
-  set champRow to 0
-  repeat with r from 1 to 60
-    if ((get value of cell ("A" & r) of sc) as string) is "Champion" then set champRow to r
-  end repeat
-  if champRow is 0 then return "NO-CHAMPION-ROW"
-  set nameA to (get value of cell "A3" of q) as string
-  set nameB to (get value of cell "A8" of q) as string
-  set scoreA to (get value of cell "C3" of q)
-  set scoreB to (get value of cell "C8" of q)
-  set wasVal to (get value of cell ("B" & champRow) of sc) as string
-  set value of range "A3" of q to nameB
-  set value of range "C3" of q to scoreB
-  set value of range "A8" of q to nameA
-  set value of range "C8" of q to scoreA
-  set nowVal to (get value of cell ("B" & champRow) of sc) as string
-  return wasVal & "|" & nowVal
+  set ws to worksheet "$SHEET" of workbook "$BOOK"
+  set nameA to (get value of range "$elem_a" of ws) as string
+  set nameB to (get value of range "$elem_b" of ws) as string
+  set scoreA to (get value of range "$score_a" of ws)
+  set scoreB to (get value of range "$score_b" of ws)
+  set wasVal to (get value of range "$champ_cell" of ws) as string
+  set value of range "$elem_a" of ws to nameB
+  set value of range "$score_a" of ws to scoreB
+  set value of range "$elem_b" of ws to nameA
+  set value of range "$score_b" of ws to scoreA
+  set nowVal to (get value of range "$champ_cell" of ws) as string
+  return wasVal & "|" & nowVal & "|" & nameA & "|" & nameB
 end tell
 OSA
 )"
-was_champ="${swap_result%%|*}"
-now_champ="${swap_result##*|}"
+was_champ="$(cut -d'|' -f1 <<<"$swap_result")"
+now_champ="$(cut -d'|' -f2 <<<"$swap_result")"
+swapped_a="$(cut -d'|' -f3 <<<"$swap_result")"
+swapped_b="$(cut -d'|' -f4 <<<"$swap_result")"
 echo "    Champion score before moving its row = $was_champ, after = $now_champ"
+# The swap has to have actually swapped something, or the comparison above holds for the wrong
+# reason: two identical blank names would move nothing and the scores would agree trivially.
+[ -n "$swapped_a" ] && [ "$swapped_a" != "$swapped_b" ] || fail "the two element rows read '$swapped_a' and '$swapped_b' — nothing was swapped, so this proves nothing"
 [ -n "$was_champ" ] && [ "$was_champ" = "$now_champ" ] || fail "a keyed reference did not follow its key ($swap_result)"
-echo "PASS: keyed references follow the key, so sorting the table cannot mislabel a score"
+echo "PASS: keyed references follow the key, so re-ordering the rows cannot mislabel a score"
 
-osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
+# The rubric explains the score beside it, so it has to follow that score IN EXCEL. Written as a
+# literal it went stale the moment anybody changed one — a contradiction on the screen during a live
+# review, in the one column whose job is to explain the number next to it.
+#
+# So: change a score in Excel and ask Excel what the rubric now says. Only the application can answer
+# that, because the answer is a formula it evaluates.
+rubric_cell="$(table_cell elements rubric 0)"
+rubric_score="$(table_cell elements score 0)"
+rubric_element="$(table_cell elements element 0)"
+echo "==> changing $rubric_score and reading $rubric_cell back"
+rubric_seen="$(
+  osascript - "$SHEET" "$BOOK" "$rubric_score" "$rubric_cell" "$rubric_element" 2>&1 <<'OSA'
+on run argv
+  tell application "Microsoft Excel"
+    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
+    set scoreCell to range (item 3 of argv) of ws
+    set rubricCell to range (item 4 of argv) of ws
+    set was to (get value of rubricCell) as string
+    set original to (get value of scoreCell)
+    set value of scoreCell to 0
+    set atZero to (get value of rubricCell) as string
+    set value of scoreCell to 4
+    set atFour to (get value of rubricCell) as string
+    set value of scoreCell to original
+    set restored to (get value of rubricCell) as string
+    return was & "|" & atZero & "|" & atFour & "|" & restored
+  end tell
+end run
+OSA
+)"
+case "$rubric_seen" in
+*"execution error"* | *"syntax error"*) fail "the rubric check could not run: $rubric_seen" ;;
+esac
+rub_was="$(cut -d'|' -f1 <<<"$rubric_seen")"
+rub_zero="$(cut -d'|' -f2 <<<"$rubric_seen")"
+rub_four="$(cut -d'|' -f3 <<<"$rubric_seen")"
+rub_back="$(cut -d'|' -f4 <<<"$rubric_seen")"
+echo "    at score 0: ${rub_zero:0:48}"
+echo "    at score 4: ${rub_four:0:48}"
+[ -n "${rub_zero// /}" ] && [ -n "${rub_four// /}" ] || fail "the rubric cell read back empty: $rubric_seen"
+[ "$rub_zero" != "$rub_four" ] || fail "the rubric says the same thing at score 0 and score 4 — it is not following the score"
+# What it says must be what the schema says, not merely something different.
+want_zero="$(jq -r '.properties.qualification.properties.metrics.properties.scoreDefinition.default["0"]' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+want_four="$(jq -r '.properties.qualification.properties.metrics.properties.scoreDefinition.default["4"]' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+[ "$rub_zero" = "$want_zero" ] || fail "at score 0 the rubric reads '$rub_zero', the schema says '$want_zero'"
+[ "$rub_four" = "$want_four" ] || fail "at score 4 the rubric reads '$rub_four', the schema says '$want_four'"
+[ "$rub_back" = "$rub_was" ] || fail "restoring the score did not restore the rubric ('$rub_back' vs '$rub_was')"
+echo "PASS: the rubric follows its score in Excel, and says what the schema says at each level"
+
+# The rows are now genuinely out of order in an open workbook. Save it and read it back: this must be
+# REFUSED, not read.
+#
+# The formulas survive a re-order — that is what the check above proves — but the reader's addresses
+# do not. Before the anchor guard, reading this exact file proposed metrics 3 → 2 and competition
+# 2 → 3, reported no rejection, and `--apply` would have written each element its neighbour's score.
+echo "==> saving the re-ordered workbook and reading it back"
+excel_do "saving the re-ordered workbook" "  save workbook \"$BOOK\"
+  close workbook \"$BOOK\" saving no"
+
+moved_before="$(jq -c '.qualification | to_entries | map({key, score: .value.score})' "$DEAL")"
+moved_report="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$OUT" --deal "$DEAL" --apply)"
+moved_code=$?
+echo "    rejections: $(jq -c '[.rejections[] | {address, reason: (.reason | .[0:40])}]' <<<"$moved_report")"
+[ "$moved_code" != "0" ] || fail "read exited 0 on a workbook whose rows had moved"
+[ "$(jq -r '.proposals | length' <<<"$moved_report")" = "0" ] || fail "a re-ordered workbook produced proposals: $(jq -c '.proposals' <<<"$moved_report")"
+[ "$(jq -r '.rejections | length' <<<"$moved_report")" != "0" ] || fail "a re-ordered workbook was accepted with no rejection"
+jq -e '[.rejections[] | select(.reason | test("moved"))] | length > 0' <<<"$moved_report" >/dev/null ||
+  fail "the refusal does not say the rows moved: $(jq -c '[.rejections[].reason]' <<<"$moved_report")"
+# `--apply` was passed on purpose: a refusal that still wrote would be worse than reading it.
+moved_after="$(jq -c '.qualification | to_entries | map({key, score: .value.score})' "$DEAL")"
+[ "$moved_before" = "$moved_after" ] || fail "the deal's scores changed despite the refusal: $moved_before -> $moved_after"
+echo "PASS: a workbook whose rows have moved is refused, and --apply writes nothing"
 
 # Stage 3: the round trip, through a real save.
 #
@@ -648,11 +917,15 @@ wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.ac
 # component. So each step is now checked on its own terms.
 #
 # `range`, not `cell`: reads work through either, but a write through `cell` fails.
+#
+# The boolean is typed as the WORD, which is what the dropdown offers and what the scorecard counts.
+# Writing `false` here made Excel store a logical value, which the reader refuses for exactly that
+# reason: the cell would say FALSE while the count beside it went on including it.
 excel_do "the four hand edits" "  set wb to workbook \"$RT_BOOK\"
   set value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb to \"Globex Corporation\"
   set value of range \"$(at qualification.champion.score address)\" of worksheet \"$(at qualification.champion.score sheet)\" of wb to 2
   set value of range \"$(at metadata.closeDate address)\" of worksheet \"$(at metadata.closeDate sheet)\" of wb to \"2026-09-15\"
-  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to false
+  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to \"No\"
   if ((get value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb) as string) is not \"Globex Corporation\" then error \"the accountName write did not take in the open workbook\""
 
 # What the file looked like before Excel was asked to save it.
@@ -710,38 +983,51 @@ again="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")" || 
 [ "$(jq -r '.proposals | length' <<<"$again")" = "0" ] || fail "a second read still proposes $(jq -c '.proposals' <<<"$again")"
 echo "PASS: edits made in Excel round-trip into the deal JSON, and applying them twice changes nothing"
 
-# A row typed UNDER the table, which is how an Excel Table grows.
+# A row typed UNDER the last padded one, which is what running out of room looks like.
 #
-# The reader derives a path for such a row from the table's geometry, and only real Excel can show
-# that the row it creates when you type below the last one is a row the reader then finds. The unit
-# tests inject the cell into the XML themselves; Excel decides where it actually lands, whether the
-# Table absorbs it, and what it looks like afterwards.
+# A list's capacity is the rows the generator laid out and nothing beyond them: the row under the
+# stakeholder table is the gap before the next section's banner, and the banner is the row after
+# that. So content typed there is REPORTED with what to do about it — add the entry to the deal JSON
+# and regenerate — and never read as a new entry. Reading downward on one sheet would eventually
+# append a banner's own title as a stakeholder.
 #
-# The padded rows have to be FULL for this: a list of four items with twelve padded rows would leave
-# holes, and appending is refused for exactly that reason. So the fixture fills every one.
+# Only real Excel can show this end to end: the unit tests inject the cell into the XML themselves,
+# while Excel decides what a cell typed below a table actually becomes in the saved file.
+#
+# The padded rows have to be FULL for the case to be about overflow at all, so the fixture fills
+# every one of them.
 GROWN_DEAL="$WORK/grown.json"
-jq '
-  .stakeholders = [range(12) | {name: ("Person " + (.+1|tostring)), title: "VP", roleInDeal: "Influencer"}]
+grown_capacity="$(jq -r '(.sheets[].blocks[] | select(.kind == "table" and .table.id == "stakeholders") | .table.minRows)' \
+  "$PLUGIN_ROOT/engine/workbook-spec.json")"
+[ -n "$grown_capacity" ] && [ "$grown_capacity" != "null" ] || fail "the spec declares no minRows for the stakeholders table"
+jq --argjson n "$grown_capacity" '
+  .stakeholders = [range($n) | {name: ("Person " + (.+1|tostring)), title: "VP", roleInDeal: "Influencer"}]
 ' "$DEAL" >"$GROWN_DEAL" || fail "could not build the full-table deal"
 
 GROWN_OUT="$WORK/grown.xlsx"
 GROWN_BOOK="$(basename "$GROWN_OUT")"
-bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --out "$GROWN_OUT" >/dev/null || fail "generate failed for the grown-row case"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --out "$GROWN_OUT" >/dev/null || fail "generate failed for the overflow case"
 
 # Ask the plan where the table ends rather than assuming; the row below it is the one to type into.
 grown_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --plan)" || fail "generate --plan failed"
-grown_sheet="$(jq -r 'first(.inputCells[] | select(.jsonPath | startswith("stakeholders[")) | .sheet)' <<<"$grown_plan")"
-# A stakeholder needs name, title and roleInDeal — the schema requires all three — so type a whole
-# one. Filling only the name leaves a deal that does not validate, which `read` rightly refuses.
-col_for() {
-  jq -r --arg suffix "].$1" 'first(.inputCells[] | select(.jsonPath | startswith("stakeholders[") and endswith($suffix)) | .address) | sub("[0-9]+$"; "")' <<<"$grown_plan"
-}
-last_row="$(jq -r '[.inputCells[] | select(.jsonPath | startswith("stakeholders[")) | .address | capture("(?<r>[0-9]+)$") | .r | tonumber] | max' <<<"$grown_plan")"
+grown_sheet="$(jq -r '(.tables[] | select(.id == "stakeholders") | .sheet)' <<<"$grown_plan")"
+grown_first="$(jq -r '(.tables[] | select(.id == "stakeholders") | .firstDataRow)' <<<"$grown_plan")"
+grown_rows="$(jq -r '(.tables[] | select(.id == "stakeholders") | .rows)' <<<"$grown_plan")"
+[ "$grown_rows" = "$grown_capacity" ] || fail "the plan shows $grown_rows stakeholder rows, the spec asks for $grown_capacity"
+last_row=$((grown_first + grown_rows - 1))
 grown_row=$((last_row + 1))
-grown_ref="$(col_for name)$grown_row"
-echo "==> typing a stakeholder into $grown_sheet row $grown_row, one row under the table"
+# A stakeholder needs name, title and roleInDeal — the schema requires all three — so type a whole
+# one, which is what somebody who has run out of rows would do.
+col_for() {
+  jq -r --arg c "$1" '(.tables[] | select(.id == "stakeholders") | .columns[$c])' <<<"$grown_plan"
+}
+name_col="$(letters "$(col_for name)")"
+title_col="$(letters "$(col_for title)")"
+role_col="$(letters "$(col_for roleInDeal)")"
+grown_ref="$name_col$grown_row"
+echo "==> typing a stakeholder into $grown_sheet row $grown_row, one row under the last of $grown_rows"
 
-open -a "Microsoft Excel" "$GROWN_OUT" || fail "could not open the grown-row workbook"
+open -a "Microsoft Excel" "$GROWN_OUT" || fail "could not open the overflow workbook"
 for _ in $(seq 1 30); do
   if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$GROWN_BOOK"; then
     break
@@ -749,34 +1035,37 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
-wait_until_ready "$GROWN_BOOK" "$grown_sheet" "$(col_for name)$last_row" ||
+wait_until_ready "$GROWN_BOOK" "$grown_sheet" "$name_col$last_row" ||
   fail "Excel never finished opening $GROWN_BOOK"
-excel_do "the grown stakeholder row" "  set wb to workbook \"$GROWN_BOOK\"
-  set value of range \"$(col_for name)$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Dana Reyes\"
-  set value of range \"$(col_for title)$grown_row\" of worksheet \"$grown_sheet\" of wb to \"VP Platform\"
-  set value of range \"$(col_for roleInDeal)$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Influencer\"
+excel_do "the overflowing stakeholder row" "  set wb to workbook \"$GROWN_BOOK\"
+  set value of range \"$name_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Dana Reyes\"
+  set value of range \"$title_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"VP Platform\"
+  set value of range \"$role_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Influencer\"
   save wb
   close wb saving no"
 
+grown_before="$(jq -r '.stakeholders | length' "$GROWN_DEAL")"
 grown_report="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$GROWN_OUT" --deal "$GROWN_DEAL")"
 grown_code=$?
-echo "    proposals: $(jq -c '[.proposals[] | {jsonPath, to}]' <<<"$grown_report")"
-[ "$grown_code" = "0" ] || fail "read exited $grown_code on the grown row: $(jq -c '.rejections' <<<"$grown_report")"
-[ "$(jq -r '.rejections | length' <<<"$grown_report")" = "0" ] || fail "the grown row was rejected: $(jq -c '.rejections' <<<"$grown_report")"
-[ "$(jq -r '.proposals | length' <<<"$grown_report")" = "3" ] || fail "expected 3 proposals for the grown row"
-[ "$(jq -r '[.proposals[].jsonPath] | sort | join(",")' <<<"$grown_report")" = "stakeholders[12].name,stakeholders[12].roleInDeal,stakeholders[12].title" ] || fail "the grown row mapped to $(jq -c '[.proposals[].jsonPath]' <<<"$grown_report")"
-[ "$(jq -r '.valid' <<<"$grown_report")" = "true" ] || fail "the deal with the appended stakeholder does not validate"
+echo "    rejections: $(jq -c '[.rejections[] | {address, reason}]' <<<"$grown_report")"
+# A refusal, and a non-zero exit: a caller that only checks the code must not apply this run.
+[ "$grown_code" != "0" ] || fail "read exited 0 on content the workbook has no room for"
+[ "$(jq -r '.proposals | length' <<<"$grown_report")" = "0" ] || fail "the overflowing row became a proposal: $(jq -c '.proposals' <<<"$grown_report")"
+[ "$(jq -r '.rejections | length' <<<"$grown_report")" = "3" ] || fail "expected one rejection per typed cell, got $(jq -c '.rejections' <<<"$grown_report")"
+[ "$(jq -r --arg ref "$grown_ref" '[.rejections[] | select(.address == $ref)] | length' <<<"$grown_report")" = "1" ] ||
+  fail "no rejection names $grown_ref: $(jq -c '[.rejections[].address]' <<<"$grown_report")"
+# The message has to say what to do, because there is nothing the reader can do for them.
+jq -e '[.rejections[] | select(.reason | test("regenerate"))] | length == 3' <<<"$grown_report" >/dev/null ||
+  fail "a rejection does not say to regenerate: $(jq -c '[.rejections[].reason]' <<<"$grown_report")"
 
-bun "$PLUGIN_ROOT/engine/cli.ts" read "$GROWN_OUT" --deal "$GROWN_DEAL" --apply >/dev/null || fail "applying the grown row failed"
-grown_count="$(jq -r '.stakeholders | length' "$GROWN_DEAL")"
-grown_name="$(jq -r '.stakeholders[12].name' "$GROWN_DEAL")"
-grown_role="$(jq -r '.stakeholders[12].roleInDeal' "$GROWN_DEAL")"
-echo "    stakeholders after applying: $grown_count, last = $grown_name"
-[ "$grown_count" = "13" ] || fail "expected 13 stakeholders after applying, got $grown_count"
-[ "$grown_name" = "Dana Reyes" ] || fail "the appended stakeholder is '$grown_name'"
-[ "$grown_role" = "Influencer" ] || fail "the appended stakeholder's role is '$grown_role'"
-bun "$PLUGIN_ROOT/engine/cli.ts" validate "$GROWN_DEAL" >/dev/null || fail "the deal does not validate after appending a grown row"
-echo "PASS: a row typed under the table in Excel becomes a new list entry"
+# And --apply changes nothing at all, which is the part that matters: a refusal that still wrote
+# would be worse than reading the row.
+bun "$PLUGIN_ROOT/engine/cli.ts" read "$GROWN_OUT" --deal "$GROWN_DEAL" --apply >/dev/null 2>&1
+grown_after="$(jq -r '.stakeholders | length' "$GROWN_DEAL")"
+echo "    stakeholders before=$grown_before after=$grown_after"
+[ "$grown_after" = "$grown_before" ] || fail "the refused row was applied anyway ($grown_before -> $grown_after)"
+bun "$PLUGIN_ROOT/engine/cli.ts" validate "$GROWN_DEAL" >/dev/null || fail "the deal no longer validates after a refused read"
+echo "PASS: a row typed below the padded ones is refused by its address, and nothing is written"
 
 # The same comparison on a deal where most elements are unscored — the case that was wrong.
 #
@@ -815,16 +1104,14 @@ for _ in $(seq 1 30); do
 done
 [ "${partial_opened:-0}" = "1" ] || fail "Excel never listed $PARTIAL_BOOK"
 
+# By name from this deal's own plan: the partial deal has fewer answers, so its rows sit elsewhere.
+partial_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PARTIAL" --plan)" || fail "generate --plan failed on the partial deal"
+partial_pct_cell="$(jq -r '.namedCells.scorePercent // "MISSING"' <<<"$partial_plan")"
+[ "$partial_pct_cell" != "MISSING" ] || fail "the partial plan has no scorePercent cell"
 got_partial_raw="$(
   osascript <<OSA 2>/dev/null
 tell application "Microsoft Excel"
-  repeat with r from 1 to 60
-    set a to (get value of cell ("A" & r) of worksheet "Scorecard" of workbook "$PARTIAL_BOOK")
-    if (a as string) is "Overall score" then
-      return (get value of cell ("B" & r) of worksheet "Scorecard" of workbook "$PARTIAL_BOOK") as string
-    end if
-  end repeat
-  return "NOT-FOUND"
+  return (get value of cell "${partial_pct_cell##*!}" of worksheet "$SHEET" of workbook "$PARTIAL_BOOK") as string
 end tell
 OSA
 )"

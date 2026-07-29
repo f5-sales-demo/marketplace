@@ -8,6 +8,7 @@ import {
   findMalformedReferences,
   parseReferences,
   type SpecSheet,
+  specTables,
   VALUE_TYPE_STYLE,
   type WorkbookSpec,
 } from './workbook-spec';
@@ -21,95 +22,124 @@ const schema = JSON.parse(fs.readFileSync(path.join(import.meta.dir, '..', 'sche
  */
 function baseSpec(): WorkbookSpec {
   return {
-    version: 1,
+    version: 2,
     sheets: [
       {
-        name: 'Deal',
-        kind: 'form',
+        name: 'Deal Review',
+        kind: 'grid',
+        columns: [
+          { min: 1, max: 1, width: 3.5 },
+          { min: 2, max: 2, width: 18 },
+          { min: 3, max: 9, width: 14 },
+        ],
         blocks: [
           { kind: 'title', text: 'MEDDPICC Deal Review' },
-          { kind: 'field', id: 'acv', label: 'ACV', jsonPath: 'metadata.revenue.acv', valueType: 'currency' },
           {
-            kind: 'field',
-            id: 'winProbability',
-            label: 'Win probability',
-            jsonPath: 'metadata.winProbability',
-            valueType: 'percent',
-          },
-          {
-            kind: 'computed',
-            id: 'factoredPipe',
-            label: 'Factored pipeline',
-            formula: '{{ref:acv}}*{{ref:winProbability}}',
-            valueType: 'currency',
-          },
-        ],
-      },
-      {
-        name: 'Qualification',
-        kind: 'table',
-        tables: [
-          {
-            id: 'elements',
-            source: { kind: 'elements' },
-            anchorColumn: 1,
-            headerRow: 1,
-            // A `{{row:…}}` reference below needs a column to match the key against.
-            keyColumn: 'element',
-            columns: [
-              { id: 'element', header: 'Element', role: 'derived', valueType: 'string' },
-              { id: 'score', header: 'Score', role: 'input', jsonPath: 'qualification.*.score', valueType: 'score' },
+            kind: 'row',
+            cells: [
+              { kind: 'label', span: 2, text: 'ACV' },
+              { kind: 'field', span: 2, id: 'acv', jsonPath: 'metadata.revenue.acv', valueType: 'currency' },
+              { kind: 'label', span: 2, text: 'Win probability' },
               {
-                id: 'prevScore',
-                header: 'Previous',
-                role: 'input',
-                jsonPath: 'scoring.previousElementScores.*',
-                valueType: 'score',
+                kind: 'field',
+                span: 2,
+                id: 'winProbability',
+                jsonPath: 'metadata.winProbability',
+                valueType: 'percent',
               },
+            ],
+          },
+          {
+            kind: 'row',
+            cells: [
+              { kind: 'label', span: 2, text: 'Factored pipeline' },
               {
-                id: 'delta',
-                header: 'Delta',
-                role: 'computed',
-                formula: '{{this:score}}-{{this:prevScore}}',
+                kind: 'computed',
+                span: 6,
+                id: 'factoredPipe',
+                formula: '{{ref:acv}}*{{ref:winProbability}}',
+                valueType: 'currency',
+              },
+            ],
+          },
+          {
+            kind: 'table',
+            table: {
+              id: 'elements',
+              source: { kind: 'elements' },
+              anchorColumn: 2,
+              // A `{{row:…}}` reference below needs a column to match the key against.
+              keyColumn: 'element',
+              columns: [
+                { id: 'element', header: 'Element', role: 'derived', valueType: 'string', span: 2 },
+                {
+                  id: 'score',
+                  header: 'Score',
+                  role: 'input',
+                  jsonPath: 'qualification.*.score',
+                  valueType: 'score',
+                  span: 2,
+                },
+                {
+                  id: 'prevScore',
+                  header: 'Previous',
+                  role: 'input',
+                  jsonPath: 'scoring.previousElementScores.*',
+                  valueType: 'score',
+                  span: 2,
+                },
+                {
+                  id: 'delta',
+                  header: 'Delta',
+                  role: 'computed',
+                  formula: '{{this:score}}-{{this:prevScore}}',
+                  valueType: 'number',
+                  span: 2,
+                },
+              ],
+            },
+          },
+          { kind: 'spacer' },
+          {
+            kind: 'table',
+            table: {
+              id: 'stakeholders',
+              source: { kind: 'list', jsonPath: 'stakeholders' },
+              anchorColumn: 2,
+              columns: [
+                { id: 'name', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string', span: 4 },
+                {
+                  id: 'mustSayYes',
+                  header: 'Must say yes',
+                  role: 'input',
+                  jsonPath: 'mustSayYes',
+                  valueType: 'boolean',
+                  span: 4,
+                },
+              ],
+            },
+          },
+          { kind: 'spacer' },
+          {
+            kind: 'row',
+            cells: [
+              { kind: 'label', span: 2, text: 'Total' },
+              {
+                kind: 'computed',
+                span: 2,
+                id: 'scoreTotal',
+                formula: 'SUM({{col:elements.score}})',
                 valueType: 'number',
               },
+              { kind: 'label', span: 2, text: 'Metrics' },
+              {
+                kind: 'computed',
+                span: 2,
+                id: 'metricsScore',
+                formula: '{{row:elements.score@metrics}}',
+                valueType: 'score',
+              },
             ],
-          },
-        ],
-      },
-      {
-        name: 'Stakeholders',
-        kind: 'table',
-        tables: [
-          {
-            id: 'stakeholders',
-            source: { kind: 'list', jsonPath: 'stakeholders' },
-            anchorColumn: 1,
-            headerRow: 1,
-            columns: [
-              { id: 'name', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string' },
-              { id: 'mustSayYes', header: 'Must say yes', role: 'input', jsonPath: 'mustSayYes', valueType: 'boolean' },
-            ],
-          },
-        ],
-      },
-      {
-        name: 'Scorecard',
-        kind: 'form',
-        blocks: [
-          {
-            kind: 'computed',
-            id: 'scoreTotal',
-            label: 'Total',
-            formula: 'SUM({{col:elements.score}})',
-            valueType: 'number',
-          },
-          {
-            kind: 'computed',
-            id: 'metricsScore',
-            label: 'Metrics',
-            formula: '{{row:elements.score@metrics}}',
-            valueType: 'score',
           },
         ],
       },
@@ -120,9 +150,27 @@ function baseSpec(): WorkbookSpec {
 /** Deep clone so a mutation in one test cannot leak into the next. */
 const clone = (s: WorkbookSpec): WorkbookSpec => JSON.parse(JSON.stringify(s));
 
-const sheet = (s: WorkbookSpec, name: string): SpecSheet => {
-  const found = s.sheets.find((x) => x.name === name);
-  if (!found) throw new Error(`fixture has no sheet ${name}`);
+/** The workbook is one laid-out sheet, so there is nothing to choose between. */
+const sheet = (s: WorkbookSpec): SpecSheet => {
+  if (s.sheets.length !== 1) throw new Error(`fixture has ${s.sheets.length} sheets, expected one`);
+  return s.sheets[0];
+};
+
+/** A field or computed cell by id, wherever the layout put it. Tests name cells, not positions. */
+const fixtureCell = (s: WorkbookSpec, id: string) => {
+  for (const block of sheet(s).blocks) {
+    if (block.kind !== 'row') continue;
+    for (const cell of block.cells) {
+      if ((cell.kind === 'field' || cell.kind === 'computed') && cell.id === id) return cell;
+    }
+  }
+  throw new Error(`fixture has no cell ${id}`);
+};
+
+/** The tables the fixture declares, by id — tests reach for them by name, not by position. */
+const fixtureTable = (s: WorkbookSpec, id: string) => {
+  const found = specTables(sheet(s)).find((t) => t.id === id);
+  if (!found) throw new Error(`fixture has no table ${id}`);
   return found;
 };
 
@@ -198,9 +246,7 @@ describe('checkWorkbookSpec — the good spec', () => {
 describe('checkWorkbookSpec — schema paths', () => {
   test('rejects an input whose jsonPath is not in the schema', () => {
     const spec = clone(baseSpec());
-    const deal = sheet(spec, 'Deal');
-    if (deal.kind !== 'form') throw new Error('fixture drift');
-    const field = deal.blocks[1];
+    const field = fixtureCell(spec, 'acv');
     if (field.kind !== 'field') throw new Error('fixture drift');
     field.jsonPath = 'metadata.revenue.acvTYPO';
 
@@ -212,9 +258,7 @@ describe('checkWorkbookSpec — schema paths', () => {
   test('resolves a list column against its item schema, not the root', () => {
     // `name` alone is meaningless at the root; it only resolves under `stakeholders`.
     const spec = clone(baseSpec());
-    const sh = sheet(spec, 'Stakeholders');
-    if (sh.kind !== 'table') throw new Error('fixture drift');
-    sh.tables[0].columns[0].jsonPath = 'nameTYPO';
+    fixtureTable(spec, 'stakeholders').columns[0].jsonPath = 'nameTYPO';
 
     const result = checkWorkbookSpec(schema, spec);
     expect(result.ok).toBe(false);
@@ -226,9 +270,7 @@ describe('checkWorkbookSpec — schema paths', () => {
     // empty set of paths and the column dropped out of the check entirely — ok, and
     // writing nowhere.
     const spec = clone(baseSpec());
-    const sh = sheet(spec, 'Stakeholders');
-    if (sh.kind !== 'table') throw new Error('fixture drift');
-    sh.tables[0].columns[0].jsonPath = '*.nameTYPO';
+    fixtureTable(spec, 'stakeholders').columns[0].jsonPath = '*.nameTYPO';
 
     const result = checkWorkbookSpec(schema, spec);
     expect(result.ok).toBe(false);
@@ -237,9 +279,7 @@ describe('checkWorkbookSpec — schema paths', () => {
 
   test('rejects an input that expands to no path at all', () => {
     const spec = clone(baseSpec());
-    const q = sheet(spec, 'Qualification');
-    if (q.kind !== 'table') throw new Error('fixture drift');
-    q.tables[0].source = { kind: 'fixed', keys: [] };
+    fixtureTable(spec, 'elements').source = { kind: 'fixed', keys: [] };
 
     const result = checkWorkbookSpec(schema, spec);
     expect(result.ok).toBe(false);
@@ -248,9 +288,7 @@ describe('checkWorkbookSpec — schema paths', () => {
 
   test('rejects a wildcard in a form field, where there is nothing to expand it over', () => {
     const spec = clone(baseSpec());
-    const deal = sheet(spec, 'Deal');
-    if (deal.kind !== 'form') throw new Error('fixture drift');
-    const field = deal.blocks[1];
+    const field = fixtureCell(spec, 'acv');
     if (field.kind !== 'field') throw new Error('fixture drift');
     field.jsonPath = 'qualification.*.score';
 
@@ -262,9 +300,7 @@ describe('checkWorkbookSpec — the eight scored elements', () => {
   test('rejects a spec that captures only some element scores', () => {
     // The bug this guards: replacing the wildcard with explicit rows and dropping one.
     const spec = clone(baseSpec());
-    const q = sheet(spec, 'Qualification');
-    if (q.kind !== 'table') throw new Error('fixture drift');
-    q.tables[0].source = { kind: 'fixed', keys: ['metrics', 'champion'] };
+    fixtureTable(spec, 'elements').source = { kind: 'fixed', keys: ['metrics', 'champion'] };
 
     const result = checkWorkbookSpec(schema, spec);
     expect(result.ok).toBe(false);
@@ -273,9 +309,7 @@ describe('checkWorkbookSpec — the eight scored elements', () => {
 
   test('rejects a spec that captures an element score twice', () => {
     const spec = clone(baseSpec());
-    const q = sheet(spec, 'Qualification');
-    if (q.kind !== 'table') throw new Error('fixture drift');
-    q.tables[0].columns.push({
+    fixtureTable(spec, 'elements').columns.push({
       id: 'scoreAgain',
       header: 'Score (again)',
       role: 'input',
@@ -294,18 +328,14 @@ describe('checkWorkbookSpec — the eight scored elements', () => {
 describe('checkWorkbookSpec — roles', () => {
   test('rejects an input with no jsonPath', () => {
     const spec = clone(baseSpec());
-    const sh = sheet(spec, 'Stakeholders');
-    if (sh.kind !== 'table') throw new Error('fixture drift');
-    sh.tables[0].columns[0].jsonPath = undefined;
+    fixtureTable(spec, 'stakeholders').columns[0].jsonPath = undefined;
     expect(checkWorkbookSpec(schema, spec).roles.failures.join()).toContain('stakeholders.name');
   });
 
   test('rejects a computed column that also claims a jsonPath', () => {
     // A derived number must never flow back into the deal JSON as if a human typed it.
     const spec = clone(baseSpec());
-    const q = sheet(spec, 'Qualification');
-    if (q.kind !== 'table') throw new Error('fixture drift');
-    const delta = q.tables[0].columns.find((c) => c.id === 'delta');
+    const delta = fixtureTable(spec, 'elements').columns.find((c) => c.id === 'delta');
     if (!delta) throw new Error('fixture drift');
     delta.jsonPath = 'qualification.*.score';
 
@@ -314,9 +344,7 @@ describe('checkWorkbookSpec — roles', () => {
 
   test('rejects an unknown valueType, which would have no style to render with', () => {
     const spec = clone(baseSpec());
-    const sh = sheet(spec, 'Stakeholders');
-    if (sh.kind !== 'table') throw new Error('fixture drift');
-    sh.tables[0].columns[0].valueType = 'colour' as never;
+    fixtureTable(spec, 'stakeholders').columns[0].valueType = 'colour' as never;
     expect(checkWorkbookSpec(schema, spec).roles.failures.join()).toContain('colour');
   });
 
@@ -330,9 +358,7 @@ describe('checkWorkbookSpec — roles', () => {
 describe('checkWorkbookSpec — references', () => {
   test('rejects a formula naming a cell that does not exist', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec, 'Scorecard');
-    if (sc.kind !== 'form') throw new Error('fixture drift');
-    const block = sc.blocks[0];
+    const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = 'SUM({{col:elements.scoreTYPO}})';
 
@@ -343,9 +369,7 @@ describe('checkWorkbookSpec — references', () => {
 
   test('rejects a row reference whose key is not one of the table rows', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec, 'Scorecard');
-    if (sc.kind !== 'form') throw new Error('fixture drift');
-    const block = sc.blocks[1];
+    const block = fixtureCell(spec, 'metricsScore');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = '{{row:elements.score@notAnElement}}';
 
@@ -355,9 +379,7 @@ describe('checkWorkbookSpec — references', () => {
   test('rejects a row reference into a table whose rows depend on the deal', () => {
     // `stakeholders` has no fixed row for a formula to point at.
     const spec = clone(baseSpec());
-    const sc = sheet(spec, 'Scorecard');
-    if (sc.kind !== 'form') throw new Error('fixture drift');
-    const block = sc.blocks[1];
+    const block = fixtureCell(spec, 'metricsScore');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = '{{row:stakeholders.name@0}}';
 
@@ -366,9 +388,7 @@ describe('checkWorkbookSpec — references', () => {
 
   test('rejects a formula with a placeholder the parser does not recognise', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec, 'Scorecard');
-    if (sc.kind !== 'form') throw new Error('fixture drift');
-    const block = sc.blocks[0];
+    const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = 'SUM({{colm:elements.score}})';
 
@@ -379,9 +399,7 @@ describe('checkWorkbookSpec — references', () => {
 
   test('rejects {{this:…}} outside a table column', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec, 'Scorecard');
-    if (sc.kind !== 'form') throw new Error('fixture drift');
-    const block = sc.blocks[0];
+    const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = '{{this:score}}';
 
@@ -392,9 +410,7 @@ describe('checkWorkbookSpec — references', () => {
 describe('checkWorkbookSpec — identity and layout', () => {
   test('rejects two cells sharing an id, because a reference would be ambiguous', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec, 'Scorecard');
-    if (sc.kind !== 'form') throw new Error('fixture drift');
-    const block = sc.blocks[0];
+    const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.id = 'acv';
 
@@ -407,34 +423,64 @@ describe('checkWorkbookSpec — identity and layout', () => {
     expect(checkWorkbookSpec(schema, spec).layout.failures.join()).toContain('Deal/Review');
   });
 
-  test('rejects two tables on one sheet whose columns overlap', () => {
-    // Side-by-side tables are how two collections share a sheet and still grow downward;
-    // an overlap means one would overwrite the other as rows are added.
+  test('rejects two tables sharing rows whose columns overlap', () => {
+    // Consecutive table blocks share their rows, which is how two collections sit side by side. An
+    // overlap there means one writes over the other.
     const spec = clone(baseSpec());
-    const sh = sheet(spec, 'Stakeholders');
-    if (sh.kind !== 'table') throw new Error('fixture drift');
-    sh.tables.push({
-      id: 'second',
-      source: { kind: 'list', jsonPath: 'team.internal' },
-      anchorColumn: 2,
-      headerRow: 1,
-      columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string' }],
+    const blocks = sheet(spec).blocks;
+    const at = blocks.findIndex((b) => b.kind === 'table' && b.table.id === 'stakeholders');
+    blocks.splice(at + 1, 0, {
+      kind: 'table',
+      table: {
+        id: 'second',
+        source: { kind: 'list', jsonPath: 'team.internal' },
+        anchorColumn: 2,
+        columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string', span: 2 }],
+      },
     });
 
-    expect(checkWorkbookSpec(schema, spec).layout.failures.join()).toMatch(/overlap/i);
+    expect(checkWorkbookSpec(schema, spec).layout.failures.join()).toMatch(/share rows and columns/i);
   });
 
-  test('accepts two tables on one sheet that are clear of each other', () => {
+  test('accepts two tables sharing rows that are clear of each other', () => {
     const spec = clone(baseSpec());
-    const sh = sheet(spec, 'Stakeholders');
-    if (sh.kind !== 'table') throw new Error('fixture drift');
-    sh.tables.push({
-      id: 'second',
-      source: { kind: 'list', jsonPath: 'team.internal' },
-      anchorColumn: 4,
-      headerRow: 1,
-      columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string' }],
+    const blocks = sheet(spec).blocks;
+    const at = blocks.findIndex((b) => b.kind === 'table' && b.table.id === 'stakeholders');
+    // The stakeholders table spans two columns of four, so it occupies 2 through 9; the next table
+    // has to start past that. Its width is the sum of its spans, not its column count.
+    blocks.splice(at + 1, 0, {
+      kind: 'table',
+      table: {
+        id: 'second',
+        source: { kind: 'list', jsonPath: 'team.internal' },
+        anchorColumn: 10,
+        columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string', span: 2 }],
+      },
     });
+
+    expect(checkWorkbookSpec(schema, spec).layout.failures).toEqual([]);
+  });
+
+  test('accepts two tables stacked in the same columns, which one sheet requires', () => {
+    // A spacer between them ends the band, so they occupy different rows and sharing columns is
+    // exactly what a single laid-out sheet is for.
+    const spec = clone(baseSpec());
+    const blocks = sheet(spec).blocks;
+    const at = blocks.findIndex((b) => b.kind === 'table' && b.table.id === 'stakeholders');
+    blocks.splice(
+      at + 1,
+      0,
+      { kind: 'spacer' },
+      {
+        kind: 'table',
+        table: {
+          id: 'second',
+          source: { kind: 'list', jsonPath: 'team.internal' },
+          anchorColumn: 2,
+          columns: [{ id: 'teamName', header: 'Name', role: 'input', jsonPath: 'name', valueType: 'string', span: 2 }],
+        },
+      },
+    );
 
     expect(checkWorkbookSpec(schema, spec).layout.failures).toEqual([]);
   });
@@ -452,20 +498,29 @@ describe('the shipped workbook-spec.json', () => {
     expect(checkWorkbookSpec(schema, shipped).elements.failures).toEqual([]);
   });
 
-  test('is formula-driven — the Scorecard is entirely computed', () => {
+  test('is formula-driven — every Scorecard cell is computed', () => {
     // The whole point of the rebuild: the legacy template carried exactly one formula.
-    const scorecard = shipped.sheets.find((s) => s.name === 'Scorecard');
-    if (scorecard?.kind !== 'form') throw new Error('Scorecard must be a form sheet');
-    const valueBlocks = scorecard.blocks.filter((b) => b.kind === 'field' || b.kind === 'computed');
-    expect(valueBlocks.length).toBeGreaterThan(10);
-    expect(valueBlocks.every((b) => b.kind === 'computed')).toBe(true);
+    //
+    // The Scorecard is a run of rows between its own banner and the next one, so the section is
+    // located by walking the blocks rather than by looking for a sheet that no longer exists.
+    const blocks = shipped.sheets[0].blocks;
+    const from = blocks.findIndex((b) => b.kind === 'section' && b.text === 'Scorecard');
+    expect(from).toBeGreaterThan(-1);
+    const until = blocks.findIndex((b, i) => i > from && b.kind === 'section');
+    const scorecard = blocks.slice(from + 1, until === -1 ? undefined : until);
+
+    const values = scorecard
+      .filter((b): b is Extract<typeof b, { kind: 'row' }> => b.kind === 'row')
+      .flatMap((b) => b.cells)
+      .filter((c) => c.kind === 'field' || c.kind === 'computed');
+    expect(values.length).toBeGreaterThan(10);
+    expect(values.every((c) => c.kind === 'computed')).toBe(true);
   });
 
   test('gives every deal collection a table, so nothing is capped', () => {
     // Visa has 14 team members against the legacy sheet's 8 formatted rows.
     const tableSources = shipped.sheets
-      .filter((s) => s.kind === 'table')
-      .flatMap((s) => (s.kind === 'table' ? s.tables : []))
+      .flatMap((s) => specTables(s))
       .map((t) => (t.source.kind === 'list' ? t.source.jsonPath : t.source.kind));
     for (const collection of [
       'stakeholders',

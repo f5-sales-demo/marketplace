@@ -172,7 +172,7 @@ describe('styles.xml', () => {
   });
 });
 
-describe('buildWorkbook — tables, conditional formatting and validation', () => {
+describe('buildWorkbook — conditional formatting and validation', () => {
   const withExtras = () =>
     buildWorkbook([
       {
@@ -194,71 +194,35 @@ describe('buildWorkbook — tables, conditional formatting and validation', () =
           },
           { row: 3, cells: [{ ref: 'A3' }, { ref: 'B3', style: 'score' }] },
         ],
-        tables: [{ name: 'people', displayName: 'people', ref: 'A1:B3', columns: ['Name', 'Score'] }],
         conditionalFormats: [{ sqref: 'B2:B3', preset: 'score' }],
         validations: [{ sqref: 'B2:B3', values: ['0', '1', '2', '3', '4'] }],
+        print: { orientation: 'landscape', fitToWidth: true },
       },
     ]);
 
-  // CT_Worksheet is a SEQUENCE: sheetData, then conditionalFormatting, then dataValidations,
-  // and tableParts last. Out of order is not a warning — Excel offers to repair the file.
+  // CT_Worksheet is a SEQUENCE: sheetData, then conditionalFormatting, then dataValidations, then
+  // the print group. Out of order is not a warning — Excel offers to repair the file.
   test('emits the worksheet children in the order the schema demands', () => {
     const sheet = dec(readZip(withExtras()).get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
-    const order = ['<sheetData>', '<conditionalFormatting', '<dataValidations', '<tableParts'];
+    const order = ['<sheetData>', '<conditionalFormatting', '<dataValidations', '<pageSetup'];
     const positions = order.map((tag) => sheet.indexOf(tag));
-    for (const p of positions) expect(p).toBeGreaterThan(-1);
+    for (const [i, p] of positions.entries()) expect(p, order[i]).toBeGreaterThan(-1);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
-  test('ships the table part, its relationship and its content type', () => {
+  // No Excel Tables, by design and not by omission: Excel silently DROPS a table whose range
+  // contains a merged cell, and every span over one column on the laid-out sheet is a merge. So the
+  // writer has no table support at all, and a workbook that grew one would be a workbook whose data
+  // quietly stopped extending.
+  test('ships no table part, relationship or content type', () => {
     const parts = readZip(withExtras());
-    expect(parts.has('xl/tables/table1.xml')).toBe(true);
-    expect(parts.has('xl/worksheets/_rels/sheet1.xml.rels')).toBe(true);
+    expect([...parts.keys()].filter((name) => /tables?/i.test(name))).toEqual([]);
+    expect(parts.has('xl/worksheets/_rels/sheet1.xml.rels')).toBe(false);
     const ct = dec(parts.get('[Content_Types].xml')?.data as Uint8Array);
-    expect(ct).toContain('/xl/tables/table1.xml');
-    const rels = dec(parts.get('xl/worksheets/_rels/sheet1.xml.rels')?.data as Uint8Array);
+    expect(ct).not.toContain('spreadsheetml.table');
     const sheet = dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
-    const id = /<tablePart r:id="(rId\d+)"\/>/.exec(sheet)?.[1];
-    expect(id).toBeDefined();
-    expect(rels).toContain(`Id="${id}"`);
-  });
-
-  test("a table column's name matches the header cell, which is what Excel checks", () => {
-    const parts = readZip(withExtras());
-    const table = dec(parts.get('xl/tables/table1.xml')?.data as Uint8Array);
-    expect(table).toContain('name="Name"');
-    expect(table).toContain('name="Score"');
-    expect(table).toContain('ref="A1:B3"');
-    expect(table).toContain('headerRowCount="1"');
-  });
-
-  test('rejects a table whose declared columns do not match its cells', () => {
-    // A mismatch here is precisely what makes Excel repair the file, and the message it gives
-    // says nothing useful — so fail at build time with something that does.
-    expect(() =>
-      buildWorkbook([
-        {
-          name: 'Data',
-          rows: [
-            { row: 1, cells: [{ ref: 'A1', value: 'Name' }] },
-            { row: 2, cells: [{ ref: 'A2', value: 'x' }] },
-          ],
-          tables: [{ name: 't', displayName: 't', ref: 'A1:A2', columns: ['NotTheHeader'] }],
-        },
-      ]),
-    ).toThrow(/NotTheHeader/);
-  });
-
-  test('rejects a table range with no data row', () => {
-    expect(() =>
-      buildWorkbook([
-        {
-          name: 'Data',
-          rows: [{ row: 1, cells: [{ ref: 'A1', value: 'Name' }] }],
-          tables: [{ name: 't', displayName: 't', ref: 'A1:A1', columns: ['Name'] }],
-        },
-      ]),
-    ).toThrow(/data row/);
+    expect(sheet).not.toContain('tableParts');
+    expect(sheet).not.toContain('autoFilter');
   });
 
   test('every dxfId a rule cites is defined in styles.xml', () => {
@@ -282,8 +246,6 @@ describe('buildWorkbook — tables, conditional formatting and validation', () =
     const sheet = dec(readZip(minimal()).get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
     expect(sheet).not.toContain('conditionalFormatting');
     expect(sheet).not.toContain('dataValidations');
-    expect(sheet).not.toContain('tableParts');
-    expect(readZip(minimal()).has('xl/tables/table1.xml')).toBe(false);
   });
 });
 
@@ -406,31 +368,6 @@ describe('buildWorkbook — merges', () => {
     // A1:XFD1048576 is valid, in bounds, and seventeen billion cells. Without a cap the writer
     // does not fail — it stops responding, which is the one failure mode with no message.
     expect(() => merged(['A1:XFD1048576'])).toThrow(/covers 17179869184 cells/);
-  });
-
-  test('refuses a merge that overlaps an Excel table', () => {
-    // Excel does not merely dislike this: it drops the table and repairs the file, so the sort
-    // button, the structured references and the auto-extend all vanish with nothing to notice.
-    expect(() =>
-      buildWorkbook([
-        {
-          name: 'Data',
-          merges: ['A2:B2'],
-          rows: [
-            {
-              row: 1,
-              cells: [
-                { ref: 'A1', value: 'Name' },
-                { ref: 'B1', value: 'Score' },
-              ],
-            },
-            { row: 2, cells: [{ ref: 'A2', value: 'x' }] },
-            { row: 3, cells: [{ ref: 'A3' }, { ref: 'B3' }] },
-          ],
-          tables: [{ name: 'people', displayName: 'people', ref: 'A1:B3', columns: ['Name', 'Score'] }],
-        },
-      ]),
-    ).toThrow(/overlaps table "people"/);
   });
 
   test('refuses a sheet that declares the same row twice', () => {
@@ -690,5 +627,42 @@ describe('styles.xml — a named style resolves to the look it promises', () => 
       if (i === 1) continue;
       expect(usedFills.has(i), `fill ${i} is unreachable`).toBe(true);
     }
+  });
+});
+
+describe('buildWorkbook — provenance properties', () => {
+  const propsOf = (props: Record<string, string>) =>
+    new TextDecoder().decode(
+      readZip(buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], props)).get(
+        'docProps/custom.xml',
+      )?.data as Uint8Array,
+    );
+
+  test('writes every property with a distinct pid', () => {
+    // Two properties sharing a pid make Excel repair the file, and pids start at 2.
+    const xml = propsOf({ MeddpiccFingerprint: 'abc', MeddpiccSchemaHash: 'def', MeddpiccLocale: 'ko' });
+    const pids = [...xml.matchAll(/pid="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(pids).toEqual([2, 3, 4]);
+    expect(new Set(pids).size).toBe(pids.length);
+    for (const name of ['MeddpiccFingerprint', 'MeddpiccSchemaHash', 'MeddpiccLocale']) {
+      expect(xml).toContain(`name="${name}"`);
+    }
+  });
+
+  test('escapes a property value rather than injecting it', () => {
+    expect(propsOf({ MeddpiccLocale: 'a & b <c>' })).toContain('a &amp; b &lt;c&gt;');
+  });
+
+  test('a workbook with no properties ships no custom.xml at all', () => {
+    const parts = readZip(buildWorkbook([{ name: 'Deal', rows: [] }]));
+    expect(parts.has('docProps/custom.xml')).toBe(false);
+    const ct = new TextDecoder().decode(parts.get('[Content_Types].xml')?.data as Uint8Array);
+    expect(ct).not.toContain('custom-properties');
+  });
+
+  test('an empty property set ships no custom.xml either', () => {
+    // An empty <Properties/> is legal but pointless, and it would make the reader report a
+    // workbook as stamped when it carries nothing.
+    expect(readZip(buildWorkbook([{ name: 'Deal', rows: [] }], {})).has('docProps/custom.xml')).toBe(false);
   });
 });
