@@ -229,12 +229,21 @@ export function expandJsonPath(jsonPath: string, keys: readonly string[]): strin
 }
 
 export interface SpecReference {
-  kind: 'ref' | 'col' | 'row' | 'this';
+  /**
+   * `ref` a named cell, `col` a table column's data range, `row` one keyed row of a column,
+   * `this` another column of the same row — and `word`, which is not a cell at all.
+   *
+   * `word` resolves to a quoted string the SHEET shows: `{{word:booleanYes}}` becomes `"Yes"`.
+   * A boolean cell holds that text rather than a logical TRUE, so `COUNTIF(range,TRUE)` counts
+   * nothing and the scorecard reports 0 where the deal has 2 — well-formed, silently wrong. The
+   * spec cannot import a TypeScript constant, so it names one instead of repeating its spelling.
+   */
+  kind: 'ref' | 'col' | 'row' | 'this' | 'word';
   target: string;
   raw: string;
 }
 
-const REFERENCE = /\{\{(ref|col|row|this):([^{}]+)\}\}/g;
+const REFERENCE = /\{\{(ref|col|row|this|word):([^{}]+)\}\}/g;
 /** Any `{{…}}`, well formed or not — what the parser above ignores, this one still sees. */
 const PLACEHOLDER = /\{\{([^{}]*)\}\}/g;
 
@@ -256,7 +265,9 @@ export function parseReferences(formula: string): SpecReference[] {
  * see literal braces. So the malformed ones are found separately and always reported.
  */
 export function findMalformedReferences(formula: string): string[] {
-  const bad = [...formula.matchAll(PLACEHOLDER)].filter((m) => !/^(ref|col|row|this):.+$/.test(m[1])).map((m) => m[0]);
+  const bad = [...formula.matchAll(PLACEHOLDER)]
+    .filter((m) => !/^(ref|col|row|this|word):.+$/.test(m[1]))
+    .map((m) => m[0]);
 
   // An unclosed `{{` matches neither pattern, so it can only be caught by counting.
   const opens = formula.match(/\{\{/g)?.length ?? 0;
@@ -462,6 +473,15 @@ function checkReferences(collected: Collected): { checked: number; failures: str
       checked++;
       if (ref.kind === 'ref') {
         if (!collected.namedCells.has(ref.target)) failures.push(`${where}: ${ref.raw} names no cell`);
+        continue;
+      }
+      if (ref.kind === 'word') {
+        // Not a cell: `{{word:booleanYes}}` is the spelling the sheet uses, quoted into the formula.
+        // The set is decided in `generate.ts`, which throws on an unknown name, so the only thing to
+        // check here is that a name was given at all.
+        if (!/^[A-Za-z][A-Za-z0-9]*$/.test(ref.target)) {
+          failures.push(`${where}: ${ref.raw} must name a word, like {{word:booleanYes}}`);
+        }
         continue;
       }
       if (ref.kind === 'this') {

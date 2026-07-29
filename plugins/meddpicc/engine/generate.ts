@@ -175,8 +175,32 @@ export interface PlannedTable {
   columns: Record<string, number>;
 }
 
+/**
+ * A cell whose text nobody may change, and the text it must still hold.
+ *
+ * The stamp proves "this workbook came from this deal, laid out this way". It cannot see a change
+ * made INSIDE the workbook, and every address the reader uses is only meaningful while the rows are
+ * where the generator put them. Re-order two element rows — which is what tidying a sheet looks like
+ * — and each element is handed its neighbour's score, with no rejection and `ok` true. Measured:
+ * swapping the first and last element rows proposed metrics 3 → 2 and competition 2 → 3.
+ *
+ * So the reader checks these before it reads anything, and refuses the whole workbook on a mismatch.
+ *
+ * Only text that CANNOT change with an edit qualifies: banners, group headers, field labels, column
+ * headers, and the key column of a keyed table. A derived cell like the rubric wording is excluded on
+ * purpose — it is derived from a score, and Excel leaves the old text in the cell after somebody
+ * changes one, so anchoring it would refuse the most ordinary edit there is.
+ */
+export interface Anchor {
+  sheet: string;
+  address: string;
+  text: string;
+}
+
 export interface WorkbookPlan {
   sheets: SheetSpec[];
+  /** Cells whose text the reader verifies before trusting any address. */
+  anchors: Anchor[];
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
   /** Every table's geometry, keyed by the spec's table id. */
@@ -366,6 +390,19 @@ function layout(
 }
 
 /** Replace every `{{…}}` with an address, relative to the sheet (and row) doing the asking. */
+/**
+ * Words a formula may compare against, by the name the spec uses for them.
+ *
+ * One source of truth for a spelling that appears in two places — the cell and the formula that
+ * counts it. Writing `"Yes"` into the spec by hand would be the display-versus-match trap again,
+ * one JSON file away from the constant that decides what the cell says.
+ */
+const FORMULA_WORDS: Record<string, string> = {
+  booleanYes: BOOLEAN_YES,
+  booleanNo: BOOLEAN_NO,
+  statusComplete: enumLabel('complete'),
+};
+
 function resolveFormula(
   formula: string,
   ctx: { sheet: string; table?: TableLayout; row?: number },
@@ -376,7 +413,15 @@ function resolveFormula(
   for (const ref of parseReferences(formula)) {
     let replacement: string;
 
-    if (ref.kind === 'ref') {
+    if (ref.kind === 'word') {
+      const word = FORMULA_WORDS[ref.target];
+      if (word === undefined) {
+        throw new Error(
+          `${ctx.sheet}: {{word:${ref.target}}} names no word — have ${Object.keys(FORMULA_WORDS).join(', ')}`,
+        );
+      }
+      replacement = `"${word}"`;
+    } else if (ref.kind === 'ref') {
       const target = named.get(ref.target);
       if (!target) throw new Error(`${ctx.sheet}: {{ref:${ref.target}}} names no cell`);
       replacement = target.sheet === ctx.sheet ? target.address : `${sheetPrefix(target.sheet)}${target.address}`;
@@ -504,6 +549,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const { named, tables, placed } = layout(schema, spec, deal);
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
   const inputCells: InputCell[] = [];
+  const anchors: Anchor[] = [];
   const sheets: SheetSpec[] = [];
   /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
   const writtenCells: string[] = [];
@@ -543,6 +589,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       if (block.kind === 'title' || block.kind === 'section') {
         const style = block.kind === 'title' ? 'title' : 'sectionHeader';
         push(row, { ref: A1(contentStart, row), value: block.text, style });
+        anchors.push({ sheet: s.name, address: A1(contentStart, row), text: block.text });
         mergeSpan(contentStart, row, contentEnd - contentStart + 1);
         needHeight(row, block.kind === 'title' ? TITLE_HEIGHT : BANNER_HEIGHT);
         continue;
@@ -552,6 +599,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         let column = contentStart;
         for (const cell of block.cells) {
           push(row, { ref: A1(column, row), value: cell.text, style: 'groupHeader' });
+          anchors.push({ sheet: s.name, address: A1(column, row), text: cell.text });
           mergeSpan(column, row, cell.span);
           column += cell.span;
         }
@@ -574,6 +622,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
           if (cell.kind === 'label') {
             push(row, { ref, value: cell.text, style: 'fieldLabel' });
+            anchors.push({ sheet: s.name, address: ref, text: cell.text });
             return;
           }
 
@@ -614,6 +663,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       for (const spec of table.columns) {
         const span = spec.span ?? 1;
         push(info.headerRow, { ref: A1(column, info.headerRow), value: spec.header, style: 'columnHeader' });
+        anchors.push({ sheet: s.name, address: A1(column, info.headerRow), text: spec.header });
         mergeSpan(column, info.headerRow, span);
 
         // A grouped column writes its value once per run of equal values and merges down over the
@@ -689,6 +739,11 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
           const derived = derivedValue(spec, entry, table, schema, deal, completion);
           push(dataRow, { ref, value: derived, style });
+          // The key column is what a formula's MATCH looks a row up by, and what says which element
+          // a row is about. Nothing a person may legitimately edit changes it, so it anchors the row.
+          if (spec.id === table.keyColumn && typeof derived === 'string') {
+            anchors.push({ sheet: s.name, address: ref, text: derived });
+          }
           if (spec.valueType === 'text' && typeof derived === 'string') {
             needHeight(dataRow, estimateRowHeight(derived, spanWidth(column, span), ROW_HEIGHT));
           }
@@ -725,6 +780,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   }
 
   return {
+    anchors,
     writtenCells,
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),

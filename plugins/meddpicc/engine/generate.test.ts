@@ -3,8 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import type { WorkbookPlan } from './generate';
-import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
-import { enumLabel } from './labels';
+import { BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { ENUM_LABELS, enumLabel } from './labels';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { specTables, type WorkbookSpec } from './workbook-spec';
 import { A1, COMPLETION_STATUSES, columnIndex } from './xlsx';
@@ -431,6 +431,72 @@ describe('the completion block is coloured with its own vocabulary', () => {
     const emitted = new Set(Object.values(computeCompletion(deal).completionStatus));
     for (const status of emitted) {
       expect(COMPLETION_STATUSES).toContain(status);
+    }
+  });
+});
+
+describe('a formula never compares against a spelling the cells do not use', () => {
+  // A boolean cell holds the TEXT "Yes", not a logical TRUE, so `COUNTIF(range,TRUE)` counts nothing
+  // and the scorecard reports 0 where the deal has 2. The count is well-formed, silently wrong, and
+  // agrees with nothing — exactly the class of defect a unit test on the writer cannot see.
+  test('no formula in the spec compares a boolean column against TRUE or FALSE', () => {
+    const offenders: string[] = [];
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (typeof record.formula === 'string' && /\b(TRUE|FALSE)\b/.test(record.formula)) {
+        offenders.push(`${String(record.id)}: ${record.formula}`);
+      }
+      Object.values(record).forEach(walk);
+    };
+    walk(spec);
+    expect(offenders).toEqual([]);
+  });
+
+  test('no formula quotes a word the label map owns', () => {
+    // `COUNTIF(range,"complete")` happens to work, because Excel compares text without regard to
+    // case and the cell reads "Complete". It stops working the moment that word is translated, and
+    // it is a second spelling of something `labels.ts` already decides. Name the word instead.
+    const owned = new Set([...Object.keys(ENUM_LABELS), ...Object.values(ENUM_LABELS)].map((w) => w.toLowerCase()));
+    const offenders: string[] = [];
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (typeof record.formula === 'string') {
+        for (const m of record.formula.matchAll(/"([^"]*)"/g)) {
+          if (owned.has(m[1].toLowerCase())) offenders.push(`${String(record.id)}: ${record.formula}`);
+        }
+      }
+      Object.values(record).forEach(walk);
+    };
+    walk(spec);
+    expect(offenders).toEqual([]);
+  });
+
+  test('every boolean count resolves to the word the cells actually hold', () => {
+    const counts: Array<{ id: string; expected: number }> = [
+      {
+        id: 'mustSayYesCount',
+        expected: (deal.stakeholders as Array<{ mustSayYes?: boolean }>).filter((s) => s.mustSayYes).length,
+      },
+      {
+        id: 'canSayNoCount',
+        expected: (deal.stakeholders as Array<{ canSayNo?: boolean }>).filter((s) => s.canSayNo).length,
+      },
+      {
+        id: 'teamInternalAssigned',
+        expected: (deal.team.internal as Array<{ assignedToDeal?: boolean }>).filter((m) => m.assignedToDeal).length,
+      },
+    ];
+    for (const { id, expected } of counts) {
+      // A count of zero would make the assertion below hold for a formula that counts nothing.
+      expect(expected, id).toBeGreaterThan(0);
+      const cell = cellAt(plan.namedCells[id]?.split('!')[1] ?? '');
+      expect(cell?.formula, id).toBeDefined();
+      expect(cell?.formula, id).toContain(`"${BOOLEAN_YES}"`);
+      expect(cell?.formula, id).not.toMatch(/\bTRUE\b/);
     }
   });
 });

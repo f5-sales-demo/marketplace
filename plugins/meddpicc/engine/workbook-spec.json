@@ -1140,7 +1140,7 @@
               "kind": "computed",
               "span": 1,
               "id": "sectionsComplete",
-              "formula": "COUNTIF({{col:sections.status}},\"complete\")",
+              "formula": "COUNTIF({{col:sections.status}},{{word:statusComplete}})",
               "valueType": "number"
             },
             {
@@ -1217,7 +1217,7 @@
               "kind": "computed",
               "span": 1,
               "id": "mustSayYesCount",
-              "formula": "COUNTIF({{col:stakeholders.mustSayYes}},TRUE)",
+              "formula": "COUNTIF({{col:stakeholders.mustSayYes}},{{word:booleanYes}})",
               "valueType": "number"
             },
             {
@@ -1229,7 +1229,7 @@
               "kind": "computed",
               "span": 1,
               "id": "canSayNoCount",
-              "formula": "COUNTIF({{col:stakeholders.canSayNo}},TRUE)",
+              "formula": "COUNTIF({{col:stakeholders.canSayNo}},{{word:booleanYes}})",
               "valueType": "number"
             }
           ]
@@ -1282,7 +1282,7 @@
               "kind": "computed",
               "span": 1,
               "id": "milestonesComplete",
-              "formula": "COUNTIF({{col:milestones.status}},\"complete\")",
+              "formula": "COUNTIF({{col:milestones.status}},{{word:statusComplete}})",
               "valueType": "number"
             }
           ]
@@ -1299,7 +1299,7 @@
               "kind": "computed",
               "span": 1,
               "id": "actionsOpen",
-              "formula": "COUNTA({{col:actions.action}})-COUNTIF({{col:actions.status}},\"complete\")",
+              "formula": "COUNTA({{col:actions.action}})-COUNTIF({{col:actions.status}},{{word:statusComplete}})",
               "valueType": "number"
             },
             {
@@ -1311,7 +1311,7 @@
               "kind": "computed",
               "span": 1,
               "id": "actionsOverdue",
-              "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>\"complete\"))",
+              "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>{{word:statusComplete}}))",
               "valueType": "number"
             },
             {
@@ -1335,7 +1335,7 @@
               "kind": "computed",
               "span": 1,
               "id": "teamInternalAssigned",
-              "formula": "COUNTIF({{col:teamInternal.assignedToDeal}},TRUE)",
+              "formula": "COUNTIF({{col:teamInternal.assignedToDeal}},{{word:booleanYes}})",
               "valueType": "number"
             },
             {

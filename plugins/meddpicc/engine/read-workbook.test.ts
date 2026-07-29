@@ -6,7 +6,7 @@ import { readPath } from './json-path';
 import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { validateDeal } from './validate';
 import { specTables, type WorkbookSpec } from './workbook-spec';
-import { buildWorkbook } from './xlsx';
+import { buildWorkbook, columnLetter } from './xlsx';
 import { readZip, writeZip } from './zip';
 
 const here = import.meta.dir;
@@ -757,6 +757,102 @@ describe('booleans', () => {
     // message describing a choice the workbook no longer presents.
     expect(report.rejections[0].reason).toContain(BOOLEAN_YES);
     expect(report.rejections[0].reason).toContain(BOOLEAN_NO);
+  });
+});
+
+describe('a workbook whose rows have moved is refused, not read', () => {
+  /**
+   * The stamp proves "this workbook came from this deal, laid out this way". It cannot see a change
+   * made INSIDE the workbook: re-order two element rows and every address still resolves, so the
+   * reader hands each element its neighbour's score, reports no rejection, and `--apply` writes it.
+   *
+   * Measured before this guard existed: swapping the first and last element rows produced exactly two
+   * proposals — metrics 3 → 2 and competition 2 → 3 — with `ok` true. Silent corruption of the source
+   * of truth, from an edit a person tidying a sheet would think nothing of.
+   */
+  /** Move one cell's whole `<c>` element to another address, keeping its value and style. */
+  function moveCells(bytes: Uint8Array, sheetName: string, pairs: Array<[string, string]>): Uint8Array {
+    const entries = readZip(bytes);
+    const part = sheetPart(sheetName);
+    let xml = new TextDecoder().decode(entries.get(part)?.data as Uint8Array);
+    const cellOf = (ref: string) => {
+      const found = new RegExp(`<c r="${ref}"(?: [^>]*?)?(?:/>|>.*?</c>)`).exec(xml);
+      if (!found) throw new Error(`cell ${ref} not found`);
+      return found[0];
+    };
+    const taken = pairs.map(([from, to]) => ({ from, to, xml: cellOf(from) }));
+    for (const { from, to, xml: cell } of taken) {
+      xml = xml.replace(cellOf(to), cell.replace(`r="${from}"`, `r="${to}"`));
+    }
+    return writeZip(
+      [...entries.values()].map((e) =>
+        e.name === part ? { name: e.name, data: new TextEncoder().encode(xml) } : { name: e.name, raw: e },
+      ),
+    );
+  }
+
+  const elements = () => {
+    const found = planWorkbook(schema, spec, exampleDeal).tables.find((t) => t.id === 'elements');
+    if (!found) throw new Error('no elements table');
+    return found;
+  };
+
+  test('two element rows swapped are refused, and no score moves', () => {
+    const t = elements();
+    const first = t.firstDataRow;
+    const last = t.firstDataRow + t.rows - 1;
+    const nameCol = columnLetter(t.columns.element);
+    const scoreCol = columnLetter(t.columns.score);
+    const swapped = moveCells(generateWorkbook(schema, spec, exampleDeal), SHEET, [
+      [`${nameCol}${first}`, `${nameCol}${last}`],
+      [`${nameCol}${last}`, `${nameCol}${first}`],
+      [`${scoreCol}${first}`, `${scoreCol}${last}`],
+      [`${scoreCol}${last}`, `${scoreCol}${first}`],
+    ]);
+    const report = read(exampleDeal, swapped);
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections.length).toBeGreaterThan(0);
+    expect(report.rejections[0].reason).toMatch(/moved|regenerate/i);
+    // And the deal is untouched, which is the whole point.
+    expect(report.deal).toEqual(exampleDeal);
+  });
+
+  test('the refusal names the cell that no longer holds what the plan wrote', () => {
+    const t = elements();
+    const nameCol = columnLetter(t.columns.element);
+    const first = `${nameCol}${t.firstDataRow}`;
+    const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, first, 'Something Else');
+    const report = read(exampleDeal, edited);
+    expect(report.ok).toBe(false);
+    expect(report.rejections.some((r) => r.address === first)).toBe(true);
+  });
+
+  test('a section banner nobody may retype is an anchor too', () => {
+    // Inserting a row shifts every banner and label below it, which is how a person makes room.
+    const plan = planWorkbook(schema, spec, exampleDeal);
+    const banner = plan.sheets[0].rows.flatMap((r) => r.cells).find((c) => c.style === 'sectionHeader');
+    expect(banner?.ref).toBeDefined();
+    const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, banner?.ref as string, 'Renamed');
+    expect(read(exampleDeal, edited).ok).toBe(false);
+  });
+
+  test('an ordinary edit is still an ordinary edit', () => {
+    // The guard must not turn every read into a refusal: a changed input cell is the normal case,
+    // and a derived cell holding a stale value is what Excel leaves behind after one.
+    const { sheet, address } = addressOf(exampleDeal, 'metadata.accountName');
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Globex'));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+  });
+
+  test('a score changed in Excel does not trip the anchor on its own rubric', () => {
+    // The rubric text is derived FROM the score, and Excel leaves the old text in the cell after an
+    // edit. Treating it as an anchor would refuse the most ordinary edit there is.
+    const { sheet, address } = addressOf(exampleDeal, 'qualification.metrics.score');
+    const report = read(exampleDeal, setNumber(generateWorkbook(schema, spec, exampleDeal), sheet, address, 1));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
   });
 });
 

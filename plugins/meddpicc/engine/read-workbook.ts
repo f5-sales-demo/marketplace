@@ -39,6 +39,8 @@ const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
 const MS_PER_DAY = 86_400_000;
 /** 9999-12-31. Beyond this Excel has no date, and neither has anything downstream. */
 const MAX_SERIAL = 2_958_465;
+/** How many moved labels to name. Past a handful the list stops informing and starts scrolling. */
+const MAX_REPORTED_ANCHORS = 5;
 
 /** The day an Excel serial names, or null when the number is not a date. */
 export function serialToDate(serial: number): string | null {
@@ -446,8 +448,43 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   }
 
   const cells = readWorkbookCells(bytes);
-  // Grown rows come last, so the planned rows have already been applied and appending a new item
-  // lands at the index the array has actually reached.
+
+  // Every address below is only meaningful while the rows are where the generator put them. The stamp
+  // cannot see a change made INSIDE the workbook: re-order two element rows — which is what tidying a
+  // sheet looks like — and each element is handed its neighbour's score, with no rejection and `ok`
+  // true. Measured, before this: swapping the first and last element rows proposed metrics 3 → 2 and
+  // competition 2 → 3, and `--apply` would have written both.
+  //
+  // So the labels the plan wrote are checked first, and a mismatch refuses the WHOLE workbook rather
+  // than reporting cell by cell. A sheet whose rows have moved has no correct partial reading: every
+  // address below the first shift is wrong, and reporting one of them would invite applying the rest.
+  const moved = plan.anchors
+    .filter((anchor) => {
+      const text = cells.get(anchor.sheet)?.get(anchor.address)?.text;
+      return (text ?? '').trim() !== anchor.text.trim();
+    })
+    .slice(0, MAX_REPORTED_ANCHORS);
+  if (moved.length > 0) {
+    return {
+      ok: false,
+      cellsRead: 0,
+      unchanged: 0,
+      proposals: [],
+      rejections: moved.map((anchor) => ({
+        sheet: anchor.sheet,
+        address: anchor.address,
+        reason:
+          `should still read "${anchor.text}" but does not — the rows appear to have moved, ` +
+          'so no cell in this workbook can be trusted to be the one it was. Regenerate it from the ' +
+          'current deal, then make the edit again',
+      })),
+      deal: working,
+      valid: true,
+      errors: [],
+      notes,
+    };
+  }
+
   const inputs = plan.inputCells;
 
   for (const input of inputs) {

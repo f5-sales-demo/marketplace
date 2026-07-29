@@ -178,6 +178,38 @@ got_pct="$(awk -v v="$got_pct_raw" 'BEGIN { printf "%.1f", v * 100 }')"
 echo "    Overall score: Excel=$got_pct% engine=$want_pct%"
 [ "$got_pct" = "$want_pct" ] || fail "Excel computed $got_pct%, engine says $want_pct%"
 
+# Three cells agreeing with the engine is not the same as the scorecard being right. Every count
+# below is derivable from the deal JSON by a completely different route, so ask Excel for each one
+# and compare.
+#
+# This stage exists because its absence hid a real defect for a whole session: booleans are written
+# as the word "Yes", and the counts still compared against a logical TRUE. Excel does not treat text
+# "Yes" as TRUE, so Must Say Yes, Can Say No and Assigned all reported 0 where the deal has 2, 3 and
+# 2 — well-formed, silently wrong, and invisible to every assertion there was.
+check_count() {
+  local id="$1" want="$2" got
+  got="$(read_named "$id")"
+  echo "    $id: Excel=${got:-<none>} deal=$want"
+  # A zero expectation would let a formula that counts nothing agree with it, so refuse to compare.
+  [ "$want" != "0" ] || fail "$id expects 0 from the deal — this comparison cannot fail, pick a fixture that exercises it"
+  [ "${got%.*}" = "$want" ] || fail "Excel computed $id = $got, the deal says $want"
+}
+
+deal_count() { jq -r "$1" "$DEAL"; }
+check_count mustSayYesCount "$(deal_count '[.stakeholders[] | select(.mustSayYes)] | length')"
+check_count canSayNoCount "$(deal_count '[.stakeholders[] | select(.canSayNo)] | length')"
+check_count teamInternalAssigned "$(deal_count '[.team.internal[] | select(.assignedToDeal)] | length')"
+check_count stakeholdersMapped "$(deal_count '.stakeholders | length')"
+check_count teamInternalCount "$(deal_count '.team.internal | length')"
+check_count teamPartnerCount "$(deal_count '.team.partner | length')"
+check_count milestonesTotal "$(deal_count '.closePlan.milestones | length')"
+check_count questionsAnswered "$(deal_count '[.qualification[].responses // [] | .[] | select(. != "")] | length')"
+# From `engine score`, not from jq: an unscored element counts as 0 and that rule belongs to the
+# engine. Deriving it here again would be a second opinion that could disagree with both.
+check_count elementsBelowThree "$(jq -r '[.elementScores[] | select(. < 3)] | length' <<<"$score_json")"
+check_count scorePreviousTotal "$(deal_count '[.scoring.previousElementScores[]] | add')"
+echo "PASS: every scorecard count Excel computes agrees with the deal JSON"
+
 # A formula pointing at the wrong range is well-formed and wrong; an error value is at least
 # loud. Check for the loud ones across every sheet.
 # This check was vacuous for two independent reasons, either of which was enough (#904).
@@ -654,7 +686,29 @@ echo "    Champion score before moving its row = $was_champ, after = $now_champ"
 [ -n "$was_champ" ] && [ "$was_champ" = "$now_champ" ] || fail "a keyed reference did not follow its key ($swap_result)"
 echo "PASS: keyed references follow the key, so re-ordering the rows cannot mislabel a score"
 
-osascript -e "tell application \"Microsoft Excel\" to close workbook \"$BOOK\" saving no" >/dev/null 2>&1
+# The rows are now genuinely out of order in an open workbook. Save it and read it back: this must be
+# REFUSED, not read.
+#
+# The formulas survive a re-order — that is what the check above proves — but the reader's addresses
+# do not. Before the anchor guard, reading this exact file proposed metrics 3 → 2 and competition
+# 2 → 3, reported no rejection, and `--apply` would have written each element its neighbour's score.
+echo "==> saving the re-ordered workbook and reading it back"
+excel_do "saving the re-ordered workbook" "  save workbook \"$BOOK\"
+  close workbook \"$BOOK\" saving no"
+
+moved_before="$(jq -c '.qualification | to_entries | map({key, score: .value.score})' "$DEAL")"
+moved_report="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$OUT" --deal "$DEAL" --apply)"
+moved_code=$?
+echo "    rejections: $(jq -c '[.rejections[] | {address, reason: (.reason | .[0:40])}]' <<<"$moved_report")"
+[ "$moved_code" != "0" ] || fail "read exited 0 on a workbook whose rows had moved"
+[ "$(jq -r '.proposals | length' <<<"$moved_report")" = "0" ] || fail "a re-ordered workbook produced proposals: $(jq -c '.proposals' <<<"$moved_report")"
+[ "$(jq -r '.rejections | length' <<<"$moved_report")" != "0" ] || fail "a re-ordered workbook was accepted with no rejection"
+jq -e '[.rejections[] | select(.reason | test("moved"))] | length > 0' <<<"$moved_report" >/dev/null ||
+  fail "the refusal does not say the rows moved: $(jq -c '[.rejections[].reason]' <<<"$moved_report")"
+# `--apply` was passed on purpose: a refusal that still wrote would be worse than reading it.
+moved_after="$(jq -c '.qualification | to_entries | map({key, score: .value.score})' "$DEAL")"
+[ "$moved_before" = "$moved_after" ] || fail "the deal's scores changed despite the refusal: $moved_before -> $moved_after"
+echo "PASS: a workbook whose rows have moved is refused, and --apply writes nothing"
 
 # Stage 3: the round trip, through a real save.
 #
