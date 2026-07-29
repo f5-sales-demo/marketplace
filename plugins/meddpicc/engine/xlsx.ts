@@ -104,11 +104,6 @@ function parseRange(ref: string, what: string): Range {
   return range;
 }
 
-/** Do two ranges share a cell? */
-function overlaps(a: Range, b: Range): boolean {
-  return a.c1 <= b.c2 && b.c1 <= a.c2 && a.r1 <= b.r2 && b.r1 <= a.r2;
-}
-
 /**
  * The style palette, in `cellXfs` order — the index of each name IS its `s=` attribute.
  *
@@ -270,16 +265,6 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
   overdueDate: [{ type: 'expression', formulas: ['AND(%FIRST%<>"",%FIRST%<TODAY())'], dxf: 'red' }],
 };
 
-export interface TablePart {
-  /** Workbook-unique, no spaces — Excel uses it for structured references. */
-  name: string;
-  displayName: string;
-  /** Includes the header row and at least one data row. */
-  ref: string;
-  /** Must equal the header cells, in order. */
-  columns: string[];
-}
-
 export interface ConditionalFormat {
   sqref: string;
   preset: CfPreset;
@@ -398,7 +383,6 @@ export interface SheetSpec {
   /** Opening zoom percentage. Excel accepts 10 to 400. */
   zoom?: number;
   print?: PrintSetup;
-  tables?: TablePart[];
   conditionalFormats?: ConditionalFormat[];
   validations?: Validation[];
 }
@@ -447,11 +431,6 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
     return row;
   };
 
-  const tableRanges = (sheet.tables ?? []).map((t) => ({
-    name: t.name,
-    range: parseRange(t.ref, `Table "${t.name}" on sheet "${sheet.name}"`),
-  }));
-
   /** ref -> the merge that already covers it, so an overlap can name both. */
   const covered = new Map<string, string>();
 
@@ -466,17 +445,6 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
       throw new Error(
         `Merge "${ref}" on sheet "${sheet.name}" covers ${size} cells; the writer materialises at most ${MAX_MERGE_CELLS}`,
       );
-    }
-    // Excel does not merely dislike a merge inside a table — it drops the table and repairs the
-    // file, so the sort button, the structured references and the auto-extend all disappear
-    // with nothing to notice but a table count that fell to zero.
-    for (const table of tableRanges) {
-      if (overlaps(area, table.range)) {
-        throw new Error(
-          `Merge "${ref}" on sheet "${sheet.name}" overlaps table "${table.name}" (${sheet.tables?.find((t) => t.name === table.name)?.ref}) — ` +
-            'Excel drops a table whose range contains a merged cell',
-        );
-      }
     }
     const anchorRef = A1(c1, r1);
     const anchor = cellByRef.get(anchorRef);
@@ -544,35 +512,6 @@ function cellXml(cell: CellSpec): string {
   }
   if (typeof cell.value === 'boolean') return `<c r="${cell.ref}"${s} t="b"><v>${cell.value ? 1 : 0}</v></c>`;
   return `<c r="${cell.ref}"${s} t="inlineStr"><is><t xml:space="preserve">${escapeXml(cell.value)}</t></is></c>`;
-}
-
-/** The header text actually present in a table's first row, in column order. */
-function headerTextsFor(sheet: SheetSpec, ref: string): string[] {
-  const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref);
-  if (!m) throw new Error(`Table ref "${ref}" on sheet "${sheet.name}" is not a range like A1:H12`);
-  const [firstCol, headerRow, lastCol, lastRow] = [m[1], Number(m[2]), m[3], Number(m[4])];
-  if (lastRow <= headerRow) {
-    throw new Error(`Table ref "${ref}" on sheet "${sheet.name}" has no data row — Excel rejects a header-only table`);
-  }
-  const row = sheet.rows.find((r) => r.row === headerRow);
-  const out: string[] = [];
-  for (let c = columnIndex(firstCol); c <= columnIndex(lastCol); c++) {
-    const cell = row?.cells.find((x) => x.ref === A1(c, headerRow));
-    out.push(typeof cell?.value === 'string' ? cell.value : '');
-  }
-  return out;
-}
-
-function tableXml(table: TablePart, id: number): string {
-  const columns = table.columns.map((name, i) => `<tableColumn id="${i + 1}" name="${escapeXml(name)}"/>`).join('');
-  return (
-    `${XML_HEADER}<table xmlns="${NS_MAIN}" id="${id}" name="${escapeXml(table.name)}" ` +
-    `displayName="${escapeXml(table.displayName)}" ref="${table.ref}" headerRowCount="1">` +
-    `<autoFilter ref="${table.ref}"/>` +
-    `<tableColumns count="${table.columns.length}">${columns}</tableColumns>` +
-    `<tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/>` +
-    `</table>`
-  );
 }
 
 function conditionalFormattingXml(formats: ConditionalFormat[] | undefined): string {
@@ -707,7 +646,7 @@ function printXml(print: PrintSetup | undefined): string {
   );
 }
 
-function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
+function sheetXml(sheet: SheetSpec): string {
   const cols = sheet.columns?.length
     ? `<cols>${sheet.columns.map((c) => `<col min="${c.min}" max="${c.max}" width="${c.width}" customWidth="1"/>`).join('')}</cols>`
     : '';
@@ -735,32 +674,10 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
         `<row r="${r.row}"${r.height ? ` ht="${r.height}" customHeight="1"` : ''}>${r.cells.map(cellXml).join('')}</row>`,
     )
     .join('');
-  for (const table of sheet.tables ?? []) {
-    const headers = headerTextsFor(sheet, table.ref);
-    if (headers.length !== table.columns.length) {
-      throw new Error(
-        `Table "${table.name}" declares ${table.columns.length} columns but its ref spans ${headers.length}`,
-      );
-    }
-    table.columns.forEach((name, i) => {
-      if (headers[i] !== name) {
-        throw new Error(
-          `Table "${table.name}" column ${i + 1} is declared "${name}" but the header cell says "${headers[i]}" — ` +
-            'Excel repairs a table whose column names do not match its header row',
-        );
-      }
-    });
-  }
-
-  const tableParts = tableIds.length
-    ? `<tableParts count="${tableIds.length}">${tableIds.map((_, i) => `<tablePart r:id="rId${i + 1}"/>`).join('')}</tableParts>`
-    : '';
-
   // CT_Worksheet is a sequence, not a bag: sheetPr, sheetViews, sheetFormatPr, cols,
   // sheetData, mergeCells, conditionalFormatting, dataValidations, then the print group
-  // (printOptions, pageMargins, pageSetup, headerFooter), with tableParts last. Emitting
-  // these out of order does not warn — it makes Excel offer to repair the file, with a
-  // message that names nothing useful.
+  // (printOptions, pageMargins, pageSetup, headerFooter). Emitting these out of order does not
+  // warn — it makes Excel offer to repair the file, with a message that names nothing useful.
   return (
     `${XML_HEADER}<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL_DOC}">` +
     sheetPr +
@@ -771,7 +688,6 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
     conditionalFormattingXml(sheet.conditionalFormats) +
     dataValidationsXml(sheet.validations) +
     printXml(sheet.print) +
-    tableParts +
     `</worksheet>`
   );
 }
@@ -830,27 +746,6 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
   // report the workbook as stamped when it carries nothing.
   const hasProperties = properties !== undefined && Object.keys(properties).length > 0;
 
-  // Tables are numbered across the whole workbook, and each sheet keeps its own relationship
-  // ids starting at rId1 — a table's r:id is scoped to the worksheet that references it.
-  let nextTableId = 1;
-  const tableIdsBySheet = sheets.map((s) => (s.tables ?? []).map(() => nextTableId++));
-  const allTables = sheets.flatMap((s, i) =>
-    (s.tables ?? []).map((table, j) => ({ table, id: tableIdsBySheet[i][j] })),
-  );
-
-  const displayNames = new Set<string>();
-  for (const { table } of allTables) {
-    // Excel treats displayName as a workbook-wide identifier for structured references, and
-    // silently repairs a duplicate rather than reporting one.
-    if (displayNames.has(table.displayName)) {
-      throw new Error(`Two tables share the displayName "${table.displayName}"; it must be unique in the workbook`);
-    }
-    if (/\s/.test(table.displayName) || /^\d/.test(table.displayName)) {
-      throw new Error(`Table displayName "${table.displayName}" must not contain a space or start with a digit`);
-    }
-    displayNames.add(table.displayName);
-  }
-
   const contentTypes =
     `${XML_HEADER}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
     `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
@@ -861,12 +756,6 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
       .map(
         (_, i) =>
           `<Override PartName="/${sheetPath(i)}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
-      )
-      .join('') +
-    allTables
-      .map(
-        ({ id }) =>
-          `<Override PartName="/xl/tables/table${id}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`,
       )
       .join('') +
     (!hasProperties
@@ -901,29 +790,13 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
     sheets.map((s, i) => `<sheet name="${escapeXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
     `</sheets></workbook>`;
 
-  // A worksheet that references a table needs its own rels part pointing at it.
-  const sheetRels = tableIdsBySheet.flatMap((ids, i) => {
-    if (ids.length === 0) return [];
-    const entries = ids
-      .map((id, j) => `<Relationship Id="rId${j + 1}" Type="${NS_REL_DOC}/table" Target="../tables/table${id}.xml"/>`)
-      .join('');
-    return [
-      {
-        name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`,
-        data: enc(`${XML_HEADER}<Relationships xmlns="${NS_REL_PKG}">${entries}</Relationships>`),
-      },
-    ];
-  });
-
   return writeZip([
     { name: '[Content_Types].xml', data: enc(contentTypes) },
     { name: '_rels/.rels', data: enc(rootRels) },
     { name: 'xl/workbook.xml', data: enc(workbook) },
     { name: 'xl/_rels/workbook.xml.rels', data: enc(workbookRels) },
     { name: 'xl/styles.xml', data: enc(stylesXml()) },
-    ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s, tableIdsBySheet[i])) })),
-    ...sheetRels,
-    ...allTables.map(({ table, id }) => ({ name: `xl/tables/table${id}.xml`, data: enc(tableXml(table, id)) })),
+    ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s)) })),
     ...(hasProperties ? [{ name: 'docProps/custom.xml', data: enc(customPropsXml(properties)) }] : []),
   ]);
 }
