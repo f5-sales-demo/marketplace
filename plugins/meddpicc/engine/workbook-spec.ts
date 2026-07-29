@@ -52,6 +52,9 @@ export const VALUE_TYPE_STYLE: Record<ValueType, StyleName> = {
   percent: 'percent',
   date: 'date',
   boolean: 'default',
+  // Bold and centred. Also carries the score DELTA in the elements table: it is the same visual class
+  // as the two columns beside it, and a matched trio of numbers reading left, centre, centre is the
+  // kind of small wrongness the eye notices before the mind does.
   score: 'score',
   rating: 'default',
 };
@@ -170,6 +173,23 @@ export type SpecRowCell =
       span: number;
       id: string;
       formula: string;
+      valueType: ValueType;
+      conditionalFormat?: CfPreset;
+    }
+  /**
+   * A value the generator works out, where the sheet has nothing to work it out from.
+   *
+   * The previous review's total is the case this exists for. Its eight per-element scores used to sit
+   * in the elements table where a formula could sum them, and they were noise: a reader comparing this
+   * review to the last one wants one number, not eight, and can see the current score right beside it.
+   * So the column went and the total is computed from the deal instead.
+   *
+   * Like a derived table column, it is not a formula and is never read back — the engine recomputes it.
+   */
+  | {
+      kind: 'derived';
+      span: number;
+      id: string;
       valueType: ValueType;
       conditionalFormat?: CfPreset;
     };
@@ -392,7 +412,7 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
     for (const block of sheet.blocks) {
       if (block.kind !== 'row') continue;
       for (const cell of block.cells) {
-        if (cell.kind !== 'field' && cell.kind !== 'computed') continue;
+        if (cell.kind !== 'field' && cell.kind !== 'computed' && cell.kind !== 'derived') continue;
         const where = `${sheet.name}.${cell.id}`;
         if (out.namedCells.has(cell.id)) {
           ids.push(`duplicate cell id "${cell.id}" (${out.namedCells.get(cell.id)?.sheet} and ${sheet.name})`);
@@ -409,9 +429,11 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
             out.inputs.push({ where, paths: [cell.jsonPath] });
             if (cell.validate) out.validated.push({ where, path: cell.jsonPath, valueType: cell.valueType });
           }
-        } else {
+        } else if (cell.kind === 'computed') {
           out.formulas.push({ where, formula: cell.formula, table: null });
         }
+        // A `derived` cell holds no formula and no path: the generator works it out, and `generate`
+        // throws on an id it does not know. Named all the same, so a formula may point at it.
       }
     }
 
@@ -547,6 +569,16 @@ function checkReferences(collected: Collected): { checked: number; failures: str
   return { checked, failures };
 }
 
+/**
+ * The grid label cells sit on: a slot every four content columns, each label two columns of it.
+ *
+ * Four slots across a sixteen-column sheet. A value fills the rest of its slot, or runs on through the
+ * slots after it when they carry no label of their own — so two wide pairs put their labels in the same
+ * bands as slots one and three of a four-across row.
+ */
+const LABEL_SLOT_WIDTH = 4;
+const LABEL_SPAN = 2;
+
 function checkLayout(spec: WorkbookSpec): string[] {
   const failures: string[] = [];
   const seen = new Set<string>();
@@ -577,6 +609,38 @@ function checkLayout(spec: WorkbookSpec): string[] {
             failures.push(`tables "${spans[i].id}" and "${spans[j].id}" share rows and columns on "${sheet.name}"`);
           }
         }
+      }
+    }
+
+    // Every label starts on a slot boundary, and is exactly two columns wide.
+    //
+    // Without this the labels drifted to nine different columns — B, F, G, H, I, J, L, M, N — and the
+    // coloured blocks staircased down the sheet. Each row was individually sensible; together they
+    // looked like a mistake. Four bands is what makes a dense grid read as designed rather than as
+    // whatever fitted, and a row of four short pairs lines up with a row of two wide ones because both
+    // put their labels on the same slots.
+    const contentStart = (sheet.columns[0]?.max ?? 1) + 1;
+    for (const [index, block] of sheet.blocks.entries()) {
+      if (block.kind !== 'row') continue;
+      let column = contentStart;
+      for (const cell of block.cells) {
+        if (cell.kind === 'label') {
+          const offset = column - contentStart;
+          if (offset % LABEL_SLOT_WIDTH !== 0) {
+            failures.push(
+              `"${sheet.name}" block ${index}: label "${cell.text}" starts ${offset} columns into the ` +
+                `content, which is not a multiple of ${LABEL_SLOT_WIDTH} — it would not line up with the ` +
+                'labels above and below it',
+            );
+          }
+          if (cell.span !== LABEL_SPAN) {
+            failures.push(
+              `"${sheet.name}" block ${index}: label "${cell.text}" spans ${cell.span}, not ${LABEL_SPAN} — ` +
+                'a wider label pushes its value off the slot grid',
+            );
+          }
+        }
+        column += cell.span;
       }
     }
   }

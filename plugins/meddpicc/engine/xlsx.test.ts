@@ -249,6 +249,42 @@ describe('buildWorkbook — conditional formatting and validation', () => {
   });
 });
 
+describe('the delta preset colours movement, not stillness', () => {
+  // A change since the last review reads at a glance: up is good, down is not. Nought is neither, so
+  // it stays uncoloured — an amber "nothing moved" would look like a warning in a column somebody
+  // scans for problems.
+  const sheet = () => {
+    const parts = readZip(
+      buildWorkbook([
+        {
+          name: 'Data',
+          rows: [
+            { row: 1, cells: [{ ref: 'A1', value: 2, style: 'score' }] },
+            { row: 2, cells: [{ ref: 'A2', value: 0, style: 'score' }] },
+          ],
+          conditionalFormats: [{ sqref: 'A1:A2', preset: 'delta' }],
+        },
+      ]),
+    );
+    return dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+  };
+
+  test('two rules, one each way, and nothing for zero', () => {
+    const xml = sheet();
+    const rules = [...xml.matchAll(/<cfRule[^>]*operator="([a-zA-Z]+)"[^>]*>\s*<formula>([^<]*)<\/formula>/g)].map(
+      (m) => `${m[1]} ${m[2]}`,
+    );
+    expect(rules).toEqual(['greaterThan 0', 'lessThan 0']);
+  });
+
+  test('the two rules use different colours, or the sign is not readable', () => {
+    const xml = sheet();
+    const ids = [...xml.matchAll(/<cfRule[^>]*dxfId="(\d+)"/g)].map((m) => m[1]);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+});
+
 describe('buildWorkbook — merges', () => {
   const merged = (merges: string[], extra: Parameters<typeof buildWorkbook>[0][number]['rows'] = []) =>
     dec(
