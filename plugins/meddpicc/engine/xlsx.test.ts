@@ -864,3 +864,36 @@ describe('buildWorkbook — notes', () => {
     }
   });
 });
+
+describe('buildWorkbook — a note at the edge of the grid', () => {
+  /** The eight numbers of the VML anchor: left column, offset, top row, offset, then the same again. */
+  const anchorOf = (ref: string) => {
+    const vml = dec(
+      readZip(
+        buildWorkbook([
+          { name: 'Deal', rows: [{ row: 1, cells: [{ ref, value: 'edge' }] }], notes: [{ ref, text: 'x' }] },
+        ]),
+      ).get('xl/drawings/vmlDrawing1.vml')?.data as Uint8Array,
+    );
+    const numbers = /<x:Anchor>([^<]+)<\/x:Anchor>/.exec(vml)?.[1] ?? '';
+    return numbers.split(',').map((n) => Number(n.trim()));
+  };
+
+  test('the box stays inside the grid, however close to the edge the cell is', () => {
+    // The note box is anchored a few columns and rows on from its cell, and Excel's grid ends at
+    // column XFD and row 1048576. An anchor past either is not clipped — it is a malformed drawing,
+    // and Excel's answer to that is to offer to repair the file.
+    const [left, , top, , right, , bottom] = anchorOf('XFD1048576');
+    expect(right).toBeLessThanOrEqual(16383);
+    expect(bottom).toBeLessThanOrEqual(1048575);
+    // Still a box, not a line: the anchor has to keep some width and height or there is nothing to show.
+    expect(right).toBeGreaterThan(left);
+    expect(bottom).toBeGreaterThan(top);
+  });
+
+  test('an ordinary cell gets the full-size box', () => {
+    const [left, , top, , right, , bottom] = anchorOf('B20');
+    expect(right - left).toBe(4);
+    expect(bottom - top).toBe(5);
+  });
+});

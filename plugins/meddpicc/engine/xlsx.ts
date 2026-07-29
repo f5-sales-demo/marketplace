@@ -640,6 +640,10 @@ const NOTE_RUN_PROPERTIES = '<rPr><sz val="9"/><color indexed="81"/><rFont val="
 /** The first legacy shape id Excel uses on a sheet; each note takes the next one. */
 const NOTE_FIRST_SHAPE_ID = 1025;
 
+/** How many columns and rows the note's box covers when Excel opens it. */
+const NOTE_BOX_COLUMNS = 4;
+const NOTE_BOX_ROWS = 5;
+
 function commentsXml(notes: readonly Note[]): string {
   const list = notes
     .map(
@@ -676,6 +680,13 @@ function vmlDrawingXml(notes: readonly Note[], sheetName: string): string {
       const { column, row } = parseCell(note.ref, `Note on sheet "${sheetName}"`);
       const col0 = column - 1;
       const row0 = row - 1;
+      // The box opens one column to the right of the cell — and slides back towards the middle when
+      // the cell is close to an edge, because an anchor past column XFD or row 1048576 is not clipped
+      // by Excel: it is a malformed drawing, and Excel's answer to one of those is to offer to repair
+      // the file. Sliding keeps the box its full size; clamping the far corner would have flattened it
+      // to nothing on the last row.
+      const boxLeft = Math.min(col0 + 1, MAX_COLUMN - 1 - NOTE_BOX_COLUMNS);
+      const boxTop = Math.min(row0, MAX_ROW - 1 - NOTE_BOX_ROWS);
       return (
         `<v:shape id="_x0000_s${NOTE_FIRST_SHAPE_ID + i}" type="#_x0000_t202" ` +
         `style="position:absolute;width:240pt;height:80pt;z-index:${i + 1};visibility:hidden" ` +
@@ -683,8 +694,7 @@ function vmlDrawingXml(notes: readonly Note[], sheetName: string): string {
         `<v:fill color2="#ffffe1"/><v:shadow on="t" color="black" obscured="t"/><v:path o:connecttype="none"/>` +
         `<v:textbox style="mso-direction-alt:auto"><div style="text-align:left"></div></v:textbox>` +
         `<x:ClientData ObjectType="Note"><x:MoveWithCells/><x:SizeWithCells/>` +
-        // From one cell right of the note to four columns and five rows on: the box Excel opens.
-        `<x:Anchor>${col0 + 1}, 15, ${row0}, 2, ${col0 + 5}, 15, ${row0 + 5}, 2</x:Anchor>` +
+        `<x:Anchor>${boxLeft}, 15, ${boxTop}, 2, ${boxLeft + NOTE_BOX_COLUMNS}, 15, ${boxTop + NOTE_BOX_ROWS}, 2</x:Anchor>` +
         `<x:AutoFill>False</x:AutoFill><x:Row>${row0}</x:Row><x:Column>${col0}</x:Column></x:ClientData></v:shape>`
       );
     })

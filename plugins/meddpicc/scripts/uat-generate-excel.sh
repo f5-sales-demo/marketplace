@@ -535,7 +535,7 @@ echo "PASS: every computed row height is at least what Excel's autofit asks for"
 # So ask Excel. And compare against the SCHEMA rather than against the plan: the plan's text and the
 # note both come from the generator, so they agree even when both are wrong.
 read_note() {
-  osascript - "$SHEET" "$BOOK" "$1" 2>&1 <<'OSA'
+  osascript - "$SHEET" "$1" "$2" 2>&1 <<'OSA'
 on run argv
   tell application "Microsoft Excel"
     set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
@@ -563,7 +563,7 @@ for note_element in $note_elements; do
     "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
   [ "$note_want" != "MISSING" ] && [ -n "$note_want" ] ||
     fail "the schema declares no definition for $note_element, so this stage would prove nothing"
-  note_got="$(read_note "$note_ref")"
+  note_got="$(read_note "$BOOK" "$note_ref")"
   case "$note_got" in
   *"execution error"* | *"syntax error"*)
     fail "Excel has no note on $note_ref ($note_element): $note_got"
@@ -1036,6 +1036,24 @@ done
 
 wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.accountName address)" ||
   fail "Excel never finished opening $RT_BOOK"
+
+# The file just reopened is Excel's OWN, saved a moment ago by its comments and VML code rather than
+# by ours. A deal review gets shared and saved, so a note that Excel drops on the way out is a note
+# nobody sees again — and this reopen is the only point in the run where anything has been through
+# Excel's writer.
+rt_note_ref="$(jq -r '.notes[0].address // "MISSING"' <<<"$rt_plan")"
+rt_note_want="$(jq -r '.notes[0].text // "MISSING"' <<<"$rt_plan")"
+[ "$rt_note_ref" != "MISSING" ] && [ "$rt_note_want" != "MISSING" ] ||
+  fail "the round-trip plan carries no notes, so this check would prove nothing"
+rt_note_got="$(read_note "$RT_BOOK" "$rt_note_ref")"
+case "$rt_note_got" in
+*"execution error"* | *"syntax error"*)
+  fail "Excel's own save dropped the note on $rt_note_ref: $rt_note_got"
+  ;;
+esac
+[ "$rt_note_got" = "$rt_note_want" ] ||
+  fail "after Excel saved it, the note on $rt_note_ref reads '${rt_note_got:0:60}', not '${rt_note_want:0:60}'"
+echo "PASS: a note survives a save by Excel itself"
 
 # Writing, saving and closing in one breath hid which of the three failed. When the save did not
 # reach disk the reader saw the untouched file, reported no proposals, and this script blamed
