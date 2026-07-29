@@ -327,11 +327,11 @@ spreadsheet is **ephemeral** — generated on demand, thrown away after,
 and regenerated whenever it is wanted again.
 
 **The format is the spec, not something you compose.**
-`engine/workbook-spec.json` describes the whole workbook: eight sheets,
-a Scorecard that is entirely formulas, Excel Tables that grow,
-conditional formatting, and dropdowns read from the deal schema. Never
-lay out a sheet by hand and never write a label or heading — the spec
-already has them, and the engine decides every coordinate.
+`engine/workbook-spec.json` describes the whole workbook: one laid-out
+sheet, a scorecard that is entirely formulas, conditional formatting,
+and dropdowns read from the deal schema. Never lay out a sheet by hand
+and never write a label or heading — the spec already has them, and the
+engine decides every coordinate.
 
 ```bash
 bun xcsh://plugin/meddpicc/file/engine/cli.ts generate <deal.json> \
@@ -340,7 +340,7 @@ bun xcsh://plugin/meddpicc/file/engine/cli.ts generate <deal.json> \
 
 Tell the user the path. In an Excel task pane, open that file rather
 than writing cells into whatever workbook happens to be open: the
-workbook is eight sheets with tables and formulas, so it has to be
+sheet is a laid-out grid of merges and formulas, so it has to be
 created as a file, not typed into an existing one.
 
 Once someone has edited it in Excel, pull their work back into the JSON:
@@ -358,14 +358,18 @@ Rules that matter:
   changes nothing, and that is the default for a reason: the JSON is
   the source of truth and a cell that differs is a proposal.
 - **Relay a rejection by its cell address**, as the tool gives it —
-  `Qualification!C8`, not a JSON path. The user is looking at Excel.
-  A non-zero exit means something was refused; do not apply anyway.
+  `G20`, not a JSON path. The user is looking at Excel. A non-zero exit
+  means something was refused; do not apply anyway.
 - **A workbook only reads back against the deal it was generated
   from.** It carries a stamp, and `read` refuses it otherwise. If the
   deal has gained a stakeholder or an answer since, regenerate — do
   not try to make the old file work.
-- After applying edits that added rows, regenerate the workbook so it
-  has blank rows to grow into again.
+- **A list holds exactly the rows it shows.** Each one is laid out with
+  blank rows to spare, and content typed *below* them is refused rather
+  than read — there is nowhere for it to go, because the rows under a
+  table belong to the next section. The rejection says what to do: add
+  the entry to the deal JSON, then regenerate so the sheet has room for
+  it. Do that rather than asking the user to retype anything.
 
 ## Coaching Behavior
 
