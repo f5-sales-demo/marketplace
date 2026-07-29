@@ -644,7 +644,7 @@ describe('prose too tall for any row is reported, not clipped in silence', () =>
   // and the cell is merged, so it cannot autofit to reveal the rest either. Nothing about that is
   // fixable at generation time. What is fixable is saying so: the schema bounds none of the prose
   // fields, and a note somebody wrote at length would otherwise end mid-sentence with no indication.
-  const longWinded = () => {
+  const aVeryLongNote = () => {
     const deal2 = clone(deal);
     deal2.qualification.metrics.evidence = `${'word '.repeat(600)}end`;
     return deal2;
@@ -655,7 +655,7 @@ describe('prose too tall for any row is reported, not clipped in silence', () =>
   });
 
   test('a cell that cannot fit names itself, with what it would have needed', () => {
-    const plan = planWorkbook(schema, spec, longWinded());
+    const plan = planWorkbook(schema, spec, aVeryLongNote());
     expect(plan.clippedCells).toHaveLength(1);
     const clipped = plan.clippedCells[0];
     expect(clipped.address).toBe(plan.inputCells.find((c) => c.jsonPath === 'qualification.metrics.evidence')?.address);
@@ -666,7 +666,7 @@ describe('prose too tall for any row is reported, not clipped in silence', () =>
   });
 
   test('generation still succeeds — a long note is not a reason to refuse a workbook', () => {
-    expect(() => generateWorkbook(schema, spec, longWinded())).not.toThrow();
+    expect(() => generateWorkbook(schema, spec, aVeryLongNote())).not.toThrow();
   });
 });
 
