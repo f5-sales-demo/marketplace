@@ -224,23 +224,38 @@ echo "PASS: every scorecard count Excel computes agrees with the deal JSON"
 # So the detector now proves itself on every run instead of being trusted: clean, then with a
 # deliberate =1/0, then clean again. An assertion nobody has watched fail is not an assertion.
 error_values() {
-  osascript <<OSA 2>&1
-tell application "Microsoft Excel"
-  set errs to ""
-  set n to count of worksheets of workbook "$BOOK"
-  repeat with i from 1 to n
-    set ws to worksheet i of workbook "$BOOK"
-    set vals to (get string value of (get used range of ws))
-    repeat with rw in vals
-      repeat with v in rw
-        if (v as string) is in {"#REF!", "#VALUE!", "#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!"} then
-          set errs to errs & (get name of ws) & ":" & (v as string) & " "
-        end if
+  # Reports the ADDRESS of every error cell, not just the sheet. "MEDDPICC Deal Review:#DIV/0!" was
+  # true and useless: it could not distinguish a formula that is wrong from the sentinel this stage
+  # plants on purpose, and I spent three runs guessing which.
+  osascript - "$BOOK" <<'OSA' 2>&1
+on run argv
+  set bookName to item 1 of argv
+  tell application "Microsoft Excel"
+    set errs to ""
+    set n to count of worksheets of workbook bookName
+    repeat with i from 1 to n
+      set ws to worksheet i of workbook bookName
+      set usedRange to (get used range of ws)
+      set vals to (get string value of usedRange)
+      set firstRow to (first row index of usedRange)
+      set firstCol to (first column index of usedRange)
+      set r to 0
+      repeat with rw in vals
+        set r to r + 1
+        set c to 0
+        repeat with v in rw
+          set c to c + 1
+          set sv to (v as string)
+          if sv is in {"#REF!", "#VALUE!", "#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!"} then
+            set cellRef to (get address of cell (r + firstRow - 1) of column (c + firstCol - 1) of ws)
+            set errs to errs & (get name of ws) & "!" & cellRef & "=" & sv & " "
+          end if
+        end repeat
       end repeat
     end repeat
-  end repeat
-  return errs
-end tell
+    return errs
+  end tell
+end run
 OSA
 }
 
@@ -257,6 +272,26 @@ assert_no_error_values() {
   [ -z "${errors// /}" ] || fail "Excel error values present ($when): $errors"
 }
 
+# The same check, but waiting for a change just made to take effect.
+#
+# Excel does not finish with a write before AppleScript asks the next question. Asserting straight
+# after clearing the planted sentinel reported the #DIV/0! still present on one run in three — the code
+# was right and the assertion was early, which is the worst kind of failing test because it points at
+# the wrong thing. Only used where a mutation is known to be pending; the plain form above stays
+# immediate, so a genuine error is not hidden behind a delay.
+assert_error_values_clear() {
+  local when="$1" errors i
+  for i in $(seq 1 40); do
+    errors="$(error_values)"
+    case "$errors" in
+    *"execution error"* | *"syntax error"*) fail "the error-value check could not run ($when): $errors" ;;
+    esac
+    [ -n "${errors// /}" ] || return 0
+    sleep 0.25
+  done
+  fail "Excel error values still present after waiting ($when): $errors"
+}
+
 assert_no_error_values "before planting one"
 
 # Now break it on purpose. A detector that has never fired is indistinguishable from one that cannot.
@@ -271,7 +306,7 @@ case "$planted" in
 *) fail "the error-value detector did not notice a deliberate #DIV/0! in $SHEET!$SENTINEL_CELL: [${planted}]" ;;
 esac
 excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"$SHEET\" of workbook \"$BOOK\""
-assert_no_error_values "after clearing the planted one"
+assert_error_values_clear "after clearing the planted one"
 echo "    no Excel error values on any sheet (detector verified: it catches a planted #DIV/0!)"
 
 echo "PASS: Excel opened the generated workbook and its scorecard agrees with the engine"
@@ -776,32 +811,71 @@ echo "PASS: keyed references follow the key, so re-ordering the rows cannot misl
 #
 # So: change a score in Excel and ask Excel what the rubric now says. Only the application can answer
 # that, because the answer is a formula it evaluates.
+#
+# **Waits for the recalculation.** AppleScript writes and reads faster than Excel recalculates, so
+# reading straight after the write returns the value from before it — and then both readings match and
+# the stage reports "the rubric is not following the score", which is a different diagnosis from the
+# truth. This failed once and passed on the next run, which is the shape of a race and not of a bug.
+# So each write is followed by `calculate` and a bounded poll, and a timeout says so in its own words.
 rubric_cell="$(table_cell elements rubric 0)"
 rubric_score="$(table_cell elements score 0)"
-rubric_element="$(table_cell elements element 0)"
-echo "==> changing $rubric_score and reading $rubric_cell back"
+echo "==> changing $rubric_score and reading $rubric_cell back, waiting for each recalculation"
 rubric_seen="$(
-  osascript - "$SHEET" "$BOOK" "$rubric_score" "$rubric_cell" "$rubric_element" 2>&1 <<'OSA'
+  osascript - "$SHEET" "$BOOK" "$rubric_score" "$rubric_cell" 2>&1 <<'OSA'
 on run argv
+  set sheetName to item 1 of argv
+  set bookName to item 2 of argv
+  set scoreRef to item 3 of argv
+  set rubricRef to item 4 of argv
   tell application "Microsoft Excel"
-    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
-    set scoreCell to range (item 3 of argv) of ws
-    set rubricCell to range (item 4 of argv) of ws
+    set ws to worksheet sheetName of workbook bookName
+    set scoreCell to range scoreRef of ws
+    set rubricCell to range rubricRef of ws
     set was to (get value of rubricCell) as string
     set original to (get value of scoreCell)
-    set value of scoreCell to 0
-    set atZero to (get value of rubricCell) as string
-    set value of scoreCell to 4
-    set atFour to (get value of rubricCell) as string
-    set value of scoreCell to original
-    set restored to (get value of rubricCell) as string
+    set atZero to my scoreThenRead(ws, scoreCell, rubricCell, 0, was)
+    set atFour to my scoreThenRead(ws, scoreCell, rubricCell, 4, atZero)
+    set restored to my scoreThenRead(ws, scoreCell, rubricCell, original, atFour)
     return was & "|" & atZero & "|" & atFour & "|" & restored
   end tell
 end run
+
+-- Write the score, confirm the write TOOK, then wait for the rubric to follow it.
+--
+-- Both halves are needed and they fail differently. Excel accepts a workbook before it has finished
+-- with it, so an early write is discarded with no error — the symptom is a later assertion reporting a
+-- value that was never written, which is how this stage once claimed the rubric was not following the
+-- score when the score had never changed. And a write that does take is not calculated by the time the
+-- next question arrives. So: retry the write until the cell holds it, then poll for the dependent cell,
+-- and say which of the two gave up.
+--
+-- `before` cannot be a parameter name here: AppleScript reserves it for positional references, and the
+-- parse error — "Expected expression but found )" — points at the call rather than the handler.
+on scoreThenRead(ws, scoreCell, rubricCell, newScore, priorText)
+  tell application "Microsoft Excel"
+    repeat 40 times
+      set value of scoreCell to newScore
+      calculate ws
+      if (get value of scoreCell) = newScore then
+        repeat 40 times
+          calculate ws
+          set nowText to (get value of rubricCell) as string
+          if nowText is not priorText then return nowText
+          delay 0.1
+        end repeat
+        return "TIMEOUT-rubric-did-not-follow-the-score"
+      end if
+      delay 0.25
+    end repeat
+    return "TIMEOUT-score-write-never-took"
+  end tell
+end scoreThenRead
 OSA
 )"
 case "$rubric_seen" in
 *"execution error"* | *"syntax error"*) fail "the rubric check could not run: $rubric_seen" ;;
+*"TIMEOUT-score-write-never-took"*) fail "Excel discarded the score write — it was still busy: $rubric_seen" ;;
+*"TIMEOUT-rubric-did-not-follow-the-score"*) fail "the score changed and the rubric did not follow it: $rubric_seen" ;;
 esac
 rub_was="$(cut -d'|' -f1 <<<"$rubric_seen")"
 rub_zero="$(cut -d'|' -f2 <<<"$rubric_seen")"

@@ -30,9 +30,20 @@ and this project adheres to
   - **The per-element definition column is gone.** It was the same eight paragraphs in every workbook,
     taking three columns from a rep's own evidence. `engine hint <element>` still returns them, and the
     follow-up issue proposes putting them back as hover notes, which cost no height at all.
-  - **Score, Previous and Change now read as one trio** — all three centred, where Change alone had
-    been left-aligned, and the delta is coloured by its sign. Up is good, down is not, and nought stays
-    uncoloured: an amber "nothing moved" looks like a warning in a column somebody scans for problems.
+  - **The elements table shows the score and nothing a reader could work out.** Previous and Change were
+    both on display — eight previous scores and eight deltas, two columns across the table so that
+    somebody could see 3 beside 1 and be told the difference is 2. The score itself, colour-coded, is
+    the at-a-glance signal; the arithmetic is not. Neither column is in the sample, incidentally: its
+    177 cells mention no score, previous, change, rubric, evidence or notes at all. That width went to
+    **Evidence and Notes**, which hold what a stakeholder actually reads out in a forecast call, and
+    which were the narrowest columns on the sheet. Movement survives where it earns its place: one
+    Previous Total and one Change on the scorecard, the Change coloured by its sign, and the total now
+    computed by the engine since the column it used to sum is gone.
+  - Two intermittent failures in the Excel acceptance test, both root-caused rather than retried away.
+    A write can be silently discarded while Excel is still busy with the workbook, and a dependent
+    formula is not calculated by the time the next question arrives — so writes are confirmed and
+    dependent reads are polled, with a distinct message for each so the next failure names the right
+    thing. The error-value detector reports the offending cell's address now, not just its sheet.
 
 - **`meddpicc`** v5.0.0 — **the workbook is one laid-out deal-review sheet.** Breaking: the shape
   changed, so a workbook generated before this is refused on read-back. They are ephemeral —

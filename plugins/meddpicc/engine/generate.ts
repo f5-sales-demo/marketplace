@@ -423,7 +423,7 @@ function layout(
         let column = contentStart;
         for (const cell of block.cells) {
           columns.push(column);
-          if (cell.kind === 'field' || cell.kind === 'computed') {
+          if (cell.kind === 'field' || cell.kind === 'computed' || cell.kind === 'derived') {
             named.set(cell.id, { sheet: s.name, address: A1(column, row) });
           }
           column += cell.span;
@@ -731,6 +731,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
           }
 
           const style = VALUE_TYPE_STYLE[cell.valueType];
+          if (cell.kind === 'derived') {
+            const value = derivedRowValue(cell.id, deal);
+            push(row, { ref, value, style });
+            if (cell.conditionalFormat) formats.push({ sqref: ref, preset: cell.conditionalFormat });
+            return;
+          }
           if (cell.kind === 'field') {
             const value = displayValue(
               schema,
@@ -945,6 +951,28 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       columns: Object.fromEntries(info.columns),
     })),
   };
+}
+
+/**
+ * A named row cell the generator works out, where the sheet has nothing to work it out from.
+ *
+ * Deliberately a closed set with a throw on anything else: a silent `undefined` here would render as an
+ * empty cell, which reads as "not filled in yet" rather than "the spec names something that does not
+ * exist".
+ */
+function derivedRowValue(id: string, deal: unknown): number | undefined {
+  if (id === 'scorePreviousTotal') {
+    const previous = readPath(deal, 'scoring.previousElementScores');
+    if (previous === undefined || previous === null) return undefined;
+    if (typeof previous !== 'object') return undefined;
+    // Summed over the elements MEDDPICC actually scores, not over whatever keys the object carries, so
+    // a stray key cannot inflate the total the sheet compares against.
+    return QUALIFICATION_ELEMENTS.reduce((total, element) => {
+      const score = (previous as Record<string, unknown>)[element];
+      return total + (typeof score === 'number' && Number.isFinite(score) ? score : 0);
+    }, 0);
+  }
+  throw new Error(`no derived value for row cell "${id}"`);
 }
 
 /** The concrete deal path an input column writes for one row. */

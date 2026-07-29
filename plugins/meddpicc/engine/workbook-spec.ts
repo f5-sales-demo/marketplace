@@ -175,6 +175,23 @@ export type SpecRowCell =
       formula: string;
       valueType: ValueType;
       conditionalFormat?: CfPreset;
+    }
+  /**
+   * A value the generator works out, where the sheet has nothing to work it out from.
+   *
+   * The previous review's total is the case this exists for. Its eight per-element scores used to sit
+   * in the elements table where a formula could sum them, and they were noise: a reader comparing this
+   * review to the last one wants one number, not eight, and can see the current score right beside it.
+   * So the column went and the total is computed from the deal instead.
+   *
+   * Like a derived table column, it is not a formula and is never read back — the engine recomputes it.
+   */
+  | {
+      kind: 'derived';
+      span: number;
+      id: string;
+      valueType: ValueType;
+      conditionalFormat?: CfPreset;
     };
 
 export type SpecBlock =
@@ -395,7 +412,7 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
     for (const block of sheet.blocks) {
       if (block.kind !== 'row') continue;
       for (const cell of block.cells) {
-        if (cell.kind !== 'field' && cell.kind !== 'computed') continue;
+        if (cell.kind !== 'field' && cell.kind !== 'computed' && cell.kind !== 'derived') continue;
         const where = `${sheet.name}.${cell.id}`;
         if (out.namedCells.has(cell.id)) {
           ids.push(`duplicate cell id "${cell.id}" (${out.namedCells.get(cell.id)?.sheet} and ${sheet.name})`);
@@ -412,9 +429,11 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
             out.inputs.push({ where, paths: [cell.jsonPath] });
             if (cell.validate) out.validated.push({ where, path: cell.jsonPath, valueType: cell.valueType });
           }
-        } else {
+        } else if (cell.kind === 'computed') {
           out.formulas.push({ where, formula: cell.formula, table: null });
         }
+        // A `derived` cell holds no formula and no path: the generator works it out, and `generate`
+        // throws on an id it does not know. Named all the same, so a formula may point at it.
       }
     }
 

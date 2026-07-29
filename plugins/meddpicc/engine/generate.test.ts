@@ -310,12 +310,17 @@ describe('planWorkbook — formula references resolve to addresses', () => {
   });
 
   test('{{this:…}} resolves to the same row of the same table', () => {
-    // The elements table's `change` column is score - previousScore, per row.
+    // The elements table's `change` column used to be the case for this — score minus previousScore,
+    // per row. Both columns are gone from the display: a reader comparing two adjacent single digits
+    // does not need a third column to do it for them, and the width went to their own evidence and
+    // notes instead. So this is asserted on the rubric, which still resolves `{{this:score}}` to its
+    // own row's score cell — the property that matters, whichever column exercises it.
     const elements = table('elements');
     for (const offset of [0, elements.rows - 1]) {
-      expect(cellAt(elements.ref('change', offset))?.formula).toBe(
-        `${elements.ref('score', offset)}-${elements.ref('previousScore', offset)}`,
-      );
+      expect(cellAt(elements.ref('rubric', offset))?.formula).toContain(elements.ref('score', offset));
+      // …and NOT another row's score, which is the mistake `{{this:…}}` exists to prevent.
+      const otherRow = offset === 0 ? 1 : 0;
+      expect(cellAt(elements.ref('rubric', offset))?.formula).not.toContain(elements.ref('score', otherRow));
     }
   });
 });
@@ -640,6 +645,61 @@ describe('the rubric follows the score in Excel, not just at generation time', (
     const width = spanWidthOf(t.column('rubric'), 'rubric');
     const height = theSheet().rows.find((r) => r.row === t.firstDataRow + row)?.height ?? 0;
     expect(height).toBeGreaterThanOrEqual(estimateRowHeight(longest, width, 24));
+  });
+});
+
+describe('the elements table shows the score and nothing the reader could work out', () => {
+  // Previous and Change were both on display: eight previous scores and eight deltas, taking two
+  // columns across the table so that a reader could see 3 beside 1 and be told the difference is 2.
+  // The score itself, colour-coded, is the at-a-glance signal; the arithmetic is not. Those two columns
+  // went to Evidence and Notes, which hold a rep's own words and were the narrowest on the sheet.
+  test('no per-element previous score or delta column', () => {
+    const columns = Object.keys(table('elements').columns);
+    expect(columns).not.toContain('previousScore');
+    expect(columns).not.toContain('change');
+    expect(columns).toEqual(['element', 'score', 'rubric', 'evidence', 'notes']);
+  });
+
+  test('the score column is still colour-coded, which is the part worth keeping', () => {
+    const declared = spec.sheets.flatMap(specTables).find((t) => t.id === 'elements');
+    expect(declared?.columns.find((c) => c.id === 'score')?.conditionalFormat).toBe('score');
+  });
+
+  test('movement survives as one summary cell, and agrees with the deal', () => {
+    // The previous total used to be a SUM over the column that is now gone, so the generator works it
+    // out. Compared against the deal by a different route: summing the scores the engine recorded.
+    const previous = deal.scoring.previousElementScores as Record<string, number>;
+    const expected = QUALIFICATION_ELEMENTS.reduce((n, el) => n + (previous[el] ?? 0), 0);
+    expect(expected).toBeGreaterThan(0);
+    expect(cellAt(plan.namedCells.scorePreviousTotal.split('!')[1] ?? '')?.value).toBe(expected);
+  });
+
+  test('a stray key in the previous scores cannot inflate the total', () => {
+    // Summed over the elements MEDDPICC scores, not over whatever keys the object happens to carry. A
+    // retired element left behind by an older engine, or a typo, would otherwise be added to a total
+    // the sheet presents as the last review's — and it is compared against the current score, so an
+    // inflated one reads as a regression that never happened.
+    const withStray = clone(deal);
+    withStray.scoring.previousElementScores.retiredElement = 4;
+    const p = planWorkbook(schema, spec, withStray);
+    expect(cellOf(p, p.namedCells.scorePreviousTotal.split('!')[1] ?? '')?.value).toBe(
+      cellAt(plan.namedCells.scorePreviousTotal.split('!')[1] ?? '')?.value,
+    );
+  });
+
+  test('a deal with no previous scores leaves the cell empty rather than claiming zero', () => {
+    // Nought is a real total — every element unscored last time. "We have never scored this" is not,
+    // and a 0 there would read as a regression from nothing.
+    const fresh = clone(deal);
+    delete fresh.scoring.previousElementScores;
+    const p = planWorkbook(schema, spec, fresh);
+    expect(cellOf(p, p.namedCells.scorePreviousTotal.split('!')[1] ?? '')?.value).toBeUndefined();
+  });
+
+  test('the change cell is coloured by its sign', () => {
+    const sheet = theSheet();
+    const ref = plan.namedCells.scoreChange.split('!')[1] ?? '';
+    expect(sheet.conditionalFormats?.some((f) => f.sqref === ref && f.preset === 'delta')).toBe(true);
   });
 });
 

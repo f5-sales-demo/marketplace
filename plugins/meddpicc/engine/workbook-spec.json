@@ -416,25 +416,6 @@
                 "span": 1
               },
               {
-                "id": "previousScore",
-                "header": "Previous",
-                "role": "input",
-                "jsonPath": "scoring.previousElementScores.*",
-                "valueType": "score",
-                "conditionalFormat": "score",
-                "validate": true,
-                "span": 1
-              },
-              {
-                "id": "change",
-                "header": "Change",
-                "role": "computed",
-                "formula": "{{this:score}}-{{this:previousScore}}",
-                "valueType": "score",
-                "span": 1,
-                "conditionalFormat": "delta"
-              },
-              {
                 "id": "rubric",
                 "header": "What This Score Means",
                 "role": "derived",
@@ -448,7 +429,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.evidence",
                 "valueType": "text",
-                "span": 3
+                "span": 4
               },
               {
                 "id": "notes",
@@ -456,7 +437,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.notes",
                 "valueType": "text",
-                "span": 5
+                "span": 6
               }
             ]
           }
@@ -1050,10 +1031,9 @@
               "text": "Previous Total"
             },
             {
-              "kind": "computed",
+              "kind": "derived",
               "span": 2,
               "id": "scorePreviousTotal",
-              "formula": "SUM({{col:elements.previousScore}})",
               "valueType": "number"
             },
             {
@@ -1066,7 +1046,8 @@
               "span": 2,
               "id": "scoreChange",
               "formula": "{{ref:scoreTotal}}-{{ref:scorePreviousTotal}}",
-              "valueType": "number"
+              "valueType": "number",
+              "conditionalFormat": "delta"
             },
             {
               "kind": "label",
