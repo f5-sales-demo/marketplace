@@ -10,6 +10,30 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v6.0.0 — the sheet reads as designed rather than as whatever fitted. Breaking again,
+  for the same reason as v5: addresses moved, so a workbook generated before this is refused on
+  read-back. Regenerate.
+
+  Opened side by side with the manual sheet, the palette and the grid matched — and the coloured
+  labels staircased down the page. They were starting at **nine different columns** (B, F, G, H, I, J,
+  L, M, N), because each row had been cut to fit its own content. Every row was individually sensible;
+  together they looked like a mistake.
+
+  - **Four slots, at B, F, J and N.** Every label starts on one and is exactly two columns wide; a
+    value fills the rest of its slot, or runs on through the slots after it when they carry no label.
+    So a row of four short pairs lines up with a row of two wide ones. `check-spec` enforces it, which
+    is the part that keeps it true — the alignment is now a rule, not a tidy-up.
+  - **The Qualification rows were three times taller than they needed to be.** Measured rather than
+    guessed: Notes held up to 543 characters in the *narrowest* column on the sheet, 27.8 characters
+    wide, wrapping to twenty lines. Widest content now gets the widest column, and the tallest row went
+    from 366pt to 141pt — all eight elements fit on a screen where two and a half did.
+  - **The per-element definition column is gone.** It was the same eight paragraphs in every workbook,
+    taking three columns from a rep's own evidence. `engine hint <element>` still returns them, and the
+    follow-up issue proposes putting them back as hover notes, which cost no height at all.
+  - **Score, Previous and Change now read as one trio** — all three centred, where Change alone had
+    been left-aligned, and the delta is coloured by its sign. Up is good, down is not, and nought stays
+    uncoloured: an amber "nothing moved" looks like a warning in a column somebody scans for problems.
+
 - **`meddpicc`** v5.0.0 — **the workbook is one laid-out deal-review sheet.** Breaking: the shape
   changed, so a workbook generated before this is refused on read-back. They are ephemeral —
   regenerate.

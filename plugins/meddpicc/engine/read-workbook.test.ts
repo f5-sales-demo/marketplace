@@ -5,6 +5,7 @@ import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook }
 import { readPath } from './json-path';
 import { enumLabel } from './labels';
 import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
+import { sectionLabel } from './sections';
 import { validateDeal } from './validate';
 import { specTables, type WorkbookSpec } from './workbook-spec';
 import { buildWorkbook, columnLetter } from './xlsx';
@@ -302,12 +303,12 @@ describe('cells that are not inputs are never read', () => {
     expect(read(exampleDeal, edited).proposals).toEqual([]);
   });
 
-  test('a derived cell — an element definition — proposes nothing, and says so', () => {
+  test('a derived cell — an element name — proposes nothing, and says so', () => {
     // It proposes nothing because the workbook is REFUSED: a derived cell is an anchor, so text that
     // is not the text the generator wrote means either the rows moved or somebody typed over it.
     // Asserting only "no proposals" would go on passing if the cell were quietly ignored instead.
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const derived = [...(cells.get(SHEET)?.entries() ?? [])].find(([, c]) => c.text?.startsWith('Quantified'))?.[0];
+    const derived = [...(cells.get(SHEET)?.entries() ?? [])].find(([, c]) => c.text === sectionLabel('metrics'))?.[0];
     expect(derived).toBeDefined();
     const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, derived as string, 'nonsense');
     const report = read(exampleDeal, edited);
@@ -927,7 +928,7 @@ describe('a workbook whose rows have moved is refused, not read', () => {
     // the deal. Passing over it without a word would be this plugin's oldest bug in a new place.
     const t = planWorkbook(schema, spec, exampleDeal).tables.find((x) => x.id === 'elements');
     if (!t) throw new Error('no elements table');
-    const definition = `${columnLetter(t.columns.definition)}${t.firstDataRow}`;
+    const definition = `${columnLetter(t.columns.element)}${t.firstDataRow}`;
     const report = read(
       exampleDeal,
       setText(generateWorkbook(schema, spec, exampleDeal), SHEET, definition, 'My own words'),

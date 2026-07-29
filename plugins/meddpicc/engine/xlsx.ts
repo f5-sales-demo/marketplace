@@ -215,7 +215,7 @@ export const DXF_IDS: Record<DxfName, number> = Object.fromEntries(DXF_ORDER.map
  * `%FIRST%` is replaced with the first cell of the range, which is how an expression rule
  * refers to "this cell" — Excel evaluates it relatively across the range.
  */
-export type CfPreset = 'score' | 'ragText' | 'statusText' | 'completionText' | 'overdueDate';
+export type CfPreset = 'score' | 'delta' | 'ragText' | 'statusText' | 'completionText' | 'overdueDate';
 
 /**
  * The section statuses `computeCompletion` emits.
@@ -260,6 +260,13 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
     { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
     { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('in_progress')}"`], dxf: 'amber' },
     { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('pending')}"`], dxf: 'red' },
+  ],
+  // A change since the last review: up is good, down is not, and nought is neither. Deliberately no
+  // amber — a delta of zero is not a warning, and colouring it would make "nothing moved" look like a
+  // problem in a column read at a glance.
+  delta: [
+    { type: 'cellIs', operator: 'greaterThan', formulas: ['0'], dxf: 'green' },
+    { type: 'cellIs', operator: 'lessThan', formulas: ['0'], dxf: 'red' },
   ],
   // Past its date and not blank. A blank cell is "no date set", not "overdue since 1900".
   overdueDate: [{ type: 'expression', formulas: ['AND(%FIRST%<>"",%FIRST%<TODAY())'], dxf: 'red' }],

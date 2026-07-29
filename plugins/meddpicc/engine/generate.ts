@@ -573,7 +573,6 @@ function derivedValue(
     const element = entry.key as string;
     const hint = computeElementHint(schema, element);
     if (column.id === 'element') return sectionLabel(element);
-    if (column.id === 'definition') return hint.definition;
     if (column.id === 'rubric') {
       const score = readPath(deal, `qualification.${element}.score`);
       return hint.scoreDefinition[String(typeof score === 'number' ? score : 0)] ?? '';

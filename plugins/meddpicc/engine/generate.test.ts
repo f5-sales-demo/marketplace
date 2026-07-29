@@ -186,12 +186,16 @@ describe('planWorkbook — values by type', () => {
 });
 
 describe('planWorkbook — derived cells come from the schema, not from prose', () => {
-  test('each element row carries the definition the schema declares', () => {
+  test('the element column carries the name, and no column repeats static reference text', () => {
+    // The per-element definition used to sit here. It is the same eight paragraphs in every workbook,
+    // and it was taking three columns from Evidence and Notes — where a rep's own words, measured at
+    // up to 543 characters, were being squeezed into the narrowest column on the sheet and wrapping to
+    // twenty lines. `engine hint <element>` still returns the definitions; see the follow-up issue for
+    // putting them back as hover notes, which cost no height at all.
     const elements = table('elements');
+    expect(Object.keys(elements.columns)).not.toContain('definition');
     const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
-    const definition = cellAt(elements.ref('definition', row))?.value;
-    expect(typeof definition).toBe('string');
-    expect(definition).toContain('Quantified business outcomes');
+    expect(cellAt(elements.ref('element', row))?.value).toBe(sectionLabel('metrics'));
   });
 
   test('the rubric cell selects the wording for that element at its own score', () => {

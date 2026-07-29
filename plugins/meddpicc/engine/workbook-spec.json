@@ -98,7 +98,7 @@
             },
             {
               "kind": "field",
-              "span": 3,
+              "span": 2,
               "id": "dealStatus",
               "jsonPath": "metadata.dealStatus",
               "valueType": "string",
@@ -111,7 +111,7 @@
             },
             {
               "kind": "field",
-              "span": 3,
+              "span": 2,
               "id": "forecastStage",
               "jsonPath": "metadata.forecastStage",
               "valueType": "string",
@@ -124,10 +124,22 @@
             },
             {
               "kind": "field",
-              "span": 4,
+              "span": 2,
               "id": "closeDate",
               "jsonPath": "metadata.closeDate",
               "valueType": "date"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Win Probability"
+            },
+            {
+              "kind": "field",
+              "span": 2,
+              "id": "winProbability",
+              "jsonPath": "metadata.winProbability",
+              "valueType": "percent"
             }
           ]
         },
@@ -136,24 +148,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
-              "text": "Win Probability (%)"
-            },
-            {
-              "kind": "field",
-              "span": 2,
-              "id": "winProbability",
-              "jsonPath": "metadata.winProbability",
-              "valueType": "percent"
-            },
-            {
-              "kind": "label",
               "span": 2,
               "text": "Reviewer"
             },
             {
               "kind": "field",
-              "span": 4,
+              "span": 6,
               "id": "reviewer",
               "jsonPath": "metadata.reviewer",
               "valueType": "string"
@@ -165,7 +165,7 @@
             },
             {
               "kind": "field",
-              "span": 3,
+              "span": 6,
               "id": "reviewDate",
               "jsonPath": "metadata.reviewDate",
               "valueType": "date"
@@ -254,7 +254,7 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Total Booked Value"
             },
             {
@@ -266,7 +266,7 @@
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Factored Pipeline"
             },
             {
@@ -278,15 +278,19 @@
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Days To Close"
             },
             {
               "kind": "computed",
-              "span": 3,
+              "span": 2,
               "id": "daysToClose",
               "formula": "IF({{ref:closeDate}}=\"\",\"\",{{ref:closeDate}}-TODAY())",
               "valueType": "number"
+            },
+            {
+              "kind": "blank",
+              "span": 4
             }
           ]
         },
@@ -302,8 +306,8 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
-              "text": "Last Client Interaction"
+              "span": 2,
+              "text": "Last Interaction"
             },
             {
               "kind": "field",
@@ -314,8 +318,8 @@
             },
             {
               "kind": "label",
-              "span": 3,
-              "text": "Next Client Interaction"
+              "span": 2,
+              "text": "Next Interaction"
             },
             {
               "kind": "field",
@@ -326,7 +330,7 @@
             },
             {
               "kind": "label",
-              "span": 4,
+              "span": 2,
               "text": "Days Since Last"
             },
             {
@@ -335,6 +339,10 @@
               "id": "daysSinceLastInteraction",
               "formula": "IF({{ref:lastInteractionDate}}=\"\",\"\",TODAY()-{{ref:lastInteractionDate}})",
               "valueType": "number"
+            },
+            {
+              "kind": "blank",
+              "span": 4
             }
           ]
         },
@@ -343,12 +351,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Outcome"
             },
             {
               "kind": "field",
-              "span": 13,
+              "span": 14,
               "id": "lastInteractionOutcome",
               "jsonPath": "metadata.lastClientInteraction.outcome",
               "valueType": "text"
@@ -360,12 +368,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Objective"
             },
             {
               "kind": "field",
-              "span": 13,
+              "span": 14,
               "id": "nextInteractionObjective",
               "jsonPath": "metadata.nextClientInteraction.objective",
               "valueType": "text"
@@ -398,13 +406,6 @@
                 "heading": true
               },
               {
-                "id": "definition",
-                "header": "What This Element Means",
-                "role": "derived",
-                "valueType": "text",
-                "span": 3
-              },
-              {
                 "id": "score",
                 "header": "Score",
                 "role": "input",
@@ -429,8 +430,9 @@
                 "header": "Change",
                 "role": "computed",
                 "formula": "{{this:score}}-{{this:previousScore}}",
-                "valueType": "number",
-                "span": 1
+                "valueType": "score",
+                "span": 1,
+                "conditionalFormat": "delta"
               },
               {
                 "id": "rubric",
@@ -454,7 +456,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.notes",
                 "valueType": "text",
-                "span": 2
+                "span": 5
               }
             ]
           }
@@ -990,12 +992,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Total Score"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "scoreTotal",
               "formula": "SUM({{col:elements.score}})",
               "valueType": "number"
@@ -1007,7 +1009,7 @@
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "scoreMaximum",
               "formula": "COUNTA({{col:elements.element}})*4",
               "valueType": "number"
@@ -1031,7 +1033,7 @@
             },
             {
               "kind": "computed",
-              "span": 3,
+              "span": 2,
               "id": "scoreRating",
               "formula": "IF({{ref:scoreTotal}}>=26,\"Green\",IF({{ref:scoreTotal}}>=14,\"Yellow\",\"Red\"))",
               "valueType": "rating",
@@ -1044,12 +1046,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Previous Total"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "scorePreviousTotal",
               "formula": "SUM({{col:elements.previousScore}})",
               "valueType": "number"
@@ -1061,26 +1063,26 @@
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "scoreChange",
               "formula": "{{ref:scoreTotal}}-{{ref:scorePreviousTotal}}",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Elements At Zero"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "elementsAtZero",
               "formula": "COUNTIF({{col:elements.score}},0)",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Below Three"
             },
             {
@@ -1097,36 +1099,36 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Weakest Element"
             },
             {
               "kind": "computed",
-              "span": 5,
+              "span": 6,
               "id": "lowestElement",
               "formula": "INDEX({{col:elements.element}},MATCH(MIN({{col:elements.score}}),{{col:elements.score}},0))",
               "valueType": "string"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Economic Buyer"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "economicBuyerScore",
               "formula": "{{row:elements.score@economicBuyer}}",
               "valueType": "score"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Champion"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "championScore",
               "formula": "{{row:elements.score@champion}}",
               "valueType": "score"
@@ -1138,12 +1140,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Sections Complete"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "sectionsComplete",
               "formula": "COUNTIF({{col:sections.status}},{{word:statusComplete}})",
               "valueType": "number"
@@ -1151,18 +1153,18 @@
             {
               "kind": "label",
               "span": 2,
-              "text": "Tracked"
+              "text": "Sections Tracked"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "sectionsTracked",
               "formula": "COUNTA({{col:sections.section}})",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Completion"
             },
             {
@@ -1172,6 +1174,15 @@
               "formula": "IF({{ref:sectionsTracked}}=0,0,{{ref:sectionsComplete}}/{{ref:sectionsTracked}})",
               "valueType": "percent"
             },
+            {
+              "kind": "blank",
+              "span": 4
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
             {
               "kind": "label",
               "span": 2,
@@ -1183,58 +1194,41 @@
               "id": "questionsAsked",
               "formula": "COUNTA({{col:responses.question}})",
               "valueType": "number"
-            }
-          ]
-        },
-        {
-          "kind": "row",
-          "cells": [
+            },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Questions Answered"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "questionsAnswered",
               "formula": "COUNTA({{col:responses.response}})",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Stakeholders"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "stakeholdersMapped",
               "formula": "COUNTA({{col:stakeholders.name}})",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Must Say Yes"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "mustSayYesCount",
               "formula": "COUNTIF({{col:stakeholders.mustSayYes}},{{word:booleanYes}})",
-              "valueType": "number"
-            },
-            {
-              "kind": "label",
-              "span": 3,
-              "text": "Can Say No"
-            },
-            {
-              "kind": "computed",
-              "span": 1,
-              "id": "canSayNoCount",
-              "formula": "COUNTIF({{col:stakeholders.canSayNo}},{{word:booleanYes}})",
               "valueType": "number"
             }
           ]
@@ -1244,50 +1238,95 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
+              "text": "Can Say No"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "canSayNoCount",
+              "formula": "COUNTIF({{col:stakeholders.canSayNo}},{{word:booleanYes}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
               "text": "Sentiment Unknown"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "sentimentUnknown",
               "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Unknown\")",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Sentiment Negative"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "sentimentNegative",
               "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Negative\")",
               "valueType": "number"
             },
             {
+              "kind": "blank",
+              "span": 4
+            }
+          ]
+        },
+        {
+          "kind": "row",
+          "cells": [
+            {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Milestones"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "milestonesTotal",
               "formula": "COUNTA({{col:milestones.description}})",
               "valueType": "number"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Milestones Complete"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "milestonesComplete",
               "formula": "COUNTIF({{col:milestones.status}},{{word:statusComplete}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Actions Open"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "actionsOpen",
+              "formula": "COUNTA({{col:actions.action}})-COUNTIF({{col:actions.status}},{{word:statusComplete}})",
+              "valueType": "number"
+            },
+            {
+              "kind": "label",
+              "span": 2,
+              "text": "Actions Overdue"
+            },
+            {
+              "kind": "computed",
+              "span": 2,
+              "id": "actionsOverdue",
+              "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>{{word:statusComplete}}))",
               "valueType": "number"
             }
           ]
@@ -1297,36 +1336,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
-              "text": "Actions Open"
-            },
-            {
-              "kind": "computed",
-              "span": 1,
-              "id": "actionsOpen",
-              "formula": "COUNTA({{col:actions.action}})-COUNTIF({{col:actions.status}},{{word:statusComplete}})",
-              "valueType": "number"
-            },
-            {
-              "kind": "label",
-              "span": 3,
-              "text": "Actions Overdue"
-            },
-            {
-              "kind": "computed",
-              "span": 1,
-              "id": "actionsOverdue",
-              "formula": "SUMPRODUCT(({{col:actions.dueDate}}<>\"\")*({{col:actions.dueDate}}<TODAY())*({{col:actions.status}}<>{{word:statusComplete}}))",
-              "valueType": "number"
-            },
-            {
-              "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Internal Team"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "teamInternalCount",
               "formula": "COUNTA({{col:teamInternal.name}})",
               "valueType": "number"
@@ -1334,39 +1349,30 @@
             {
               "kind": "label",
               "span": 2,
-              "text": "Assigned"
+              "text": "Team Assigned"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "teamInternalAssigned",
               "formula": "COUNTIF({{col:teamInternal.assignedToDeal}},{{word:booleanYes}})",
               "valueType": "number"
             },
             {
-              "kind": "blank",
-              "span": 1
-            }
-          ]
-        },
-        {
-          "kind": "row",
-          "cells": [
-            {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Partner Team"
             },
             {
               "kind": "computed",
-              "span": 1,
+              "span": 2,
               "id": "teamPartnerCount",
               "formula": "COUNTA({{col:teamPartner.name}})",
               "valueType": "number"
             },
             {
               "kind": "blank",
-              "span": 12
+              "span": 4
             }
           ]
         },
@@ -1419,12 +1425,12 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Opportunity ID"
             },
             {
               "kind": "field",
-              "span": 3,
+              "span": 2,
               "id": "salesforceOpportunityId",
               "jsonPath": "metadata.salesforce.opportunityId",
               "valueType": "string"
@@ -1436,7 +1442,7 @@
             },
             {
               "kind": "field",
-              "span": 3,
+              "span": 2,
               "id": "salesforceAccountId",
               "jsonPath": "metadata.salesforce.accountId",
               "valueType": "string"
@@ -1448,10 +1454,14 @@
             },
             {
               "kind": "field",
-              "span": 3,
+              "span": 2,
               "id": "salesforceOwnerId",
               "jsonPath": "metadata.salesforce.ownerId",
               "valueType": "string"
+            },
+            {
+              "kind": "blank",
+              "span": 4
             }
           ]
         },
@@ -1460,19 +1470,19 @@
           "cells": [
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Stage Name"
             },
             {
               "kind": "field",
-              "span": 4,
+              "span": 6,
               "id": "salesforceStageName",
               "jsonPath": "metadata.salesforce.stageName",
               "valueType": "string"
             },
             {
               "kind": "label",
-              "span": 3,
+              "span": 2,
               "text": "Last Sync"
             },
             {
