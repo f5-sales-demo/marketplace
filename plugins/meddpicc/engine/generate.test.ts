@@ -898,3 +898,67 @@ describe('planWorkbook — presentation', () => {
     }
   });
 });
+
+describe('planWorkbook — the element definitions ride along as hover notes', () => {
+  /** The note on one cell of the one sheet, by address. */
+  const noteAt = (ref: string, of: WorkbookPlan = plan) => of.notes.find((n) => n.sheet === SHEET && n.address === ref);
+
+  test('every element name carries its schema definition as a note', () => {
+    // The definitions are what a rep without MEDDPICC training needs and everyone else has read
+    // eight times. As a column they cost three grid columns and twenty lines of height; as a note
+    // they cost nothing and are still one hover away.
+    const elements = table('elements');
+    for (const [row, element] of QUALIFICATION_ELEMENTS.entries()) {
+      const definition = schema.properties.qualification.properties[element].properties.definition.const as string;
+      expect(definition, `${element} has no definition in the schema`).not.toBe('');
+      expect(noteAt(elements.ref('element', row))?.text, element).toBe(definition);
+    }
+    expect(plan.notes.length).toBe(QUALIFICATION_ELEMENTS.length);
+  });
+
+  test('the note text is nowhere in a cell', () => {
+    // The whole point is that it is not on the sheet. Written into a cell as well, it would take
+    // the width and the height back — and disagree with itself the moment one copy changed.
+    const definition = schema.properties.qualification.properties.metrics.properties.definition.const as string;
+    for (const cell of allCells()) expect(cell.value).not.toBe(definition);
+    expect(plan.proseCells.map((c) => c.text)).not.toContain(definition);
+  });
+
+  test('no row is any taller for carrying a note', () => {
+    // The acceptance criterion of the issue, asserted directly: the same spec with the note flag
+    // removed must produce exactly the same geometry.
+    const bare = clone(spec);
+    for (const sheet of bare.sheets) {
+      for (const block of sheet.blocks) {
+        if (block.kind !== 'table') continue;
+        for (const column of block.table.columns) delete (column as { note?: string }).note;
+      }
+    }
+    const without = planWorkbook(schema, bare, deal);
+    expect(without.notes).toEqual([]);
+    const heights = (of: WorkbookPlan) => of.sheets[0].rows.map((r) => `${r.row}:${r.height}`);
+    expect(heights(plan)).toEqual(heights(without));
+  });
+
+  test('the workbook ships the notes Excel can show', () => {
+    const parts = readZip(generateWorkbook(schema, spec, deal));
+    const comments = new TextDecoder().decode(parts.get('xl/comments1.xml')?.data as Uint8Array);
+    const elements = table('elements');
+    const row = QUALIFICATION_ELEMENTS.indexOf('paperProcess');
+    expect(comments).toContain(`ref="${elements.ref('element', row)}"`);
+    expect(parts.has('xl/drawings/vmlDrawing1.vml')).toBe(true);
+  });
+
+  test('a note kind the generator does not know fails loudly', () => {
+    // A silent skip would produce a workbook missing exactly the reference text this exists for,
+    // and nothing on the sheet would say so.
+    const broken = clone(spec);
+    const elements = broken.sheets
+      .flatMap((s) => s.blocks)
+      .find((b) => b.kind === 'table' && b.table.id === 'elements');
+    if (elements?.kind !== 'table') throw new Error('no elements table in the spec');
+    const column = elements.table.columns.find((c) => c.id === 'element');
+    (column as { note?: string }).note = 'somethingElse';
+    expect(() => planWorkbook(schema, broken, deal)).toThrow(/somethingElse/);
+  });
+});

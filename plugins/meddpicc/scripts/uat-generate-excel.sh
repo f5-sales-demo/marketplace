@@ -523,6 +523,58 @@ echo "    measured $height_checked prose cell(s) against Excel's own autofit"
 [ "$height_failures" = "0" ] || fail "$height_failures prose cell(s) are shorter than Excel needs — text is clipped"
 echo "PASS: every computed row height is at least what Excel's autofit asks for"
 
+# ── Hover notes ────────────────────────────────────────────────────────────────────────────────
+#
+# The eight element definitions are not on the sheet at all: they are notes on the element names, so
+# they cost no width and no height. That makes them the one piece of the workbook a reader can only
+# reach through the application, and the one piece no zip inspection can vouch for — a note needs a
+# comments part, a legacy VML drawing, the worksheet's own relationships and two content-type
+# declarations to agree with each other, and Excel's response to any disagreement is to drop the note
+# and open the file anyway.
+#
+# So ask Excel. And compare against the SCHEMA rather than against the plan: the plan's text and the
+# note both come from the generator, so they agree even when both are wrong.
+read_note() {
+  osascript - "$SHEET" "$1" "$2" 2>&1 <<'OSA'
+on run argv
+  tell application "Microsoft Excel"
+    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
+    -- A cell with no note raises here rather than returning empty, which is the failure this wants.
+    set theNote to Excel comment of range (item 3 of argv) of ws
+    return Excel comment text theNote
+  end tell
+end run
+OSA
+}
+
+# The elements in the order the table lays them out, from the engine — not a list written here, which
+# would go stale the day MEDDPICC's eighth letter is spelled differently.
+note_elements="$(bun "$PLUGIN_ROOT/engine/cli.ts" hint | jq -r '.elements[].element')" || fail "hint failed"
+note_planned="$(jq '.notes | length' <<<"$uat_plan")"
+note_wanted="$(wc -w <<<"$note_elements" | tr -d ' ')"
+[ "$note_planned" = "$note_wanted" ] || fail "the plan carries $note_planned note(s) for $note_wanted element(s)"
+echo "==> reading the $note_wanted element definitions back out of Excel"
+note_index=0
+for note_element in $note_elements; do
+  note_ref="$(table_cell elements element "$note_index")"
+  note_index=$((note_index + 1))
+  note_want="$(jq -r --arg e "$note_element" \
+    '.properties.qualification.properties[$e].properties.definition.const // "MISSING"' \
+    "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+  [ "$note_want" != "MISSING" ] && [ -n "$note_want" ] ||
+    fail "the schema declares no definition for $note_element, so this stage would prove nothing"
+  note_got="$(read_note "$BOOK" "$note_ref")"
+  case "$note_got" in
+  *"execution error"* | *"syntax error"*)
+    fail "Excel has no note on $note_ref ($note_element): $note_got"
+    ;;
+  esac
+  [ "$note_got" = "$note_want" ] ||
+    fail "the note on $note_ref reads '${note_got:0:60}', the schema says '${note_want:0:60}'"
+done
+[ "$note_index" = "$note_wanted" ] || fail "checked $note_index note(s), expected $note_wanted"
+echo "PASS: Excel shows every element definition as a note on its element name"
+
 # ── Screenshots ────────────────────────────────────────────────────────────────────────────────
 #
 # Everything above proves the workbook COMPUTES. None of it can see the sheet, and the current work
@@ -984,6 +1036,24 @@ done
 
 wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.accountName address)" ||
   fail "Excel never finished opening $RT_BOOK"
+
+# The file just reopened is Excel's OWN, saved a moment ago by its comments and VML code rather than
+# by ours. A deal review gets shared and saved, so a note that Excel drops on the way out is a note
+# nobody sees again — and this reopen is the only point in the run where anything has been through
+# Excel's writer.
+rt_note_ref="$(jq -r '.notes[0].address // "MISSING"' <<<"$rt_plan")"
+rt_note_want="$(jq -r '.notes[0].text // "MISSING"' <<<"$rt_plan")"
+[ "$rt_note_ref" != "MISSING" ] && [ "$rt_note_want" != "MISSING" ] ||
+  fail "the round-trip plan carries no notes, so this check would prove nothing"
+rt_note_got="$(read_note "$RT_BOOK" "$rt_note_ref")"
+case "$rt_note_got" in
+*"execution error"* | *"syntax error"*)
+  fail "Excel's own save dropped the note on $rt_note_ref: $rt_note_got"
+  ;;
+esac
+[ "$rt_note_got" = "$rt_note_want" ] ||
+  fail "after Excel saved it, the note on $rt_note_ref reads '${rt_note_got:0:60}', not '${rt_note_want:0:60}'"
+echo "PASS: a note survives a save by Excel itself"
 
 # Writing, saving and closing in one breath hid which of the three failed. When the save did not
 # reach disk the reader saw the untouched file, reported no proposals, and this script blamed

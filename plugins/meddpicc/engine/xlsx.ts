@@ -85,6 +85,17 @@ const MAX_ROW = 1048576;
  */
 const MAX_MERGE_CELLS = 10_000;
 
+/** Parse `B14` into 1-based bounds, rejecting anything Excel would not accept as one cell. */
+function parseCell(ref: string, what: string): { column: number; row: number } {
+  const m = /^([A-Z]+)(\d+)$/.exec(ref);
+  if (!m) throw new Error(`${what} "${ref}" is not a single cell like B14`);
+  const cell = { column: columnIndex(m[1]), row: Number(m[2]) };
+  if (cell.column > MAX_COLUMN || cell.row < 1 || cell.row > MAX_ROW) {
+    throw new Error(`${what} "${ref}" is outside Excel's grid`);
+  }
+  return cell;
+}
+
 /** Parse `B2:Q7` into 1-based bounds, rejecting anything Excel would not accept as a range. */
 function parseRange(ref: string, what: string): Range {
   const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref);
@@ -283,6 +294,23 @@ export interface Validation {
   values: string[];
 }
 
+/**
+ * A note on a cell: text that shows on hover and takes no room on the sheet.
+ *
+ * The whole point is the cost. Reference text — what an element means — is wanted by whoever is
+ * reading the sheet for the first time and is noise to everyone else, and a column of it charges
+ * every reader for one reader's benefit. A note charges nobody: no width, and no row height, since
+ * it is not in the cell.
+ *
+ * Classic notes rather than threaded comments. A threaded comment is a conversation, needs a person
+ * id, and renders as somebody having said something — wrong for static reference text nobody wrote.
+ */
+export interface Note {
+  /** One cell, and the top-left of its merge — that is the only cell of a merge a reader can hover. */
+  ref: string;
+  text: string;
+}
+
 function stylesXml(): string {
   const fonts = [
     '<font><sz val="11"/><name val="Calibri"/></font>',
@@ -392,6 +420,53 @@ export interface SheetSpec {
   print?: PrintSetup;
   conditionalFormats?: ConditionalFormat[];
   validations?: Validation[];
+  /** Hover notes. Each one costs three extra parts in the package — see {@link notesParts}. */
+  notes?: Note[];
+}
+
+/**
+ * The sheet's merged ranges, parsed and bounds-checked in declaration order.
+ *
+ * Shared by everything that has to reason about a merge, so the cap and the "that is not a merge"
+ * rule are stated once. {@link expandMerges} materialises the cells; {@link hiddenByMerges} works
+ * out which of them a reader can never see.
+ */
+function mergeAreas(sheet: SheetSpec): Array<{ ref: string; area: Range }> {
+  return (sheet.merges ?? []).map((ref) => {
+    const area = parseRange(ref, `Merge on sheet "${sheet.name}"`);
+    const { c1, r1, c2, r2 } = area;
+    if (c1 === c2 && r1 === r2) {
+      throw new Error(`Merge "${ref}" on sheet "${sheet.name}" covers one cell — that is not a merge`);
+    }
+    const size = (c2 - c1 + 1) * (r2 - r1 + 1);
+    if (size > MAX_MERGE_CELLS) {
+      throw new Error(
+        `Merge "${ref}" on sheet "${sheet.name}" covers ${size} cells; the writer materialises at most ${MAX_MERGE_CELLS}`,
+      );
+    }
+    return { ref, area };
+  });
+}
+
+/**
+ * Every cell a merge covers except the top-left one, which is the only one that shows.
+ *
+ * A note on a covered cell is in the file and unreachable: there is nothing to hover, because the
+ * cell is not on screen. Same class of silence as a header past Excel's limit — the writer reports
+ * success and the reader never learns the text exists.
+ */
+function hiddenByMerges(sheet: SheetSpec): Map<string, string> {
+  const hidden = new Map<string, string>();
+  for (const { ref, area } of mergeAreas(sheet)) {
+    const anchor = A1(area.c1, area.r1);
+    for (let c = area.c1; c <= area.c2; c++) {
+      for (let r = area.r1; r <= area.r2; r++) {
+        const at = A1(c, r);
+        if (at !== anchor) hidden.set(at, ref);
+      }
+    }
+  }
+  return hidden;
 }
 
 /**
@@ -441,18 +516,8 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
   /** ref -> the merge that already covers it, so an overlap can name both. */
   const covered = new Map<string, string>();
 
-  for (const ref of merges) {
-    const area = parseRange(ref, `Merge on sheet "${sheet.name}"`);
+  for (const { ref, area } of mergeAreas(sheet)) {
     const { c1, r1, c2, r2 } = area;
-    if (c1 === c2 && r1 === r2) {
-      throw new Error(`Merge "${ref}" on sheet "${sheet.name}" covers one cell — that is not a merge`);
-    }
-    const size = (c2 - c1 + 1) * (r2 - r1 + 1);
-    if (size > MAX_MERGE_CELLS) {
-      throw new Error(
-        `Merge "${ref}" on sheet "${sheet.name}" covers ${size} cells; the writer materialises at most ${MAX_MERGE_CELLS}`,
-      );
-    }
     const anchorRef = A1(c1, r1);
     const anchor = cellByRef.get(anchorRef);
     if (!anchor) {
@@ -558,6 +623,140 @@ function dataValidationsXml(validations: Validation[] | undefined): string {
     })
     .join('');
   return `<dataValidations count="${validations.length}">${entries}</dataValidations>`;
+}
+
+/**
+ * The relationship id the worksheet's `legacyDrawing` uses.
+ *
+ * Shared with {@link sheetRelsXml} so the two cannot disagree: pointed at the comments part instead
+ * of the drawing, the notes are in the file, valid, and invisible in Excel.
+ */
+const NOTE_VML_REL_ID = 'rId1';
+const NOTE_COMMENTS_REL_ID = 'rId2';
+
+/** Tahoma 9 with the format's own indexed colour — what Excel itself writes for a note. */
+const NOTE_RUN_PROPERTIES = '<rPr><sz val="9"/><color indexed="81"/><rFont val="Tahoma"/><family val="2"/></rPr>';
+
+/** The first legacy shape id Excel uses on a sheet; each note takes the next one. */
+const NOTE_FIRST_SHAPE_ID = 1025;
+
+/** How many columns and rows the note's box covers when Excel opens it. */
+const NOTE_BOX_COLUMNS = 4;
+const NOTE_BOX_ROWS = 5;
+
+function commentsXml(notes: readonly Note[]): string {
+  const list = notes
+    .map(
+      (note) =>
+        // shapeId is 0 in what Excel writes too: the shape is found through the VML drawing, not
+        // through this number.
+        `<comment ref="${note.ref}" authorId="0" shapeId="0"><text><r>${NOTE_RUN_PROPERTIES}` +
+        `<t xml:space="preserve">${escapeXml(note.text)}</t></r></text></comment>`,
+    )
+    .join('');
+  // One author, unnamed. Excel prefixes a note with its author in bold, and this text is the
+  // schema's, not a person's — an invented name would read as somebody's opinion.
+  return (
+    `${XML_HEADER}<comments xmlns="${NS_MAIN}"><authors><author/></authors>` +
+    `<commentList>${list}</commentList></comments>`
+  );
+}
+
+/**
+ * The legacy VML drawing that positions the notes.
+ *
+ * Excel has required this for classic notes since it stopped using VML for anything else, and there
+ * is no modern replacement: a comments part with no drawing produces a file whose notes never
+ * appear. The shape is hidden until hovered, which is why `visibility:hidden` is correct here rather
+ * than a mistake.
+ *
+ * No XML declaration: this part is not XML as far as Excel is concerned, and it does not write one.
+ */
+function vmlDrawingXml(notes: readonly Note[], sheetName: string): string {
+  const shapes = notes
+    .map((note, i) => {
+      // VML counts from zero where an A1 reference counts from one. Off by one puts the note on the
+      // row above — still hoverable, and explaining a different element.
+      const { column, row } = parseCell(note.ref, `Note on sheet "${sheetName}"`);
+      const col0 = column - 1;
+      const row0 = row - 1;
+      // The box opens one column to the right of the cell — and slides back towards the middle when
+      // the cell is close to an edge, because an anchor past column XFD or row 1048576 is not clipped
+      // by Excel: it is a malformed drawing, and Excel's answer to one of those is to offer to repair
+      // the file. Sliding keeps the box its full size; clamping the far corner would have flattened it
+      // to nothing on the last row.
+      const boxLeft = Math.min(col0 + 1, MAX_COLUMN - 1 - NOTE_BOX_COLUMNS);
+      const boxTop = Math.min(row0, MAX_ROW - 1 - NOTE_BOX_ROWS);
+      return (
+        `<v:shape id="_x0000_s${NOTE_FIRST_SHAPE_ID + i}" type="#_x0000_t202" ` +
+        `style="position:absolute;width:240pt;height:80pt;z-index:${i + 1};visibility:hidden" ` +
+        `fillcolor="#ffffe1" o:insetmode="auto">` +
+        `<v:fill color2="#ffffe1"/><v:shadow on="t" color="black" obscured="t"/><v:path o:connecttype="none"/>` +
+        `<v:textbox style="mso-direction-alt:auto"><div style="text-align:left"></div></v:textbox>` +
+        `<x:ClientData ObjectType="Note"><x:MoveWithCells/><x:SizeWithCells/>` +
+        `<x:Anchor>${boxLeft}, 15, ${boxTop}, 2, ${boxLeft + NOTE_BOX_COLUMNS}, 15, ${boxTop + NOTE_BOX_ROWS}, 2</x:Anchor>` +
+        `<x:AutoFill>False</x:AutoFill><x:Row>${row0}</x:Row><x:Column>${col0}</x:Column></x:ClientData></v:shape>`
+      );
+    })
+    .join('');
+  return (
+    `<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" ` +
+    `xmlns:x="urn:schemas-microsoft-com:office:excel">` +
+    `<o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>` +
+    `<v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202" path="m,l,21600r21600,l21600,xe">` +
+    `<v:stroke joinstyle="miter"/><v:path gradientshapeok="t" o:connecttype="rect"/></v:shapetype>` +
+    `${shapes}</xml>`
+  );
+}
+
+/** The worksheet's own relationships: the drawing it points at, and the notes behind it. */
+function sheetRelsXml(sheetNumber: number): string {
+  return (
+    `${XML_HEADER}<Relationships xmlns="${NS_REL_PKG}">` +
+    `<Relationship Id="${NOTE_VML_REL_ID}" Type="${NS_REL_DOC}/vmlDrawing" ` +
+    `Target="../drawings/vmlDrawing${sheetNumber}.vml"/>` +
+    `<Relationship Id="${NOTE_COMMENTS_REL_ID}" Type="${NS_REL_DOC}/comments" ` +
+    `Target="../comments${sheetNumber}.xml"/>` +
+    `</Relationships>`
+  );
+}
+
+/**
+ * The three parts a sheet's notes need, or null when it has none.
+ *
+ * Numbered by the SHEET, not by how many sheets carry notes: `comments2.xml` belongs to sheet 2
+ * whether or not sheet 1 has any, because Excel resolves these by name and two sheets cannot share
+ * one part.
+ */
+function notesParts(sheet: SheetSpec, sheetNumber: number): { comments: string; vml: string; rels: string } | null {
+  const notes = sheet.notes ?? [];
+  if (notes.length === 0) return null;
+
+  const hidden = hiddenByMerges(sheet);
+  const seen = new Set<string>();
+  for (const note of notes) {
+    parseCell(note.ref, `Note on sheet "${sheet.name}"`);
+    if (note.text.trim() === '') {
+      throw new Error(`The note on ${sheet.name}!${note.ref} has no text — a note nobody can read is a red triangle`);
+    }
+    if (seen.has(note.ref)) {
+      throw new Error(`Two notes on ${sheet.name}!${note.ref}; Excel keeps one of them and loses the other`);
+    }
+    seen.add(note.ref);
+    const merge = hidden.get(note.ref);
+    if (merge !== undefined) {
+      throw new Error(
+        `The note on ${sheet.name}!${note.ref} sits inside merge "${merge}", which hides that cell — ` +
+          'put it on the top-left cell of the merge, the only one a reader can hover',
+      );
+    }
+  }
+
+  return {
+    comments: commentsXml(notes),
+    vml: vmlDrawingXml(notes, sheet.name),
+    rels: sheetRelsXml(sheetNumber),
+  };
 }
 
 /**
@@ -683,8 +882,10 @@ function sheetXml(sheet: SheetSpec): string {
     .join('');
   // CT_Worksheet is a sequence, not a bag: sheetPr, sheetViews, sheetFormatPr, cols,
   // sheetData, mergeCells, conditionalFormatting, dataValidations, then the print group
-  // (printOptions, pageMargins, pageSetup, headerFooter). Emitting these out of order does not
-  // warn — it makes Excel offer to repair the file, with a message that names nothing useful.
+  // (printOptions, pageMargins, pageSetup, headerFooter), and legacyDrawing after all of it.
+  // Emitting these out of order does not warn — it makes Excel offer to repair the file, with a
+  // message that names nothing useful.
+  const legacyDrawing = sheet.notes?.length ? `<legacyDrawing r:id="${NOTE_VML_REL_ID}"/>` : '';
   return (
     `${XML_HEADER}<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL_DOC}">` +
     sheetPr +
@@ -695,6 +896,7 @@ function sheetXml(sheet: SheetSpec): string {
     conditionalFormattingXml(sheet.conditionalFormats) +
     dataValidationsXml(sheet.validations) +
     printXml(sheet.print) +
+    legacyDrawing +
     `</worksheet>`
   );
 }
@@ -749,6 +951,10 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
 
   const enc = (s: string) => new TextEncoder().encode(s);
   const sheetPath = (i: number) => `xl/worksheets/sheet${i + 1}.xml`;
+  // Validated here, before anything is written: a note the reader could never hover is a defect in
+  // the caller's layout, not something to ship quietly.
+  const notes = sheets.map((sheet, i) => notesParts(sheet, i + 1));
+  const anyNotes = notes.some((part) => part !== null);
   // An empty property set ships no part: an empty <Properties/> is legal and would make a reader
   // report the workbook as stamped when it carries nothing.
   const hasProperties = properties !== undefined && Object.keys(properties).length > 0;
@@ -757,12 +963,24 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
     `${XML_HEADER}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
     `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
     `<Default Extension="xml" ContentType="application/xml"/>` +
+    // The VML drawing behind the notes. Declared by extension, as Excel does — every note part on
+    // every sheet is one `.vml` file, so there is nothing per-sheet to override.
+    (!anyNotes
+      ? ''
+      : `<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>`) +
     `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
     `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
     sheets
       .map(
         (_, i) =>
           `<Override PartName="/${sheetPath(i)}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+      )
+      .join('') +
+    notes
+      .map((part, i) =>
+        part === null
+          ? ''
+          : `<Override PartName="/xl/comments${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>`,
       )
       .join('') +
     (!hasProperties
@@ -804,6 +1022,15 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
     { name: 'xl/_rels/workbook.xml.rels', data: enc(workbookRels) },
     { name: 'xl/styles.xml', data: enc(stylesXml()) },
     ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s)) })),
+    ...notes.flatMap((part, i) =>
+      part === null
+        ? []
+        : [
+            { name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`, data: enc(part.rels) },
+            { name: `xl/comments${i + 1}.xml`, data: enc(part.comments) },
+            { name: `xl/drawings/vmlDrawing${i + 1}.vml`, data: enc(part.vml) },
+          ],
+    ),
     ...(hasProperties ? [{ name: 'docProps/custom.xml', data: enc(customPropsXml(properties)) }] : []),
   ]);
 }

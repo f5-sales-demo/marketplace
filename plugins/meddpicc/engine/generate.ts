@@ -225,6 +225,19 @@ export interface ClippedCell {
   needed: number;
 }
 
+/**
+ * A hover note the generator writes, and the cell it hangs on.
+ *
+ * Reported like the anchors and the prose cells are, because the same question applies to it: the
+ * acceptance test has to ask Excel whether the note is really there, and it cannot ask about a cell
+ * whose address it had to guess.
+ */
+export interface PlannedNote {
+  sheet: string;
+  address: string;
+  text: string;
+}
+
 /** A wrapped cell whose row height had to be computed rather than autofitted. */
 export interface ProseCell {
   sheet: string;
@@ -250,6 +263,14 @@ export interface WorkbookPlan {
   proseCells: ProseCell[];
   /** Prose that needs a taller row than Excel has, so part of it cannot be shown. */
   clippedCells: ClippedCell[];
+  /**
+   * Reference text carried as a hover note instead of as a cell.
+   *
+   * Not read back, and not an anchor: a note is not a cell, so nothing about it can move a row or
+   * disagree with the deal. It exists so the sheet explains itself to somebody meeting MEDDPICC for
+   * the first time without charging every other reader the width and the height.
+   */
+  notes: PlannedNote[];
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
   /** Every table's geometry, keyed by the spec's table id. */
@@ -517,6 +538,29 @@ function resolveFormula(
   return out;
 }
 
+/**
+ * The text a column's hover note carries for one row.
+ *
+ * `source` is typed as a string rather than as {@link NoteSource} because the spec is JSON: a name
+ * nobody implemented reaches here at runtime whatever the type says. `check-spec` refuses it first;
+ * this throws if it ever gets past, because a workbook silently missing the definitions is exactly
+ * the outcome the note exists to prevent.
+ */
+function noteText(source: string, entry: TableLayout['items'][number], table: SpecTable, schema: unknown): string {
+  if (source === 'elementDefinition') {
+    if (table.source.kind !== 'elements') {
+      throw new Error(`table "${table.id}" asks for element definitions, and its rows are not elements`);
+    }
+    const element = entry.key as string;
+    const definition = computeElementHint(schema, element).definition;
+    if (definition === '') {
+      throw new Error(`the schema declares no definition for "${element}", so its note would be an empty box`);
+    }
+    return definition;
+  }
+  throw new Error(`no note text for "${source}" — the spec asks for a kind of note the generator does not know`);
+}
+
 /** The value a `derived` column shows. Everything here comes from the schema or the engine. */
 /** A formula string literal: Excel escapes a double quote by doubling it. */
 const quote = (text: string) => `"${text.replace(/"/g, '""')}"`;
@@ -641,6 +685,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const anchors: Anchor[] = [];
   const proseCells: ProseCell[] = [];
   const clippedCells: ClippedCell[] = [];
+  const notes: PlannedNote[] = [];
   const sheets: SheetSpec[] = [];
   /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
   const writtenCells: string[] = [];
@@ -837,6 +882,13 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             continue;
           }
 
+          // Before the branches, so a note is not a property of how the cell gets its value. Past the
+          // grouped-run check above, so it lands on a cell a reader can actually hover rather than on
+          // one the merge hides — which the writer refuses outright.
+          if (spec.note !== undefined) {
+            notes.push({ sheet: s.name, address: ref, text: noteText(spec.note, entry, table, schema) });
+          }
+
           if (spec.role === 'computed' && spec.formula) {
             push(dataRow, {
               ref,
@@ -918,6 +970,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       }
     }
 
+    // Taken from the one collection rather than accumulated twice: the plan reports notes per
+    // workbook and the writer takes them per sheet, and two lists would be two chances to disagree.
+    const sheetNotes = notes.filter((n) => n.sheet === s.name).map(({ address, text }) => ({ ref: address, text }));
     sheets.push({
       name: s.name,
       rows: [...byRow.entries()]
@@ -931,6 +986,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       ...presentation(deal),
       conditionalFormats: formats.length ? formats : undefined,
       validations: validations.length ? validations : undefined,
+      notes: sheetNotes.length ? sheetNotes : undefined,
     });
   }
 
@@ -938,6 +994,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     anchors,
     proseCells,
     clippedCells,
+    notes,
     writtenCells,
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),

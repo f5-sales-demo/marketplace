@@ -348,6 +348,23 @@ describe('checkWorkbookSpec — roles', () => {
     expect(checkWorkbookSpec(schema, spec).roles.failures.join()).toContain('colour');
   });
 
+  test('rejects a note kind the generator has no text for', () => {
+    // The spec is JSON, so a mistyped kind is a string like any other. Caught here it names the
+    // column; missed, the workbook ships without the reference text and nothing says so.
+    const spec = clone(baseSpec());
+    fixtureTable(spec, 'elements').columns[0].note = 'elementDefinitions' as never;
+    expect(checkWorkbookSpec(schema, spec).roles.failures.join()).toContain('elementDefinitions');
+  });
+
+  test('rejects element definitions on a table whose rows are not elements', () => {
+    // The text is looked up by element, so a stakeholder row has nothing to look it up by.
+    const spec = clone(baseSpec());
+    fixtureTable(spec, 'stakeholders').columns[0].note = 'elementDefinition';
+    const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
+    expect(failures).toContain('stakeholders.name');
+    expect(failures).toContain('elementDefinition');
+  });
+
   test('every declared valueType has a style in the palette', () => {
     for (const [type, style] of Object.entries(VALUE_TYPE_STYLE)) {
       expect(typeof style, `${type} maps to a style name`).toBe('string');
@@ -515,6 +532,16 @@ describe('the shipped workbook-spec.json', () => {
       .filter((c) => c.kind === 'field' || c.kind === 'computed');
     expect(values.length).toBeGreaterThan(10);
     expect(values.every((c) => c.kind === 'computed')).toBe(true);
+  });
+
+  test('the eight element definitions are carried as notes, not as a column', () => {
+    // They were a column until v6.0.0 and cost three grid columns plus twenty lines of height. As
+    // notes they cost nothing — and a reader meeting "Paper Process" still has them one hover away.
+    const elements = shipped.sheets.flatMap((s) => specTables(s)).find((t) => t.id === 'elements');
+    if (!elements) throw new Error('no elements table in the shipped spec');
+    expect(elements.columns.map((c) => c.id)).not.toContain('definition');
+    const noted = elements.columns.filter((c) => c.note === 'elementDefinition');
+    expect(noted.map((c) => c.id)).toEqual(['element']);
   });
 
   test('gives every deal collection a table, so nothing is capped', () => {
