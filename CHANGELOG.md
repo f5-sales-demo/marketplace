@@ -10,6 +10,28 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v6.1.0 — the element definitions are back, as hover notes. Not breaking: no address
+  moved, so a v6.0.0 workbook still reads back.
+
+  They were a column until v6.0.0, and removing it is what let the tallest Qualification row drop from
+  366pt to 111pt — the same eight paragraphs in every workbook, three grid columns wide, taken from a
+  rep's own evidence and notes. But they were the only thing on the sheet telling somebody what "Paper
+  Process" means. A note costs no width and no height, because it is not in the cell.
+
+  - **Every element name carries its schema definition as a note.** Asserted the way the issue asked:
+    the same spec with the note flag removed produces byte-identical row geometry, and the acceptance
+    test asks *Excel* for the text on each of the eight cells and compares it against the schema — a
+    note that does not survive the file being opened is worth nothing.
+  - **A classic note is four parts that have to agree.** The text, a legacy VML drawing to position
+    it, the worksheet's own relationships, and two content-type declarations; `legacyDrawing` goes
+    last in the `CT_Worksheet` sequence, after the print group. Excel's response to any disagreement
+    is to drop the note and open the file anyway, which is why the check is made through the
+    application rather than by reading the package.
+  - **Three guards, each for a silence.** A note on a cell a merge hides cannot be hovered at all; two
+    notes on one cell lose one of them; a note with no text is a red triangle over nothing. The spec
+    names a kind of note rather than a function, since it is JSON, and `check-spec` refuses both a
+    kind nobody implemented and element definitions asked for on a table whose rows are not elements.
+
 - **`meddpicc`** v6.0.0 — the sheet reads as designed rather than as whatever fitted. Breaking again,
   for the same reason as v5: addresses moved, so a workbook generated before this is refused on
   read-back. Regenerate.

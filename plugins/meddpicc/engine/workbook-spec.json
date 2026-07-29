@@ -403,6 +403,7 @@
                 "role": "derived",
                 "valueType": "string",
                 "span": 2,
+                "note": "elementDefinition",
                 "heading": true
               },
               {

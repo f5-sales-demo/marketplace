@@ -68,6 +68,22 @@ export const VALUE_TYPE_STYLE: Record<ValueType, StyleName> = {
  */
 export type CellRole = 'input' | 'computed' | 'derived';
 
+/**
+ * Reference text a column carries as a hover note rather than as a cell.
+ *
+ * `elementDefinition` is what MEDDPICC's eight elements mean. It was a column once: the same eight
+ * paragraphs in every workbook, taking three grid columns and twenty lines of height from a rep's own
+ * evidence and notes. As a note it costs neither, and somebody meeting "Paper Process" for the first
+ * time still has it one hover away.
+ *
+ * A closed set, resolved in `generate.ts`. The spec is JSON and cannot name a function, so it names a
+ * kind — and an unknown kind fails the spec check rather than quietly shipping a workbook with the
+ * reference text missing.
+ */
+export type NoteSource = 'elementDefinition';
+
+export const NOTE_SOURCES: readonly NoteSource[] = ['elementDefinition'];
+
 export interface SpecColumn {
   id: string;
   header: string;
@@ -110,6 +126,13 @@ export interface SpecColumn {
    * element instead of a column of duplicates.
    */
   groupRuns?: boolean;
+  /**
+   * Hang each of this column's cells with a hover note — see {@link NoteSource}.
+   *
+   * Only the cells a reader can hover get one: a merged run shows its first row, so that is where
+   * the note goes, and a blank row waiting to be typed into has nothing to explain.
+   */
+  note?: NoteSource;
   /** A named conditional-format preset (see xlsx.ts). Formatting is spec data, not code. */
   conditionalFormat?: CfPreset;
   /**
@@ -449,6 +472,19 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
         if (seenColumns.has(column.id)) ids.push(`${where}: duplicate column id`);
         seenColumns.add(column.id);
         checkValueType(where, column.valueType);
+
+        if (column.note !== undefined) {
+          if (!NOTE_SOURCES.includes(column.note)) {
+            roles.push(
+              `${where}: note "${column.note}" is not one the generator knows — have ${NOTE_SOURCES.join(', ')}`,
+            );
+          } else if (column.note === 'elementDefinition' && table.source.kind !== 'elements') {
+            // The text is per element, so there has to be an element on the row to look it up by.
+            roles.push(
+              `${where}: note "elementDefinition" needs a row per MEDDPICC element, and "${table.id}" is a ${table.source.kind} table`,
+            );
+          }
+        }
 
         if (column.role === 'input') {
           if (column.formula) roles.push(`${where}: an input column cannot also carry a formula`);

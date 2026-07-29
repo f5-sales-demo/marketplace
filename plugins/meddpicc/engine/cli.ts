@@ -207,6 +207,9 @@ async function main(): Promise<number> {
         // that needs to name a cell of a table — the Excel acceptance test above all — reads it from
         // here rather than counting rows and hoping the count still holds.
         tables: plan.tables,
+        // The hover notes, for the same reason: the acceptance test asks Excel for the text on a
+        // named cell, and it must not have to work that address out for itself.
+        notes: plan.notes,
         inputCells: plan.inputCells,
       });
       return 0;
