@@ -339,66 +339,13 @@ function hasContent(cell: RawCell | undefined): boolean {
 }
 
 /**
- * Input cells for rows somebody added below the ones the plan maps.
- *
- * An Excel Table extends when you type under its last row, which is simply how you add a
- * stakeholder once the padded rows are used up. Those cells belong to no `jsonPath` in the plan, so
- * the paths are derived here from the table's geometry — the same `list[index].field` shape
- * `inputPathFor` builds, continuing from where the plan stopped.
- *
- * **A wholly blank row ends the scan.** Without that, a stray note a few rows under the table would
- * be read as a stakeholder; with it, anything past the gap falls to `reportUnmappedRows` and is
- * reported instead. Appending still obeys the array rule, so filling row 13 of a list holding four
- * items is refused for the holes it would leave, exactly as before.
- */
-function growthCells(plan: WorkbookPlan, cells: Map<string, Map<string, RawCell>>): InputCell[] {
-  const out: InputCell[] = [];
-
-  for (const growth of plan.listGrowth) {
-    const sheetCells = cells.get(growth.sheet);
-    if (!sheetCells) continue;
-    const lastRow = Math.max(0, ...[...sheetCells.keys()].map((ref) => Number(A1_REF.exec(ref)?.[2] ?? 0)));
-
-    for (let row = growth.firstRow; row <= lastRow; row++) {
-      const rowCells = growth.columns.map((column) => ({ ...column, address: A1(column.column, row) }));
-      if (!rowCells.some((cell) => hasContent(sheetCells.get(cell.address)))) break;
-
-      const index = growth.nextIndex + (row - growth.firstRow);
-      for (const cell of rowCells) {
-        out.push({
-          jsonPath: `${growth.jsonPath}[${index}].${cell.relativePath}`,
-          sheet: growth.sheet,
-          address: cell.address,
-          valueType: cell.valueType,
-        });
-      }
-    }
-  }
-
-  return out;
-}
-
-/**
- * Report anything typed below the rows the workbook actually maps.
- *
- * The tables are padded with blank rows to grow into, and an Excel Table extends further still
- * the moment someone types under the last one — so a seller who runs out of padded stakeholder
- * rows just adds another, reasonably. Those cells belong to no `jsonPath`, and passing over
- * them without a word would be the legacy sheet's own bug in a new place: it formatted eight
- * team rows and dropped the rest. Better to refuse the run and say which cell.
- *
- * Only columns that hold inputs are considered, and only rows past the last input in that same
- * column. That is already enough to leave a Table's own extended formulas alone: they land in
- * computed columns, which hold no inputs and so are never examined. A formula in an *input*
- * column below the range is reported like any other content, because it is content, and losing
- * it quietly is the thing being prevented.
- */
-/**
  * Report content in cells the workbook never wrote.
  *
  * The purpose is to catch a person typing where there is no room — a stakeholder in the row below the
  * last spare one, a note wandering off the side — rather than dropping it silently, which is the bug
- * the legacy sheet had.
+ * the legacy sheet had. A list's room is the padded rows the generator laid out and nothing beyond
+ * them, so this is the whole of the answer for overflow: there is no scan below a table to read those
+ * rows, because on one sheet the rows below a table belong to the next section.
  *
  * It used to guess, flagging anything below the deepest mapped row of a column. That held while every
  * table had a sheet to itself. On one laid-out sheet it produced 77 false rejections in a row,
@@ -509,7 +456,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   const cells = readWorkbookCells(bytes);
   // Grown rows come last, so the planned rows have already been applied and appending a new item
   // lands at the index the array has actually reached.
-  const inputs = [...plan.inputCells, ...growthCells(plan, cells)];
+  const inputs = plan.inputCells;
 
   for (const input of inputs) {
     const { jsonPath, sheet, address, valueType } = input;

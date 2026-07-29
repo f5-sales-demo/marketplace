@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { validateDeal } from './validate';
-import type { WorkbookSpec } from './workbook-spec';
+import { specTables, type WorkbookSpec } from './workbook-spec';
 import { buildWorkbook } from './xlsx';
 import { readZip, writeZip } from './zip';
 
@@ -43,9 +43,17 @@ function withCell(bytes: Uint8Array, sheetName: string, ref: string, cellXml: st
   const entry = entries.get(part);
   if (!entry) throw new Error(`no part ${part}`);
   const xml = new TextDecoder().decode(entry.data);
-  const pattern = new RegExp(`<c r="${ref}"(?: [^>]*)?(?:/>|>.*?</c>)`);
+  // The attribute run is **lazy**. Greedy, `[^>]*` swallows the `/` of a self-closing
+  // `<c r="B60" s="0"/>`, the `/>` branch then cannot match, and `>.*?</c>` runs on to the next
+  // cell's closing tag — so the replacement silently deletes every cell in between. Blank cells
+  // carried no attributes before this layout gave each one a style, which is why it went unseen.
+  const pattern = new RegExp(`<c r="${ref}"(?: [^>]*?)?(?:/>|>.*?</c>)`);
   if (!pattern.test(xml)) throw new Error(`cell ${ref} not found in ${part}`);
   const updated = xml.replace(pattern, cellXml);
+  const count = (s: string) => (s.match(/<c /g) ?? []).length;
+  if (count(updated) !== count(xml)) {
+    throw new Error(`rewriting ${ref} changed the cell count ${count(xml)} -> ${count(updated)}`);
+  }
   return writeZip(
     [...entries.values()].map((e) =>
       e.name === part ? { name: e.name, data: new TextEncoder().encode(updated) } : { name: e.name, raw: e },
@@ -532,12 +540,24 @@ describe('clearing a value', () => {
   });
 });
 
-describe('rows typed below the padded ones are read, not just reported', () => {
-  /** A deal whose stakeholder table is completely full, so the next row has to grow the list. */
+describe('a list holds exactly its padded rows — anything below is reported', () => {
+  /**
+   * One laid-out sheet has no free rows under a table: the row below the last padded stakeholder is
+   * the gap before the next section's banner, and the banner itself is two rows down. So a list's
+   * capacity is the rows the generator pre-allocated, and content typed past them is reported with
+   * what to do about it rather than read as a new entry.
+   *
+   * The eight-tab workbook read those rows, because an Excel Table auto-extended when you typed
+   * under it and each table owned the tail of its own sheet. Neither is true here — a table whose
+   * range contains a merged cell is dropped by Excel, so there are no Tables left to extend — and a
+   * downward scan on one sheet would eventually read the next section's own text as a list row.
+   */
   function fullDeal(): Record<string, unknown> {
     const deal = clone(exampleDeal);
-    const table = spec.sheets.flatMap((s) => ('tables' in s ? s.tables : [])).find((x) => x.id === 'stakeholders');
-    const padded = table?.minRows as number;
+    const table = spec.sheets.flatMap(specTables).find((x) => x.id === 'stakeholders');
+    if (!table) throw new Error('no stakeholders table in the spec');
+    const padded = table.minRows;
+    if (typeof padded !== 'number') throw new Error('the stakeholders table declares no minRows');
     deal.stakeholders = Array.from({ length: padded }, (_, i) => ({
       name: `Person ${i + 1}`,
       title: 'VP',
@@ -547,7 +567,7 @@ describe('rows typed below the padded ones are read, not just reported', () => {
   }
 
   /** The address one row below the last row the plan maps, for a given stakeholder column. */
-  function firstGrownCell(deal: unknown, relativePath: string): { sheet: string; address: string; column: string } {
+  function firstUnmappedCell(deal: unknown, relativePath: string): { sheet: string; address: string; column: string } {
     const cells = planWorkbook(schema, spec, deal).inputCells.filter(
       (c) => c.jsonPath.startsWith('stakeholders[') && c.jsonPath.endsWith(`.${relativePath}`),
     );
@@ -559,89 +579,74 @@ describe('rows typed below the padded ones are read, not just reported', () => {
 
   const text = (ref: string, value: string) => `<c r="${ref}" t="inlineStr"><is><t>${value}</t></is></c>`;
 
-  test('a filled row below the padding becomes a new item', () => {
+  test('the last padded row is still a new item — that is where the room is', () => {
+    const deal = clone(exampleDeal);
+    const table = spec.sheets.flatMap(specTables).find((x) => x.id === 'stakeholders');
+    const padded = table?.minRows as number;
+    const count = (deal.stakeholders as unknown[]).length;
+    expect(count).toBeLessThan(padded);
+    // Fill every padded row, the last one included: capacity is real and reaches the bottom.
+    let bytes = generateWorkbook(schema, spec, deal);
+    for (let i = count; i < padded; i++) {
+      for (const [field, value] of [
+        ['name', `Person ${i + 1}`],
+        ['title', 'VP'],
+        ['roleInDeal', 'Influencer'],
+      ] as const) {
+        const at = addressOf(deal, `stakeholders[${i}].${field}`);
+        bytes = setText(bytes, at.sheet, at.address, value);
+      }
+    }
+    const report = read(deal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect((report.deal as { stakeholders: unknown[] }).stakeholders).toHaveLength(padded);
+  });
+
+  test('a filled row below the padded ones is reported, never read', () => {
     const deal = fullDeal();
     const count = (deal.stakeholders as unknown[]).length;
-    const at = firstGrownCell(deal, 'name');
+    const at = firstUnmappedCell(deal, 'name');
     const edited = addCell(generateWorkbook(schema, spec, deal), at.sheet, at.address, text(at.address, 'Dana Reyes'));
 
     const report = read(deal, edited);
-    expect(report.rejections).toEqual([]);
-    expect(report.proposals).toHaveLength(1);
-    expect(report.proposals[0]).toMatchObject({
-      jsonPath: `stakeholders[${count}].name`,
-      kind: 'add',
-      to: 'Dana Reyes',
-    });
-    const after = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders;
-    expect(after).toHaveLength(count + 1);
-    expect(after[count].name).toBe('Dana Reyes');
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toHaveLength(1);
+    expect(report.rejections[0]).toMatchObject({ sheet: at.sheet, address: at.address });
+    // The message has to say what to do, because there is nothing the reader can do for them.
+    expect(report.rejections[0].reason).toMatch(/regenerate/i);
+    expect((report.deal as { stakeholders: unknown[] }).stakeholders).toHaveLength(count);
   });
 
-  test('several columns of the same grown row make one item', () => {
+  test('every column of that row is reported, so nothing is lost quietly', () => {
     const deal = fullDeal();
-    const count = (deal.stakeholders as unknown[]).length;
     let bytes = generateWorkbook(schema, spec, deal);
+    const refs: string[] = [];
     for (const [field, value] of [
       ['name', 'Dana Reyes'],
       ['title', 'VP Platform'],
       ['roleInDeal', 'Influencer'],
     ] as const) {
-      const at = firstGrownCell(deal, field);
+      const at = firstUnmappedCell(deal, field);
+      refs.push(at.address);
       bytes = addCell(bytes, at.sheet, at.address, text(at.address, value));
     }
     const report = read(deal, bytes);
-    expect(report.rejections).toEqual([]);
-    const after = (report.deal as { stakeholders: Array<Record<string, string>> }).stakeholders;
-    expect(after).toHaveLength(count + 1);
-    expect(after[count]).toEqual({ name: 'Dana Reyes', title: 'VP Platform', roleInDeal: 'Influencer' });
-  });
-
-  test('two consecutive grown rows are both appended, in order', () => {
-    const deal = fullDeal();
-    const count = (deal.stakeholders as unknown[]).length;
-    const at = firstGrownCell(deal, 'name');
-    const row = Number((/\d+$/.exec(at.address) as RegExpExecArray)[0]);
-    let bytes = generateWorkbook(schema, spec, deal);
-    bytes = addCell(bytes, at.sheet, `${at.column}${row}`, text(`${at.column}${row}`, 'Dana Reyes'));
-    bytes = addCell(bytes, at.sheet, `${at.column}${row + 1}`, text(`${at.column}${row + 1}`, 'Sam Okafor'));
-
-    const report = read(deal, bytes);
-    expect(report.rejections).toEqual([]);
-    const after = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders;
-    expect(after.map((s) => s.name).slice(count)).toEqual(['Dana Reyes', 'Sam Okafor']);
-  });
-
-  test('a blank row ends the list — anything past it is reported, not read', () => {
-    // Otherwise a stray note three rows below the table would be read as a stakeholder.
-    const deal = fullDeal();
-    const at = firstGrownCell(deal, 'name');
-    const row = Number((/\d+$/.exec(at.address) as RegExpExecArray)[0]);
-    const ref = `${at.column}${row + 1}`;
-    const edited = addCell(generateWorkbook(schema, spec, deal), at.sheet, ref, text(ref, 'Too Far Down'));
-
-    const report = read(deal, edited);
     expect(report.proposals).toEqual([]);
-    expect(report.rejections).toHaveLength(1);
-    expect(report.rejections[0]).toMatchObject({ address: ref });
-    // And reported as content below the table, NOT as a stakeholder row with a hole before it:
-    // scanning past the blank row would frame a stray note as a missing list entry.
-    expect(report.rejections[0].reason).toMatch(/below/i);
+    expect(report.rejections.map((r) => r.address).sort()).toEqual([...refs].sort());
   });
 
-  test('a grown row is still refused when the padded rows are not full', () => {
-    // The list has 4 entries and 12 padded rows, so row 13 would leave eight holes.
-    const at = firstGrownCell(exampleDeal, 'name');
-    const edited = addCell(
-      generateWorkbook(schema, spec, exampleDeal),
-      at.sheet,
-      at.address,
-      text(at.address, 'Dana Reyes'),
-    );
-    const report = read(exampleDeal, edited);
-    expect(report.proposals).toEqual([]);
-    expect(report.rejections).toHaveLength(1);
-    expect(report.rejections[0].reason).toMatch(/row/i);
+  test('the section banner below a list is never taken for a list row', () => {
+    // The blocks under a table are the sheet's own content. Reading downward from a table would
+    // reach the next banner and append its title as a stakeholder — silent corruption of the deal.
+    const deal = fullDeal();
+    const report = read(deal, generateWorkbook(schema, spec, deal));
+    const names = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders.map((s) => s.name);
+    const banners = spec.sheets
+      .flatMap((s) => s.blocks)
+      .filter((b) => b.kind === 'section' || b.kind === 'title')
+      .map((b) => (b as { text: string }).text);
+    expect(banners.length).toBeGreaterThan(0);
+    for (const banner of banners) expect(names).not.toContain(banner);
   });
 
   test('an untouched full workbook still proposes nothing', () => {
@@ -693,7 +698,7 @@ describe('rows below a table that cannot grow', () => {
     expect(report.proposals).toEqual([]);
     expect(report.rejections).toHaveLength(1);
     expect(report.rejections[0]).toMatchObject({ sheet, address });
-    expect(report.rejections[0].reason).toMatch(/below/i);
+    expect(report.rejections[0].reason).toMatch(/does not map/i);
     expect(report.ok).toBe(false);
   });
 
@@ -747,7 +752,10 @@ describe('booleans', () => {
     const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
     const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'sort of'));
     expect(report.rejections).toHaveLength(1);
-    expect(report.rejections[0].reason).toMatch(/TRUE/);
+    // The words the dropdown itself offers, not a literal: renaming them must not leave the
+    // message describing a choice the workbook no longer presents.
+    expect(report.rejections[0].reason).toContain(BOOLEAN_YES);
+    expect(report.rejections[0].reason).toContain(BOOLEAN_NO);
   });
 });
 

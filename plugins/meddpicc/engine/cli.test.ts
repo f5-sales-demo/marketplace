@@ -122,7 +122,9 @@ describe('cli read', () => {
     });
     if (!part) throw new Error(`no sheet holds ${address}`);
     const xml = new TextDecoder().decode(entries.get(part)?.data as Uint8Array);
-    const updated = xml.replace(new RegExp(`<c r="${address}"(?: [^>]*)?(?:/>|>.*?</c>)`), cellXml);
+    // Lazy attributes: greedy, the run eats the `/` of a self-closing cell and the replacement
+    // swallows everything up to the next `</c>`. See the same pattern in read-workbook.test.ts.
+    const updated = xml.replace(new RegExp(`<c r="${address}"(?: [^>]*?)?(?:/>|>.*?</c>)`), cellXml);
     await Bun.write(
       workbook,
       writeZip(
