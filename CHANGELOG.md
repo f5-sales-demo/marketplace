@@ -27,9 +27,14 @@ and this project adheres to
     start, and the old "under 2" rule painted them identically.
   - **A blank cell that something depends on is washed.** An element's evidence, a question's response,
     the three whys, the two strategy cells, the identifying metadata, and a stakeholder's name, title
-    and role. Deliberately not `notes`, not the partner-side whys, and never a list's pre-allocated
-    rows: those exist to be empty until somebody needs them, and shading them would ask for work that
-    is not owed.
+    and role. Deliberately not `notes` and not the partner-side whys: those are legitimately empty.
+  - **A row somebody has started is washed even if it was a spare one.** A list keeps blank rows below
+    its entries so there is somewhere to type, and a conditional-format range does not grow when one is
+    used — so a wash stopping at the last existing entry was absent from the case it is most use, a
+    stakeholder halfway through being entered whose blank title is schema-required. Covering those rows
+    unconditionally would ask for work nobody owes, so the rule carries the condition instead: empty
+    **and** something else on this row, over the table's own columns rather than the width of the page,
+    because two tables share a band of rows. Found by the second-opinion review.
   - **The Excel stage reads each rule's own resolved fill back out of the application** and checks it is
     warm and faint — red at least green at least blue, no channel far from white. That is the assertion
     that fails if green returns anywhere, and it is a property worth asserting where a hex is not.
