@@ -44,7 +44,7 @@
               "id": "accountName",
               "jsonPath": "metadata.accountName",
               "valueType": "string",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             },
             {
               "kind": "label",
@@ -57,7 +57,7 @@
               "id": "dealId",
               "jsonPath": "metadata.dealId",
               "valueType": "string",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             }
           ]
         },
@@ -75,7 +75,7 @@
               "id": "dealName",
               "jsonPath": "metadata.dealName",
               "valueType": "string",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             },
             {
               "kind": "label",
@@ -433,7 +433,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.evidence",
                 "valueType": "text",
-                "shadeWhenEmpty": true,
+                "shadeWhenEmpty": "required",
                 "span": 4
               },
               {
@@ -481,7 +481,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.responses[]",
                 "valueType": "text",
-                "shadeWhenEmpty": true,
+                "shadeWhenEmpty": "wanted",
                 "span": 9
               }
             ]
@@ -521,7 +521,7 @@
               "id": "whyAnything",
               "jsonPath": "threeWhys.us.whyAnything",
               "valueType": "text",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             },
             {
               "kind": "label",
@@ -551,7 +551,7 @@
               "id": "whyUs",
               "jsonPath": "threeWhys.us.whyUs",
               "valueType": "text",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             },
             {
               "kind": "label",
@@ -581,7 +581,7 @@
               "id": "whyNow",
               "jsonPath": "threeWhys.us.whyNow",
               "valueType": "text",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             },
             {
               "kind": "label",
@@ -642,7 +642,7 @@
                 "role": "input",
                 "jsonPath": "name",
                 "valueType": "string",
-                "shadeWhenEmpty": true,
+                "shadeWhenEmpty": "required",
                 "span": 2
               },
               {
@@ -651,7 +651,7 @@
                 "role": "input",
                 "jsonPath": "title",
                 "valueType": "string",
-                "shadeWhenEmpty": true,
+                "shadeWhenEmpty": "required",
                 "span": 3
               },
               {
@@ -660,7 +660,7 @@
                 "role": "input",
                 "jsonPath": "roleInDeal",
                 "valueType": "string",
-                "shadeWhenEmpty": true,
+                "shadeWhenEmpty": "required",
                 "validate": true,
                 "span": 2
               },
@@ -739,7 +739,7 @@
               "id": "differentiatedValueProposition",
               "jsonPath": "salesStrategy.differentiatedValueProposition",
               "valueType": "text",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             },
             {
               "kind": "field",
@@ -747,7 +747,7 @@
               "id": "winStrategy",
               "jsonPath": "salesStrategy.winStrategy",
               "valueType": "text",
-              "shadeWhenEmpty": true
+              "shadeWhenEmpty": "required"
             }
           ]
         },

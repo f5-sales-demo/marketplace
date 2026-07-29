@@ -1001,3 +1001,28 @@ describe('a rule and its row range have to agree', () => {
     expect(xml).not.toContain('%ROW%');
   });
 });
+
+describe('the two levels of an empty-cell wash', () => {
+  const dxfOf = (preset: CfPreset) => {
+    const xml = dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Data',
+            rows: [{ row: 2, cells: [{ ref: 'B2', value: 'x' }] }],
+            conditionalFormats: [{ sqref: 'B2:B5', preset, rowRange: '$B2:$Q2' }],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+    const id = Number(/dxfId="(\d+)"/.exec(xml)?.[1]);
+    return Object.entries(DXF_IDS).find(([, v]) => v === id)?.[0];
+  };
+
+  test('a cell something requires is urgent; one merely wanted is a level down', () => {
+    // A blank evidence cell blocks the element from ever being complete. An unanswered question does
+    // not — any one answer satisfies the rule — so the two cannot ask for the same attention.
+    expect(dxfOf('missingInRow')).toBe('urgent');
+    expect(dxfOf('wantedInRow')).toBe('watch');
+  });
+});

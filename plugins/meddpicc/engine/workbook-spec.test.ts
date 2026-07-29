@@ -365,6 +365,18 @@ describe('checkWorkbookSpec — roles', () => {
     expect(failures).toContain('elementDefinition');
   });
 
+  test('rejects a shade level nobody implemented', () => {
+    // The spec is JSON, so `true` or a typo is a string like any other. Unchecked, the generator would
+    // silently fall back to the strongest wash — the loudest possible outcome from a mistake.
+    const spec = clone(baseSpec());
+    const evidence = fixtureTable(spec, 'elements').columns.find((c) => c.role === 'input');
+    if (!evidence) throw new Error('fixture drift');
+    evidence.shadeWhenEmpty = 'nice-to-have' as never;
+    const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
+    expect(failures).toContain('nice-to-have');
+    expect(failures).toContain('required, wanted');
+  });
+
   test('rejects shading-when-empty on a cell nobody types into', () => {
     // A derived or computed cell is empty because the engine or a formula made it so; a wash there
     // would blame a person for the generator's output.
@@ -372,7 +384,7 @@ describe('checkWorkbookSpec — roles', () => {
     const elements = fixtureTable(spec, 'elements');
     const derived = elements.columns.find((c) => c.role === 'derived');
     if (!derived) throw new Error('fixture drift');
-    derived.shadeWhenEmpty = true;
+    derived.shadeWhenEmpty = 'required';
     const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
     expect(failures).toContain(derived.id);
     expect(failures).toContain('shadeWhenEmpty');
@@ -384,7 +396,7 @@ describe('checkWorkbookSpec — roles', () => {
     const spec = clone(baseSpec());
     const score = fixtureTable(spec, 'elements').columns.find((c) => c.id === 'score');
     if (!score) throw new Error('fixture drift');
-    score.shadeWhenEmpty = true;
+    score.shadeWhenEmpty = 'required';
     score.conditionalFormat = 'score';
     const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
     expect(failures).toContain('elements.score');

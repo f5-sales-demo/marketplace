@@ -241,7 +241,9 @@ export type CfPreset =
   | 'completionText'
   | 'overdueDate'
   | 'missing'
-  | 'missingInRow';
+  | 'missingInRow'
+  | 'wanted'
+  | 'wantedInRow';
 
 /**
  * The section statuses `computeCompletion` emits.
@@ -318,6 +320,15 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
   // rows would wash. No shipped table is in that position — the tables with formulas are the keyed ones,
   // where every row is real anyway.
   missingInRow: [{ type: 'expression', formulas: ['AND(LEN(TRIM(%FIRST%))=0,COUNTA(%ROW%)>0)'], dxf: 'urgent' }],
+  // The same two rules a level down, for a cell nothing REQUIRES but a blank one is still worth seeing.
+  //
+  // An unanswered discovery question is the case this exists for. `qualStatus` calls an element complete
+  // when any one of its responses is filled in, so with two questions and one answer the element is
+  // genuinely done — and washing the blank sibling the same red as a missing evidence cell says
+  // something mandatory is absent when nothing requires it. A level down keeps the signal, which is among
+  // the most actionable things on the sheet, without the false alarm.
+  wanted: [{ type: 'expression', formulas: ['LEN(TRIM(%FIRST%))=0'], dxf: 'watch' }],
+  wantedInRow: [{ type: 'expression', formulas: ['AND(LEN(TRIM(%FIRST%))=0,COUNTA(%ROW%)>0)'], dxf: 'watch' }],
 };
 
 /** The placeholder a rule uses to mean "the row this cell is on, across its own table". */

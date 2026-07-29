@@ -967,6 +967,25 @@ describe('planWorkbook — a blank cell something depends on is shaded', () => {
   const formatsOn = (ref: string, of: WorkbookPlan = plan) =>
     (of.sheets[0].conditionalFormats ?? []).filter((f) => f.sqref.split(':')[0] === ref);
 
+  test('an unanswered question is wanted, not missing', () => {
+    // `qualStatus` calls an element complete when ANY of its responses is non-empty, so with two
+    // questions and one answer the element IS complete — and washing the blank sibling row the same red
+    // as a missing evidence cell claims something mandatory is absent when nothing requires it. The row
+    // is still worth seeing, so it drops a level rather than disappearing: "needs more information"
+    // rather than "nothing there".
+    const oneOfTwo = clone(deal);
+    const metrics = oneOfTwo.qualification.metrics as { responses: string[] };
+    metrics.responses = [metrics.responses[0], ''];
+    expect(computeCompletion(oneOfTwo).completionStatus.metrics).toBe('complete');
+
+    const p = planWorkbook(schema, spec, oneOfTwo);
+    const responses = table('responses', p);
+    const [format] = (p.sheets[0].conditionalFormats ?? []).filter(
+      (f) => f.sqref.split(':')[0] === responses.ref('response', 0),
+    );
+    expect(format?.preset).toBe('wantedInRow');
+  });
+
   test('the evidence column carries the wash, and the notes column does not', () => {
     const elements = table('elements');
     const evidence = formatsOn(elements.ref('evidence', 0));

@@ -815,7 +815,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
               const values = validationValues(schema, cell.jsonPath, cell.valueType);
               if (values) validations.push({ sqref: ref, values });
             }
-            if (cell.shadeWhenEmpty) formats.push({ sqref: ref, preset: 'missing' });
+            if (cell.shadeWhenEmpty) {
+              formats.push({ sqref: ref, preset: cell.shadeWhenEmpty === 'wanted' ? 'wanted' : 'missing' });
+            }
           } else {
             push(row, { ref, formula: resolveFormula(cell.formula, { sheet: s.name }, named, tables), style });
           }
@@ -985,7 +987,11 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         // while it is being filled in. Painting those rows unconditionally would be the opposite
         // mistake, so `%ROW%` carries the condition.
         if (spec.shadeWhenEmpty) {
-          formats.push({ sqref, preset: 'missingInRow', rowRange: tableRowRange(table, info.firstDataRow) });
+          formats.push({
+            sqref,
+            preset: spec.shadeWhenEmpty === 'wanted' ? 'wantedInRow' : 'missingInRow',
+            rowRange: tableRowRange(table, info.firstDataRow),
+          });
         }
         if (spec.role === 'input' && spec.validate && spec.jsonPath) {
           // Any row's path resolves to the same schema node, so the first one answers for all.
