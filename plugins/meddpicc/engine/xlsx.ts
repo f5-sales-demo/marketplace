@@ -296,7 +296,8 @@ function stylesXml(): string {
     '<font><b/><sz val="11"/><name val="Calibri"/></font>',
     '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
     '<font><i/><sz val="10"/><color rgb="FF6B6B6B"/><name val="Calibri"/></font>',
-    '<font><b/><sz val="16"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
+    // 20pt, matching the manual sheet's title. Measured off it rather than chosen.
+    '<font><b/><sz val="20"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
   ];
   // Navy, teal and light blue are dk2, accent1 and accent4 of the stock modern Office theme —
   // resolved to literal RGB rather than referenced by theme index, because we ship no theme

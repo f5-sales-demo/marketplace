@@ -397,13 +397,6 @@
                 "span": 2
               },
               {
-                "id": "definition",
-                "header": "Definition",
-                "role": "derived",
-                "valueType": "text",
-                "span": 3
-              },
-              {
                 "id": "score",
                 "header": "Score",
                 "role": "input",
@@ -436,7 +429,7 @@
                 "header": "What This Score Means",
                 "role": "derived",
                 "valueType": "text",
-                "span": 3
+                "span": 4
               },
               {
                 "id": "evidence",
@@ -444,7 +437,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.evidence",
                 "valueType": "text",
-                "span": 3
+                "span": 4
               },
               {
                 "id": "notes",
@@ -452,7 +445,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.notes",
                 "valueType": "text",
-                "span": 2
+                "span": 3
               }
             ]
           }
@@ -477,18 +470,11 @@
                 "span": 2
               },
               {
-                "id": "position",
-                "header": "#",
-                "role": "derived",
-                "valueType": "integer",
-                "span": 1
-              },
-              {
                 "id": "question",
                 "header": "Question",
                 "role": "derived",
                 "valueType": "text",
-                "span": 6
+                "span": 5
               },
               {
                 "id": "response",
@@ -496,7 +482,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.responses[]",
                 "valueType": "text",
-                "span": 7
+                "span": 9
               }
             ]
           }

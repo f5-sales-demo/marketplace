@@ -223,7 +223,7 @@ function resolveRows(table: SpecTable, deal: unknown, schema: unknown): TableLay
  * is what stops a dense grid reading as a wall. Prose rows are computed instead — see
  * {@link estimateRowHeight} — and always take the taller of the two.
  */
-const TITLE_HEIGHT = 34;
+const TITLE_HEIGHT = 40;
 const BANNER_HEIGHT = 27;
 const HEADER_HEIGHT = 30;
 const ROW_HEIGHT = 24;
