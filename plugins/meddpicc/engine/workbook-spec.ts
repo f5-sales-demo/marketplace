@@ -341,7 +341,7 @@ interface Collected {
   /** Inputs whose path could not even be formed — before any schema lookup. */
   pathIssues: string[];
   /** Cells asking for a schema-derived dropdown, with the path the values come from. */
-  validated: Array<{ where: string; path: string }>;
+  validated: Array<{ where: string; path: string; valueType: ValueType }>;
 }
 
 /** The tables a sheet declares, in the order the layout puts them. */
@@ -407,7 +407,7 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
             roles.push(`${where}: a grid field cannot use a wildcard — there is no key axis to expand it over`);
           } else {
             out.inputs.push({ where, paths: [cell.jsonPath] });
-            if (cell.validate) out.validated.push({ where, path: cell.jsonPath });
+            if (cell.validate) out.validated.push({ where, path: cell.jsonPath, valueType: cell.valueType });
           }
         } else {
           out.formulas.push({ where, formula: cell.formula, table: null });
@@ -448,7 +448,7 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
               continue;
             }
             out.inputs.push({ where, paths });
-            if (column.validate) out.validated.push({ where, path: paths[0] });
+            if (column.validate) out.validated.push({ where, path: paths[0], valueType: column.valueType });
           } catch (e) {
             roles.push(`${where}: ${e instanceof Error ? e.message : String(e)}`);
           }
@@ -620,7 +620,11 @@ export function checkWorkbookSpec(schema: unknown, spec: WorkbookSpec): SpecChec
   // free-text field would otherwise emit an empty list, which Excel renders as a dropdown
   // offering nothing — worse than no dropdown, because it looks deliberate.
   const validationFailures: string[] = [];
-  for (const { where, path } of collected.validated) {
+  for (const { where, path, valueType } of collected.validated) {
+    // A boolean enumerates itself: the type has exactly two values, and the workbook decides how they
+    // read. The schema declares no enum for one, so asking it for the list would refuse a dropdown
+    // that is not only honest but the reason a boolean cell and the count beside it agree at all.
+    if (valueType === 'boolean') continue;
     const constraint = schemaConstraint(schema, path);
     if (!constraint) {
       validationFailures.push(`${where}: "${path}" does not resolve, so there is nothing to build a dropdown from`);

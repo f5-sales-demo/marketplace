@@ -339,6 +339,15 @@ echo "    role dropdown at $role_cell: Excel=[$got_roles] schema=[$want_roles]"
 got_scores="$(ask "formula1 of (validation of range \"$score_first\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
 echo "    score dropdown at $score_first: Excel=[$got_scores]"
 [ "$got_scores" = "0,1,2,3,4" ] || fail "the score dropdown is '$got_scores', expected 0,1,2,3,4"
+
+# A boolean cell holds the WORD "Yes", and the scorecard counts that word. Without a dropdown Excel
+# accepts anything — and the reader is deliberately lenient, so TRUE typed into the cell is applied
+# to the deal while the count beside it stays wrong until the workbook is regenerated. The dropdown
+# is what stops the two from disagreeing, so ask Excel whether it really has one.
+bool_cell="$(table_cell stakeholders mustSayYes 0)"
+got_bool="$(ask "formula1 of (validation of range \"$bool_cell\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
+echo "    boolean dropdown at $bool_cell: Excel=[$got_bool]"
+[ "$got_bool" = "Yes,No" ] || fail "the boolean dropdown is '$got_bool', expected Yes,No"
 echo "PASS: Excel recognises the conditional formats and the schema-derived dropdowns, and sees no Excel Table"
 
 # The presentation primitives are the ones a unit test can least vouch for: a merge Excel

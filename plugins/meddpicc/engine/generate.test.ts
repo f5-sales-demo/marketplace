@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import type { WorkbookPlan } from './generate';
-import { BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { ENUM_LABELS, enumLabel } from './labels';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { specTables, type WorkbookSpec } from './workbook-spec';
@@ -473,6 +473,27 @@ describe('a formula never compares against a spelling the cells do not use', () 
     };
     walk(spec);
     expect(offenders).toEqual([]);
+  });
+
+  test('every boolean input cell offers the two words as a dropdown', () => {
+    // Without it Excel accepts anything, and the reader is deliberately lenient — TRUE, Y and 1 all
+    // read as true. So a rep can type TRUE, have it applied to the deal, and watch the count beside
+    // it stay wrong until the workbook is regenerated: a plausible-looking, incorrect deal review.
+    // The dropdown is what makes the cell and the count agree in the first place.
+    const declared = spec.sheets
+      .flatMap(specTables)
+      .flatMap((t) => t.columns.map((c) => ({ table: t.id, column: c })))
+      .filter(({ column }) => column.valueType === 'boolean' && column.role === 'input');
+    expect(declared.length).toBeGreaterThan(0);
+    for (const { table, column } of declared) {
+      expect(column.validate, `${table}.${column.id} offers no dropdown`).toBe(true);
+    }
+
+    // And the dropdown Excel is handed really is the pair the cells hold.
+    const sheet = theSheet();
+    const cell = plan.inputCells.find((c) => c.jsonPath.endsWith('.mustSayYes'));
+    const validation = sheet.validations?.find((v) => v.sqref.split(':')[0] === cell?.address);
+    expect(validation?.values).toEqual([BOOLEAN_YES, BOOLEAN_NO]);
   });
 
   test('every boolean count resolves to the word the cells actually hold', () => {
