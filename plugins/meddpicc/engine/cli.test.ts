@@ -100,6 +100,19 @@ describe('cli', () => {
     const { code } = await run(['hint', 'bogus']);
     expect(code).toBe(1);
   });
+  test('generate --plan reports every hover note and where it hangs', async () => {
+    // The acceptance test has to ask Excel whether a note is really on a cell, and it cannot ask
+    // about an address it had to work out for itself — nothing on one laid-out sheet has a fixed
+    // position. So the plan says, the same way it says where each table landed.
+    const { code, out } = await run(['generate', example, '--plan']);
+    expect(code).toBe(0);
+    const plan = JSON.parse(out) as { notes: Array<{ sheet: string; address: string; text: string }> };
+    expect(plan.notes.length).toBe(8);
+    for (const note of plan.notes) {
+      expect(note.address).toMatch(/^[A-Z]+\d+$/);
+      expect(note.text.length).toBeGreaterThan(0);
+    }
+  });
   test('next embeds the current-section hint', async () => {
     const { out } = await run(['next', example]);
     const r = JSON.parse(out);
