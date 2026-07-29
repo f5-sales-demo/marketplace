@@ -240,7 +240,7 @@ Creates a customer-facing document working backward from the target close date, 
 /meddpicc:qualify-deal Acme Corp render
 ```
 
-Generates an Excel workbook from the deal JSON, built from the workbook spec: one laid-out deal-review sheet with a formula-driven scorecard, RAG conditional formatting, computed row heights for prose, and schema-derived dropdowns. Each element name carries what that element means as a hover note, so the sheet explains itself without spending a column on it. `read` pulls edits back out.
+Generates an Excel workbook from the deal JSON, built from the workbook spec: one laid-out deal-review sheet with a formula-driven scorecard, computed row heights for prose, and schema-derived dropdowns. Colour marks only what needs attention — a faint warm wash on an unscored element, an untouched section, an overdue date, or a cell a completion rule needs and nobody has filled in — and anything finished carries no fill at all. Each element name carries what that element means as a hover note, so the sheet explains itself without spending a column on it. `read` pulls edits back out.
 
 ### Get coaching (auto-activates)
 
