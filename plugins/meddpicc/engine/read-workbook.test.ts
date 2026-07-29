@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { readPath } from './json-path';
 import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { validateDeal } from './validate';
 import { specTables, type WorkbookSpec } from './workbook-spec';
@@ -756,6 +757,54 @@ describe('booleans', () => {
     // message describing a choice the workbook no longer presents.
     expect(report.rejections[0].reason).toContain(BOOLEAN_YES);
     expect(report.rejections[0].reason).toContain(BOOLEAN_NO);
+  });
+});
+
+describe('a status typed as words reads back as the JSON value', () => {
+  const statusPath = 'closePlan.milestones[0].status';
+
+  test('the label the sheet shows maps back to the token the deal holds', () => {
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Complete'));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+    expect(report.proposals[0]).toMatchObject({ jsonPath: statusPath, to: 'complete' });
+  });
+
+  test('the JSON spelling is accepted too, because a rep may type either', () => {
+    // A different value from the one already there, or "unchanged" would be the outcome whether or
+    // not the token was understood — and this test could not fail.
+    const before = readPath(exampleDeal, statusPath);
+    expect(before).not.toBe('complete');
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'complete'));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals[0]?.to).toBe('complete');
+  });
+
+  test('typing the token already there is not an edit', () => {
+    const before = readPath(exampleDeal, statusPath) as string;
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, before));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toEqual([]);
+  });
+
+  test('a word that is neither is still refused, and the enum is quoted back', () => {
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Halfway'));
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toHaveLength(1);
+    expect(report.rejections[0].reason).toMatch(/must be one of/);
+  });
+
+  test('an untouched workbook does not report its own status labels as edits', () => {
+    // Without the translation every generated workbook would propose rewriting each status cell,
+    // which is the failure that would make the whole feature unusable rather than merely wrong.
+    const report = read(exampleDeal, generateWorkbook(schema, spec, exampleDeal));
+    expect(report.proposals).toEqual([]);
+    const statuses = (exampleDeal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    expect(statuses.some((v) => /_/.test(v))).toBe(true);
   });
 });
 

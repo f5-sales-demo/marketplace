@@ -28,6 +28,7 @@
  */
 import { dateToSerial, planWorkbook, schemaHash, type WorkbookPlan, workbookFingerprint } from './generate';
 import { readPath, writePath } from './json-path';
+import { canonicalEnumValue } from './labels';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
@@ -468,6 +469,17 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     if ('error' in coerced) {
       reject(coerced.error);
       continue;
+    }
+    // The cell shows a label — "In progress" — and the deal holds `in_progress`. Translate before
+    // anything compares the two, or every generated workbook would read back as an edit on its own
+    // status cells. Either spelling is accepted: a rep may type what the dropdown offers or what
+    // they have seen in the JSON.
+    if (typeof coerced.value === 'string') {
+      const enumeration = schemaConstraint(schema, jsonPath)?.enum;
+      if (enumeration) {
+        const canonical = canonicalEnumValue(coerced.value);
+        if (canonical !== undefined && enumeration.includes(canonical)) coerced.value = canonical;
+      }
     }
 
     const current = readPath(working, jsonPath);

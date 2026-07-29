@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
+import { enumLabel, enumLabels } from './labels';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight } from './text-metrics';
@@ -93,6 +94,23 @@ function toCellValue(value: unknown, valueType: ValueType): string | number | bo
   }
   if (typeof value === 'number' || typeof value === 'boolean') return value;
   return String(value);
+}
+
+/**
+ * A value as the sheet shows it: a member of a schema enum reads as its label, anything else as
+ * itself.
+ *
+ * Scoped to enum members deliberately. Mapping every string through the label table would relabel a
+ * free-text answer that happened to read "pending", and prose is not a status.
+ */
+function displayValue(
+  schema: unknown,
+  jsonPath: string,
+  value: string | number | boolean | undefined,
+): string | number | boolean | undefined {
+  if (typeof value !== 'string') return value;
+  const constraint = schemaConstraint(schema, jsonPath);
+  return constraint?.enum?.includes(value) ? enumLabel(value) : value;
 }
 
 const sheetPrefix = (name: string) => (/^[A-Za-z0-9_]+$/.test(name) ? `${name}!` : `'${name.replace(/'/g, "''")}'!`);
@@ -198,7 +216,10 @@ function validationValues(schema: unknown, jsonPath: string, valueType?: ValueTy
   if (valueType === 'boolean') return [BOOLEAN_YES, BOOLEAN_NO];
   const constraint = schemaConstraint(schema, jsonPath);
   if (!constraint) return undefined;
-  if (constraint.enum) return constraint.enum;
+  // The words the CELL shows, so the dropdown offers what is already in the cell beside it. Offering
+  // `in_progress` under a cell reading "In progress" makes Excel refuse the value it wrote itself.
+  // `enumLabels` refuses a set whose labels collide, because read-back could not tell them apart.
+  if (constraint.enum) return enumLabels(constraint.enum);
   const { minimum, maximum } = constraint;
   if (minimum === undefined || maximum === undefined) return undefined;
   if (!Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum - minimum > 20) return undefined;
@@ -558,7 +579,11 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
           const style = VALUE_TYPE_STYLE[cell.valueType];
           if (cell.kind === 'field') {
-            const value = toCellValue(readPath(deal, cell.jsonPath), cell.valueType);
+            const value = displayValue(
+              schema,
+              cell.jsonPath,
+              toCellValue(readPath(deal, cell.jsonPath), cell.valueType),
+            );
             push(row, { ref, value, style });
             inputCells.push({ jsonPath: cell.jsonPath, sheet: s.name, address: ref, valueType: cell.valueType });
             // Excel autofits a wrapped cell but not a merged one, and every span over one column is
@@ -653,7 +678,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
           if (spec.role === 'input' && spec.jsonPath) {
             const jsonPath = inputPathFor(table, spec, entry);
-            const value = toCellValue(readPath(deal, jsonPath), spec.valueType);
+            const value = displayValue(schema, jsonPath, toCellValue(readPath(deal, jsonPath), spec.valueType));
             push(dataRow, { ref, value, style });
             inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: spec.valueType });
             if (spec.valueType === 'text' && typeof value === 'string') {

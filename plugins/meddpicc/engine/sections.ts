@@ -1,5 +1,7 @@
 /** The MEDDPICC section model — the single source of ordering/keys for the plugin. */
 
+import { enumLabel } from './labels';
+
 export type SectionStatus = 'not_started' | 'partial' | 'complete';
 
 /** Canonical order, matching metadata.completionStatus key order in the schema. */
@@ -54,16 +56,10 @@ export function sectionLabel(key: string): string {
 /**
  * How a completion status reads on the sheet.
  *
- * `not_started` is a JSON value, not English. **The conditional format matches on these strings too**
- * — see `CF_PRESETS.completionText` in xlsx.ts, which imports this map for exactly that reason.
- * Relabel here without relabelling there and the colours quietly stop appearing.
+ * One entry point, in `labels.ts`, shared with the close-plan statuses and with the conditional
+ * formats that match on these very strings. Label a cell in one place and compare its raw value in
+ * another and the comparison silently stops matching — which is why there is no second map here.
  */
-export const SECTION_STATUS_LABELS: Record<SectionStatus, string> = {
-  not_started: 'Not started',
-  partial: 'Partial',
-  complete: 'Complete',
-};
-
 export function statusLabel(status: string): string {
-  return SECTION_STATUS_LABELS[status as SectionStatus] ?? status;
+  return enumLabel(status);
 }

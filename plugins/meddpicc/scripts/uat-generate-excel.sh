@@ -6,7 +6,7 @@
 # repair rather than open, a date written as text turns arithmetic into #VALUE!, and a
 # formula referring to the wrong range is perfectly well-formed and silently wrong.
 #
-# So this drives the real application: generate, open, read the Scorecard back, and compare
+# So this drives the real application: generate, open, read the scorecard back, and compare
 # it against what `engine score` computes from the same deal by a completely different route.
 # Agreement between the two is the evidence; either alone proves much less.
 #
@@ -19,20 +19,34 @@ DEAL="${1:-$PLUGIN_ROOT/schema/example-deal.json}"
 WORK="$(mktemp -d)"
 OUT="$WORK/uat-deal.xlsx"
 BOOK="$(basename "$OUT")"
-# The workbook is ONE laid-out sheet, and nothing on it has a fixed address: a table starts wherever
-# the blocks above it end. So every address this script types into comes from `generate --plan` —
-# the generator's own map — rather than from a row number written here, which would go stale the
-# first time a section moved.
-SHEET="$(jq -r '.sheets[0].name' "$PLUGIN_ROOT/engine/workbook-spec.json")"
-
 skip() {
   echo "SKIP: $1"
   exit 0
 }
 
 command -v bun >/dev/null 2>&1 || skip "bun unavailable"
+command -v jq >/dev/null 2>&1 || skip "jq unavailable"
 command -v osascript >/dev/null 2>&1 || skip "not macOS (no osascript)"
 [ -d "/Applications/Microsoft Excel.app" ] || skip "Microsoft Excel is not installed"
+
+# The workbook is ONE laid-out sheet, and nothing on it has a fixed address: a table starts wherever
+# the blocks above it end. So every address this script types into comes from `generate --plan` —
+# the generator's own map — rather than from a row number written here, which would go stale the
+# first time a section moved.
+SHEET="$(jq -r '.sheets[0].name' "$PLUGIN_ROOT/engine/workbook-spec.json")"
+# The content columns: from the one past the gutter to the last one the spec sizes. Both come from
+# the spec, so widening the grid moves every assertion built on them.
+content_start="$(jq -r '.sheets[0].columns[0].max + 1' "$PLUGIN_ROOT/engine/workbook-spec.json")"
+content_end="$(jq -r '[.sheets[0].columns[].max] | max' "$PLUGIN_ROOT/engine/workbook-spec.json")"
+
+# 1-based column number to Excel letters: 1 -> A, 27 -> AA.
+letters() {
+  awk -v n="$1" 'BEGIN {
+    out = ""
+    while (n > 0) { r = (n - 1) % 26; out = sprintf("%c", 65 + r) out; n = int((n - 1) / 26) }
+    print out
+  }'
+}
 
 # Every workbook this script can open, by the name Excel knows it as. Closing is BY NAME and never
 # "every workbook": the operator has their own spreadsheets open, `saving no` discards unsaved
@@ -57,7 +71,7 @@ OSA
 }
 
 # A failure part-way through used to leave a LATER workbook open — the handler closed only the first
-# one — and the next run then read the Scorecard out of the stale copy and reported an empty rating,
+# one — and the next run then read the scorecard out of the stale copy and reported an empty rating,
 # blaming the code under test for Excel's state.
 fail() {
   echo "FAIL: $1" >&2
@@ -214,15 +228,17 @@ assert_no_error_values() {
 assert_no_error_values "before planting one"
 
 # Now break it on purpose. A detector that has never fired is indistinguishable from one that cannot.
-SENTINEL_CELL="Z1"
-excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\" to \"=1/0\""
+# Outside the content columns on purpose: planting the sentinel inside them would overwrite a real
+# cell, and clearing it afterwards would not put the value back.
+SENTINEL_CELL="$(letters "$((content_end + 4))")1"
+excel_do "the deliberate error value" "  set formula of range \"$SENTINEL_CELL\" of worksheet \"$SHEET\" of workbook \"$BOOK\" to \"=1/0\""
 planted="$(error_values)"
 case "$planted" in
 *"execution error"* | *"syntax error"*) fail "the error-value check could not run (planted): $planted" ;;
 *"#DIV/0!"*) ;;
-*) fail "the error-value detector did not notice a deliberate #DIV/0! in Deal!$SENTINEL_CELL: [${planted}]" ;;
+*) fail "the error-value detector did not notice a deliberate #DIV/0! in $SHEET!$SENTINEL_CELL: [${planted}]" ;;
 esac
-excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"Deal\" of workbook \"$BOOK\""
+excel_do "clearing the deliberate error value" "  clear contents range \"$SENTINEL_CELL\" of worksheet \"$SHEET\" of workbook \"$BOOK\""
 assert_no_error_values "after clearing the planted one"
 echo "    no Excel error values on any sheet (detector verified: it catches a planted #DIV/0!)"
 
@@ -240,15 +256,6 @@ tell application "Microsoft Excel"
   return ($1) as string
 end tell
 OSA
-}
-
-# 1-based column number to Excel letters: 1 -> A, 27 -> AA.
-letters() {
-  awk -v n="$1" 'BEGIN {
-    out = ""
-    while (n > 0) { r = (n - 1) % 26; out = sprintf("%c", 65 + r) out; n = int((n - 1) / 26) }
-    print out
-  }'
 }
 
 # A cell of a table, by table id, column id and row offset, from the plan's own geometry. `at`
@@ -306,10 +313,6 @@ echo "PASS: Excel recognises the conditional formats and the schema-derived drop
 # rejects, a print setup it ignores, a gridline flag in the wrong place — all of them produce a
 # file that still opens. So ask Excel what it made of them.
 #
-# The title banner spans the content columns, from the one past the gutter to the last one the spec
-# sizes. Both come from the spec, so widening the grid moves this assertion with it.
-content_start="$(jq -r '.sheets[0].columns[0].max + 1' "$PLUGIN_ROOT/engine/workbook-spec.json")"
-content_end="$(jq -r '[.sheets[0].columns[].max] | max' "$PLUGIN_ROOT/engine/workbook-spec.json")"
 title_range="$(letters "$content_start")1:$(letters "$content_end")1"
 merged_title="$(ask "merge cells of range \"$title_range\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
 echo "    $SHEET!$title_range merged: ${merged_title:-<none>}"
@@ -321,13 +324,24 @@ echo "    the title cell reads: ${merged_text:-<empty>}"
 [ -n "$merged_text" ] || fail "the merged title cell is empty — the merge swallowed its value"
 
 # Every cell a merge covers has to carry the merge's own style, or the banner's fill stops at the
-# first column and its border box breaks. Excel reports the interior of a covered cell, so compare
-# the far end of the banner against its anchor.
-title_fill="$(ask "color index of interior of range \"$(letters "$content_start")1\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
-title_fill_end="$(ask "color index of interior of range \"$(letters "$content_end")1\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
-echo "    title fill at the anchor=${title_fill:-<none>} at the far end=${title_fill_end:-<none>}"
-[ -n "${title_fill// /}" ] || fail "could not read the title fill"
-[ "$title_fill" = "$title_fill_end" ] || fail "the banner's fill stops before the far column ($title_fill vs $title_fill_end)"
+# first column and its border box breaks — a defect that is invisible to every assertion above.
+#
+# Asked through the FONT, not the interior: `color of interior` and `color index of interior` both
+# read back "missing value" for a theme fill, which is non-empty and compares equal to itself, so an
+# assertion built on them passes whatever the generator did. The banner's font is white and an
+# unstyled cell's is black, which is a difference Excel will actually report.
+banner_anchor="$(letters "$content_start")1"
+banner_far="$(letters "$content_end")1"
+banner_none="$(letters "$((content_end + 4))")1"
+font_anchor="$(ask "color of font object of range \"$banner_anchor\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+font_far="$(ask "color of font object of range \"$banner_far\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+font_none="$(ask "color of font object of range \"$banner_none\" of worksheet \"$SHEET\" of workbook \"$BOOK\"")"
+echo "    banner font at $banner_anchor=${font_anchor:-<none>} at $banner_far=${font_far:-<none>}, unstyled $banner_none=${font_none:-<none>}"
+[ -n "${font_anchor// /}" ] && [ "$font_anchor" != "missing value" ] || fail "could not read the banner's font colour ($font_anchor)"
+# The styled and unstyled colours must differ, or comparing the two ends of the banner proves
+# nothing: an unstyled sheet would satisfy it everywhere.
+[ "$font_anchor" != "$font_none" ] || fail "a styled banner cell and an unstyled cell read the same font colour ($font_anchor) — this check cannot fail"
+[ "$font_anchor" = "$font_far" ] || fail "the banner's style stops before $banner_far ($font_anchor vs $font_far) — a merge styled only at its anchor"
 
 # A table's header row must NOT be merged into the row above it, which is what a mis-sized span
 # looks like from here.

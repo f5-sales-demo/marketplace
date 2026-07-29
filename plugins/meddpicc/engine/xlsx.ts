@@ -17,7 +17,7 @@
  * That trades a little file size for one fewer part to keep consistent. Excel re-saves them
  * through `sharedStrings.xml` anyway, which the round-trip reader handles.
  */
-import { SECTION_STATUS_LABELS } from './sections';
+import { enumLabel } from './labels';
 import { writeZip } from './zip';
 
 const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -253,17 +253,18 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
     { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'amber' },
     { type: 'cellIs', operator: 'equal', formulas: ['"Green"'], dxf: 'green' },
   ],
-  // Matched against the LABEL the sheet displays, not the JSON value behind it. The two come from
-  // one map so they cannot drift; see SECTION_STATUS_LABELS.
+  // Matched against the LABEL the sheet displays, not the JSON value behind it. Both come from
+  // `enumLabel`, so they cannot drift — a preset quoting `"not_started"` while the cell reads
+  // "Not started" is a colour that never appears and nothing to notice it.
   completionText: [
-    { type: 'cellIs', operator: 'equal', formulas: [`"${SECTION_STATUS_LABELS.complete}"`], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${SECTION_STATUS_LABELS.partial}"`], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${SECTION_STATUS_LABELS.not_started}"`], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('partial')}"`], dxf: 'amber' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('not_started')}"`], dxf: 'red' },
   ],
   statusText: [
-    { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"in_progress"'], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"pending"'], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('in_progress')}"`], dxf: 'amber' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('pending')}"`], dxf: 'red' },
   ],
   // Past its date and not blank. A blank cell is "no date set", not "overdue since 1900".
   overdueDate: [{ type: 'expression', formulas: ['AND(%FIRST%<>"",%FIRST%<TODAY())'], dxf: 'red' }],

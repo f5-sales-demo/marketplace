@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import type { WorkbookPlan } from './generate';
 import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { enumLabel } from './labels';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { specTables, type WorkbookSpec } from './workbook-spec';
 import { A1, COMPLETION_STATUSES, columnIndex } from './xlsx';
@@ -14,6 +15,7 @@ const schema = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'meddp
 const spec = JSON.parse(fs.readFileSync(path.join(here, 'workbook-spec.json'), 'utf8')) as WorkbookSpec;
 const deal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example-deal.json'), 'utf8'));
 
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const plan = planWorkbook(schema, spec, deal);
 /** The workbook is one laid-out sheet, so there is nothing to choose between. */
 const theSheet = () => {
@@ -430,6 +432,43 @@ describe('the completion block is coloured with its own vocabulary', () => {
     for (const status of emitted) {
       expect(COMPLETION_STATUSES).toContain(status);
     }
+  });
+});
+
+describe('an enum reads as words, and the dropdown offers the same words', () => {
+  // `in_progress` is a JSON token. The sheet is read by people in a deal review, and a status column
+  // showing tokens is the defect; the deal JSON keeps the token, because it is the source of truth.
+  const statusOf = (offset: number) => cellAt(table('milestones').ref('status', offset))?.value;
+
+  test('a snake_case status is shown as words', () => {
+    const statuses = (deal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    expect(statuses.some((v) => /_/.test(v))).toBe(true);
+    for (const [i, status] of statuses.entries()) {
+      expect(statusOf(i), `milestone ${i}`).toBe(enumLabel(status));
+      expect(String(statusOf(i)), `milestone ${i}`).not.toMatch(/_/);
+    }
+  });
+
+  test('the dropdown offers exactly what the cells show', () => {
+    // Excel refuses a value that is not in the list — including one it wrote itself. A cell reading
+    // "In progress" under a dropdown offering `in_progress` is a validation error on open.
+    const declared = schema.properties.closePlan.properties.milestones.items.properties.status.enum as string[];
+    const sheet = theSheet();
+    const cell = table('milestones').ref('status', 0);
+    const validation = sheet.validations?.find((v) => v.sqref.split(':')[0] === cell);
+    expect(validation, `no dropdown at ${cell}`).toBeDefined();
+    expect(validation?.values).toEqual(declared.map(enumLabel));
+    expect(validation?.values).toContain(String(statusOf(0)));
+  });
+
+  test('free text is not relabelled, even when it reads like a status', () => {
+    // The label table is applied to enum MEMBERS only. Mapping every string through it would turn a
+    // note that happens to say "pending" into "Pending" — prose is not a status.
+    const withProse = clone(deal);
+    withProse.qualification.metrics.evidence = 'pending';
+    const p = planWorkbook(schema, spec, withProse);
+    const evidence = p.inputCells.find((c) => c.jsonPath === 'qualification.metrics.evidence');
+    expect(cellOf(p, evidence?.address ?? '')?.value).toBe('pending');
   });
 });
 
