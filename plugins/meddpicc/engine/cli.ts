@@ -140,7 +140,7 @@ async function main(): Promise<number> {
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write(
-        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--spec <workbook-spec.json>]\n',
+        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>]\n',
       );
       return 1;
     }
@@ -166,6 +166,34 @@ async function main(): Promise<number> {
       process.stderr.write(`Refusing to generate: ${dealPath} does not validate against the schema.\n`);
       print(dealCheck);
       return 1;
+    }
+
+    // Every prose cell, the width its height was computed against, and the height that row ended up
+    // with. Only Excel can say whether a computed height is enough — it autofits a wrapped cell but
+    // not a merged one, and nearly every prose cell here is merged — so the acceptance test copies
+    // each string into a scratch cell of the same width, autofits it, and compares.
+    if (rest.includes('--prose-heights')) {
+      const plan = planWorkbook(schema, spec, deal);
+      const heightOf = new Map<string, number>();
+      for (const sheet of plan.sheets) {
+        for (const row of sheet.rows) heightOf.set(`${sheet.name}!${row.row}`, row.height ?? 0);
+      }
+      const withNewlines = plan.proseCells.filter((c) => c.text.includes('\n'));
+      for (const cell of plan.proseCells) {
+        // A tab-separated line, text last, so a shell can read it field by field. A text containing a
+        // newline would break that, and measuring a mangled copy of it would be worse than not
+        // measuring it — so those are reported on stderr and left out.
+        if (cell.text.includes('\n')) continue;
+        const height = heightOf.get(`${cell.sheet}!${cell.row}`) ?? 0;
+        process.stdout.write(`${cell.address}\t${cell.width}\t${height}\t${cell.text}\n`);
+      }
+      if (withNewlines.length > 0) {
+        process.stderr.write(
+          `${withNewlines.length} prose cell(s) contain a newline and were not reported: ` +
+            `${withNewlines.map((c) => c.address).join(', ')}\n`,
+        );
+      }
+      return 0;
     }
 
     // `--plan` reports where every input landed without writing a file — that map is what

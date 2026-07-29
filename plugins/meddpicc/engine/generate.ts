@@ -197,10 +197,29 @@ export interface Anchor {
   text: string;
 }
 
+/** A wrapped cell whose row height had to be computed rather than autofitted. */
+export interface ProseCell {
+  sheet: string;
+  address: string;
+  row: number;
+  /** Total width of the merged span, in characters of the default font. */
+  width: number;
+  text: string;
+}
+
 export interface WorkbookPlan {
   sheets: SheetSpec[];
   /** Cells whose text the reader verifies before trusting any address. */
   anchors: Anchor[];
+  /**
+   * Every prose cell whose row height was computed, with the width it was computed against.
+   *
+   * Excel autofits a wrapped cell but not a merged one, and nearly every prose cell here is merged —
+   * so if the computation is short the text is clipped with nothing to notice. Arithmetic cannot
+   * settle whether it was enough; only Excel's own font metrics can. This is what the acceptance test
+   * measures against them.
+   */
+  proseCells: ProseCell[];
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
   /** Every table's geometry, keyed by the spec's table id. */
@@ -550,6 +569,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
   const inputCells: InputCell[] = [];
   const anchors: Anchor[] = [];
+  const proseCells: ProseCell[] = [];
   const sheets: SheetSpec[] = [];
   /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
   const writtenCells: string[] = [];
@@ -638,7 +658,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             // Excel autofits a wrapped cell but not a merged one, and every span over one column is
             // merged — so a prose cell's row has to be measured here or its text is simply cut off.
             if (cell.valueType === 'text' && typeof value === 'string') {
-              needHeight(row, estimateRowHeight(value, spanWidth(column, cell.span), ROW_HEIGHT));
+              const width = spanWidth(column, cell.span);
+              needHeight(row, estimateRowHeight(value, width, ROW_HEIGHT));
+              proseCells.push({ sheet: s.name, address: ref, row, width, text: value });
             }
             if (cell.validate) {
               const values = validationValues(schema, cell.jsonPath, cell.valueType);
@@ -732,7 +754,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             push(dataRow, { ref, value, style });
             inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: spec.valueType });
             if (spec.valueType === 'text' && typeof value === 'string') {
-              needHeight(dataRow, estimateRowHeight(value, spanWidth(column, span), ROW_HEIGHT));
+              const width = spanWidth(column, span);
+              needHeight(dataRow, estimateRowHeight(value, width, ROW_HEIGHT));
+              proseCells.push({ sheet: s.name, address: ref, row: dataRow, width, text: value });
             }
             continue;
           }
@@ -751,7 +775,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             anchors.push({ sheet: s.name, address: ref, text: derived });
           }
           if (spec.valueType === 'text' && typeof derived === 'string') {
-            needHeight(dataRow, estimateRowHeight(derived, spanWidth(column, span), ROW_HEIGHT));
+            const width = spanWidth(column, span);
+            needHeight(dataRow, estimateRowHeight(derived, width, ROW_HEIGHT));
+            proseCells.push({ sheet: s.name, address: ref, row: dataRow, width, text: derived });
           }
         }
 
@@ -787,6 +813,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
   return {
     anchors,
+    proseCells,
     writtenCells,
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),

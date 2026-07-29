@@ -26,7 +26,15 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
-import { dateToSerial, planWorkbook, schemaHash, type WorkbookPlan, workbookFingerprint } from './generate';
+import {
+  BOOLEAN_NO,
+  BOOLEAN_YES,
+  dateToSerial,
+  planWorkbook,
+  schemaHash,
+  type WorkbookPlan,
+  workbookFingerprint,
+} from './generate';
 import { readPath, writePath } from './json-path';
 import { canonicalEnumValue } from './labels';
 import { schemaConstraint } from './schema-path';
@@ -210,15 +218,22 @@ type Coerced = { value: string | number | boolean | undefined } | { error: strin
  * types. Accepting all of them costs nothing; refusing "Yes" in a sheet that offered it in a dropdown
  * would be indefensible.
  */
+/**
+ * The only two spellings a boolean cell may hold — the two the dropdown offers, and the two the
+ * scorecard counts.
+ *
+ * TRUE, Y and 1 were accepted here once, on the reasoning that a reader should be forgiving. They
+ * cannot be: `COUNTIF(range,"Yes")` counts the WORD, so accepting one of them put the deal and the
+ * sheet in front of it into disagreement — the cell read TRUE, the count beside it did not include it,
+ * and nothing said so until the workbook was regenerated. A plausible-looking, wrong deal review is
+ * worse than a refusal that names the cell.
+ *
+ * Excel turns a typed TRUE into a logical value stored as `t="b"`, which `coerce` renders as the text
+ * "TRUE" — so the same rule covers both the typed and the stored form.
+ */
 const BOOLEAN_WORDS: Record<string, boolean> = {
-  TRUE: true,
-  FALSE: false,
-  YES: true,
-  NO: false,
-  Y: true,
-  N: false,
-  '1': true,
-  '0': false,
+  [BOOLEAN_YES.toUpperCase()]: true,
+  [BOOLEAN_NO.toUpperCase()]: false,
 };
 
 function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
@@ -236,7 +251,9 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
     case 'boolean': {
       const word = raw?.type === 'b' ? (text === '1' ? 'TRUE' : 'FALSE') : text.trim().toUpperCase();
       const value = BOOLEAN_WORDS[word];
-      return value === undefined ? { error: `must be Yes or No, not "${text}"` } : { value };
+      return value === undefined
+        ? { error: `must be ${BOOLEAN_YES} or ${BOOLEAN_NO}, not "${text}" — those are the two the dropdown offers` }
+        : { value };
     }
 
     case 'date': {

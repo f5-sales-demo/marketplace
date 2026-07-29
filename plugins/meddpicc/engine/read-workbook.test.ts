@@ -733,25 +733,63 @@ describe('rows below a table that cannot grow', () => {
 });
 
 describe('booleans', () => {
-  test('a boolean cell round-trips both ways', () => {
+  test('a boolean cell round-trips both ways, through the words the sheet shows', () => {
+    // The `t="b"` form this used to exercise is now REFUSED — see "a real Excel boolean is refused
+    // too". A logical value in the cell disagrees with the formula that counts the word, and nothing
+    // Excel does on its own turns our text into one, so it can only be somebody typing or pasting.
     const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
     expect(exampleDeal.stakeholders[0].mustSayYes).toBe(true);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, BOOLEAN_NO));
+    expect(report.proposals).toHaveLength(1);
+    expect(report.proposals[0]).toMatchObject({ from: true, to: false });
+
+    // …and back again, from the deal that produced.
+    const back = read(report.deal, setText(generateWorkbook(schema, spec, report.deal), sheet, address, BOOLEAN_YES));
+    expect(back.proposals).toHaveLength(1);
+    expect(back.proposals[0]).toMatchObject({ from: false, to: true });
+  });
+
+  test('the two words the dropdown offers are understood, in any case', () => {
+    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
+    for (const [typed, expected] of [
+      [BOOLEAN_NO, false],
+      [BOOLEAN_NO.toUpperCase(), false],
+      [` ${BOOLEAN_NO.toLowerCase()} `, false],
+    ] as const) {
+      const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, typed));
+      expect(report.rejections, typed).toEqual([]);
+      expect(report.proposals[0], typed).toMatchObject({ to: expected });
+    }
+  });
+
+  test('a spelling the sheet cannot show is refused, not quietly accepted', () => {
+    // TRUE, Y and 1 all used to read as true. The scorecard counts the WORD, so accepting one of them
+    // put the deal and the sheet in front of it into disagreement: the cell said TRUE, the count
+    // beside it did not include it, and neither would say so until the workbook was regenerated. A
+    // dropdown stops it being typed; paste goes around a dropdown. So the reader refuses it and names
+    // the cell, which is what it does with every other value it cannot show.
+    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
+    for (const typed of ['TRUE', 'FALSE', 'Y', 'N', '1', '0']) {
+      const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, typed));
+      expect(report.proposals, typed).toEqual([]);
+      expect(report.rejections, typed).toHaveLength(1);
+      expect(report.rejections[0].reason, typed).toContain(BOOLEAN_YES);
+    }
+  });
+
+  test('a real Excel boolean is refused too — that is what typing TRUE becomes', () => {
+    // Excel converts a typed TRUE into a logical value stored as `t="b"`, so refusing only the text
+    // form would leave the whole case open through the door Excel itself opens.
+    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
     const edited = withCell(
       generateWorkbook(schema, spec, exampleDeal),
       sheet,
       address,
-      `<c r="${address}" t="b"><v>0</v></c>`,
+      `<c r="${address}" t="b"><v>1</v></c>`,
     );
     const report = read(exampleDeal, edited);
-    expect(report.proposals).toHaveLength(1);
-    expect(report.proposals[0]).toMatchObject({ from: true, to: false });
-  });
-
-  test('a boolean typed as a word is understood', () => {
-    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
-    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'FALSE'));
-    expect(report.rejections).toEqual([]);
-    expect(report.proposals[0]).toMatchObject({ to: false });
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toHaveLength(1);
   });
 
   test('a word that is not a boolean is refused', () => {

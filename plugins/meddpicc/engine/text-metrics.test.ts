@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { displayWidth, estimateRowHeight, LINE_HEIGHT, wrappedLineCount } from './text-metrics';
+import { displayWidth, estimateRowHeight, LINE_HEIGHT, MAX_ROW_HEIGHT, wrappedLineCount } from './text-metrics';
 
 describe('displayWidth', () => {
   test('counts a Latin string by its characters', () => {
@@ -109,8 +109,80 @@ describe('estimateRowHeight', () => {
     expect(estimateRowHeight(words, 20, 15)).toBeGreaterThan(bare);
   });
 
-  test('is not capped: very long prose gets a very tall row', () => {
+  test('a long paragraph gets a genuinely tall row, up to what Excel allows', () => {
+    // This asserted "not capped" while the estimator promised to be uncapped. Excel's own maximum row
+    // height is 409.5 points, so a taller `ht` was never honoured — it was reinterpreted, trading an
+    // honest tall row for a silently clipped one. Generous up to the ceiling is the keepable promise.
     const long = estimateRowHeight('a'.repeat(4000), 20, 24);
-    expect(long).toBeGreaterThan(2000);
+    expect(long).toBeGreaterThan(24 * 4);
+    expect(long).toBeLessThanOrEqual(MAX_ROW_HEIGHT);
+  });
+});
+
+describe('wrapping happens on word boundaries, as Excel does it', () => {
+  test('words that cannot share a line each take one', () => {
+    // Twenty 30-character tokens in a 42-character cell. Character arithmetic says
+    // ceil(619 / 42) = 15 lines; Excel puts each token on its own line, because two of them plus a
+    // space do not fit. Five lines of evidence hidden in a merged cell that cannot autofit.
+    const token = 'x'.repeat(30);
+    const text = Array.from({ length: 20 }, () => token).join(' ');
+    expect(wrappedLineCount(text, 42)).toBe(20);
+  });
+
+  test('words that do share a line are packed, not counted one each', () => {
+    // The opposite error: a line per word would make every ordinary paragraph enormous.
+    expect(wrappedLineCount('a b c d e f g h', 20)).toBe(1);
+    expect(wrappedLineCount('aaaa bbbb cccc dddd', 10)).toBe(2);
+  });
+
+  test('a single word longer than the line is broken across lines', () => {
+    // Excel breaks it rather than overflowing, so the count has to as well.
+    expect(wrappedLineCount('x'.repeat(100), 10)).toBe(10);
+    expect(wrappedLineCount('x'.repeat(101), 10)).toBe(11);
+  });
+
+  test('a wide character still counts as two columns when wrapping by word', () => {
+    // Ten Hangul syllables are twenty columns wide, so they need two lines of ten.
+    expect(wrappedLineCount('가'.repeat(10), 10)).toBe(2);
+  });
+
+  test('a narrower column never needs fewer lines', () => {
+    // The property that has to hold whatever the wrapping rule is. Character arithmetic is NOT the
+    // floor, incidentally: two forty-character words in an eight-wide cell take ten lines, while
+    // dividing eighty-one characters by eight says eleven — a space at a line break costs nothing.
+    const samples = [
+      'short',
+      'a somewhat longer sentence with several ordinary words in it',
+      `${'y'.repeat(40)} ${'z'.repeat(40)}`,
+      'one\ntwo\nthree',
+      '가'.repeat(30),
+    ];
+    for (const text of samples) {
+      const widths = [80, 42, 20, 13, 8];
+      for (let i = 1; i < widths.length; i++) {
+        expect(
+          wrappedLineCount(text, widths[i]),
+          `${text.slice(0, 20)} at ${widths[i]} vs ${widths[i - 1]}`,
+        ).toBeGreaterThanOrEqual(wrappedLineCount(text, widths[i - 1]));
+      }
+    }
+  });
+});
+
+describe('estimateRowHeight and Excel’s own ceiling', () => {
+  test('a row never asks for more than Excel can give', () => {
+    // Excel's maximum row height is 409.5 points. A larger `ht` is not honoured — the promise to err
+    // generous stops being keepable there, so the value written has to be one Excel accepts rather
+    // than one it silently reinterprets.
+    const huge = 'word '.repeat(4000);
+    expect(estimateRowHeight(huge, 20, 24)).toBeLessThanOrEqual(MAX_ROW_HEIGHT);
+    expect(estimateRowHeight(huge, 20, 24)).toBe(MAX_ROW_HEIGHT);
+  });
+
+  test('an ordinary prose cell is nowhere near the ceiling', () => {
+    // Otherwise the cap above would be doing the work in the normal case, and the estimate would be
+    // meaningless rather than merely bounded.
+    const ordinary = 'CTO confirmed the MTTR target in email 2026-04-15. Baseline data shared from the dashboard.';
+    expect(estimateRowHeight(ordinary, 42, 24)).toBeLessThan(MAX_ROW_HEIGHT / 2);
   });
 });

@@ -413,6 +413,73 @@ echo "    print orientation: ${orientation:-<none>}, fit to pages wide/tall: ${f
 [ "$fit_tall" = "0" ] || fail "expected unlimited page height, Excel reports '$fit_tall'"
 echo "PASS: Excel accepts the merges, hides the grid and honours the print setup"
 
+# ── Row heights, measured against Excel rather than argued about ────────────────────────────────
+#
+# Excel autofits a wrapped cell but NOT a merged one, and nearly every prose cell here is merged. So
+# the generator computes each height, and if it computes short the text is clipped with nothing to
+# notice: no error, no marker, just a sentence that ends early.
+#
+# Arithmetic cannot settle whether it computed enough — only Excel's own font metrics can. So each
+# prose string is copied into a scratch cell of the same width in an UNMERGED column, Excel is asked
+# to autofit that row, and its answer is compared with the height we wrote. Ours must be at least as
+# tall.
+#
+# The scratch cell sits beyond the content in both directions, so it is off-screen for the
+# screenshots below, and every measurement clears it and restores the row height afterwards.
+scratch_col="$(letters "$((content_end + 8))")"
+scratch_row=$(($(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan | jq -r '.sheets[0].rows') + 40))
+height_failures=0
+height_checked=0
+
+# `autofit (entire row of r)` — `autofit row N of ws` raises -10006 and `autofit range "…"` raises
+# -50, and both of those return empty text that awk turns into 0, which compares as "Excel wants
+# nothing" and makes this whole stage pass unconditionally. Verified by running it against a
+# deliberately under-allocating estimator: it reports SHORT for 61 of 83 cells.
+measure_height() {
+  local text="$1" width="$2" ref="${scratch_col}${scratch_row}"
+  osascript 2>&1 <<OSA
+tell application "Microsoft Excel"
+  set r to range "$ref" of worksheet "$SHEET" of workbook "$BOOK"
+  set column width of r to $width
+  set wrap text of r to true
+  set value of r to "$text"
+  autofit (entire row of r)
+  set h to (height of r)
+  clear contents r
+  set row height of r to 15
+  return h as string
+end tell
+OSA
+}
+
+prose_rows="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --prose-heights)" || fail "generate --prose-heights failed"
+[ -n "$prose_rows" ] || fail "the plan reports no prose cells, so this stage cannot fail"
+while IFS=$'\t' read -r ref width ours text; do
+  [ -n "$ref" ] || continue
+  # A quote or a backslash in the text would end the AppleScript string early, so refuse rather than
+  # measure something else and call it a pass.
+  case "$text" in
+  *'"'* | *[\\]*) fail "the prose at $ref contains a quote or backslash; the measurement cannot carry it verbatim" ;;
+  esac
+  theirs="$(measure_height "$text" "$width")"
+  case "$theirs" in
+  *"execution error"* | *"syntax error"*) fail "the height measurement could not run at $ref: $theirs" ;;
+  esac
+  [ -n "${theirs// /}" ] || fail "the height measurement returned nothing at $ref"
+  height_checked=$((height_checked + 1))
+  # Excel reports a float; compare as tenths so the shell never does float arithmetic.
+  ours_tenths="$(awk -v v="$ours" 'BEGIN { printf "%d", v * 10 }')"
+  theirs_tenths="$(awk -v v="$theirs" 'BEGIN { printf "%d", v * 10 }')"
+  if [ "$theirs_tenths" -gt "$ours_tenths" ]; then
+    echo "    SHORT $ref: ours=${ours}pt, Excel wants ${theirs}pt (${#text} characters at width $width)"
+    height_failures=$((height_failures + 1))
+  fi
+done <<<"$prose_rows"
+[ "$height_checked" -gt 0 ] || fail "the height stage measured nothing — it cannot fail as written"
+echo "    measured $height_checked prose cell(s) against Excel's own autofit"
+[ "$height_failures" = "0" ] || fail "$height_failures prose cell(s) are shorter than Excel needs — text is clipped"
+echo "PASS: every computed row height is at least what Excel's autofit asks for"
+
 # ── Screenshots ────────────────────────────────────────────────────────────────────────────────
 #
 # Everything above proves the workbook COMPUTES. None of it can see the sheet, and the current work
@@ -793,11 +860,15 @@ wait_until_ready "$RT_BOOK" "$(at metadata.accountName sheet)" "$(at metadata.ac
 # component. So each step is now checked on its own terms.
 #
 # `range`, not `cell`: reads work through either, but a write through `cell` fails.
+#
+# The boolean is typed as the WORD, which is what the dropdown offers and what the scorecard counts.
+# Writing `false` here made Excel store a logical value, which the reader refuses for exactly that
+# reason: the cell would say FALSE while the count beside it went on including it.
 excel_do "the four hand edits" "  set wb to workbook \"$RT_BOOK\"
   set value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb to \"Globex Corporation\"
   set value of range \"$(at qualification.champion.score address)\" of worksheet \"$(at qualification.champion.score sheet)\" of wb to 2
   set value of range \"$(at metadata.closeDate address)\" of worksheet \"$(at metadata.closeDate sheet)\" of wb to \"2026-09-15\"
-  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to false
+  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to \"No\"
   if ((get value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb) as string) is not \"Globex Corporation\" then error \"the accountName write did not take in the open workbook\""
 
 # What the file looked like before Excel was asked to save it.
