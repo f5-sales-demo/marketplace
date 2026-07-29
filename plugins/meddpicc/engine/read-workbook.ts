@@ -30,6 +30,7 @@ import {
   BOOLEAN_NO,
   BOOLEAN_YES,
   dateToSerial,
+  type InputCell,
   planWorkbook,
   schemaHash,
   type WorkbookPlan,
@@ -279,6 +280,29 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
   }
 }
 
+/**
+ * One cell in the DEAL's own terms: coerced by type, then an enum label mapped back to its token.
+ *
+ * The translation belongs here rather than at the call site because more than one caller compares a
+ * cell against the deal. The cell shows a label — "In progress" — and the deal holds `in_progress`;
+ * comparing those two directly makes every generated workbook read back as an edit on its own status
+ * cells, and made the re-order guard silently exempt every column the workbook displays differently.
+ * Either spelling is accepted: a rep may type what the dropdown offers or what they have seen in the
+ * JSON.
+ */
+function readCell(raw: RawCell | undefined, valueType: ValueType, schema: unknown, jsonPath: string): Coerced {
+  const coerced = coerce(raw, valueType);
+  if ('error' in coerced) return coerced;
+  if (typeof coerced.value === 'string') {
+    const enumeration = schemaConstraint(schema, jsonPath)?.enum;
+    if (enumeration) {
+      const canonical = canonicalEnumValue(coerced.value);
+      if (canonical !== undefined && enumeration.includes(canonical)) return { value: canonical };
+    }
+  }
+  return coerced;
+}
+
 /** Why the schema refuses this value at this path, or null. */
 function schemaError(schema: unknown, jsonPath: string, value: string | number | boolean): string | null {
   const constraint = schemaConstraint(schema, jsonPath);
@@ -363,17 +387,22 @@ function reorderedColumns(
   plan: WorkbookPlan,
   deal: unknown,
   cells: Map<string, Map<string, RawCell>>,
+  schema: unknown,
 ): CellRejection[] {
   /** `list[].field` -> the cells of that column, in row order. */
-  const columns = new Map<string, Array<{ jsonPath: string; sheet: string; address: string }>>();
+  const columns = new Map<string, InputCell[]>();
   for (const input of plan.inputCells) {
     const parts = /^(.*)\[(\d+)\]\.(.+)$/.exec(input.jsonPath);
     if (!parts) continue;
     const key = `${parts[1]}[].${parts[3]}`;
     const list = columns.get(key) ?? [];
-    list.push({ jsonPath: input.jsonPath, sheet: input.sheet, address: input.address });
+    list.push(input);
     columns.set(key, list);
   }
+
+  /** A value as a string that can be compared with another, blank for "nothing here". */
+  const comparable = (value: unknown) =>
+    value === undefined || value === null ? '' : typeof value === 'string' ? value.trim() : String(value);
 
   const out: CellRejection[] = [];
   for (const [key, column] of columns) {
@@ -381,15 +410,25 @@ function reorderedColumns(
     const inSheet: string[] = [];
     const inDeal: string[] = [];
     let differing = 0;
+    let unreadable = false;
     for (const cell of column) {
-      const text = (cells.get(cell.sheet)?.get(cell.address)?.text ?? '').trim();
-      const held = readPath(deal, cell.jsonPath);
-      const current = typeof held === 'string' ? held.trim() : held === undefined || held === null ? '' : String(held);
+      // In the DEAL's terms, not the sheet's. Comparing raw text against the deal left every column
+      // the workbook displays differently — every enum, boolean and date — silently unchecked, because
+      // "In progress" and `in_progress` can never form the same multiset.
+      const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath);
+      if ('error' in read) {
+        // A value this reader cannot make sense of is rejected by the main loop with a better message
+        // than this guard could give, so leave the whole column to it.
+        unreadable = true;
+        break;
+      }
+      const text = comparable(read.value);
+      const current = comparable(readPath(deal, cell.jsonPath));
       if (text !== current) differing++;
       if (text !== '') inSheet.push(text);
       if (current !== '') inDeal.push(current);
     }
-    if (differing < 2 || inSheet.length !== inDeal.length) continue;
+    if (unreadable || differing < 2 || inSheet.length !== inDeal.length) continue;
     const sortedSheet = [...inSheet].sort();
     const sortedDeal = [...inDeal].sort();
     if (sortedSheet.some((v, i) => v !== sortedDeal[i])) continue;
@@ -571,7 +610,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   // re-ordered — nobody edits two people's names into each other's, and no ordinary edit leaves the
   // multiset unchanged. So that pattern is refused by name while every real edit, which changes the
   // set, passes untouched.
-  const reordered = reorderedColumns(plan, working, cells);
+  const reordered = reorderedColumns(plan, working, cells, schema);
   if (reordered.length > 0) {
     return {
       ok: false,
@@ -603,21 +642,10 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       continue;
     }
 
-    const coerced = coerce(raw, valueType);
+    const coerced = readCell(raw, valueType, schema, jsonPath);
     if ('error' in coerced) {
       reject(coerced.error);
       continue;
-    }
-    // The cell shows a label — "In progress" — and the deal holds `in_progress`. Translate before
-    // anything compares the two, or every generated workbook would read back as an edit on its own
-    // status cells. Either spelling is accepted: a rep may type what the dropdown offers or what
-    // they have seen in the JSON.
-    if (typeof coerced.value === 'string') {
-      const enumeration = schemaConstraint(schema, jsonPath)?.enum;
-      if (enumeration) {
-        const canonical = canonicalEnumValue(coerced.value);
-        if (canonical !== undefined && enumeration.includes(canonical)) coerced.value = canonical;
-      }
     }
 
     const current = readPath(working, jsonPath);

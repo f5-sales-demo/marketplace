@@ -1079,6 +1079,78 @@ describe('one column of a list, re-ordered, is refused', () => {
   test('an untouched workbook is not accused of being re-ordered', () => {
     expect(read(exampleDeal, generateWorkbook(schema, spec, exampleDeal)).ok).toBe(true);
   });
+
+  test('a column whose cells LOOK different from the deal is checked too', () => {
+    // The first version of this guard compared the cell's raw text against the deal's value, so every
+    // column the workbook displays differently was silently exempt: "In progress" against
+    // `in_progress`, "Yes" against `true`, a date serial against an ISO date. Their multisets could
+    // never match, so a re-ordered status column sailed through.
+    //
+    // Measured before the fix: swapping two milestone statuses gave `ok` true, no rejections, and each
+    // status attached to the wrong milestone — while still validating against the schema.
+    const statuses = (exampleDeal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    expect(new Set(statuses).size).toBeGreaterThan(1);
+    const first = statuses.indexOf(statuses[0]);
+    const other = statuses.findIndex((v) => v !== statuses[0]);
+    const a = addressOf(exampleDeal, `closePlan.milestones[${first}].status`);
+    const b = addressOf(exampleDeal, `closePlan.milestones[${other}].status`);
+    const report = read(
+      exampleDeal,
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections[0].jsonPath).toContain('status');
+  });
+
+  test('two dates swapped are caught, serials and all', () => {
+    const dates = (exampleDeal.closePlan.milestones as Array<{ targetDate: string }>).map((m) => m.targetDate);
+    expect(new Set(dates).size).toBeGreaterThan(1);
+    const a = addressOf(exampleDeal, 'closePlan.milestones[0].targetDate');
+    const b = addressOf(exampleDeal, 'closePlan.milestones[1].targetDate');
+    expect(
+      read(exampleDeal, swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address)).ok,
+    ).toBe(false);
+  });
+
+  test('a column holding a value nobody can read is left to the main loop', () => {
+    // Otherwise this guard reports on a column it only partly understood: it would compare the cells
+    // above the unreadable one, and if those happened to be a permutation it would blame a re-order
+    // while the real problem was the value it could not read. The run still fails and still writes
+    // nothing — it fails with the message that names the actual cell.
+    // The swapped pair has to come BEFORE the unreadable cell, or the scan stops before it has seen
+    // two differing values and `differing < 2` would skip the column either way — which is how the
+    // first version of this test passed with the guard removed.
+    const flags = (exampleDeal.stakeholders as Array<{ canSayNo?: boolean }>).map((s) => s.canSayNo);
+    const pair = [flags.findIndex((v) => v === true), flags.findIndex((v) => v === false)].sort((a, b) => a - b);
+    const spoiled = flags.findIndex((_, i) => i > pair[1]);
+    expect(spoiled).toBeGreaterThan(pair[1]);
+    let bytes = swapCells(
+      generateWorkbook(schema, spec, exampleDeal),
+      SHEET,
+      addressOf(exampleDeal, `stakeholders[${pair[0]}].canSayNo`).address,
+      addressOf(exampleDeal, `stakeholders[${pair[1]}].canSayNo`).address,
+    );
+    const bad = addressOf(exampleDeal, `stakeholders[${spoiled}].canSayNo`);
+    bytes = setText(bytes, bad.sheet, bad.address, 'sort of');
+    const report = read(exampleDeal, bytes);
+    expect(report.ok).toBe(false);
+    expect(report.rejections.some((r) => r.address === bad.address)).toBe(true);
+    expect(report.rejections.every((r) => !/order/i.test(r.reason))).toBe(true);
+  });
+
+  test('two booleans swapped are caught, Yes and No and all', () => {
+    const flags = (exampleDeal.stakeholders as Array<{ mustSayYes?: boolean }>).map((s) => s.mustSayYes);
+    const yes = flags.indexOf(true);
+    const no = flags.indexOf(false);
+    expect(yes).toBeGreaterThanOrEqual(0);
+    expect(no).toBeGreaterThanOrEqual(0);
+    const a = addressOf(exampleDeal, `stakeholders[${yes}].mustSayYes`);
+    const b = addressOf(exampleDeal, `stakeholders[${no}].mustSayYes`);
+    expect(
+      read(exampleDeal, swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address)).ok,
+    ).toBe(false);
+  });
 });
 
 describe('a status typed as words reads back as the JSON value', () => {
