@@ -970,3 +970,34 @@ describe('the colour rules paint only what needs attention', () => {
     expect(Object.keys(STYLE_IDS)).not.toContain('ragGreen');
   });
 });
+
+describe('a rule and its row range have to agree', () => {
+  const build = (format: { sqref: string; preset: CfPreset; rowRange?: string }) =>
+    buildWorkbook([
+      {
+        name: 'Data',
+        rows: [{ row: 2, cells: [{ ref: 'B2', value: 'x' }] }],
+        conditionalFormats: [format],
+      },
+    ]);
+
+  test('a rule that asks about the row cannot be emitted without one', () => {
+    // Left to resolve to nothing it would emit `COUNTA()>0`, which Excel takes as a formula error and
+    // shows as a rule that simply never fires — a wash that is missing with nothing to say why.
+    expect(() => build({ sqref: 'B2:B5', preset: 'missingInRow' })).toThrow(/rowRange/);
+  });
+
+  test('a row range on a rule that does not use it is refused', () => {
+    // Data nothing reads is data that lies: it would look as though the rule had been scoped.
+    expect(() => build({ sqref: 'B2:B5', preset: 'missing', rowRange: '$B2:$Q2' })).toThrow(/rowRange/);
+  });
+
+  test('given one, it is substituted into the formula as written', () => {
+    const xml = dec(
+      readZip(build({ sqref: 'B2:B5', preset: 'missingInRow', rowRange: '$B2:$Q2' })).get('xl/worksheets/sheet1.xml')
+        ?.data as Uint8Array,
+    );
+    expect(xml).toContain('COUNTA($B2:$Q2)');
+    expect(xml).not.toContain('%ROW%');
+  });
+});

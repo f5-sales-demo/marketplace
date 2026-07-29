@@ -233,7 +233,15 @@ export const DXF_IDS: Record<DxfName, number> = Object.fromEntries(DXF_ORDER.map
  * `%FIRST%` is replaced with the first cell of the range, which is how an expression rule
  * refers to "this cell" — Excel evaluates it relatively across the range.
  */
-export type CfPreset = 'score' | 'delta' | 'ragText' | 'statusText' | 'completionText' | 'overdueDate' | 'missing';
+export type CfPreset =
+  | 'score'
+  | 'delta'
+  | 'ragText'
+  | 'statusText'
+  | 'completionText'
+  | 'overdueDate'
+  | 'missing'
+  | 'missingInRow';
 
 /**
  * The section statuses `computeCompletion` emits.
@@ -292,11 +300,40 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
   // cell holding a space reads as empty: it is empty to every rule that consults it, and a wash that
   // disappears when somebody presses the space bar would be worse than none.
   missing: [{ type: 'expression', formulas: ['LEN(TRIM(%FIRST%))=0'], dxf: 'urgent' }],
+  // The same, for a row of a table — and it fires only once the row has been STARTED.
+  //
+  // A list keeps blank rows below its entries so there is somewhere to type, and a conditional-format
+  // range does not grow when somebody uses one. Ending the range at the last existing entry left the
+  // wash missing in the case it is most use — a half-entered stakeholder, whose blank title is then
+  // refused on read-back with a schema error rather than shown as a gap while it is being typed. And
+  // covering those rows unconditionally would open every new deal as a column of washes asking for work
+  // nobody owes yet. So the range covers the whole capacity and `%ROW%` decides: something else on this
+  // row means the row is real.
+  //
+  // On a keyed table every row carries its key, so the second half is always true and this behaves
+  // exactly like `missing`.
+  //
+  // One thing to know before putting this on a list that has a computed column: COUNTA counts a formula
+  // cell even when the formula returns "", so every row of such a table reads as started and its spare
+  // rows would wash. No shipped table is in that position — the tables with formulas are the keyed ones,
+  // where every row is real anyway.
+  missingInRow: [{ type: 'expression', formulas: ['AND(LEN(TRIM(%FIRST%))=0,COUNTA(%ROW%)>0)'], dxf: 'urgent' }],
 };
+
+/** The placeholder a rule uses to mean "the row this cell is on, across its own table". */
+const ROW_PLACEHOLDER = '%ROW%';
 
 export interface ConditionalFormat {
   sqref: string;
   preset: CfPreset;
+  /**
+   * What `%ROW%` stands for: the cell's own row, across the columns of the table it belongs to.
+   *
+   * Write the columns absolute and the row relative — `$B56:$Q56` — so Excel moves it down the range
+   * and never sideways. Scoped to one table on purpose: two tables share a band of rows, and a range
+   * spanning the sheet would let the milestones decide whether a critical action's row had been started.
+   */
+  rowRange?: string;
 }
 
 export interface Validation {
@@ -600,10 +637,29 @@ function conditionalFormattingXml(formats: ConditionalFormat[] | undefined): str
   return formats
     .map((format) => {
       const first = format.sqref.split(':')[0];
+      const wantsRow = CF_PRESETS[format.preset].some((rule) => rule.formulas.some((f) => f.includes(ROW_PLACEHOLDER)));
+      if (wantsRow && !format.rowRange) {
+        throw new Error(
+          `The "${format.preset}" format on ${format.sqref} needs a rowRange to resolve ${ROW_PLACEHOLDER}`,
+        );
+      }
+      if (!wantsRow && format.rowRange) {
+        // Data nothing reads is data that lies: a rowRange here would look like it scoped the rule.
+        throw new Error(`The "${format.preset}" format on ${format.sqref} was given a rowRange it does not use`);
+      }
       const rules = CF_PRESETS[format.preset]
         .map((rule) => {
           const formulas = rule.formulas
-            .map((f) => `<formula>${escapeXml(f.split('%FIRST%').join(first))}</formula>`)
+            .map(
+              (f) =>
+                `<formula>${escapeXml(
+                  f
+                    .split('%FIRST%')
+                    .join(first)
+                    .split(ROW_PLACEHOLDER)
+                    .join(format.rowRange ?? ''),
+                )}</formula>`,
+            )
             .join('');
           const operator = rule.operator ? ` operator="${rule.operator}"` : '';
           return `<cfRule type="${rule.type}"${operator} dxfId="${DXF_IDS[rule.dxf]}" priority="${priority++}">${formulas}</cfRule>`;

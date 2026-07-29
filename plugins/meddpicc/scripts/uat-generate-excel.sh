@@ -469,6 +469,35 @@ esac
 assert_warm_and_faint "the empty-cell wash" "$(cut -d'|' -f4 <<<"$evidence_rules" | head -1)"
 [ -z "${notes_rules//[[:space:]]/}" ] || fail "the notes column is washed, and a blank note is a choice: $notes_rules"
 
+# A list's spare rows are inside the wash's range, and the rule is what keeps them clear until somebody
+# starts one. Both halves matter and they pull in opposite directions: a range stopping at the last
+# entry leaves a half-typed stakeholder unwarned, and a rule without the row test washes every spare row
+# of every new deal. So ask Excel for the range it holds and for the formula it will evaluate.
+stake_name="$(table_cell stakeholders name 0)"
+stake_rows="$(jq -r '(.tables[] | select(.id == "stakeholders") | .rows)' <<<"$uat_plan")"
+stake_last="$(table_cell stakeholders name "$((stake_rows - 1))")"
+stake_rules="$(cf_rules "$stake_name")"
+stake_range="$(
+  osascript - "$SHEET" "$BOOK" "$stake_name" <<'OSA' 2>&1
+on run argv
+  tell application "Microsoft Excel"
+    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
+    return get address of (applies to of format condition 1 of range (item 3 of argv) of ws) without external
+  end tell
+end run
+OSA
+)"
+echo "    stakeholder names: rule over $stake_range (capacity is $stake_rows rows, to $stake_last)"
+case "$stake_rules" in
+*COUNTA*) : ;;
+*) fail "the stakeholder wash does not test whether the row has been started: $stake_rules" ;;
+esac
+# Excel writes the address absolute; compare on the row numbers, which is what this is about.
+case "$stake_range" in
+*"${stake_last#[A-Z]}") : ;;
+*) fail "the stakeholder wash stops at $stake_range and the list has room to row ${stake_last#[A-Z]}" ;;
+esac
+
 # The rating word: "Red" and "Yellow" are painted, "Green" is not.
 rating_rules="$(cf_rules "$(named scoreRating)")"
 echo "    rating $(named scoreRating): ${rating_rules%$'\n'}"
