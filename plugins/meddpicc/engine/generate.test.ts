@@ -962,3 +962,52 @@ describe('planWorkbook — the element definitions ride along as hover notes', (
     expect(() => planWorkbook(schema, broken, deal)).toThrow(/somethingElse/);
   });
 });
+
+describe('planWorkbook — a blank cell something depends on is shaded', () => {
+  const formatsOn = (ref: string, of: WorkbookPlan = plan) =>
+    (of.sheets[0].conditionalFormats ?? []).filter((f) => f.sqref.split(':')[0] === ref);
+
+  test('the evidence column carries the missing wash, and the notes column does not', () => {
+    const elements = table('elements');
+    const evidence = formatsOn(elements.ref('evidence', 0));
+    expect(evidence.map((f) => f.preset)).toEqual(['missing']);
+    expect(formatsOn(elements.ref('notes', 0))).toEqual([]);
+  });
+
+  test('a list is shaded over the entries it has, never over its spare rows', () => {
+    // The blank rows under a list are capacity, not gaps: shading them would ask somebody to fill in
+    // rows that exist only so there is somewhere to type.
+    const stakeholders = table('stakeholders');
+    const entries = (deal.stakeholders as unknown[]).length;
+    expect(entries).toBeGreaterThan(0);
+    expect(stakeholders.rows).toBeGreaterThan(entries);
+    const [format] = formatsOn(stakeholders.ref('name', 0));
+    expect(format?.preset).toBe('missing');
+    expect(format?.sqref).toBe(`${stakeholders.ref('name', 0)}:${stakeholders.ref('name', entries - 1)}`);
+  });
+
+  test('a list with no entries at all is not shaded', () => {
+    // Nothing to be missing yet, and a column of washes on an empty list is noise on every new deal.
+    const empty = clone(deal);
+    empty.stakeholders = [];
+    const p = planWorkbook(schema, spec, empty);
+    const stakeholders = table('stakeholders', p);
+    expect(formatsOn(stakeholders.ref('name', 0), p)).toEqual([]);
+  });
+
+  test('a form field the schema requires is shaded when empty', () => {
+    const address = plan.namedCells.accountName?.split('!')[1] ?? '';
+    expect(address).not.toBe('');
+    expect(formatsOn(address).map((f) => f.preset)).toEqual(['missing']);
+  });
+
+  test('no cell carries two washes', () => {
+    // Two rules over one cell means one paints over the other, decided by a priority nobody chose.
+    const byCell = new Map<string, number>();
+    for (const format of plan.sheets[0].conditionalFormats ?? []) {
+      const first = format.sqref.split(':')[0];
+      byCell.set(first, (byCell.get(first) ?? 0) + 1);
+    }
+    expect([...byCell.entries()].filter(([, n]) => n > 1)).toEqual([]);
+  });
+});

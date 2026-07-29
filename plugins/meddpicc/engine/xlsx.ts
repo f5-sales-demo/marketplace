@@ -136,9 +136,6 @@ const STYLE_ORDER = [
   'percent',
   'date',
   'score',
-  'ragRed',
-  'ragAmber',
-  'ragGreen',
   'muted',
 ] as const;
 
@@ -160,11 +157,8 @@ const FONT_WHITE_TITLE = 4;
 const FILL_NONE = 0;
 // index 1 is the format-reserved gray125 placeholder; Excel expects it present and unused
 const FILL_DARK = 2;
-const FILL_RED = 3;
-const FILL_AMBER = 4;
-const FILL_GREEN = 5;
-const FILL_TEAL = 6;
-const FILL_ACCENT = 7;
+const FILL_TEAL = 3;
+const FILL_ACCENT = 4;
 
 interface StyleDef {
   font: number;
@@ -198,19 +192,32 @@ const STYLE_DEFS: Record<StyleName, StyleDef> = {
   percent: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_PERCENT, left: true, middle: true },
   date: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_DATE, left: true, middle: true },
   score: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0, center: true, middle: true },
-  ragRed: { font: FONT_BOLD, fill: FILL_RED, numFmt: 0, center: true },
-  ragAmber: { font: FONT_BOLD, fill: FILL_AMBER, numFmt: 0, center: true },
-  ragGreen: { font: FONT_BOLD, fill: FILL_GREEN, numFmt: 0, center: true },
   muted: { font: FONT_ITALIC_GREY, fill: FILL_NONE, numFmt: 0 },
 };
 
 /**
  * Conditional-format fills, in `dxfs` order — the index of each name IS its `dxfId`.
  * Same discipline as the cell-style palette: one ordered list, indexes derived from it.
+ *
+ * **Colour marks what needs attention, and nothing else.** A finished element, a complete section, a
+ * "Green" rating and a score that went up all carry no fill at all: on a sheet read at a glance the
+ * eye should land on the gaps, and it lands instead on whatever has the most colour. Painting the good
+ * news green made a well-qualified deal the loudest thing on the page.
+ *
+ * So three faint washes, named for how much attention they ask for rather than for their hue, and
+ * ordered that way too:
+ *
+ * - `urgent` — nothing there at all: an unscored element, an untouched section, a required cell nobody
+ *   has filled, a "Red" rating, a date already past.
+ * - `warn` — barely begun, or a step backwards.
+ * - `watch` — nearly there. Partial, in progress, a score of 2.
+ *
+ * Faint on purpose. These sit under the text of a dense grid, so anything stronger reads as an error
+ * state; the render is what settles whether they are subtle enough, not the hex.
  */
-const DXF_ORDER = ['red', 'amber', 'green'] as const;
+const DXF_ORDER = ['urgent', 'warn', 'watch'] as const;
 type DxfName = (typeof DXF_ORDER)[number];
-const DXF_FILLS: Record<DxfName, string> = { red: 'FFF8CBAD', amber: 'FFFFE699', green: 'FFC6E0B4' };
+const DXF_FILLS: Record<DxfName, string> = { urgent: 'FFFAE4E1', warn: 'FFFCEBDB', watch: 'FFFDF6DD' };
 export const DXF_IDS: Record<DxfName, number> = Object.fromEntries(DXF_ORDER.map((name, i) => [name, i])) as Record<
   DxfName,
   number
@@ -226,7 +233,7 @@ export const DXF_IDS: Record<DxfName, number> = Object.fromEntries(DXF_ORDER.map
  * `%FIRST%` is replaced with the first cell of the range, which is how an expression rule
  * refers to "this cell" — Excel evaluates it relatively across the range.
  */
-export type CfPreset = 'score' | 'delta' | 'ragText' | 'statusText' | 'completionText' | 'overdueDate';
+export type CfPreset = 'score' | 'delta' | 'ragText' | 'statusText' | 'completionText' | 'overdueDate' | 'missing';
 
 /**
  * The section statuses `computeCompletion` emits.
@@ -246,41 +253,45 @@ interface CfRule {
 }
 
 const CF_PRESETS: Record<CfPreset, CfRule[]> = {
-  // A 0-4 element score. Matches how the engine reads them: 0-1 bad, 2 partial, 3-4 good.
+  // A 0-4 element score, as a ladder: 0 is nothing, 1 is barely, 2 is nearly — and 3 or 4 is done, so
+  // it carries no rule at all. Three rules rather than the old "under 2 / equal 2 / 3 and up", because
+  // the two ends of "under 2" are not the same news: an element nobody has scored and one scored 1 are
+  // a gap and a start.
   score: [
-    { type: 'cellIs', operator: 'lessThan', formulas: ['2'], dxf: 'red' },
-    { type: 'cellIs', operator: 'equal', formulas: ['2'], dxf: 'amber' },
-    { type: 'cellIs', operator: 'greaterThanOrEqual', formulas: ['3'], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: ['0'], dxf: 'urgent' },
+    { type: 'cellIs', operator: 'equal', formulas: ['1'], dxf: 'warn' },
+    { type: 'cellIs', operator: 'equal', formulas: ['2'], dxf: 'watch' },
   ],
   // The rating word itself, so the colours agree with `computeScore` exactly rather than
-  // re-deriving its brackets from a percentage and drifting by a rounding step.
+  // re-deriving its brackets from a percentage and drifting by a rounding step. "Green" gets no
+  // rule: a deal in good shape does not need to be pointed at.
   ragText: [
-    { type: 'cellIs', operator: 'equal', formulas: ['"Red"'], dxf: 'red' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"Green"'], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: ['"Red"'], dxf: 'urgent' },
+    { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'watch' },
   ],
   // Matched against the LABEL the sheet displays, not the JSON value behind it. Both come from
   // `enumLabel`, so they cannot drift — a preset quoting `"not_started"` while the cell reads
   // "Not started" is a colour that never appears and nothing to notice it.
   completionText: [
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('partial')}"`], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('not_started')}"`], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('partial')}"`], dxf: 'watch' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('not_started')}"`], dxf: 'urgent' },
   ],
+  // A close-plan step, and a gentler ladder than the completion one on purpose: a milestone nobody has
+  // started is normal early in a deal, where a MEDDPICC section nobody has touched is the gap the
+  // review exists to find.
   statusText: [
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('in_progress')}"`], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('pending')}"`], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('in_progress')}"`], dxf: 'watch' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('pending')}"`], dxf: 'warn' },
   ],
-  // A change since the last review: up is good, down is not, and nought is neither. Deliberately no
-  // amber — a delta of zero is not a warning, and colouring it would make "nothing moved" look like a
-  // problem in a column read at a glance.
-  delta: [
-    { type: 'cellIs', operator: 'greaterThan', formulas: ['0'], dxf: 'green' },
-    { type: 'cellIs', operator: 'lessThan', formulas: ['0'], dxf: 'red' },
-  ],
+  // A change since the last review. Only a step backwards is painted: nought is not a warning, and an
+  // improvement is the good news this palette deliberately leaves alone.
+  delta: [{ type: 'cellIs', operator: 'lessThan', formulas: ['0'], dxf: 'warn' }],
   // Past its date and not blank. A blank cell is "no date set", not "overdue since 1900".
-  overdueDate: [{ type: 'expression', formulas: ['AND(%FIRST%<>"",%FIRST%<TODAY())'], dxf: 'red' }],
+  overdueDate: [{ type: 'expression', formulas: ['AND(%FIRST%<>"",%FIRST%<TODAY())'], dxf: 'urgent' }],
+  // Nothing typed in a cell something else depends on — see `SpecColumn.shadeWhenEmpty`. TRIM, so a
+  // cell holding a space reads as empty: it is empty to every rule that consults it, and a wash that
+  // disappears when somebody presses the space bar would be worse than none.
+  missing: [{ type: 'expression', formulas: ['LEN(TRIM(%FIRST%))=0'], dxf: 'urgent' }],
 };
 
 export interface ConditionalFormat {
@@ -327,9 +338,6 @@ function stylesXml(): string {
     '<fill><patternFill patternType="none"/></fill>',
     '<fill><patternFill patternType="gray125"/></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FF0E2841"/><bgColor indexed="64"/></patternFill></fill>',
-    '<fill><patternFill patternType="solid"><fgColor rgb="FFF8CBAD"/><bgColor indexed="64"/></patternFill></fill>',
-    '<fill><patternFill patternType="solid"><fgColor rgb="FFFFE699"/><bgColor indexed="64"/></patternFill></fill>',
-    '<fill><patternFill patternType="solid"><fgColor rgb="FFC6E0B4"/><bgColor indexed="64"/></patternFill></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FF156082"/><bgColor indexed="64"/></patternFill></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FF0F9ED5"/><bgColor indexed="64"/></patternFill></fill>',
   ];

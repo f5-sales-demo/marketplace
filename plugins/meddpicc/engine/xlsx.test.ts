@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { A1, buildWorkbook, columnIndex, columnLetter, expandMerges, STYLE_IDS } from './xlsx';
+import { enumLabel } from './labels';
+import { A1, buildWorkbook, type CfPreset, columnIndex, columnLetter, DXF_IDS, expandMerges, STYLE_IDS } from './xlsx';
 import { readZip } from './zip';
 
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -249,39 +250,32 @@ describe('buildWorkbook — conditional formatting and validation', () => {
   });
 });
 
-describe('the delta preset colours movement, not stillness', () => {
-  // A change since the last review reads at a glance: up is good, down is not. Nought is neither, so
-  // it stays uncoloured — an amber "nothing moved" would look like a warning in a column somebody
-  // scans for problems.
-  const sheet = () => {
-    const parts = readZip(
-      buildWorkbook([
-        {
-          name: 'Data',
-          rows: [
-            { row: 1, cells: [{ ref: 'A1', value: 2, style: 'score' }] },
-            { row: 2, cells: [{ ref: 'A2', value: 0, style: 'score' }] },
-          ],
-          conditionalFormats: [{ sqref: 'A1:A2', preset: 'delta' }],
-        },
-      ]),
+describe('the delta preset colours a step backwards and nothing else', () => {
+  // A change since the last review. Up used to be green and it is now unpainted, along with every
+  // other piece of good news on the sheet: nought is not a warning either, so one rule is the whole
+  // preset and a column of improvements reads as quiet.
+  const rules = () => {
+    const xml = dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Data',
+            rows: [
+              { row: 1, cells: [{ ref: 'A1', value: 2, style: 'score' }] },
+              { row: 2, cells: [{ ref: 'A2', value: 0, style: 'score' }] },
+            ],
+            conditionalFormats: [{ sqref: 'A1:A2', preset: 'delta' }],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
     );
-    return dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
-  };
-
-  test('two rules, one each way, and nothing for zero', () => {
-    const xml = sheet();
-    const rules = [...xml.matchAll(/<cfRule[^>]*operator="([a-zA-Z]+)"[^>]*>\s*<formula>([^<]*)<\/formula>/g)].map(
+    return [...xml.matchAll(/<cfRule[^>]*operator="([a-zA-Z]+)"[^>]*>\s*<formula>([^<]*)<\/formula>/g)].map(
       (m) => `${m[1]} ${m[2]}`,
     );
-    expect(rules).toEqual(['greaterThan 0', 'lessThan 0']);
-  });
+  };
 
-  test('the two rules use different colours, or the sign is not readable', () => {
-    const xml = sheet();
-    const ids = [...xml.matchAll(/<cfRule[^>]*dxfId="(\d+)"/g)].map((m) => m[1]);
-    expect(ids).toHaveLength(2);
-    expect(new Set(ids).size).toBe(2);
+  test('one rule, for movement downwards', () => {
+    expect(rules()).toEqual(['lessThan 0']);
   });
 });
 
@@ -634,14 +628,6 @@ describe('styles.xml — a named style resolves to the look it promises', () => 
     }
   });
 
-  test('the RAG styles keep their own three fills, all different', () => {
-    const fills = (['ragRed', 'ragAmber', 'ragGreen'] as const).map((n) => lookOf(n).fill);
-    expect(new Set(fills).size).toBe(3);
-    expect(fills[0]).toContain('FFF8CBAD');
-    expect(fills[1]).toContain('FFFFE699');
-    expect(fills[2]).toContain('FFC6E0B4');
-  });
-
   test('plain styles carry no fill, so they do not paint over the page', () => {
     for (const name of ['default', 'text', 'label', 'currency', 'date'] as const) {
       expect(lookOf(name).fill, name).toContain('patternType="none"');
@@ -895,5 +881,92 @@ describe('buildWorkbook — a note at the edge of the grid', () => {
     const [left, , top, , right, , bottom] = anchorOf('B20');
     expect(right - left).toBe(4);
     expect(bottom - top).toBe(5);
+  });
+});
+
+describe('the colour rules paint only what needs attention', () => {
+  /** Every rule of one preset, as `operator formula -> dxfName`. */
+  const rulesOf = (preset: CfPreset) => {
+    const xml = dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Data',
+            rows: [{ row: 1, cells: [{ ref: 'A1', value: 1 }] }],
+            conditionalFormats: [{ sqref: 'A1:A2', preset }],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+    const byId = Object.fromEntries(Object.entries(DXF_IDS).map(([name, id]) => [String(id), name]));
+    return [
+      ...xml.matchAll(/<cfRule type="([a-zA-Z]+)"(?: operator="([a-zA-Z]+)")? dxfId="(\d+)"[^>]*>(.*?)<\/cfRule>/g),
+    ].map((m) => ({
+      type: m[1],
+      operator: m[2] ?? '',
+      formula: /<formula>([^<]*)<\/formula>/.exec(m[4])?.[1] ?? '',
+      dxf: byId[m[3]],
+    }));
+  };
+
+  test('the score column is a ladder that runs out before the good scores', () => {
+    // 0 is nothing, 1 is barely, 2 is nearly — and 3 or 4 is done, so it carries no fill at all.
+    // Colouring the top of the range meant a well-qualified deal was the loudest thing on the sheet.
+    expect(rulesOf('score')).toEqual([
+      { type: 'cellIs', operator: 'equal', formula: '0', dxf: 'urgent' },
+      { type: 'cellIs', operator: 'equal', formula: '1', dxf: 'warn' },
+      { type: 'cellIs', operator: 'equal', formula: '2', dxf: 'watch' },
+    ]);
+  });
+
+  test('no preset paints a fill for a value that is finished, good, or improved', () => {
+    // The whole rule of the palette, asserted once: nothing in any preset may fire on the words and
+    // numbers that mean "done". A green fill anywhere is what this is here to catch.
+    const good = [enumLabel('complete'), 'Green', '3', '4'];
+    for (const preset of ['score', 'delta', 'ragText', 'statusText', 'completionText', 'missing'] as CfPreset[]) {
+      for (const rule of rulesOf(preset)) {
+        for (const word of good) {
+          expect(rule.formula, `${preset}: ${rule.operator} ${rule.formula}`).not.toContain(word);
+        }
+      }
+    }
+    // Movement upwards is not painted either, so only a step backwards draws the eye.
+    expect(rulesOf('delta').map((r) => r.operator)).toEqual(['lessThan']);
+  });
+
+  test('a blank cell a rule needs is shaded, and the rule is about emptiness alone', () => {
+    const [rule, ...rest] = rulesOf('missing');
+    expect(rest).toEqual([]);
+    expect(rule.type).toBe('expression');
+    expect(rule.dxf).toBe('urgent');
+    // Whitespace is not content: a cell holding a space is as empty as one holding nothing.
+    expect(rule.formula).toContain('TRIM');
+    expect(rule.formula).toContain('A1');
+  });
+
+  test('all three fills are faint and warm, and none of them is green', () => {
+    // "Subtle" and "warm" are the two properties worth asserting; the exact hexes are a matter of
+    // taste and belong in the render the operator looks at. Red at least green at least blue is what
+    // makes a wash warm — and it is what fails if somebody reaches for green again.
+    const styles = dec(readZip(minimal()).get('xl/styles.xml')?.data as Uint8Array);
+    const dxfs = styles.slice(styles.indexOf('<dxfs'), styles.indexOf('</dxfs>'));
+    const colours = [...dxfs.matchAll(/bgColor rgb="FF([0-9A-F]{6})"/g)].map((m) => m[1]);
+    expect(colours).toHaveLength(Object.keys(DXF_IDS).length);
+    expect(new Set(colours).size).toBe(colours.length);
+    for (const hex of colours) {
+      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+      expect(r, `${hex} is warm`).toBeGreaterThanOrEqual(g);
+      expect(g, `${hex} is warm`).toBeGreaterThanOrEqual(b);
+      // Faint: every channel near white, so the wash sits under the text rather than over it.
+      expect(b, `${hex} is faint`).toBeGreaterThanOrEqual(0xd0);
+    }
+  });
+
+  test('no cell style carries a status fill — the conditional formats own the colouring', () => {
+    // ragRed/ragAmber/ragGreen were cell styles nothing referenced: the presets had taken the job
+    // over, and three unreferenced fills is three chances to paint a cell by accident.
+    expect(Object.keys(STYLE_IDS)).not.toContain('ragRed');
+    expect(Object.keys(STYLE_IDS)).not.toContain('ragAmber');
+    expect(Object.keys(STYLE_IDS)).not.toContain('ragGreen');
   });
 });

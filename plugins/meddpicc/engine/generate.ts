@@ -136,6 +136,14 @@ interface TableLayout {
   headerRow: number;
   firstDataRow: number;
   rowCount: number;
+  /**
+   * How many of those rows are entries.
+   *
+   * For a keyed table every row is one; for a list the rest are pre-allocated capacity. The two
+   * differ wherever a wash or a rule should stop at the data — shading a spare row asks somebody to
+   * fill in a row that exists only so there is somewhere to type.
+   */
+  entryCount: number;
   /** Column id -> 1-based column index. */
   columns: Map<string, number>;
   /** For a keyed source, the key at each data row. */
@@ -355,6 +363,18 @@ function resolveRows(table: SpecTable, deal: unknown, schema: unknown): TableLay
 }
 
 /**
+ * How many of a table's rows are entries rather than room to grow.
+ *
+ * Only a `list` pads: {@link resolveRows} returns `max(entries, minRows)` for one, and every row of a
+ * keyed table or a question table is real.
+ */
+function countEntries(table: SpecTable, deal: unknown, items: TableLayout['items']): number {
+  if (table.source.kind !== 'list') return items.length;
+  const list = readPath(deal, table.source.jsonPath);
+  return Array.isArray(list) ? list.length : 0;
+}
+
+/**
  * The sheet's vertical rhythm, in points, measured off the manual deal-review sheet.
  *
  * A banner is roughly twice the height of its text and a standard row a little over one line, which
@@ -419,6 +439,7 @@ function layout(
           column += c.span ?? 1;
         }
         const items = resolveRows(table, deal, schema);
+        const entryCount = countEntries(table, deal, items);
         // At least one data row, and at least `minRows` so the list has room to grow into.
         const depth = 1 + Math.max(items.length, table.minRows ?? 1);
         tables.set(table.id, {
@@ -427,6 +448,7 @@ function layout(
           headerRow,
           firstDataRow: headerRow + 1,
           rowCount: items.length,
+          entryCount,
           columns,
           rowKeys: keysOf(table.source),
           items,
@@ -799,6 +821,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
               const values = validationValues(schema, cell.jsonPath, cell.valueType);
               if (values) validations.push({ sqref: ref, values });
             }
+            if (cell.shadeWhenEmpty) formats.push({ sqref: ref, preset: 'missing' });
           } else {
             push(row, { ref, formula: resolveFormula(cell.formula, { sheet: s.name }, named, tables), style });
           }
@@ -961,6 +984,13 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         const lastRow = info.firstDataRow + padded - 1;
         const sqref = `${A1(column, info.firstDataRow)}:${A1(column, lastRow)}`;
         if (spec.conditionalFormat) formats.push({ sqref, preset: spec.conditionalFormat });
+        // Over the entries only. The other formats deliberately cover the padded rows — a value typed
+        // into one should colour like any other — but a wash for emptiness would be painting rows whose
+        // whole purpose is to be empty until somebody needs them.
+        if (spec.shadeWhenEmpty && info.entryCount > 0) {
+          const lastEntry = info.firstDataRow + info.entryCount - 1;
+          formats.push({ sqref: `${A1(column, info.firstDataRow)}:${A1(column, lastEntry)}`, preset: 'missing' });
+        }
         if (spec.role === 'input' && spec.validate && spec.jsonPath) {
           // Any row's path resolves to the same schema node, so the first one answers for all.
           const values = validationValues(schema, inputPathFor(table, spec, info.items[0] ?? {}), spec.valueType);
