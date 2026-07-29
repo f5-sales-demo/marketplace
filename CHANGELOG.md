@@ -10,6 +10,41 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v6.0.0 — the sheet reads as designed rather than as whatever fitted. Breaking again,
+  for the same reason as v5: addresses moved, so a workbook generated before this is refused on
+  read-back. Regenerate.
+
+  Opened side by side with the manual sheet, the palette and the grid matched — and the coloured
+  labels staircased down the page. They were starting at **nine different columns** (B, F, G, H, I, J,
+  L, M, N), because each row had been cut to fit its own content. Every row was individually sensible;
+  together they looked like a mistake.
+
+  - **Four slots, at B, F, J and N.** Every label starts on one and is exactly two columns wide; a
+    value fills the rest of its slot, or runs on through the slots after it when they carry no label.
+    So a row of four short pairs lines up with a row of two wide ones. `check-spec` enforces it, which
+    is the part that keeps it true — the alignment is now a rule, not a tidy-up.
+  - **The Qualification rows were three times taller than they needed to be.** Measured rather than
+    guessed: Notes held up to 543 characters in the *narrowest* column on the sheet, 27.8 characters
+    wide, wrapping to twenty lines. Widest content now gets the widest column, and the tallest row went
+    from 366pt to 141pt — all eight elements fit on a screen where two and a half did.
+  - **The per-element definition column is gone.** It was the same eight paragraphs in every workbook,
+    taking three columns from a rep's own evidence. `engine hint <element>` still returns them, and the
+    follow-up issue proposes putting them back as hover notes, which cost no height at all.
+  - **The elements table shows the score and nothing a reader could work out.** Previous and Change were
+    both on display — eight previous scores and eight deltas, two columns across the table so that
+    somebody could see 3 beside 1 and be told the difference is 2. The score itself, colour-coded, is
+    the at-a-glance signal; the arithmetic is not. Neither column is in the sample, incidentally: its
+    177 cells mention no score, previous, change, rubric, evidence or notes at all. That width went to
+    **Evidence and Notes**, which hold what a stakeholder actually reads out in a forecast call, and
+    which were the narrowest columns on the sheet. Movement survives where it earns its place: one
+    Previous Total and one Change on the scorecard, the Change coloured by its sign, and the total now
+    computed by the engine since the column it used to sum is gone.
+  - Two intermittent failures in the Excel acceptance test, both root-caused rather than retried away.
+    A write can be silently discarded while Excel is still busy with the workbook, and a dependent
+    formula is not calculated by the time the next question arrives — so writes are confirmed and
+    dependent reads are polled, with a distinct message for each so the next failure names the right
+    thing. The error-value detector reports the offending cell's address now, not just its sheet.
+
 - **`meddpicc`** v5.0.0 — **the workbook is one laid-out deal-review sheet.** Breaking: the shape
   changed, so a workbook generated before this is refused on read-back. They are ephemeral —
   regenerate.
