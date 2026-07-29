@@ -175,6 +175,10 @@ async function main(): Promise<number> {
       print({
         sheets: plan.sheets.map((s) => ({ name: s.name, rows: s.rows.length })),
         namedCells: plan.namedCells,
+        // Where each table landed. Nothing on one laid-out sheet has a fixed address, so anything
+        // that needs to name a cell of a table — the Excel acceptance test above all — reads it from
+        // here rather than counting rows and hoping the count still holds.
+        tables: plan.tables,
         inputCells: plan.inputCells,
       });
       return 0;

@@ -26,19 +26,12 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
-import {
-  dateToSerial,
-  type InputCell,
-  planWorkbook,
-  schemaHash,
-  type WorkbookPlan,
-  workbookFingerprint,
-} from './generate';
+import { dateToSerial, planWorkbook, schemaHash, type WorkbookPlan, workbookFingerprint } from './generate';
 import { readPath, writePath } from './json-path';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
-import { A1, FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
+import { FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -329,8 +322,6 @@ export interface CellRejection {
   address?: string;
   reason: string;
 }
-
-const A1_REF = /^([A-Z]+)(\d+)$/;
 
 /** Whether a cell holds anything at all — a formula counts, because a formula is content. */
 function hasContent(cell: RawCell | undefined): boolean {

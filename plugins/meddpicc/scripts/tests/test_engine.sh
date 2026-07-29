@@ -163,7 +163,7 @@ test_engine_check_spec_detects_a_dropped_element() {
   tmp=$(mktemp -d)
   # Pin the wildcard to seven of the eight elements. The workbook still looks complete and
   # every path still resolves; the deal is just quietly scored out of 28.
-  jq '(.sheets[] | select(.name == "Qualification") | .tables[0].source) =
+  jq '(.sheets[].blocks[] | select(.kind == "table" and .table.id == "elements") | .table.source) =
         {"kind": "fixed", "keys": ["metrics","economicBuyer","decisionCriteria","decisionProcess","paperProcess","implicateThePain","competition"]}' \
     "$PLUGIN_ROOT/engine/workbook-spec.json" >"$tmp/spec.json"
   if bun "$PLUGIN_ROOT/engine/cli.ts" check-spec --spec "$tmp/spec.json" >/dev/null 2>&1; then
@@ -178,8 +178,8 @@ test_engine_check_spec_detects_a_broken_formula_reference() {
   _engine_precheck || return 0
   local tmp
   tmp=$(mktemp -d)
-  # Rename a column the Scorecard's formulas point at. Nothing else changes.
-  jq '(.sheets[] | select(.name == "Qualification") | .tables[0].columns[] | select(.id == "score") | .id) = "renamed"' \
+  # Rename a column the scorecard's formulas point at. Nothing else changes.
+  jq '(.sheets[].blocks[] | select(.kind == "table" and .table.id == "elements") | .table.columns[] | select(.id == "score") | .id) = "renamed"' \
     "$PLUGIN_ROOT/engine/workbook-spec.json" >"$tmp/spec.json"
   if bun "$PLUGIN_ROOT/engine/cli.ts" check-spec --spec "$tmp/spec.json" >/dev/null 2>&1; then
     echo "expected non-zero exit for a formula naming a column that no longer exists"
@@ -193,8 +193,11 @@ test_engine_generate_plan_maps_every_input() {
   _engine_precheck || return 0
   local out
   out=$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PLUGIN_ROOT/schema/example-deal.json" --plan)
-  [ "$(jq -r '.sheets | length' <<<"$out")" = "8" ] || {
-    echo "expected 8 sheets: $(jq -c '.sheets' <<<"$out")"
+  # One laid-out sheet, the way the manual deal-review sheet is one page.
+  local sheet
+  sheet=$(jq -r '.sheets[0].name' "$PLUGIN_ROOT/engine/workbook-spec.json")
+  [ "$(jq -r '.sheets | length' <<<"$out")" = "1" ] || {
+    echo "expected one sheet: $(jq -c '[.sheets[].name]' <<<"$out")"
     return 1
   }
   # Every input cell must name a real address; a malformed one would throw at write time.
@@ -204,9 +207,19 @@ test_engine_generate_plan_maps_every_input() {
     echo "malformed addresses: $bad"
     return 1
   }
-  # The Scorecard is entirely computed, so nothing on it may be reported as an input.
-  [ "$(jq -r '[.inputCells[] | select(.sheet == "Scorecard")] | length' <<<"$out")" = "0" ] || {
-    echo "Scorecard reported as holding inputs"
+  # Every input belongs to that sheet: an input naming a sheet the workbook does not have would
+  # be read back against nothing.
+  [ "$(jq -r --arg sheet "$sheet" '[.inputCells[] | select(.sheet != $sheet)] | length' <<<"$out")" = "0" ] || {
+    echo "input cells name a sheet that is not $sheet: $(jq -c '[.inputCells[].sheet] | unique' <<<"$out")"
+    return 1
+  }
+  # Every table the spec declares is placed, so nothing was silently skipped.
+  local declared placed
+  declared=$(jq -r '[.sheets[].blocks[] | select(.kind == "table") | .table.id] | sort | join(",")' \
+    "$PLUGIN_ROOT/engine/workbook-spec.json")
+  placed=$(jq -r '[.tables[].id] | sort | join(",")' <<<"$out")
+  [ "$declared" = "$placed" ] || {
+    echo "tables declared [$declared] but placed [$placed]"
     return 1
   }
 }
@@ -230,8 +243,10 @@ test_engine_generate_writes_a_workbook() {
     rm -rf "$tmp"
     return 1
   fi
-  unzip -p "$tmp/out.xlsx" xl/workbook.xml | grep -q "Scorecard" || {
-    echo "Scorecard sheet missing from the workbook"
+  local sheet
+  sheet=$(jq -r '.sheets[0].name' "$PLUGIN_ROOT/engine/workbook-spec.json")
+  unzip -p "$tmp/out.xlsx" xl/workbook.xml | grep -qF "$sheet" || {
+    echo "the $sheet sheet is missing from the workbook"
     rm -rf "$tmp"
     return 1
   }

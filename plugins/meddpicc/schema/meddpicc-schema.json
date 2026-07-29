@@ -27,31 +27,12 @@
         },
         "locale": {
           "type": "string",
-          "enum": [
-            "en",
-            "fr",
-            "es",
-            "de",
-            "pt-br",
-            "ja",
-            "ko",
-            "zh-cn",
-            "zh-tw",
-            "ar",
-            "it",
-            "hi",
-            "th"
-          ],
+          "enum": ["en", "fr", "es", "de", "pt-br", "ja", "ko", "zh-cn", "zh-tw", "ar", "it", "hi", "th"],
           "description": "Language for the generated workbook labels, headings and dropdown values. The deal data itself is always stored in English. A default only: --locale and the environment override it, because the language belongs to whoever is reading the report rather than to the deal."
         },
         "dealStatus": {
           "type": "string",
-          "enum": [
-            "Discovery",
-            "Validated",
-            "Qualified",
-            "Proposal"
-          ],
+          "enum": ["Discovery", "Validated", "Qualified", "Proposal"],
           "description": "Current deal stage from pick list"
         },
         "closeDate": {
@@ -71,11 +52,7 @@
         },
         "forecastStage": {
           "type": "string",
-          "enum": [
-            "Pipeline",
-            "Best Case",
-            "Commit"
-          ],
+          "enum": ["Pipeline", "Best Case", "Commit"],
           "description": "Forecast category"
         },
         "revenue": {
@@ -213,11 +190,7 @@
           }
         }
       },
-      "required": [
-        "dealId",
-        "accountName",
-        "dealName"
-      ]
+      "required": ["dealId", "accountName", "dealName"]
     },
     "qualification": {
       "type": "object",
@@ -261,10 +234,7 @@
               "const": "The individual with final budget authority and political power to fund the purchase"
             },
             "questions": {
-              "default": [
-                "Who makes the buying decision?",
-                "How are we engaged with them to address their priorities?"
-              ]
+              "default": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"]
             },
             "scoreDefinition": {
               "default": {
@@ -396,10 +366,7 @@
               "const": "A powerful internal advocate who sells for you when you're not in the room"
             },
             "questions": {
-              "default": [
-                "Who will benefit most from this transaction?",
-                "Can they influence the buying process?"
-              ]
+              "default": ["Who will benefit most from this transaction?", "Can they influence the buying process?"]
             },
             "scoreDefinition": {
               "default": {
@@ -499,11 +466,7 @@
           },
           "roleInDeal": {
             "type": "string",
-            "enum": [
-              "Economic buyer",
-              "Decision maker",
-              "Influencer"
-            ],
+            "enum": ["Economic buyer", "Decision maker", "Influencer"],
             "description": "Role from pick list"
           },
           "mustSayYes": {
@@ -520,12 +483,7 @@
           },
           "sentiment": {
             "type": "string",
-            "enum": [
-              "Positive",
-              "Negative",
-              "Neutral",
-              "Unknown"
-            ],
+            "enum": ["Positive", "Negative", "Neutral", "Unknown"],
             "description": "Current sentiment toward you"
           },
           "relationshipOwner": {
@@ -533,11 +491,7 @@
             "description": "Team member responsible for this relationship"
           }
         },
-        "required": [
-          "name",
-          "title",
-          "roleInDeal"
-        ]
+        "required": ["name", "title", "roleInDeal"]
       }
     },
     "salesStrategy": {
@@ -573,11 +527,7 @@
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "pending",
-                  "in_progress",
-                  "complete"
-                ]
+                "enum": ["pending", "in_progress", "complete"]
               }
             }
           }
@@ -600,11 +550,7 @@
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "pending",
-                  "in_progress",
-                  "complete"
-                ]
+                "enum": ["pending", "in_progress", "complete"]
               }
             }
           }
@@ -762,28 +708,17 @@
         },
         "overallRating": {
           "type": "string",
-          "enum": [
-            "Red",
-            "Yellow",
-            "Green"
-          ],
+          "enum": ["Red", "Yellow", "Green"],
           "description": "Traffic light based on raw score: Red (0-13/32, ~0-41%), Yellow (14-25/32, ~44-78%), Green (26-32/32, ~81-100%). Use raw score brackets as the definitive boundary."
         }
       }
     }
   },
-  "required": [
-    "metadata",
-    "qualification"
-  ],
+  "required": ["metadata", "qualification"],
   "$defs": {
     "sectionStatus": {
       "type": "string",
-      "enum": [
-        "not_started",
-        "partial",
-        "complete"
-      ],
+      "enum": ["not_started", "partial", "complete"],
       "default": "not_started"
     },
     "meddpiccElement": {

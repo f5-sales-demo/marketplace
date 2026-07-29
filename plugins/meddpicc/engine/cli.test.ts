@@ -206,9 +206,12 @@ describe('cli read', () => {
     // reader take a computed value as somebody's answer.
     const { deal, workbook } = await fixture('badspec');
     const spec = JSON.parse(fs.readFileSync(path.join(engineDir, 'workbook-spec.json'), 'utf8'));
-    const table = spec.sheets.flatMap((s: { tables?: unknown[] }) => s.tables ?? []).find(Boolean) as {
-      columns: Array<Record<string, unknown>>;
-    };
+    const table = spec.sheets
+      .flatMap((s: { blocks: Array<{ kind: string; table?: unknown }> }) => s.blocks)
+      .filter((b: { kind: string }) => b.kind === 'table')
+      .map((b: { table: unknown }) => b.table)
+      .find(Boolean) as { columns: Array<Record<string, unknown>> };
+    if (!table) throw new Error('no table block in the spec to spoil');
     table.columns[0] = { ...table.columns[0], role: 'computed', formula: '1', jsonPath: 'name' };
     const badSpec = path.join(scratch, 'bad-spec.json');
     fs.writeFileSync(badSpec, JSON.stringify(spec));

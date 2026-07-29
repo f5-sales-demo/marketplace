@@ -398,6 +398,13 @@
                 "heading": true
               },
               {
+                "id": "definition",
+                "header": "What This Element Means",
+                "role": "derived",
+                "valueType": "text",
+                "span": 3
+              },
+              {
                 "id": "score",
                 "header": "Score",
                 "role": "input",
@@ -430,7 +437,7 @@
                 "header": "What This Score Means",
                 "role": "derived",
                 "valueType": "text",
-                "span": 4
+                "span": 3
               },
               {
                 "id": "evidence",
@@ -438,7 +445,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.evidence",
                 "valueType": "text",
-                "span": 4
+                "span": 3
               },
               {
                 "id": "notes",
@@ -446,7 +453,7 @@
                 "role": "input",
                 "jsonPath": "qualification.*.notes",
                 "valueType": "text",
-                "span": 3
+                "span": 2
               }
             ]
           }
@@ -495,7 +502,7 @@
         },
         {
           "kind": "section",
-          "text": "3 Whys — (Why Anything, Why Us, Why Now)"
+          "text": "3 Whys \u2014 (Why Anything, Why Us, Why Now)"
         },
         {
           "kind": "group",

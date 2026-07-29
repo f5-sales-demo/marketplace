@@ -258,7 +258,6 @@ describe('checkWorkbookSpec — schema paths', () => {
   test('resolves a list column against its item schema, not the root', () => {
     // `name` alone is meaningless at the root; it only resolves under `stakeholders`.
     const spec = clone(baseSpec());
-    const sh = sheet(spec);
     fixtureTable(spec, 'stakeholders').columns[0].jsonPath = 'nameTYPO';
 
     const result = checkWorkbookSpec(schema, spec);
@@ -271,7 +270,6 @@ describe('checkWorkbookSpec — schema paths', () => {
     // empty set of paths and the column dropped out of the check entirely — ok, and
     // writing nowhere.
     const spec = clone(baseSpec());
-    const sh = sheet(spec);
     fixtureTable(spec, 'stakeholders').columns[0].jsonPath = '*.nameTYPO';
 
     const result = checkWorkbookSpec(schema, spec);
@@ -281,7 +279,6 @@ describe('checkWorkbookSpec — schema paths', () => {
 
   test('rejects an input that expands to no path at all', () => {
     const spec = clone(baseSpec());
-    const q = sheet(spec);
     fixtureTable(spec, 'elements').source = { kind: 'fixed', keys: [] };
 
     const result = checkWorkbookSpec(schema, spec);
@@ -291,7 +288,6 @@ describe('checkWorkbookSpec — schema paths', () => {
 
   test('rejects a wildcard in a form field, where there is nothing to expand it over', () => {
     const spec = clone(baseSpec());
-    const deal = sheet(spec);
     const field = fixtureCell(spec, 'acv');
     if (field.kind !== 'field') throw new Error('fixture drift');
     field.jsonPath = 'qualification.*.score';
@@ -304,7 +300,6 @@ describe('checkWorkbookSpec — the eight scored elements', () => {
   test('rejects a spec that captures only some element scores', () => {
     // The bug this guards: replacing the wildcard with explicit rows and dropping one.
     const spec = clone(baseSpec());
-    const q = sheet(spec);
     fixtureTable(spec, 'elements').source = { kind: 'fixed', keys: ['metrics', 'champion'] };
 
     const result = checkWorkbookSpec(schema, spec);
@@ -314,7 +309,6 @@ describe('checkWorkbookSpec — the eight scored elements', () => {
 
   test('rejects a spec that captures an element score twice', () => {
     const spec = clone(baseSpec());
-    const q = sheet(spec);
     fixtureTable(spec, 'elements').columns.push({
       id: 'scoreAgain',
       header: 'Score (again)',
@@ -334,7 +328,6 @@ describe('checkWorkbookSpec — the eight scored elements', () => {
 describe('checkWorkbookSpec — roles', () => {
   test('rejects an input with no jsonPath', () => {
     const spec = clone(baseSpec());
-    const sh = sheet(spec);
     fixtureTable(spec, 'stakeholders').columns[0].jsonPath = undefined;
     expect(checkWorkbookSpec(schema, spec).roles.failures.join()).toContain('stakeholders.name');
   });
@@ -342,7 +335,6 @@ describe('checkWorkbookSpec — roles', () => {
   test('rejects a computed column that also claims a jsonPath', () => {
     // A derived number must never flow back into the deal JSON as if a human typed it.
     const spec = clone(baseSpec());
-    const q = sheet(spec);
     const delta = fixtureTable(spec, 'elements').columns.find((c) => c.id === 'delta');
     if (!delta) throw new Error('fixture drift');
     delta.jsonPath = 'qualification.*.score';
@@ -352,7 +344,6 @@ describe('checkWorkbookSpec — roles', () => {
 
   test('rejects an unknown valueType, which would have no style to render with', () => {
     const spec = clone(baseSpec());
-    const sh = sheet(spec);
     fixtureTable(spec, 'stakeholders').columns[0].valueType = 'colour' as never;
     expect(checkWorkbookSpec(schema, spec).roles.failures.join()).toContain('colour');
   });
@@ -367,7 +358,6 @@ describe('checkWorkbookSpec — roles', () => {
 describe('checkWorkbookSpec — references', () => {
   test('rejects a formula naming a cell that does not exist', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec);
     const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = 'SUM({{col:elements.scoreTYPO}})';
@@ -379,7 +369,6 @@ describe('checkWorkbookSpec — references', () => {
 
   test('rejects a row reference whose key is not one of the table rows', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec);
     const block = fixtureCell(spec, 'metricsScore');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = '{{row:elements.score@notAnElement}}';
@@ -390,7 +379,6 @@ describe('checkWorkbookSpec — references', () => {
   test('rejects a row reference into a table whose rows depend on the deal', () => {
     // `stakeholders` has no fixed row for a formula to point at.
     const spec = clone(baseSpec());
-    const sc = sheet(spec);
     const block = fixtureCell(spec, 'metricsScore');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = '{{row:stakeholders.name@0}}';
@@ -400,7 +388,6 @@ describe('checkWorkbookSpec — references', () => {
 
   test('rejects a formula with a placeholder the parser does not recognise', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec);
     const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = 'SUM({{colm:elements.score}})';
@@ -412,7 +399,6 @@ describe('checkWorkbookSpec — references', () => {
 
   test('rejects {{this:…}} outside a table column', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec);
     const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.formula = '{{this:score}}';
@@ -424,7 +410,6 @@ describe('checkWorkbookSpec — references', () => {
 describe('checkWorkbookSpec — identity and layout', () => {
   test('rejects two cells sharing an id, because a reference would be ambiguous', () => {
     const spec = clone(baseSpec());
-    const sc = sheet(spec);
     const block = fixtureCell(spec, 'scoreTotal');
     if (block.kind !== 'computed') throw new Error('fixture drift');
     block.id = 'acv';

@@ -36,10 +36,8 @@ import {
   ENGINE_VERSION_PROPERTY,
   FINGERPRINT_PROPERTY,
   LOCALE_PROPERTY,
-  type RowSpec,
   SCHEMA_HASH_PROPERTY,
   type SheetSpec,
-  type TablePart,
   type Validation,
   type WorkbookProperties,
 } from './xlsx';
@@ -135,10 +133,36 @@ export interface InputCell {
   valueType: ValueType;
 }
 
+/**
+ * Where a table ended up on the grid.
+ *
+ * One laid-out sheet has no fixed positions to assume: a table starts wherever the blocks above it
+ * left off, and a column sits wherever the spans before it end. Anything that needs to name a cell
+ * of a table — the acceptance test typing into Excel, a test asserting a rubric shows the right
+ * wording — asks here rather than counting rows itself, so there is one idea of where a cell lives.
+ */
+export interface PlannedTable {
+  id: string;
+  sheet: string;
+  headerRow: number;
+  firstDataRow: number;
+  /**
+   * Rows the table shows.
+   *
+   * For a list this is its entries or `minRows`, whichever is larger — the extra ones are blank and
+   * exist to be typed into. It is the whole of the list's capacity: nothing below them is read.
+   */
+  rows: number;
+  /** Column id -> 1-based grid column. */
+  columns: Record<string, number>;
+}
+
 export interface WorkbookPlan {
   sheets: SheetSpec[];
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
+  /** Every table's geometry, keyed by the spec's table id. */
+  tables: PlannedTable[];
   /**
    * Every cell a person may type into, and the deal path it writes.
    *
@@ -680,6 +704,14 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),
     inputCells,
+    tables: [...tables.values()].map((info) => ({
+      id: info.table.id,
+      sheet: info.sheet,
+      headerRow: info.headerRow,
+      firstDataRow: info.firstDataRow,
+      rows: Math.max(info.items.length, info.table.minRows ?? 1),
+      columns: Object.fromEntries(info.columns),
+    })),
   };
 }
 
