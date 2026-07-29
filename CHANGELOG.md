@@ -25,9 +25,15 @@ and this project adheres to
   - **The score column is a ladder now** — 0 red, 1 orange, 2 yellow, 3 and 4 clear — rather than three
     bands with the top one shouting. An element nobody has scored and one scored 1 are a gap and a
     start, and the old "under 2" rule painted them identically.
-  - **A blank cell that something depends on is washed.** An element's evidence, a question's response,
-    the three whys, the two strategy cells, the identifying metadata, and a stakeholder's name, title
-    and role. Deliberately not `notes` and not the partner-side whys: those are legitimately empty.
+  - **A blank cell that something depends on is washed, at one of two levels.** `required` — a
+    completion rule or the schema needs a value, so blank is a gap: an element's evidence, the three
+    whys, the two strategy cells, the identifying metadata, a stakeholder's name, title and role.
+    `wanted` — nothing requires it and a blank one is still worth seeing: a discovery question nobody has
+    answered, which drops to the faintest tint. `qualStatus` is satisfied by any ONE answer, so calling
+    the others missing would raise a false alarm on an element that is genuinely complete — and an
+    unanswered question is still among the most actionable things on the sheet, so it drops a level
+    rather than disappearing. Deliberately nothing at all on `notes` or the partner-side whys, which are
+    legitimately empty. The level distinction came out of the second-opinion review.
   - **A row somebody has started is washed even if it was a spare one.** A list keeps blank rows below
     its entries so there is somewhere to type, and a conditional-format range does not grow when one is
     used — so a wash stopping at the last existing entry was absent from the case it is most use, a
