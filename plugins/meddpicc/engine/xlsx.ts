@@ -955,7 +955,9 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
     `<Default Extension="xml" ContentType="application/xml"/>` +
     // The VML drawing behind the notes. Declared by extension, as Excel does — every note part on
     // every sheet is one `.vml` file, so there is nothing per-sheet to override.
-    (!anyNotes ? '' : `<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>`) +
+    (!anyNotes
+      ? ''
+      : `<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>`) +
     `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
     `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
     sheets

@@ -901,8 +901,7 @@ describe('planWorkbook — presentation', () => {
 
 describe('planWorkbook — the element definitions ride along as hover notes', () => {
   /** The note on one cell of the one sheet, by address. */
-  const noteAt = (ref: string, of: WorkbookPlan = plan) =>
-    of.notes.find((n) => n.sheet === SHEET && n.address === ref);
+  const noteAt = (ref: string, of: WorkbookPlan = plan) => of.notes.find((n) => n.sheet === SHEET && n.address === ref);
 
   test('every element name carries its schema definition as a note', () => {
     // The definitions are what a rep without MEDDPICC training needs and everyone else has read

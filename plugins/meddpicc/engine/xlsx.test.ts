@@ -815,7 +815,11 @@ describe('buildWorkbook — notes', () => {
     const parts = readZip(
       buildWorkbook([
         { name: 'Deal', rows: [] },
-        { name: 'Qualification', rows: [{ row: 1, cells: [{ ref: 'B1', value: 'Metrics' }] }], notes: [{ ref: 'B1', text: 'x' }] },
+        {
+          name: 'Qualification',
+          rows: [{ row: 1, cells: [{ ref: 'B1', value: 'Metrics' }] }],
+          notes: [{ ref: 'B1', text: 'x' }],
+        },
       ]),
     );
     expect(parts.has('xl/comments2.xml')).toBe(true);

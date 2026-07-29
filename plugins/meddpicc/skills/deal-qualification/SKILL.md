@@ -360,6 +360,11 @@ Rules that matter:
 - **Relay a rejection by its cell address**, as the tool gives it —
   `G20`, not a JSON path. The user is looking at Excel. A non-zero exit
   means something was refused; do not apply anyway.
+- **What each element means is a hover note, not a cell.** Asked on the
+  sheet what "Paper Process" or "Decision Criteria" covers, say to hover
+  the element name — the definition is there, which is why the column of
+  them is gone. `hint <element>` returns the same text if they would
+  rather read it in the conversation.
 - **A workbook only reads back against the deal it was generated
   from.** It carries a stamp, and `read` refuses it otherwise. If the
   deal has gained a stakeholder or an answer since, regenerate — do

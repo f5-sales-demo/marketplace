@@ -475,7 +475,9 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
 
         if (column.note !== undefined) {
           if (!NOTE_SOURCES.includes(column.note)) {
-            roles.push(`${where}: note "${column.note}" is not one the generator knows — have ${NOTE_SOURCES.join(', ')}`);
+            roles.push(
+              `${where}: note "${column.note}" is not one the generator knows — have ${NOTE_SOURCES.join(', ')}`,
+            );
           } else if (column.note === 'elementDefinition' && table.source.kind !== 'elements') {
             // The text is per element, so there has to be an element on the row to look it up by.
             roles.push(
