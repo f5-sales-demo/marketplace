@@ -394,7 +394,8 @@
                 "header": "Element",
                 "role": "derived",
                 "valueType": "string",
-                "span": 2
+                "span": 2,
+                "heading": true
               },
               {
                 "id": "score",
@@ -467,7 +468,9 @@
                 "header": "Element",
                 "role": "derived",
                 "valueType": "string",
-                "span": 2
+                "span": 2,
+                "groupRuns": true,
+                "heading": true
               },
               {
                 "id": "question",
@@ -1377,7 +1380,8 @@
                 "header": "Section",
                 "role": "derived",
                 "valueType": "string",
-                "span": 4
+                "span": 4,
+                "heading": true
               },
               {
                 "id": "status",

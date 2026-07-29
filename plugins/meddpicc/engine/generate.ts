@@ -187,6 +187,11 @@ function validationValues(schema: unknown, jsonPath: string, valueType?: ValueTy
   return Array.from({ length: maximum - minimum + 1 }, (_, i) => String(minimum + i));
 }
 
+/** What a grouped column compares to decide where one run ends and the next begins. */
+function groupKeyOf(entry: TableLayout['items'][number]): string {
+  return String(entry.key ?? entry.element ?? entry.listIndex ?? '');
+}
+
 /** Rows for a table, resolved against the deal. */
 function resolveRows(table: SpecTable, deal: unknown, schema: unknown): TableLayout['items'] {
   const source = table.source;
@@ -568,13 +573,49 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         push(info.headerRow, { ref: A1(column, info.headerRow), value: spec.header, style: 'columnHeader' });
         mergeSpan(column, info.headerRow, span);
 
+        // A grouped column writes its value once per run of equal values and merges down over the
+        // run — the element name beside its questions, as the manual sheet has it. Only the first row
+        // of a run gets a cell: a merge refuses to cover a value it would hide, which is the guard
+        // doing its job.
+        const runStart = new Map<number, number>();
+        if (spec.groupRuns) {
+          let seen: string | undefined;
+          let start = 0;
+          for (let r = 0; r < padded; r++) {
+            const value = info.items[r] === undefined ? undefined : String(groupKeyOf(info.items[r]));
+            if (value === undefined || value !== seen) {
+              seen = value;
+              start = r;
+            }
+            runStart.set(r, start);
+          }
+        }
+        const runLength = (r: number) => {
+          let n = 1;
+          while (r + n < padded && runStart.get(r + n) === r) n++;
+          return n;
+        };
+
         for (let r = 0; r < padded; r++) {
           const dataRow = info.firstDataRow + r;
           const ref = A1(column, dataRow);
-          const style = VALUE_TYPE_STYLE[spec.valueType];
-          mergeSpan(column, dataRow, span);
-          needHeight(dataRow, ROW_HEIGHT);
+          const style = spec.heading ? 'fieldLabel' : VALUE_TYPE_STYLE[spec.valueType];
           const entry = info.items[r];
+
+          if (spec.groupRuns) {
+            // Not the first row of its run: the merge above already covers this cell.
+            if (runStart.get(r) !== r) {
+              needHeight(dataRow, ROW_HEIGHT);
+              continue;
+            }
+            const rows = runLength(r);
+            if (rows > 1 || span > 1) {
+              merges.push(`${A1(column, dataRow)}:${A1(column + span - 1, dataRow + rows - 1)}`);
+            }
+          } else {
+            mergeSpan(column, dataRow, span);
+          }
+          needHeight(dataRow, ROW_HEIGHT);
 
           // Past the data, the row exists to be typed into: styled, empty, and still merged so it
           // lines up with the header above it.

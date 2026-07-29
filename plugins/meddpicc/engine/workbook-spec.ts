@@ -76,6 +76,22 @@ export interface SpecColumn {
   formula?: string;
   /** Grid columns this column covers. A span over one becomes a merge on every row. */
   span?: number;
+  /**
+   * This column labels its row rather than holding data.
+   *
+   * Rendered like a field label — the element name beside its questions is a heading for them, and
+   * the manual sheet colours it as one. Still not a style name: the spec says what a cell IS and the
+   * palette decides how that looks.
+   */
+  heading?: boolean;
+  /**
+   * Merge consecutive rows holding the same value into one cell.
+   *
+   * The element name beside its questions, as the manual sheet has it: "Metrics" written once and
+   * spanning both of its question rows, rather than repeated on each. It reads as one block per
+   * element instead of a column of duplicates.
+   */
+  groupRuns?: boolean;
   /** A named conditional-format preset (see xlsx.ts). Formatting is spec data, not code. */
   conditionalFormat?: CfPreset;
   /**
