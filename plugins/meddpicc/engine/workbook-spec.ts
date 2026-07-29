@@ -72,6 +72,21 @@ export interface SpecColumn {
   valueType: ValueType;
   /** For `input`. Relative to the item for a list source; may carry one `*` for a keyed source. */
   jsonPath?: string;
+  /**
+   * For `derived`: this column's value is computed from an INPUT, so it is not an anchor.
+   *
+   * Every other derived cell is one — an element's name and definition, a question's text, a
+   * section's name — because those follow only the schema and the row's key. A cell that no longer
+   * holds what the generator wrote there therefore means the rows have moved, and the reader refuses
+   * the workbook.
+   *
+   * A value following an input cannot be treated that way. The rubric wording follows a score: apply
+   * a score change to the deal, read the same workbook again, and the plan now expects the NEW
+   * wording while the file still holds the old one. Anchoring it would refuse the ordinary
+   * read-apply-read sequence — which is exactly what the Excel acceptance test caught when this flag
+   * was briefly removed, after a unit-test mutation failed to notice its absence.
+   */
+  followsInput?: boolean;
   /** For `computed`. May use `{{this:…}}` to name another column in the same row. */
   formula?: string;
   /** Grid columns this column covers. A span over one becomes a merge on every row. */

@@ -437,7 +437,8 @@
                 "header": "What This Score Means",
                 "role": "derived",
                 "valueType": "text",
-                "span": 3
+                "span": 3,
+                "followsInput": true
               },
               {
                 "id": "evidence",
@@ -1396,7 +1397,8 @@
                 "role": "derived",
                 "valueType": "string",
                 "conditionalFormat": "completionText",
-                "span": 2
+                "span": 2,
+                "followsInput": true
               }
             ]
           }

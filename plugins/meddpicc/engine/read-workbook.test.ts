@@ -301,13 +301,18 @@ describe('cells that are not inputs are never read', () => {
     expect(read(exampleDeal, edited).proposals).toEqual([]);
   });
 
-  test('a derived cell — the rubric text — proposes nothing', () => {
+  test('a derived cell — an element definition — proposes nothing, and says so', () => {
+    // It proposes nothing because the workbook is REFUSED: a derived cell is an anchor, so text that
+    // is not the text the generator wrote means either the rows moved or somebody typed over it.
+    // Asserting only "no proposals" would go on passing if the cell were quietly ignored instead.
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const qualification = cells.get(SHEET);
-    const derived = [...(qualification?.entries() ?? [])].find(([, c]) => c.text?.startsWith('Quantified'))?.[0];
+    const derived = [...(cells.get(SHEET)?.entries() ?? [])].find(([, c]) => c.text?.startsWith('Quantified'))?.[0];
     expect(derived).toBeDefined();
     const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, derived as string, 'nonsense');
-    expect(read(exampleDeal, edited).proposals).toEqual([]);
+    const report = read(exampleDeal, edited);
+    expect(report.proposals).toEqual([]);
+    expect(report.ok).toBe(false);
+    expect(report.rejections.some((r) => r.address === derived)).toBe(true);
   });
 });
 
@@ -828,6 +833,91 @@ describe('a workbook whose rows have moved is refused, not read', () => {
     expect(report.rejections.some((r) => r.address === first)).toBe(true);
   });
 
+  test('two question rows swapped are refused — an answer must not change question', () => {
+    // The `responses` table declares no key column, so anchoring only key columns left its question
+    // cells unchecked. Measured before the fix: swapping the first two question rows proposed
+    // exchanging `qualification.metrics.responses[0]` and `[1]` with `ok` true — each answer attached
+    // to the wrong question, which is worse than losing it.
+    const t = planWorkbook(schema, spec, exampleDeal).tables.find((x) => x.id === 'responses');
+    if (!t) throw new Error('no responses table');
+    const first = t.firstDataRow;
+    const second = t.firstDataRow + 1;
+    const qCol = columnLetter(t.columns.question);
+    const aCol = columnLetter(t.columns.response);
+    const swapped = moveCells(generateWorkbook(schema, spec, exampleDeal), SHEET, [
+      [`${qCol}${first}`, `${qCol}${second}`],
+      [`${qCol}${second}`, `${qCol}${first}`],
+      [`${aCol}${first}`, `${aCol}${second}`],
+      [`${aCol}${second}`, `${aCol}${first}`],
+    ]);
+    const report = read(exampleDeal, swapped);
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.deal).toEqual(exampleDeal);
+  });
+
+  test('every derived cell is an anchor unless it follows an input', () => {
+    // Stated as the rule rather than as a list, so a derived column added later is covered the day it
+    // is added and not the day somebody remembers.
+    const plan = planWorkbook(schema, spec, exampleDeal);
+    const anchored = new Set(plan.anchors.map((a) => `${a.sheet}!${a.address}`));
+    let checked = 0;
+    let exempt = 0;
+    for (const table of plan.tables) {
+      const declared = spec.sheets.flatMap(specTables).find((t) => t.id === table.id);
+      for (const column of declared?.columns ?? []) {
+        if (column.role !== 'derived') continue;
+        const ref = `${columnLetter(table.columns[column.id])}${table.firstDataRow}`;
+        const key = `${table.sheet}!${ref}`;
+        if (column.followsInput) {
+          expect(anchored.has(key), `${table.id}.${column.id} follows an input and must not anchor`).toBe(false);
+          exempt++;
+          continue;
+        }
+        expect(anchored.has(key), `${table.id}.${column.id} at ${ref}`).toBe(true);
+        checked++;
+      }
+    }
+    // Otherwise the loop above passes by finding nothing to check, either way.
+    expect(checked).toBeGreaterThan(3);
+    expect(exempt).toBeGreaterThan(0);
+  });
+
+  test('typing over a derived cell that anchors its row is refused, not dropped in silence', () => {
+    // A derived cell holds text, so Excel lets anyone overtype it, and nothing about it flows back to
+    // the deal. Passing over it without a word would be this plugin's oldest bug in a new place.
+    const t = planWorkbook(schema, spec, exampleDeal).tables.find((x) => x.id === 'elements');
+    if (!t) throw new Error('no elements table');
+    const definition = `${columnLetter(t.columns.definition)}${t.firstDataRow}`;
+    const report = read(
+      exampleDeal,
+      setText(generateWorkbook(schema, spec, exampleDeal), SHEET, definition, 'My own words'),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections.some((r) => r.address === definition)).toBe(true);
+  });
+
+  test('reading again after applying a score change does not refuse the same workbook', () => {
+    // The sequence a rep actually performs: change a score in Excel, apply it, read once more to be
+    // sure nothing is left. The rubric wording follows that score, so the plan for the applied deal
+    // expects the new wording while the file still holds the old one — anchoring it would refuse this.
+    //
+    // The Excel acceptance test is what caught this when the exemption was briefly removed. A unit
+    // test belongs here so the next person does not need Excel to find out.
+    const { sheet, address } = addressOf(exampleDeal, 'qualification.champion.score');
+    const bytes = setNumber(generateWorkbook(schema, spec, exampleDeal), sheet, address, 2);
+    const first = read(exampleDeal, bytes);
+    expect(first.rejections).toEqual([]);
+    expect(first.proposals).toHaveLength(1);
+
+    // Now read the SAME workbook against the deal that edit produced.
+    const second = read(first.deal, bytes);
+    expect(second.rejections).toEqual([]);
+    expect(second.proposals).toEqual([]);
+    expect(second.ok).toBe(true);
+  });
+
   test('a section banner nobody may retype is an anchor too', () => {
     // Inserting a row shifts every banner and label below it, which is how a person makes room.
     const plan = planWorkbook(schema, spec, exampleDeal);
@@ -960,13 +1050,22 @@ describe('schema drift', () => {
 });
 
 describe('metadata.locale', () => {
-  test('the workbook records the language it was generated in', () => {
+  const inLocale = (locale: string) => ({
+    ...(exampleDeal as object),
+    metadata: { ...(exampleDeal as { metadata: object }).metadata, locale },
+  });
+
+  test('the workbook records the language it is actually in', () => {
     expect(readWorkbookProperty(generateWorkbook(schema, spec, exampleDeal), 'MeddpiccLocale')).toBe('en');
-    const korean = {
-      ...(exampleDeal as object),
-      metadata: { ...(exampleDeal as { metadata: object }).metadata, locale: 'ko' },
-    };
-    expect(readWorkbookProperty(generateWorkbook(schema, spec, korean), 'MeddpiccLocale')).toBe('ko');
+    expect(readWorkbookProperty(generateWorkbook(schema, spec, inLocale('en')), 'MeddpiccLocale')).toBe('en');
+  });
+
+  test('a deal asking for a language the workbook cannot be written in is refused, not stamped', () => {
+    // Every label, heading and dropdown is still English. Emitting one anyway and stamping it `ko`
+    // would make the provenance property lie about its own file — worse than not having it, because
+    // the stamp is what a reader trusts. So say so instead.
+    expect(() => generateWorkbook(schema, spec, inLocale('ko'))).toThrow(/ko/);
+    expect(() => generateWorkbook(schema, spec, inLocale('ko'))).toThrow(/only.*English|not translated/i);
   });
 
   test('a exampleDeal naming a language the fleet does not have is refused by the schema', () => {

@@ -739,9 +739,15 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
           const derived = derivedValue(spec, entry, table, schema, deal, completion);
           push(dataRow, { ref, value: derived, style });
-          // The key column is what a formula's MATCH looks a row up by, and what says which element
-          // a row is about. Nothing a person may legitimately edit changes it, so it anchors the row.
-          if (spec.id === table.keyColumn && typeof derived === 'string') {
+          // A derived cell says which element or question its row is about, and nothing a person may
+          // legitimately edit changes it — so it anchors the row. Anchoring only the declared key
+          // column left the `responses` table, which has none, unchecked: swapping two question rows
+          // then attached each answer to the wrong question.
+          //
+          // Except when the value follows an INPUT. The rubric wording follows a score, so after an
+          // applied score change the plan expects the new wording while the file still holds the old
+          // one — anchoring it refuses the ordinary read-apply-read sequence. See `followsInput`.
+          if (!spec.followsInput && typeof derived === 'string' && derived !== '') {
             anchors.push({ sheet: s.name, address: ref, text: derived });
           }
           if (spec.valueType === 'text' && typeof derived === 'string') {
@@ -831,8 +837,17 @@ export function workbookFingerprint(plan: WorkbookPlan, deal: unknown): string {
   return createHash('sha256').update(`${identity}\n${layout}`).digest('hex').slice(0, 32);
 }
 
-/** The default when a deal names no language. */
+/**
+ * The language the workbook is written in.
+ *
+ * One value, because that is the truth today: every label, heading and dropdown is English. The
+ * schema lets a deal ask for another, and `generate` refuses rather than emitting an English file
+ * stamped `ko` — a provenance property that lies about its own file is worse than not having one,
+ * since the stamp is exactly what a reader trusts. When the locale files land, this becomes the
+ * default rather than the only option.
+ */
 export const DEFAULT_LOCALE = 'en';
+export const SUPPORTED_LOCALES: readonly string[] = [DEFAULT_LOCALE];
 
 /**
  * A stable reference to the schema the workbook was generated against.
@@ -858,11 +873,19 @@ export function workbookProperties(
   deal: unknown,
   engineVersion?: string,
 ): WorkbookProperties {
-  const locale = readPath(deal, 'metadata.locale');
+  const asked = readPath(deal, 'metadata.locale');
+  const locale = typeof asked === 'string' && asked !== '' ? asked : DEFAULT_LOCALE;
+  if (!SUPPORTED_LOCALES.includes(locale)) {
+    throw new Error(
+      `metadata.locale asks for "${locale}", and the workbook is not translated yet — it can only be ` +
+        `written in ${SUPPORTED_LOCALES.join(', ')}. Remove the field, or set it to ${DEFAULT_LOCALE}, ` +
+        'until the locale files land',
+    );
+  }
   return {
     [FINGERPRINT_PROPERTY]: workbookFingerprint(plan, deal),
     [SCHEMA_HASH_PROPERTY]: schemaHash(schema),
-    [LOCALE_PROPERTY]: typeof locale === 'string' && locale !== '' ? locale : DEFAULT_LOCALE,
+    [LOCALE_PROPERTY]: locale,
     ...(engineVersion === undefined ? {} : { [ENGINE_VERSION_PROPERTY]: engineVersion }),
   };
 }

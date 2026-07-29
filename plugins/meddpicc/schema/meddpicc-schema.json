@@ -28,7 +28,7 @@
         "locale": {
           "type": "string",
           "enum": ["en", "fr", "es", "de", "pt-br", "ja", "ko", "zh-cn", "zh-tw", "ar", "it", "hi", "th"],
-          "description": "Language for the generated workbook labels, headings and dropdown values. The deal data itself is always stored in English. A default only: --locale and the environment override it, because the language belongs to whoever is reading the report rather than to the deal."
+          "description": "Language the generated workbook is written in. Only \"en\" is implemented today: every label, heading and dropdown is English, and generate REFUSES any other value rather than emitting an English file stamped as translated. The enum lists the fleet languages this will support; the deal data itself is always stored in English whichever is chosen."
         },
         "dealStatus": {
           "type": "string",
@@ -116,7 +116,7 @@
         },
         "salesforce": {
           "type": "object",
-          "description": "Optional Salesforce integration fields — present when SFDC data has been imported",
+          "description": "Optional Salesforce integration fields \u2014 present when SFDC data has been imported",
           "properties": {
             "opportunityId": {
               "type": "string",
@@ -204,7 +204,7 @@
           ],
           "properties": {
             "definition": {
-              "const": "Quantified business outcomes the client expects — cost reduction, risk reduction, revenue impact, productivity gains, time-to-value"
+              "const": "Quantified business outcomes the client expects \u2014 cost reduction, risk reduction, revenue impact, productivity gains, time-to-value"
             },
             "questions": {
               "default": [
@@ -214,11 +214,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — No metrics identified or discussed",
-                "1": "Identified — Qualitative goals mentioned but no specific KPIs or baselines",
-                "2": "Validated — KPIs documented and confirmed with at least one stakeholder",
-                "3": "Quantified — Metrics tied to business value with baseline and target data",
-                "4": "Committed — Client has committed to metrics in writing or proposal"
+                "0": "Unknown \u2014 No metrics identified or discussed",
+                "1": "Identified \u2014 Qualitative goals mentioned but no specific KPIs or baselines",
+                "2": "Validated \u2014 KPIs documented and confirmed with at least one stakeholder",
+                "3": "Quantified \u2014 Metrics tied to business value with baseline and target data",
+                "4": "Committed \u2014 Client has committed to metrics in writing or proposal"
               }
             }
           }
@@ -238,11 +238,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — Don't know who controls budget",
-                "1": "Identified — Role identified but not the specific person; access only through intermediaries",
-                "2": "Engaged — EB identified by name; no direct access yet but plan exists",
-                "3": "Aligned — Direct access achieved; EB priorities and personal win documented",
-                "4": "Sponsoring — EB is actively sponsoring the deal through procurement"
+                "0": "Unknown \u2014 Don't know who controls budget",
+                "1": "Identified \u2014 Role identified but not the specific person; access only through intermediaries",
+                "2": "Engaged \u2014 EB identified by name; no direct access yet but plan exists",
+                "3": "Aligned \u2014 Direct access achieved; EB priorities and personal win documented",
+                "4": "Sponsoring \u2014 EB is actively sponsoring the deal through procurement"
               }
             }
           }
@@ -255,7 +255,7 @@
           ],
           "properties": {
             "definition": {
-              "const": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial"
+              "const": "The requirements the customer will use to evaluate options \u2014 technical, business, operational, and commercial"
             },
             "questions": {
               "default": [
@@ -265,11 +265,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — Don't know how the customer will evaluate solutions",
-                "1": "Identified — General requirements known but not documented or ranked",
-                "2": "Validated — Criteria partially documented with some influence actions taken",
-                "3": "Differentiated — Written criteria with priority ranking; competitive position mapped per criterion",
-                "4": "Locked — Criteria influenced toward our strengths; key stakeholders aligned"
+                "0": "Unknown \u2014 Don't know how the customer will evaluate solutions",
+                "1": "Identified \u2014 General requirements known but not documented or ranked",
+                "2": "Validated \u2014 Criteria partially documented with some influence actions taken",
+                "3": "Differentiated \u2014 Written criteria with priority ranking; competitive position mapped per criterion",
+                "4": "Locked \u2014 Criteria influenced toward our strengths; key stakeholders aligned"
               }
             }
           }
@@ -292,11 +292,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — Unknown how the customer will make and approve the decision",
-                "1": "Identified — High-level understanding only; no dates or named owners",
-                "2": "Mapped — Major steps identified but dates or owners missing",
-                "3": "Validated — Step-by-step process documented with named owners and dates",
-                "4": "Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed"
+                "0": "Unknown \u2014 Unknown how the customer will make and approve the decision",
+                "1": "Identified \u2014 High-level understanding only; no dates or named owners",
+                "2": "Mapped \u2014 Major steps identified but dates or owners missing",
+                "3": "Validated \u2014 Step-by-step process documented with named owners and dates",
+                "4": "Controlled \u2014 All gates mapped; no surprises expected; legal/security/procurement flow confirmed"
               }
             }
           }
@@ -309,7 +309,7 @@
           ],
           "properties": {
             "definition": {
-              "const": "The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process"
+              "const": "The procurement mechanics \u2014 quotes, approvals, vendor onboarding, security review, legal redlines, signature process"
             },
             "questions": {
               "default": [
@@ -319,11 +319,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — No procurement discovery done",
-                "1": "Identified — Aware that procurement exists but steps unknown",
-                "2": "Mapped — Some procurement steps known; security requirements identified",
-                "3": "In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review",
-                "4": "Complete — All procurement, legal, and security steps done; signature workflow mapped; PO format confirmed"
+                "0": "Unknown \u2014 No procurement discovery done",
+                "1": "Identified \u2014 Aware that procurement exists but steps unknown",
+                "2": "Mapped \u2014 Some procurement steps known; security requirements identified",
+                "3": "In Progress \u2014 Procurement steps documented with owners; security artifacts submitted; legal in review",
+                "4": "Complete \u2014 All procurement, legal, and security steps done; signature workflow mapped; PO format confirmed"
               }
             }
           }
@@ -346,11 +346,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — No pain identified or discussed; solution looking for a problem",
-                "1": "Identified — Pain implied but not explicitly confirmed by customer",
-                "2": "Acknowledged — Pain acknowledged by customer but not fully quantified",
-                "3": "Quantified — Pain quantified with business impact; consequence of inaction documented",
-                "4": "Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver"
+                "0": "Unknown \u2014 No pain identified or discussed; solution looking for a problem",
+                "1": "Identified \u2014 Pain implied but not explicitly confirmed by customer",
+                "2": "Acknowledged \u2014 Pain acknowledged by customer but not fully quantified",
+                "3": "Quantified \u2014 Pain quantified with business impact; consequence of inaction documented",
+                "4": "Urgent \u2014 Multiple stakeholders confirm pain; triggering event identified; clear deadline driver"
               }
             }
           }
@@ -370,11 +370,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — No internal advocate identified",
-                "1": "Identified — Friendly contact without organizational power; passive supporter",
-                "2": "Tested — Friendly contact with some influence; willing to help but hasn't taken significant action",
-                "3": "Validated — Named individual with influence and credibility; personal win documented",
-                "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
+                "0": "Unknown \u2014 No internal advocate identified",
+                "1": "Identified \u2014 Friendly contact without organizational power; passive supporter",
+                "2": "Tested \u2014 Friendly contact with some influence; willing to help but hasn't taken significant action",
+                "3": "Validated \u2014 Named individual with influence and credibility; personal win documented",
+                "4": "Mobilizing \u2014 Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
               }
             }
           }
@@ -387,7 +387,7 @@
           ],
           "properties": {
             "definition": {
-              "const": "Any alternative the buyer might choose — another vendor, internal build, or do nothing"
+              "const": "Any alternative the buyer might choose \u2014 another vendor, internal build, or do nothing"
             },
             "questions": {
               "default": [
@@ -397,11 +397,11 @@
             },
             "scoreDefinition": {
               "default": {
-                "0": "Unknown — No competitive intelligence gathered",
-                "1": "Identified — Assumptions about competition; no differentiation strategy",
-                "2": "Assessed — Competitors identified but customer perception unclear; general differentiation known",
-                "3": "Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear",
-                "4": "Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer"
+                "0": "Unknown \u2014 No competitive intelligence gathered",
+                "1": "Identified \u2014 Assumptions about competition; no differentiation strategy",
+                "2": "Assessed \u2014 Competitors identified but customer perception unclear; general differentiation known",
+                "3": "Differentiated \u2014 Competitors named and qualified; customer perception documented; differentiation strategy clear",
+                "4": "Neutralized \u2014 Competitive proof delivered; do-nothing risk assessed; win theme validated with customer"
               }
             }
           }
@@ -410,7 +410,7 @@
     },
     "threeWhys": {
       "type": "object",
-      "description": "The Three Whys — Why Anything, Why Us, Why Now — for your own company and for the partner",
+      "description": "The Three Whys \u2014 Why Anything, Why Us, Why Now \u2014 for your own company and for the partner",
       "properties": {
         "us": {
           "type": "object",
@@ -454,7 +454,7 @@
     },
     "stakeholders": {
       "type": "array",
-      "description": "Stakeholder analysis grid — all individuals involved in the buying decision",
+      "description": "Stakeholder analysis grid \u2014 all individuals involved in the buying decision",
       "items": {
         "type": "object",
         "properties": {
@@ -607,7 +607,7 @@
     },
     "scoring": {
       "type": "object",
-      "description": "Computed scoring summary — derived from qualification.*.score values. Updated by the AI after each section.",
+      "description": "Computed scoring summary \u2014 derived from qualification.*.score values. Updated by the AI after each section.",
       "properties": {
         "elementScores": {
           "type": "object",
@@ -656,7 +656,7 @@
         },
         "previousElementScores": {
           "type": "object",
-          "description": "Snapshot of element scores from the previous review — used by deal-review to compute score deltas",
+          "description": "Snapshot of element scores from the previous review \u2014 used by deal-review to compute score deltas",
           "properties": {
             "metrics": {
               "type": "integer",
@@ -771,7 +771,7 @@
         },
         "evidence": {
           "type": "string",
-          "description": "Supporting evidence — emails, meetings, documents"
+          "description": "Supporting evidence \u2014 emails, meetings, documents"
         },
         "notes": {
           "type": "string",
