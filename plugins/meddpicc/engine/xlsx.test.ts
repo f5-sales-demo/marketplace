@@ -702,3 +702,161 @@ describe('buildWorkbook — provenance properties', () => {
     expect(readZip(buildWorkbook([{ name: 'Deal', rows: [] }], {})).has('docProps/custom.xml')).toBe(false);
   });
 });
+
+describe('buildWorkbook — notes', () => {
+  /** A sheet whose B2 says "Metrics", with whatever notes and merges the test wants. */
+  const withNotes = (notes: { ref: string; text: string }[] | undefined, merges?: string[]) =>
+    readZip(
+      buildWorkbook([
+        {
+          name: 'Deal',
+          rows: [
+            {
+              row: 2,
+              cells: [
+                { ref: 'B2', value: 'Metrics', style: 'fieldLabel' },
+                { ref: 'D2', value: 3, style: 'score' },
+              ],
+            },
+          ],
+          merges,
+          notes,
+        },
+      ]),
+    );
+
+  const NOTE = { ref: 'B2', text: 'The quantified business outcome the customer is buying.' };
+
+  test('a note ships every part a classic note needs, and the text is in the comments part', () => {
+    // A note is not one part but four: the text, a legacy VML shape to position it, the
+    // worksheet's own relationships, and the two content-type declarations. Miss any one and
+    // Excel either drops the note or offers to repair the file.
+    const parts = withNotes([NOTE]);
+    expect(parts.has('xl/comments1.xml')).toBe(true);
+    expect(parts.has('xl/drawings/vmlDrawing1.vml')).toBe(true);
+    expect(parts.has('xl/worksheets/_rels/sheet1.xml.rels')).toBe(true);
+
+    const comments = dec(parts.get('xl/comments1.xml')?.data as Uint8Array);
+    expect(comments).toContain('ref="B2"');
+    expect(comments).toContain(NOTE.text);
+
+    const ct = dec(parts.get('[Content_Types].xml')?.data as Uint8Array);
+    expect(ct).toContain('Extension="vml"');
+    expect(ct).toContain('/xl/comments1.xml');
+  });
+
+  test('the worksheet points at the drawing, and the id resolves to the vml part', () => {
+    const parts = withNotes([NOTE]);
+    const sheet = dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    const rels = dec(parts.get('xl/worksheets/_rels/sheet1.xml.rels')?.data as Uint8Array);
+    const id = /<legacyDrawing r:id="(rId\d+)"\/>/.exec(sheet)?.[1];
+    expect(id, 'the worksheet must declare a legacyDrawing').toBeDefined();
+    // The relationship that id names has to be the VML one; pointing it at the comments part
+    // leaves the notes present in the file and invisible in Excel.
+    const target = new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`).exec(rels)?.[1];
+    expect(target).toBe('../drawings/vmlDrawing1.vml');
+    expect(rels).toContain('../comments1.xml');
+  });
+
+  test('legacyDrawing comes last, after the print group', () => {
+    // It sits at the END of the CT_Worksheet sequence — after headerFooter. Put it beside
+    // mergeCells, where it reads as if it belonged, and Excel offers to repair the file.
+    const sheet = dec(
+      readZip(
+        buildWorkbook([
+          {
+            name: 'Deal',
+            rows: [{ row: 2, cells: [{ ref: 'B2', value: 'Metrics', style: 'fieldLabel' }] }],
+            print: { orientation: 'landscape', fitToWidth: true, header: ['Deal'] },
+            notes: [NOTE],
+          },
+        ]),
+      ).get('xl/worksheets/sheet1.xml')?.data as Uint8Array,
+    );
+    for (const before of ['<sheetData', '<pageSetup', '<headerFooter']) {
+      expect(sheet.indexOf('<legacyDrawing')).toBeGreaterThan(sheet.indexOf(before));
+    }
+  });
+
+  test('the shape names the cell it hangs on, counting from zero', () => {
+    // VML counts rows and columns from zero while an A1 reference counts from one. Off by one
+    // and the note appears on the row above, still hoverable, pointing at the wrong element.
+    const vml = dec(withNotes([NOTE]).get('xl/drawings/vmlDrawing1.vml')?.data as Uint8Array);
+    expect(vml).toContain('<x:Row>1</x:Row>');
+    expect(vml).toContain('<x:Column>1</x:Column>');
+    expect(vml).toContain('ObjectType="Note"');
+    expect(vml).toContain('<x:Anchor>');
+  });
+
+  test('each note gets its own shape id', () => {
+    const vml = dec(
+      withNotes([NOTE, { ref: 'D2', text: 'A 0-4 score.' }]).get('xl/drawings/vmlDrawing1.vml')?.data as Uint8Array,
+    );
+    const ids = [...vml.matchAll(/<v:shape id="([^"]+)"/g)].map((m) => m[1]);
+    expect(ids.length).toBe(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  test('a workbook with no notes ships no note parts at all', () => {
+    const parts = withNotes(undefined);
+    expect(parts.has('xl/comments1.xml')).toBe(false);
+    expect(parts.has('xl/drawings/vmlDrawing1.vml')).toBe(false);
+    expect(parts.has('xl/worksheets/_rels/sheet1.xml.rels')).toBe(false);
+    expect(dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array)).not.toContain('legacyDrawing');
+    expect(dec(parts.get('[Content_Types].xml')?.data as Uint8Array)).not.toContain('vml');
+    // An empty list is the same as none: an empty commentList would be a part Excel has to
+    // read for nothing.
+    expect(withNotes([]).has('xl/comments1.xml')).toBe(false);
+  });
+
+  test('note parts are numbered by their sheet, not by how many carry notes', () => {
+    // sheet2's note part must be comments2.xml: named comments1.xml it would collide with the
+    // first sheet's the moment that one has a note too, and Excel resolves parts by name.
+    const parts = readZip(
+      buildWorkbook([
+        { name: 'Deal', rows: [] },
+        { name: 'Qualification', rows: [{ row: 1, cells: [{ ref: 'B1', value: 'Metrics' }] }], notes: [{ ref: 'B1', text: 'x' }] },
+      ]),
+    );
+    expect(parts.has('xl/comments2.xml')).toBe(true);
+    expect(parts.has('xl/comments1.xml')).toBe(false);
+    expect(parts.has('xl/worksheets/_rels/sheet2.xml.rels')).toBe(true);
+    expect(dec(parts.get('xl/worksheets/_rels/sheet2.xml.rels')?.data as Uint8Array)).toContain(
+      '../drawings/vmlDrawing2.vml',
+    );
+  });
+
+  test('escapes the note text rather than injecting it', () => {
+    const comments = dec(
+      withNotes([{ ref: 'B2', text: 'Metrics & <targets>' }]).get('xl/comments1.xml')?.data as Uint8Array,
+    );
+    expect(comments).toContain('Metrics &amp; &lt;targets&gt;');
+    expect(comments).not.toContain('<targets>');
+  });
+
+  test('refuses two notes on one cell', () => {
+    // Excel keeps one of them, so the other text is simply gone with nothing to say so.
+    expect(() => withNotes([NOTE, { ref: 'B2', text: 'something else' }])).toThrow(/B2/);
+  });
+
+  test('refuses a note with no text', () => {
+    // A red triangle with nothing behind it is worse than no note: it invites a hover that
+    // shows an empty box.
+    expect(() => withNotes([{ ref: 'B2', text: '' }])).toThrow(/text/i);
+    expect(() => withNotes([{ ref: 'B2', text: '   ' }])).toThrow(/text/i);
+  });
+
+  test('refuses a note on a cell a merge hides', () => {
+    // Only the top-left cell of a merge is visible, and a note on any of the others cannot be
+    // hovered — the definition would be in the file and unreachable.
+    expect(() => withNotes([{ ref: 'C2', text: 'hidden' }], ['B2:C2'])).toThrow(/merge/i);
+    // The anchor of that same merge is fine, and is where the notes actually go.
+    expect(() => withNotes([NOTE], ['B2:C2'])).not.toThrow();
+  });
+
+  test('refuses anything that is not a single cell reference', () => {
+    for (const ref of ['B2:C2', '2B', 'B', '', 'b2']) {
+      expect(() => withNotes([{ ref, text: 'x' }]), ref).toThrow();
+    }
+  });
+});
