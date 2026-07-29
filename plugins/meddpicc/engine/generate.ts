@@ -16,7 +16,7 @@ import { computeCompletion } from './completion';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { schemaConstraint } from './schema-path';
-import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel } from './sections';
+import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight } from './text-metrics';
 import {
   parseReferences,
@@ -71,6 +71,10 @@ export function dateToSerial(value: unknown): number | null {
 }
 
 /** Coerce a deal value for a cell of this type. `undefined` means leave the cell blank. */
+/** How a boolean reads on the sheet. */
+export const BOOLEAN_YES = 'Yes';
+export const BOOLEAN_NO = 'No';
+
 function toCellValue(value: unknown, valueType: ValueType): string | number | boolean | undefined {
   if (value === undefined || value === null || value === '') {
     // An unscored element is 0, not blank. `computeScore` already counts it as 0, and Excel's
@@ -79,7 +83,13 @@ function toCellValue(value: unknown, valueType: ValueType): string | number | bo
     return valueType === 'score' ? 0 : undefined;
   }
   if (valueType === 'date') return dateToSerial(value) ?? String(value);
-  if (valueType === 'boolean') return typeof value === 'boolean' ? value : String(value);
+  // "Yes" and "No", not TRUE and FALSE. A deal review is read by people, and Excel renders a real
+  // boolean in shouting capitals. The reader accepts either spelling, so nothing is lost by writing
+  // the readable one — and a boolean cell gets a Yes/No dropdown, which the manual sheet did not have.
+  if (valueType === 'boolean') {
+    if (typeof value === 'boolean') return value ? BOOLEAN_YES : BOOLEAN_NO;
+    return value === undefined || value === null ? undefined : String(value);
+  }
   if (valueType === 'integer' || valueType === 'number' || valueType === 'currency' || valueType === 'percent') {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   }
@@ -165,7 +175,9 @@ export interface WorkbookPlan {
  * An enum lists them directly. A bounded integer — which is what a 0-4 score is — enumerates
  * its range instead, so the score column gets 0,1,2,3,4 without anyone typing that anywhere.
  */
-function validationValues(schema: unknown, jsonPath: string): string[] | undefined {
+function validationValues(schema: unknown, jsonPath: string, valueType?: ValueType): string[] | undefined {
+  // A boolean has no enum to read, but it has exactly two values and they are worth offering.
+  if (valueType === 'boolean') return [BOOLEAN_YES, BOOLEAN_NO];
   const constraint = schemaConstraint(schema, jsonPath);
   if (!constraint) return undefined;
   if (constraint.enum) return constraint.enum;
@@ -387,14 +399,14 @@ function derivedValue(
       const score = readPath(deal, `qualification.${element}.score`);
       return hint.scoreDefinition[String(typeof score === 'number' ? score : 0)] ?? '';
     }
-    if (column.id === 'status') return completion[element];
+    if (column.id === 'status') return statusLabel(completion[element]);
     return undefined;
   }
 
   if (source === 'sections') {
     const section = entry.key as string;
     if (column.id === 'section') return sectionLabel(section);
-    if (column.id === 'status') return completion[section];
+    if (column.id === 'status') return statusLabel(completion[section]);
     return undefined;
   }
 
@@ -532,7 +544,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
               needHeight(row, estimateRowHeight(value, spanWidth(column, cell.span), ROW_HEIGHT));
             }
             if (cell.validate) {
-              const values = validationValues(schema, cell.jsonPath);
+              const values = validationValues(schema, cell.jsonPath, cell.valueType);
               if (values) validations.push({ sqref: ref, values });
             }
           } else {
@@ -605,7 +617,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         if (spec.conditionalFormat) formats.push({ sqref, preset: spec.conditionalFormat });
         if (spec.role === 'input' && spec.validate && spec.jsonPath) {
           // Any row's path resolves to the same schema node, so the first one answers for all.
-          const values = validationValues(schema, inputPathFor(table, spec, info.items[0] ?? {}));
+          const values = validationValues(schema, inputPathFor(table, spec, info.items[0] ?? {}), spec.valueType);
           if (values) validations.push({ sqref, values });
         }
         column += span;

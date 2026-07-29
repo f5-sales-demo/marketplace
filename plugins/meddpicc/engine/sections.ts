@@ -50,3 +50,20 @@ export const SECTION_LABELS: Record<(typeof SECTION_ORDER)[number], string> = {
 export function sectionLabel(key: string): string {
   return SECTION_LABELS[key as (typeof SECTION_ORDER)[number]] ?? key;
 }
+
+/**
+ * How a completion status reads on the sheet.
+ *
+ * `not_started` is a JSON value, not English. **The conditional format matches on these strings too**
+ * — see `CF_PRESETS.completionText` in xlsx.ts, which imports this map for exactly that reason.
+ * Relabel here without relabelling there and the colours quietly stop appearing.
+ */
+export const SECTION_STATUS_LABELS: Record<SectionStatus, string> = {
+  not_started: 'Not started',
+  partial: 'Partial',
+  complete: 'Complete',
+};
+
+export function statusLabel(status: string): string {
+  return SECTION_STATUS_LABELS[status as SectionStatus] ?? status;
+}

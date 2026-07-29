@@ -17,6 +17,7 @@
  * That trades a little file size for one fewer part to keep consistent. Excel re-saves them
  * through `sharedStrings.xml` anyway, which the round-trip reader handles.
  */
+import { SECTION_STATUS_LABELS } from './sections';
 import { writeZip } from './zip';
 
 const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -252,10 +253,12 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
     { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'amber' },
     { type: 'cellIs', operator: 'equal', formulas: ['"Green"'], dxf: 'green' },
   ],
+  // Matched against the LABEL the sheet displays, not the JSON value behind it. The two come from
+  // one map so they cannot drift; see SECTION_STATUS_LABELS.
   completionText: [
-    { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"partial"'], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"not_started"'], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${SECTION_STATUS_LABELS.complete}"`], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${SECTION_STATUS_LABELS.partial}"`], dxf: 'amber' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${SECTION_STATUS_LABELS.not_started}"`], dxf: 'red' },
   ],
   statusText: [
     { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },

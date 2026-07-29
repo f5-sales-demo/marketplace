@@ -206,7 +206,24 @@ export function readWorkbookCells(bytes: Uint8Array): Map<string, Map<string, Ra
 /** What a cell says, or why it cannot be used. */
 type Coerced = { value: string | number | boolean | undefined } | { error: string };
 
-const BOOLEAN_WORDS: Record<string, boolean> = { TRUE: true, FALSE: false, '1': true, '0': false };
+/**
+ * Every spelling of a boolean a person or Excel might leave in a cell.
+ *
+ * The workbook writes "Yes"/"No" because a deal review is read by people, but Excel writes TRUE/FALSE
+ * when it stores a real boolean and a user may type either — or Y/N, which is what anyone in a hurry
+ * types. Accepting all of them costs nothing; refusing "Yes" in a sheet that offered it in a dropdown
+ * would be indefensible.
+ */
+const BOOLEAN_WORDS: Record<string, boolean> = {
+  TRUE: true,
+  FALSE: false,
+  YES: true,
+  NO: false,
+  Y: true,
+  N: false,
+  '1': true,
+  '0': false,
+};
 
 function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
   const text = raw?.text;
@@ -223,7 +240,7 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
     case 'boolean': {
       const word = raw?.type === 'b' ? (text === '1' ? 'TRUE' : 'FALSE') : text.trim().toUpperCase();
       const value = BOOLEAN_WORDS[word];
-      return value === undefined ? { error: `must be TRUE or FALSE, not "${text}"` } : { value };
+      return value === undefined ? { error: `must be Yes or No, not "${text}"` } : { value };
     }
 
     case 'date': {
