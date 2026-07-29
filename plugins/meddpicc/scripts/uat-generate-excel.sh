@@ -431,24 +431,37 @@ scratch_row=$(($(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan | jq -
 height_failures=0
 height_checked=0
 
+# The text goes to AppleScript as an ARGUMENT, and the script body is a quoted heredoc the shell does
+# not touch. Interpolating it into the body instead was both wrong and dangerous: the example deal's
+# strategy mentions "$400K SLA penalties", and the shell expanded `$4` to nothing, so Excel measured
+# "00K SLA penalties" and the stage reported a pass for a string that was never in the workbook. A
+# `$(…)` in a deal file would have run as a command. Neither is possible now, and a quote or a
+# backslash in somebody's evidence measures correctly rather than being refused.
+#
 # `autofit (entire row of r)` — `autofit row N of ws` raises -10006 and `autofit range "…"` raises
 # -50, and both of those return empty text that awk turns into 0, which compares as "Excel wants
-# nothing" and makes this whole stage pass unconditionally. Verified by running it against a
-# deliberately under-allocating estimator: it reports SHORT for 61 of 83 cells.
+# nothing" and makes this whole stage pass unconditionally. Verified against a deliberately
+# under-allocating estimator: it reports SHORT for 33 of 83 cells.
 measure_height() {
-  local text="$1" width="$2" ref="${scratch_col}${scratch_row}"
-  osascript 2>&1 <<OSA
-tell application "Microsoft Excel"
-  set r to range "$ref" of worksheet "$SHEET" of workbook "$BOOK"
-  set column width of r to $width
-  set wrap text of r to true
-  set value of r to "$text"
-  autofit (entire row of r)
-  set h to (height of r)
-  clear contents r
-  set row height of r to 15
-  return h as string
-end tell
+  osascript - "$SHEET" "$BOOK" "${scratch_col}${scratch_row}" "$1" "$2" 2>&1 <<'OSA'
+on run argv
+  set sheetName to item 1 of argv
+  set bookName to item 2 of argv
+  set cellRef to item 3 of argv
+  set cellWidth to (item 4 of argv) as real
+  set cellText to item 5 of argv
+  tell application "Microsoft Excel"
+    set r to range cellRef of worksheet sheetName of workbook bookName
+    set column width of r to cellWidth
+    set wrap text of r to true
+    set value of r to cellText
+    autofit (entire row of r)
+    set h to (height of r)
+    clear contents r
+    set row height of r to 15
+    return h as string
+  end tell
+end run
 OSA
 }
 
@@ -456,12 +469,7 @@ prose_rows="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --prose-heights)
 [ -n "$prose_rows" ] || fail "the plan reports no prose cells, so this stage cannot fail"
 while IFS=$'\t' read -r ref width ours text; do
   [ -n "$ref" ] || continue
-  # A quote or a backslash in the text would end the AppleScript string early, so refuse rather than
-  # measure something else and call it a pass.
-  case "$text" in
-  *'"'* | *[\\]*) fail "the prose at $ref contains a quote or backslash; the measurement cannot carry it verbatim" ;;
-  esac
-  theirs="$(measure_height "$text" "$width")"
+  theirs="$(measure_height "$width" "$text")"
   case "$theirs" in
   *"execution error"* | *"syntax error"*) fail "the height measurement could not run at $ref: $theirs" ;;
   esac
@@ -761,6 +769,55 @@ echo "    Champion score before moving its row = $was_champ, after = $now_champ"
 [ -n "$swapped_a" ] && [ "$swapped_a" != "$swapped_b" ] || fail "the two element rows read '$swapped_a' and '$swapped_b' — nothing was swapped, so this proves nothing"
 [ -n "$was_champ" ] && [ "$was_champ" = "$now_champ" ] || fail "a keyed reference did not follow its key ($swap_result)"
 echo "PASS: keyed references follow the key, so re-ordering the rows cannot mislabel a score"
+
+# The rubric explains the score beside it, so it has to follow that score IN EXCEL. Written as a
+# literal it went stale the moment anybody changed one — a contradiction on the screen during a live
+# review, in the one column whose job is to explain the number next to it.
+#
+# So: change a score in Excel and ask Excel what the rubric now says. Only the application can answer
+# that, because the answer is a formula it evaluates.
+rubric_cell="$(table_cell elements rubric 0)"
+rubric_score="$(table_cell elements score 0)"
+rubric_element="$(table_cell elements element 0)"
+echo "==> changing $rubric_score and reading $rubric_cell back"
+rubric_seen="$(
+  osascript - "$SHEET" "$BOOK" "$rubric_score" "$rubric_cell" "$rubric_element" 2>&1 <<'OSA'
+on run argv
+  tell application "Microsoft Excel"
+    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
+    set scoreCell to range (item 3 of argv) of ws
+    set rubricCell to range (item 4 of argv) of ws
+    set was to (get value of rubricCell) as string
+    set original to (get value of scoreCell)
+    set value of scoreCell to 0
+    set atZero to (get value of rubricCell) as string
+    set value of scoreCell to 4
+    set atFour to (get value of rubricCell) as string
+    set value of scoreCell to original
+    set restored to (get value of rubricCell) as string
+    return was & "|" & atZero & "|" & atFour & "|" & restored
+  end tell
+end run
+OSA
+)"
+case "$rubric_seen" in
+*"execution error"* | *"syntax error"*) fail "the rubric check could not run: $rubric_seen" ;;
+esac
+rub_was="$(cut -d'|' -f1 <<<"$rubric_seen")"
+rub_zero="$(cut -d'|' -f2 <<<"$rubric_seen")"
+rub_four="$(cut -d'|' -f3 <<<"$rubric_seen")"
+rub_back="$(cut -d'|' -f4 <<<"$rubric_seen")"
+echo "    at score 0: ${rub_zero:0:48}"
+echo "    at score 4: ${rub_four:0:48}"
+[ -n "${rub_zero// /}" ] && [ -n "${rub_four// /}" ] || fail "the rubric cell read back empty: $rubric_seen"
+[ "$rub_zero" != "$rub_four" ] || fail "the rubric says the same thing at score 0 and score 4 — it is not following the score"
+# What it says must be what the schema says, not merely something different.
+want_zero="$(jq -r '.properties.qualification.properties.metrics.properties.scoreDefinition.default["0"]' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+want_four="$(jq -r '.properties.qualification.properties.metrics.properties.scoreDefinition.default["4"]' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+[ "$rub_zero" = "$want_zero" ] || fail "at score 0 the rubric reads '$rub_zero', the schema says '$want_zero'"
+[ "$rub_four" = "$want_four" ] || fail "at score 4 the rubric reads '$rub_four', the schema says '$want_four'"
+[ "$rub_back" = "$rub_was" ] || fail "restoring the score did not restore the rubric ('$rub_back' vs '$rub_was')"
+echo "PASS: the rubric follows its score in Excel, and says what the schema says at each level"
 
 # The rows are now genuinely out of order in an open workbook. Save it and read it back: this must be
 # REFUSED, not read.

@@ -6,6 +6,7 @@ import type { WorkbookPlan } from './generate';
 import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { ENUM_LABELS, enumLabel } from './labels';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
+import { estimateRowHeight, MAX_ROW_HEIGHT } from './text-metrics';
 import { specTables, type WorkbookSpec } from './workbook-spec';
 import { A1, COMPLETION_STATUSES, columnIndex } from './xlsx';
 import { readZip } from './zip';
@@ -58,6 +59,21 @@ function table(id: string, of: WorkbookPlan = plan) {
     headerRef: (columnId: string) => A1(column(columnId), found.headerRow),
   };
 }
+/** The character width of one table column's span, from the spec's own column sizes. */
+function spanWidthOf(column: number, columnId: string): number {
+  const declared = spec.sheets
+    .flatMap(specTables)
+    .flatMap((t) => t.columns)
+    .find((c) => c.id === columnId);
+  const span = declared?.span ?? 1;
+  const sizes = spec.sheets[0].columns;
+  let total = 0;
+  for (let c = column; c < column + span; c++) {
+    total += sizes.find((x) => c >= x.min && c <= x.max)?.width ?? 8.43;
+  }
+  return total;
+}
+
 /** The 1-based column of an A1 reference. */
 const colOf = (ref: string) => columnIndex((/^([A-Z]+)/.exec(ref) as RegExpExecArray)[1]);
 /** A cell of any plan, by address. */
@@ -178,14 +194,18 @@ describe('planWorkbook — derived cells come from the schema, not from prose', 
     expect(definition).toContain('Quantified business outcomes');
   });
 
-  test('the rubric cell shows the wording for that element at its own score', () => {
-    // metrics scores 3 in the example deal; the schema's level-3 text must be what shows.
+  test('the rubric cell selects the wording for that element at its own score', () => {
+    // metrics scores 3 in the example deal, so the branch that fires for a 3 must carry the schema's
+    // level-3 text. Asserted through the FORMULA, because the cell is a lookup now — the wording
+    // follows the score in Excel rather than being frozen at generation time.
     const metricsScore = (deal.qualification.metrics as { score: number }).score;
     const rubric = schema.properties.qualification.properties.metrics.properties.scoreDefinition.default[
       String(metricsScore)
     ] as string;
     const elements = table('elements');
-    expect(cellAt(elements.ref('rubric', QUALIFICATION_ELEMENTS.indexOf('metrics')))?.value).toBe(rubric);
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const formula = cellAt(elements.ref('rubric', row))?.formula ?? '';
+    expect(formula).toContain(`=${metricsScore},"${rubric.replace(/"/g, '""')}"`);
   });
 
   test('every element gets a row, in the canonical order', () => {
@@ -556,6 +576,97 @@ describe('an enum reads as words, and the dropdown offers the same words', () =>
     const p = planWorkbook(schema, spec, withProse);
     const evidence = p.inputCells.find((c) => c.jsonPath === 'qualification.metrics.evidence');
     expect(cellOf(p, evidence?.address ?? '')?.value).toBe('pending');
+  });
+});
+
+describe('the rubric follows the score in Excel, not just at generation time', () => {
+  // A derived value written once as a literal goes stale the moment somebody changes what it derives
+  // from. Change a score from 2 to 4 in the middle of a review and the cell beside it still explains
+  // what a 2 means — a contradiction on the screen, in the one column whose job is to explain the
+  // number next to it.
+  //
+  // This is a LOOKUP, not a rule: five fixed strings per element, chosen by the score. Excel can do
+  // that itself. The completion statuses are deliberately left alone, because those are the engine's
+  // rules and reimplementing them in formulas would be a second opinion that could disagree.
+  const elements = () => table('elements');
+
+  test('the rubric cell is a formula, not a copy of one score’s wording', () => {
+    const cell = cellAt(elements().ref('rubric', QUALIFICATION_ELEMENTS.indexOf('metrics')));
+    expect(cell?.formula).toBeDefined();
+    expect(cell?.value).toBeUndefined();
+  });
+
+  test('it switches on that row’s own score cell', () => {
+    const t = elements();
+    const row = QUALIFICATION_ELEMENTS.indexOf('champion');
+    const formula = cellAt(t.ref('rubric', row))?.formula ?? '';
+    expect(formula).toContain(t.ref('score', row));
+    // Not another row's score, which is the mistake that would look right in one place and be wrong
+    // in the other seven.
+    expect(formula).not.toContain(t.ref('score', row === 0 ? 1 : 0));
+  });
+
+  test('every wording the schema declares for that element is in the formula', () => {
+    const t = elements();
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const formula = cellAt(t.ref('rubric', row))?.formula ?? '';
+    const wordings = schema.properties.qualification.properties.metrics.properties.scoreDefinition.default as Record<
+      string,
+      string
+    >;
+    expect(Object.keys(wordings).length).toBeGreaterThan(1);
+    for (const [score, text] of Object.entries(wordings)) {
+      // Doubled quotes: a formula string literal escapes them that way, and Excel repairs a file that
+      // gets it wrong.
+      expect(formula, `score ${score}`).toContain(text.replace(/"/g, '""'));
+    }
+  });
+
+  test('the row is tall enough for the longest wording, not just the current one', () => {
+    // The height cannot follow a formula, so it has to fit whatever the formula might show. Sizing it
+    // to the current score's text clips the row the moment a longer wording is selected.
+    const t = elements();
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const wordings = Object.values(
+      schema.properties.qualification.properties.metrics.properties.scoreDefinition.default as Record<string, string>,
+    );
+    const longest = wordings.reduce((a, b) => (b.length > a.length ? b : a));
+    const current = wordings[String((deal.qualification.metrics as { score: number }).score) as unknown as number];
+    expect(longest.length).toBeGreaterThan((current ?? '').length);
+    const width = spanWidthOf(t.column('rubric'), 'rubric');
+    const height = theSheet().rows.find((r) => r.row === t.firstDataRow + row)?.height ?? 0;
+    expect(height).toBeGreaterThanOrEqual(estimateRowHeight(longest, width, 24));
+  });
+});
+
+describe('prose too tall for any row is reported, not clipped in silence', () => {
+  // Excel's tallest row is 409.5 points, so text needing more cannot be shown in full in one row —
+  // and the cell is merged, so it cannot autofit to reveal the rest either. Nothing about that is
+  // fixable at generation time. What is fixable is saying so: the schema bounds none of the prose
+  // fields, and a note somebody wrote at length would otherwise end mid-sentence with no indication.
+  const longWinded = () => {
+    const deal2 = clone(deal);
+    deal2.qualification.metrics.evidence = `${'word '.repeat(600)}end`;
+    return deal2;
+  };
+
+  test('an ordinary deal reports nothing', () => {
+    expect(planWorkbook(schema, spec, deal).clippedCells).toEqual([]);
+  });
+
+  test('a cell that cannot fit names itself, with what it would have needed', () => {
+    const plan = planWorkbook(schema, spec, longWinded());
+    expect(plan.clippedCells).toHaveLength(1);
+    const clipped = plan.clippedCells[0];
+    expect(clipped.address).toBe(plan.inputCells.find((c) => c.jsonPath === 'qualification.metrics.evidence')?.address);
+    expect(clipped.needed).toBeGreaterThan(MAX_ROW_HEIGHT);
+    // The row is still written at the tallest height Excel accepts, not at the impossible one.
+    const row = plan.sheets[0].rows.find((r) => r.row === clipped.row);
+    expect(row?.height).toBe(MAX_ROW_HEIGHT);
+  });
+
+  test('generation still succeeds — a long note is not a reason to refuse a workbook', () => {
+    expect(() => generateWorkbook(schema, spec, longWinded())).not.toThrow();
   });
 });
 

@@ -18,7 +18,7 @@ import { readPath } from './json-path';
 import { enumLabel, enumLabels } from './labels';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
-import { estimateRowHeight } from './text-metrics';
+import { estimateRowHeight, MAX_ROW_HEIGHT, neededRowHeight } from './text-metrics';
 import {
   parseReferences,
   type SpecBlock,
@@ -197,6 +197,22 @@ export interface Anchor {
   text: string;
 }
 
+/**
+ * A cell whose text needs a taller row than Excel has.
+ *
+ * Excel's tallest row is 409.5 points and a merged cell cannot autofit, so text needing more is
+ * hidden with nothing to show it. That is not fixable at generation time; saying so is. The deal
+ * schema bounds none of the prose fields, so a note written at length would otherwise end
+ * mid-sentence with no indication anywhere.
+ */
+export interface ClippedCell {
+  sheet: string;
+  address: string;
+  row: number;
+  /** Points the text wanted. The row is written at Excel's maximum instead. */
+  needed: number;
+}
+
 /** A wrapped cell whose row height had to be computed rather than autofitted. */
 export interface ProseCell {
   sheet: string;
@@ -220,6 +236,8 @@ export interface WorkbookPlan {
    * measures against them.
    */
   proseCells: ProseCell[];
+  /** Prose that needs a taller row than Excel has, so part of it cannot be shown. */
+  clippedCells: ClippedCell[];
   /** Named form cells -> `Sheet!Address`. */
   namedCells: Record<string, string>;
   /** Every table's geometry, keyed by the spec's table id. */
@@ -488,6 +506,47 @@ function resolveFormula(
 }
 
 /** The value a `derived` column shows. Everything here comes from the schema or the engine. */
+/** A formula string literal: Excel escapes a double quote by doubling it. */
+const quote = (text: string) => `"${text.replace(/"/g, '""')}"`;
+
+/**
+ * Every wording a derived column could show for this row, or null when it can only show one.
+ *
+ * The rubric explains the score beside it, and there are five fixed wordings per element. Written as a
+ * literal it goes stale the instant somebody changes that score — a contradiction on screen, in the
+ * one column whose job is to explain the number next to it. So Excel chooses, and this is the set it
+ * chooses from: the formula switches on the score cell, and the row is sized for the longest of them,
+ * because a height cannot follow a formula.
+ *
+ * Only a LOOKUP qualifies. The completion statuses follow the engine's rules, and reimplementing those
+ * in formulas would be a second opinion that could disagree with the engine — the thing this codebase
+ * refuses everywhere else.
+ */
+function derivedCandidates(
+  column: SpecColumn,
+  entry: TableLayout['items'][number],
+  table: SpecTable,
+  schema: unknown,
+): Array<{ score: string; text: string }> | null {
+  if (table.source.kind !== 'elements' || column.id !== 'rubric') return null;
+  const definitions = computeElementHint(schema, entry.key as string).scoreDefinition;
+  const entries = Object.entries(definitions).filter(([, text]) => typeof text === 'string' && text !== '');
+  return entries.length === 0 ? null : entries.map(([score, text]) => ({ score, text: text as string }));
+}
+
+/** The lookup as a formula, switching on `scoreRef`. */
+function candidateFormula(candidates: Array<{ score: string; text: string }>, scoreRef: string): string {
+  // Descending, so the last branch is the lowest score and doubles as the fallback: a blank or
+  // unexpected score reads as the level-0 wording rather than as FALSE.
+  const ordered = [...candidates].sort((a, b) => Number(b.score) - Number(a.score));
+  const last = ordered[ordered.length - 1];
+  let formula = quote(last.text);
+  for (const candidate of ordered.slice(0, -1).reverse()) {
+    formula = `IF(${scoreRef}=${Number(candidate.score)},${quote(candidate.text)},${formula})`;
+  }
+  return formula;
+}
+
 function derivedValue(
   column: SpecColumn,
   entry: TableLayout['items'][number],
@@ -570,6 +629,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const inputCells: InputCell[] = [];
   const anchors: Anchor[] = [];
   const proseCells: ProseCell[] = [];
+  const clippedCells: ClippedCell[] = [];
   const sheets: SheetSpec[] = [];
   /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
   const writtenCells: string[] = [];
@@ -599,6 +659,17 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     /** Declare a merge, unless the cell is only one column wide. */
     const mergeSpan = (column: number, row: number, span: number) => {
       if (span > 1) merges.push(`${A1(column, row)}:${A1(column + span - 1, row)}`);
+    };
+    /**
+     * Measure a prose cell: size its row, remember it for the acceptance test, and say so if the text
+     * wants a taller row than Excel has.
+     */
+    const measureProse = (row: number, ref: string, text: string, column: number, span: number) => {
+      const width = spanWidth(column, span);
+      needHeight(row, estimateRowHeight(text, width, ROW_HEIGHT));
+      proseCells.push({ sheet: s.name, address: ref, row, width, text });
+      const needed = neededRowHeight(text, width);
+      if (needed > MAX_ROW_HEIGHT) clippedCells.push({ sheet: s.name, address: ref, row, needed });
     };
     /** A row's height is the tallest thing on it, and prose decides it. */
     const needHeight = (row: number, height: number) => {
@@ -658,9 +729,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             // Excel autofits a wrapped cell but not a merged one, and every span over one column is
             // merged — so a prose cell's row has to be measured here or its text is simply cut off.
             if (cell.valueType === 'text' && typeof value === 'string') {
-              const width = spanWidth(column, cell.span);
-              needHeight(row, estimateRowHeight(value, width, ROW_HEIGHT));
-              proseCells.push({ sheet: s.name, address: ref, row, width, text: value });
+              measureProse(row, ref, value, column, cell.span);
             }
             if (cell.validate) {
               const values = validationValues(schema, cell.jsonPath, cell.valueType);
@@ -754,10 +823,25 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             push(dataRow, { ref, value, style });
             inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: spec.valueType });
             if (spec.valueType === 'text' && typeof value === 'string') {
-              const width = spanWidth(column, span);
-              needHeight(dataRow, estimateRowHeight(value, width, ROW_HEIGHT));
-              proseCells.push({ sheet: s.name, address: ref, row: dataRow, width, text: value });
+              measureProse(dataRow, ref, value, column, span);
             }
+            continue;
+          }
+
+          // A lookup Excel can do itself — see `derivedCandidates`. The row is sized for the longest
+          // wording rather than the current one, because a height cannot follow a formula and sizing
+          // it to today's text clips the cell the moment a longer one is selected.
+          const candidates = derivedCandidates(spec, entry, table, schema);
+          if (candidates !== null) {
+            const scoreColumn = info.columns.get('score');
+            if (scoreColumn === undefined) {
+              throw new Error(`table "${table.id}" has a ${spec.id} column but no score column to switch it on`);
+            }
+            push(dataRow, { ref, formula: candidateFormula(candidates, A1(scoreColumn, dataRow)), style });
+            const longest = candidates.reduce((a, b) => (b.text.length > a.text.length ? b : a)).text;
+            measureProse(dataRow, ref, longest, column, span);
+            // `continue` the ROW loop only. `column += span` belongs to the column loop around it, and
+            // advancing it here left every row after the first writing into the next column.
             continue;
           }
 
@@ -775,9 +859,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             anchors.push({ sheet: s.name, address: ref, text: derived });
           }
           if (spec.valueType === 'text' && typeof derived === 'string') {
-            const width = spanWidth(column, span);
-            needHeight(dataRow, estimateRowHeight(derived, width, ROW_HEIGHT));
-            proseCells.push({ sheet: s.name, address: ref, row: dataRow, width, text: derived });
+            measureProse(dataRow, ref, derived, column, span);
           }
         }
 
@@ -814,6 +896,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   return {
     anchors,
     proseCells,
+    clippedCells,
     writtenCells,
     sheets,
     namedCells: Object.fromEntries([...named].map(([id, v]) => [id, `${v.sheet}!${v.address}`])),

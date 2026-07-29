@@ -219,7 +219,24 @@ async function main(): Promise<number> {
     }
     await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION));
     const plan = planWorkbook(schema, spec, deal);
-    print({ out: outPath, sheets: plan.sheets.length, inputCells: plan.inputCells.length });
+    // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a
+    // merged cell cannot autofit and Excel's tallest row is 409.5 points, so text needing more ends
+    // mid-sentence with nothing on the sheet to show it — which is precisely the kind of silence this
+    // plugin exists to break.
+    print({
+      out: outPath,
+      sheets: plan.sheets.length,
+      inputCells: plan.inputCells.length,
+      ...(plan.clippedCells.length === 0
+        ? {}
+        : {
+            clipped: plan.clippedCells.map((c) => ({
+              address: c.address,
+              needed: c.needed,
+              note: 'longer than any Excel row can show — shorten it in the deal JSON, or accept that the end is hidden',
+            })),
+          }),
+    });
     return 0;
   }
 

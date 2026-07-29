@@ -143,7 +143,16 @@ export function wrappedLineCount(text: string, columnWidth: number): number {
  * there is no taller row to ask for, only a value it reinterprets.
  */
 export function estimateRowHeight(text: string, columnWidth: number, floor: number): number {
-  const lines = wrappedLineCount(text, columnWidth);
-  const needed = Math.ceil((lines + SLACK_LINES) * LINE_HEIGHT);
-  return Math.min(MAX_ROW_HEIGHT, Math.max(floor, needed));
+  return Math.min(MAX_ROW_HEIGHT, Math.max(floor, neededRowHeight(text, columnWidth)));
+}
+
+/**
+ * The height the text really wants, before Excel's ceiling is applied.
+ *
+ * Separate from {@link estimateRowHeight} so a caller can tell "this fits" from "this is as tall as
+ * Excel goes and the rest is hidden" — the difference between a workbook that shows everything and
+ * one that quietly ends a sentence early.
+ */
+export function neededRowHeight(text: string, columnWidth: number): number {
+  return Math.ceil((wrappedLineCount(text, columnWidth) + SLACK_LINES) * LINE_HEIGHT);
 }
