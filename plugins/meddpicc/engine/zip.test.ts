@@ -64,7 +64,7 @@ describe('reading a real xlsx', () => {
     for (const part of ['[Content_Types].xml', 'xl/workbook.xml', 'xl/styles.xml', 'xl/worksheets/sheet1.xml']) {
       expect(entries.has(part)).toBe(true);
     }
-    expect(dec(entries.get('xl/workbook.xml')?.data as Uint8Array)).toContain('Scorecard');
+    expect(dec(entries.get('xl/workbook.xml')?.data as Uint8Array)).toContain(spec.sheets[0].name);
   });
 
   test('rewriting one part leaves every other part byte-identical', () => {
@@ -106,6 +106,6 @@ describe('reading a real xlsx', () => {
     const rebuilt = writeZip([...readZip(original)].map(([name, e]) => ({ name, raw: e })));
     const again = readZip(rebuilt);
     expect(again.size).toBe(readZip(original).size);
-    expect(dec(again.get('xl/workbook.xml')?.data as Uint8Array)).toContain('Scorecard');
+    expect(dec(again.get('xl/workbook.xml')?.data as Uint8Array)).toContain(spec.sheets[0].name);
   });
 });

@@ -26,18 +26,30 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
-import { dateToSerial, type InputCell, planWorkbook, type WorkbookPlan, workbookFingerprint } from './generate';
+import {
+  BOOLEAN_NO,
+  BOOLEAN_YES,
+  dateToSerial,
+  type InputCell,
+  planWorkbook,
+  schemaHash,
+  type WorkbookPlan,
+  workbookFingerprint,
+} from './generate';
 import { readPath, writePath } from './json-path';
+import { canonicalEnumValue } from './labels';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
-import { A1, FINGERPRINT_PROPERTY } from './xlsx';
+import { FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
 const MS_PER_DAY = 86_400_000;
 /** 9999-12-31. Beyond this Excel has no date, and neither has anything downstream. */
 const MAX_SERIAL = 2_958_465;
+/** How many moved labels to name. Past a handful the list stops informing and starts scrolling. */
+const MAX_REPORTED_ANCHORS = 5;
 
 /** The day an Excel serial names, or null when the number is not a date. */
 export function serialToDate(serial: number): string | null {
@@ -130,14 +142,26 @@ function sheetParts(entries: Map<string, { data: Uint8Array }>, rels: Map<string
   return parts;
 }
 
-/** The round-trip stamp a workbook was generated with, or null when it carries none. */
-export function readWorkbookFingerprint(bytes: Uint8Array): string | null {
+/**
+ * One custom document property, by name.
+ *
+ * The name is matched exactly, closing quote and all: the properties share a single XML file, so a
+ * pattern that merely starts with the name would happily return a neighbour's value — asking for
+ * `Meddpicc` and getting the fingerprint.
+ */
+export function readWorkbookProperty(bytes: Uint8Array, name: string): string | null {
   const entry = readZip(bytes).get('docProps/custom.xml');
   if (!entry) return null;
   const xml = new TextDecoder().decode(entry.data);
-  const property = new RegExp(`<property\\b[^>]*name="${FINGERPRINT_PROPERTY}"[^>]*>([\\s\\S]*?)</property>`).exec(xml);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const property = new RegExp(`<property\\b[^>]*name="${escaped}"[^>]*>([\\s\\S]*?)</property>`).exec(xml);
   if (!property) return null;
   return unescapeXml(/<vt:lpwstr>([\s\S]*?)<\/vt:lpwstr>/.exec(property[1])?.[1] ?? '') || null;
+}
+
+/** The round-trip stamp a workbook was generated with, or null when it carries none. */
+export function readWorkbookFingerprint(bytes: Uint8Array): string | null {
+  return readWorkbookProperty(bytes, FINGERPRINT_PROPERTY);
 }
 
 /** Every cell of every sheet, keyed by sheet name then by A1 reference. */
@@ -187,7 +211,31 @@ export function readWorkbookCells(bytes: Uint8Array): Map<string, Map<string, Ra
 /** What a cell says, or why it cannot be used. */
 type Coerced = { value: string | number | boolean | undefined } | { error: string };
 
-const BOOLEAN_WORDS: Record<string, boolean> = { TRUE: true, FALSE: false, '1': true, '0': false };
+/**
+ * Every spelling of a boolean a person or Excel might leave in a cell.
+ *
+ * The workbook writes "Yes"/"No" because a deal review is read by people, but Excel writes TRUE/FALSE
+ * when it stores a real boolean and a user may type either — or Y/N, which is what anyone in a hurry
+ * types. Accepting all of them costs nothing; refusing "Yes" in a sheet that offered it in a dropdown
+ * would be indefensible.
+ */
+/**
+ * The only two spellings a boolean cell may hold — the two the dropdown offers, and the two the
+ * scorecard counts.
+ *
+ * TRUE, Y and 1 were accepted here once, on the reasoning that a reader should be forgiving. They
+ * cannot be: `COUNTIF(range,"Yes")` counts the WORD, so accepting one of them put the deal and the
+ * sheet in front of it into disagreement — the cell read TRUE, the count beside it did not include it,
+ * and nothing said so until the workbook was regenerated. A plausible-looking, wrong deal review is
+ * worse than a refusal that names the cell.
+ *
+ * Excel turns a typed TRUE into a logical value stored as `t="b"`, which `coerce` renders as the text
+ * "TRUE" — so the same rule covers both the typed and the stored form.
+ */
+const BOOLEAN_WORDS: Record<string, boolean> = {
+  [BOOLEAN_YES.toUpperCase()]: true,
+  [BOOLEAN_NO.toUpperCase()]: false,
+};
 
 function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
   const text = raw?.text;
@@ -204,7 +252,9 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
     case 'boolean': {
       const word = raw?.type === 'b' ? (text === '1' ? 'TRUE' : 'FALSE') : text.trim().toUpperCase();
       const value = BOOLEAN_WORDS[word];
-      return value === undefined ? { error: `must be TRUE or FALSE, not "${text}"` } : { value };
+      return value === undefined
+        ? { error: `must be ${BOOLEAN_YES} or ${BOOLEAN_NO}, not "${text}" — those are the two the dropdown offers` }
+        : { value };
     }
 
     case 'date': {
@@ -228,6 +278,29 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
       return { value };
     }
   }
+}
+
+/**
+ * One cell in the DEAL's own terms: coerced by type, then an enum label mapped back to its token.
+ *
+ * The translation belongs here rather than at the call site because more than one caller compares a
+ * cell against the deal. The cell shows a label — "In progress" — and the deal holds `in_progress`;
+ * comparing those two directly makes every generated workbook read back as an edit on its own status
+ * cells, and made the re-order guard silently exempt every column the workbook displays differently.
+ * Either spelling is accepted: a rep may type what the dropdown offers or what they have seen in the
+ * JSON.
+ */
+function readCell(raw: RawCell | undefined, valueType: ValueType, schema: unknown, jsonPath: string): Coerced {
+  const coerced = coerce(raw, valueType);
+  if ('error' in coerced) return coerced;
+  if (typeof coerced.value === 'string') {
+    const enumeration = schemaConstraint(schema, jsonPath)?.enum;
+    if (enumeration) {
+      const canonical = canonicalEnumValue(coerced.value);
+      if (canonical !== undefined && enumeration.includes(canonical)) return { value: canonical };
+    }
+  }
+  return coerced;
 }
 
 /** Why the schema refuses this value at this path, or null. */
@@ -294,8 +367,6 @@ export interface CellRejection {
   reason: string;
 }
 
-const A1_REF = /^([A-Z]+)(\d+)$/;
-
 /** Whether a cell holds anything at all — a formula counts, because a formula is content. */
 function hasContent(cell: RawCell | undefined): boolean {
   if (!cell) return false;
@@ -303,86 +374,156 @@ function hasContent(cell: RawCell | undefined): boolean {
 }
 
 /**
- * Input cells for rows somebody added below the ones the plan maps.
+ * Columns of a list whose values are the same set in a different order.
  *
- * An Excel Table extends when you type under its last row, which is simply how you add a
- * stakeholder once the padded rows are used up. Those cells belong to no `jsonPath` in the plan, so
- * the paths are derived here from the table's geometry — the same `list[index].field` shape
- * `inputPathFor` builds, continuing from where the plan stopped.
+ * Grouped from `inputCells` alone — `stakeholders[3].name` says both which list column it belongs to and
+ * which row — so this needs no new spec surface and covers every list the same way.
  *
- * **A wholly blank row ends the scan.** Without that, a stray note a few rows under the table would
- * be read as a stakeholder; with it, anything past the gap falls to `reportUnmappedRows` and is
- * reported instead. Appending still obeys the array rule, so filling row 13 of a list holding four
- * items is refused for the holes it would leave, exactly as before.
+ * Blanks are excluded from both sides: a padded row holds nothing, and a cleared cell is a real edit
+ * that changes the set. Two or more positions must differ, because one differing position cannot be a
+ * permutation of the same values.
  */
-function growthCells(plan: WorkbookPlan, cells: Map<string, Map<string, RawCell>>): InputCell[] {
-  const out: InputCell[] = [];
-
-  for (const growth of plan.listGrowth) {
-    const sheetCells = cells.get(growth.sheet);
-    if (!sheetCells) continue;
-    const lastRow = Math.max(0, ...[...sheetCells.keys()].map((ref) => Number(A1_REF.exec(ref)?.[2] ?? 0)));
-
-    for (let row = growth.firstRow; row <= lastRow; row++) {
-      const rowCells = growth.columns.map((column) => ({ ...column, address: A1(column.column, row) }));
-      if (!rowCells.some((cell) => hasContent(sheetCells.get(cell.address)))) break;
-
-      const index = growth.nextIndex + (row - growth.firstRow);
-      for (const cell of rowCells) {
-        out.push({
-          jsonPath: `${growth.jsonPath}[${index}].${cell.relativePath}`,
-          sheet: growth.sheet,
-          address: cell.address,
-          valueType: cell.valueType,
-        });
-      }
-    }
+function reorderedColumns(
+  plan: WorkbookPlan,
+  deal: unknown,
+  cells: Map<string, Map<string, RawCell>>,
+  schema: unknown,
+): CellRejection[] {
+  /** `list[].field` -> the cells of that column, in row order. */
+  const columns = new Map<string, InputCell[]>();
+  for (const input of plan.inputCells) {
+    const parts = /^(.*)\[(\d+)\]\.(.+)$/.exec(input.jsonPath);
+    if (!parts) continue;
+    const key = `${parts[1]}[].${parts[3]}`;
+    const list = columns.get(key) ?? [];
+    list.push(input);
+    columns.set(key, list);
   }
 
+  /** A value as a string that can be compared with another, blank for "nothing here". */
+  const comparable = (value: unknown) =>
+    value === undefined || value === null ? '' : typeof value === 'string' ? value.trim() : String(value);
+
+  const out: CellRejection[] = [];
+  for (const [key, column] of columns) {
+    if (column.length < 2) continue;
+    // Free text only for the displaced-value rule below: a small set of possible values makes
+    // "landed on another row's value" the ordinary result of an ordinary edit.
+    const first = column[0];
+    const freeText =
+      (first.valueType === 'string' || first.valueType === 'text') &&
+      schemaConstraint(schema, first.jsonPath)?.enum === undefined;
+    const inSheet: string[] = [];
+    const inDeal: string[] = [];
+    let differing = 0;
+    let unreadable = false;
+    for (const cell of column) {
+      // In the DEAL's terms, not the sheet's. Comparing raw text against the deal left every column
+      // the workbook displays differently — every enum, boolean and date — silently unchecked, because
+      // "In progress" and `in_progress` can never form the same multiset.
+      const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath);
+      if ('error' in read) {
+        // A value this reader cannot make sense of is rejected by the main loop with a better message
+        // than this guard could give, so leave the whole column to it.
+        unreadable = true;
+        break;
+      }
+      const text = comparable(read.value);
+      const current = comparable(readPath(deal, cell.jsonPath));
+      if (text !== current) differing++;
+      if (text !== '') inSheet.push(text);
+      if (current !== '') inDeal.push(current);
+    }
+    if (unreadable || differing < 2) continue;
+
+    // The exact case: the same values, re-ordered.
+    const permuted =
+      inSheet.length === inDeal.length && [...inSheet].sort().every((v, i) => v === [...inDeal].sort()[i]);
+
+    // And the case that defeats it: sort a column, then edit one of the moved values, and the multiset
+    // no longer matches. So a value that has landed on ANOTHER row's former value counts as displaced,
+    // and two displaced values in one column is a rearrangement.
+    //
+    // Only for free text. A status column has three possible values, so setting two milestones to a
+    // status a third already had is both ordinary and indistinguishable from a rearrangement by this
+    // rule — refusing it would block real work. Two people swapping into each other's names is not
+    // ordinary, and that is the difference.
+    const displaced = freeText ? countDisplaced(column, cells, deal, schema) : 0;
+
+    if (!permuted && displaced < 2) continue;
+    out.push({
+      jsonPath: key,
+      sheet: column[0].sheet,
+      address: column[0].address,
+      reason: permuted
+        ? `this column holds the same ${inSheet.length} values in a different order, so a sort or a paste ` +
+          'has detached them from the rest of their rows — the other columns did not move with them. ' +
+          'Regenerate the workbook from the deal rather than rearranging it'
+        : `${displaced} values in this column now sit where another row's value used to, so a sort or a ` +
+          'paste has detached them from the rest of their rows. Regenerate the workbook from the deal ' +
+          'rather than rearranging it',
+    });
+  }
   return out;
 }
 
 /**
- * Report anything typed below the rows the workbook actually maps.
+ * How many of a column's changed cells now hold a value that belonged to a DIFFERENT row.
  *
- * The tables are padded with blank rows to grow into, and an Excel Table extends further still
- * the moment someone types under the last one — so a seller who runs out of padded stakeholder
- * rows just adds another, reasonably. Those cells belong to no `jsonPath`, and passing over
- * them without a word would be the legacy sheet's own bug in a new place: it formatted eight
- * team rows and dropped the rest. Better to refuse the run and say which cell.
+ * The signature of a rearrangement that has been partly edited afterwards. Counted per cell rather
+ * than as a set comparison, so one edited value among the moved ones does not hide the rest.
+ */
+function countDisplaced(
+  column: InputCell[],
+  cells: Map<string, Map<string, RawCell>>,
+  deal: unknown,
+  schema: unknown,
+): number {
+  const comparable = (value: unknown) =>
+    value === undefined || value === null ? '' : typeof value === 'string' ? value.trim() : String(value);
+  const held = column.map((cell) => comparable(readPath(deal, cell.jsonPath)));
+  let displaced = 0;
+  for (const [index, cell] of column.entries()) {
+    const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath);
+    if ('error' in read) return 0;
+    const now = comparable(read.value);
+    if (now === '' || now === held[index]) continue;
+    // Somewhere else in this column, some other row used to hold exactly this.
+    if (held.some((value, other) => other !== index && value !== '' && value === now)) displaced++;
+  }
+  return displaced;
+}
+
+/**
+ * Report content in cells the workbook never wrote.
  *
- * Only columns that hold inputs are considered, and only rows past the last input in that same
- * column. That is already enough to leave a Table's own extended formulas alone: they land in
- * computed columns, which hold no inputs and so are never examined. A formula in an *input*
- * column below the range is reported like any other content, because it is content, and losing
- * it quietly is the thing being prevented.
+ * The purpose is to catch a person typing where there is no room — a stakeholder in the row below the
+ * last spare one, a note wandering off the side — rather than dropping it silently, which is the bug
+ * the legacy sheet had. A list's room is the padded rows the generator laid out and nothing beyond
+ * them, so this is the whole of the answer for overflow: there is no scan below a table to read those
+ * rows, because on one sheet the rows below a table belong to the next section.
+ *
+ * It used to guess, flagging anything below the deepest mapped row of a column. That held while every
+ * table had a sheet to itself. On one laid-out sheet it produced 77 false rejections in a row,
+ * because the Scorecard and the Salesforce block legitimately sit below the tables in the same
+ * columns. The plan already knows exactly which cells it wrote, so ask it.
  */
 function reportUnmappedRows(
-  inputCells: readonly { sheet: string; address: string }[],
+  plan: WorkbookPlan,
   cells: Map<string, Map<string, RawCell>>,
   rejections: CellRejection[],
 ): void {
-  const lastMapped = new Map<string, number>();
-  for (const input of inputCells) {
-    const m = A1_REF.exec(input.address);
-    if (!m) continue;
-    const key = `${input.sheet}!${m[1]}`;
-    lastMapped.set(key, Math.max(lastMapped.get(key) ?? 0, Number(m[2])));
-  }
-
+  const written = new Set(plan.writtenCells);
   for (const [sheetName, sheetCells] of cells) {
     for (const cell of sheetCells.values()) {
-      const m = A1_REF.exec(cell.ref);
-      if (!m) continue;
-      const limit = lastMapped.get(`${sheetName}!${m[1]}`);
-      if (limit === undefined || Number(m[2]) <= limit) continue;
+      if (written.has(`${sheetName}!${cell.ref}`)) continue;
       if (!hasContent(cell)) continue;
       const content = cell.formula === undefined ? (cell.text as string) : `=${cell.formula}`;
       rejections.push({
         sheet: sheetName,
         address: cell.ref,
         reason:
-          `holds "${content}" below row ${limit}, the last row this workbook maps — ` +
+          `holds "${content}" in a cell this workbook does not map — ` +
           'add the entry to the deal JSON, then regenerate the workbook so it has room for it',
       });
     }
@@ -400,6 +541,15 @@ export interface ReadReport {
   deal: unknown;
   valid: boolean;
   errors: ValidationResult['errors'];
+  /**
+   * Things worth saying that are not refusals.
+   *
+   * The schema drifting since the workbook was written is the one this exists for. It is not a
+   * reason to refuse — nearly every schema change is additive and harmless — but it is the
+   * explanation for the one case that looks like a bug: a dropdown offering a value the schema no
+   * longer allows, so the sheet suggests something and the read then rejects it.
+   */
+  notes: string[];
 }
 
 /**
@@ -421,6 +571,20 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   const rejections: CellRejection[] = [];
   let unchanged = 0;
 
+  // Said, not enforced. Nearly every schema change is additive and harmless, so a difference is no
+  // reason to refuse a workbook — but it is the explanation for the one symptom that looks like a
+  // bug: a dropdown offering a value the schema no longer allows, so the sheet suggests something
+  // and the read then rejects it by cell address with no hint as to why.
+  const notes: string[] = [];
+  const wroteAgainst = readWorkbookProperty(bytes, SCHEMA_HASH_PROPERTY);
+  const now = schemaHash(schema);
+  if (wroteAgainst !== null && wroteAgainst !== now) {
+    notes.push(
+      `this workbook was generated against a different schema (${wroteAgainst.slice(0, 12)}, now ${now.slice(0, 12)}) — ` +
+        'its dropdowns and labels are the older ones, so a value it offered may no longer be allowed',
+    );
+  }
+
   const stamp = readWorkbookFingerprint(bytes);
   const expected = workbookFingerprint(plan, deal);
   if (stamp !== expected) {
@@ -441,13 +605,76 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       deal: working,
       valid: true,
       errors: [],
+      notes,
     };
   }
 
   const cells = readWorkbookCells(bytes);
-  // Grown rows come last, so the planned rows have already been applied and appending a new item
-  // lands at the index the array has actually reached.
-  const inputs = [...plan.inputCells, ...growthCells(plan, cells)];
+
+  // Every address below is only meaningful while the rows are where the generator put them. The stamp
+  // cannot see a change made INSIDE the workbook: re-order two element rows — which is what tidying a
+  // sheet looks like — and each element is handed its neighbour's score, with no rejection and `ok`
+  // true. Measured, before this: swapping the first and last element rows proposed metrics 3 → 2 and
+  // competition 2 → 3, and `--apply` would have written both.
+  //
+  // So the labels the plan wrote are checked first, and a mismatch refuses the WHOLE workbook rather
+  // than reporting cell by cell. A sheet whose rows have moved has no correct partial reading: every
+  // address below the first shift is wrong, and reporting one of them would invite applying the rest.
+  const moved = plan.anchors
+    .filter((anchor) => {
+      const text = cells.get(anchor.sheet)?.get(anchor.address)?.text;
+      return (text ?? '').trim() !== anchor.text.trim();
+    })
+    .slice(0, MAX_REPORTED_ANCHORS);
+  if (moved.length > 0) {
+    return {
+      ok: false,
+      cellsRead: 0,
+      unchanged: 0,
+      proposals: [],
+      rejections: moved.map((anchor) => ({
+        sheet: anchor.sheet,
+        address: anchor.address,
+        reason:
+          `should still read "${anchor.text}" but does not — the rows appear to have moved, ` +
+          'so no cell in this workbook can be trusted to be the one it was. Regenerate it from the ' +
+          'current deal, then make the edit again',
+      })),
+      deal: working,
+      valid: true,
+      errors: [],
+      notes,
+    };
+  }
+
+  // A column of a list, re-ordered.
+  //
+  // A list row has no identity beyond its position, so nothing anchors it — row one is simply the first
+  // stakeholder. That leaves one real hazard: sorting or pasting a SINGLE column detaches its values
+  // from the rest of their rows, and a faithful reader then writes the scrambled pairing into the deal,
+  // losing the original on `--apply`. Measured before this guard: swapping two stakeholder names gave
+  // `ok` true, no rejections, and <HISTORICAL_IDENTITY_58AE73013F> ended up with <HISTORICAL_IDENTITY_D3C487ABA7>'s title.
+  //
+  // The signal is precise. A column holding the SAME SET of values in a DIFFERENT ORDER has been
+  // re-ordered — nobody edits two people's names into each other's, and no ordinary edit leaves the
+  // multiset unchanged. So that pattern is refused by name while every real edit, which changes the
+  // set, passes untouched.
+  const reordered = reorderedColumns(plan, working, cells, schema);
+  if (reordered.length > 0) {
+    return {
+      ok: false,
+      cellsRead: 0,
+      unchanged: 0,
+      proposals: [],
+      rejections: reordered,
+      deal: working,
+      valid: true,
+      errors: [],
+      notes,
+    };
+  }
+
+  const inputs = plan.inputCells;
 
   for (const input of inputs) {
     const { jsonPath, sheet, address, valueType } = input;
@@ -464,7 +691,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       continue;
     }
 
-    const coerced = coerce(raw, valueType);
+    const coerced = readCell(raw, valueType, schema, jsonPath);
     if ('error' in coerced) {
       reject(coerced.error);
       continue;
@@ -501,7 +728,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     });
   }
 
-  reportUnmappedRows(inputs, cells, rejections);
+  reportUnmappedRows(plan, cells, rejections);
 
   const validation = validateDeal(working, schema);
   return {
@@ -513,5 +740,6 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     deal: working,
     valid: validation.valid,
     errors: validation.errors,
+    notes,
   };
 }

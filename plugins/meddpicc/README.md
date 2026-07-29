@@ -152,7 +152,7 @@ The plugin includes reference material loaded automatically by skills:
 | Scoring Rubric | `deal-qualification`, `deal-review` | Objective 0-4 scoring criteria per element |
 | Review Template | `deal-review` | Weekly inspection question sets adapted by deal stage |
 | MAP Template | `mutual-action-plan` | Customer-facing action plan structure |
-| Workbook Spec | `engine` | Declarative description of the generated workbook — sheets, formulas, formats, dropdowns |
+| Workbook Spec | `engine` | Declarative description of the generated workbook — the grid, its blocks, formulas, formats, dropdowns |
 | SFDC Field Mapping | `deal-qualification` | Salesforce opportunity field mapping with transforms |
 
 ## Installation
@@ -240,7 +240,7 @@ Creates a customer-facing document working backward from the target close date, 
 /meddpicc:qualify-deal Acme Corp render
 ```
 
-Generates an Excel workbook from the deal JSON, built from the workbook spec: a formula-driven Scorecard, RAG conditional formatting, tables that grow, and schema-derived dropdowns. `read` pulls edits back out.
+Generates an Excel workbook from the deal JSON, built from the workbook spec: one laid-out deal-review sheet with a formula-driven scorecard, RAG conditional formatting, computed row heights for prose, and schema-derived dropdowns. `read` pulls edits back out.
 
 ### Get coaching (auto-activates)
 

@@ -2,10 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
-import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
-import { QUALIFICATION_ELEMENTS, SECTION_ORDER } from './sections';
-import type { WorkbookSpec } from './workbook-spec';
-import { A1, COMPLETION_STATUSES } from './xlsx';
+import type { WorkbookPlan } from './generate';
+import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { ENUM_LABELS, enumLabel } from './labels';
+import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
+import { estimateRowHeight, MAX_ROW_HEIGHT } from './text-metrics';
+import { specTables, type WorkbookSpec } from './workbook-spec';
+import { A1, COMPLETION_STATUSES, columnIndex } from './xlsx';
 import { readZip } from './zip';
 
 const here = import.meta.dir;
@@ -13,14 +16,15 @@ const schema = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'meddp
 const spec = JSON.parse(fs.readFileSync(path.join(here, 'workbook-spec.json'), 'utf8')) as WorkbookSpec;
 const deal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example-deal.json'), 'utf8'));
 
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const plan = planWorkbook(schema, spec, deal);
-const sheet = (name: string) => {
-  const found = plan.sheets.find((s) => s.name === name);
-  if (!found) throw new Error(`no sheet ${name}`);
-  return found;
+/** The workbook is one laid-out sheet, so there is nothing to choose between. */
+const theSheet = () => {
+  if (plan.sheets.length !== 1) throw new Error(`expected one sheet, got ${plan.sheets.length}`);
+  return plan.sheets[0];
 };
-const cellAt = (sheetName: string, ref: string) => {
-  for (const row of sheet(sheetName).rows) {
+const cellAt = (ref: string) => {
+  for (const row of theSheet().rows) {
     const c = row.cells.find((x) => x.ref === ref);
     if (c) return c;
   }
@@ -28,6 +32,55 @@ const cellAt = (sheetName: string, ref: string) => {
 };
 /** Every cell of every sheet, flattened, for whole-workbook assertions. */
 const allCells = () => plan.sheets.flatMap((s) => s.rows.flatMap((r) => r.cells.map((c) => ({ sheet: s.name, ...c }))));
+/** The one sheet's name, from the spec, so a rename cannot leave the tests behind. */
+const SHEET = spec.sheets[0].name;
+
+/**
+ * A table's geometry, from the plan rather than from counting rows.
+ *
+ * Nothing on one laid-out sheet has a fixed address: inserting a block above a table moves it, and
+ * widening a column moves every column after it. Tests name a cell by table, column id and row
+ * offset, so a layout change relocates them instead of breaking them.
+ */
+function table(id: string, of: WorkbookPlan = plan) {
+  const found = of.tables.find((t) => t.id === id);
+  if (!found) throw new Error(`no table "${id}" in the plan — have ${of.tables.map((t) => t.id).join(', ')}`);
+  const column = (columnId: string) => {
+    const col = found.columns[columnId];
+    if (col === undefined) throw new Error(`table "${id}" has no column "${columnId}"`);
+    return col;
+  };
+  return {
+    ...found,
+    column,
+    /** `A1` of one column at one data-row offset. */
+    ref: (columnId: string, offset: number) => A1(column(columnId), found.firstDataRow + offset),
+    /** `A1` of one column's header. */
+    headerRef: (columnId: string) => A1(column(columnId), found.headerRow),
+  };
+}
+/** The character width of one table column's span, from the spec's own column sizes. */
+function spanWidthOf(column: number, columnId: string): number {
+  const declared = spec.sheets
+    .flatMap(specTables)
+    .flatMap((t) => t.columns)
+    .find((c) => c.id === columnId);
+  const span = declared?.span ?? 1;
+  const sizes = spec.sheets[0].columns;
+  let total = 0;
+  for (let c = column; c < column + span; c++) {
+    total += sizes.find((x) => c >= x.min && c <= x.max)?.width ?? 8.43;
+  }
+  return total;
+}
+
+/** The 1-based column of an A1 reference. */
+const colOf = (ref: string) => columnIndex((/^([A-Z]+)/.exec(ref) as RegExpExecArray)[1]);
+/** A cell of any plan, by address. */
+const cellOf = (of: WorkbookPlan, ref: string) => {
+  for (const s of of.sheets) for (const row of s.rows) for (const c of row.cells) if (c.ref === ref) return c;
+  return undefined;
+};
 
 describe('dateToSerial', () => {
   // 1899-12-30 is serial 0 in the 1900 date system Excel actually implements.
@@ -49,24 +102,38 @@ describe('planWorkbook — every sheet in the spec is emitted', () => {
 });
 
 describe('planWorkbook — form layout', () => {
-  test('a field puts its label in column A and its value in column B on one row', () => {
+  test('a field sits on the same row as its label, to the right of it', () => {
     const input = plan.inputCells.find((c) => c.jsonPath === 'metadata.accountName');
     expect(input).toBeDefined();
-    expect(input?.sheet).toBe('Deal');
+    expect(input?.sheet).toBe(SHEET);
     const [, col, row] = /^([A-Z]+)(\d+)$/.exec(input?.address ?? '') ?? [];
-    expect(col).toBe('B');
-    expect(cellAt('Deal', `A${row}`)?.value).toBe('Account name');
-    expect(cellAt('Deal', `B${row}`)?.value).toBe('Acme Corporation');
+    expect(cellAt(input?.address ?? '')?.value).toBe('Acme Corporation');
+    // The label is the nearest `fieldLabel` to its left on the same row — a value with no label
+    // beside it is a value nobody can read.
+    const labels = theSheet()
+      .rows.find((r) => r.row === Number(row))
+      ?.cells.filter((c) => c.style === 'fieldLabel' && colOf(c.ref) < colOf(`${col}${row}`));
+    expect(labels?.length).toBeGreaterThan(0);
+    expect(labels?.at(-1)?.value).toBe('Account Name');
   });
 
-  test('the title is the first row and section headers appear as their own rows', () => {
-    expect(cellAt('Deal', 'A1')?.value).toBe('MEDDPICC Deal Review');
-    const labels = sheet('Deal')
+  test('the title is the first row and every section banner is its own row', () => {
+    // Column A is a gutter, so content starts at B and a banner spans B to the last content column.
+    expect(cellAt('B1')?.value).toBe('MEDDPICC Deal Review');
+    expect(cellAt('B1')?.style).toBe('title');
+    const banners = theSheet()
       .rows.flatMap((r) => r.cells)
-      .filter((c) => c.ref.startsWith('A'))
+      .filter((c) => c.style === 'sectionHeader')
       .map((c) => c.value);
-    expect(labels).toContain('Revenue');
-    expect(labels).toContain('Three Whys — Us');
+    for (const section of ['Deal', 'Revenue', 'Qualification', 'Stakeholder Analysis', 'Scorecard']) {
+      expect(banners, section).toContain(section);
+    }
+    // Each banner is alone on its row: a section header sharing a row with a field would read as
+    // a label for it.
+    const bannerRows = theSheet().rows.filter((r) => r.cells.some((c) => c.style === 'sectionHeader'));
+    for (const row of bannerRows) {
+      expect(new Set(row.cells.map((c) => c.style)), `row ${row.row}`).toEqual(new Set(['sectionHeader']));
+    }
   });
 
   test('rows are unique and ascending — nothing lands on top of anything else', () => {
@@ -85,26 +152,30 @@ describe('planWorkbook — form layout', () => {
 describe('planWorkbook — values by type', () => {
   test('a date becomes a serial, so the sheet can subtract it from TODAY()', () => {
     const closeDate = plan.inputCells.find((c) => c.jsonPath === 'metadata.closeDate');
-    const cell = cellAt('Deal', closeDate?.address ?? '');
+    const cell = cellAt(closeDate?.address ?? '');
     expect(cell?.value).toBe(dateToSerial('2026-06-30'));
     expect(typeof cell?.value).toBe('number');
   });
 
   test('a percent stays the underlying fraction', () => {
     const win = plan.inputCells.find((c) => c.jsonPath === 'metadata.winProbability');
-    expect(cellAt('Deal', win?.address ?? '')?.value).toBe(0.5);
+    expect(cellAt(win?.address ?? '')?.value).toBe(0.5);
   });
 
   test('currency is a bare number', () => {
     const acv = plan.inputCells.find((c) => c.jsonPath === 'metadata.revenue.acv');
-    expect(cellAt('Deal', acv?.address ?? '')?.value).toBe(85000);
+    expect(cellAt(acv?.address ?? '')?.value).toBe(85000);
   });
 
-  test('a boolean stays a boolean', () => {
+  test('a boolean reads as Yes or No, not as TRUE or FALSE', () => {
+    // Excel renders a real boolean in shouting capitals, which is not how a deal review answers
+    // "Must say yes?". The reader accepts either spelling, so nothing is lost by writing the
+    // readable one.
     const mustSayYes = plan.inputCells.filter((c) => c.jsonPath.endsWith('mustSayYes'));
     expect(mustSayYes.length).toBeGreaterThan(0);
-    const values = mustSayYes.map((c) => cellAt('Stakeholders', c.address)?.value).filter((v) => v !== undefined);
-    expect(values.some((v) => typeof v === 'boolean')).toBe(true);
+    const values = mustSayYes.map((c) => cellAt(c.address)?.value).filter((v) => v !== undefined);
+    expect(values.length).toBeGreaterThan(0);
+    for (const v of values) expect(['Yes', 'No']).toContain(v);
   });
 
   test('an absent value leaves the cell empty rather than writing "undefined"', () => {
@@ -116,58 +187,69 @@ describe('planWorkbook — values by type', () => {
 
 describe('planWorkbook — derived cells come from the schema, not from prose', () => {
   test('each element row carries the definition the schema declares', () => {
-    const definition = cellAt('Qualification', 'B2')?.value;
+    const elements = table('elements');
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const definition = cellAt(elements.ref('definition', row))?.value;
     expect(typeof definition).toBe('string');
     expect(definition).toContain('Quantified business outcomes');
   });
 
-  test('the rubric cell shows the wording for that element at its own score', () => {
-    // metrics scores 3 in the example deal; the schema's level-3 text must be what shows.
+  test('the rubric cell selects the wording for that element at its own score', () => {
+    // metrics scores 3 in the example deal, so the branch that fires for a 3 must carry the schema's
+    // level-3 text. Asserted through the FORMULA, because the cell is a lookup now — the wording
+    // follows the score in Excel rather than being frozen at generation time.
     const metricsScore = (deal.qualification.metrics as { score: number }).score;
     const rubric = schema.properties.qualification.properties.metrics.properties.scoreDefinition.default[
       String(metricsScore)
     ] as string;
-    const row = QUALIFICATION_ELEMENTS.indexOf('metrics') + 2;
-    expect(cellAt('Qualification', `F${row}`)?.value).toBe(rubric);
+    const elements = table('elements');
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const formula = cellAt(elements.ref('rubric', row))?.formula ?? '';
+    expect(formula).toContain(`=${metricsScore},"${rubric.replace(/"/g, '""')}"`);
   });
 
   test('every element gets a row, in the canonical order', () => {
-    const names = QUALIFICATION_ELEMENTS.map((_, i) => cellAt('Qualification', `A${i + 2}`)?.value);
-    expect(names).toEqual([...QUALIFICATION_ELEMENTS]);
+    const elements = table('elements');
+    const names = QUALIFICATION_ELEMENTS.map((_, i) => cellAt(elements.ref('element', i))?.value);
+    expect(names).toEqual(QUALIFICATION_ELEMENTS.map(sectionLabel));
   });
 
-  test('the completion sheet lists every tracked section with its computed status', () => {
-    const names = SECTION_ORDER.map((_, i) => cellAt('Completion', `A${i + 2}`)?.value);
-    expect(names).toEqual([...SECTION_ORDER]);
-    const metricsStatus = cellAt('Completion', 'B2')?.value;
-    expect(['not_started', 'partial', 'complete']).toContain(metricsStatus);
+  test('the completion block lists every tracked section with its computed status', () => {
+    const completion = table('sections');
+    const names = SECTION_ORDER.map((_, i) => cellAt(completion.ref('section', i))?.value);
+    expect(names).toEqual(SECTION_ORDER.map(sectionLabel));
+    const metricsStatus = cellAt(completion.ref('status', SECTION_ORDER.indexOf('metrics')))?.value;
+    expect(COMPLETION_STATUSES.map(statusLabel)).toContain(metricsStatus);
   });
 
   test('questions come from the schema and pair with the responses in the deal', () => {
-    const q = cellAt('Questions', 'C2')?.value;
-    const a = cellAt('Questions', 'D2')?.value;
-    expect(q).toBe(schema.properties.qualification.properties.metrics.properties.questions.default[0]);
-    expect(a).toBe((deal.qualification.metrics as { responses: string[] }).responses[0]);
+    const questions = table('responses');
+    expect(cellAt(questions.ref('question', 0))?.value).toBe(
+      schema.properties.qualification.properties.metrics.properties.questions.default[0],
+    );
+    expect(cellAt(questions.ref('response', 0))?.value).toBe(
+      (deal.qualification.metrics as { responses: string[] }).responses[0],
+    );
   });
 });
 
 describe('planWorkbook — collections are not capped', () => {
   test('every stakeholder in the deal gets a row', () => {
     const names = (deal.stakeholders as Array<{ name: string }>).map((s) => s.name);
-    const written = names.map((_, i) => cellAt('Stakeholders', `A${i + 2}`)?.value);
+    const stakeholders = table('stakeholders');
+    const written = names.map((_, i) => cellAt(stakeholders.ref('name', i))?.value);
     expect(written).toEqual(names);
   });
 
   test('a team larger than the legacy sheet formatted still fits', () => {
-    // The F5 template formats 8 team rows and silently drops the rest.
+    // The F5 template formats 8 team rows and silently drops the rest. `minRows` is a floor, not a
+    // ceiling, so a longer list pushes everything below it down rather than losing its tail.
     const big = JSON.parse(JSON.stringify(deal));
     big.team.internal = Array.from({ length: 14 }, (_, i) => ({ name: `Person ${i + 1}`, role: 'SE' }));
     const p = planWorkbook(schema, spec, big);
-    const team = p.sheets.find((s) => s.name === 'Team');
-    const written = Array.from(
-      { length: 14 },
-      (_, i) => team?.rows.find((r) => r.row === i + 2)?.cells.find((c) => c.ref === `A${i + 2}`)?.value,
-    );
+    const team = table('teamInternal', p);
+    expect(team.rows).toBe(14);
+    const written = Array.from({ length: 14 }, (_, i) => cellOf(p, team.ref('name', i))?.value);
     expect(written).toEqual(big.team.internal.map((m: { name: string }) => m.name));
   });
 
@@ -175,8 +257,16 @@ describe('planWorkbook — collections are not capped', () => {
     const empty = JSON.parse(JSON.stringify(deal));
     empty.stakeholders = [];
     const p = planWorkbook(schema, spec, empty);
-    const sh = p.sheets.find((s) => s.name === 'Stakeholders');
-    expect(sh?.rows.find((r) => r.row === 1)?.cells[0]?.value).toBe('Name');
+    const stakeholders = table('stakeholders', p);
+    const declared = spec.sheets.flatMap(specTables).find((t) => t.id === 'stakeholders')?.minRows;
+    expect(stakeholders.rows).toBe(declared);
+    expect(cellOf(p, stakeholders.headerRef('name'))?.value).toBe('Name');
+    // Every padded row exists and is empty — a row that is not there cannot be typed into.
+    for (let i = 0; i < stakeholders.rows; i++) {
+      const cell = cellOf(p, stakeholders.ref('name', i));
+      expect(cell, `row ${i}`).toBeDefined();
+      expect(cell?.value, `row ${i}`).toBeUndefined();
+    }
   });
 });
 
@@ -189,34 +279,40 @@ describe('planWorkbook — formula references resolve to addresses', () => {
   });
 
   test('a column reference becomes the data range of that column', () => {
-    const total = plan.namedCells.scoreTotal;
-    const cell = cellAt('Scorecard', total.split('!')[1] ?? total);
-    // Eight elements starting at row 2.
-    expect(cell?.formula).toBe('SUM(Qualification!C2:C9)');
+    const elements = table('elements');
+    const cell = cellAt(plan.namedCells.scoreTotal.split('!')[1] ?? '');
+    const first = elements.ref('score', 0);
+    const last = elements.ref('score', elements.rows - 1);
+    expect(cell?.formula).toBe(`SUM(${first}:${last})`);
   });
 
   test('a keyed row reference looks the key up in the table', () => {
     // Not the key's row ADDRESS: see "a keyed reference survives the user sorting the table".
-    const cell = cellAt('Scorecard', plan.namedCells.championScore.split('!')[1] ?? '');
-    expect(cell?.formula).toBe('INDEX(Qualification!C2:C9,MATCH("champion",Qualification!A2:A9,0))');
+    const elements = table('elements');
+    const cell = cellAt(plan.namedCells.championScore.split('!')[1] ?? '');
+    const scores = `${elements.ref('score', 0)}:${elements.ref('score', elements.rows - 1)}`;
+    const keys = `${elements.ref('element', 0)}:${elements.ref('element', elements.rows - 1)}`;
+    expect(cell?.formula).toBe(`INDEX(${scores},MATCH("${sectionLabel('champion')}",${keys},0))`);
   });
 
-  test('a same-sheet reference is not sheet-qualified, a cross-sheet one is', () => {
-    const percent = cellAt('Scorecard', plan.namedCells.scorePercent.split('!')[1] ?? '');
-    // scoreTotal and scoreMaximum are on the Scorecard too, so no prefix.
-    expect(percent?.formula).not.toContain('Scorecard!');
-    expect(percent?.formula).toMatch(/^IF\(B\d+=0,0,B\d+\/B\d+\)$/);
-  });
-
-  test('a sheet name containing a space is quoted', () => {
-    const overdue = cellAt('Scorecard', plan.namedCells.actionsOverdue.split('!')[1] ?? '');
-    expect(overdue?.formula).toContain("'Close Plan'!");
+  test('one sheet means no formula needs a sheet prefix at all', () => {
+    // Every reference is same-sheet now, so a prefix would be noise — and a wrong one would break
+    // silently the moment the sheet were renamed.
+    for (const c of allCells()) {
+      expect(c.formula ?? '', c.ref).not.toContain('!');
+    }
+    const percent = cellAt(plan.namedCells.scorePercent.split('!')[1] ?? '');
+    expect(percent?.formula).toMatch(/^IF\([A-Z]+\d+=0,0,[A-Z]+\d+\/[A-Z]+\d+\)$/);
   });
 
   test('{{this:…}} resolves to the same row of the same table', () => {
-    // Qualification's `change` column is score - previousScore, per row.
-    expect(cellAt('Qualification', 'E2')?.formula).toBe('C2-D2');
-    expect(cellAt('Qualification', 'E9')?.formula).toBe('C9-D9');
+    // The elements table's `change` column is score - previousScore, per row.
+    const elements = table('elements');
+    for (const offset of [0, elements.rows - 1]) {
+      expect(cellAt(elements.ref('change', offset))?.formula).toBe(
+        `${elements.ref('score', offset)}-${elements.ref('previousScore', offset)}`,
+      );
+    }
   });
 });
 
@@ -278,17 +374,17 @@ describe('a partly-qualified deal is not flattered by the workbook', () => {
 
   test('an unscored element is written as 0, matching how the engine counts it', () => {
     const p = planWorkbook(schema, spec, partial);
-    const q = p.sheets.find((s) => s.name === 'Qualification');
-    const scores = QUALIFICATION_ELEMENTS.map(
-      (_, i) => q?.rows.find((r) => r.row === i + 2)?.cells.find((c) => c.ref === `C${i + 2}`)?.value,
-    );
+    const elements = table('elements', p);
+    const scores = QUALIFICATION_ELEMENTS.map((_, i) => cellOf(p, elements.ref('score', i))?.value);
     expect(scores).toEqual([4, 0, 0, 0, 0, 0, 0, 0]);
   });
 
   test('the maximum does not shrink when scores are missing', () => {
     // Counting the element-name column keeps the denominator at the number of elements.
-    const maximum = cellAt('Scorecard', plan.namedCells.scoreMaximum.split('!')[1] ?? '');
-    expect(maximum?.formula).toBe('COUNTA(Qualification!A2:A9)*4');
+    const elements = table('elements');
+    const maximum = cellAt(plan.namedCells.scoreMaximum.split('!')[1] ?? '');
+    const keys = `${elements.ref('element', 0)}:${elements.ref('element', elements.rows - 1)}`;
+    expect(maximum?.formula).toBe(`COUNTA(${keys})*4`);
   });
 });
 
@@ -316,32 +412,38 @@ describe('dateToSerial rejects what is not a date', () => {
   });
 });
 
-describe('a keyed reference survives the user sorting the table', () => {
-  // Putting a Table on Qualification hands the user a sort button. A formula written as
-  // `Qualification!C8` means "champion" only while the rows are in their original order —
-  // after a sort by score it silently reports a different element under the Champion label.
-  // So a keyed reference has to look the key up, not remember where it was.
+describe('a keyed reference survives the user re-ordering the rows', () => {
+  // A formula written as `C8` means "champion" only while the rows are in their original order.
+  // Sorting or re-typing them silently reports a different element under the Champion label, so a
+  // keyed reference has to look the key up rather than remember where it was.
   test('resolves through MATCH on the key column rather than a fixed row', () => {
-    const champion = cellAt('Scorecard', plan.namedCells.championScore.split('!')[1] ?? '')?.formula ?? '';
-    expect(champion).toContain('MATCH("champion"');
-    expect(champion).toMatch(/^INDEX\(Qualification!C\$?2:C\$?9,MATCH\("champion",Qualification!A\$?2:A\$?9,0\)\)$/);
+    const elements = table('elements');
+    const champion = cellAt(plan.namedCells.championScore.split('!')[1] ?? '')?.formula ?? '';
+    // The label as displayed, because that is what MATCH compares against: relabelling the element
+    // column without relabelling the lookup fills the Scorecard with #N/A.
+    expect(champion).toContain(`MATCH("${sectionLabel('champion')}"`);
+    const scores = `${elements.ref('score', 0)}:${elements.ref('score', elements.rows - 1)}`;
+    const keys = `${elements.ref('element', 0)}:${elements.ref('element', elements.rows - 1)}`;
+    expect(champion).toBe(`INDEX(${scores},MATCH("${sectionLabel('champion')}",${keys},0))`);
   });
 
   test('the economic buyer reference is looked up the same way', () => {
-    const eb = cellAt('Scorecard', plan.namedCells.economicBuyerScore.split('!')[1] ?? '')?.formula ?? '';
-    expect(eb).toContain('MATCH("economicBuyer"');
-    expect(eb).not.toMatch(/Qualification!C\d+$/);
+    const elements = table('elements');
+    const eb = cellAt(plan.namedCells.economicBuyerScore.split('!')[1] ?? '')?.formula ?? '';
+    expect(eb).toContain(`MATCH("${sectionLabel('economicBuyer')}"`);
+    // Not a bare cell in the score column, which is what "remembered where it was" looks like.
+    expect(eb).not.toMatch(new RegExp(`${A1(elements.column('score'), elements.firstDataRow)}\\)?$`));
   });
 });
 
-describe('the Completion sheet is coloured with its own vocabulary', () => {
+describe('the completion block is coloured with its own vocabulary', () => {
   // computeCompletion emits not_started / partial / complete. The closePlan status enum is
   // pending / in_progress / complete. One preset cannot serve both, and pointing the
-  // Completion column at the closePlan preset left two of its three states uncoloured.
+  // completion column at the closePlan preset left two of its three states uncoloured.
   test('uses a preset that matches the statuses it actually writes', () => {
-    const completion = spec.sheets.find((s) => s.name === 'Completion');
-    if (completion?.kind !== 'table') throw new Error('Completion must be a table sheet');
-    const status = completion.tables[0].columns.find((c) => c.id === 'status');
+    const sections = spec.sheets.flatMap(specTables).find((t) => t.id === 'sections');
+    if (!sections) throw new Error('no sections table in the spec');
+    const status = sections.columns.find((c) => c.id === 'status');
     expect(status?.conditionalFormat).toBe('completionText');
   });
 
@@ -353,63 +455,330 @@ describe('the Completion sheet is coloured with its own vocabulary', () => {
   });
 });
 
-describe('planWorkbook — where a list can grow', () => {
-  test('growth starts one row past the mapped rows, at the next list index', () => {
-    const growth = plan.listGrowth.find((g) => g.jsonPath === 'stakeholders');
-    expect(growth).toBeDefined();
-    const rows = plan.inputCells
-      .filter((c) => c.jsonPath.startsWith('stakeholders['))
-      .map((c) => Number((/(\d+)$/.exec(c.address) as RegExpExecArray)[1]));
-    expect(growth?.firstRow).toBe(Math.max(...rows) + 1);
-    expect(growth?.nextIndex).toBe(new Set(rows).size);
+describe('a formula never compares against a spelling the cells do not use', () => {
+  // A boolean cell holds the TEXT "Yes", not a logical TRUE, so `COUNTIF(range,TRUE)` counts nothing
+  // and the scorecard reports 0 where the deal has 2. The count is well-formed, silently wrong, and
+  // agrees with nothing — exactly the class of defect a unit test on the writer cannot see.
+  test('no formula in the spec compares a boolean column against TRUE or FALSE', () => {
+    const offenders: string[] = [];
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (typeof record.formula === 'string' && /\b(TRUE|FALSE)\b/.test(record.formula)) {
+        offenders.push(`${String(record.id)}: ${record.formula}`);
+      }
+      Object.values(record).forEach(walk);
+    };
+    walk(spec);
+    expect(offenders).toEqual([]);
   });
 
-  test('only tables bound to a list can grow', () => {
-    // `elements` and `elementResponses` have one row per element or question, not per item, so
-    // there is nothing to append to and a row under them means something else entirely.
-    const sources = plan.listGrowth.map((g) => g.jsonPath);
-    expect(sources).toContain('stakeholders');
-    expect(sources).toContain('team.internal');
-    expect(sources).not.toContain('elements');
-    expect(sources).not.toContain('qualification');
+  test('no formula quotes a word the label map owns', () => {
+    // `COUNTIF(range,"complete")` happens to work, because Excel compares text without regard to
+    // case and the cell reads "Complete". It stops working the moment that word is translated, and
+    // it is a second spelling of something `labels.ts` already decides. Name the word instead.
+    const owned = new Set([...Object.keys(ENUM_LABELS), ...Object.values(ENUM_LABELS)].map((w) => w.toLowerCase()));
+    const offenders: string[] = [];
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node === null || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (typeof record.formula === 'string') {
+        for (const m of record.formula.matchAll(/"([^"]*)"/g)) {
+          if (owned.has(m[1].toLowerCase())) offenders.push(`${String(record.id)}: ${record.formula}`);
+        }
+      }
+      Object.values(record).forEach(walk);
+    };
+    walk(spec);
+    expect(offenders).toEqual([]);
+  });
+
+  test('every boolean input cell offers the two words as a dropdown', () => {
+    // Without it Excel accepts anything, and the reader is deliberately lenient — TRUE, Y and 1 all
+    // read as true. So a rep can type TRUE, have it applied to the deal, and watch the count beside
+    // it stay wrong until the workbook is regenerated: a plausible-looking, incorrect deal review.
+    // The dropdown is what makes the cell and the count agree in the first place.
+    const declared = spec.sheets
+      .flatMap(specTables)
+      .flatMap((t) => t.columns.map((c) => ({ table: t.id, column: c })))
+      .filter(({ column }) => column.valueType === 'boolean' && column.role === 'input');
+    expect(declared.length).toBeGreaterThan(0);
+    for (const { table, column } of declared) {
+      expect(column.validate, `${table}.${column.id} offers no dropdown`).toBe(true);
+    }
+
+    // And the dropdown Excel is handed really is the pair the cells hold.
+    const sheet = theSheet();
+    const cell = plan.inputCells.find((c) => c.jsonPath.endsWith('.mustSayYes'));
+    const validation = sheet.validations?.find((v) => v.sqref.split(':')[0] === cell?.address);
+    expect(validation?.values).toEqual([BOOLEAN_YES, BOOLEAN_NO]);
+  });
+
+  test('every boolean count resolves to the word the cells actually hold', () => {
+    const counts: Array<{ id: string; expected: number }> = [
+      {
+        id: 'mustSayYesCount',
+        expected: (deal.stakeholders as Array<{ mustSayYes?: boolean }>).filter((s) => s.mustSayYes).length,
+      },
+      {
+        id: 'canSayNoCount',
+        expected: (deal.stakeholders as Array<{ canSayNo?: boolean }>).filter((s) => s.canSayNo).length,
+      },
+      {
+        id: 'teamInternalAssigned',
+        expected: (deal.team.internal as Array<{ assignedToDeal?: boolean }>).filter((m) => m.assignedToDeal).length,
+      },
+    ];
+    for (const { id, expected } of counts) {
+      // A count of zero would make the assertion below hold for a formula that counts nothing.
+      expect(expected, id).toBeGreaterThan(0);
+      const cell = cellAt(plan.namedCells[id]?.split('!')[1] ?? '');
+      expect(cell?.formula, id).toBeDefined();
+      expect(cell?.formula, id).toContain(`"${BOOLEAN_YES}"`);
+      expect(cell?.formula, id).not.toMatch(/\bTRUE\b/);
+    }
+  });
+});
+
+describe('an enum reads as words, and the dropdown offers the same words', () => {
+  // `in_progress` is a JSON token. The sheet is read by people in a deal review, and a status column
+  // showing tokens is the defect; the deal JSON keeps the token, because it is the source of truth.
+  const statusOf = (offset: number) => cellAt(table('milestones').ref('status', offset))?.value;
+
+  test('a snake_case status is shown as words', () => {
+    const statuses = (deal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    expect(statuses.some((v) => /_/.test(v))).toBe(true);
+    for (const [i, status] of statuses.entries()) {
+      expect(statusOf(i), `milestone ${i}`).toBe(enumLabel(status));
+      expect(String(statusOf(i)), `milestone ${i}`).not.toMatch(/_/);
+    }
+  });
+
+  test('the dropdown offers exactly what the cells show', () => {
+    // Excel refuses a value that is not in the list — including one it wrote itself. A cell reading
+    // "In progress" under a dropdown offering `in_progress` is a validation error on open.
+    const declared = schema.properties.closePlan.properties.milestones.items.properties.status.enum as string[];
+    const sheet = theSheet();
+    const cell = table('milestones').ref('status', 0);
+    const validation = sheet.validations?.find((v) => v.sqref.split(':')[0] === cell);
+    expect(validation, `no dropdown at ${cell}`).toBeDefined();
+    expect(validation?.values).toEqual(declared.map(enumLabel));
+    expect(validation?.values).toContain(String(statusOf(0)));
+  });
+
+  test('free text is not relabelled, even when it reads like a status', () => {
+    // The label table is applied to enum MEMBERS only. Mapping every string through it would turn a
+    // note that happens to say "pending" into "Pending" — prose is not a status.
+    const withProse = clone(deal);
+    withProse.qualification.metrics.evidence = 'pending';
+    const p = planWorkbook(schema, spec, withProse);
+    const evidence = p.inputCells.find((c) => c.jsonPath === 'qualification.metrics.evidence');
+    expect(cellOf(p, evidence?.address ?? '')?.value).toBe('pending');
+  });
+});
+
+describe('the rubric follows the score in Excel, not just at generation time', () => {
+  // A derived value written once as a literal goes stale the moment somebody changes what it derives
+  // from. Change a score from 2 to 4 in the middle of a review and the cell beside it still explains
+  // what a 2 means — a contradiction on the screen, in the one column whose job is to explain the
+  // number next to it.
+  //
+  // This is a LOOKUP, not a rule: five fixed strings per element, chosen by the score. Excel can do
+  // that itself. The completion statuses are deliberately left alone, because those are the engine's
+  // rules and reimplementing them in formulas would be a second opinion that could disagree.
+  const elements = () => table('elements');
+
+  test('the rubric cell is a formula, not a copy of one score’s wording', () => {
+    const cell = cellAt(elements().ref('rubric', QUALIFICATION_ELEMENTS.indexOf('metrics')));
+    expect(cell?.formula).toBeDefined();
+    expect(cell?.value).toBeUndefined();
+  });
+
+  test('it switches on that row’s own score cell', () => {
+    const t = elements();
+    const row = QUALIFICATION_ELEMENTS.indexOf('champion');
+    const formula = cellAt(t.ref('rubric', row))?.formula ?? '';
+    expect(formula).toContain(t.ref('score', row));
+    // Not another row's score, which is the mistake that would look right in one place and be wrong
+    // in the other seven.
+    expect(formula).not.toContain(t.ref('score', row === 0 ? 1 : 0));
+  });
+
+  test('every wording the schema declares for that element is in the formula', () => {
+    const t = elements();
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const formula = cellAt(t.ref('rubric', row))?.formula ?? '';
+    const wordings = schema.properties.qualification.properties.metrics.properties.scoreDefinition.default as Record<
+      string,
+      string
+    >;
+    expect(Object.keys(wordings).length).toBeGreaterThan(1);
+    for (const [score, text] of Object.entries(wordings)) {
+      // Doubled quotes: a formula string literal escapes them that way, and Excel repairs a file that
+      // gets it wrong.
+      expect(formula, `score ${score}`).toContain(text.replace(/"/g, '""'));
+    }
+  });
+
+  test('the row is tall enough for the longest wording, not just the current one', () => {
+    // The height cannot follow a formula, so it has to fit whatever the formula might show. Sizing it
+    // to the current score's text clips the row the moment a longer wording is selected.
+    const t = elements();
+    const row = QUALIFICATION_ELEMENTS.indexOf('metrics');
+    const wordings = Object.values(
+      schema.properties.qualification.properties.metrics.properties.scoreDefinition.default as Record<string, string>,
+    );
+    const longest = wordings.reduce((a, b) => (b.length > a.length ? b : a));
+    const current = wordings[String((deal.qualification.metrics as { score: number }).score) as unknown as number];
+    expect(longest.length).toBeGreaterThan((current ?? '').length);
+    const width = spanWidthOf(t.column('rubric'), 'rubric');
+    const height = theSheet().rows.find((r) => r.row === t.firstDataRow + row)?.height ?? 0;
+    expect(height).toBeGreaterThanOrEqual(estimateRowHeight(longest, width, 24));
+  });
+});
+
+describe('a blank prose row has room to type into', () => {
+  // A padded row is there to be typed into, and a prose cell in one is merged — so Excel cannot
+  // autofit it afterwards. Left at the standard 24 points, the first sentence somebody enters is
+  // clipped, with no error and nothing to click.
+  //
+  // There is no way to know what they will type, so the room comes from the rows above: as tall as the
+  // tallest filled cell in the same column. A list of four stakeholders with two-line answers gives
+  // its spare rows two lines each, which is both a better guess than one line and a tidier grid.
+  test('a padded prose row is as tall as the tallest filled one in its column', () => {
+    const t = table('stakeholders');
+    const filled = (deal.stakeholders as unknown[]).length;
+    expect(t.rows).toBeGreaterThan(filled);
+    const rowHeight = (offset: number) => theSheet().rows.find((r) => r.row === t.firstDataRow + offset)?.height ?? 0;
+    const tallestFilled = Math.max(...Array.from({ length: filled }, (_, i) => rowHeight(i)));
+    // The filled rows have to be taller than the default, or this asserts nothing.
+    expect(tallestFilled).toBeGreaterThan(24);
+    for (let i = filled; i < t.rows; i++) {
+      expect(rowHeight(i), `padded row ${i}`).toBe(tallestFilled);
+    }
+  });
+
+  test('a list with nothing in it still gets more than one line', () => {
+    const empty = clone(deal);
+    empty.stakeholders = [];
+    const p = planWorkbook(schema, spec, empty);
+    const t = table('stakeholders', p);
+    for (let i = 0; i < t.rows; i++) {
+      const height = p.sheets[0].rows.find((r) => r.row === t.firstDataRow + i)?.height ?? 0;
+      expect(height, `padded row ${i}`).toBeGreaterThanOrEqual(24);
+    }
+  });
+});
+
+describe('prose too tall for any row is reported, not clipped in silence', () => {
+  // Excel's tallest row is 409.5 points, so text needing more cannot be shown in full in one row —
+  // and the cell is merged, so it cannot autofit to reveal the rest either. Nothing about that is
+  // fixable at generation time. What is fixable is saying so: the schema bounds none of the prose
+  // fields, and a note somebody wrote at length would otherwise end mid-sentence with no indication.
+  const aVeryLongNote = () => {
+    const deal2 = clone(deal);
+    deal2.qualification.metrics.evidence = `${'word '.repeat(600)}end`;
+    return deal2;
+  };
+
+  test('an ordinary deal reports nothing', () => {
+    expect(planWorkbook(schema, spec, deal).clippedCells).toEqual([]);
+  });
+
+  test('a cell that cannot fit names itself, with what it would have needed', () => {
+    const plan = planWorkbook(schema, spec, aVeryLongNote());
+    expect(plan.clippedCells).toHaveLength(1);
+    const clipped = plan.clippedCells[0];
+    expect(clipped.address).toBe(plan.inputCells.find((c) => c.jsonPath === 'qualification.metrics.evidence')?.address);
+    expect(clipped.needed).toBeGreaterThan(MAX_ROW_HEIGHT);
+    // The row is still written at the tallest height Excel accepts, not at the impossible one.
+    const row = plan.sheets[0].rows.find((r) => r.row === clipped.row);
+    expect(row?.height).toBe(MAX_ROW_HEIGHT);
+  });
+
+  test('generation still succeeds — a long note is not a reason to refuse a workbook', () => {
+    expect(() => generateWorkbook(schema, spec, aVeryLongNote())).not.toThrow();
+  });
+});
+
+describe('planWorkbook — a list holds exactly its padded rows', () => {
+  /** The list index and row of every input cell of one list. */
+  const entriesOf = (jsonPath: string, of: WorkbookPlan = plan) =>
+    of.inputCells
+      .filter((c) => c.jsonPath.startsWith(`${jsonPath}[`))
+      .map((c) => ({
+        index: Number((/\[(\d+)\]/.exec(c.jsonPath) as RegExpExecArray)[1]),
+        row: Number((/(\d+)$/.exec(c.address) as RegExpExecArray)[1]),
+      }));
+
+  test('every padded row is mapped, and no row beyond them is', () => {
+    // This is the whole of a list's capacity: there is no scan below the table, because the rows
+    // below it belong to the next section. Overflow is reported, not read.
+    const stakeholders = table('stakeholders');
+    const rows = [...new Set(entriesOf('stakeholders').map((e) => e.row))].sort((a, b) => a - b);
+    expect(rows).toEqual(Array.from({ length: stakeholders.rows }, (_, i) => stakeholders.firstDataRow + i));
+  });
+
+  test('the padded rows carry the list indices that follow the deal', () => {
+    const stakeholders = table('stakeholders');
+    const indices = [...new Set(entriesOf('stakeholders').map((e) => e.index))].sort((a, b) => a - b);
+    expect(indices).toEqual(Array.from({ length: stakeholders.rows }, (_, i) => i));
+    // The deal has fewer stakeholders than the table shows, so `minRows` is what set the capacity
+    // and the spare rows really are spare.
+    const declared = spec.sheets.flatMap(specTables).find((t) => t.id === 'stakeholders')?.minRows;
+    expect((deal.stakeholders as unknown[]).length).toBeLessThan(declared as number);
+    expect(stakeholders.rows).toBe(declared);
   });
 
   test('a computed column in a list table is NOT offered as somewhere to write', () => {
     // No shipped list table has one today, so this is the guard against adding one and having the
     // reader take its formula result as a human's entry — the one thing `read` must never do.
     const synthetic = {
+      version: 1,
       sheets: [
         {
-          kind: 'table',
+          kind: 'grid',
           name: 'People',
-          tables: [
+          columns: [
+            { min: 1, max: 1, width: 3.5 },
+            { min: 2, max: 3, width: 14 },
+          ],
+          blocks: [
             {
-              id: 'people',
-              source: { kind: 'list', jsonPath: 'stakeholders' },
-              anchorColumn: 1,
-              headerRow: 1,
-              minRows: 2,
-              columns: [
-                { id: 'name', header: 'Name', role: 'input', valueType: 'string', jsonPath: 'name' },
-                {
-                  id: 'shout',
-                  header: 'Shout',
-                  role: 'computed',
-                  valueType: 'string',
-                  formula: 'UPPER({{this:name}})',
-                },
-              ],
+              kind: 'table',
+              table: {
+                id: 'people',
+                source: { kind: 'list', jsonPath: 'stakeholders' },
+                anchorColumn: 2,
+                minRows: 2,
+                columns: [
+                  { id: 'name', header: 'Name', role: 'input', valueType: 'string', jsonPath: 'name' },
+                  {
+                    id: 'shout',
+                    header: 'Shout',
+                    role: 'computed',
+                    valueType: 'string',
+                    formula: 'UPPER({{this:name}})',
+                  },
+                ],
+              },
             },
           ],
         },
       ],
     } as unknown as WorkbookSpec;
-    const growth = planWorkbook(schema, synthetic, deal).listGrowth;
-    expect(growth).toHaveLength(1);
+    const p = planWorkbook(schema, synthetic, deal);
+    const people = table('people', p);
     // toStrictEqual, not toEqual: toEqual ignores undefined, so ['name', undefined] would compare
     // equal to ['name'] and this assertion could not fail if the computed column slipped through.
-    expect(growth[0].columns).toHaveLength(1);
-    expect(growth[0].columns.map((c) => c.relativePath)).toStrictEqual(['name']);
+    expect([...new Set(p.inputCells.map((c) => c.jsonPath.replace(/\[\d+\]/, '[]')))]).toStrictEqual([
+      'stakeholders[].name',
+    ]);
+    // And the computed column really is on the sheet — otherwise the assertion above passes for
+    // the wrong reason, because nothing was rendered at all.
+    expect(cellOf(p, people.ref('shout', 0))?.formula).toBeDefined();
   });
 });
 
@@ -442,15 +811,19 @@ describe('planWorkbook — presentation', () => {
     expect(planWorkbook(schema, spec, anonymous).sheets[0].print?.header).toStrictEqual(['MEDDPICC Deal Review']);
   });
 
-  test('a title and every section banner span the form width', () => {
-    // A banner that stops at the label column reads as a mislabelled cell, not a heading.
-    const deals = sheet('Deal');
-    const width = deals.columns?.reduce((w, c) => Math.max(w, c.max), 0) ?? 0;
-    expect(width).toBeGreaterThan(1);
-    const banners = deals.rows.filter((r) => r.cells.some((c) => c.style === 'title' || c.style === 'sectionHeader'));
+  test('a title and every section banner span the full content width', () => {
+    // A banner that stops at the label column reads as a mislabelled cell, not a heading. It spans
+    // the content columns and leaves the gutter alone, so nothing touches the left edge.
+    const sheet = theSheet();
+    const gutter = sheet.columns?.[0];
+    expect(gutter?.min).toBe(1);
+    const contentStart = (gutter?.max ?? 0) + 1;
+    const contentEnd = sheet.columns?.reduce((w, c) => Math.max(w, c.max), 0) ?? 0;
+    expect(contentEnd).toBeGreaterThan(contentStart);
+    const banners = sheet.rows.filter((r) => r.cells.some((c) => c.style === 'title' || c.style === 'sectionHeader'));
     expect(banners.length).toBeGreaterThan(1);
     for (const row of banners) {
-      expect(deals.merges ?? []).toContain(`${A1(1, row.row)}:${A1(width, row.row)}`);
+      expect(sheet.merges ?? [], `row ${row.row}`).toContain(`${A1(contentStart, row.row)}:${A1(contentEnd, row.row)}`);
     }
   });
 

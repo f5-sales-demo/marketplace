@@ -17,6 +17,7 @@
  * That trades a little file size for one fewer part to keep consistent. Excel re-saves them
  * through `sharedStrings.xml` anyway, which the round-trip reader handles.
  */
+import { enumLabel } from './labels';
 import { writeZip } from './zip';
 
 const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -103,11 +104,6 @@ function parseRange(ref: string, what: string): Range {
   return range;
 }
 
-/** Do two ranges share a cell? */
-function overlaps(a: Range, b: Range): boolean {
-  return a.c1 <= b.c2 && b.c1 <= a.c2 && a.r1 <= b.r2 && b.r1 <= a.r2;
-}
-
 /**
  * The style palette, in `cellXfs` order — the index of each name IS its `s=` attribute.
  *
@@ -167,10 +163,18 @@ interface StyleDef {
   center?: boolean;
   /** Sit the text in the middle of the row. Banners are twice the height of their text. */
   middle?: boolean;
+  /**
+   * Pin the text to the left of its cell.
+   *
+   * Excel right-aligns numbers, which is right in a column of figures and wrong in a form: merged
+   * across four columns, a date drifts to the far edge and reads as belonging to whatever is next to
+   * it rather than to the label on its left.
+   */
+  left?: boolean;
 }
 
 const STYLE_DEFS: Record<StyleName, StyleDef> = {
-  default: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0 },
+  default: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, left: true, middle: true },
   title: { font: FONT_WHITE_TITLE, fill: FILL_DARK, numFmt: 0, center: true, middle: true },
   sectionHeader: { font: FONT_WHITE_BOLD, fill: FILL_DARK, numFmt: 0, center: true, middle: true },
   groupHeader: { font: FONT_WHITE_BOLD, fill: FILL_ACCENT, numFmt: 0, center: true, middle: true },
@@ -178,11 +182,11 @@ const STYLE_DEFS: Record<StyleName, StyleDef> = {
   fieldLabel: { font: FONT_WHITE_BOLD, fill: FILL_TEAL, numFmt: 0, middle: true, wrap: true },
   label: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0 },
   text: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, wrap: true },
-  number: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0 },
-  currency: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_CURRENCY },
-  percent: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_PERCENT },
-  date: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_DATE },
-  score: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0, center: true },
+  number: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: 0, left: true, middle: true },
+  currency: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_CURRENCY, left: true, middle: true },
+  percent: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_PERCENT, left: true, middle: true },
+  date: { font: FONT_DEFAULT, fill: FILL_NONE, numFmt: NUMFMT_DATE, left: true, middle: true },
+  score: { font: FONT_BOLD, fill: FILL_NONE, numFmt: 0, center: true, middle: true },
   ragRed: { font: FONT_BOLD, fill: FILL_RED, numFmt: 0, center: true },
   ragAmber: { font: FONT_BOLD, fill: FILL_AMBER, numFmt: 0, center: true },
   ragGreen: { font: FONT_BOLD, fill: FILL_GREEN, numFmt: 0, center: true },
@@ -244,29 +248,22 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
     { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'amber' },
     { type: 'cellIs', operator: 'equal', formulas: ['"Green"'], dxf: 'green' },
   ],
+  // Matched against the LABEL the sheet displays, not the JSON value behind it. Both come from
+  // `enumLabel`, so they cannot drift — a preset quoting `"not_started"` while the cell reads
+  // "Not started" is a colour that never appears and nothing to notice it.
   completionText: [
-    { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"partial"'], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"not_started"'], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('partial')}"`], dxf: 'amber' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('not_started')}"`], dxf: 'red' },
   ],
   statusText: [
-    { type: 'cellIs', operator: 'equal', formulas: ['"complete"'], dxf: 'green' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"in_progress"'], dxf: 'amber' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"pending"'], dxf: 'red' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('complete')}"`], dxf: 'green' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('in_progress')}"`], dxf: 'amber' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('pending')}"`], dxf: 'red' },
   ],
   // Past its date and not blank. A blank cell is "no date set", not "overdue since 1900".
   overdueDate: [{ type: 'expression', formulas: ['AND(%FIRST%<>"",%FIRST%<TODAY())'], dxf: 'red' }],
 };
-
-export interface TablePart {
-  /** Workbook-unique, no spaces — Excel uses it for structured references. */
-  name: string;
-  displayName: string;
-  /** Includes the header row and at least one data row. */
-  ref: string;
-  /** Must equal the header cells, in order. */
-  columns: string[];
-}
 
 export interface ConditionalFormat {
   sqref: string;
@@ -285,7 +282,8 @@ function stylesXml(): string {
     '<font><b/><sz val="11"/><name val="Calibri"/></font>',
     '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
     '<font><i/><sz val="10"/><color rgb="FF6B6B6B"/><name val="Calibri"/></font>',
-    '<font><b/><sz val="16"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
+    // 20pt, matching the manual sheet's title. Measured off it rather than chosen.
+    '<font><b/><sz val="20"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',
   ];
   // Navy, teal and light blue are dk2, accent1 and accent4 of the stock modern Office theme —
   // resolved to literal RGB rather than referenced by theme index, because we ship no theme
@@ -307,9 +305,10 @@ function stylesXml(): string {
   const xfs = STYLE_ORDER.map((name) => {
     const d = STYLE_DEFS[name];
     const vertical = d.middle ? ' vertical="center"' : d.wrap ? ' vertical="top"' : '';
+    const horizontal = d.center ? ' horizontal="center"' : d.left ? ' horizontal="left"' : '';
     const align =
-      d.wrap || d.center || d.middle
-        ? `<alignment${d.wrap ? ' wrapText="1"' : ''}${vertical}${d.center ? ' horizontal="center"' : ''}/>`
+      d.wrap || d.center || d.middle || d.left
+        ? `<alignment${d.wrap ? ' wrapText="1"' : ''}${vertical}${horizontal}/>`
         : '';
     const applies = `${d.numFmt ? ' applyNumberFormat="1"' : ''}${d.font ? ' applyFont="1"' : ''}${d.fill ? ' applyFill="1"' : ''}${align ? ' applyAlignment="1"' : ''}`;
     return `<xf numFmtId="${d.numFmt}" fontId="${d.font}" fillId="${d.fill}" borderId="1" xfId="0"${applies}>${align}</xf>`;
@@ -384,7 +383,6 @@ export interface SheetSpec {
   /** Opening zoom percentage. Excel accepts 10 to 400. */
   zoom?: number;
   print?: PrintSetup;
-  tables?: TablePart[];
   conditionalFormats?: ConditionalFormat[];
   validations?: Validation[];
 }
@@ -433,11 +431,6 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
     return row;
   };
 
-  const tableRanges = (sheet.tables ?? []).map((t) => ({
-    name: t.name,
-    range: parseRange(t.ref, `Table "${t.name}" on sheet "${sheet.name}"`),
-  }));
-
   /** ref -> the merge that already covers it, so an overlap can name both. */
   const covered = new Map<string, string>();
 
@@ -452,17 +445,6 @@ export function expandMerges(sheet: SheetSpec): RowSpec[] {
       throw new Error(
         `Merge "${ref}" on sheet "${sheet.name}" covers ${size} cells; the writer materialises at most ${MAX_MERGE_CELLS}`,
       );
-    }
-    // Excel does not merely dislike a merge inside a table — it drops the table and repairs the
-    // file, so the sort button, the structured references and the auto-extend all disappear
-    // with nothing to notice but a table count that fell to zero.
-    for (const table of tableRanges) {
-      if (overlaps(area, table.range)) {
-        throw new Error(
-          `Merge "${ref}" on sheet "${sheet.name}" overlaps table "${table.name}" (${sheet.tables?.find((t) => t.name === table.name)?.ref}) — ` +
-            'Excel drops a table whose range contains a merged cell',
-        );
-      }
     }
     const anchorRef = A1(c1, r1);
     const anchor = cellByRef.get(anchorRef);
@@ -530,35 +512,6 @@ function cellXml(cell: CellSpec): string {
   }
   if (typeof cell.value === 'boolean') return `<c r="${cell.ref}"${s} t="b"><v>${cell.value ? 1 : 0}</v></c>`;
   return `<c r="${cell.ref}"${s} t="inlineStr"><is><t xml:space="preserve">${escapeXml(cell.value)}</t></is></c>`;
-}
-
-/** The header text actually present in a table's first row, in column order. */
-function headerTextsFor(sheet: SheetSpec, ref: string): string[] {
-  const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref);
-  if (!m) throw new Error(`Table ref "${ref}" on sheet "${sheet.name}" is not a range like A1:H12`);
-  const [firstCol, headerRow, lastCol, lastRow] = [m[1], Number(m[2]), m[3], Number(m[4])];
-  if (lastRow <= headerRow) {
-    throw new Error(`Table ref "${ref}" on sheet "${sheet.name}" has no data row — Excel rejects a header-only table`);
-  }
-  const row = sheet.rows.find((r) => r.row === headerRow);
-  const out: string[] = [];
-  for (let c = columnIndex(firstCol); c <= columnIndex(lastCol); c++) {
-    const cell = row?.cells.find((x) => x.ref === A1(c, headerRow));
-    out.push(typeof cell?.value === 'string' ? cell.value : '');
-  }
-  return out;
-}
-
-function tableXml(table: TablePart, id: number): string {
-  const columns = table.columns.map((name, i) => `<tableColumn id="${i + 1}" name="${escapeXml(name)}"/>`).join('');
-  return (
-    `${XML_HEADER}<table xmlns="${NS_MAIN}" id="${id}" name="${escapeXml(table.name)}" ` +
-    `displayName="${escapeXml(table.displayName)}" ref="${table.ref}" headerRowCount="1">` +
-    `<autoFilter ref="${table.ref}"/>` +
-    `<tableColumns count="${table.columns.length}">${columns}</tableColumns>` +
-    `<tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/>` +
-    `</table>`
-  );
 }
 
 function conditionalFormattingXml(formats: ConditionalFormat[] | undefined): string {
@@ -693,7 +646,7 @@ function printXml(print: PrintSetup | undefined): string {
   );
 }
 
-function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
+function sheetXml(sheet: SheetSpec): string {
   const cols = sheet.columns?.length
     ? `<cols>${sheet.columns.map((c) => `<col min="${c.min}" max="${c.max}" width="${c.width}" customWidth="1"/>`).join('')}</cols>`
     : '';
@@ -721,32 +674,10 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
         `<row r="${r.row}"${r.height ? ` ht="${r.height}" customHeight="1"` : ''}>${r.cells.map(cellXml).join('')}</row>`,
     )
     .join('');
-  for (const table of sheet.tables ?? []) {
-    const headers = headerTextsFor(sheet, table.ref);
-    if (headers.length !== table.columns.length) {
-      throw new Error(
-        `Table "${table.name}" declares ${table.columns.length} columns but its ref spans ${headers.length}`,
-      );
-    }
-    table.columns.forEach((name, i) => {
-      if (headers[i] !== name) {
-        throw new Error(
-          `Table "${table.name}" column ${i + 1} is declared "${name}" but the header cell says "${headers[i]}" — ` +
-            'Excel repairs a table whose column names do not match its header row',
-        );
-      }
-    });
-  }
-
-  const tableParts = tableIds.length
-    ? `<tableParts count="${tableIds.length}">${tableIds.map((_, i) => `<tablePart r:id="rId${i + 1}"/>`).join('')}</tableParts>`
-    : '';
-
   // CT_Worksheet is a sequence, not a bag: sheetPr, sheetViews, sheetFormatPr, cols,
   // sheetData, mergeCells, conditionalFormatting, dataValidations, then the print group
-  // (printOptions, pageMargins, pageSetup, headerFooter), with tableParts last. Emitting
-  // these out of order does not warn — it makes Excel offer to repair the file, with a
-  // message that names nothing useful.
+  // (printOptions, pageMargins, pageSetup, headerFooter). Emitting these out of order does not
+  // warn — it makes Excel offer to repair the file, with a message that names nothing useful.
   return (
     `${XML_HEADER}<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL_DOC}">` +
     sheetPr +
@@ -757,7 +688,6 @@ function sheetXml(sheet: SheetSpec, tableIds: number[]): string {
     conditionalFormattingXml(sheet.conditionalFormats) +
     dataValidationsXml(sheet.validations) +
     printXml(sheet.print) +
-    tableParts +
     `</worksheet>`
   );
 }
@@ -779,44 +709,42 @@ const CUSTOM_PROPS_FMTID = '{D5CDD505-2E9C-101B-9397-08002B2CF9AE}';
 export const FINGERPRINT_PROPERTY = 'MeddpiccFingerprint';
 
 /**
+ * What the workbook says about its own provenance.
+ *
+ * The layout stamp lives here, and so does everything a reader or a puzzled human needs to place
+ * the file: which schema it was generated against, which engine built it, which language its labels
+ * are in. All of it derived from the deal and the plugin, never from the clock — generation stays
+ * reproducible, so an unchanged deal produces an unchanged workbook.
+ */
+export type WorkbookProperties = Record<string, string>;
+
+export const SCHEMA_HASH_PROPERTY = 'MeddpiccSchemaHash';
+export const ENGINE_VERSION_PROPERTY = 'MeddpiccEngineVersion';
+export const LOCALE_PROPERTY = 'MeddpiccLocale';
+
+/**
  * A custom document property, which is where a stamp belongs: Excel carries it through a save
  * untouched, and it is not a cell, so nobody can retype it by accident or wonder what the
  * hidden sheet full of hex is for.
  */
-function customPropsXml(fingerprint: string): string {
-  return (
-    `${XML_HEADER}<Properties xmlns="${NS_CUSTOM_PROPS}" xmlns:vt="${NS_VT}">` +
-    `<property fmtid="${CUSTOM_PROPS_FMTID}" pid="2" name="${FINGERPRINT_PROPERTY}">` +
-    `<vt:lpwstr>${escapeXml(fingerprint)}</vt:lpwstr></property></Properties>`
+function customPropsXml(props: WorkbookProperties): string {
+  // pids identify a property and start at 2; two properties sharing one makes Excel repair the file.
+  const entries = Object.entries(props).map(
+    ([name, value], i) =>
+      `<property fmtid="${CUSTOM_PROPS_FMTID}" pid="${i + 2}" name="${escapeXml(name)}">` +
+      `<vt:lpwstr>${escapeXml(value)}</vt:lpwstr></property>`,
   );
+  return `${XML_HEADER}<Properties xmlns="${NS_CUSTOM_PROPS}" xmlns:vt="${NS_VT}">${entries.join('')}</Properties>`;
 }
 
-export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string): Uint8Array {
+export function buildWorkbook(sheets: readonly SheetSpec[], properties?: WorkbookProperties): Uint8Array {
   if (sheets.length === 0) throw new Error('A workbook needs at least one sheet');
 
   const enc = (s: string) => new TextEncoder().encode(s);
   const sheetPath = (i: number) => `xl/worksheets/sheet${i + 1}.xml`;
-
-  // Tables are numbered across the whole workbook, and each sheet keeps its own relationship
-  // ids starting at rId1 — a table's r:id is scoped to the worksheet that references it.
-  let nextTableId = 1;
-  const tableIdsBySheet = sheets.map((s) => (s.tables ?? []).map(() => nextTableId++));
-  const allTables = sheets.flatMap((s, i) =>
-    (s.tables ?? []).map((table, j) => ({ table, id: tableIdsBySheet[i][j] })),
-  );
-
-  const displayNames = new Set<string>();
-  for (const { table } of allTables) {
-    // Excel treats displayName as a workbook-wide identifier for structured references, and
-    // silently repairs a duplicate rather than reporting one.
-    if (displayNames.has(table.displayName)) {
-      throw new Error(`Two tables share the displayName "${table.displayName}"; it must be unique in the workbook`);
-    }
-    if (/\s/.test(table.displayName) || /^\d/.test(table.displayName)) {
-      throw new Error(`Table displayName "${table.displayName}" must not contain a space or start with a digit`);
-    }
-    displayNames.add(table.displayName);
-  }
+  // An empty property set ships no part: an empty <Properties/> is legal and would make a reader
+  // report the workbook as stamped when it carries nothing.
+  const hasProperties = properties !== undefined && Object.keys(properties).length > 0;
 
   const contentTypes =
     `${XML_HEADER}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
@@ -830,13 +758,7 @@ export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string
           `<Override PartName="/${sheetPath(i)}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
       )
       .join('') +
-    allTables
-      .map(
-        ({ id }) =>
-          `<Override PartName="/xl/tables/table${id}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`,
-      )
-      .join('') +
-    (fingerprint === undefined
+    (!hasProperties
       ? ''
       : `<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>`) +
     `</Types>`;
@@ -844,7 +766,7 @@ export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string
   const rootRels =
     `${XML_HEADER}<Relationships xmlns="${NS_REL_PKG}">` +
     `<Relationship Id="rId1" Type="${NS_REL_DOC}/officeDocument" Target="xl/workbook.xml"/>` +
-    (fingerprint === undefined
+    (!hasProperties
       ? ''
       : `<Relationship Id="rId2" Type="${NS_REL_DOC}/custom-properties" Target="docProps/custom.xml"/>`) +
     `</Relationships>`;
@@ -868,29 +790,13 @@ export function buildWorkbook(sheets: readonly SheetSpec[], fingerprint?: string
     sheets.map((s, i) => `<sheet name="${escapeXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
     `</sheets></workbook>`;
 
-  // A worksheet that references a table needs its own rels part pointing at it.
-  const sheetRels = tableIdsBySheet.flatMap((ids, i) => {
-    if (ids.length === 0) return [];
-    const entries = ids
-      .map((id, j) => `<Relationship Id="rId${j + 1}" Type="${NS_REL_DOC}/table" Target="../tables/table${id}.xml"/>`)
-      .join('');
-    return [
-      {
-        name: `xl/worksheets/_rels/sheet${i + 1}.xml.rels`,
-        data: enc(`${XML_HEADER}<Relationships xmlns="${NS_REL_PKG}">${entries}</Relationships>`),
-      },
-    ];
-  });
-
   return writeZip([
     { name: '[Content_Types].xml', data: enc(contentTypes) },
     { name: '_rels/.rels', data: enc(rootRels) },
     { name: 'xl/workbook.xml', data: enc(workbook) },
     { name: 'xl/_rels/workbook.xml.rels', data: enc(workbookRels) },
     { name: 'xl/styles.xml', data: enc(stylesXml()) },
-    ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s, tableIdsBySheet[i])) })),
-    ...sheetRels,
-    ...allTables.map(({ table, id }) => ({ name: `xl/tables/table${id}.xml`, data: enc(tableXml(table, id)) })),
-    ...(fingerprint === undefined ? [] : [{ name: 'docProps/custom.xml', data: enc(customPropsXml(fingerprint)) }]),
+    ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s)) })),
+    ...(hasProperties ? [{ name: 'docProps/custom.xml', data: enc(customPropsXml(properties)) }] : []),
   ]);
 }

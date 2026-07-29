@@ -10,6 +10,46 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v5.0.0 — **the workbook is one laid-out deal-review sheet.** Breaking: the shape
+  changed, so a workbook generated before this is refused on read-back. They are ephemeral —
+  regenerate.
+
+  Side by side with the manual sheet it was derived from, the old workbook did not present: a
+  two-column list on eight tabs, one field per row, in a 78-character column with default row
+  heights. This is a single dense page on the sample's own grid — sixteen content columns on a
+  narrow gutter, banners spanning the width, labels in teal, questions beside answers, grids that
+  read like grids — and it carries scores, evidence, notes and per-element definitions the sample
+  does not.
+
+  What that cost, and what it bought:
+
+  - **No Excel Tables.** Stacked sections cannot share one set of column widths, so the sheet merges
+    to get per-section widths — and Excel silently *drops* a table whose range contains a merged
+    cell. The writer's table support is gone rather than left unused: a path the design forbids is an
+    invitation, and the failure mode is quiet. Sort and filter go with it; keyed references,
+    conditional formats and dropdowns are unaffected, because the formulas were always plain ranges.
+  - **A list holds exactly the rows it shows.** Each is laid out with blank rows to spare, and
+    content typed below them is refused by its cell address with what to do about it — add the entry
+    to the deal JSON and regenerate. Reading downward is what the eight-tab version did, and on one
+    sheet it would eventually append a section banner's own title as a stakeholder. Two real
+    corruptions were found in that code on the way here: growth columns computed from the table's
+    ordinal rather than the grid (`roleInDeal` read three columns from where it is written), and a
+    downward scan bounded only by the last row in the file.
+  - **Prose row heights are computed.** Excel autofits a wrapped cell but not a merged one, and
+    nearly every prose cell is now merged, so `text-metrics.ts` measures each paragraph against its
+    merged width and rounds up. It counts an East Asian character as two columns, which is what makes
+    a Korean sheet possible later.
+  - **An enum reads as words.** The Close Plan showed `pending` and `in_progress`; it now shows
+    "Pending" and "In progress", offers those words in its dropdown, and translates them back on
+    read. `labels.ts` owns all three directions and refuses a set whose labels collide, because
+    read-back could not tell two identically-labelled values apart.
+  - **Each table's geometry is published** in the plan and in `generate --plan`, so the acceptance
+    test and the tests name a cell by table and column id instead of counting rows. Nothing on one
+    sheet has a fixed address.
+
+  The Excel acceptance test drives all of it against the real application, and now screenshots the
+  sheet so the layout is judged by looking at it.
+
 - **`meddpicc`** v4.3.1 — the Excel UAT can see the sheet, and its error-value check can fail.
 
   Everything the UAT asserted proved the workbook *computes*. Nothing could see it, and the current

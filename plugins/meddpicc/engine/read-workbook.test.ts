@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { dateToSerial, generateWorkbook, planWorkbook } from './generate';
-import { readWorkbook, readWorkbookCells, serialToDate } from './read-workbook';
+import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { readPath } from './json-path';
+import { enumLabel } from './labels';
+import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { validateDeal } from './validate';
-import type { WorkbookSpec } from './workbook-spec';
+import { specTables, type WorkbookSpec } from './workbook-spec';
+import { buildWorkbook, columnLetter } from './xlsx';
 import { readZip, writeZip } from './zip';
 
 const here = import.meta.dir;
@@ -13,6 +16,9 @@ const spec = JSON.parse(fs.readFileSync(path.join(here, 'workbook-spec.json'), '
 const exampleDeal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example-deal.json'), 'utf8'));
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** The workbook's one sheet. Read from the spec so a rename cannot leave the tests behind. */
+const SHEET = spec.sheets[0].name;
 
 /**
  * Where a sheet's part lives, derived from the spec's own order rather than by asking the
@@ -39,9 +45,17 @@ function withCell(bytes: Uint8Array, sheetName: string, ref: string, cellXml: st
   const entry = entries.get(part);
   if (!entry) throw new Error(`no part ${part}`);
   const xml = new TextDecoder().decode(entry.data);
-  const pattern = new RegExp(`<c r="${ref}"(?: [^>]*)?(?:/>|>.*?</c>)`);
+  // The attribute run is **lazy**. Greedy, `[^>]*` swallows the `/` of a self-closing
+  // `<c r="B60" s="0"/>`, the `/>` branch then cannot match, and `>.*?</c>` runs on to the next
+  // cell's closing tag — so the replacement silently deletes every cell in between. Blank cells
+  // carried no attributes before this layout gave each one a style, which is why it went unseen.
+  const pattern = new RegExp(`<c r="${ref}"(?: [^>]*?)?(?:/>|>.*?</c>)`);
   if (!pattern.test(xml)) throw new Error(`cell ${ref} not found in ${part}`);
   const updated = xml.replace(pattern, cellXml);
+  const count = (s: string) => (s.match(/<c /g) ?? []).length;
+  if (count(updated) !== count(xml)) {
+    throw new Error(`rewriting ${ref} changed the cell count ${count(xml)} -> ${count(updated)}`);
+  }
   return writeZip(
     [...entries.values()].map((e) =>
       e.name === part ? { name: e.name, data: new TextEncoder().encode(updated) } : { name: e.name, raw: e },
@@ -167,7 +181,7 @@ describe('readWorkbookCells', () => {
 
   test('a formula cell is reported as a formula, with no value to mistake for one', () => {
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const scorecard = cells.get('Scorecard');
+    const scorecard = cells.get(SHEET);
     const formulas = [...(scorecard?.values() ?? [])].filter((c) => c.formula !== undefined);
     expect(formulas.length).toBeGreaterThan(0);
     for (const cell of formulas) expect(cell.text).toBeUndefined();
@@ -282,19 +296,24 @@ describe('cells that are not inputs are never read', () => {
     // The Scorecard total is a formula. Typing over it in Excel replaces the formula with a
     // number; the engine recomputes it, so taking that number into the JSON would be a lie.
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const formulaRef = [...(cells.get('Scorecard')?.entries() ?? [])].find(([, c]) => c.formula !== undefined)?.[0];
+    const formulaRef = [...(cells.get(SHEET)?.entries() ?? [])].find(([, c]) => c.formula !== undefined)?.[0];
     expect(formulaRef).toBeDefined();
-    const edited = setNumber(generateWorkbook(schema, spec, exampleDeal), 'Scorecard', formulaRef as string, 999);
+    const edited = setNumber(generateWorkbook(schema, spec, exampleDeal), SHEET, formulaRef as string, 999);
     expect(read(exampleDeal, edited).proposals).toEqual([]);
   });
 
-  test('a derived cell — the rubric text — proposes nothing', () => {
+  test('a derived cell — an element definition — proposes nothing, and says so', () => {
+    // It proposes nothing because the workbook is REFUSED: a derived cell is an anchor, so text that
+    // is not the text the generator wrote means either the rows moved or somebody typed over it.
+    // Asserting only "no proposals" would go on passing if the cell were quietly ignored instead.
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const qualification = cells.get('Qualification');
-    const derived = [...(qualification?.entries() ?? [])].find(([, c]) => c.text?.startsWith('Quantified'))?.[0];
+    const derived = [...(cells.get(SHEET)?.entries() ?? [])].find(([, c]) => c.text?.startsWith('Quantified'))?.[0];
     expect(derived).toBeDefined();
-    const edited = setText(generateWorkbook(schema, spec, exampleDeal), 'Qualification', derived as string, 'nonsense');
-    expect(read(exampleDeal, edited).proposals).toEqual([]);
+    const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, derived as string, 'nonsense');
+    const report = read(exampleDeal, edited);
+    expect(report.proposals).toEqual([]);
+    expect(report.ok).toBe(false);
+    expect(report.rejections.some((r) => r.address === derived)).toBe(true);
   });
 });
 
@@ -528,12 +547,24 @@ describe('clearing a value', () => {
   });
 });
 
-describe('rows typed below the padded ones are read, not just reported', () => {
-  /** A deal whose stakeholder table is completely full, so the next row has to grow the list. */
+describe('a list holds exactly its padded rows — anything below is reported', () => {
+  /**
+   * One laid-out sheet has no free rows under a table: the row below the last padded stakeholder is
+   * the gap before the next section's banner, and the banner itself is two rows down. So a list's
+   * capacity is the rows the generator pre-allocated, and content typed past them is reported with
+   * what to do about it rather than read as a new entry.
+   *
+   * The eight-tab workbook read those rows, because an Excel Table auto-extended when you typed
+   * under it and each table owned the tail of its own sheet. Neither is true here — a table whose
+   * range contains a merged cell is dropped by Excel, so there are no Tables left to extend — and a
+   * downward scan on one sheet would eventually read the next section's own text as a list row.
+   */
   function fullDeal(): Record<string, unknown> {
     const deal = clone(exampleDeal);
-    const table = spec.sheets.flatMap((s) => ('tables' in s ? s.tables : [])).find((x) => x.id === 'stakeholders');
-    const padded = table?.minRows as number;
+    const table = spec.sheets.flatMap(specTables).find((x) => x.id === 'stakeholders');
+    if (!table) throw new Error('no stakeholders table in the spec');
+    const padded = table.minRows;
+    if (typeof padded !== 'number') throw new Error('the stakeholders table declares no minRows');
     deal.stakeholders = Array.from({ length: padded }, (_, i) => ({
       name: `Person ${i + 1}`,
       title: 'VP',
@@ -543,7 +574,7 @@ describe('rows typed below the padded ones are read, not just reported', () => {
   }
 
   /** The address one row below the last row the plan maps, for a given stakeholder column. */
-  function firstGrownCell(deal: unknown, relativePath: string): { sheet: string; address: string; column: string } {
+  function firstUnmappedCell(deal: unknown, relativePath: string): { sheet: string; address: string; column: string } {
     const cells = planWorkbook(schema, spec, deal).inputCells.filter(
       (c) => c.jsonPath.startsWith('stakeholders[') && c.jsonPath.endsWith(`.${relativePath}`),
     );
@@ -555,89 +586,74 @@ describe('rows typed below the padded ones are read, not just reported', () => {
 
   const text = (ref: string, value: string) => `<c r="${ref}" t="inlineStr"><is><t>${value}</t></is></c>`;
 
-  test('a filled row below the padding becomes a new item', () => {
+  test('the last padded row is still a new item — that is where the room is', () => {
+    const deal = clone(exampleDeal);
+    const table = spec.sheets.flatMap(specTables).find((x) => x.id === 'stakeholders');
+    const padded = table?.minRows as number;
+    const count = (deal.stakeholders as unknown[]).length;
+    expect(count).toBeLessThan(padded);
+    // Fill every padded row, the last one included: capacity is real and reaches the bottom.
+    let bytes = generateWorkbook(schema, spec, deal);
+    for (let i = count; i < padded; i++) {
+      for (const [field, value] of [
+        ['name', `Person ${i + 1}`],
+        ['title', 'VP'],
+        ['roleInDeal', 'Influencer'],
+      ] as const) {
+        const at = addressOf(deal, `stakeholders[${i}].${field}`);
+        bytes = setText(bytes, at.sheet, at.address, value);
+      }
+    }
+    const report = read(deal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect((report.deal as { stakeholders: unknown[] }).stakeholders).toHaveLength(padded);
+  });
+
+  test('a filled row below the padded ones is reported, never read', () => {
     const deal = fullDeal();
     const count = (deal.stakeholders as unknown[]).length;
-    const at = firstGrownCell(deal, 'name');
+    const at = firstUnmappedCell(deal, 'name');
     const edited = addCell(generateWorkbook(schema, spec, deal), at.sheet, at.address, text(at.address, 'Dana Reyes'));
 
     const report = read(deal, edited);
-    expect(report.rejections).toEqual([]);
-    expect(report.proposals).toHaveLength(1);
-    expect(report.proposals[0]).toMatchObject({
-      jsonPath: `stakeholders[${count}].name`,
-      kind: 'add',
-      to: 'Dana Reyes',
-    });
-    const after = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders;
-    expect(after).toHaveLength(count + 1);
-    expect(after[count].name).toBe('Dana Reyes');
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toHaveLength(1);
+    expect(report.rejections[0]).toMatchObject({ sheet: at.sheet, address: at.address });
+    // The message has to say what to do, because there is nothing the reader can do for them.
+    expect(report.rejections[0].reason).toMatch(/regenerate/i);
+    expect((report.deal as { stakeholders: unknown[] }).stakeholders).toHaveLength(count);
   });
 
-  test('several columns of the same grown row make one item', () => {
+  test('every column of that row is reported, so nothing is lost quietly', () => {
     const deal = fullDeal();
-    const count = (deal.stakeholders as unknown[]).length;
     let bytes = generateWorkbook(schema, spec, deal);
+    const refs: string[] = [];
     for (const [field, value] of [
       ['name', 'Dana Reyes'],
       ['title', 'VP Platform'],
       ['roleInDeal', 'Influencer'],
     ] as const) {
-      const at = firstGrownCell(deal, field);
+      const at = firstUnmappedCell(deal, field);
+      refs.push(at.address);
       bytes = addCell(bytes, at.sheet, at.address, text(at.address, value));
     }
     const report = read(deal, bytes);
-    expect(report.rejections).toEqual([]);
-    const after = (report.deal as { stakeholders: Array<Record<string, string>> }).stakeholders;
-    expect(after).toHaveLength(count + 1);
-    expect(after[count]).toEqual({ name: 'Dana Reyes', title: 'VP Platform', roleInDeal: 'Influencer' });
-  });
-
-  test('two consecutive grown rows are both appended, in order', () => {
-    const deal = fullDeal();
-    const count = (deal.stakeholders as unknown[]).length;
-    const at = firstGrownCell(deal, 'name');
-    const row = Number((/\d+$/.exec(at.address) as RegExpExecArray)[0]);
-    let bytes = generateWorkbook(schema, spec, deal);
-    bytes = addCell(bytes, at.sheet, `${at.column}${row}`, text(`${at.column}${row}`, 'Dana Reyes'));
-    bytes = addCell(bytes, at.sheet, `${at.column}${row + 1}`, text(`${at.column}${row + 1}`, '<HISTORICAL_IDENTITY_906E16E4FE>'));
-
-    const report = read(deal, bytes);
-    expect(report.rejections).toEqual([]);
-    const after = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders;
-    expect(after.map((s) => s.name).slice(count)).toEqual(['Dana Reyes', '<HISTORICAL_IDENTITY_906E16E4FE>']);
-  });
-
-  test('a blank row ends the list — anything past it is reported, not read', () => {
-    // Otherwise a stray note three rows below the table would be read as a stakeholder.
-    const deal = fullDeal();
-    const at = firstGrownCell(deal, 'name');
-    const row = Number((/\d+$/.exec(at.address) as RegExpExecArray)[0]);
-    const ref = `${at.column}${row + 1}`;
-    const edited = addCell(generateWorkbook(schema, spec, deal), at.sheet, ref, text(ref, 'Too Far Down'));
-
-    const report = read(deal, edited);
     expect(report.proposals).toEqual([]);
-    expect(report.rejections).toHaveLength(1);
-    expect(report.rejections[0]).toMatchObject({ address: ref });
-    // And reported as content below the table, NOT as a stakeholder row with a hole before it:
-    // scanning past the blank row would frame a stray note as a missing list entry.
-    expect(report.rejections[0].reason).toMatch(/below/i);
+    expect(report.rejections.map((r) => r.address).sort()).toEqual([...refs].sort());
   });
 
-  test('a grown row is still refused when the padded rows are not full', () => {
-    // The list has 4 entries and 12 padded rows, so row 13 would leave eight holes.
-    const at = firstGrownCell(exampleDeal, 'name');
-    const edited = addCell(
-      generateWorkbook(schema, spec, exampleDeal),
-      at.sheet,
-      at.address,
-      text(at.address, 'Dana Reyes'),
-    );
-    const report = read(exampleDeal, edited);
-    expect(report.proposals).toEqual([]);
-    expect(report.rejections).toHaveLength(1);
-    expect(report.rejections[0].reason).toMatch(/row/i);
+  test('the section banner below a list is never taken for a list row', () => {
+    // The blocks under a table are the sheet's own content. Reading downward from a table would
+    // reach the next banner and append its title as a stakeholder — silent corruption of the deal.
+    const deal = fullDeal();
+    const report = read(deal, generateWorkbook(schema, spec, deal));
+    const names = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders.map((s) => s.name);
+    const banners = spec.sheets
+      .flatMap((s) => s.blocks)
+      .filter((b) => b.kind === 'section' || b.kind === 'title')
+      .map((b) => (b as { text: string }).text);
+    expect(banners.length).toBeGreaterThan(0);
+    for (const banner of banners) expect(names).not.toContain(banner);
   });
 
   test('an untouched full workbook still proposes nothing', () => {
@@ -689,7 +705,7 @@ describe('rows below a table that cannot grow', () => {
     expect(report.proposals).toEqual([]);
     expect(report.rejections).toHaveLength(1);
     expect(report.rejections[0]).toMatchObject({ sheet, address });
-    expect(report.rejections[0].reason).toMatch(/below/i);
+    expect(report.rejections[0].reason).toMatch(/does not map/i);
     expect(report.ok).toBe(false);
   });
 
@@ -718,31 +734,622 @@ describe('rows below a table that cannot grow', () => {
 });
 
 describe('booleans', () => {
-  test('a boolean cell round-trips both ways', () => {
+  test('a boolean cell round-trips both ways, through the words the sheet shows', () => {
+    // The `t="b"` form this used to exercise is now REFUSED — see "a real Excel boolean is refused
+    // too". A logical value in the cell disagrees with the formula that counts the word, and nothing
+    // Excel does on its own turns our text into one, so it can only be somebody typing or pasting.
     const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
     expect(exampleDeal.stakeholders[0].mustSayYes).toBe(true);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, BOOLEAN_NO));
+    expect(report.proposals).toHaveLength(1);
+    expect(report.proposals[0]).toMatchObject({ from: true, to: false });
+
+    // …and back again, from the deal that produced.
+    const back = read(report.deal, setText(generateWorkbook(schema, spec, report.deal), sheet, address, BOOLEAN_YES));
+    expect(back.proposals).toHaveLength(1);
+    expect(back.proposals[0]).toMatchObject({ from: false, to: true });
+  });
+
+  test('the two words the dropdown offers are understood, in any case', () => {
+    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
+    for (const [typed, expected] of [
+      [BOOLEAN_NO, false],
+      [BOOLEAN_NO.toUpperCase(), false],
+      [` ${BOOLEAN_NO.toLowerCase()} `, false],
+    ] as const) {
+      const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, typed));
+      expect(report.rejections, typed).toEqual([]);
+      expect(report.proposals[0], typed).toMatchObject({ to: expected });
+    }
+  });
+
+  test('a spelling the sheet cannot show is refused, not quietly accepted', () => {
+    // TRUE, Y and 1 all used to read as true. The scorecard counts the WORD, so accepting one of them
+    // put the deal and the sheet in front of it into disagreement: the cell said TRUE, the count
+    // beside it did not include it, and neither would say so until the workbook was regenerated. A
+    // dropdown stops it being typed; paste goes around a dropdown. So the reader refuses it and names
+    // the cell, which is what it does with every other value it cannot show.
+    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
+    for (const typed of ['TRUE', 'FALSE', 'Y', 'N', '1', '0']) {
+      const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, typed));
+      expect(report.proposals, typed).toEqual([]);
+      expect(report.rejections, typed).toHaveLength(1);
+      expect(report.rejections[0].reason, typed).toContain(BOOLEAN_YES);
+    }
+  });
+
+  test('a real Excel boolean is refused too — that is what typing TRUE becomes', () => {
+    // Excel converts a typed TRUE into a logical value stored as `t="b"`, so refusing only the text
+    // form would leave the whole case open through the door Excel itself opens.
+    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
     const edited = withCell(
       generateWorkbook(schema, spec, exampleDeal),
       sheet,
       address,
-      `<c r="${address}" t="b"><v>0</v></c>`,
+      `<c r="${address}" t="b"><v>1</v></c>`,
     );
     const report = read(exampleDeal, edited);
-    expect(report.proposals).toHaveLength(1);
-    expect(report.proposals[0]).toMatchObject({ from: true, to: false });
-  });
-
-  test('a boolean typed as a word is understood', () => {
-    const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
-    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'FALSE'));
-    expect(report.rejections).toEqual([]);
-    expect(report.proposals[0]).toMatchObject({ to: false });
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toHaveLength(1);
   });
 
   test('a word that is not a boolean is refused', () => {
     const { sheet, address } = addressOf(exampleDeal, 'stakeholders[0].mustSayYes');
     const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'sort of'));
     expect(report.rejections).toHaveLength(1);
-    expect(report.rejections[0].reason).toMatch(/TRUE/);
+    // The words the dropdown itself offers, not a literal: renaming them must not leave the
+    // message describing a choice the workbook no longer presents.
+    expect(report.rejections[0].reason).toContain(BOOLEAN_YES);
+    expect(report.rejections[0].reason).toContain(BOOLEAN_NO);
+  });
+});
+
+describe('a workbook whose rows have moved is refused, not read', () => {
+  /**
+   * The stamp proves "this workbook came from this deal, laid out this way". It cannot see a change
+   * made INSIDE the workbook: re-order two element rows and every address still resolves, so the
+   * reader hands each element its neighbour's score, reports no rejection, and `--apply` writes it.
+   *
+   * Measured before this guard existed: swapping the first and last element rows produced exactly two
+   * proposals — metrics 3 → 2 and competition 2 → 3 — with `ok` true. Silent corruption of the source
+   * of truth, from an edit a person tidying a sheet would think nothing of.
+   */
+  /** Move one cell's whole `<c>` element to another address, keeping its value and style. */
+  function moveCells(bytes: Uint8Array, sheetName: string, pairs: Array<[string, string]>): Uint8Array {
+    const entries = readZip(bytes);
+    const part = sheetPart(sheetName);
+    let xml = new TextDecoder().decode(entries.get(part)?.data as Uint8Array);
+    const cellOf = (ref: string) => {
+      const found = new RegExp(`<c r="${ref}"(?: [^>]*?)?(?:/>|>.*?</c>)`).exec(xml);
+      if (!found) throw new Error(`cell ${ref} not found`);
+      return found[0];
+    };
+    const taken = pairs.map(([from, to]) => ({ from, to, xml: cellOf(from) }));
+    for (const { from, to, xml: cell } of taken) {
+      xml = xml.replace(cellOf(to), cell.replace(`r="${from}"`, `r="${to}"`));
+    }
+    return writeZip(
+      [...entries.values()].map((e) =>
+        e.name === part ? { name: e.name, data: new TextEncoder().encode(xml) } : { name: e.name, raw: e },
+      ),
+    );
+  }
+
+  const elements = () => {
+    const found = planWorkbook(schema, spec, exampleDeal).tables.find((t) => t.id === 'elements');
+    if (!found) throw new Error('no elements table');
+    return found;
+  };
+
+  test('two element rows swapped are refused, and no score moves', () => {
+    const t = elements();
+    const first = t.firstDataRow;
+    const last = t.firstDataRow + t.rows - 1;
+    const nameCol = columnLetter(t.columns.element);
+    const scoreCol = columnLetter(t.columns.score);
+    const swapped = moveCells(generateWorkbook(schema, spec, exampleDeal), SHEET, [
+      [`${nameCol}${first}`, `${nameCol}${last}`],
+      [`${nameCol}${last}`, `${nameCol}${first}`],
+      [`${scoreCol}${first}`, `${scoreCol}${last}`],
+      [`${scoreCol}${last}`, `${scoreCol}${first}`],
+    ]);
+    const report = read(exampleDeal, swapped);
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections.length).toBeGreaterThan(0);
+    expect(report.rejections[0].reason).toMatch(/moved|regenerate/i);
+    // And the deal is untouched, which is the whole point.
+    expect(report.deal).toEqual(exampleDeal);
+  });
+
+  test('the refusal names the cell that no longer holds what the plan wrote', () => {
+    const t = elements();
+    const nameCol = columnLetter(t.columns.element);
+    const first = `${nameCol}${t.firstDataRow}`;
+    const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, first, 'Something Else');
+    const report = read(exampleDeal, edited);
+    expect(report.ok).toBe(false);
+    expect(report.rejections.some((r) => r.address === first)).toBe(true);
+  });
+
+  test('two question rows swapped are refused — an answer must not change question', () => {
+    // The `responses` table declares no key column, so anchoring only key columns left its question
+    // cells unchecked. Measured before the fix: swapping the first two question rows proposed
+    // exchanging `qualification.metrics.responses[0]` and `[1]` with `ok` true — each answer attached
+    // to the wrong question, which is worse than losing it.
+    const t = planWorkbook(schema, spec, exampleDeal).tables.find((x) => x.id === 'responses');
+    if (!t) throw new Error('no responses table');
+    const first = t.firstDataRow;
+    const second = t.firstDataRow + 1;
+    const qCol = columnLetter(t.columns.question);
+    const aCol = columnLetter(t.columns.response);
+    const swapped = moveCells(generateWorkbook(schema, spec, exampleDeal), SHEET, [
+      [`${qCol}${first}`, `${qCol}${second}`],
+      [`${qCol}${second}`, `${qCol}${first}`],
+      [`${aCol}${first}`, `${aCol}${second}`],
+      [`${aCol}${second}`, `${aCol}${first}`],
+    ]);
+    const report = read(exampleDeal, swapped);
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.deal).toEqual(exampleDeal);
+  });
+
+  test('every derived cell is an anchor unless it follows an input', () => {
+    // Stated as the rule rather than as a list, so a derived column added later is covered the day it
+    // is added and not the day somebody remembers.
+    const plan = planWorkbook(schema, spec, exampleDeal);
+    const anchored = new Set(plan.anchors.map((a) => `${a.sheet}!${a.address}`));
+    let checked = 0;
+    let exempt = 0;
+    for (const table of plan.tables) {
+      const declared = spec.sheets.flatMap(specTables).find((t) => t.id === table.id);
+      for (const column of declared?.columns ?? []) {
+        if (column.role !== 'derived') continue;
+        const ref = `${columnLetter(table.columns[column.id])}${table.firstDataRow}`;
+        const key = `${table.sheet}!${ref}`;
+        if (column.followsInput) {
+          expect(anchored.has(key), `${table.id}.${column.id} follows an input and must not anchor`).toBe(false);
+          exempt++;
+          continue;
+        }
+        expect(anchored.has(key), `${table.id}.${column.id} at ${ref}`).toBe(true);
+        checked++;
+      }
+    }
+    // Otherwise the loop above passes by finding nothing to check, either way.
+    expect(checked).toBeGreaterThan(3);
+    expect(exempt).toBeGreaterThan(0);
+  });
+
+  test('typing over a derived cell that anchors its row is refused, not dropped in silence', () => {
+    // A derived cell holds text, so Excel lets anyone overtype it, and nothing about it flows back to
+    // the deal. Passing over it without a word would be this plugin's oldest bug in a new place.
+    const t = planWorkbook(schema, spec, exampleDeal).tables.find((x) => x.id === 'elements');
+    if (!t) throw new Error('no elements table');
+    const definition = `${columnLetter(t.columns.definition)}${t.firstDataRow}`;
+    const report = read(
+      exampleDeal,
+      setText(generateWorkbook(schema, spec, exampleDeal), SHEET, definition, 'My own words'),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections.some((r) => r.address === definition)).toBe(true);
+  });
+
+  test('reading again after applying a score change does not refuse the same workbook', () => {
+    // The sequence a rep actually performs: change a score in Excel, apply it, read once more to be
+    // sure nothing is left. The rubric wording follows that score, so the plan for the applied deal
+    // expects the new wording while the file still holds the old one — anchoring it would refuse this.
+    //
+    // The Excel acceptance test is what caught this when the exemption was briefly removed. A unit
+    // test belongs here so the next person does not need Excel to find out.
+    const { sheet, address } = addressOf(exampleDeal, 'qualification.champion.score');
+    const bytes = setNumber(generateWorkbook(schema, spec, exampleDeal), sheet, address, 2);
+    const first = read(exampleDeal, bytes);
+    expect(first.rejections).toEqual([]);
+    expect(first.proposals).toHaveLength(1);
+
+    // Now read the SAME workbook against the deal that edit produced.
+    const second = read(first.deal, bytes);
+    expect(second.rejections).toEqual([]);
+    expect(second.proposals).toEqual([]);
+    expect(second.ok).toBe(true);
+  });
+
+  test('a section banner nobody may retype is an anchor too', () => {
+    // Inserting a row shifts every banner and label below it, which is how a person makes room.
+    const plan = planWorkbook(schema, spec, exampleDeal);
+    const banner = plan.sheets[0].rows.flatMap((r) => r.cells).find((c) => c.style === 'sectionHeader');
+    expect(banner?.ref).toBeDefined();
+    const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, banner?.ref as string, 'Renamed');
+    expect(read(exampleDeal, edited).ok).toBe(false);
+  });
+
+  test('an ordinary edit is still an ordinary edit', () => {
+    // The guard must not turn every read into a refusal: a changed input cell is the normal case,
+    // and a derived cell holding a stale value is what Excel leaves behind after one.
+    const { sheet, address } = addressOf(exampleDeal, 'metadata.accountName');
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Globex'));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+  });
+
+  test('a score changed in Excel does not trip the anchor on its own rubric', () => {
+    // The rubric text is derived FROM the score, and Excel leaves the old text in the cell after an
+    // edit. Treating it as an anchor would refuse the most ordinary edit there is.
+    const { sheet, address } = addressOf(exampleDeal, 'qualification.metrics.score');
+    const report = read(exampleDeal, setNumber(generateWorkbook(schema, spec, exampleDeal), sheet, address, 1));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+  });
+});
+
+describe('one column of a list, re-ordered, is refused', () => {
+  /**
+   * A list row has no identity beyond its position, so nothing anchors it — and that is correct, since
+   * row one is simply the first stakeholder. But it leaves a real hazard: sorting or pasting a single
+   * column detaches its values from the rest of their rows, and the reader, reading faithfully, writes
+   * the scrambled pairing into the deal. `--apply` then loses the original.
+   *
+   * There is a signal, though, and it is a precise one. A column whose values are the SAME SET in a
+   * DIFFERENT ORDER has been re-ordered; nobody edits two people's names into each other's. So that
+   * pattern is refused by name, while any ordinary edit — which changes the set — passes.
+   *
+   * Measured before this guard: swapping B56 and B57 gave `ok: true`, no rejections, two proposals, and
+   * <HISTORICAL_IDENTITY_58AE73013F> ended up with <HISTORICAL_IDENTITY_D3C487ABA7>'s title.
+   */
+  function swapCells(bytes: Uint8Array, sheetName: string, a: string, b: string): Uint8Array {
+    const entries = readZip(bytes);
+    const part = sheetPart(sheetName);
+    let xml = new TextDecoder().decode(entries.get(part)?.data as Uint8Array);
+    const cellOf = (ref: string) => {
+      const found = new RegExp(`<c r="${ref}"(?: [^>]*?)?(?:/>|>.*?</c>)`).exec(xml);
+      if (!found) throw new Error(`cell ${ref} not found`);
+      return found[0];
+    };
+    const [ca, cb] = [cellOf(a), cellOf(b)];
+    xml = xml.replace(ca, cb.replace(`r="${b}"`, `r="${a}"`)).replace(cb, ca.replace(`r="${a}"`, `r="${b}"`));
+    return writeZip(
+      [...entries.values()].map((e) =>
+        e.name === part ? { name: e.name, data: new TextEncoder().encode(xml) } : { name: e.name, raw: e },
+      ),
+    );
+  }
+
+  const nameCell = (index: number) => addressOf(exampleDeal, `stakeholders[${index}].name`);
+
+  test('two names swapped are refused, and the deal is untouched', () => {
+    const first = nameCell(0);
+    const second = nameCell(1);
+    const report = read(
+      exampleDeal,
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, first.address, second.address),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.deal).toEqual(exampleDeal);
+    expect(report.rejections.length).toBeGreaterThan(0);
+    expect(report.rejections[0].reason).toMatch(/order/i);
+  });
+
+  test('the refusal names the column, not just a cell', () => {
+    const report = read(
+      exampleDeal,
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, nameCell(0).address, nameCell(1).address),
+    );
+    expect(report.rejections[0].jsonPath).toContain('stakeholders');
+    expect(report.rejections[0].jsonPath).toContain('name');
+  });
+
+  test('a whole-column sort is refused too, not only a pair', () => {
+    // Three rows rotated: no two values are in each other's places, so a pairwise check would miss it.
+    const rotated = swapCells(
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, nameCell(0).address, nameCell(1).address),
+      SHEET,
+      nameCell(1).address,
+      nameCell(2).address,
+    );
+    expect(read(exampleDeal, rotated).ok).toBe(false);
+  });
+
+  test('an ordinary edit to one of those cells is still an ordinary edit', () => {
+    // The set of values changes, so this is somebody renaming a stakeholder — the normal case, and the
+    // one the guard must not touch.
+    const { sheet, address } = nameCell(0);
+    const report = read(
+      exampleDeal,
+      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Dana Reyes'),
+    );
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+  });
+
+  test('two cells given the SAME new value is an edit, not a re-order', () => {
+    // Both changed, and the multiset differs, so there is nothing to mistake for a permutation.
+    let bytes = generateWorkbook(schema, spec, exampleDeal);
+    for (const index of [0, 1]) {
+      const { sheet, address } = nameCell(index);
+      bytes = setText(bytes, sheet, address, 'Dana Reyes');
+    }
+    const report = read(exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(2);
+  });
+
+  test('an untouched workbook is not accused of being re-ordered', () => {
+    expect(read(exampleDeal, generateWorkbook(schema, spec, exampleDeal)).ok).toBe(true);
+  });
+
+  test('a column whose cells LOOK different from the deal is checked too', () => {
+    // The first version of this guard compared the cell's raw text against the deal's value, so every
+    // column the workbook displays differently was silently exempt: "In progress" against
+    // `in_progress`, "Yes" against `true`, a date serial against an ISO date. Their multisets could
+    // never match, so a re-ordered status column sailed through.
+    //
+    // Measured before the fix: swapping two milestone statuses gave `ok` true, no rejections, and each
+    // status attached to the wrong milestone — while still validating against the schema.
+    const statuses = (exampleDeal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    expect(new Set(statuses).size).toBeGreaterThan(1);
+    const first = statuses.indexOf(statuses[0]);
+    const other = statuses.findIndex((v) => v !== statuses[0]);
+    const a = addressOf(exampleDeal, `closePlan.milestones[${first}].status`);
+    const b = addressOf(exampleDeal, `closePlan.milestones[${other}].status`);
+    const report = read(
+      exampleDeal,
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections[0].jsonPath).toContain('status');
+  });
+
+  test('two dates swapped are caught, serials and all', () => {
+    const dates = (exampleDeal.closePlan.milestones as Array<{ targetDate: string }>).map((m) => m.targetDate);
+    expect(new Set(dates).size).toBeGreaterThan(1);
+    const a = addressOf(exampleDeal, 'closePlan.milestones[0].targetDate');
+    const b = addressOf(exampleDeal, 'closePlan.milestones[1].targetDate');
+    expect(
+      read(exampleDeal, swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address)).ok,
+    ).toBe(false);
+  });
+
+  test('a re-order plus one edit is still caught, where a coincidence is implausible', () => {
+    // Exact multiset equality is defeated by sorting a column and then editing one of the moved
+    // values. So a value that has landed on ANOTHER row's former value counts as displaced, and two
+    // displaced values in one column is a rearrangement — for a free-text column, where two people
+    // swapping into each other's names by coincidence does not happen.
+    const names = (exampleDeal.stakeholders as Array<{ name: string }>).map((s) => s.name);
+    let bytes = swapCells(
+      generateWorkbook(schema, spec, exampleDeal),
+      SHEET,
+      addressOf(exampleDeal, 'stakeholders[0].name').address,
+      addressOf(exampleDeal, 'stakeholders[1].name').address,
+    );
+    // …and then rename a third, which breaks the multiset.
+    const third = addressOf(exampleDeal, 'stakeholders[2].name');
+    bytes = setText(bytes, third.sheet, third.address, 'Dana Reyes');
+    expect(names[2]).not.toBe('Dana Reyes');
+    const report = read(exampleDeal, bytes);
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections[0].reason).toMatch(/order|another row/i);
+  });
+
+  test('ONE displaced value is an edit — copying a value into another row is allowed', () => {
+    // Somebody duplicating a description, or correcting a name to one another row already had. A
+    // rearrangement moves at least two values, so two is the threshold; refusing at one would block
+    // an ordinary copy.
+    // TWO cells have to change, or `differing < 2` skips the column and the threshold is never
+    // consulted — which is how the first version of this test passed either way.
+    const names = (exampleDeal.stakeholders as Array<{ name: string }>).map((s) => s.name);
+    let bytes = generateWorkbook(schema, spec, exampleDeal);
+    const copied = addressOf(exampleDeal, 'stakeholders[2].name');
+    bytes = setText(bytes, copied.sheet, copied.address, names[0]);
+    const renamed = addressOf(exampleDeal, 'stakeholders[3].name');
+    bytes = setText(bytes, renamed.sheet, renamed.address, 'Dana Reyes');
+    expect(names).not.toContain('Dana Reyes');
+    const report = read(exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(2);
+  });
+
+  test('an enum column is NOT judged by that rule, because a coincidence there is ordinary', () => {
+    // Three milestones, two of them set to the status a third already had. Every changed cell "landed
+    // on another row's former value" — and it is a perfectly ordinary edit, because a status column
+    // has three possible values. Applying the displaced-value rule here would refuse real work.
+    const statuses = (exampleDeal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    const target = statuses.find((v) => v !== statuses[0]);
+    expect(target).toBeDefined();
+    let bytes = generateWorkbook(schema, spec, exampleDeal);
+    for (const index of [0, 1]) {
+      const at = addressOf(exampleDeal, `closePlan.milestones[${index}].status`);
+      bytes = setText(bytes, at.sheet, at.address, enumLabel(target as string));
+    }
+    const report = read(exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals.length).toBeGreaterThan(0);
+  });
+
+  test('a column holding a value nobody can read is left to the main loop', () => {
+    // Otherwise this guard reports on a column it only partly understood: it would compare the cells
+    // above the unreadable one, and if those happened to be a permutation it would blame a re-order
+    // while the real problem was the value it could not read. The run still fails and still writes
+    // nothing — it fails with the message that names the actual cell.
+    // The swapped pair has to come BEFORE the unreadable cell, or the scan stops before it has seen
+    // two differing values and `differing < 2` would skip the column either way — which is how the
+    // first version of this test passed with the guard removed.
+    const flags = (exampleDeal.stakeholders as Array<{ canSayNo?: boolean }>).map((s) => s.canSayNo);
+    const pair = [flags.findIndex((v) => v === true), flags.findIndex((v) => v === false)].sort((a, b) => a - b);
+    const spoiled = flags.findIndex((_, i) => i > pair[1]);
+    expect(spoiled).toBeGreaterThan(pair[1]);
+    let bytes = swapCells(
+      generateWorkbook(schema, spec, exampleDeal),
+      SHEET,
+      addressOf(exampleDeal, `stakeholders[${pair[0]}].canSayNo`).address,
+      addressOf(exampleDeal, `stakeholders[${pair[1]}].canSayNo`).address,
+    );
+    const bad = addressOf(exampleDeal, `stakeholders[${spoiled}].canSayNo`);
+    bytes = setText(bytes, bad.sheet, bad.address, 'sort of');
+    const report = read(exampleDeal, bytes);
+    expect(report.ok).toBe(false);
+    expect(report.rejections.some((r) => r.address === bad.address)).toBe(true);
+    expect(report.rejections.every((r) => !/order/i.test(r.reason))).toBe(true);
+  });
+
+  test('two booleans swapped are caught, Yes and No and all', () => {
+    const flags = (exampleDeal.stakeholders as Array<{ mustSayYes?: boolean }>).map((s) => s.mustSayYes);
+    const yes = flags.indexOf(true);
+    const no = flags.indexOf(false);
+    expect(yes).toBeGreaterThanOrEqual(0);
+    expect(no).toBeGreaterThanOrEqual(0);
+    const a = addressOf(exampleDeal, `stakeholders[${yes}].mustSayYes`);
+    const b = addressOf(exampleDeal, `stakeholders[${no}].mustSayYes`);
+    expect(
+      read(exampleDeal, swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address)).ok,
+    ).toBe(false);
+  });
+});
+
+describe('a status typed as words reads back as the JSON value', () => {
+  const statusPath = 'closePlan.milestones[0].status';
+
+  test('the label the sheet shows maps back to the token the deal holds', () => {
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Complete'));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+    expect(report.proposals[0]).toMatchObject({ jsonPath: statusPath, to: 'complete' });
+  });
+
+  test('the JSON spelling is accepted too, because a rep may type either', () => {
+    // A different value from the one already there, or "unchanged" would be the outcome whether or
+    // not the token was understood — and this test could not fail.
+    const before = readPath(exampleDeal, statusPath);
+    expect(before).not.toBe('complete');
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'complete'));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals[0]?.to).toBe('complete');
+  });
+
+  test('typing the token already there is not an edit', () => {
+    const before = readPath(exampleDeal, statusPath) as string;
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, before));
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toEqual([]);
+  });
+
+  test('a word that is neither is still refused, and the enum is quoted back', () => {
+    const { sheet, address } = addressOf(exampleDeal, statusPath);
+    const report = read(exampleDeal, setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Halfway'));
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toHaveLength(1);
+    expect(report.rejections[0].reason).toMatch(/must be one of/);
+  });
+
+  test('an untouched workbook does not report its own status labels as edits', () => {
+    // Without the translation every generated workbook would propose rewriting each status cell,
+    // which is the failure that would make the whole feature unusable rather than merely wrong.
+    const report = read(exampleDeal, generateWorkbook(schema, spec, exampleDeal));
+    expect(report.proposals).toEqual([]);
+    const statuses = (exampleDeal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    expect(statuses.some((v) => /_/.test(v))).toBe(true);
+  });
+});
+
+describe('readWorkbookProperty', () => {
+  test('reads back each property the writer put in', () => {
+    const bytes = buildWorkbook([{ name: SHEET, rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
+      MeddpiccFingerprint: 'the-stamp',
+      MeddpiccSchemaHash: 'the-hash',
+      MeddpiccLocale: 'ko',
+    });
+    expect(readWorkbookProperty(bytes, 'MeddpiccFingerprint')).toBe('the-stamp');
+    expect(readWorkbookProperty(bytes, 'MeddpiccSchemaHash')).toBe('the-hash');
+    expect(readWorkbookProperty(bytes, 'MeddpiccLocale')).toBe('ko');
+  });
+
+  test('a name that is not there reads null, not the wrong property', () => {
+    // The properties sit in one XML file, so a loose pattern happily returns a neighbour's value.
+    const bytes = buildWorkbook([{ name: SHEET, rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
+      MeddpiccFingerprint: 'the-stamp',
+    });
+    expect(readWorkbookProperty(bytes, 'MeddpiccSchemaHash')).toBeNull();
+    expect(readWorkbookProperty(bytes, 'Meddpicc')).toBeNull();
+  });
+
+  test('an unstamped workbook reads null for everything', () => {
+    const bytes = buildWorkbook([{ name: SHEET, rows: [] }]);
+    expect(readWorkbookProperty(bytes, 'MeddpiccFingerprint')).toBeNull();
+  });
+});
+
+describe('schema drift', () => {
+  test('a workbook generated against a different schema is noted, not refused', () => {
+    // Additive schema changes are the common case and harmless, so this must not refuse. But it is
+    // the only explanation for the symptom that looks like a bug: the sheet offering a dropdown
+    // value the schema no longer allows, then the read rejecting it by cell address.
+    const bytes = generateWorkbook(schema, spec, exampleDeal);
+    const moved = JSON.parse(JSON.stringify(schema));
+    moved.description = `${moved.description} (changed)`;
+
+    const before = readWorkbook(schema, spec, exampleDeal, bytes);
+    expect(before.notes).toEqual([]);
+    expect(before.ok).toBe(true);
+
+    const after = readWorkbook(moved, spec, exampleDeal, bytes);
+    expect(after.notes.length).toBe(1);
+    expect(after.notes[0]).toMatch(/different schema/);
+    // Still read, still fine: a note is not a refusal.
+    expect(after.rejections).toEqual([]);
+    expect(after.cellsRead).toBe(before.cellsRead);
+  });
+
+  test('a workbook carrying no schema hash is not accused of drift', () => {
+    // An older workbook, or one built by a caller that passed no properties.
+    const bytes = buildWorkbook([{ name: SHEET, rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }]);
+    expect(readWorkbook(schema, spec, exampleDeal, bytes).notes).toEqual([]);
+  });
+});
+
+describe('metadata.locale', () => {
+  const inLocale = (locale: string) => ({
+    ...(exampleDeal as object),
+    metadata: { ...(exampleDeal as { metadata: object }).metadata, locale },
+  });
+
+  test('the workbook records the language it is actually in', () => {
+    expect(readWorkbookProperty(generateWorkbook(schema, spec, exampleDeal), 'MeddpiccLocale')).toBe('en');
+    expect(readWorkbookProperty(generateWorkbook(schema, spec, inLocale('en')), 'MeddpiccLocale')).toBe('en');
+  });
+
+  test('a deal asking for a language the workbook cannot be written in is refused, not stamped', () => {
+    // Every label, heading and dropdown is still English. Emitting one anyway and stamping it `ko`
+    // would make the provenance property lie about its own file — worse than not having it, because
+    // the stamp is what a reader trusts. So say so instead.
+    expect(() => generateWorkbook(schema, spec, inLocale('ko'))).toThrow(/ko/);
+    expect(() => generateWorkbook(schema, spec, inLocale('ko'))).toThrow(/only.*English|not translated/i);
+  });
+
+  test('a exampleDeal naming a language the fleet does not have is refused by the schema', () => {
+    const bogus = {
+      ...(exampleDeal as object),
+      metadata: { ...(exampleDeal as { metadata: object }).metadata, locale: 'kr' },
+    };
+    expect(validateDeal(bogus, schema).valid).toBe(false);
+  });
+
+  test('the locale enum matches the fleet registry in shape and size', () => {
+    // Read from the schema rather than restated here, so the two cannot disagree — and so this file
+    // does not become the hardcoded locale list that scripts/locale-lint.sh exists to forbid.
+    const locales = (schema as { properties: { metadata: { properties: { locale: { enum: string[] } } } } }).properties
+      .metadata.properties.locale.enum;
+    expect(locales.length).toBe(13);
+    expect(locales[0]).toBe('en');
+    expect(locales).toContain('ko');
+    for (const slug of locales) expect(slug).toMatch(/^[a-z]{2}(-[a-z]{2})?$/);
+    expect(new Set(locales).size).toBe(locales.length);
   });
 });
