@@ -15,6 +15,9 @@ const exampleDeal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', '
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
+/** The workbook's one sheet. Read from the spec so a rename cannot leave the tests behind. */
+const SHEET = spec.sheets[0].name;
+
 /**
  * Where a sheet's part lives, derived from the spec's own order rather than by asking the
  * reader. The test has to locate parts independently, or a reader that resolved the wrong
@@ -168,7 +171,7 @@ describe('readWorkbookCells', () => {
 
   test('a formula cell is reported as a formula, with no value to mistake for one', () => {
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const scorecard = cells.get('Scorecard');
+    const scorecard = cells.get(SHEET);
     const formulas = [...(scorecard?.values() ?? [])].filter((c) => c.formula !== undefined);
     expect(formulas.length).toBeGreaterThan(0);
     for (const cell of formulas) expect(cell.text).toBeUndefined();
@@ -283,18 +286,18 @@ describe('cells that are not inputs are never read', () => {
     // The Scorecard total is a formula. Typing over it in Excel replaces the formula with a
     // number; the engine recomputes it, so taking that number into the JSON would be a lie.
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const formulaRef = [...(cells.get('Scorecard')?.entries() ?? [])].find(([, c]) => c.formula !== undefined)?.[0];
+    const formulaRef = [...(cells.get(SHEET)?.entries() ?? [])].find(([, c]) => c.formula !== undefined)?.[0];
     expect(formulaRef).toBeDefined();
-    const edited = setNumber(generateWorkbook(schema, spec, exampleDeal), 'Scorecard', formulaRef as string, 999);
+    const edited = setNumber(generateWorkbook(schema, spec, exampleDeal), SHEET, formulaRef as string, 999);
     expect(read(exampleDeal, edited).proposals).toEqual([]);
   });
 
   test('a derived cell — the rubric text — proposes nothing', () => {
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
-    const qualification = cells.get('Qualification');
+    const qualification = cells.get(SHEET);
     const derived = [...(qualification?.entries() ?? [])].find(([, c]) => c.text?.startsWith('Quantified'))?.[0];
     expect(derived).toBeDefined();
-    const edited = setText(generateWorkbook(schema, spec, exampleDeal), 'Qualification', derived as string, 'nonsense');
+    const edited = setText(generateWorkbook(schema, spec, exampleDeal), SHEET, derived as string, 'nonsense');
     expect(read(exampleDeal, edited).proposals).toEqual([]);
   });
 });
@@ -750,7 +753,7 @@ describe('booleans', () => {
 
 describe('readWorkbookProperty', () => {
   test('reads back each property the writer put in', () => {
-    const bytes = buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
+    const bytes = buildWorkbook([{ name: SHEET, rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
       MeddpiccFingerprint: 'the-stamp',
       MeddpiccSchemaHash: 'the-hash',
       MeddpiccLocale: 'ko',
@@ -762,7 +765,7 @@ describe('readWorkbookProperty', () => {
 
   test('a name that is not there reads null, not the wrong property', () => {
     // The properties sit in one XML file, so a loose pattern happily returns a neighbour's value.
-    const bytes = buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
+    const bytes = buildWorkbook([{ name: SHEET, rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }], {
       MeddpiccFingerprint: 'the-stamp',
     });
     expect(readWorkbookProperty(bytes, 'MeddpiccSchemaHash')).toBeNull();
@@ -770,7 +773,7 @@ describe('readWorkbookProperty', () => {
   });
 
   test('an unstamped workbook reads null for everything', () => {
-    const bytes = buildWorkbook([{ name: 'Deal', rows: [] }]);
+    const bytes = buildWorkbook([{ name: SHEET, rows: [] }]);
     expect(readWorkbookProperty(bytes, 'MeddpiccFingerprint')).toBeNull();
   });
 });
@@ -798,7 +801,7 @@ describe('schema drift', () => {
 
   test('a workbook carrying no schema hash is not accused of drift', () => {
     // An older workbook, or one built by a caller that passed no properties.
-    const bytes = buildWorkbook([{ name: 'Deal', rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }]);
+    const bytes = buildWorkbook([{ name: SHEET, rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }] }]);
     expect(readWorkbook(schema, spec, exampleDeal, bytes).notes).toEqual([]);
   });
 });
