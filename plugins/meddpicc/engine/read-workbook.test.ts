@@ -984,6 +984,103 @@ describe('a workbook whose rows have moved is refused, not read', () => {
   });
 });
 
+describe('one column of a list, re-ordered, is refused', () => {
+  /**
+   * A list row has no identity beyond its position, so nothing anchors it — and that is correct, since
+   * row one is simply the first stakeholder. But it leaves a real hazard: sorting or pasting a single
+   * column detaches its values from the rest of their rows, and the reader, reading faithfully, writes
+   * the scrambled pairing into the deal. `--apply` then loses the original.
+   *
+   * There is a signal, though, and it is a precise one. A column whose values are the SAME SET in a
+   * DIFFERENT ORDER has been re-ordered; nobody edits two people's names into each other's. So that
+   * pattern is refused by name, while any ordinary edit — which changes the set — passes.
+   *
+   * Measured before this guard: swapping B56 and B57 gave `ok: true`, no rejections, two proposals, and
+   * David Park ended up with Sarah Chen's title.
+   */
+  function swapCells(bytes: Uint8Array, sheetName: string, a: string, b: string): Uint8Array {
+    const entries = readZip(bytes);
+    const part = sheetPart(sheetName);
+    let xml = new TextDecoder().decode(entries.get(part)?.data as Uint8Array);
+    const cellOf = (ref: string) => {
+      const found = new RegExp(`<c r="${ref}"(?: [^>]*?)?(?:/>|>.*?</c>)`).exec(xml);
+      if (!found) throw new Error(`cell ${ref} not found`);
+      return found[0];
+    };
+    const [ca, cb] = [cellOf(a), cellOf(b)];
+    xml = xml.replace(ca, cb.replace(`r="${b}"`, `r="${a}"`)).replace(cb, ca.replace(`r="${a}"`, `r="${b}"`));
+    return writeZip(
+      [...entries.values()].map((e) =>
+        e.name === part ? { name: e.name, data: new TextEncoder().encode(xml) } : { name: e.name, raw: e },
+      ),
+    );
+  }
+
+  const nameCell = (index: number) => addressOf(exampleDeal, `stakeholders[${index}].name`);
+
+  test('two names swapped are refused, and the deal is untouched', () => {
+    const first = nameCell(0);
+    const second = nameCell(1);
+    const report = read(
+      exampleDeal,
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, first.address, second.address),
+    );
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.deal).toEqual(exampleDeal);
+    expect(report.rejections.length).toBeGreaterThan(0);
+    expect(report.rejections[0].reason).toMatch(/order/i);
+  });
+
+  test('the refusal names the column, not just a cell', () => {
+    const report = read(
+      exampleDeal,
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, nameCell(0).address, nameCell(1).address),
+    );
+    expect(report.rejections[0].jsonPath).toContain('stakeholders');
+    expect(report.rejections[0].jsonPath).toContain('name');
+  });
+
+  test('a whole-column sort is refused too, not only a pair', () => {
+    // Three rows rotated: no two values are in each other's places, so a pairwise check would miss it.
+    const rotated = swapCells(
+      swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, nameCell(0).address, nameCell(1).address),
+      SHEET,
+      nameCell(1).address,
+      nameCell(2).address,
+    );
+    expect(read(exampleDeal, rotated).ok).toBe(false);
+  });
+
+  test('an ordinary edit to one of those cells is still an ordinary edit', () => {
+    // The set of values changes, so this is somebody renaming a stakeholder — the normal case, and the
+    // one the guard must not touch.
+    const { sheet, address } = nameCell(0);
+    const report = read(
+      exampleDeal,
+      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Dana Reyes'),
+    );
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(1);
+  });
+
+  test('two cells given the SAME new value is an edit, not a re-order', () => {
+    // Both changed, and the multiset differs, so there is nothing to mistake for a permutation.
+    let bytes = generateWorkbook(schema, spec, exampleDeal);
+    for (const index of [0, 1]) {
+      const { sheet, address } = nameCell(index);
+      bytes = setText(bytes, sheet, address, 'Dana Reyes');
+    }
+    const report = read(exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(2);
+  });
+
+  test('an untouched workbook is not accused of being re-ordered', () => {
+    expect(read(exampleDeal, generateWorkbook(schema, spec, exampleDeal)).ok).toBe(true);
+  });
+});
+
 describe('a status typed as words reads back as the JSON value', () => {
   const statusPath = 'closePlan.milestones[0].status';
 

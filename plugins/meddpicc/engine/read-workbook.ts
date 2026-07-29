@@ -350,6 +350,63 @@ function hasContent(cell: RawCell | undefined): boolean {
 }
 
 /**
+ * Columns of a list whose values are the same set in a different order.
+ *
+ * Grouped from `inputCells` alone — `stakeholders[3].name` says both which list column it belongs to and
+ * which row — so this needs no new spec surface and covers every list the same way.
+ *
+ * Blanks are excluded from both sides: a padded row holds nothing, and a cleared cell is a real edit
+ * that changes the set. Two or more positions must differ, because one differing position cannot be a
+ * permutation of the same values.
+ */
+function reorderedColumns(
+  plan: WorkbookPlan,
+  deal: unknown,
+  cells: Map<string, Map<string, RawCell>>,
+): CellRejection[] {
+  /** `list[].field` -> the cells of that column, in row order. */
+  const columns = new Map<string, Array<{ jsonPath: string; sheet: string; address: string }>>();
+  for (const input of plan.inputCells) {
+    const parts = /^(.*)\[(\d+)\]\.(.+)$/.exec(input.jsonPath);
+    if (!parts) continue;
+    const key = `${parts[1]}[].${parts[3]}`;
+    const list = columns.get(key) ?? [];
+    list.push({ jsonPath: input.jsonPath, sheet: input.sheet, address: input.address });
+    columns.set(key, list);
+  }
+
+  const out: CellRejection[] = [];
+  for (const [key, column] of columns) {
+    if (column.length < 2) continue;
+    const inSheet: string[] = [];
+    const inDeal: string[] = [];
+    let differing = 0;
+    for (const cell of column) {
+      const text = (cells.get(cell.sheet)?.get(cell.address)?.text ?? '').trim();
+      const held = readPath(deal, cell.jsonPath);
+      const current = typeof held === 'string' ? held.trim() : held === undefined || held === null ? '' : String(held);
+      if (text !== current) differing++;
+      if (text !== '') inSheet.push(text);
+      if (current !== '') inDeal.push(current);
+    }
+    if (differing < 2 || inSheet.length !== inDeal.length) continue;
+    const sortedSheet = [...inSheet].sort();
+    const sortedDeal = [...inDeal].sort();
+    if (sortedSheet.some((v, i) => v !== sortedDeal[i])) continue;
+    out.push({
+      jsonPath: key,
+      sheet: column[0].sheet,
+      address: column[0].address,
+      reason:
+        `this column holds the same ${inSheet.length} values in a different order, so a sort or a paste ` +
+        'has detached them from the rest of their rows — the other columns did not move with them. ' +
+        'Regenerate the workbook from the deal rather than rearranging it',
+    });
+  }
+  return out;
+}
+
+/**
  * Report content in cells the workbook never wrote.
  *
  * The purpose is to catch a person typing where there is no room — a stakeholder in the row below the
@@ -495,6 +552,33 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
           'so no cell in this workbook can be trusted to be the one it was. Regenerate it from the ' +
           'current deal, then make the edit again',
       })),
+      deal: working,
+      valid: true,
+      errors: [],
+      notes,
+    };
+  }
+
+  // A column of a list, re-ordered.
+  //
+  // A list row has no identity beyond its position, so nothing anchors it — row one is simply the first
+  // stakeholder. That leaves one real hazard: sorting or pasting a SINGLE column detaches its values
+  // from the rest of their rows, and a faithful reader then writes the scrambled pairing into the deal,
+  // losing the original on `--apply`. Measured before this guard: swapping two stakeholder names gave
+  // `ok` true, no rejections, and David Park ended up with Sarah Chen's title.
+  //
+  // The signal is precise. A column holding the SAME SET of values in a DIFFERENT ORDER has been
+  // re-ordered — nobody edits two people's names into each other's, and no ordinary edit leaves the
+  // multiset unchanged. So that pattern is refused by name while every real edit, which changes the
+  // set, passes untouched.
+  const reordered = reorderedColumns(plan, working, cells);
+  if (reordered.length > 0) {
+    return {
+      ok: false,
+      cellsRead: 0,
+      unchanged: 0,
+      proposals: [],
+      rejections: reordered,
       deal: working,
       valid: true,
       errors: [],
