@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
 import { readPath } from './json-path';
+import { enumLabel } from './labels';
 import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { validateDeal } from './validate';
 import { specTables, type WorkbookSpec } from './workbook-spec';
@@ -1111,6 +1112,63 @@ describe('one column of a list, re-ordered, is refused', () => {
     expect(
       read(exampleDeal, swapCells(generateWorkbook(schema, spec, exampleDeal), SHEET, a.address, b.address)).ok,
     ).toBe(false);
+  });
+
+  test('a re-order plus one edit is still caught, where a coincidence is implausible', () => {
+    // Exact multiset equality is defeated by sorting a column and then editing one of the moved
+    // values. So a value that has landed on ANOTHER row's former value counts as displaced, and two
+    // displaced values in one column is a rearrangement — for a free-text column, where two people
+    // swapping into each other's names by coincidence does not happen.
+    const names = (exampleDeal.stakeholders as Array<{ name: string }>).map((s) => s.name);
+    let bytes = swapCells(
+      generateWorkbook(schema, spec, exampleDeal),
+      SHEET,
+      addressOf(exampleDeal, 'stakeholders[0].name').address,
+      addressOf(exampleDeal, 'stakeholders[1].name').address,
+    );
+    // …and then rename a third, which breaks the multiset.
+    const third = addressOf(exampleDeal, 'stakeholders[2].name');
+    bytes = setText(bytes, third.sheet, third.address, 'Dana Reyes');
+    expect(names[2]).not.toBe('Dana Reyes');
+    const report = read(exampleDeal, bytes);
+    expect(report.ok).toBe(false);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections[0].reason).toMatch(/order|another row/i);
+  });
+
+  test('ONE displaced value is an edit — copying a value into another row is allowed', () => {
+    // Somebody duplicating a description, or correcting a name to one another row already had. A
+    // rearrangement moves at least two values, so two is the threshold; refusing at one would block
+    // an ordinary copy.
+    // TWO cells have to change, or `differing < 2` skips the column and the threshold is never
+    // consulted — which is how the first version of this test passed either way.
+    const names = (exampleDeal.stakeholders as Array<{ name: string }>).map((s) => s.name);
+    let bytes = generateWorkbook(schema, spec, exampleDeal);
+    const copied = addressOf(exampleDeal, 'stakeholders[2].name');
+    bytes = setText(bytes, copied.sheet, copied.address, names[0]);
+    const renamed = addressOf(exampleDeal, 'stakeholders[3].name');
+    bytes = setText(bytes, renamed.sheet, renamed.address, 'Dana Reyes');
+    expect(names).not.toContain('Dana Reyes');
+    const report = read(exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals).toHaveLength(2);
+  });
+
+  test('an enum column is NOT judged by that rule, because a coincidence there is ordinary', () => {
+    // Three milestones, two of them set to the status a third already had. Every changed cell "landed
+    // on another row's former value" — and it is a perfectly ordinary edit, because a status column
+    // has three possible values. Applying the displaced-value rule here would refuse real work.
+    const statuses = (exampleDeal.closePlan.milestones as Array<{ status: string }>).map((m) => m.status);
+    const target = statuses.find((v) => v !== statuses[0]);
+    expect(target).toBeDefined();
+    let bytes = generateWorkbook(schema, spec, exampleDeal);
+    for (const index of [0, 1]) {
+      const at = addressOf(exampleDeal, `closePlan.milestones[${index}].status`);
+      bytes = setText(bytes, at.sheet, at.address, enumLabel(target as string));
+    }
+    const report = read(exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.proposals.length).toBeGreaterThan(0);
   });
 
   test('a column holding a value nobody can read is left to the main loop', () => {

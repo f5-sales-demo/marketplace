@@ -407,6 +407,12 @@ function reorderedColumns(
   const out: CellRejection[] = [];
   for (const [key, column] of columns) {
     if (column.length < 2) continue;
+    // Free text only for the displaced-value rule below: a small set of possible values makes
+    // "landed on another row's value" the ordinary result of an ordinary edit.
+    const first = column[0];
+    const freeText =
+      (first.valueType === 'string' || first.valueType === 'text') &&
+      schemaConstraint(schema, first.jsonPath)?.enum === undefined;
     const inSheet: string[] = [];
     const inDeal: string[] = [];
     let differing = 0;
@@ -428,21 +434,64 @@ function reorderedColumns(
       if (text !== '') inSheet.push(text);
       if (current !== '') inDeal.push(current);
     }
-    if (unreadable || differing < 2 || inSheet.length !== inDeal.length) continue;
-    const sortedSheet = [...inSheet].sort();
-    const sortedDeal = [...inDeal].sort();
-    if (sortedSheet.some((v, i) => v !== sortedDeal[i])) continue;
+    if (unreadable || differing < 2) continue;
+
+    // The exact case: the same values, re-ordered.
+    const permuted =
+      inSheet.length === inDeal.length && [...inSheet].sort().every((v, i) => v === [...inDeal].sort()[i]);
+
+    // And the case that defeats it: sort a column, then edit one of the moved values, and the multiset
+    // no longer matches. So a value that has landed on ANOTHER row's former value counts as displaced,
+    // and two displaced values in one column is a rearrangement.
+    //
+    // Only for free text. A status column has three possible values, so setting two milestones to a
+    // status a third already had is both ordinary and indistinguishable from a rearrangement by this
+    // rule — refusing it would block real work. Two people swapping into each other's names is not
+    // ordinary, and that is the difference.
+    const displaced = freeText ? countDisplaced(column, cells, deal, schema) : 0;
+
+    if (!permuted && displaced < 2) continue;
     out.push({
       jsonPath: key,
       sheet: column[0].sheet,
       address: column[0].address,
-      reason:
-        `this column holds the same ${inSheet.length} values in a different order, so a sort or a paste ` +
-        'has detached them from the rest of their rows — the other columns did not move with them. ' +
-        'Regenerate the workbook from the deal rather than rearranging it',
+      reason: permuted
+        ? `this column holds the same ${inSheet.length} values in a different order, so a sort or a paste ` +
+          'has detached them from the rest of their rows — the other columns did not move with them. ' +
+          'Regenerate the workbook from the deal rather than rearranging it'
+        : `${displaced} values in this column now sit where another row's value used to, so a sort or a ` +
+          'paste has detached them from the rest of their rows. Regenerate the workbook from the deal ' +
+          'rather than rearranging it',
     });
   }
   return out;
+}
+
+/**
+ * How many of a column's changed cells now hold a value that belonged to a DIFFERENT row.
+ *
+ * The signature of a rearrangement that has been partly edited afterwards. Counted per cell rather
+ * than as a set comparison, so one edited value among the moved ones does not hide the rest.
+ */
+function countDisplaced(
+  column: InputCell[],
+  cells: Map<string, Map<string, RawCell>>,
+  deal: unknown,
+  schema: unknown,
+): number {
+  const comparable = (value: unknown) =>
+    value === undefined || value === null ? '' : typeof value === 'string' ? value.trim() : String(value);
+  const held = column.map((cell) => comparable(readPath(deal, cell.jsonPath)));
+  let displaced = 0;
+  for (const [index, cell] of column.entries()) {
+    const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath);
+    if ('error' in read) return 0;
+    const now = comparable(read.value);
+    if (now === '' || now === held[index]) continue;
+    // Somewhere else in this column, some other row used to hold exactly this.
+    if (held.some((value, other) => other !== index && value !== '' && value === now)) displaced++;
+  }
+  return displaced;
 }
 
 /**
