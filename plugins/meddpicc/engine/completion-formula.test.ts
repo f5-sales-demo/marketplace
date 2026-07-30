@@ -34,12 +34,12 @@ describe('cellResolver — what a deal path is on the sheet', () => {
     expect(resolve.range('qualification.metrics.responses')).toBe('$I$30:$I$31');
   });
 
-  test("a list's identity column is its leftmost, and each field has its own range", () => {
-    // Whichever column the layout puts first is the one that says a row exists — a stakeholder is a
-    // stakeholder once they have a name. Read from the addresses rather than from the spec, so moving
-    // a column moves this with it.
+  test("a list's columns come back in layout order, and each field has its own range", () => {
+    // Every column, because a row is an entry when ANY of them is filled in — the engine counts an
+    // entry with no name, and the schema permits one. Read from the addresses rather than from the
+    // spec, so moving a column moves this with it.
     const resolve = cellResolver(stakeholderCells);
-    expect(resolve.entryRange('stakeholders')).toBe('$B$56:$B$57');
+    expect(resolve.allRanges('stakeholders')).toEqual(['$B$56:$B$57', '$D$56:$D$57', '$G$56:$G$57']);
     expect(resolve.fieldRange('stakeholders', 'title')).toBe('$D$56:$D$57');
   });
 
@@ -49,13 +49,13 @@ describe('cellResolver — what a deal path is on the sheet', () => {
     const resolve = cellResolver(inputs([['threeWhys.us.whyNow', 'B51']]));
     expect(() => resolve.cell('threeWhys.us.whyUs')).toThrow(/whyUs/);
     expect(() => resolve.range('qualification.metrics.responses')).toThrow(/responses/);
-    expect(() => resolve.entryRange('stakeholders')).toThrow(/stakeholders/);
+    expect(() => resolve.allRanges('stakeholders')).toThrow(/stakeholders/);
     expect(() => resolve.fieldRange('stakeholders', 'title')).toThrow(/title/);
   });
 
   test('every address is absolute, so a filled row cannot drag the rule sideways', () => {
     const resolve = cellResolver(stakeholderCells);
-    for (const ref of [resolve.cell('stakeholders[0].name'), resolve.entryRange('stakeholders')]) {
+    for (const ref of [resolve.cell('stakeholders[0].name'), ...resolve.allRanges('stakeholders')]) {
       expect(ref.startsWith('$'), ref).toBe(true);
     }
   });
@@ -99,6 +99,29 @@ describe('compileStatus — the same rule, as a formula', () => {
     );
   });
 
+  test('a row counts as an entry when ANY of its fields is filled in, not just the first', () => {
+    // The engine counts entries in the array. A stakeholder with a role and no name is an entry to it,
+    // and the schema permits one — so counting only the leftmost column made the sheet say not_started
+    // where the engine said complete. Every column of the list has to be consulted.
+    const formula = compileStatus(SECTION_RULES.stakeholders, cellResolver(stakeholderCells));
+    for (const range of ['$B$56:$B$57', '$D$56:$D$57', '$G$56:$G$57']) {
+      expect(formula, range).toContain(range);
+    }
+    // Summed across the columns and then tested, so a row with two fields filled counts once.
+    expect(formula).toContain('>0))>=1');
+  });
+
+  test('the whitespace Excel keeps is removed before the comparison', () => {
+    // Excel's TRIM takes ordinary spaces only. JavaScript's trim() also takes tabs, newlines and
+    // non-breaking spaces — so a value pasted from a web page reads as filled to Excel and empty to the
+    // engine, and the sheet would call an element complete on evidence the engine cannot see.
+    const formula = compileStatus(SECTION_RULES.metrics, cellResolver(elementCells));
+    // CLEAN takes every control character — tab, newline, carriage return — and the non-breaking space
+    // is the one it leaves behind, so that one is substituted first.
+    expect(formula).toContain('CLEAN(');
+    expect(formula).toContain('CHAR(160)');
+  });
+
   test('a score is read through N(), so text cannot outrank a number', () => {
     // Excel sorts text above every number: `$D$20>=3` is TRUE for a cell holding "four", where the
     // engine reads a non-number as 0 and says false. N() makes both read it the same way.
@@ -108,13 +131,11 @@ describe('compileStatus — the same rule, as a formula', () => {
   });
 
   test('a field is only required of a row somebody has started', () => {
-    // Without the identity factor the pre-allocated blank rows count as entries missing a title, and
-    // the section can never be complete — a list with room to grow would read as permanently unfinished.
+    // Without the started factor the pre-allocated blank rows count as entries missing a title, and the
+    // section can never be complete — a list with room to grow would read as permanently unfinished.
     const formula = compileStatus(SECTION_RULES.stakeholders, cellResolver(stakeholderCells));
-    expect(formula).toContain('SUMPRODUCT((TRIM($B$56:$B$57)<>"")*(TRIM($D$56:$D$57)=""))=0');
-    // And the identity column is not compared against itself, which would be a term that can never
-    // be anything but nought.
-    expect(formula).not.toContain('(TRIM($B$56:$B$57)<>"")*(TRIM($B$56:$B$57)="")');
+    // Each field's term is "rows that are started AND lack this field" = 0.
+    expect(formula).toContain(')>0)*(TRIM(CLEAN(SUBSTITUTE($D$56:$D$57,CHAR(160)," ")))=""))=0');
   });
 
   test('a list section counts entries and checks their fields', () => {

@@ -1406,6 +1406,38 @@ again="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")" || 
 [ "$(jq -r '.proposals | length' <<<"$again")" = "0" ] || fail "a second read still proposes $(jq -c '.proposals' <<<"$again")"
 echo "PASS: edits made in Excel round-trip into the deal JSON, and applying them twice changes nothing"
 
+# ── A list entry with no name ──────────────────────────────────────────────────────────────────
+#
+# The schema permits an entry that fills in anything but its first field: `team.internal:
+# [{"role":"SE"}]` validates, and the engine counts it, so the team is complete. A sheet that counted
+# only the leftmost column would answer not_started on that data — a completion status contradicting
+# `engine next`, which is the one thing the compiled rules exist to prevent. The second-opinion review
+# found it; this is the case it named.
+nameless="$WORK/nameless.json"
+jq '.team.internal = [{"role": "Solutions Engineer"}]
+  | .closePlan.milestones = [{"owner": "Jane Smith", "targetDate": "2026-06-01"}]' "$DEAL" >"$nameless" ||
+  fail "could not build the nameless-entry deal"
+bun "$PLUGIN_ROOT/engine/cli.ts" validate "$nameless" >/dev/null || fail "the nameless-entry deal does not validate"
+nameless_out="$WORK/nameless.xlsx"
+nameless_book="$(basename "$nameless_out")"
+OUR_WORKBOOKS+=("$nameless_book")
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --out "$nameless_out" >/dev/null ||
+  fail "generate failed on the nameless-entry deal"
+nameless_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --plan)" || fail "generate --plan failed"
+echo "==> opening a deal whose team member has a role and no name"
+open -a "Microsoft Excel" "$nameless_out" || fail "could not open $nameless_book"
+for _ in $(seq 1 30); do
+  if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$nameless_book"; then
+    nameless_opened=1
+    break
+  fi
+  sleep 2
+done
+[ "${nameless_opened:-0}" = "1" ] || fail "Excel never listed $nameless_book"
+compare_statuses "$nameless_book" "$nameless" "$nameless_plan" "a deal with unnamed list entries"
+osascript -e "tell application \"Microsoft Excel\" to close workbook \"$nameless_book\" saving no" >/dev/null 2>&1
+echo "PASS: an entry that fills in anything but its first field counts on the sheet as it does in the engine"
+
 # A row typed UNDER the last padded one, which is what running out of room looks like.
 #
 # A list's capacity is the rows the generator laid out and nothing beyond them: the row under the

@@ -28,10 +28,18 @@ and this project adheres to
     refuses to compile rather than emitting a formula that reads `#NAME?` mid-review.
   - **The scorecard follows for free.** `sectionsComplete` already counted the status column, so the
     count and the completion percentage are live too.
-  - **One bridge, stated where the two readers differ.** The engine counts entries in the deal's array;
-    the sheet counts rows whose identity column is filled in. They agree for a blank row and a filled
-    one, and differ for an entry that exists in the JSON with no name — which the sheet does not count,
-    and which the `required` wash already asks for.
+  - **A row is an entry when ANY of its fields is filled in.** The schema permits an entry that fills
+    in anything but its first field — `team.internal: [{"role":"SE"}]` validates, and the engine calls
+    the team complete — so counting the name column alone made the sheet answer not_started on exactly
+    that data. Found by the second-opinion review, and now a fixture of its own in the Excel run. One
+    case is left and cannot be closed from a sheet: an entry whose every field is empty is
+    indistinguishable from one of the pre-allocated blank rows.
+  - **The whitespace the two readers disagree about is removed first.** Excel's `TRIM` takes ordinary
+    spaces only, while the engine's `trim()` also takes tabs, newlines and non-breaking spaces — so a
+    value pasted from a web page read as filled to the sheet and empty to the engine. `CLEAN` handles
+    the control characters and the non-breaking space is substituted, which also cut the longest
+    compiled formula from 5483 characters to 2602 against Excel's cap of 8192. The writer refuses a
+    formula past that cap now, because Excel's answer to one is to prompt for repair and empty the cell.
   - **The refactor is proved rather than reviewed.** The previous implementation is frozen in the suite
     as an oracle and asked the same question as the new one over every combination each rule can see —
     all 96 an element rule has, and every shape the five collection sections can take. Exhaustive rather

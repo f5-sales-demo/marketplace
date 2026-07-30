@@ -143,6 +143,22 @@ describe('buildWorkbook — cells', () => {
     expect(sheet).toContain(`s="${STYLE_IDS.label}"`);
   });
 
+  test("refuses a formula past Excel's own limit", () => {
+    // Past 8192 characters Excel does not warn: it prompts to repair the file and the cell comes back
+    // empty. A compiled rule is the realistic way to reach it — the completion statuses are already a
+    // third of the way there — so the writer refuses rather than shipping a file that opens broken.
+    const long = `IF(${'A1+'.repeat(3000)}0,1,2)`;
+    expect(long.length).toBeGreaterThan(8192);
+    expect(() => buildWorkbook([{ name: 'S', rows: [{ row: 1, cells: [{ ref: 'B1', formula: long }] }] }])).toThrow(
+      /8192/,
+    );
+    // And one inside the limit is written without complaint.
+    const short = `IF(${'A1+'.repeat(100)}0,1,2)`;
+    expect(() =>
+      buildWorkbook([{ name: 'S', rows: [{ row: 1, cells: [{ ref: 'B1', formula: short }] }] }]),
+    ).not.toThrow();
+  });
+
   test('rejects an unknown style name rather than emitting a wrong index', () => {
     // A bad index silently mis-styles a cell, or makes Excel reject the file — the one
     // failure mode of a hand-written styles.xml, so it fails loudly at build time.

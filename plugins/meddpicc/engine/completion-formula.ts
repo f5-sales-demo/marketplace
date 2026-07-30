@@ -33,8 +33,8 @@ export interface CellResolver {
   cell(path: string): string;
   /** The cells of an array of text — a question's answers. */
   range(list: string): string;
-  /** The column that says a row of this list exists: its leftmost. */
-  entryRange(list: string): string;
+  /** Every column of this list, in layout order — what decides whether a row is an entry at all. */
+  allRanges(list: string): string[];
   /** One field's column, over the same rows as {@link entryRange}. */
   fieldRange(list: string, field: string): string;
 }
@@ -90,19 +90,6 @@ export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
     if (array) arrays.set(array.list, [...(arrays.get(array.list) ?? []), input.address]);
   }
 
-  /** The leftmost field of a list — the one that says a row is an entry. */
-  const identityField = (list: string): string => {
-    const fields = lists.get(list);
-    if (!fields) throw new Error(`the sheet has no rows for the list "${list}"`);
-    let leftmost: { field: string; column: number } | undefined;
-    for (const [field, addresses] of fields) {
-      const column = columnIndex(/^[A-Z]+/.exec(addresses[0])?.[0] ?? '');
-      if (!leftmost || column < leftmost.column) leftmost = { field, column };
-    }
-    if (!leftmost) throw new Error(`the list "${list}" has no columns on the sheet`);
-    return leftmost.field;
-  };
-
   return {
     cell(path) {
       const address = byPath.get(path);
@@ -112,9 +99,16 @@ export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
     range(list) {
       return spanOf(arrays.get(list) ?? [], `the array "${list}"`);
     },
-    entryRange(list) {
-      const field = identityField(list);
-      return spanOf(lists.get(list)?.get(field) ?? [], `the list "${list}"`);
+    allRanges(list) {
+      const fields = lists.get(list);
+      if (!fields) throw new Error(`the sheet has no rows for the list "${list}"`);
+      return [...fields.entries()]
+        .map(([field, addresses]) => ({
+          column: columnIndex(/^[A-Z]+/.exec(addresses[0])?.[0] ?? ''),
+          range: spanOf(addresses, `"${list}.${field}"`),
+        }))
+        .sort((a, b) => a.column - b.column)
+        .map((entry) => entry.range);
     },
     fieldRange(list, field) {
       const addresses = lists.get(list)?.get(field);
@@ -124,11 +118,46 @@ export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
   };
 }
 
-/** Non-empty after trimming, as the engine reads it. Excel's ISBLANK would call a space filled in. */
-const filled = (ref: string) => `TRIM(${ref})<>""`;
+/** A non-breaking space: whitespace to JavaScript, an ordinary character to Excel's TRIM and CLEAN. */
+const NBSP = 160;
 
-/** How many rows of this list somebody has started. */
-const startedRows = (resolve: CellResolver, list: string) => `SUMPRODUCT(--(${filled(resolve.entryRange(list))}))`;
+/**
+ * The text of a cell or range with the whitespace both readers ignore taken out.
+ *
+ * `TRIM` alone takes ordinary spaces only, while the engine's `trim()` also takes tabs, newlines and
+ * non-breaking spaces — so a value pasted in from a web page reads as filled to the sheet and empty to
+ * the engine, and the two then disagree about whether an element is complete on evidence one of them
+ * cannot see. `CLEAN` removes every control character, which covers the tab, the newline, the carriage
+ * return and the vertical tab; the non-breaking space is the one it leaves, so it becomes a space first.
+ *
+ * What is left uncovered is the exotic end of Unicode's spaces — U+2000..U+200A, U+3000 and their like.
+ * Each would need its own SUBSTITUTE, and a formula has 8192 characters to live in.
+ */
+const cleaned = (ref: string) => `CLEAN(SUBSTITUTE(${ref},CHAR(${NBSP})," "))`;
+
+/** Non-empty after trimming, as the engine reads it. Excel's ISBLANK would call a space filled in. */
+const filled = (ref: string) => `TRIM(${cleaned(ref)})<>""`;
+
+/**
+ * How many rows of this list are entries.
+ *
+ * A row is an entry when ANY of its fields is filled in — not just the leftmost. The engine counts
+ * entries in the deal's array, and the schema permits an entry with no name: `team.internal:
+ * [{"role":"SE"}]` validates, and the engine calls the team complete. Counting the name column alone
+ * made the sheet answer not_started on exactly that data, which is the contradiction this whole design
+ * exists to prevent.
+ *
+ * The per-column tests are SUMMED and then compared, so a row with three fields filled counts once.
+ *
+ * One case is left, and it cannot be closed from the sheet: an entry whose every field is empty is
+ * indistinguishable from one of the pre-allocated blank rows. The engine counts it and the sheet does
+ * not. Nothing on the sheet could tell them apart.
+ */
+const startedRows = (resolve: CellResolver, list: string) =>
+  `SUMPRODUCT(--((${resolve
+    .allRanges(list)
+    .map((range) => `${filled(range)}`)
+    .join(')+(')})>0))`;
 
 export function compilePredicate(predicate: Predicate, resolve: CellResolver): string {
   switch (predicate.kind) {
@@ -152,16 +181,17 @@ export function compilePredicate(predicate: Predicate, resolve: CellResolver): s
       return `${startedRows(resolve, predicate.list)}>=${predicate.value}`;
     case 'everyEntryHas': {
       // No started row may be missing one of these. Counted rather than tested row by row, because a
-      // formula cannot loop: for each field, the number of rows that have an identity and lack that
-      // field must be nought.
+      // formula cannot loop: for each field, the number of started rows lacking it must be nought.
       //
-      // The identity column itself is skipped. A row without it is not an entry at all — that is what
-      // `countAtLeast` means on a sheet — so the term would compare that column against itself and be
-      // nought whatever anybody types.
-      const entries = resolve.entryRange(predicate.list);
-      const terms = predicate.fields
-        .filter((field) => resolve.fieldRange(predicate.list, field) !== entries)
-        .map((field) => `SUMPRODUCT((${filled(entries)})*(TRIM(${resolve.fieldRange(predicate.list, field)})=""))=0`);
+      // "Started" is the same test the count uses, so the two halves of a rule cannot disagree about
+      // which rows they are talking about.
+      const started = resolve
+        .allRanges(predicate.list)
+        .map((range) => `${filled(range)}`)
+        .join(')+(');
+      const terms = predicate.fields.map(
+        (field) => `SUMPRODUCT(--((${started})>0)*(TRIM(${cleaned(resolve.fieldRange(predicate.list, field))})=""))=0`,
+      );
       if (terms.length === 0) return 'TRUE';
       return terms.length === 1 ? terms[0] : `AND(${terms.join(',')})`;
     }
