@@ -1,0 +1,14 @@
+{
+  "name": "INVALID_FIELD",
+  "message": "\nSELECT Id, Competitor__c FROM Opportunity LIMIT\n           ^\nERROR at Row:1:Column:12\nNo such column 'Competitor__c' on entity 'Opportunity'. If you are attempting to use a custom field, be sure to append the '__c' after the custom field name. Please reference your WSDL or the describe call for the appropriate names.",
+  "exitCode": 1,
+  "context": "DataSoqlQueryCommand",
+  "data": {
+    "message": "\nSELECT Id, Competitor__c FROM Opportunity LIMIT\n           ^\nERROR at Row:1:Column:12\nNo such column 'Competitor__c' on entity 'Opportunity'. If you are attempting to use a custom field, be sure to append the '__c' after the custom field name. Please reference your WSDL or the describe call for the appropriate names.",
+    "errorCode": "INVALID_FIELD"
+  },
+  "warnings": [],
+  "code": "1",
+  "status": 1,
+  "commandName": "DataSoqlQueryCommand"
+}

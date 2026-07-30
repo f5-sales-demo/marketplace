@@ -1,6 +1,8 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { $ } from 'bun';
+import type { SfFieldDescription, SfSObjectDescription } from '../sf/describe';
+import { normalizeDescribe } from '../sf/describe';
 
 // ---------------------------------------------------------------------------
 // Dependency injection for loadProfile (from xcsh user-profile module)
@@ -141,15 +143,16 @@ export interface SalesforceContext {
     oppCount: number;
   }>;
 
-  // Org capabilities
-  customFields?: {
-    trueAcv: boolean;
-    upsellAcv: boolean;
-    productSegmentation: boolean;
-    useCaseCategory: boolean;
-    territory: boolean;
-    renewal: boolean;
-  };
+  // Org capabilities.
+  //
+  // Discovered, never assumed. This replaced a fixed struct of booleans named after one org's
+  // custom fields, which silently reported "no capabilities" everywhere else. Orgs share almost
+  // no custom schema, so the catalog is the source of truth and every consumer feature-detects
+  // against it.
+  /** Every Opportunity field API name in this org, from the describe the seed already performs. */
+  opportunityFields?: string[];
+  /** Territory field chosen empirically for grouping; absent when the org has no usable one. */
+  territoryField?: string;
 
   // Pipeline summary
   pipelineSummary?: {
@@ -157,7 +160,7 @@ export interface SalesforceContext {
     total: number;
     dealCount: number;
   };
-  // Team member roles on opps
+  // Team member roles on opportunities
   teamRoles?: string[];
 
   // Pipeline report configuration (discovered from saved report)
@@ -187,6 +190,15 @@ export interface SalesforceHint {
   partnerId?: string;
   /** Quarterly quota target for coverage ratio, from user profile */
   quota?: number;
+  /**
+   * Active StageName values in THIS org. Injected because stage names are org-configured, and a
+   * model that assumes Salesforce's defaults writes WHERE clauses that silently match nothing.
+   */
+  stages?: string;
+  /** ForecastCategoryName values in use in this org, for the same reason. */
+  forecastCategories?: string;
+  /** Territory grouping field resolved for this org, so queries need not guess its name. */
+  territoryField?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,62 +267,117 @@ async function getOrgInfo(): Promise<{ username: string; instanceUrl: string; al
   }
 }
 
-async function detectCustomFields(): Promise<SalesforceContext['customFields']> {
-  const defaults = {
-    trueAcv: false,
-    upsellAcv: false,
-    productSegmentation: false,
-    useCaseCategory: false,
-    territory: false,
-    renewal: false,
-  };
+async function describeOpportunity(): Promise<SfSObjectDescription | null> {
   try {
     const result = await $`sf sobject describe --sobject Opportunity --json`.quiet().nothrow();
-    if (result.exitCode !== 0) return defaults;
-    const parsed = JSON.parse(result.stdout.toString()) as {
-      result?: { fields?: Array<{ name: string }> };
-    };
-    const fieldNames = new Set((parsed.result?.fields ?? []).map((f) => f.name));
-    return {
-      trueAcv: fieldNames.has('True_ACV__c'),
-      upsellAcv: fieldNames.has('Upsell_ACV__c'),
-      productSegmentation: fieldNames.has('Product_Segmentation__c'),
-      useCaseCategory: fieldNames.has('Use_Case_Category__c'),
-      territory: fieldNames.has('Territory_Credited_District_del__c'),
-      renewal: fieldNames.has('Renewal__c'),
-    };
+    if (result.exitCode !== 0) return null;
+    const parsed = JSON.parse(result.stdout.toString()) as { result?: unknown };
+    if (!parsed.result) return null;
+    return normalizeDescribe(parsed.result);
   } catch {
-    return defaults;
+    return null;
   }
+}
+
+// Territory field selection.
+//
+// There is no standard Opportunity territory field, and a real org can carry twenty or more
+// territory-ish custom fields at different granularities. Naming a specific one only ever works
+// for the org it was copied from. Nor can a name heuristic alone decide: the same org holds
+// `ETM_Core_Territory__c`, `Territory_Grouping__c`, `Territory_Name__c` and a dozen more, several
+// of which are empty in practice.
+//
+// So: narrow by schema (below), then choose by DATA (pickBestTerritoryField) — whichever
+// candidate actually covers the most of this user's pipeline wins.
+
+/** Territory-ish, but never a usable grouping value. */
+const TERRITORY_NAME_EXCLUSIONS = [/code/i, /error/i, /exclude/i, /^old_/i, /_del__c$/i, /type__c$/i, /owner/i];
+
+/** Types that can hold a readable territory value. Excludes reference ids and booleans. */
+const TERRITORY_FIELD_TYPES: ReadonlySet<string> = new Set(['string', 'picklist']);
+
+/** Probing costs one SOQL query each, so the list is bounded. */
+const MAX_TERRITORY_CANDIDATES = 6;
+
+export function rankTerritoryFieldCandidates(fields: SfFieldDescription[]): string[] {
+  return fields
+    .filter((f) => {
+      if (!/territor/i.test(f.name) && !/territor/i.test(f.label)) return false;
+      // A field that cannot appear in GROUP BY cannot back a territory breakdown at all — which
+      // is exactly the flaw in the field this code used to hardcode.
+      if (!f.groupable || !f.filterable) return false;
+      if (!TERRITORY_FIELD_TYPES.has(f.type)) return false;
+      return !TERRITORY_NAME_EXCLUSIONS.some((re) => re.test(f.name) || re.test(f.label));
+    })
+    .map((f) => f.name)
+    .sort((a, b) => a.length - b.length || a.localeCompare(b))
+    .slice(0, MAX_TERRITORY_CANDIDATES);
+}
+
+export interface TerritoryFieldProbe {
+  field: string;
+  /** Territory value -> opportunity count, from a GROUP BY over the user's open pipeline. */
+  counts: Map<string, number>;
+}
+
+/**
+ * Choose among probed candidates.
+ *
+ * 1. Most opportunities covered — a field populated on 48 of the user's deals describes their
+ *    pipeline; one populated on 7 does not.
+ * 2. Then the FINER partition (more distinct values). Among fields annotating the same deals,
+ *    the one that separates them more carries more information; at the degenerate end, a field
+ *    with a single value covers everything and distinguishes nothing. Measured against a real
+ *    org this is what separates a genuine territory (`AMER: Major Accounts ... Red 9`) from a
+ *    region rollup (`USA` / `Canada`) that happens to be populated just as widely.
+ * 3. Then the lexically first name, purely so a re-run picks the same field.
+ */
+export function pickBestTerritoryField(probes: TerritoryFieldProbe[]): TerritoryFieldProbe | undefined {
+  const covered = (p: TerritoryFieldProbe) => [...p.counts.values()].reduce((a, b) => a + b, 0);
+  return probes
+    .filter((p) => p.counts.size > 0 && covered(p) > 0)
+    .sort((a, b) => covered(b) - covered(a) || b.counts.size - a.counts.size || a.field.localeCompare(b.field))[0];
 }
 
 // ---------------------------------------------------------------------------
 // Discovery probes
 // ---------------------------------------------------------------------------
 
+/** Group this user's open pipeline by one candidate field. Empty when the field holds no data. */
+async function probeTerritoryField(userId: string, field: string): Promise<TerritoryFieldProbe> {
+  const records = await runSfQuery(
+    `SELECT Opportunity.${field} FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false AND Opportunity.${field} != null`,
+  );
+  const counts = new Map<string, number>();
+  for (const r of records) {
+    const opp = r.Opportunity as Record<string, unknown> | undefined;
+    const value = opp?.[field] as string | undefined;
+    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return { field, counts };
+}
+
 async function discoverTerritories(
   userId: string,
-  customFields: SalesforceContext['customFields'],
+  described: SfSObjectDescription | null,
 ): Promise<Partial<SalesforceContext>> {
-  if (!customFields?.territory) return {};
+  const candidates = rankTerritoryFieldCandidates(described?.fields ?? []);
+  if (candidates.length === 0) return {};
 
-  const teamRecords = await runSfQuery(
-    `SELECT Opportunity.Territory_Credited_District_del__c FROM OpportunityTeamMember WHERE UserId = '${userId}' AND Opportunity.IsClosed = false AND Opportunity.Territory_Credited_District_del__c != null`,
+  const probes = await Promise.all(
+    candidates.map((field) => probeTerritoryField(userId, field).catch(() => ({ field, counts: new Map() }))),
   );
-  const teamCounts = new Map<string, number>();
-  for (const r of teamRecords) {
-    const opp = r.Opportunity as Record<string, unknown> | undefined;
-    const t = opp?.Territory_Credited_District_del__c as string | undefined;
-    if (t) teamCounts.set(t, (teamCounts.get(t) ?? 0) + 1);
-  }
+  const best = pickBestTerritoryField(probes);
+  if (!best) return { territories: [] };
+
+  const teamCounts = best.counts;
   const territories = [...teamCounts.keys()].sort();
-  if (territories.length === 0) return { territories: [] };
 
   const totalCounts = new Map<string, number>();
   const countPromises = territories.map(async (t) => {
     const escaped = t.replace(/'/g, "''");
     const recs = await runSfQuery(
-      `SELECT COUNT(Id) FROM Opportunity WHERE Territory_Credited_District_del__c = '${escaped}' AND IsClosed = false`,
+      `SELECT COUNT(Id) FROM Opportunity WHERE ${best.field} = '${escaped}' AND IsClosed = false`,
     );
     const cnt = (recs[0]?.expr0 ?? 0) as number;
     totalCounts.set(t, cnt);
@@ -326,7 +393,7 @@ async function discoverTerritories(
 
   territoryDetails.sort((a, b) => b.teamOpps - a.teamOpps);
 
-  return { territories, territoryDetails };
+  return { territories, territoryDetails, territoryField: best.field };
 }
 
 async function discoverAccounts(userId: string): Promise<Partial<SalesforceContext>> {
@@ -346,11 +413,18 @@ async function discoverAccounts(userId: string): Promise<Partial<SalesforceConte
   return { activeAccounts: accounts };
 }
 
+/**
+ * Optional named fields this plugin knows how to consume. Feature-detected against the discovered
+ * catalog, never assumed: an org without them simply gets no segmentation breakdown, rather than
+ * a failed query.
+ */
+const PRODUCT_SEGMENTATION_FIELD = 'Product_Segmentation__c';
+
 async function discoverSegmentations(
   userId: string,
-  customFields: SalesforceContext['customFields'],
+  described: SfSObjectDescription | null,
 ): Promise<Partial<SalesforceContext>> {
-  if (!customFields?.productSegmentation) return {};
+  if (!described?.fields.some((f) => f.name === PRODUCT_SEGMENTATION_FIELD)) return {};
   const records = await runSfQuery(
     `SELECT Product_Segmentation__c FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '${userId}') AND IsClosed = false AND Product_Segmentation__c != null`,
   );
@@ -492,7 +566,7 @@ async function discoverRoleAndTeam(userId: string): Promise<Partial<SalesforceCo
 export async function discoverSalesforceContext(): Promise<SalesforceContext | null> {
   if (!$which('sf')) return null;
 
-  const [orgInfo, customFields] = await Promise.all([getOrgInfo(), detectCustomFields()]);
+  const [orgInfo, described] = await Promise.all([getOrgInfo(), describeOpportunity()]);
   if (!orgInfo) return null;
 
   const profile = await loadProfileSafe();
@@ -500,9 +574,9 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
   if (!userId) return null;
 
   const results = await Promise.all([
-    discoverTerritories(userId, customFields).catch(() => ({})),
+    discoverTerritories(userId, described).catch(() => ({})),
     discoverAccounts(userId).catch(() => ({})),
-    discoverSegmentations(userId, customFields).catch(() => ({})),
+    discoverSegmentations(userId, described).catch(() => ({})),
     discoverForecasts(userId).catch(() => ({})),
     discoverStages(userId).catch(() => ({})),
     discoverPipelineSummary(userId).catch(() => ({})),
@@ -516,7 +590,7 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
     username: orgInfo.username,
     instanceUrl: orgInfo.instanceUrl,
     orgAlias: orgInfo.alias || undefined,
-    customFields,
+    opportunityFields: described?.fields.map((f) => f.name),
     collectedAt: new Date().toISOString(),
   };
   for (const partial of results) {
@@ -535,23 +609,26 @@ export async function seedSalesforceContext(): Promise<SalesforceContext | null>
 }
 
 // ---------------------------------------------------------------------------
-/** Format territory list with a character budget. If joined string exceeds budget, truncate with +N more. */
-function formatTerritoryDisplay(territories: string[] | undefined, budget: number): string | undefined {
-  if (!territories?.length) return undefined;
-  const joined = territories.join(', ');
+/** Join a value list under a character budget, truncating the tail as `+N more`. */
+function joinWithBudget(values: string[] | undefined, budget: number): string | undefined {
+  if (!values?.length) return undefined;
+  const joined = values.join(', ');
   if (joined.length <= budget) return joined;
-  let result = territories[0];
+  let result = values[0];
   let included = 1;
-  for (let i = 1; i < territories.length; i++) {
-    const candidate = `${result}, ${territories[i]}`;
+  for (let i = 1; i < values.length; i++) {
+    const candidate = `${result}, ${values[i]}`;
     if (candidate.length > budget - 10) break;
     result = candidate;
     included++;
   }
-  const remaining = territories.length - included;
+  const remaining = values.length - included;
   if (remaining > 0) result += `, +${remaining} more`;
   return result;
 }
+
+/** Budget for a discovered picklist list in the session hint — enough to be usable, not a dump. */
+const VALUE_LIST_CHAR_BUDGET = 160;
 
 // ---------------------------------------------------------------------------
 // Hint builder
@@ -577,7 +654,7 @@ export function buildSalesforceHint(
       ? ctx.confirmedTerritories
       : ctx.territories?.slice(0, 3);
   const TERRITORY_CHAR_BUDGET = 60;
-  const topTerritories = formatTerritoryDisplay(territorySource, TERRITORY_CHAR_BUDGET);
+  const topTerritories = joinWithBudget(territorySource, TERRITORY_CHAR_BUDGET);
 
   const byForecast = ctx.pipelineSummary.byForecast;
   const forecastParts: string[] = [];
@@ -607,6 +684,9 @@ export function buildSalesforceHint(
     orgAlias: ctx.orgAlias,
     partnerId: partner?.id,
     quota: profile?.quota,
+    stages: joinWithBudget(ctx.stages, VALUE_LIST_CHAR_BUDGET),
+    forecastCategories: joinWithBudget(ctx.forecastCategories, VALUE_LIST_CHAR_BUDGET),
+    territoryField: ctx.territoryField,
   };
 }
 
@@ -658,7 +738,7 @@ export function renderSalesforceContextMarkdown(
     sections.push('\n## Active Accounts');
     sections.push(`${ctx.activeAccounts.length} accounts with open pipeline:\n`);
     for (const acct of ctx.activeAccounts) {
-      sections.push(`- **${acct.name}** (${acct.oppCount} opps)`);
+      sections.push(`- **${acct.name}** (${acct.oppCount} opportunities)`);
     }
   }
 
@@ -671,7 +751,7 @@ export function renderSalesforceContextMarkdown(
       sections.push('\n> **Action needed:** Confirm which territories are your primary responsibility.');
       sections.push('> High team-opp coverage suggests primary ownership. Low coverage suggests overlay.\n');
     }
-    sections.push('| Territory | Your Opps | Total | Coverage | Status |');
+    sections.push('| Territory | Your Opportunities | Total | Coverage | Status |');
     sections.push('|---|---|---|---|---|');
     for (const td of ctx.territoryDetails) {
       const status = hasConfirmed
@@ -730,17 +810,17 @@ export function renderSalesforceContextMarkdown(
   }
 
   // Org Capabilities
-  if (ctx.customFields) {
+  if (ctx.opportunityFields?.length) {
     sections.push('\n## Org Capabilities');
-    const fields = ctx.customFields;
-    const enabled = Object.entries(fields)
-      .filter(([, v]) => v)
-      .map(([k]) => k);
-    if (enabled.length > 0) {
-      sections.push(`Custom fields detected: ${enabled.join(', ')}`);
-    } else {
-      sections.push('No custom opportunity fields detected.');
-    }
+    const custom = ctx.opportunityFields.filter((n) => n.endsWith('__c'));
+    sections.push(
+      `Opportunity schema: ${ctx.opportunityFields.length} fields (${custom.length} custom). Use \`sf_describe\` to look any of them up — they are not listed here.`,
+    );
+    sections.push(
+      ctx.territoryField
+        ? `Territory grouping field: \`${ctx.territoryField}\` (selected by pipeline coverage).`
+        : 'No usable territory grouping field found on Opportunity.',
+    );
   }
 
   // Action Needed

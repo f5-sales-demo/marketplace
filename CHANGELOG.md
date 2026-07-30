@@ -10,6 +10,33 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v1.3.4 — schema is discovered at runtime instead of guessed, and a rejected column
+  now says which one. Three defects compounded into a query the agent could not recover from.
+
+  The query prompt told the model to read `Opportunity.CompetitorName`, which exists on no org — it
+  belongs to the child `OpportunityCompetitor` object. Given a name that cannot work, the model
+  emitted the nearest plausible spelling, `Competitor__c`. `detectSfError` then looked for the error
+  code in the sf payload's `message`, but sf puts it in `name`, so every real `INVALID_FIELD` fell
+  through to a generic exec error whose one actionable line came last — exactly the line a host UI
+  truncates. And nothing offered a way to look a field up, so the agent shelled out to raw `sf`.
+
+  - **New `sf_describe` tool.** Returns an object's real fields filtered by a concept match on both
+    API name and label, with active picklist values and matching child relationships. Bounded on
+    purpose: a mature Opportunity carries several hundred fields, so an unfiltered call returns the
+    standard ones plus a count. Cells escape `|`, which a real picklist value contains.
+  - **Errors classify on `name`/`code`** and lead with `No such column 'X' on entity 'Y'` plus a
+    pointer to `sf_describe`. Covers `INVALID_FIELD`, `MALFORMED_QUERY`, `INVALID_TYPE` and
+    `INVALID_QUERY_FILTER_OPERATOR`; tests use payloads captured verbatim from a live org, because the
+    test that previously covered this fed a message shape sf never emits.
+  - **Nothing org-specific is hardcoded**, since the plugin ships beyond one org. The query prompt no
+    longer names particular territory fields or stage literals. The context probe reuses the describe
+    it already ran to cache the field catalog, replacing six booleans keyed off one org's field names.
+    Territory selection is empirical — candidates are ranked by schema, then probed against the user's
+    pipeline — replacing a hardcoded field that was not even `groupable`, so it could not back the
+    `GROUP BY` it was used for. Discovered stage names and forecast categories reach the session hint.
+  - Live UAT (`scripts/tests/live-uat.ts`) drives the real tools against an authenticated org and
+    skips cleanly without one.
+
 - **`meddpicc`** v7.1.0 — the engine can enumerate the text it renders, and prove the list complete.
   Additive: a new module and its tests, no generation path touched.
 
