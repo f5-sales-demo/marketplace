@@ -293,11 +293,37 @@ async function describeOpportunity(): Promise<SfSObjectDescription | null> {
 /** Territory-ish, but never a usable grouping value. */
 const TERRITORY_NAME_EXCLUSIONS = [/code/i, /error/i, /exclude/i, /^old_/i, /_del__c$/i, /type__c$/i, /owner/i];
 
-/** Types that can hold a readable territory value. Excludes reference ids and booleans. */
+/** Types that can hold a readable territory value directly. */
 const TERRITORY_FIELD_TYPES: ReadonlySet<string> = new Set(['string', 'picklist']);
 
-/** Probing costs one SOQL query each, so the list is bounded. */
-const MAX_TERRITORY_CANDIDATES = 6;
+/**
+ * Standard objects that a territory lookup can point at. `Territory2` is Salesforce's own
+ * Enterprise Territory Management object — supporting it is not an org customization, and an
+ * ETM org with no custom territory field would otherwise get no territory context at all.
+ */
+const TERRITORY_REFERENCE_TARGETS: ReadonlySet<string> = new Set(['Territory2', 'Territory']);
+
+/**
+ * Probing costs one SOQL query each, so the list is bounded — but only bounded. It is
+ * deliberately NOT reordered by any name heuristic first: nothing in an API name predicts which
+ * field actually holds the data, and ranking by name length then truncating discarded a
+ * populated authoritative field in favour of shorter empty ones. Probing is what decides.
+ */
+const MAX_TERRITORY_CANDIDATES = 12;
+
+/**
+ * The SOQL path to read a candidate by. A plain field is its own path; a lookup has to be
+ * traversed to a readable name, because grouping by the raw id yields opaque 18-character keys.
+ */
+function territorySoqlPath(f: SfFieldDescription): string | undefined {
+  if (TERRITORY_FIELD_TYPES.has(f.type)) return f.name;
+  if (f.type !== 'reference') return undefined;
+  if (!f.referenceTo?.some((t) => TERRITORY_REFERENCE_TARGETS.has(t))) return undefined;
+  // Salesforce relationship naming: `Territory2Id` -> `Territory2`, `Foo__c` -> `Foo__r`.
+  if (f.name.endsWith('__c')) return `${f.name.slice(0, -3)}__r.Name`;
+  if (f.name.endsWith('Id')) return `${f.name.slice(0, -2)}.Name`;
+  return undefined;
+}
 
 export function rankTerritoryFieldCandidates(fields: SfFieldDescription[]): string[] {
   return fields
@@ -306,11 +332,11 @@ export function rankTerritoryFieldCandidates(fields: SfFieldDescription[]): stri
       // A field that cannot appear in GROUP BY cannot back a territory breakdown at all — which
       // is exactly the flaw in the field this code used to hardcode.
       if (!f.groupable || !f.filterable) return false;
-      if (!TERRITORY_FIELD_TYPES.has(f.type)) return false;
       return !TERRITORY_NAME_EXCLUSIONS.some((re) => re.test(f.name) || re.test(f.label));
     })
-    .map((f) => f.name)
-    .sort((a, b) => a.length - b.length || a.localeCompare(b))
+    .map(territorySoqlPath)
+    .filter((p): p is string => p !== undefined)
+    .sort()
     .slice(0, MAX_TERRITORY_CANDIDATES);
 }
 
@@ -343,6 +369,16 @@ export function pickBestTerritoryField(probes: TerritoryFieldProbe[]): Territory
 // Discovery probes
 // ---------------------------------------------------------------------------
 
+/** Walk a dotted SOQL path (`Territory2.Name`) through the nested record shape it returns. */
+function readPath(root: unknown, path: string): string | undefined {
+  let node: unknown = root;
+  for (const segment of path.split('.')) {
+    if (!node || typeof node !== 'object') return undefined;
+    node = (node as Record<string, unknown>)[segment];
+  }
+  return typeof node === 'string' ? node : undefined;
+}
+
 /** Group this user's open pipeline by one candidate field. Empty when the field holds no data. */
 async function probeTerritoryField(userId: string, field: string): Promise<TerritoryFieldProbe> {
   const records = await runSfQuery(
@@ -350,8 +386,7 @@ async function probeTerritoryField(userId: string, field: string): Promise<Terri
   );
   const counts = new Map<string, number>();
   for (const r of records) {
-    const opp = r.Opportunity as Record<string, unknown> | undefined;
-    const value = opp?.[field] as string | undefined;
+    const value = readPath(r.Opportunity, field);
     if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
   }
   return { field, counts };

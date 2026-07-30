@@ -62,9 +62,7 @@ describe('rankTerritoryFieldCandidates', () => {
     expect(ranked).not.toContain('Territory_Credited_Category__c');
   });
 
-  it('excludes references, booleans, codes, error and legacy fields', () => {
-    expect(ranked).not.toContain('Territory2Id');
-    expect(ranked).not.toContain('Territory_Credited__c');
+  it('excludes booleans, codes, error and legacy fields', () => {
     expect(ranked).not.toContain('Old_Territory_Credited__c');
     expect(ranked).not.toContain('Exclude_From_Territory_Assignment__c');
     expect(ranked).not.toContain('IsExcludedFromTerritory2Filter');
@@ -73,14 +71,16 @@ describe('rankTerritoryFieldCandidates', () => {
     expect(ranked).not.toContain('Opportunity_Territory_Type__c');
   });
 
+  it('excludes a reference that does not point at a territory object', () => {
+    // Territory_Credited__c is a lookup to a User in this org; its raw id says nothing.
+    expect(ranked).not.toContain('Territory_Credited__c');
+    expect(ranked).not.toContain('Territory_Credited__r.Name');
+  });
+
   it('keeps the plausible groupable name fields', () => {
     expect(ranked).toContain('Territory__c');
     expect(ranked).toContain('ETM_Core_Territory__c');
     expect(ranked).toContain('Territory_Grouping__c');
-  });
-
-  it('bounds how many candidates will be probed', () => {
-    expect(ranked.length).toBeLessThanOrEqual(6);
   });
 
   it('is deterministic', () => {
@@ -90,6 +90,57 @@ describe('rankTerritoryFieldCandidates', () => {
 
   it('returns nothing for an org with no territory field', () => {
     expect(rankTerritoryFieldCandidates([field({ name: 'Amount', type: 'currency', custom: false })])).toEqual([]);
+  });
+
+  // Enterprise Territory Management is the STANDARD Salesforce territory model. An org using it
+  // with no custom territory field got no territory context at all, because the filter dropped
+  // every reference type. Territory2 is a standard object, so supporting it is not org-specific.
+  it('supports standard Enterprise Territory Management via the Territory2 relationship', () => {
+    const etmOnly = [
+      field({
+        name: 'Territory2Id',
+        label: 'Territory ID',
+        type: 'reference',
+        custom: false,
+        referenceTo: ['Territory2'],
+      }),
+      field({ name: 'Amount', label: 'Amount', type: 'currency', custom: false }),
+    ];
+    // Grouping by the raw id yields opaque 18-character keys, so the traversal is what is probed.
+    expect(rankTerritoryFieldCandidates(etmOnly)).toEqual(['Territory2.Name']);
+  });
+
+  it('offers ETM alongside custom fields rather than instead of them', () => {
+    const withEtm = [
+      ...REAL_TERRITORY_FIELDS,
+      field({
+        name: 'Territory2Id',
+        label: 'Territory ID',
+        type: 'reference',
+        custom: false,
+        referenceTo: ['Territory2'],
+      }),
+    ];
+    const out = rankTerritoryFieldCandidates(withEtm);
+    expect(out).toContain('Territory2.Name');
+    expect(out).toContain('ETM_Core_Territory__c');
+  });
+
+  // Ranking by API-name length then truncating discarded a populated authoritative field in
+  // favour of shorter empty ones. Nothing in a name predicts which field holds the data — that
+  // is what probing is for — so the list is only bounded, never reordered by a guess.
+  it('does not drop plausible candidates behind a name-length heuristic', () => {
+    const many = Array.from({ length: 9 }, (_, i) =>
+      field({ name: `Territory_${'x'.repeat(i)}_Field__c`, label: `Territory ${i}` }),
+    );
+    const out = rankTerritoryFieldCandidates(many);
+    expect(out).toHaveLength(9);
+    expect(out).toEqual([...out].sort());
+  });
+
+  it('still bounds the probe count for a pathological org', () => {
+    const many = Array.from({ length: 40 }, (_, i) => field({ name: `Territory_${i}__c`, label: `Territory ${i}` }));
+    expect(rankTerritoryFieldCandidates(many).length).toBeLessThanOrEqual(12);
   });
 });
 

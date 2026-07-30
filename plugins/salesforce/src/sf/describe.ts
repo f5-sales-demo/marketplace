@@ -114,6 +114,9 @@ function renderFieldRows(fields: SfFieldDescription[]): string[] {
     }
     if (f.referenceTo?.length) detail.push(`-> ${f.referenceTo.join(', ')}`);
     if (!f.filterable) detail.push('not filterable');
+    // Callers are told to pick grouping fields out of this table, so a field that GROUP BY
+    // rejects must not look identical to one it accepts.
+    if (!f.groupable) detail.push('not groupable');
     return `| ${cell(f.name)} | ${cell(f.label)} | ${cell(f.type)} | ${cell(detail.join('; '))} |`;
   });
 }

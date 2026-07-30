@@ -97,6 +97,32 @@ describe('formatDescribe — match filtering', () => {
     expect(out).toContain('zzzznope');
   });
 
+  // sf-query.md directs the agent to pick a territory field out of this output and GROUP BY it.
+  // A field that cannot be grouped looked identical to one that can, so the agent would write a
+  // query Salesforce rejects — the same failure class this tool exists to prevent.
+  it('marks a field that cannot be used in GROUP BY', () => {
+    const d = normalizeDescribe({
+      name: 'Opportunity',
+      fields: [
+        {
+          name: 'Long_Notes__c',
+          label: 'Long Notes',
+          type: 'textarea',
+          custom: true,
+          filterable: true,
+          groupable: false,
+        },
+        { name: 'Region__c', label: 'Region', type: 'string', custom: true, filterable: true, groupable: true },
+      ],
+      childRelationships: [],
+    });
+    const out = formatDescribe(d, 'o');
+    const notGroupable = out.split('\n').find((l) => l.includes('Long_Notes__c')) ?? '';
+    const groupable = out.split('\n').find((l) => l.includes('Region__c')) ?? '';
+    expect(notGroupable).toContain('not groupable');
+    expect(groupable).not.toContain('not groupable');
+  });
+
   it('lists active picklist values so stage and category names need not be guessed', () => {
     const out = formatDescribe(normalizeDescribe(OPPORTUNITY_RAW), 'stage');
     expect(out).toContain('Awareness');

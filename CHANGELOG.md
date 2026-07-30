@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** bumped to v1.3.5
+
 - **`salesforce`** v1.3.4 — schema is discovered at runtime instead of guessed, and a rejected column
   now says which one. Three defects compounded into a query the agent could not recover from.
 
