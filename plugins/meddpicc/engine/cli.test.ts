@@ -409,6 +409,24 @@ describe('--locale', () => {
     expect((await run(['generate', example, '--plan'])).code).toBe(0);
   });
 
+  test('a misspelled flag is named, not ignored', async () => {
+    // The last way left to have a request ignored: `--local=ko` is a typo for `--locale=ko`, and a parser
+    // that only looks for names it knows saw no locale request — English, exit 0, a workbook contradicting
+    // what the command line plainly asked for.
+    for (const args of [
+      ['generate', example, '--local=ko', '--plan'],
+      ['generate', example, '--local', 'ko', '--plan'],
+      ['read', 'nonexistent.xlsx', '--dealx', example],
+    ]) {
+      const { code, err } = await run(args);
+      expect(code, args.join(' ')).toBe(1);
+      expect(err, args.join(' ')).toMatch(/Unknown option/);
+    }
+    // Real flags on those same commands are untouched, so the refusal has not become indiscriminate.
+    expect((await run(['generate', example, '--locale=en', '--plan'])).code).toBe(0);
+    expect((await run(['check-spec'])).code).toBe(0);
+  });
+
   test('the locale a workbook is written in is the one it records', async () => {
     const out = path.join(scratch, 'stamped.xlsx');
     const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);

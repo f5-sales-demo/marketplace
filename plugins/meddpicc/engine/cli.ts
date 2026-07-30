@@ -90,6 +90,25 @@ function flagValues(args: string[], name: string): Array<string | undefined> {
  * checks belong in one place that every flag goes through, rather than in a second function only the newest
  * flag remembered to call.
  */
+/**
+ * Refuse an argument that looks like a flag and is not one this command has.
+ *
+ * The last way left to have a request ignored. `--local=ko` is a typo for `--locale=ko`, and a parser that
+ * only looks for names it knows sees no locale request at all — so generation falls back to English, exits
+ * 0, and produces a plausible workbook that contradicts what the command line plainly asked for.
+ *
+ * Seventh and last of the parser findings, all one mistake in different clothes: a malformed request treated
+ * as no request. Nothing can be ignored once every unrecognised flag is named.
+ */
+function refuseUnknownFlags(args: string[], known: readonly string[]): void {
+  const unknown = args.filter((arg) => arg.startsWith('--')).filter((arg) => !known.includes(arg.split('=')[0] ?? arg));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown ${unknown.length === 1 ? 'option' : 'options'} ${unknown.join(', ')}. This command takes ${known.join(', ')}.`,
+    );
+  }
+}
+
 function flag(args: string[], name: string): string | undefined {
   const values: Array<string | undefined> = [];
   for (const [i, arg] of args.entries()) {
@@ -187,6 +206,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-sfdc') {
+    refuseUnknownFlags(rest, ['--schema', '--sfdc']);
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const sfdc = await readJson(flag(rest, '--sfdc') ?? SFDC_PATH);
     const result = checkSfdcMapping(schema, sfdc);
@@ -195,6 +215,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'generate') {
+    refuseUnknownFlags(rest, ['--out', '--plan', '--prose-heights', '--spec', '--locale', '--schema']);
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write(
@@ -307,6 +328,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'read') {
+    refuseUnknownFlags(rest, ['--deal', '--apply', '--spec', '--schema']);
     const workbookPath = rest[0];
     const dealPath = flag(rest, '--deal');
     if (!workbookPath || !dealPath) {
@@ -359,6 +381,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'migrate') {
+    refuseUnknownFlags(rest, ['--apply']);
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write('Usage: cli.ts migrate <deal.json> [--apply]\n');
@@ -384,6 +407,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-spec') {
+    refuseUnknownFlags(rest, ['--spec', '--schema']);
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
     const result = checkWorkbookSpec(schema, spec);
