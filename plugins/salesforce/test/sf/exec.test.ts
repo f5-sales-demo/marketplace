@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import INVALID_FIELD_FIXTURE from '../../benchmarks/fixtures/data-query-invalid-field.json';
+import MALFORMED_QUERY_FIXTURE from '../../benchmarks/fixtures/data-query-malformed-query.json';
 import {
   detectSfError,
   execSfJson,
@@ -77,18 +79,62 @@ describe('detectSfError', () => {
     expect(err).toBeInstanceOf(SfAuthError);
   });
 
-  it('returns SfQueryError for MALFORMED_QUERY with query param', () => {
-    const err = detectSfError('MALFORMED_QUERY: unexpected token', 1, 'SELECT Bad');
+  // The sf CLI never puts its error code in `message` — it goes in `name`/`code`, and
+  // `message` holds only the caret block. These cases use payloads captured verbatim from
+  // `sf data query --json` against a live org (benchmarks/fixtures/data-query-*.json), so a
+  // regression here means the classifier drifted from what sf actually emits.
+  it('returns SfQueryError for a real INVALID_FIELD payload (code in name, not message)', () => {
+    const err = detectSfError(
+      INVALID_FIELD_FIXTURE.message,
+      1,
+      'SELECT Id, Competitor__c FROM Opportunity',
+      'INVALID_FIELD',
+    );
     expect(err).toBeInstanceOf(SfQueryError);
   });
 
-  it('returns SfQueryError for INVALID_FIELD with query param', () => {
-    const err = detectSfError('INVALID_FIELD: no such column', 1, 'SELECT Bad FROM X');
+  it('returns SfQueryError for a real MALFORMED_QUERY payload (code in name, not message)', () => {
+    const err = detectSfError(MALFORMED_QUERY_FIXTURE.message, 1, 'SELECT Id FROM', 'MALFORMED_QUERY');
+    expect(err).toBeInstanceOf(SfQueryError);
+  });
+
+  it('leads an INVALID_FIELD message with the offending column, ahead of the caret block', () => {
+    const err = detectSfError(
+      INVALID_FIELD_FIXTURE.message,
+      1,
+      'SELECT Id, Competitor__c FROM Opportunity',
+      'INVALID_FIELD',
+    );
+    // The caret block is what host UIs truncate, so the actionable line must come first.
+    const caretIndex = err.message.indexOf('^');
+    const columnIndex = err.message.indexOf("No such column 'Competitor__c' on entity 'Opportunity'");
+    expect(columnIndex).toBeGreaterThan(-1);
+    expect(columnIndex).toBeLessThan(caretIndex);
+  });
+
+  it('points an invalid-field failure at sf_describe', () => {
+    const err = detectSfError(
+      INVALID_FIELD_FIXTURE.message,
+      1,
+      'SELECT Id, Competitor__c FROM Opportunity',
+      'INVALID_FIELD',
+    );
+    expect(err.message).toContain('sf_describe');
+  });
+
+  it('still classifies from the message when no code is supplied', () => {
+    const err = detectSfError('MALFORMED_QUERY: unexpected token', 1, 'SELECT Bad');
     expect(err).toBeInstanceOf(SfQueryError);
   });
 
   it('returns SfExecError for MALFORMED_QUERY without query param', () => {
     const err = detectSfError('MALFORMED_QUERY: unexpected token', 1);
+    expect(err).toBeInstanceOf(SfExecError);
+    expect(err).not.toBeInstanceOf(SfQueryError);
+  });
+
+  it('returns SfExecError when a query error code arrives without a query param', () => {
+    const err = detectSfError(INVALID_FIELD_FIXTURE.message, 1, undefined, 'INVALID_FIELD');
     expect(err).toBeInstanceOf(SfExecError);
     expect(err).not.toBeInstanceOf(SfQueryError);
   });
@@ -161,6 +207,17 @@ describe('execSfJson', () => {
       exitCode: 1,
     });
     await expect(execSfJson(api, ['data', 'query'], undefined, 'SELECT Bad')).rejects.toBeInstanceOf(SfQueryError);
+  });
+
+  it('threads the sf error code from `name` through to the classifier', async () => {
+    const api = mockApi({
+      stdout: JSON.stringify(INVALID_FIELD_FIXTURE),
+      stderr: '',
+      exitCode: 1,
+    });
+    await expect(
+      execSfJson(api, ['data', 'query'], undefined, 'SELECT Id, Competitor__c FROM Opportunity'),
+    ).rejects.toBeInstanceOf(SfQueryError);
   });
 
   it('does not throw when status is 0 even with message', async () => {

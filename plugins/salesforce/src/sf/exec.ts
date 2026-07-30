@@ -42,19 +42,62 @@ export class SfExecError extends Error {
   }
 }
 
+// The line sf emits between the caret block and its explanation of what went wrong.
+const QUERY_ERROR_LOCATOR = /^ERROR at Row:\d+:Column:\d+$/m;
+
+const DESCRIBE_HINT =
+  'Field and object names vary by org — confirm them with sf_describe before retrying, e.g. sf_describe {sobject: "Opportunity", match: "competitor"}.';
+
+/**
+ * Put the actionable sentence first.
+ *
+ * sf formats a query error as `<soql window>\n<caret>\nERROR at Row:R:Column:C\n<explanation>`,
+ * where the explanation ("No such column 'X' on entity 'Y'") is the only part that says what to
+ * fix — and it comes LAST, so a host UI that truncates tool output shows the caret block and
+ * hides the answer. That is exactly how this surfaced: the agent saw a bare caret block, could
+ * not tell which column was rejected, and shelled out to reverse-engineer the schema by hand.
+ *
+ * The original block is retained after the hint; nothing is discarded, only reordered.
+ */
+function formatQueryError(raw: string): string {
+  const detail = raw.trim();
+  const locator = QUERY_ERROR_LOCATOR.exec(detail);
+  const explanation = locator ? detail.slice(locator.index + locator[0].length).trim() : '';
+  if (!locator || !explanation) return `${detail}\n\n${DESCRIBE_HINT}`;
+  return `${explanation} [${locator[0]}]\n\n${DESCRIBE_HINT}\n\n${detail}`;
+}
+
 export class SfQueryError extends SfExecError {
   constructor(
     message: string,
     readonly query: string,
   ) {
-    super(message, 1);
+    super(formatQueryError(message), 1);
     this.name = 'SfQueryError';
   }
 }
 
-export function detectSfError(message: string, exitCode: number, query?: string): Error {
+/**
+ * sf error identifiers that mean "the SOQL itself is wrong", all of which are fixed by looking up
+ * the org's real schema. Captured from a live org: a bad column is INVALID_FIELD, a bad object is
+ * INVALID_TYPE, a bad operator is INVALID_QUERY_FILTER_OPERATOR, bad syntax is MALFORMED_QUERY.
+ */
+const QUERY_ERROR_CODES: ReadonlySet<string> = new Set([
+  'MALFORMED_QUERY',
+  'INVALID_FIELD',
+  'INVALID_TYPE',
+  'INVALID_QUERY_FILTER_OPERATOR',
+]);
+
+/**
+ * `errorCode` is the sf payload's `name` field. It is NOT optional decoration: sf puts the error
+ * identifier there and nowhere else, so the `message` scans below never fire on a real payload —
+ * they exist only for the raw-stderr path (execSfRaw), which has no structured code to read.
+ */
+export function detectSfError(message: string, exitCode: number, query?: string, errorCode?: string): Error {
   const lower = message.toLowerCase();
-  if (lower.includes('invalid_session_id')) {
+  const code = (errorCode ?? '').toUpperCase();
+  if (code === 'INVALID_SESSION_ID' || lower.includes('invalid_session_id')) {
     return new SfSessionExpiredError();
   }
   if (lower.includes('no default org')) {
@@ -63,7 +106,9 @@ export function detectSfError(message: string, exitCode: number, query?: string)
   if (lower.includes('no orgs found')) {
     return new SfAuthError();
   }
-  if ((lower.includes('malformed_query') || lower.includes('invalid_field')) && query !== undefined) {
+  const isQueryError =
+    QUERY_ERROR_CODES.has(code) || lower.includes('malformed_query') || lower.includes('invalid_field');
+  if (isQueryError && query !== undefined) {
     return new SfQueryError(message, query);
   }
   return new SfExecError(message, exitCode);
@@ -90,7 +135,7 @@ export async function execSfJson(
   const result = await api.exec('sf', [...args, '--json'], { signal });
   const parsed = parseSfJsonOutput(result.stdout);
   if (parsed.status !== 0 && parsed.message !== undefined) {
-    throw detectSfError(parsed.message, parsed.status, query);
+    throw detectSfError(parsed.message, parsed.status, query, parsed.name);
   }
   return parsed;
 }
