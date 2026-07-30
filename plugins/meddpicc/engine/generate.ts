@@ -32,9 +32,9 @@ import {
 import {
   A1,
   buildWorkbook,
-  columnLetter,
   type CellSpec,
   type ConditionalFormat,
+  columnLetter,
   ENGINE_VERSION_PROPERTY,
   FINGERPRINT_PROPERTY,
   LOCALE_PROPERTY,
