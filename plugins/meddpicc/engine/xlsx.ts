@@ -265,7 +265,7 @@ interface CfRule {
   dxf: DxfName;
 }
 
-const CF_PRESETS: Record<CfPreset, CfRule[]> = {
+export const CF_PRESETS: Record<CfPreset, CfRule[]> = {
   // A 0-4 element score, as a ladder: 0 is nothing, 1 is barely, 2 is nearly — and 3 or 4 is done, so
   // it carries no rule at all. Three rules rather than the old "under 2 / equal 2 / 3 and up", because
   // the two ends of "under 2" are not the same news: an element nobody has scored and one scored 1 are
@@ -279,8 +279,8 @@ const CF_PRESETS: Record<CfPreset, CfRule[]> = {
   // re-deriving its brackets from a percentage and drifting by a rounding step. "Green" gets no
   // rule: a deal in good shape does not need to be pointed at.
   ragText: [
-    { type: 'cellIs', operator: 'equal', formulas: ['"Red"'], dxf: 'urgent' },
-    { type: 'cellIs', operator: 'equal', formulas: ['"Yellow"'], dxf: 'watch' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('Red')}"`], dxf: 'urgent' },
+    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('Yellow')}"`], dxf: 'watch' },
   ],
   // Matched against the LABEL the sheet displays, not the JSON value behind it. Both come from
   // `enumLabel`, so they cannot drift — a preset quoting `"not_started"` while the cell reads

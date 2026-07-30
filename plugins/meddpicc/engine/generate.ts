@@ -490,11 +490,26 @@ function layout(
  * One source of truth for a spelling that appears in two places — the cell and the formula that
  * counts it. Writing `"Yes"` into the spec by hand would be the display-versus-match trap again,
  * one JSON file away from the constant that decides what the cell says.
+ *
+ * The rating and sentiment words joined the table in #929, where three formulas were still spelling
+ * them by hand. Note what this table can and cannot promise. It cannot read the schema — it is a
+ * module constant and the schema arrives as an argument — and `enumLabel` falls through for a value it
+ * has no entry for, so `enumLabel('Red')` is 'Red' whatever the schema says. So these spellings are
+ * written as the schema spells them, and their agreement is enforced by `formula-words.test.ts`, which
+ * fails when a word here is one no dropdown offers any more. The table buys one place to change; the
+ * test is what makes a rename impossible to get half-done.
  */
-const FORMULA_WORDS: Record<string, string> = {
+export const FORMULA_WORDS: Record<string, string> = {
   booleanYes: BOOLEAN_YES,
   booleanNo: BOOLEAN_NO,
   statusComplete: enumLabel('complete'),
+  // `scoring.overallRating`, which `scoreRating` computes and the rating conditional format colours.
+  ratingRed: enumLabel('Red'),
+  ratingYellow: enumLabel('Yellow'),
+  ratingGreen: enumLabel('Green'),
+  // `stakeholders[].sentiment`, counted by the two scorecard tallies.
+  sentimentUnknownLabel: enumLabel('Unknown'),
+  sentimentNegativeLabel: enumLabel('Negative'),
 };
 
 function resolveFormula(
