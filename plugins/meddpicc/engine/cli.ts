@@ -105,7 +105,10 @@ function refuseUnknownFlags(args: string[], takes: { values?: readonly string[];
   const booleans = takes.booleans ?? [];
   const known = [...values, ...booleans];
   for (const arg of args) {
-    if (!arg.startsWith('--')) continue;
+    // Any leading dash, not only two. `-locale ko` and `-apply` are what a person types by mistake, and
+    // checking `--` alone let them through as positional arguments nothing reads: English output, exit 0,
+    // and for `migrate -apply` a dry run reported as success. No path this CLI takes begins with a dash.
+    if (!arg.startsWith('-')) continue;
     const name = arg.split('=')[0] ?? arg;
     if (!known.includes(name)) {
       throw new Error(`Unknown option ${arg}. This command takes ${known.join(', ')}.`);

@@ -454,6 +454,23 @@ describe('--locale', () => {
     expect((await run(['migrate', deal, '--apply'])).code).toBe(0);
   });
 
+  test('a single dash is a typo too, not a positional argument', async () => {
+    // Checking only `--` let `-locale ko` and `-apply` through as arguments nothing reads: English output at
+    // exit 0, and for `migrate -apply` a dry run that automation would read as a completed migration. No
+    // path this CLI takes begins with a dash, so any leading dash is a flag or a mistake.
+    const deal = path.join(scratch, 'dash.json');
+    fs.copyFileSync(example, deal);
+    for (const args of [
+      ['generate', example, '-locale', 'ko', '--plan'],
+      ['migrate', deal, '-apply'],
+    ]) {
+      const { code, err } = await run(args);
+      expect(code, args.join(' ')).toBe(1);
+      expect(err, args.join(' ')).toMatch(/Unknown option/);
+    }
+    expect((await run(['generate', example, '--plan'])).code).toBe(0);
+  });
+
   test('the locale a workbook is written in is the one it records', async () => {
     const out = path.join(scratch, 'stamped.xlsx');
     const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);
