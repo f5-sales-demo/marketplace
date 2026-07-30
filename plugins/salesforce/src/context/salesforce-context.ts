@@ -151,6 +151,9 @@ export interface SalesforceContext {
   // against it.
   /** Every Opportunity field API name in this org, from the describe the seed already performs. */
   opportunityFields?: string[];
+  /** Every OpportunityLineItem field API name; lets the pipeline report skip SKU-level queries
+   *  the org cannot answer instead of issuing them and rendering the failure as no pipeline. */
+  lineItemFields?: string[];
   /** Territory field chosen empirically for grouping; absent when the org has no usable one. */
   territoryField?: string;
 
@@ -267,9 +270,9 @@ async function getOrgInfo(): Promise<{ username: string; instanceUrl: string; al
   }
 }
 
-async function describeOpportunity(): Promise<SfSObjectDescription | null> {
+async function describeSObject(sobject: string): Promise<SfSObjectDescription | null> {
   try {
-    const result = await $`sf sobject describe --sobject Opportunity --json`.quiet().nothrow();
+    const result = await $`sf sobject describe --sobject ${sobject} --json`.quiet().nothrow();
     if (result.exitCode !== 0) return null;
     const parsed = JSON.parse(result.stdout.toString()) as { result?: unknown };
     if (!parsed.result) return null;
@@ -601,7 +604,13 @@ async function discoverRoleAndTeam(userId: string): Promise<Partial<SalesforceCo
 export async function discoverSalesforceContext(): Promise<SalesforceContext | null> {
   if (!$which('sf')) return null;
 
-  const [orgInfo, described] = await Promise.all([getOrgInfo(), describeOpportunity()]);
+  // OpportunityLineItem is described alongside Opportunity so the pipeline report can
+  // feature-detect its value fields instead of assuming one org's custom schema.
+  const [orgInfo, described, describedLineItem] = await Promise.all([
+    getOrgInfo(),
+    describeSObject('Opportunity'),
+    describeSObject('OpportunityLineItem'),
+  ]);
   if (!orgInfo) return null;
 
   const profile = await loadProfileSafe();
@@ -626,6 +635,7 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
     instanceUrl: orgInfo.instanceUrl,
     orgAlias: orgInfo.alias || undefined,
     opportunityFields: described?.fields.map((f) => f.name),
+    lineItemFields: describedLineItem?.fields.map((f) => f.name),
     collectedAt: new Date().toISOString(),
   };
   for (const partial of results) {

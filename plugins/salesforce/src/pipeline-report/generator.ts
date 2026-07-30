@@ -1,4 +1,6 @@
 import { $ } from 'bun';
+import type { PipelinePlan } from './capabilities';
+import { planPipelineQueries } from './capabilities';
 import type {
   AccountRow,
   CloseMonthBucket,
@@ -55,7 +57,17 @@ function classifySku(skuName: string, rules: SkuClassification): 'platform' | 's
 // Record parsing
 // ---------------------------------------------------------------------------
 
-function parseLineItem(record: Record<string, unknown>, rules: SkuClassification): LineItemRecord {
+/** Read a possibly-dotted field path off a record, e.g. `Territory2.Name`. */
+function readPath(root: unknown, path: string): string {
+  let node: unknown = root;
+  for (const segment of path.split('.')) {
+    if (!node || typeof node !== 'object') return '';
+    node = (node as Record<string, unknown>)[segment];
+  }
+  return typeof node === 'string' ? node : '';
+}
+
+function parseLineItem(record: Record<string, unknown>, rules: SkuClassification, plan: PipelinePlan): LineItemRecord {
   const opp = (record.Opportunity ?? {}) as Record<string, unknown>;
   const acct = (opp.Account ?? {}) as Record<string, unknown>;
   const product = (record.Product2 ?? {}) as Record<string, unknown>;
@@ -64,10 +76,10 @@ function parseLineItem(record: Record<string, unknown>, rules: SkuClassification
   return {
     opportunityId: (opp.Id ?? '') as string,
     accountName: (acct.Name ?? '') as string,
-    territory: (opp.Territory_Credited_District_del__c ?? '') as string,
+    territory: plan.territoryField ? readPath(opp, plan.territoryField) : '',
     forecast: (opp.ForecastCategoryName ?? '') as string,
     skuName,
-    fyb: (record.FYB_Total_Price__c as number) ?? 0,
+    fyb: (record[plan.lineItemValueField ?? ''] as number) ?? 0,
     category: classifySku(skuName, rules),
     closeDate: (opp.CloseDate as string) ?? undefined,
     oppName: (opp.Name as string) ?? undefined,
@@ -448,13 +460,17 @@ export async function generatePipelineReport(
   // The OpportunityTeamMember subselect already covers both SE and AE via userIds.
   const skuFilter = buildSkuFilter(skuPrefixes);
 
+  // Every org-specific field below is named by the plan, never assumed. A field the org does
+  // not have is simply absent from the SELECT — naming one fails the entire query.
+  const plan = planPipelineQueries(options.capabilities ?? {});
+
   const fields = [
     'Product2.Name',
-    'FYB_Total_Price__c',
+    plan.lineItemValueField,
     'Opportunity.Id',
     'Opportunity.Name',
     'Opportunity.Account.Name',
-    'Opportunity.Territory_Credited_District_del__c',
+    plan.territoryField ? `Opportunity.${plan.territoryField}` : undefined,
     'Opportunity.ForecastCategoryName',
     'Opportunity.StageName',
     'Opportunity.IsClosed',
@@ -463,8 +479,17 @@ export async function generatePipelineReport(
     'Opportunity.LastActivityDate',
     'Opportunity.Owner.Name',
     'Opportunity.NextStep',
-  ].join(', ');
-  const commonFilters = `Subscription_Renewal__c = false AND Opportunity.ForecastCategoryName != 'Omitted' AND FYB_Total_Price__c > 0 AND (${skuFilter})`;
+  ]
+    .filter((f): f is string => Boolean(f))
+    .join(', ');
+  const commonFilters = [
+    plan.lineItemRenewalFilterField ? `${plan.lineItemRenewalFilterField} = false` : undefined,
+    "Opportunity.ForecastCategoryName != 'Omitted'",
+    plan.lineItemValueField ? `${plan.lineItemValueField} > 0` : undefined,
+    `(${skuFilter})`,
+  ]
+    .filter((f): f is string => Boolean(f))
+    .join(' AND ');
   const quarterDateFilter = `Opportunity.CloseDate >= ${quarterStart} AND Opportunity.CloseDate <= ${quarterEnd}`;
   const inPlayDateFilter = staleCutoff ? `Opportunity.CloseDate >= ${staleCutoff}` : quarterDateFilter;
 
@@ -474,46 +499,63 @@ export async function generatePipelineReport(
   // The OR between regular conditions is allowed (SOQL only restricts OR with semi-join subselects).
   const combinedDateFilter = `((Opportunity.IsClosed = false AND ${inPlayDateFilter}) OR (Opportunity.IsWon = true AND ${quarterDateFilter}))`;
 
-  // Build renewals query alongside OLI query (no dependency between them)
+  // Build renewals query alongside OLI query (no dependency between them). Value and
+  // classification fields are included only when the org has them; Amount is standard and
+  // always available as the value of last resort.
   const renewalFields = [
     'Id',
     'Account.Name',
-    'True_ACV__c',
-    'Upsell_ACV__c',
+    ...plan.renewalValueFields,
     'Amount',
-    'Product_Segmentation__c',
-    'Use_Case_Category__c',
+    plan.segmentationField,
+    plan.useCaseField,
     'ForecastCategoryName',
-    'Territory_Credited_District_del__c',
+    plan.territoryField,
     'CloseDate',
     'Name',
-  ].join(', ');
+  ]
+    .filter((f): f is string => Boolean(f))
+    .join(', ');
   const renewalDateFilter = staleCutoff
     ? `CloseDate >= ${staleCutoff}`
     : `CloseDate >= ${quarterStart} AND CloseDate <= ${quarterEnd}`;
-  const renewalWhere = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter}) AND IsClosed = false AND Renewal__c = true AND ${renewalDateFilter} AND ForecastCategoryName != 'Omitted' AND (True_ACV__c > 1 OR Upsell_ACV__c > 1 OR Amount > 1)`;
-  // F5 fiscal year starts November 1. Derive from the report's quarter dates, not wall-clock,
-  // so the FY context matches the requested report period.
+  const renewalValueFilter = [...plan.renewalValueFields.map((f) => `${f} > 1`), 'Amount > 1'].join(' OR ');
+  const renewalWhere = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter}) AND IsClosed = false AND ${plan.renewalFlagField} = true AND ${renewalDateFilter} AND ForecastCategoryName != 'Omitted' AND (${renewalValueFilter})`;
+  const renewalOrderField = plan.renewalValueFields[0] ?? 'Amount';
+
+  // Fiscal year. Derived from the report's quarter dates, not wall-clock, so the FY context
+  // matches the requested period. The opening month is org configuration — Salesforce lets an
+  // org start its year in any month — so it is supplied rather than assumed; January is the
+  // Salesforce default and the fallback here.
+  const fyStartMonth = options.capabilities?.fiscalYearStartMonth ?? 1;
   const qStartDate = new Date(`${quarterStart}T00:00:00`);
-  const qMonth = qStartDate.getMonth();
+  const qMonth = qStartDate.getMonth() + 1; // 1-12
   const qYear = qStartDate.getFullYear();
-  const fyStartYear = qMonth >= 10 ? qYear : qYear - 1;
-  const fyStart = `${fyStartYear}-11-01`;
-  const fyLabel = `FY${(fyStartYear + 1) % 100}`;
+  const fyStartYear = qMonth >= fyStartMonth ? qYear : qYear - 1;
+  const fyStart = `${fyStartYear}-${String(fyStartMonth).padStart(2, '0')}-01`;
+  // A year that opens in January ends in the same calendar year; one that opens later is
+  // labelled by the year it ends in, which is the common convention.
+  const fyLabel = `FY${(fyStartMonth === 1 ? fyStartYear : fyStartYear + 1) % 100}`;
   const todayStr = new Date().toISOString().slice(0, 10);
   const oppTeamScope = `Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE ${userFilter})`;
   const fyBookedQuery = `SELECT SUM(Amount) total FROM Opportunity WHERE ${oppTeamScope} AND IsWon = true AND CloseDate >= ${fyStart} AND CloseDate <= ${todayStr}`;
 
-  // Three parallel queries first: combined OLI + renewals + FY booked
+  // Three parallel queries: combined OLI + renewals + FY booked. The first two are skipped
+  // outright when the org lacks their fields — issuing a query that cannot succeed wastes a
+  // round trip and, worse, renders its empty result as an empty pipeline.
   const [oliRecords, renewalRecords, fyBookedResult] = await Promise.all([
-    query(
-      `SELECT ${fields} FROM OpportunityLineItem WHERE ${oliTeamScope} AND ${combinedDateFilter} AND ${commonFilters}`,
-      orgAlias,
-    ),
-    query(
-      `SELECT ${renewalFields} FROM Opportunity WHERE ${renewalWhere} ORDER BY True_ACV__c DESC NULLS LAST`,
-      orgAlias,
-    ),
+    plan.useLineItems
+      ? query(
+          `SELECT ${fields} FROM OpportunityLineItem WHERE ${oliTeamScope} AND ${combinedDateFilter} AND ${commonFilters}`,
+          orgAlias,
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
+    plan.useRenewals
+      ? query(
+          `SELECT ${renewalFields} FROM Opportunity WHERE ${renewalWhere} ORDER BY ${renewalOrderField} DESC NULLS LAST`,
+          orgAlias,
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
     query(fyBookedQuery, orgAlias),
   ]);
   const fyBookedTotal = (fyBookedResult[0]?.total as number) ?? 0;
@@ -526,7 +568,7 @@ export async function generatePipelineReport(
     netNewItems = [];
     bookedItems = [];
     for (const r of oliRecords) {
-      const item = parseLineItem(r, skuClassification);
+      const item = parseLineItem(r, skuClassification, plan);
       const opp = (r.Opportunity ?? {}) as Record<string, unknown>;
       if (opp.IsWon as boolean) {
         bookedItems.push(item);
@@ -618,17 +660,25 @@ export async function generatePipelineReport(
     if (seenIds.has(id)) continue;
     seenIds.add(id);
     const acct = ((r.Account as Record<string, unknown> | undefined)?.Name ?? '') as string;
-    const terr = (r.Territory_Credited_District_del__c ?? '') as string;
+    const terr = plan.territoryField ? readPath(r, plan.territoryField) : '';
     const fc = (r.ForecastCategoryName ?? '') as string;
-    const upsell = (r.Upsell_ACV__c as number) ?? 0;
-    const acv = (r.True_ACV__c as number) ?? 0;
+    // Prefer the org's own value fields in plan order, then the standard Amount.
     const amt = (r.Amount as number) ?? 0;
-    const val = upsell > 0 ? upsell : acv > 0 ? acv : amt;
+    let val = 0;
+    for (const f of plan.renewalValueFields) {
+      const candidate = (r[f] as number) ?? 0;
+      if (candidate > 0) {
+        val = candidate;
+        break;
+      }
+    }
+    if (val <= 0) val = amt;
     if (val <= 0) continue;
 
-    // Classify by Product_Segmentation__c
-    const seg = ((r.Product_Segmentation__c as string) ?? '').toLowerCase();
-    const uc = ((r.Use_Case_Category__c as string) ?? '').toLowerCase();
+    // Classify by the org's segmentation fields when it has them; otherwise every renewal
+    // lands in 'other', which is honest — there is nothing to classify on.
+    const seg = (plan.segmentationField ? ((r[plan.segmentationField] as string) ?? '') : '').toLowerCase();
+    const uc = (plan.useCaseField ? ((r[plan.useCaseField] as string) ?? '') : '').toLowerCase();
     let category: 'platform' | 'shape' | 'other' = 'other';
     if (seg.includes('xc') || seg.includes('cspp') || uc.includes('distributed cloud')) {
       category = 'platform';
@@ -644,7 +694,7 @@ export async function generatePipelineReport(
       accountName: acct,
       territory: terr,
       forecast: fc,
-      skuName: (r.Product_Segmentation__c ?? '') as string,
+      skuName: (plan.segmentationField ? ((r[plan.segmentationField] as string) ?? '') : '') as string,
       fyb: val,
       category,
       closeDate: (r.CloseDate as string) ?? undefined,
@@ -679,5 +729,6 @@ export async function generatePipelineReport(
     fyBookedTotal: fyBookedTotal > 0 ? fyBookedTotal : undefined,
     fyLabel,
     recentChanges: parseHistoryRecords(historyRecords),
+    unavailable: plan.unavailable,
   };
 }
