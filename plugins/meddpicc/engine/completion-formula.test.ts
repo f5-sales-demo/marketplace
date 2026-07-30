@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { cellResolver, compilePredicate, compileStatus } from './completion-formula';
 import type { Predicate } from './completion-rules';
-import { SECTION_RULES } from './completion-rules';
+import { SECTION_RULES, statusOf } from './completion-rules';
 import type { InputCell } from './generate';
 import { statusLabel } from './sections';
 
@@ -118,6 +118,14 @@ describe('compileStatus — the same rule, as a formula', () => {
     ['qualification.metrics.responses[1]', 'I31'],
   ]);
 
+  /** The deal those cells describe: an element complete but for whatever score it is handed. */
+  const elementDeal = (score: unknown) => ({
+    dealId: 'D',
+    accountName: 'A',
+    dealName: 'N',
+    qualification: { metrics: { score, responses: ['an answer'], evidence: 'written down' } },
+  });
+
   test('an element asks about its score, its answers and its evidence', () => {
     const formula = compileStatus(SECTION_RULES.metrics, resolverFor(elementCells));
     // The three things the engine's rule reads, and the bar it reads them against.
@@ -196,6 +204,18 @@ describe('compileStatus — the same rule, as a formula', () => {
     const formula = compileStatus(SECTION_RULES.metrics, resolverFor(elementCells));
     expect(formula).toContain('IFERROR(VALUE($D$20),0)>=3');
     expect(formula).not.toContain('N($D$20)');
+  });
+
+  test('neither reader puts a ceiling on a score', () => {
+    // A score outside 0-4 is the schema's business, and read-workbook already refuses one — so neither
+    // reader bounds it above, and both must go on not bounding it. Teaching the formula the schema's
+    // ceiling would make the sheet call a pasted 5 partial while the engine calls it complete, which is
+    // the one disagreement this whole rule set exists to remove. Guarding both sides, because the defect
+    // would be a bound added to either one alone.
+    expect(statusOf('metrics', elementDeal(5))).toBe('complete');
+    expect(statusOf('metrics', elementDeal(99))).toBe('complete');
+    const formula = compileStatus(SECTION_RULES.metrics, resolverFor(elementCells));
+    expect(formula).not.toContain('<=');
   });
 
   test('a field is only required of a row somebody has started', () => {
