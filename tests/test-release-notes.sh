@@ -71,7 +71,41 @@ f=$(
 MD
 )
 assert_body "placeholder entry for the tagged version" \
-  '- **`demo`** bumped to v1.0.1' "$f" 1.0.1
+  '**`demo`** bumped to v1.0.1' "$f" 1.0.1
+
+# ── A multi-line entry is published whole ───────────────────
+# Entries in this repository are blocks: a summary line, indented continuation paragraphs,
+# and nested bullets. Selecting with a line-oriented grep published only the first line, so
+# salesforce/v1.0.5 went out as a sentence cut mid-clause. The leading "- " is stripped and
+# continuations dedented by two, so the body reads as prose rather than one giant list item.
+MULTILINE_EXPECTED=$(
+  cat <<'EXPECTED'
+**`demo`** v1.0.1 — the summary line, which wraps
+onto a second line.
+
+A paragraph of cause, indented to match.
+
+- **A nested bullet.** With its own
+  continuation.
+- A second nested bullet.
+EXPECTED
+)
+f=$(
+  changelog <<'MD'
+- **`demo`** v1.0.1 — the summary line, which wraps
+  onto a second line.
+
+  A paragraph of cause, indented to match.
+
+  - **A nested bullet.** With its own
+    continuation.
+  - A second nested bullet.
+
+- **`other`** v2.0.0 — a different plugin entry, which must not leak in.
+MD
+)
+assert_body "a multi-line entry is emitted whole, dedented" \
+  "$MULTILINE_EXPECTED" "$f" 1.0.1
 
 f=$(
   changelog <<'MD'
@@ -79,7 +113,7 @@ f=$(
 MD
 )
 assert_body "prose entry for the tagged version" \
-  '- **`demo`** v1.0.1 — describes the change in prose.' "$f" 1.0.1
+  '**`demo`** v1.0.1 — describes the change in prose.' "$f" 1.0.1
 
 f=$(
   changelog <<'MD'
@@ -98,7 +132,7 @@ f=$(
 MD
 )
 assert_body "another plugin's entry is ignored" \
-  '- **`demo`** bumped to v1.0.1' "$f" 1.0.1
+  '**`demo`** bumped to v1.0.1' "$f" 1.0.1
 
 # ── Neighbouring versions are excluded, not published ───────
 # Exactly the shape that shipped as salesforce/v1.3.5: a placeholder for the tagged version
@@ -112,7 +146,7 @@ f=$(
 MD
 )
 assert_body "the salesforce v1.3.5 shape publishes only the tagged version" \
-  '- **`demo`** bumped to v1.0.2' "$f" 1.0.2
+  '**`demo`** bumped to v1.0.2' "$f" 1.0.2
 
 f=$(
   changelog <<'MD'
@@ -124,7 +158,7 @@ f=$(
 MD
 )
 assert_body "accumulated placeholders yield only the tagged one" \
-  '- **`demo`** bumped to v1.0.3' "$f" 1.0.3
+  '**`demo`** bumped to v1.0.3' "$f" 1.0.3
 
 # This repository keeps entries for past releases under [Unreleased] indefinitely. Treating
 # those as an error would block every future release, so they must be silently skipped.
@@ -138,7 +172,7 @@ f=$(
 MD
 )
 assert_body "historical entries under [Unreleased] do not block a release" \
-  '- **`demo`** bumped to v2.0.0' "$f" 2.0.0
+  '**`demo`** bumped to v2.0.0' "$f" 2.0.0
 
 # ── The one genuine refusal: real ambiguity ─────────────────
 f=$(
@@ -177,7 +211,7 @@ f=$(
 MD
 )
 assert_body "the released 0.9.0 entry below is not considered stale" \
-  '- **`demo`** bumped to v1.0.1' "$f" 1.0.1
+  '**`demo`** bumped to v1.0.1' "$f" 1.0.1
 
 if [ "$FAIL" -ne 0 ]; then
   echo "release-notes tests FAILED"

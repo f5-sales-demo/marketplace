@@ -77,4 +77,24 @@ if [[ "$COUNT" -gt 1 ]]; then
   exit 1
 fi
 
-printf '%s\n' "$MATCHING"
+# Emit the whole entry, not just its first line.
+#
+# A changelog entry here is a block: the "- **`name`** vX.Y.Z …" line, then indented
+# continuation paragraphs and nested bullets, ending at the next top-level "- " entry.
+# Selecting with a line-oriented grep published only the summary line, so every release
+# note this workflow ever cut was a sentence truncated mid-clause.
+#
+# The leading "- " is stripped and continuations dedented by two, so the note reads as
+# prose on the release page instead of one oversized list item; nested bullets keep their
+# relative depth. Trailing blank lines are dropped.
+unreleased_section | awk -v start="$MATCHING" '
+  index($0, start) == 1 && !started { started = 1; print substr($0, 3); next }
+  started {
+    # A new top-level list item ends this entry.
+    if ($0 ~ /^- /) { exit }
+    if ($0 ~ /^[^ \t]/ && $0 != "") { exit }
+    if ($0 == "") { blanks++; next }
+    while (blanks > 0) { print ""; blanks-- }
+    print substr($0, 3)
+  }
+'
