@@ -110,6 +110,16 @@ export function translatableStrings(spec: WorkbookSpec, schema: unknown): Map<st
     if (!node || typeof node !== 'object') return;
     const n = node as Record<string, unknown>;
     for (const key of PROSE_KEYS) add(n[key], 'spec');
+    // A formula's string literals are rendered text — the cell shows whichever branch wins. There are
+    // none in the shipped spec, because #929 moved the last three onto `{{word:…}}` references, so this
+    // collects nothing today. It is here because a future `IF(…,"On track","At risk")` would otherwise
+    // render English that the catalogue never heard of, and the completeness checks would still pass.
+    if (typeof n.formula === 'string') {
+      for (const match of n.formula.matchAll(/"((?:[^"]|"")*)"/g)) {
+        const literal = match[1]?.replace(/""/g, '"');
+        if (literal !== undefined && !isNonProse(literal)) add(literal, 'spec');
+      }
+    }
     for (const [key, value] of Object.entries(n)) {
       if (NON_PROSE_KEYS.has(key)) continue;
       if (typeof value === 'object') walkSpec(value);

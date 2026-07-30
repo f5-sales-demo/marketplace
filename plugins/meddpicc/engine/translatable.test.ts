@@ -150,6 +150,21 @@ describe('the catalogue is proven against a workbook, not against my reading of 
     expect(translatableSet(titleless, schema).has('MEDDPICC Deal Review')).toBe(true);
   });
 
+  test('prose inside a spec formula is catalogued', () => {
+    // The shipped spec has none — #929 moved the last three onto `{{word:…}}` — so this cannot be tested
+    // against it, and a guard nothing exercises is a guard nobody knows is broken. Feed it one.
+    const withProse = structuredClone(spec) as WorkbookSpec;
+    const scorecard = withProse.sheets[0].blocks.find((b) => b.cells?.some((c) => c.formula));
+    const cell = scorecard?.cells?.find((c) => c.formula);
+    if (!cell) throw new Error('no formula cell in the spec to extend — the fixture needs revisiting');
+    cell.formula = 'IF(1=1,"On track","At risk")';
+    const catalogue = translatableSet(withProse, schema);
+    expect(catalogue.has('On track')).toBe(true);
+    expect(catalogue.has('At risk')).toBe(true);
+    // And the operators around them are not mistaken for prose.
+    expect(catalogue.has('1=1')).toBe(false);
+  });
+
   test('a NoteSource discriminator is not prose', () => {
     // `note: "elementDefinition"` names which note to hang. My first extraction counted it, which would
     // have produced a locale entry for a type tag — invisible, and indistinguishable from coverage.
