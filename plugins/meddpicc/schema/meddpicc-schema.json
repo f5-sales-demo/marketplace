@@ -11,10 +11,12 @@
       "properties": {
         "dealId": {
           "type": "string",
+          "minLength": 1,
           "description": "Unique identifier for this deal review"
         },
         "accountName": {
           "type": "string",
+          "minLength": 1,
           "description": "Client/account name"
         },
         "accountTeam": {
@@ -23,6 +25,7 @@
         },
         "dealName": {
           "type": "string",
+          "minLength": 1,
           "description": "Deal or project name"
         },
         "locale": {
@@ -459,10 +462,12 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "roleInDeal": {
             "type": "string",
