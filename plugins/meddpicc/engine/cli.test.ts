@@ -45,11 +45,13 @@ function legacyDeal(name: string): string {
   return at;
 }
 
-async function run(args: string[]): Promise<{ code: number; out: string }> {
+async function run(args: string[]): Promise<{ code: number; out: string; err: string }> {
   const proc = Bun.spawn(['bun', path.join(engineDir, 'cli.ts'), ...args], { stdout: 'pipe', stderr: 'pipe' });
-  const out = await new Response(proc.stdout).text();
+  // Both streams, because a refusal that does not say what was wrong with the request is barely a refusal,
+  // and the message is what a rep reads. `stderr` was being piped and then dropped.
+  const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
   const code = await proc.exited;
-  return { code, out };
+  return { code, out, err };
 }
 
 describe('cli', () => {
@@ -328,5 +330,157 @@ describe('cli migrate', () => {
 
   test('migrate without a deal exits 1', async () => {
     expect((await run(['migrate'])).code).toBe(1);
+  });
+});
+
+describe('--locale', () => {
+  test('an explicit locale is validated on every path, not only the one that writes', () => {
+    // `--plan --locale ko` used to exit 0 while the same request on the writing path was refused, because
+    // resolution sat after the early returns. So whether an explicit locale was checked depended on which
+    // other flag came with it. Review caught it.
+    return (async () => {
+      for (const extra of [['--plan'], ['--prose-heights'], []]) {
+        const out = path.join(scratch, `loc-${extra.length}.xlsx`);
+        const args = ['generate', example, ...extra, '--locale', 'ko'];
+        if (extra.length === 0) args.push('--out', out);
+        const { code, err } = await run(args);
+        expect(code, args.join(' ')).toBe(1);
+        expect(err, args.join(' ')).toMatch(/ko/);
+      }
+    })();
+  });
+
+  test('a locale flag with nothing after it is refused, not treated as absent', async () => {
+    // `flag()` returns undefined for both "not passed" and "passed with no value", so this wrote an English
+    // workbook while looking like it honoured a request. An explicit request is honoured or refused.
+    const bare = await run(['generate', example, '--locale']);
+    expect(bare.code).toBe(1);
+    expect(bare.err).toMatch(/--locale/);
+    // And with a following flag rather than a value, which is the same mistake spelled differently.
+    const swallowed = await run(['generate', example, '--locale', '--out', path.join(scratch, 'sw.xlsx')]);
+    expect(swallowed.code).toBe(1);
+    expect(fs.existsSync(path.join(scratch, 'sw.xlsx'))).toBe(false);
+  });
+
+  test('an ambiguous or empty locale request is refused rather than guessed at', async () => {
+    // Both of these looked like they honoured a request and did not. Repeating the flag took the first and
+    // ignored the second, so automation appending an override got English while asking for Korean; and
+    // `--locale ""`, which is what an unset shell variable expands to, fell through to ambient resolution.
+    const twice = await run(['generate', example, '--locale', 'en', '--locale', 'ko']);
+    expect(twice.code).toBe(1);
+    expect(twice.err).toMatch(/once/);
+    const empty = await run(['generate', example, '--locale', '']);
+    expect(empty.code).toBe(1);
+    expect(empty.err).toMatch(/empty/);
+  });
+
+  test('both spellings of a flag are read, for every flag', async () => {
+    // `args.indexOf(name)` matched the separated form only, so `--out=deal.xlsx` was read as no `--out` and
+    // the default path used — silently, and for every flag, not only the locale. Four rounds of review found
+    // four holes in that parser one at a time, so the parser was replaced rather than patched again.
+    const out = path.join(scratch, 'equals.xlsx');
+    const written = await run(['generate', example, `--out=${out}`]);
+    expect(written.code).toBe(0);
+    expect(fs.existsSync(out), 'an --out=path must be honoured, not defaulted').toBe(true);
+    // The equals form is validated exactly like the separated one.
+    expect((await run(['generate', example, '--locale=ko', '--plan'])).code).toBe(1);
+    expect((await run(['generate', example, '--locale='])).code).toBe(1);
+    expect((await run(['generate', example, '--locale=en', '--plan'])).code).toBe(0);
+    // And duplicate detection sees across spellings, which is how a script's appended override slips in.
+    const mixed = await run(['generate', example, '--locale', 'en', '--locale=ko']);
+    expect(mixed.code).toBe(1);
+    expect(mixed.err).toMatch(/once/);
+  });
+
+  test('no flag may be given without a value, not only the locale', async () => {
+    // The strict checks lived in a second function that only the newest flag called, so `--spec` with
+    // nothing after it built from the DEFAULT spec and exited 0 — a plausible workbook from the wrong
+    // layout. Every value-flag goes through one parser now.
+    for (const args of [
+      ['generate', example, '--spec', '--locale', 'en', '--plan'],
+      ['generate', example, '--out'],
+      ['check-spec', '--schema'],
+    ]) {
+      const { code, err } = await run(args);
+      expect(code, args.join(' ')).toBe(1);
+      expect(err, args.join(' ')).toMatch(/no value/);
+    }
+    // And a well-formed request still works, so the parser has not simply become hostile.
+    expect((await run(['generate', example, '--plan'])).code).toBe(0);
+  });
+
+  test('a misspelled flag is named, not ignored', async () => {
+    // The last way left to have a request ignored: `--local=ko` is a typo for `--locale=ko`, and a parser
+    // that only looks for names it knows saw no locale request — English, exit 0, a workbook contradicting
+    // what the command line plainly asked for.
+    for (const args of [
+      ['generate', example, '--local=ko', '--plan'],
+      ['generate', example, '--local', 'ko', '--plan'],
+      ['read', 'nonexistent.xlsx', '--dealx', example],
+    ]) {
+      const { code, err } = await run(args);
+      expect(code, args.join(' ')).toBe(1);
+      expect(err, args.join(' ')).toMatch(/Unknown option/);
+    }
+    // Real flags on those same commands are untouched, so the refusal has not become indiscriminate.
+    expect((await run(['generate', example, '--locale=en', '--plan'])).code).toBe(0);
+    expect((await run(['check-spec'])).code).toBe(0);
+  });
+
+  test('a command only accepts the flags it actually reads', async () => {
+    // My own doing, one commit earlier: I allowlisted `--schema` for `generate` and `read` without checking
+    // that either consumes it. So `--schema=/missing` was accepted and ignored — the very defect the
+    // allowlist was added to close, reintroduced one layer up by declaring a flag speculatively.
+    const ignored = await run(['generate', example, '--schema=/missing', '--plan']);
+    expect(ignored.code).toBe(1);
+    expect(ignored.err).toMatch(/Unknown option/);
+    // `check-spec` does read it, so there it works.
+    expect(
+      (await run(['check-spec', '--schema', path.join(engineDir, '..', 'schema', 'meddpicc-schema.json')])).code,
+    ).toBe(0);
+  });
+
+  test('a switch takes no value, because its reader would not see one', async () => {
+    // Booleans are read with `includes`, which matches the bare token only. So `--apply=true` passed an
+    // allowlist keyed on the text before `=` and then did nothing: `migrate --apply=true` would have
+    // reported success having migrated no deal at all, which automation would believe.
+    const deal = path.join(scratch, 'switch.json');
+    fs.copyFileSync(example, deal);
+    const valued = await run(['migrate', deal, '--apply=true']);
+    expect(valued.code).toBe(1);
+    expect(valued.err).toMatch(/switch/);
+    expect((await run(['read', '/dev/null', '--apply=yes'])).code).toBe(1);
+    // And the switch on its own still works.
+    expect((await run(['migrate', deal, '--apply'])).code).toBe(0);
+  });
+
+  test('a single dash is a typo too, not a positional argument', async () => {
+    // Checking only `--` let `-locale ko` and `-apply` through as arguments nothing reads: English output at
+    // exit 0, and for `migrate -apply` a dry run that automation would read as a completed migration. No
+    // path this CLI takes begins with a dash, so any leading dash is a flag or a mistake.
+    const deal = path.join(scratch, 'dash.json');
+    fs.copyFileSync(example, deal);
+    for (const args of [
+      ['generate', example, '-locale', 'ko', '--plan'],
+      ['migrate', deal, '-apply'],
+    ]) {
+      const { code, err } = await run(args);
+      expect(code, args.join(' ')).toBe(1);
+      expect(err, args.join(' ')).toMatch(/Unknown option/);
+    }
+    expect((await run(['generate', example, '--plan'])).code).toBe(0);
+  });
+
+  test('the locale a workbook is written in is the one it records', async () => {
+    const out = path.join(scratch, 'stamped.xlsx');
+    const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);
+    expect(code).toBe(0);
+    // Round-tripped rather than trusting the exit code: the recorded locale is what the reader uses, so a
+    // workbook that reads back clean is one whose stamp its own reader accepted.
+    const back = await run(['read', out, '--deal', example]);
+    const report = JSON.parse(back.out);
+    expect(report.valid).toBe(true);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toEqual([]);
   });
 });
