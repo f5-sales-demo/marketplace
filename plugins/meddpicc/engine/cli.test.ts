@@ -45,11 +45,13 @@ function legacyDeal(name: string): string {
   return at;
 }
 
-async function run(args: string[]): Promise<{ code: number; out: string }> {
+async function run(args: string[]): Promise<{ code: number; out: string; err: string }> {
   const proc = Bun.spawn(['bun', path.join(engineDir, 'cli.ts'), ...args], { stdout: 'pipe', stderr: 'pipe' });
-  const out = await new Response(proc.stdout).text();
+  // Both streams, because a refusal that does not say what was wrong with the request is barely a refusal,
+  // and the message is what a rep reads. `stderr` was being piped and then dropped.
+  const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
   const code = await proc.exited;
-  return { code, out };
+  return { code, out, err };
 }
 
 describe('cli', () => {
@@ -328,5 +330,48 @@ describe('cli migrate', () => {
 
   test('migrate without a deal exits 1', async () => {
     expect((await run(['migrate'])).code).toBe(1);
+  });
+});
+
+describe('--locale', () => {
+  test('an explicit locale is validated on every path, not only the one that writes', () => {
+    // `--plan --locale ko` used to exit 0 while the same request on the writing path was refused, because
+    // resolution sat after the early returns. So whether an explicit locale was checked depended on which
+    // other flag came with it. Review caught it.
+    return (async () => {
+      for (const extra of [['--plan'], ['--prose-heights'], []]) {
+        const out = path.join(scratch, `loc-${extra.length}.xlsx`);
+        const args = ['generate', example, ...extra, '--locale', 'ko'];
+        if (extra.length === 0) args.push('--out', out);
+        const { code, err } = await run(args);
+        expect(code, args.join(' ')).toBe(1);
+        expect(err, args.join(' ')).toMatch(/ko/);
+      }
+    })();
+  });
+
+  test('a locale flag with nothing after it is refused, not treated as absent', async () => {
+    // `flag()` returns undefined for both "not passed" and "passed with no value", so this wrote an English
+    // workbook while looking like it honoured a request. An explicit request is honoured or refused.
+    const bare = await run(['generate', example, '--locale']);
+    expect(bare.code).toBe(1);
+    expect(bare.err).toMatch(/--locale/);
+    // And with a following flag rather than a value, which is the same mistake spelled differently.
+    const swallowed = await run(['generate', example, '--locale', '--out', path.join(scratch, 'sw.xlsx')]);
+    expect(swallowed.code).toBe(1);
+    expect(fs.existsSync(path.join(scratch, 'sw.xlsx'))).toBe(false);
+  });
+
+  test('the locale a workbook is written in is the one it records', async () => {
+    const out = path.join(scratch, 'stamped.xlsx');
+    const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);
+    expect(code).toBe(0);
+    // Round-tripped rather than trusting the exit code: the recorded locale is what the reader uses, so a
+    // workbook that reads back clean is one whose stamp its own reader accepted.
+    const back = await run(['read', out, '--deal', example]);
+    const report = JSON.parse(back.out);
+    expect(report.valid).toBe(true);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toEqual([]);
   });
 });

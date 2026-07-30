@@ -61,6 +61,23 @@ function flag(args: string[], name: string): string | undefined {
 }
 
 /**
+ * A flag's value, refusing the flag with nothing after it.
+ *
+ * `flag()` returns undefined for both "not passed" and "passed with no value", and treating the second as
+ * the first means `generate deal.json --locale` writes an English workbook while looking like it honoured
+ * a request. Same principle as `resolveLocale`: an explicit request is honoured or refused, never ignored.
+ */
+function requiredFlagValue(args: string[], name: string): string | undefined {
+  const i = args.indexOf(name);
+  if (i < 0) return undefined;
+  const value = args[i + 1];
+  if (value === undefined || value.startsWith('--')) {
+    throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
+  }
+  return value;
+}
+
+/**
  * Refuse a deal that still uses the retired field names.
  *
  * The schema constrains no additional properties, so an old file validates cleanly while its
@@ -173,6 +190,11 @@ async function main(): Promise<number> {
     // with. Only Excel can say whether a computed height is enough — it autofits a wrapped cell but
     // not a merged one, and nearly every prose cell here is merged — so the acceptance test copies
     // each string into a scratch cell of the same width, autofits it, and compares.
+    // Resolved BEFORE the early returns below. `--plan --locale ko` used to exit 0 while the same request
+    // on the writing path was refused, so an explicit locale was validated or ignored depending on which
+    // flag came with it. Review caught that; the resolution belongs to the command, not to one branch.
+    const locale = resolveLocale({ flag: requiredFlagValue(rest, '--locale'), deal, env: process.env });
+
     if (rest.includes('--prose-heights')) {
       const plan = planWorkbook(schema, spec, deal);
       const heightOf = new Map<string, number>();
@@ -221,9 +243,6 @@ async function main(): Promise<number> {
       process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
       return 1;
     }
-    // Resolved once, here, before anything is planned: the flag, then the deal, then the environment.
-    // Deciding it deeper in the engine is what #938 fixed.
-    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env });
     await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION, locale));
     const plan = planWorkbook(schema, spec, deal);
     // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a
