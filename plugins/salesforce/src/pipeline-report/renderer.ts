@@ -299,5 +299,14 @@ export function renderPipelineReport(data: PipelineReportData, _instanceUrl: str
     lines.push('');
   }
 
+  // Sections this org's schema cannot support. Stated plainly: a missing renewals section
+  // otherwise reads as "no renewals", which is a different and much worse claim.
+  if (data.unavailable && data.unavailable.length > 0) {
+    lines.push('## Not Available For This Org');
+    lines.push('');
+    for (const note of data.unavailable) lines.push(`- ${note}`);
+    lines.push('');
+  }
+
   return lines.join('\n');
 }
