@@ -6,7 +6,10 @@
 # Must exit 0 — we add files; we never block the commit.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Exported so bump-version.sh, invoked below, operates on the same root — and so both can
+# be pointed at a throwaway repository under test.
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+export REPO_ROOT
 MARKETPLACE="$REPO_ROOT/.xcsh-plugin/marketplace.json"
 
 # Version files to exclude from "content changed" detection.
