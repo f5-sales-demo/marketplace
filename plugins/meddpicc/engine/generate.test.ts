@@ -218,12 +218,34 @@ describe('planWorkbook — derived cells come from the schema, not from prose', 
     expect(names).toEqual(QUALIFICATION_ELEMENTS.map(sectionLabel));
   });
 
-  test('the completion block lists every tracked section with its computed status', () => {
+  test('the completion block lists every tracked section, and each status is a live formula', () => {
+    // The statuses used to be written as literals, computed from the deal at generation time: fill in
+    // the missing evidence during a review and the sheet went on calling the section not started. They
+    // are the engine's own rules compiled now, so Excel answers as the engine would.
     const completion = table('sections');
     const names = SECTION_ORDER.map((_, i) => cellAt(completion.ref('section', i))?.value);
     expect(names).toEqual(SECTION_ORDER.map(sectionLabel));
-    const metricsStatus = cellAt(completion.ref('status', SECTION_ORDER.indexOf('metrics')))?.value;
-    expect(COMPLETION_STATUSES.map(statusLabel)).toContain(metricsStatus);
+
+    for (const [row, section] of SECTION_ORDER.entries()) {
+      const cell = cellAt(completion.ref('status', row));
+      expect(cell?.value, section).toBeUndefined();
+      const formula = cell?.formula ?? '';
+      // It can only ever answer one of the three words the column is coloured by.
+      for (const status of COMPLETION_STATUSES) expect(formula, section).toContain(`"${statusLabel(status)}"`);
+    }
+  });
+
+  test("an element's status formula reads that element's own cells", () => {
+    // Compiled against the wrong row it would be well-formed and wrong — the failure mode a formula
+    // cannot show you. So the cells it names have to be the ones the plan gave that element.
+    const completion = table('sections');
+    const formula = cellAt(completion.ref('status', SECTION_ORDER.indexOf('champion')))?.formula ?? '';
+    const address = (jsonPath: string) => plan.inputCells.find((c) => c.jsonPath === jsonPath)?.address ?? 'MISSING';
+    const absolute = (ref: string) => ref.replace(/^([A-Z]+)(\d+)$/, '$$$1$$$2');
+    expect(formula).toContain(absolute(address('qualification.champion.score')));
+    expect(formula).toContain(absolute(address('qualification.champion.evidence')));
+    // ...and not another element's.
+    expect(formula).not.toContain(absolute(address('qualification.metrics.evidence')));
   });
 
   test('questions come from the schema and pair with the responses in the deal', () => {
@@ -1044,6 +1066,36 @@ describe('planWorkbook — a blank cell something depends on is shaded', () => {
       byCell.set(first, (byCell.get(first) ?? 0) + 1);
     }
     expect([...byCell.entries()].filter(([, n]) => n > 1)).toEqual([]);
+  });
+});
+
+describe('planWorkbook — a completion block can sit anywhere in the spec', () => {
+  test('a Completion sheet placed BEFORE the inputs still compiles', () => {
+    // The statuses used to be compiled at the end of each sheet, against the input cells known so far —
+    // so a two-sheet spec that passes check-spec failed to generate when the Completion block came
+    // first, with "the sheet has no cell for qualification.metrics.score". Loud rather than silent, but
+    // a valid spec should not depend on the order its sheets happen to be written in.
+    //
+    // Built by MOVING the shipped Completion block onto its own sheet and putting that sheet first, so
+    // every cell the thirteen rules name exists exactly as it does today and the only thing that
+    // changes is the order.
+    const reordered = clone(spec);
+    const blocks = reordered.sheets[0].blocks;
+    const at = blocks.findIndex((b) => b.kind === 'table' && b.table.id === 'sections');
+    expect(at, 'the shipped spec has a sections table').toBeGreaterThan(-1);
+    const [completionBlock] = blocks.splice(at, 1);
+    reordered.sheets.unshift({
+      name: 'Completion',
+      kind: 'grid',
+      columns: reordered.sheets[0].columns,
+      blocks: [completionBlock],
+    });
+
+    const p = planWorkbook(schema, reordered, deal);
+    const statuses = p.sheets[0].rows.flatMap((r) => r.cells).filter((c) => c.formula?.includes('Not started'));
+    expect(statuses).toHaveLength(SECTION_ORDER.length);
+    // And each one names the sheet the cells are on, since that is no longer its own.
+    for (const cell of statuses) expect(cell.formula).toContain(`${spec.sheets[0].name}'!`);
   });
 });
 

@@ -210,6 +210,95 @@ check_count elementsBelowThree "$(jq -r '[.elementScores[] | select(. < 3)] | le
 check_count scorePreviousTotal "$(deal_count '[.scoring.previousElementScores[]] | add')"
 echo "PASS: every scorecard count Excel computes agrees with the deal JSON"
 
+# ── Completion statuses ────────────────────────────────────────────────────────────────────────
+#
+# The thirteen section statuses used to be literals, computed when the workbook was written: fill in
+# the missing evidence during a review and the sheet went on calling the section not started. They are
+# the engine's own rules compiled into formulas now, and the whole risk of that is disagreement — a
+# completion column that contradicts `engine next` is worse than one that is merely stale.
+#
+# So ask Excel for all thirteen and compare each against the engine's answer for the same deal. The
+# comparison normalises Excel's word rather than repeating the label table here: "Not started" becomes
+# not_started by lowercasing and swapping the space. That is derived from the labelling rule, so a
+# change to the WORDS keeps passing while a change to what they MEAN fails — which is the way round it
+# should be.
+#
+# `statuses_from_excel <book> <plan> <engine-json>` prints `section<TAB>normalised-status` per section.
+#
+# The cells are read in the engine's own section order and paired back up here: AppleScript does the
+# one thing it is needed for. Splitting a "section:ref" string inside the tell block was the first
+# attempt and it fails with -1723 — `offset of` belongs to StandardAdditions, so inside
+# `tell application "Microsoft Excel"` it is sent to Excel, which has no such command.
+statuses_from_excel() {
+  local book="$1" plan="$2" engine="$3" section row first column refs=() sections=()
+  # The block's geometry once, from the plan: nothing here counts rows for itself.
+  column="$(letters "$(jq -r '(.tables[] | select(.id == "sections") | .columns.status)' <<<"$plan")")"
+  first="$(jq -r '(.tables[] | select(.id == "sections") | .firstDataRow)' <<<"$plan")"
+  [ -n "$column" ] && [ "$first" != "null" ] || fail "the plan has no sections table to read statuses from"
+  row=0
+  for section in $(jq -r '.order[]' <<<"$engine"); do
+    sections+=("$section")
+    refs+=("$column$((first + row))")
+    row=$((row + 1))
+  done
+
+  local values
+  values="$(
+    osascript - "$SHEET" "$book" "${refs[@]}" <<'OSA' 2>&1
+on run argv
+  set sheetName to item 1 of argv
+  set bookName to item 2 of argv
+  set out to ""
+  tell application "Microsoft Excel"
+    set ws to worksheet sheetName of workbook bookName
+    repeat with i from 3 to (count of argv)
+      set out to out & ((get value of range (item i of argv) of ws) as string) & linefeed
+    end repeat
+  end tell
+  return out
+end run
+OSA
+  )"
+  case "$values" in
+  *"execution error"* | *"syntax error"*) fail "could not read the completion statuses: $values" ;;
+  esac
+
+  # Excel's word -> the engine's value: lowercase, and a space is an underscore. Derived from the
+  # labelling rule rather than a second copy of the label table, so renaming a status still fails here
+  # while restyling one does not.
+  local i=0 value
+  while IFS= read -r value; do
+    [ -n "$value" ] || continue
+    printf '%s\t%s\n' "${sections[$i]}" "$(tr '[:upper:]' '[:lower:]' <<<"$value" | tr ' ' '_')"
+    i=$((i + 1))
+  done <<<"$values"
+}
+
+compare_statuses() {
+  local book="$1" deal="$2" plan="$3" label="$4" engine seen want got mismatches=0 compared=0
+  engine="$(bun "$PLUGIN_ROOT/engine/cli.ts" next "$deal")" || fail "next failed for $deal"
+  seen="$(statuses_from_excel "$book" "$plan" "$engine")"
+  while IFS=$'\t' read -r section got; do
+    [ -n "$section" ] || continue
+    want="$(jq -r --arg s "$section" '.completionStatus[$s]' <<<"$engine")"
+    compared=$((compared + 1))
+    if [ "$got" != "$want" ]; then
+      echo "    MISMATCH $section: Excel says '$got', the engine says '$want'"
+      mismatches=$((mismatches + 1))
+    fi
+  done <<<"$seen"
+  local tracked
+  tracked="$(jq -r '.order | length' <<<"$engine")"
+  [ "$compared" = "$tracked" ] || fail "compared $compared of $tracked sections in $label — the stage is not covering the block"
+  [ "$mismatches" = "0" ] || fail "$mismatches completion status(es) in $label disagree with the engine"
+  echo "    $compared section statuses in $label agree with the engine"
+}
+
+echo "==> comparing all thirteen completion statuses against the engine"
+compare_statuses "$BOOK" "$DEAL" "$uat_plan" "the example deal"
+
+echo "PASS: every completion status Excel computes agrees with the engine"
+
 # A formula pointing at the wrong range is well-formed and wrong; an error value is at least
 # loud. Check for the loud ones across every sheet.
 # This check was vacuous for two independent reasons, either of which was enough (#904).
@@ -510,6 +599,70 @@ while IFS='|' read -r _t _o f rgb; do
   assert_warm_and_faint "rating rule $f" "$rgb"
 done <<<"$rating_rules"
 echo "PASS: every wash Excel resolved is warm and faint, and nothing paints a value that is done"
+
+# And the part that matters: they have to FOLLOW an edit. Drop an element's score in Excel and the
+# status beside it must change to whatever the engine says about the same deal with that score changed
+# — computed by the engine here rather than written down, so this cannot drift from its rules.
+status_col="$(jq -r '(.tables[] | select(.id == "sections") | .columns.status)' <<<"$uat_plan")"
+status_row="$(jq -r '(.tables[] | select(.id == "sections") | .firstDataRow)' <<<"$uat_plan")"
+status_cell="$(letters "$status_col")$status_row"
+metrics_score="$(table_cell elements score 0)"
+edited_deal="$WORK/status-edited.json"
+jq '.qualification.metrics.score = 0' "$DEAL" >"$edited_deal" || fail "could not build the edited deal"
+want_edited="$(bun "$PLUGIN_ROOT/engine/cli.ts" next "$edited_deal" | jq -r '.completionStatus.metrics')"
+[ -n "$metrics_score" ] && [ -n "$status_cell" ] || fail "no cells to edit: score='$metrics_score' status='$status_cell'"
+echo "==> setting $metrics_score to 0 and reading $status_cell back (engine says metrics becomes $want_edited)"
+status_seen="$(
+  osascript - "$SHEET" "$BOOK" "$metrics_score" "$status_cell" <<'OSA' 2>&1
+on run argv
+  set sheetName to item 1 of argv
+  set bookName to item 2 of argv
+  -- Pulled out of the tell block deliberately: inside one, `item n of argv` and the string it yields
+  -- are resolved against Excel, and `range (item 3 of argv)` fails with -1728 rather than reading the
+  -- cell. The rubric stage below has always assigned its refs first, for the same reason.
+  set scoreRef to item 3 of argv
+  set statusRef to item 4 of argv
+  tell application "Microsoft Excel"
+    set ws to worksheet sheetName of workbook bookName
+    set scoreCell to range scoreRef of ws
+    set statusCell to range statusRef of ws
+    set original to (get value of scoreCell)
+    set was to (get value of statusCell) as string
+    -- Excel accepts a workbook before it has finished with it, so the write is confirmed before the
+    -- dependent cell is polled, and each half reports its own timeout.
+    repeat 40 times
+      set value of scoreCell to 0
+      calculate ws
+      if (get value of scoreCell) = 0 then
+        repeat 40 times
+          calculate ws
+          set nowText to (get value of statusCell) as string
+          if nowText is not was then
+            set value of scoreCell to original
+            calculate ws
+            return was & "|" & nowText
+          end if
+          delay 0.1
+        end repeat
+        set value of scoreCell to original
+        return "TIMEOUT-status-did-not-follow-the-score"
+      end if
+      delay 0.25
+    end repeat
+    return "TIMEOUT-score-write-never-took"
+  end tell
+end run
+OSA
+)"
+case "$status_seen" in
+*"execution error"* | *"syntax error"*) fail "the completion-status check could not run: $status_seen" ;;
+*"TIMEOUT-score-write-never-took"*) fail "Excel discarded the score write — it was still busy: $status_seen" ;;
+*"TIMEOUT-status-did-not-follow-the-score"*) fail "the score changed and the completion status did not follow it" ;;
+esac
+status_now="$(cut -d'|' -f2 <<<"$status_seen" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')"
+echo "    metrics was '$(cut -d'|' -f1 <<<"$status_seen")', became '$(cut -d'|' -f2 <<<"$status_seen")'"
+[ "$status_now" = "$want_edited" ] || fail "Excel says metrics is '$status_now' at score 0; the engine says '$want_edited'"
+echo "PASS: a completion status follows a score changed in Excel"
 
 # The presentation primitives are the ones a unit test can least vouch for: a merge Excel
 # rejects, a print setup it ignores, a gridline flag in the wrong place — all of them produce a
@@ -1253,6 +1406,38 @@ again="$(bun "$PLUGIN_ROOT/engine/cli.ts" read "$RT_OUT" --deal "$RT_DEAL")" || 
 [ "$(jq -r '.proposals | length' <<<"$again")" = "0" ] || fail "a second read still proposes $(jq -c '.proposals' <<<"$again")"
 echo "PASS: edits made in Excel round-trip into the deal JSON, and applying them twice changes nothing"
 
+# ── A list entry with no name ──────────────────────────────────────────────────────────────────
+#
+# The schema permits an entry that fills in anything but its first field: `team.internal:
+# [{"role":"SE"}]` validates, and the engine counts it, so the team is complete. A sheet that counted
+# only the leftmost column would answer not_started on that data — a completion status contradicting
+# `engine next`, which is the one thing the compiled rules exist to prevent. The second-opinion review
+# found it; this is the case it named.
+nameless="$WORK/nameless.json"
+jq '.team.internal = [{"role": "Solutions Engineer"}]
+  | .closePlan.milestones = [{"owner": "Jane Smith", "targetDate": "2026-06-01"}]' "$DEAL" >"$nameless" ||
+  fail "could not build the nameless-entry deal"
+bun "$PLUGIN_ROOT/engine/cli.ts" validate "$nameless" >/dev/null || fail "the nameless-entry deal does not validate"
+nameless_out="$WORK/nameless.xlsx"
+nameless_book="$(basename "$nameless_out")"
+OUR_WORKBOOKS+=("$nameless_book")
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --out "$nameless_out" >/dev/null ||
+  fail "generate failed on the nameless-entry deal"
+nameless_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --plan)" || fail "generate --plan failed"
+echo "==> opening a deal whose team member has a role and no name"
+open -a "Microsoft Excel" "$nameless_out" || fail "could not open $nameless_book"
+for _ in $(seq 1 30); do
+  if osascript -e 'tell application "Microsoft Excel" to get name of every workbook' 2>/dev/null | grep -qF "$nameless_book"; then
+    nameless_opened=1
+    break
+  fi
+  sleep 2
+done
+[ "${nameless_opened:-0}" = "1" ] || fail "Excel never listed $nameless_book"
+compare_statuses "$nameless_book" "$nameless" "$nameless_plan" "a deal with unnamed list entries"
+osascript -e "tell application \"Microsoft Excel\" to close workbook \"$nameless_book\" saving no" >/dev/null 2>&1
+echo "PASS: an entry that fills in anything but its first field counts on the sheet as it does in the engine"
+
 # A row typed UNDER the last padded one, which is what running out of room looks like.
 #
 # A list's capacity is the rows the generator laid out and nothing beyond them: the row under the
@@ -1387,6 +1572,9 @@ OSA
 )"
 got_partial="$(awk -v v="$got_partial_raw" 'BEGIN { printf "%.1f", v * 100 }')"
 echo "    partly-qualified overall score: Excel=$got_partial% engine=$want_partial_pct%"
+# The statuses too, on a deal where most sections are NOT complete — the example deal is nearly
+# finished, so on its own it exercises mostly the complete branch of every rule.
+compare_statuses "$PARTIAL_BOOK" "$PARTIAL" "$partial_plan" "the partly-qualified deal"
 osascript -e "tell application \"Microsoft Excel\" to close workbook \"$PARTIAL_BOOK\" saving no" >/dev/null 2>&1
 [ "$got_partial" = "$want_partial_pct" ] || fail "Excel showed $got_partial% for a partly-qualified deal, engine says $want_partial_pct%"
 

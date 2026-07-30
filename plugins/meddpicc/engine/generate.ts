@@ -13,6 +13,8 @@
  */
 import { createHash } from 'node:crypto';
 import { computeCompletion } from './completion';
+import { cellResolver, compileStatus } from './completion-formula';
+import { SECTION_RULES } from './completion-rules';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { enumLabel, enumLabels } from './labels';
@@ -114,7 +116,13 @@ function displayValue(
   return constraint?.enum?.includes(value) ? enumLabel(value) : value;
 }
 
-const sheetPrefix = (name: string) => (/^[A-Za-z0-9_]+$/.test(name) ? `${name}!` : `'${name.replace(/'/g, "''")}'!`);
+/**
+ * How a formula names a cell on another sheet: bare when the name is simple, quoted otherwise, with an
+ * apostrophe in the name doubled. Exported because the completion compiler needs the same rule — two
+ * ways of writing a cross-sheet reference is two ways to get one wrong.
+ */
+export const sheetPrefix = (name: string) =>
+  /^[A-Za-z0-9_]+$/.test(name) ? `${name}!` : `'${name.replace(/'/g, "''")}'!`;
 
 /** Row keys for a keyed source, or null when the rows depend on the deal. */
 function keysOf(source: SpecTableSource): readonly string[] | null {
@@ -703,6 +711,15 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const clippedCells: ClippedCell[] = [];
   const notes: PlannedNote[] = [];
   const sheets: SheetSpec[] = [];
+  /**
+   * Status cells whose formula cannot be written yet.
+   *
+   * A completion rule names cells anywhere in the workbook, so the formulas are compiled after every
+   * sheet has been laid out. Compiled per sheet they could only see the input cells of that sheet and
+   * the ones before it — and a two-sheet spec with its Completion block first then failed to generate,
+   * which made a valid spec depend on the order its sheets happened to be written in.
+   */
+  const pendingStatuses: Array<{ cell: CellSpec; section: string; sheet: string }> = [];
   /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
   const writtenCells: string[] = [];
 
@@ -952,6 +969,18 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             continue;
           }
 
+          // A section's completion status: the engine's own rule, compiled into a formula so it follows
+          // what somebody types during a review instead of describing the deal as it was generated.
+          // Filled in after the walk, because a rule names cells that later blocks may not have placed
+          // yet — the Completion block happens to sit near the end today, and nothing should depend on
+          // that.
+          if (table.source.kind === 'sections' && spec.id === 'status') {
+            const cell: CellSpec = { ref, style };
+            push(dataRow, cell);
+            pendingStatuses.push({ cell, section: entry.key as string, sheet: s.name });
+            continue;
+          }
+
           const derived = derivedValue(spec, entry, table, schema, deal, completion);
           push(dataRow, { ref, value: derived, style });
           // A derived cell says which element or question its row is about, and nothing a person may
@@ -1020,6 +1049,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       validations: validations.length ? validations : undefined,
       notes: sheetNotes.length ? sheetNotes : undefined,
     });
+  }
+
+  for (const { cell, section, sheet } of pendingStatuses) {
+    const rule = SECTION_RULES[section];
+    if (!rule) throw new Error(`the Completion block names section "${section}", which has no rule`);
+    cell.formula = compileStatus(rule, cellResolver(inputCells, sheet));
   }
 
   return {

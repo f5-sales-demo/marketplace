@@ -10,6 +10,69 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v6.3.0 — the completion statuses follow the sheet. Not breaking: no address moved, so
+  a v6.2.0 workbook still reads back.
+
+  The thirteen section statuses were literals, computed when the workbook was written. Fill in the
+  missing evidence during a live review and the sheet went on calling the section not started — in the
+  one column whose job is to say where the deal stands.
+
+  - **One rule, two readers.** Each section's rule is data now: two predicates, `complete` and
+    `started`, over deal paths, in a vocabulary of six leaves and two combinators. The engine evaluates
+    them against the deal and the generator compiles the same ones into formulas, so there is no second
+    set of rules free to drift. Six kinds covered all thirteen rules; a seventh would have been a rule
+    the sheet could not express, which is worth discovering in TypeScript rather than in Excel.
+  - **Nothing in the compiler knows a coordinate.** `plan.inputCells` already maps every deal path to
+    the cell it landed in, so a rule naming `qualification.metrics.evidence` resolves to a cell and that
+    element's responses to the range of its rows — and a rule naming a field the sheet does not show
+    refuses to compile rather than emitting a formula that reads `#NAME?` mid-review.
+  - **The scorecard follows for free.** `sectionsComplete` already counted the status column, so the
+    count and the completion percentage are live too.
+  - **What makes a row an entry belongs to the list.** `ENTRY_FIELDS` names each list's declared fields
+    once, and both halves of a rule read it — as does the compiler, which looks each one up as a column.
+    So the two readers count the same rows by construction, and a rule naming a field the workbook does
+    not show fails at generation rather than counting a row the sheet cannot see. Three rounds of review
+    got here: first the leftmost column, then every column, then the fields themselves, when the reviewer
+    pointed out that the schema does not forbid extra properties — `[{"unmappedField":"x"}]` validates,
+    and the sheet has nowhere to show it.
+  - **A score cell is read the way the reader reads it.** `N("3")` is nought, while the round-trip reader
+    accepts a textual "3" and applies it as 3 — so a pasted score showed 3 on the sheet, left the status
+    partial, and changed meaning on read-back. `IFERROR(VALUE(…),0)` reads it as the reader does and keeps
+    a blank or a word at nought, as the engine does.
+  - **A completion block can sit anywhere in the spec.** The statuses were compiled at the end of each
+    sheet, against the input cells known so far — so a two-sheet spec that passes `check-spec` failed to
+    generate when the Completion block came first. They are compiled once, after every sheet is laid out.
+  - **An entry counts when it has something in it — in the engine too.** The old rule counted the array's
+    length, so `team.internal: [{}]` completed the whole Team section: one object with no fields, which
+    the schema permits and which is not a team member in any sense. No sheet could ever agree, because an
+    entry with every cell empty is indistinguishable from one of the pre-allocated blank rows. So both
+    readers ask the same question now, and it is the defensible one. This is the **one** class of answer
+    that moved, and the suite records it against the frozen oracle rather than quietly absorbing it.
+  - **A cell on another sheet is named with its sheet.** Latent today, since the workbook is one laid-out
+    sheet — but a two-sheet spec passes `check-spec`, and a bare `$D$20` would then mean whatever sits at
+    D20 on the sheet the formula is on. Excel evaluates that without complaint, which is the worst way
+    for it to be wrong. The quoting rule comes from the same `sheetPrefix` that `{{ref:…}}` already uses.
+  - **A row is an entry when ANY of its fields is filled in.** The schema permits an entry that fills
+    in anything but its first field — `team.internal: [{"role":"SE"}]` validates, and the engine calls
+    the team complete — so counting the name column alone made the sheet answer not_started on exactly
+    that data. Found by the second-opinion review, and now a fixture of its own in the Excel run. One
+    case is left and cannot be closed from a sheet: an entry whose every field is empty is
+    indistinguishable from one of the pre-allocated blank rows.
+  - **The whitespace the two readers disagree about is removed first.** Excel's `TRIM` takes ordinary
+    spaces only, while the engine's `trim()` also takes tabs, newlines and non-breaking spaces — so a
+    value pasted from a web page read as filled to the sheet and empty to the engine. `CLEAN` handles
+    the control characters and the non-breaking space is substituted, which also cut the longest
+    compiled formula from 5483 characters to 2602 against Excel's cap of 8192. The writer refuses a
+    formula past that cap now, because Excel's answer to one is to prompt for repair and empty the cell.
+  - **The refactor is proved rather than reviewed.** The previous implementation is frozen in the suite
+    as an oracle and asked the same question as the new one over every combination each rule can see —
+    all 96 an element rule has, and every shape the five collection sections can take. Exhaustive rather
+    than random, so no seed can miss a case.
+  - **Excel is asked directly**: all thirteen statuses agree with the engine on the example deal *and*
+    on the partly-qualified fixture, and setting an element's score to 0 in Excel moves its status from
+    Complete to Partial — what the engine says about the same deal with that score changed, computed by
+    the engine rather than written down here.
+
 - **`meddpicc`** v6.2.0 — colour marks what needs attention, and nothing else. Not breaking: no
   address, width or height changes, so a v6.1.0 workbook still reads back.
 
@@ -563,7 +626,6 @@ and this project adheres to
   No Reference sheet: inline validation lists made it redundant, and the 0-4 rubric text
   already sits on the Qualification row it describes.
 
-
 - **`meddpicc`** v2.5.0 — the workbook generator. `engine/generate.ts` turns the spec plus a
   deal into a real `.xlsx`: `generate <deal.json> --out <file>`, or `--plan` to print where
   every input cell landed without writing anything.
@@ -596,7 +658,6 @@ and this project adheres to
   And `dateToSerial` **rejects impossible dates** rather than rolling them forward: it was
   turning `2026-02-31` into `2026-03-03`, a close date three days late that nothing downstream
   would question.
-
 
 - **Plugin tests no longer depend on a real cloud CLI** (`aws` v1.2.2, `azure` v1.2.2,
   `gcloud` v1.2.2, `github` v1.2.2, `gitlab` v1.2.3, `salesforce` v1.3.3) — 32 tests across
