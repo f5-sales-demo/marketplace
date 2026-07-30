@@ -18,6 +18,7 @@ import { SECTION_RULES } from './completion-rules';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { enumLabel, enumLabels } from './labels';
+import { DEFAULT_LOCALE, normalizeLocaleTag, SHIPPED_LOCALES } from './locale';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT, neededRowHeight } from './text-metrics';
@@ -1162,8 +1163,6 @@ export function workbookFingerprint(plan: WorkbookPlan, deal: unknown): string {
  * since the stamp is exactly what a reader trusts. When the locale files land, this becomes the
  * default rather than the only option.
  */
-export const DEFAULT_LOCALE = 'en';
-export const SUPPORTED_LOCALES: readonly string[] = [DEFAULT_LOCALE];
 
 /**
  * A stable reference to the schema the workbook was generated against.
@@ -1188,14 +1187,38 @@ export function workbookProperties(
   plan: WorkbookPlan,
   deal: unknown,
   engineVersion?: string,
+  /**
+   * The locale already resolved, because resolving it here was the bug.
+   *
+   * This function runs after the sheet is laid out, so a locale decided here is a locale the planner
+   * could never have known — and the refusal for an unsupported one arrived after all the layout work.
+   * `resolveLocale` in `locale.ts` makes that decision once, from every input, before anything is
+   * planned. Left optional so that a caller with no opinion still records the default rather than
+   * nothing, since a workbook that does not say what language it is in is worse than one that guesses.
+   */
+  locale: string = DEFAULT_LOCALE,
 ): WorkbookProperties {
-  const asked = readPath(deal, 'metadata.locale');
-  const locale = typeof asked === 'string' && asked !== '' ? asked : DEFAULT_LOCALE;
-  if (!SUPPORTED_LOCALES.includes(locale)) {
+  if (!SHIPPED_LOCALES.includes(locale)) {
+    // A caller that resolved through `resolveLocale` cannot reach this. One that passed a raw string can,
+    // and a workbook stamped with a language it is not written in lies to every later reader.
     throw new Error(
-      `metadata.locale asks for "${locale}", and the workbook is not translated yet — it can only be ` +
-        `written in ${SUPPORTED_LOCALES.join(', ')}. Remove the field, or set it to ${DEFAULT_LOCALE}, ` +
-        'until the locale files land',
+      `A workbook cannot be stamped "${locale}": it is not translated into it. ` +
+        `Resolve the locale with resolveLocale, which offers ${SHIPPED_LOCALES.join(', ')}.`,
+    );
+  }
+  // The stamp has to agree with what the deal asked for.
+  //
+  // Moving resolution out to the caller left a hole worth naming: `generateWorkbook` called without a
+  // locale would have stamped English over a deal that explicitly asked for Korean, which is worse than
+  // the refusal it replaced — silently ignoring a request beats no request at all only if nobody asked.
+  // A pre-existing test caught it. This is not resolving the locale a second time; it is checking that
+  // whoever resolved it honoured the deal.
+  const asked = readPath(deal, 'metadata.locale');
+  if (typeof asked === 'string' && asked !== '' && normalizeLocaleTag(asked) !== locale) {
+    throw new Error(
+      `The deal asks for metadata.locale "${asked}", and the workbook is not translated into it — ` +
+        `it is being written in "${locale}", and can be written in ${SHIPPED_LOCALES.join(', ')}. ` +
+        `Remove the field, or set it to ${locale}, until the locale files land.`,
     );
   }
   return {
@@ -1211,7 +1234,9 @@ export function generateWorkbook(
   spec: WorkbookSpec,
   deal: unknown,
   engineVersion?: string,
+  /** Resolved by the caller — see {@link workbookProperties}. Defaults to English. */
+  locale: string = DEFAULT_LOCALE,
 ): Uint8Array {
   const plan = planWorkbook(schema, spec, deal);
-  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion));
+  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion, locale));
 }

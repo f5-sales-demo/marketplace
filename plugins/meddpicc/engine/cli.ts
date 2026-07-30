@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
+import { resolveLocale } from './locale';
 
 /**
  * What built the workbook, recorded in the file.
@@ -140,7 +141,7 @@ async function main(): Promise<number> {
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write(
-        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>]\n',
+        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>] [--locale <slug>]\n',
       );
       return 1;
     }
@@ -220,7 +221,10 @@ async function main(): Promise<number> {
       process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
       return 1;
     }
-    await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION));
+    // Resolved once, here, before anything is planned: the flag, then the deal, then the environment.
+    // Deciding it deeper in the engine is what #938 fixed.
+    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env }).slug;
+    await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION, locale));
     const plan = planWorkbook(schema, spec, deal);
     // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a
     // merged cell cannot autofit and Excel's tallest row is 409.5 points, so text needing more ends
