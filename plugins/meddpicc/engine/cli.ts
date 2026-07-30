@@ -100,12 +100,22 @@ function flagValues(args: string[], name: string): Array<string | undefined> {
  * Seventh and last of the parser findings, all one mistake in different clothes: a malformed request treated
  * as no request. Nothing can be ignored once every unrecognised flag is named.
  */
-function refuseUnknownFlags(args: string[], known: readonly string[]): void {
-  const unknown = args.filter((arg) => arg.startsWith('--')).filter((arg) => !known.includes(arg.split('=')[0] ?? arg));
-  if (unknown.length > 0) {
-    throw new Error(
-      `Unknown ${unknown.length === 1 ? 'option' : 'options'} ${unknown.join(', ')}. This command takes ${known.join(', ')}.`,
-    );
+function refuseUnknownFlags(args: string[], takes: { values?: readonly string[]; booleans?: readonly string[] }): void {
+  const values = takes.values ?? [];
+  const booleans = takes.booleans ?? [];
+  const known = [...values, ...booleans];
+  for (const arg of args) {
+    if (!arg.startsWith('--')) continue;
+    const name = arg.split('=')[0] ?? arg;
+    if (!known.includes(name)) {
+      throw new Error(`Unknown option ${arg}. This command takes ${known.join(', ')}.`);
+    }
+    // A boolean is read with `includes`, which matches the bare token only — so `--apply=true` would pass an
+    // allowlist keyed on the text before `=` and then do nothing, and `migrate --apply=true` would report
+    // success having changed not one deal. There is no value to give a switch.
+    if (booleans.includes(name) && arg !== name) {
+      throw new Error(`${name} is a switch and takes no value. Pass ${name} on its own.`);
+    }
   }
 }
 
@@ -206,7 +216,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-sfdc') {
-    refuseUnknownFlags(rest, ['--schema', '--sfdc']);
+    refuseUnknownFlags(rest, { values: ['--schema', '--sfdc'] });
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const sfdc = await readJson(flag(rest, '--sfdc') ?? SFDC_PATH);
     const result = checkSfdcMapping(schema, sfdc);
@@ -215,7 +225,10 @@ async function main(): Promise<number> {
   }
 
   if (command === 'generate') {
-    refuseUnknownFlags(rest, ['--out', '--plan', '--prose-heights', '--spec', '--locale', '--schema']);
+    refuseUnknownFlags(rest, {
+      values: ['--out', '--spec', '--locale'],
+      booleans: ['--plan', '--prose-heights'],
+    });
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write(
@@ -328,7 +341,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'read') {
-    refuseUnknownFlags(rest, ['--deal', '--apply', '--spec', '--schema']);
+    refuseUnknownFlags(rest, { values: ['--deal', '--spec'], booleans: ['--apply'] });
     const workbookPath = rest[0];
     const dealPath = flag(rest, '--deal');
     if (!workbookPath || !dealPath) {
@@ -381,7 +394,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'migrate') {
-    refuseUnknownFlags(rest, ['--apply']);
+    refuseUnknownFlags(rest, { booleans: ['--apply'] });
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write('Usage: cli.ts migrate <deal.json> [--apply]\n');
@@ -407,7 +420,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-spec') {
-    refuseUnknownFlags(rest, ['--spec', '--schema']);
+    refuseUnknownFlags(rest, { values: ['--spec', '--schema'] });
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
     const result = checkWorkbookSpec(schema, spec);

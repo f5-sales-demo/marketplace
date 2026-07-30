@@ -427,6 +427,33 @@ describe('--locale', () => {
     expect((await run(['check-spec'])).code).toBe(0);
   });
 
+  test('a command only accepts the flags it actually reads', async () => {
+    // My own doing, one commit earlier: I allowlisted `--schema` for `generate` and `read` without checking
+    // that either consumes it. So `--schema=/missing` was accepted and ignored — the very defect the
+    // allowlist was added to close, reintroduced one layer up by declaring a flag speculatively.
+    const ignored = await run(['generate', example, '--schema=/missing', '--plan']);
+    expect(ignored.code).toBe(1);
+    expect(ignored.err).toMatch(/Unknown option/);
+    // `check-spec` does read it, so there it works.
+    expect(
+      (await run(['check-spec', '--schema', path.join(engineDir, '..', 'schema', 'meddpicc-schema.json')])).code,
+    ).toBe(0);
+  });
+
+  test('a switch takes no value, because its reader would not see one', async () => {
+    // Booleans are read with `includes`, which matches the bare token only. So `--apply=true` passed an
+    // allowlist keyed on the text before `=` and then did nothing: `migrate --apply=true` would have
+    // reported success having migrated no deal at all, which automation would believe.
+    const deal = path.join(scratch, 'switch.json');
+    fs.copyFileSync(example, deal);
+    const valued = await run(['migrate', deal, '--apply=true']);
+    expect(valued.code).toBe(1);
+    expect(valued.err).toMatch(/switch/);
+    expect((await run(['read', '/dev/null', '--apply=yes'])).code).toBe(1);
+    // And the switch on its own still works.
+    expect((await run(['migrate', deal, '--apply'])).code).toBe(0);
+  });
+
   test('the locale a workbook is written in is the one it records', async () => {
     const out = path.join(scratch, 'stamped.xlsx');
     const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);
