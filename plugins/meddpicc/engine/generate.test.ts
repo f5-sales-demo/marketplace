@@ -8,7 +8,7 @@ import { ENUM_LABELS, enumLabel } from './labels';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT } from './text-metrics';
 import { specTables, type WorkbookSpec } from './workbook-spec';
-import { A1, COMPLETION_STATUSES, columnIndex } from './xlsx';
+import { A1, COMPLETION_STATUSES, columnIndex, columnLetter } from './xlsx';
 import { readZip } from './zip';
 
 const here = import.meta.dir;
@@ -960,5 +960,165 @@ describe('planWorkbook — the element definitions ride along as hover notes', (
     const column = elements.table.columns.find((c) => c.id === 'element');
     (column as { note?: string }).note = 'somethingElse';
     expect(() => planWorkbook(schema, broken, deal)).toThrow(/somethingElse/);
+  });
+});
+
+describe('planWorkbook — a blank cell something depends on is shaded', () => {
+  const formatsOn = (ref: string, of: WorkbookPlan = plan) =>
+    (of.sheets[0].conditionalFormats ?? []).filter((f) => f.sqref.split(':')[0] === ref);
+
+  test('an unanswered question is wanted, not missing', () => {
+    // `qualStatus` calls an element complete when ANY of its responses is non-empty, so with two
+    // questions and one answer the element IS complete — and washing the blank sibling row the same red
+    // as a missing evidence cell claims something mandatory is absent when nothing requires it. The row
+    // is still worth seeing, so it drops a level rather than disappearing: "needs more information"
+    // rather than "nothing there".
+    const oneOfTwo = clone(deal);
+    const metrics = oneOfTwo.qualification.metrics as { responses: string[] };
+    metrics.responses = [metrics.responses[0], ''];
+    expect(computeCompletion(oneOfTwo).completionStatus.metrics).toBe('complete');
+
+    const p = planWorkbook(schema, spec, oneOfTwo);
+    const responses = table('responses', p);
+    const [format] = (p.sheets[0].conditionalFormats ?? []).filter(
+      (f) => f.sqref.split(':')[0] === responses.ref('response', 0),
+    );
+    expect(format?.preset).toBe('wantedInRow');
+  });
+
+  test('the evidence column carries the wash, and the notes column does not', () => {
+    const elements = table('elements');
+    const evidence = formatsOn(elements.ref('evidence', 0));
+    expect(evidence.map((f) => f.preset)).toEqual(['missingInRow']);
+    // The row range is the table's own columns, not the sheet's width: two tables share a band of rows,
+    // and a range spanning the page would let one decide whether the other's row had been started.
+    const elementsSpec = spec.sheets.flatMap(specTables).find((t) => t.id === 'elements');
+    const width = (elementsSpec?.columns ?? []).reduce((n, c) => n + (c.span ?? 1), 0);
+    const last = columnLetter((elementsSpec?.anchorColumn ?? 0) + width - 1);
+    expect(evidence[0]?.rowRange).toBe(`$B${elements.firstDataRow}:$${last}${elements.firstDataRow}`);
+    expect(formatsOn(elements.ref('notes', 0))).toEqual([]);
+  });
+
+  test('a stakeholder typed into a spare row is warned about its blank required fields', () => {
+    // The pre-allocated rows are the supported way to add somebody, and a conditional-format range does
+    // not grow when a person starts typing in one. Stopping the range at the last existing entry meant
+    // the wash was missing in exactly the case it is most use: a half-entered row, whose blank title is
+    // then refused on read-back with a schema error instead of shown as a gap while it is being typed.
+    const stakeholders = table('stakeholders');
+    const entries = (deal.stakeholders as unknown[]).length;
+    expect(stakeholders.rows).toBeGreaterThan(entries);
+    const [format] = formatsOn(stakeholders.ref('name', 0));
+    expect(format?.sqref).toBe(`${stakeholders.ref('name', 0)}:${stakeholders.ref('name', stakeholders.rows - 1)}`);
+  });
+
+  test('a spare row nobody has touched is left alone', () => {
+    // Both things have to be true at once: the rule reaches the spare rows, and it does not fire until
+    // the row has been started. Otherwise a new deal opens as a column of washes asking for work that is
+    // not owed yet.
+    const stakeholders = table('stakeholders');
+    const [format] = formatsOn(stakeholders.ref('name', 0));
+    expect(format?.preset).toBe('missingInRow');
+    expect(format?.rowRange).toBeDefined();
+  });
+
+  test('an empty list is covered, and still shows nothing', () => {
+    const empty = clone(deal);
+    empty.stakeholders = [];
+    const p = planWorkbook(schema, spec, empty);
+    const stakeholders = table('stakeholders', p);
+    const [format] = formatsOn(stakeholders.ref('name', 0), p);
+    expect(format?.preset).toBe('missingInRow');
+  });
+
+  test('a form field the schema requires is shaded when empty', () => {
+    const address = plan.namedCells.accountName?.split('!')[1] ?? '';
+    expect(address).not.toBe('');
+    expect(formatsOn(address).map((f) => f.preset)).toEqual(['missing']);
+  });
+
+  test('no cell carries two washes', () => {
+    // Two rules over one cell means one paints over the other, decided by a priority nobody chose.
+    const byCell = new Map<string, number>();
+    for (const format of plan.sheets[0].conditionalFormats ?? []) {
+      const first = format.sqref.split(':')[0];
+      byCell.set(first, (byCell.get(first) ?? 0) + 1);
+    }
+    expect([...byCell.entries()].filter(([, n]) => n > 1)).toEqual([]);
+  });
+});
+
+describe('planWorkbook — the row a wash asks about is its own table’s row', () => {
+  /** A sheet with two narrow lists side by side, the way the Close Plan and the Team are laid out. */
+  const sideBySide = (): WorkbookSpec =>
+    ({
+      version: 1,
+      sheets: [
+        {
+          kind: 'grid',
+          name: 'Lists',
+          columns: [
+            { min: 1, max: 1, width: 3.5 },
+            { min: 2, max: 17, width: 14 },
+          ],
+          blocks: [
+            {
+              kind: 'table',
+              table: {
+                id: 'left',
+                source: { kind: 'list', jsonPath: 'closePlan.milestones' },
+                anchorColumn: 2,
+                minRows: 3,
+                columns: [
+                  { id: 'title', header: 'Milestone', role: 'input', valueType: 'string', jsonPath: 'title', span: 4 },
+                  {
+                    id: 'owner',
+                    header: 'Owner',
+                    role: 'input',
+                    valueType: 'string',
+                    jsonPath: 'owner',
+                    span: 4,
+                    shadeWhenEmpty: true,
+                  },
+                ],
+              },
+            },
+            {
+              kind: 'table',
+              table: {
+                id: 'right',
+                source: { kind: 'list', jsonPath: 'team.internal' },
+                anchorColumn: 10,
+                minRows: 3,
+                columns: [
+                  { id: 'name', header: 'Name', role: 'input', valueType: 'string', jsonPath: 'name', span: 4 },
+                  {
+                    id: 'role',
+                    header: 'Role',
+                    role: 'input',
+                    valueType: 'string',
+                    jsonPath: 'role',
+                    span: 4,
+                    shadeWhenEmpty: true,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    }) as unknown as WorkbookSpec;
+
+  test('a narrow table asks about its own columns, not the width of the sheet', () => {
+    // Two lists share a band of rows. A row range spanning the page would let the milestones decide
+    // whether a team member's row had been started — and they are different lists, so a milestone
+    // typed on that row would suppress the wash on an empty name beside it, or raise one on a row
+    // nobody had touched.
+    const p = planWorkbook(schema, sideBySide(), deal);
+    const formats = p.sheets[0].conditionalFormats ?? [];
+    const left = table('left', p);
+    const right = table('right', p);
+    const rangeOf = (ref: string) => formats.find((f) => f.sqref.startsWith(`${ref}:`))?.rowRange;
+    expect(rangeOf(left.ref('owner', 0))).toBe(`$B${left.firstDataRow}:$I${left.firstDataRow}`);
+    expect(rangeOf(right.ref('role', 0))).toBe(`$J${right.firstDataRow}:$Q${right.firstDataRow}`);
   });
 });

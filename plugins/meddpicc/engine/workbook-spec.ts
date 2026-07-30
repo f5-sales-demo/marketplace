@@ -82,6 +82,20 @@ export type CellRole = 'input' | 'computed' | 'derived';
  */
 export type NoteSource = 'elementDefinition';
 
+/**
+ * How much attention a blank cell should ask for — see {@link SpecColumn.shadeWhenEmpty}.
+ *
+ * `required` — a completion rule or the schema needs a value here, so blank is a gap: an element's
+ * evidence, a stakeholder's name, the three whys. The strongest wash.
+ *
+ * `wanted` — nothing requires it and a blank one is still worth seeing: a discovery question nobody has
+ * answered. One level down, because `qualStatus` is satisfied by any ONE answer, so calling the others
+ * missing would raise a false alarm on an element that is genuinely complete.
+ */
+export type ShadeLevel = 'required' | 'wanted';
+
+export const SHADE_LEVELS: readonly ShadeLevel[] = ['required', 'wanted'];
+
 export const NOTE_SOURCES: readonly NoteSource[] = ['elementDefinition'];
 
 export interface SpecColumn {
@@ -136,6 +150,18 @@ export interface SpecColumn {
   /** A named conditional-format preset (see xlsx.ts). Formatting is spec data, not code. */
   conditionalFormat?: CfPreset;
   /**
+   * Wash this column's cells when they are empty — see the `missing` preset in `xlsx.ts`.
+   *
+   * Only where blankness is a **gap** rather than a choice: the cells a completion rule consults
+   * (an element's evidence, a question's response) and the ones the schema requires (a stakeholder's
+   * name, title and role). Not `notes`, not the partner-side whys — those are legitimately empty, and
+   * shading them would nag about a decision instead of showing a hole.
+   *
+   * Input cells only, and never on a cell that already carries a `conditionalFormat`: two rules over
+   * one cell means one paints over the other, decided by a priority number nobody chose.
+   */
+  shadeWhenEmpty?: ShadeLevel;
+  /**
    * Offer a dropdown of the values the schema allows. The list is READ from the schema, never
    * written here — that is the whole point, since a hand-copied list drifts the moment someone
    * adds an enum member and the workbook goes on offering the old set.
@@ -189,6 +215,8 @@ export type SpecRowCell =
       jsonPath: string;
       valueType: ValueType;
       conditionalFormat?: CfPreset;
+      /** Wash the cell when it is empty — see {@link SpecColumn.shadeWhenEmpty}. */
+      shadeWhenEmpty?: ShadeLevel;
       validate?: boolean;
     }
   | {
@@ -451,6 +479,11 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
           } else {
             out.inputs.push({ where, paths: [cell.jsonPath] });
             if (cell.validate) out.validated.push({ where, path: cell.jsonPath, valueType: cell.valueType });
+            if (cell.shadeWhenEmpty && cell.conditionalFormat) {
+              roles.push(
+                `${where}: shadeWhenEmpty and conditionalFormat "${cell.conditionalFormat}" both paint this cell — one would cover the other`,
+              );
+            }
           }
         } else if (cell.kind === 'computed') {
           out.formulas.push({ where, formula: cell.formula, table: null });
@@ -472,6 +505,24 @@ function collect(spec: WorkbookSpec, roles: string[], ids: string[]): Collected 
         if (seenColumns.has(column.id)) ids.push(`${where}: duplicate column id`);
         seenColumns.add(column.id);
         checkValueType(where, column.valueType);
+
+        if (column.shadeWhenEmpty !== undefined && !SHADE_LEVELS.includes(column.shadeWhenEmpty)) {
+          roles.push(
+            `${where}: shadeWhenEmpty "${column.shadeWhenEmpty}" is not a level — have ${SHADE_LEVELS.join(', ')}`,
+          );
+        }
+        if (column.shadeWhenEmpty) {
+          // An empty derived or computed cell is the engine's or a formula's doing, so a wash there
+          // would blame a person for the generator's output.
+          if (column.role !== 'input') {
+            roles.push(`${where}: shadeWhenEmpty belongs on an input column; this one is ${column.role}`);
+          }
+          if (column.conditionalFormat) {
+            roles.push(
+              `${where}: shadeWhenEmpty and conditionalFormat "${column.conditionalFormat}" both paint this cell — one would cover the other`,
+            );
+          }
+        }
 
         if (column.note !== undefined) {
           if (!NOTE_SOURCES.includes(column.note)) {
