@@ -123,9 +123,11 @@ const factory: ExtensionFactory = async (pi) => {
     const { createSfPipelineReportTool } = await import('./tools/sf-pipeline-report');
     const { createSfHelpTool } = await import('./tools/sf-help');
     const { createSfExecTool } = await import('./tools/sf-exec');
+    const { createSfDescribeTool } = await import('./tools/sf-describe');
 
     pi.registerTool(withErrorType(createSfSetupTool(pi)));
     pi.registerTool(withErrorType(createSfQueryTool(pi)));
+    pi.registerTool(withErrorType(createSfDescribeTool(pi)));
     pi.registerTool(withErrorType(createSfOrgDisplayTool(pi)));
     pi.registerTool(withErrorType(createSfPipelineReportTool(pi)));
     pi.registerTool(withErrorType(createSfHelpTool(pi)));
@@ -144,6 +146,11 @@ const factory: ExtensionFactory = async (pi) => {
         hint.forecastBreakdown ? `Forecast: ${hint.forecastBreakdown}` : '',
         hint.partnerName ? `Partner: ${hint.partnerName} (${hint.partnerRole ?? 'Partner'})` : '',
         hint.orgAlias ? `Org: ${hint.orgAlias}` : '',
+        // Org-configured picklist values and field names. Without these the model falls back to
+        // Salesforce's defaults, which silently match nothing in a customized org.
+        hint.stages ? `Opportunity stages (this org): ${hint.stages}` : '',
+        hint.forecastCategories ? `Forecast categories (this org): ${hint.forecastCategories}` : '',
+        hint.territoryField ? `Territory field (this org): ${hint.territoryField}` : '',
       ]
         .filter(Boolean)
         .join('\n');

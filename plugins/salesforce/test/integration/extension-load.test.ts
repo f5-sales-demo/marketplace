@@ -121,12 +121,21 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
     await factory(pi);
 
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['sf_exec', 'sf_help', 'sf_org_display', 'sf_pipeline_report', 'sf_query', 'sf_setup']);
+    expect(names).toEqual([
+      'sf_describe',
+      'sf_exec',
+      'sf_help',
+      'sf_org_display',
+      'sf_pipeline_report',
+      'sf_query',
+      'sf_setup',
+    ]);
 
     const labels = tools.map((t) => t.label).sort();
     expect(labels).toEqual([
       'Salesforce CLI Execute',
       'Salesforce CLI Help',
+      'Salesforce Describe',
       'Salesforce Org Display',
       'Salesforce Pipeline Report',
       'Salesforce Query',
@@ -143,7 +152,7 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
 
     // Without this the loop below has nothing to iterate when no tools were registered,
     // and the test passes having asserted nothing.
-    expect(tools).toHaveLength(6);
+    expect(tools).toHaveLength(7);
 
     for (const tool of tools) {
       expect(typeof tool.name).toBe('string');

@@ -139,3 +139,28 @@ test_live_skip_connection_flag() {
       return 1
     }
 }
+
+# TL.7 — schema discovery and query-error reporting, exercised through the real tool code.
+# The unit tests run against captured payloads; this is the only check that fails if the sf CLI's
+# actual output drifts from what the plugin parses.
+test_live_schema_discovery_uat() {
+  local org
+  org=$(_detect_live_org 2>/dev/null) || {
+    echo "SKIP: no authenticated org"
+    return 0
+  }
+  command -v bun >/dev/null 2>&1 || {
+    echo "SKIP: bun not installed"
+    return 0
+  }
+  [ -d "$PLUGIN_ROOT/node_modules" ] || {
+    echo "SKIP: plugin dependencies not installed (run bun install)"
+    return 0
+  }
+
+  local out
+  out=$(cd "$PLUGIN_ROOT" && bun run scripts/tests/live-uat.ts "$org" 2>&1) || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}

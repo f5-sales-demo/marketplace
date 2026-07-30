@@ -37,8 +37,27 @@ detected in the environment.
 | -------------------- | ---------------------------------------------------------- |
 | `sf_setup`           | Verify Salesforce CLI installation and org connectivity     |
 | `sf_query`           | Execute SOQL queries against authenticated orgs             |
+| `sf_describe`        | Look up an object's real field and relationship names       |
 | `sf_org_display`     | Display org details (alias, username, instance URL, status) |
 | `sf_pipeline_report` | Generate F5 Distributed Cloud pipeline intelligence report  |
+
+### Schema discovery
+
+Salesforce orgs are heavily customized: a mature Opportunity carries several
+hundred custom fields, and two orgs rarely share them. Field names therefore
+have to be looked up rather than assumed, so `sf_describe` filters an object's
+schema down to what was asked for:
+
+```text
+sf_describe {sobject: "Opportunity", match: "competitor"}
+```
+
+It matches on both API name and label, returns active picklist values, and
+lists matching child relationships. An unfiltered call returns the standard
+fields plus a count rather than the whole catalog.
+
+When a query fails with `No such column`, the error names the rejected column
+and points here.
 
 ### Pipeline Report
 

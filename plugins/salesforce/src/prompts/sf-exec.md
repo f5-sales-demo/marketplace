@@ -12,7 +12,8 @@ Run any read-only `sf` (Salesforce CLI) command. Pass arguments as an array with
   - the single top-level commands `version`, `help`, `commands`, `which`, `info`
 - `sf api request rest|graphql` is allowed only when it resolves to a GET: no `-X`/`--method` naming a mutating method, and no `--body`/`--file` (a body payload can carry a mutating method the guard cannot inspect). Use it for GET reads only.
 - Everything else is blocked: `apex run`, `data create`/`update`/`delete`/`import`/`upsert`, `project deploy`/`delete`, `org create`/`delete`/`login`/`logout`, `config set`, `alias set`, and all package/agent writes. Run writes through an explicitly confirmed path, not `sf_exec`.
-- Prefer the typed tools (`sf_query`, `sf_org_display`, `sf_help`, ...) when they cover your need — they return structured data.
+- Prefer the typed tools (`sf_query`, `sf_describe`, `sf_org_display`, `sf_help`, ...) when they cover your need — they return structured data.
+- For schema lookups use **`sf_describe`**, not `sobject describe` here. A raw describe on a mature object returns several hundred fields; `sf_describe` filters them to what you asked for.
 
 ## Command grammar (colon or space)
 

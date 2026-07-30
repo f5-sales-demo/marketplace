@@ -8,6 +8,20 @@ Use sf_query for ad-hoc SOQL queries: specific account lookups, MEDDPICC data, c
 
 Use for ad-hoc data queries, account intelligence, and one-off investigations.
 
+## Field discipline — never guess a field name
+
+Salesforce orgs are heavily customized, and the templates below cannot know which fields yours has. Only a small standard core is safe to assume:
+
+`Id`, `Name`, `Amount`, `StageName`, `CloseDate`, `ForecastCategoryName`, `Probability`, `Type`, `NextStep`, `Description`, `IsClosed`, `IsWon`, `CreatedDate`, `LastModifiedDate`, `LastActivityDate`, `OwnerId`, `AccountId`, and their `Account.`/`Owner.` relationships.
+
+Everything else — every `__c` field, and several fields that merely look standard — must be confirmed with **sf_describe** before it appears in a query. A plausible spelling is not evidence: `CompetitorName`, `Competitor__c`, and `LeadSource` are all absent from orgs that hold that data under other names.
+
+- Before using a field you have not already seen succeed in this org: `sf_describe {sobject: "Opportunity", match: "<concept>"}`.
+- Match on the concept, not a guessed spelling — `match: "competitor"` finds every competitor field at once.
+- When a query fails with `No such column`, call sf_describe and retry with the real name. Do not retry a guess.
+
+**Picklist values are org-specific too.** Stage names, forecast categories, `Type` values, and territory values all vary. Take them from the session's Salesforce hint when present, or from sf_describe's picklist output — do not assume Salesforce's defaults.
+
 Common query templates (substitute {userId} from user profile — read `xcsh://user` to get identifiers.salesforceId):
 
 In-quarter pipeline (current fiscal quarter, team-scoped):
@@ -53,7 +67,8 @@ Year-to-date bookings / top wins ("what are my top wins this year", "year-to-dat
   SELECT Account.Name, Name, Amount, CloseDate FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '{userId}') AND IsWon = true AND CloseDate = THIS_FISCAL_YEAR ORDER BY Amount DESC LIMIT 20
 
 Pipeline by territory ("break down pipeline by territory", "territory performance summary"):
-  SELECT ETM_Core_Territory__c, COUNT(Id) DealCount, SUM(Amount) TotalAmount FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '{userId}') AND IsClosed = false AND ForecastCategoryName <> 'Omitted' GROUP BY ETM_Core_Territory__c ORDER BY SUM(Amount) DESC NULLS LAST
+  (substitute {territoryField} — resolve it first with sf_describe, see "Territory-based filtering" below)
+  SELECT {territoryField}, COUNT(Id) DealCount, SUM(Amount) TotalAmount FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '{userId}') AND IsClosed = false AND ForecastCategoryName <> 'Omitted' GROUP BY {territoryField} ORDER BY SUM(Amount) DESC NULLS LAST
 
 Next-quarter pipeline (forward-looking):
   SELECT Account.Name, Name, Amount, StageName, ForecastCategoryName, CloseDate FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '{userId}') AND IsClosed = false AND CloseDate = NEXT_FISCAL_QUARTER AND ForecastCategoryName <> 'Omitted' ORDER BY Amount DESC NULLS LAST LIMIT 30
@@ -68,6 +83,7 @@ Deals by product/use case (solution mapping):
   SELECT Account.Name, Name, Amount, StageName, CloseDate, Type FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '{userId}') AND IsClosed = false AND CloseDate = THIS_FISCAL_YEAR ORDER BY Account.Name, Amount DESC NULLS LAST LIMIT 30
 
 Renewal pipeline (existing customer retention):
+  ('Renewal' is the common Type value but is org-configurable — confirm with sf_describe {sobject: "Opportunity", match: "type"}, and check `match: "renewal"` for a dedicated renewal flag)
   SELECT Account.Name, Name, Amount, StageName, CloseDate, Type FROM Opportunity WHERE Id IN (SELECT OpportunityId FROM OpportunityTeamMember WHERE UserId = '{userId}') AND IsClosed = false AND Type = 'Renewal' ORDER BY CloseDate ASC LIMIT 20
 
 Open cases:
@@ -98,17 +114,20 @@ AE-owned deals: SFDC does not allow OR with semi-join subselects. Run a SEPARATE
 
 Stage-based filtering: Add WHERE StageName clauses to any template when the user asks about
 deals needing technical engagement, demos, POCs, or specific stages.
-Early stages: 'Awareness', 'Research and Internal Education', 'Pending Initial Meeting'.
-Active stages: 'Budget and Timing Determination', 'Solution - Front Runner'.
-Late stages: 'Negotiation', 'Close - Booked'.
-Deals in early stages with close dates within 60 days are at-risk (insufficient time to progress).
+`StageName` is standard, but its **values are configured per org** — take them from the session's
+Salesforce hint, or from `sf_describe {sobject: "Opportunity", match: "stage"}`, which lists the
+active picklist values. Never hardcode a stage name you have not seen in this org.
+Order the discovered stages along the sales cycle and reason in terms of early / active / late:
+deals in an early stage with close dates within 60 days are at-risk (insufficient time to progress).
 
 Territory-based filtering: Add WHERE clauses on territory fields when the user asks about
-specific territories, regions, or countries. Available fields:
-`ETM_Core_Territory__c` (exact territory, e.g. 'AMER: Major Accounts FinSvcs Red 9'),
-`Territory_Credited_Category__c` (category, e.g. 'Financial', 'OEM'),
-`Territory_Grouping__c` (region, e.g. 'USA', 'Canada').
-Use LIKE '%keyword%' for partial matches (e.g. `ETM_Core_Territory__c LIKE '%Canada%'`).
+specific territories, regions, or countries. Territory fields are **custom and org-specific** —
+there is no standard one. Discover them with `sf_describe {sobject: "Opportunity", match: "territory"}`
+(also try `match: "region"`, `match: "district"`, `match: "geo"`), which returns the field names
+and, for picklists, their valid values.
+Orgs typically expose more than one granularity — an exact territory, a category, and a broader
+region — so pick the one matching what the user asked for.
+Use LIKE '%keyword%' for partial matches on a text territory field.
 Always combine territory filters with `ForecastCategoryName <> 'Omitted'`
 or quarter scoping to avoid zombie pipeline noise.
 
@@ -116,14 +135,14 @@ Coverage ratio: When the user asks about pipeline coverage or "do I have enough 
 
 MEDDPICC deal qualification — when user asks to "qualify", "score", or assess deal health:
 For each deal, assess these 8 MEDDPICC elements from available SFDC data:
-**M**etrics: Is there a quantified business outcome? Check Opportunity.Description, close plan notes.
-**E**conomic Buyer: Is the EB identified? Check Contact roles with 'Economic Buyer' or 'Decision Maker'.
-**D**ecision Criteria: Are evaluation criteria documented? Check Opportunity.NextStep, Description.
-**D**ecision Process: Is the buying process mapped? Check stage progression timeline, paper process.
-**P**aper Process: Are procurement steps known? Check Opportunity.Description for legal/procurement notes.
-**I**dentify Pain: Is the business pain articulated? Check Opportunity.Description, discovery notes.
-**C**hampion: Is there an internal advocate? Check Contact roles for 'Champion' or active engagement.
-**C**ompetition: Are competitors identified? Check Opportunity.CompetitorName or description.
+**M** — Metrics: Is there a quantified business outcome? Check Opportunity.Description, close plan notes.
+**E** — Economic Buyer: Is the EB identified? Check Contact roles with 'Economic Buyer' or 'Decision Maker'.
+**D** — Decision Criteria: Are evaluation criteria documented? Check Opportunity.NextStep, Description.
+**D** — Decision Process: Is the buying process mapped? Check stage progression timeline, paper process.
+**P** — Paper Process: Are procurement steps known? Check Opportunity.Description for legal/procurement notes.
+**I** — Identify Pain: Is the business pain articulated? Check Opportunity.Description, discovery notes.
+**C** — Champion: Is there an internal advocate? Check Contact roles for 'Champion' or active engagement.
+**C** — Competition: Are competitors identified? Competitor data has no standard home — run `sf_describe {sobject: "Opportunity", match: "competitor"}` to find this org's fields (they are often numbered, e.g. a primary plus alternates) and check the `OpportunityCompetitors` child relationship if it exists. Fall back to Opportunity.Description.
 Score each element: Green (validated), Yellow (partially known), Red (unknown/missing).
 Surface the gaps as action items, not just labels.
 
