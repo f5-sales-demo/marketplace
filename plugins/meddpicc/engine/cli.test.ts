@@ -374,6 +374,24 @@ describe('--locale', () => {
     expect(empty.err).toMatch(/empty/);
   });
 
+  test('both spellings of a flag are read, for every flag', async () => {
+    // `args.indexOf(name)` matched the separated form only, so `--out=deal.xlsx` was read as no `--out` and
+    // the default path used — silently, and for every flag, not only the locale. Four rounds of review found
+    // four holes in that parser one at a time, so the parser was replaced rather than patched again.
+    const out = path.join(scratch, 'equals.xlsx');
+    const written = await run(['generate', example, `--out=${out}`]);
+    expect(written.code).toBe(0);
+    expect(fs.existsSync(out), 'an --out=path must be honoured, not defaulted').toBe(true);
+    // The equals form is validated exactly like the separated one.
+    expect((await run(['generate', example, '--locale=ko', '--plan'])).code).toBe(1);
+    expect((await run(['generate', example, '--locale='])).code).toBe(1);
+    expect((await run(['generate', example, '--locale=en', '--plan'])).code).toBe(0);
+    // And duplicate detection sees across spellings, which is how a script's appended override slips in.
+    const mixed = await run(['generate', example, '--locale', 'en', '--locale=ko']);
+    expect(mixed.code).toBe(1);
+    expect(mixed.err).toMatch(/once/);
+  });
+
   test('the locale a workbook is written in is the one it records', async () => {
     const out = path.join(scratch, 'stamped.xlsx');
     const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);

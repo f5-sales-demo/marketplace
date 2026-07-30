@@ -55,9 +55,31 @@ function print(data: unknown): void {
   process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
 }
 
+/**
+ * Every value given for a flag, in both spellings Unix accepts.
+ *
+ * `args.indexOf(name)` matched the separated form only, so `--out=deal.xlsx` was read as no `--out` at all
+ * and the default path used instead — silently, and for every flag, not just the one this change is about.
+ * Four rounds of review found four holes in that parser one at a time; parsing both forms once closes the
+ * class rather than the instance.
+ */
+function flagValues(args: string[], name: string): Array<string | undefined> {
+  const out: Array<string | undefined> = [];
+  for (const [i, arg] of args.entries()) {
+    if (arg === name) {
+      const next = args[i + 1];
+      // A following flag is not this flag's value; `--locale --out x` means `--locale` was given nothing.
+      out.push(next === undefined || next.startsWith('--') ? undefined : next);
+    } else if (arg.startsWith(`${name}=`)) {
+      out.push(arg.slice(name.length + 1));
+    }
+  }
+  return out;
+}
+
 function flag(args: string[], name: string): string | undefined {
-  const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
+  const values = flagValues(args, name);
+  return values.length === 0 ? undefined : values[values.length - 1];
 }
 
 /**
@@ -68,21 +90,21 @@ function flag(args: string[], name: string): string | undefined {
  * a request. Same principle as `resolveLocale`: an explicit request is honoured or refused, never ignored.
  */
 function requiredFlagValue(args: string[], name: string): string | undefined {
-  const positions = args.reduce<number[]>((all, arg, i) => (arg === name ? [...all, i] : all), []);
-  if (positions.length === 0) return undefined;
-  if (positions.length > 1) {
-    // `--locale en --locale ko` used to take the first and ignore the second, so a script appending an
+  const values = flagValues(args, name);
+  if (values.length === 0) return undefined;
+  if (values.length > 1) {
+    // `--locale en --locale=ko` used to take the first and ignore the second, so a script appending an
     // override got English while asking for Korean. There is no right answer to pick here — the request
     // is ambiguous, and guessing which half was meant is how the wrong one gets honoured silently.
-    throw new Error(`${name} was given ${positions.length} times. Pass it once.`);
+    throw new Error(`${name} was given ${values.length} times. Pass it once.`);
   }
-  const value = args[(positions[0] ?? 0) + 1];
-  if (value === undefined || value.startsWith('--')) {
+  const value = values[0];
+  if (value === undefined) {
     throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
   }
   if (value.trim() === '') {
-    // `--locale ""` is what an unset shell variable expands to. Absent would be the kind reading, but the
-    // flag is present, so somebody meant to pass something and it evaporated — worth saying so.
+    // `--locale ""` and `--locale=` are what an unset shell variable expands to. Absent would be the kind
+    // reading, but the flag is present, so somebody meant to pass something and it evaporated.
     throw new Error(`${name} was given an empty value. Pass a locale, or leave the flag off.`);
   }
   return value;
