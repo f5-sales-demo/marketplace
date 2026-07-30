@@ -1,0 +1,179 @@
+import { describe, expect, test } from 'bun:test';
+import { cellResolver, compilePredicate, compileStatus } from './completion-formula';
+import type { Predicate } from './completion-rules';
+import { SECTION_RULES } from './completion-rules';
+import type { InputCell } from './generate';
+import { statusLabel } from './sections';
+
+/** Input cells the way the plan reports them, for a sheet laid out the way the shipped one is. */
+const inputs = (entries: Array<[string, string]>): InputCell[] =>
+  entries.map(([jsonPath, address]) => ({ jsonPath, sheet: 'Deal Review', address, valueType: 'string' }));
+
+const stakeholderCells = inputs([
+  ['stakeholders[0].name', 'B56'],
+  ['stakeholders[0].title', 'D56'],
+  ['stakeholders[0].roleInDeal', 'G56'],
+  ['stakeholders[1].name', 'B57'],
+  ['stakeholders[1].title', 'D57'],
+  ['stakeholders[1].roleInDeal', 'G57'],
+]);
+
+describe('cellResolver — what a deal path is on the sheet', () => {
+  test('a scalar path is the one cell that holds it', () => {
+    const resolve = cellResolver(inputs([['threeWhys.us.whyNow', 'B51']]));
+    expect(resolve.cell('threeWhys.us.whyNow')).toBe('$B$51');
+  });
+
+  test('an array of text is the range of its cells', () => {
+    const resolve = cellResolver(
+      inputs([
+        ['qualification.metrics.responses[0]', 'I30'],
+        ['qualification.metrics.responses[1]', 'I31'],
+      ]),
+    );
+    expect(resolve.range('qualification.metrics.responses')).toBe('$I$30:$I$31');
+  });
+
+  test("a list's identity column is its leftmost, and each field has its own range", () => {
+    // Whichever column the layout puts first is the one that says a row exists — a stakeholder is a
+    // stakeholder once they have a name. Read from the addresses rather than from the spec, so moving
+    // a column moves this with it.
+    const resolve = cellResolver(stakeholderCells);
+    expect(resolve.entryRange('stakeholders')).toBe('$B$56:$B$57');
+    expect(resolve.fieldRange('stakeholders', 'title')).toBe('$D$56:$D$57');
+  });
+
+  test('a path the sheet does not show refuses to resolve', () => {
+    // A rule naming a field with no cell would otherwise compile to a formula referring to nothing,
+    // which Excel shows as a status of #NAME? in the middle of a review.
+    const resolve = cellResolver(inputs([['threeWhys.us.whyNow', 'B51']]));
+    expect(() => resolve.cell('threeWhys.us.whyUs')).toThrow(/whyUs/);
+    expect(() => resolve.range('qualification.metrics.responses')).toThrow(/responses/);
+    expect(() => resolve.entryRange('stakeholders')).toThrow(/stakeholders/);
+    expect(() => resolve.fieldRange('stakeholders', 'title')).toThrow(/title/);
+  });
+
+  test('every address is absolute, so a filled row cannot drag the rule sideways', () => {
+    const resolve = cellResolver(stakeholderCells);
+    for (const ref of [resolve.cell('stakeholders[0].name'), resolve.entryRange('stakeholders')]) {
+      expect(ref.startsWith('$'), ref).toBe(true);
+    }
+  });
+});
+
+describe('compileStatus — the same rule, as a formula', () => {
+  const elementCells = inputs([
+    ['qualification.metrics.score', 'D20'],
+    ['qualification.metrics.evidence', 'H20'],
+    ['qualification.metrics.responses[0]', 'I30'],
+    ['qualification.metrics.responses[1]', 'I31'],
+  ]);
+
+  test('an element asks about its score, its answers and its evidence', () => {
+    const formula = compileStatus(SECTION_RULES.metrics, cellResolver(elementCells));
+    // The three things the engine's rule reads, and the bar it reads them against.
+    expect(formula).toContain('$D$20');
+    expect(formula).toContain('$H$20');
+    expect(formula).toContain('$I$30:$I$31');
+    expect(formula).toContain('>=3');
+    // Trimmed, because the engine trims: a cell holding a space is empty to it.
+    expect(formula).toContain('TRIM');
+  });
+
+  test('it returns the words the sheet shows, not the words the JSON holds', () => {
+    // The completion column is coloured by matching those words, and the scorecard COUNTIFs them. A
+    // formula answering "complete" where the cell used to read "Complete" is a colour that never
+    // appears and a count that stays at zero.
+    const formula = compileStatus(SECTION_RULES.metrics, cellResolver(elementCells));
+    expect(formula).toContain(`"${statusLabel('complete')}"`);
+    expect(formula).toContain(`"${statusLabel('partial')}"`);
+    expect(formula).toContain(`"${statusLabel('not_started')}"`);
+    expect(formula).not.toContain('"complete"');
+    expect(formula).not.toContain('"not_started"');
+  });
+
+  test('complete is asked first, so a complete section never reads as partial', () => {
+    const formula = compileStatus(SECTION_RULES.metrics, cellResolver(elementCells));
+    expect(formula.indexOf(`"${statusLabel('complete')}"`)).toBeLessThan(
+      formula.indexOf(`"${statusLabel('partial')}"`),
+    );
+  });
+
+  test('a score is read through N(), so text cannot outrank a number', () => {
+    // Excel sorts text above every number: `$D$20>=3` is TRUE for a cell holding "four", where the
+    // engine reads a non-number as 0 and says false. N() makes both read it the same way.
+    const formula = compileStatus(SECTION_RULES.metrics, cellResolver(elementCells));
+    expect(formula).toContain('N($D$20)>=3');
+    expect(formula).not.toMatch(/[^(]\$D\$20\)?>=/);
+  });
+
+  test('a field is only required of a row somebody has started', () => {
+    // Without the identity factor the pre-allocated blank rows count as entries missing a title, and
+    // the section can never be complete — a list with room to grow would read as permanently unfinished.
+    const formula = compileStatus(SECTION_RULES.stakeholders, cellResolver(stakeholderCells));
+    expect(formula).toContain('SUMPRODUCT((TRIM($B$56:$B$57)<>"")*(TRIM($D$56:$D$57)=""))=0');
+    // And the identity column is not compared against itself, which would be a term that can never
+    // be anything but nought.
+    expect(formula).not.toContain('(TRIM($B$56:$B$57)<>"")*(TRIM($B$56:$B$57)="")');
+  });
+
+  test('a list section counts entries and checks their fields', () => {
+    const formula = compileStatus(SECTION_RULES.stakeholders, cellResolver(stakeholderCells));
+    // At least one entry...
+    expect(formula).toContain('$B$56:$B$57');
+    // ...and no started row missing a title or a role.
+    expect(formula).toContain('$D$56:$D$57');
+    expect(formula).toContain('$G$56:$G$57');
+    expect(formula).toContain('SUMPRODUCT');
+  });
+
+  test('every shipped rule compiles against the shipped layout', () => {
+    // The point of the small vocabulary: if a rule cannot be expressed over cells, that is a fact
+    // worth learning here rather than from a #VALUE! in front of a customer.
+    const resolve = cellResolver([
+      ...elementCells,
+      ...stakeholderCells,
+      ...inputs([
+        ['threeWhys.us.whyAnything', 'B49'],
+        ['threeWhys.us.whyUs', 'B50'],
+        ['threeWhys.us.whyNow', 'B51'],
+        ['salesStrategy.differentiatedValueProposition', 'B68'],
+        ['salesStrategy.winStrategy', 'J68'],
+        ['closePlan.milestones[0].title', 'B74'],
+        ['closePlan.criticalActions[0].action', 'J74'],
+        ['team.internal[0].name', 'B86'],
+        ['team.partner[0].name', 'J86'],
+      ]),
+    ]);
+    for (const section of ['metrics', 'threeWhys', 'stakeholders', 'salesStrategy', 'closePlan', 'team']) {
+      const formula = compileStatus(SECTION_RULES[section], resolve);
+      expect(formula.length, section).toBeGreaterThan(0);
+      expect(formula, section).not.toContain('undefined');
+    }
+  });
+
+  test('all is AND and any is OR, which is the difference between complete and started', () => {
+    // Swapped, a section would read complete as soon as any one of its conditions held — and the
+    // formula would still look perfectly reasonable. Everything else in this suite matches on the
+    // cells a formula names, so nothing else here would notice.
+    const resolve = cellResolver(elementCells);
+    const two: Predicate[] = [
+      { kind: 'nonEmpty', path: 'qualification.metrics.evidence' },
+      { kind: 'atLeast', path: 'qualification.metrics.score', value: 3 },
+    ];
+    expect(compilePredicate({ kind: 'all', of: two }, resolve).startsWith('AND(')).toBe(true);
+    expect(compilePredicate({ kind: 'any', of: two }, resolve).startsWith('OR(')).toBe(true);
+    // Excel has no AND() of nothing, and the identities are the right way round.
+    expect(compilePredicate({ kind: 'all', of: [] }, resolve)).toBe('TRUE');
+    expect(compilePredicate({ kind: 'any', of: [] }, resolve)).toBe('FALSE');
+  });
+
+  test('a predicate the compiler does not know fails loudly', () => {
+    expect(() =>
+      compileStatus(
+        { complete: { kind: 'whenever' } as never, started: { kind: 'any', of: [] } },
+        cellResolver(elementCells),
+      ),
+    ).toThrow(/whenever/);
+  });
+});

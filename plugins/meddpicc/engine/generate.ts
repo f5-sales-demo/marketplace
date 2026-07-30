@@ -13,6 +13,8 @@
  */
 import { createHash } from 'node:crypto';
 import { computeCompletion } from './completion';
+import { cellResolver, compileStatus } from './completion-formula';
+import { SECTION_RULES } from './completion-rules';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { enumLabel, enumLabels } from './labels';
@@ -710,6 +712,8 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     const byRow = new Map<number, CellSpec[]>();
     const heights = new Map<number, number>();
     const merges: string[] = [];
+    /** Status cells whose formula needs every input cell to have been placed first. */
+    const pendingStatuses: Array<{ cell: CellSpec; section: string }> = [];
     const formats: ConditionalFormat[] = [];
     const validations: Validation[] = [];
     const push = (row: number, cell: CellSpec) => {
@@ -952,6 +956,18 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             continue;
           }
 
+          // A section's completion status: the engine's own rule, compiled into a formula so it follows
+          // what somebody types during a review instead of describing the deal as it was generated.
+          // Filled in after the walk, because a rule names cells that later blocks may not have placed
+          // yet — the Completion block happens to sit near the end today, and nothing should depend on
+          // that.
+          if (table.source.kind === 'sections' && spec.id === 'status') {
+            const cell: CellSpec = { ref, style };
+            push(dataRow, cell);
+            pendingStatuses.push({ cell, section: entry.key as string });
+            continue;
+          }
+
           const derived = derivedValue(spec, entry, table, schema, deal, completion);
           push(dataRow, { ref, value: derived, style });
           // A derived cell says which element or question its row is about, and nothing a person may
@@ -999,6 +1015,15 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
           if (values) validations.push({ sqref, values });
         }
         column += span;
+      }
+    }
+
+    if (pendingStatuses.length > 0) {
+      const resolve = cellResolver(inputCells);
+      for (const { cell, section } of pendingStatuses) {
+        const rule = SECTION_RULES[section];
+        if (!rule) throw new Error(`the Completion block names section "${section}", which has no rule`);
+        cell.formula = compileStatus(rule, resolve);
       }
     }
 

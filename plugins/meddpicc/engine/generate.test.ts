@@ -218,12 +218,34 @@ describe('planWorkbook — derived cells come from the schema, not from prose', 
     expect(names).toEqual(QUALIFICATION_ELEMENTS.map(sectionLabel));
   });
 
-  test('the completion block lists every tracked section with its computed status', () => {
+  test('the completion block lists every tracked section, and each status is a live formula', () => {
+    // The statuses used to be written as literals, computed from the deal at generation time: fill in
+    // the missing evidence during a review and the sheet went on calling the section not started. They
+    // are the engine's own rules compiled now, so Excel answers as the engine would.
     const completion = table('sections');
     const names = SECTION_ORDER.map((_, i) => cellAt(completion.ref('section', i))?.value);
     expect(names).toEqual(SECTION_ORDER.map(sectionLabel));
-    const metricsStatus = cellAt(completion.ref('status', SECTION_ORDER.indexOf('metrics')))?.value;
-    expect(COMPLETION_STATUSES.map(statusLabel)).toContain(metricsStatus);
+
+    for (const [row, section] of SECTION_ORDER.entries()) {
+      const cell = cellAt(completion.ref('status', row));
+      expect(cell?.value, section).toBeUndefined();
+      const formula = cell?.formula ?? '';
+      // It can only ever answer one of the three words the column is coloured by.
+      for (const status of COMPLETION_STATUSES) expect(formula, section).toContain(`"${statusLabel(status)}"`);
+    }
+  });
+
+  test("an element's status formula reads that element's own cells", () => {
+    // Compiled against the wrong row it would be well-formed and wrong — the failure mode a formula
+    // cannot show you. So the cells it names have to be the ones the plan gave that element.
+    const completion = table('sections');
+    const formula = cellAt(completion.ref('status', SECTION_ORDER.indexOf('champion')))?.formula ?? '';
+    const address = (jsonPath: string) => plan.inputCells.find((c) => c.jsonPath === jsonPath)?.address ?? 'MISSING';
+    const absolute = (ref: string) => ref.replace(/^([A-Z]+)(\d+)$/, '$$$1$$$2');
+    expect(formula).toContain(absolute(address('qualification.champion.score')));
+    expect(formula).toContain(absolute(address('qualification.champion.evidence')));
+    // ...and not another element's.
+    expect(formula).not.toContain(absolute(address('qualification.metrics.evidence')));
   });
 
   test('questions come from the schema and pair with the responses in the deal', () => {
