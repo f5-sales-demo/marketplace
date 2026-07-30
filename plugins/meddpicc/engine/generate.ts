@@ -684,7 +684,7 @@ function derivedValue(
 }
 
 /** What the header says when the deal names nothing — see {@link presentation}. */
-const FALLBACK_HEADER = 'MEDDPICC Deal Review';
+export const FALLBACK_HEADER = 'MEDDPICC Deal Review';
 
 /**
  * Presentation settings every sheet shares: no grid, and a print setup that puts the deal on
@@ -699,10 +699,14 @@ function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'>
   // them, so a very long account name cannot crowd a later part out and leave every deal for that
   // account printing identically.
   //
-  // `dealId` is in there because it is the only part guaranteed to identify the deal. The schema
-  // requires all three of these but bounds none of them, so a deal whose account and deal names
-  // are both empty strings still validates — and a printout of it would carry nothing to file it
-  // by. The id is short, so per-part budgeting always lets it through.
+  // `dealId` is in there because it is the only part guaranteed to identify the deal, and it is short,
+  // so per-part budgeting always lets it through.
+  //
+  // The fallback below is no longer reachable from a VALID deal: #901 bounded all three of these with
+  // `minLength` and `pattern: "\S"`, so a validated deal always names itself and `header` is never
+  // empty. It stays because `planWorkbook` takes `deal: unknown` and does not validate — a caller that
+  // plans an unvalidated deal, which the tests and the acceptance harness both do, can still reach it,
+  // and an unlabelled printout is worse than a generic one.
   const header = ['metadata.accountName', 'metadata.dealName', 'metadata.dealId']
     .map((path) => readPath(deal, path))
     .filter((part): part is string => typeof part === 'string' && part !== '');
