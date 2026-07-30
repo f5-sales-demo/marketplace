@@ -60,21 +60,15 @@ jobs:
               continue
             fi
 
-            # Extract release notes from CHANGELOG.md
-            # Look for lines mentioning this plugin
-            # in the Unreleased or latest section
-            BODY=""
-            if [[ -f CHANGELOG.md ]]; then
-              BODY=$(
-                sed -n '/^## \[/,/^## \[/{//!p}' \
-                  CHANGELOG.md \
-                  | head -20 \
-                  | grep -i "$NAME" || true
-              )
-            fi
-
-            if [[ -z "$BODY" ]]; then
-              BODY="Released **${NAME}** v${NEW_VER}"
+            # Select the release note for exactly this version. Delegated to a script so it
+            # can be tested (tests/test-release-notes.sh); the previous inline selection
+            # matched on plugin name alone and published salesforce/v1.3.5 with notes for a
+            # v1.3.4 that was never tagged. The script exits non-zero on an ambiguous or
+            # stale changelog, which fails the release rather than publishing a wrong note.
+            if ! BODY=$(scripts/release-notes.sh "$NAME" "$NEW_VER" CHANGELOG.md); then
+              echo "::error::Refusing to publish ${TAG}: CHANGELOG.md does not" \
+                "unambiguously describe ${NAME} v${NEW_VER} (see log above)."
+              exit 1
             fi
 
             gh release create "$TAG" \
