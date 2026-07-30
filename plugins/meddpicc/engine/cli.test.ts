@@ -392,6 +392,23 @@ describe('--locale', () => {
     expect(mixed.err).toMatch(/once/);
   });
 
+  test('no flag may be given without a value, not only the locale', async () => {
+    // The strict checks lived in a second function that only the newest flag called, so `--spec` with
+    // nothing after it built from the DEFAULT spec and exited 0 — a plausible workbook from the wrong
+    // layout. Every value-flag goes through one parser now.
+    for (const args of [
+      ['generate', example, '--spec', '--locale', 'en', '--plan'],
+      ['generate', example, '--out'],
+      ['check-spec', '--schema'],
+    ]) {
+      const { code, err } = await run(args);
+      expect(code, args.join(' ')).toBe(1);
+      expect(err, args.join(' ')).toMatch(/no value/);
+    }
+    // And a well-formed request still works, so the parser has not simply become hostile.
+    expect((await run(['generate', example, '--plan'])).code).toBe(0);
+  });
+
   test('the locale a workbook is written in is the one it records', async () => {
     const out = path.join(scratch, 'stamped.xlsx');
     const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);

@@ -77,35 +77,42 @@ function flagValues(args: string[], name: string): Array<string | undefined> {
   return out;
 }
 
-function flag(args: string[], name: string): string | undefined {
-  const values = flagValues(args, name);
-  return values.length === 0 ? undefined : values[values.length - 1];
-}
-
 /**
- * A flag's value, refusing the flag with nothing after it.
+ * The value given for a flag, refusing every way of asking for one and not supplying it.
  *
- * `flag()` returns undefined for both "not passed" and "passed with no value", and treating the second as
- * the first means `generate deal.json --locale` writes an English workbook while looking like it honoured
- * a request. Same principle as `resolveLocale`: an explicit request is honoured or refused, never ignored.
+ * Every flag here takes a value — the boolean ones are read with `includes` — so "present with nothing
+ * after it" is never a legitimate call. Collapsing it into "absent" is what let `generate deal.json --spec
+ * --locale en` build from the DEFAULT spec and exit 0, and `--out=path` write somewhere else entirely.
+ *
+ * Six rounds of review found six holes in the parser that used to be here, one at a time: the equals form,
+ * a repeated flag, an empty value, a following flag taken as the value, validation on only one code path,
+ * and finally this. They are all the same mistake — treating a malformed request as no request — so the
+ * checks belong in one place that every flag goes through, rather than in a second function only the newest
+ * flag remembered to call.
  */
-function requiredFlagValue(args: string[], name: string): string | undefined {
-  const values = flagValues(args, name);
+function flag(args: string[], name: string): string | undefined {
+  const values: Array<string | undefined> = [];
+  for (const [i, arg] of args.entries()) {
+    if (arg === name) {
+      const next = args[i + 1];
+      // A following flag is not this flag's value: `--spec --locale en` gave `--spec` nothing.
+      values.push(next === undefined || next.startsWith('--') ? undefined : next);
+    } else if (arg.startsWith(`${name}=`)) {
+      values.push(arg.slice(name.length + 1));
+    }
+  }
   if (values.length === 0) return undefined;
   if (values.length > 1) {
-    // `--locale en --locale=ko` used to take the first and ignore the second, so a script appending an
-    // override got English while asking for Korean. There is no right answer to pick here — the request
-    // is ambiguous, and guessing which half was meant is how the wrong one gets honoured silently.
+    // No right answer to guess at: `--locale en --locale=ko` is what a script appending an override looks
+    // like, and picking a half is how the wrong half gets honoured silently.
     throw new Error(`${name} was given ${values.length} times. Pass it once.`);
   }
   const value = values[0];
-  if (value === undefined) {
-    throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
-  }
+  if (value === undefined) throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
   if (value.trim() === '') {
-    // `--locale ""` and `--locale=` are what an unset shell variable expands to. Absent would be the kind
-    // reading, but the flag is present, so somebody meant to pass something and it evaporated.
-    throw new Error(`${name} was given an empty value. Pass a locale, or leave the flag off.`);
+    // `--locale ""` and `--locale=` are what an unset shell variable expands to. The flag is present, so
+    // somebody meant to pass something and it evaporated.
+    throw new Error(`${name} was given an empty value. Pass a value, or leave the flag off.`);
   }
   return value;
 }
@@ -226,7 +233,7 @@ async function main(): Promise<number> {
     // Resolved BEFORE the early returns below. `--plan --locale ko` used to exit 0 while the same request
     // on the writing path was refused, so an explicit locale was validated or ignored depending on which
     // flag came with it. Review caught that; the resolution belongs to the command, not to one branch.
-    const locale = resolveLocale({ flag: requiredFlagValue(rest, '--locale'), deal, env: process.env });
+    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env });
 
     if (rest.includes('--prose-heights')) {
       const plan = planWorkbook(schema, spec, deal);
