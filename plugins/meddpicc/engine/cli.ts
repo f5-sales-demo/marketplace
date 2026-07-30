@@ -223,7 +223,7 @@ async function main(): Promise<number> {
     }
     // Resolved once, here, before anything is planned: the flag, then the deal, then the environment.
     // Deciding it deeper in the engine is what #938 fixed.
-    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env }).slug;
+    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env });
     await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION, locale));
     const plan = planWorkbook(schema, spec, deal);
     // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a

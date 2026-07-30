@@ -18,7 +18,7 @@ import { SECTION_RULES } from './completion-rules';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
 import { enumLabel, enumLabels } from './labels';
-import { DEFAULT_LOCALE, normalizeLocaleTag, SHIPPED_LOCALES } from './locale';
+import { DEFAULT_LOCALE, normalizeLocaleTag, type ResolvedLocale, SHIPPED_LOCALES } from './locale';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT, neededRowHeight } from './text-metrics';
@@ -1196,8 +1196,9 @@ export function workbookProperties(
    * planned. Left optional so that a caller with no opinion still records the default rather than
    * nothing, since a workbook that does not say what language it is in is worse than one that guesses.
    */
-  locale: string = DEFAULT_LOCALE,
+  resolved: ResolvedLocale = { slug: DEFAULT_LOCALE, from: 'default' },
 ): WorkbookProperties {
+  const locale = resolved.slug;
   if (!SHIPPED_LOCALES.includes(locale)) {
     // A caller that resolved through `resolveLocale` cannot reach this. One that passed a raw string can,
     // and a workbook stamped with a language it is not written in lies to every later reader.
@@ -1206,15 +1207,21 @@ export function workbookProperties(
         `Resolve the locale with resolveLocale, which offers ${SHIPPED_LOCALES.join(', ')}.`,
     );
   }
-  // The stamp has to agree with what the deal asked for.
+  // The deal's request must not be silently DROPPED — which is not the same as insisting the stamp match
+  // it, and getting that distinction wrong was a defect in this change's first version.
   //
-  // Moving resolution out to the caller left a hole worth naming: `generateWorkbook` called without a
-  // locale would have stamped English over a deal that explicitly asked for Korean, which is worse than
-  // the refusal it replaced — silently ignoring a request beats no request at all only if nobody asked.
-  // A pre-existing test caught it. This is not resolving the locale a second time; it is checking that
-  // whoever resolved it honoured the deal.
+  // The hole being closed: `generateWorkbook` called with no locale would have stamped English over a deal
+  // explicitly asking for Korean, worse than the refusal it replaced, since silently ignoring a request
+  // beats no request only if nobody asked. A pre-existing test caught that.
+  //
+  // But `--locale` outranks `metadata.locale` by design, so refusing every mismatch made the documented
+  // override impossible: `--locale en` on a deal saying `ja` resolved to `en` and was then rejected for
+  // disagreeing with the deal. Review caught that one. So the check asks where the locale came from — a
+  // flag is somebody deliberately overriding the file, and anything less specific means the deal's request
+  // went unheard.
   const asked = readPath(deal, 'metadata.locale');
-  if (typeof asked === 'string' && asked !== '' && normalizeLocaleTag(asked) !== locale) {
+  const overridden = resolved.from === 'flag';
+  if (!overridden && typeof asked === 'string' && asked !== '' && normalizeLocaleTag(asked) !== locale) {
     throw new Error(
       `The deal asks for metadata.locale "${asked}", and the workbook is not translated into it — ` +
         `it is being written in "${locale}", and can be written in ${SHIPPED_LOCALES.join(', ')}. ` +
@@ -1235,8 +1242,8 @@ export function generateWorkbook(
   deal: unknown,
   engineVersion?: string,
   /** Resolved by the caller — see {@link workbookProperties}. Defaults to English. */
-  locale: string = DEFAULT_LOCALE,
+  resolved: ResolvedLocale = { slug: DEFAULT_LOCALE, from: 'default' },
 ): Uint8Array {
   const plan = planWorkbook(schema, spec, deal);
-  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion, locale));
+  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion, resolved));
 }

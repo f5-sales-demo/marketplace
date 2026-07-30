@@ -1,5 +1,20 @@
 import { describe, expect, test } from 'bun:test';
+import { workbookProperties } from './generate';
 import { DEFAULT_LOCALE, normalizeLocaleTag, resolveLocale, SHIPPED_LOCALES } from './locale';
+
+/** The smallest plan `workbookProperties` will accept: it only fingerprints the layout, which is empty. */
+const EMPTY_PLAN = {
+  sheets: [],
+  anchors: [],
+  proseCells: [],
+  clippedCells: [],
+  notes: [],
+  namedCells: {},
+  tables: [],
+  inputCells: [],
+  writtenCells: [],
+  // biome-ignore lint/suspicious/noExplicitAny: a stand-in plan, not a real one — only the layout is read.
+} as any;
 
 /** Every ambient source empty, so a test says exactly which inputs it is exercising. */
 const nothing = { env: {} as Record<string, string | undefined> };
@@ -121,6 +136,22 @@ describe('resolveLocale — resolution and refusal', () => {
       unresolved: 'is-is',
     });
     expect(resolveLocale({ env: { LANG: 'C' } })).toEqual({ slug: DEFAULT_LOCALE, from: 'default' });
+  });
+
+  test('a flag may override the deal, and only a flag may', () => {
+    // Two rules that contradict each other unless the origin is carried along, which the first version of
+    // this change got wrong. `--locale` outranks `metadata.locale` by design; a deal's request must not be
+    // silently dropped. Refusing every mismatch made the documented override impossible — review caught it
+    // — and allowing every mismatch would let English be stamped over a deal asking for Korean.
+    const dealInJapanese = { metadata: { locale: 'ja' } };
+    const viaFlag = resolveLocale({ flag: 'en', deal: dealInJapanese });
+    expect(viaFlag).toEqual({ slug: 'en', from: 'flag' });
+    // Generation accepts it, because `from: 'flag'` says a person deliberately overrode the file...
+    expect(() => workbookProperties({}, EMPTY_PLAN, dealInJapanese, undefined, viaFlag)).not.toThrow();
+    // ...and refuses the same slug when nothing more specific asked for it, so the request is not dropped.
+    expect(() =>
+      workbookProperties({}, EMPTY_PLAN, dealInJapanese, undefined, { slug: 'en', from: 'default' }),
+    ).toThrow(/ja/);
   });
 
   test('the shipped set is derived, and today it is English alone', () => {
