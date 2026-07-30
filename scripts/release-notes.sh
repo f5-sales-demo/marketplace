@@ -87,12 +87,22 @@ fi
 # The leading "- " is stripped and continuations dedented by two, so the note reads as
 # prose on the release page instead of one oversized list item; nested bullets keep their
 # relative depth. Trailing blank lines are dropped.
+# Reads to EOF rather than exiting at the end of the entry.
+#
+# `exit` here was a reader quitting on a writer still writing. Below the 64 KiB pipe buffer the
+# writer finishes first and nothing notices; above it the writer blocks, takes SIGPIPE when awk
+# leaves, and `pipefail` makes 141 the status of a script that just printed the correct note. The
+# workflow read that as an ambiguous changelog and refused to publish, which is why meddpicc/v7.2.0
+# was merged and never tagged.
+#
+# `done` stops the emitting; the input is consumed either way. Reading a few spare kilobytes costs
+# nothing next to guessing whether the other end of a pipe has finished.
 unreleased_section | awk -v start="$MATCHING" '
   index($0, start) == 1 && !started { started = 1; print substr($0, 3); next }
-  started {
-    # A new top-level list item ends this entry.
-    if ($0 ~ /^- /) { exit }
-    if ($0 ~ /^[^ \t]/ && $0 != "") { exit }
+  started && !done {
+    # A new top-level list item, or any unindented line, ends this entry.
+    if ($0 ~ /^- /) { done = 1; next }
+    if ($0 ~ /^[^ \t]/ && $0 != "") { done = 1; next }
     if ($0 == "") { blanks++; next }
     while (blanks > 0) { print ""; blanks-- }
     print substr($0, 3)
