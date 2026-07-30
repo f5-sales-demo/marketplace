@@ -10,6 +10,38 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.0.0 — a deal has to say which deal it is. **Breaking**: a deal file whose
+  `dealId`, `accountName`, `dealName`, or whose first stakeholder's `name` or `title`, is an empty
+  string was valid and is now refused, with the path named.
+
+  `required` asks whether a key is present, not whether it says anything, so
+  `{"dealId": "", "accountName": "", "dealName": ""}` validated cleanly — and the engine went on to
+  name the file and the round-trip stamp after nothing at all.
+
+  - **The keyword had to be implemented, not just written down.** The validator is a hand-written
+    draft-2020-12 subset, and `minLength` was not in it. Adding the constraint to the schema alone
+    would have read as a constraint and enforced nothing.
+  - **So an ignored keyword now fails the build.** `validate.ts` declares which keywords it enforces,
+    which it is deliberately lenient about (`format`, `pattern`), and which are annotations; a test
+    refuses any keyword the schema uses that appears in none of them, and a second test proves every
+    keyword claimed as enforced really does reject something, so the declaration cannot lie.
+  - **Bounded only where emptiness means nothing**: the three identity fields, and a stakeholder's
+    name and title, both of which are already `required`. Prose, evidence and notes stay legitimately
+    empty — a deal is worked over weeks, and the completion rules depend on telling blank from filled.
+  - **A space is not a name either**, and that one was worth closing rather than documenting. A deal
+    with `dealId: " "` validated, generated, and then failed on read-back of its own unchanged
+    workbook, because the reader trims and proposes clearing the id — a file that cannot survive its
+    own round trip, which is the whole thing an identity field exists to prevent. Said in the
+    vocabulary the specification already has, `pattern: "\S"`, rather than by giving `minLength` a
+    private trimmed meaning that would mislead everyone reading the schema.
+  - **`pattern` is enforced now**, which also turned on the three Salesforce-ID prefixes (`^006`,
+    `^001`, `^005`) that had been accepted unconditionally. Checked against both the example deal and
+    a real one before flipping it, and a pattern the engine cannot compile is reported against the
+    schema path rather than crashing or being skipped.
+  - A zero-width character still counts as content, to `validate` and the reader alike: `\S` and
+    `String.prototype.trim` draw the line in exactly the same place, and a validator stricter than the
+    reader would be the same mismatch pointing the other way.
+
 - **`meddpicc`** v6.3.0 — the completion statuses follow the sheet. Not breaking: no address moved, so
   a v6.2.0 workbook still reads back.
 
