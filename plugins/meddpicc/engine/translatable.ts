@@ -16,7 +16,7 @@
  * translated, which is the distinction the oracle draws using `plan.inputCells` — the map that exists to
  * say which cells hold a person's value.
  */
-import { BOOLEAN_NO, BOOLEAN_YES } from './generate';
+import { BOOLEAN_NO, BOOLEAN_YES, FALLBACK_HEADER } from './generate';
 import { ENUM_LABELS, enumLabel } from './labels';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_LABELS } from './sections';
@@ -35,7 +35,9 @@ export type TranslatableSource =
   /** `Yes` or `No`. */
   | 'boolean'
   /** An element or section name, from `SECTION_LABELS`. */
-  | 'section';
+  | 'section'
+  /** The printed header the engine supplies when the deal names nothing. */
+  | 'header';
 
 /**
  * Keys that carry a string which is NOT prose.
@@ -147,6 +149,12 @@ export function translatableStrings(spec: WorkbookSpec, schema: unknown): Map<st
 
   add(BOOLEAN_YES, 'boolean');
   add(BOOLEAN_NO, 'boolean');
+
+  // The printed header. Its parts are the deal's own account name, deal name and id — never translated —
+  // except when the deal names none of them, where the engine supplies this instead. Unreachable from a
+  // valid deal since #901 bounded all three identity fields, but `planWorkbook` does not validate, so a
+  // caller that plans an unvalidated deal still prints it.
+  add(FALLBACK_HEADER, 'header');
 
   for (const label of Object.values(SECTION_LABELS)) add(label, 'section');
 

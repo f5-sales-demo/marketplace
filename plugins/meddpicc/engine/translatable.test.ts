@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import * as path from 'node:path';
-import { planWorkbook } from './generate';
+import { FALLBACK_HEADER, planWorkbook } from './generate';
 import { isNonProse, translatableSet, translatableStrings } from './translatable';
 import type { WorkbookSpec } from './workbook-spec';
 
@@ -43,7 +43,43 @@ const renderedByEngine = (deal: unknown): Set<string> => {
     }
     for (const validation of sheet.validations ?? []) for (const value of validation.values) keep(value);
   }
+  // The print header, whose parts are mostly the deal's own — account name, deal name, id. Position
+  // cannot separate those from the engine's fallback the way `inputCells` separates cells, so they are
+  // excluded by value: a header part equal to something a deal-derived cell holds is the deal's.
+  const dealValues = new Set<string>();
+  for (const sheet of plan.sheets) {
+    for (const row of sheet.rows) {
+      for (const cell of row.cells) {
+        if (dealCells.has(`${sheet.name}!${cell.ref}`) && typeof cell.value === 'string') dealValues.add(cell.value);
+      }
+    }
+  }
+  for (const sheet of plan.sheets) {
+    for (const part of sheet.print?.header ?? []) if (!dealValues.has(part)) keep(part);
+  }
   for (const note of plan.notes) keep(note.text);
+  return out;
+};
+
+/** A deal that names nothing, so the engine's fallback header is the one that prints. */
+const anonymousDeal = (): unknown => {
+  const deal = structuredClone(example);
+  deal.metadata.accountName = '';
+  deal.metadata.dealName = '';
+  deal.metadata.dealId = '';
+  return deal;
+};
+
+/**
+ * Everything reachable across the deals that between them exercise each branch.
+ *
+ * One deal is not enough, and pretending otherwise would make the surplus check lie. The header is the
+ * clearest case: it prints the deal's own identifiers, and the engine's fallback only when the deal names
+ * nothing. Two deals cover both.
+ */
+const reachable = (): Set<string> => {
+  const out = new Set<string>();
+  for (const deal of [example, anonymousDeal()]) for (const text of renderedByEngine(deal)) out.add(text);
   return out;
 };
 
@@ -52,16 +88,35 @@ describe('the catalogue is proven against a workbook, not against my reading of 
     // The check that cannot miss a source, because it does not depend on knowing what the sources are.
     // Three hand-written enumerations of this list were wrong before it existed.
     const catalogue = translatableSet(spec, schema);
-    const missing = [...renderedByEngine(example)].filter((text) => !catalogue.has(text));
+    const missing = [...reachable()].filter((text) => !catalogue.has(text));
     expect(missing).toEqual([]);
   });
 
   test('the catalogue holds nothing the workbook does not show', () => {
     // The other direction, so the catalogue cannot pass the first test by containing everything. A
     // surplus entry is a translation nobody reads, and it looks exactly like coverage.
-    const rendered = renderedByEngine(example);
+    const rendered = reachable();
     const surplus = [...translatableSet(spec, schema)].filter((text) => !rendered.has(text));
     expect(surplus).toEqual([]);
+  });
+
+  test("the printed header the engine falls back to is catalogued, and the deal's own parts are not", () => {
+    // Another string masked by a coincidence: FALLBACK_HEADER is spelled exactly like the title and the
+    // sheet name, so the checks above passed without ever scanning a print header. Review caught it after
+    // the same bug in the tab name — one instance fixed is not the class swept.
+    const anonymous = renderedByEngine(anonymousDeal());
+    expect(anonymous.has(FALLBACK_HEADER)).toBe(true);
+    // Asserted on the SOURCE, not on presence. `FALLBACK_HEADER` is spelled exactly like the title and
+    // the sheet name, so the string is in the catalogue whether or not the header is a source — a
+    // presence check here passes with the header source deleted, which is how the same coincidence
+    // defeated this test's first version. The source set is what distinguishes them.
+    expect([...(translatableStrings(spec, schema).get(FALLBACK_HEADER) ?? [])]).toContain('header');
+    // With identifiers present the header is the deal's, and none of it is the engine's to translate.
+    const named = structuredClone(example);
+    named.metadata.accountName = 'Zzyzx Holdings';
+    named.metadata.dealName = 'Qwertyuiop Refresh';
+    expect(renderedByEngine(named).has('Zzyzx Holdings')).toBe(false);
+    expect(renderedByEngine(named).has('Qwertyuiop Refresh')).toBe(false);
   });
 
   test('a deal-supplied value is never in the catalogue', () => {
