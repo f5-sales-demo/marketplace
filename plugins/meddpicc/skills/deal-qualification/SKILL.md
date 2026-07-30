@@ -360,6 +360,10 @@ Rules that matter:
 - **Relay a rejection by its cell address**, as the tool gives it —
   `G20`, not a JSON path. The user is looking at Excel. A non-zero exit
   means something was refused; do not apply anyway.
+- **The sheet recomputes as it is filled in.** The scorecard, each score's rubric
+  and every section's completion status are formulas, not a snapshot of the deal as
+  it was generated — so an answer typed into a review updates them there and then,
+  and what Excel shows agrees with `next` and `score` without regenerating.
 - **What each element means is a hover note, not a cell.** Asked on the
   sheet what "Paper Process" or "Decision Criteria" covers, say to hover
   the element name — the definition is there, which is why the column of

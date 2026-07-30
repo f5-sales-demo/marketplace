@@ -246,7 +246,9 @@ schema-derived dropdowns. Colour marks only what needs attention — a faint war
 unscored element, an untouched section, an overdue date, or a cell a completion rule needs and
 nobody has filled in — and anything finished carries no fill at all. Each element name carries
 what that element means as a hover note, so the sheet explains itself without spending a column
-on it. `read` pulls edits back out.
+on it. The scorecard, the rubric beside each score and the completion status of every section are
+formulas rather than snapshots, so typing an answer in during a review updates them in front of
+you. `read` pulls edits back out.
 
 ### Get coaching (auto-activates)
 

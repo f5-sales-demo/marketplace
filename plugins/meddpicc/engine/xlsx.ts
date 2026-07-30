@@ -71,6 +71,9 @@ interface Range {
   r2: number;
 }
 
+/** Excel's limit on the text of one formula. Past it, opening the file offers to repair it. */
+const MAX_FORMULA_LENGTH = 8192;
+
 /** The last cell Excel has: column XFD, row 1048576. Anything past it is not a cell at all. */
 const MAX_COLUMN = 16384;
 const MAX_ROW = 1048576;
@@ -629,6 +632,14 @@ function cellXml(cell: CellSpec): string {
   const s = style === undefined ? '' : ` s="${STYLE_IDS[style]}"`;
 
   if (cell.formula !== undefined) {
+    // Excel's cap on one formula. Past it the file does not warn — it prompts to repair, and the cell
+    // comes back empty. A compiled rule is the realistic way to reach this, so it is checked here where
+    // every formula passes rather than at the one place that happens to build a long one.
+    if (cell.formula.length > MAX_FORMULA_LENGTH) {
+      throw new Error(
+        `The formula for ${cell.ref} is ${cell.formula.length} characters; Excel allows ${MAX_FORMULA_LENGTH}`,
+      );
+    }
     // No cached <v>: Excel computes on open. Writing a value we guessed would be worse —
     // it would show a stale number until something forced a recalculation.
     return `<c r="${cell.ref}"${s}><f>${escapeXml(cell.formula)}</f></c>`;
