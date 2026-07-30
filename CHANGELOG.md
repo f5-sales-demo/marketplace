@@ -10,9 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`meddpicc`** v7.0.1 — three formulas stop spelling enum words by hand. No behaviour change: the
-  generated workbook is **byte-identical**, same sha256, and the resolved formulas still read `"Green"`
-  and `"Unknown"` exactly as before.
+- **`meddpicc`** v7.0.1 — three formulas stop spelling enum words by hand. No behaviour change: every
+  OOXML part of the generated workbook is byte-identical to v7.0.0 except `docProps/custom.xml`, which
+  differs only in the recorded engine version, and the resolved formulas still read `"Green"` and
+  `"Unknown"` exactly as before.
 
   `generate.ts` has a `FORMULA_WORDS` table for one purpose, and says so: *"One source of truth for a
   spelling that appears in two places — the cell and the formula that counts it."* Three formulas did
