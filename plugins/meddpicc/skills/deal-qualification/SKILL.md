@@ -159,6 +159,14 @@ User provides a deal or account name with no existing JSON file.
    on these being strings. Also include:
    - `metadata` with generated `dealId`, account/deal name, today's
      `reviewDate`, all `completionStatus` fields `"not_started"`
+
+   The identity fields are the exception to the `""` rule:
+   `dealId`, `accountName` and `dealName` **must each say
+   something**, and so must a stakeholder's `name` and `title`.
+   `validate` refuses an empty one and names the path — the deal
+   file and the workbook's round-trip stamp are both named after
+   them, so a blank identity has nothing to be named after. Ask
+   for a value rather than writing `""`.
    - `scoring.elementScores` with all 8 keys set to `0`
    - `scoring.overallScore: 0` and `scoring.overallRating: "Red"`
    - Empty `stakeholders: []`, `closePlan: {milestones: [],

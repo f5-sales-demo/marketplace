@@ -10,6 +10,28 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.0.0 — a deal has to say which deal it is. **Breaking**: a deal file whose
+  `dealId`, `accountName`, `dealName`, or whose first stakeholder's `name` or `title`, is an empty
+  string was valid and is now refused, with the path named.
+
+  `required` asks whether a key is present, not whether it says anything, so
+  `{"dealId": "", "accountName": "", "dealName": ""}` validated cleanly — and the engine went on to
+  name the file and the round-trip stamp after nothing at all.
+
+  - **The keyword had to be implemented, not just written down.** The validator is a hand-written
+    draft-2020-12 subset, and `minLength` was not in it. Adding the constraint to the schema alone
+    would have read as a constraint and enforced nothing.
+  - **So an ignored keyword now fails the build.** `validate.ts` declares which keywords it enforces,
+    which it is deliberately lenient about (`format`, `pattern`), and which are annotations; a test
+    refuses any keyword the schema uses that appears in none of them, and a second test proves every
+    keyword claimed as enforced really does reject something, so the declaration cannot lie.
+  - **Bounded only where emptiness means nothing**: the three identity fields, and a stakeholder's
+    name and title, both of which are already `required`. Prose, evidence and notes stay legitimately
+    empty — a deal is worked over weeks, and the completion rules depend on telling blank from filled.
+  - `minLength` counts what the specification says it counts, so a whitespace-only identity still
+    validates. Left that way deliberately rather than giving a standard keyword a private meaning; the
+    engine's own `isFilled` trims, so the sheet and the completion rules still read a space as empty.
+
 - **`meddpicc`** v6.3.0 — the completion statuses follow the sheet. Not breaking: no address moved, so
   a v6.2.0 workbook still reads back.
 
