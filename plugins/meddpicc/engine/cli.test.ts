@@ -362,6 +362,18 @@ describe('--locale', () => {
     expect(fs.existsSync(path.join(scratch, 'sw.xlsx'))).toBe(false);
   });
 
+  test('an ambiguous or empty locale request is refused rather than guessed at', async () => {
+    // Both of these looked like they honoured a request and did not. Repeating the flag took the first and
+    // ignored the second, so automation appending an override got English while asking for Korean; and
+    // `--locale ""`, which is what an unset shell variable expands to, fell through to ambient resolution.
+    const twice = await run(['generate', example, '--locale', 'en', '--locale', 'ko']);
+    expect(twice.code).toBe(1);
+    expect(twice.err).toMatch(/once/);
+    const empty = await run(['generate', example, '--locale', '']);
+    expect(empty.code).toBe(1);
+    expect(empty.err).toMatch(/empty/);
+  });
+
   test('the locale a workbook is written in is the one it records', async () => {
     const out = path.join(scratch, 'stamped.xlsx');
     const { code } = await run(['generate', example, '--locale', 'en', '--out', out]);

@@ -68,11 +68,22 @@ function flag(args: string[], name: string): string | undefined {
  * a request. Same principle as `resolveLocale`: an explicit request is honoured or refused, never ignored.
  */
 function requiredFlagValue(args: string[], name: string): string | undefined {
-  const i = args.indexOf(name);
-  if (i < 0) return undefined;
-  const value = args[i + 1];
+  const positions = args.reduce<number[]>((all, arg, i) => (arg === name ? [...all, i] : all), []);
+  if (positions.length === 0) return undefined;
+  if (positions.length > 1) {
+    // `--locale en --locale ko` used to take the first and ignore the second, so a script appending an
+    // override got English while asking for Korean. There is no right answer to pick here — the request
+    // is ambiguous, and guessing which half was meant is how the wrong one gets honoured silently.
+    throw new Error(`${name} was given ${positions.length} times. Pass it once.`);
+  }
+  const value = args[(positions[0] ?? 0) + 1];
   if (value === undefined || value.startsWith('--')) {
     throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
+  }
+  if (value.trim() === '') {
+    // `--locale ""` is what an unset shell variable expands to. Absent would be the kind reading, but the
+    // flag is present, so somebody meant to pass something and it evaporated — worth saying so.
+    throw new Error(`${name} was given an empty value. Pass a locale, or leave the flag off.`);
   }
   return value;
 }
