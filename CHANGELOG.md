@@ -28,9 +28,19 @@ and this project adheres to
   - **Bounded only where emptiness means nothing**: the three identity fields, and a stakeholder's
     name and title, both of which are already `required`. Prose, evidence and notes stay legitimately
     empty — a deal is worked over weeks, and the completion rules depend on telling blank from filled.
-  - `minLength` counts what the specification says it counts, so a whitespace-only identity still
-    validates. Left that way deliberately rather than giving a standard keyword a private meaning; the
-    engine's own `isFilled` trims, so the sheet and the completion rules still read a space as empty.
+  - **A space is not a name either**, and that one was worth closing rather than documenting. A deal
+    with `dealId: " "` validated, generated, and then failed on read-back of its own unchanged
+    workbook, because the reader trims and proposes clearing the id — a file that cannot survive its
+    own round trip, which is the whole thing an identity field exists to prevent. Said in the
+    vocabulary the specification already has, `pattern: "\S"`, rather than by giving `minLength` a
+    private trimmed meaning that would mislead everyone reading the schema.
+  - **`pattern` is enforced now**, which also turned on the three Salesforce-ID prefixes (`^006`,
+    `^001`, `^005`) that had been accepted unconditionally. Checked against both the example deal and
+    a real one before flipping it, and a pattern the engine cannot compile is reported against the
+    schema path rather than crashing or being skipped.
+  - A zero-width character still counts as content, to `validate` and the reader alike: `\S` and
+    `String.prototype.trim` draw the line in exactly the same place, and a validator stricter than the
+    reader would be the same mismatch pointing the other way.
 
 - **`meddpicc`** v6.3.0 — the completion statuses follow the sheet. Not breaking: no address moved, so
   a v6.2.0 workbook still reads back.

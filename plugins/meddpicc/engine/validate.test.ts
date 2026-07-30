@@ -63,15 +63,48 @@ describe('a deal has to say which deal it is', () => {
     }
   });
 
-  test('a whitespace-only identity still validates, and that is a decision', () => {
-    // `minLength` counts what the specification says it counts, so a single space passes. Left that way
-    // deliberately: the alternative is either giving a standard keyword a private trimmed meaning, or
-    // implementing `pattern`, which would newly enforce three Salesforce-ID patterns no deal has ever
-    // been checked against. Neither belongs in #901. The engine's own `isFilled` trims, so the sheet
-    // and the completion rules still read a space as empty; only `validate` is this permissive.
+  // A space is not a name. `minLength` alone could not say so — it counts what the specification says
+  // it counts — and giving a standard keyword a private trimmed meaning would mislead every reader of
+  // the schema. `pattern: "\\S"` says it in the vocabulary the specification already has.
+  //
+  // Worth closing rather than documenting, because the consequence is concrete: a deal with
+  // `dealId: " "` used to validate, generate, and then fail on read-back of its own unchanged
+  // workbook, because the reader trims and proposes clearing the id. A file that cannot survive its
+  // own round trip is exactly what an identity field is supposed to prevent.
+  //
+  // Space, tab, newline and the non-breaking space: every character `\s` matches is a character
+  // `String.prototype.trim` removes, so `\S` and the engine's own `isFilled` draw the line in the same
+  // place. That agreement is the point — a validator stricter than the reader is its own bug.
+  for (const value of [' ', '\t', '\n', '   ', '\u00a0', ' \t\n ']) {
+    test(`a dealId of ${JSON.stringify(value)} is not a name`, () => {
+      const bad = structuredClone(example);
+      bad.metadata.dealId = value;
+      const r = validateDeal(bad, schema);
+      expect(r.valid).toBe(false);
+      expect(r.errors.some((e) => e.instancePath === '/metadata/dealId')).toBe(true);
+    });
+  }
+
+  test('a zero-width character is content, to the validator and the reader alike', () => {
+    // U+200B is not matched by `\s` and `trim` does not remove it, so the engine reads it as filled and
+    // the round trip keeps it. Refusing it here would make `validate` stricter than every other reader —
+    // the same mismatch this bound exists to remove, pointing the other way.
+    const zeroWidth = structuredClone(example);
+    zeroWidth.metadata.dealId = '\u200b';
+    expect('\u200b'.trim()).toBe('\u200b');
+    expect(validateDeal(zeroWidth, schema).valid).toBe(true);
+  });
+
+  test('the round trip a whitespace identity used to break is now unreachable', () => {
+    // The reader trims, so the cell holding " " reads as empty and the id is proposed for clearing —
+    // leaving a deal that fails `required`. Refusing the deal up front is what makes that unreachable,
+    // so this asserts the refusal and the reason together.
     const spaced = structuredClone(example);
     spaced.metadata.dealId = ' ';
-    expect(validateDeal(spaced, schema).valid).toBe(true);
+    expect(validateDeal(spaced, schema).valid).toBe(false);
+    const cleared = structuredClone(spaced);
+    delete cleared.metadata.dealId;
+    expect(validateDeal(cleared, schema).valid).toBe(false);
   });
 
   test('the fields that are legitimately empty stay that way', () => {
@@ -123,6 +156,15 @@ describe('a constraint the validator ignores is worse than no constraint', () =>
     expect(unknown).toEqual([]);
   });
 
+  test('a pattern the engine cannot compile is reported, not thrown and not skipped', () => {
+    // The failure mode to avoid is a crash mid-validation, and the one after that is a silent skip,
+    // which is #901 all over again: the schema would look like it constrained something.
+    const r = validateDeal('anything', { type: 'string', pattern: '[' });
+    expect(r.valid).toBe(false);
+    expect(r.errors[0]?.keyword).toBe('pattern');
+    expect(r.errors[0]?.message).toContain('not a valid regular expression');
+  });
+
   test('every keyword claimed as enforced really does reject something', () => {
     // Otherwise the test above is satisfied by adding a name to a list, which is how a declaration
     // starts lying. One counterexample per keyword; the structural ones are proved by the error their
@@ -137,6 +179,7 @@ describe('a constraint the validator ignores is worse than no constraint', () =>
       ['minimum', { type: 'number', minimum: 3 }, 2],
       ['maximum', { type: 'number', maximum: 3 }, 4],
       ['minLength', { type: 'string', minLength: 1 }, ''],
+      ['pattern', { type: 'string', pattern: '\\S' }, '   '],
       ['additionalProperties', { type: 'object', properties: {}, additionalProperties: false }, { x: 1 }],
       ['allOf', { allOf: [{ type: 'string' }] }, 1],
       ['$ref', { $defs: { s: { type: 'string' } }, $ref: '#/$defs/s' }, 1],
