@@ -1030,7 +1030,7 @@
               "kind": "computed",
               "span": 2,
               "id": "scoreRating",
-              "formula": "IF({{ref:scoreTotal}}>=26,\"Green\",IF({{ref:scoreTotal}}>=14,\"Yellow\",\"Red\"))",
+              "formula": "IF({{ref:scoreTotal}}>=26,{{word:ratingGreen}},IF({{ref:scoreTotal}}>=14,{{word:ratingYellow}},{{word:ratingRed}}))",
               "valueType": "rating",
               "conditionalFormat": "ragText"
             }
@@ -1252,7 +1252,7 @@
               "kind": "computed",
               "span": 2,
               "id": "sentimentUnknown",
-              "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Unknown\")",
+              "formula": "COUNTIF({{col:stakeholders.sentiment}},{{word:sentimentUnknownLabel}})",
               "valueType": "number"
             },
             {
@@ -1264,7 +1264,7 @@
               "kind": "computed",
               "span": 2,
               "id": "sentimentNegative",
-              "formula": "COUNTIF({{col:stakeholders.sentiment}},\"Negative\")",
+              "formula": "COUNTIF({{col:stakeholders.sentiment}},{{word:sentimentNegativeLabel}})",
               "valueType": "number"
             },
             {
