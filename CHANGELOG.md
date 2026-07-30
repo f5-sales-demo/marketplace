@@ -10,6 +10,28 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.1.0 — the engine can enumerate the text it renders, and prove the list complete.
+  Additive: a new module and its tests, no generation path touched.
+
+  Localisation (#925) needs that list, and three attempts at writing it down by reading the code gave
+  three different answers — 129, then 198, then 199 — each wrong in a way nothing could catch, because
+  there was nothing to check against.
+
+  - `engine/translatable.ts` declares six sources and returns every string the engine chooses to render,
+    with which source each came from. **199 strings**, and the number comes from running it.
+  - **The test is the point.** It generates a workbook, extracts every string the workbook shows, and
+    asserts the catalogue covers exactly that — nothing missing, nothing surplus. It cannot miss a source
+    because it does not depend on knowing what the sources are.
+  - Two things that only came out by asking the artifact. **All 40 rubric lines live inside a formula**:
+    the "What This Score Means" column is `IF(D20=4,"Committed — …",IF(D20=3,"Quantified — …",…))`, so it
+    follows the score live in Excel. They are the most prose-heavy text on the sheet and not one of them
+    is a cell value anywhere, so an oracle that skipped formula cells — as mine first did — declared the
+    catalogue complete while missing them. And a deal-supplied value must never be catalogued, which is
+    what `plan.inputCells` is asked rather than guessed at: an account name is rendered, and translating
+    it would be corrupting the deal.
+  - `note: "elementDefinition"` is excluded by name: `NoteSource` is a discriminator, not prose, and a
+    key-name heuristic cannot tell a type tag from text.
+
 - **`meddpicc`** v7.0.1 — three formulas stop spelling enum words by hand. No behaviour change: every
   OOXML part of the generated workbook is byte-identical to v7.0.0 except `docProps/custom.xml`, which
   differs only in the recorded engine version, and the resolved formulas still read `"Green"` and
