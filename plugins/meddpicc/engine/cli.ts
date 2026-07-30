@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
+import { resolveLocale } from './locale';
 
 /**
  * What built the workbook, recorded in the file.
@@ -54,9 +55,98 @@ function print(data: unknown): void {
   process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
 }
 
+/**
+ * Every value given for a flag, in both spellings Unix accepts.
+ *
+ * `args.indexOf(name)` matched the separated form only, so `--out=deal.xlsx` was read as no `--out` at all
+ * and the default path used instead — silently, and for every flag, not just the one this change is about.
+ * Four rounds of review found four holes in that parser one at a time; parsing both forms once closes the
+ * class rather than the instance.
+ */
+function flagValues(args: string[], name: string): Array<string | undefined> {
+  const out: Array<string | undefined> = [];
+  for (const [i, arg] of args.entries()) {
+    if (arg === name) {
+      const next = args[i + 1];
+      // A following flag is not this flag's value; `--locale --out x` means `--locale` was given nothing.
+      out.push(next === undefined || next.startsWith('--') ? undefined : next);
+    } else if (arg.startsWith(`${name}=`)) {
+      out.push(arg.slice(name.length + 1));
+    }
+  }
+  return out;
+}
+
+/**
+ * The value given for a flag, refusing every way of asking for one and not supplying it.
+ *
+ * Every flag here takes a value — the boolean ones are read with `includes` — so "present with nothing
+ * after it" is never a legitimate call. Collapsing it into "absent" is what let `generate deal.json --spec
+ * --locale en` build from the DEFAULT spec and exit 0, and `--out=path` write somewhere else entirely.
+ *
+ * Six rounds of review found six holes in the parser that used to be here, one at a time: the equals form,
+ * a repeated flag, an empty value, a following flag taken as the value, validation on only one code path,
+ * and finally this. They are all the same mistake — treating a malformed request as no request — so the
+ * checks belong in one place that every flag goes through, rather than in a second function only the newest
+ * flag remembered to call.
+ */
+/**
+ * Refuse an argument that looks like a flag and is not one this command has.
+ *
+ * The last way left to have a request ignored. `--local=ko` is a typo for `--locale=ko`, and a parser that
+ * only looks for names it knows sees no locale request at all — so generation falls back to English, exits
+ * 0, and produces a plausible workbook that contradicts what the command line plainly asked for.
+ *
+ * Seventh and last of the parser findings, all one mistake in different clothes: a malformed request treated
+ * as no request. Nothing can be ignored once every unrecognised flag is named.
+ */
+function refuseUnknownFlags(args: string[], takes: { values?: readonly string[]; booleans?: readonly string[] }): void {
+  const values = takes.values ?? [];
+  const booleans = takes.booleans ?? [];
+  const known = [...values, ...booleans];
+  for (const arg of args) {
+    // Any leading dash, not only two. `-locale ko` and `-apply` are what a person types by mistake, and
+    // checking `--` alone let them through as positional arguments nothing reads: English output, exit 0,
+    // and for `migrate -apply` a dry run reported as success. No path this CLI takes begins with a dash.
+    if (!arg.startsWith('-')) continue;
+    const name = arg.split('=')[0] ?? arg;
+    if (!known.includes(name)) {
+      throw new Error(`Unknown option ${arg}. This command takes ${known.join(', ')}.`);
+    }
+    // A boolean is read with `includes`, which matches the bare token only — so `--apply=true` would pass an
+    // allowlist keyed on the text before `=` and then do nothing, and `migrate --apply=true` would report
+    // success having changed not one deal. There is no value to give a switch.
+    if (booleans.includes(name) && arg !== name) {
+      throw new Error(`${name} is a switch and takes no value. Pass ${name} on its own.`);
+    }
+  }
+}
+
 function flag(args: string[], name: string): string | undefined {
-  const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
+  const values: Array<string | undefined> = [];
+  for (const [i, arg] of args.entries()) {
+    if (arg === name) {
+      const next = args[i + 1];
+      // A following flag is not this flag's value: `--spec --locale en` gave `--spec` nothing.
+      values.push(next === undefined || next.startsWith('--') ? undefined : next);
+    } else if (arg.startsWith(`${name}=`)) {
+      values.push(arg.slice(name.length + 1));
+    }
+  }
+  if (values.length === 0) return undefined;
+  if (values.length > 1) {
+    // No right answer to guess at: `--locale en --locale=ko` is what a script appending an override looks
+    // like, and picking a half is how the wrong half gets honoured silently.
+    throw new Error(`${name} was given ${values.length} times. Pass it once.`);
+  }
+  const value = values[0];
+  if (value === undefined) throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
+  if (value.trim() === '') {
+    // `--locale ""` and `--locale=` are what an unset shell variable expands to. The flag is present, so
+    // somebody meant to pass something and it evaporated.
+    throw new Error(`${name} was given an empty value. Pass a value, or leave the flag off.`);
+  }
+  return value;
 }
 
 /**
@@ -129,6 +219,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-sfdc') {
+    refuseUnknownFlags(rest, { values: ['--schema', '--sfdc'] });
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const sfdc = await readJson(flag(rest, '--sfdc') ?? SFDC_PATH);
     const result = checkSfdcMapping(schema, sfdc);
@@ -137,10 +228,14 @@ async function main(): Promise<number> {
   }
 
   if (command === 'generate') {
+    refuseUnknownFlags(rest, {
+      values: ['--out', '--spec', '--locale'],
+      booleans: ['--plan', '--prose-heights'],
+    });
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write(
-        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>]\n',
+        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>] [--locale <slug>]\n',
       );
       return 1;
     }
@@ -172,6 +267,11 @@ async function main(): Promise<number> {
     // with. Only Excel can say whether a computed height is enough — it autofits a wrapped cell but
     // not a merged one, and nearly every prose cell here is merged — so the acceptance test copies
     // each string into a scratch cell of the same width, autofits it, and compares.
+    // Resolved BEFORE the early returns below. `--plan --locale ko` used to exit 0 while the same request
+    // on the writing path was refused, so an explicit locale was validated or ignored depending on which
+    // flag came with it. Review caught that; the resolution belongs to the command, not to one branch.
+    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env });
+
     if (rest.includes('--prose-heights')) {
       const plan = planWorkbook(schema, spec, deal);
       const heightOf = new Map<string, number>();
@@ -220,7 +320,7 @@ async function main(): Promise<number> {
       process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
       return 1;
     }
-    await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION));
+    await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION, locale));
     const plan = planWorkbook(schema, spec, deal);
     // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a
     // merged cell cannot autofit and Excel's tallest row is 409.5 points, so text needing more ends
@@ -244,6 +344,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'read') {
+    refuseUnknownFlags(rest, { values: ['--deal', '--spec'], booleans: ['--apply'] });
     const workbookPath = rest[0];
     const dealPath = flag(rest, '--deal');
     if (!workbookPath || !dealPath) {
@@ -296,6 +397,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'migrate') {
+    refuseUnknownFlags(rest, { booleans: ['--apply'] });
     const dealPath = rest[0];
     if (!dealPath) {
       process.stderr.write('Usage: cli.ts migrate <deal.json> [--apply]\n');
@@ -321,6 +423,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-spec') {
+    refuseUnknownFlags(rest, { values: ['--spec', '--schema'] });
     const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
     const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
     const result = checkWorkbookSpec(schema, spec);
