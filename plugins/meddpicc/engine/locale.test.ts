@@ -74,9 +74,10 @@ describe('resolveLocale — precedence', () => {
       from: 'os',
     });
     // LC_ALL still outranks it.
-    expect(
-      resolveLocale({ env: { LC_ALL: 'en_US.UTF-8', LC_MESSAGES: 'fr_FR.UTF-8' }, shipped }),
-    ).toEqual({ slug: 'en', from: 'os' });
+    expect(resolveLocale({ env: { LC_ALL: 'en_US.UTF-8', LC_MESSAGES: 'fr_FR.UTF-8' }, shipped })).toEqual({
+      slug: 'en',
+      from: 'os',
+    });
   });
 
   test('AppleLocale is consulted, after the POSIX variables', () => {
