@@ -18,8 +18,10 @@ and this project adheres to
   unsupported one arrived after all the layout work, and a rep whose machine is in Japanese had no way to
   ask for anything else.
 
-  - **Precedence**: `--locale` > `metadata.locale` > `MEDDPICC_LOCALE` > `LC_ALL` > `LANG` > macOS
-    `AppleLocale` > `en`. `LC_ALL` before `LANG`, because that is what POSIX means by it.
+  - **Precedence**: `--locale` > `metadata.locale` > `MEDDPICC_LOCALE` > `LC_ALL` > `LC_MESSAGES` > `LANG`
+    > macOS `AppleLocale` > `en`. That is POSIX order for the language of user-facing messages, which is
+    what a workbook's text is: `LC_ALL` overrides everything, `LC_MESSAGES` governs the message category,
+    `LANG` is the default for every category.
   - **Normalization**: `fr_CA.UTF-8@euro` → `fr-ca` → French, once French ships. Canonical form is the
     lowercase slug — `pt-br`, `zh-cn` — matching the schema enum and i18n-core's `slug`, not BCP-47's
     `pt-BR`, because two spellings of one locale is how a workbook records one nothing recognises.
@@ -33,6 +35,10 @@ and this project adheres to
     test caught: `generateWorkbook` without a locale would have stamped English over a deal explicitly
     asking for Korean, which is worse than the refusal it replaced. It now refuses when the two disagree —
     not resolving twice, but checking that whoever resolved honoured the deal.
+  - **Also fixed, and wider than the locale**: `flag()` matched `--out deal.xlsx` and not
+    `--out=deal.xlsx`, for every flag the CLI has, so `--out=path` wrote to the default path with exit 0
+    and nothing said. One parser now reads both spellings, refuses a flag given twice or given nothing, and
+    treats a following flag as no value rather than as the value.
   - **Not in this change**: the locale is not yet threaded into `planWorkbook`. It has nothing to do there
     until translated strings exist, and a parameter nothing reads would be speculative. It lands with the
     loader.

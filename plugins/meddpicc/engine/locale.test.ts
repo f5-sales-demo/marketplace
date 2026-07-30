@@ -65,6 +65,20 @@ describe('resolveLocale — precedence', () => {
     expect(r).toEqual({ slug: DEFAULT_LOCALE, from: 'fallback', unresolved: 'ko-kr' });
   });
 
+  test('LC_MESSAGES sits between LC_ALL and LANG, as POSIX has it', () => {
+    // A workbook's text is user-facing messages, so LC_MESSAGES is the category that governs it. Asked with
+    // a shipped set that includes French, since the point is which variable is consulted.
+    const shipped = ['en', 'fr'];
+    expect(resolveLocale({ env: { LC_MESSAGES: 'fr_FR.UTF-8', LANG: 'en_US.UTF-8' }, shipped })).toEqual({
+      slug: 'fr',
+      from: 'os',
+    });
+    // LC_ALL still outranks it.
+    expect(
+      resolveLocale({ env: { LC_ALL: 'en_US.UTF-8', LC_MESSAGES: 'fr_FR.UTF-8' }, shipped }),
+    ).toEqual({ slug: 'en', from: 'os' });
+  });
+
   test('AppleLocale is consulted, after the POSIX variables', () => {
     // Named for what it checks. It is not platform-gated and does not need to be: nothing sets
     // `AppleLocale` off macOS, so reading it elsewhere finds nothing rather than the wrong thing.

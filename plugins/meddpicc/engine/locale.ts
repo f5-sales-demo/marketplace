@@ -108,9 +108,12 @@ function candidates(inputs: LocaleInputs): Array<{ raw: string; from: LocaleOrig
     { raw: inputs.flag, from: 'flag', explicit: true },
     { raw: dealLocale, from: 'deal', explicit: true },
     { raw: env.MEDDPICC_LOCALE, from: 'env', explicit: true },
-    // LC_ALL before LANG: POSIX says LC_ALL overrides everything, and reversing them would quietly
-    // honour a setting the operating system considers overridden.
+    // POSIX order for the language of user-facing messages, which is what a workbook's text is:
+    // LC_ALL overrides everything, then LC_MESSAGES for the message category specifically, then LANG as
+    // the default for every category. Skipping LC_MESSAGES — as this did at first — means a machine set to
+    // French messages with an English LANG gets an English workbook once French ships.
     { raw: env.LC_ALL, from: 'os', explicit: false },
+    { raw: env.LC_MESSAGES, from: 'os', explicit: false },
     { raw: env.LANG, from: 'os', explicit: false },
     { raw: env.AppleLocale, from: 'os', explicit: false },
   ];
