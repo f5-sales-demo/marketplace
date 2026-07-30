@@ -33,7 +33,14 @@ export type Predicate =
   | { kind: 'atLeast'; path: string; value: number }
   /** An array of text with at least one non-empty entry — a question somebody has answered. */
   | { kind: 'anyNonEmpty'; list: string }
-  /** An array with at least `value` entries. */
+  /**
+   * An array with at least `value` entries that have something in them.
+   *
+   * "Something" rather than "exists" on purpose. Counting the array's length made
+   * `team.internal: [{}]` — one object with no fields — complete the whole Team section, and the sheet
+   * could never agree with that: an entry whose every cell is empty is indistinguishable from one of the
+   * pre-allocated blank rows. So both readers ask the same question, and it is the defensible one.
+   */
   | { kind: 'countAtLeast'; list: string; value: number }
   /** Every entry of an array has all of these fields filled in. Vacuously true on an empty array. */
   | { kind: 'everyEntryHas'; list: string; fields: string[] };
@@ -67,6 +74,23 @@ function isList(deal: unknown, list: string): boolean {
   return Array.isArray(readPath(deal, list));
 }
 
+/**
+ * An entry with something in it — the same question the sheet asks of a row.
+ *
+ * A field counts when it would show something in a cell: text with characters in it, any number
+ * including nought, either boolean. Whitespace does not, and neither does a nested object or array,
+ * because no cell displays one — so the two readers stay aligned by construction rather than by
+ * agreement.
+ */
+function hasContent(entry: unknown): boolean {
+  if (entry === null || typeof entry !== 'object') return false;
+  return Object.values(entry as Record<string, unknown>).some((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (typeof value === 'number') return Number.isFinite(value);
+    return typeof value === 'boolean';
+  });
+}
+
 export function evaluate(predicate: Predicate, deal: unknown): boolean {
   switch (predicate.kind) {
     case 'all':
@@ -83,7 +107,9 @@ export function evaluate(predicate: Predicate, deal: unknown): boolean {
     case 'anyNonEmpty':
       return entriesOf(deal, predicate.list).some(isFilled);
     case 'countAtLeast':
-      return isList(deal, predicate.list) && entriesOf(deal, predicate.list).length >= predicate.value;
+      return (
+        isList(deal, predicate.list) && entriesOf(deal, predicate.list).filter(hasContent).length >= predicate.value
+      );
     case 'everyEntryHas':
       return entriesOf(deal, predicate.list).every((entry) =>
         predicate.fields.every((field) => isFilled((entry as Record<string, unknown>)?.[field])),

@@ -116,7 +116,13 @@ function displayValue(
   return constraint?.enum?.includes(value) ? enumLabel(value) : value;
 }
 
-const sheetPrefix = (name: string) => (/^[A-Za-z0-9_]+$/.test(name) ? `${name}!` : `'${name.replace(/'/g, "''")}'!`);
+/**
+ * How a formula names a cell on another sheet: bare when the name is simple, quoted otherwise, with an
+ * apostrophe in the name doubled. Exported because the completion compiler needs the same rule — two
+ * ways of writing a cross-sheet reference is two ways to get one wrong.
+ */
+export const sheetPrefix = (name: string) =>
+  /^[A-Za-z0-9_]+$/.test(name) ? `${name}!` : `'${name.replace(/'/g, "''")}'!`;
 
 /** Row keys for a keyed source, or null when the rows depend on the deal. */
 function keysOf(source: SpecTableSource): readonly string[] | null {
@@ -1019,7 +1025,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     }
 
     if (pendingStatuses.length > 0) {
-      const resolve = cellResolver(inputCells);
+      const resolve = cellResolver(inputCells, s.name);
       for (const { cell, section } of pendingStatuses) {
         const rule = SECTION_RULES[section];
         if (!rule) throw new Error(`the Completion block names section "${section}", which has no rule`);

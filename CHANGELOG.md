@@ -28,6 +28,16 @@ and this project adheres to
     refuses to compile rather than emitting a formula that reads `#NAME?` mid-review.
   - **The scorecard follows for free.** `sectionsComplete` already counted the status column, so the
     count and the completion percentage are live too.
+  - **An entry counts when it has something in it — in the engine too.** The old rule counted the array's
+    length, so `team.internal: [{}]` completed the whole Team section: one object with no fields, which
+    the schema permits and which is not a team member in any sense. No sheet could ever agree, because an
+    entry with every cell empty is indistinguishable from one of the pre-allocated blank rows. So both
+    readers ask the same question now, and it is the defensible one. This is the **one** class of answer
+    that moved, and the suite records it against the frozen oracle rather than quietly absorbing it.
+  - **A cell on another sheet is named with its sheet.** Latent today, since the workbook is one laid-out
+    sheet — but a two-sheet spec passes `check-spec`, and a bare `$D$20` would then mean whatever sits at
+    D20 on the sheet the formula is on. Excel evaluates that without complaint, which is the worst way
+    for it to be wrong. The quoting rule comes from the same `sheetPrefix` that `{{ref:…}}` already uses.
   - **A row is an entry when ANY of its fields is filled in.** The schema permits an entry that fills
     in anything but its first field — `team.internal: [{"role":"SE"}]` validates, and the engine calls
     the team complete — so counting the name column alone made the sheet answer not_started on exactly

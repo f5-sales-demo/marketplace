@@ -23,7 +23,7 @@
  * asks for that name, so the sheet says what to do before the count moves.
  */
 import type { Predicate, SectionRule } from './completion-rules';
-import type { InputCell } from './generate';
+import { type InputCell, sheetPrefix } from './generate';
 import { statusLabel } from './sections';
 import { columnIndex } from './xlsx';
 
@@ -70,8 +70,18 @@ function parseArrayPath(jsonPath: string): { list: string; index: number } | nul
   return m ? { list: m[1], index: Number(m[2]) } : null;
 }
 
-export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
+/**
+ * Where the deal's paths ended up, ready to be named from a formula on `formulaSheet`.
+ *
+ * A cell on another sheet is named with its sheet. The workbook is one laid-out sheet today, so this
+ * changes nothing about what it emits — but a two-sheet spec passes `check-spec`, and a bare `$D$20`
+ * would then mean whatever happens to sit at D20 on the sheet the formula is on. Excel evaluates that
+ * without complaint, which is the worst way for it to be wrong.
+ */
+export function cellResolver(inputCells: readonly InputCell[], formulaSheet?: string): CellResolver {
   const byPath = new Map<string, string>();
+  /** path -> the sheet it is on, so a reference can be qualified when it needs to be. */
+  const sheetByPath = new Map<string, string>();
   /** list -> field -> addresses, in row order. */
   const lists = new Map<string, Map<string, string[]>>();
   /** list -> addresses of a bare array's cells. */
@@ -79,6 +89,7 @@ export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
 
   for (const input of inputCells) {
     byPath.set(input.jsonPath, input.address);
+    sheetByPath.set(input.jsonPath, input.sheet);
     const entry = parseEntryPath(input.jsonPath);
     if (entry) {
       const fields = lists.get(entry.list) ?? new Map<string, string[]>();
@@ -90,14 +101,28 @@ export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
     if (array) arrays.set(array.list, [...(arrays.get(array.list) ?? []), input.address]);
   }
 
+  /** Prefix a reference with its sheet when that is not the sheet the formula lives on. */
+  const qualify = (sheet: string | undefined, reference: string) =>
+    sheet === undefined || sheet === formulaSheet ? reference : `${sheetPrefix(sheet)}${reference}`;
+
+  /** Every cell of one column is on one sheet, so the first entry answers for the range. */
+  const sheetOfList = (list: string, field?: string) => {
+    for (const [path, sheet] of sheetByPath) {
+      const entry = parseEntryPath(path);
+      if (entry?.list === list && (field === undefined || entry.field === field)) return sheet;
+      if (parseArrayPath(path)?.list === list) return sheet;
+    }
+    return undefined;
+  };
+
   return {
     cell(path) {
       const address = byPath.get(path);
       if (!address) throw new Error(`the sheet has no cell for "${path}"`);
-      return absolute(address);
+      return qualify(sheetByPath.get(path), absolute(address));
     },
     range(list) {
-      return spanOf(arrays.get(list) ?? [], `the array "${list}"`);
+      return qualify(sheetOfList(list), spanOf(arrays.get(list) ?? [], `the array "${list}"`));
     },
     allRanges(list) {
       const fields = lists.get(list);
@@ -108,12 +133,12 @@ export function cellResolver(inputCells: readonly InputCell[]): CellResolver {
           range: spanOf(addresses, `"${list}.${field}"`),
         }))
         .sort((a, b) => a.column - b.column)
-        .map((entry) => entry.range);
+        .map((entry) => qualify(sheetOfList(list), entry.range));
     },
     fieldRange(list, field) {
       const addresses = lists.get(list)?.get(field);
       if (!addresses) throw new Error(`the list "${list}" has no "${field}" column on the sheet`);
-      return spanOf(addresses, `"${list}.${field}"`);
+      return qualify(sheetOfList(list, field), spanOf(addresses, `"${list}.${field}"`));
     },
   };
 }

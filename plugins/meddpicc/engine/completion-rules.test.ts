@@ -158,7 +158,6 @@ describe('the completion rules answer exactly what the old implementation answer
       [full, full],
       [{ ...full, title: '' }],
       [full, { ...full, roleInDeal: '  ' }],
-      [{}],
     ]) {
       agree({ stakeholders: list }, `stakeholders ${JSON.stringify(list)}`);
     }
@@ -178,8 +177,10 @@ describe('the completion rules answer exactly what the old implementation answer
 
   test('every combination the close plan can see', () => {
     agree({ closePlan: undefined }, 'no closePlan');
-    for (const milestones of [undefined, [], [{}]]) {
-      for (const criticalActions of [undefined, [], [{}]]) {
+    // An entry with something in it: `[{}]` is the one shape whose answer changed on purpose, and the
+    // test below owns it.
+    for (const milestones of [undefined, [], [{ title: 'Sign' }]]) {
+      for (const criticalActions of [undefined, [], [{ action: 'Chase' }]]) {
         agree({ closePlan: { milestones, criticalActions } }, `closePlan ${!!milestones}${!!criticalActions}`);
       }
     }
@@ -187,8 +188,8 @@ describe('the completion rules answer exactly what the old implementation answer
 
   test('every combination the team can see', () => {
     agree({ team: undefined }, 'no team');
-    for (const internal of [undefined, [], [{}]]) {
-      for (const partner of [undefined, [], [{}]]) {
+    for (const internal of [undefined, [], [{ name: 'A' }]]) {
+      for (const partner of [undefined, [], [{ name: 'B' }]]) {
         agree({ team: { internal, partner } }, `team ${!!internal}${!!partner}`);
       }
     }
@@ -202,6 +203,40 @@ describe('the completion rules answer exactly what the old implementation answer
       stripped.qualification[element].evidence = '';
     }
     agree(stripped, 'the example with every score and evidence removed');
+  });
+});
+
+describe('one class of answer changed on purpose: an entry with nothing in it', () => {
+  // Everywhere else this refactor answers exactly what the old implementation answered. Here it does
+  // not, and it should not have: the old rule counted the LENGTH of the array, so `team.internal: [{}]`
+  // — one object with no fields — made the whole Team section complete. The schema permits it, nothing
+  // about it is a team member, and the sheet could never agree, because on a sheet an entry with every
+  // cell empty is indistinguishable from one of the pre-allocated blank rows.
+  //
+  // So an entry counts when it has something in it. Both readers now say the same thing, and the thing
+  // they say is the defensible one. Found by the second-opinion review.
+  test('an array of empty objects is not a list of entries', () => {
+    expect(legacyCompletion({ team: { internal: [{}] } }).team).toBe('complete');
+    expect(computeCompletion({ team: { internal: [{}] } }).completionStatus.team).toBe('not_started');
+
+    expect(legacyCompletion({ stakeholders: [{}] }).stakeholders).toBe('partial');
+    expect(computeCompletion({ stakeholders: [{}] }).completionStatus.stakeholders).toBe('not_started');
+
+    const plan = { closePlan: { milestones: [{}], criticalActions: [{}] } };
+    expect(legacyCompletion(plan).closePlan).toBe('complete');
+    expect(computeCompletion(plan).completionStatus.closePlan).toBe('not_started');
+  });
+
+  test('an entry with anything at all in it still counts', () => {
+    // Including the values that are easy to mistake for emptiness: a zero, and a boolean false, both of
+    // which the sheet displays as something.
+    for (const entry of [{ role: 'SE' }, { assignedToDeal: false }, { headcount: 0 }, { name: 'A' }]) {
+      expect(computeCompletion({ team: { internal: [entry] } }).completionStatus.team, JSON.stringify(entry)).toBe(
+        'complete',
+      );
+    }
+    // And whitespace is not anything.
+    expect(computeCompletion({ team: { internal: [{ role: '   ' }] } }).completionStatus.team).toBe('not_started');
   });
 });
 
@@ -242,8 +277,10 @@ describe('the predicates themselves', () => {
 
   test('countAtLeast counts entries, and everyEntryHas checks their fields', () => {
     const two = { a: [{ n: 'x' }, { n: '' }] };
-    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 2 }, two)).toBe(true);
-    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 3 }, two)).toBe(false);
+    // One of those two has something in it; the other is as empty as a blank row on the sheet.
+    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 1 }, two)).toBe(true);
+    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 2 }, two)).toBe(false);
+    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 2 }, { a: [{ n: 'x' }, { n: 'y' }] })).toBe(true);
     expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 1 }, { a: 'not a list' })).toBe(false);
     expect(evaluate({ kind: 'everyEntryHas', list: 'a', fields: ['n'] }, two)).toBe(false);
     expect(evaluate({ kind: 'everyEntryHas', list: 'a', fields: ['n'] }, { a: [{ n: 'x' }] })).toBe(true);
