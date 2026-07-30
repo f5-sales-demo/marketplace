@@ -10,6 +10,33 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v1.3.6 — the pipeline report is built from the org's discovered schema
+  rather than one org's custom fields. Behaviour on an org that has those fields is unchanged;
+  every other org gets a report instead of an empty one.
+
+  The report named seven fields no Salesforce org is guaranteed to have — `FYB_Total_Price__c`,
+  `Subscription_Renewal__c`, `Renewal__c`, `True_ACV__c`, `Upsell_ACV__c`,
+  `Product_Segmentation__c`, `Use_Case_Category__c` — plus a specific territory field. Elsewhere
+  those queries fail, the error is swallowed, and the empty result renders as an empty pipeline.
+  "No renewals" and "could not look for renewals" are very different claims.
+
+  - **Capability is decided before a query is built**, from the field catalog the context probe
+    caches. `planPipelineQueries` is pure and covered by 13 cases; the generator selects and
+    filters only on fields the plan names, so a query naming an absent field cannot be formed.
+  - **Sections that cannot be built say so**, under a "Not Available For This Org" heading,
+    naming the field that was missing.
+  - **Adaptation is per field.** Line items survive a missing renewal filter; renewals survive on
+    the flag alone, valued by the standard `Amount`; ACV fields are taken individually;
+    classification degrades to `other` with no segmentation field. An undescribed org attempts
+    everything as before, so a stale cache cannot downgrade a working report.
+  - The context probe now describes `OpportunityLineItem` alongside `Opportunity`, and the fiscal
+    year opens on a configured month instead of a hardcoded November.
+
+  Measured against a real org, same quarter, before and after: net new 5 accounts / $1,484,038.01,
+  renewals 3 / $1,807,244.10, 30 line items, 23 SKUs, FY26 — identical. Declaring stock
+  capabilities against that same org: 3 queries, 0 failures, no custom field named, and still a
+  populated report from `Opportunity.Amount`.
+
 - **`meddpicc`** v7.2.0 — the locale is decided once, early, from every input. `generate` takes
   `--locale`. English output is unchanged, because English is still what everything resolves to.
 
