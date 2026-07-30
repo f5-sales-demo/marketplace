@@ -10,6 +10,28 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.0.1 — three formulas stop spelling enum words by hand. No behaviour change: the
+  generated workbook is **byte-identical**, same sha256, and the resolved formulas still read `"Green"`
+  and `"Unknown"` exactly as before.
+
+  `generate.ts` has a `FORMULA_WORDS` table for one purpose, and says so: *"One source of truth for a
+  spelling that appears in two places — the cell and the formula that counts it."* Three formulas did
+  the thing that comment forbids — `scoreRating` emitted `"Green"`/`"Yellow"`/`"Red"`, and the two
+  sentiment tallies matched `"Unknown"` and `"Negative"` — while `xlsx.ts` held a third copy of the
+  rating words in its conditional-format rules, beside two presets that already routed through
+  `enumLabel`.
+
+  - Nothing was broken. Every spelling agreed, so this was latent — and latent in the way that matters:
+    rename a sentiment value in the schema and the `COUNTIF` silently returns nought, reporting no
+    negative-sentiment stakeholders when there are four. No error, no failed test, nothing to notice.
+  - **Three guards, because the table alone cannot promise much.** `FORMULA_WORDS` is a module constant
+    and the schema arrives as an argument, so it cannot read the schema; and `enumLabel` falls through
+    for a value it has no entry for, which means `enumLabel('Red')` is `'Red'` whatever the schema says.
+    So the tests do the real work: no spec formula may spell an enum word by hand, every word the table
+    offers must still be one a dropdown shows, and every word a conditional format compares must be too.
+    A rename now fails the build instead of going half-done.
+  - This is also what lets localisation (#925) translate the sentiment and rating dropdowns at all.
+
 - **`meddpicc`** v7.0.0 — a deal has to say which deal it is. **Breaking**: a deal file whose
   `dealId`, `accountName`, `dealName`, or whose first stakeholder's `name` or `title`, is an empty
   string was valid and is now refused, with the path named.

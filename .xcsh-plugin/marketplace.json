@@ -88,7 +88,7 @@
     {
       "name": "meddpicc",
       "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
-      "version": "7.0.0",
+      "version": "7.0.1",
       "author": {
         "name": "f5-sales-demo"
       },
