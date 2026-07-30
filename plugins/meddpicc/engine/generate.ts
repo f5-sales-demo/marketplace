@@ -34,6 +34,7 @@ import {
   buildWorkbook,
   type CellSpec,
   type ConditionalFormat,
+  columnLetter,
   ENGINE_VERSION_PROPERTY,
   FINGERPRINT_PROPERTY,
   LOCALE_PROPERTY,
@@ -352,6 +353,21 @@ function resolveRows(table: SpecTable, deal: unknown, schema: unknown): TableLay
   // The index is what makes each row's jsonPath distinct — `stakeholders[3].name`, not
   // `stakeholders.name` — which is what lets the reader put a value back where it came from.
   return Array.from({ length: padded }, (_, i) => ({ listIndex: i }));
+}
+
+/**
+ * The row a cell sits on, across the columns of its own table — what `%ROW%` resolves to.
+ *
+ * Columns absolute and the row relative, so Excel moves the reference down the range and never
+ * sideways. Scoped to the table rather than to the sheet because two tables share a band of rows: a
+ * range spanning the width would let the milestones decide whether a critical action's row had been
+ * started, and they are different lists.
+ */
+function tableRowRange(table: SpecTable, row: number): string {
+  const width = table.columns.reduce((total, column) => total + (column.span ?? 1), 0);
+  const from = columnLetter(table.anchorColumn);
+  const to = columnLetter(table.anchorColumn + width - 1);
+  return `$${from}${row}:$${to}${row}`;
 }
 
 /**
@@ -799,6 +815,9 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
               const values = validationValues(schema, cell.jsonPath, cell.valueType);
               if (values) validations.push({ sqref: ref, values });
             }
+            if (cell.shadeWhenEmpty) {
+              formats.push({ sqref: ref, preset: cell.shadeWhenEmpty === 'wanted' ? 'wanted' : 'missing' });
+            }
           } else {
             push(row, { ref, formula: resolveFormula(cell.formula, { sheet: s.name }, named, tables), style });
           }
@@ -961,6 +980,19 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         const lastRow = info.firstDataRow + padded - 1;
         const sqref = `${A1(column, info.firstDataRow)}:${A1(column, lastRow)}`;
         if (spec.conditionalFormat) formats.push({ sqref, preset: spec.conditionalFormat });
+        // Over the whole capacity, including the rows kept spare — and the rule itself decides, by
+        // asking whether anything else is on the row. A range stopping at the last existing entry left
+        // the wash absent from the case it is most use: a stakeholder somebody is halfway through
+        // typing into a spare row, whose blank title is refused on read-back rather than shown as a gap
+        // while it is being filled in. Painting those rows unconditionally would be the opposite
+        // mistake, so `%ROW%` carries the condition.
+        if (spec.shadeWhenEmpty) {
+          formats.push({
+            sqref,
+            preset: spec.shadeWhenEmpty === 'wanted' ? 'wantedInRow' : 'missingInRow',
+            rowRange: tableRowRange(table, info.firstDataRow),
+          });
+        }
         if (spec.role === 'input' && spec.validate && spec.jsonPath) {
           // Any row's path resolves to the same schema node, so the first one answers for all.
           const values = validationValues(schema, inputPathFor(table, spec, info.items[0] ?? {}), spec.valueType);

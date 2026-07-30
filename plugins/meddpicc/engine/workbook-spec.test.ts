@@ -365,6 +365,44 @@ describe('checkWorkbookSpec — roles', () => {
     expect(failures).toContain('elementDefinition');
   });
 
+  test('rejects a shade level nobody implemented', () => {
+    // The spec is JSON, so `true` or a typo is a string like any other. Unchecked, the generator would
+    // silently fall back to the strongest wash — the loudest possible outcome from a mistake.
+    const spec = clone(baseSpec());
+    const evidence = fixtureTable(spec, 'elements').columns.find((c) => c.role === 'input');
+    if (!evidence) throw new Error('fixture drift');
+    evidence.shadeWhenEmpty = 'nice-to-have' as never;
+    const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
+    expect(failures).toContain('nice-to-have');
+    expect(failures).toContain('required, wanted');
+  });
+
+  test('rejects shading-when-empty on a cell nobody types into', () => {
+    // A derived or computed cell is empty because the engine or a formula made it so; a wash there
+    // would blame a person for the generator's output.
+    const spec = clone(baseSpec());
+    const elements = fixtureTable(spec, 'elements');
+    const derived = elements.columns.find((c) => c.role === 'derived');
+    if (!derived) throw new Error('fixture drift');
+    derived.shadeWhenEmpty = 'required';
+    const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
+    expect(failures).toContain(derived.id);
+    expect(failures).toContain('shadeWhenEmpty');
+  });
+
+  test('rejects shading-when-empty beside a conditional format on the same cell', () => {
+    // Two rules over one cell means one paints over the other, and which one wins is a priority
+    // number nobody set deliberately.
+    const spec = clone(baseSpec());
+    const score = fixtureTable(spec, 'elements').columns.find((c) => c.id === 'score');
+    if (!score) throw new Error('fixture drift');
+    score.shadeWhenEmpty = 'required';
+    score.conditionalFormat = 'score';
+    const failures = checkWorkbookSpec(schema, spec).roles.failures.join();
+    expect(failures).toContain('elements.score');
+    expect(failures).toContain('shadeWhenEmpty');
+  });
+
   test('every declared valueType has a style in the palette', () => {
     for (const [type, style] of Object.entries(VALUE_TYPE_STYLE)) {
       expect(typeof style, `${type} maps to a style name`).toBe('string');
@@ -542,6 +580,18 @@ describe('the shipped workbook-spec.json', () => {
     expect(elements.columns.map((c) => c.id)).not.toContain('definition');
     const noted = elements.columns.filter((c) => c.note === 'elementDefinition');
     expect(noted.map((c) => c.id)).toEqual(['element']);
+  });
+
+  test('shades the cells a completion rule consults, and leaves the optional ones alone', () => {
+    // Blank evidence is a gap the engine's own rule cares about — `complete` needs a non-empty
+    // response AND non-empty evidence. Blank notes are a choice.
+    const tables = shipped.sheets.flatMap((s) => specTables(s));
+    const shaded = (tableId: string) =>
+      (tables.find((t) => t.id === tableId)?.columns ?? []).filter((c) => c.shadeWhenEmpty).map((c) => c.id);
+    expect(shaded('elements')).toEqual(['evidence']);
+    expect(shaded('responses')).toEqual(['response']);
+    // The schema requires all three of these, so an empty one is not a deal in progress but a gap.
+    expect(shaded('stakeholders').sort()).toEqual(['name', 'roleInDeal', 'title']);
   });
 
   test('gives every deal collection a table, so nothing is capped', () => {

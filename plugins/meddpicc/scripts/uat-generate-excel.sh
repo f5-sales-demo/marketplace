@@ -385,6 +385,132 @@ echo "    boolean dropdown at $bool_cell: Excel=[$got_bool]"
 [ "$got_bool" = "Yes,No" ] || fail "the boolean dropdown is '$got_bool', expected Yes,No"
 echo "PASS: Excel recognises the conditional formats and the schema-derived dropdowns, and sees no Excel Table"
 
+# ── The palette ────────────────────────────────────────────────────────────────────────────────
+#
+# Colour marks what needs attention, and nothing else: a finished element, a complete section and a
+# rating of "Green" carry no fill at all. That is a rule about what is ABSENT, which is exactly what a
+# unit test over our own XML is worst at proving — it can only check the rules we wrote, not what Excel
+# resolved them to. So ask Excel for every rule on the cells that matter, including the colour it will
+# actually paint, and check the shape of the ladder rather than a hex nobody can review.
+#
+# `condition operator` is missing on an expression rule and raises rather than returning empty, so it is
+# read inside a try; a rule that has no operator is not a rule that failed.
+cf_rules() {
+  osascript - "$SHEET" "$BOOK" "$1" <<'OSA' 2>&1
+on run argv
+  tell application "Microsoft Excel"
+    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
+    set r to range (item 3 of argv) of ws
+    set out to ""
+    repeat with i from 1 to (count of format conditions of r)
+      set fc to format condition i of r
+      set op to "none"
+      try
+        set op to (condition operator of fc) as string
+      end try
+      set c to color of interior object of fc
+      set out to out & (format condition type of fc as string) & "|" & op & "|" & (formula 1 of fc) & "|" & ¬
+        (item 1 of c) & "," & (item 2 of c) & "," & (item 3 of c) & linefeed
+    end repeat
+    return out
+  end tell
+end run
+OSA
+}
+
+# Every wash has to be warm and faint: red at least green at least blue, and no channel far from white.
+# This is the assertion that fails if green comes back anywhere — in a preset, in a dxf, or by somebody
+# editing the file and saving it.
+assert_warm_and_faint() {
+  local where="$1" rgb="$2" r g b
+  IFS=, read -r r g b <<<"$rgb"
+  [ -n "$r" ] && [ -n "$g" ] && [ -n "$b" ] || fail "$where: Excel reported no colour for the rule ($rgb)"
+  [ "$r" -ge "$g" ] && [ "$g" -ge "$b" ] || fail "$where: fill $rgb is not warm (needs red >= green >= blue)"
+  [ "$b" -ge 208 ] || fail "$where: fill $rgb is not faint — it would read as an error state, not a wash"
+}
+
+score_rules="$(cf_rules "$score_first:$score_last")"
+case "$score_rules" in
+*"execution error"* | *"syntax error"*) fail "could not read the score column's rules: $score_rules" ;;
+esac
+score_rule_count="$(grep -c . <<<"$score_rules")"
+echo "==> the score ladder, as Excel resolved it:"
+sed 's/^/    /' <<<"$score_rules"
+[ "$score_rule_count" = "3" ] || fail "expected 3 rules on the score column, Excel reports $score_rule_count"
+score_index=0
+while IFS='|' read -r _type _op formula rgb; do
+  [ -n "$_type" ] || continue
+  # 0 is nothing, 1 is barely, 2 is nearly — and the ladder stops there. A rule mentioning 3 or 4 would
+  # be colouring a score that is done, which is the whole thing this palette removed.
+  case "$formula" in
+  *3* | *4*) fail "a score rule fires on '$formula'; 3 and 4 are done and carry no fill" ;;
+  esac
+  [ "$formula" = "=$score_index" ] || fail "score rule $((score_index + 1)) is '$formula', expected '=$score_index'"
+  assert_warm_and_faint "score rule $formula" "$rgb"
+  score_index=$((score_index + 1))
+done <<<"$score_rules"
+
+# A blank cell that a completion rule consults is washed; a blank cell nobody depends on is not.
+evidence_cell="$(table_cell elements evidence 0)"
+notes_cell="$(table_cell elements notes 0)"
+evidence_rules="$(cf_rules "$evidence_cell")"
+notes_rules="$(cf_rules "$notes_cell")"
+echo "    evidence $evidence_cell: ${evidence_rules%$'\n'}"
+echo "    notes $notes_cell: ${notes_rules:-<none>}"
+[ "$(grep -c . <<<"$evidence_rules")" = "1" ] || fail "expected one wash on $evidence_cell, got: $evidence_rules"
+case "$evidence_rules" in
+*"expression|"*) : ;;
+*) fail "the wash on $evidence_cell is not an expression rule: $evidence_rules" ;;
+esac
+case "$evidence_rules" in
+*TRIM*) : ;;
+*) fail "the wash on $evidence_cell does not test emptiness: $evidence_rules" ;;
+esac
+assert_warm_and_faint "the empty-cell wash" "$(cut -d'|' -f4 <<<"$evidence_rules" | head -1)"
+[ -z "${notes_rules//[[:space:]]/}" ] || fail "the notes column is washed, and a blank note is a choice: $notes_rules"
+
+# A list's spare rows are inside the wash's range, and the rule is what keeps them clear until somebody
+# starts one. Both halves matter and they pull in opposite directions: a range stopping at the last
+# entry leaves a half-typed stakeholder unwarned, and a rule without the row test washes every spare row
+# of every new deal. So ask Excel for the range it holds and for the formula it will evaluate.
+stake_name="$(table_cell stakeholders name 0)"
+stake_rows="$(jq -r '(.tables[] | select(.id == "stakeholders") | .rows)' <<<"$uat_plan")"
+stake_last="$(table_cell stakeholders name "$((stake_rows - 1))")"
+stake_rules="$(cf_rules "$stake_name")"
+stake_range="$(
+  osascript - "$SHEET" "$BOOK" "$stake_name" <<'OSA' 2>&1
+on run argv
+  tell application "Microsoft Excel"
+    set ws to worksheet (item 1 of argv) of workbook (item 2 of argv)
+    return get address of (applies to of format condition 1 of range (item 3 of argv) of ws) without external
+  end tell
+end run
+OSA
+)"
+echo "    stakeholder names: rule over $stake_range (capacity is $stake_rows rows, to $stake_last)"
+case "$stake_rules" in
+*COUNTA*) : ;;
+*) fail "the stakeholder wash does not test whether the row has been started: $stake_rules" ;;
+esac
+# Excel writes the address absolute; compare on the row numbers, which is what this is about.
+case "$stake_range" in
+*"${stake_last#[A-Z]}") : ;;
+*) fail "the stakeholder wash stops at $stake_range and the list has room to row ${stake_last#[A-Z]}" ;;
+esac
+
+# The rating word: "Red" and "Yellow" are painted, "Green" is not.
+rating_rules="$(cf_rules "$(named scoreRating)")"
+echo "    rating $(named scoreRating): ${rating_rules%$'\n'}"
+[ "$(grep -c . <<<"$rating_rules")" = "2" ] || fail "expected 2 rules on the rating cell, got: $rating_rules"
+case "$rating_rules" in
+*Green*) fail "a rating rule fires on \"Green\" — good news carries no fill" ;;
+esac
+while IFS='|' read -r _t _o f rgb; do
+  [ -n "$f" ] || continue
+  assert_warm_and_faint "rating rule $f" "$rgb"
+done <<<"$rating_rules"
+echo "PASS: every wash Excel resolved is warm and faint, and nothing paints a value that is done"
+
 # The presentation primitives are the ones a unit test can least vouch for: a merge Excel
 # rejects, a print setup it ignores, a gridline flag in the wrong place — all of them produce a
 # file that still opens. So ask Excel what it made of them.

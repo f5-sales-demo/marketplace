@@ -10,6 +10,43 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v6.2.0 — colour marks what needs attention, and nothing else. Not breaking: no
+  address, width or height changes, so a v6.1.0 workbook still reads back.
+
+  The sheet used to paint something on every cell it evaluated, including every cell that was fine —
+  green at score 3-4, green on "Green", green on "Complete", green on any improvement. On a page read at
+  a glance the eye should land on the gaps; it was landing on whatever had the most fill, which on a
+  well-qualified deal is the good news.
+
+  - **Three faint warm washes, named for the attention they ask for rather than for their hue.**
+    `urgent` — nothing there: an unscored element, an untouched section, an overdue date, a "Red"
+    rating. `warn` — barely begun, or a step backwards. `watch` — nearly there: partial, in progress, a
+    score of 2. **Anything finished carries no fill at all.**
+  - **The score column is a ladder now** — 0 red, 1 orange, 2 yellow, 3 and 4 clear — rather than three
+    bands with the top one shouting. An element nobody has scored and one scored 1 are a gap and a
+    start, and the old "under 2" rule painted them identically.
+  - **A blank cell that something depends on is washed, at one of two levels.** `required` — a
+    completion rule or the schema needs a value, so blank is a gap: an element's evidence, the three
+    whys, the two strategy cells, the identifying metadata, a stakeholder's name, title and role.
+    `wanted` — nothing requires it and a blank one is still worth seeing: a discovery question nobody has
+    answered, which drops to the faintest tint. `qualStatus` is satisfied by any ONE answer, so calling
+    the others missing would raise a false alarm on an element that is genuinely complete — and an
+    unanswered question is still among the most actionable things on the sheet, so it drops a level
+    rather than disappearing. Deliberately nothing at all on `notes` or the partner-side whys, which are
+    legitimately empty. The level distinction came out of the second-opinion review.
+  - **A row somebody has started is washed even if it was a spare one.** A list keeps blank rows below
+    its entries so there is somewhere to type, and a conditional-format range does not grow when one is
+    used — so a wash stopping at the last existing entry was absent from the case it is most use, a
+    stakeholder halfway through being entered whose blank title is schema-required. Covering those rows
+    unconditionally would ask for work nobody owes, so the rule carries the condition instead: empty
+    **and** something else on this row, over the table's own columns rather than the width of the page,
+    because two tables share a band of rows. Found by the second-opinion review.
+  - **The Excel stage reads each rule's own resolved fill back out of the application** and checks it is
+    warm and faint — red at least green at least blue, no channel far from white. That is the assertion
+    that fails if green returns anywhere, and it is a property worth asserting where a hex is not.
+  - The three `ragRed` / `ragAmber` / `ragGreen` **cell** styles are gone with it. Nothing had
+    referenced them since the conditional formats took the colouring over.
+
 - **`meddpicc`** v6.1.0 — the element definitions are back, as hover notes. Not breaking: no address
   moved, so a v6.0.0 workbook still reads back.
 
