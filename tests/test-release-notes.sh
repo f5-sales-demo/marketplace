@@ -213,6 +213,32 @@ MD
 assert_body "the released 0.9.0 entry below is not considered stale" \
   '**`demo`** bumped to v1.0.1' "$f" 1.0.1
 
+# ── A changelog bigger than the pipe buffer ─────────────────
+#
+# The case that shipped. `awk` stops at the next top-level entry, and it used to stop by
+# calling `exit` — while the writer feeding it was still writing. On a small changelog the
+# writer finishes first and the output fits the 64 KiB pipe buffer, so nothing notices. Once
+# the [Unreleased] section passes that buffer the writer blocks, the reader quits, the writer
+# takes SIGPIPE, and `pipefail` makes 141 the script's status — after it has printed exactly
+# the right note. The workflow then reports an ambiguous changelog, which is not the problem.
+#
+# So the fixture has to be large AND the matched entry has to be followed by another. Every
+# small fixture above passes with the bug present, which is why it reached a release.
+big=$(
+  {
+    echo '- **`demo`** bumped to v1.2.3'
+    echo
+    for i in $(seq 1 900); do
+      echo "- **\`filler\${i}\`** v1.0.0 — padding, long enough that the writer blocks on a full pipe."
+      echo
+      echo "  Continuation prose for padding entry \${i}, adding bulk past the 64 KiB pipe buffer."
+      echo
+    done
+  } | changelog
+)
+assert_body "a note is emitted from an [Unreleased] section larger than the pipe buffer" \
+  '**`demo`** bumped to v1.2.3' "$big" 1.2.3
+
 if [ "$FAIL" -ne 0 ]; then
   echo "release-notes tests FAILED"
   exit 1
