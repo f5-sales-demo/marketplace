@@ -10,6 +10,37 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v6.3.0 — the completion statuses follow the sheet. Not breaking: no address moved, so
+  a v6.2.0 workbook still reads back.
+
+  The thirteen section statuses were literals, computed when the workbook was written. Fill in the
+  missing evidence during a live review and the sheet went on calling the section not started — in the
+  one column whose job is to say where the deal stands.
+
+  - **One rule, two readers.** Each section's rule is data now: two predicates, `complete` and
+    `started`, over deal paths, in a vocabulary of six leaves and two combinators. The engine evaluates
+    them against the deal and the generator compiles the same ones into formulas, so there is no second
+    set of rules free to drift. Six kinds covered all thirteen rules; a seventh would have been a rule
+    the sheet could not express, which is worth discovering in TypeScript rather than in Excel.
+  - **Nothing in the compiler knows a coordinate.** `plan.inputCells` already maps every deal path to
+    the cell it landed in, so a rule naming `qualification.metrics.evidence` resolves to a cell and that
+    element's responses to the range of its rows — and a rule naming a field the sheet does not show
+    refuses to compile rather than emitting a formula that reads `#NAME?` mid-review.
+  - **The scorecard follows for free.** `sectionsComplete` already counted the status column, so the
+    count and the completion percentage are live too.
+  - **One bridge, stated where the two readers differ.** The engine counts entries in the deal's array;
+    the sheet counts rows whose identity column is filled in. They agree for a blank row and a filled
+    one, and differ for an entry that exists in the JSON with no name — which the sheet does not count,
+    and which the `required` wash already asks for.
+  - **The refactor is proved rather than reviewed.** The previous implementation is frozen in the suite
+    as an oracle and asked the same question as the new one over every combination each rule can see —
+    all 96 an element rule has, and every shape the five collection sections can take. Exhaustive rather
+    than random, so no seed can miss a case.
+  - **Excel is asked directly**: all thirteen statuses agree with the engine on the example deal *and*
+    on the partly-qualified fixture, and setting an element's score to 0 in Excel moves its status from
+    Complete to Partial — what the engine says about the same deal with that score changed, computed by
+    the engine rather than written down here.
+
 - **`meddpicc`** v6.2.0 — colour marks what needs attention, and nothing else. Not breaking: no
   address, width or height changes, so a v6.1.0 workbook still reads back.
 
@@ -563,7 +594,6 @@ and this project adheres to
   No Reference sheet: inline validation lists made it redundant, and the 0-4 rubric text
   already sits on the Qualification row it describes.
 
-
 - **`meddpicc`** v2.5.0 — the workbook generator. `engine/generate.ts` turns the spec plus a
   deal into a real `.xlsx`: `generate <deal.json> --out <file>`, or `--plan` to print where
   every input cell landed without writing anything.
@@ -596,7 +626,6 @@ and this project adheres to
   And `dateToSerial` **rejects impossible dates** rather than rolling them forward: it was
   turning `2026-02-31` into `2026-03-03`, a close date three days late that nothing downstream
   would question.
-
 
 - **Plugin tests no longer depend on a real cloud CLI** (`aws` v1.2.2, `azure` v1.2.2,
   `gcloud` v1.2.2, `github` v1.2.2, `gitlab` v1.2.3, `salesforce` v1.3.3) — 32 tests across
