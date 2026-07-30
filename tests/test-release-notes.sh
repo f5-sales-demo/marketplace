@@ -65,21 +65,24 @@ assert_refuses() {
 }
 
 # ── The happy paths ─────────────────────────────────────────
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 MD
 )
 assert_body "placeholder entry for the tagged version" \
   '- **`demo`** bumped to v1.0.1' "$f" 1.0.1
 
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** v1.0.1 — describes the change in prose.
 MD
 )
 assert_body "prose entry for the tagged version" \
   '- **`demo`** v1.0.1 — describes the change in prose.' "$f" 1.0.1
 
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`other`** bumped to v3.0.0
 MD
 )
@@ -87,7 +90,8 @@ assert_body "no entry for this plugin falls back to a generic note" \
   'Released **demo** v1.0.1' "$f" 1.0.1
 
 # Another plugin's entry at a different version must not be mistaken for staleness.
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 
 - **`other`** v9.9.9 — unrelated plugin, unrelated version.
@@ -100,7 +104,8 @@ assert_body "another plugin's entry is ignored" \
 # Exactly the shape that shipped as salesforce/v1.3.5: a placeholder for the tagged version
 # plus a prose entry labelled with a version that was never tagged. The old selection
 # matched on plugin name and published both. Only the tagged version may appear.
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.2
 
 - **`demo`** v1.0.1 — describes the change, but for the wrong version.
@@ -109,7 +114,8 @@ MD
 assert_body "the salesforce v1.3.5 shape publishes only the tagged version" \
   '- **`demo`** bumped to v1.0.2' "$f" 1.0.2
 
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.3
 
 - **`demo`** bumped to v1.0.2
@@ -122,7 +128,8 @@ assert_body "accumulated placeholders yield only the tagged one" \
 
 # This repository keeps entries for past releases under [Unreleased] indefinitely. Treating
 # those as an error would block every future release, so they must be silently skipped.
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v2.0.0
 
 - **`demo`** v1.5.0 — shipped months ago, still listed here by house style.
@@ -134,7 +141,8 @@ assert_body "historical entries under [Unreleased] do not block a release" \
   '- **`demo`** bumped to v2.0.0' "$f" 2.0.0
 
 # ── The one genuine refusal: real ambiguity ─────────────────
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 
 - **`demo`** v1.0.1 — a duplicate at the same version.
@@ -144,7 +152,8 @@ assert_refuses "two entries at the tagged version is ambiguous" "$f" 1.0.1
 
 # ── Version matching is exact ───────────────────────────────
 # The dot in "1.0.1" must not behave as a regex wildcard.
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1x0x1
 MD
 )
@@ -153,7 +162,8 @@ assert_body "a dot in the version is not a wildcard" \
 
 # A longer version starting with the same digits is a different release, so it must not be
 # mistaken for the tagged one.
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.10
 MD
 )
@@ -161,7 +171,8 @@ assert_body "v1.0.10 is not mistaken for v1.0.1" \
   'Released **demo** v1.0.1' "$f" 1.0.1
 
 # ── Earlier release sections are out of scope ───────────────
-f=$(changelog <<'MD'
+f=$(
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 MD
 )
