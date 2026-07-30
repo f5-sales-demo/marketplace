@@ -10,18 +10,74 @@ export interface ValidationResult {
  * fresh marketplace install needs no `node_modules` and no build step.
  *
  * Supported keywords: type, required, properties, items, enum, const, minimum,
- * maximum, $ref (local `#/...` only, incl. `#/$defs/*`), allOf.
+ * maximum, minLength, pattern, $ref (local `#/...` only, incl. `#/$defs/*`),
+ * allOf. Do not trust this sentence — trust the three sets below, which say the
+ * same thing in a form a test checks. A prose list drifts, and the drift is
+ * invisible: `minLength` was added to this schema's fields in #901 and would
+ * have constrained nothing had the keyword not been implemented too.
  *
  * Deliberate leniency (keeps the validator focused on qualification-correctness
  * constraints and guarantees the valid example is never false-rejected):
- *   - `format` (date/date-time) and `pattern` (Salesforce ID prefixes) are
- *     accepted unconditionally. This is a slight loosening vs the prior
- *     ajv + ajv-formats stack, which did check them — but both only constrain
- *     optional, annotation-grade fields, never scores/required/enums.
+ *   - `format` (date/date-time) is accepted unconditionally. A loosening vs the
+ *     prior ajv + ajv-formats stack, which did check it — but it constrains only
+ *     optional, annotation-grade fields, and the reader already decides what a
+ *     date is by way of Excel's serial arithmetic.
  *   - `additionalProperties` is only enforced when explicitly `false`.
  *   - a subschema with no `type` does not constrain the instance type.
  *   - numeric bounds apply to numbers only; booleans are never numbers.
  */
+
+/**
+ * Keywords this validator enforces. A schema keyword absent from all three sets below is one the
+ * validator has never heard of, and an unheard-of keyword is silently satisfied — so the schema would
+ * read as constraining something while constraining nothing. `validate.test.ts` fails on that, and also
+ * proves each keyword named here really does reject something, so this list cannot lie.
+ */
+export const ENFORCED_KEYWORDS: ReadonlySet<string> = new Set([
+  'type',
+  'required',
+  'properties',
+  'items',
+  'enum',
+  'const',
+  'minimum',
+  'maximum',
+  'minLength',
+  'pattern',
+  'additionalProperties',
+  'allOf',
+  '$ref',
+  '$defs',
+]);
+
+/**
+ * Accepted unconditionally on purpose, per the leniency documented above. Only `format` is left: the
+ * date and date-time formats constrain optional annotation-grade fields, and the reader coerces dates
+ * through Excel's serial arithmetic anyway, so it is the one that would decide a date twice.
+ *
+ * `pattern` used to be here. It moved because the identity fields needed to say "not just space", and
+ * `pattern: "\\S"` says that in the vocabulary the specification already has — better than giving
+ * `minLength` a private trimmed meaning. Enforcing it also turned on the three Salesforce-ID prefixes
+ * (`^006`, `^001`, `^005`), checked against both the example deal and a real one first.
+ */
+export const LENIENT_KEYWORDS: ReadonlySet<string> = new Set(['format']);
+
+/** Annotations. They describe the schema; they constrain nothing, here or in the specification. */
+export const ANNOTATION_KEYWORDS: ReadonlySet<string> = new Set([
+  '$schema',
+  '$id',
+  '$comment',
+  'title',
+  'description',
+  'default',
+  'examples',
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+]);
+
+/** Keywords whose value is data rather than a subschema, so a keyword scan must not descend into it. */
+export const DATA_VALUED_KEYWORDS: ReadonlySet<string> = new Set(['const', 'default', 'enum', 'examples', 'required']);
 
 type JsonSchema = Record<string, unknown>;
 type Err = ValidationResult['errors'][number];
@@ -149,6 +205,48 @@ export function validateDeal(deal: unknown, schema: unknown): ValidationResult {
           keyword: 'const',
           message: 'must be equal to constant',
           schemaPath: `${sp}/const`,
+        });
+      }
+    }
+
+    // minLength (strings only) — `required` asks whether a key is present, not whether it says
+    // anything, so this is the only keyword that can insist a deal names itself.
+    //
+    // Counted the way the specification counts, without trimming, even though the engine's own notion
+    // of "filled" trims: `minLength: 1` in a schema file has one meaning everywhere, and quietly giving
+    // a standard keyword a stricter one here would mislead anyone reading the schema. A whitespace-only
+    // identity therefore still validates — see the characterisation test in validate.test.ts.
+    if (typeof data === 'string' && typeof sch.minLength === 'number' && data.length < sch.minLength) {
+      errors.push({
+        instancePath: ip,
+        keyword: 'minLength',
+        message: sch.minLength === 1 ? 'must not be empty' : `must be at least ${sch.minLength} characters`,
+        schemaPath: `${sp}/minLength`,
+      });
+    }
+
+    // pattern (strings only) — an ECMA-262 regular expression, unanchored, as the specification says.
+    // A pattern the engine cannot compile is a fault in the schema, not in the deal, so it is reported
+    // against the schema path rather than swallowed: a silently skipped pattern is the #901 bug again.
+    if (typeof data === 'string' && typeof sch.pattern === 'string') {
+      let re: RegExp | null = null;
+      try {
+        re = new RegExp(sch.pattern);
+      } catch {
+        errors.push({
+          instancePath: ip,
+          keyword: 'pattern',
+          message: `schema pattern ${JSON.stringify(sch.pattern)} is not a valid regular expression`,
+          schemaPath: `${sp}/pattern`,
+        });
+      }
+      if (re && !re.test(data)) {
+        errors.push({
+          instancePath: ip,
+          keyword: 'pattern',
+          // `\S` is the one this schema leans on, and "must match /\S/" tells a rep nothing.
+          message: sch.pattern === '\\S' ? 'must say something, not only spaces' : `must match ${sch.pattern}`,
+          schemaPath: `${sp}/pattern`,
         });
       }
     }
