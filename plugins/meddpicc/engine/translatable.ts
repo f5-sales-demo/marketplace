@@ -115,6 +115,13 @@ export function translatableStrings(spec: WorkbookSpec, schema: unknown): Map<st
   };
   walkSpec(spec);
 
+  // A sheet's name is its Excel tab, which is rendered text — and it is deliberately NOT collected by the
+  // walk above, because `name` is a common key on things that are not prose. The shipped spec happens to
+  // name its one sheet exactly what its title block says, so a catalogue that missed tab names looked
+  // complete: the oracle found the string, having been given it by the title. Review caught that; a
+  // custom spec with a distinct sheet name would have shipped an untranslated tab.
+  for (const sheet of spec.sheets) add(sheet.name, 'spec');
+
   // The element text lives in the schema as `const` and `default`, so it is documentation and rendered
   // content at once — the sheet shows every word of it.
   const qualification = (schema as { properties?: { qualification?: { properties?: Record<string, unknown> } } })

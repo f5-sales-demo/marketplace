@@ -81,6 +81,20 @@ describe('the catalogue is proven against a workbook, not against my reading of 
     }
   });
 
+  test("a sheet's tab name is catalogued even when it does not match its title", () => {
+    // The shipped spec names its sheet exactly what its title block says, so the two checks above passed
+    // whether or not tab names were collected — the oracle found the string, having been handed it by the
+    // title. That is a coincidence, not coverage, and review caught it. Breaking the coincidence is the
+    // only way to test the thing.
+    const renamed = structuredClone(spec) as WorkbookSpec;
+    renamed.sheets[0].name = 'Revue de transaction';
+    expect(translatableSet(renamed, schema).has('Revue de transaction')).toBe(true);
+    // And the shipped one still holds its own name, by that route rather than by the title's.
+    const titleless = structuredClone(spec) as WorkbookSpec;
+    titleless.sheets[0].blocks = titleless.sheets[0].blocks.filter((b) => b.kind !== 'title');
+    expect(translatableSet(titleless, schema).has('MEDDPICC Deal Review')).toBe(true);
+  });
+
   test('a NoteSource discriminator is not prose', () => {
     // `note: "elementDefinition"` names which note to hang. My first extraction counted it, which would
     // have produced a locale entry for a type tag — invisible, and indistinguishable from coverage.
