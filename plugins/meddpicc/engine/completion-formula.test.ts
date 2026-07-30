@@ -13,14 +13,25 @@ const inputs = (entries: Array<[string, string]>): InputCell[] =>
 /** A resolver for formulas living on the same sheet as their cells, which is the shipped workbook. */
 const resolverFor = (cells: InputCell[]) => cellResolver(cells, SHEET);
 
-const stakeholderCells = inputs([
-  ['stakeholders[0].name', 'B56'],
-  ['stakeholders[0].title', 'D56'],
-  ['stakeholders[0].roleInDeal', 'G56'],
-  ['stakeholders[1].name', 'B57'],
-  ['stakeholders[1].title', 'D57'],
-  ['stakeholders[1].roleInDeal', 'G57'],
-]);
+/**
+ * Two stakeholder rows with every column the rule names.
+ *
+ * All eight, not a convenient three: the rule counts a row as an entry when any of its declared fields
+ * is filled in, and asking the sheet for a column it does not have is a generation error by design. A
+ * short fixture would have been testing a workbook that cannot exist.
+ */
+const stakeholderCells = inputs(
+  [0, 1].flatMap((row) => [
+    [`stakeholders[${row}].name`, `B${56 + row}`] as [string, string],
+    [`stakeholders[${row}].title`, `D${56 + row}`] as [string, string],
+    [`stakeholders[${row}].roleInDeal`, `G${56 + row}`] as [string, string],
+    [`stakeholders[${row}].mustSayYes`, `I${56 + row}`] as [string, string],
+    [`stakeholders[${row}].canSayNo`, `J${56 + row}`] as [string, string],
+    [`stakeholders[${row}].whatTheyNeedToBelieve`, `K${56 + row}`] as [string, string],
+    [`stakeholders[${row}].sentiment`, `O${56 + row}`] as [string, string],
+    [`stakeholders[${row}].relationshipOwner`, `P${56 + row}`] as [string, string],
+  ]),
+);
 
 describe('cellResolver — what a deal path is on the sheet', () => {
   test('a scalar path is the one cell that holds it', () => {
@@ -43,7 +54,16 @@ describe('cellResolver — what a deal path is on the sheet', () => {
     // entry with no name, and the schema permits one. Read from the addresses rather than from the
     // spec, so moving a column moves this with it.
     const resolve = resolverFor(stakeholderCells);
-    expect(resolve.allRanges('stakeholders')).toEqual(['$B$56:$B$57', '$D$56:$D$57', '$G$56:$G$57']);
+    expect(resolve.allRanges('stakeholders')).toEqual([
+      '$B$56:$B$57',
+      '$D$56:$D$57',
+      '$G$56:$G$57',
+      '$I$56:$I$57',
+      '$J$56:$J$57',
+      '$K$56:$K$57',
+      '$O$56:$O$57',
+      '$P$56:$P$57',
+    ]);
     expect(resolve.fieldRange('stakeholders', 'title')).toBe('$D$56:$D$57');
   });
 
@@ -151,12 +171,31 @@ describe('compileStatus — the same rule, as a formula', () => {
     expect(formula).toContain('CHAR(160)');
   });
 
-  test('a score is read through N(), so text cannot outrank a number', () => {
-    // Excel sorts text above every number: `$D$20>=3` is TRUE for a cell holding "four", where the
-    // engine reads a non-number as 0 and says false. N() makes both read it the same way.
+  test('the count consults the fields the rule names, not every column the sheet has', () => {
+    // Today the two coincide, so nothing else here can tell them apart. They are the same by
+    // construction, not by luck: a column the rule does not name is a column the engine does not read,
+    // and counting it would put the two readers back into disagreement.
+    const withExtra = [
+      ...stakeholderCells,
+      ...inputs([
+        ['stakeholders[0].somethingTheRuleIgnores', 'Z56'],
+        ['stakeholders[1].somethingTheRuleIgnores', 'Z57'],
+      ]),
+    ];
+    const formula = compileStatus(SECTION_RULES.stakeholders, resolverFor(withExtra));
+    expect(formula).toContain('$B$56:$B$57');
+    expect(formula).not.toContain('$Z$56');
+  });
+
+  test('a score cell is read the way the reader reads it', () => {
+    // Two ways to get this wrong. A bare `$D$20>=3` is TRUE for a cell holding "four", because Excel
+    // sorts text above every number. And `N("3")` is 0, while the round-trip reader accepts a textual
+    // "3" and applies it as 3 — so a pasted score would show 3 on the sheet, leave the status partial,
+    // and then change meaning on read-back. VALUE reads it as the reader does, and IFERROR keeps a blank
+    // or a word at nought, as the engine does.
     const formula = compileStatus(SECTION_RULES.metrics, resolverFor(elementCells));
-    expect(formula).toContain('N($D$20)>=3');
-    expect(formula).not.toMatch(/[^(]\$D\$20\)?>=/);
+    expect(formula).toContain('IFERROR(VALUE($D$20),0)>=3');
+    expect(formula).not.toContain('N($D$20)');
   });
 
   test('a field is only required of a row somebody has started', () => {
@@ -189,10 +228,22 @@ describe('compileStatus — the same rule, as a formula', () => {
         ['threeWhys.us.whyNow', 'B51'],
         ['salesStrategy.differentiatedValueProposition', 'B68'],
         ['salesStrategy.winStrategy', 'J68'],
-        ['closePlan.milestones[0].title', 'B74'],
+        // Every field each rule names, since a rule asking for a column the sheet lacks fails by design.
+        ['closePlan.milestones[0].description', 'B74'],
+        ['closePlan.milestones[0].targetDate', 'F74'],
+        ['closePlan.milestones[0].status', 'H74'],
         ['closePlan.criticalActions[0].action', 'J74'],
+        ['closePlan.criticalActions[0].owner', 'M74'],
+        ['closePlan.criticalActions[0].dueDate', 'O74'],
+        ['closePlan.criticalActions[0].status', 'Q74'],
         ['team.internal[0].name', 'B86'],
+        ['team.internal[0].role', 'D86'],
+        ['team.internal[0].dateRequiredFrom', 'F86'],
+        ['team.internal[0].assignedToDeal', 'H86'],
         ['team.partner[0].name', 'J86'],
+        ['team.partner[0].role', 'L86'],
+        ['team.partner[0].dateRequiredFrom', 'N86'],
+        ['team.partner[0].assignedToDeal', 'P86'],
       ]),
     ]);
     for (const section of ['metrics', 'threeWhys', 'stakeholders', 'salesStrategy', 'closePlan', 'team']) {

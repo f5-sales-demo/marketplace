@@ -711,6 +711,15 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const clippedCells: ClippedCell[] = [];
   const notes: PlannedNote[] = [];
   const sheets: SheetSpec[] = [];
+  /**
+   * Status cells whose formula cannot be written yet.
+   *
+   * A completion rule names cells anywhere in the workbook, so the formulas are compiled after every
+   * sheet has been laid out. Compiled per sheet they could only see the input cells of that sheet and
+   * the ones before it — and a two-sheet spec with its Completion block first then failed to generate,
+   * which made a valid spec depend on the order its sheets happened to be written in.
+   */
+  const pendingStatuses: Array<{ cell: CellSpec; section: string; sheet: string }> = [];
   /** `sheet!ref` for every cell the generator writes — see {@link WorkbookPlan.writtenCells}. */
   const writtenCells: string[] = [];
 
@@ -718,8 +727,6 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     const byRow = new Map<number, CellSpec[]>();
     const heights = new Map<number, number>();
     const merges: string[] = [];
-    /** Status cells whose formula needs every input cell to have been placed first. */
-    const pendingStatuses: Array<{ cell: CellSpec; section: string }> = [];
     const formats: ConditionalFormat[] = [];
     const validations: Validation[] = [];
     const push = (row: number, cell: CellSpec) => {
@@ -970,7 +977,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
           if (table.source.kind === 'sections' && spec.id === 'status') {
             const cell: CellSpec = { ref, style };
             push(dataRow, cell);
-            pendingStatuses.push({ cell, section: entry.key as string });
+            pendingStatuses.push({ cell, section: entry.key as string, sheet: s.name });
             continue;
           }
 
@@ -1024,15 +1031,6 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       }
     }
 
-    if (pendingStatuses.length > 0) {
-      const resolve = cellResolver(inputCells, s.name);
-      for (const { cell, section } of pendingStatuses) {
-        const rule = SECTION_RULES[section];
-        if (!rule) throw new Error(`the Completion block names section "${section}", which has no rule`);
-        cell.formula = compileStatus(rule, resolve);
-      }
-    }
-
     // Taken from the one collection rather than accumulated twice: the plan reports notes per
     // workbook and the writer takes them per sheet, and two lists would be two chances to disagree.
     const sheetNotes = notes.filter((n) => n.sheet === s.name).map(({ address, text }) => ({ ref: address, text }));
@@ -1051,6 +1049,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       validations: validations.length ? validations : undefined,
       notes: sheetNotes.length ? sheetNotes : undefined,
     });
+  }
+
+  for (const { cell, section, sheet } of pendingStatuses) {
+    const rule = SECTION_RULES[section];
+    if (!rule) throw new Error(`the Completion block names section "${section}", which has no rule`);
+    cell.formula = compileStatus(rule, cellResolver(inputCells, sheet));
   }
 
   return {

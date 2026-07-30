@@ -28,6 +28,20 @@ and this project adheres to
     refuses to compile rather than emitting a formula that reads `#NAME?` mid-review.
   - **The scorecard follows for free.** `sectionsComplete` already counted the status column, so the
     count and the completion percentage are live too.
+  - **What makes a row an entry belongs to the list.** `ENTRY_FIELDS` names each list's declared fields
+    once, and both halves of a rule read it — as does the compiler, which looks each one up as a column.
+    So the two readers count the same rows by construction, and a rule naming a field the workbook does
+    not show fails at generation rather than counting a row the sheet cannot see. Three rounds of review
+    got here: first the leftmost column, then every column, then the fields themselves, when the reviewer
+    pointed out that the schema does not forbid extra properties — `[{"unmappedField":"x"}]` validates,
+    and the sheet has nowhere to show it.
+  - **A score cell is read the way the reader reads it.** `N("3")` is nought, while the round-trip reader
+    accepts a textual "3" and applies it as 3 — so a pasted score showed 3 on the sheet, left the status
+    partial, and changed meaning on read-back. `IFERROR(VALUE(…),0)` reads it as the reader does and keeps
+    a blank or a word at nought, as the engine does.
+  - **A completion block can sit anywhere in the spec.** The statuses were compiled at the end of each
+    sheet, against the input cells known so far — so a two-sheet spec that passes `check-spec` failed to
+    generate when the Completion block came first. They are compiled once, after every sheet is laid out.
   - **An entry counts when it has something in it — in the engine too.** The old rule counted the array's
     length, so `team.internal: [{}]` completed the whole Team section: one object with no fields, which
     the schema permits and which is not a team member in any sense. No sheet could ever agree, because an

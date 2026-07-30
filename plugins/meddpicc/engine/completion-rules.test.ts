@@ -179,7 +179,7 @@ describe('the completion rules answer exactly what the old implementation answer
     agree({ closePlan: undefined }, 'no closePlan');
     // An entry with something in it: `[{}]` is the one shape whose answer changed on purpose, and the
     // test below owns it.
-    for (const milestones of [undefined, [], [{ title: 'Sign' }]]) {
+    for (const milestones of [undefined, [], [{ description: 'Sign' }]]) {
       for (const criticalActions of [undefined, [], [{ action: 'Chase' }]]) {
         agree({ closePlan: { milestones, criticalActions } }, `closePlan ${!!milestones}${!!criticalActions}`);
       }
@@ -227,10 +227,25 @@ describe('one class of answer changed on purpose: an entry with nothing in it', 
     expect(computeCompletion(plan).completionStatus.closePlan).toBe('not_started');
   });
 
+  test('a field the workbook never shows does not make a row an entry', () => {
+    // The schema does not forbid extra properties, so `[{"unmappedField":"x"}]` validates — and the old
+    // rule called the Team section complete on it, while every team cell on the sheet is blank. A rule
+    // has to mean the same thing to both readers, so it counts only the fields it names.
+    const deal = { team: { internal: [{ unmappedField: 'x' }] } };
+    expect(computeCompletion(deal).completionStatus.team).toBe('not_started');
+    // A declared field in the same position does count.
+    expect(computeCompletion({ team: { internal: [{ role: 'SE' }] } }).completionStatus.team).toBe('complete');
+  });
+
   test('an entry with anything at all in it still counts', () => {
     // Including the values that are easy to mistake for emptiness: a zero, and a boolean false, both of
     // which the sheet displays as something.
-    for (const entry of [{ role: 'SE' }, { assignedToDeal: false }, { headcount: 0 }, { name: 'A' }]) {
+    for (const entry of [
+      { role: 'SE' },
+      { assignedToDeal: false },
+      { name: 'A' },
+      { dateRequiredFrom: '2026-01-01' },
+    ]) {
       expect(computeCompletion({ team: { internal: [entry] } }).completionStatus.team, JSON.stringify(entry)).toBe(
         'complete',
       );
@@ -276,16 +291,26 @@ describe('the predicates themselves', () => {
   });
 
   test('countAtLeast counts entries, and everyEntryHas checks their fields', () => {
-    const two = { a: [{ n: 'x' }, { n: '' }] };
+    // A real list, because what makes a row an entry is a property of the list itself now — a rule about
+    // a list nobody has described cannot be read by either side, and says so.
+    const two = { stakeholders: [{ name: 'x' }, { name: '' }] };
+    const count = (value: number, deal: unknown) =>
+      evaluate({ kind: 'countAtLeast', list: 'stakeholders', value }, deal);
     // One of those two has something in it; the other is as empty as a blank row on the sheet.
-    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 1 }, two)).toBe(true);
-    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 2 }, two)).toBe(false);
-    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 2 }, { a: [{ n: 'x' }, { n: 'y' }] })).toBe(true);
-    expect(evaluate({ kind: 'countAtLeast', list: 'a', value: 1 }, { a: 'not a list' })).toBe(false);
-    expect(evaluate({ kind: 'everyEntryHas', list: 'a', fields: ['n'] }, two)).toBe(false);
-    expect(evaluate({ kind: 'everyEntryHas', list: 'a', fields: ['n'] }, { a: [{ n: 'x' }] })).toBe(true);
+    expect(count(1, two)).toBe(true);
+    expect(count(2, two)).toBe(false);
+    expect(count(2, { stakeholders: [{ name: 'x' }, { name: 'y' }] })).toBe(true);
+    expect(count(1, { stakeholders: 'not a list' })).toBe(false);
+    // A field nobody declared cannot make a row count, because the sheet has no cell for it.
+    expect(count(1, { stakeholders: [{ somethingElse: 'x' }] })).toBe(false);
+    // And a list with no declared fields is a mistake, not an empty list.
+    expect(() => evaluate({ kind: 'countAtLeast', list: 'nosuch', value: 1 }, {})).toThrow(/nosuch/);
+    const everyHasName = (deal: unknown) =>
+      evaluate({ kind: 'everyEntryHas', list: 'stakeholders', fields: ['name'] }, deal);
+    expect(everyHasName(two)).toBe(false);
+    expect(everyHasName({ stakeholders: [{ name: 'x' }] })).toBe(true);
     // Vacuously true on an empty list, which is why every rule that uses it also asks for a count.
-    expect(evaluate({ kind: 'everyEntryHas', list: 'a', fields: ['n'] }, { a: [] })).toBe(true);
+    expect(everyHasName({ stakeholders: [] })).toBe(true);
   });
 
   test('all and any over nothing are true and false', () => {

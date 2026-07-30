@@ -1069,6 +1069,36 @@ describe('planWorkbook — a blank cell something depends on is shaded', () => {
   });
 });
 
+describe('planWorkbook — a completion block can sit anywhere in the spec', () => {
+  test('a Completion sheet placed BEFORE the inputs still compiles', () => {
+    // The statuses used to be compiled at the end of each sheet, against the input cells known so far —
+    // so a two-sheet spec that passes check-spec failed to generate when the Completion block came
+    // first, with "the sheet has no cell for qualification.metrics.score". Loud rather than silent, but
+    // a valid spec should not depend on the order its sheets happen to be written in.
+    //
+    // Built by MOVING the shipped Completion block onto its own sheet and putting that sheet first, so
+    // every cell the thirteen rules name exists exactly as it does today and the only thing that
+    // changes is the order.
+    const reordered = clone(spec);
+    const blocks = reordered.sheets[0].blocks;
+    const at = blocks.findIndex((b) => b.kind === 'table' && b.table.id === 'sections');
+    expect(at, 'the shipped spec has a sections table').toBeGreaterThan(-1);
+    const [completionBlock] = blocks.splice(at, 1);
+    reordered.sheets.unshift({
+      name: 'Completion',
+      kind: 'grid',
+      columns: reordered.sheets[0].columns,
+      blocks: [completionBlock],
+    });
+
+    const p = planWorkbook(schema, reordered, deal);
+    const statuses = p.sheets[0].rows.flatMap((r) => r.cells).filter((c) => c.formula?.includes('Not started'));
+    expect(statuses).toHaveLength(SECTION_ORDER.length);
+    // And each one names the sheet the cells are on, since that is no longer its own.
+    for (const cell of statuses) expect(cell.formula).toContain(`${spec.sheets[0].name}'!`);
+  });
+});
+
 describe('planWorkbook — the row a wash asks about is its own table’s row', () => {
   /** A sheet with two narrow lists side by side, the way the Close Plan and the Team are laid out. */
   const sideBySide = (): WorkbookSpec =>

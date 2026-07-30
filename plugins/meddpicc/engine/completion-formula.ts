@@ -22,7 +22,7 @@
  * pre-allocated blank ones, and a row is not somebody until it has a name. The `required` wash already
  * asks for that name, so the sheet says what to do before the count moves.
  */
-import type { Predicate, SectionRule } from './completion-rules';
+import { entryFieldsOf, type Predicate, type SectionRule } from './completion-rules';
 import { type InputCell, sheetPrefix } from './generate';
 import { statusLabel } from './sections';
 import { columnIndex } from './xlsx';
@@ -166,6 +166,10 @@ const filled = (ref: string) => `TRIM(${cleaned(ref)})<>""`;
 /**
  * How many rows of this list are entries.
  *
+ * The fields come from the RULE and are looked up as columns here, so the two readers count the same
+ * rows by construction rather than by coincidence — and a rule naming a field the workbook does not show
+ * fails at generation instead of counting a row the sheet cannot see.
+ *
  * A row is an entry when ANY of its fields is filled in — not just the leftmost. The engine counts
  * entries in the deal's array, and the schema permits an entry with no name: `team.internal:
  * [{"role":"SE"}]` validates, and the engine calls the team complete. Counting the name column alone
@@ -179,9 +183,8 @@ const filled = (ref: string) => `TRIM(${cleaned(ref)})<>""`;
  * not. Nothing on the sheet could tell them apart.
  */
 const startedRows = (resolve: CellResolver, list: string) =>
-  `SUMPRODUCT(--((${resolve
-    .allRanges(list)
-    .map((range) => `${filled(range)}`)
+  `SUMPRODUCT(--((${entryFieldsOf(list)
+    .map((field) => filled(resolve.fieldRange(list, field)))
     .join(')+(')})>0))`;
 
 export function compilePredicate(predicate: Predicate, resolve: CellResolver): string {
@@ -198,8 +201,11 @@ export function compilePredicate(predicate: Predicate, resolve: CellResolver): s
     case 'nonEmpty':
       return filled(resolve.cell(predicate.path));
     case 'atLeast':
-      // N() so text and a blank both read as 0, which is how the engine reads a missing score.
-      return `N(${resolve.cell(predicate.path)})>=${predicate.value}`;
+      // VALUE, not N(): `N("3")` is nought, while the round-trip reader accepts a textual "3" and applies
+      // it as 3 — so a pasted score would show 3 on the sheet, leave the status partial, and change
+      // meaning on read-back. IFERROR keeps a blank or a word at nought, which is how the engine reads a
+      // score it cannot make a number of.
+      return `IFERROR(VALUE(${resolve.cell(predicate.path)}),0)>=${predicate.value}`;
     case 'anyNonEmpty':
       return `SUMPRODUCT(--(${filled(resolve.range(predicate.list))}))>0`;
     case 'countAtLeast':
@@ -210,9 +216,8 @@ export function compilePredicate(predicate: Predicate, resolve: CellResolver): s
       //
       // "Started" is the same test the count uses, so the two halves of a rule cannot disagree about
       // which rows they are talking about.
-      const started = resolve
-        .allRanges(predicate.list)
-        .map((range) => `${filled(range)}`)
+      const started = entryFieldsOf(predicate.list)
+        .map((field) => filled(resolve.fieldRange(predicate.list, field)))
         .join(')+(');
       const terms = predicate.fields.map(
         (field) => `SUMPRODUCT(--((${started})>0)*(TRIM(${cleaned(resolve.fieldRange(predicate.list, field))})=""))=0`,

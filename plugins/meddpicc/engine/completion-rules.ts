@@ -34,12 +34,12 @@ export type Predicate =
   /** An array of text with at least one non-empty entry — a question somebody has answered. */
   | { kind: 'anyNonEmpty'; list: string }
   /**
-   * An array with at least `value` entries that have something in them.
+   * An array with at least `value` entries that have something in them — see {@link ENTRY_FIELDS}.
    *
    * "Something" rather than "exists" on purpose. Counting the array's length made
    * `team.internal: [{}]` — one object with no fields — complete the whole Team section, and the sheet
    * could never agree with that: an entry whose every cell is empty is indistinguishable from one of the
-   * pre-allocated blank rows. So both readers ask the same question, and it is the defensible one.
+   * pre-allocated blank rows.
    */
   | { kind: 'countAtLeast'; list: string; value: number }
   /** Every entry of an array has all of these fields filled in. Vacuously true on an empty array. */
@@ -75,6 +75,42 @@ function isList(deal: unknown, list: string): boolean {
 }
 
 /**
+ * What each list's entries are made of: the item's declared fields, which are exactly the columns the
+ * workbook gives them.
+ *
+ * A property of the LIST rather than of a predicate, because that is what it is — and because the two
+ * halves of a rule must not disagree about which rows they are talking about. `countAtLeast` and
+ * `everyEntryHas` both read this, and so does the formula compiler.
+ *
+ * Named rather than taken as "whatever the object has": the schema does not forbid extra properties, so
+ * `[{"unmappedField":"x"}]` validates and the workbook has no cell for it. Counting that entry would be
+ * a rule the sheet could never agree with.
+ */
+export const ENTRY_FIELDS: Record<string, readonly string[]> = {
+  stakeholders: [
+    'name',
+    'title',
+    'roleInDeal',
+    'mustSayYes',
+    'canSayNo',
+    'whatTheyNeedToBelieve',
+    'sentiment',
+    'relationshipOwner',
+  ],
+  'closePlan.milestones': ['description', 'targetDate', 'status'],
+  'closePlan.criticalActions': ['action', 'owner', 'dueDate', 'status'],
+  'team.internal': ['name', 'role', 'dateRequiredFrom', 'assignedToDeal'],
+  'team.partner': ['name', 'role', 'dateRequiredFrom', 'assignedToDeal'],
+};
+
+/** The fields that make a row of this list an entry. A list nobody described is a rule nobody can read. */
+export function entryFieldsOf(list: string): readonly string[] {
+  const fields = ENTRY_FIELDS[list];
+  if (!fields) throw new Error(`no entry fields are declared for the list "${list}"`);
+  return fields;
+}
+
+/**
  * An entry with something in it — the same question the sheet asks of a row.
  *
  * A field counts when it would show something in a cell: text with characters in it, any number
@@ -82,9 +118,11 @@ function isList(deal: unknown, list: string): boolean {
  * because no cell displays one — so the two readers stay aligned by construction rather than by
  * agreement.
  */
-function hasContent(entry: unknown): boolean {
+function hasContent(entry: unknown, fields: readonly string[]): boolean {
   if (entry === null || typeof entry !== 'object') return false;
-  return Object.values(entry as Record<string, unknown>).some((value) => {
+  const record = entry as Record<string, unknown>;
+  return fields.some((field) => {
+    const value = record[field];
     if (typeof value === 'string') return value.trim().length > 0;
     if (typeof value === 'number') return Number.isFinite(value);
     return typeof value === 'boolean';
@@ -106,10 +144,15 @@ export function evaluate(predicate: Predicate, deal: unknown): boolean {
     }
     case 'anyNonEmpty':
       return entriesOf(deal, predicate.list).some(isFilled);
-    case 'countAtLeast':
+    case 'countAtLeast': {
+      // The fields first, so a rule naming a list nobody has described fails on every deal rather than
+      // only on one that happens to carry that array.
+      const fields = entryFieldsOf(predicate.list);
       return (
-        isList(deal, predicate.list) && entriesOf(deal, predicate.list).filter(hasContent).length >= predicate.value
+        isList(deal, predicate.list) &&
+        entriesOf(deal, predicate.list).filter((entry) => hasContent(entry, fields)).length >= predicate.value
       );
+    }
     case 'everyEntryHas':
       return entriesOf(deal, predicate.list).every((entry) =>
         predicate.fields.every((field) => isFilled((entry as Record<string, unknown>)?.[field])),
