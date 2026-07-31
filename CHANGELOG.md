@@ -27,9 +27,10 @@ and this project adheres to
   happened:
 
   - **the hash matches** — the rows really have moved, and no cell can be trusted to be the one it was;
-  - **the hash differs** — the labels were revised afterwards. The cells are probably still where you
-    left them, but the labels were the evidence that nothing had moved and they no longer match, so
-    there is nothing left to certify the addresses with;
+  - **the hash differs** — the labels were revised afterwards, so they can no longer confirm that the
+    rows are where they were, whether or not anything moved as well. It does not claim the cells are
+    still in place: the hash proves the two label sets differ and is silent on everything else, and a
+    workbook can have both a revised translation and a locally tidied sheet;
   - **the property is absent** — the workbook predates the stamp and cannot answer. It names both
     possibilities and asserts neither, because the advice is the same either way and picking the wrong
     one sends somebody hunting for an edit they never made.

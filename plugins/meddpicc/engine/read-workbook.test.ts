@@ -1479,6 +1479,27 @@ describe('telling a retranslation from a moved row', () => {
     expect(said).not.toMatch(/revised|predates/i);
   });
 
+  test('a retranslation does not claim the rows are still in place — it cannot know that', () => {
+    // Version skew and a tidy-up in the same file: the labels were revised AND a row was moved. The
+    // hash proves the label sets differ and nothing more, so any claim about where the cells are is
+    // unsupported — which is the same overclaim, pointed the other way, that this change exists to
+    // remove. It may only say what the labels can no longer do.
+    const bytes = generateWorkbook(schema, spec, exampleDeal, '0.0.0');
+    const plan = planWorkbook(schema, spec, exampleDeal);
+    const anchor = plan.anchors.find((a) => a.text === sectionLabel('metrics'));
+    if (!anchor) throw new Error('no anchor for the metrics element');
+    const alsoMoved = withCell(
+      bytes,
+      anchor.sheet,
+      anchor.address,
+      `<c r="${anchor.address}" t="inlineStr"><is><t>Economic Buyer</t></is></c>`,
+    );
+    const said = reasons(alsoMoved, retranslated());
+    expect(said).toMatch(/labels were revised/i);
+    expect(said).not.toMatch(/probably still|still where you left/i);
+    expect(said).toMatch(/no longer confirm|cannot confirm/i);
+  });
+
   test('a workbook predating the stamp says it cannot tell which happened', () => {
     const bytes = withoutProperty(generateWorkbook(schema, spec, exampleDeal, '0.0.0'), ANCHOR_TEXT_PROPERTY);
     const said = reasons(bytes, retranslated());

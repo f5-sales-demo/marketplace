@@ -649,12 +649,14 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
         'the rows appear to have moved, so no cell in this workbook can be trusted to be the one it ' +
         `was. ${advice}`;
     } else {
-      // Nothing has necessarily moved — but the labels were the evidence that nothing had, and they
-      // no longer match, so there is nothing left to certify the addresses with.
+      // Says what the hash supports and no more. It proves the two label sets differ; it is silent on
+      // whether anything ELSE changed, and a workbook can easily have both — a translation revised
+      // upstream while somebody tidied the sheet locally. An earlier version of this message added
+      // "its cells are probably still where you left them", which the hash cannot evidence; review
+      // caught it, and it is the same overclaim as the moved-rows one this change exists to remove.
       cause =
-        'these labels were revised after this workbook was generated. Its cells are probably still ' +
-        'where you left them, but the labels can no longer confirm that, so it cannot be read back ' +
-        `safely. ${advice}`;
+        'these labels were revised after this workbook was generated, so they can no longer confirm ' +
+        `that its rows are where they were — whether or not anything moved as well. ${advice}`;
     }
     return {
       ok: false,
