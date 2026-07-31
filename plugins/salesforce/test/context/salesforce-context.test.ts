@@ -74,7 +74,7 @@ describe('buildSalesforceHint', () => {
       },
       territories: ['West', 'Central'],
       activeAccounts: [
-        { name: 'Acme', oppCount: 3 },
+        { name: 'Example Corp', oppCount: 3 },
         { name: 'Globex', oppCount: 2 },
       ],
       collectedAt: new Date().toISOString(),

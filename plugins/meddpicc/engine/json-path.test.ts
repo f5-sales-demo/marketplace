@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readPath, writePath } from './json-path';
 
 const deal = () => ({
-  metadata: { accountName: 'Acme', revenue: { acv: 85000 } },
+  metadata: { accountName: 'Example Corp', revenue: { acv: 85000 } },
   stakeholders: [{ name: 'Sarah' }, { name: 'Marcus' }],
   qualification: { metrics: { responses: ['first', 'second'] } },
 });

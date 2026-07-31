@@ -224,7 +224,7 @@ describe('runSetupWizard — sf installed, web auth', () => {
       '--version': { stdout: 'v2', stderr: '', code: 0 },
       'org display': {
         stdout: JSON.stringify({
-          result: { username: 'admin@acme.com', instanceUrl: 'https://acme.my.salesforce.com' },
+          result: { username: 'admin@example.com', instanceUrl: 'https://example-corp.my.salesforce.com' },
         }),
         stderr: '',
         code: 0,
@@ -232,7 +232,7 @@ describe('runSetupWizard — sf installed, web auth', () => {
     });
     const { ctx, notifications } = buildMockCtx({
       selectResponses: ['Custom domain (SSO / federated)'],
-      inputResponses: ['https://acme.my.salesforce.com'],
+      inputResponses: ['https://example-corp.my.salesforce.com'],
     });
 
     await runSetupWizard(pi, ctx, sfInstalled);
