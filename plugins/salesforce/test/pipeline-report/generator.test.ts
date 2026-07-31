@@ -34,8 +34,8 @@ const BARE_LINE_ITEM = ['Id', 'Quantity', 'UnitPrice', 'TotalPrice'];
 function oppRow(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     Id: '006000000000001',
-    Name: 'Acme Expansion',
-    Account: { Name: 'Acme' },
+    Name: 'Example Corp Expansion',
+    Account: { Name: 'Example Corp' },
     Amount: 120000,
     ForecastCategoryName: 'Commit',
     StageName: 'Negotiation',
@@ -83,7 +83,7 @@ describe('generatePipelineReport — an org without the custom schema', () => {
     );
     const data = await generatePipelineReport({ ...BASE, capabilities }, fn);
     expect(data.netNew.accounts.length).toBe(1);
-    expect(data.netNew.accounts[0].name).toBe('Acme');
+    expect(data.netNew.accounts[0].name).toBe('Example Corp');
     expect(data.netNew.totals.platform).toBe(120000);
   });
 

@@ -6,7 +6,7 @@
     "records": [
       {
         "attributes": { "type": "Opportunity", "url": "/services/data/v60.0/sobjects/Opportunity/0060000000000001" },
-        "Name": "Acme Renewal",
+        "Name": "Example Corp Renewal",
         "Amount": 50000,
         "StageName": "Closed Won"
       },

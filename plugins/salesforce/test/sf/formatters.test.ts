@@ -163,9 +163,9 @@ describe('formatOrgDetail', () => {
 
 describe('flattenRecord', () => {
   it('flattens nested objects with dot notation', () => {
-    const record = { Account: { Name: 'Acme', Id: '001' }, Amount: 1000 };
+    const record = { Account: { Name: 'Example Corp', Id: '001' }, Amount: 1000 };
     const flat = flattenRecord(record);
-    expect(flat['Account.Name']).toBe('Acme');
+    expect(flat['Account.Name']).toBe('Example Corp');
     expect(flat['Account.Id']).toBe('001');
     expect(flat.Amount).toBe(1000);
   });
@@ -178,10 +178,10 @@ describe('flattenRecord', () => {
   });
 
   it('skips nested attributes key', () => {
-    const record = { Account: { attributes: { type: 'Account' }, Name: 'Acme' } };
+    const record = { Account: { attributes: { type: 'Account' }, Name: 'Example Corp' } };
     const flat = flattenRecord(record);
     expect(flat['Account.attributes']).toBeUndefined();
-    expect(flat['Account.Name']).toBe('Acme');
+    expect(flat['Account.Name']).toBe('Example Corp');
   });
 
   it('skips null values', () => {
@@ -224,11 +224,11 @@ describe('formatQueryResults', () => {
     const result: SfQueryResult = {
       totalSize: 1,
       done: true,
-      records: [{ attributes: { type: 'Opportunity' }, Account: { Name: 'Acme' }, Amount: 5000 }],
+      records: [{ attributes: { type: 'Opportunity' }, Account: { Name: 'Example Corp' }, Amount: 5000 }],
     };
     const output = formatQueryResults(result);
     expect(output).toContain('Account.Name');
-    expect(output).toContain('Acme');
+    expect(output).toContain('Example Corp');
     expect(output).not.toContain('attributes');
   });
 
