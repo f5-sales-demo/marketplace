@@ -1068,6 +1068,18 @@ export const ENGINE_VERSION_PROPERTY = 'MeddpiccEngineVersion';
 export const LOCALE_PROPERTY = 'MeddpiccLocale';
 
 /**
+ * The words the workbook put in its anchor cells.
+ *
+ * Named for what it actually covers. `FINGERPRINT_PROPERTY` deliberately ignores displayed text — a
+ * workbook has to survive an edit to the deal that moves no cell — so revising a translation leaves it
+ * identical while every anchor now reads different words, and the reader's only available conclusion
+ * was "the rows have moved". This distinguishes the two. Anchors and nothing more: they are exactly
+ * the strings the reader compares, so a difference here always shows up as an anchor failure and never
+ * as a refusal of a workbook that would have read back fine.
+ */
+export const ANCHOR_TEXT_PROPERTY = 'MeddpiccAnchorText';
+
+/**
  * A custom document property, which is where a stamp belongs: Excel carries it through a save
  * untouched, and it is not a cell, so nobody can retype it by accident or wonder what the
  * hidden sheet full of hex is for.
