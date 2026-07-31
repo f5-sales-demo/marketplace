@@ -7,6 +7,22 @@ on:
     paths:
       - "plugins/**"
       - ".xcsh-plugin/marketplace.json"
+  # The manual path, for a release that failed for a reason outside itself.
+  #
+  # meddpicc/v7.2.0 had no way back: re-running the failed job replays the original commit's
+  # code and fails identically, a fix under scripts/ matches neither `paths:` entry, and the
+  # version-diff detection sees 7.2.0 on both sides once the bump has landed. It was cut by
+  # hand. This input is that hand, made repeatable.
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Plugin name, as it appears in .xcsh-plugin/marketplace.json"
+        required: true
+        type: string
+      version:
+        description: "Version to release, without the leading v (e.g. 7.2.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -23,40 +39,56 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          # Full history: release-history.sh reads the whole mainline to decide which commit
+          # published a version, and refuses outright on a shallow clone rather than drawing
+          # conclusions from a history it cannot see.
+          fetch-depth: 0
 
-      - name: Detect version changes and create releases
+      - name: Select the releases to cut
+        env:
+          # Through the environment, never interpolated into the script body: a
+          # `${{ inputs.* }}` expansion is textual substitution into the shell source.
+          PLUGIN: ${{ inputs.plugin }}
+          VERSION: ${{ inputs.version }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            # release-history.sh exits non-zero when no commit on main ever set that
+            # version, which is what stops a dispatch publishing something that was never
+            # on main. It prints the publishing commit, so the tag lands there.
+            if ! SHA=$(scripts/release-history.sh "$PLUGIN" "$VERSION"); then
+              echo "::error::Refusing to release ${PLUGIN} v${VERSION}: no commit on main" \
+                "ever published that version (see above)."
+              exit 1
+            fi
+            printf '%s %s %s\n' "$PLUGIN" "$VERSION" "$SHA" > releases.txt
+          else
+            # The versions this push published. Same source of truth as the manual path,
+            # rather than a second copy of the manifest diff living in YAML. Verified
+            # equivalent to that diff across all 37 release commits in this repository.
+            scripts/release-history.sh \
+              | awk -v sha="$GITHUB_SHA" '$3 == sha' > releases.txt
+          fi
+
+          if [[ ! -s releases.txt ]]; then
+            echo "No plugin version was published here; nothing to release."
+          fi
+          cat releases.txt
+
+      - name: Create releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          MARKETPLACE=".xcsh-plugin/marketplace.json"
+          while read -r NAME VERSION SHA; do
+            [[ -n "$NAME" ]] || continue
+            TAG="${NAME}/v${VERSION}"
 
-          # Get previous marketplace.json (may not exist for first commit)
-          PREV_MARKETPLACE=$(
-            git show HEAD~1:"$MARKETPLACE" 2>/dev/null \
-              || echo '{"plugins":[]}'
-          )
-
-          PLUGIN_COUNT=$(jq '.plugins | length' "$MARKETPLACE")
-
-          for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
-            NAME=$(jq -r ".plugins[$i].name" "$MARKETPLACE")
-            NEW_VER=$(jq -r ".plugins[$i].version" "$MARKETPLACE")
-            OLD_VER=$(echo "$PREV_MARKETPLACE" | jq -r --arg n "$NAME" \
-              '(.plugins[] | select(.name == $n) | .version) // "0.0.0"')
-
-            if [[ "$NEW_VER" == "$OLD_VER" ]]; then
-              continue
-            fi
-
-            TAG="${NAME}/v${NEW_VER}"
-            echo "Version change detected: $NAME $OLD_VER → $NEW_VER"
-
-            # Skip if release already exists
             if gh release view "$TAG" > /dev/null 2>&1; then
-              echo "  Release $TAG already exists, skipping"
+              echo "Release $TAG already exists, nothing to do."
               continue
             fi
 
@@ -65,16 +97,20 @@ jobs:
             # matched on plugin name alone and published salesforce/v1.3.5 with notes for a
             # v1.3.4 that was never tagged. The script exits non-zero on an ambiguous or
             # stale changelog, which fails the release rather than publishing a wrong note.
-            if ! BODY=$(scripts/release-notes.sh "$NAME" "$NEW_VER" CHANGELOG.md); then
+            if ! BODY=$(scripts/release-notes.sh "$NAME" "$VERSION" CHANGELOG.md); then
               echo "::error::Refusing to publish ${TAG}: CHANGELOG.md does not" \
-                "unambiguously describe ${NAME} v${NEW_VER} (see log above)."
+                "unambiguously describe ${NAME} v${VERSION} (see log above)."
               exit 1
             fi
 
+            # --target takes the commit that published the version, not `main`: main may have
+            # moved on by the time this job runs, and a re-cut is by definition tagging
+            # something already in the past. It must be a FULL sha — GitHub rejects an
+            # abbreviated one, which is how the hand-cut of v7.2.0 first failed.
             gh release create "$TAG" \
-              --title "${NAME} v${NEW_VER}" \
+              --title "${NAME} v${VERSION}" \
               --notes "$BODY" \
-              --target main
+              --target "$SHA"
 
-            echo "  Created release: $TAG"
-          done
+            echo "  Created release: $TAG at $SHA"
+          done < releases.txt

@@ -82,3 +82,26 @@ jobs:
       # broke twice. Replacing the CLIs with sleeping stubs makes any such test name itself.
       - name: Check tests do not depend on a real cloud CLI
         run: ./scripts/check-tests-are-hermetic.sh
+
+  release-tags:
+    name: Check published versions are tagged
+    # Push only. On a pull request the version being bumped is legitimately untagged — the
+    # tag is created at merge — so running this there would fail every release PR.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          # Full history and every tag: the audit walks all published versions, and
+          # release-history.sh refuses a shallow clone rather than reporting "nothing
+          # missing" from a history it cannot see.
+          fetch-depth: 0
+          fetch-tags: true
+
+      # This lives here, not in Release Plugins, because the failure it looks for is
+      # Release Plugins not finishing. A check inside the workflow that broke cannot report
+      # that the workflow broke. Validate Plugins runs on every push to main with no paths
+      # filter, so the next commit of any kind surfaces a stuck release.
+      - name: Check every published plugin version has a tag
+        run: ./scripts/check-release-tags.sh
