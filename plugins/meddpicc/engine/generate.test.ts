@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeCompletion } from './completion';
 import type { WorkbookPlan } from './generate';
-import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, FORMULA_WORDS, generateWorkbook, planWorkbook } from './generate';
 import { ENUM_LABELS, enumLabel } from './labels';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT } from './text-metrics';
@@ -1172,5 +1172,54 @@ describe('planWorkbook — the row a wash asks about is its own table’s row', 
     const rangeOf = (ref: string) => formats.find((f) => f.sqref.startsWith(`${ref}:`))?.rowRange;
     expect(rangeOf(left.ref('owner', 0))).toBe(`$B${left.firstDataRow}:$I${left.firstDataRow}`);
     expect(rangeOf(right.ref('role', 0))).toBe(`$J${right.firstDataRow}:$Q${right.firstDataRow}`);
+  });
+});
+
+describe('a formula word carries text the writer does not control', () => {
+  test('a literal quote is doubled, as Excel requires', () => {
+    // `"He said "yes""` closes the string at the first inner quote; Excel needs `"He said ""yes"""`. Latent
+    // while every FORMULA_WORDS value is one plain word, and live once #925 supplies translations, where a
+    // quotation mark is unremarkable.
+    //
+    // Exercised through the real resolver by giving a spec formula a word whose value contains a quote —
+    // asserting balance over today's formulas would pass with the bug present, since none has a quote in it.
+    const quoted = clone(spec);
+    const block = quoted.sheets[0].blocks.find((b) => b.cells?.some((c) => typeof c.formula === 'string'));
+    const cell = block?.cells?.find((c) => typeof c.formula === 'string');
+    if (!cell) throw new Error('no formula cell in the spec — the fixture needs revisiting');
+    cell.formula = 'IF(1=1,{{word:statusComplete}},"")';
+    const emitted = planWorkbook(schema, quoted, deal)
+      .sheets.flatMap((sh) => sh.rows)
+      .flatMap((r) => r.cells)
+      .map((c) => c.formula)
+      .filter((f): f is string => typeof f === 'string');
+    // Every emitted formula must have balanced quotes: an odd count means one ended a string it should not.
+    for (const formula of emitted) {
+      expect((formula.match(/"/g) ?? []).length % 2, formula).toBe(0);
+    }
+  });
+
+  test('a word whose value contains a quote is emitted doubled', () => {
+    // The direct case. FORMULA_WORDS is built from enum labels, so the only way to reach this today is to
+    // ask the resolver for a word that carries one — which is exactly what a translation will do.
+    const withQuote = clone(spec);
+    const block = withQuote.sheets[0].blocks.find((b) => b.cells?.some((c) => typeof c.formula === 'string'));
+    const cell = block?.cells?.find((c) => typeof c.formula === 'string');
+    if (!cell) throw new Error('no formula cell in the spec');
+    cell.formula = 'IF(1=1,{{word:quoteCarrier}},"")';
+    // Registered for this test only; the resolver refuses a word it has never heard of, which is its own guard.
+    FORMULA_WORDS.quoteCarrier = 'He said "yes"';
+    try {
+      const emitted = planWorkbook(schema, withQuote, deal)
+        .sheets.flatMap((sh) => sh.rows)
+        .flatMap((r) => r.cells)
+        .map((c) => c.formula)
+        .filter((f): f is string => typeof f === 'string')
+        .find((f) => f.includes('He said'));
+      expect(emitted).toContain('"He said ""yes"""');
+      expect((emitted?.match(/"/g) ?? []).length % 2).toBe(0);
+    } finally {
+      delete FORMULA_WORDS.quoteCarrier;
+    }
   });
 });

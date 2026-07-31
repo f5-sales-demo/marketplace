@@ -696,8 +696,34 @@ function dataValidationsXml(validations: Validation[] | undefined): string {
   if (!validations?.length) return '';
   const entries = validations
     .map((v) => {
-      // The inline list form is a quoted, comma-joined string — and Excel caps it at 255
-      // characters, so say so loudly rather than emitting something it will silently drop.
+      // The inline list form is a quoted, comma-joined string. That gives it two characters it cannot
+      // carry, and neither is an XML problem — escaping the XML leaves both intact and wrong.
+      //
+      // A comma separates entries, so `Yes, please` offers `Yes` and ` please`: one value silently
+      // becomes two, and a reader mapping the chosen word back to a token then fails to recognise it. A
+      // quote ends the list, since the whole thing is one quoted string. Excel's inline form has no
+      // escape for either. Refusing is the honest answer; the alternative is backing the validation with
+      // a hidden worksheet range, which is a much larger change and buys nothing while no value needs it.
+      //
+      // Latent today — nothing in this schema contains either character — and live the moment #925 lands
+      // 192 model-authored translations per locale, where a comma in prose is unremarkable.
+      for (const value of v.values) {
+        if (value.includes(',')) {
+          throw new Error(
+            `Dropdown value for ${v.sqref} contains a comma: ${JSON.stringify(value)}. ` +
+              "Excel's inline list separates entries on commas and cannot escape one, so this would " +
+              'silently become two entries. Reword the value.',
+          );
+        }
+        if (value.includes('"')) {
+          throw new Error(
+            `Dropdown value for ${v.sqref} contains a quotation mark: ${JSON.stringify(value)}. ` +
+              'The whole list is one quoted string, so a quote inside it ends the list early. Reword the value.',
+          );
+        }
+      }
+      // Excel caps the inline list at 255 characters — say so loudly rather than emitting something it
+      // will silently drop.
       const list = v.values.join(',');
       if (list.length > 255) {
         throw new Error(`Validation list for ${v.sqref} is ${list.length} characters; Excel allows 255`);

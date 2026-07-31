@@ -530,7 +530,14 @@ function resolveFormula(
           `${ctx.sheet}: {{word:${ref.target}}} names no word — have ${Object.keys(FORMULA_WORDS).join(', ')}`,
         );
       }
-      replacement = `"${word}"`;
+      // A literal quote inside an Excel string is written doubled. Without that, `He said "yes"` emits
+      // `"He said "yes""`, which closes the string at the first inner quote and leaves Excel parsing the
+      // rest as syntax — a repair prompt, or worse, a formula that means something else.
+      //
+      // Latent while every word here is one plain enum label, and live the moment #925 supplies
+      // translations: a quotation mark is unremarkable in prose, and the words a formula compares against
+      // are exactly the dropdown values a translation replaces.
+      replacement = `"${word.replace(/"/g, '""')}"`;
     } else if (ref.kind === 'ref') {
       const target = named.get(ref.target);
       if (!target) throw new Error(`${ctx.sheet}: {{ref:${ref.target}}} names no cell`);
