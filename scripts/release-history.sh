@@ -62,17 +62,19 @@ FOUND_SHA=""
 
 while read -r sha; do
   [ -n "$sha" ] || continue
-  parent_set="${NL}$(versions_at "${sha}^")${NL}"
   while read -r name version; do
     [ -n "$name" ] || continue
     key="${name} ${version}"
-    # Already published by an earlier commit: a version can carry only one tag, so a
-    # version that reappears (after a downgrade, or a revert) is not a second release.
+    # First sighting anywhere on the mainline is the release. Everything else follows from
+    # that one rule: a commit that edits the manifest without changing this version is
+    # skipped because the version is already seen, and so is a version that reappears after
+    # a downgrade or a revert — it can only ever carry one tag.
+    #
+    # An earlier draft also compared against the parent commit's set, mirroring the
+    # HEAD-vs-HEAD~1 diff the release workflow does. That is the right rule for the
+    # workflow, which sees two commits; here it was unreachable, and a mutation test proved
+    # it by deleting the comparison without failing anything.
     case "$SEEN" in
-    *"${NL}${key}${NL}"*) continue ;;
-    esac
-    # Unchanged from the parent: this commit edited the manifest, not this version.
-    case "$parent_set" in
     *"${NL}${key}${NL}"*) continue ;;
     esac
     SEEN="${SEEN}${key}${NL}"
