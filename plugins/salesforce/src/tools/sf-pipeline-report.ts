@@ -143,6 +143,13 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
         staleCutoff,
         confirmedTerritories: profile.territories ?? sfContext?.confirmedTerritories ?? sfContext?.territories,
         teamMemberNames,
+        // Discovered schema, so the report builds only the sections this org can answer.
+        // Absent context means "not described" and every section is attempted, as before.
+        capabilities: {
+          opportunityFields: sfContext?.opportunityFields,
+          lineItemFields: sfContext?.lineItemFields,
+          territoryField: sfContext?.territoryField,
+        },
       };
 
       try {

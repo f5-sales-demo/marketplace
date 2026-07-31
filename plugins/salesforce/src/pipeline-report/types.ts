@@ -1,3 +1,5 @@
+import type { OrgCapabilities } from './capabilities';
+
 /** SKU prefix groups used to classify line items into quota categories. */
 export interface SkuClassification {
   /** SKU name prefixes that count as Platform (XC/Distributed Cloud) */
@@ -55,6 +57,11 @@ export interface PipelineReportOptions {
   skuPrefixes?: string[];
   /** SKU classification rules. Defaults to DEFAULT_SKU_CLASSIFICATION. */
   skuClassification?: SkuClassification;
+  /**
+   * What this org's schema actually supports, from the discovered field catalog. Omitted or
+   * empty means "not described", and every section is attempted as before.
+   */
+  capabilities?: OrgCapabilities;
 }
 
 export interface AccountRow {
@@ -146,6 +153,11 @@ export interface PipelineReportData {
   fyLabel?: string;
   /** Recent pipeline field changes from OpportunityFieldHistory (last 7 days) */
   recentChanges?: PipelineChange[];
+  /**
+   * Sections this org's schema could not support, with the field that was missing. Surfaced so
+   * an absent section reads as "not available here" rather than as an empty pipeline.
+   */
+  unavailable?: string[];
 }
 
 export interface PipelineChange {

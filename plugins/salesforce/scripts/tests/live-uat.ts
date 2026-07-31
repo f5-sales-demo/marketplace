@@ -133,5 +133,133 @@ const queryTool = createSfQueryTool(pi);
   check('UAT.5a unknown sobject is a structured error', result.isError === true, JSON.stringify(result.details));
 }
 
+// UAT.6 — the pipeline report against an org WITHOUT the custom schema the report was written
+// for. Simulated by declaring stock capabilities while querying a real org: the point is that
+// no query may name a field the declared org lacks, and a useful report must still come back.
+{
+  const { generatePipelineReport } = await import('../../src/pipeline-report/generator');
+  const stale = new Date();
+  stale.setFullYear(stale.getFullYear() - 1);
+
+  const CUSTOM_FIELDS = [
+    'FYB_Total_Price__c',
+    'Subscription_Renewal__c',
+    'Renewal__c',
+    'True_ACV__c',
+    'Upsell_ACV__c',
+    'Product_Segmentation__c',
+    'Use_Case_Category__c',
+    'Territory_Credited_District_del__c',
+  ];
+
+  const issued: string[] = [];
+  let failed = 0;
+  const recordingQuery = async (soql: string) => {
+    issued.push(soql);
+    const proc = Bun.spawn(['sf', 'data', 'query', '--query', soql, '--target-org', org, '--json'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const out = await new Response(proc.stdout).text();
+    await proc.exited;
+    try {
+      const parsed = JSON.parse(out) as { status?: number; result?: { records?: Record<string, unknown>[] } };
+      if (parsed.status !== 0) {
+        failed++;
+        return [];
+      }
+      return parsed.result?.records ?? [];
+    } catch {
+      failed++;
+      return [];
+    }
+  };
+
+  const data = await generatePipelineReport(
+    {
+      userIds: [process.env.SF_UAT_USER_ID ?? '005000000000000'],
+      quarterStart: '2026-05-01',
+      quarterEnd: '2026-07-31',
+      staleCutoff: stale.toISOString().slice(0, 10),
+      capabilities: {
+        opportunityFields: [
+          'Id',
+          'Name',
+          'Amount',
+          'CloseDate',
+          'ForecastCategoryName',
+          'StageName',
+          'IsClosed',
+          'IsWon',
+        ],
+        lineItemFields: ['Id', 'Quantity', 'UnitPrice', 'TotalPrice'],
+      },
+    },
+    recordingQuery,
+  );
+
+  const all = issued.join('\n');
+  const leaked = CUSTOM_FIELDS.filter((f) => all.includes(f));
+  check('UAT.6a no query names a field the org lacks', leaked.length === 0, `leaked: ${leaked.join(', ')}`);
+  check(
+    'UAT.6b OpportunityLineItem is not queried at all',
+    !all.includes('FROM OpportunityLineItem'),
+    all.slice(0, 200),
+  );
+  check('UAT.6c every issued query succeeds', failed === 0, `${failed} of ${issued.length} failed`);
+  check(
+    'UAT.6d the missing sections are named, not silently dropped',
+    (data.unavailable ?? []).length === 2,
+    JSON.stringify(data.unavailable),
+  );
+}
+
+// UAT.7 — the same report against the org's REAL schema still uses the custom path.
+{
+  const { planPipelineQueries } = await import('../../src/pipeline-report/capabilities');
+  const { normalizeDescribe } = await import('../../src/sf/describe');
+
+  const describeFields = async (sobject: string): Promise<string[] | undefined> => {
+    const proc = Bun.spawn(['sf', 'sobject', 'describe', '--sobject', sobject, '--target-org', org, '--json'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const out = await new Response(proc.stdout).text();
+    await proc.exited;
+    try {
+      const parsed = JSON.parse(out) as { status?: number; result?: unknown };
+      if (parsed.status !== 0) return undefined;
+      return normalizeDescribe(parsed.result).fields.map((f) => f.name);
+    } catch {
+      return undefined;
+    }
+  };
+
+  const opportunityFields = await describeFields('Opportunity');
+  const lineItemFields = await describeFields('OpportunityLineItem');
+  const plan = planPipelineQueries({ opportunityFields, lineItemFields });
+
+  check('UAT.7a both objects describe successfully', !!opportunityFields && !!lineItemFields, 'describe failed');
+  // Whether this org has the fields is org-dependent; what must hold is that the plan agrees
+  // with the catalog rather than assuming either way.
+  const expectLineItems = !lineItemFields || lineItemFields.includes('FYB_Total_Price__c');
+  const expectRenewals = !opportunityFields || opportunityFields.includes('Renewal__c');
+  check(
+    'UAT.7b the line-item decision matches the catalog',
+    plan.useLineItems === expectLineItems,
+    `plan=${plan.useLineItems} catalog=${expectLineItems}`,
+  );
+  check(
+    'UAT.7c the renewals decision matches the catalog',
+    plan.useRenewals === expectRenewals,
+    `plan=${plan.useRenewals} catalog=${expectRenewals}`,
+  );
+  check(
+    'UAT.7d unavailable notes are consistent with the decisions',
+    plan.unavailable.length === (expectLineItems ? 0 : 1) + (expectRenewals ? 0 : 1),
+    JSON.stringify(plan.unavailable),
+  );
+}
+
 console.log(failures.length === 0 ? '\nlive UAT: all checks passed' : `\nlive UAT: ${failures.length} failed`);
 process.exit(failures.length === 0 ? 0 : 1);
