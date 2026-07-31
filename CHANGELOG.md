@@ -11,8 +11,10 @@ and this project adheres to
 ## [Unreleased]
 
 - **`meddpicc`** v7.2.1 — a serialization contract for text the writer does not control. No behaviour
-  change: the generated workbook is byte-identical, same sha256, because no value in play today contains
-  any of these characters.
+  change: every part of the generated workbook is byte-identical except `docProps/custom.xml`, which
+  records the engine version, because no value in play today contains any of these characters. (The
+  entry first claimed the whole file was byte-identical with the same sha256. That was measured before
+  the version bump and stopped being true with it.)
 
   Three hazards, all silent, none of them an XML problem — Excel's own grammar is what breaks, so escaping
   the XML leaves the text intact and wrong.
