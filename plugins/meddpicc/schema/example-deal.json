@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "dealId": "deal-acme-dc-modernization-2026",
-    "accountName": "Acme Corporation",
+    "dealId": "deal-example-corp-dc-modernization-2026",
+    "accountName": "Example Corp",
     "dealName": "DC Modernization Phase 2",
     "dealStatus": "Qualified",
     "closeDate": "2026-06-30",
@@ -212,10 +212,10 @@
       "whyNow": "Board mandate deadline is Q3 2026; regulatory audit in September; every month of delay is another month of exposure to SLA penalties"
     },
     "partner": {
-      "name": "PartnerCo",
-      "whyAnything": "Acme needs implementation support — their platform team is at capacity with the Kubernetes migration",
-      "whyThisPartner": "PartnerCo has 3 certified engineers on our stack and prior Acme relationship from the load balancer deployment",
-      "whyNow": "PartnerCo has a team available in June; if we wait, they're committed to another project through Q4"
+      "name": "Example Partners",
+      "whyAnything": "Example Corp needs implementation support — their platform team is at capacity with the Kubernetes migration",
+      "whyThisPartner": "Example Partners has 3 certified engineers on our stack and a prior Example Corp relationship from the load balancer deployment",
+      "whyNow": "Example Partners has a team available in June; if we wait, they're committed to another project through Q4"
     }
   },
   "stakeholders": [
@@ -261,7 +261,7 @@
     }
   ],
   "salesStrategy": {
-    "differentiatedValueProposition": "We are the only vendor that provides unified application and API security with native Kubernetes integration — eliminating the need to deploy separate tools for north-south and east-west API protection. This directly addresses Acme's MTTR target by providing a single pane of glass for API discovery, threat detection, and incident response across all 3 data centers.",
+    "differentiatedValueProposition": "We are the only vendor that provides unified application and API security with native Kubernetes integration — eliminating the need to deploy separate tools for north-south and east-west API protection. This directly addresses Example Corp's MTTR target by providing a single pane of glass for API discovery, threat detection, and incident response across all 3 data centers.",
     "winStrategy": "Lead with the pain: $400K SLA penalties and board mandate create urgency. Differentiate on Kubernetes-native integration (Vendor A can't match this). Use the POC to prove MTTR improvement quantitatively. Get EB alignment on business case before architecture review board. Neutralize Vendor A's price advantage by quantifying the cost of deploying and managing a separate API discovery tool."
   },
   "closePlan": {

@@ -81,7 +81,7 @@ curl -s "https://offshoreleaks.icij.org/api/v1/search?q=company+name&limit=10" \
 ### Companies House UK -- Company Search
 
 ```bash
-curl -s "https://api.company-information.service.gov.uk/search/companies?q=acme+ltd" \
+curl -s "https://api.company-information.service.gov.uk/search/companies?q=example+corp" \
   -H "Authorization: Basic $(echo -n 'YOUR_API_KEY:' | base64)" \
 | jq '.items[] |
 ```

@@ -173,7 +173,7 @@ Or add to your marketplace configuration for automatic installation.
 ### Create a new deal (day 0)
 
 ```text
-/meddpicc:qualify-deal Acme Corp
+/meddpicc:qualify-deal Example Corp
 ```
 
 Walks through a guided interview: metadata first, then each MEDDPICC element with scoring and evidence collection.
@@ -181,7 +181,7 @@ Walks through a guided interview: metadata first, then each MEDDPICC element wit
 ### Import from Salesforce
 
 ```text
-/meddpicc:qualify-deal Acme Corp --sfdc 006000000000000AAA
+/meddpicc:qualify-deal Example Corp --sfdc 006000000000000AAA
 ```
 
 Pre-populates the deal JSON from Salesforce fields, then asks targeted questions for missing sections.
@@ -189,7 +189,7 @@ Pre-populates the deal JSON from Salesforce fields, then asks targeted questions
 ### Ingest meeting notes
 
 ```text
-/meddpicc:update-deal Acme Corp
+/meddpicc:update-deal Example Corp
 Here are my notes from today's call with the CTO:
 - Confirmed $500K budget for API security modernization
 - Board mandate to fix API incidents by Q3
@@ -202,7 +202,7 @@ The AI extracts MEDDPICC signals, presents a proposed update diff with score rec
 ### Ingest an email from your champion
 
 ```text
-/meddpicc:update-deal Acme Corp
+/meddpicc:update-deal Example Corp
 FW: RE: API Gateway eval - internal update
 <HISTORICAL_IDENTITY_6E8A4D7CE0>, wanted to give you a heads up. The architecture review
 board approved us for the shortlist. Vendor A pricing came in at
@@ -213,7 +213,7 @@ $85K/yr vs your $120K. Legal confirmed their standard review takes
 ### Run a weekly deal review
 
 ```text
-/meddpicc:deal-review Acme Corp
+/meddpicc:deal-review Example Corp
 ```
 
 Loads the deal file, snapshots scores for delta tracking, inspects evidence changes, and produces a forecast assessment with action items.
@@ -229,7 +229,7 @@ Scores Power, Personal Win, Access, Intel, and Action (0-3 each) to classify the
 ### Build a Mutual Action Plan
 
 ```text
-/meddpicc:build-map Acme Corp
+/meddpicc:build-map Example Corp
 ```
 
 Creates a customer-facing document working backward from the target close date, tied to MEDDPICC elements.
@@ -237,7 +237,7 @@ Creates a customer-facing document working backward from the target close date, 
 ### Export to spreadsheet
 
 ```text
-/meddpicc:qualify-deal Acme Corp render
+/meddpicc:qualify-deal Example Corp render
 ```
 
 Generates an Excel workbook from the deal JSON, built from the workbook spec: one laid-out

@@ -10,6 +10,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v1.3.7 — replaces legacy account, opportunity, My Domain, and email fixtures with
+  canonical Example values.
+
+- **`salesforce-legacy`** v1.0.2 — uses the canonical `example-corp` My Domain prefix in setup
+  documentation.
+
+- **`osint-framework`** v1.0.3 — replaces legacy business-search examples with Example Corp.
+
+- **`meddpicc`** v7.2.2 — replaces the legacy deal fixture with Example Corp and Example Partners.
+
 - **`meddpicc`** v7.2.1 — a serialization contract for text the writer does not control. No behaviour
   change: every part of the generated workbook is byte-identical except `docProps/custom.xml`, which
   records the engine version, because no value in play today contains any of these characters. (The

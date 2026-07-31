@@ -18,7 +18,7 @@ creating, querying, and reporting on graph data.
 | Type | Description | Example |
 | ------ | ------------- | --------- |
 | `person` | A human individual | `"John Smith"` |
-| `company` | A business or organization | `"Acme Corp"` |
+| `company` | A business or organization | `"Example Corp"` |
 | `domain` | A DNS domain name | `"example.com"` |
 | `ip` | An IPv4 or IPv6 address | `"198.51.100.1"` |
 | `email` | An email address | `"john@example.com"` |

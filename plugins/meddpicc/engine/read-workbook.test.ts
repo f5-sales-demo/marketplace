@@ -177,7 +177,7 @@ describe('readWorkbookCells', () => {
     const cells = readWorkbookCells(generateWorkbook(schema, spec, exampleDeal));
     expect([...cells.keys()]).toEqual(spec.sheets.map((s) => s.name));
     const { sheet, address } = addressOf(exampleDeal, 'metadata.accountName');
-    expect(cells.get(sheet)?.get(address)?.text).toBe('Acme Corporation');
+    expect(cells.get(sheet)?.get(address)?.text).toBe('Example Corp');
   });
 
   test('a formula cell is reported as a formula, with no value to mistake for one', () => {
@@ -237,7 +237,7 @@ describe('proposals', () => {
         address,
         valueType: 'string',
         kind: 'set',
-        from: 'Acme Corporation',
+        from: 'Example Corp',
         to: 'Globex Corporation',
       },
     ]);

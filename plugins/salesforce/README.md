@@ -91,8 +91,8 @@ conversation.
 ### Workstation (browser available)
 
 Find your Salesforce domain from your browser URL
-(`https://acme.lightning.force.com` means your domain is
-`acme.my.salesforce.com`), then run:
+(`https://example-corp.lightning.force.com` means your domain is
+`example-corp.my.salesforce.com`), then run:
 
 ```bash
 sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com

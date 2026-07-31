@@ -126,7 +126,7 @@ const scenarios: Scenario[] = [
       );
       return checkResult(result, {
         isError: false,
-        contains: ['2 records returned', 'Acme Renewal', 'Closed Won'],
+        contains: ['2 records returned', 'Example Corp Renewal', 'Closed Won'],
       });
     },
   },

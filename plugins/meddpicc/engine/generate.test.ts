@@ -107,7 +107,7 @@ describe('planWorkbook — form layout', () => {
     expect(input).toBeDefined();
     expect(input?.sheet).toBe(SHEET);
     const [, col, row] = /^([A-Z]+)(\d+)$/.exec(input?.address ?? '') ?? [];
-    expect(cellAt(input?.address ?? '')?.value).toBe('Acme Corporation');
+    expect(cellAt(input?.address ?? '')?.value).toBe('Example Corp');
     // The label is the nearest `fieldLabel` to its left on the same row — a value with no label
     // beside it is a value nobody can read.
     const labels = theSheet()

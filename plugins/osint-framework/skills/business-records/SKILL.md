@@ -101,7 +101,7 @@ curl -s "https://data.sec.gov/submissions/CIK${CIK}.json" \
 
 ```bash
 if [ -n "${OPENCORPORATES_API_KEY:-}" ]; then
-  curl -s "https://api.opencorporates.com/v0.4/companies/search?q=acme+corp&api_token=${OPENCORPORATES_API_KEY}" \
+  curl -s "https://api.opencorporates.com/v0.4/companies/search?q=example+corp&api_token=${OPENCORPORATES_API_KEY}" \
 | jq '.results.companies[] |
 else
   echo "[skip] OpenCorporates requires API key (set OPENCORPORATES_API_KEY)"
