@@ -15,7 +15,13 @@
 # published salesforce/v1.3.5 with notes for a version that has no tag (see release-notes.sh).
 set -euo pipefail
 
-MANIFEST=".xcsh-plugin/marketplace.json"
+# Every path the marketplace manifest has ever lived at, newest first. The rename in
+# e4723c3 (.claude-plugin → .xcsh-plugin) is not cosmetic here: a log limited to the current
+# path stops at the rename, hiding 57 commits of release history and attributing all 29
+# versions that existed at the time to the refactor that moved the file. A re-cut would then
+# tag the rename instead of the release. Add to this list, never replace it.
+MANIFEST_PATHS=(".xcsh-plugin/marketplace.json" ".claude-plugin/marketplace.json")
+MANIFEST="${MANIFEST_PATHS[0]}"
 
 if [ "$#" -ne 0 ] && [ "$#" -ne 2 ]; then
   echo "usage: release-history.sh [<plugin> <version>]" >&2
@@ -38,10 +44,17 @@ fi
 # The name/version pairs recorded at one commit, one per line. A commit from before the
 # manifest existed, or one whose manifest cannot be parsed, contributes nothing rather than
 # aborting the walk: old history is not something a release today can fix.
+# Reads whichever manifest path exists at that commit, preferring the current one.
 versions_at() {
-  git show "${1}:${MANIFEST}" 2>/dev/null |
-    jq -r '.plugins[]? | select(.name != null and .version != null) | "\(.name) \(.version)"' 2>/dev/null ||
-    true
+  local ref="$1" path raw
+  for path in "${MANIFEST_PATHS[@]}"; do
+    raw=$(git show "${ref}:${path}" 2>/dev/null) || continue
+    [ -n "$raw" ] || continue
+    printf '%s' "$raw" |
+      jq -r '.plugins[]? | select(.name != null and .version != null) | "\(.name) \(.version)"' 2>/dev/null ||
+      true
+    return 0
+  done
 }
 
 # --first-parent follows what landed on main, so a version that only ever existed on a
@@ -84,7 +97,7 @@ while read -r sha; do
       FOUND_SHA="$sha"
     fi
   done <<<"$(versions_at "$sha")"
-done <<<"$(git log --first-parent --reverse --format='%H' -- "$MANIFEST")"
+done <<<"$(git log --first-parent --reverse --format='%H' -- "${MANIFEST_PATHS[@]}")"
 
 if [ -n "$WANT_NAME" ]; then
   if [ -z "$FOUND_SHA" ]; then

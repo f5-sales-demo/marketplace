@@ -39,6 +39,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
+          # A dispatch is pinned to main, never the ref the dispatcher picked.
+          #
+          # workflow_dispatch offers a branch selector, and checkout defaults to that ref.
+          # Since release-history.sh reads the checkout it is given, dispatching from a
+          # feature branch would let that branch's manifest satisfy the "was this ever on
+          # main" guard and publish an official release of unmerged code. Pinning the
+          # checkout is what makes the guard mean what it says.
+          #
+          # A push checks out its own commit rather than main's tip, so the selection stays
+          # correct if another push lands while this job is queued.
+          ref: >-
+            ${{ github.event_name == 'workflow_dispatch'
+            && github.event.repository.default_branch
+            || github.sha }}
           # Full history: release-history.sh reads the whole mainline to decide which commit
           # published a version, and refuses outright on a shallow clone rather than drawing
           # conclusions from a history it cannot see.

@@ -178,6 +178,28 @@ assert_eq "history predating the manifest is not an error" \
   "demo 1.0.0 ${a}" \
   "$(run_in "$d" "$HISTORY")"
 
+# The manifest has been renamed once already — .claude-plugin/marketplace.json became
+# .xcsh-plugin/marketplace.json in e4723c3. A path-limited log that knows only the new name
+# stops dead at the rename: 57 commits of real release history become invisible and every
+# version that existed at the rename is attributed to the rename commit, so a re-cut would
+# tag a refactor instead of the release.
+d=$(new_repo)
+mkdir -p "${d}/.claude-plugin"
+printf '%s\n' '{"plugins":[{"name":"demo","version":"1.0.0"}]}' >"${d}/.claude-plugin/marketplace.json"
+git -C "$d" add -A && git -C "$d" commit -qm "old path 1.0.0"
+old_a=$(git -C "$d" rev-parse HEAD)
+printf '%s\n' '{"plugins":[{"name":"demo","version":"1.1.0"}]}' >"${d}/.claude-plugin/marketplace.json"
+git -C "$d" add -A && git -C "$d" commit -qm "old path 1.1.0"
+old_b=$(git -C "$d" rev-parse HEAD)
+git -C "$d" mv .claude-plugin/marketplace.json .xcsh-plugin/marketplace.json
+git -C "$d" commit -qm "rename the manifest"
+after=$(commit_manifest "$d" demo=2.0.0)
+assert_eq "a manifest rename does not truncate or re-attribute the history" \
+  "demo 1.0.0 ${old_a}
+demo 1.1.0 ${old_b}
+demo 2.0.0 ${after}" \
+  "$(run_in "$d" "$HISTORY")"
+
 # Lookup mode: the publishing commit for one version, and a refusal for one never published.
 d=$(new_repo)
 a=$(commit_manifest "$d" demo=1.0.0)
@@ -281,6 +303,63 @@ if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'demo/v1.1.0'; then
   ok "once the tip moves on, the untagged version is reported (exit ${rc})"
 else
   bad "the audit stayed quiet about an untagged version after the tip moved on"
+  printf '       output: %s\n' "$out"
+fi
+
+# A plugin the marketplace no longer offers is out of scope. Five f5xc-* plugins were
+# renamed away in the org rename and never tagged at v1.0.0; nobody can install them, so
+# there is no release to re-cut and reporting them would leave main permanently red with
+# nothing actionable in it. Versions of plugins still on offer are unaffected — which is
+# what keeps the meddpicc/v7.2.0 case above reportable.
+d=$(new_repo)
+commit_manifest "$d" old=1.0.0 >/dev/null
+b=$(commit_manifest "$d" old=1.0.0 keep=1.0.0)
+git -C "$d" tag "keep/v1.0.0" "$b"
+commit_manifest "$d" keep=1.0.0 >/dev/null
+commit_other "$d" >/dev/null
+rc=0
+out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q 'old/v1.0.0'; then
+  ok "a version of a plugin no longer offered is out of scope"
+else
+  bad "the audit reported a withdrawn plugin (exit ${rc}) — nothing to re-cut, permanently red"
+  printf '       output: %s\n' "$out"
+fi
+if printf '%s' "$out" | grep -qi 'withdrawn\|no longer'; then
+  ok "the audit says what it skipped rather than skipping silently"
+else
+  bad "the audit skipped a withdrawn plugin without saying so"
+  printf '       output: %s\n' "$out"
+fi
+# ...and the plugin that IS still offered is still audited: same fixture, tag removed.
+git -C "$d" tag -d "keep/v1.0.0" >/dev/null
+rc=0
+out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
+assert_refused "a still-offered plugin is audited across its whole history" "$rc" "$out" "keep/v1.0.0"
+
+# A tag that exists but points somewhere else is worse than a missing one: it looks
+# released, and whoever installs it gets a different revision than the version claims. The
+# old workflow tagged `main` rather than the publishing commit, so this was reachable
+# whenever main moved between the merge and the release job. All 80 in-scope tags happen to
+# be correct today, which is exactly why the check is cheap to start enforcing now.
+d=$(new_repo)
+a=$(commit_manifest "$d" demo=1.0.0)
+b=$(commit_manifest "$d" demo=2.0.0)
+git -C "$d" tag "demo/v1.0.0" "$a"
+git -C "$d" tag "demo/v2.0.0" "$a" # wrong: v2.0.0 was published by $b
+commit_other "$d" >/dev/null
+rc=0
+out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
+if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'demo/v2.0.0'; then
+  ok "a tag pointing at the wrong commit is reported (exit ${rc})"
+else
+  bad "the audit accepted a tag that points at the wrong commit"
+  printf '       output: %s\n' "$out"
+fi
+if printf '%s' "$out" | grep -q "${b:0:9}"; then
+  ok "the mispointed-tag report names the commit the tag should be on"
+else
+  bad "the mispointed-tag report did not name the correct commit"
   printf '       output: %s\n' "$out"
 fi
 

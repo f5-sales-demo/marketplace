@@ -25,10 +25,33 @@ fi
 
 TIP=$(git rev-parse HEAD)
 
+# Plugins the marketplace currently offers. A plugin that has been withdrawn or renamed
+# away cannot be installed, so a missing tag for it names no release anyone can cut — the
+# five f5xc-* v1.0.0 entries left behind by the org rename would otherwise hold main red
+# for good. Every version of a plugin still on offer stays in scope, which is what keeps a
+# meddpicc/v7.2.0-shaped gap reportable.
+CURRENT=""
+for path in .xcsh-plugin/marketplace.json .claude-plugin/marketplace.json; do
+  if [ -f "$path" ]; then
+    CURRENT=$(jq -r '.plugins[]?.name // empty' "$path")
+    break
+  fi
+done
+if [ -z "$CURRENT" ]; then
+  echo "check-release-tags.sh: no marketplace manifest found, or it lists no plugins;" >&2
+  echo "  refusing to report every published version as out of scope." >&2
+  exit 1
+fi
+
 MISSING=0
 CHECKED=0
+WITHDRAWN=0
 while read -r name version sha; do
   [ -n "$name" ] || continue
+  if ! printf '%s\n' "$CURRENT" | grep -qxF "$name"; then
+    WITHDRAWN=$((WITHDRAWN + 1))
+    continue
+  fi
   # A version published by the tip commit is still being released: the release job runs
   # alongside whatever triggered this audit, so demanding its tag would fail every
   # legitimate release. One commit later, the same gap is real and gets reported.
@@ -37,12 +60,22 @@ while read -r name version sha; do
     continue
   fi
   CHECKED=$((CHECKED + 1))
-  if git rev-parse -q --verify "refs/tags/${name}/v${version}" >/dev/null; then
+  # ^{commit} dereferences an annotated tag to the commit it wraps; a lightweight tag is
+  # already one. Without it the two sides of the comparison are different kinds of object
+  # and an annotated tag would never match.
+  if ! tagged=$(git rev-parse -q --verify "refs/tags/${name}/v${version}^{commit}"); then
+    MISSING=1
+    echo "::error::No tag ${name}/v${version} — that version was published by ${sha} and never" \
+      "released. Re-cut it: gh workflow run 'Release Plugins' -f plugin=${name} -f version=${version}"
     continue
   fi
-  MISSING=1
-  echo "::error::No tag ${name}/v${version} — that version was published by ${sha} and never" \
-    "released. Re-cut it: gh workflow run 'Release Plugins' -f plugin=${name} -f version=${version}"
+  # An existing tag on the wrong commit is worse than a missing one: it reads as released
+  # while shipping a different revision than the version claims.
+  if [ "$tagged" != "$sha" ]; then
+    MISSING=1
+    echo "::error::Tag ${name}/v${version} points at ${tagged}, but that version was published" \
+      "by ${sha}. Whoever installs it gets a different revision than the version names."
+  fi
 done <<<"$HISTORY"
 
 if [ "$MISSING" -ne 0 ]; then
@@ -50,6 +83,7 @@ if [ "$MISSING" -ne 0 ]; then
   exit 1
 fi
 
-# Say what was checked. "0 versions, no problems found" is not a pass, and a silent exit 0
-# reads identically to one.
-echo "check-release-tags.sh: ${CHECKED} published plugin version(s) all carry their tags."
+# Say what was checked, and what was deliberately not. "0 versions, no problems found" is
+# not a pass, and a silent exit 0 reads identically to one.
+echo "check-release-tags.sh: ${CHECKED} published plugin version(s) all carry their tags;" \
+  "${WITHDRAWN} belonging to plugins no longer offered were out of scope."
