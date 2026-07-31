@@ -363,6 +363,20 @@ else
   printf '       output: %s\n' "$out"
 fi
 
+# Scoping to the current manifest has a failure mode of its own: if that manifest is
+# missing or lists nothing, every published version is "no longer offered" and the audit
+# passes having checked nothing. That is the same vacuous green the shallow clone would
+# give, arrived at from the other direction.
+d=$(new_repo)
+commit_manifest "$d" demo=1.0.0 >/dev/null
+printf '%s\n' '{"plugins":[]}' >"${d}/${MANIFEST}"
+git -C "$d" add -A && git -C "$d" commit -qm "empty the manifest"
+commit_other "$d" >/dev/null
+rc=0
+out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
+assert_refused "an empty manifest is refused, not treated as everything being out of scope" \
+  "$rc" "$out" "out of scope"
+
 # An annotated tag counts. The workflow creates lightweight ones, but a hand-cut release
 # — which is how meddpicc/v7.2.0 was finally published — can be either.
 d=$(new_repo)
