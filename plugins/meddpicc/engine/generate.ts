@@ -34,8 +34,8 @@ import {
 } from './workbook-spec';
 import {
   A1,
-  buildWorkbook,
   ANCHOR_TEXT_PROPERTY,
+  buildWorkbook,
   type CellSpec,
   type ConditionalFormat,
   columnLetter,

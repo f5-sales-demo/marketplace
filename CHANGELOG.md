@@ -10,6 +10,33 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.3.0 — a workbook now records the words it put in its label cells, so a revised
+  translation is no longer reported as rows having moved.
+
+  `MeddpiccFingerprint` covers the deal's identity and the input-cell layout, and deliberately not the
+  displayed text: a workbook on someone's desk has to survive an edit to the JSON that moves no cell.
+  Revising a label moves no cell either. So the stamp matched to the character while every label
+  anchor read different words, and the only conclusion available was the wrong one — measured on the
+  example deal, 115 revised strings produced five rejections all announcing that the rows had moved
+  and that no cell could be trusted. Nothing had moved, and the sheet in front of the reader looked
+  untouched.
+
+  The new `MeddpiccAnchorText` property is a hash of exactly the strings the reader compares, which is
+  what makes the three cases exhaustive — if it differs then some anchor differs, so there is no
+  fourth case where it disagrees and the workbook still reads back. An anchor failure now says which
+  happened:
+
+  - **the hash matches** — the rows really have moved, and no cell can be trusted to be the one it was;
+  - **the hash differs** — the labels were revised afterwards. The cells are probably still where you
+    left them, but the labels were the evidence that nothing had moved and they no longer match, so
+    there is nothing left to certify the addresses with;
+  - **the property is absent** — the workbook predates the stamp and cannot answer. It names both
+    possibilities and asserts neither, because the advice is the same either way and picking the wrong
+    one sends somebody hunting for an edit they never made.
+
+  Nothing is refused that was not refused before: an unchanged workbook still reads back, and the
+  hash is only consulted once an anchor has already failed.
+
 - **`salesforce`** v1.3.7 — replaces legacy account, opportunity, My Domain, and email fixtures with
   canonical Example values.
 

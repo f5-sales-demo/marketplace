@@ -1404,7 +1404,8 @@ describe('telling a retranslation from a moved row', () => {
       }
     };
     walk(revised);
-    if (changed < 50) throw new Error(`only ${changed} strings revised — the fixture is not exercising a retranslation`);
+    if (changed < 50)
+      throw new Error(`only ${changed} strings revised — the fixture is not exercising a retranslation`);
     return revised as WorkbookSpec;
   }
 
