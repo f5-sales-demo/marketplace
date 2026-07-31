@@ -1042,3 +1042,57 @@ describe('the two levels of an empty-cell wash', () => {
     expect(dxfOf('wantedInRow')).toBe('watch');
   });
 });
+
+describe('text the writer does not control', () => {
+  /** The smallest sheet that carries one dropdown. */
+  const withDropdown = (values: string[]): SheetSpec => ({
+    name: 'S',
+    rows: [{ row: 1, cells: [{ ref: 'A1', value: 'x' }] }],
+    validations: [{ sqref: 'A1', values }],
+  });
+
+  test('a comma in a dropdown value is refused, because Excel would read it as two entries', () => {
+    // The inline list is a quoted, comma-joined string and Excel's form has no escape for a comma, so
+    // `Yes, please` offers `Yes` and ` please`. Refusing beats escaping: there is nothing to escape with.
+    // Localisation is what makes this live — a comma is ordinary in prose, and 192 strings per locale are
+    // model-authored.
+    expect(() => buildWorkbook([withDropdown(['Yes, please', 'No'])], {})).toThrow(/comma/i);
+    // The message has to name the offender, or the author cannot find it among 199 strings.
+    expect(() => buildWorkbook([withDropdown(['Yes, please', 'No'])], {})).toThrow(/Yes, please/);
+  });
+
+  test('a quote in a dropdown value is doubled, not refused', () => {
+    // Unlike a comma, a quote IS representable: doubled, as in any Excel string. Verified in Excel — a list
+    // written `"He said ""yes"",No"` reads back as `He said "yes",No` and offers the two entries intended.
+    // My first version refused it, which would have been an avoidable outage the first time a translation
+    // used ordinary punctuation.
+    const parts = readZip(buildWorkbook([withDropdown(['He said "yes"', 'No'])], {}));
+    const xml = dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    // The emitted payload carries the doubled form, XML-escaped on top of that.
+    expect(xml).toContain('He said &quot;&quot;yes&quot;&quot;,No');
+  });
+
+  test('the 255-character budget is measured on what Excel receives', () => {
+    // Escaping happens first, so a value full of quotation marks costs twice what it looks like. Measuring
+    // the unescaped text would let a list through that Excel then drops.
+    const quoteHeavy = Array.from({ length: 8 }, (_, i) => `${'"'.repeat(16)}value${i}`);
+    expect(quoteHeavy.join(',').length).toBeLessThanOrEqual(255);
+    expect(quoteHeavy.map((v) => v.replace(/"/g, '""')).join(',').length).toBeGreaterThan(255);
+    expect(() => buildWorkbook([withDropdown(quoteHeavy)], {})).toThrow(/255/);
+  });
+
+  test('an ordinary dropdown is unaffected', () => {
+    // The refusal must not become indiscriminate: spaces, slashes and hyphens all appear in real values.
+    expect(() =>
+      buildWorkbook([withDropdown(['Best Case', 'Economic buyer', 'Negotiation/Review'])], {}),
+    ).not.toThrow();
+  });
+
+  test('a validation list past 255 characters is refused', () => {
+    // Enforced already, but nothing covered it — the other `255` assertions in this file are about the
+    // print header. CJK and Devanagari translations are what will start pushing lists toward the cap.
+    const long = Array.from({ length: 30 }, (_, i) => `value-number-${i}-padded-out`);
+    expect(long.join(',').length).toBeGreaterThan(255);
+    expect(() => buildWorkbook([withDropdown(long)], {})).toThrow(/255/);
+  });
+});

@@ -10,6 +10,37 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.2.1 — a serialization contract for text the writer does not control. No behaviour
+  change: the generated workbook is byte-identical, same sha256, because no value in play today contains
+  any of these characters.
+
+  Three hazards, all silent, none of them an XML problem — Excel's own grammar is what breaks, so escaping
+  the XML leaves the text intact and wrong.
+
+  - **A comma in a dropdown value became two entries.** The inline list is a quoted, comma-joined string
+    with no escape for a comma, so `Yes, please` offered `Yes` and a second entry beginning with a space — and the reverse map would
+    then fail to recognise whichever a rep picked. Refused at build time, naming the value and the range;
+    escaping is not an option, and backing the validation with a hidden range is a much larger change that
+    buys nothing while no value needs it.
+  - **A quote in a dropdown value ended the list early**, the whole list being one quoted string. Not
+    refused, though: unlike a comma, a quote **is** representable by doubling. Verified in Excel — a list
+    written `"He said ""yes"",No"` reads back as `He said "yes",No` and offers the two entries intended. My
+    first version refused it, which review rightly called an avoidable outage the first time a translation
+    used ordinary punctuation. The 255-character budget is measured on the escaped text, since that is what
+    Excel receives and a value full of quotation marks costs twice what it looks like.
+  - **A quote in a formula word closed its string early.** `He said "yes"` emitted `"He said "yes""` where
+    Excel needs `"He said ""yes"""`, leaving Excel to parse the remainder as syntax. Now doubled — and
+    **verified in Excel**, which evaluates the emitted formula to `He said "yes"` and echoes it back
+    doubled, since only Excel can settle its own grammar.
+  - The **255-character cap** on an inline list was already enforced and had **no test** — the other `255`
+    assertions in that file are about the print header. Covered now, because CJK and Devanagari
+    translations are what will push a list toward it.
+  - **All four sinks share one helper.** A label reaches an Excel formula in four places, and the first
+    version escaped one: review found a section label in an `INDEX/MATCH`, the compiled completion statuses,
+    and the words the conditional formats compare. `excelString` is what they all call now.
+
+  Latent today, in the same way #929 was: localisation (#925) is what makes it live, where 192
+  model-authored strings per locale meet punctuation that is unremarkable in prose.
 - **`salesforce`** v1.3.6 — the pipeline report is built from the org's discovered schema
   rather than one org's custom fields. Behaviour on an org that has those fields is unchanged;
   every other org gets a report instead of an empty one.

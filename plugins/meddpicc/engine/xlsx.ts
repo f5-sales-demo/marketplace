@@ -38,6 +38,25 @@ const XML_ESCAPES: Record<string, string> = {
   "'": '&apos;',
 };
 
+/**
+ * Text as an Excel string literal, quotes doubled and wrapped.
+ *
+ * Excel writes a literal quote inside a string as two, so `He said "yes"` has to become
+ * `"He said ""yes"""`. Emitting the naive form closes the string at the first inner quote and leaves Excel
+ * parsing the rest as syntax — a repair prompt, or a formula that quietly means something else.
+ *
+ * This exists because the first version of the fix escaped ONE of the four places a label reaches a formula.
+ * Review found the other three: a section label in an INDEX/MATCH, the completion statuses the compiler
+ * emits, and the words the conditional formats compare. Four call sites with the same requirement is an
+ * argument for one function, not four fixes — and it is the shape of mistake I had just written a commit
+ * message about, so the general form is the point.
+ *
+ * Not an XML concern: `escapeXml` runs afterwards and leaves an unbalanced quote intact and wrong.
+ */
+export function excelString(text: string): string {
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
 export function escapeXml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
 }
@@ -279,22 +298,22 @@ export const CF_PRESETS: Record<CfPreset, CfRule[]> = {
   // re-deriving its brackets from a percentage and drifting by a rounding step. "Green" gets no
   // rule: a deal in good shape does not need to be pointed at.
   ragText: [
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('Red')}"`], dxf: 'urgent' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('Yellow')}"`], dxf: 'watch' },
+    { type: 'cellIs', operator: 'equal', formulas: [excelString(enumLabel('Red'))], dxf: 'urgent' },
+    { type: 'cellIs', operator: 'equal', formulas: [excelString(enumLabel('Yellow'))], dxf: 'watch' },
   ],
   // Matched against the LABEL the sheet displays, not the JSON value behind it. Both come from
   // `enumLabel`, so they cannot drift — a preset quoting `"not_started"` while the cell reads
   // "Not started" is a colour that never appears and nothing to notice it.
   completionText: [
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('partial')}"`], dxf: 'watch' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('not_started')}"`], dxf: 'urgent' },
+    { type: 'cellIs', operator: 'equal', formulas: [excelString(enumLabel('partial'))], dxf: 'watch' },
+    { type: 'cellIs', operator: 'equal', formulas: [excelString(enumLabel('not_started'))], dxf: 'urgent' },
   ],
   // A close-plan step, and a gentler ladder than the completion one on purpose: a milestone nobody has
   // started is normal early in a deal, where a MEDDPICC section nobody has touched is the gap the
   // review exists to find.
   statusText: [
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('in_progress')}"`], dxf: 'watch' },
-    { type: 'cellIs', operator: 'equal', formulas: [`"${enumLabel('pending')}"`], dxf: 'warn' },
+    { type: 'cellIs', operator: 'equal', formulas: [excelString(enumLabel('in_progress'))], dxf: 'watch' },
+    { type: 'cellIs', operator: 'equal', formulas: [excelString(enumLabel('pending'))], dxf: 'warn' },
   ],
   // A change since the last review. Only a step backwards is painted: nought is not a warning, and an
   // improvement is the good news this palette deliberately leaves alone.
@@ -696,9 +715,40 @@ function dataValidationsXml(validations: Validation[] | undefined): string {
   if (!validations?.length) return '';
   const entries = validations
     .map((v) => {
-      // The inline list form is a quoted, comma-joined string — and Excel caps it at 255
-      // characters, so say so loudly rather than emitting something it will silently drop.
-      const list = v.values.join(',');
+      // The inline list form is a quoted, comma-joined string. That gives it two characters it cannot
+      // carry, and neither is an XML problem — escaping the XML leaves both intact and wrong.
+      //
+      // A comma separates entries, so `Yes, please` offers `Yes` and ` please`: one value silently
+      // becomes two, and a reader mapping the chosen word back to a token then fails to recognise it. A
+      // quote ends the list, since the whole thing is one quoted string. Excel's inline form has no
+      // escape for either. Refusing is the honest answer; the alternative is backing the validation with
+      // a hidden worksheet range, which is a much larger change and buys nothing while no value needs it.
+      //
+      // Latent today — nothing in this schema contains either character — and live the moment #925 lands
+      // 192 model-authored translations per locale, where a comma in prose is unremarkable.
+      // The two characters behave differently, and treating them alike was wrong.
+      //
+      // A **comma** is the separator, applied after Excel has parsed the string literal, so there is
+      // nothing to escape it with: `Yes, please` becomes two entries whatever we do to the quotes.
+      // Refused, naming the value.
+      //
+      // A **quote** is representable — doubled, as in any Excel string. Verified in Excel: a list written
+      // `"He said ""yes"",No"` is read back as `He said "yes",No` and offers the two entries intended. My
+      // first version refused it, which would have been an avoidable outage the moment a translation used
+      // ordinary punctuation. Review caught that.
+      for (const value of v.values) {
+        if (value.includes(',')) {
+          throw new Error(
+            `Dropdown value for ${v.sqref} contains a comma: ${JSON.stringify(value)}. ` +
+              "Excel's inline list separates entries on commas and applies that split after the string is " +
+              'parsed, so there is nothing to escape it with and this would silently become two entries. ' +
+              'Reword the value.',
+          );
+        }
+      }
+      // Escaped first, then measured: Excel's 255-character budget is spent on what it receives, and a
+      // value full of quotation marks costs twice what it looks like.
+      const list = v.values.map((value) => value.replace(/"/g, '""')).join(',');
       if (list.length > 255) {
         throw new Error(`Validation list for ${v.sqref} is ${list.length} characters; Excel allows 255`);
       }
