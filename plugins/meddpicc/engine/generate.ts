@@ -39,6 +39,7 @@ import {
   type ConditionalFormat,
   columnLetter,
   ENGINE_VERSION_PROPERTY,
+  excelString,
   FINGERPRINT_PROPERTY,
   LOCALE_PROPERTY,
   SCHEMA_HASH_PROPERTY,
@@ -530,7 +531,14 @@ function resolveFormula(
           `${ctx.sheet}: {{word:${ref.target}}} names no word — have ${Object.keys(FORMULA_WORDS).join(', ')}`,
         );
       }
-      replacement = `"${word}"`;
+      // A literal quote inside an Excel string is written doubled. Without that, `He said "yes"` emits
+      // `"He said "yes""`, which closes the string at the first inner quote and leaves Excel parsing the
+      // rest as syntax — a repair prompt, or worse, a formula that means something else.
+      //
+      // Latent while every word here is one plain enum label, and live the moment #925 supplies
+      // translations: a quotation mark is unremarkable in prose, and the words a formula compares against
+      // are exactly the dropdown values a translation replaces.
+      replacement = excelString(word);
     } else if (ref.kind === 'ref') {
       const target = named.get(ref.target);
       if (!target) throw new Error(`${ctx.sheet}: {{ref:${ref.target}}} names no cell`);
@@ -565,7 +573,7 @@ function resolveFormula(
         const valueRange = `${prefix}${A1(col, found.firstDataRow)}:${A1(col, last)}`;
         const keyRange = `${prefix}${A1(keyCol, found.firstDataRow)}:${A1(keyCol, last)}`;
         // The key column displays a label, so that is what MATCH has to look for.
-        replacement = `INDEX(${valueRange},MATCH("${sectionLabel(rowKey)}",${keyRange},0))`;
+        replacement = `INDEX(${valueRange},MATCH(${excelString(sectionLabel(rowKey))},${keyRange},0))`;
       } else {
         // An empty table still needs a syntactically valid range, so span at least one row.
         const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
