@@ -25,7 +25,7 @@
 import { entryFieldsOf, type Predicate, type SectionRule } from './completion-rules';
 import { type InputCell, sheetPrefix } from './generate';
 import { statusLabel } from './sections';
-import { columnIndex } from './xlsx';
+import { columnIndex, excelString } from './xlsx';
 
 /** Where the deal's paths ended up on the sheet. Built from the plan, never from a coordinate. */
 export interface CellResolver {
@@ -241,5 +241,7 @@ export function compilePredicate(predicate: Predicate, resolve: CellResolver): s
 export function compileStatus(rule: SectionRule, resolve: CellResolver): string {
   const complete = compilePredicate(rule.complete, resolve);
   const started = compilePredicate(rule.started, resolve);
-  return `IF(${complete},"${statusLabel('complete')}",IF(${started},"${statusLabel('partial')}","${statusLabel('not_started')}"))`;
+  // Through `excelString`, like every other label that reaches a formula: a translated status carrying a
+  // quotation mark would otherwise close the string it sits in.
+  return `IF(${complete},${excelString(statusLabel('complete'))},IF(${started},${excelString(statusLabel('partial'))},${excelString(statusLabel('not_started'))}))`;
 }

@@ -5,7 +5,7 @@ import { computeCompletion } from './completion';
 import type { WorkbookPlan } from './generate';
 import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, FORMULA_WORDS, generateWorkbook, planWorkbook } from './generate';
 import { ENUM_LABELS, enumLabel } from './labels';
-import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
+import { QUALIFICATION_ELEMENTS, SECTION_LABELS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT } from './text-metrics';
 import { specTables, type WorkbookSpec } from './workbook-spec';
 import { A1, COMPLETION_STATUSES, columnIndex, columnLetter } from './xlsx';
@@ -1200,14 +1200,11 @@ describe('a formula word carries text the writer does not control', () => {
   });
 
   test('a word whose value contains a quote is emitted doubled', () => {
-    // The direct case. FORMULA_WORDS is built from enum labels, so the only way to reach this today is to
-    // ask the resolver for a word that carries one — which is exactly what a translation will do.
     const withQuote = clone(spec);
     const block = withQuote.sheets[0].blocks.find((b) => b.cells?.some((c) => typeof c.formula === 'string'));
     const cell = block?.cells?.find((c) => typeof c.formula === 'string');
     if (!cell) throw new Error('no formula cell in the spec');
     cell.formula = 'IF(1=1,{{word:quoteCarrier}},"")';
-    // Registered for this test only; the resolver refuses a word it has never heard of, which is its own guard.
     FORMULA_WORDS.quoteCarrier = 'He said "yes"';
     try {
       const emitted = planWorkbook(schema, withQuote, deal)
@@ -1217,9 +1214,63 @@ describe('a formula word carries text the writer does not control', () => {
         .filter((f): f is string => typeof f === 'string')
         .find((f) => f.includes('He said'));
       expect(emitted).toContain('"He said ""yes"""');
-      expect((emitted?.match(/"/g) ?? []).length % 2).toBe(0);
     } finally {
       delete FORMULA_WORDS.quoteCarrier;
+    }
+  });
+
+  test('a completion status carrying a quote is doubled in the compiled formula', () => {
+    // The second of four sinks, and the one my first attempt missed. That attempt asserted "some formula
+    // contains a doubled quote", which the WORD sink satisfied on its own — so reverting this sink left the
+    // test green. The assertion has to name this sink's own text.
+    ENUM_LABELS.complete = 'Done "fully"';
+    try {
+      const formulas = planWorkbook(schema, clone(spec), deal)
+        .sheets.flatMap((sh) => sh.rows)
+        .flatMap((r) => r.cells)
+        .map((c) => c.formula)
+        .filter((f): f is string => typeof f === 'string')
+        .filter((f) => f.includes('Done'));
+      expect(formulas.length).toBeGreaterThan(0);
+      for (const f of formulas) expect(f, f).toContain('"Done ""fully"""');
+    } finally {
+      ENUM_LABELS.complete = 'Complete';
+    }
+  });
+
+  test('every conditional-format rule builds its literal with excelString', () => {
+    // The third sink cannot be reached at runtime: CF_PRESETS is a module constant built at import from
+    // `enumLabel`, so mutating a label afterwards cannot change it — and a hand-quoted literal and an
+    // excelString one are the same bytes for today's quote-free labels. There is nothing to observe.
+    //
+    // So this reads the source, narrowly: every `formulas:` entry inside the CF_PRESETS block must call
+    // excelString. A source check is the honest tool for "this construction must not appear", and scoping it
+    // to one block keeps it from being brittle.
+    const src = fs.readFileSync(path.join(here, 'xlsx.ts'), 'utf8');
+    const start = src.indexOf('export const CF_PRESETS');
+    const block = src.slice(start, src.indexOf('\n};', start));
+    // Every rule that interpolates a LABEL must go through excelString. A rule with a literal Excel string
+    // in it — `overdueDate` compares against `""`, the empty string — is not a label and is out of scope.
+    const labelRules = block.split('\n').filter((l) => l.includes('formulas:') && l.includes('enumLabel('));
+    expect(labelRules.length).toBeGreaterThan(0);
+    for (const line of labelRules) expect(line.trim(), line.trim()).toContain('excelString(');
+  });
+
+  test('the INDEX/MATCH section-label sink is not reachable from the shipped spec', () => {
+    // Stated rather than claimed covered. `sectionLabel` reaches a formula only through the keyed-table
+    // INDEX/MATCH path, and the shipped spec never takes it — a quote injected into SECTION_LABELS appears in
+    // zero formulas. It goes through excelString like the others, but nothing here exercises it, and saying
+    // so beats a test that looks like coverage and is not.
+    (SECTION_LABELS as Record<string, string>).metrics = 'Met "rics"';
+    try {
+      const formulas = planWorkbook(schema, clone(spec), deal)
+        .sheets.flatMap((sh) => sh.rows)
+        .flatMap((r) => r.cells)
+        .map((c) => c.formula)
+        .filter((f): f is string => typeof f === 'string');
+      expect(formulas.filter((f) => f.includes('Met ')).length).toBe(0);
+    } finally {
+      (SECTION_LABELS as Record<string, string>).metrics = 'Metrics';
     }
   });
 });
