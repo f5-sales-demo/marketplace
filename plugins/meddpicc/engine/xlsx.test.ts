@@ -1061,8 +1061,24 @@ describe('text the writer does not control', () => {
     expect(() => buildWorkbook([withDropdown(['Yes, please', 'No'])], {})).toThrow(/Yes, please/);
   });
 
-  test('a quote in a dropdown value is refused, because it ends the list early', () => {
-    expect(() => buildWorkbook([withDropdown(['He said "yes"', 'No'])], {})).toThrow(/quote|"/i);
+  test('a quote in a dropdown value is doubled, not refused', () => {
+    // Unlike a comma, a quote IS representable: doubled, as in any Excel string. Verified in Excel — a list
+    // written `"He said ""yes"",No"` reads back as `He said "yes",No` and offers the two entries intended.
+    // My first version refused it, which would have been an avoidable outage the first time a translation
+    // used ordinary punctuation.
+    const parts = readZip(buildWorkbook([withDropdown(['He said "yes"', 'No'])], {}));
+    const xml = dec(parts.get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
+    // The emitted payload carries the doubled form, XML-escaped on top of that.
+    expect(xml).toContain('He said &quot;&quot;yes&quot;&quot;,No');
+  });
+
+  test('the 255-character budget is measured on what Excel receives', () => {
+    // Escaping happens first, so a value full of quotation marks costs twice what it looks like. Measuring
+    // the unescaped text would let a list through that Excel then drops.
+    const quoteHeavy = Array.from({ length: 8 }, (_, i) => `${'"'.repeat(16)}value${i}`);
+    expect(quoteHeavy.join(',').length).toBeLessThanOrEqual(255);
+    expect(quoteHeavy.map((v) => v.replace(/"/g, '""')).join(',').length).toBeGreaterThan(255);
+    expect(() => buildWorkbook([withDropdown(quoteHeavy)], {})).toThrow(/255/);
   });
 
   test('an ordinary dropdown is unaffected', () => {

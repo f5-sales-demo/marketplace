@@ -726,24 +726,29 @@ function dataValidationsXml(validations: Validation[] | undefined): string {
       //
       // Latent today — nothing in this schema contains either character — and live the moment #925 lands
       // 192 model-authored translations per locale, where a comma in prose is unremarkable.
+      // The two characters behave differently, and treating them alike was wrong.
+      //
+      // A **comma** is the separator, applied after Excel has parsed the string literal, so there is
+      // nothing to escape it with: `Yes, please` becomes two entries whatever we do to the quotes.
+      // Refused, naming the value.
+      //
+      // A **quote** is representable — doubled, as in any Excel string. Verified in Excel: a list written
+      // `"He said ""yes"",No"` is read back as `He said "yes",No` and offers the two entries intended. My
+      // first version refused it, which would have been an avoidable outage the moment a translation used
+      // ordinary punctuation. Review caught that.
       for (const value of v.values) {
         if (value.includes(',')) {
           throw new Error(
             `Dropdown value for ${v.sqref} contains a comma: ${JSON.stringify(value)}. ` +
-              "Excel's inline list separates entries on commas and cannot escape one, so this would " +
-              'silently become two entries. Reword the value.',
-          );
-        }
-        if (value.includes('"')) {
-          throw new Error(
-            `Dropdown value for ${v.sqref} contains a quotation mark: ${JSON.stringify(value)}. ` +
-              'The whole list is one quoted string, so a quote inside it ends the list early. Reword the value.',
+              "Excel's inline list separates entries on commas and applies that split after the string is " +
+              'parsed, so there is nothing to escape it with and this would silently become two entries. ' +
+              'Reword the value.',
           );
         }
       }
-      // Excel caps the inline list at 255 characters — say so loudly rather than emitting something it
-      // will silently drop.
-      const list = v.values.join(',');
+      // Escaped first, then measured: Excel's 255-character budget is spent on what it receives, and a
+      // value full of quotation marks costs twice what it looks like.
+      const list = v.values.map((value) => value.replace(/"/g, '""')).join(',');
       if (list.length > 255) {
         throw new Error(`Validation list for ${v.sqref} is ${list.length} characters; Excel allows 255`);
       }
