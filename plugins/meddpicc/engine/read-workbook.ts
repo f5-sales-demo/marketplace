@@ -27,6 +27,7 @@
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
 import {
+  anchorTextHash,
   BOOLEAN_NO,
   BOOLEAN_YES,
   dateToSerial,
@@ -41,7 +42,7 @@ import { canonicalEnumValue } from './labels';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
-import { FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
+import { ANCHOR_TEXT_PROPERTY, FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -627,6 +628,34 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
     })
     .slice(0, MAX_REPORTED_ANCHORS);
   if (moved.length > 0) {
+    // The same symptom has two causes, and until the workbook recorded its anchor text there was no
+    // way to tell them apart. Either the sheet's rows moved under the labels, or the labels themselves
+    // were revised — a retranslation moves no cell, so the fingerprint still matches exactly.
+    //
+    // Naming the wrong one is not harmless: "no cell can be trusted to be the one it was" sends
+    // somebody looking for an edit they did not make, and the sheet in front of them looks untouched.
+    const wroteText = readWorkbookProperty(bytes, ANCHOR_TEXT_PROPERTY);
+    const advice = 'Regenerate it from the current deal, then make the edit again';
+    let cause: string;
+    if (wroteText === null) {
+      // Generated before this property existed, so the workbook cannot answer. Name both
+      // possibilities rather than picking one: the advice is the same either way, and asserting the
+      // wrong one sends somebody hunting for an edit they never made.
+      cause =
+        'either the rows have moved or these labels were revised since it was generated, and this ' +
+        `workbook predates the stamp that would tell which. ${advice}`;
+    } else if (wroteText === anchorTextHash(plan)) {
+      cause =
+        'the rows appear to have moved, so no cell in this workbook can be trusted to be the one it ' +
+        `was. ${advice}`;
+    } else {
+      // Nothing has necessarily moved — but the labels were the evidence that nothing had, and they
+      // no longer match, so there is nothing left to certify the addresses with.
+      cause =
+        'these labels were revised after this workbook was generated. Its cells are probably still ' +
+        'where you left them, but the labels can no longer confirm that, so it cannot be read back ' +
+        `safely. ${advice}`;
+    }
     return {
       ok: false,
       cellsRead: 0,
@@ -635,10 +664,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       rejections: moved.map((anchor) => ({
         sheet: anchor.sheet,
         address: anchor.address,
-        reason:
-          `should still read "${anchor.text}" but does not — the rows appear to have moved, ` +
-          'so no cell in this workbook can be trusted to be the one it was. Regenerate it from the ' +
-          'current deal, then make the edit again',
+        reason: `should still read "${anchor.text}" but does not — ${cause}`,
       })),
       deal: working,
       valid: true,

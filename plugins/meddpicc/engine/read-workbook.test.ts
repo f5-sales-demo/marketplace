@@ -1,14 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { BOOLEAN_NO, BOOLEAN_YES, dateToSerial, generateWorkbook, planWorkbook } from './generate';
+import {
+  anchorTextHash,
+  BOOLEAN_NO,
+  BOOLEAN_YES,
+  dateToSerial,
+  generateWorkbook,
+  planWorkbook,
+  workbookFingerprint,
+} from './generate';
 import { readPath } from './json-path';
 import { enumLabel } from './labels';
 import { readWorkbook, readWorkbookCells, readWorkbookProperty, serialToDate } from './read-workbook';
 import { sectionLabel } from './sections';
 import { validateDeal } from './validate';
 import { specTables, type WorkbookSpec } from './workbook-spec';
-import { buildWorkbook, columnLetter } from './xlsx';
+import { ANCHOR_TEXT_PROPERTY, buildWorkbook, columnLetter } from './xlsx';
 import { readZip, writeZip } from './zip';
 
 const here = import.meta.dir;
@@ -1352,5 +1360,137 @@ describe('metadata.locale', () => {
     expect(locales).toContain('ko');
     for (const slug of locales) expect(slug).toMatch(/^[a-z]{2}(-[a-z]{2})?$/);
     expect(new Set(locales).size).toBe(locales.length);
+  });
+});
+
+/**
+ * A retranslation is not a moved row.
+ *
+ * `workbookFingerprint` covers the deal's identity and the input-cell LAYOUT, and nothing else — by
+ * design, so a workbook on someone's desk survives an edit to the JSON that moves no cell. Revising a
+ * translation moves no cell either: every address is identical and the stamp matches, while every
+ * anchor now reads different words. Measured on the example deal before this: 115 revised spec strings,
+ * the same fingerprint to the character, and five rejections all saying "the rows appear to have
+ * moved". Nothing had moved, and the advice that follows from that reading — regenerate, then redo the
+ * edit — is right by accident while the diagnosis is wrong.
+ *
+ * So the workbook records a hash of the text it rendered INTO THE ANCHORS — exactly the strings the
+ * reader compares, no more — and an anchor failure is explained by comparing it. Scoping it to the
+ * anchors is what makes the three states exhaustive: if the hash differs then some anchor's text
+ * differs, so the anchor check must fail, and there is no fourth case where the hash disagrees while
+ * the workbook still reads back. A workbook generated before the property existed cannot answer the
+ * question at all, and says so rather than guessing.
+ */
+describe('telling a retranslation from a moved row', () => {
+  /** The spec with every displayed string revised, as a re-translation would leave it. */
+  function retranslated(): WorkbookSpec {
+    const revised = clone(spec) as unknown;
+    let changed = 0;
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item);
+        return;
+      }
+      if (node && typeof node === 'object') {
+        const record = node as Record<string, unknown>;
+        for (const key of ['text', 'header', 'label']) {
+          const value = record[key];
+          if (typeof value === 'string' && value.length > 3) {
+            record[key] = `${value} (rev)`;
+            changed++;
+          }
+        }
+        for (const value of Object.values(record)) walk(value);
+      }
+    };
+    walk(revised);
+    if (changed < 50) throw new Error(`only ${changed} strings revised — the fixture is not exercising a retranslation`);
+    return revised as WorkbookSpec;
+  }
+
+  /** Strip one provenance property, as a workbook generated before it existed would lack it. */
+  function withoutProperty(bytes: Uint8Array, name: string): Uint8Array {
+    const part = 'docProps/custom.xml';
+    const entries = readZip(bytes);
+    const entry = entries.get(part);
+    if (!entry) throw new Error(`no ${part}`);
+    const xml = new TextDecoder().decode(entry.data);
+    const pattern = new RegExp(`<property\\b[^>]*name="${name}"[^>]*>[\\s\\S]*?</property>`);
+    // Removing something absent would leave the fixture identical and the test vacuous.
+    if (!pattern.test(xml)) throw new Error(`property ${name} not present, so removing it proves nothing`);
+    const stripped = xml.replace(pattern, '');
+    const rewritten = writeZip(
+      [...entries.values()].map((e) =>
+        e.name === part ? { name: e.name, data: new TextEncoder().encode(stripped) } : { name: e.name, raw: e },
+      ),
+    );
+    if (readWorkbookProperty(rewritten, name) !== null) throw new Error(`${name} survived removal`);
+    return rewritten;
+  }
+
+  const reasons = (bytes: Uint8Array, withSpec: WorkbookSpec): string =>
+    readWorkbook(schema, withSpec, exampleDeal, bytes)
+      .rejections.map((r) => r.reason)
+      .join(' | ');
+
+  test('the fixture really is a retranslation: same stamp, same addresses, different words', () => {
+    const revised = retranslated();
+    const before = planWorkbook(schema, spec, exampleDeal);
+    const after = planWorkbook(schema, revised, exampleDeal);
+    // If either of these stopped being true the rest of this block would be testing nothing.
+    expect(workbookFingerprint(after, exampleDeal)).toBe(workbookFingerprint(before, exampleDeal));
+    expect(after.anchors.map((a) => a.address)).toEqual(before.anchors.map((a) => a.address));
+    expect(after.anchors.map((a) => a.text)).not.toEqual(before.anchors.map((a) => a.text));
+  });
+
+  test('a workbook is stamped with the anchor text it rendered', () => {
+    const bytes = generateWorkbook(schema, spec, exampleDeal, '0.0.0');
+    const stamped = readWorkbookProperty(bytes, ANCHOR_TEXT_PROPERTY);
+    expect(stamped).toBe(anchorTextHash(planWorkbook(schema, spec, exampleDeal)));
+    expect(stamped).not.toBe(anchorTextHash(planWorkbook(schema, retranslated(), exampleDeal)));
+  });
+
+  test('revised labels are reported as a retranslation, not as moved rows', () => {
+    const bytes = generateWorkbook(schema, spec, exampleDeal, '0.0.0');
+    const said = reasons(bytes, retranslated());
+    expect(said).toMatch(/labels were revised/i);
+    expect(said).not.toMatch(/rows appear to have moved/);
+    // It must COMMIT to the retranslation, not hedge. Hedging is the pre-stamp answer, and it would
+    // otherwise satisfy a looser assertion even with the stamp removed entirely.
+    expect(said).not.toMatch(/predates|either the rows/i);
+  });
+
+  test('genuinely moved rows are still reported as moved rows', () => {
+    // Same spec both sides, so the text hash agrees and only the sheet has changed: two element
+    // rows swapped, which is what tidying a sheet looks like.
+    const bytes = generateWorkbook(schema, spec, exampleDeal, '0.0.0');
+    const plan = planWorkbook(schema, spec, exampleDeal);
+    const anchor = plan.anchors.find((a) => a.text === sectionLabel('metrics'));
+    if (!anchor) throw new Error('no anchor for the metrics element');
+    const moved = withCell(
+      bytes,
+      anchor.sheet,
+      anchor.address,
+      `<c r="${anchor.address}" t="inlineStr"><is><t>Economic Buyer</t></is></c>`,
+    );
+    const said = reasons(moved, spec);
+    expect(said).toMatch(/rows appear to have moved/);
+    expect(said).not.toMatch(/revised|predates/i);
+  });
+
+  test('a workbook predating the stamp says it cannot tell which happened', () => {
+    const bytes = withoutProperty(generateWorkbook(schema, spec, exampleDeal, '0.0.0'), ANCHOR_TEXT_PROPERTY);
+    const said = reasons(bytes, retranslated());
+    // Honest about the ambiguity: it names both possibilities and asserts neither.
+    expect(said).toMatch(/either the rows have moved/i);
+    expect(said).toMatch(/labels were revised/i);
+    expect(said).toMatch(/predates/i);
+  });
+
+  test('an unchanged workbook still reads back, so the new stamp gates nothing on its own', () => {
+    const bytes = generateWorkbook(schema, spec, exampleDeal, '0.0.0');
+    const report = readWorkbook(schema, spec, exampleDeal, bytes);
+    expect(report.rejections).toEqual([]);
+    expect(report.ok).toBe(true);
   });
 });

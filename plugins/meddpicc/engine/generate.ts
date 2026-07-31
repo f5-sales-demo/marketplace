@@ -35,6 +35,7 @@ import {
 import {
   A1,
   buildWorkbook,
+  ANCHOR_TEXT_PROPERTY,
   type CellSpec,
   type ConditionalFormat,
   columnLetter,
@@ -1179,6 +1180,30 @@ export function workbookFingerprint(plan: WorkbookPlan, deal: unknown): string {
  * number somebody has to remember to bump is worse than no version at all, because a stale one lies.
  * A content hash is derived, so it cannot drift.
  */
+/**
+ * The words this plan puts in its anchor cells, in the order it writes them.
+ *
+ * The companion to {@link workbookFingerprint}, and deliberately separate from it. The fingerprint
+ * answers "is this the same deal, laid out the same way", and a workbook must keep matching it through
+ * an edit to the JSON that moves no cell — so it cannot cover displayed text. That left one symptom
+ * with two causes and no way to tell them apart: revise a translation and every address is identical,
+ * the fingerprint matches to the character, and every anchor reads different words. Measured on the
+ * example deal: 115 revised strings, the same fingerprint, and five rejections all announcing that the
+ * rows had moved. Nothing had moved.
+ *
+ * Scoped to the anchors because they are exactly what the reader compares. A hash over more than that
+ * — every dropdown label, the rubric's prose — could differ while every anchor still matched, and the
+ * reader would then have to either refuse a workbook that reads back perfectly or say something it
+ * could not act on. Anchors keep the three cases exhaustive.
+ *
+ * Addresses are not included: they belong to the fingerprint, and a hash that covered both could not
+ * say which of the two had changed, which is the whole point.
+ */
+export function anchorTextHash(plan: WorkbookPlan): string {
+  const rendered = plan.anchors.map((anchor) => anchor.text).join('\n');
+  return createHash('sha256').update(rendered).digest('hex').slice(0, 32);
+}
+
 export function schemaHash(schema: unknown): string {
   return createHash('sha256').update(JSON.stringify(schema)).digest('hex');
 }
@@ -1238,6 +1263,7 @@ export function workbookProperties(
   }
   return {
     [FINGERPRINT_PROPERTY]: workbookFingerprint(plan, deal),
+    [ANCHOR_TEXT_PROPERTY]: anchorTextHash(plan),
     [SCHEMA_HASH_PROPERTY]: schemaHash(schema),
     [LOCALE_PROPERTY]: locale,
     ...(engineVersion === undefined ? {} : { [ENGINE_VERSION_PROPERTY]: engineVersion }),
