@@ -200,6 +200,22 @@ describe('localized boolean round trips', () => {
     };
     expect(() => booleanLabels(collision)).toThrow(/Yes and No.*同じ/);
   });
+
+  test('refuses either localized boolean when it collides with the opposite English word', () => {
+    const translatedYesIsEnglishNo: LocaleContext = {
+      ...ENGLISH_LOCALE,
+      slug: 'xx',
+      translations: { Yes: 'No', No: 'いいえ' },
+    };
+    expect(() => booleanLabels(translatedYesIsEnglishNo)).toThrow(/Yes and No.*No/);
+
+    const translatedNoIsEnglishYes: LocaleContext = {
+      ...ENGLISH_LOCALE,
+      slug: 'xx',
+      translations: { Yes: 'はい', No: 'Yes' },
+    };
+    expect(() => booleanLabels(translatedNoIsEnglishYes)).toThrow(/Yes and No.*Yes/);
+  });
 });
 
 describe('Japanese planning and serialization', () => {

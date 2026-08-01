@@ -10,8 +10,10 @@ const booleanKey = (text: string) => text.trim().toLowerCase();
 export function booleanLabels(context: TranslationContext): [string, string] {
   const yes = translateSource(context, BOOLEAN_YES);
   const no = translateSource(context, BOOLEAN_NO);
-  if (booleanKey(yes) === booleanKey(no)) {
-    throw new Error(`Boolean values Yes and No both read as ${JSON.stringify(yes)} in ${context.slug}`);
+  const yesKeys = new Set([BOOLEAN_YES, yes].map(booleanKey));
+  const collision = [BOOLEAN_NO, no].find((word) => yesKeys.has(booleanKey(word)));
+  if (collision !== undefined) {
+    throw new Error(`Boolean values Yes and No both read as ${JSON.stringify(collision)} in ${context.slug}`);
   }
   return [yes, no];
 }
