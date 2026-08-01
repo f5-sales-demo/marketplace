@@ -553,7 +553,7 @@ const advisoryCorrectionsByLocale = {
   },
   es: {
     Deal: 'Oportunidad',
-    'Deal ID': 'ID de la revisión',
+    'Deal ID': 'ID de la revisión de la oportunidad',
     'Deal Status': 'Estado de la oportunidad',
     'Deal/Project Name': 'Nombre de la oportunidad/proyecto',
     'MEDDPICC Deal Review': 'Revisión MEDDPICC – oportunidad',
@@ -628,6 +628,10 @@ const advisoryCorrectionsByLocale = {
     'Actions Open': '未完成的行动项',
     Reviewer: '评审人',
     Partial: '部分完成',
+    'Sections Complete': '已完成部分数',
+    Partner: '合作伙伴',
+    'Partner Team': '合作伙伴团队',
+    Pending: '待处理',
     'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
       '差异化——已识别并评估竞争对手；已记录客户看法；差异化策略明确',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
@@ -646,6 +650,10 @@ const advisoryCorrectionsByLocale = {
     'Actions Open': '未完成的行動項目',
     Reviewer: '評審人',
     Partial: '部分完成',
+    'Sections Complete': '已完成部分數',
+    Partner: '合作夥伴',
+    'Partner Team': '合作夥伴團隊',
+    Pending: '待處理',
     'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
       '差異化——已識別並評估競爭對手；已記錄客戶看法；差異化策略明確',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
@@ -693,6 +701,7 @@ const advisoryCorrectionsByLocale = {
   },
   th: {
     Subscription: 'รายได้จากการสมัครสมาชิก',
+    'Date Required From': 'วันที่เริ่มต้องการบุคลากร',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
       'ยืนยันแล้ว — เรามีอิทธิพลต่อเกณฑ์ให้เอื้อต่อจุดแข็งของเรา; ผู้มีส่วนได้ส่วนเสียหลักเห็นพ้องกัน',
     'Mapped — Major steps identified but dates or owners missing': 'จัดทำแผนแล้ว — ระบุขั้นตอนสำคัญแล้ว แต่ยังขาดวันที่หรือผู้รับผิดชอบ',
