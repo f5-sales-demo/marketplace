@@ -31,7 +31,7 @@ import type { WorkbookSpec } from './workbook-spec';
 export const DEFAULT_LOCALE = 'en';
 
 const unsupportedLocaleGuidance = (slug: string): string =>
-  slug === 'ar'
+  slug === 'ar' || slug.startsWith('ar-')
     ? ' Arabic requires the right-to-left workbook tracked at https://github.com/f5-sales-demo/marketplace/issues/926.'
     : '';
 

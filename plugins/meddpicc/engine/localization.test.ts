@@ -25,6 +25,138 @@ const deal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example
 const japanese = () => loadLocale({ slug: 'ja', from: 'flag' }, spec, schema);
 const remainingLocaleSlugs = ['fr', 'es', 'de', 'pt-br', 'ko', 'zh-cn', 'zh-tw', 'it', 'hi', 'th'] as const;
 const identityTerms = ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green'] as const;
+const salesTermsByLocale = {
+  fr: {
+    'Can Say No': 'Peut dire non',
+    'Can Say No?': 'Peut dire non ?',
+    'Stage Name': 'Nom de l’étape commerciale',
+    Pipeline: 'Pipeline commercial',
+    'Factored Pipeline': 'Pipeline commercial pondéré',
+    Salesforce: 'Salesforce',
+    No: 'Non',
+    'Close Plan': 'Plan de clôture',
+    Hardware: 'Matériel informatique',
+    Qualification: 'Qualification de l’opportunité',
+    Commit: 'Engagement',
+  },
+  es: {
+    'Can Say No': 'Puede decir que no',
+    'Can Say No?': '¿Puede decir que no?',
+    'Stage Name': 'Nombre de la etapa de ventas',
+    Pipeline: 'Pipeline de ventas',
+    'Factored Pipeline': 'Pipeline de ventas ponderado',
+    Salesforce: 'Salesforce',
+    No: 'No',
+    'Close Plan': 'Plan de cierre',
+    Hardware: 'Equipos informáticos',
+    Qualification: 'Calificación de la oportunidad',
+    Commit: 'Compromiso',
+  },
+  de: {
+    'Can Say No': 'Kann Nein sagen',
+    'Can Say No?': 'Kann Nein sagen?',
+    'Stage Name': 'Name der Vertriebsphase',
+    Pipeline: 'Vertriebspipeline',
+    'Factored Pipeline': 'Gewichtete Vertriebspipeline',
+    Salesforce: 'Salesforce',
+    No: 'Nein',
+    'Close Plan': 'Abschlussplan',
+    Hardware: 'IT-Hardware',
+    Qualification: 'Vertriebsqualifizierung',
+    Commit: 'Commit',
+  },
+  'pt-br': {
+    'Can Say No': 'Pode dizer não',
+    'Can Say No?': 'Pode dizer não?',
+    'Stage Name': 'Nome da etapa de vendas',
+    Pipeline: 'Pipeline de vendas',
+    'Factored Pipeline': 'Pipeline de vendas ponderado',
+    Salesforce: 'Salesforce',
+    No: 'Não',
+    'Close Plan': 'Plano de fechamento',
+    Hardware: 'Equipamentos de TI',
+    Qualification: 'Qualificação da oportunidade',
+    Commit: 'Compromisso',
+  },
+  ko: {
+    'Can Say No': '거절할 수 있음',
+    'Can Say No?': '거절할 수 있나요?',
+    'Stage Name': '영업 단계명',
+    Pipeline: '영업 파이프라인',
+    'Factored Pipeline': '가중 영업 파이프라인',
+    Salesforce: 'Salesforce',
+    No: '아니요',
+    'Close Plan': '영업 마감 계획',
+    Hardware: '하드웨어',
+    Qualification: '영업 기회 검증',
+    Commit: '확정',
+  },
+  'zh-cn': {
+    'Can Say No': '有权否决',
+    'Can Say No?': '有权否决吗？',
+    'Stage Name': '销售阶段名称',
+    Pipeline: '销售机会管道',
+    'Factored Pipeline': '加权销售管道',
+    Salesforce: 'Salesforce',
+    No: '否',
+    'Close Plan': '成交计划',
+    Hardware: '硬件',
+    Qualification: '商机资格评估',
+    Commit: '承诺',
+  },
+  'zh-tw': {
+    'Can Say No': '有權否決',
+    'Can Say No?': '有權否決嗎？',
+    'Stage Name': '銷售階段名稱',
+    Pipeline: '銷售機會管道',
+    'Factored Pipeline': '加權銷售管道',
+    Salesforce: 'Salesforce',
+    No: '否',
+    'Close Plan': '成交計畫',
+    Hardware: '硬體',
+    Qualification: '商機資格評估',
+    Commit: '承諾',
+  },
+  it: {
+    'Can Say No': 'Può dire di no',
+    'Can Say No?': 'Può dire di no?',
+    'Stage Name': 'Nome della fase di vendita',
+    Pipeline: 'Pipeline di vendita',
+    'Factored Pipeline': 'Pipeline di vendita ponderata',
+    Salesforce: 'Salesforce',
+    No: 'No',
+    'Close Plan': 'Piano di chiusura',
+    Hardware: 'Apparecchiature informatiche',
+    Qualification: "Qualificazione dell'opportunità",
+    Commit: 'Impegno',
+  },
+  hi: {
+    'Can Say No': 'इनकार कर सकते हैं',
+    'Can Say No?': 'क्या वे इनकार कर सकते हैं?',
+    'Stage Name': 'बिक्री चरण का नाम',
+    Pipeline: 'बिक्री पाइपलाइन',
+    'Factored Pipeline': 'भारित बिक्री पाइपलाइन',
+    Salesforce: 'Salesforce',
+    No: 'नहीं',
+    'Close Plan': 'सौदा समापन योजना',
+    Hardware: 'आईटी हार्डवेयर',
+    Qualification: 'अवसर योग्यता',
+    Commit: 'पूर्वानुमान प्रतिबद्धता',
+  },
+  th: {
+    'Can Say No': 'ปฏิเสธได้',
+    'Can Say No?': 'ปฏิเสธได้ไหม?',
+    'Stage Name': 'ชื่อขั้นตอนการขาย',
+    Pipeline: 'ไปป์ไลน์การขาย',
+    'Factored Pipeline': 'ไปป์ไลน์การขายแบบถ่วงน้ำหนัก',
+    Salesforce: 'Salesforce',
+    No: 'ไม่',
+    'Close Plan': 'แผนปิดการขาย',
+    Hardware: 'ฮาร์ดแวร์',
+    Qualification: 'การคัดกรองโอกาสการขาย',
+    Commit: 'ยอดคาดการณ์ที่ยืนยันแล้ว',
+  },
+} as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
 const rawJapanese = () =>
   JSON.parse(fs.readFileSync(path.join(here, 'locales', 'ja.json'), 'utf8')) as {
     locale: string;
@@ -114,7 +246,7 @@ describe('the remaining left-to-right catalogues', () => {
   const statuses = ['not_started', 'partial', 'complete'] as const;
 
   for (const slug of remainingLocaleSlugs) {
-    test(`${slug} is exhaustive, fresh, explicitly sized, and translates every agreed source`, () => {
+    test(`${slug} is exhaustive, fresh, explicitly sized, and covers every agreed source`, () => {
       const context = loadLocale({ slug, from: 'flag' }, spec, schema);
       expect(Object.keys(context.translations)).toHaveLength(199);
       expect(context.sourceHash).toBe(localeSourceHash(sources));
@@ -122,14 +254,18 @@ describe('the remaining left-to-right catalogues', () => {
       expect(context.sizing).toBeDefined();
 
       for (const word of identityTerms) expect(context.translations[word], word).toBe(word);
-      expect(Object.entries(context.translations).filter(([source, translated]) => source !== translated)).toHaveLength(
-        192,
-      );
       expect(localize(context, 'MEDDPICC Deal Review')).not.toBe('MEDDPICC Deal Review');
       expect(localize(context, 'Account Name')).not.toBe('Account Name');
 
       expect(() => enumLabels(statuses, context)).not.toThrow();
       expect(() => booleanLabels(context)).not.toThrow();
+    });
+
+    test(`${slug} uses sales meanings for ambiguous workbook terms`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      for (const [source, expected] of Object.entries(salesTermsByLocale[slug])) {
+        expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
+      }
     });
 
     test(`${slug} drives planning, serialization, and read-back under an English process locale`, () => {

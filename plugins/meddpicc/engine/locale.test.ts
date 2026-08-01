@@ -132,6 +132,15 @@ describe('resolveLocale — resolution and refusal', () => {
     expect(() => resolveLocale({ env: { MEDDPICC_LOCALE: 'is' } })).toThrow(/is/);
   });
 
+  test('regional Arabic requests point to the right-to-left workbook', () => {
+    // Region and POSIX spellings still request Arabic. Losing the language-specific guidance here
+    // leaves an ar-SA or ar_EG user with only the generic unsupported-locale error and hides the
+    // separately tracked RTL implementation they actually need.
+    for (const raw of ['ar-SA', 'ar_EG.UTF-8']) {
+      expect(() => resolveLocale({ flag: raw }), raw).toThrow(/issues\/926/);
+    }
+  });
+
   test('an explicit value that names no language is refused, not ignored', () => {
     // `--locale C` is not a request for a language, but it IS a request, and skipping it would silently
     // hand back English while looking like it honoured something. Ambient `LANG=C` is the opposite case:

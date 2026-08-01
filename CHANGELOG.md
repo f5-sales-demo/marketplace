@@ -14,9 +14,10 @@ and this project adheres to
   Simplified Chinese, Traditional Chinese, Italian, Hindi, and Thai complete the
   left-to-right workbook locale set.
 
-  - Every catalogue explicitly covers the same 199 workbook-owned sources as Japanese:
-    192 localized strings and the seven agreed English sentiment and rating identities,
-    with the full-source freshness stamp and reverse-mapping collision guards intact.
+  - Every catalogue explicitly covers the same 199 workbook-owned sources as Japanese,
+    including the seven agreed English sentiment and rating identities, preserved product names,
+    and natural-language boolean labels, with the full-source freshness stamp and reverse-mapping
+    collision guards intact.
   - Locale-specific column widths and row-height scales accommodate longer Latin,
     Devanagari, Thai, Korean, and Chinese text without changing the workbook grid.
   - Each locale is verified through planning, formulas, conditional formatting,
