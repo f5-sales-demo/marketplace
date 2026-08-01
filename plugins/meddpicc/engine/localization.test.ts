@@ -27,6 +27,7 @@ const remainingLocaleSlugs = ['fr', 'es', 'de', 'pt-br', 'ko', 'zh-cn', 'zh-tw',
 const identityTerms = ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green'] as const;
 const salesTermsByLocale = {
   fr: {
+    ACV: 'Valeur annuelle du contrat (ACV)',
     'Assigned To Deal?': 'Affecté à l’opportunité ?',
     'Below Three': 'Moins de trois',
     'Can Say No': 'Peut dire non',
@@ -250,12 +251,16 @@ const reviewedTermsByLocale = {
       'Quantifié – Problème métier quantifié en termes d’impact commercial ; conséquences de l’inaction documentées',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'Urgent – Plusieurs parties prenantes confirment le problème métier ; événement déclencheur identifié ; motif clair imposant l’échéance',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'Inconnu – Aucun problème métier identifié ou discuté ; une solution à la recherche d’un problème',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'Mobilisation – Le parrain interne vous conseille activement, partage des informations et prend des actions concrètes chaque semaine',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
       'Contrôlé – Tous les jalons d’approbation sont cartographiés ; aucune surprise attendue ; flux juridique, sécurité et approvisionnement confirmé',
     'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
       'Les mécanismes d’approvisionnement – devis, approbations, intégration des fournisseurs, examen de sécurité, modifications contractuelles proposées et processus de signature',
+    'The requirements the customer will use to evaluate options — technical, business, operational, and commercial':
+      'Les exigences que le client utilisera pour évaluer les options – techniques, métier, opérationnelles et commerciales',
     'Total Booked Value': 'Valeur totale contractualisée',
     'Why Anything': 'Pourquoi changer',
     '3 Whys — (Why Anything, Why Us, Why Now)':
@@ -277,12 +282,16 @@ const reviewedTermsByLocale = {
       'Cuantificado: problema de negocio cuantificado por su impacto empresarial; consecuencias de la inacción documentadas',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'Urgente: varias partes interesadas confirman el problema de negocio; evento desencadenante identificado; existe un motivo claro que impone la fecha límite',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'Desconocido: no se identificó ni discutió ningún problema de negocio; una solución en busca de un problema',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'Movilización: el promotor interno lo asesora activamente, comparte información y toma medidas concretas cada semana',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
       'Controlado: todos los puntos de aprobación están definidos; no se esperan sorpresas; flujo legal, de seguridad y adquisiciones confirmado',
     'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
       'Los mecanismos de adquisición: cotizaciones, aprobaciones, incorporación de proveedores, revisión de seguridad, revisiones contractuales y proceso de firma',
+    'The requirements the customer will use to evaluate options — technical, business, operational, and commercial':
+      'Los requisitos que el cliente utilizará para evaluar las opciones: técnicos, empresariales, operativos y comerciales',
     'Total Booked Value': 'Valor total contratado',
     'Why Anything': 'Por qué cambiar',
     '3 Whys — (Why Anything, Why Us, Why Now)':
@@ -304,6 +313,8 @@ const reviewedTermsByLocale = {
       'Quantifiziert – Geschäftsproblem nach Geschäftsauswirkung quantifiziert; Folgen der Untätigkeit dokumentiert',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'Dringend – Mehrere Beteiligte bestätigen das Geschäftsproblem; auslösendes Ereignis identifiziert; klarer geschäftlicher Grund für den Zeitdruck',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'Unbekannt – Kein Geschäftsproblem identifiziert oder besprochen; eine Lösung auf der Suche nach einem Problem',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'Mobilisiert – Der interne Fürsprecher coacht Sie aktiv, teilt Informationen und ergreift wöchentlich konkrete Maßnahmen',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -332,12 +343,16 @@ const reviewedTermsByLocale = {
       'Quantificado — Problema de negócio quantificado pelo impacto empresarial; consequências da inação documentadas',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'Urgente — Várias partes interessadas confirmam o problema de negócio; evento desencadeador identificado; motivo claro que impõe o prazo',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'Desconhecido — Nenhum problema de negócio identificado ou discutido; uma solução à procura de um problema',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'Mobilização — O patrocinador interno orienta você ativamente, compartilha informações e toma ações concretas toda semana',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
       'Controlado — Todos os pontos de aprovação estão mapeados; nenhuma surpresa esperada; fluxo jurídico, de segurança e de compras confirmado',
     'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
       'O processo de compras — cotações, aprovações, integração de fornecedores, revisão de segurança, revisões contratuais e processo de assinatura',
+    'The requirements the customer will use to evaluate options — technical, business, operational, and commercial':
+      'Os requisitos que o cliente usará para avaliar as opções — técnicos, de negócio, operacionais e comerciais',
     'Total Booked Value': 'Valor total contratado',
     'Why Anything': 'Por que mudar',
     '3 Whys — (Why Anything, Why Us, Why Now)': '3 porquês — (por que mudar, por que nós, por que agora)',
@@ -359,6 +374,8 @@ const reviewedTermsByLocale = {
       '정량화됨 — 비즈니스 문제의 사업 영향을 정량화하고 미조치 결과를 문서화함',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       '긴급 — 여러 이해관계자가 비즈니스 문제를 확인함; 촉발 사건이 식별됨; 기한을 정하는 명확한 사업 요인이 있음',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      '알 수 없음 — 비즈니스 문제가 식별되거나 논의되지 않음; 문제를 찾는 솔루션',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       '활성화됨 — 내부 지지자가 적극적으로 조언하고, 정보를 공유하며, 매주 구체적인 조치를 취함',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -390,6 +407,8 @@ const reviewedTermsByLocale = {
       '已量化——已量化业务痛点的商业影响；已记录不采取行动的后果',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       '紧急——多位利益相关者已确认业务痛点；已识别触发事件；有明确的业务因素决定截止日期',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      '未知——尚未识别或讨论业务痛点；解决方案在寻找问题',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       '动员中——内部支持者每周积极指导您、分享信息并采取具体行动',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -419,6 +438,8 @@ const reviewedTermsByLocale = {
       '已量化——已量化業務痛點的商業影響；已記錄不採取行動的後果',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       '緊急——多位利害關係人已確認業務痛點；已識別觸發事件；有明確的業務因素決定截止日期',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      '未知——尚未識別或討論業務痛點；解決方案在尋找問題',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       '推動中——內部支持者每週積極指導您、分享資訊並採取具體行動',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -448,6 +469,8 @@ const reviewedTermsByLocale = {
       "Quantificato: problema aziendale quantificato in base all'impatto commerciale; conseguenze dell'inazione documentate",
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'Urgente: più parti interessate confermano il problema aziendale; evento scatenante identificato; chiara ragione aziendale che impone la scadenza',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'Sconosciuto: nessun problema aziendale identificato o discusso; una soluzione in cerca di un problema',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'Mobilitazione: il sostenitore interno ti consiglia attivamente, condivide informazioni e intraprende azioni concrete ogni settimana',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -474,6 +497,8 @@ const reviewedTermsByLocale = {
       'परिमाणित — व्यावसायिक समस्या के प्रभाव को मापा गया; कार्रवाई न करने के परिणाम दर्ज किए गए',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'अत्यावश्यक — कई हितधारकों ने व्यावसायिक समस्या की पुष्टि की; प्रेरक घटना पहचानी गई; समय-सीमा तय करने वाला स्पष्ट व्यावसायिक कारण मौजूद है',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'अज्ञात — किसी व्यावसायिक समस्या की पहचान या चर्चा नहीं हुई; समस्या की तलाश में समाधान',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'सक्रिय — आंतरिक समर्थक आपको मार्गदर्शन देता है, जानकारी साझा करता है और हर सप्ताह ठोस कदम उठाता है',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -500,6 +525,8 @@ const reviewedTermsByLocale = {
       'วัดปริมาณแล้ว — วัดผลกระทบของปัญหาต่อธุรกิจเป็นตัวเลข และบันทึกผลของการไม่ดำเนินการแล้ว',
     'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
       'เร่งด่วน — ผู้มีส่วนได้ส่วนเสียหลายรายยืนยันปัญหาทางธุรกิจ ระบุเหตุการณ์กระตุ้นแล้ว และมีเหตุผลทางธุรกิจที่กำหนดเส้นตายอย่างชัดเจน',
+    'Unknown — No pain identified or discussed; solution looking for a problem':
+      'ไม่ทราบ — ยังไม่ได้ระบุหรือหารือปัญหาทางธุรกิจ; เป็นโซลูชันที่กำลังมองหาปัญหา',
     'Why Anything': 'ทำไมต้องเปลี่ยนแปลง',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '3 เหตุผลสำคัญ — (ทำไมต้องเปลี่ยนแปลง ทำไมต้องเป็นเรา ทำไมตอนนี้)',
@@ -668,6 +695,12 @@ describe('the remaining left-to-right catalogues', () => {
       }
     });
   }
+
+  test('the deal schema describes the shipped locale boundary accurately', () => {
+    const description = schema.properties.metadata.properties.locale.description;
+    expect(description).toMatch(/all listed locales except .*ar.*implemented/i);
+    expect(description).not.toMatch(/only .*en.*implemented/i);
+  });
 });
 
 describe('localized enum round trips', () => {
