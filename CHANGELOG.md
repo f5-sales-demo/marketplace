@@ -10,6 +10,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.4.0 — Japanese is now a shipped workbook locale. `generate --locale ja`
+  translates the tab, labels, schema guidance, dropdowns, formulas, conditional formatting, notes,
+  and completion statuses while leaving deal-owned values untouched.
+
+  - The catalogue covers all 199 workbook-owned source strings, carries a full SHA-256 freshness
+    stamp, and is refused when a required source is missing, stale, empty, ambiguous, or outside the
+    documented sizing bounds.
+  - One loaded locale context drives planning and serialization. Japanese enum and boolean values
+    read back from either their canonical, English, or translated forms, and the workbook records
+    `MeddpiccLocale` so reading never depends on the machine's ambient language.
+  - Japanese column-width and row-height overrides preserve the grid while accommodating CJK text.
+    The real-Excel UAT verifies all thirteen completion formulas, localized dropdowns and formatting,
+    autofit sizing, notes, edits, overflow refusal, and the partly-qualified deal in both English and
+    Japanese; the six Japanese captures show no clipped or stranded text.
+
 - **`meddpicc`** v7.3.0 — a workbook now records the words it put in its label cells, so a revised
   translation is no longer reported as rows having moved.
 

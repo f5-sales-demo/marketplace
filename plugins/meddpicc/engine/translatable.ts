@@ -16,7 +16,7 @@
  * translated, which is the distinction the oracle draws using `plan.inputCells` — the map that exists to
  * say which cells hold a person's value.
  */
-import { BOOLEAN_NO, BOOLEAN_YES, FALLBACK_HEADER } from './generate';
+import { BOOLEAN_NO, BOOLEAN_YES, FALLBACK_HEADER } from './display-words';
 import { ENUM_LABELS, enumLabel } from './labels';
 import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_LABELS } from './sections';

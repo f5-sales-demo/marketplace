@@ -334,6 +334,22 @@ describe('cli migrate', () => {
 });
 
 describe('--locale', () => {
+  test('Japanese is loaded before both inspection modes and the writing path', async () => {
+    const planned = await run(['generate', example, '--locale', 'ja', '--plan']);
+    expect(planned.code).toBe(0);
+    expect(JSON.parse(planned.out).sheets[0].name).toBe('MEDDPICC案件レビュー');
+
+    const heights = await run(['generate', example, '--locale', 'ja', '--prose-heights']);
+    expect(heights.code).toBe(0);
+    expect(heights.out).toContain('顧客');
+
+    const out = path.join(scratch, 'ja.xlsx');
+    expect((await run(['generate', example, '--locale', 'ja', '--out', out])).code).toBe(0);
+    const back = await run(['read', out, '--deal', example]);
+    expect(back.code).toBe(0);
+    expect(JSON.parse(back.out).proposals).toEqual([]);
+  });
+
   test('an explicit locale is validated on every path, not only the one that writes', () => {
     // `--plan --locale ko` used to exit 0 while the same request on the writing path was refused, because
     // resolution sat after the early returns. So whether an explicit locale was checked depended on which

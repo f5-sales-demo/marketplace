@@ -18,6 +18,7 @@
  * through `sharedStrings.xml` anyway, which the round-trip reader handles.
  */
 import { enumLabel } from './labels';
+import { ENGLISH_TRANSLATION, type TranslationContext, translateSource } from './translate';
 import { writeZip } from './zip';
 
 const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -672,13 +673,26 @@ function cellXml(cell: CellSpec): string {
   return `<c r="${cell.ref}"${s} t="inlineStr"><is><t xml:space="preserve">${escapeXml(cell.value)}</t></is></c>`;
 }
 
-function conditionalFormattingXml(formats: ConditionalFormat[] | undefined): string {
+function localizedRules(preset: CfPreset, context: TranslationContext): CfRule[] {
+  return CF_PRESETS[preset].map((rule) => ({
+    ...rule,
+    formulas: rule.formulas.map((formula) => {
+      const match = /^"((?:[^"]|"")+)"$/.exec(formula);
+      if (match === null) return formula;
+      const source = match[1].replace(/""/g, '"');
+      return excelString(translateSource(context, source));
+    }),
+  }));
+}
+
+function conditionalFormattingXml(formats: ConditionalFormat[] | undefined, context: TranslationContext): string {
   if (!formats?.length) return '';
   let priority = 1;
   return formats
     .map((format) => {
       const first = format.sqref.split(':')[0];
-      const wantsRow = CF_PRESETS[format.preset].some((rule) => rule.formulas.some((f) => f.includes(ROW_PLACEHOLDER)));
+      const presetRules = localizedRules(format.preset, context);
+      const wantsRow = presetRules.some((rule) => rule.formulas.some((f) => f.includes(ROW_PLACEHOLDER)));
       if (wantsRow && !format.rowRange) {
         throw new Error(
           `The "${format.preset}" format on ${format.sqref} needs a rowRange to resolve ${ROW_PLACEHOLDER}`,
@@ -688,7 +702,7 @@ function conditionalFormattingXml(formats: ConditionalFormat[] | undefined): str
         // Data nothing reads is data that lies: a rowRange here would look like it scoped the rule.
         throw new Error(`The "${format.preset}" format on ${format.sqref} was given a rowRange it does not use`);
       }
-      const rules = CF_PRESETS[format.preset]
+      const rules = presetRules
         .map((rule) => {
           const formulas = rule.formulas
             .map(
@@ -988,7 +1002,7 @@ function printXml(print: PrintSetup | undefined): string {
   );
 }
 
-function sheetXml(sheet: SheetSpec): string {
+function sheetXml(sheet: SheetSpec, context: TranslationContext): string {
   const cols = sheet.columns?.length
     ? `<cols>${sheet.columns.map((c) => `<col min="${c.min}" max="${c.max}" width="${c.width}" customWidth="1"/>`).join('')}</cols>`
     : '';
@@ -1029,7 +1043,7 @@ function sheetXml(sheet: SheetSpec): string {
     `<sheetFormatPr defaultRowHeight="15"/>${cols}` +
     `<sheetData>${rows}</sheetData>` +
     mergeCells +
-    conditionalFormattingXml(sheet.conditionalFormats) +
+    conditionalFormattingXml(sheet.conditionalFormats, context) +
     dataValidationsXml(sheet.validations) +
     printXml(sheet.print) +
     legacyDrawing +
@@ -1094,7 +1108,11 @@ function customPropsXml(props: WorkbookProperties): string {
   return `${XML_HEADER}<Properties xmlns="${NS_CUSTOM_PROPS}" xmlns:vt="${NS_VT}">${entries.join('')}</Properties>`;
 }
 
-export function buildWorkbook(sheets: readonly SheetSpec[], properties?: WorkbookProperties): Uint8Array {
+export function buildWorkbook(
+  sheets: readonly SheetSpec[],
+  properties?: WorkbookProperties,
+  context: TranslationContext = ENGLISH_TRANSLATION,
+): Uint8Array {
   if (sheets.length === 0) throw new Error('A workbook needs at least one sheet');
 
   const enc = (s: string) => new TextEncoder().encode(s);
@@ -1169,7 +1187,7 @@ export function buildWorkbook(sheets: readonly SheetSpec[], properties?: Workboo
     { name: 'xl/workbook.xml', data: enc(workbook) },
     { name: 'xl/_rels/workbook.xml.rels', data: enc(workbookRels) },
     { name: 'xl/styles.xml', data: enc(stylesXml()) },
-    ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s)) })),
+    ...sheets.map((s, i) => ({ name: sheetPath(i), data: enc(sheetXml(s, context)) })),
     ...notes.flatMap((part, i) =>
       part === null
         ? []

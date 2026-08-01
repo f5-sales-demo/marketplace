@@ -16,6 +16,9 @@ set -uo pipefail
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PLUGIN_ROOT="$(cd -- "$HERE/.." && pwd -P)"
 DEAL="${1:-$PLUGIN_ROOT/schema/example-deal.json}"
+UAT_LOCALE="${MEDDPICC_UAT_LOCALE:-en}"
+LOCALE_ARGS=(--locale "$UAT_LOCALE")
+LOCALE_FILE="$PLUGIN_ROOT/engine/locales/$UAT_LOCALE.json"
 WORK="$(mktemp -d)"
 OUT="$WORK/uat-deal.xlsx"
 BOOK="$(basename "$OUT")"
@@ -29,11 +32,6 @@ command -v jq >/dev/null 2>&1 || skip "jq unavailable"
 command -v osascript >/dev/null 2>&1 || skip "not macOS (no osascript)"
 [ -d "/Applications/Microsoft Excel.app" ] || skip "Microsoft Excel is not installed"
 
-# The workbook is ONE laid-out sheet, and nothing on it has a fixed address: a table starts wherever
-# the blocks above it end. So every address this script types into comes from `generate --plan` —
-# the generator's own map — rather than from a row number written here, which would go stale the
-# first time a section moved.
-SHEET="$(jq -r '.sheets[0].name' "$PLUGIN_ROOT/engine/workbook-spec.json")"
 # The content columns: from the one past the gutter to the last one the spec sizes. Both come from
 # the spec, so widening the grid moves every assertion built on them.
 content_start="$(jq -r '.sheets[0].columns[0].max + 1' "$PLUGIN_ROOT/engine/workbook-spec.json")"
@@ -88,20 +86,56 @@ canonical_enum_value() {
   (
     cd "$PLUGIN_ROOT" || exit 2
     bun -e '
+      import * as fs from "node:fs";
       import { canonicalEnumValue } from "./engine/labels.ts";
+      import { loadLocale, resolveLocale } from "./engine/locale.ts";
       const displayed = process.argv[1] ?? "";
-      const canonical = canonicalEnumValue(displayed);
+      const requested = process.argv[2] ?? "en";
+      const spec = JSON.parse(fs.readFileSync("./engine/workbook-spec.json", "utf8"));
+      const schema = JSON.parse(fs.readFileSync("./schema/meddpicc-schema.json", "utf8"));
+      const context = loadLocale(resolveLocale({ flag: requested, env: {} }), spec, schema);
+      const canonical = canonicalEnumValue(displayed, ["not_started", "partial", "complete"], context);
       if (canonical === undefined) {
         process.stderr.write(`No canonical enum value for ${JSON.stringify(displayed)}\n`);
         process.exit(1);
       }
       process.stdout.write(canonical);
-    ' -- "$displayed"
+    ' -- "$displayed" "$UAT_LOCALE"
   )
+}
+
+# Expected text comes from the locale catalogue, independently of the generator path being exercised.
+translate_source() {
+  local source="$1" translated
+  if [ "$UAT_LOCALE" = "en" ]; then
+    printf '%s' "$source"
+    return 0
+  fi
+  [ -f "$LOCALE_FILE" ] || fail "locale catalogue not found: $LOCALE_FILE"
+  translated="$(jq -er --arg source "$source" '.translations[$source]' "$LOCALE_FILE")" ||
+    fail "the $UAT_LOCALE catalogue has no translation for '$source'"
+  printf '%s' "$translated"
+}
+
+localized_list() {
+  local value out="" separator=""
+  while IFS= read -r value; do
+    [ -n "$value" ] || continue
+    out+="$separator$(translate_source "$value")"
+    separator=,
+  done
+  printf '%s' "$out"
 }
 
 # Start from a clean slate for the same reason, still only among our own names.
 close_our_workbooks
+
+# The workbook is ONE laid-out sheet, and its tab name is localized. Every address and the tab itself
+# come from the same plan rather than from English source text repeated in this script.
+uat_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan "${LOCALE_ARGS[@]}")" ||
+  fail "generate --plan failed for locale $UAT_LOCALE"
+SHEET="$(jq -r '.sheets[0].name // "MISSING"' <<<"$uat_plan")"
+[ "$SHEET" != "MISSING" ] || fail "the localized plan has no sheet"
 
 # Appearing in `get name of every workbook` means Excel has ACCEPTED the file, not that it has
 # finished with it. Writing too early fails silently, and the symptom is a later assertion reporting
@@ -140,8 +174,9 @@ OSA
   [ "$result" = "ok" ] || fail "$label did not apply: ${result:-<no output>}"
 }
 
-echo "==> generating $OUT"
-bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --out "$OUT" >/dev/null || fail "generate exited non-zero"
+echo "==> generating $OUT in $UAT_LOCALE"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --out "$OUT" "${LOCALE_ARGS[@]}" >/dev/null ||
+  fail "generate exited non-zero"
 
 # What the engine says, by its own arithmetic.
 score_json="$(bun "$PLUGIN_ROOT/engine/cli.ts" score "$DEAL")" || fail "score exited non-zero"
@@ -167,7 +202,6 @@ echo "    opened with no repair prompt"
 # The scorecard cells by NAME, from the plan. Scanning for a label was how this used to find them,
 # and it cannot survive translation: a Korean workbook has no cell reading "Total score", while
 # `scoreTotal` is the same id in every language.
-uat_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan)" || fail "generate --plan failed"
 named() {
   local ref
   ref="$(jq -r --arg id "$1" '.namedCells[$id] // "MISSING"' <<<"$uat_plan")"
@@ -476,7 +510,10 @@ echo "    Excel sees ${rules_seen:-<none>} conditional-format rule(s) on the sco
 
 # The point of deriving dropdowns from the schema is that they cannot drift from it, so compare
 # what Excel offers against what the schema says rather than against a literal repeated here.
-want_roles="$(jq -r '.properties.stakeholders.items.properties.roleInDeal.enum | join(",")' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+want_roles="$(
+  jq -r '.properties.stakeholders.items.properties.roleInDeal.enum[]' "$PLUGIN_ROOT/schema/meddpicc-schema.json" |
+    localized_list
+)"
 role_cell="$(table_cell stakeholders roleInDeal 0)"
 got_roles="$(ask "formula1 of (validation of range \"$role_cell\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
 echo "    role dropdown at $role_cell: Excel=[$got_roles] schema=[$want_roles]"
@@ -493,7 +530,8 @@ echo "    score dropdown at $score_first: Excel=[$got_scores]"
 bool_cell="$(table_cell stakeholders mustSayYes 0)"
 got_bool="$(ask "formula1 of (validation of range \"$bool_cell\" of worksheet \"$SHEET\" of workbook \"$BOOK\")")"
 echo "    boolean dropdown at $bool_cell: Excel=[$got_bool]"
-[ "$got_bool" = "Yes,No" ] || fail "the boolean dropdown is '$got_bool', expected Yes,No"
+want_bool="$(printf '%s\n%s\n' Yes No | localized_list)"
+[ "$got_bool" = "$want_bool" ] || fail "the boolean dropdown is '$got_bool', expected $want_bool"
 echo "PASS: Excel recognises the conditional formats and the schema-derived dropdowns, and sees no Excel Table"
 
 # ── The palette ────────────────────────────────────────────────────────────────────────────────
@@ -620,6 +658,24 @@ while IFS='|' read -r _t _o f rgb; do
   [ -n "$f" ] || continue
   assert_warm_and_faint "rating rule $f" "$rgb"
 done <<<"$rating_rules"
+
+# The two localized status vocabularies must move with their dropdowns. OOXML containing Japanese is
+# not enough: ask Excel for the formulas it actually accepted and resolved on each kind of status cell.
+completion_rules="$(cf_rules "$(table_cell sections status 0)")"
+want_partial="$(translate_source Partial)"
+want_not_started="$(translate_source 'Not started')"
+case "$completion_rules" in
+*"$want_partial"*"$want_not_started"* | *"$want_not_started"*"$want_partial"*) : ;;
+*) fail "completion formatting does not compare the localized words '$want_partial' and '$want_not_started': $completion_rules" ;;
+esac
+milestone_rules="$(cf_rules "$(table_cell milestones status 0)")"
+want_in_progress="$(translate_source 'In progress')"
+want_pending="$(translate_source Pending)"
+case "$milestone_rules" in
+*"$want_in_progress"*"$want_pending"* | *"$want_pending"*"$want_in_progress"*) : ;;
+*) fail "milestone formatting does not compare the localized words '$want_in_progress' and '$want_pending': $milestone_rules" ;;
+esac
+echo "    localized completion and milestone rules use the words their dropdowns show"
 echo "PASS: every wash Excel resolved is warm and faint, and nothing paints a value that is done"
 
 # And the part that matters: they have to FOLLOW an edit. Drop an element's score in Excel and the
@@ -765,7 +821,7 @@ echo "PASS: Excel accepts the merges, hides the grid and honours the print setup
 # The scratch cell sits beyond the content in both directions, so it is off-screen for the
 # screenshots below, and every measurement clears it and restores the row height afterwards.
 scratch_col="$(letters "$((content_end + 8))")"
-scratch_row=$(($(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan | jq -r '.sheets[0].rows') + 40))
+scratch_row=$(($(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --plan "${LOCALE_ARGS[@]}" | jq -r '.sheets[0].rows') + 40))
 height_failures=0
 height_checked=0
 
@@ -803,7 +859,8 @@ end run
 OSA
 }
 
-prose_rows="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --prose-heights)" || fail "generate --prose-heights failed"
+prose_rows="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$DEAL" --prose-heights "${LOCALE_ARGS[@]}")" ||
+  fail "generate --prose-heights failed"
 [ -n "$prose_rows" ] || fail "the plan reports no prose cells, so this stage cannot fail"
 while IFS=$'\t' read -r ref width ours text; do
   [ -n "$ref" ] || continue
@@ -866,6 +923,7 @@ for note_element in $note_elements; do
     "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
   [ "$note_want" != "MISSING" ] && [ -n "$note_want" ] ||
     fail "the schema declares no definition for $note_element, so this stage would prove nothing"
+  note_want="$(translate_source "$note_want")"
   note_got="$(read_note "$BOOK" "$note_ref")"
   case "$note_got" in
   *"execution error"* | *"syntax error"*)
@@ -1243,6 +1301,8 @@ echo "    at score 4: ${rub_four:0:48}"
 # What it says must be what the schema says, not merely something different.
 want_zero="$(jq -r '.properties.qualification.properties.metrics.properties.scoreDefinition.default["0"]' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
 want_four="$(jq -r '.properties.qualification.properties.metrics.properties.scoreDefinition.default["4"]' "$PLUGIN_ROOT/schema/meddpicc-schema.json")"
+want_zero="$(translate_source "$want_zero")"
+want_four="$(translate_source "$want_four")"
 [ "$rub_zero" = "$want_zero" ] || fail "at score 0 the rubric reads '$rub_zero', the schema says '$want_zero'"
 [ "$rub_four" = "$want_four" ] || fail "at score 4 the rubric reads '$rub_four', the schema says '$want_four'"
 [ "$rub_back" = "$rub_was" ] || fail "restoring the score did not restore the rubric ('$rub_back' vs '$rub_was')"
@@ -1289,11 +1349,13 @@ RT_DEAL="$WORK/rt-deal.json"
 RT_OUT="$WORK/rt.xlsx"
 RT_BOOK="$(basename "$RT_OUT")"
 cp "$DEAL" "$RT_DEAL" || fail "could not copy the deal"
-bun "$PLUGIN_ROOT/engine/cli.ts" generate "$RT_DEAL" --out "$RT_OUT" >/dev/null || fail "generate failed for the round trip"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$RT_DEAL" --out "$RT_OUT" "${LOCALE_ARGS[@]}" >/dev/null ||
+  fail "generate failed for the round trip"
 
 # Ask the plan where each field landed. Hard-coding an address here would make this pass while
 # reading the wrong cell, which is the entire failure mode the inputCells map exists to prevent.
-rt_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$RT_DEAL" --plan)" || fail "generate --plan failed"
+rt_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$RT_DEAL" --plan "${LOCALE_ARGS[@]}")" ||
+  fail "generate --plan failed"
 at() {
   jq -r --arg p "$1" --arg f "$2" '(.inputCells[] | select(.jsonPath == $p) | .[$f]) // "MISSING"' <<<"$rt_plan"
 }
@@ -1368,11 +1430,12 @@ echo "PASS: a note survives a save by Excel itself"
 # The boolean is typed as the WORD, which is what the dropdown offers and what the scorecard counts.
 # Writing `false` here made Excel store a logical value, which the reader refuses for exactly that
 # reason: the cell would say FALSE while the count beside it went on including it.
+no_word="$(translate_source No)"
 excel_do "the four hand edits" "  set wb to workbook \"$RT_BOOK\"
   set value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb to \"Globex Corporation\"
   set value of range \"$(at qualification.champion.score address)\" of worksheet \"$(at qualification.champion.score sheet)\" of wb to 2
   set value of range \"$(at metadata.closeDate address)\" of worksheet \"$(at metadata.closeDate sheet)\" of wb to \"2026-09-15\"
-  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to \"No\"
+  set value of range \"$(at 'stakeholders[0].mustSayYes' address)\" of worksheet \"$(at 'stakeholders[0].mustSayYes' sheet)\" of wb to \"$no_word\"
   if ((get value of range \"$(at metadata.accountName address)\" of worksheet \"$(at metadata.accountName sheet)\" of wb) as string) is not \"Globex Corporation\" then error \"the accountName write did not take in the open workbook\""
 
 # What the file looked like before Excel was asked to save it.
@@ -1445,9 +1508,10 @@ bun "$PLUGIN_ROOT/engine/cli.ts" validate "$nameless" >/dev/null || fail "the na
 nameless_out="$WORK/nameless.xlsx"
 nameless_book="$(basename "$nameless_out")"
 OUR_WORKBOOKS+=("$nameless_book")
-bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --out "$nameless_out" >/dev/null ||
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --out "$nameless_out" "${LOCALE_ARGS[@]}" >/dev/null ||
   fail "generate failed on the nameless-entry deal"
-nameless_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --plan)" || fail "generate --plan failed"
+nameless_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$nameless" --plan "${LOCALE_ARGS[@]}")" ||
+  fail "generate --plan failed"
 echo "==> opening a deal whose team member has a role and no name"
 open -a "Microsoft Excel" "$nameless_out" || fail "could not open $nameless_book"
 for _ in $(seq 1 30); do
@@ -1485,10 +1549,12 @@ jq --argjson n "$grown_capacity" '
 
 GROWN_OUT="$WORK/grown.xlsx"
 GROWN_BOOK="$(basename "$GROWN_OUT")"
-bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --out "$GROWN_OUT" >/dev/null || fail "generate failed for the overflow case"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --out "$GROWN_OUT" "${LOCALE_ARGS[@]}" >/dev/null ||
+  fail "generate failed for the overflow case"
 
 # Ask the plan where the table ends rather than assuming; the row below it is the one to type into.
-grown_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --plan)" || fail "generate --plan failed"
+grown_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$GROWN_DEAL" --plan "${LOCALE_ARGS[@]}")" ||
+  fail "generate --plan failed"
 grown_sheet="$(jq -r '(.tables[] | select(.id == "stakeholders") | .sheet)' <<<"$grown_plan")"
 grown_first="$(jq -r '(.tables[] | select(.id == "stakeholders") | .firstDataRow)' <<<"$grown_plan")"
 grown_rows="$(jq -r '(.tables[] | select(.id == "stakeholders") | .rows)' <<<"$grown_plan")"
@@ -1567,7 +1633,8 @@ jq '
 
 PARTIAL_OUT="$WORK/uat-partial.xlsx"
 PARTIAL_BOOK="$(basename "$PARTIAL_OUT")"
-bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PARTIAL" --out "$PARTIAL_OUT" >/dev/null || fail "generate failed on the partial deal"
+bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PARTIAL" --out "$PARTIAL_OUT" "${LOCALE_ARGS[@]}" >/dev/null ||
+  fail "generate failed on the partial deal"
 
 partial_score="$(bun "$PLUGIN_ROOT/engine/cli.ts" score "$PARTIAL")" || fail "score failed on the partial deal"
 want_partial_pct="$(jq -r '.overallScore' <<<"$partial_score")"
@@ -1584,7 +1651,8 @@ done
 [ "${partial_opened:-0}" = "1" ] || fail "Excel never listed $PARTIAL_BOOK"
 
 # By name from this deal's own plan: the partial deal has fewer answers, so its rows sit elsewhere.
-partial_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PARTIAL" --plan)" || fail "generate --plan failed on the partial deal"
+partial_plan="$(bun "$PLUGIN_ROOT/engine/cli.ts" generate "$PARTIAL" --plan "${LOCALE_ARGS[@]}")" ||
+  fail "generate --plan failed on the partial deal"
 partial_pct_cell="$(jq -r '.namedCells.scorePercent // "MISSING"' <<<"$partial_plan")"
 [ "$partial_pct_cell" != "MISSING" ] || fail "the partial plan has no scorePercent cell"
 got_partial_raw="$(

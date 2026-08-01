@@ -26,10 +26,10 @@
  *   cell's `2026-06-30` against a JSON `2026-06-30T09:15:00Z` as text would report a phantom
  *   edit on every read, and the reader would cry wolf until nobody read it.
  */
+
+import { booleanLabels, canonicalBooleanValue } from './display-words';
 import {
   anchorTextHash,
-  BOOLEAN_NO,
-  BOOLEAN_YES,
   dateToSerial,
   type InputCell,
   planWorkbook,
@@ -39,10 +39,11 @@ import {
 } from './generate';
 import { readPath, writePath } from './json-path';
 import { canonicalEnumValue } from './labels';
+import { DEFAULT_LOCALE, type LocaleContext, loadLocale } from './locale';
 import { schemaConstraint } from './schema-path';
 import { type ValidationResult, validateDeal } from './validate';
 import type { ValueType, WorkbookSpec } from './workbook-spec';
-import { ANCHOR_TEXT_PROPERTY, FINGERPRINT_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
+import { ANCHOR_TEXT_PROPERTY, FINGERPRINT_PROPERTY, LOCALE_PROPERTY, SCHEMA_HASH_PROPERTY } from './xlsx';
 import { readZip } from './zip';
 
 const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
@@ -233,12 +234,7 @@ type Coerced = { value: string | number | boolean | undefined } | { error: strin
  * Excel turns a typed TRUE into a logical value stored as `t="b"`, which `coerce` renders as the text
  * "TRUE" — so the same rule covers both the typed and the stored form.
  */
-const BOOLEAN_WORDS: Record<string, boolean> = {
-  [BOOLEAN_YES.toUpperCase()]: true,
-  [BOOLEAN_NO.toUpperCase()]: false,
-};
-
-function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
+function coerce(raw: RawCell | undefined, valueType: ValueType, context: LocaleContext): Coerced {
   const text = raw?.text;
   if (text === undefined || text.trim() === '') return { value: undefined };
 
@@ -251,10 +247,10 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
       return { value: text };
 
     case 'boolean': {
-      const word = raw?.type === 'b' ? (text === '1' ? 'TRUE' : 'FALSE') : text.trim().toUpperCase();
-      const value = BOOLEAN_WORDS[word];
+      const value = raw?.type === 'b' ? undefined : canonicalBooleanValue(text, context);
+      const [yes, no] = booleanLabels(context);
       return value === undefined
-        ? { error: `must be ${BOOLEAN_YES} or ${BOOLEAN_NO}, not "${text}" — those are the two the dropdown offers` }
+        ? { error: `must be ${yes} or ${no}, not "${text}" — those are the two the dropdown offers` }
         : { value };
     }
 
@@ -291,13 +287,19 @@ function coerce(raw: RawCell | undefined, valueType: ValueType): Coerced {
  * Either spelling is accepted: a rep may type what the dropdown offers or what they have seen in the
  * JSON.
  */
-function readCell(raw: RawCell | undefined, valueType: ValueType, schema: unknown, jsonPath: string): Coerced {
-  const coerced = coerce(raw, valueType);
+function readCell(
+  raw: RawCell | undefined,
+  valueType: ValueType,
+  schema: unknown,
+  jsonPath: string,
+  context: LocaleContext,
+): Coerced {
+  const coerced = coerce(raw, valueType, context);
   if ('error' in coerced) return coerced;
   if (typeof coerced.value === 'string') {
     const enumeration = schemaConstraint(schema, jsonPath)?.enum;
     if (enumeration) {
-      const canonical = canonicalEnumValue(coerced.value);
+      const canonical = canonicalEnumValue(coerced.value, enumeration, context);
       if (canonical !== undefined && enumeration.includes(canonical)) return { value: canonical };
     }
   }
@@ -389,6 +391,7 @@ function reorderedColumns(
   deal: unknown,
   cells: Map<string, Map<string, RawCell>>,
   schema: unknown,
+  context: LocaleContext,
 ): CellRejection[] {
   /** `list[].field` -> the cells of that column, in row order. */
   const columns = new Map<string, InputCell[]>();
@@ -422,7 +425,7 @@ function reorderedColumns(
       // In the DEAL's terms, not the sheet's. Comparing raw text against the deal left every column
       // the workbook displays differently — every enum, boolean and date — silently unchecked, because
       // "In progress" and `in_progress` can never form the same multiset.
-      const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath);
+      const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath, context);
       if ('error' in read) {
         // A value this reader cannot make sense of is rejected by the main loop with a better message
         // than this guard could give, so leave the whole column to it.
@@ -449,7 +452,7 @@ function reorderedColumns(
     // status a third already had is both ordinary and indistinguishable from a rearrangement by this
     // rule — refusing it would block real work. Two people swapping into each other's names is not
     // ordinary, and that is the difference.
-    const displaced = freeText ? countDisplaced(column, cells, deal, schema) : 0;
+    const displaced = freeText ? countDisplaced(column, cells, deal, schema, context) : 0;
 
     if (!permuted && displaced < 2) continue;
     out.push({
@@ -479,13 +482,14 @@ function countDisplaced(
   cells: Map<string, Map<string, RawCell>>,
   deal: unknown,
   schema: unknown,
+  context: LocaleContext,
 ): number {
   const comparable = (value: unknown) =>
     value === undefined || value === null ? '' : typeof value === 'string' ? value.trim() : String(value);
   const held = column.map((cell) => comparable(readPath(deal, cell.jsonPath)));
   let displaced = 0;
   for (const [index, cell] of column.entries()) {
-    const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath);
+    const read = readCell(cells.get(cell.sheet)?.get(cell.address), cell.valueType, schema, cell.jsonPath, context);
     if ('error' in read) return 0;
     const now = comparable(read.value);
     if (now === '' || now === held[index]) continue;
@@ -565,8 +569,32 @@ export interface ReadReport {
  * is worth reporting.
  */
 export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown, bytes: Uint8Array): ReadReport {
-  const plan = planWorkbook(schema, spec, deal);
   const working = JSON.parse(JSON.stringify(deal)) as unknown;
+
+  // The workbook is the only authority on the language its cells use. Ambient LANG is deliberately
+  // absent from this path: opening a Japanese workbook on an English machine cannot move its labels.
+  const recordedLocale = readWorkbookProperty(bytes, LOCALE_PROPERTY) ?? DEFAULT_LOCALE;
+  let context: LocaleContext;
+  try {
+    context = loadLocale({ slug: recordedLocale, from: 'workbook' }, spec, schema);
+  } catch (error) {
+    return {
+      ok: false,
+      cellsRead: 0,
+      unchanged: 0,
+      proposals: [],
+      rejections: [
+        {
+          reason: `cannot read this workbook's locale: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      deal: working,
+      valid: true,
+      errors: [],
+      notes: [],
+    };
+  }
+  const plan = planWorkbook(schema, spec, deal, context);
 
   const proposals: CellProposal[] = [];
   const rejections: CellRejection[] = [];
@@ -687,7 +715,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   // re-ordered — nobody edits two people's names into each other's, and no ordinary edit leaves the
   // multiset unchanged. So that pattern is refused by name while every real edit, which changes the
   // set, passes untouched.
-  const reordered = reorderedColumns(plan, working, cells, schema);
+  const reordered = reorderedColumns(plan, working, cells, schema, context);
   if (reordered.length > 0) {
     return {
       ok: false,
@@ -719,7 +747,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
       continue;
     }
 
-    const coerced = readCell(raw, valueType, schema, jsonPath);
+    const coerced = readCell(raw, valueType, schema, jsonPath, context);
     if ('error' in coerced) {
       reject(coerced.error);
       continue;
