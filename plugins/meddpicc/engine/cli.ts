@@ -56,28 +56,6 @@ function print(data: unknown): void {
 }
 
 /**
- * Every value given for a flag, in both spellings Unix accepts.
- *
- * `args.indexOf(name)` matched the separated form only, so `--out=deal.xlsx` was read as no `--out` at all
- * and the default path used instead — silently, and for every flag, not just the one this change is about.
- * Four rounds of review found four holes in that parser one at a time; parsing both forms once closes the
- * class rather than the instance.
- */
-function flagValues(args: string[], name: string): Array<string | undefined> {
-  const out: Array<string | undefined> = [];
-  for (const [i, arg] of args.entries()) {
-    if (arg === name) {
-      const next = args[i + 1];
-      // A following flag is not this flag's value; `--locale --out x` means `--locale` was given nothing.
-      out.push(next === undefined || next.startsWith('--') ? undefined : next);
-    } else if (arg.startsWith(`${name}=`)) {
-      out.push(arg.slice(name.length + 1));
-    }
-  }
-  return out;
-}
-
-/**
  * The value given for a flag, refusing every way of asking for one and not supplying it.
  *
  * Every flag here takes a value — the boolean ones are read with `includes` — so "present with nothing
