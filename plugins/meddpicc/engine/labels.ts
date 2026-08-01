@@ -22,6 +22,8 @@
  * of strings to keep in step.
  */
 
+import { type TranslationContext, translateSource } from './translate';
+
 /** JSON value -> the words the sheet shows for it. */
 export const ENUM_LABELS: Record<string, string> = {
   // `$defs.sectionStatus`, which `computeCompletion` emits.
@@ -39,6 +41,11 @@ export function enumLabel(value: string): string {
   return ENUM_LABELS[value] ?? value;
 }
 
+/** The words one locale shows for an enum token. */
+export function localizedEnumLabel(value: string, context: TranslationContext): string {
+  return translateSource(context, enumLabel(value));
+}
+
 /** The key a typed word is compared under: case and surrounding space are how people type, not meaning. */
 const matchKey = (text: string) => text.trim().toLowerCase();
 
@@ -49,37 +56,42 @@ const matchKey = (text: string) => text.trim().toLowerCase();
  * plan and a section can both be "Complete" — and only the members of one dropdown have to be told
  * apart from each other.
  */
-export function enumLabels(values: readonly string[]): string[] {
+export function enumLabels(values: readonly string[], context?: TranslationContext): string[] {
   const seen = new Map<string, string>();
   for (const value of values) {
-    const key = matchKey(enumLabel(value));
-    const already = seen.get(key);
-    if (already !== undefined) {
-      throw new Error(
-        `Enum values "${already}" and "${value}" both read as "${enumLabel(value)}" — ` +
-          'a workbook showing that word could not be read back',
-      );
+    const localized = context === undefined ? enumLabel(value) : localizedEnumLabel(value, context);
+    const accepted = [value, value.replace(/_/g, ' '), enumLabel(value), localized];
+    for (const spelling of accepted) {
+      const key = matchKey(spelling);
+      const already = seen.get(key);
+      if (already !== undefined && already !== value) {
+        throw new Error(
+          `Enum values "${already}" and "${value}" both read as "${spelling}" — ` +
+            'a workbook showing that word could not be read back',
+        );
+      }
+      seen.set(key, value);
     }
-    seen.set(key, value);
   }
-  return values.map(enumLabel);
+  return values.map((value) => (context === undefined ? enumLabel(value) : localizedEnumLabel(value, context)));
 }
 
-/** Every label, and every canonical value, mapped to the canonical value it stands for. */
-const CANONICAL: Map<string, string> = (() => {
-  const out = new Map<string, string>();
-  for (const [value, label] of Object.entries(ENUM_LABELS)) {
-    // The canonical value first: a rep may type what the dropdown offers or what they have seen in
-    // the JSON, and both are the same intent.
-    out.set(matchKey(value), value);
-    // `_` reads as a space to someone typing "in progress" rather than "in_progress".
-    out.set(matchKey(value.replace(/_/g, ' ')), value);
-    out.set(matchKey(label), value);
-  }
-  return out;
-})();
-
 /** The JSON value a typed word stands for, or undefined when it stands for none of them. */
-export function canonicalEnumValue(text: string): string | undefined {
-  return CANONICAL.get(matchKey(text));
+export function canonicalEnumValue(
+  text: string,
+  values: readonly string[] = Object.keys(ENUM_LABELS),
+  context?: TranslationContext,
+): string | undefined {
+  const key = matchKey(text);
+  const accepted = new Map<string, string>();
+  for (const value of values) {
+    const localized = context === undefined ? enumLabel(value) : localizedEnumLabel(value, context);
+    for (const spelling of [value, value.replace(/_/g, ' '), enumLabel(value), localized]) {
+      const normalized = matchKey(spelling);
+      const already = accepted.get(normalized);
+      if (already !== undefined && already !== value) return undefined;
+      accepted.set(normalized, value);
+    }
+  }
+  return accepted.get(key);
 }

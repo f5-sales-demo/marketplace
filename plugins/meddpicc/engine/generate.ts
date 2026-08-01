@@ -15,12 +15,22 @@ import { createHash } from 'node:crypto';
 import { computeCompletion } from './completion';
 import { cellResolver, compileStatus } from './completion-formula';
 import { SECTION_RULES } from './completion-rules';
+import { BOOLEAN_NO, BOOLEAN_YES, booleanLabels, FALLBACK_HEADER } from './display-words';
 import { computeElementHint } from './hint';
 import { readPath } from './json-path';
-import { enumLabel, enumLabels } from './labels';
-import { DEFAULT_LOCALE, normalizeLocaleTag, type ResolvedLocale, SHIPPED_LOCALES } from './locale';
+import { enumLabel, enumLabels, localizedEnumLabel } from './labels';
+import {
+  ENGLISH_LOCALE,
+  type LocaleContext,
+  loadLocale,
+  localize,
+  localizeSpec,
+  normalizeLocaleTag,
+  resolveLocale,
+  SHIPPED_LOCALES,
+} from './locale';
 import { schemaConstraint } from './schema-path';
-import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel, statusLabel } from './sections';
+import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT, neededRowHeight } from './text-metrics';
 import {
   parseReferences,
@@ -77,10 +87,13 @@ export function dateToSerial(value: unknown): number | null {
 
 /** Coerce a deal value for a cell of this type. `undefined` means leave the cell blank. */
 /** How a boolean reads on the sheet. */
-export const BOOLEAN_YES = 'Yes';
-export const BOOLEAN_NO = 'No';
+export { BOOLEAN_NO, BOOLEAN_YES, FALLBACK_HEADER } from './display-words';
 
-function toCellValue(value: unknown, valueType: ValueType): string | number | boolean | undefined {
+function toCellValue(
+  value: unknown,
+  valueType: ValueType,
+  context: LocaleContext,
+): string | number | boolean | undefined {
   if (value === undefined || value === null || value === '') {
     // An unscored element is 0, not blank. `computeScore` already counts it as 0, and Excel's
     // COUNT/COUNTIF skip blanks — so leaving it empty made the sheet disagree with the engine
@@ -92,7 +105,7 @@ function toCellValue(value: unknown, valueType: ValueType): string | number | bo
   // boolean in shouting capitals. The reader accepts either spelling, so nothing is lost by writing
   // the readable one — and a boolean cell gets a Yes/No dropdown, which the manual sheet did not have.
   if (valueType === 'boolean') {
-    if (typeof value === 'boolean') return value ? BOOLEAN_YES : BOOLEAN_NO;
+    if (typeof value === 'boolean') return localize(context, value ? BOOLEAN_YES : BOOLEAN_NO);
     return value === undefined || value === null ? undefined : String(value);
   }
   if (valueType === 'integer' || valueType === 'number' || valueType === 'currency' || valueType === 'percent') {
@@ -113,10 +126,11 @@ function displayValue(
   schema: unknown,
   jsonPath: string,
   value: string | number | boolean | undefined,
+  context: LocaleContext,
 ): string | number | boolean | undefined {
   if (typeof value !== 'string') return value;
   const constraint = schemaConstraint(schema, jsonPath);
-  return constraint?.enum?.includes(value) ? enumLabel(value) : value;
+  return constraint?.enum?.includes(value) ? localizedEnumLabel(value, context) : value;
 }
 
 /**
@@ -317,15 +331,20 @@ export interface WorkbookPlan {
  * An enum lists them directly. A bounded integer — which is what a 0-4 score is — enumerates
  * its range instead, so the score column gets 0,1,2,3,4 without anyone typing that anywhere.
  */
-function validationValues(schema: unknown, jsonPath: string, valueType?: ValueType): string[] | undefined {
+function validationValues(
+  schema: unknown,
+  jsonPath: string,
+  valueType: ValueType | undefined,
+  context: LocaleContext,
+): string[] | undefined {
   // A boolean has no enum to read, but it has exactly two values and they are worth offering.
-  if (valueType === 'boolean') return [BOOLEAN_YES, BOOLEAN_NO];
+  if (valueType === 'boolean') return booleanLabels(context);
   const constraint = schemaConstraint(schema, jsonPath);
   if (!constraint) return undefined;
   // The words the CELL shows, so the dropdown offers what is already in the cell beside it. Offering
   // `in_progress` under a cell reading "In progress" makes Excel refuse the value it wrote itself.
   // `enumLabels` refuses a set whose labels collide, because read-back could not tell them apart.
-  if (constraint.enum) return enumLabels(constraint.enum);
+  if (constraint.enum) return enumLabels(constraint.enum, context);
   const { minimum, maximum } = constraint;
   if (minimum === undefined || maximum === undefined) return undefined;
   if (!Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum - minimum > 20) return undefined;
@@ -402,6 +421,25 @@ const DEFAULT_COLUMN_WIDTH = 8.43;
  * sheet is read.
  */
 const SHEET_ZOOM = 75;
+
+/** Apply per-column locale widths while preserving the same grid and merge geometry. */
+function localizedColumns(
+  columns: Array<{ min: number; max: number; width: number }>,
+  context: LocaleContext,
+): Array<{ min: number; max: number; width: number }> {
+  const overrides = context.sizing?.columnWidths;
+  if (overrides === undefined || Object.keys(overrides).length === 0) return columns;
+  const expanded: Array<{ min: number; max: number; width: number }> = [];
+  for (const range of columns) {
+    for (let column = range.min; column <= range.max; column++) {
+      const width = overrides[columnLetter(column)] ?? range.width;
+      const previous = expanded.at(-1);
+      if (previous !== undefined && previous.max + 1 === column && previous.width === width) previous.max = column;
+      else expanded.push({ min: column, max: column, width });
+    }
+  }
+  return expanded;
+}
 
 /** Where a block landed, so pass 2 can render it without re-deriving the arithmetic. */
 export interface PlacedBlock {
@@ -520,6 +558,7 @@ function resolveFormula(
   ctx: { sheet: string; table?: TableLayout; row?: number },
   named: Map<string, { sheet: string; address: string }>,
   tables: Map<string, TableLayout>,
+  context: LocaleContext,
 ): string {
   let out = formula;
   for (const ref of parseReferences(formula)) {
@@ -539,7 +578,7 @@ function resolveFormula(
       // Latent while every word here is one plain enum label, and live the moment #925 supplies
       // translations: a quotation mark is unremarkable in prose, and the words a formula compares against
       // are exactly the dropdown values a translation replaces.
-      replacement = excelString(word);
+      replacement = excelString(localize(context, word));
     } else if (ref.kind === 'ref') {
       const target = named.get(ref.target);
       if (!target) throw new Error(`${ctx.sheet}: {{ref:${ref.target}}} names no cell`);
@@ -574,7 +613,7 @@ function resolveFormula(
         const valueRange = `${prefix}${A1(col, found.firstDataRow)}:${A1(col, last)}`;
         const keyRange = `${prefix}${A1(keyCol, found.firstDataRow)}:${A1(keyCol, last)}`;
         // The key column displays a label, so that is what MATCH has to look for.
-        replacement = `INDEX(${valueRange},MATCH(${excelString(sectionLabel(rowKey))},${keyRange},0))`;
+        replacement = `INDEX(${valueRange},MATCH(${excelString(localize(context, sectionLabel(rowKey)))},${keyRange},0))`;
       } else {
         // An empty table still needs a syntactically valid range, so span at least one row.
         const last = found.firstDataRow + Math.max(found.rowCount, 1) - 1;
@@ -595,7 +634,13 @@ function resolveFormula(
  * this throws if it ever gets past, because a workbook silently missing the definitions is exactly
  * the outcome the note exists to prevent.
  */
-function noteText(source: string, entry: TableLayout['items'][number], table: SpecTable, schema: unknown): string {
+function noteText(
+  source: string,
+  entry: TableLayout['items'][number],
+  table: SpecTable,
+  schema: unknown,
+  context: LocaleContext,
+): string {
   if (source === 'elementDefinition') {
     if (table.source.kind !== 'elements') {
       throw new Error(`table "${table.id}" asks for element definitions, and its rows are not elements`);
@@ -605,7 +650,7 @@ function noteText(source: string, entry: TableLayout['items'][number], table: Sp
     if (definition === '') {
       throw new Error(`the schema declares no definition for "${element}", so its note would be an empty box`);
     }
-    return definition;
+    return localize(context, definition);
   }
   throw new Error(`no note text for "${source}" — the spec asks for a kind of note the generator does not know`);
 }
@@ -632,11 +677,14 @@ function derivedCandidates(
   entry: TableLayout['items'][number],
   table: SpecTable,
   schema: unknown,
+  context: LocaleContext,
 ): Array<{ score: string; text: string }> | null {
   if (table.source.kind !== 'elements' || column.id !== 'rubric') return null;
   const definitions = computeElementHint(schema, entry.key as string).scoreDefinition;
   const entries = Object.entries(definitions).filter(([, text]) => typeof text === 'string' && text !== '');
-  return entries.length === 0 ? null : entries.map(([score, text]) => ({ score, text: text as string }));
+  return entries.length === 0
+    ? null
+    : entries.map(([score, text]) => ({ score, text: localize(context, text as string) }));
 }
 
 /** The lookup as a formula, switching on `scoreRef`. */
@@ -659,34 +707,39 @@ function derivedValue(
   schema: unknown,
   deal: unknown,
   completion: Record<string, string>,
+  context: LocaleContext,
 ): string | number | boolean | undefined {
   const source = table.source.kind;
 
   if (source === 'elements') {
     const element = entry.key as string;
     const hint = computeElementHint(schema, element);
-    if (column.id === 'element') return sectionLabel(element);
+    if (column.id === 'element') return localize(context, sectionLabel(element));
     if (column.id === 'rubric') {
       const score = readPath(deal, `qualification.${element}.score`);
-      return hint.scoreDefinition[String(typeof score === 'number' ? score : 0)] ?? '';
+      const wording = hint.scoreDefinition[String(typeof score === 'number' ? score : 0)] ?? '';
+      return wording === '' ? '' : localize(context, wording);
     }
-    if (column.id === 'status') return statusLabel(completion[element]);
+    if (column.id === 'status') return localizedEnumLabel(completion[element], context);
     return undefined;
   }
 
   if (source === 'sections') {
     const section = entry.key as string;
-    if (column.id === 'section') return sectionLabel(section);
-    if (column.id === 'status') return statusLabel(completion[section]);
+    if (column.id === 'section') return localize(context, sectionLabel(section));
+    if (column.id === 'status') return localizedEnumLabel(completion[section], context);
     return undefined;
   }
 
   if (source === 'elementResponses') {
     const element = entry.element as string;
     const index = entry.index as number;
-    if (column.id === 'element') return sectionLabel(element);
+    if (column.id === 'element') return localize(context, sectionLabel(element));
     if (column.id === 'position') return index + 1;
-    if (column.id === 'question') return computeElementHint(schema, element).questions[index];
+    if (column.id === 'question') {
+      const question = computeElementHint(schema, element).questions[index];
+      return question === undefined ? undefined : localize(context, question);
+    }
     return undefined;
   }
 
@@ -694,8 +747,6 @@ function derivedValue(
 }
 
 /** What the header says when the deal names nothing — see {@link presentation}. */
-export const FALLBACK_HEADER = 'MEDDPICC Deal Review';
-
 /**
  * Presentation settings every sheet shares: no grid, and a print setup that puts the deal on
  * paper the way a review expects rather than spread over six portrait pages.
@@ -704,7 +755,7 @@ export const FALLBACK_HEADER = 'MEDDPICC Deal Review';
  * the cells and their borders are unchanged — and is the single largest visual difference
  * between this and a sheet somebody laid out by hand.
  */
-function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'> {
+function presentation(deal: unknown, context: LocaleContext): Pick<SheetSpec, 'hideGridlines' | 'print'> {
   // Parts, not one joined string: the writer shares Excel's 255-character header budget across
   // them, so a very long account name cannot crowd a later part out and leave every deal for that
   // account printing identically.
@@ -726,12 +777,18 @@ function presentation(deal: unknown): Pick<SheetSpec, 'hideGridlines' | 'print'>
       orientation: 'landscape',
       fitToWidth: true,
       // Never nothing: an unlabelled printout is worse than a generic one.
-      header: header.length ? header : [FALLBACK_HEADER],
+      header: header.length ? header : [localize(context, FALLBACK_HEADER)],
     },
   };
 }
 
-export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown): WorkbookPlan {
+export function planWorkbook(
+  schema: unknown,
+  sourceSpec: WorkbookSpec,
+  deal: unknown,
+  context: LocaleContext = ENGLISH_LOCALE,
+): WorkbookPlan {
+  const spec = localizeSpec(sourceSpec, context);
   const { named, tables, placed } = layout(schema, spec, deal);
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
   const inputCells: InputCell[] = [];
@@ -753,6 +810,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   const writtenCells: string[] = [];
 
   for (const s of spec.sheets) {
+    const sheetColumns = localizedColumns(s.columns, context);
     const byRow = new Map<number, CellSpec[]>();
     const heights = new Map<number, number>();
     const merges: string[] = [];
@@ -766,14 +824,14 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     };
     /** Column widths by grid index, so a span can be turned into a character count. */
     const widthOf = (column: number) =>
-      s.columns.find((c) => column >= c.min && column <= c.max)?.width ?? DEFAULT_COLUMN_WIDTH;
+      sheetColumns.find((c) => column >= c.min && column <= c.max)?.width ?? DEFAULT_COLUMN_WIDTH;
     const spanWidth = (column: number, span: number) => {
       let total = 0;
       for (let c = column; c < column + span; c++) total += widthOf(c);
       return total;
     };
     const contentStart = 2;
-    const contentEnd = s.columns.reduce((widest, c) => Math.max(widest, c.max), contentStart);
+    const contentEnd = sheetColumns.reduce((widest, c) => Math.max(widest, c.max), contentStart);
     /** Declare a merge, unless the cell is only one column wide. */
     const mergeSpan = (column: number, row: number, span: number) => {
       if (span > 1) merges.push(`${A1(column, row)}:${A1(column + span - 1, row)}`);
@@ -793,7 +851,8 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
     };
     /** A row's height is the tallest thing on it, and prose decides it. */
     const needHeight = (row: number, height: number) => {
-      heights.set(row, Math.max(heights.get(row) ?? 0, height));
+      const scaled = Math.min(MAX_ROW_HEIGHT, height * (context.sizing?.rowHeightScale ?? 1));
+      heights.set(row, Math.max(heights.get(row) ?? 0, scaled));
     };
 
     for (const { block, row, columns } of placed.get(s.name) ?? []) {
@@ -848,7 +907,8 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             const value = displayValue(
               schema,
               cell.jsonPath,
-              toCellValue(readPath(deal, cell.jsonPath), cell.valueType),
+              toCellValue(readPath(deal, cell.jsonPath), cell.valueType, context),
+              context,
             );
             push(row, { ref, value, style });
             inputCells.push({ jsonPath: cell.jsonPath, sheet: s.name, address: ref, valueType: cell.valueType });
@@ -858,14 +918,18 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
               measureProse(row, ref, value, column, cell.span);
             }
             if (cell.validate) {
-              const values = validationValues(schema, cell.jsonPath, cell.valueType);
+              const values = validationValues(schema, cell.jsonPath, cell.valueType, context);
               if (values) validations.push({ sqref: ref, values });
             }
             if (cell.shadeWhenEmpty) {
               formats.push({ sqref: ref, preset: cell.shadeWhenEmpty === 'wanted' ? 'wanted' : 'missing' });
             }
           } else {
-            push(row, { ref, formula: resolveFormula(cell.formula, { sheet: s.name }, named, tables), style });
+            push(row, {
+              ref,
+              formula: resolveFormula(cell.formula, { sheet: s.name }, named, tables, context),
+              style,
+            });
           }
           if (cell.conditionalFormat) formats.push({ sqref: ref, preset: cell.conditionalFormat });
         });
@@ -951,13 +1015,19 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
           // grouped-run check above, so it lands on a cell a reader can actually hover rather than on
           // one the merge hides — which the writer refuses outright.
           if (spec.note !== undefined) {
-            notes.push({ sheet: s.name, address: ref, text: noteText(spec.note, entry, table, schema) });
+            notes.push({ sheet: s.name, address: ref, text: noteText(spec.note, entry, table, schema, context) });
           }
 
           if (spec.role === 'computed' && spec.formula) {
             push(dataRow, {
               ref,
-              formula: resolveFormula(spec.formula, { sheet: s.name, table: info, row: dataRow }, named, tables),
+              formula: resolveFormula(
+                spec.formula,
+                { sheet: s.name, table: info, row: dataRow },
+                named,
+                tables,
+                context,
+              ),
               style,
             });
             continue;
@@ -965,7 +1035,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
 
           if (spec.role === 'input' && spec.jsonPath) {
             const jsonPath = inputPathFor(table, spec, entry);
-            const value = displayValue(schema, jsonPath, toCellValue(readPath(deal, jsonPath), spec.valueType));
+            const value = displayValue(
+              schema,
+              jsonPath,
+              toCellValue(readPath(deal, jsonPath), spec.valueType, context),
+              context,
+            );
             push(dataRow, { ref, value, style });
             inputCells.push({ jsonPath, sheet: s.name, address: ref, valueType: spec.valueType });
             if (spec.valueType === 'text') {
@@ -984,7 +1059,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
           // A lookup Excel can do itself — see `derivedCandidates`. The row is sized for the longest
           // wording rather than the current one, because a height cannot follow a formula and sizing
           // it to today's text clips the cell the moment a longer one is selected.
-          const candidates = derivedCandidates(spec, entry, table, schema);
+          const candidates = derivedCandidates(spec, entry, table, schema, context);
           if (candidates !== null) {
             const scoreColumn = info.columns.get('score');
             if (scoreColumn === undefined) {
@@ -1010,7 +1085,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
             continue;
           }
 
-          const derived = derivedValue(spec, entry, table, schema, deal, completion);
+          const derived = derivedValue(spec, entry, table, schema, deal, completion, context);
           push(dataRow, { ref, value: derived, style });
           // A derived cell says which element or question its row is about, and nothing a person may
           // legitimately edit changes it — so it anchors the row. Anchoring only the declared key
@@ -1053,7 +1128,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
         }
         if (spec.role === 'input' && spec.validate && spec.jsonPath) {
           // Any row's path resolves to the same schema node, so the first one answers for all.
-          const values = validationValues(schema, inputPathFor(table, spec, info.items[0] ?? {}), spec.valueType);
+          const values = validationValues(
+            schema,
+            inputPathFor(table, spec, info.items[0] ?? {}),
+            spec.valueType,
+            context,
+          );
           if (values) validations.push({ sqref, values });
         }
         column += span;
@@ -1068,12 +1148,12 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
       rows: [...byRow.entries()]
         .sort(([a], [b]) => a - b)
         .map(([row, cells]) => ({ row, cells, height: heights.get(row) })),
-      columns: s.columns,
+      columns: sheetColumns,
       // Freeze under the title so the deal's name stays put while the rest scrolls.
       freezeAtRow: 1,
       zoom: SHEET_ZOOM,
       merges: merges.length ? merges : undefined,
-      ...presentation(deal),
+      ...presentation(deal, context),
       conditionalFormats: formats.length ? formats : undefined,
       validations: validations.length ? validations : undefined,
       notes: sheetNotes.length ? sheetNotes : undefined,
@@ -1083,7 +1163,7 @@ export function planWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown)
   for (const { cell, section, sheet } of pendingStatuses) {
     const rule = SECTION_RULES[section];
     if (!rule) throw new Error(`the Completion block names section "${section}", which has no rule`);
-    cell.formula = compileStatus(rule, cellResolver(inputCells, sheet));
+    cell.formula = compileStatus(rule, cellResolver(inputCells, sheet), context);
   }
 
   return {
@@ -1229,7 +1309,7 @@ export function workbookProperties(
    * planned. Left optional so that a caller with no opinion still records the default rather than
    * nothing, since a workbook that does not say what language it is in is worse than one that guesses.
    */
-  resolved: ResolvedLocale = { slug: DEFAULT_LOCALE, from: 'default' },
+  resolved: LocaleContext = ENGLISH_LOCALE,
 ): WorkbookProperties {
   const locale = resolved.slug;
   if (!SHIPPED_LOCALES.includes(locale)) {
@@ -1275,9 +1355,12 @@ export function generateWorkbook(
   spec: WorkbookSpec,
   deal: unknown,
   engineVersion?: string,
-  /** Resolved by the caller — see {@link workbookProperties}. Defaults to English. */
-  resolved: ResolvedLocale = { slug: DEFAULT_LOCALE, from: 'default' },
+  /** Resolved and loaded by the caller — see {@link workbookProperties}. */
+  context?: LocaleContext,
 ): Uint8Array {
-  const plan = planWorkbook(schema, spec, deal);
-  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion, resolved));
+  // Compatibility for programmatic callers that have no ambient environment: the deal may still make
+  // an explicit request, and that request must be loaded or refused rather than stamped over with English.
+  const loaded = context ?? loadLocale(resolveLocale({ deal, env: {} }), spec, schema);
+  const plan = planWorkbook(schema, spec, deal, loaded);
+  return buildWorkbook(plan.sheets, workbookProperties(schema, plan, deal, engineVersion, loaded), loaded);
 }

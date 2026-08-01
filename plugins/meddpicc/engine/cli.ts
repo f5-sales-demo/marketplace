@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
-import { resolveLocale } from './locale';
+import { loadLocale, resolveLocale } from './locale';
 
 /**
  * What built the workbook, recorded in the file.
@@ -270,10 +270,10 @@ async function main(): Promise<number> {
     // Resolved BEFORE the early returns below. `--plan --locale ko` used to exit 0 while the same request
     // on the writing path was refused, so an explicit locale was validated or ignored depending on which
     // flag came with it. Review caught that; the resolution belongs to the command, not to one branch.
-    const locale = resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env });
+    const locale = loadLocale(resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env }), spec, schema);
 
     if (rest.includes('--prose-heights')) {
-      const plan = planWorkbook(schema, spec, deal);
+      const plan = planWorkbook(schema, spec, deal, locale);
       const heightOf = new Map<string, number>();
       for (const sheet of plan.sheets) {
         for (const row of sheet.rows) heightOf.set(`${sheet.name}!${row.row}`, row.height ?? 0);
@@ -299,7 +299,7 @@ async function main(): Promise<number> {
     // `--plan` reports where every input landed without writing a file — that map is what
     // the round-trip reader consumes, so being able to inspect it is worth a flag.
     if (rest.includes('--plan')) {
-      const plan = planWorkbook(schema, spec, deal);
+      const plan = planWorkbook(schema, spec, deal, locale);
       print({
         sheets: plan.sheets.map((s) => ({ name: s.name, rows: s.rows.length })),
         namedCells: plan.namedCells,
@@ -321,7 +321,7 @@ async function main(): Promise<number> {
       return 1;
     }
     await Bun.write(outPath, generateWorkbook(schema, spec, deal, ENGINE_VERSION, locale));
-    const plan = planWorkbook(schema, spec, deal);
+    const plan = planWorkbook(schema, spec, deal, locale);
     // Reported in the result, not thrown: a long note is not a reason to refuse a workbook. But a
     // merged cell cannot autofit and Excel's tallest row is 409.5 points, so text needing more ends
     // mid-sentence with nothing on the sheet to show it — which is precisely the kind of silence this

@@ -24,6 +24,7 @@
  */
 import { entryFieldsOf, type Predicate, type SectionRule } from './completion-rules';
 import { type InputCell, sheetPrefix } from './generate';
+import type { LocaleContext } from './locale';
 import { statusLabel } from './sections';
 import { columnIndex, excelString } from './xlsx';
 
@@ -238,10 +239,10 @@ export function compilePredicate(predicate: Predicate, resolve: CellResolver): s
  * column is coloured by matching them and the scorecard counts them — a formula answering "complete"
  * where the cell used to read "Complete" is a colour that never appears and a count stuck at nought.
  */
-export function compileStatus(rule: SectionRule, resolve: CellResolver): string {
+export function compileStatus(rule: SectionRule, resolve: CellResolver, context?: LocaleContext): string {
   const complete = compilePredicate(rule.complete, resolve);
   const started = compilePredicate(rule.started, resolve);
   // Through `excelString`, like every other label that reaches a formula: a translated status carrying a
   // quotation mark would otherwise close the string it sits in.
-  return `IF(${complete},${excelString(statusLabel('complete'))},IF(${started},${excelString(statusLabel('partial'))},${excelString(statusLabel('not_started'))}))`;
+  return `IF(${complete},${excelString(statusLabel('complete', context))},IF(${started},${excelString(statusLabel('partial', context))},${excelString(statusLabel('not_started', context))}))`;
 }

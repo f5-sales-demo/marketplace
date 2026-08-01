@@ -19,6 +19,14 @@
  * in; `read` uses that. Nothing here is called on the reading path.
  */
 
+import { createHash } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import localeIndex from './locales/index.json' with { type: 'json' };
+import { isNonProse, translatableSet } from './translatable';
+import { type TranslationContext, translateSource } from './translate';
+import type { WorkbookSpec } from './workbook-spec';
+
 /** The language everything falls back to, and the only one shipped until the locale files land. */
 export const DEFAULT_LOCALE = 'en';
 
@@ -29,10 +37,21 @@ export const DEFAULT_LOCALE = 'en';
  * registry and a second copy drifts from it — so this is built from the locale files present. There are
  * none yet, which is why it is English alone.
  */
-export const SHIPPED_LOCALES: readonly string[] = [DEFAULT_LOCALE];
+const indexedLocales = (localeIndex as { locales?: unknown }).locales;
+if (!Array.isArray(indexedLocales) || indexedLocales.some((slug) => typeof slug !== 'string')) {
+  throw new Error('engine/locales/index.json must contain a string array named "locales"');
+}
+const localeSlugs = indexedLocales as string[];
+if (
+  localeSlugs.some((slug) => !/^[a-z]{2}(?:-[a-z]{2})?$/.test(slug) || slug === DEFAULT_LOCALE) ||
+  new Set(localeSlugs).size !== localeSlugs.length
+) {
+  throw new Error('engine/locales/index.json contains a duplicate, invalid, or reserved locale slug');
+}
+export const SHIPPED_LOCALES: readonly string[] = Object.freeze([DEFAULT_LOCALE, ...localeSlugs]);
 
 /** Where a resolved locale came from, which decides whether an unshipped one is refused or ignored. */
-export type LocaleOrigin = 'flag' | 'deal' | 'env' | 'os' | 'default' | 'fallback';
+export type LocaleOrigin = 'flag' | 'deal' | 'env' | 'os' | 'default' | 'fallback' | 'workbook';
 
 export interface ResolvedLocale {
   /** A shipped locale, in canonical lowercase-slug form. */
@@ -40,6 +59,175 @@ export interface ResolvedLocale {
   from: LocaleOrigin;
   /** What an ambient source asked for, when it could not be honoured. Present only for `fallback`. */
   unresolved?: string;
+}
+
+export interface LocaleSizing {
+  /** Individual Excel columns, by letter. The layout and every span remain unchanged. */
+  columnWidths?: Readonly<Record<string, number>>;
+  /** Applied to every planned row height. */
+  rowHeightScale?: number;
+}
+
+export interface LocaleCatalogue {
+  locale: string;
+  /** SHA-256 of the sorted English source strings, in full. */
+  sourceHash: string;
+  translations: Readonly<Record<string, string>>;
+  sizing?: LocaleSizing;
+}
+
+/** The one object every rendering path receives; no planner detects a locale for itself. */
+export interface LocaleContext extends ResolvedLocale, LocaleCatalogue, TranslationContext {}
+
+export const ENGLISH_LOCALE: LocaleContext = Object.freeze({
+  slug: DEFAULT_LOCALE,
+  from: 'default',
+  locale: DEFAULT_LOCALE,
+  sourceHash: '',
+  translations: Object.freeze({}),
+});
+
+/** Stable freshness stamp for a set of English source strings. */
+export function localeSourceHash(sources: Iterable<string>): string {
+  return createHash('sha256')
+    .update(JSON.stringify([...sources].sort()))
+    .digest('hex');
+}
+
+function catalogueObject(raw: unknown, resolved: ResolvedLocale): LocaleCatalogue {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`The ${resolved.slug} locale catalogue is not a JSON object`);
+  }
+  const value = raw as Record<string, unknown>;
+  if (value.locale !== resolved.slug) {
+    throw new Error(`The ${resolved.slug} locale catalogue identifies itself as ${JSON.stringify(value.locale)}`);
+  }
+  if (typeof value.sourceHash !== 'string' || !/^[0-9a-f]{64}$/.test(value.sourceHash)) {
+    throw new Error(`The ${resolved.slug} locale catalogue has no full SHA-256 sourceHash`);
+  }
+  if (!value.translations || typeof value.translations !== 'object' || Array.isArray(value.translations)) {
+    throw new Error(`The ${resolved.slug} locale catalogue has no translations object`);
+  }
+  const translations = value.translations as Record<string, unknown>;
+  for (const [source, translated] of Object.entries(translations)) {
+    if (source.trim() === '' || typeof translated !== 'string' || translated.trim() === '') {
+      throw new Error(`The ${resolved.slug} translation for ${JSON.stringify(source)} is empty or not text`);
+    }
+  }
+  const sourceHash = localeSourceHash(Object.keys(translations));
+  if (sourceHash !== value.sourceHash) {
+    throw new Error(
+      `The ${resolved.slug} locale catalogue is stale: sourceHash is ${value.sourceHash}, expected ${sourceHash}`,
+    );
+  }
+
+  let sizing: LocaleSizing | undefined;
+  if (value.sizing !== undefined) {
+    if (!value.sizing || typeof value.sizing !== 'object' || Array.isArray(value.sizing)) {
+      throw new Error(`The ${resolved.slug} locale sizing must be an object`);
+    }
+    const rawSizing = value.sizing as Record<string, unknown>;
+    const scale = rawSizing.rowHeightScale;
+    if (scale !== undefined && (typeof scale !== 'number' || !Number.isFinite(scale) || scale < 1 || scale > 2)) {
+      throw new Error(`The ${resolved.slug} rowHeightScale must be between 1.0 and 2.0`);
+    }
+    const widths = rawSizing.columnWidths;
+    if (widths !== undefined && (!widths || typeof widths !== 'object' || Array.isArray(widths))) {
+      throw new Error(`The ${resolved.slug} columnWidths must be an object`);
+    }
+    const checkedWidths: Record<string, number> = {};
+    for (const [column, width] of Object.entries((widths ?? {}) as Record<string, unknown>)) {
+      if (
+        !/^[A-Z]{1,3}$/.test(column) ||
+        typeof width !== 'number' ||
+        !Number.isFinite(width) ||
+        width < 3 ||
+        width > 80
+      ) {
+        throw new Error(`The ${resolved.slug} width for column ${column} must be between 3 and 80`);
+      }
+      checkedWidths[column] = width;
+    }
+    sizing = {
+      ...(Object.keys(checkedWidths).length === 0 ? {} : { columnWidths: Object.freeze(checkedWidths) }),
+      ...(scale === undefined ? {} : { rowHeightScale: scale }),
+    };
+  }
+  return {
+    locale: resolved.slug,
+    sourceHash: value.sourceHash,
+    translations: Object.freeze(translations as Record<string, string>),
+    ...(sizing === undefined ? {} : { sizing: Object.freeze(sizing) }),
+  };
+}
+
+/** Load, validate, and prove a catalogue complete for the spec that is about to be rendered. */
+export function localeContextFromCatalogue(
+  resolved: ResolvedLocale,
+  parsed: unknown,
+  spec: WorkbookSpec,
+  schema: unknown,
+): LocaleContext {
+  const catalogue = catalogueObject(parsed, resolved);
+  const required = translatableSet(spec, schema);
+  const missing = [...required].filter((source) => !(source in catalogue.translations));
+  if (missing.length > 0) {
+    throw new Error(
+      `The ${resolved.slug} locale is missing ${missing.length} translation(s) required by this workbook spec: ` +
+        missing
+          .slice(0, 5)
+          .map((text) => JSON.stringify(text))
+          .join(', '),
+    );
+  }
+  return Object.freeze({ ...resolved, ...catalogue });
+}
+
+/** Load, validate, and prove a catalogue complete for the spec that is about to be rendered. */
+export function loadLocale(resolved: ResolvedLocale, spec: WorkbookSpec, schema: unknown): LocaleContext {
+  if (resolved.slug === DEFAULT_LOCALE) return { ...ENGLISH_LOCALE, ...resolved };
+  if (!SHIPPED_LOCALES.includes(resolved.slug)) {
+    throw new Error(`Locale ${JSON.stringify(resolved.slug)} is not shipped; choose ${SHIPPED_LOCALES.join(', ')}`);
+  }
+  const file = path.join(import.meta.dir, 'locales', `${resolved.slug}.json`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
+  } catch (error) {
+    throw new Error(`Could not load the ${resolved.slug} locale catalogue at ${file}: ${String(error)}`);
+  }
+  return localeContextFromCatalogue(resolved, parsed, spec, schema);
+}
+
+/** Translate one engine-owned source string. English is intentionally an identity catalogue. */
+export const localize = translateSource;
+
+/** A translated copy of a spec. Structural ids, paths, formula references, and spans are untouched. */
+export function localizeSpec(spec: WorkbookSpec, context: LocaleContext): WorkbookSpec {
+  if (context.slug === DEFAULT_LOCALE) return spec;
+  const proseKeys = new Set(['text', 'label', 'title', 'header']);
+  const walk = (node: unknown, parentKey?: string): unknown => {
+    if (Array.isArray(node)) return node.map((item) => walk(item, parentKey));
+    if (!node || typeof node !== 'object') return node;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (typeof value === 'string' && proseKeys.has(key)) {
+        out[key] = localize(context, value);
+      } else if (typeof value === 'string' && key === 'name' && parentKey === 'sheets') {
+        out[key] = localize(context, value);
+      } else if (typeof value === 'string' && key === 'formula') {
+        out[key] = value.replace(/"((?:[^"]|"")*)"/g, (whole, escaped: string) => {
+          const source = escaped.replace(/""/g, '"');
+          if (isNonProse(source)) return whole;
+          return `"${localize(context, source).replace(/"/g, '""')}"`;
+        });
+      } else {
+        out[key] = walk(value, key === 'sheets' ? 'sheets' : key);
+      }
+    }
+    return out;
+  };
+  return walk(spec) as WorkbookSpec;
 }
 
 export interface LocaleInputs {
