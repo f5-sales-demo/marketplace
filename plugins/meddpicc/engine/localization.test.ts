@@ -539,6 +539,92 @@ const reviewedTermsByLocale = {
     'Total Booked Value': 'มูลค่าสัญญารวม',
   },
 } as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
+const advisoryCorrectionsByLocale = {
+  fr: {
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'Aligné — Accès direct obtenu ; priorités du décideur économique et bénéfice personnel documentés',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      "Validé – Personne désignée ayant de l'influence et de la crédibilité ; bénéfice personnel documenté",
+  },
+  es: {
+    Deal: 'Oportunidad',
+    'Deal ID': 'ID de la oportunidad',
+    'Deal Status': 'Estado de la oportunidad',
+    'Deal/Project Name': 'Nombre de la oportunidad/proyecto',
+    'MEDDPICC Deal Review': 'Revisión MEDDPICC – oportunidad',
+    'Opportunity ID': 'ID de la oportunidad',
+    'Role In Deal': 'Función en la oportunidad',
+    'Sponsoring — EB is actively sponsoring the deal through procurement':
+      'Patrocinio: el comprador económico impulsa activamente la oportunidad durante el proceso de compras',
+    'What Do They Need To Believe To Say Yes To The Deal?':
+      '¿Qué deben creer para aprobar la oportunidad?',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'Alineado: acceso directo logrado; prioridades del comprador económico y beneficio personal documentados',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      'Validado: persona identificada con influencia y credibilidad; beneficio personal documentado',
+  },
+  de: {
+    'Actions Open': 'Offene Maßnahmen',
+    'A powerful internal advocate who sells for you when you\'re not in the room':
+      'Ein starker interner Fürsprecher, der sich für Sie einsetzt, wenn Sie nicht im Raum sind',
+    'Unknown — No internal advocate identified': 'Unbekannt – Kein interner Fürsprecher identifiziert',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'Abgestimmt – Direkter Zugang erreicht; Prioritäten des wirtschaftlichen Entscheiders und persönlicher Nutzen dokumentiert',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      'Validiert – Benannte Person mit Einfluss und Glaubwürdigkeit; persönlicher Nutzen dokumentiert',
+  },
+  'pt-br': {
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'Alinhado — Acesso direto alcançado; prioridades do Comprador Econômico e benefício pessoal documentados',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      'Validado — Pessoa identificada com influência e credibilidade; benefício pessoal documentado',
+  },
+  ko: {
+    'Actions Open': '미완료 조치',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      '조율됨 — 직접 접촉 성사; EB 우선순위 및 개인적 성공 요인 문서화',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      '검증됨 — 영향력과 신뢰성이 있는 인물을 식별하고 개인적 성공 요인을 문서화함',
+  },
+  'zh-cn': {
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      '进行中——采购步骤已记录并明确负责人；安全文档已提交；法务审核中',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      '已对齐——已实现直接接触；已记录经济决策者的优先事项和个人收益',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      '已验证——已确定具有影响力和信誉的人选；已记录个人收益',
+  },
+  'zh-tw': {
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      '進行中——採購步驟已記錄並明確負責人；安全文件已提交；法務審查中',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      '已對齊——已建立直接聯繫；已記錄經濟決策者的優先事項和個人收益',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      '已驗證——已確認具影響力和可信度的人選；已記錄個人收益',
+  },
+  it: {
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'Allineato: accesso diretto ottenuto; priorità del decisore economico e beneficio personale documentati',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      'Convalidato: persona identificata con influenza e credibilità; beneficio personale documentato',
+  },
+  hi: {
+    'A powerful internal advocate who sells for you when you\'re not in the room':
+      'एक प्रभावशाली आंतरिक समर्थक, जो आपकी अनुपस्थिति में आपकी ओर से पैरवी करता है',
+    'Unknown — No internal advocate identified': 'अज्ञात — किसी आंतरिक समर्थक की पहचान नहीं हुई',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'संरेखित — सीधी पहुँच स्थापित; आर्थिक निर्णयकर्ता की प्राथमिकताएँ और व्यक्तिगत लाभ दर्ज',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      'मान्य — प्रभावशाली और विश्वसनीय व्यक्ति की पहचान; व्यक्तिगत लाभ दर्ज',
+  },
+  th: {
+    Subscription: 'รายได้จากการสมัครสมาชิก',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      'สอดคล้องแล้ว — เข้าถึงโดยตรงได้แล้ว; บันทึกลำดับความสำคัญของผู้มีอำนาจตัดสินใจด้านงบประมาณและประโยชน์ส่วนบุคคลแล้ว',
+    'Validated — Named individual with influence and credibility; personal win documented':
+      'ตรวจสอบแล้ว — ระบุบุคคลที่มีอิทธิพลและความน่าเชื่อถือ; บันทึกประโยชน์ส่วนบุคคลแล้ว',
+  },
+} as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
 const rawJapanese = () =>
   JSON.parse(fs.readFileSync(path.join(here, 'locales', 'ja.json'), 'utf8')) as {
     locale: string;
@@ -653,6 +739,13 @@ describe('the remaining left-to-right catalogues', () => {
     test(`${slug} uses reviewed workflow and MEDDPICC rubric terminology`, () => {
       const context = loadLocale({ slug, from: 'flag' }, spec, schema);
       for (const [source, expected] of Object.entries(reviewedTermsByLocale[slug])) {
+        expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
+      }
+    });
+
+    test(`${slug} preserves the business meanings found by advisory review`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      for (const [source, expected] of Object.entries(advisoryCorrectionsByLocale[slug])) {
         expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
       }
     });
