@@ -553,7 +553,7 @@ const advisoryCorrectionsByLocale = {
   },
   es: {
     Deal: 'Oportunidad',
-    'Deal ID': 'ID de la oportunidad',
+    'Deal ID': 'ID de la revisión',
     'Deal Status': 'Estado de la oportunidad',
     'Deal/Project Name': 'Nombre de la oportunidad/proyecto',
     'MEDDPICC Deal Review': 'Revisión MEDDPICC – oportunidad',
@@ -626,6 +626,8 @@ const advisoryCorrectionsByLocale = {
   },
   'zh-cn': {
     'Actions Open': '未完成的行动项',
+    Reviewer: '评审人',
+    Partial: '部分完成',
     'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
       '差异化——已识别并评估竞争对手；已记录客户看法；差异化策略明确',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
@@ -642,6 +644,8 @@ const advisoryCorrectionsByLocale = {
   },
   'zh-tw': {
     'Actions Open': '未完成的行動項目',
+    Reviewer: '評審人',
+    Partial: '部分完成',
     'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
       '差異化——已識別並評估競爭對手；已記錄客戶看法；差異化策略明確',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
