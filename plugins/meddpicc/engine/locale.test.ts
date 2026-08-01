@@ -61,8 +61,8 @@ describe('resolveLocale — precedence', () => {
 
   test('LC_ALL wins over LANG, because that is what POSIX means by it', () => {
     // Both unshipped, so the assertion is about which one was consulted, not about the answer.
-    const r = resolveLocale({ env: { LC_ALL: 'ko_KR.UTF-8', LANG: 'ja_JP.UTF-8' } });
-    expect(r).toEqual({ slug: DEFAULT_LOCALE, from: 'fallback', unresolved: 'ko-kr' });
+    const r = resolveLocale({ env: { LC_ALL: 'is_IS.UTF-8', LANG: 'ru_RU.UTF-8' } });
+    expect(r).toEqual({ slug: DEFAULT_LOCALE, from: 'fallback', unresolved: 'is-is' });
   });
 
   test('LC_MESSAGES sits between LC_ALL and LANG, as POSIX has it', () => {
@@ -85,10 +85,10 @@ describe('resolveLocale — precedence', () => {
     // `AppleLocale` off macOS, so reading it elsewhere finds nothing rather than the wrong thing.
     expect(resolveLocale({ env: { AppleLocale: 'en_US' } })).toEqual({ slug: 'en', from: 'os' });
     // And LANG is preferred over it when both are set.
-    expect(resolveLocale({ env: { LANG: 'ko_KR.UTF-8', AppleLocale: 'en_US' } })).toEqual({
+    expect(resolveLocale({ env: { LANG: 'is_IS.UTF-8', AppleLocale: 'en_US' } })).toEqual({
       slug: DEFAULT_LOCALE,
       from: 'fallback',
-      unresolved: 'ko-kr',
+      unresolved: 'is-is',
     });
   });
 
@@ -125,10 +125,20 @@ describe('resolveLocale — resolution and refusal', () => {
 
   test('an explicit locale that is not shipped is refused, and names what is', () => {
     // Somebody asked for something specific. Handing them English instead is the one answer nobody wants.
-    expect(() => resolveLocale({ flag: 'ko' })).toThrow(/ko/);
-    expect(() => resolveLocale({ flag: 'ko' })).toThrow(/en/);
+    expect(() => resolveLocale({ flag: 'ar' })).toThrow(/ar/);
+    expect(() => resolveLocale({ flag: 'ar' })).toThrow(/en/);
+    expect(() => resolveLocale({ flag: 'ar' })).toThrow(/issues\/926/);
     expect(resolveLocale({ deal: { metadata: { locale: 'ja' } } })).toEqual({ slug: 'ja', from: 'deal' });
-    expect(() => resolveLocale({ env: { MEDDPICC_LOCALE: 'de' } })).toThrow(/de/);
+    expect(() => resolveLocale({ env: { MEDDPICC_LOCALE: 'is' } })).toThrow(/is/);
+  });
+
+  test('regional Arabic requests point to the right-to-left workbook', () => {
+    // Region and POSIX spellings still request Arabic. Losing the language-specific guidance here
+    // leaves an ar-SA or ar_EG user with only the generic unsupported-locale error and hides the
+    // separately tracked RTL implementation they actually need.
+    for (const raw of ['ar-SA', 'ar_EG.UTF-8']) {
+      expect(() => resolveLocale({ flag: raw }), raw).toThrow(/issues\/926/);
+    }
   });
 
   test('an explicit value that names no language is refused, not ignored', () => {
@@ -171,7 +181,20 @@ describe('resolveLocale — resolution and refusal', () => {
 
   test('the shipped set is derived from the catalogue index', () => {
     // A hardcoded locale array in TypeScript fails `scripts/locale-lint.sh`, so the set comes from the
-    // locale files present. Japanese is the pilot; naming later locales here would duplicate the index.
-    expect([...SHIPPED_LOCALES]).toEqual(['en', 'ja']);
+    // locale files present. The test names the fleet contract so an accidental index deletion fails loudly.
+    expect([...SHIPPED_LOCALES]).toEqual([
+      'en',
+      'fr',
+      'es',
+      'de',
+      'pt-br',
+      'ja',
+      'ko',
+      'zh-cn',
+      'zh-tw',
+      'it',
+      'hi',
+      'th',
+    ]);
   });
 });

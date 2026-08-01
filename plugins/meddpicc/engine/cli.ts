@@ -245,7 +245,7 @@ async function main(): Promise<number> {
     // with. Only Excel can say whether a computed height is enough — it autofits a wrapped cell but
     // not a merged one, and nearly every prose cell here is merged — so the acceptance test copies
     // each string into a scratch cell of the same width, autofits it, and compares.
-    // Resolved BEFORE the early returns below. `--plan --locale ko` used to exit 0 while the same request
+    // Resolved BEFORE the early returns below. `--plan --locale ar` used to exit 0 while the same request
     // on the writing path was refused, so an explicit locale was validated or ignored depending on which
     // flag came with it. Review caught that; the resolution belongs to the command, not to one branch.
     const locale = loadLocale(resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env }), spec, schema);
