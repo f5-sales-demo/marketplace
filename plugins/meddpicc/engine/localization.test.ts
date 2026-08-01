@@ -241,8 +241,7 @@ const reviewedTermsByLocale = {
     Owner: 'Responsable',
     'Relationship Owner': 'Responsable de la relation',
     'Economic buyer': 'Décideur économique',
-    'The compelling business pain that creates urgency to act':
-      'Le problème métier critique qui crée l’urgence d’agir',
+    'The compelling business pain that creates urgency to act': 'Le problème métier critique qui crée l’urgence d’agir',
     'Identified — Pain implied but not explicitly confirmed by customer':
       'Identifié – Problème métier supposé, mais pas explicitement confirmé par le client',
     'Acknowledged — Pain acknowledged by customer but not fully quantified':
@@ -263,8 +262,7 @@ const reviewedTermsByLocale = {
       'Les exigences que le client utilisera pour évaluer les options – techniques, métier, opérationnelles et commerciales',
     'Total Booked Value': 'Valeur totale contractualisée',
     'Why Anything': 'Pourquoi changer',
-    '3 Whys — (Why Anything, Why Us, Why Now)':
-      '3 Pourquoi – (Pourquoi changer, pourquoi nous, pourquoi maintenant)',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 Pourquoi – (Pourquoi changer, pourquoi nous, pourquoi maintenant)',
   },
   es: {
     'Account ID': 'ID de cuenta',
@@ -294,8 +292,7 @@ const reviewedTermsByLocale = {
       'Los requisitos que el cliente utilizará para evaluar las opciones: técnicos, empresariales, operativos y comerciales',
     'Total Booked Value': 'Valor total contratado',
     'Why Anything': 'Por qué cambiar',
-    '3 Whys — (Why Anything, Why Us, Why Now)':
-      '3 porqués — (Por qué cambiar, por qué nosotros, por qué ahora)',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 porqués — (Por qué cambiar, por qué nosotros, por qué ahora)',
   },
   de: {
     'Account ID': 'Konto-ID',
@@ -364,8 +361,7 @@ const reviewedTermsByLocale = {
     'Relationship Owner': '관계 담당자',
     'Economic buyer': '경제적 의사결정권자',
     'Close Date': '예상 영업 마감일',
-    'The compelling business pain that creates urgency to act':
-      '긴급한 조치를 취하도록 만드는 중대한 비즈니스 문제',
+    'The compelling business pain that creates urgency to act': '긴급한 조치를 취하도록 만드는 중대한 비즈니스 문제',
     'Identified — Pain implied but not explicitly confirmed by customer':
       '식별됨 — 비즈니스 문제가 암시되었으나 고객이 명확히 확인하지 않음',
     'Acknowledged — Pain acknowledged by customer but not fully quantified':
@@ -384,8 +380,7 @@ const reviewedTermsByLocale = {
       '조달 절차 — 견적, 승인, 공급업체 등록, 보안 검토, 계약서 법무 수정 및 서명 절차',
     'Total Booked Value': '총 계약 금액',
     'Why Anything': '왜 변화해야 하는가',
-    '3 Whys — (Why Anything, Why Us, Why Now)':
-      '3가지 이유 — (왜 변화해야 하는가, 왜 우리인가, 왜 지금인가)',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3가지 이유 — (왜 변화해야 하는가, 왜 우리인가, 왜 지금인가)',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       '조율됨 — 직접 접촉 성사; EB 우선순위 및 개인적 성공 요인 문서화',
     'Committed — Client has committed to metrics in writing or proposal':
@@ -417,8 +412,7 @@ const reviewedTermsByLocale = {
       '采购流程——报价、审批、供应商准入、安全审查、合同条款修订和签署流程',
     'Total Booked Value': '合同总金额',
     'Why Anything': '为什么要改变',
-    '3 Whys — (Why Anything, Why Us, Why Now)':
-      '三个为什么——（为什么要改变、为什么选择我们、为什么是现在）',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '三个为什么——（为什么要改变、为什么选择我们、为什么是现在）',
     'Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer':
       '已化解——已提供竞争优势证明；已评估不作为的风险；制胜主题已获客户确认',
   },
@@ -448,8 +442,7 @@ const reviewedTermsByLocale = {
       '採購流程——報價、核准、供應商准入、安全審查、合約條款修訂和簽署流程',
     'Total Booked Value': '合約總金額',
     'Why Anything': '為什麼要改變',
-    '3 Whys — (Why Anything, Why Us, Why Now)':
-      '三個為什麼——（為什麼要改變、為什麼選擇我們、為什麼是現在）',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '三個為什麼——（為什麼要改變、為什麼選擇我們、為什麼是現在）',
     'Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer':
       '已化解——已提供競爭優勢證明；已評估不採取行動的風險；致勝主題已獲客戶確認',
   },
@@ -515,8 +508,7 @@ const reviewedTermsByLocale = {
     Owner: 'ผู้รับผิดชอบ',
     'Relationship Owner': 'ผู้รับผิดชอบความสัมพันธ์',
     'Economic buyer': 'ผู้มีอำนาจตัดสินใจด้านงบประมาณ',
-    'The compelling business pain that creates urgency to act':
-      'ปัญหาทางธุรกิจสำคัญที่สร้างความเร่งด่วนให้ต้องดำเนินการ',
+    'The compelling business pain that creates urgency to act': 'ปัญหาทางธุรกิจสำคัญที่สร้างความเร่งด่วนให้ต้องดำเนินการ',
     'Identified — Pain implied but not explicitly confirmed by customer':
       'ระบุแล้ว — พบสัญญาณของปัญหาทางธุรกิจ แต่ลูกค้ายังไม่ได้ยืนยันอย่างชัดเจน',
     'Acknowledged — Pain acknowledged by customer but not fully quantified':
@@ -528,8 +520,7 @@ const reviewedTermsByLocale = {
     'Unknown — No pain identified or discussed; solution looking for a problem':
       'ไม่ทราบ — ยังไม่ได้ระบุหรือหารือปัญหาทางธุรกิจ; เป็นโซลูชันที่กำลังมองหาปัญหา',
     'Why Anything': 'ทำไมต้องเปลี่ยนแปลง',
-    '3 Whys — (Why Anything, Why Us, Why Now)':
-      '3 เหตุผลสำคัญ — (ทำไมต้องเปลี่ยนแปลง ทำไมต้องเป็นเรา ทำไมตอนนี้)',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 เหตุผลสำคัญ — (ทำไมต้องเปลี่ยนแปลง ทำไมต้องเป็นเรา ทำไมตอนนี้)',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'กำลังขับเคลื่อน — ผู้สนับสนุนภายในกำลังให้คำแนะนำ แบ่งปันข้อมูลเชิงลึก และลงมือดำเนินการอย่างเป็นรูปธรรมทุกสัปดาห์',
     'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
@@ -541,6 +532,20 @@ const reviewedTermsByLocale = {
 } as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
 const advisoryCorrectionsByLocale = {
   fr: {
+    Deal: 'Opportunité',
+    'Deal ID': 'ID de l’opportunité',
+    'Deal Status': 'Statut de l’opportunité',
+    'Deal/Project Name': 'Nom de l’opportunité/du projet',
+    'MEDDPICC Deal Review': 'Revue d’opportunité MEDDPICC',
+    'Role In Deal': 'Rôle dans l’opportunité',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'Verrouillé — Nous avons orienté les critères en faveur de nos points forts ; les principales parties prenantes sont alignées',
+    'Mapped — Major steps identified but dates or owners missing':
+      'Cartographié — Étapes majeures identifiées, mais dates ou responsables manquants',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'Validé — Processus étape par étape documenté avec les noms des responsables et les dates',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'En cours – Étapes d’approvisionnement documentées avec les responsables ; documents de sécurité soumis ; examen juridique en cours',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'Aligné — Accès direct obtenu ; priorités du décideur économique et bénéfice personnel documentés',
     'Validated — Named individual with influence and credibility; personal win documented':
@@ -554,10 +559,19 @@ const advisoryCorrectionsByLocale = {
     'MEDDPICC Deal Review': 'Revisión MEDDPICC – oportunidad',
     'Opportunity ID': 'ID de la oportunidad',
     'Role In Deal': 'Función en la oportunidad',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'Bloqueado: hemos influido en los criterios para favorecer nuestras fortalezas; las partes interesadas clave están alineadas',
+    'Mapped — Major steps identified but dates or owners missing':
+      'Mapeado: pasos principales identificados, pero faltan fechas o responsables',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'Validado: proceso paso a paso documentado con responsables identificados y fechas',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'En curso: pasos de adquisición documentados con sus responsables; documentos de seguridad presentados; revisión legal en curso',
+    'Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer':
+      'Neutralizado: prueba competitiva entregada; riesgo de no actuar evaluado; estrategia ganadora validada con el cliente',
     'Sponsoring — EB is actively sponsoring the deal through procurement':
       'Patrocinio: el comprador económico impulsa activamente la oportunidad durante el proceso de compras',
-    'What Do They Need To Believe To Say Yes To The Deal?':
-      '¿Qué deben creer para aprobar la oportunidad?',
+    'What Do They Need To Believe To Say Yes To The Deal?': '¿Qué deben creer para aprobar la oportunidad?',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'Alineado: acceso directo logrado; prioridades del comprador económico y beneficio personal documentados',
     'Validated — Named individual with influence and credibility; personal win documented':
@@ -565,15 +579,31 @@ const advisoryCorrectionsByLocale = {
   },
   de: {
     'Actions Open': 'Offene Maßnahmen',
-    'A powerful internal advocate who sells for you when you\'re not in the room':
+    "A powerful internal advocate who sells for you when you're not in the room":
       'Ein starker interner Fürsprecher, der sich für Sie einsetzt, wenn Sie nicht im Raum sind',
     'Unknown — No internal advocate identified': 'Unbekannt – Kein interner Fürsprecher identifiziert',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'Festgelegt – Wir haben die Kriterien zugunsten unserer Stärken beeinflusst; wichtige Stakeholder sind abgestimmt',
+    'Mapped — Major steps identified but dates or owners missing':
+      'Zugeordnet – Wichtige Schritte identifiziert, aber Termine oder Verantwortliche fehlen',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'Validiert – Schritt-für-Schritt-Prozess mit benannten Verantwortlichen und Terminen dokumentiert',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'In Bearbeitung – Beschaffungsschritte mit Verantwortlichen dokumentiert; Sicherheitsunterlagen eingereicht; rechtliche Prüfung läuft',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'Abgestimmt – Direkter Zugang erreicht; Prioritäten des wirtschaftlichen Entscheiders und persönlicher Nutzen dokumentiert',
     'Validated — Named individual with influence and credibility; personal win documented':
       'Validiert – Benannte Person mit Einfluss und Glaubwürdigkeit; persönlicher Nutzen dokumentiert',
   },
   'pt-br': {
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'Bloqueado — Influenciamos os critérios para favorecer nossos pontos fortes; principais partes interessadas alinhadas',
+    'Mapped — Major steps identified but dates or owners missing':
+      'Mapeado — Principais etapas identificadas, mas faltam datas ou responsáveis',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'Validado — Processo passo a passo documentado com responsáveis nomeados e datas',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'Em andamento — Etapas de aquisição documentadas com os responsáveis; documentos de segurança enviados; revisão jurídica em andamento',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'Alinhado — Acesso direto alcançado; prioridades do Comprador Econômico e benefício pessoal documentados',
     'Validated — Named individual with influence and credibility; personal win documented':
@@ -581,12 +611,28 @@ const advisoryCorrectionsByLocale = {
   },
   ko: {
     'Actions Open': '미완료 조치',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      '확정됨 — 당사의 강점에 유리하도록 평가 기준에 영향을 미침; 핵심 이해관계자와 합의함',
+    'Mapped — Major steps identified but dates or owners missing':
+      '매핑됨 — 주요 단계가 식별되었지만 날짜 또는 담당자가 누락됨',
+    'Validated — Step-by-step process documented with named owners and dates':
+      '검증됨 — 담당자 이름과 날짜를 포함한 단계별 프로세스가 문서화됨',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      '진행 중 — 담당자와 함께 조달 단계를 문서화함; 보안 문서를 제출함; 법무 검토 중',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       '조율됨 — 직접 접촉 성사; EB 우선순위 및 개인적 성공 요인 문서화',
     'Validated — Named individual with influence and credibility; personal win documented':
       '검증됨 — 영향력과 신뢰성이 있는 인물을 식별하고 개인적 성공 요인을 문서화함',
   },
   'zh-cn': {
+    'Actions Open': '未完成的行动项',
+    'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
+      '差异化——已识别并评估竞争对手；已记录客户看法；差异化策略明确',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      '已锁定——已引导评估标准向我方优势倾斜；关键利益相关者已达成一致',
+    'Mapped — Major steps identified but dates or owners missing': '已梳理——已确定主要步骤，但缺少日期或负责人',
+    'Validated — Step-by-step process documented with named owners and dates':
+      '已验证——已记录分步流程，并注明负责人姓名和日期',
     'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
       '进行中——采购步骤已记录并明确负责人；安全文档已提交；法务审核中',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
@@ -595,6 +641,14 @@ const advisoryCorrectionsByLocale = {
       '已验证——已确定具有影响力和信誉的人选；已记录个人收益',
   },
   'zh-tw': {
+    'Actions Open': '未完成的行動項目',
+    'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
+      '差異化——已識別並評估競爭對手；已記錄客戶看法；差異化策略明確',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      '已鎖定——已引導評估標準偏向我方優勢；關鍵利害關係人已達成共識',
+    'Mapped — Major steps identified but dates or owners missing': '已梳理——已確定主要步驟，但缺少日期或負責人',
+    'Validated — Step-by-step process documented with named owners and dates':
+      '已驗證——已記錄逐步流程，並註明負責人姓名和日期',
     'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
       '進行中——採購步驟已記錄並明確負責人；安全文件已提交；法務審查中',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
@@ -603,15 +657,31 @@ const advisoryCorrectionsByLocale = {
       '已驗證——已確認具影響力和可信度的人選；已記錄個人收益',
   },
   it: {
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'Bloccato: abbiamo influenzato i criteri a favore dei nostri punti di forza; principali stakeholder allineati',
+    'Mapped — Major steps identified but dates or owners missing':
+      'Mappato: passaggi principali identificati, ma mancano date o responsabili',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'Convalidato: processo dettagliato documentato con i nomi dei responsabili e le date',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'In corso: fasi di approvvigionamento documentate con i responsabili; documenti di sicurezza presentati; revisione legale in corso',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'Allineato: accesso diretto ottenuto; priorità del decisore economico e beneficio personale documentati',
     'Validated — Named individual with influence and credibility; personal win documented':
       'Convalidato: persona identificata con influenza e credibilità; beneficio personale documentato',
   },
   hi: {
-    'A powerful internal advocate who sells for you when you\'re not in the room':
+    "A powerful internal advocate who sells for you when you're not in the room":
       'एक प्रभावशाली आंतरिक समर्थक, जो आपकी अनुपस्थिति में आपकी ओर से पैरवी करता है',
     'Unknown — No internal advocate identified': 'अज्ञात — किसी आंतरिक समर्थक की पहचान नहीं हुई',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'सुनिश्चित — हमने मानदंडों को अपनी खूबियों के पक्ष में प्रभावित किया; प्रमुख हितधारक सहमत हैं',
+    'Mapped — Major steps identified but dates or owners missing':
+      'मैप किया गया — प्रमुख चरणों की पहचान हुई, लेकिन तारीखें या ज़िम्मेदार व्यक्ति नहीं हैं',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'मान्य — चरण-दर-चरण प्रक्रिया ज़िम्मेदार व्यक्तियों के नाम और तारीखों सहित दर्ज है',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'प्रगति पर — खरीद के चरण ज़िम्मेदार व्यक्तियों सहित दर्ज हैं; सुरक्षा दस्तावेज़ जमा किए गए हैं; कानूनी समीक्षा जारी है',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'संरेखित — सीधी पहुँच स्थापित; आर्थिक निर्णयकर्ता की प्राथमिकताएँ और व्यक्तिगत लाभ दर्ज',
     'Validated — Named individual with influence and credibility; personal win documented':
@@ -619,6 +689,13 @@ const advisoryCorrectionsByLocale = {
   },
   th: {
     Subscription: 'รายได้จากการสมัครสมาชิก',
+    'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
+      'ยืนยันแล้ว — เรามีอิทธิพลต่อเกณฑ์ให้เอื้อต่อจุดแข็งของเรา; ผู้มีส่วนได้ส่วนเสียหลักเห็นพ้องกัน',
+    'Mapped — Major steps identified but dates or owners missing': 'จัดทำแผนแล้ว — ระบุขั้นตอนสำคัญแล้ว แต่ยังขาดวันที่หรือผู้รับผิดชอบ',
+    'Validated — Step-by-step process documented with named owners and dates':
+      'ตรวจสอบแล้ว — บันทึกกระบวนการทีละขั้นตอนพร้อมชื่อผู้รับผิดชอบและวันที่',
+    'In Progress — Procurement steps documented with owners; security artifacts submitted; legal in review':
+      'กำลังดำเนินการ — บันทึกขั้นตอนการจัดซื้อและผู้รับผิดชอบแล้ว; ส่งเอกสารด้านความปลอดภัยแล้ว; อยู่ระหว่างการตรวจสอบทางกฎหมาย',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       'สอดคล้องแล้ว — เข้าถึงโดยตรงได้แล้ว; บันทึกลำดับความสำคัญของผู้มีอำนาจตัดสินใจด้านงบประมาณและประโยชน์ส่วนบุคคลแล้ว',
     'Validated — Named individual with influence and credibility; personal win documented':
