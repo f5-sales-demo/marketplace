@@ -98,6 +98,15 @@ describe('the Japanese catalogue', () => {
     tooTall.sizing.rowHeightScale = 2.01;
     expect(() => contextFrom(tooTall)).toThrow(/between 1.0 and 2.0/);
   });
+
+  test('validates the sheet name after translation, not only the English source', () => {
+    for (const title of ['x'.repeat(32), 'Bad/Sheet']) {
+      const raw = rawJapanese();
+      raw.translations['MEDDPICC Deal Review'] = title;
+      const context = contextFrom(raw);
+      expect(() => planWorkbook(schema, spec, deal, context)).toThrow(/sheet name/i);
+    }
+  });
 });
 
 describe('the remaining left-to-right catalogues', () => {

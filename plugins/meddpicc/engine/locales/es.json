@@ -93,7 +93,7 @@
     "Neutral": "Neutral",
     "Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer": "Neutralizado: prueba competitiva entregada; evaluación del riesgo de no hacer nada; ganar tema validado con el cliente",
     "Next Interaction": "Próxima interacción",
-    "No": "No (respuesta negativa)",
+    "No": "Negativo",
     "Not started": "No iniciado",
     "Notes": "Notas",
     "Objective": "Objetivo",
@@ -200,7 +200,7 @@
     "Why Us": "Por qué nosotros",
     "Win Probability": "Probabilidad de ganar",
     "Yellow": "Yellow",
-    "Yes": "si"
+    "Yes": "Sí"
   },
   "sizing": {
     "columnWidths": {
