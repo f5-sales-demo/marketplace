@@ -170,7 +170,7 @@ const salesTermsByLocale = {
     'Quantified — Metrics tied to business value with baseline and target data':
       '量化——透過基準與目標資料將衡量指標連結至業務價值',
     'Quantified — Pain quantified with business impact; consequence of inaction documented':
-      '量化——以業務影響量化痛點；已記錄不採取行動的後果',
+      '已量化——已量化業務痛點的商業影響；已記錄不採取行動的後果',
   },
   it: {
     'Assigned To Deal?': "Assegnato all'opportunità?",
@@ -235,51 +235,168 @@ const salesTermsByLocale = {
 } as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
 const reviewedTermsByLocale = {
   fr: {
+    'Account ID': 'Identifiant du compte',
+    'Account Name': 'Nom du compte',
     Owner: 'Responsable',
     'Relationship Owner': 'Responsable de la relation',
+    'Economic buyer': 'Décideur économique',
+    'The compelling business pain that creates urgency to act':
+      'Le problème métier critique qui crée l’urgence d’agir',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'Identifié – Problème métier supposé, mais pas explicitement confirmé par le client',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'Reconnu – Problème métier reconnu par le client, mais pas entièrement quantifié',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'Quantifié – Problème métier quantifié en termes d’impact commercial ; conséquences de l’inaction documentées',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'Urgent – Plusieurs parties prenantes confirment le problème métier ; événement déclencheur identifié ; motif clair imposant l’échéance',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'Mobilisation – Le parrain interne vous conseille activement, partage des informations et prend des actions concrètes chaque semaine',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'Contrôlé – Tous les jalons d’approbation sont cartographiés ; aucune surprise attendue ; flux juridique, sécurité et approvisionnement confirmé',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'Les mécanismes d’approvisionnement – devis, approbations, intégration des fournisseurs, examen de sécurité, modifications contractuelles proposées et processus de signature',
+    'Total Booked Value': 'Valeur totale contractualisée',
     'Why Anything': 'Pourquoi changer',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '3 Pourquoi – (Pourquoi changer, pourquoi nous, pourquoi maintenant)',
   },
   es: {
+    'Account ID': 'ID de cuenta',
+    'Account Name': 'Nombre de cuenta',
     Owner: 'Responsable',
     'Relationship Owner': 'Responsable de la relación',
+    'Economic buyer': 'Comprador Económico',
+    'The compelling business pain that creates urgency to act':
+      'El problema de negocio crítico que crea urgencia para actuar',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'Identificado: problema de negocio implícito, pero no confirmado explícitamente por el cliente',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'Reconocido: problema de negocio reconocido por el cliente, pero no cuantificado por completo',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'Cuantificado: problema de negocio cuantificado por su impacto empresarial; consecuencias de la inacción documentadas',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'Urgente: varias partes interesadas confirman el problema de negocio; evento desencadenante identificado; existe un motivo claro que impone la fecha límite',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'Movilización: el promotor interno lo asesora activamente, comparte información y toma medidas concretas cada semana',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'Controlado: todos los puntos de aprobación están definidos; no se esperan sorpresas; flujo legal, de seguridad y adquisiciones confirmado',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'Los mecanismos de adquisición: cotizaciones, aprobaciones, incorporación de proveedores, revisión de seguridad, revisiones contractuales y proceso de firma',
+    'Total Booked Value': 'Valor total contratado',
     'Why Anything': 'Por qué cambiar',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '3 porqués — (Por qué cambiar, por qué nosotros, por qué ahora)',
   },
   de: {
+    'Account ID': 'Konto-ID',
+    'Account Name': 'Kontoname',
     Owner: 'Verantwortlicher',
     'Relationship Owner': 'Beziehungsverantwortlicher',
+    'Economic buyer': 'Wirtschaftlicher Entscheider',
+    'The compelling business pain that creates urgency to act':
+      'Das dringende Geschäftsproblem, das Handlungsbedarf schafft',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'Identifiziert – Geschäftsproblem vermutet, aber nicht ausdrücklich vom Kunden bestätigt',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'Anerkannt – Geschäftsproblem vom Kunden anerkannt, aber nicht vollständig quantifiziert',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'Quantifiziert – Geschäftsproblem nach Geschäftsauswirkung quantifiziert; Folgen der Untätigkeit dokumentiert',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'Dringend – Mehrere Beteiligte bestätigen das Geschäftsproblem; auslösendes Ereignis identifiziert; klarer geschäftlicher Grund für den Zeitdruck',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'Mobilisiert – Der interne Fürsprecher coacht Sie aktiv, teilt Informationen und ergreift wöchentlich konkrete Maßnahmen',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'Kontrolliert – Alle Freigabeschritte sind abgebildet; keine Überraschungen erwartet; Rechts-, Sicherheits- und Beschaffungsablauf bestätigt',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'Der Beschaffungsablauf – Angebote, Genehmigungen, Lieferanten-Onboarding, Sicherheitsprüfung, Vertragsänderungen und Unterschriftsprozess',
+    'Total Booked Value': 'Gesamtauftragswert',
     'Why Anything': 'Warum überhaupt',
     '3 Whys — (Why Anything, Why Us, Why Now)': '3 Warum – (Warum überhaupt, Warum wir, Warum jetzt)',
     'Engaged — EB identified by name; no direct access yet but plan exists':
       'Eingebunden – EB namentlich identifiziert; noch kein direkter Zugang, aber ein Plan ist vorhanden',
   },
   'pt-br': {
+    'Account ID': 'ID da conta',
+    'Account Name': 'Nome da conta',
     Owner: 'Responsável',
     'Relationship Owner': 'Responsável pelo relacionamento',
+    'Economic buyer': 'Comprador Econômico',
+    'The compelling business pain that creates urgency to act':
+      'O problema de negócio crítico que cria urgência para agir',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'Identificado — Problema de negócio implícito, mas não confirmado explicitamente pelo cliente',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'Reconhecido — Problema de negócio reconhecido pelo cliente, mas não totalmente quantificado',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'Quantificado — Problema de negócio quantificado pelo impacto empresarial; consequências da inação documentadas',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'Urgente — Várias partes interessadas confirmam o problema de negócio; evento desencadeador identificado; motivo claro que impõe o prazo',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'Mobilização — O patrocinador interno orienta você ativamente, compartilha informações e toma ações concretas toda semana',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'Controlado — Todos os pontos de aprovação estão mapeados; nenhuma surpresa esperada; fluxo jurídico, de segurança e de compras confirmado',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'O processo de compras — cotações, aprovações, integração de fornecedores, revisão de segurança, revisões contratuais e processo de assinatura',
+    'Total Booked Value': 'Valor total contratado',
     'Why Anything': 'Por que mudar',
     '3 Whys — (Why Anything, Why Us, Why Now)': '3 porquês — (por que mudar, por que nós, por que agora)',
   },
   ko: {
+    'Account ID': '계정 ID',
+    'Account Name': '계정 이름',
     Owner: '담당자',
     'Relationship Owner': '관계 담당자',
+    'Economic buyer': '경제적 의사결정권자',
     'Close Date': '예상 영업 마감일',
+    'The compelling business pain that creates urgency to act':
+      '긴급한 조치를 취하도록 만드는 중대한 비즈니스 문제',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      '식별됨 — 비즈니스 문제가 암시되었으나 고객이 명확히 확인하지 않음',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      '확인됨 — 고객이 비즈니스 문제를 인정했으나 완전히 정량화되지 않음',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      '정량화됨 — 비즈니스 문제의 사업 영향을 정량화하고 미조치 결과를 문서화함',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      '긴급 — 여러 이해관계자가 비즈니스 문제를 확인함; 촉발 사건이 식별됨; 기한을 정하는 명확한 사업 요인이 있음',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      '활성화됨 — 내부 지지자가 적극적으로 조언하고, 정보를 공유하며, 매주 구체적인 조치를 취함',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      '통제됨 — 모든 승인 단계가 파악됨; 예상치 못한 문제 없음; 법무/보안/조달 절차 확인',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      '조달 절차 — 견적, 승인, 공급업체 등록, 보안 검토, 계약서 법무 수정 및 서명 절차',
+    'Total Booked Value': '총 계약 금액',
     'Why Anything': '왜 변화해야 하는가',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '3가지 이유 — (왜 변화해야 하는가, 왜 우리인가, 왜 지금인가)',
-    'Acknowledged — Pain acknowledged by customer but not fully quantified':
-      '확인됨 — 고객이 문제점을 인식했으나 완전히 정량화되지 않음',
     'Aligned — Direct access achieved; EB priorities and personal win documented':
       '조율됨 — 직접 접촉 성사; EB 우선순위 및 개인적 성공 요인 문서화',
     'Committed — Client has committed to metrics in writing or proposal':
       '확약됨 — 고객이 서면 또는 제안서에서 지표에 동의함',
   },
   'zh-cn': {
+    'Account ID': '客户ID',
+    'Account Name': '客户名称',
     Owner: '负责人',
     'Relationship Owner': '关系负责人',
+    'Economic buyer': '经济决策者',
     'Close Date': '预计成交日期',
+    'The compelling business pain that creates urgency to act': '促使立即行动的关键业务痛点',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      '已识别——已发现潜在业务痛点，但客户尚未明确确认',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      '已确认——客户已确认业务痛点，但尚未完全量化',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      '已量化——已量化业务痛点的商业影响；已记录不采取行动的后果',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      '紧急——多位利益相关者已确认业务痛点；已识别触发事件；有明确的业务因素决定截止日期',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      '动员中——内部支持者每周积极指导您、分享信息并采取具体行动',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      '受控——所有审批节点均已梳理；预计无意外；法务、安全和采购流程已确认',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      '采购流程——报价、审批、供应商准入、安全审查、合同条款修订和签署流程',
+    'Total Booked Value': '合同总金额',
     'Why Anything': '为什么要改变',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '三个为什么——（为什么要改变、为什么选择我们、为什么是现在）',
@@ -287,9 +404,28 @@ const reviewedTermsByLocale = {
       '已化解——已提供竞争优势证明；已评估不作为的风险；制胜主题已获客户确认',
   },
   'zh-tw': {
+    'Account ID': '客戶ID',
+    'Account Name': '客戶名稱',
     Owner: '負責人',
     'Relationship Owner': '關係負責人',
+    'Economic buyer': '經濟決策者',
     'Close Date': '預計成交日期',
+    'The compelling business pain that creates urgency to act': '促使立即行動的關鍵業務痛點',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      '已識別——已發現潛在業務痛點，但客戶尚未明確確認',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      '已確認——客戶已確認業務痛點，但尚未完全量化',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      '已量化——已量化業務痛點的商業影響；已記錄不採取行動的後果',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      '緊急——多位利害關係人已確認業務痛點；已識別觸發事件；有明確的業務因素決定截止日期',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      '推動中——內部支持者每週積極指導您、分享資訊並採取具體行動',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      '受控——所有核准節點均已梳理；預計無意外；法務、安全和採購流程已確認',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      '採購流程——報價、核准、供應商准入、安全審查、合約條款修訂和簽署流程',
+    'Total Booked Value': '合約總金額',
     'Why Anything': '為什麼要改變',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '三個為什麼——（為什麼要改變、為什麼選擇我們、為什麼是現在）',
@@ -297,27 +433,83 @@ const reviewedTermsByLocale = {
       '已化解——已提供競爭優勢證明；已評估不採取行動的風險；致勝主題已獲客戶確認',
   },
   it: {
+    'Account ID': 'ID conto',
+    'Account Name': "Nome dell'account",
     Owner: 'Responsabile',
     'Relationship Owner': 'Responsabile della relazione',
+    'Economic buyer': 'Decisore economico',
+    'The compelling business pain that creates urgency to act':
+      'Il problema aziendale critico che crea urgenza di agire',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'Identificato: problema aziendale implicito, ma non confermato esplicitamente dal cliente',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'Riconosciuto: problema aziendale riconosciuto dal cliente, ma non completamente quantificato',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      "Quantificato: problema aziendale quantificato in base all'impatto commerciale; conseguenze dell'inazione documentate",
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'Urgente: più parti interessate confermano il problema aziendale; evento scatenante identificato; chiara ragione aziendale che impone la scadenza',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'Mobilitazione: il sostenitore interno ti consiglia attivamente, condivide informazioni e intraprende azioni concrete ogni settimana',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'Controllato: tutti i punti di approvazione sono mappati; nessuna sorpresa prevista; flusso legale, di sicurezza e approvvigionamento confermato',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'Il processo di approvvigionamento: preventivi, approvazioni, onboarding dei fornitori, revisione della sicurezza, revisioni contrattuali e processo di firma',
+    'Total Booked Value': 'Valore totale contrattualizzato',
     'Why Anything': 'Perché cambiare',
     '3 Whys — (Why Anything, Why Us, Why Now)': '3 perché – (Perché cambiare, perché noi, perché adesso)',
   },
   hi: {
+    'Account ID': 'खाता आईडी',
+    'Account Name': 'खाता नाम',
     Owner: 'ज़िम्मेदार व्यक्ति',
     'Relationship Owner': 'संबंध प्रबंधक',
+    'Economic buyer': 'आर्थिक निर्णयकर्ता',
+    'The compelling business pain that creates urgency to act':
+      'तत्काल कार्रवाई की आवश्यकता पैदा करने वाली गंभीर व्यावसायिक समस्या',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'पहचान की गई — व्यावसायिक समस्या के संकेत मिले हैं, लेकिन ग्राहक ने स्पष्ट रूप से पुष्टि नहीं की',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'स्वीकृत — ग्राहक ने व्यावसायिक समस्या स्वीकार की, लेकिन उसे पूरी तरह मापा नहीं गया',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'परिमाणित — व्यावसायिक समस्या के प्रभाव को मापा गया; कार्रवाई न करने के परिणाम दर्ज किए गए',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'अत्यावश्यक — कई हितधारकों ने व्यावसायिक समस्या की पुष्टि की; प्रेरक घटना पहचानी गई; समय-सीमा तय करने वाला स्पष्ट व्यावसायिक कारण मौजूद है',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'सक्रिय — आंतरिक समर्थक आपको मार्गदर्शन देता है, जानकारी साझा करता है और हर सप्ताह ठोस कदम उठाता है',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'नियंत्रित — सभी अनुमोदन चरण दर्ज हैं; कोई अप्रत्याशित बाधा अपेक्षित नहीं; कानूनी, सुरक्षा और खरीद प्रक्रिया की पुष्टि हो चुकी है',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'खरीद प्रक्रिया — कोटेशन, अनुमोदन, विक्रेता पंजीकरण, सुरक्षा समीक्षा, अनुबंध संशोधन और हस्ताक्षर प्रक्रिया',
+    'Total Booked Value': 'कुल अनुबंधित मूल्य',
     'Why Anything': 'क्यों बदलें',
     '3 Whys — (Why Anything, Why Us, Why Now)': '3 क्यों — (क्यों बदलें, हम क्यों, अभी क्यों)',
   },
   th: {
+    'Account ID': 'รหัสบัญชี',
+    'Account Name': 'ชื่อบัญชี',
     Owner: 'ผู้รับผิดชอบ',
     'Relationship Owner': 'ผู้รับผิดชอบความสัมพันธ์',
+    'Economic buyer': 'ผู้มีอำนาจตัดสินใจด้านงบประมาณ',
+    'The compelling business pain that creates urgency to act':
+      'ปัญหาทางธุรกิจสำคัญที่สร้างความเร่งด่วนให้ต้องดำเนินการ',
+    'Identified — Pain implied but not explicitly confirmed by customer':
+      'ระบุแล้ว — พบสัญญาณของปัญหาทางธุรกิจ แต่ลูกค้ายังไม่ได้ยืนยันอย่างชัดเจน',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      'รับทราบแล้ว — ลูกค้ายอมรับปัญหาทางธุรกิจ แต่ยังไม่ได้วัดผลกระทบทั้งหมด',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'วัดปริมาณแล้ว — วัดผลกระทบของปัญหาต่อธุรกิจเป็นตัวเลข และบันทึกผลของการไม่ดำเนินการแล้ว',
+    'Urgent — Multiple stakeholders confirm pain; triggering event identified; clear deadline driver':
+      'เร่งด่วน — ผู้มีส่วนได้ส่วนเสียหลายรายยืนยันปัญหาทางธุรกิจ ระบุเหตุการณ์กระตุ้นแล้ว และมีเหตุผลทางธุรกิจที่กำหนดเส้นตายอย่างชัดเจน',
     'Why Anything': 'ทำไมต้องเปลี่ยนแปลง',
     '3 Whys — (Why Anything, Why Us, Why Now)':
       '3 เหตุผลสำคัญ — (ทำไมต้องเปลี่ยนแปลง ทำไมต้องเป็นเรา ทำไมตอนนี้)',
     'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
       'กำลังขับเคลื่อน — ผู้สนับสนุนภายในกำลังให้คำแนะนำ แบ่งปันข้อมูลเชิงลึก และลงมือดำเนินการอย่างเป็นรูปธรรมทุกสัปดาห์',
-    'Quantified — Pain quantified with business impact; consequence of inaction documented':
-      'วัดปริมาณแล้ว — วัดผลกระทบของปัญหาต่อธุรกิจเป็นตัวเลข และบันทึกผลของการไม่ดำเนินการแล้ว',
+    'Controlled — All gates mapped; no surprises expected; legal/security/procurement flow confirmed':
+      'ควบคุมแล้ว — ระบุจุดอนุมัติทั้งหมดแล้ว; ไม่คาดว่าจะมีปัญหาไม่คาดคิด; ยืนยันขั้นตอนกฎหมาย ความปลอดภัย และการจัดซื้อแล้ว',
+    'The procurement mechanics — quotes, approvals, vendor onboarding, security review, legal redlines, signature process':
+      'กระบวนการจัดซื้อ — ใบเสนอราคา การอนุมัติ การขึ้นทะเบียนผู้ขาย การตรวจสอบความปลอดภัย การแก้ไขสัญญา และขั้นตอนการลงนาม',
+    'Total Booked Value': 'มูลค่าสัญญารวม',
   },
 } as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
 const rawJapanese = () =>
