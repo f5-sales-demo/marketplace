@@ -10,6 +10,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.5.0 — French, Spanish, German, Brazilian Portuguese, Korean,
+  Simplified Chinese, Traditional Chinese, Italian, Hindi, and Thai complete the
+  left-to-right workbook locale set.
+
+  - Every catalogue explicitly covers the same 199 workbook-owned sources as Japanese:
+    192 localized strings and the seven agreed English sentiment and rating identities,
+    with the full-source freshness stamp and reverse-mapping collision guards intact.
+  - Locale-specific column widths and row-height scales accommodate longer Latin,
+    Devanagari, Thai, Korean, and Chinese text without changing the workbook grid.
+  - Each locale is verified through planning, formulas, conditional formatting,
+    serialization, and read-back under an English process locale; the workbook's own
+    `MeddpiccLocale` property remains the only authority during reading.
+
 - **`meddpicc`** v7.4.0 — Japanese is now a shipped workbook locale. `generate --locale ja`
   translates the tab, labels, schema guidance, dropdowns, formulas, conditional formatting, notes,
   and completion statuses while leaving deal-owned values untouched.

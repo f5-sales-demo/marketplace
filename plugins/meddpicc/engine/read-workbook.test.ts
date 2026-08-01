@@ -1335,11 +1335,11 @@ describe('metadata.locale', () => {
   });
 
   test('a deal asking for a language the workbook cannot be written in is refused, not stamped', () => {
-    // Every label, heading and dropdown is still English. Emitting one anyway and stamping it `ko`
-    // would make the provenance property lie about its own file — worse than not having it, because
-    // the stamp is what a reader trusts. So say so instead.
-    expect(() => generateWorkbook(schema, spec, inLocale('ko'))).toThrow(/ko/);
-    expect(() => generateWorkbook(schema, spec, inLocale('ko'))).toThrow(/only.*English|not translated/i);
+    // Arabic requires the separately tracked right-to-left layout. Emitting a left-to-right workbook
+    // and stamping it `ar` would make the provenance property lie about its own file — worse than not
+    // having it, because the stamp is what a reader trusts. So say what is actually shipped instead.
+    expect(() => generateWorkbook(schema, spec, inLocale('ar'))).toThrow(/ar/);
+    expect(() => generateWorkbook(schema, spec, inLocale('ar'))).toThrow(/not translated.*written in/i);
   });
 
   test('a exampleDeal naming a language the fleet does not have is refused by the schema', () => {

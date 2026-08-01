@@ -23,6 +23,8 @@ const schema = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'meddp
 const spec = JSON.parse(fs.readFileSync(path.join(here, 'workbook-spec.json'), 'utf8')) as WorkbookSpec;
 const deal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example-deal.json'), 'utf8'));
 const japanese = () => loadLocale({ slug: 'ja', from: 'flag' }, spec, schema);
+const remainingLocaleSlugs = ['fr', 'es', 'de', 'pt-br', 'ko', 'zh-cn', 'zh-tw', 'it', 'hi', 'th'] as const;
+const identityTerms = ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green'] as const;
 const rawJapanese = () =>
   JSON.parse(fs.readFileSync(path.join(here, 'locales', 'ja.json'), 'utf8')) as {
     locale: string;
@@ -39,14 +41,14 @@ const allCells = (context: LocaleContext) =>
 
 describe('the Japanese catalogue', () => {
   test('is shipped, exhaustive, fresh, and explicit about the seven English terms', () => {
-    expect(SHIPPED_LOCALES).toEqual(['en', 'ja']);
+    expect(SHIPPED_LOCALES).toEqual(['en', 'fr', 'es', 'de', 'pt-br', 'ja', 'ko', 'zh-cn', 'zh-tw', 'it', 'hi', 'th']);
     const context = japanese();
     const sources = translatableSet(spec, schema);
     expect(Object.keys(context.translations)).toHaveLength(199);
     expect(context.sourceHash).toBe(localeSourceHash(sources));
     expect(new Set(Object.keys(context.translations))).toEqual(sources);
 
-    for (const word of ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green']) {
+    for (const word of identityTerms) {
       expect(context.translations[word], word).toBe(word);
     }
     expect(Object.entries(context.translations).filter(([source, translated]) => source !== translated)).toHaveLength(
@@ -96,6 +98,63 @@ describe('the Japanese catalogue', () => {
     tooTall.sizing.rowHeightScale = 2.01;
     expect(() => contextFrom(tooTall)).toThrow(/between 1.0 and 2.0/);
   });
+});
+
+describe('the remaining left-to-right catalogues', () => {
+  const sources = translatableSet(spec, schema);
+  const statuses = ['not_started', 'partial', 'complete'] as const;
+
+  for (const slug of remainingLocaleSlugs) {
+    test(`${slug} is exhaustive, fresh, explicitly sized, and translates every agreed source`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      expect(Object.keys(context.translations)).toHaveLength(199);
+      expect(context.sourceHash).toBe(localeSourceHash(sources));
+      expect(new Set(Object.keys(context.translations))).toEqual(sources);
+      expect(context.sizing).toBeDefined();
+
+      for (const word of identityTerms) expect(context.translations[word], word).toBe(word);
+      expect(Object.entries(context.translations).filter(([source, translated]) => source !== translated)).toHaveLength(
+        192,
+      );
+      expect(localize(context, 'MEDDPICC Deal Review')).not.toBe('MEDDPICC Deal Review');
+      expect(localize(context, 'Account Name')).not.toBe('Account Name');
+
+      expect(() => enumLabels(statuses, context)).not.toThrow();
+      expect(() => booleanLabels(context)).not.toThrow();
+    });
+
+    test(`${slug} drives planning, serialization, and read-back under an English process locale`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      const english = planWorkbook(schema, spec, deal, ENGLISH_LOCALE);
+      const translated = planWorkbook(schema, spec, deal, context);
+      expect(translated.sheets[0].name).toBe(localize(context, 'MEDDPICC Deal Review'));
+      expect(translated.sheets[0].name).not.toBe(english.sheets[0].name);
+      expect(translated.inputCells.map((cell) => cell.address)).toEqual(english.inputCells.map((cell) => cell.address));
+      expect(
+        translated.sheets
+          .flatMap((sheet) => sheet.validations ?? [])
+          .some((validation) => validation.values.includes(localize(context, 'In progress'))),
+      ).toBe(true);
+
+      const bytes = generateWorkbook(schema, spec, deal, 'test', context);
+      expect(readWorkbookProperty(bytes, 'MeddpiccLocale')).toBe(slug);
+      const sheet = new TextDecoder().decode(readZip(bytes).get('xl/worksheets/sheet1.xml')?.data);
+      expect(sheet).toContain(localize(context, 'Not started'));
+      expect(sheet).toContain(localize(context, 'In progress'));
+
+      const before = process.env.LANG;
+      process.env.LANG = 'en_US.UTF-8';
+      try {
+        const report = readWorkbook(schema, spec, deal, bytes);
+        expect(report.ok).toBe(true);
+        expect(report.proposals).toEqual([]);
+        expect(report.rejections).toEqual([]);
+      } finally {
+        if (before === undefined) delete process.env.LANG;
+        else process.env.LANG = before;
+      }
+    });
+  }
 });
 
 describe('localized enum round trips', () => {
