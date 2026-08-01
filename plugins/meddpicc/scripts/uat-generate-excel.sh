@@ -79,6 +79,27 @@ fail() {
   exit 1
 }
 
+# A completion cell contains the words a person sees, while the engine reports the canonical JSON
+# token. Those are deliberately different things: today "Not started" means `not_started`, and a
+# translated workbook will show neither spelling. Ask the engine's reverse map rather than encoding an
+# English-only labelling rule in the acceptance test.
+canonical_enum_value() {
+  local displayed="$1"
+  (
+    cd "$PLUGIN_ROOT" || exit 2
+    bun -e '
+      import { canonicalEnumValue } from "./engine/labels.ts";
+      const displayed = process.argv[1] ?? "";
+      const canonical = canonicalEnumValue(displayed);
+      if (canonical === undefined) {
+        process.stderr.write(`No canonical enum value for ${JSON.stringify(displayed)}\n`);
+        process.exit(1);
+      }
+      process.stdout.write(canonical);
+    ' -- "$displayed"
+  )
+}
+
 # Start from a clean slate for the same reason, still only among our own names.
 close_our_workbooks
 
@@ -218,10 +239,9 @@ echo "PASS: every scorecard count Excel computes agrees with the deal JSON"
 # completion column that contradicts `engine next` is worse than one that is merely stale.
 #
 # So ask Excel for all thirteen and compare each against the engine's answer for the same deal. The
-# comparison normalises Excel's word rather than repeating the label table here: "Not started" becomes
-# not_started by lowercasing and swapping the space. That is derived from the labelling rule, so a
-# change to the WORDS keeps passing while a change to what they MEAN fails — which is the way round it
-# should be.
+# comparison routes Excel's word through the engine's reverse map rather than repeating the label table
+# here. That keeps working when a locale changes the words while still failing if they map to the wrong
+# canonical status.
 #
 # `statuses_from_excel <book> <plan> <engine-json>` prints `section<TAB>normalised-status` per section.
 #
@@ -242,7 +262,7 @@ statuses_from_excel() {
     row=$((row + 1))
   done
 
-  local values
+  local values canonical
   values="$(
     osascript - "$SHEET" "$book" "${refs[@]}" <<'OSA' 2>&1
 on run argv
@@ -269,7 +289,9 @@ OSA
   local i=0 value
   while IFS= read -r value; do
     [ -n "$value" ] || continue
-    printf '%s\t%s\n' "${sections[$i]}" "$(tr '[:upper:]' '[:lower:]' <<<"$value" | tr ' ' '_')"
+    canonical="$(canonical_enum_value "$value")" ||
+      fail "Excel returned an unrecognised completion label for ${sections[$i]}: '$value'"
+    printf '%s\t%s\n' "${sections[$i]}" "$canonical"
     i=$((i + 1))
   done <<<"$values"
 }
@@ -659,7 +681,9 @@ case "$status_seen" in
 *"TIMEOUT-score-write-never-took"*) fail "Excel discarded the score write — it was still busy: $status_seen" ;;
 *"TIMEOUT-status-did-not-follow-the-score"*) fail "the score changed and the completion status did not follow it" ;;
 esac
-status_now="$(cut -d'|' -f2 <<<"$status_seen" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')"
+status_displayed="$(cut -d'|' -f2 <<<"$status_seen")"
+status_now="$(canonical_enum_value "$status_displayed")" ||
+  fail "Excel returned an unrecognised completion label after the score edit: '$status_displayed'"
 echo "    metrics was '$(cut -d'|' -f1 <<<"$status_seen")', became '$(cut -d'|' -f2 <<<"$status_seen")'"
 [ "$status_now" = "$want_edited" ] || fail "Excel says metrics is '$status_now' at score 0; the engine says '$want_edited'"
 echo "PASS: a completion status follows a score changed in Excel"
