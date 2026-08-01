@@ -80,6 +80,16 @@ describe('the Japanese catalogue', () => {
     tooNarrow.sizing.columnWidths.B = 2.99;
     expect(() => contextFrom(tooNarrow)).toThrow(/between 3 and 80/);
 
+    const tooWide = rawJapanese();
+    if (!tooWide.sizing?.columnWidths) throw new Error('the Japanese fixture has no width override');
+    tooWide.sizing.columnWidths.B = 80.01;
+    expect(() => contextFrom(tooWide)).toThrow(/between 3 and 80/);
+
+    const tooShort = rawJapanese();
+    if (!tooShort.sizing) throw new Error('the Japanese fixture has no sizing block');
+    tooShort.sizing.rowHeightScale = 0.99;
+    expect(() => contextFrom(tooShort)).toThrow(/between 1.0 and 2.0/);
+
     const tooTall = rawJapanese();
     if (!tooTall.sizing) throw new Error('the Japanese fixture has no sizing block');
     tooTall.sizing.rowHeightScale = 2.01;
