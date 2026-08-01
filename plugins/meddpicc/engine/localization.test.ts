@@ -131,6 +131,12 @@ describe('the remaining left-to-right catalogues', () => {
       expect(translated.sheets[0].name).not.toBe(english.sheets[0].name);
       expect(translated.inputCells.map((cell) => cell.address)).toEqual(english.inputCells.map((cell) => cell.address));
       expect(
+        translated.sheets[0].columns?.some(
+          (column) => column.min === 2 && column.max === 2 && column.width === context.sizing?.columnWidths?.B,
+        ),
+      ).toBe(true);
+      expect(translated.sheets[0].rows[0].height).toBeGreaterThan(english.sheets[0].rows[0].height ?? 0);
+      expect(
         translated.sheets
           .flatMap((sheet) => sheet.validations ?? [])
           .some((validation) => validation.values.includes(localize(context, 'In progress'))),
