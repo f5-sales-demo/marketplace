@@ -1340,6 +1340,7 @@ describe('metadata.locale', () => {
     // having it, because the stamp is what a reader trusts. So say what is actually shipped instead.
     expect(() => generateWorkbook(schema, spec, inLocale('ar'))).toThrow(/ar/);
     expect(() => generateWorkbook(schema, spec, inLocale('ar'))).toThrow(/not translated.*written in/i);
+    expect(() => generateWorkbook(schema, spec, inLocale('ar'))).toThrow(/issues\/926/);
   });
 
   test('a exampleDeal naming a language the fleet does not have is refused by the schema', () => {

@@ -27,15 +27,19 @@ import { isNonProse, translatableSet } from './translatable';
 import { type TranslationContext, translateSource } from './translate';
 import type { WorkbookSpec } from './workbook-spec';
 
-/** The language everything falls back to, and the only one shipped until the locale files land. */
+/** The language everything falls back to. */
 export const DEFAULT_LOCALE = 'en';
+
+const unsupportedLocaleGuidance = (slug: string): string =>
+  slug === 'ar'
+    ? ' Arabic requires the right-to-left workbook tracked at https://github.com/f5-sales-demo/marketplace/issues/926.'
+    : '';
 
 /**
  * The locales that ship, derived rather than declared.
  *
  * `scripts/locale-lint.sh` fails a hardcoded locale list in TypeScript — rightly, since the fleet has one
- * registry and a second copy drifts from it — so this is built from the locale files present. There are
- * none yet, which is why it is English alone.
+ * registry and a second copy drifts from it — so this is built from the locale index and English default.
  */
 const indexedLocales = (localeIndex as { locales?: unknown }).locales;
 if (!Array.isArray(indexedLocales) || indexedLocales.some((slug) => typeof slug !== 'string')) {
@@ -187,7 +191,10 @@ export function localeContextFromCatalogue(
 export function loadLocale(resolved: ResolvedLocale, spec: WorkbookSpec, schema: unknown): LocaleContext {
   if (resolved.slug === DEFAULT_LOCALE) return { ...ENGLISH_LOCALE, ...resolved };
   if (!SHIPPED_LOCALES.includes(resolved.slug)) {
-    throw new Error(`Locale ${JSON.stringify(resolved.slug)} is not shipped; choose ${SHIPPED_LOCALES.join(', ')}`);
+    throw new Error(
+      `Locale ${JSON.stringify(resolved.slug)} is not shipped; choose ${SHIPPED_LOCALES.join(', ')}.` +
+        unsupportedLocaleGuidance(resolved.slug),
+    );
   }
   const file = path.join(import.meta.dir, 'locales', `${resolved.slug}.json`);
   let parsed: unknown;
@@ -337,7 +344,8 @@ export function resolveLocale(inputs: LocaleInputs): ResolvedLocale {
       throw new Error(
         `A locale of "${candidate.raw}" was asked for, and the workbook is not translated into it yet — ` +
           `it can be written in ${shipped.join(', ')}. Remove the request, or set it to ${DEFAULT_LOCALE}, ` +
-          'until the locale files land.',
+          'until the locale files land.' +
+          unsupportedLocaleGuidance(slug),
       );
     }
     // Ambient: the machine's language is not one we have, which is not the rep's problem to solve.

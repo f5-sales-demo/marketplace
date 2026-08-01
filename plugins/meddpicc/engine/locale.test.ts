@@ -127,6 +127,7 @@ describe('resolveLocale — resolution and refusal', () => {
     // Somebody asked for something specific. Handing them English instead is the one answer nobody wants.
     expect(() => resolveLocale({ flag: 'ar' })).toThrow(/ar/);
     expect(() => resolveLocale({ flag: 'ar' })).toThrow(/en/);
+    expect(() => resolveLocale({ flag: 'ar' })).toThrow(/issues\/926/);
     expect(resolveLocale({ deal: { metadata: { locale: 'ja' } } })).toEqual({ slug: 'ja', from: 'deal' });
     expect(() => resolveLocale({ env: { MEDDPICC_LOCALE: 'is' } })).toThrow(/is/);
   });
