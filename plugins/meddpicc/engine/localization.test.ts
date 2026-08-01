@@ -233,6 +233,93 @@ const salesTermsByLocale = {
     'Win Probability': 'ความน่าจะเป็นในการชนะ',
   },
 } as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
+const reviewedTermsByLocale = {
+  fr: {
+    Owner: 'Responsable',
+    'Relationship Owner': 'Responsable de la relation',
+    'Why Anything': 'Pourquoi changer',
+    '3 Whys — (Why Anything, Why Us, Why Now)':
+      '3 Pourquoi – (Pourquoi changer, pourquoi nous, pourquoi maintenant)',
+  },
+  es: {
+    Owner: 'Responsable',
+    'Relationship Owner': 'Responsable de la relación',
+    'Why Anything': 'Por qué cambiar',
+    '3 Whys — (Why Anything, Why Us, Why Now)':
+      '3 porqués — (Por qué cambiar, por qué nosotros, por qué ahora)',
+  },
+  de: {
+    Owner: 'Verantwortlicher',
+    'Relationship Owner': 'Beziehungsverantwortlicher',
+    'Why Anything': 'Warum überhaupt',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 Warum – (Warum überhaupt, Warum wir, Warum jetzt)',
+    'Engaged — EB identified by name; no direct access yet but plan exists':
+      'Eingebunden – EB namentlich identifiziert; noch kein direkter Zugang, aber ein Plan ist vorhanden',
+  },
+  'pt-br': {
+    Owner: 'Responsável',
+    'Relationship Owner': 'Responsável pelo relacionamento',
+    'Why Anything': 'Por que mudar',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 porquês — (por que mudar, por que nós, por que agora)',
+  },
+  ko: {
+    Owner: '담당자',
+    'Relationship Owner': '관계 담당자',
+    'Close Date': '예상 영업 마감일',
+    'Why Anything': '왜 변화해야 하는가',
+    '3 Whys — (Why Anything, Why Us, Why Now)':
+      '3가지 이유 — (왜 변화해야 하는가, 왜 우리인가, 왜 지금인가)',
+    'Acknowledged — Pain acknowledged by customer but not fully quantified':
+      '확인됨 — 고객이 문제점을 인식했으나 완전히 정량화되지 않음',
+    'Aligned — Direct access achieved; EB priorities and personal win documented':
+      '조율됨 — 직접 접촉 성사; EB 우선순위 및 개인적 성공 요인 문서화',
+    'Committed — Client has committed to metrics in writing or proposal':
+      '확약됨 — 고객이 서면 또는 제안서에서 지표에 동의함',
+  },
+  'zh-cn': {
+    Owner: '负责人',
+    'Relationship Owner': '关系负责人',
+    'Close Date': '预计成交日期',
+    'Why Anything': '为什么要改变',
+    '3 Whys — (Why Anything, Why Us, Why Now)':
+      '三个为什么——（为什么要改变、为什么选择我们、为什么是现在）',
+    'Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer':
+      '已化解——已提供竞争优势证明；已评估不作为的风险；制胜主题已获客户确认',
+  },
+  'zh-tw': {
+    Owner: '負責人',
+    'Relationship Owner': '關係負責人',
+    'Close Date': '預計成交日期',
+    'Why Anything': '為什麼要改變',
+    '3 Whys — (Why Anything, Why Us, Why Now)':
+      '三個為什麼——（為什麼要改變、為什麼選擇我們、為什麼是現在）',
+    'Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer':
+      '已化解——已提供競爭優勢證明；已評估不採取行動的風險；致勝主題已獲客戶確認',
+  },
+  it: {
+    Owner: 'Responsabile',
+    'Relationship Owner': 'Responsabile della relazione',
+    'Why Anything': 'Perché cambiare',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 perché – (Perché cambiare, perché noi, perché adesso)',
+  },
+  hi: {
+    Owner: 'ज़िम्मेदार व्यक्ति',
+    'Relationship Owner': 'संबंध प्रबंधक',
+    'Why Anything': 'क्यों बदलें',
+    '3 Whys — (Why Anything, Why Us, Why Now)': '3 क्यों — (क्यों बदलें, हम क्यों, अभी क्यों)',
+  },
+  th: {
+    Owner: 'ผู้รับผิดชอบ',
+    'Relationship Owner': 'ผู้รับผิดชอบความสัมพันธ์',
+    'Why Anything': 'ทำไมต้องเปลี่ยนแปลง',
+    '3 Whys — (Why Anything, Why Us, Why Now)':
+      '3 เหตุผลสำคัญ — (ทำไมต้องเปลี่ยนแปลง ทำไมต้องเป็นเรา ทำไมตอนนี้)',
+    'Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly':
+      'กำลังขับเคลื่อน — ผู้สนับสนุนภายในกำลังให้คำแนะนำ แบ่งปันข้อมูลเชิงลึก และลงมือดำเนินการอย่างเป็นรูปธรรมทุกสัปดาห์',
+    'Quantified — Pain quantified with business impact; consequence of inaction documented':
+      'วัดปริมาณแล้ว — วัดผลกระทบของปัญหาต่อธุรกิจเป็นตัวเลข และบันทึกผลของการไม่ดำเนินการแล้ว',
+  },
+} as const satisfies Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
 const rawJapanese = () =>
   JSON.parse(fs.readFileSync(path.join(here, 'locales', 'ja.json'), 'utf8')) as {
     locale: string;
@@ -340,6 +427,13 @@ describe('the remaining left-to-right catalogues', () => {
     test(`${slug} uses sales meanings for ambiguous workbook terms`, () => {
       const context = loadLocale({ slug, from: 'flag' }, spec, schema);
       for (const [source, expected] of Object.entries(salesTermsByLocale[slug])) {
+        expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
+      }
+    });
+
+    test(`${slug} uses reviewed workflow and MEDDPICC rubric terminology`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      for (const [source, expected] of Object.entries(reviewedTermsByLocale[slug])) {
         expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
       }
     });
