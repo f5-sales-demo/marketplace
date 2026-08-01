@@ -118,6 +118,8 @@ describe('Japanese planning and serialization', () => {
     expect(cells.some((cell) => cell.value === 'アカウント名')).toBe(true);
     expect(cells.some((cell) => cell.value === '指標')).toBe(true);
     expect(cells.some((cell) => cell.formula?.includes('一部完了'))).toBe(true);
+    expect(cells.some((cell) => cell.formula?.includes('完了'))).toBe(true);
+    expect(cells.some((cell) => cell.formula?.includes('はい'))).toBe(true);
     expect(plan.sheets.flatMap((sheet) => sheet.validations ?? []).some((v) => v.values.includes('進行中'))).toBe(true);
     expect(cells.some((cell) => cell.value === 'Example Corp')).toBe(true);
   });
