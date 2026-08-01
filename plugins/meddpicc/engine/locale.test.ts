@@ -127,7 +127,7 @@ describe('resolveLocale — resolution and refusal', () => {
     // Somebody asked for something specific. Handing them English instead is the one answer nobody wants.
     expect(() => resolveLocale({ flag: 'ko' })).toThrow(/ko/);
     expect(() => resolveLocale({ flag: 'ko' })).toThrow(/en/);
-    expect(() => resolveLocale({ deal: { metadata: { locale: 'ja' } } })).toThrow(/ja/);
+    expect(resolveLocale({ deal: { metadata: { locale: 'ja' } } })).toEqual({ slug: 'ja', from: 'deal' });
     expect(() => resolveLocale({ env: { MEDDPICC_LOCALE: 'de' } })).toThrow(/de/);
   });
 
@@ -169,9 +169,9 @@ describe('resolveLocale — resolution and refusal', () => {
     ).toThrow(/ja/);
   });
 
-  test('the shipped set is derived, and today it is English alone', () => {
+  test('the shipped set is derived from the catalogue index', () => {
     // A hardcoded locale array in TypeScript fails `scripts/locale-lint.sh`, so the set comes from the
-    // locale files present. There are none yet, which is why this reads as it does.
-    expect([...SHIPPED_LOCALES]).toEqual(['en']);
+    // locale files present. Japanese is the pilot; naming later locales here would duplicate the index.
+    expect([...SHIPPED_LOCALES]).toEqual(['en', 'ja']);
   });
 });

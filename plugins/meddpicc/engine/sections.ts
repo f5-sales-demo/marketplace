@@ -1,6 +1,7 @@
 /** The MEDDPICC section model — the single source of ordering/keys for the plugin. */
 
-import { enumLabel } from './labels';
+import { enumLabel, localizedEnumLabel } from './labels';
+import type { TranslationContext } from './translate';
 
 export type SectionStatus = 'not_started' | 'partial' | 'complete';
 
@@ -60,6 +61,6 @@ export function sectionLabel(key: string): string {
  * formats that match on these very strings. Label a cell in one place and compare its raw value in
  * another and the comparison silently stops matching — which is why there is no second map here.
  */
-export function statusLabel(status: string): string {
-  return enumLabel(status);
+export function statusLabel(status: string, context?: TranslationContext): string {
+  return context === undefined ? enumLabel(status) : localizedEnumLabel(status, context);
 }
