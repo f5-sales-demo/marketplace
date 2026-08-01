@@ -27,6 +27,7 @@ const remainingLocaleSlugs = ['fr', 'es', 'de', 'pt-br', 'ko', 'zh-cn', 'zh-tw',
 const identityTerms = ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green'] as const;
 const salesTermsByLocale = {
   fr: {
+    'Date Required From': 'Date de début requise',
     ACV: 'Valeur annuelle du contrat (ACV)',
     'Assigned To Deal?': 'Affecté à l’opportunité ?',
     'Below Three': 'Moins de trois',
@@ -48,6 +49,7 @@ const salesTermsByLocale = {
     'Win Probability': 'Probabilité de succès',
   },
   es: {
+    'Date Required From': 'Fecha de inicio requerida',
     'Assigned To Deal?': '¿Asignado a la oportunidad?',
     'Below Three': 'Menos de tres',
     'Can Say No': 'Puede decir que no',
@@ -68,6 +70,7 @@ const salesTermsByLocale = {
     'Win Probability': 'Probabilidad de éxito',
   },
   de: {
+    'Date Required From': 'Erforderliches Startdatum',
     'Assigned To Deal?': 'Der Opportunity zugewiesen?',
     'Below Three': 'Unter drei',
     'Can Say No': 'Kann Nein sagen',
@@ -88,6 +91,7 @@ const salesTermsByLocale = {
     'Win Probability': 'Abschlusswahrscheinlichkeit',
   },
   'pt-br': {
+    'Date Required From': 'Data de início necessária',
     'Assigned To Deal?': 'Atribuído à oportunidade?',
     'Below Three': 'Menos de três',
     'Can Say No': 'Pode dizer não',
@@ -108,6 +112,7 @@ const salesTermsByLocale = {
     'Win Probability': 'Probabilidade de sucesso',
   },
   ko: {
+    'Date Required From': '필요 시작일',
     'Assigned To Deal?': '영업 기회에 배정되었나요?',
     'Below Three': '3 미만',
     'Can Say No': '거절할 수 있음',
@@ -128,6 +133,7 @@ const salesTermsByLocale = {
     'Win Probability': '수주 확률',
   },
   'zh-cn': {
+    'Date Required From': '人员需求开始日期',
     'Assigned To Deal?': '已分配到此商机？',
     'Below Three': '低于 3',
     'Can Say No': '有权否决',
@@ -632,6 +638,8 @@ const advisoryCorrectionsByLocale = {
     Partner: '合作伙伴',
     'Partner Team': '合作伙伴团队',
     Pending: '待处理',
+    'Assessed — Competitors identified but customer perception unclear; general differentiation known':
+      '已评估——已识别竞争对手，但客户看法尚不明确；已了解基本差异化因素',
     'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
       '差异化——已识别并评估竞争对手；已记录客户看法；差异化策略明确',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
@@ -647,6 +655,7 @@ const advisoryCorrectionsByLocale = {
       '已验证——已确定具有影响力和信誉的人选；已记录个人收益',
   },
   'zh-tw': {
+    'Date Required From': '人員需求開始日期',
     'Actions Open': '未完成的行動項目',
     Reviewer: '評審人',
     Partial: '部分完成',
@@ -654,6 +663,8 @@ const advisoryCorrectionsByLocale = {
     Partner: '合作夥伴',
     'Partner Team': '合作夥伴團隊',
     Pending: '待處理',
+    'Assessed — Competitors identified but customer perception unclear; general differentiation known':
+      '已評估——已識別競爭對手，但客戶看法尚不明確；已瞭解基本差異化因素',
     'Differentiated — Competitors named and qualified; customer perception documented; differentiation strategy clear':
       '差異化——已識別並評估競爭對手；已記錄客戶看法；差異化策略明確',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
@@ -669,6 +680,7 @@ const advisoryCorrectionsByLocale = {
       '已驗證——已確認具影響力和可信度的人選；已記錄個人收益',
   },
   it: {
+    'Date Required From': 'Data di inizio richiesta',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
       'Bloccato: abbiamo influenzato i criteri a favore dei nostri punti di forza; principali stakeholder allineati',
     'Mapped — Major steps identified but dates or owners missing':
@@ -683,6 +695,7 @@ const advisoryCorrectionsByLocale = {
       'Convalidato: persona identificata con influenza e credibilità; beneficio personale documentato',
   },
   hi: {
+    'Date Required From': 'आवश्यक आरंभ तिथि',
     "A powerful internal advocate who sells for you when you're not in the room":
       'एक प्रभावशाली आंतरिक समर्थक, जो आपकी अनुपस्थिति में आपकी ओर से पैरवी करता है',
     'Unknown — No internal advocate identified': 'अज्ञात — किसी आंतरिक समर्थक की पहचान नहीं हुई',
@@ -702,6 +715,8 @@ const advisoryCorrectionsByLocale = {
   th: {
     Subscription: 'รายได้จากการสมัครสมาชิก',
     'Date Required From': 'วันที่เริ่มต้องการบุคลากร',
+    'Neutralized — Competitive proof delivered; do-nothing risk assessed; win theme validated with customer':
+      'ลดความเสี่ยงจากการแข่งขันแล้ว — นำเสนอหลักฐานความได้เปรียบในการแข่งขันแล้ว; ประเมินความเสี่ยงจากการไม่ดำเนินการแล้ว; ลูกค้ายืนยันกลยุทธ์การชนะแล้ว',
     'Locked — Criteria influenced toward our strengths; key stakeholders aligned':
       'ยืนยันแล้ว — เรามีอิทธิพลต่อเกณฑ์ให้เอื้อต่อจุดแข็งของเรา; ผู้มีส่วนได้ส่วนเสียหลักเห็นพ้องกัน',
     'Mapped — Major steps identified but dates or owners missing': 'จัดทำแผนแล้ว — ระบุขั้นตอนสำคัญแล้ว แต่ยังขาดวันที่หรือผู้รับผิดชอบ',
