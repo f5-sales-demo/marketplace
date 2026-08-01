@@ -351,17 +351,17 @@ describe('--locale', () => {
   });
 
   test('an explicit locale is validated on every path, not only the one that writes', () => {
-    // `--plan --locale ko` used to exit 0 while the same request on the writing path was refused, because
+    // `--plan --locale ar` used to exit 0 while the same request on the writing path was refused, because
     // resolution sat after the early returns. So whether an explicit locale was checked depended on which
     // other flag came with it. Review caught it.
     return (async () => {
       for (const extra of [['--plan'], ['--prose-heights'], []]) {
         const out = path.join(scratch, `loc-${extra.length}.xlsx`);
-        const args = ['generate', example, ...extra, '--locale', 'ko'];
+        const args = ['generate', example, ...extra, '--locale', 'ar'];
         if (extra.length === 0) args.push('--out', out);
         const { code, err } = await run(args);
         expect(code, args.join(' ')).toBe(1);
-        expect(err, args.join(' ')).toMatch(/ko/);
+        expect(err, args.join(' ')).toMatch(/ar/);
       }
     })();
   });
@@ -399,7 +399,7 @@ describe('--locale', () => {
     expect(written.code).toBe(0);
     expect(fs.existsSync(out), 'an --out=path must be honoured, not defaulted').toBe(true);
     // The equals form is validated exactly like the separated one.
-    expect((await run(['generate', example, '--locale=ko', '--plan'])).code).toBe(1);
+    expect((await run(['generate', example, '--locale=ar', '--plan'])).code).toBe(1);
     expect((await run(['generate', example, '--locale='])).code).toBe(1);
     expect((await run(['generate', example, '--locale=en', '--plan'])).code).toBe(0);
     // And duplicate detection sees across spellings, which is how a script's appended override slips in.

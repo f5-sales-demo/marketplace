@@ -33,6 +33,7 @@ import { schemaConstraint } from './schema-path';
 import { QUALIFICATION_ELEMENTS, SECTION_ORDER, sectionLabel } from './sections';
 import { estimateRowHeight, MAX_ROW_HEIGHT, neededRowHeight } from './text-metrics';
 import {
+  checkWorkbookSpec,
   parseReferences,
   type SpecBlock,
   type SpecColumn,
@@ -789,6 +790,10 @@ export function planWorkbook(
   context: LocaleContext = ENGLISH_LOCALE,
 ): WorkbookPlan {
   const spec = localizeSpec(sourceSpec, context);
+  const layoutFailures = checkWorkbookSpec(schema, spec).layout.failures;
+  if (layoutFailures.length > 0) {
+    throw new Error(`The localized workbook layout is invalid: ${layoutFailures.join('; ')}`);
+  }
   const { named, tables, placed } = layout(schema, spec, deal);
   const completion = computeCompletion(deal).completionStatus as Record<string, string>;
   const inputCells: InputCell[] = [];

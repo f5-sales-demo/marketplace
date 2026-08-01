@@ -23,6 +23,16 @@ const schema = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'meddp
 const spec = JSON.parse(fs.readFileSync(path.join(here, 'workbook-spec.json'), 'utf8')) as WorkbookSpec;
 const deal = JSON.parse(fs.readFileSync(path.join(here, '..', 'schema', 'example-deal.json'), 'utf8'));
 const japanese = () => loadLocale({ slug: 'ja', from: 'flag' }, spec, schema);
+const remainingLocaleSlugs = ['fr', 'es', 'de', 'pt-br', 'ko', 'zh-cn', 'zh-tw', 'it', 'hi', 'th'] as const;
+const identityTerms = ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green'] as const;
+type LocaleTermOracle = Record<(typeof remainingLocaleSlugs)[number], Readonly<Record<string, string>>>;
+const { salesTermsByLocale, reviewedTermsByLocale, advisoryCorrectionsByLocale } = JSON.parse(
+  fs.readFileSync(path.join(here, 'localization-oracle.json'), 'utf8'),
+) as {
+  salesTermsByLocale: LocaleTermOracle;
+  reviewedTermsByLocale: LocaleTermOracle;
+  advisoryCorrectionsByLocale: LocaleTermOracle;
+};
 const rawJapanese = () =>
   JSON.parse(fs.readFileSync(path.join(here, 'locales', 'ja.json'), 'utf8')) as {
     locale: string;
@@ -39,14 +49,14 @@ const allCells = (context: LocaleContext) =>
 
 describe('the Japanese catalogue', () => {
   test('is shipped, exhaustive, fresh, and explicit about the seven English terms', () => {
-    expect(SHIPPED_LOCALES).toEqual(['en', 'ja']);
+    expect(SHIPPED_LOCALES).toEqual(['en', 'fr', 'es', 'de', 'pt-br', 'ja', 'ko', 'zh-cn', 'zh-tw', 'it', 'hi', 'th']);
     const context = japanese();
     const sources = translatableSet(spec, schema);
     expect(Object.keys(context.translations)).toHaveLength(199);
     expect(context.sourceHash).toBe(localeSourceHash(sources));
     expect(new Set(Object.keys(context.translations))).toEqual(sources);
 
-    for (const word of ['Positive', 'Negative', 'Neutral', 'Unknown', 'Red', 'Yellow', 'Green']) {
+    for (const word of identityTerms) {
       expect(context.translations[word], word).toBe(word);
     }
     expect(Object.entries(context.translations).filter(([source, translated]) => source !== translated)).toHaveLength(
@@ -96,6 +106,102 @@ describe('the Japanese catalogue', () => {
     tooTall.sizing.rowHeightScale = 2.01;
     expect(() => contextFrom(tooTall)).toThrow(/between 1.0 and 2.0/);
   });
+
+  test('validates the sheet name after translation, not only the English source', () => {
+    for (const title of ['x'.repeat(32), 'Bad/Sheet']) {
+      const raw = rawJapanese();
+      raw.translations['MEDDPICC Deal Review'] = title;
+      const context = contextFrom(raw);
+      expect(() => planWorkbook(schema, spec, deal, context)).toThrow(/sheet name/i);
+    }
+  });
+});
+
+describe('the remaining left-to-right catalogues', () => {
+  const sources = translatableSet(spec, schema);
+  const statuses = ['not_started', 'partial', 'complete'] as const;
+
+  for (const slug of remainingLocaleSlugs) {
+    test(`${slug} is exhaustive, fresh, explicitly sized, and covers every agreed source`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      expect(Object.keys(context.translations)).toHaveLength(199);
+      expect(context.sourceHash).toBe(localeSourceHash(sources));
+      expect(new Set(Object.keys(context.translations))).toEqual(sources);
+      expect(context.sizing).toBeDefined();
+
+      for (const word of identityTerms) expect(context.translations[word], word).toBe(word);
+      expect(localize(context, 'MEDDPICC Deal Review')).not.toBe('MEDDPICC Deal Review');
+      expect(localize(context, 'Account Name')).not.toBe('Account Name');
+
+      expect(() => enumLabels(statuses, context)).not.toThrow();
+      expect(() => booleanLabels(context)).not.toThrow();
+    });
+
+    test(`${slug} uses sales meanings for ambiguous workbook terms`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      for (const [source, expected] of Object.entries(salesTermsByLocale[slug])) {
+        expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
+      }
+    });
+
+    test(`${slug} uses reviewed workflow and MEDDPICC rubric terminology`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      for (const [source, expected] of Object.entries(reviewedTermsByLocale[slug])) {
+        expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
+      }
+    });
+
+    test(`${slug} preserves the business meanings found by advisory review`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      for (const [source, expected] of Object.entries(advisoryCorrectionsByLocale[slug])) {
+        expect(context.translations[source], `${slug}: ${source}`).toBe(expected);
+      }
+    });
+
+    test(`${slug} drives planning, serialization, and read-back under an English process locale`, () => {
+      const context = loadLocale({ slug, from: 'flag' }, spec, schema);
+      const english = planWorkbook(schema, spec, deal, ENGLISH_LOCALE);
+      const translated = planWorkbook(schema, spec, deal, context);
+      expect(translated.sheets[0].name).toBe(localize(context, 'MEDDPICC Deal Review'));
+      expect(translated.sheets[0].name).not.toBe(english.sheets[0].name);
+      expect(translated.inputCells.map((cell) => cell.address)).toEqual(english.inputCells.map((cell) => cell.address));
+      expect(
+        translated.sheets[0].columns?.some(
+          (column) => column.min === 2 && column.max === 2 && column.width === context.sizing?.columnWidths?.B,
+        ),
+      ).toBe(true);
+      expect(translated.sheets[0].rows[0].height).toBeGreaterThan(english.sheets[0].rows[0].height ?? 0);
+      expect(
+        translated.sheets
+          .flatMap((sheet) => sheet.validations ?? [])
+          .some((validation) => validation.values.includes(localize(context, 'In progress'))),
+      ).toBe(true);
+
+      const bytes = generateWorkbook(schema, spec, deal, 'test', context);
+      expect(readWorkbookProperty(bytes, 'MeddpiccLocale')).toBe(slug);
+      const sheet = new TextDecoder().decode(readZip(bytes).get('xl/worksheets/sheet1.xml')?.data);
+      expect(sheet).toContain(localize(context, 'Not started'));
+      expect(sheet).toContain(localize(context, 'In progress'));
+
+      const before = process.env.LANG;
+      process.env.LANG = 'en_US.UTF-8';
+      try {
+        const report = readWorkbook(schema, spec, deal, bytes);
+        expect(report.ok).toBe(true);
+        expect(report.proposals).toEqual([]);
+        expect(report.rejections).toEqual([]);
+      } finally {
+        if (before === undefined) delete process.env.LANG;
+        else process.env.LANG = before;
+      }
+    });
+  }
+
+  test('the deal schema describes the shipped locale boundary accurately', () => {
+    const description = schema.properties.metadata.properties.locale.description;
+    expect(description).toMatch(/all listed locales except .*ar.*implemented/i);
+    expect(description).not.toMatch(/only .*en.*implemented/i);
+  });
 });
 
 describe('localized enum round trips', () => {
@@ -134,6 +240,22 @@ describe('localized boolean round trips', () => {
       translations: { Yes: '同じ', No: '同じ' },
     };
     expect(() => booleanLabels(collision)).toThrow(/Yes and No.*同じ/);
+  });
+
+  test('refuses either localized boolean when it collides with the opposite English word', () => {
+    const translatedYesIsEnglishNo: LocaleContext = {
+      ...ENGLISH_LOCALE,
+      slug: 'xx',
+      translations: { Yes: 'No', No: 'いいえ' },
+    };
+    expect(() => booleanLabels(translatedYesIsEnglishNo)).toThrow(/Yes and No.*No/);
+
+    const translatedNoIsEnglishYes: LocaleContext = {
+      ...ENGLISH_LOCALE,
+      slug: 'xx',
+      translations: { Yes: 'はい', No: 'Yes' },
+    };
+    expect(() => booleanLabels(translatedNoIsEnglishYes)).toThrow(/Yes and No.*Yes/);
   });
 });
 
