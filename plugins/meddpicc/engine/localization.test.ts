@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { booleanLabels, canonicalBooleanValue } from './display-words';
 import { generateWorkbook, planWorkbook } from './generate';
 import { canonicalEnumValue, enumLabels } from './labels';
 import {
@@ -116,6 +117,23 @@ describe('localized enum round trips', () => {
     };
     expect(() => enumLabels(statuses, collision)).toThrow(/not_started.*partial|partial.*not_started/i);
     expect(enumLabels(['pending', 'complete'], collision)).toEqual(['同じ', '完了']);
+  });
+});
+
+describe('localized boolean round trips', () => {
+  test('accepts English and Japanese forms and refuses an ambiguous translation', () => {
+    const context = japanese();
+    expect(canonicalBooleanValue('Yes', context)).toBe(true);
+    expect(canonicalBooleanValue('はい', context)).toBe(true);
+    expect(canonicalBooleanValue('No', context)).toBe(false);
+    expect(canonicalBooleanValue('いいえ', context)).toBe(false);
+
+    const collision: LocaleContext = {
+      ...ENGLISH_LOCALE,
+      slug: 'xx',
+      translations: { Yes: '同じ', No: '同じ' },
+    };
+    expect(() => booleanLabels(collision)).toThrow(/Yes and No.*同じ/);
   });
 });
 
