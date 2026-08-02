@@ -24,7 +24,7 @@ YAML files matching the `f5-sales-demo/console` catalog schemas.
 ## Environment Variables
 
 | Variable | Required | Default | Purpose |
-| ---------- | ---------- | --------- | --------- |
+| --- | --- | --- | --- |
 | `F5XC_API_URL` | No | Auto-detected from browser URL | Tenant URL |
 | `F5XC_NAMESPACE` | No | — | Default namespace for route patterns |
 
@@ -38,7 +38,7 @@ skill. Execute session health check. If re-auth needed, invoke
 
 ### Step 2: Navigate to console home
 
-```
+```text
 navigate_page(url=<tenant-url>/web/home)
 wait_for(text=["Dashboard", "Home"], timeout=15000)
 take_snapshot()
@@ -57,7 +57,7 @@ with their:
 
 For collapsed menu sections, click to expand and re-snapshot:
 
-```
+```text
 click(uid=<collapsed-section-uid>)
 take_snapshot()
 ```
@@ -89,12 +89,13 @@ tree:
 
 For each discovered route, navigate to it and classify the page:
 
-```
+```text
 navigate_page(url=<route-url>)
 take_snapshot()
 ```
 
 Determine:
+
 - **Screen type**: list, detail, form, wizard, dashboard, settings
 - **Primary controls**: buttons, search, filters
 - **Table presence**: columns, row actions
@@ -106,18 +107,19 @@ Record the classification for `console-inspect` to process later.
 
 Write the navigation tree YAML to the console catalog:
 
-```
+```text
 catalog/navigation/console-tree.yaml
 ```
 
 For each classified route, write a skeleton route file:
 
-```
+```text
 catalog/routes/<area>/<name>.yaml
 ```
 
 Report:
-```
+
+```text
 ## Discovery: COMPLETE
 - Sections found: <count>
 - Routes discovered: <count>
@@ -135,6 +137,7 @@ in the console repo after writing files.
 ## Incremental Discovery
 
 When re-running discovery:
+
 1. Read existing `catalog/navigation/console-tree.yaml`
 2. Compare with freshly discovered tree
 3. Mark new entries as `confidence: "draft"`

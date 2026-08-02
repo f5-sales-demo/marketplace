@@ -17,7 +17,7 @@ inside the devcontainer.
 
 ## Installation
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -27,7 +27,7 @@ inside the devcontainer.
 
 Scrape a single URL and extract content as markdown.
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -36,7 +36,7 @@ Scrape a single URL and extract content as markdown.
 
 Scrape multiple URLs at once.
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -44,16 +44,16 @@ Scrape multiple URLs at once.
 
 Crawl multiple pages from a starting URL.
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
 
 ### /map
 
-Discover all URLs on a website.
+Discover all URLs on a site.
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -62,7 +62,7 @@ Discover all URLs on a website.
 
 Search the web and optionally scrape results.
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -71,7 +71,7 @@ Search the web and optionally scrape results.
 
 LLM-powered structured data extraction from web pages.
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -85,7 +85,7 @@ LLM-powered structured data extraction from web pages.
 
 Generate an llms.txt file for a site.
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 
@@ -93,7 +93,7 @@ Generate an llms.txt file for a site.
 
 ### web-scraper
 
-Auto-activates when you ask to scrape a URL, crawl a website, map
+Auto-activates when you ask to scrape a URL, crawl a site, map
 site URLs, search the web, extract structured data, generate llms.txt,
 batch scrape multiple URLs, or convert a web page to markdown.
 Delegates immediately to the firecrawl-operator agent.
@@ -107,7 +107,7 @@ against the local firecrawl API. Supports 11 protocols covering all
 v1 endpoints. Read-only agent (no Write, Edit, or Agent tools).
 
 | Protocol | Endpoint | Type |
-|----------|----------|------|
+| --- | --- | --- |
 | HEALTH | `GET /` | Sync |
 | SCRAPE | `POST /v1/scrape` | Sync |
 | BATCH_SCRAPE | `POST /v1/batch/scrape` | Async |
@@ -125,7 +125,7 @@ v1 endpoints. Read-only agent (no Write, Edit, or Agent tools).
 The plugin requires the firecrawl stack running in the devcontainer:
 
 | Component | Port | Purpose |
-|-----------|------|---------|
+| --- | --- | --- |
 | Firecrawl API | 3002 | All scrape/crawl/map/search/extract endpoints |
 | Playwright | 3000 | JavaScript rendering engine |
 | Redis | 6379 | Job queue backend |

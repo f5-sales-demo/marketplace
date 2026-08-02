@@ -18,7 +18,7 @@ graph for cross-investigation correlation.
 
 ## Installation
 
-```
+```text
 /plugin install osint-framework@f5-sales-demo-marketplace
 ```
 
@@ -30,7 +30,7 @@ Run a full OSINT investigation against any target. Automatically
 detects the target type (email, domain, IP, username, company,
 person name) and routes to the correct category skills.
 
-```
+```text
 /osint-investigate j.smith@example.com
 /osint-investigate example.com
 /osint-investigate 198.51.100.1
@@ -41,7 +41,7 @@ person name) and routes to the correct category skills.
 
 Search the tool catalog for tools matching a capability query.
 
-```
+```text
 /osint-search subdomain enumeration
 /osint-search email breach check
 /osint-search satellite imagery
@@ -52,7 +52,7 @@ Search the tool catalog for tools matching a capability query.
 Browse the full tool catalog by category. Without arguments shows
 all 34 categories with tool counts.
 
-```
+```text
 /osint-catalog
 /osint-catalog domain
 /osint-catalog threat-intel
@@ -68,7 +68,7 @@ or describe any open-source intelligence task. Routes to the
 correct category skill based on target type.
 
 | Target | Routes To |
-|--------|----------|
+| --- | --- |
 | Username or handle | `username-recon` |
 | Email address | `email-recon` |
 | Domain name | `domain-recon` |
@@ -83,7 +83,7 @@ Each category has a dedicated skill with CLI tools, web resources,
 investigation workflow, cross-category pivots, and OPSEC notes.
 
 | Category | Tools | Key CLI Tools |
-|----------|-------|--------------|
+| --- | --- | --- |
 | `username-recon` | 18 | sherlock, maigret, sylva |
 | `email-recon` | 28 | holehe, h8mail, theHarvester |
 | `domain-recon` | 131 | subfinder, amass, whois, dig |
@@ -151,7 +151,7 @@ All API calls use the `osint_curl` helper with built-in exponential
 backoff on HTTP 429/503. Key limits:
 
 | API | Free Limit | Env Var |
-|-----|-----------|---------|
+| --- | --- | --- |
 | ipinfo.io | 1,000/day | — |
 | crt.sh | 60/min | — |
 | NVD | 5/30s (no key) | `NVD_API_KEY` |

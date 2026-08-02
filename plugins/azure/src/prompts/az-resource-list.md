@@ -1,15 +1,17 @@
-List Azure resources via `az resource list`.
+# List Azure resources
+
+Use `az resource list`.
 
 ## Usage
 
-```
+```bash
 az resource list [--resource-group NAME] [--resource-type TYPE] [--location LOCATION] [--name NAME] [--tag KEY[=VALUE]] [--subscription NAME_OR_ID]
 ```
 
 ## Flags
 
 | Flag | Description |
-|------|-------------|
+| --- | --- |
 | `--resource-group`, `-g` | Filter by resource group name |
 | `--resource-type` | Filter by type (e.g. `Microsoft.Compute/virtualMachines`). Accepts `namespace/type` format. |
 | `--location`, `-l` | Filter by region |
