@@ -4,7 +4,7 @@
 it upstream and re-vendor, otherwise `herdr-skill-freshness.yml` will fail.
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Upstream repository | <https://github.com/ogulcancelik/herdr> |
 | Upstream path | `SKILL.md` (repository root) |
 | Pinned ref | `master` |

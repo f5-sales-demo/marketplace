@@ -17,7 +17,7 @@ incomplete frontmatter.
 
 ## Installation
 
-```
+```text
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
@@ -84,7 +84,7 @@ description of the issue.
 
 ### /review-mdx
 
-```
+```text
 /f5xc-docs-tools:review-mdx [path-or-glob]
 ```
 
@@ -93,12 +93,12 @@ Runs the `mdx-content-reviewer` skill on demand.
 **Arguments:**
 
 | Argument | Required | Description |
-|----------|----------|-------------|
+| --- | --- | --- |
 | `path-or-glob` | No | File path or glob pattern to scope the review. Defaults to all `docs/**/*.mdx` files. |
 
 **Examples:**
 
-```
+```text
 # Review all MDX files in docs/
 /f5xc-docs-tools:review-mdx
 
@@ -134,7 +134,7 @@ The plugin validates imports against these sources:
 ## Component Quick Reference
 
 | Component | Required Props | Optional Props |
-|-----------|---------------|----------------|
+| --- | --- | --- |
 | Screenshot | `alt` + at least one of `light` or `dark` | — |
 | Aside | `type` | `title` |
 | Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
@@ -151,7 +151,7 @@ The plugin validates imports against these sources:
 Common issues the plugin catches:
 
 | Pitfall | Problem | Fix |
-|---------|---------|-----|
+| --- | --- | --- |
 | Bare `&lt;` | MDX interprets as JSX tag | Use `&amp;lt;`, inline code, or rephrase |
 | Unescaped `\{` `\}` | MDX treats as JSX expression | Use inline code, escape with `\`, or use code block |
 | Braces in filenames | Astro cannot process the file | Never use `\{` or `\}` in `.mdx` filenames |
