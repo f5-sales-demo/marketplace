@@ -110,7 +110,7 @@ const scenarios: Scenario[] = [
       const result = await sfSetup.execute('t', { action: 'status' }, undefined, undefined, SESSION);
       return checkResult(result, {
         isError: false,
-        contains: ['SFDC', 'history-033476afaf62@example.com', 'Connected'],
+        contains: ['SFDC', 'demo@example.com', 'Connected'],
       });
     },
   },
@@ -136,7 +136,7 @@ const scenarios: Scenario[] = [
       const result = await sfOrgDisplay.execute('t', {}, undefined, undefined, SESSION);
       return checkResult(result, {
         isError: false,
-        contains: ['SFDC', 'history-033476afaf62@example.com', 'Connected'],
+        contains: ['SFDC', 'demo@example.com', 'Connected'],
       });
     },
   },
@@ -151,7 +151,7 @@ const scenarios: Scenario[] = [
     name: 'exec-read-org-list',
     async run() {
       const result = await sfExec.execute('t', { args: ['org', 'list'] }, undefined, undefined, SESSION);
-      return checkResult(result, { isError: false, contains: ['SFDC', 'history-033476afaf62@example.com'] });
+      return checkResult(result, { isError: false, contains: ['SFDC', 'demo@example.com'] });
     },
   },
   {

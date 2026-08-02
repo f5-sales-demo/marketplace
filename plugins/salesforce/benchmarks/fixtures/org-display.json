@@ -1,7 +1,7 @@
 {
   "status": 0,
   "result": {
-    "username": "history-033476afaf62@example.com",
+    "username": "demo@example.com",
     "id": "00D000000000001EAA",
     "instanceUrl": "https://f5--demo.my.salesforce.com",
     "connectedStatus": "Connected",

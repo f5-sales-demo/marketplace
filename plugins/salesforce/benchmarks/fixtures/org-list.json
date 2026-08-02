@@ -4,7 +4,7 @@
     "nonScratchOrgs": [
       {
         "alias": "SFDC",
-        "username": "history-033476afaf62@example.com",
+        "username": "demo@example.com",
         "orgId": "00D000000000001EAA",
         "instanceUrl": "https://f5--demo.my.salesforce.com",
         "connectedStatus": "Connected",
