@@ -1,15 +1,17 @@
-Describe Amazon EC2 instances via `aws ec2 describe-instances`.
+# Describe Amazon EC2 instances
+
+Use `aws ec2 describe-instances`.
 
 ## Usage
 
-```
+```bash
 aws ec2 describe-instances [--region REGION] [--instance-ids ID ...] [--filters ...] --output json
 ```
 
 ## Parameters
 
 | Parameter | Description |
-|-----------|-------------|
+| --- | --- |
 | `region` | Optional AWS region (e.g. `us-east-1`) |
 | `instanceIds` | Optional list of instance IDs (e.g. `i-0123456789abcdef0`) |
 | `filters` | Optional list of `Name=...,Values=...` filter expressions |

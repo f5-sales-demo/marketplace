@@ -25,7 +25,7 @@ and workflow YAML files for the `f5-sales-demo/console` catalog.
 ## Environment Variables
 
 | Variable | Required | Default | Purpose |
-| ---------- | ---------- | --------- | --------- |
+| --- | --- | --- | --- |
 | `F5XC_API_URL` | No | Auto-detected from browser URL | Tenant URL |
 | `F5XC_NAMESPACE` | No | — | Namespace for parameterized routes |
 
@@ -33,7 +33,7 @@ and workflow YAML files for the `f5-sales-demo/console` catalog.
 
 ### Step 1: Navigate to target route
 
-```
+```text
 navigate_page(url=<target-route>)
 wait_for(text=[<expected-heading>], timeout=15000)
 take_snapshot()
@@ -53,7 +53,8 @@ From the snapshot, determine the screen type:
 #### For list screens
 
 Extract table metadata:
-```
+
+```javascript
 evaluate_script(function="() => {
   const headers = [...document.querySelectorAll('th')].map(th => ({
     label: th.textContent.trim(),
@@ -64,7 +65,8 @@ evaluate_script(function="() => {
 ```
 
 Extract row actions by clicking the actions menu on any row:
-```
+
+```text
 click(uid=<first-row-actions-button>)
 take_snapshot()
 ```
@@ -75,13 +77,15 @@ selectors.
 #### For form screens
 
 Click the "Add" or "Create" button to open the creation form:
-```
+
+```text
 click(uid=<add-button>)
 take_snapshot()
 ```
 
 Extract all form fields:
-```
+
+```javascript
 evaluate_script(function="() => {
   const fields = [...document.querySelectorAll('input, select, textarea')].map(el => ({
     type: el.tagName.toLowerCase() === 'select' ? 'select' : el.type,
@@ -95,7 +99,8 @@ evaluate_script(function="() => {
 ```
 
 For each collapsible section, expand it and re-extract:
-```
+
+```text
 click(uid=<collapsed-section>)
 take_snapshot()
 ```
@@ -103,12 +108,14 @@ take_snapshot()
 #### For detail screens
 
 Extract tab labels and their content areas:
-```
+
+```text
 take_snapshot()
 ```
 
 Click through each tab and record its structure:
-```
+
+```text
 click(uid=<tab-uid>)
 take_snapshot()
 ```
@@ -174,6 +181,7 @@ metadata:
 
 Generate step-by-step workflows from the observed interaction
 sequence. Each step records:
+
 - action (navigate, click, fill, select, assert)
 - selector (prefer data-testid, fallback to CSS)
 - wait_for condition
@@ -183,14 +191,14 @@ sequence. Each step records:
 
 Take a screenshot of each key state for documentation:
 
-```
+```text
 take_screenshot(filePath="<console-repo>/docs/screenshots/<resource>-list.png")
 take_screenshot(filePath="<console-repo>/docs/screenshots/<resource>-create.png")
 ```
 
 ### Step 7: Report results
 
-```
+```text
 ## Inspection: COMPLETE
 - Resource: <name>
 - Screen type: <type>

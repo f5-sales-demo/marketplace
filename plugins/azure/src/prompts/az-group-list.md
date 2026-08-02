@@ -1,23 +1,25 @@
-List or show Azure resource groups via `az group`.
+# List or show Azure resource groups
+
+Use `az group`.
 
 ## Actions
 
 **list** — List all resource groups in the current subscription.
 
-```
+```bash
 az group list [--subscription NAME_OR_ID] [--tag KEY[=VALUE]]
 ```
 
 **show** — Get details of a specific resource group.
 
-```
+```bash
 az group show --name NAME [--subscription NAME_OR_ID]
 ```
 
 ## Flags
 
 | Flag | Applies To | Description |
-|------|-----------|-------------|
+| --- | --- | --- |
 | `--subscription` | list, show | Name or ID of subscription |
 | `--tag` | list | Filter by tag in `key[=value]` format |
 | `--name`, `-n` | show | Resource group name (required for show) |

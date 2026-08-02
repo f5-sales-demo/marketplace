@@ -36,6 +36,7 @@ session. This skill translates user intent into a call to the
 ### Step 1: Parse user intent
 
 Extract from the user's request:
+
 - **Resource**: which F5 XC resource (e.g., http-load-balancer,
   origin-pool, app-firewall, health-check, tcp-load-balancer,
   service-policy, namespace)
@@ -52,6 +53,7 @@ Check if the browser is authenticated. If not, invoke
 ### Step 3: Resolve catalog path
 
 Determine the catalog path:
+
 1. Check `CONSOLE_CATALOG_PATH` env var
 2. Fall back to `~/GIT/f5-sales-demo/console`
 3. Verify the path exists and contains `catalog/workflows/`
@@ -59,12 +61,14 @@ Determine the catalog path:
 ### Step 4: Verify workflow exists
 
 Check that the workflow file exists:
-```
+
+```text
 {catalog_path}/catalog/workflows/{resource}/{operation}.yaml
 ```
 
 If not found, list available workflows:
-```
+
+```bash
 ls {catalog_path}/catalog/workflows/{resource}/
 ```
 
@@ -75,7 +79,7 @@ is missing.
 
 Call the `catalog_workflow_runner` tool:
 
-```
+```yaml
 catalog_workflow_runner(
   catalog_path: "{resolved_catalog_path}",
   resource: "{resource}",
@@ -97,7 +101,7 @@ The user can request fast mode by saying "quickly" or "fast".
 
 Present the workflow results to the user:
 
-```
+```text
 ## Console Workflow: {operation} {resource}
 Status: {PASS/FAIL}
 Duration: {total_duration}
@@ -131,6 +135,7 @@ verify namespace selection, retry with different parameters).
 User: "Create an HTTP load balancer called demo-lb in the demo namespace with domain app.example.com"
 
 Extracted:
+
 - Resource: http-load-balancer
 - Operation: create
 - Params: name=demo-lb, namespace=demo, domains=["app.example.com"]
@@ -138,6 +143,7 @@ Extracted:
 User: "Delete the origin pool named backend-pool"
 
 Extracted:
+
 - Resource: origin-pool
 - Operation: delete
 - Params: name=backend-pool, namespace=<ORGANIZATION_9D60CB9703>

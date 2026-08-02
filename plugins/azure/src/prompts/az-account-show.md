@@ -1,23 +1,25 @@
-Show or list Azure subscriptions via `az account`.
+# Show or list Azure subscriptions
+
+Use `az account`.
 
 ## Actions
 
 **show** — Get details of the current (or specified) subscription.
 
-```
+```bash
 az account show [--subscription NAME_OR_ID]
 ```
 
 **list** — List subscriptions for the logged-in account. By default only 'Enabled' subscriptions are shown.
 
-```
+```bash
 az account list [--all] [--refresh]
 ```
 
 ## Flags
 
 | Flag | Applies To | Description |
-|------|-----------|-------------|
+| --- | --- | --- |
 | `--subscription`, `-s`, `-n` | show | Name or ID of subscription |
 | `--all` | list | Include subscriptions that are not 'Enabled' |
 | `--refresh` | list | Retrieve up-to-date subscriptions from server |

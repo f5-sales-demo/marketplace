@@ -15,20 +15,20 @@ The marketplace manifest lives at
 ### Top-level fields
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| --- | --- | --- |
 | `$schema` | No | JSON Schema URL for validation |
 | `name` | Yes | Unique marketplace identifier |
-| `version` | No | Marketplace schema version (semver) |
+| `version` | No | Marketplace schema version (SemVer) |
 | `metadata.description` | Yes | Human-readable marketplace description |
 | `owner.name` | Yes | Organization or user that owns the marketplace |
-| `owner.url` | No | URL to the owner's profile or website |
+| `owner.url` | No | URL to the owner's profile or site |
 | `owner.email` | No | Contact email |
 | `plugins` | Yes | Array of plugin entries |
 
 ### Plugin entry fields
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| --- | --- | --- |
 | `name` | Yes | Plugin identifier (must match `plugin.json`) |
 | `description` | Yes | Short description of the plugin |
 | `version` | Yes | Semantic version string |
@@ -47,7 +47,7 @@ The `source` field in marketplace.json supports multiple
 formats:
 
 | Type | Example | Description |
-|------|---------|-------------|
+| --- | --- | --- |
 | Relative path | `./plugins/example-plugin` | Plugin in same repository |
 | GitHub shorthand | `owner/repo` | Plugin at repository root |
 | GitHub with path | `owner/repo/path/to/plugin` | Plugin in subdirectory |
@@ -60,12 +60,12 @@ Each plugin has a manifest at
 `.claude-plugin/plugin.json` inside its directory.
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| --- | --- | --- |
 | `name` | Yes | Plugin identifier |
 | `description` | Yes | What the plugin does |
 | `version` | Yes | Semantic version |
 | `author.name` | Yes | Plugin author |
-| `author.url` | No | URL to the author's profile or website |
+| `author.url` | No | URL to the author's profile or site |
 | `homepage` | No | Documentation URL |
 | `keywords` | No | Search keywords |
 | `license` | No | SPDX license identifier |
@@ -73,7 +73,7 @@ Each plugin has a manifest at
 
 ## Plugin Directory Layout
 
-```
+```text
 plugins/example-plugin/
   .claude-plugin/
     plugin.json          # Plugin manifest (required)
@@ -94,7 +94,7 @@ Plugins can use these variables in their skill and command
 files:
 
 | Variable | Description |
-|----------|-------------|
+| --- | --- |
 | `$\{CLAUDE_PLUGIN_ROOT\}` | Absolute path to the plugin's root directory |
 
 ## Validation
@@ -149,13 +149,13 @@ Add to `.claude/settings.json` in any repository:
 
 Verify the marketplace was added:
 
-```
+```text
 /plugin marketplace list
 ```
 
 If missing, re-add it:
 
-```
+```text
 /plugin marketplace add f5-sales-demo/marketplace
 ```
 

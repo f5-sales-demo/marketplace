@@ -50,7 +50,7 @@ harness can gate mutations centrally.
 Legend: ✅ present · ◑ partial · ❌ missing
 
 | Dimension | Azure | aws | gcloud | GitLab | salesforce | GitHub |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | 1 argv/no-shell | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 1 control-char hygiene | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 1 signal-aware exec | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

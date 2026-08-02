@@ -1,15 +1,17 @@
-List Azure Virtual Machines via `az vm list`.
+# List Azure virtual machines
+
+Use `az vm list`.
 
 ## Usage
 
-```
+```bash
 az vm list [--resource-group NAME] [--show-details] [--vmss VMSS_ID] [--subscription NAME_OR_ID]
 ```
 
 ## Flags
 
 | Flag | Description |
-|------|-------------|
+| --- | --- |
 | `--resource-group`, `-g` | Filter by resource group |
 | `--show-details`, `-d` | Include public IP, FQDN, and power state. **Runs slower.** |
 | `--vmss` | List VMs in a specific Virtual Machine Scale Set |

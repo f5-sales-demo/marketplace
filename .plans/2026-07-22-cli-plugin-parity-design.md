@@ -15,7 +15,7 @@ a fair question was raised: was that a one-off, or is there systemic inconsisten
 An audit confirmed systemic inconsistency across three tiers:
 
 | Capability | Azure | aws | gcloud | GitLab | salesforce | GitHub |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | Native tools | 6 | 0 | 0 | 4 | 4 | 9 |
 | `*_exec` passthrough | yes | no | no | no | SOQL-only | no |
 | `*_help` discovery tool | yes | no | no | no | no | no |
