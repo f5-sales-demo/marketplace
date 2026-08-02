@@ -74,16 +74,16 @@ echo -e "${CYAN}--- Entity CRUD ---${NC}"
 P1=$(osint_entity_add "person" "J. Smith" name="J. Smith" location="Anytown" --tool github-api --investigation test-001)
 assert_contains "Entity add returns ID" "e-" "$P1"
 
-C1=$(osint_entity_add "company" "F5" domain="f5.com" --tool github-api --investigation test-001)
+C1=$(osint_entity_add "company" "Example Corp" domain="example.com" --tool github-api --investigation test-001)
 assert_contains "Company entity created" "e-" "$C1"
 
-D1=$(osint_entity_add "domain" "f5.com" registrar="CSC" --tool whois --investigation test-001)
+D1=$(osint_entity_add "domain" "example.com" registrar="CSC" --tool whois --investigation test-001)
 assert_contains "Domain entity created" "e-" "$D1"
 
 U1=$(osint_entity_add "username" "example-user" platform="github" --tool github-api --investigation test-001)
 assert_contains "Username entity created" "e-" "$U1"
 
-IP1=$(osint_entity_add "ip" "159.60.134.0" org="F5 Networks" --tool dig --investigation test-001)
+IP1=$(osint_entity_add "ip" "192.0.2.1" org="Example Corp" --tool dig --investigation test-001)
 assert_contains "IP entity created" "e-" "$IP1"
 
 E1=$(osint_entity_add "email" "j.smith@example.com" --tool inference --investigation test-001)
@@ -96,14 +96,14 @@ assert_eq "6 entities in graph" "6" "$entity_count"
 echo ""
 echo -e "${CYAN}--- Deduplication ---${NC}"
 
-P1_DUP=$(osint_entity_add "person" "J. Smith" company="F5" --tool linkedin --investigation test-001)
+P1_DUP=$(osint_entity_add "person" "J. Smith" company="Example Corp" --tool linkedin --investigation test-001)
 assert_eq "Dedup: same person returns same ID" "$P1" "$P1_DUP"
 
 entity_count=$(jq 'length' "$OSINT_GRAPH_DIR/entities.json")
 assert_eq "Still 6 entities (not 7)" "6" "$entity_count"
 
 # Case-insensitive dedup
-D1_DUP=$(osint_entity_add "domain" "F5.COM" --tool subfinder --investigation test-001)
+D1_DUP=$(osint_entity_add "domain" "EXAMPLE.COM" --tool subfinder --investigation test-001)
 assert_eq "Case-insensitive dedup" "$D1" "$D1_DUP"
 
 # ── Test 3: Confidence Scoring ─────────────────────────────
@@ -151,11 +151,11 @@ assert_eq "Still 5 relationships (not 6)" "5" "$rel_count"
 echo ""
 echo -e "${CYAN}--- Search ---${NC}"
 
-search_f5=$(osint_entity_search "f5" | jq 'length')
-assert_gt "Search 'f5' finds entities" "0" "$search_f5"
+search_example=$(osint_entity_search "example" | jq 'length')
+assert_gt "Search 'example' finds entities" "0" "$search_example"
 
-search_robin=$(osint_entity_search "robin" | jq 'length')
-assert_gt "Search 'robin' finds entities" "0" "$search_robin"
+search_smith=$(osint_entity_search "smith" | jq 'length')
+assert_gt "Search 'smith' finds entities" "0" "$search_smith"
 
 search_nothing=$(osint_entity_search "zzz_nonexistent_zzz" | jq 'length')
 assert_eq "Search for nonexistent returns 0" "0" "$search_nothing"
