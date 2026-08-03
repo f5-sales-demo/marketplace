@@ -93,7 +93,7 @@ For each gap, recommend:
 
 Every response must follow this structure:
 
-```
+```text
 ## Deal Analysis Report
 
 ### Account: example-corp

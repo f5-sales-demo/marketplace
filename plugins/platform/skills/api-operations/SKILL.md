@@ -36,7 +36,7 @@ All reference files live under `skills/api-operations/references/`.
 
 For list, get, create, update, or delete operations on a single resource:
 
-```
+```text
 Agent(
   subagent_type="platform:api-operator",
   description="<verb> <resource> via API",
@@ -67,7 +67,7 @@ dependent resources, check the `references/workflows/` directory first:
 | Configure Origin Pool | `workflows/configure_origin_pool.md` | "set up origin pool with health checks" |
 | Register Site | `workflows/register_site.md` | "register site", "add CE site" |
 
-```
+```text
 Agent(
   subagent_type="platform:api-operator",
   description="Deploy <resource> via API workflow",

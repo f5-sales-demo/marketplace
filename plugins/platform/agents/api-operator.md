@@ -119,7 +119,7 @@ curl -s -X METHOD \
 
 After completing a task, report:
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Actions Taken

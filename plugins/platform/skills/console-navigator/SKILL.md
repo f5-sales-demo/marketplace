@@ -43,7 +43,7 @@ current namespace from the browser URL.
 
 ### Step 3: Navigate
 
-```
+```text
 navigate_page(url=<resolved-url>)
 wait_for(text=[<expected-page-heading>], timeout=15000)
 take_snapshot()
@@ -54,7 +54,7 @@ take_snapshot()
 Confirm the snapshot contains expected page elements for the
 target section. Report:
 
-```
+```text
 ## Navigation: SUCCESS
 - Section: <section name>
 - URL: <current URL>
