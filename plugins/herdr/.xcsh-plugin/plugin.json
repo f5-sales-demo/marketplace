@@ -1,7 +1,7 @@
 {
   "name": "herdr",
   "description": "Control Herdr, a terminal multiplexer for coding agents — inspect workspaces, tabs and panes, split panes, run commands without stealing focus, read pane output, and coordinate sibling agents. Requires HERDR_ENV=1.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
   "license": "Apache-2.0",
   "author": {

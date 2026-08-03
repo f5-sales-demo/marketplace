@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`herdr`** v1.0.1 — freshness verification follows the transferred upstream repository and
+  relocated skill path while preserving the byte-identical vendored skill.
+
+- Pinned every GitHub Actions dependency that remained on a mutable major-version tag.
+
 - **`github-ops`** polling tests now replace retry waits with a deterministic test-local sleep,
   preserving the `Retry-After` contract without depending on workstation timing
   ([#1024](https://github.com/f5-sales-demo/marketplace/issues/1024)).
@@ -23,6 +28,12 @@ and this project adheres to
   pi-utils 20.2.7, Anthropic 0.115.0, ACP 1.3.0, and Google GenAI 2.15.0. The plugin
   runner detects and repairs stale physical dependency links from frozen lockfiles before tests and
   batches its sanitised-PATH setup instead of spawning one link process per executable.
+
+- Plugin verification now requires a frozen lockfile for every Bun-tested plugin, disables
+  Puppeteer browser downloads, stops immediately when dependency installation fails, and
+  runs on current Bun 1.3.14. **`meddpicc`** v7.5.1 now declares its engine workspace and
+  freezes that test graph in a repository lockfile
+  ([#1012](https://github.com/f5-sales-demo/marketplace/issues/1012)).
 
 - **`meddpicc`** v7.5.0 — French, Spanish, German, Brazilian Portuguese, Korean,
   Simplified Chinese, Traditional Chinese, Italian, Hindi, and Thai complete the
