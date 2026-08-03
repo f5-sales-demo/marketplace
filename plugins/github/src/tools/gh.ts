@@ -2029,7 +2029,7 @@ export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
       if (result.exitCode !== 0) {
         throw detectGhError(result.stderr, result.stdout, result.exitCode, { args });
       }
-      let out = result.stdout;
+      let out = result.stdout || result.stderr;
       if (out.length > GH_EXEC_MAX_OUTPUT) {
         out = `${out.slice(0, GH_EXEC_MAX_OUTPUT)}\n\n[Output truncated]`;
       }
