@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github-ops`** polling tests now replace retry waits with a deterministic test-local sleep,
+  preserving the `Retry-After` contract without depending on workstation timing
+  ([#1024](https://github.com/f5-sales-demo/marketplace/issues/1024)).
+
 - **`github`** v1.2.3 — `gh_exec` now returns stderr from successful commands when stdout is empty,
   so commands such as `gh auth status` expose their result to the calling model. Successful commands
   that emit both streams continue to prefer stdout, and the existing output limit applies to either
