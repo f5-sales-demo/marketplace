@@ -58,7 +58,7 @@ target section. Report:
 ## Navigation: SUCCESS
 - Section: <section name>
 - URL: <current URL>
-- Namespace: <active namespace>
+- Namespace: <NAMESPACE>
 ```
 
 ## State Detection

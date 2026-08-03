@@ -323,7 +323,7 @@
 
 ### Crunchbase
 
-- **URL**: <https://www.crunchbase.com/#/home/index>
+- **URL**: <https://www.crunchbase.com/#/index>
 - **Type**: API
 - **Pricing**: Freemium
 - **OPSEC**: Passive

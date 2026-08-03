@@ -301,7 +301,7 @@ After writing the JSON file, display a scorecard summary:
 ## MEDDPICC Deal Scorecard
 
 ### Deal: [deal name]
-### Account: [account name]
+### Account: <ACCOUNT_NAME>
 ### Date: [review date]
 ### Stage: [deal status]
 ### Overall Score: [X/32] ([percentage]%) — [Red/Yellow/Green]

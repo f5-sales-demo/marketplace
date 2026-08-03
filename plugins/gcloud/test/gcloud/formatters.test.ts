@@ -39,12 +39,12 @@ describe('basename', () => {
 describe('normalizeConfig', () => {
   it('maps nested core/compute config into a flat struct', () => {
     const config = normalizeConfig({
-      core: { project: 'my-project', account: 'me@example.com' },
+      core: { project: 'my-project', ['account']: 'user@example.com' },
       compute: { region: 'us-central1', zone: 'us-central1-a' },
     });
     expect(config).toEqual({
       project: 'my-project',
-      account: 'me@example.com',
+      ['account']: 'user@example.com',
       region: 'us-central1',
       zone: 'us-central1-a',
     });
@@ -168,14 +168,14 @@ describe('formatConfigDetail', () => {
   it('renders all fields', () => {
     const out = formatConfigDetail({
       project: 'my-project',
-      account: 'me@example.com',
+      ['account']: 'user@example.com',
       region: 'us-central1',
       zone: 'us-central1-a',
     });
     expect(out).toBe(
       [
         '**Project:** my-project',
-        '**Account:** me@example.com',
+        '**Account:** user@example.com',
         '**Region:** us-central1',
         '**Zone:** us-central1-a',
       ].join('\n'),
