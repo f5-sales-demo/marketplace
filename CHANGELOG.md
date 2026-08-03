@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github`** v1.2.3 — `gh_exec` now returns stderr from successful commands when stdout is empty,
+  so commands such as `gh auth status` expose their result to the calling model. Successful commands
+  that emit both streams continue to prefer stdout, and the existing output limit applies to either
+  selected stream ([#1010](https://github.com/f5-sales-demo/marketplace/issues/1010)).
+
 - **`meddpicc`** v7.5.0 — French, Spanish, German, Brazilian Portuguese, Korean,
   Simplified Chinese, Traditional Chinese, Italian, Hindi, and Thai complete the
   left-to-right workbook locale set.

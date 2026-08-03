@@ -364,7 +364,7 @@
     {
       "name": "github",
       "description": "GitHub CLI integration — native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status via gh CLI",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "author": {
         "name": "f5-sales-demo"
       },
