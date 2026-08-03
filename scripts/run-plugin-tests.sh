@@ -11,12 +11,16 @@
 # plugin someone adds, which is the same failure this exists to close.
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$REPO_ROOT" || exit 2
 
 # A missing runtime must not read as a pass: the per-plugin suites skip themselves when bun
 # is absent, which in CI would be a silent no-op gate.
 export REQUIRE_BUN=1
+# xcsh depends on Puppeteer for browser-backed tools, but plugin unit tests do not use a
+# browser. Installing a plugin lock must never download platform browsers or depend on a
+# developer's partially populated Puppeteer cache.
+export PUPPETEER_SKIP_DOWNLOAD=true
 
 command -v bun >/dev/null 2>&1 || {
   echo "FATAL: bun is required to run the plugin test suites" >&2
@@ -104,11 +108,19 @@ for suite in plugins/*/scripts/tests/run-tests.sh; do
 
   # Only run bun tests where the plugin actually has some.
   if find "plugins/$plugin" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q .; then
-    # Install first where there is a lockfile. Without it every import of a devDependency
-    # fails with "Cannot find module", which reads exactly like broken code and is not.
-    # Frozen so a stale lockfile fails here rather than resolving to something else.
-    if [ -f "plugins/$plugin/bun.lock" ]; then
-      (cd "plugins/$plugin" && bun install --frozen-lockfile) || ok=1
+    # Every Bun-tested plugin must declare an exact reproducible dependency graph. Without
+    # a lockfile, imports can resolve from workstation leftovers and hide a broken checkout.
+    if [ ! -f "plugins/$plugin/bun.lock" ]; then
+      printf 'FATAL: %s has Bun tests but no bun.lock\n' "$plugin" >&2
+      exit 1
+    fi
+
+    # Install before testing so missing dependencies cannot masquerade as source failures.
+    # An install failure invalidates every later assertion, so stop immediately instead of
+    # running tests against whatever physical packages happened to remain on disk.
+    if ! (cd "plugins/$plugin" && bun install --frozen-lockfile); then
+      printf 'FATAL: dependency installation failed for %s\n' "$plugin" >&2
+      exit 1
     fi
     (cd "plugins/$plugin" && bun test .) || ok=1
   fi
