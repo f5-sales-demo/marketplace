@@ -25,7 +25,7 @@ const minimal = () =>
           row: 2,
           cells: [
             { ref: 'A2', value: 'Account', style: 'label' },
-            { ref: 'B2', value: 'Visa, Inc.', style: 'text' },
+            { ref: 'B2', value: 'Example Corp', style: 'text' },
           ],
         },
       ],
@@ -88,7 +88,7 @@ describe('buildWorkbook — cells', () => {
   test('writes a string as an inline string, so sharedStrings is never needed', () => {
     const sheet = dec(readZip(minimal()).get('xl/worksheets/sheet1.xml')?.data as Uint8Array);
     expect(sheet).toContain('t="inlineStr"');
-    expect(sheet).toContain('<t xml:space="preserve">Visa, Inc.</t>');
+    expect(sheet).toContain('<t xml:space="preserve">Example Corp</t>');
   });
 
   test('writes a number bare, so the sheet can compute on it', () => {
@@ -478,14 +478,14 @@ describe('buildWorkbook — presentation', () => {
   });
 
   test('emits print setup, escaping the header text', () => {
-    const sheet = presented({ print: { orientation: 'landscape', fitToWidth: true, header: ['Visa & Co'] } });
+    const sheet = presented({ print: { orientation: 'landscape', fitToWidth: true, header: ['Example & Co'] } });
     expect(sheet).toContain('<pageSetup');
     expect(sheet).toContain('orientation="landscape"');
     expect(sheet).toContain('fitToWidth="1"');
     expect(sheet).toContain('<pageMargins');
     // "&" opens a format code in a header (&D is the date), so a literal ampersand has to be
     // doubled before the usual XML escaping — otherwise Excel eats the " C" after it.
-    expect(sheet).toContain('Visa &amp;&amp; Co');
+    expect(sheet).toContain('Example &amp;&amp; Co');
     expect(presented({})).not.toContain('pageSetup');
   });
 
@@ -538,7 +538,7 @@ describe('buildWorkbook — presentation', () => {
   test('an empty part is dropped rather than leaving a dangling separator', () => {
     const oddOf = (header: string[]) =>
       /<oddHeader>(.*?)<\/oddHeader>/s.exec(presented({ print: { orientation: 'landscape', header } }))?.[1];
-    expect(oddOf(['Visa', ''])).toBe('&amp;LVisa&amp;R&amp;D');
+    expect(oddOf(['Example', ''])).toBe('&amp;LExample&amp;R&amp;D');
     expect(oddOf(['', 'XC WAF-API'])).toBe('&amp;LXC WAF-API&amp;R&amp;D');
     // Nothing to say: no header element at all, rather than an empty one.
     expect(presented({ print: { orientation: 'landscape', header: ['', ''] } })).not.toContain('headerFooter');
@@ -548,20 +548,20 @@ describe('buildWorkbook — presentation', () => {
   test('a part short enough to fit gives its surplus budget to the others', () => {
     const odd =
       /<oddHeader>(.*?)<\/oddHeader>/s.exec(
-        presented({ print: { orientation: 'landscape', header: ['Visa', 'D'.repeat(300)] } }),
+        presented({ print: { orientation: 'landscape', header: ['Example', 'D'.repeat(300)] } }),
       )?.[1] ?? '';
     const header = odd.replace(/&amp;/g, '&');
     expect(header.length).toBeLessThanOrEqual(255);
-    expect(header).toContain('Visa');
-    // Visa needed 4 of its ~124 share, so the deal name should get far more than half.
+    expect(header).toContain('Example');
+    // Example needed 4 of its ~124 share, so the deal name should get far more than half.
     expect((/D+/.exec(header)?.[0] ?? '').length).toBeGreaterThan(200);
   });
 
   test('a header inside the limit is emitted whole', () => {
     const odd = /<oddHeader>(.*?)<\/oddHeader>/s.exec(
-      presented({ print: { orientation: 'landscape', header: ['Visa, Inc.', 'XC WAF-API'] } }),
+      presented({ print: { orientation: 'landscape', header: ['Example Corp', 'XC WAF-API'] } }),
     )?.[1];
-    expect(odd).toBe('&amp;LVisa, Inc. — XC WAF-API&amp;R&amp;D');
+    expect(odd).toBe('&amp;LExample Corp — XC WAF-API&amp;R&amp;D');
   });
 
   test('parts appear in CT_Worksheet sequence order', () => {

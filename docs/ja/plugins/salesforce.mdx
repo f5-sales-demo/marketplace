@@ -18,7 +18,7 @@ org 認証および SOQL クエリを含むあらゆる `sf` コマンドを実�
 
 ## インストール
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -60,8 +60,8 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 
 `YOUR-DOMAIN` をステップ 1 で確認した会社ドメインに置き換えます。ブラウザーが開くので、SSO またはログインフローを完了してアプリを承認します。以下のように表示されるはずです：
 
-```
-Successfully authorized history-4a95675d220b@example.com with org ID 00DXXXXXXXXXXXXXXX
+```text
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### ステップ 3: 接続を確認する
@@ -83,7 +83,7 @@ sf org display --verbose --target-org my-org
 **Sfdx Auth Url** の値（`force://` で始まる）をコピーします。コンテナ内で以下を実行します：
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -94,7 +94,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### 認証方式のリファレンス
 
 | 方式 | 最適な用途 | 必要なもの |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | Web ログイン | ブラウザーが利用可能なワークステーション | ブラウザー + SSO |
 | SFDX URL | コンテナ、CI/CD、ポータブル認証 | 認証済みセッションの認証 URL |
 | JWT ベアラー | 自動化パイプライン | コネクテッドアプリ + 秘密鍵 + コンシューマーキー |
@@ -105,7 +105,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### 環境変数
 
 | 変数 | 目的 |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | アクセストークン認証用ベアラートークン |
 | `SFDX_AUTH_URL` | SFDX URL 認証用の Force 認証 URL |
 | `SF_ORG_INSTANCE_URL` | org のインスタンス URL |
@@ -119,7 +119,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 Salesforce org の接続ステータス、CLI バージョン、および認証済み org を確認します。
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -129,7 +129,7 @@ Salesforce org の接続ステータス、CLI バージョン、および認証�
 
 Salesforce org に認証します。オプションでエイリアスを指定できます。
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -143,7 +143,7 @@ Salesforce org に認証します。オプションでエイリアスを指定�
 トップレベルのインテントルーター。自然言語で Salesforce、org 管理、またはデータクエリに言及すると自動的にアクティブになります。
 
 | 発言内容 | ルーティング先 |
-|---------|-----------|
+| --------- | ----------- |
 | "login to salesforce"、"authenticate org" | `salesforce-auth` スキル |
 | "check org status"、"list orgs" | `cli-operator` エージェント |
 | "show me opportunities"、"look up case" | `cli-operator` エージェント（SOQL クエリ） |
@@ -169,7 +169,7 @@ Salesforce org に認証します。オプションでエイリアスを指定�
 
 **レスポンス形式：**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -192,13 +192,13 @@ Salesforce org に認証します。オプションでエイリアスを指定�
 
 認証後、すべてが正常に動作することを確認します：
 
-```
+```text
 /salesforce:sf-status
 ```
 
 次に、シンプルな自然言語クエリを試します：
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -208,8 +208,8 @@ list my authenticated salesforce orgs
 
 自分がアカウントチームに割り当てられているアカウントを確認します：
 
-```
-what salesforce accounts am I on the account team for? My email is history-4a95675d220b@example.com
+```text
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **期待される出力:** アカウントオーナー別にグループ化されたアカウントのリスト。各アカウントにおけるチームメンバーのロールを表示します。ほとんどのロールが空の場合、それはよくあるデータ品質の問題です — アカウントチームのメンバーシップは存在しますが、ロールが設定されていません。
@@ -218,8 +218,8 @@ what salesforce accounts am I on the account team for? My email is history-4a956
 
 チームメートとのアカウントカバレッジを比較してギャップを見つけます：
 
-```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if history-4a95675d220b@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+```text
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **期待される出力:** 重複数とギャップ数を示すサマリーテーブルと、2 つのリスト。最近ロールを変更した場合、重複がゼロになることがあります — これは追加が必要なアカウントを明らかにします。
@@ -232,7 +232,7 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 アカウント全体のすべてのオープン商談を確認します：
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -242,7 +242,7 @@ show me all open salesforce opportunities on Colleague Name's account team accou
 
 特定の案件の全体像を把握します：
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -252,7 +252,7 @@ show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - incl
 
 アカウントのオープンサポートケースを確認します：
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -262,7 +262,7 @@ show me all open salesforce cases across Colleague Name's account team accounts,
 
 パイプラインの予測対応ビューを取得します：
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -272,7 +272,7 @@ for Colleague Name's accounts, show me a quarterly pipeline summary - group the 
 
 特定の顧客の詳細を確認します：
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -282,7 +282,7 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 
 ケース番号で特定のサポートケースを検索します：
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -294,25 +294,25 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 
 ### 特定のフィールド
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### 日付フィルタリング
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### 集計
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### カスタムオブジェクト
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -329,7 +329,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | トピック | スキル |
-|-------|-------|
+| ------- | ------- |
 | Apex クラスとサービス | `generating-apex` |
 | Apex テスト | `generating-apex-test` |
 | フロー | `generating-flow` |

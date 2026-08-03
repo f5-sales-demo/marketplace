@@ -36,7 +36,7 @@ All reference files live under `skills/api-operations/references/`.
 
 For list, get, create, update, or delete operations on a single resource:
 
-```
+```text
 Agent(
   subagent_type="platform:api-operator",
   description="<verb> <resource> via API",
@@ -67,7 +67,7 @@ dependent resources, check the `references/workflows/` directory first:
 | Configure Origin Pool | `workflows/configure_origin_pool.md` | "set up origin pool with health checks" |
 | Register Site | `workflows/register_site.md` | "register site", "add CE site" |
 
-```
+```text
 Agent(
   subagent_type="platform:api-operator",
   description="Deploy <resource> via API workflow",
@@ -220,7 +220,7 @@ For resources not listed above, check the domain catalog in
   `service_mesh` domains with different schemas. Use the `virtual`
   domain version for HTTP/TCP load balancers.
 - When referencing another resource (e.g., attaching a WAF to an LB),
-  use the format `{"name": "resource-name", "namespace": "<ORGANIZATION_7BFBA6E002>"}` not
+  use the format `{"name": "resource-name", "namespace": "shared"}` not
   just the name string.
 - The API returns 409 (Conflict) if a resource with the same name
   already exists. Check existence with a GET first if unsure.

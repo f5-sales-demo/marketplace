@@ -38,7 +38,7 @@ describe('displayWidth', () => {
 
 describe('wrappedLineCount', () => {
   test('a short string is one line', () => {
-    expect(wrappedLineCount('Visa, Inc.', 20)).toBe(1);
+    expect(wrappedLineCount('Example Corp', 20)).toBe(1);
   });
 
   test('wraps on the column width', () => {
@@ -80,7 +80,7 @@ describe('wrappedLineCount', () => {
 
 describe('estimateRowHeight', () => {
   test('one line is the single-line height', () => {
-    expect(estimateRowHeight('Visa, Inc.', 20, 24)).toBe(24);
+    expect(estimateRowHeight('Example Corp', 20, 24)).toBe(24);
   });
 
   test('never returns less than the floor, however short the text', () => {

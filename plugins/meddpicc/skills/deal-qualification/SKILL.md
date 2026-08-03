@@ -297,7 +297,7 @@ to the schema. This file is the source of truth.
 
 After writing the JSON file, display a scorecard summary:
 
-```
+```text
 ## MEDDPICC Deal Scorecard
 
 ### Deal: [deal name]

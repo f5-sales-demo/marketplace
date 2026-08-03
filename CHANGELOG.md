@@ -10,6 +10,18 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** bumped to v1.3.9
+
+- **`salesforce-legacy`** bumped to v1.0.3
+
+- **`platform`** bumped to v3.1.3
+
+- **`osint-framework`** bumped to v1.0.4
+
+- **`meddpicc`** bumped to v7.5.2
+
+- **`devcontainer`** bumped to v1.1.8
+
 - **`herdr`** v1.0.1 — freshness verification follows the transferred upstream repository and
   relocated skill path while preserving the byte-identical vendored skill.
 
@@ -1010,18 +1022,18 @@ Every plugin test suite now runs in CI, and the failures that surfaced are fixed
 
 - **`meddpicc`** bumped to v2.2.1
 
-- **`azure`** bumped to v1.2.3 — `az_exec` now accepts valid JMESPath `--query`
+- **`azure`** bumped to v1.2.4 — `az_exec` now accepts valid JMESPath `--query`
   (dropped the char filter that rejected `||`, backticks, and pipes); read-only guard,
   `az_help`, error taxonomy with `errorType`, and signal-aware exec. CLI-Plugin
   Capability Contract conformant. The runtime manifest and lockfile now require the
   current xcsh and provider SDK dependency graph.
 
-- **`aws`** bumped to v1.2.3 — native tool layer: `aws_exec` read-only guard, `aws_help`,
+- **`aws`** bumped to v1.2.4 — native tool layer: `aws_exec` read-only guard, `aws_help`,
   typed reads (`sts`/`s3`/`ec2`) with formatters, 6-class error taxonomy, JMESPath query
   docs, and a benchmark + autoresearch harness. The runtime manifest and lockfile now
   require the current xcsh and provider SDK dependency graph.
 
-- **`gcloud`** bumped to v1.2.3 — native tool layer built from status-only: `gcloud_exec`
+- **`gcloud`** bumped to v1.2.4 — native tool layer built from status-only: `gcloud_exec`
   read-only guard, `gcloud_help`, typed reads (config/projects/compute/storage) with
   formatters, error taxonomy, `--filter`/`--format` query docs, and a benchmark +
   autoresearch harness. The runtime manifest and new lockfile now require the current

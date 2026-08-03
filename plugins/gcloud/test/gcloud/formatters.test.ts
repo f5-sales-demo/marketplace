@@ -84,7 +84,7 @@ describe('normalizeInstance', () => {
       zone: 'https://www.googleapis.com/compute/v1/projects/p/zones/us-central1-a',
       machineType: 'https://www.googleapis.com/compute/v1/projects/p/zones/us-central1-a/machineTypes/e2-medium',
       status: 'RUNNING',
-      networkInterfaces: [{ networkIP: '10.0.0.2', accessConfigs: [{ natIP: '192.0.2.104' }] }],
+      networkInterfaces: [{ networkIP: '10.0.0.2', accessConfigs: [{ natIP: '198.51.100.3' }] }],
     });
     expect(inst).toEqual({
       name: 'vm-1',
@@ -92,7 +92,7 @@ describe('normalizeInstance', () => {
       machineType: 'e2-medium',
       status: 'RUNNING',
       internalIp: '10.0.0.2',
-      externalIp: '192.0.2.104',
+      externalIp: '198.51.100.3',
     });
   });
 
@@ -219,7 +219,7 @@ describe('formatInstanceTable', () => {
         machineType: 'e2-medium',
         status: 'RUNNING',
         internalIp: '10.0.0.2',
-        externalIp: '192.0.2.104',
+        externalIp: '198.51.100.3',
       },
       {
         name: 'vm-2',
@@ -233,7 +233,7 @@ describe('formatInstanceTable', () => {
     const lines = out.split('\n');
     expect(lines[0]).toBe('| Name | Zone | Machine Type | Status | Internal IP | External IP |');
     expect(lines[1]).toBe('|------|------|--------------|--------|-------------|-------------|');
-    expect(lines[2]).toBe('| vm-1 | us-central1-a | e2-medium | RUNNING | 10.0.0.2 | 192.0.2.104 |');
+    expect(lines[2]).toBe('| vm-1 | us-central1-a | e2-medium | RUNNING | 10.0.0.2 | 198.51.100.3 |');
     expect(lines[3]).toBe('| vm-2 | us-central1-b | e2-small | STOPPED | - | - |');
   });
 });

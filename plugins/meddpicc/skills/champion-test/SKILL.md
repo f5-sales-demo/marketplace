@@ -87,7 +87,7 @@ Based on the classification:
 
 ## Output Format
 
-```
+```text
 ## Champion Assessment: [Contact Name]
 
 ### Contact: [Name], [Title]

@@ -167,7 +167,7 @@ describe('runSetupWizard — sf installed, web auth', () => {
     const { pi } = buildMockPi({
       '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
       'org display': {
-        stdout: JSON.stringify({ result: { username: 'history-f02f61d33aac@example.com', instanceUrl: 'https://test.sf.com' } }),
+        stdout: JSON.stringify({ result: { username: 'user@example.com', instanceUrl: 'https://test.sf.com' } }),
         stderr: '',
         code: 0,
       },
@@ -281,7 +281,7 @@ describe('runSetupWizard — sf not installed', () => {
       'brew install sf': { stdout: 'installed', stderr: '', code: 0 },
       '--version': { stdout: '@salesforce/cli/2.50.0', stderr: '', code: 0 },
       'org display': {
-        stdout: JSON.stringify({ result: { username: 'u@t.com', instanceUrl: 'https://t.sf.com' } }),
+        stdout: JSON.stringify({ result: { username: 'u@example.com', instanceUrl: 'https://t.sf.com' } }),
         stderr: '',
         code: 0,
       },

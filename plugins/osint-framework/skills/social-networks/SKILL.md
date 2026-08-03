@@ -35,7 +35,7 @@ list of 63 free/freemium tools in this category.
 | Tool | Install | Usage |
 | ------ | --------- | ------- |
 | Fediverse_OSINT | `git clone https://github.com/cyfinoid/fediverse_osint && pip install -r requirements.txt` | `python fediverse_osint.py <username>` |
-| Masto | `pip install masto` | `python masto.py -u history-a5b1d7edbe92@example.com` |
+| Masto | `pip install masto` | `python masto.py -u user@example.com` |
 | Osintgram | `git clone https://github.com/Datalux/Osintgram && pip install -r requirements.txt` | `python main.py <target>` |
 | tweets_analyzer | `git clone https://github.com/x0rz/tweets_analyzer && pip install -r requirements.txt` | `python tweets_analyzer.py -n <handle>` |
 | Birdwatcher | `gem install birdwatcher` | `birdwatcher` (interactive console) |
@@ -71,7 +71,7 @@ list of 63 free/freemium tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Social networks tool search",
@@ -83,7 +83,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Social networks investigation: [target]",

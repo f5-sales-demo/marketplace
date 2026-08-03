@@ -45,7 +45,7 @@
 - **Use when**: Crafting custom packets, protocol fuzzing, building network tools, packet-level testing
 - **Quick start**:
   - `sudo scapy` (interactive shell)
-  - `python3 -c "from scapy.all import *; resp=sr1(IP(dst='203.0.113.141')/ICMP()); resp.show()"`
+  - `python3 -c "from scapy.all import *; resp=sr1(IP(dst='192.0.2.8')/ICMP()); resp.show()"`
   - `python3 -c "from scapy.all import *; sniff(count=10, prn=lambda x: x.summary())"`
 - **Auth**: Requires root for raw socket access
 - **Docs**: <https://scapy.readthedocs.io>
@@ -113,7 +113,7 @@
 - **Use when**: Resolving domain names, checking DNS records, diagnosing DNS propagation, verifying DNS configuration
 - **Quick start**:
   - `dig example.com A +short`
-  - `dig @203.0.113.141 example.com MX`
+  - `dig @192.0.2.8 example.com MX`
   - `host -t CNAME www.example.com`
 - **Auth**: None
 - **Docs**: `man dig`
@@ -125,7 +125,7 @@
 - **Use when**: Looking up domain ownership, checking registration dates, finding IP allocation details
 - **Quick start**:
   - `whois example.com`
-  - `whois 203.0.113.141`
+  - `whois 192.0.2.8`
   - `whois -h whois.arin.net 10.0.0.1`
 - **Auth**: None
 - **Docs**: `man whois`

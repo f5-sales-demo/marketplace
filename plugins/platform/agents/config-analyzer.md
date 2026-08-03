@@ -68,7 +68,7 @@ that match the provided JSON structure.
 
 Read the matching resource profile:
 
-```
+```text
 skills/api-operations/references/resources/{domain}/{resource}.md
 ```
 
@@ -171,7 +171,7 @@ unless the new question contradicts or extends it.
 
 Every response must follow this structure:
 
-```
+```text
 ## Configuration Analysis
 
 ### Resource Type

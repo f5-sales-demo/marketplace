@@ -48,7 +48,7 @@ describe('normalizeInstance', () => {
       State: { Name: 'running' },
       Placement: { AvailabilityZone: 'us-east-1a' },
       PrivateIpAddress: '10.0.0.5',
-      PublicIpAddress: '203.0.113.151',
+      PublicIpAddress: '198.51.100.5',
       Tags: [
         { Key: 'Name', Value: 'web-1' },
         { Key: 'env', Value: 'prod' },
@@ -60,7 +60,7 @@ describe('normalizeInstance', () => {
       type: 't3.micro',
       az: 'us-east-1a',
       privateIp: '10.0.0.5',
-      publicIp: '203.0.113.151',
+      publicIp: '198.51.100.5',
       name: 'web-1',
     });
   });

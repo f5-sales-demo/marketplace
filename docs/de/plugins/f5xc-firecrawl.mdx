@@ -22,7 +22,7 @@ innerhalb des Entwicklungscontainers ausgeführt.
 
 ## Installation
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -32,7 +32,7 @@ innerhalb des Entwicklungscontainers ausgeführt.
 
 Scrapt eine einzelne URL und extrahiert den Inhalt als Markdown.
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -41,7 +41,7 @@ Scrapt eine einzelne URL und extrahiert den Inhalt als Markdown.
 
 Scrapt mehrere URLs gleichzeitig.
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -49,7 +49,7 @@ Scrapt mehrere URLs gleichzeitig.
 
 Crawlt mehrere Seiten ausgehend von einer Start-URL.
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -58,7 +58,7 @@ Crawlt mehrere Seiten ausgehend von einer Start-URL.
 
 Findet alle URLs einer Website.
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -67,7 +67,7 @@ Findet alle URLs einer Website.
 
 Durchsucht das Web und scrapt optional die Ergebnisse.
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -76,7 +76,7 @@ Durchsucht das Web und scrapt optional die Ergebnisse.
 
 KI-gestützte strukturierte Datenextraktion aus Webseiten.
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -90,7 +90,7 @@ KI-gestützte strukturierte Datenextraktion aus Webseiten.
 
 Generiert eine llms.txt-Datei für eine Website.
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

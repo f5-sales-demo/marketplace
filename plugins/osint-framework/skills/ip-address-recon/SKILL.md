@@ -30,12 +30,12 @@ list of 55 free tools in this category.
 | Tool | Install | Usage |
 | ------ | --------- | ------- |
 | Nmap | `apt install nmap` / `brew install nmap` / `snap install nmap` | `nmap -sV -O 192.168.1.0/24` |
-| Scanless | `pip install scanless` / `git clone https://github.com/vesche/scanless && cd scanless && pip install .` | `scanless -t 203.0.113.141 -s yougetsignal` |
+| Scanless | `pip install scanless` / `git clone https://github.com/vesche/scanless && cd scanless && pip install .` | `scanless -t 192.0.2.8 -s yougetsignal` |
 | Masscan | `apt install masscan` / `brew install masscan` / `git clone https://github.com/robertdavidgraham/masscan && cd masscan && make` | `masscan -p1-65535 10.0.0.0/8 --rate=10000` |
 | CloudFail | `pip install cloudfail` / `git clone https://github.com/m0rtem/CloudFail && cd CloudFail && pip install -r requirements.txt` | `python3 cloudfail.py -t target.com` |
 | Wireshark | `apt install wireshark` / `brew install --cask wireshark` / `snap install wireshark` | `tshark -i eth0 -f "host 192.168.1.1" -w capture.pcap` |
 | NetworkMiner | `apt install mono-complete && wget https://www.netresec.com/files/NetworkMiner.zip` / `brew install --cask networkminer` | `mono NetworkMiner.exe capture.pcap` |
-| checkip | `go install github.com/jreisinger/checkip@latest` / `git clone https://github.com/jreisinger/checkip && cd checkip && go build` | `checkip 203.0.113.141` |
+| checkip | `go install github.com/jreisinger/checkip@latest` / `git clone https://github.com/jreisinger/checkip && cd checkip && go build` | `checkip 192.0.2.8` |
 
 ## Subcategories
 
@@ -98,7 +98,7 @@ fingerprint. Always prefer passive data sources before active scanning.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="IP & MAC Address tool search",
@@ -110,7 +110,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="IP & MAC Address investigation: [target]",

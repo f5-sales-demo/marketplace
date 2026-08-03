@@ -69,7 +69,7 @@ opens — complete the SSO or login flow and authorize the app. You should
 see:
 
 ```text
-Successfully authorized history-4a95675d220b@example.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### Step 3: Verify the connection
@@ -94,7 +94,7 @@ Copy the **Sfdx Auth URL** value (starts with `force://`). In the
 container, run:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -243,7 +243,7 @@ username, instance URL, and connection status.
 Discover which accounts you are assigned to:
 
 ```text
-what salesforce accounts am I on the account team for? My email is history-4a95675d220b@example.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **What to expect:** A list of accounts grouped by account owner, showing
@@ -256,7 +256,7 @@ were not populated.
 Compare your account coverage with a teammate to find gaps:
 
 ```text
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if history-4a95675d220b@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **What to expect:** A summary table showing overlap count and gap count,

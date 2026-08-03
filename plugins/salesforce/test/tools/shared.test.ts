@@ -155,7 +155,7 @@ describe('normalizeOrg', () => {
   it('normalizes standard org fields', () => {
     const org = normalizeOrg({
       alias: 'prod',
-      username: 'history-cae172fda804@example.com',
+      username: 'admin@example.com',
       orgId: '00D123',
       instanceUrl: 'https://prod.my.salesforce.com',
       connectedStatus: 'Connected',
@@ -163,7 +163,7 @@ describe('normalizeOrg', () => {
       isSandbox: false,
     });
     expect(org.alias).toBe('prod');
-    expect(org.username).toBe('history-cae172fda804@example.com');
+    expect(org.username).toBe('admin@example.com');
     expect(org.orgId).toBe('00D123');
     expect(org.isDefault).toBe(true);
     expect(org.isSandbox).toBe(false);
@@ -171,7 +171,7 @@ describe('normalizeOrg', () => {
 
   it('handles lowercase orgid field', () => {
     const org = normalizeOrg({
-      username: 'history-f02f61d33aac@example.com',
+      username: 'user@example.com',
       orgid: '00D456',
       instanceUrl: 'https://test.salesforce.com',
     });
@@ -180,7 +180,7 @@ describe('normalizeOrg', () => {
 
   it('detects default from defaultMarker (U)', () => {
     const org = normalizeOrg({
-      username: 'history-f02f61d33aac@example.com',
+      username: 'user@example.com',
       orgId: '00D789',
       instanceUrl: 'https://test.salesforce.com',
       defaultMarker: '(U)',
@@ -190,7 +190,7 @@ describe('normalizeOrg', () => {
 
   it('defaults connectedStatus to Unknown', () => {
     const org = normalizeOrg({
-      username: 'history-f02f61d33aac@example.com',
+      username: 'user@example.com',
       orgId: '00D000',
       instanceUrl: 'https://test.salesforce.com',
     });
@@ -208,25 +208,25 @@ describe('collectAllOrgs', () => {
 
   it('collects from all org categories', () => {
     const orgs = collectAllOrgs({
-      nonScratchOrgs: [makeOrg('001', 'a@test.com')],
-      scratchOrgs: [makeOrg('002', 'b@test.com')],
-      sandboxes: [makeOrg('003', 'c@test.com')],
-      devHubs: [makeOrg('004', 'd@test.com')],
-      other: [makeOrg('005', 'e@test.com')],
+      nonScratchOrgs: [makeOrg('001', 'a@example.com')],
+      scratchOrgs: [makeOrg('002', 'b@example.com')],
+      sandboxes: [makeOrg('003', 'c@example.com')],
+      devHubs: [makeOrg('004', 'd@example.com')],
+      other: [makeOrg('005', 'e@example.com')],
     });
     expect(orgs).toHaveLength(5);
   });
 
   it('deduplicates by orgId', () => {
     const orgs = collectAllOrgs({
-      nonScratchOrgs: [makeOrg('001', 'a@test.com')],
-      scratchOrgs: [makeOrg('001', 'a@test.com')],
+      nonScratchOrgs: [makeOrg('001', 'a@example.com')],
+      scratchOrgs: [makeOrg('001', 'a@example.com')],
     });
     expect(orgs).toHaveLength(1);
   });
 
   it('handles missing categories', () => {
-    const orgs = collectAllOrgs({ nonScratchOrgs: [makeOrg('001', 'a@test.com')] });
+    const orgs = collectAllOrgs({ nonScratchOrgs: [makeOrg('001', 'a@example.com')] });
     expect(orgs).toHaveLength(1);
   });
 

@@ -1,7 +1,7 @@
 {
   "name": "devcontainer",
   "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
   "license": "Apache-2.0",
   "author": {

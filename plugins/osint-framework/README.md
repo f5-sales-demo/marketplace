@@ -16,7 +16,7 @@ This plugin provides category-based OSINT skills, investigation agents, and exec
 
 ## Architecture
 
-```
+```text
 osint-index (router)
     |
     +-- osint-catalog (browse/search)
@@ -128,9 +128,9 @@ The plugin includes 5 executable investigation pipelines with copy-paste-ready c
 | Pipeline | Target | Key Tools | OPSEC |
 | ---------- | -------- | ----------- | ------- |
 | Username | `@handle` | sherlock, maigret, cURL | Active |
-| Email | `history-f7ee5ec73121@example.com` | holehe, h8mail, dig | Mixed |
+| Email | `user@example.com` | holehe, h8mail, dig | Mixed |
 | Domain | `example.com` | whois, dig, subfinder, httpx, nuclei | Mixed |
-| IP Address | `192.0.2.149` | ipinfo.io, whois, nmap, searchsploit | Mixed |
+| IP Address | `192.0.2.4` | ipinfo.io, whois, nmap, searchsploit | Mixed |
 | Person | `Jane Doe` | web search, social probes, public records | Active |
 
 See `skills/osint-catalog/references/investigation-pipelines.md` for full pipelines.

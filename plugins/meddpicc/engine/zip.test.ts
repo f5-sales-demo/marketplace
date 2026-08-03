@@ -41,7 +41,7 @@ describe('zip round trip', () => {
   });
 
   test('preserves UTF-8 beyond ASCII', () => {
-    const text = 'Visa — “control” · £1,421,060 · naïve';
+    const text = 'Example — “control” · £1,421,060 · naïve';
     const out = roundTrip([{ name: 'u.txt', text }]);
     expect(dec(out.get('u.txt') as Uint8Array)).toBe(text);
   });

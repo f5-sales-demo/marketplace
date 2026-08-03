@@ -78,49 +78,49 @@ data. Replace placeholder values with your own information.
 
 ### Account discovery
 
-```
-what salesforce accounts am I on the account team for? My email is history-4a95675d220b@example.com
+```text
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 ### Coverage cross-reference
 
-```
-find all accounts where Colleague Name is on the account team, then check if history-4a95675d220b@example.com is also tagged on each one
+```text
+find all accounts where Colleague Name is on the account team, then check if your-email@example.com is also tagged on each one
 ```
 
 ### Opportunity pipeline
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's accounts, sorted by amount
 ```
 
 ### Quarterly forecast
 
-```
+```text
 group open opportunities by close date quarter with count, total amount, and weighted amount
 ```
 
 ### Opportunity deep dive
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity including team members, activities, and contacts
 ```
 
 ### Support cases
 
-```
+```text
 show me all open salesforce cases across Colleague Name's accounts, grouped by account
 ```
 
 ### Case lookup
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the details, customer account, and owner
 ```
 
 ### Account overview
 
-```
+```text
 give me a full account overview for ACCOUNT NAME including contacts, open opportunities, and recent cases
 ```
 

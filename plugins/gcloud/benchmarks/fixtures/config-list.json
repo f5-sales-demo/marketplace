@@ -1,7 +1,7 @@
 {
   "core": {
     "project": "demo-project-123",
-    "account": "<ORGANIZATION_75AB42B702>"
+    "account": "example-corp"
   },
   "compute": {
     "region": "us-central1",

@@ -1,6 +1,6 @@
 {
   "name": "meddpicc",
-  "version": "7.5.1",
+  "version": "7.5.2",
   "description": "MEDDPICC sales qualification and deal-execution framework",
   "license": "Apache-2.0",
   "workspaces": [

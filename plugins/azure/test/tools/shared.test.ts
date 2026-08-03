@@ -63,7 +63,7 @@ describe('normalizeSubscription', () => {
       state: 'Enabled',
       isDefault: true,
       tenantId: 'tenant-1',
-      user: { name: 'history-f02f61d33aac@example.com', type: 'user' },
+      user: { name: 'user@example.com', type: 'user' },
       extraField: 'should be ignored',
     };
     const result = normalizeSubscription(raw);
@@ -73,7 +73,7 @@ describe('normalizeSubscription', () => {
       state: 'Enabled',
       isDefault: true,
       tenantId: 'tenant-1',
-      user: { name: 'history-f02f61d33aac@example.com', type: 'user' },
+      user: { name: 'user@example.com', type: 'user' },
     });
     expect(result).not.toHaveProperty('extraField');
   });
@@ -140,7 +140,7 @@ describe('normalizeVm', () => {
       storageProfile: { osDisk: { osType: 'Linux' } },
       provisioningState: 'Succeeded',
       powerState: 'VM running',
-      publicIps: '198.51.100.244',
+      publicIps: '192.0.2.21',
       fqdns: 'web-01.eastus2.cloudapp.azure.com',
       osProfile: { adminUsername: 'SHOULD_NOT_APPEAR', adminPassword: 'SECRET' },
       networkProfile: { networkInterfaces: [{ id: 'nic-1' }] },
@@ -150,7 +150,7 @@ describe('normalizeVm', () => {
     expect(result.vmSize).toBe('Standard_D2s_v5');
     expect(result.osType).toBe('Linux');
     expect(result.powerState).toBe('VM running');
-    expect(result.publicIps).toBe('198.51.100.244');
+    expect(result.publicIps).toBe('192.0.2.21');
     expect(result.fqdns).toBe('web-01.eastus2.cloudapp.azure.com');
     expect(result).not.toHaveProperty('osProfile');
     expect(result).not.toHaveProperty('networkProfile');

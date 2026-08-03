@@ -30,9 +30,9 @@ list of 28 free tools in this category.
 | Tool | Install | Usage |
 | ------ | --------- | ------- |
 | theHarvester | `pip install theHarvester` | `theHarvester -d domain.com -b all` |
-| holehe | `pip install holehe` | `holehe history-97817c0c4999@example.com` |
-| h8mail | `pip install h8mail` | `h8mail -t history-97817c0c4999@example.com` |
-| Infoga | `git clone https://github.com/m4ll0k/infoga` | `python infoga.py -t history-97817c0c4999@example.com` |
+| holehe | `pip install holehe` | `holehe email@example.com` |
+| h8mail | `pip install h8mail` | `h8mail -t email@example.com` |
+| Infoga | `git clone https://github.com/m4ll0k/infoga` | `python infoga.py -t email@example.com` |
 
 ## Subcategories
 
@@ -46,7 +46,7 @@ list of 28 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Email tool search",
@@ -58,7 +58,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Email investigation: [target]",

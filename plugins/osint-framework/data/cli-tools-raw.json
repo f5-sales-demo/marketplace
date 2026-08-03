@@ -291,21 +291,21 @@
     "category": "email-recon",
     "install_cmd": "pip install holehe",
     "pkg_manager": "pip",
-    "usage": "holehe history-97817c0c4999@example.com"
+    "usage": "holehe email@example.com"
   },
   {
     "name": "h8mail",
     "category": "email-recon",
     "install_cmd": "pip install h8mail",
     "pkg_manager": "pip",
-    "usage": "h8mail -t history-97817c0c4999@example.com"
+    "usage": "h8mail -t email@example.com"
   },
   {
     "name": "Infoga",
     "category": "email-recon",
     "install_cmd": "git clone https://github.com/m4ll0k/infoga",
     "pkg_manager": "git",
-    "usage": "python infoga.py -t history-97817c0c4999@example.com"
+    "usage": "python infoga.py -t email@example.com"
   },
   {
     "name": "SpiderMonkey",
@@ -494,7 +494,7 @@
     "category": "ip-address-recon",
     "install_cmd": "pip install scanless` / `git clone https://github.com/vesche/scanless && cd scanless && pip install .",
     "pkg_manager": "pip",
-    "usage": "scanless -t 203.0.113.141 -s yougetsignal"
+    "usage": "scanless -t 192.0.2.8 -s yougetsignal"
   },
   {
     "name": "Masscan",
@@ -529,7 +529,7 @@
     "category": "ip-address-recon",
     "install_cmd": "go install github.com/jreisinger/checkip@latest` / `git clone https://github.com/jreisinger/checkip && cd checkip && go build",
     "pkg_manager": "go",
-    "usage": "checkip 203.0.113.141"
+    "usage": "checkip 192.0.2.8"
   },
   {
     "name": "TYLabs QuickSand",
@@ -970,7 +970,7 @@
     "category": "social-networks",
     "install_cmd": "pip install masto",
     "pkg_manager": "pip",
-    "usage": "python masto.py -u history-a5b1d7edbe92@example.com"
+    "usage": "python masto.py -u user@example.com"
   },
   {
     "name": "Osintgram",
