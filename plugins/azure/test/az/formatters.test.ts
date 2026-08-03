@@ -21,7 +21,7 @@ describe('formatSubscriptionTable', () => {
         state: 'Enabled',
         isDefault: true,
         tenantId: 't1',
-        user: { name: 'u@t.com', type: 'user' },
+        user: { name: 'u@example.com', type: 'user' },
       },
       {
         id: 'ccc-ddd',
@@ -29,7 +29,7 @@ describe('formatSubscriptionTable', () => {
         state: 'Enabled',
         isDefault: false,
         tenantId: 't2',
-        user: { name: 'u@t.com', type: 'user' },
+        user: { name: 'u@example.com', type: 'user' },
       },
     ];
     const result = formatSubscriptionTable(subs);
@@ -132,12 +132,12 @@ describe('formatVmTable', () => {
         provisioningState: 'Succeeded',
         osType: 'Linux',
         powerState: 'VM running',
-        publicIps: '20.1.2.3',
+        publicIps: '192.0.2.21',
         fqdns: 'web-01.eastus2.cloudapp.azure.com',
       },
     ];
     const result = formatVmTable(vms);
-    expect(result).toContain('20.1.2.3');
+    expect(result).toContain('192.0.2.21');
     expect(result).toContain('web-01.eastus2.cloudapp.azure.com');
     expect(result).toContain('Public IPs');
   });

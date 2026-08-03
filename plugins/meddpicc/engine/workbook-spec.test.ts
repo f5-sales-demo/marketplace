@@ -595,7 +595,7 @@ describe('the shipped workbook-spec.json', () => {
   });
 
   test('gives every deal collection a table, so nothing is capped', () => {
-    // Visa has 14 team members against the legacy sheet's 8 formatted rows.
+    // Example has 14 team members against the legacy sheet's 8 formatted rows.
     const tableSources = shipped.sheets
       .flatMap((s) => specTables(s))
       .map((t) => (t.source.kind === 'list' ? t.source.jsonPath : t.source.kind));

@@ -5,7 +5,7 @@
     "name": "web-vm-01",
     "provisioningState": "Succeeded",
     "powerState": "VM running",
-    "publicIps": "20.0.0.1",
+    "publicIps": "192.0.2.20",
     "fqdns": "web-vm-01.eastus.cloudapp.azure.com",
     "resourceGroup": "rg-dev-eastus",
     "hardwareProfile": { "vmSize": "Standard_D2s_v5" },

@@ -66,7 +66,7 @@ discover_sec() {
   # Step 1: CIK lookup via ticker
   local cik_data
   cik_data=$(curl -s "https://www.sec.gov/files/company_tickers.json" \
-    -H "User-Agent: OSINTFramework research@osint.local" 2>/dev/null)
+    -H "User-Agent: OSINTFramework research@example.com" 2>/dev/null)
 
   local cik
   cik=$(echo "$cik_data" | jq -r --arg t "$ticker" \
@@ -77,7 +77,7 @@ discover_sec() {
     padded=$(printf "%010d" "$cik")
     local filings
     filings=$(curl -s "https://data.sec.gov/submissions/CIK${padded}.json" \
-      -H "User-Agent: OSINTFramework research@osint.local" 2>/dev/null)
+      -H "User-Agent: OSINTFramework research@example.com" 2>/dev/null)
     echo "$filings" | jq '{name, cik, tickers, exchanges, sic, sicDescription}' 2>/dev/null
     echo "SEC_STATUS:found"
   else

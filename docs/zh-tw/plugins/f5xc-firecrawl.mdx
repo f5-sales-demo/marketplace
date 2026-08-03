@@ -16,7 +16,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 安裝
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -26,7 +26,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 抓取單一 URL 並將內容擷取為 Markdown 格式。
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -35,7 +35,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 一次抓取多個 URL。
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -43,7 +43,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 從起始 URL 爬取多個頁面。
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -52,7 +52,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 探索網站上的所有 URL。
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -61,7 +61,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 搜尋網路並可選擇性地抓取結果。
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -70,7 +70,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 透過 LLM 驅動的結構化資料從網頁中擷取。
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -83,7 +83,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 為網站生成 llms.txt 檔案。
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

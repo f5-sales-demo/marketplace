@@ -24,7 +24,7 @@ per interrogare account, opportunità, casi e contatti tramite l'agente CLI.
 
 ## Installazione
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -72,8 +72,8 @@ Sostituire `YOUR-DOMAIN` con il dominio aziendale individuato nel Passaggio 1. I
 si aprirà — completare il flusso SSO o di login e autorizzare l'app. Dovrebbe
 essere visualizzato:
 
-```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+```text
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### Passaggio 3: Verificare la connessione
@@ -98,7 +98,7 @@ Copiare il valore **Sfdx Auth Url** (inizia con `force://`). Nel
 container, eseguire:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -111,7 +111,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### Riferimento ai metodi di autenticazione
 
 | Metodo | Ideale per | Requisiti |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | Web Login | Workstation con browser | Browser + SSO |
 | SFDX URL | Container, CI/CD, autenticazione portabile | Auth URL da una sessione autenticata |
 | JWT Bearer | Pipeline automatizzate | Connected App + chiave privata + consumer key |
@@ -123,7 +123,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### Variabili d'ambiente
 
 | Variabile | Scopo |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | Bearer token per l'autenticazione access-token |
 | `SFDX_AUTH_URL` | Force auth URL per l'autenticazione SFDX URL |
 | `SF_ORG_INSTANCE_URL` | URL dell'istanza org |
@@ -138,7 +138,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 Verifica lo stato della connessione all'org Salesforce, la versione della CLI e
 le org autenticate.
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -149,7 +149,7 @@ autenticata, l'username, l'URL dell'istanza, lo stato della connessione e la ver
 
 Autentica un'org Salesforce. È possibile fornire facoltativamente un alias.
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -167,7 +167,7 @@ Router degli intenti di primo livello. Si attiva automaticamente quando si menzi
 Salesforce, la gestione org o query sui dati in linguaggio naturale.
 
 | Si dice | Indirizza a |
-|---------|-----------|
+| --------- | ----------- |
 | "login to salesforce", "authenticate org" | skill `salesforce-auth` |
 | "check org status", "list orgs" | agente `cli-operator` |
 | "show me opportunities", "look up case" | agente `cli-operator` (query SOQL) |
@@ -197,7 +197,7 @@ mantenere snello il contesto della sessione principale.
 
 **Formato delle risposte:**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -229,13 +229,13 @@ per il proprio ruolo, account e territorio.
 
 Dopo l'autenticazione, verificare che tutto funzioni:
 
-```
+```text
 /salesforce:sf-status
 ```
 
 Quindi provare una semplice query in linguaggio naturale:
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -246,8 +246,8 @@ username, URL dell'istanza e stato della connessione.
 
 Scoprire a quali account si è assegnati:
 
-```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+```text
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **Cosa aspettarsi:** Un elenco di account raggruppati per proprietario dell'account, che mostra
@@ -259,8 +259,8 @@ non sono stati compilati.
 
 Confrontare la copertura degli account con un collega per individuare lacune:
 
-```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+```text
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **Cosa aspettarsi:** Una tabella riepilogativa con il conteggio delle sovrapposizioni e delle lacune,
@@ -277,7 +277,7 @@ sovrapposizione — questo rivela gli account a cui è necessario essere aggiunt
 
 Visualizzare tutte le opportunità aperte sugli account:
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -290,7 +290,7 @@ date di chiusura scadute o importi nulli.
 
 Ottenere un quadro completo su un deal specifico:
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -303,7 +303,7 @@ delle modifiche ai campi che mostra come l'importo del deal e la data di chiusur
 
 Verificare i casi di supporto aperti sugli account:
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -315,7 +315,7 @@ anni senza attività) vengono segnalati come candidati alla pulizia dei dati.
 
 Ottenere una visualizzazione della pipeline pronta per le previsioni:
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -328,7 +328,7 @@ vengono raggruppate separatamente.
 
 Analisi approfondita di un cliente specifico:
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -340,7 +340,7 @@ fasi e importi, e casi di supporto recenti con stato.
 
 Cercare un caso di supporto specifico tramite numero:
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -354,25 +354,25 @@ naturale. Il plugin traduce la richiesta nel SOQL appropriato e lo esegue.
 
 ### Campi specifici
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### Filtro per data
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### Aggregazione
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### Oggetti personalizzati
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -395,7 +395,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | Argomento | Skill |
-|-------|-------|
+| ------- | ------- |
 | Classi e servizi Apex | `generating-apex` |
 | Test Apex | `generating-apex-test` |
 | Flow | `generating-flow` |

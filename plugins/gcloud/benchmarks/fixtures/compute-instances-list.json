@@ -7,7 +7,7 @@
     "networkInterfaces": [
       {
         "networkIP": "10.128.0.2",
-        "accessConfigs": [{ "natIP": "34.68.1.2" }]
+        "accessConfigs": [{ "natIP": "198.51.100.2" }]
       }
     ]
   },

@@ -136,7 +136,7 @@ const scenarios: Scenario[] = [
       const result = await gcloudComputeInstancesList.execute('t', {}, undefined, undefined, SESSION);
       return checkResult(result, {
         isError: false,
-        contains: ['demo-web-1', 'us-central1-a', 'e2-medium', 'RUNNING', '10.128.0.2', '34.68.1.2'],
+        contains: ['demo-web-1', 'us-central1-a', 'e2-medium', 'RUNNING', '10.128.0.2', '198.51.100.2'],
       });
     },
   },

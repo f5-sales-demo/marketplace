@@ -38,7 +38,7 @@
 - **Quick start**:
   - `fierce --domain example.com`
   - `fierce --domain example.com --subdomains www mail vpn`
-  - `fierce --domain example.com --dns-servers 8.8.8.8`
+  - `fierce --domain example.com --dns-servers 192.0.2.8`
 - **Auth**: None
 - **Docs**: `fierce --help`
 
@@ -106,7 +106,7 @@
 - **Quick start**:
   - `cd /opt/spiderfoot && python3 sf.py -l 127.0.0.1:5001` (web UI)
   - `python3 sf.py -s example.com -t DOMAIN_NAME -o output.csv`
-  - `python3 sf.py -s "target@email.com" -t EMAILADDR`
+  - `python3 sf.py -s "target@example.com" -t EMAILADDR`
 - **Auth**: Optional API keys for enhanced data sources (configure via web UI settings)
 - **Docs**: <https://github.com/smicallef/spiderfoot>
 

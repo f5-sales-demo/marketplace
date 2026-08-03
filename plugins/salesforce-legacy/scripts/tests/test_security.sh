@@ -20,7 +20,7 @@ test_no_hardcoded_credentials() {
     grep -v 'force://\.\.\.' |
     grep -v 'force://fake' |
     grep -v 'force://PlatformCLI::YOUR_AUTH_TOKEN' |
-    grep -v 'your-email@company.com' ||
+    grep -v 'your-email@example.com' ||
     true)
 
   if [ -n "$matches" ]; then

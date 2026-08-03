@@ -70,7 +70,7 @@ describe('formatOrgTable', () => {
     const orgs: SfOrg[] = [
       {
         alias: 'test',
-        username: 'user@test.com',
+        username: 'user@example.com',
         orgId: '00D000000000001',
         instanceUrl: 'https://test.my.salesforce.com',
         connectedStatus: 'Connected',
@@ -81,14 +81,14 @@ describe('formatOrgTable', () => {
     const table = formatOrgTable(orgs);
     expect(table).toContain('| Alias |');
     expect(table).toContain('| test |');
-    expect(table).toContain('user@test.com');
+    expect(table).toContain('user@example.com');
   });
 
   it('marks default org', () => {
     const orgs: SfOrg[] = [
       {
         alias: 'prod',
-        username: 'admin@prod.com',
+        username: 'admin@example.com',
         orgId: '00D000000000002',
         instanceUrl: 'https://prod.my.salesforce.com',
         connectedStatus: 'Connected',
@@ -103,7 +103,7 @@ describe('formatOrgTable', () => {
   it('shows (none) when alias is undefined', () => {
     const orgs: SfOrg[] = [
       {
-        username: 'user@test.com',
+        username: 'user@example.com',
         orgId: '00D000000000003',
         instanceUrl: 'https://test.my.salesforce.com',
         connectedStatus: 'Connected',
@@ -136,7 +136,7 @@ describe('formatOrgDetail', () => {
 
   it('shows sandbox type', () => {
     const org: SfOrg = {
-      username: 'user@sandbox.com',
+      username: 'user@example.com',
       orgId: '00D456',
       instanceUrl: 'https://test.sandbox.my.salesforce.com',
       connectedStatus: 'Connected',
@@ -149,7 +149,7 @@ describe('formatOrgDetail', () => {
 
   it('uses username when alias is undefined', () => {
     const org: SfOrg = {
-      username: 'fallback@test.com',
+      username: 'fallback@example.com',
       orgId: '00D789',
       instanceUrl: 'https://test.my.salesforce.com',
       connectedStatus: 'Connected',
@@ -157,7 +157,7 @@ describe('formatOrgDetail', () => {
       isSandbox: false,
     };
     const detail = formatOrgDetail(org);
-    expect(detail).toContain('**fallback@test.com**');
+    expect(detail).toContain('**fallback@example.com**');
   });
 });
 

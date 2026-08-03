@@ -93,10 +93,10 @@ For each gap, recommend:
 
 Every response must follow this structure:
 
-```
+```text
 ## Deal Analysis Report
 
-### Account: [name]
+### Account: example-corp
 ### Analysis Date: [date]
 ### Data Sources: [list of files/sources reviewed]
 

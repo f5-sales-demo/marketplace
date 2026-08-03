@@ -22,7 +22,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## การติดตั้ง
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -68,8 +68,8 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 
 แทนที่ `YOUR-DOMAIN` ด้วยโดเมนของบริษัทจากขั้นตอนที่ 1 เบราว์เซอร์ของคุณจะเปิดขึ้น — ดำเนินการขั้นตอน SSO หรือการเข้าสู่ระบบและอนุญาตแอป คุณควรเห็น:
 
-```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+```text
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### ขั้นตอนที่ 3: ตรวจสอบการเชื่อมต่อ
@@ -93,7 +93,7 @@ sf org display --verbose --target-org my-org
 คัดลอกค่า **Sfdx Auth Url** (ขึ้นต้นด้วย `force://`) ในคอนเทนเนอร์ให้รัน:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -105,7 +105,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### ข้อมูลอ้างอิงวิธีการพิสูจน์ตัวตน
 
 | วิธีการ | เหมาะสำหรับ | ต้องการ |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | Web Login | เวิร์กสเตชันที่มีเบราว์เซอร์ | เบราว์เซอร์ + SSO |
 | SFDX URL | คอนเทนเนอร์, CI/CD, การพิสูจน์ตัวตนแบบพกพา | Auth URL จากเซสชันที่พิสูจน์ตัวตนแล้ว |
 | JWT Bearer | ไปป์ไลน์อัตโนมัติ | Connected App + private key + consumer key |
@@ -117,7 +117,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### ตัวแปรสภาพแวดล้อม
 
 | ตัวแปร | วัตถุประสงค์ |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | Bearer token สำหรับการพิสูจน์ตัวตนแบบ access-token |
 | `SFDX_AUTH_URL` | Force auth URL สำหรับการพิสูจน์ตัวตนแบบ SFDX URL |
 | `SF_ORG_INSTANCE_URL` | URL ของ instance องค์กร |
@@ -132,7 +132,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ตรวจสอบสถานะการเชื่อมต่อองค์กร Salesforce เวอร์ชัน CLI และ
 องค์กรที่พิสูจน์ตัวตนแล้ว
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -142,7 +142,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 พิสูจน์ตัวตนกับองค์กร Salesforce สามารถระบุ alias ได้ตามต้องการ
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -159,7 +159,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 Salesforce, การจัดการองค์กร หรือการสืบค้นข้อมูลด้วยภาษาธรรมชาติ
 
 | คุณพูด | กำหนดเส้นทางไปยัง |
-|---------|-----------|
+| --------- | ----------- |
 | "login to salesforce", "authenticate org" | ทักษะ `salesforce-auth` |
 | "check org status", "list orgs" | ตัวแทน `cli-operator` |
 | "show me opportunities", "look up case" | ตัวแทน `cli-operator` (SOQL query) |
@@ -189,7 +189,7 @@ access-token, JWT, SFDX URL และ web login
 
 **รูปแบบการตอบสนอง:**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -221,13 +221,13 @@ access-token, JWT, SFDX URL และ web login
 
 หลังจากพิสูจน์ตัวตนแล้ว ตรวจสอบให้แน่ใจว่าทุกอย่างทำงานได้:
 
-```
+```text
 /salesforce:sf-status
 ```
 
 จากนั้นลองใช้การสืบค้นด้วยภาษาธรรมชาติอย่างง่าย:
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -238,8 +238,8 @@ list my authenticated salesforce orgs
 
 ค้นหาบัญชีที่คุณได้รับมอบหมาย:
 
-```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+```text
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **สิ่งที่คาดหวัง:** รายการบัญชีจัดกลุ่มตามเจ้าของบัญชี แสดง
@@ -251,8 +251,8 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 
 เปรียบเทียบการครอบคลุมบัญชีของคุณกับสมาชิกในทีมเพื่อค้นหาช่องว่าง:
 
-```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+```text
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **สิ่งที่คาดหวัง:** ตารางสรุปแสดงจำนวนที่ทับซ้อนและจำนวนช่องว่าง
@@ -269,7 +269,7 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 ดูโอกาสทางการขายที่เปิดอยู่ทั้งหมดในบัญชีของคุณ:
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -282,7 +282,7 @@ show me all open salesforce opportunities on Colleague Name's account team accou
 
 รับภาพรวมครบถ้วนของดีลเฉพาะ:
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -295,7 +295,7 @@ show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - incl
 
 ตรวจสอบเคสสนับสนุนที่เปิดอยู่ในบัญชีของคุณ:
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -306,7 +306,7 @@ show me all open salesforce cases across Colleague Name's account team accounts,
 
 รับมุมมองไปป์ไลน์ที่พร้อมสำหรับการพยากรณ์:
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -318,7 +318,7 @@ for Colleague Name's accounts, show me a quarterly pipeline summary - group the 
 
 เจาะลึกลูกค้าเฉพาะราย:
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -330,7 +330,7 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 
 ค้นหาเคสสนับสนุนเฉพาะตามหมายเลข:
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -344,25 +344,25 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 
 ### ฟิลด์เฉพาะ
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### การกรองตามวันที่
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### การรวมข้อมูล
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### ออบเจ็กต์ที่กำหนดเอง
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -384,7 +384,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | หัวข้อ | ทักษะ |
-|-------|-------|
+| ------- | ------- |
 | Apex classes และ services | `generating-apex` |
 | Apex tests | `generating-apex-test` |
 | Flows | `generating-flow` |

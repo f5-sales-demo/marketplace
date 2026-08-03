@@ -22,7 +22,7 @@ dentro do devcontainer.
 
 ## Instalação
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -32,7 +32,7 @@ dentro do devcontainer.
 
 Raspa uma única URL e extrai o conteúdo como markdown.
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -41,7 +41,7 @@ Raspa uma única URL e extrai o conteúdo como markdown.
 
 Raspa múltiplas URLs de uma vez.
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -49,7 +49,7 @@ Raspa múltiplas URLs de uma vez.
 
 Rastreia múltiplas páginas a partir de uma URL inicial.
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -58,7 +58,7 @@ Rastreia múltiplas páginas a partir de uma URL inicial.
 
 Descobre todas as URLs de um site.
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -67,7 +67,7 @@ Descobre todas as URLs de um site.
 
 Pesquisa na web e, opcionalmente, raspa os resultados.
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -76,7 +76,7 @@ Pesquisa na web e, opcionalmente, raspa os resultados.
 
 Extração de dados estruturados com base em LLM a partir de páginas web.
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -90,7 +90,7 @@ Extração de dados estruturados com base em LLM a partir de páginas web.
 
 Gera um arquivo llms.txt para um site.
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

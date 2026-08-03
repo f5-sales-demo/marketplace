@@ -19,7 +19,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 安装
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -64,8 +64,8 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 
 将 `YOUR-DOMAIN` 替换为第一步中获取的公司域名。浏览器将自动打开——完成 SSO 或登录流程并授权应用。您应看到：
 
-```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+```text
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### 第三步：验证连接
@@ -87,7 +87,7 @@ sf org display --verbose --target-org my-org
 复制 **Sfdx Auth Url** 值（以 `force://` 开头）。在容器中运行：
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -98,7 +98,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### 身份验证方法参考
 
 | 方法 | 适用场景 | 所需条件 |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | Web 登录 | 具有浏览器的工作站 | 浏览器 + SSO |
 | SFDX URL | 容器、CI/CD、便携式身份验证 | 来自已验证会话的身份验证 URL |
 | JWT Bearer | 自动化流水线 | 已连接应用 + 私钥 + 消费者密钥 |
@@ -109,7 +109,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### 环境变量
 
 | 变量 | 用途 |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | 用于访问令牌身份验证的 Bearer 令牌 |
 | `SFDX_AUTH_URL` | 用于 SFDX URL 身份验证的 Force 身份验证 URL |
 | `SF_ORG_INSTANCE_URL` | 组织实例 URL |
@@ -123,7 +123,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 检查您的 Salesforce 组织连接状态、CLI 版本和已验证的组织。
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -133,7 +133,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 向 Salesforce 组织进行身份验证。可选择性地提供别名。
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -147,7 +147,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 顶层意图路由器。当您在自然语言中提及 Salesforce、组织管理或数据查询时自动激活。
 
 | 您说的内容 | 路由至 |
-|---------|-----------|
+| --------- | ----------- |
 | "登录 salesforce"、"验证组织" | `salesforce-auth` 技能 |
 | "检查组织状态"、"列出组织" | `cli-operator` 代理 |
 | "显示商机"、"查找案例" | `cli-operator` 代理（SOQL 查询） |
@@ -173,7 +173,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 **响应格式：**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -196,13 +196,13 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 完成身份验证后，验证一切正常：
 
-```
+```text
 /salesforce:sf-status
 ```
 
 然后尝试一个简单的自然语言查询：
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -212,8 +212,8 @@ list my authenticated salesforce orgs
 
 发现您被分配到的账户：
 
-```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+```text
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **预期效果：** 按账户负责人分组的账户列表，显示您在每个账户中的团队成员角色。如果大多数角色显示为空，这是常见的数据卫生问题——账户团队成员关系存在，但角色未被填充。
@@ -222,8 +222,8 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 
 与团队成员比较账户覆盖情况以发现差距：
 
-```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+```text
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **预期效果：** 显示重叠数量和差距数量的摘要表，以及两个列表。如果您最近更换了角色，可能会发现零重叠——这揭示了需要将您添加进去的账户。
@@ -237,7 +237,7 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 查看您账户中的所有未结商机：
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -247,7 +247,7 @@ show me all open salesforce opportunities on Colleague Name's account team accou
 
 获取特定交易的完整信息：
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -257,7 +257,7 @@ show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - incl
 
 检查您账户中的未结支持案例：
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -267,7 +267,7 @@ show me all open salesforce cases across Colleague Name's account team accounts,
 
 获取适合预测的流水线视图：
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -277,7 +277,7 @@ for Colleague Name's accounts, show me a quarterly pipeline summary - group the 
 
 深入了解特定客户：
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -287,7 +287,7 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 
 按案例编号查找特定支持案例：
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -299,25 +299,25 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 
 ### 指定字段
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### 日期筛选
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### 聚合
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### 自定义对象
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -334,7 +334,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | 主题 | 技能 |
-|-------|-------|
+| ------- | ------- |
 | Apex 类和服务 | `generating-apex` |
 | Apex 测试 | `generating-apex-test` |
 | 流程 | `generating-flow` |

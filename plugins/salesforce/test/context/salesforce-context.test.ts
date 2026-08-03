@@ -49,7 +49,7 @@ describe('buildSalesforceHint', () => {
   it('returns undefined when no pipeline summary', () => {
     const ctx: SalesforceContext = {
       userId: '005xxx',
-      username: 'user@test.com',
+      username: 'user@example.com',
       instanceUrl: 'https://test.salesforce.com',
       collectedAt: new Date().toISOString(),
     };
@@ -60,7 +60,7 @@ describe('buildSalesforceHint', () => {
   it('builds hint with pipeline data', () => {
     const ctx: SalesforceContext = {
       userId: '005xxx',
-      username: 'user@test.com',
+      username: 'user@example.com',
       instanceUrl: 'https://test.salesforce.com',
       orgAlias: 'SFDC',
       pipelineSummary: {
@@ -93,7 +93,7 @@ describe('buildSalesforceHint', () => {
   it('includes partner info from discovered partner', () => {
     const ctx: SalesforceContext = {
       userId: '005xxx',
-      username: 'user@test.com',
+      username: 'user@example.com',
       instanceUrl: 'https://test.salesforce.com',
       discoveredPartner: { id: '005yyy', name: 'Jane AE', role: 'AE' },
       pipelineSummary: {
@@ -113,7 +113,7 @@ describe('buildSalesforceHint', () => {
   it('marks discovered partner as unconfirmed', () => {
     const ctx: SalesforceContext = {
       userId: '005xxx',
-      username: 'user@test.com',
+      username: 'user@example.com',
       instanceUrl: 'https://test.salesforce.com',
       discoveredPartner: { id: '005yyy', name: 'Jane', role: 'AE' },
       pipelineSummary: { total: 100, dealCount: 1, byForecast: {} },
@@ -126,7 +126,7 @@ describe('buildSalesforceHint', () => {
   it('uses profile partner over discovered partner', () => {
     const ctx: SalesforceContext = {
       userId: '005xxx',
-      username: 'user@test.com',
+      username: 'user@example.com',
       instanceUrl: 'https://test.salesforce.com',
       discoveredPartner: { id: '005yyy', name: 'Discovered', role: 'AE' },
       pipelineSummary: { total: 100, dealCount: 1, byForecast: {} },

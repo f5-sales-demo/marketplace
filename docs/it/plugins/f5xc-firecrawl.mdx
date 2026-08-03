@@ -22,7 +22,7 @@ all'interno del contenitore di sviluppo.
 
 ## Installazione
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -32,7 +32,7 @@ all'interno del contenitore di sviluppo.
 
 Esegue lo scraping di un singolo URL ed estrae il contenuto in markdown.
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -41,7 +41,7 @@ Esegue lo scraping di un singolo URL ed estrae il contenuto in markdown.
 
 Esegue lo scraping di più URL contemporaneamente.
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -49,7 +49,7 @@ Esegue lo scraping di più URL contemporaneamente.
 
 Esegue il crawling di più pagine a partire da un URL iniziale.
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -58,7 +58,7 @@ Esegue il crawling di più pagine a partire da un URL iniziale.
 
 Individua tutti gli URL di un sito web.
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -67,7 +67,7 @@ Individua tutti gli URL di un sito web.
 
 Esegue ricerche sul web con la possibilità di fare scraping dei risultati.
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -76,7 +76,7 @@ Esegue ricerche sul web con la possibilità di fare scraping dei risultati.
 
 Estrazione di dati strutturati dalle pagine web tramite LLM.
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -90,7 +90,7 @@ Estrazione di dati strutturati dalle pagine web tramite LLM.
 
 Genera un file llms.txt per un sito.
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

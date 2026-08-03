@@ -33,13 +33,13 @@ detected in the environment.
 
 ### Native Tools
 
-| Tool                 | Purpose                                                    |
-| -------------------- | ---------------------------------------------------------- |
-| `sf_setup`           | Verify Salesforce CLI installation and org connectivity     |
-| `sf_query`           | Execute SOQL queries against authenticated orgs             |
-| `sf_describe`        | Look up an object's real field and relationship names       |
-| `sf_org_display`     | Display org details (alias, username, instance URL, status) |
-| `sf_pipeline_report` | Generate F5 Distributed Cloud pipeline intelligence report  |
+| Tool | Purpose |
+| --- | --- |
+| `sf_setup` | Verify Salesforce CLI installation and org connectivity |
+| `sf_query` | Execute SOQL queries against authenticated orgs |
+| `sf_describe` | Look up an object's real field and relationship names |
+| `sf_org_display` | Display org details (alias, username, instance URL, status) |
+| `sf_pipeline_report` | Generate F5 Distributed Cloud pipeline intelligence report |
 
 ### Schema discovery
 
@@ -142,49 +142,49 @@ data. Replace placeholder values with your own information.
 
 ### Account discovery
 
-```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+```text
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 ### Coverage cross-reference
 
-```
-find all accounts where Colleague Name is on the account team, then check if your-email@company.com is also tagged on each one
+```text
+find all accounts where Colleague Name is on the account team, then check if your-email@example.com is also tagged on each one
 ```
 
 ### Opportunity pipeline
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's accounts, sorted by amount
 ```
 
 ### Quarterly forecast
 
-```
+```text
 group open opportunities by close date quarter with count, total amount, and weighted amount
 ```
 
 ### Opportunity deep dive
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity including team members, activities, and contacts
 ```
 
 ### Support cases
 
-```
+```text
 show me all open salesforce cases across Colleague Name's accounts, grouped by account
 ```
 
 ### Case lookup
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the details, customer account, and owner
 ```
 
 ### Account overview
 
-```
+```text
 give me a full account overview for ACCOUNT NAME including contacts, open opportunities, and recent cases
 ```
 

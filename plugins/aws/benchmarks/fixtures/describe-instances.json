@@ -8,7 +8,7 @@
           "InstanceType": "t3.medium",
           "Placement": { "AvailabilityZone": "us-east-1a" },
           "PrivateIpAddress": "10.0.1.15",
-          "PublicIpAddress": "54.12.34.56",
+          "PublicIpAddress": "198.51.100.56",
           "Tags": [{ "Key": "Name", "Value": "demo-web-1" }]
         }
       ]

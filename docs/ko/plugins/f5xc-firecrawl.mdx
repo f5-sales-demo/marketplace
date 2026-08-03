@@ -16,7 +16,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 설치
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -26,7 +26,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 단일 URL을 스크래핑하고 마크다운으로 콘텐츠를 추출합니다.
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -35,7 +35,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 여러 URL을 한 번에 스크래핑합니다.
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -43,7 +43,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 시작 URL에서 여러 페이지를 크롤링합니다.
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -52,7 +52,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 웹사이트의 모든 URL을 검색합니다.
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -61,7 +61,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 웹을 검색하고 선택적으로 결과를 스크래핑합니다.
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -70,7 +70,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 웹 페이지에서 LLM 기반 구조화된 데이터 추출을 수행합니다.
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -83,7 +83,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 사이트에 대한 llms.txt 파일을 생성합니다.
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

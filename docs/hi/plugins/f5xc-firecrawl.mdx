@@ -21,7 +21,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## इंस्टॉलेशन
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -31,7 +31,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 एकल URL को स्क्रैप करें और सामग्री को markdown के रूप में निकालें।
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -40,7 +40,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 एक साथ कई URL स्क्रैप करें।
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -48,7 +48,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 किसी प्रारंभिक URL से कई पेज क्रॉल करें।
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -57,7 +57,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 किसी वेबसाइट के सभी URL खोजें।
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -66,7 +66,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 वेब पर खोजें और वैकल्पिक रूप से परिणाम स्क्रैप करें।
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -75,7 +75,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 वेब पेजों से LLM-संचालित संरचित डेटा निष्कर्षण।
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -89,7 +89,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 किसी साइट के लिए llms.txt फ़ाइल बनाएं।
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 
