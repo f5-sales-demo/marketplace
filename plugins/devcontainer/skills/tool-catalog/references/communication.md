@@ -61,6 +61,7 @@ Tools for messaging platforms, communication integrations, and email.
     subject: "Hello",
     text: "Hello from the devcontainer",
   });
+
   ```
 
 - **Auth**: SMTP credentials via env vars (`SMTP_USER`, `SMTP_PASS`) or OAuth2 token. For Gmail use App Password or OAuth2.

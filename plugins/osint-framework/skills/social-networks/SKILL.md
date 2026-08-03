@@ -71,7 +71,7 @@ list of 63 free/freemium tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Social networks tool search",
@@ -83,7 +83,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Social networks investigation: [target]",

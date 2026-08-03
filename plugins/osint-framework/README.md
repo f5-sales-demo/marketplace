@@ -16,7 +16,7 @@ This plugin provides category-based OSINT skills, investigation agents, and exec
 
 ## Architecture
 
-```
+```text
 osint-index (router)
     |
     +-- osint-catalog (browse/search)

@@ -194,7 +194,7 @@ curl -s "https://littlesis.org/api/entities/search?q=goldman+sachs" \
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Business Records tool search",
@@ -206,7 +206,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Business Records investigation: [target]",

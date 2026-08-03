@@ -98,7 +98,7 @@ fingerprint. Always prefer passive data sources before active scanning.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="IP & MAC Address tool search",
@@ -110,7 +110,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="IP & MAC Address investigation: [target]",
