@@ -10,6 +10,17 @@ _load_all() {
 # Predicate: body must equal `{"state":"done"}`
 _pred_done() { grep -q '"state":"done"' "$1"; }
 
+_stub_sleep() {
+  local bin="$GITHUB_OPS_HOME/test-bin"
+  mkdir -p "$bin"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'printf "%s\n" "$1" >>"$GITHUB_OPS_HOME/sleep.log"' \
+    >"$bin/sleep"
+  chmod +x "$bin/sleep"
+  export PATH="$bin:$PATH"
+}
+
 test_poll_until_returns_done_when_predicate_true_first_call() {
   _load_all
   export GH_STUB_STATUS=200
@@ -35,8 +46,10 @@ test_poll_until_handles_429_via_retry_with_backoff() {
   export GH_STUB_STATUS=429
   export GH_STUB_RETRY_AFTER=1
   export GH_STUB_BODY='secondary rate limit'
-  out=$(MAX_POLL_WALLCLOCK=3 POLL_INTERVAL_OVERRIDE=0 poll_until /x _pred_done 2>&1 || true)
+  _stub_sleep
+  out=$(MAX_POLL_WALLCLOCK=60 POLL_INTERVAL_OVERRIDE=0 poll_until /x _pred_done 2>&1 || true)
   echo "$out" | grep -q 'RATE_LIMIT_BACKOFF' || return 1
+  grep -qx '1' "$GITHUB_OPS_HOME/sleep.log" || return 1
 }
 
 test_poll_until_counts_304_as_free_poll() {
@@ -110,8 +123,10 @@ test_poll_until_uses_actual_retry_after_on_second_failure() {
   export GH_STUB_STATUS=429
   export GH_STUB_RETRY_AFTER=1
   export GH_STUB_BODY='secondary rate limit'
-  out=$(MAX_POLL_WALLCLOCK=4 POLL_INTERVAL_OVERRIDE=0 poll_until /x _pred_done 2>&1 || true)
+  _stub_sleep
+  out=$(MAX_POLL_WALLCLOCK=60 POLL_INTERVAL_OVERRIDE=0 poll_until /x _pred_done 2>&1 || true)
   echo "$out" | grep -q 'RATE_LIMIT_BACKOFF retry_after_seconds=1 ' || return 1
+  grep -qx '1' "$GITHUB_OPS_HOME/sleep.log" || return 1
 }
 
 test_poll_until_budget_exhausted_is_single_line() {

@@ -23,6 +23,15 @@ command -v bun >/dev/null 2>&1 || {
   exit 2
 }
 
+# The lockfiles are not enough: an existing workspace can remain physically linked to an
+# obsolete xcsh/provider graph and make source tests exercise different code than the
+# manifests specify. Repair from the frozen locks before any suite runs, then fail if the
+# installed graph still disagrees.
+if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
+  echo "FATAL: plugin runtime dependency precondition failed" >&2
+  exit 1
+fi
+
 # The gate never calls a real cloud CLI.
 #
 # The runner ships aws, az, gcloud and gh, so the integration cases — the ones deliberately
@@ -47,6 +56,7 @@ trap '"$RM_BIN" -rf "$SANITIZED_BIN"' EXIT
 IFS=':' read -r -a _path_entries <<<"$PATH"
 for _entry in "${_path_entries[@]}"; do
   [ -d "$_entry" ] || continue
+  _links=()
   for _exe in "$_entry"/*; do
     [ -f "$_exe" ] && [ -x "$_exe" ] || continue
     _name="${_exe##*/}"
@@ -54,8 +64,17 @@ for _entry in "${_path_entries[@]}"; do
       [ "$_name" = "$_cli" ] && continue 2
     done
     # First one wins, which preserves the precedence the original PATH had.
-    [ -e "$SANITIZED_BIN/$_name" ] || ln -s "$_exe" "$SANITIZED_BIN/$_name"
+    [ -e "$SANITIZED_BIN/$_name" ] || _links+=("$_exe")
   done
+  # Creating one process per executable made this setup take minutes on developer
+  # workstations with large PATH directories. ln accepts multiple sources when the final
+  # argument is a directory, so preserve the same links with one process per PATH entry.
+  if [ "${#_links[@]}" -gt 0 ]; then
+    ln -s "${_links[@]}" "$SANITIZED_BIN" || {
+      echo "FATAL: could not construct the sanitised plugin-test PATH" >&2
+      exit 2
+    }
+  fi
 done
 export PATH="$SANITIZED_BIN"
 
@@ -99,6 +118,13 @@ done
 
 if [ "${#failed[@]}" -gt 0 ]; then
   printf '\nFAILED: %s\n' "${failed[*]}" >&2
+  exit 1
+fi
+
+# Frozen installs must also materialize the graph the manifests and locks declare. This
+# postcondition catches installer/linker regressions rather than trusting a zero exit code.
+if ! bash scripts/check-plugin-runtime-dependencies.sh; then
+  echo "FATAL: plugin runtime dependency postcondition failed" >&2
   exit 1
 fi
 
