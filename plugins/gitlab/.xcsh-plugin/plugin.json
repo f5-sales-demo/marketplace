@@ -1,7 +1,7 @@
 {
   "name": "gitlab",
   "description": "GitLab CLI integration — native xcsh tools (glab_setup, glab_issue_list, glab_issue_view, glab_search), welcome screen status, and issue management via glab CLI",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
