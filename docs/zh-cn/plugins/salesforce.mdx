@@ -65,7 +65,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 将 `YOUR-DOMAIN` 替换为第一步中获取的公司域名。浏览器将自动打开——完成 SSO 或登录流程并授权应用。您应看到：
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### 第三步：验证连接
@@ -87,7 +87,7 @@ sf org display --verbose --target-org my-org
 复制 **Sfdx Auth Url** 值（以 `force://` 开头）。在容器中运行：
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -213,7 +213,7 @@ list my authenticated salesforce orgs
 发现您被分配到的账户：
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **预期效果：** 按账户负责人分组的账户列表，显示您在每个账户中的团队成员角色。如果大多数角色显示为空，这是常见的数据卫生问题——账户团队成员关系存在，但角色未被填充。
@@ -223,7 +223,7 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 与团队成员比较账户覆盖情况以发现差距：
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **预期效果：** 显示重叠数量和差距数量的摘要表，以及两个列表。如果您最近更换了角色，可能会发现零重叠——这揭示了需要将您添加进去的账户。

@@ -177,7 +177,7 @@ this read-then-execute pattern:
    c. If it needs creation, construct the payload from the profile
    d. Execute, capture the resource name for downstream steps
    e. Reference created resources by name in subsequent payloads:
-      `{"name": "resource-name", "namespace": "ns"}`
+      `{"name": "resource-name", "namespace": "shared"}`
 3. After all steps, run any verification checks from the workflow
 
 ### Dependency Resolution
@@ -196,7 +196,7 @@ this read-then-execute pattern:
    POOL_NAME with user-provided values
 3. **Add optional features**: Only add fields the user requested.
    For example, to enable WAF, replace `"disable_waf": {}` with
-   `"enable_waf": {"waf_ref": {"name": "waf-name", "namespace": "ns"}}`
+   `"enable_waf": {"waf_ref": {"name": "waf-name", "namespace": "shared"}}`
 4. **Don't over-specify**: Omit fields you want the server to default.
    Only include fields from mutually exclusive groups that the user
    explicitly chose.

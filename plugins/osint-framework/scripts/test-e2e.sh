@@ -233,7 +233,7 @@ if [ -z "$LAYER_FILTER" ] || { [ "$LAYER_FILTER" = "--layer" ] && [ "${2:-}" = "
     "open" 120
 
   run_test "U12" "nmap service detection scanme.nmap.org" \
-    "nmap -sV --top-ports 5 -T3 45.33.32.156 2>/dev/null" \
+    "nmap -sV --top-ports 5 -T3 198.51.100.156 2>/dev/null" \
     "open" 120
 
   # Certificate transparency
@@ -291,19 +291,19 @@ if [ -z "$LAYER_FILTER" ] || { [ "$LAYER_FILTER" = "--layer" ] && [ "${2:-}" = "
 
   # T02: IP Investigation Pipeline (scanme.nmap.org)
   run_test "T02a" "IP pipeline: geolocation lookup" \
-    "curl -s 'https://ipinfo.io/45.33.32.156/json' 2>/dev/null | jq '{ip,city,org}' 2>/dev/null" \
+    "curl -s 'https://ipinfo.io/198.51.100.156/json' 2>/dev/null | jq '{ip,city,org}' 2>/dev/null" \
     "\"ip\"" 15
 
   run_test "T02b" "IP pipeline: WHOIS ownership" \
-    "whois 45.33.32.156 2>/dev/null | grep -iE 'orgname|org-name|netname'" \
+    "whois 198.51.100.156 2>/dev/null | grep -iE 'orgname|org-name|netname'" \
     "." 30
 
   run_test "T02c" "IP pipeline: nmap service scan" \
-    "nmap -sV --top-ports 10 -T3 45.33.32.156 2>/dev/null" \
+    "nmap -sV --top-ports 10 -T3 198.51.100.156 2>/dev/null" \
     "open" 120
 
   run_test "T02d" "IP pipeline: searchsploit pivot from nmap" \
-    "SERVICE=\$(nmap --top-ports 5 -T3 45.33.32.156 2>/dev/null | grep open | head -1 | awk '{print \$3}') && searchsploit \"\$SERVICE\" 2>/dev/null | head -3" \
+    "SERVICE=\$(nmap --top-ports 5 -T3 198.51.100.156 2>/dev/null | grep open | head -1 | awk '{print \$3}') && searchsploit \"\$SERVICE\" 2>/dev/null | head -3" \
     "." 60
 
   # T03: Passive-Only Pipeline (no active tools)

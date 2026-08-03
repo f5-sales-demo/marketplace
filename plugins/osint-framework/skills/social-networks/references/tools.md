@@ -22,7 +22,7 @@
 
 ### FB Email Search
 
-- **URL**: <https://www.facebook.com/public?query=email@gmail.com&nomc=0>
+- **URL**: <https://www.facebook.com/public?query=email@example.com&nomc=0>
 - **Type**: Web
 - **Pricing**: Free
 - **OPSEC**: Passive
@@ -128,7 +128,7 @@
 - **API**: Yes
 - **CLI Install**: Yes
 - **Best For**: Mastodon user profile investigation and account analysis
-- **Input**: Mastodon username and instance (e.g., `user@mastodon.social`)
+- **Input**: Mastodon username and instance (e.g., `user@example.com`)
 - **Output**: Profile details, recent toots, follower/following lists, account creation date, and metadata
 - **Description**: Python-based Mastodon OSINT tool for investigating user accounts across instances. Retrieves profile details, toots, followers, and account metadata.
 

@@ -61,7 +61,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 `YOUR-DOMAIN` をステップ 1 で確認した会社ドメインに置き換えます。ブラウザーが開くので、SSO またはログインフローを完了してアプリを承認します。以下のように表示されるはずです：
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### ステップ 3: 接続を確認する
@@ -83,7 +83,7 @@ sf org display --verbose --target-org my-org
 **Sfdx Auth Url** の値（`force://` で始まる）をコピーします。コンテナ内で以下を実行します：
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -209,7 +209,7 @@ list my authenticated salesforce orgs
 自分がアカウントチームに割り当てられているアカウントを確認します：
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **期待される出力:** アカウントオーナー別にグループ化されたアカウントのリスト。各アカウントにおけるチームメンバーのロールを表示します。ほとんどのロールが空の場合、それはよくあるデータ品質の問題です — アカウントチームのメンバーシップは存在しますが、ロールが設定されていません。
@@ -219,7 +219,7 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 チームメートとのアカウントカバレッジを比較してギャップを見つけます：
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **期待される出力:** 重複数とギャップ数を示すサマリーテーブルと、2 つのリスト。最近ロールを変更した場合、重複がゼロになることがあります — これは追加が必要なアカウントを明らかにします。

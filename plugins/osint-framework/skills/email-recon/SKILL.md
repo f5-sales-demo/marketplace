@@ -30,9 +30,9 @@ list of 28 free tools in this category.
 | Tool | Install | Usage |
 | ------ | --------- | ------- |
 | theHarvester | `pip install theHarvester` | `theHarvester -d domain.com -b all` |
-| holehe | `pip install holehe` | `holehe email@domain.com` |
-| h8mail | `pip install h8mail` | `h8mail -t email@domain.com` |
-| Infoga | `git clone https://github.com/m4ll0k/infoga` | `python infoga.py -t email@domain.com` |
+| holehe | `pip install holehe` | `holehe email@example.com` |
+| h8mail | `pip install h8mail` | `h8mail -t email@example.com` |
+| Infoga | `git clone https://github.com/m4ll0k/infoga` | `python infoga.py -t email@example.com` |
 
 ## Subcategories
 

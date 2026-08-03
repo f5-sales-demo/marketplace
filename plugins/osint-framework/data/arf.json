@@ -5409,7 +5409,7 @@
             {
               "name": "Bing IP Search (D)",
               "type": "url",
-              "url": "https://www.bing.com/search?q=ip%3A8.8.8.8",
+              "url": "https://www.bing.com/search?q=ip%3A192.0.2.8",
               "description": "Bing search operator for finding domains and subdomains hosted on a specific IP address.",
               "status": "live",
               "pricing": "free",
@@ -7027,7 +7027,7 @@
                 {
                   "name": "FB Email Search",
                   "type": "url",
-                  "url": "https://www.facebook.com/public?query=email@gmail.com&nomc=0",
+                  "url": "https://www.facebook.com/public?query=email@example.com&nomc=0",
                   "description": "Facebook public search pattern used to test whether an email identifier resolves to matching profiles. Useful for quick account existence checks with manually edited query values.",
                   "status": "live",
                   "pricing": "free",
@@ -7200,7 +7200,7 @@
               "status": "live",
               "pricing": "free",
               "bestFor": "Mastodon user profile investigation and account analysis",
-              "input": "Mastodon username and instance (e.g., user@mastodon.social)",
+              "input": "Mastodon username and instance (e.g., user@example.com)",
               "output": "Profile details, recent toots, follower/following lists, account creation date, and metadata",
               "opsec": "active",
               "opsecNote": "Makes API requests directly to the target Mastodon instance; instance admins can see request logs.",

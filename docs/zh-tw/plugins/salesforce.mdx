@@ -67,7 +67,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 完成 SSO 或登入流程並授權應用程式。您應會看到：
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### 步驟三：確認連線
@@ -90,7 +90,7 @@ sf org display --verbose --target-org my-org
 複製 **Sfdx Auth Url** 的值（以 `force://` 開頭）。在容器中執行：
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -226,7 +226,7 @@ list my authenticated salesforce orgs
 探索您被指派至哪些帳戶：
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **預期結果：** 依帳戶擁有者分組的帳戶清單，顯示您在每個帳戶中的團隊成員角色。
@@ -237,7 +237,7 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 與隊友比較帳戶負責範圍，找出缺口：
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **預期結果：** 一個顯示重疊數量及缺口數量的摘要表格，後接兩份清單。

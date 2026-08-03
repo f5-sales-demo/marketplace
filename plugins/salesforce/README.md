@@ -143,13 +143,13 @@ data. Replace placeholder values with your own information.
 ### Account discovery
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 ### Coverage cross-reference
 
 ```
-find all accounts where Colleague Name is on the account team, then check if your-email@company.com is also tagged on each one
+find all accounts where Colleague Name is on the account team, then check if your-email@example.com is also tagged on each one
 ```
 
 ### Opportunity pipeline

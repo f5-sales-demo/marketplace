@@ -11,7 +11,7 @@ Tools for messaging platforms, communication integrations, and email.
 - **Use when**: Sending email from the command line or scripts via an external SMTP server (Gmail, SendGrid, etc.)
 - **Quick start**:
   - `echo "Subject: Test\n\nHello" | msmtp recipient@example.com`
-  - `msmtp --host=smtp.gmail.com --port=587 --tls --auth --user=you@gmail.com recipient@example.com < mail.txt`
+  - `msmtp --host=smtp.gmail.com --port=587 --tls --auth --user=you@example.com recipient@example.com < mail.txt`
   - Config via `~/.msmtprc` — set `account default`, `host`, `port`, `tls on`, `auth on`, `user`, `password`
 - **Auth**: SMTP credentials in `~/.msmtprc` or via `--user`/`--passwordeval`. For Gmail use an App Password.
 - **Docs**: `man msmtp` or <https://marlam.de/msmtp/>
@@ -22,7 +22,7 @@ Tools for messaging platforms, communication integrations, and email.
 - **Purpose**: Feature-rich SMTP testing and transaction tool supporting AUTH, TLS, MIME, DKIM, and multiple protocols
 - **Use when**: Testing SMTP servers, diagnosing mail delivery issues, sending test emails with full control over headers
 - **Quick start**:
-  - `swaks --to recipient@example.com --server smtp.gmail.com:587 --auth --tls --auth-user you@gmail.com`
+  - `swaks --to recipient@example.com --server smtp.gmail.com:587 --auth --tls --auth-user you@example.com`
   - `swaks --to test@example.com --from me@example.com --body "Hello" --header "Subject: Test"`
   - `swaks --to test@example.com --server localhost:25` (test local MTA)
 - **Auth**: `--auth-user` + `--auth-password` or `--auth-password-eval`; supports LOGIN, PLAIN, CRAM-MD5, DIGEST-MD5
@@ -56,7 +56,7 @@ Tools for messaging platforms, communication integrations, and email.
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
   await transporter.sendMail({
-    from: '"Sender" <you@gmail.com>',
+    from: '"Sender" <you@example.com>',
     to: "recipient@example.com",
     subject: "Hello",
     text: "Hello from the devcontainer",
@@ -72,8 +72,8 @@ Tools for messaging platforms, communication integrations, and email.
 - **Purpose**: Send email directly via SMTP using curl's built-in SMTP support — no extra tools needed
 - **Use when**: Quick scripted email sends without installing dedicated mail tools; already have cURL in your pipeline
 - **Quick start**:
-  - `curl --url "smtps://smtp.gmail.com:465" --ssl-reqd --mail-from "you@gmail.com" --mail-rcpt "to@example.com" --upload-file mail.txt --user "you@gmail.com:app-password"`
-  - `curl --url "smtp://smtp.gmail.com:587" --starttls-smtp --mail-from "you@gmail.com" --mail-rcpt "to@example.com" -T mail.txt --user "you@gmail.com:app-password"`
+  - `curl --url "smtps://smtp.gmail.com:465" --ssl-reqd --mail-from "you@example.com" --mail-rcpt "to@example.com" --upload-file mail.txt --user "you@example.com:app-password"`
+  - `curl --url "smtp://smtp.gmail.com:587" --starttls-smtp --mail-from "you@example.com" --mail-rcpt "to@example.com" -T mail.txt --user "you@example.com:app-password"`
 - **Auth**: `--user "username:password"` — for Gmail use an App Password (not your account password)
 - **Docs**: `man curl` — search for `--mail-from`
 
@@ -115,7 +115,7 @@ Tools for messaging platforms, communication integrations, and email.
 - **Quick start**:
   - `const { makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');`
   - `const { state, saveCreds } = await useMultiFileAuthState('auth'); const sock = makeWASocket({ auth: state });`
-  - `await sock.sendMessage('1234567890@s.whatsapp.net', { text: 'Hello' });`
+  - `await sock.sendMessage('1234567890@example.com', { text: 'Hello' });`
 - **Auth**: QR code pairing via WhatsApp mobile app. On first connection, scan the QR code printed to the terminal with your WhatsApp mobile app.
 - **Docs**: <https://github.com/WhiskeySockets/Baileys>
 

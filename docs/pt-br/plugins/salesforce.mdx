@@ -74,7 +74,7 @@ será aberto — conclua o fluxo de SSO ou login e autorize o aplicativo. Você 
 ver:
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### Etapa 3: Verifique a conexão
@@ -99,7 +99,7 @@ Copie o valor de **Sfdx Auth Url** (começa com `force://`). No
 contêiner, execute:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -248,7 +248,7 @@ nome de usuário, URL da instância e status de conexão.
 Descubra quais contas você está atribuído:
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **O que esperar:** Uma lista de contas agrupadas por proprietário da conta, mostrando
@@ -261,7 +261,7 @@ não foram preenchidos.
 Compare sua cobertura de contas com a de um colega para identificar lacunas:
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **O que esperar:** Uma tabela resumida mostrando a contagem de sobreposição e a contagem de lacunas,

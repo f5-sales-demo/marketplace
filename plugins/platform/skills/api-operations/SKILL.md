@@ -220,7 +220,7 @@ For resources not listed above, check the domain catalog in
   `service_mesh` domains with different schemas. Use the `virtual`
   domain version for HTTP/TCP load balancers.
 - When referencing another resource (e.g., attaching a WAF to an LB),
-  use the format `{"name": "resource-name", "namespace": "ns"}` not
+  use the format `{"name": "resource-name", "namespace": "shared"}` not
   just the name string.
 - The API returns 409 (Conflict) if a resource with the same name
   already exists. Check existence with a GET first if unsure.

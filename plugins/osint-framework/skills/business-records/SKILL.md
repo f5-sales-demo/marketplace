@@ -73,7 +73,7 @@ list of 28 free tools in this category.
 # Look up CIK from company name using the tickers file
 COMPANY="canadian imperial bank"
 curl -s "https://www.sec.gov/files/company_tickers.json" \
-  -H "User-Agent: OSINTFramework research@osint.local" \
+  -H "User-Agent: OSINTFramework research@example.com" \
 | jq --arg q "$COMPANY" '[to_entries[].value | select(.title | ascii_downcase |
 ```
 
@@ -83,7 +83,7 @@ curl -s "https://www.sec.gov/files/company_tickers.json" \
 # If company name search fails, try exact ticker match
 TICKER="CM"
 curl -s "https://www.sec.gov/files/company_tickers.json" \
-  -H "User-Agent: OSINTFramework research@osint.local" \
+  -H "User-Agent: OSINTFramework research@example.com" \
 | jq --arg t "$TICKER" '[to_entries[].value |
 ```
 
@@ -93,7 +93,7 @@ curl -s "https://www.sec.gov/files/company_tickers.json" \
 # Replace CIK with the value from Step 1 (zero-padded to 10 digits)
 CIK="0001045520"
 curl -s "https://data.sec.gov/submissions/CIK${CIK}.json" \
-  -H "User-Agent: OSINTFramework research@osint.local" \
+  -H "User-Agent: OSINTFramework research@example.com" \
   | jq '{name, cik, tickers, exchanges, sic, sicDescription, filings: {forms: .filings.recent.form[:10], dates: .filings.recent.filingDate[:10]}}'
 ```
 

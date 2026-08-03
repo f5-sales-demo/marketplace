@@ -69,7 +69,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 แทนที่ `YOUR-DOMAIN` ด้วยโดเมนของบริษัทจากขั้นตอนที่ 1 เบราว์เซอร์ของคุณจะเปิดขึ้น — ดำเนินการขั้นตอน SSO หรือการเข้าสู่ระบบและอนุญาตแอป คุณควรเห็น:
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### ขั้นตอนที่ 3: ตรวจสอบการเชื่อมต่อ
@@ -93,7 +93,7 @@ sf org display --verbose --target-org my-org
 คัดลอกค่า **Sfdx Auth Url** (ขึ้นต้นด้วย `force://`) ในคอนเทนเนอร์ให้รัน:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -239,7 +239,7 @@ list my authenticated salesforce orgs
 ค้นหาบัญชีที่คุณได้รับมอบหมาย:
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **สิ่งที่คาดหวัง:** รายการบัญชีจัดกลุ่มตามเจ้าของบัญชี แสดง
@@ -252,7 +252,7 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 เปรียบเทียบการครอบคลุมบัญชีของคุณกับสมาชิกในทีมเพื่อค้นหาช่องว่าง:
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **สิ่งที่คาดหวัง:** ตารางสรุปแสดงจำนวนที่ทับซ้อนและจำนวนช่องว่าง

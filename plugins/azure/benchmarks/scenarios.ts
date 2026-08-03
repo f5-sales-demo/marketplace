@@ -225,7 +225,7 @@ const scenarios: Scenario[] = [
         const result = await tool.execute('t', { show_details: true }, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
-          contains: ['web-vm-01', '20.0.0.1', 'VM running', 'Public IPs'],
+          contains: ['web-vm-01', '192.0.2.20', 'VM running', 'Public IPs'],
           notContains: ['azureuser'],
         });
       }),

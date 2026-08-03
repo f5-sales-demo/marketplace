@@ -74,7 +74,7 @@ se abrirá — complete el flujo de SSO o inicio de sesión y autorice la aplica
 ver:
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### Paso 3: Verifique la conexión
@@ -99,7 +99,7 @@ Copie el valor de **Sfdx Auth Url** (comienza con `force://`). En el
 contenedor, ejecute:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -248,7 +248,7 @@ nombre de usuario, URL de instancia y estado de conexión.
 Descubra a qué cuentas está asignado:
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **Qué esperar:** Una lista de cuentas agrupadas por propietario de cuenta, que muestra
@@ -261,7 +261,7 @@ no fueron completados.
 Compare su cobertura de cuentas con la de un compañero para encontrar brechas:
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **Qué esperar:** Una tabla resumen que muestra el recuento de superposición y el recuento de brechas,

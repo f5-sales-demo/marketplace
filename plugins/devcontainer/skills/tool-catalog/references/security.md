@@ -380,9 +380,9 @@
 - **Purpose**: Network protocol tools for Windows environments (psexec, secretsdump, SMB, Kerberos)
 - **Use when**: Performing lateral movement, credential extraction, or protocol-level attacks against Windows/AD
 - **Quick start**:
-  - `impacket-psexec domain/user:password@target.example.com`
-  - `impacket-secretsdump domain/user:password@target.example.com`
-  - `impacket-smbclient domain/user:password@target.example.com`
+  - `impacket-psexec domain/user:password@example.com`
+  - `impacket-secretsdump domain/user:password@example.com`
+  - `impacket-smbclient domain/user:password@example.com`
 - **Auth**: Target credentials, hashes, or Kerberos tickets required
 - **Docs**: <https://github.com/fortra/impacket>
 
@@ -512,7 +512,7 @@
 - **Use when**: Crafting custom packets, network scanning, or protocol analysis in Python
 - **Quick start**:
   - `sudo scapy`
-  - `python3 -c "from scapy.all import *; resp = sr1(IP(dst='8.8.8.8')/ICMP()); resp.show()"`
+  - `python3 -c "from scapy.all import *; resp = sr1(IP(dst='192.0.2.8')/ICMP()); resp.show()"`
   - `python3 -c "from scapy.all import *; sniff(count=10, prn=lambda x: x.summary())"`
 - **Auth**: None (requires root/sudo for raw sockets)
 - **Docs**: <https://scapy.readthedocs.io>

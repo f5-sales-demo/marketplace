@@ -67,7 +67,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 열리면 SSO 또는 로그인 흐름을 완료하고 앱을 승인합니다. 다음과 같은 메시지가 표시됩니다:
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### 3단계: 연결 확인
@@ -90,7 +90,7 @@ sf org display --verbose --target-org my-org
 **Sfdx Auth Url** 값(`force://`로 시작)을 복사합니다. 컨테이너에서 다음을 실행합니다:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -226,7 +226,7 @@ list my authenticated salesforce orgs
 할당된 계정을 확인합니다:
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **예상 결과:** 계정 소유자별로 그룹화된 계정 목록과 각 계정에서의 팀 멤버 역할. 대부분의 역할이
@@ -237,7 +237,7 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 팀원과 계정 커버리지를 비교하여 공백을 찾습니다:
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **예상 결과:** 중복 수와 공백 수를 보여주는 요약 표, 이어서 두 개의 목록. 최근에 역할이 변경된 경우

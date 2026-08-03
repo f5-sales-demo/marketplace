@@ -72,7 +72,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 أكمل تدفق SSO أو تسجيل الدخول وفوّض التطبيق. يجب أن تشاهد:
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### الخطوة 3: التحقق من الاتصال
@@ -97,7 +97,7 @@ sf org display --verbose --target-org my-org
 الحاوية، شغّل:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -245,7 +245,7 @@ list my authenticated salesforce orgs
 اكتشف الحسابات التي تم تعيينك إليها:
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **ما يمكن توقعه:** قائمة بالحسابات مجمّعة حسب مالك الحساب، تُظهر
@@ -258,7 +258,7 @@ what salesforce accounts am I on the account team for? My email is your-email@co
 قارن تغطية حسابك مع أحد زملائك لإيجاد الفجوات:
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **ما يمكن توقعه:** جدول ملخص يُظهر عدد التداخلات وعدد الفجوات،

@@ -74,7 +74,7 @@ Ersetzen Sie `YOUR-DOMAIN` durch Ihre Unternehmens-Domain aus Schritt 1. Ihr Bro
 Folgendes sehen:
 
 ```
-Successfully authorized your-email@company.com with org ID 00DXXXXXXXXXXXXXXX
+Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
 ### Schritt 3: Verbindung überprüfen
@@ -99,7 +99,7 @@ Kopieren Sie den Wert der **Sfdx Auth Url** (beginnt mit `force://`). Führen Si
 Container Folgendes aus:
 
 ```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@your-domain.my.salesforce.com"
+export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
 echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
 ```
 
@@ -248,7 +248,7 @@ Benutzernamen, Instanz-URL und Verbindungsstatus.
 Ermitteln Sie, welchen Konten Sie zugewiesen sind:
 
 ```
-what salesforce accounts am I on the account team for? My email is your-email@company.com
+what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
 **Was zu erwarten ist:** Eine Liste von Konten, gruppiert nach Kontoinhaber, mit Ihrer
@@ -261,7 +261,7 @@ wurden nicht befüllt.
 Vergleichen Sie Ihre Kontoabdeckung mit einem Teammitglied, um Lücken zu finden:
 
 ```
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@company.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
+In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
 **Was zu erwarten ist:** Eine Übersichtstabelle mit Überschneidungsanzahl und Lückenanzahl,

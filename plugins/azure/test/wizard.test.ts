@@ -158,7 +158,7 @@ describe('runSetupWizard — az installed, web auth', () => {
     const { pi } = buildMockPi({
       '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
       'account show': {
-        stdout: JSON.stringify({ user: { name: 'user@test.com' }, name: 'Test Subscription' }),
+        stdout: JSON.stringify({ user: { name: 'user@example.com' }, name: 'Test Subscription' }),
         stderr: '',
         code: 0,
       },
@@ -224,7 +224,7 @@ describe('runSetupWizard — az not installed', () => {
       'brew install azure-cli': { stdout: 'installed', stderr: '', code: 0 },
       '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
       'account show': {
-        stdout: JSON.stringify({ user: { name: 'u@t.com' }, name: 'Test Sub' }),
+        stdout: JSON.stringify({ user: { name: 'u@example.com' }, name: 'Test Sub' }),
         stderr: '',
         code: 0,
       },
@@ -290,7 +290,7 @@ describe('runSetupWizard — service principal auth', () => {
         '--version': { stdout: 'azure-cli 2.60.0\n', stderr: '', code: 0 },
         '--service-principal': { stdout: '', stderr: '', code: 0 },
         'account show': {
-          stdout: JSON.stringify({ user: { name: 'sp@test.com' }, name: 'SP Subscription' }),
+          stdout: JSON.stringify({ user: { name: 'sp@example.com' }, name: 'SP Subscription' }),
           stderr: '',
           code: 0,
         },

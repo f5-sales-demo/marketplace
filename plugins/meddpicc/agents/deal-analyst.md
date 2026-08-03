@@ -96,7 +96,7 @@ Every response must follow this structure:
 ```
 ## Deal Analysis Report
 
-### Account: [name]
+### Account: example-corp
 ### Analysis Date: [date]
 ### Data Sources: [list of files/sources reviewed]
 
