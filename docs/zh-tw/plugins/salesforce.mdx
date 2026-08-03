@@ -20,7 +20,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 安裝
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -66,7 +66,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 將 `YOUR-DOMAIN` 替換為步驟一中您公司的網域。瀏覽器將開啟——
 完成 SSO 或登入流程並授權應用程式。您應會看到：
 
-```
+```text
 Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
@@ -102,7 +102,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### 驗證方法參考
 
 | 方法 | 最適合 | 需求 |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | 網頁登入 | 具備瀏覽器的工作站 | 瀏覽器 + SSO |
 | SFDX URL | 容器、CI/CD、可攜式驗證 | 來自已驗證工作階段的驗證 URL |
 | JWT Bearer | 自動化管道 | 已連接應用程式 + 私鑰 + 消費者金鑰 |
@@ -113,7 +113,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### 環境變數
 
 | 變數 | 用途 |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | 存取權杖驗證的 Bearer 權杖 |
 | `SFDX_AUTH_URL` | SFDX URL 驗證的強制驗證 URL |
 | `SF_ORG_INSTANCE_URL` | 組織執行個體 URL |
@@ -127,7 +127,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 檢查您的 Salesforce 組織連線狀態、CLI 版本及已驗證的組織。
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -138,7 +138,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 驗證至 Salesforce 組織。可選擇性地提供別名。
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -153,7 +153,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 頂層意圖路由器。當您以自然語言提及 Salesforce、組織管理或資料查詢時，會自動啟動。
 
 | 您的說法 | 路由至 |
-|---------|-----------|
+| --------- | ----------- |
 | 「登入 salesforce」、「驗證組織」 | `salesforce-auth` 技能 |
 | 「檢查組織狀態」、「列出組織」 | `cli-operator` 代理程式 |
 | 「顯示我的商機」、「查詢案例」 | `cli-operator` 代理程式（SOQL 查詢） |
@@ -181,7 +181,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 **回應格式：**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -209,13 +209,13 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 完成驗證後，確認一切運作正常：
 
-```
+```text
 /salesforce:sf-status
 ```
 
 接著嘗試簡單的自然語言查詢：
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -225,7 +225,7 @@ list my authenticated salesforce orgs
 
 探索您被指派至哪些帳戶：
 
-```
+```text
 what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
@@ -236,7 +236,7 @@ what salesforce accounts am I on the account team for? My email is your-email@ex
 
 與隊友比較帳戶負責範圍，找出缺口：
 
-```
+```text
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
@@ -253,7 +253,7 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 查看您帳戶中所有開放中的商機：
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -264,7 +264,7 @@ show me all open salesforce opportunities on Colleague Name's account team accou
 
 取得特定交易的完整概況：
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -276,7 +276,7 @@ show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - incl
 
 查看您帳戶中開放中的支援案例：
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -287,7 +287,7 @@ show me all open salesforce cases across Colleague Name's account team accounts,
 
 取得適用於預測的管道視圖：
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -298,7 +298,7 @@ for Colleague Name's accounts, show me a quarterly pipeline summary - group the 
 
 深入了解特定客戶：
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -309,7 +309,7 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 
 依案例編號查詢特定支援案例：
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -323,25 +323,25 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 
 ### 指定欄位
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### 日期篩選
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### 彙總
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### 自訂物件
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -362,7 +362,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | 主題 | 技能 |
-|-------|-------|
+| ------- | ------- |
 | Apex 類別與服務 | `generating-apex` |
 | Apex 測試 | `generating-apex-test` |
 | Flow | `generating-flow` |

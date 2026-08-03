@@ -22,7 +22,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## การติดตั้ง
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -32,7 +32,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ดึงข้อมูลจาก URL เดียวและแปลงเนื้อหาเป็น markdown
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -41,7 +41,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ดึงข้อมูลจากหลาย URL พร้อมกัน
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -49,7 +49,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 รวบรวมข้อมูลหลายหน้าจาก URL เริ่มต้น
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -58,7 +58,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ค้นหา URL ทั้งหมดบนเว็บไซต์
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -67,7 +67,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ค้นหาบนเว็บและดึงข้อมูลผลลัพธ์ตามต้องการ
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -76,7 +76,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 การดึงข้อมูลเชิงโครงสร้างจากหน้าเว็บด้วยพลัง LLM
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -89,7 +89,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 สร้างไฟล์ llms.txt สำหรับเว็บไซต์
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

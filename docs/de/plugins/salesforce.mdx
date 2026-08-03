@@ -25,7 +25,7 @@ natürliche Sprache nutzen können, um Konten, Opportunities, Cases und Contacts
 
 ## Installation
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -73,7 +73,7 @@ Ersetzen Sie `YOUR-DOMAIN` durch Ihre Unternehmens-Domain aus Schritt 1. Ihr Bro
 öffnet sich — schließen Sie den SSO- oder Anmeldevorgang ab und autorisieren Sie die App. Sie sollten
 Folgendes sehen:
 
-```
+```text
 Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
@@ -112,7 +112,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### Referenz der Authentifizierungsmethoden
 
 | Methode | Geeignet für | Erfordert |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | Web-Login | Arbeitsstationen mit Browser | Browser + SSO |
 | SFDX-URL | Container, CI/CD, portable Authentifizierung | Auth-URL aus einer authentifizierten Sitzung |
 | JWT Bearer | Automatisierte Pipelines | Connected App + privater Schlüssel + Consumer Key |
@@ -124,7 +124,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### Umgebungsvariablen
 
 | Variable | Zweck |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | Bearer-Token für Access-Token-Authentifizierung |
 | `SFDX_AUTH_URL` | Force-Auth-URL für SFDX-URL-Authentifizierung |
 | `SF_ORG_INSTANCE_URL` | Org-Instanz-URL |
@@ -139,7 +139,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 Überprüfen Sie den Verbindungsstatus Ihrer Salesforce-Org, die CLI-Version und
 authentifizierte Orgs.
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -150,7 +150,7 @@ Org-Alias, Benutzernamen, Instanz-URL, Verbindungsstatus und API-Version.
 
 Authentifizieren Sie sich bei einer Salesforce-Org. Optional können Sie einen Alias angeben.
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -168,7 +168,7 @@ vollständig erfüllten Methode durchgeführt.
 Salesforce, Org-Verwaltung oder Datenabfragen in natürlicher Sprache erwähnen.
 
 | Sie sagen | Weiterleitung an |
-|---------|-----------|
+| --------- | ----------- |
 | „bei salesforce anmelden", „org authentifizieren" | `salesforce-auth`-Skill |
 | „org-status prüfen", „orgs auflisten" | `cli-operator`-Agent |
 | „zeig mir opportunities", „case nachschlagen" | `cli-operator`-Agent (SOQL-Abfrage) |
@@ -198,7 +198,7 @@ Hauptsitzungskontext schlank zu halten.
 
 **Antwortformat:**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -230,13 +230,13 @@ für Ihre Rolle, Konten und Ihr Vertriebsgebiet sind.
 
 Überprüfen Sie nach der Authentifizierung, ob alles funktioniert:
 
-```
+```text
 /salesforce:sf-status
 ```
 
 Versuchen Sie dann eine einfache natürlichsprachliche Abfrage:
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -247,7 +247,7 @@ Benutzernamen, Instanz-URL und Verbindungsstatus.
 
 Ermitteln Sie, welchen Konten Sie zugewiesen sind:
 
-```
+```text
 what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
@@ -260,7 +260,7 @@ wurden nicht befüllt.
 
 Vergleichen Sie Ihre Kontoabdeckung mit einem Teammitglied, um Lücken zu finden:
 
-```
+```text
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
@@ -278,7 +278,7 @@ keine Überschneidungen — dies zeigt, welche Konten Sie hinzugefügt werden m�
 
 Sehen Sie alle offenen Opportunities für Ihre Konten:
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -291,7 +291,7 @@ wichtigsten Opportunities nach Betrag. Die Ausgabe kennzeichnet Datenhygieneprob
 
 Erhalten Sie ein vollständiges Bild zu einem bestimmten Deal:
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -304,7 +304,7 @@ die zeigt, wie sich Dealvolumen und Abschlussdatum im Laufe der Zeit verändert 
 
 Prüfen Sie offene Support-Cases für Ihre Konten:
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -316,7 +316,7 @@ Jahre alt ohne Aktivität) werden als Hygienekandidaten gekennzeichnet.
 
 Erhalten Sie eine prognosegeeignete Ansicht Ihrer Pipeline:
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -329,7 +329,7 @@ Opportunities werden separat gruppiert.
 
 Detaillierte Analyse eines bestimmten Kunden:
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -341,7 +341,7 @@ Phasen und Beträgen sowie aktuelle Support-Cases mit Status.
 
 Suchen Sie nach einem bestimmten Support-Case anhand der Nummer:
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -356,25 +356,25 @@ und führt es aus.
 
 ### Spezifische Felder
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### Datumsfilterung
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### Aggregation
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### Benutzerdefinierte Objekte
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -397,7 +397,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | Thema | Skill |
-|-------|-------|
+| ------- | ------- |
 | Apex-Klassen und -Dienste | `generating-apex` |
 | Apex-Tests | `generating-apex-test` |
 | Flows | `generating-flow` |

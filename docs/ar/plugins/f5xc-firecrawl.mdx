@@ -20,7 +20,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## التثبيت
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -30,7 +30,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 استخراج محتوى URL واحد وتحويله إلى Markdown.
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -39,7 +39,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 استخراج محتوى عدة روابط URL في وقت واحد.
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -47,7 +47,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 زحف صفحات متعددة انطلاقاً من URL ابتدائي.
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -56,7 +56,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 اكتشاف جميع روابط URL على موقع ويب.
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -65,7 +65,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 البحث على الويب مع إمكانية استخراج النتائج اختيارياً.
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -74,7 +74,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 استخراج البيانات المنظمة من صفحات الويب بواسطة نماذج اللغة الكبيرة (LLM).
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -88,7 +88,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 توليد ملف llms.txt لموقع ويب.
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

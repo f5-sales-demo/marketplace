@@ -16,7 +16,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## 安装
 
-```
+```text
 /plugin install f5xc-firecrawl@f5-sales-demo-marketplace
 ```
 
@@ -26,7 +26,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 抓取单个 URL 并将内容提取为 Markdown 格式。
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
@@ -35,7 +35,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 一次抓取多个 URL。
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
@@ -43,7 +43,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 从起始 URL 爬取多个页面。
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
@@ -52,7 +52,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 发现网站上的所有 URL。
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
@@ -61,7 +61,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 搜索网络并可选择性地抓取结果。
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
@@ -70,7 +70,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 基于 LLM 的网页结构化数据提取。
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -83,7 +83,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 为网站生成 llms.txt 文件。
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 

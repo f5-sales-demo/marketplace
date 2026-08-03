@@ -21,7 +21,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## इंस्टॉलेशन
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -69,7 +69,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 `YOUR-DOMAIN` को चरण 1 से अपने कंपनी डोमेन से बदलें। आपका ब्राउज़र
 खुलता है — SSO या लॉगिन फ्लो पूरा करें और ऐप को अधिकृत करें। आपको दिखना चाहिए:
 
-```
+```text
 Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
@@ -106,7 +106,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### प्रमाणीकरण विधियों का संदर्भ
 
 | विधि | सबसे उपयुक्त | आवश्यकता |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | Web Login | ब्राउज़र वाले वर्कस्टेशन | Browser + SSO |
 | SFDX URL | कंटेनर, CI/CD, पोर्टेबल auth | प्रमाणीकृत सेशन से Auth URL |
 | JWT Bearer | स्वचालित पाइपलाइन | Connected App + प्राइवेट की + consumer key |
@@ -118,7 +118,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### एनवायरनमेंट वेरिएबल
 
 | वेरिएबल | उद्देश्य |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | access-token auth के लिए Bearer token |
 | `SFDX_AUTH_URL` | SFDX URL auth के लिए Force auth URL |
 | `SF_ORG_INSTANCE_URL` | Org इंस्टेंस URL |
@@ -133,7 +133,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 अपनी Salesforce org कनेक्शन स्थिति, CLI संस्करण और
 प्रमाणीकृत orgs की जाँच करें।
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -144,7 +144,7 @@ org alias, उपयोगकर्ता नाम, इंस्टेंस UR
 
 Salesforce org में प्रमाणीकरण करें। वैकल्पिक रूप से एक alias प्रदान करें।
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -162,7 +162,7 @@ Salesforce org में प्रमाणीकरण करें। वै�
 या डेटा क्वेरी का उल्लेख करते हैं तो स्वचालित रूप से सक्रिय होता है।
 
 | आप कहते हैं | रूट होता है |
-|---------|-----------|
+| --------- | ----------- |
 | "login to salesforce", "authenticate org" | `salesforce-auth` स्किल |
 | "check org status", "list orgs" | `cli-operator` एजेंट |
 | "show me opportunities", "look up case" | `cli-operator` एजेंट (SOQL क्वेरी) |
@@ -190,7 +190,7 @@ access-token, फिर JWT, फिर SFDX URL, फिर web login।
 
 **प्रतिक्रिया प्रारूप:**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -222,13 +222,13 @@ access-token, फिर JWT, फिर SFDX URL, फिर web login।
 
 प्रमाणीकरण के बाद, सब कुछ काम करता है यह सत्यापित करें:
 
-```
+```text
 /salesforce:sf-status
 ```
 
 फिर एक सरल प्राकृतिक भाषा क्वेरी आज़माएं:
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -239,7 +239,7 @@ list my authenticated salesforce orgs
 
 पता करें कि आप किन accounts पर असाइन हैं:
 
-```
+```text
 what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
@@ -252,7 +252,7 @@ what salesforce accounts am I on the account team for? My email is your-email@ex
 
 गैप खोजने के लिए किसी टीममेट के साथ अपनी account कवरेज की तुलना करें:
 
-```
+```text
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
@@ -270,7 +270,7 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 अपने accounts पर सभी ओपन opportunities देखें:
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -283,7 +283,7 @@ amount के अनुसार शीर्ष opportunities की सूच�
 
 किसी विशिष्ट डील की पूरी तस्वीर प्राप्त करें:
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -296,7 +296,7 @@ probability, forecast category, owner), भूमिकाओं के सा�
 
 अपने accounts पर ओपन सपोर्ट cases की जाँच करें:
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -308,7 +308,7 @@ show me all open salesforce cases across Colleague Name's account team accounts,
 
 अपनी पाइपलाइन का forecast-ready व्यू प्राप्त करें:
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -321,7 +321,7 @@ opportunities को अलग से समूहीकृत किया ज�
 
 किसी विशिष्ट ग्राहक की गहन जाँच करें:
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -333,7 +333,7 @@ location), titles और email के साथ प्रमुख contacts, sta
 
 नंबर द्वारा एक विशिष्ट सपोर्ट case खोजें:
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -348,25 +348,25 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 
 ### विशिष्ट फ़ील्ड
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### तारीख फ़िल्टरिंग
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### एग्रीगेशन
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### कस्टम ऑब्जेक्ट
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -388,7 +388,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | विषय | स्किल |
-|-------|-------|
+| ------- | ------- |
 | Apex क्लास और सेवाएँ | `generating-apex` |
 | Apex टेस्ट | `generating-apex-test` |
 | Flows | `generating-flow` |

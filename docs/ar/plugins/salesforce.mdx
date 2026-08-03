@@ -24,7 +24,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 
 ## التثبيت
 
-```
+```text
 /plugin install salesforce@f5-sales-demo-marketplace
 ```
 
@@ -71,7 +71,7 @@ sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN
 استبدل `YOUR-DOMAIN` بنطاق شركتك من الخطوة 1. سيفتح متصفحك —
 أكمل تدفق SSO أو تسجيل الدخول وفوّض التطبيق. يجب أن تشاهد:
 
-```
+```text
 Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
 ```
 
@@ -110,7 +110,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### مرجع طرق المصادقة
 
 | الطريقة | الأنسب لـ | المتطلبات |
-|--------|----------|----------|
+| -------- | ---------- | ---------- |
 | تسجيل الدخول عبر الويب | محطات العمل المزودة بمتصفح | المتصفح + SSO |
 | SFDX URL | الحاويات، CI/CD، المصادقة المحمولة | عنوان URL للمصادقة من جلسة مصادقة |
 | JWT Bearer | خطوط الأنابيب الآلية | تطبيق متصل + مفتاح خاص + مفتاح المستهلك |
@@ -122,7 +122,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 ### متغيرات البيئة
 
 | المتغير | الغرض |
-|----------|---------|
+| ---------- | --------- |
 | `SF_ACCESS_TOKEN` | توكن Bearer لمصادقة توكن الوصول |
 | `SFDX_AUTH_URL` | عنوان URL للمصادقة القسرية لمصادقة SFDX URL |
 | `SF_ORG_INSTANCE_URL` | عنوان URL لنسخة المؤسسة |
@@ -137,7 +137,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 تحقق من حالة اتصال مؤسسة Salesforce الخاصة بك، وإصدار CLI،
 والمؤسسات المصادق عليها.
 
-```
+```text
 /salesforce:sf-status
 ```
 
@@ -148,7 +148,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 
 المصادقة على مؤسسة Salesforce. يمكن اختياريًا توفير اسم مستعار.
 
-```
+```text
 /salesforce:sf-login
 /salesforce:sf-login my-org
 ```
@@ -165,7 +165,7 @@ echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org 
 Salesforce أو إدارة المؤسسة أو استعلامات البيانات باللغة الطبيعية.
 
 | ما تقوله | يوجّه إلى |
-|---------|-----------|
+| --------- | ----------- |
 | "login to salesforce"، "authenticate org" | مهارة `salesforce-auth` |
 | "check org status"، "list orgs" | وكيل `cli-operator` |
 | "show me opportunities"، "look up case" | وكيل `cli-operator` (استعلام SOQL) |
@@ -195,7 +195,7 @@ Salesforce أو إدارة المؤسسة أو استعلامات البيانا
 
 **تنسيق الاستجابة:**
 
-```
+```text
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 ### Command Executed
 ### Output Summary
@@ -227,13 +227,13 @@ Salesforce أو إدارة المؤسسة أو استعلامات البيانا
 
 بعد المصادقة، تحقق من أن كل شيء يعمل:
 
-```
+```text
 /salesforce:sf-status
 ```
 
 ثم جرب استعلامًا بسيطًا باللغة الطبيعية:
 
-```
+```text
 list my authenticated salesforce orgs
 ```
 
@@ -244,7 +244,7 @@ list my authenticated salesforce orgs
 
 اكتشف الحسابات التي تم تعيينك إليها:
 
-```
+```text
 what salesforce accounts am I on the account team for? My email is your-email@example.com
 ```
 
@@ -257,7 +257,7 @@ what salesforce accounts am I on the account team for? My email is your-email@ex
 
 قارن تغطية حسابك مع أحد زملائك لإيجاد الفجوات:
 
-```
+```text
 In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
 ```
 
@@ -275,7 +275,7 @@ In salesforce, find all accounts where Colleague Name is on the account team. Th
 
 اطّلع على جميع الفرص المفتوحة عبر حساباتك:
 
-```
+```text
 show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
 ```
 
@@ -288,7 +288,7 @@ show me all open salesforce opportunities on Colleague Name's account team accou
 
 احصل على الصورة الكاملة لصفقة بعينها:
 
-```
+```text
 show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
 ```
 
@@ -301,7 +301,7 @@ show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - incl
 
 تحقق من حالات الدعم المفتوحة على حساباتك:
 
-```
+```text
 show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
 ```
 
@@ -313,7 +313,7 @@ show me all open salesforce cases across Colleague Name's account team accounts,
 
 احصل على عرض جاهز للتوقعات لخط أنابيبك:
 
-```
+```text
 for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
 ```
 
@@ -326,7 +326,7 @@ for Colleague Name's accounts, show me a quarterly pipeline summary - group the 
 
 التعمق في عميل محدد:
 
-```
+```text
 give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
 ```
 
@@ -338,7 +338,7 @@ give me a full account overview for ACCOUNT NAME in salesforce including contact
 
 ابحث عن حالة دعم محددة برقمها:
 
-```
+```text
 look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
 ```
 
@@ -352,25 +352,25 @@ look up salesforce case CASE-NUMBER and show me the case details, the customer a
 
 ### حقول محددة
 
-```
+```text
 query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
 ```
 
 ### تصفية بالتاريخ
 
-```
+```text
 show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
 ```
 
 ### التجميع
 
-```
+```text
 count all open salesforce cases grouped by priority and status across my accounts
 ```
 
 ### الكائنات المخصصة
 
-```
+```text
 query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
 ```
 
@@ -393,7 +393,7 @@ npx skills add forcedotcom/afv-library
 ```
 
 | الموضوع | المهارة |
-|-------|-------|
+| ------- | ------- |
 | فئات وخدمات Apex | `generating-apex` |
 | اختبارات Apex | `generating-apex-test` |
 | تدفقات Flow | `generating-flow` |
