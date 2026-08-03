@@ -36,12 +36,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Ref is pinned here and recorded in plugins/herdr/UPSTREAM.md. Keep both in step.
       - name: Fetch upstream SKILL.md
         env:
-          UPSTREAM_URL: https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md
+          UPSTREAM_URL: https://raw.githubusercontent.com/herdrdev/herdr/master/skills/herdr/SKILL.md
         run: |
           set -euo pipefail
           # A failed fetch must FAIL the job. Falling through on a network blip would make
