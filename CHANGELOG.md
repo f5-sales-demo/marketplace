@@ -15,6 +15,11 @@ and this project adheres to
   that emit both streams continue to prefer stdout, and the existing output limit applies to either
   selected stream ([#1010](https://github.com/f5-sales-demo/marketplace/issues/1010)).
 
+- **`salesforce`** v1.3.8 — runtime manifests and the lockfile now require xcsh 20.2.7,
+  pi-utils 20.2.7, Anthropic 0.115.0, ACP 1.3.0, and Google GenAI 2.15.0. The plugin
+  runner detects and repairs stale physical dependency links from frozen lockfiles before tests and
+  batches its sanitised-PATH setup instead of spawning one link process per executable.
+
 - **`meddpicc`** v7.5.0 — French, Spanish, German, Brazilian Portuguese, Korean,
   Simplified Chinese, Traditional Chinese, Italian, Hindi, and Thai complete the
   left-to-right workbook locale set.
@@ -990,24 +995,28 @@ Every plugin test suite now runs in CI, and the failures that surfaced are fixed
 
 - **`meddpicc`** bumped to v2.2.1
 
-- **`azure`** bumped to v1.2.0 — `az_exec` now accepts valid JMESPath `--query`
+- **`azure`** bumped to v1.2.3 — `az_exec` now accepts valid JMESPath `--query`
   (dropped the char filter that rejected `||`, backticks, and pipes); read-only guard,
   `az_help`, error taxonomy with `errorType`, and signal-aware exec. CLI-Plugin
-  Capability Contract conformant.
+  Capability Contract conformant. The runtime manifest and lockfile now require the
+  current xcsh and provider SDK dependency graph.
 
-- **`aws`** bumped to v1.2.0 — native tool layer: `aws_exec` read-only guard, `aws_help`,
+- **`aws`** bumped to v1.2.3 — native tool layer: `aws_exec` read-only guard, `aws_help`,
   typed reads (`sts`/`s3`/`ec2`) with formatters, 6-class error taxonomy, JMESPath query
-  docs, and a benchmark + autoresearch harness.
+  docs, and a benchmark + autoresearch harness. The runtime manifest and lockfile now
+  require the current xcsh and provider SDK dependency graph.
 
-- **`gcloud`** bumped to v1.2.0 — native tool layer built from status-only: `gcloud_exec`
+- **`gcloud`** bumped to v1.2.3 — native tool layer built from status-only: `gcloud_exec`
   read-only guard, `gcloud_help`, typed reads (config/projects/compute/storage) with
   formatters, error taxonomy, `--filter`/`--format` query docs, and a benchmark +
-  autoresearch harness.
+  autoresearch harness. The runtime manifest and new lockfile now require the current
+  xcsh and provider SDK dependency graph.
 
-- **`gitlab`** bumped to v1.2.0 — `glab_exec` read-only guard + `glab_help`, error taxonomy
+- **`gitlab`** bumped to v1.2.4 — `glab_exec` read-only guard + `glab_help`, error taxonomy
   with a central `errorType` wrapper, `--output json` query docs, signal-aware exec +
   control-char hygiene, adversarial guard hardening (pflag cluster and value-flag
-  method-forgery fixes), and per-tool tests.
+  method-forgery fixes), and per-tool tests. The runtime manifest and lockfile now require
+  the current xcsh and provider SDK dependency graph.
 
 - **`github`** bumped to v1.2.0 — `gh_exec` read-only guard plus confirmed-mutation safety
   (`gh_pr_checkout`/`gh_pr_push` behind `ctx.ui.confirm` with a headless fail-safe),
