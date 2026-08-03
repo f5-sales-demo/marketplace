@@ -10,15 +10,15 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`salesforce`** bumped to v1.3.9
+- **`salesforce`** bumped to v1.3.10
 
 - **`salesforce-legacy`** bumped to v1.0.3
 
-- **`platform`** bumped to v3.1.3
+- **`platform`** bumped to v3.1.4
 
-- **`osint-framework`** bumped to v1.0.4
+- **`osint-framework`** bumped to v1.0.5
 
-- **`meddpicc`** bumped to v7.5.2
+- **`meddpicc`** bumped to v7.5.3
 
 - **`devcontainer`** bumped to v1.1.8
 
@@ -1033,7 +1033,7 @@ Every plugin test suite now runs in CI, and the failures that surfaced are fixed
   docs, and a benchmark + autoresearch harness. The runtime manifest and lockfile now
   require the current xcsh and provider SDK dependency graph.
 
-- **`gcloud`** bumped to v1.2.4 — native tool layer built from status-only: `gcloud_exec`
+- **`gcloud`** bumped to v1.2.5 — native tool layer built from status-only: `gcloud_exec`
   read-only guard, `gcloud_help`, typed reads (config/projects/compute/storage) with
   formatters, error taxonomy, `--filter`/`--format` query docs, and a benchmark +
   autoresearch harness. The runtime manifest and new lockfile now require the current

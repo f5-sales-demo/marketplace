@@ -2,7 +2,7 @@ import type { SfOrg, SfQueryResult } from './types';
 
 const OBJECT_LABELS: Record<string, string> = {
   opportunity: 'opportunities',
-  account: 'accounts',
+  ['account']: 'accounts',
   contact: 'contacts',
   case: 'cases',
   lead: 'leads',

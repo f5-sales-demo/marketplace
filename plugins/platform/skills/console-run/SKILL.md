@@ -146,4 +146,4 @@ Extracted:
 
 - Resource: origin-pool
 - Operation: delete
-- Params: name=backend-pool, namespace=(from F5XC_NAMESPACE)
+- Params: name=backend-pool, namespace=<NAMESPACE>

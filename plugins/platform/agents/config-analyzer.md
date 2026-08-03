@@ -177,7 +177,7 @@ Every response must follow this structure:
 ### Resource Type
 [Detected resource type and domain]
 Name: [metadata.name]
-Namespace: [metadata.namespace]
+Namespace: <NAMESPACE>
 
 ### Summary
 [1-2 sentence overview of what this configuration does]
