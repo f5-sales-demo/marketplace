@@ -91,7 +91,7 @@ Based on the classification:
 ## Champion Assessment: [Contact Name]
 
 ### Contact: [Name], [Title]
-### Account: <ORGANIZATION_C6B5A48B9B>]
+### Account: <ACCOUNT_NAME>
 ### Assessment Date: [date]
 
 ### Criteria Scores

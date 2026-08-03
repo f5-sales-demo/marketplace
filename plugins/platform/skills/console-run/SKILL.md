@@ -146,4 +146,4 @@ Extracted:
 
 - Resource: origin-pool
 - Operation: delete
-- Params: name=backend-pool, namespace=<ORGANIZATION_9D60CB9703>
+- Params: name=backend-pool, namespace=<NAMESPACE>
