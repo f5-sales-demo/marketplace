@@ -4,7 +4,7 @@ Customer-facing plan template. Customize for each deal.
 
 ---
 
-```
+```markdown
 # Mutual Action Plan
 ## [Customer Alias] × [Seller Organization Alias]
 
