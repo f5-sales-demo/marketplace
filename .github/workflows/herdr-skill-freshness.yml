@@ -1,7 +1,7 @@
 ---
 name: Herdr Skill Freshness
 
-# `plugins/herdr/skills/herdr/SKILL.md` is vendored verbatim from ogulcancelik/herdr.
+# `plugins/herdr/skills/herdr/SKILL.md` is vendored verbatim from herdrdev/herdr.
 # Nothing in this repo can detect upstream edits, so without this job the vendored copy
 # silently rots — and it documents a CLI whose command surface changes.
 #
@@ -37,8 +37,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # Ref is pinned here and recorded in plugins/herdr/UPSTREAM.md. Keep both in step.
+      # The tracked branch and path are recorded in plugins/herdr/UPSTREAM.md. Keep both in step.
       - name: Fetch upstream SKILL.md
         env:
           UPSTREAM_URL: https://raw.githubusercontent.com/herdrdev/herdr/master/skills/herdr/SKILL.md
@@ -67,10 +69,10 @@ jobs:
           cat >> "$GITHUB_STEP_SUMMARY" <<'MD'
           ## Herdr skill drift detected
 
-          The vendored `SKILL.md` no longer matches upstream `ogulcancelik/herdr@master`.
+          The vendored `SKILL.md` no longer matches upstream `herdrdev/herdr@master`.
 
           ```bash
-          curl -fsSL https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md \
+          curl -fsSL https://raw.githubusercontent.com/herdrdev/herdr/master/skills/herdr/SKILL.md \
             -o plugins/herdr/skills/herdr/SKILL.md
           scripts/bump-version.sh herdr patch
           # then update the table in plugins/herdr/UPSTREAM.md

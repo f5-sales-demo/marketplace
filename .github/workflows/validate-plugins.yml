@@ -38,6 +38,7 @@ jobs:
         with:
           # Full history so check-version-bumps.sh can diff against the PR base sha.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install jq
         run: |
@@ -60,6 +61,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install jq
         run: |
@@ -98,6 +101,7 @@ jobs:
           # missing" from a history it cannot see.
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
       # This lives here, not in Release Plugins, because the failure it looks for is
       # Release Plugins not finishing. A check inside the workflow that broke cannot report

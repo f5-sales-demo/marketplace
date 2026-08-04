@@ -24,8 +24,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.sha }}
@@ -35,6 +34,8 @@ jobs:
   release:
     name: Create plugin releases
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # `gh release create` writes the release and its tag
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,6 +58,7 @@ jobs:
           # published a version, and refuses outright on a shallow clone rather than drawing
           # conclusions from a history it cannot see.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Select the releases to cut
         env:
