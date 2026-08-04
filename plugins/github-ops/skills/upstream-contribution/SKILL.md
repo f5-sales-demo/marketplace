@@ -45,7 +45,7 @@ contribution requirements.
 
 Delegate with:
 
-```
+```text
 Agent(
   subagent_type="github-ops:github-ops",
   mode="bypassPermissions",
@@ -77,7 +77,7 @@ or abandon the contribution.
 
 After research passes, delegate the contribution:
 
-```
+```text
 Agent(
   subagent_type="github-ops:github-ops",
   mode="bypassPermissions",
@@ -115,7 +115,7 @@ present in the response. If any are missing, treat as a failure.
 
 When the user asks to check on an upstream contribution:
 
-```
+```text
 Agent(
   subagent_type="github-ops:github-ops",
   mode="bypassPermissions",
@@ -137,7 +137,7 @@ The agent will:
 
 When tracking reveals a terminal state (merged, closed, or stale):
 
-```
+```text
 Agent(
   subagent_type="github-ops:github-ops",
   mode="bypassPermissions",

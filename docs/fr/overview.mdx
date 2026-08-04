@@ -1,61 +1,57 @@
 ---
-title: Présentation
-description: >-
-  Fonctionnement de la place de marché de plugins Claude Code — ajout de
-  sources, installation de plugins et utilisation d'outils partagés.
+title: Aperçu
+description: Fonctionnement de la place de marché de plugins Claude Code — ajout de sources, installation de plugins et utilisation d'outils partagés.
 sidebar:
   order: 1
 i18n:
-  sourceHash: 04a73c3a9f37
+  sourceHash: 8e0bb8628f0d
   translator: machine
 ---
 
-Une **place de marché de plugins Claude Code** est une collection organisée de
-plugins qui étendent Claude Code avec de nouvelles compétences, commandes et
-agents. Les places de marché permettent aux équipes de partager des outils afin
-que chaque développeur dispose des mêmes capacités sans configuration manuelle.
+Une **place de marché de plugins Claude Code** est une collection sélectionnée
+de plugins qui étendent Claude Code avec de nouvelles compétences, commandes et
+agents. Les places de marché permettent aux équipes de partager des outils afin que chaque développeur
+bénéficie des mêmes capacités sans configuration manuelle.
 
-La **Place de marché f5-sales-demo** fournit des plugins conçus pour
-la [plateforme de documentation f5-sales-demo](https://github.com/f5-sales-demo)
-— un écosystème de plus de 20 dépôts qui
-publient des sites Astro/Starlight sur GitHub Pages à l'aide d'un pipeline de
-build partagé.
+La **place de marché f5-sales-demo** fournit des plugins conçus pour
+la plateforme de documentation [f5-sales-demo](https://github.com/f5-sales-demo)
+— un écosystème de plus de 20 dépôts qui publient des sites Astro/Starlight sur GitHub Pages à l'aide d'un pipeline de build partagé.
 
 ## Fonctionnement
 
-1. **Ajoutez la place de marché** à Claude Code — cela l'enregistre
+1. **Ajouter la place de marché** à Claude Code — cela l'enregistre
    en tant que source de plugins
-2. **Installez des plugins** depuis la place de marché — chaque plugin ajoute
+2. **Installer des plugins** depuis la place de marché — chaque plugin ajoute
    des compétences et des commandes à votre session Claude Code
-3. **Utilisez les outils** — les plugins s'activent automatiquement en fonction du
-   contexte, ou vous invoquez leurs commandes directement
+3. **Utiliser les outils** — les plugins s'activent automatiquement en fonction du
+   contexte, ou vous pouvez invoquer leurs commandes directement
 
 ## Plugins disponibles
 
 | Plugin | Catégorie | Description |
-|--------|-----------|-------------|
-| [f5xc-docs-tools](/marketplace/fr/plugins/f5xc-docs-tools/) | Productivité | Outils de validation et de révision de contenu MDX pour les dépôts de documentation |
-| [f5xc-sales-engineer](/marketplace/fr/plugins/f5xc-sales-engineer/) | Productivité | Cadre de persona Ingénieur commercial — exécution de démonstrations, présentation, questions-réponses, gestion d'environnement |
+| --- | --- | --- |
+| [f5xc-docs-tools](/marketplace/en/plugins/f5xc-docs-tools/) | Productivité | Outils de validation et de révision de contenu MDX pour les dépôts de documentation |
+| [f5xc-sales-engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | Productivité | Cadre de persona Sales Engineer — exécution de démonstrations, présentation, Q&R, gestion de l'environnement |
 
 ## Démarrage rapide
 
-Ajoutez la place de marché et installez le plugin d'outils de documentation :
+Ajouter la place de marché et installer le plugin d'outils de documentation :
 
-```
+```text
 /plugin marketplace add f5-sales-demo/marketplace
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
-Consultez [Démarrage](/marketplace/fr/getting-started/) pour un
-guide complet.
+Consultez [Démarrage rapide](/marketplace/en/getting-started/) pour une
+présentation complète.
 
 ## Architecture
 
 Une place de marché est un dépôt Git qui contient un ou plusieurs
 plugins. Chaque plugin regroupe des compétences, des commandes et des agents
-dans une unité installable unique.
+dans une seule unité installable.
 
-```
+```text
 Marketplace (marketplace.json)
 └── Plugin (plugin.json)
     ├── Skills (SKILL.md)
@@ -64,13 +60,13 @@ Marketplace (marketplace.json)
     └── Agents (.md)
 ```
 
-- **Place de marché** — le registre. Répertorie les plugins disponibles
-  avec les métadonnées nécessaires à leur découverte et leur installation.
+- **Marketplace** — le registre. Liste les plugins disponibles
+  avec leurs métadonnées pour la découverte et l'installation.
 - **Plugin** — l'unité installable. Contient une ou plusieurs
   compétences, commandes ou agents.
-- **Compétence** — connaissance contextuelle que Claude active
-  automatiquement en fonction de la tâche en cours.
-- **Commande** — une commande slash que l'utilisateur invoque directement
-  (par ex., `/review-mdx`).
-- **Agent** — un sous-agent spécialisé qui gère des tâches complexes et
-  multi-étapes de manière autonome.
+- **Skill** — connaissances contextuelles que Claude active
+  automatiquement en fonction de la tâche à accomplir.
+- **Command** — une commande slash que l'utilisateur invoque directement
+  (par ex. `/review-mdx`).
+- **Agent** — un sous-agent spécialisé qui gère de manière autonome
+  des tâches complexes et multi-étapes.

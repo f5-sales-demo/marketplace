@@ -173,7 +173,7 @@ This skill supports ALL other OSINT categories as a utility capability:
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Language Translation tool search",
@@ -185,7 +185,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Language Translation investigation: [target]",

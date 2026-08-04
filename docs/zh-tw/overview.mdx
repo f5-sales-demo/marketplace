@@ -1,51 +1,48 @@
 ---
-title: 概覽
-description: Claude Code 外掛市集的運作方式 — 新增來源、安裝外掛及使用共享工具。
+title: 概觀
+description: Claude Code 外掛集市的工作原理 — 新增來源、安裝外掛以及使用共享工具。
 sidebar:
   order: 1
 i18n:
-  sourceHash: 04a73c3a9f37
+  sourceHash: 8e0bb8628f0d
   translator: machine
 ---
 
-**Claude Code 外掛市集**是一個經過整理的外掛集合，
-可透過新技能、指令與代理程式擴充 Claude Code 的功能。
-市集讓團隊能夠共享工具，使每位開發人員無需手動設定即可獲得相同的功能。
+**Claude Code 外掛集市**是經過精選的外掛集合，用於使用新技能、指令和
+Agent 擴充 Claude Code。外掛集市允許團隊共享工具，使每位開發者無需手動設定即可獲得相同的能力。
 
-**f5-sales-demo 市集**提供專為
-[f5-sales-demo](https://github.com/f5-sales-demo)
-文件平台所建置的外掛 — 這是一個由 20 多個儲存庫組成的生態系統，
-透過共享建置流程將 Astro/Starlight 網站發布至 GitHub Pages。
+**f5-sales-demo 外掛集市**提供專為 [f5-sales-demo](https://github.com/f5-sales-demo)
+文件平台建置的外掛 — 該生態系統由 20 多個儲存庫組成，使用共享建置管線將 Astro/Starlight 網站發布至 GitHub Pages。
 
-## 運作方式
+## 工作原理
 
-1. **將市集新增**至 Claude Code — 這會將其註冊為外掛來源
-2. **從市集安裝外掛** — 每個外掛會為您的 Claude Code 工作階段新增技能與指令
-3. **使用工具** — 外掛會根據情境自動啟用，或由您直接呼叫其指令
+1. **新增外掛集市**至 Claude Code — 這會將其註冊為外掛來源
+2. 從集市**安裝外掛** — 每個外掛都會將技能和指令新增至您的 Claude Code 工作階段中
+3. **使用工具** — 外掛會根據情境自動啟動，或者您可以直接呼叫其指令
 
 ## 可用外掛
 
 | 外掛 | 類別 | 描述 |
-|--------|----------|-------------|
-| [f5xc-docs-tools](/marketplace/zh-tw/plugins/f5xc-docs-tools/) | 生產力 | 適用於文件儲存庫的 MDX 內容驗證與審查工具 |
-| [f5xc-sales-engineer](/marketplace/zh-tw/plugins/f5xc-sales-engineer/) | 生產力 | 銷售工程師角色框架 — 示範執行、簡報呈現、問答及環境管理 |
+| --- | --- | --- |
+| [f5xc-docs-tools](/marketplace/en/plugins/f5xc-docs-tools/) | 生產力 | 用於文件儲存庫的 MDX 內容驗證和審查工具 |
+| [f5xc-sales-engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | 生產力 | Sales Engineer 角色框架 — 示範執行、簡報展示、問答及環境管理 |
 
 ## 快速開始
 
-新增市集並安裝文件工具外掛：
+新增外掛集市並安裝文件工具外掛：
 
-```
+```text
 /plugin marketplace add f5-sales-demo/marketplace
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
-完整的操作說明請參閱[入門指南](/marketplace/zh-tw/getting-started/)。
+參見[快速入門](/marketplace/en/getting-started/)取得完整指引。
 
 ## 架構
 
-市集是一個包含一個或多個外掛的 Git 儲存庫。每個外掛將技能、指令與代理程式封裝為單一可安裝單元。
+外掛集市是一個包含一個或多個外掛的 Git 儲存庫。每個外掛將技能、指令和 Agent 打包為單一可安裝單元。
 
-```
+```text
 Marketplace (marketplace.json)
 └── Plugin (plugin.json)
     ├── Skills (SKILL.md)
@@ -54,8 +51,8 @@ Marketplace (marketplace.json)
     └── Agents (.md)
 ```
 
-- **市集（Marketplace）** — 登錄檔。列出可供探索與安裝的外掛及其中繼資料。
-- **外掛（Plugin）** — 可安裝單元。包含一個或多個技能、指令或代理程式。
-- **技能（Skill）** — 情境知識，Claude 會根據當前任務自動啟用。
-- **指令（Command）** — 由使用者直接呼叫的斜線指令（例如 `/review-mdx`）。
-- **代理程式（Agent）** — 能夠自主處理複雜多步驟任務的專門子代理程式。
+- **Marketplace** — 註冊表。列出可用外掛及其用於探索和安裝的中詮資料。
+- **Plugin** — 可安裝單元。包含一個或多個技能、指令或 Agent。
+- **Skill** — Claude 根據目前任務自動啟動的情境知識。
+- **Command** — 使用者直接呼叫的斜線指令（例如 `/review-mdx`）。
+- **Agent** — 自主處理複雜多步驟任務的專用子 Agent。

@@ -10,23 +10,54 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`sales-engineer`** v1.0.8 — command headings and report templates now use explicit,
+  lintable Markdown structure.
+
+- **`meddpicc`** v7.5.6 — deal workflow commands now include explicit top-level headings.
+
+- **`github`** v1.2.5 — CLI prompts, response templates, and authentication guidance now
+  use explicit headings, fence languages, and aligned tables.
+
+- **`github-ops`** v2.3.3 — lifecycle shell examples and delegation templates now carry
+  accurate fence languages, and duplicate headings are disambiguated.
+
+- **`firecrawl`** v1.1.2 — command, report, and delegation examples now use explicit
+  Markdown fence languages and repository-standard site terminology.
+
+- **`docs-tools`** v1.1.4 — review commands and report examples now have explicit headings
+  and appropriately typed fences.
+
+- **`docs-pipeline`** v1.0.4 — pipeline commands now have explicit top-level headings and
+  consistently aligned Markdown tables.
+
+- **`cloudstatus`** v1.3.2 — command examples, status reports, and delegation templates now
+  declare their Markdown fence languages.
+
+- **`brand`** v1.0.4 — review templates and visual examples now use explicit Markdown,
+  Mermaid, and plain-text fence languages.
+
 - **`meddpicc`** v7.5.5 — CLI parsing and validation now derive from one command declaration,
   rejecting stray positional arguments and exposing every declared option as named parsed input
   ([#946](https://github.com/f5-sales-demo/marketplace/issues/946)).
 
-- **`salesforce`** bumped to v1.3.10
+- **`salesforce`** v1.3.11 — CLI prompts and SOQL examples now have meaningful headings
+  and explicit fence languages.
 
-- **`salesforce-legacy`** bumped to v1.0.3
+- **`salesforce-legacy`** v1.0.4 — command headings and response templates now use explicit
+  Markdown structure.
 
-- **`platform`** bumped to v3.1.4
+- **`platform`** v3.1.5 — console automation pseudocode, result reports, and command prompts
+  now use explicit headings and fence languages.
 
-- **`osint-framework`** bumped to v1.0.5
+- **`osint-framework`** v1.0.6 — delegation, query, formula, and path examples now declare
+  their plain-text fence language.
 
 - **`meddpicc`** v7.5.4 replaces identity-shaped fixtures with reserved role aliases, requires
   sanitized synthetic inputs and access-controlled artifact storage, and correctly decodes XML
   entities split across Excel shared-string runs.
 
-- **`devcontainer`** bumped to v1.1.8
+- **`devcontainer`** v1.1.10 — agent examples now use explicit fence languages, malformed
+  nested fences and duplicate protocol headings are repaired, and tool guidance is spell-clean.
 
 - **`herdr`** v1.0.1 — freshness verification follows the transferred upstream repository and
   relocated skill path while preserving the byte-identical vendored skill.
@@ -1030,28 +1061,32 @@ Every plugin test suite now runs in CI, and the failures that surfaced are fixed
 
 - **`meddpicc`** bumped to v2.2.1
 
-- **`azure`** bumped to v1.2.4 — `az_exec` now accepts valid JMESPath `--query`
+- **`azure`** bumped to v1.2.5 — `az_exec` now accepts valid JMESPath `--query`
   (dropped the char filter that rejected `||`, backticks, and pipes); read-only guard,
   `az_help`, error taxonomy with `errorType`, and signal-aware exec. CLI-Plugin
   Capability Contract conformant. The runtime manifest and lockfile now require the
-  current xcsh and provider SDK dependency graph.
+  current xcsh and provider SDK dependency graph. Prompt headings, report fences, and
+  authentication tables now use explicit, lintable Markdown structure.
 
-- **`aws`** bumped to v1.2.4 — native tool layer: `aws_exec` read-only guard, `aws_help`,
+- **`aws`** bumped to v1.2.5 — native tool layer: `aws_exec` read-only guard, `aws_help`,
   typed reads (`sts`/`s3`/`ec2`) with formatters, 6-class error taxonomy, JMESPath query
   docs, and a benchmark + autoresearch harness. The runtime manifest and lockfile now
-  require the current xcsh and provider SDK dependency graph.
+  require the current xcsh and provider SDK dependency graph. Prompt headings, command
+  examples, and response templates now use explicit Markdown structure and fence languages.
 
-- **`gcloud`** bumped to v1.2.5 — native tool layer built from status-only: `gcloud_exec`
+- **`gcloud`** bumped to v1.2.6 — native tool layer built from status-only: `gcloud_exec`
   read-only guard, `gcloud_help`, typed reads (config/projects/compute/storage) with
   formatters, error taxonomy, `--filter`/`--format` query docs, and a benchmark +
   autoresearch harness. The runtime manifest and new lockfile now require the current
-  xcsh and provider SDK dependency graph.
+  xcsh and provider SDK dependency graph. CLI prompts, command examples, and report
+  templates now use meaningful headings and explicit fence languages.
 
-- **`gitlab`** bumped to v1.2.4 — `glab_exec` read-only guard + `glab_help`, error taxonomy
+- **`gitlab`** bumped to v1.2.5 — `glab_exec` read-only guard + `glab_help`, error taxonomy
   with a central `errorType` wrapper, `--output json` query docs, signal-aware exec +
   control-char hygiene, adversarial guard hardening (pflag cluster and value-flag
   method-forgery fixes), and per-tool tests. The runtime manifest and lockfile now require
-  the current xcsh and provider SDK dependency graph.
+  the current xcsh and provider SDK dependency graph. CLI prompts and response templates
+  now include meaningful headings and explicit Markdown fences.
 
 - **`github`** bumped to v1.2.0 — `gh_exec` read-only guard plus confirmed-mutation safety
   (`gh_pr_checkout`/`gh_pr_push` behind `ctx.ui.confirm` with a headless fail-safe),

@@ -1,12 +1,10 @@
 ---
 title: Erste Schritte
-description: >-
-  Schritt-für-Schritt-Anleitung zum Hinzufügen des f5-sales-demo-Marktplatzes
-  und zur Installation Ihres ersten Plugins.
+description: Schritt-für-Schritt-Anleitung zum Hinzufügen des f5-sales-demo-Marktplatzes und zur Installation Ihres ersten Plugins.
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
@@ -30,7 +28,7 @@ zu Claude Code und die Installation Ihres ersten Plugins.
 
    Führen Sie in einer beliebigen Claude Code-Sitzung folgenden Befehl aus:
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
@@ -41,7 +39,7 @@ zu Claude Code und die Installation Ihres ersten Plugins.
 
    Zeigen Sie an, was der Marktplatz bietet:
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
@@ -49,7 +47,7 @@ zu Claude Code und die Installation Ihres ersten Plugins.
 
    Installieren Sie das benötigte Plugin:
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
@@ -60,13 +58,13 @@ zu Claude Code und die Installation Ihres ersten Plugins.
 
    Für **Dokumentationswerkzeuge** führen Sie den MDX-Überprüfungsbefehl aus:
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
    Für den **Sales Engineer** verwenden Sie Trigger-Phrasen wie
-   „prepare the demo", „run the demo" oder „walk through
-   the demo" – das Plugin wird automatisch aktiviert.
+   "prepare the demo", "run the demo" oder "walk through
+   the demo" — das Plugin wird automatisch aktiviert.
 
 </Steps>
 
@@ -74,7 +72,7 @@ zu Claude Code und die Installation Ihres ersten Plugins.
 
 So aktualisieren Sie ein installiertes Plugin auf die neueste Version:
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
@@ -83,14 +81,14 @@ So aktualisieren Sie ein installiertes Plugin auf die neueste Version:
 
 Ein Plugin entfernen:
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 Den Marktplatz vollständig entfernen:
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
@@ -111,10 +109,10 @@ zur `.claude/settings.json` Ihres Projekts hinzu:
 }
 ```
 
-<Aside type="tip" title="Gemeinsame Einstellungen">
+<Aside type="tip" title="Shared settings">
   Wenn Sie `.claude/settings.json` in Ihr Repository einchecken, erhalten
   alle Teammitglieder den Marktplatz und die Plugins
-  automatisch – ohne manuelle Einrichtung.
+  automatisch — ohne manuelle Einrichtung.
 </Aside>
 
 Dadurch wird sichergestellt, dass jeder Mitwirkende dieselben Werkzeuge

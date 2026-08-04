@@ -3,6 +3,8 @@ description: >-
   Check GitLab CLI authentication status and connectivity
 ---
 
+# GitLab status
+
 Delegate to the cli-operator agent to check GitLab connectivity.
 
 ## Delegation

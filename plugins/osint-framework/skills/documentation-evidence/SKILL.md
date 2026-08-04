@@ -54,7 +54,7 @@ list of 15 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Documentation & Evidence Capture tool search",
@@ -66,7 +66,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Documentation & Evidence Capture investigation: [target]",

@@ -1,6 +1,6 @@
 {
   "name": "docs-pipeline",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring",
   "license": "Apache-2.0"
 }

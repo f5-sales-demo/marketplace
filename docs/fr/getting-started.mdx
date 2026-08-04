@@ -1,12 +1,10 @@
 ---
 title: Démarrage rapide
-description: >-
-  Guide étape par étape pour ajouter la place de marché f5-sales-demo et
-  installer votre premier plugin.
+description: Guide étape par étape pour ajouter la place de marché f5-sales-demo et installer votre premier plugin.
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
@@ -29,7 +27,7 @@ Ce guide vous explique comment ajouter la place de marché f5-sales-demo
 
    Dans n'importe quelle session Claude Code, exécutez :
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
@@ -40,7 +38,7 @@ Ce guide vous explique comment ajouter la place de marché f5-sales-demo
 
    Listez ce que propose la place de marché :
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
@@ -48,7 +46,7 @@ Ce guide vous explique comment ajouter la place de marché f5-sales-demo
 
    Installez le plugin dont vous avez besoin :
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
@@ -59,13 +57,13 @@ Ce guide vous explique comment ajouter la place de marché f5-sales-demo
 
    Pour les **outils de documentation**, exécutez la commande de révision MDX :
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
    Pour **sales engineer**, utilisez des expressions déclencheurs telles que
-   « prepare the demo », « run the demo » ou « walk through
-   the demo » — le plugin s'active automatiquement.
+   "prepare the demo", "run the demo" ou "walk through
+   the demo" — le plugin s'active automatiquement.
 
 </Steps>
 
@@ -73,7 +71,7 @@ Ce guide vous explique comment ajouter la place de marché f5-sales-demo
 
 Pour mettre à jour un plugin installé vers la dernière version :
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
@@ -82,14 +80,14 @@ Pour mettre à jour un plugin installé vers la dernière version :
 
 Supprimer un plugin :
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 Supprimer entièrement la place de marché :
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
@@ -110,7 +108,7 @@ au fichier `.claude/settings.json` de votre projet :
 }
 ```
 
-<Aside type="tip" title="Paramètres partagés">
+<Aside type="tip" title="Shared settings">
   Valider `.claude/settings.json` dans votre dépôt permet à
   chaque membre de l'équipe d'obtenir automatiquement la place de marché et les plugins
   — sans configuration manuelle requise.

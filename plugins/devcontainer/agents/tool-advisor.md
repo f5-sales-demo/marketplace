@@ -62,7 +62,7 @@ You receive:
 
 Return recommendations in this format:
 
-```
+```markdown
 ## Recommended Tools
 
 ### tool-name (best for: [use case])

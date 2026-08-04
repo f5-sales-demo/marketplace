@@ -5,6 +5,8 @@ allowed_tools:
   - Agent
 ---
 
+# Cloud service status
+
 Invoke the `cloudstatus:cloud-status` skill with "$ARGUMENTS".
 
 Parse the arguments:

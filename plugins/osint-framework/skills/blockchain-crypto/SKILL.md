@@ -82,7 +82,7 @@ list of 31 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Blockchain & Cryptocurrency tool search",
@@ -94,7 +94,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Blockchain & Cryptocurrency investigation: [target]",

@@ -5,6 +5,8 @@ description: >-
 argument-hint: "[subscription-name-or-id]"
 ---
 
+# Azure login
+
 Delegate to the cli-operator agent to handle Azure authentication.
 
 ## Delegation

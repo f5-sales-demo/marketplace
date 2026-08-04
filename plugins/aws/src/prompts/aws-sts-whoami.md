@@ -1,15 +1,17 @@
+# Show AWS Caller Identity
+
 Show the caller identity for the active AWS credentials via `aws sts get-caller-identity`.
 
 ## Usage
 
-```
+```bash
 aws sts get-caller-identity [--profile NAME] --output json
 ```
 
 ## Parameters
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter | Description                                                        |
+| --------- | ------------------------------------------------------------------ |
 | `profile` | Optional named profile from `~/.aws/config` / `~/.aws/credentials` |
 
 ## Output Fields (JSON)

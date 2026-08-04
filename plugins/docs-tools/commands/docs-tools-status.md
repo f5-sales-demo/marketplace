@@ -3,6 +3,8 @@ description: >-
   Check MDX documentation tooling readiness and content review capabilities
 ---
 
+# Documentation tools status
+
 Delegate to the mdx-content-reviewer agent to check docs tooling status.
 
 ## Delegation

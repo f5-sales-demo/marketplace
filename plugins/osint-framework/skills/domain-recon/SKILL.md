@@ -56,7 +56,7 @@ list of 131 free tools in this category — the largest category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Domain tool search",
@@ -68,7 +68,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Domain investigation: [target]",

@@ -143,7 +143,7 @@ matching `export const variableName = ...` exists earlier in the file.
 
 Return findings in this structure:
 
-```
+```markdown
 ## MDX Content Review
 
 Reviewed N file(s). Found X error(s), Y warning(s), Z info(s).

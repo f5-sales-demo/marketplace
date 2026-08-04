@@ -6,6 +6,8 @@ allowed_tools:
   - Agent
 ---
 
+# Extract structured data
+
 Invoke the `firecrawl:web-scraper` skill to extract data from "$ARGUMENTS".
 
 Use the EXTRACT protocol. Parse the arguments:

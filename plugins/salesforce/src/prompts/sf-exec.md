@@ -1,3 +1,5 @@
+# Execute Read-Only Salesforce CLI Commands
+
 Run any read-only `sf` (Salesforce CLI) command. Pass arguments as an array without the `sf` prefix, e.g. `["org", "list", "--json"]`.
 
 ## Safety

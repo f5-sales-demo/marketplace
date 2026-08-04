@@ -1,3 +1,5 @@
+# Display Salesforce Organization Metadata
+
 Display safe metadata about a Salesforce org via sf CLI.
 
 <instruction>

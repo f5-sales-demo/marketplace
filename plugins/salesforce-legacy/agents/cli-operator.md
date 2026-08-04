@@ -47,7 +47,7 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 ## Standard Response Format
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed

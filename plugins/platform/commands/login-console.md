@@ -3,6 +3,8 @@ description: Authenticate to the F5 Distributed Cloud console
 argument-hint: "[tenant-url]"
 ---
 
+# Console login
+
 Delegate authentication to the `console-operator` subagent.
 Do NOT run browser MCP tools in the main session — browser
 snapshots are token-heavy and must stay in the subagent.
@@ -11,7 +13,7 @@ snapshots are token-heavy and must stay in the subagent.
 
 Spawn the console-operator agent with:
 
-```
+```text
 Agent(
   subagent_type="platform:console-operator",
   description="Authenticate to F5 XC console",

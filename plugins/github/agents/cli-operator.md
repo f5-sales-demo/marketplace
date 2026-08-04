@@ -45,7 +45,7 @@ You execute GitHub CLI (`gh`) commands on behalf of the main session.
 
 ## Standard Response Format
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed

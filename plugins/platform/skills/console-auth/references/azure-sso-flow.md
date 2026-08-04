@@ -10,7 +10,7 @@ Precondition: Tenant uses native email/password authentication
 (no SSO provider). Some tenants present credentials directly
 on the login page.
 
-```
+```text
 1. navigate_page(url="${F5XC_API_URL}/web/login")
    # Redirects to the tenant's login host
 2. take_snapshot()
@@ -39,7 +39,7 @@ and password to log in." and a "Sign In" button. There is no
 Precondition: User previously authenticated and selected
 "Stay signed in: Yes".
 
-```
+```text
 1. navigate_page(url="${F5XC_API_URL}/web/login")
    # Redirects to the tenant's login host
 2. wait_for(text=["Sign In with Azure"])
@@ -56,7 +56,7 @@ Expected duration: 3-10 seconds.
 
 Precondition: Multiple Azure AD accounts cached in browser.
 
-```
+```text
 1. navigate_page(url="${F5XC_API_URL}/web/login")
 2. wait_for(text=["Sign In with Azure"])
 3. take_snapshot()
@@ -74,7 +74,7 @@ Precondition: Multiple Azure AD accounts cached in browser.
 Precondition: No cached session or session expired. Tenant
 uses Azure AD with DUO verified push MFA.
 
-```
+```text
  1. navigate_page(url="${F5XC_API_URL}/web/login")
     # Redirects to the tenant's login host with SSO options
  2. wait_for(text=["Sign In with Azure"])

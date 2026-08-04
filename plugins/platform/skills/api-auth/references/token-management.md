@@ -49,7 +49,7 @@ a message indicating the required role.
 
 ### API Token
 
-```
+```text
 Authorization: APIToken <token-value>
 ```
 
@@ -131,7 +131,7 @@ Causes: attempting to create a resource that already exists.
 
 The API base URL is the same as the console URL:
 
-```
+```text
 https://<tenant>.console.ves.volterra.io
 ```
 

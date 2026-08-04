@@ -1,12 +1,10 @@
 ---
 title: Übersicht
-description: >-
-  So funktioniert der Claude Code Plugin-Marktplatz — Quellen hinzufügen,
-  Plugins installieren und gemeinsame Werkzeuge nutzen.
+description: So funktioniert der Claude Code Plugin-Marktplatz — Quellen hinzufügen, Plugins installieren und gemeinsame Werkzeuge nutzen.
 sidebar:
   order: 1
 i18n:
-  sourceHash: 04a73c3a9f37
+  sourceHash: 8e0bb8628f0d
   translator: machine
 ---
 
@@ -32,20 +30,20 @@ Astro/Starlight-Seiten über eine gemeinsame Build-Pipeline auf GitHub Pages ver
 ## Verfügbare Plugins
 
 | Plugin | Kategorie | Beschreibung |
-|--------|-----------|--------------|
-| [f5xc-docs-tools](/marketplace/de/plugins/f5xc-docs-tools/) | Produktivität | MDX-Inhaltsvalidierung und Prüfwerkzeuge für Dokumentations-Repositories |
-| [f5xc-sales-engineer](/marketplace/de/plugins/f5xc-sales-engineer/) | Produktivität | Sales-Engineer-Persona-Framework — Demo-Durchführung, Präsentation, Q&A, Umgebungsverwaltung |
+| --- | --- | --- |
+| [f5xc-docs-tools](/marketplace/en/plugins/f5xc-docs-tools/) | Produktivität | MDX-Inhaltsvalidierung und Prüfwerkzeuge für Dokumentations-Repositories |
+| [f5xc-sales-engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | Produktivität | Sales-Engineer-Persona-Framework — Demo-Durchführung, Präsentation, Q&A, Umgebungsverwaltung |
 
 ## Schnellstart
 
 Marktplatz hinzufügen und das Docs-Tools-Plugin installieren:
 
-```
+```text
 /plugin marketplace add f5-sales-demo/marketplace
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
-Siehe [Erste Schritte](/marketplace/de/getting-started/) für eine
+Siehe [Erste Schritte](/marketplace/en/getting-started/) für eine
 vollständige Anleitung.
 
 ## Architektur
@@ -54,7 +52,7 @@ Ein Marktplatz ist ein Git-Repository, das ein oder mehrere
 Plugins enthält. Jedes Plugin bündelt Fähigkeiten, Befehle und Agenten
 in eine einzelne installierbare Einheit.
 
-```
+```text
 Marketplace (marketplace.json)
 └── Plugin (plugin.json)
     ├── Skills (SKILL.md)

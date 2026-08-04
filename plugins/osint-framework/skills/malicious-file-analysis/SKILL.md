@@ -70,7 +70,7 @@ list of 33 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Malicious File Analysis tool search",
@@ -82,7 +82,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Malicious File Analysis investigation: [target]",

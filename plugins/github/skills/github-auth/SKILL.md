@@ -89,25 +89,25 @@ these instructions:
 
 ## Environment Variables
 
-| Variable               | Purpose                                                        |
-| ---------------------- | -------------------------------------------------------------- |
-| `GH_TOKEN`             | Personal access token (preferred, auto-read by gh CLI)         |
-| `GITHUB_TOKEN`         | Alternative token variable (used by GitHub Actions)            |
-| `GH_HOST`              | Target GitHub host (default: `github.com`)                     |
-| `GH_ENTERPRISE_TOKEN`  | Token for GitHub Enterprise Server                             |
+| Variable              | Purpose                                                |
+| --------------------- | ------------------------------------------------------ |
+| `GH_TOKEN`            | Personal access token (preferred, auto-read by gh CLI) |
+| `GITHUB_TOKEN`        | Alternative token variable (used by GitHub Actions)    |
+| `GH_HOST`             | Target GitHub host (default: `github.com`)             |
+| `GH_ENTERPRISE_TOKEN` | Token for GitHub Enterprise Server                     |
 
 ## Token Scopes
 
 Different operations require different token scopes:
 
-| Operation           | Required Scopes                    |
-| ------------------- | ---------------------------------- |
+| Operation           | Required Scopes                   |
+| ------------------- | --------------------------------- |
 | Read repos          | `repo` (or `public_repo`)         |
-| Create PRs          | `repo`                             |
-| Manage issues       | `repo`                             |
-| Actions / Workflows | `repo`, `workflow`                 |
-| Read user info      | (no scope needed for public info)  |
-| Admin operations    | `admin:org`, `admin:repo_hook`     |
+| Create PRs          | `repo`                            |
+| Manage issues       | `repo`                            |
+| Actions / Workflows | `repo`, `workflow`                |
+| Read user info      | (no scope needed for public info) |
+| Admin operations    | `admin:org`, `admin:repo_hook`    |
 
 ## Security Rules
 

@@ -1,3 +1,5 @@
+# Set Up Salesforce CLI Access
+
 Salesforce onboarding wizard via sf CLI. Check installation, detect authentication, guide login.
 
 <instruction>

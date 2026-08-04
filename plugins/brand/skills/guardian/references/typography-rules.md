@@ -116,7 +116,7 @@ h4, h5, h6 {
 Use Neusa Next Pro Wide Bold with a right-facing
 caret in F5 Red:
 
-```
+```text
 Learn more ›
 ```
 

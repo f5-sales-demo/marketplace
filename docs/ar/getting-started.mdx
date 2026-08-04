@@ -1,22 +1,22 @@
 ---
-title: البدء السريع
-description: دليل خطوة بخطوة لإضافة سوق f5-sales-demo وتثبيت أول إضافة لك.
+title: البدء
+description: دليل خطوة بخطوة لإضافة سوق f5-sales-demo وتثبيت أول ملحق لك.
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-يرشدك هذا الدليل خلال عملية إضافة سوق f5-sales-demo
-إلى Claude Code وتثبيت أول إضافة لك.
+يقودك هذا الدليل خلال إضافة سوق f5-sales-demo
+إلى Claude Code وتثبيت أول ملحق لك.
 
 ## المتطلبات الأساسية
 
-- Claude Code الإصدار **v1.0.33** أو أحدث (دعم سوق الإضافات)
-- حساب GitHub مع صلاحية الوصول إلى منظمة
+- Claude Code **v1.0.33** أو أحدث (دعم سوق الملحقات)
+- حساب GitHub مع إمكانية الوصول إلى مؤسسة
   [f5-sales-demo](https://github.com/f5-sales-demo)
 
 ## التثبيت
@@ -25,76 +25,73 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 1. **إضافة السوق**
 
-   في أي جلسة Claude Code، نفّذ الأمر التالي:
+   في أي جلسة Claude Code، قم بتشغيل:
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   يُسجّل هذا الأمر السوق كمصدر للإضافات. تحتاج إلى
-   تنفيذه مرة واحدة فقط.
+   يقوم هذا بتسجيل السوق كمصدر للملحقات. تحتاج فقط إلى القيام بذلك مرة واحدة.
 
-2. **استعراض الإضافات المتاحة**
+2. **تصفح الملحقات المتاحة**
 
-   اعرض ما يوفره السوق:
+   اعرض ما يقدمه السوق:
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
-3. **تثبيت إضافة**
+3. **تثبيت ملحق**
 
-   ثبّت الإضافة التي تحتاجها:
+   قم بتثبيت الملحق الذي تحتاجه:
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
-4. **استخدام الإضافة**
+4. **استخدام الملحق**
 
-   انتقل إلى أي مستودع محتوى خاص بـ f5-sales-demo.
+   انتقل إلى أي مستودع محتوى f5-sales-demo.
 
-   لـ **أدوات التوثيق**، نفّذ أمر مراجعة MDX:
+   بالنسبة لـ **أدوات التوثيق**، قم بتشغيل أمر مراجعة MDX:
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
-   لـ **مهندس المبيعات**، استخدم عبارات التشغيل مثل
-   "prepare the demo"، أو "run the demo"، أو "walk through
-   the demo" — يتفعّل الإضافة تلقائيًا.
+   بالنسبة لـ **sales engineer**، استخدم عبارات التشغيل مثل
+   "prepare the demo" أو "run the demo" أو "walk through the demo" — ينشط الملحق تلقائيًا.
 
 </Steps>
 
-## تحديث الإضافات
+## تحديث الملحقات
 
-لتحديث إضافة مثبّتة إلى أحدث إصدار:
+لتحديث ملحق مثبت إلى أحدث إصدار:
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## إلغاء التثبيت
 
-إزالة إضافة:
+إزالة ملحق:
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 إزالة السوق بالكامل:
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
-## إعداد الفريق
+## تكوين الفريق
 
-لضبط إعدادات السوق مسبقًا لجميع أعضاء فريقك، أضفه
-إلى ملف `.claude/settings.json` في مشروعك:
+لإعداد السوق مسبقًا لفريقك بأكمله، أضفه إلى ملف `.claude/settings.json` الخاص بمشروعك:
 
 ```json
 {
@@ -108,11 +105,8 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 }
 ```
 
-<Aside type="tip" title="إعدادات مشتركة">
-  إيداع ملف `.claude/settings.json` في مستودعك يعني أن
-  كل عضو في الفريق سيحصل على السوق والإضافات تلقائيًا —
-  دون الحاجة إلى أي إعداد يدوي.
+<Aside type="tip" title="Shared settings">
+  يعني تثبيت `.claude/settings.json` في المستودع الخاص بك أن كل عضو في الفريق يحصل على السوق والملحقات تلقائيًا — دون الحاجة إلى إعداد يدوي.
 </Aside>
 
-يضمن ذلك أن كل مساهم لديه نفس الأدوات المتاحة
-منذ أول جلسة Claude Code في المستودع.
+هذا يضمن أن كل مساهم لديه نفس الأدوات المتاحة بدءًا من أول جلسة Claude Code في المستودع.

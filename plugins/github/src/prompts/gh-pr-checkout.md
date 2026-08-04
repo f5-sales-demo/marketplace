@@ -1,3 +1,5 @@
+# Check Out a GitHub Pull Request
+
 Checks out a GitHub pull request into a dedicated git worktree through the local GitHub CLI.
 
 <instruction>

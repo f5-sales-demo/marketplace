@@ -1,3 +1,5 @@
+# Execute Azure CLI Commands
+
 Execute any `az` CLI subcommand directly.
 
 This is the general-purpose tool for running az commands that are not covered by the typed tools (az_account, az_group, az_resource, az_vm). Use typed tools when available — they validate inputs and return structured data.

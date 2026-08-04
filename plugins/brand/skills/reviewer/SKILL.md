@@ -31,7 +31,7 @@ git diff --name-only --diff-filter=ACMR HEAD -- \
   'docs/**/*.mdx' 'docs/**/*.md' '*.svg' '*.css'
 ```
 
-3. If no changes exist or user requests full review, check all
+1. If no changes exist or user requests full review, check all
    content files: `docs/**/*.mdx`, `docs/**/*.md`, and any
    `.svg`, `.css`, or `.mermaid` files
 
@@ -168,7 +168,7 @@ naming issues.
 
 After running all checks, present findings in this format:
 
-```
+```markdown
 ## Brand Compliance Review — <repo-name>
 
 Reviewed N file(s). Found X violation(s), Y warning(s),
@@ -200,7 +200,7 @@ No violations found. ✓  (if clean)
 
 If all files pass all checks:
 
-```
+```markdown
 ## Brand Compliance Review — <repo-name>
 
 Reviewed N file(s). No issues found. ✓

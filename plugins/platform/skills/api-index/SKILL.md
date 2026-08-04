@@ -23,7 +23,7 @@ subagent.
 API JSON responses can be verbose. All API operations must
 be delegated to the `api-operator` agent:
 
-```
+```text
 Agent(
   subagent_type="platform:api-operator",
   description="<short task description>",

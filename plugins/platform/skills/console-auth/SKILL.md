@@ -62,7 +62,7 @@ content — no manual configuration is needed.
 
 ### Step 3: Detect auth provider
 
-```
+```text
 take_snapshot()
 ```
 
@@ -85,7 +85,7 @@ credentials directly without an SSO provider selection.
 
 ### A1: Fill credentials
 
-```
+```text
 take_snapshot()
 fill_form(elements=[
   {uid: <email-input>, value: "${F5XC_USERNAME}"},
@@ -96,7 +96,7 @@ click(uid=<sign-in-button>)   # Text: "Sign In"
 
 ### A2: Wait for console
 
-```
+```text
 wait_for(text=["F5 Distributed Cloud", "Welcome",
                "Common workspaces", "Invalid"],
          timeout=30000)
@@ -122,7 +122,7 @@ Jump to **Verification**.
 
 ### B1: Click "Sign in with Azure"
 
-```
+```text
 click(uid=<sign-in-with-azure-link>)
 ```
 
@@ -130,7 +130,7 @@ click(uid=<sign-in-with-azure-link>)
 
 Wait up to 15 seconds for one of these outcomes:
 
-```
+```text
 wait_for(text=["Pick an account", "Sign in",
                "Enter your email", "web/home"],
          timeout=15000)
@@ -149,7 +149,7 @@ Determine the path:
 
 Azure AD uses a two-screen login. First screen: email.
 
-```
+```text
 take_snapshot()
 fill(uid=<email-input>, value="${F5XC_USERNAME}")
 click(uid=<next-button>)
@@ -158,7 +158,7 @@ wait_for(text=["Enter password", "Password"], timeout=10000)
 
 ### B4: Password entry (Full MFA)
 
-```
+```text
 take_snapshot()
 fill(uid=<password-input>, value="${F5XC_CONSOLE_PASSWORD}")
 click(uid=<signin-button>)
@@ -171,7 +171,7 @@ wait_for(text=["Verification Required", "Approve sign-in",
 Azure shows "Verification Required" with text "You will be
 redirected to DUO" and a **Continue** button.
 
-```
+```text
 take_snapshot()
 click(uid=<continue-button>)
 wait_for(text=["Enter code in Duo Mobile", "Check your phone"],
@@ -183,7 +183,7 @@ wait_for(text=["Enter code in Duo Mobile", "Check your phone"],
 DUO displays a 3-digit verification code on screen that the
 user must enter in the Duo Mobile app.
 
-```
+```text
 take_snapshot()
 ```
 
@@ -197,7 +197,7 @@ Report to the operator:
 
 Wait for approval:
 
-```
+```text
 wait_for(text=["Stay signed in", "web/home"], timeout=60000)
 ```
 
@@ -206,7 +206,7 @@ extract new code, report again.
 
 ### B7: "Stay signed in?"
 
-```
+```text
 take_snapshot()
 click(uid=<yes-button>)
 wait_for(text=["F5 Distributed Cloud", "Welcome"],
@@ -217,7 +217,7 @@ wait_for(text=["F5 Distributed Cloud", "Welcome"],
 
 ## Verification
 
-```
+```text
 take_snapshot()
 ```
 
@@ -230,7 +230,7 @@ Confirm success:
 
 Report structured result:
 
-```
+```markdown
 ## Console Authentication: SUCCESS
 - Tenant: ${F5XC_API_URL}
 - User: ${F5XC_USERNAME}

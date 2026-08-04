@@ -52,7 +52,7 @@ list of 13 free/freemium tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Phone reconnaissance tool search",
@@ -64,7 +64,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Phone reconnaissance investigation: [target]",

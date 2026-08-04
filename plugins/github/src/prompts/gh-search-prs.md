@@ -1,3 +1,5 @@
+# Search GitHub Pull Requests
+
 Searches GitHub pull requests through the local GitHub CLI.
 
 <instruction>

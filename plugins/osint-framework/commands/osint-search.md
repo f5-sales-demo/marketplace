@@ -9,7 +9,7 @@ Search the OSINT Framework tool catalog for tools matching your query.
 
 ## Delegation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="OSINT tool search: [args]",

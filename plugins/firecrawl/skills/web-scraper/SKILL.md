@@ -45,7 +45,7 @@ When this skill activates, delegate immediately to the firecrawl-operator agent.
 
 ### For scrape requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Scrape: [URL in 3 words]",
@@ -55,7 +55,7 @@ Agent(
 
 ### For batch scrape requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Batch scrape: [count] URLs",
@@ -65,7 +65,7 @@ Agent(
 
 ### For crawl requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Crawl: [URL in 3 words]",
@@ -75,7 +75,7 @@ Agent(
 
 ### For crawl management requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Crawl mgmt: [action]",
@@ -85,7 +85,7 @@ Agent(
 
 ### For map requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Map: [URL in 3 words]",
@@ -95,7 +95,7 @@ Agent(
 
 ### For search requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Search: [query in 3 words]",
@@ -105,7 +105,7 @@ Agent(
 
 ### For extract requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Extract: [what] from [URL]",
@@ -115,7 +115,7 @@ Agent(
 
 ### For llms.txt requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="llms.txt: [URL in 3 words]",
@@ -125,7 +125,7 @@ Agent(
 
 ### For research requests
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-researcher",
   description="Research: [topic in 3 words]",

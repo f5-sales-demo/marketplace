@@ -52,7 +52,7 @@ You execute Azure CLI (`az`) commands on behalf of the main session.
 
 ## Standard Response Format
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
@@ -67,38 +67,38 @@ You execute Azure CLI (`az`) commands on behalf of the main session.
 
 ## Environment Variables
 
-| Variable                  | Purpose                                          |
-| ------------------------- | ------------------------------------------------ |
-| `AZURE_CLIENT_ID`         | Service principal application ID                 |
-| `AZURE_CLIENT_SECRET`     | Service principal client secret                  |
-| `AZURE_TENANT_ID`         | Microsoft Entra ID tenant ID                     |
-| `AZURE_SUBSCRIPTION_ID`   | Default subscription to select                   |
-| `AZURE_DEFAULTS_GROUP`    | Default resource group                           |
-| `AZURE_DEFAULTS_LOCATION` | Default location/region                          |
+| Variable                  | Purpose                          |
+| ------------------------- | -------------------------------- |
+| `AZURE_CLIENT_ID`         | Service principal application ID |
+| `AZURE_CLIENT_SECRET`     | Service principal client secret  |
+| `AZURE_TENANT_ID`         | Microsoft Entra ID tenant ID     |
+| `AZURE_SUBSCRIPTION_ID`   | Default subscription to select   |
+| `AZURE_DEFAULTS_GROUP`    | Default resource group           |
+| `AZURE_DEFAULTS_LOCATION` | Default location/region          |
 
 ## Common Commands
 
-| Operation              | Command                                                              |
-| ---------------------- | -------------------------------------------------------------------- |
-| Show account           | `az account show --output json`                                      |
-| List subscriptions     | `az account list --output json`                                      |
-| Set subscription       | `az account set --subscription <id>`                                 |
-| List resource groups   | `az group list --output json`                                        |
-| List resources in group| `az resource list --resource-group <name> --output json`             |
-| List VMs               | `az vm list --output json`                                           |
-| Show VM                | `az vm show --resource-group <rg> --name <vm> --output json`         |
-| Run generic command    | `az <subcommand> --output json`                                      |
-| Get help               | `az <subcommand> --help`                                             |
+| Operation               | Command                                                      |
+| ----------------------- | ------------------------------------------------------------ |
+| Show account            | `az account show --output json`                              |
+| List subscriptions      | `az account list --output json`                              |
+| Set subscription        | `az account set --subscription <id>`                         |
+| List resource groups    | `az group list --output json`                                |
+| List resources in group | `az resource list --resource-group <name> --output json`     |
+| List VMs                | `az vm list --output json`                                   |
+| Show VM                 | `az vm show --resource-group <rg> --name <vm> --output json` |
+| Run generic command     | `az <subcommand> --output json`                              |
+| Get help                | `az <subcommand> --help`                                     |
 
 ## Error Recovery
 
-| Error                          | Action                                                              |
-| ------------------------------ | ------------------------------------------------------------------- |
-| `az: command not found`        | Report: az CLI not installed, suggest `/azure:setup`         |
-| `Please run 'az login'`       | Report: not authenticated, suggest `/azure:az-login`         |
-| `AADSTS700016`                 | Report: app not found in tenant, check AZURE_CLIENT_ID              |
-| `AADSTS7000215`                | Report: invalid client secret, check AZURE_CLIENT_SECRET            |
-| `AADSTS90002`                  | Report: tenant not found, check AZURE_TENANT_ID                     |
-| `The subscription could not`   | Report: subscription not found, list available with `az account list`|
-| `ResourceGroupNotFound`        | Report: resource group not found, list available groups              |
-| `AuthorizationFailed`          | Report: insufficient permissions for this operation                  |
+| Error                        | Action                                                                |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `az: command not found`      | Report: az CLI not installed, suggest `/azure:setup`                  |
+| `Please run 'az login'`      | Report: not authenticated, suggest `/azure:az-login`                  |
+| `AADSTS700016`               | Report: app not found in tenant, check AZURE_CLIENT_ID                |
+| `AADSTS7000215`              | Report: invalid client secret, check AZURE_CLIENT_SECRET              |
+| `AADSTS90002`                | Report: tenant not found, check AZURE_TENANT_ID                       |
+| `The subscription could not` | Report: subscription not found, list available with `az account list` |
+| `ResourceGroupNotFound`      | Report: resource group not found, list available groups               |
+| `AuthorizationFailed`        | Report: insufficient permissions for this operation                   |

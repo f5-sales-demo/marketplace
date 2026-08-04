@@ -64,19 +64,19 @@ list of 11 free tools in this category.
 
 ### Google Dork -- Craigslist Nationwide Search
 
-```
+```text
 site:craigslist.org "serial number" OR "model number" "item description"
 ```
 
 ### Google Dork -- eBay Sold Items
 
-```
+```text
 site:ebay.com "sold" "item description" "serial number"
 ```
 
 ### Google Dork -- OfferUp Seller Search
 
-```
+```text
 site:offerup.com "seller username" OR "phone number"
 ```
 
@@ -88,7 +88,7 @@ sale prices and seller activity.
 
 ### Craigslist RSS Feed Monitoring
 
-```
+```text
 https://CITY.craigslist.org/search/sss?query=SEARCH_TERM&format=rss
 ```
 
@@ -149,7 +149,7 @@ diff /tmp/cl_baseline.xml /tmp/cl_current.xml
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Classifieds tool search",
@@ -161,7 +161,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Classifieds investigation: [target]",

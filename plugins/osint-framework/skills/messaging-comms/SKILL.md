@@ -58,7 +58,7 @@ list of 12 free tools in this category, focused on dating platforms.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Messaging & Communications tool search",
@@ -70,7 +70,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Messaging & Communications investigation: [target]",

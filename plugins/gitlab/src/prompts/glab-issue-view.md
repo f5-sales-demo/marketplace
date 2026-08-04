@@ -1,3 +1,5 @@
+# View a GitLab Issue
+
 View a single GitLab issue with full details, description, and comments via glab CLI.
 
 <instruction>

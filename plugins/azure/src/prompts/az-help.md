@@ -1,3 +1,5 @@
+# View Azure CLI Help
+
 Fetch help documentation for any `az` CLI command group or subcommand.
 
 Use this tool to discover available commands, flags, and usage patterns for az CLI subcommands that are not covered by the embedded tool documentation.

@@ -1,3 +1,5 @@
+# View a GitHub Repository
+
 Reads GitHub repository metadata using the local GitHub CLI.
 
 <instruction>

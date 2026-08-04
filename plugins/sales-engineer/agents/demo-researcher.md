@@ -86,7 +86,7 @@ only information you found evidence for — never fabricate content.
 
 Every response must follow this exact structure:
 
-```
+```markdown
 ## Research Report
 
 ### Question

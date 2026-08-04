@@ -93,7 +93,7 @@ authentication without a token header.
 
 ## Usage Examples
 
-```
+```text
 # Console: Authenticate
 /login-console
 

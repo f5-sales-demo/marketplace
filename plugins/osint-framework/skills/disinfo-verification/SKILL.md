@@ -77,7 +77,7 @@ RUN pip install --no-cache-dir torch torchvision opencv-python-headless pillow
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Disinformation & Media Verification tool search",
@@ -89,7 +89,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Disinformation & Media Verification investigation: [target]",

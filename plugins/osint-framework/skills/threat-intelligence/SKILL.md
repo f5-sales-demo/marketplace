@@ -97,7 +97,7 @@ RUN git clone --depth 1 https://github.com/cloudtracer/ThreatPinchLookup /opt/th
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Threat Intelligence tool search",
@@ -109,7 +109,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Threat Intelligence investigation: [target]",

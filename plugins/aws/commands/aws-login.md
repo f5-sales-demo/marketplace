@@ -5,6 +5,8 @@ description: >-
 argument-hint: "[profile-name]"
 ---
 
+# AWS login
+
 Delegate to the cli-operator agent to handle AWS authentication.
 
 ## Delegation

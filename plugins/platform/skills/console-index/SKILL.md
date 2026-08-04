@@ -22,7 +22,7 @@ the `console-operator` subagent.
 Browser snapshots are token-heavy. All console operations
 must be delegated to the `console-operator` agent:
 
-```
+```text
 Agent(
   subagent_type="platform:console-operator",
   description="<short task description>",

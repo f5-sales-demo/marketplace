@@ -56,7 +56,7 @@ Skills activate automatically:
 
 Manual agent invocation:
 
-```
+```text
 # Check catalog drift
 Use the devcontainer:tool-auditor agent
 

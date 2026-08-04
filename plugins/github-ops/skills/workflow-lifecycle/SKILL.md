@@ -36,7 +36,7 @@ uninterrupted Bash access. Without bypass mode, plan mode can re-engage
 mid-workflow and strip Bash access, leaving the agent stuck after
 completing only the first step.
 
-```
+```text
 Agent(
   subagent_type="github-ops:github-ops",
   mode="bypassPermissions",
@@ -57,7 +57,7 @@ section. If the agent returns `COMPLETE` but the response does not
 contain a `#<number>` issue reference, treat the result as suspect
 and verify manually:
 
-```
+```bash
 gh pr view <PR-NUMBER> --json body --jq '.body' | grep -o 'Closes #[0-9]\+'
 ```
 

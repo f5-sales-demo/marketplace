@@ -36,13 +36,13 @@ No API keys. No authentication. The Statuspage.io public API is rate-limit-free.
 
 ### Quick Status Check
 
-```
+```text
 /cloud-status status
 ```
 
 ### Full Operational Briefing
 
-```
+```text
 /cloud-status briefing
 ```
 
@@ -52,7 +52,7 @@ scoring, and actionable recommendations.
 
 ### Incident Investigation
 
-```
+```text
 /cloud-status incidents
 ```
 
@@ -61,7 +61,7 @@ and trend analysis for recurring issues.
 
 ### Maintenance Awareness
 
-```
+```text
 /cloud-status maintenance
 ```
 
@@ -77,7 +77,7 @@ communication template.
 
 ### Search
 
-```
+```text
 /cloud-status search dns
 ```
 

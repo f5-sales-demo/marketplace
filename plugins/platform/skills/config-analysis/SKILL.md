@@ -38,7 +38,7 @@ Route here when the user:
 configurations can be hundreds of lines. All analysis must be
 delegated to the `config-analyzer` agent:
 
-```
+```text
 Agent(
   subagent_type="platform:config-analyzer",
   description="Analyze {resource_type} configuration",

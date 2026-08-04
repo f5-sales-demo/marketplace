@@ -69,7 +69,7 @@ searched, not just the first.
 Delegate to the firecrawl-operator agent to search the web and scrape
 the results in a single call:
 
-```
+```text
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Search+scrape: <3-word topic>",
@@ -102,7 +102,7 @@ in the Sources table. Every factual claim must trace to a source.
 
 Every response must follow this exact structure:
 
-```
+```markdown
 ## Research Report
 
 ### Question

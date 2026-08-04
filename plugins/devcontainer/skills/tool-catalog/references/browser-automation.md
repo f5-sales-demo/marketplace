@@ -120,7 +120,7 @@ Tools for browser automation, headless browsing, web scraping, and anti-detectio
 - **Purpose**: Advanced browser automation without detection, successor to undetected-chromedriver
 - **Use when**: You need the most up-to-date anti-detection browser automation in Python
 - **Quick start**:
-  - `import nodriver as nd; browser = await nd.start()`
+  - `import nodriver; browser = await nodriver.start()`
   - `page = await browser.get('https://example.com')`
   - `element = await page.find('input[name=q]'); await element.send_keys('search term')`
 - **Auth**: None

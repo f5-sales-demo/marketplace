@@ -55,7 +55,7 @@ session.
 
 ## Standard Response Format
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
@@ -72,32 +72,32 @@ session.
 
 | Variable                         | Purpose                                           |
 | -------------------------------- | ------------------------------------------------- |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON key file              |
-| `CLOUDSDK_CORE_PROJECT`          | Default project ID for gcloud commands             |
-| `CLOUDSDK_COMPUTE_REGION`        | Default compute region                             |
-| `CLOUDSDK_COMPUTE_ZONE`          | Default compute zone                               |
-| `GOOGLE_CLOUD_PROJECT`           | Alternative project ID (used by client libraries)  |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON key file             |
+| `CLOUDSDK_CORE_PROJECT`          | Default project ID for gcloud commands            |
+| `CLOUDSDK_COMPUTE_REGION`        | Default compute region                            |
+| `CLOUDSDK_COMPUTE_ZONE`          | Default compute zone                              |
+| `GOOGLE_CLOUD_PROJECT`           | Alternative project ID (used by client libraries) |
 
 ## Common Commands
 
-| Operation            | Command                                                |
-| -------------------- | ------------------------------------------------------ |
-| List accounts        | `gcloud auth list`                                     |
-| Config info          | `gcloud config list --format=json`                     |
-| List projects        | `gcloud projects list --format=json`                   |
-| List instances       | `gcloud compute instances list --format=json`          |
-| List clusters        | `gcloud container clusters list --format=json`         |
-| List Cloud Run       | `gcloud run services list --format=json`               |
-| List Functions       | `gcloud functions list --format=json`                  |
-| Read logs            | `gcloud logging read "resource.type=..." --limit=50`   |
+| Operation      | Command                                              |
+| -------------- | ---------------------------------------------------- |
+| List accounts  | `gcloud auth list`                                   |
+| Config info    | `gcloud config list --format=json`                   |
+| List projects  | `gcloud projects list --format=json`                 |
+| List instances | `gcloud compute instances list --format=json`        |
+| List clusters  | `gcloud container clusters list --format=json`       |
+| List Cloud Run | `gcloud run services list --format=json`             |
+| List Functions | `gcloud functions list --format=json`                |
+| Read logs      | `gcloud logging read "resource.type=..." --limit=50` |
 
 ## Error Recovery
 
-| Error                                     | Action                                                        |
-| ----------------------------------------- | ------------------------------------------------------------- |
-| `gcloud: command not found`               | Report: gcloud CLI not installed, suggest `/gcloud:setup` |
-| `You do not currently have an active account` | Report: not authenticated, suggest `/gcloud:gcloud-login` |
-| `PERMISSION_DENIED`                       | Report: check IAM permissions for the active service account   |
-| `NOT_FOUND`                               | Report: check that the project/resource exists                 |
-| `token expired`                           | Report: re-authenticate with `/gcloud:gcloud-login`    |
-| `could not find project`                  | Report: check `CLOUDSDK_CORE_PROJECT` or set project explicitly |
+| Error                                         | Action                                                          |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| `gcloud: command not found`                   | Report: gcloud CLI not installed, suggest `/gcloud:setup`       |
+| `You do not currently have an active account` | Report: not authenticated, suggest `/gcloud:gcloud-login`       |
+| `PERMISSION_DENIED`                           | Report: check IAM permissions for the active service account    |
+| `NOT_FOUND`                                   | Report: check that the project/resource exists                  |
+| `token expired`                               | Report: re-authenticate with `/gcloud:gcloud-login`             |
+| `could not find project`                      | Report: check `CLOUDSDK_CORE_PROJECT` or set project explicitly |

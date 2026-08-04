@@ -5,6 +5,8 @@ description: >-
 argument-hint: "[hostname]"
 ---
 
+# GitLab login
+
 Delegate to the cli-operator agent to handle GitLab authentication.
 
 ## Delegation

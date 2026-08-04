@@ -58,7 +58,7 @@ Additional packs available but not registered in Mermaid:
 
 ### Icon syntax in Mermaid
 
-```
+```mermaid
 flowchart LR
   A["::icon(f5xc:bot-defense):: Bot Defense"]
   B["::icon(f5-brand:web-app-firewall):: WAF"]
@@ -66,7 +66,7 @@ flowchart LR
 
 For `architecture-beta` syntax:
 
-```
+```mermaid
 architecture-beta
   service bot(f5xc:bot-defense)[Bot Defense]
   service waf(f5-brand:web-app-firewall)[WAF]

@@ -72,7 +72,7 @@ Expected: `{"message":"Firecrawl API","documentation_url":"https://docs.firecraw
 
 If the health check fails, report:
 
-```
+```text
 RESULT: API_UNAVAILABLE
 The firecrawl API is not responding on port 3002.
 Check that firecrawl is running: ps aux | grep firecrawl
@@ -122,7 +122,7 @@ curl -sf --max-time 60 http://localhost:3002/v1/scrape \
 
 ### Scrape: Parse and report
 
-```
+```markdown
 ## Scrape Result: <URL>
 
 **Status:** <statusCode> | **Title:** <title> | **Content-Type:** <contentType>
@@ -242,7 +242,7 @@ curl -sf http://localhost:3002/v1/batch/scrape/${JOB_ID} | jq '.'
 
 ### Batch: Report
 
-```
+```markdown
 ## Batch Scrape Result
 
 **Status:** <status> | **Pages:** <completed>/<total>
@@ -322,7 +322,7 @@ done
 curl -sf http://localhost:3002/v1/crawl/${CRAWL_ID} | jq '.'
 ```
 
-```
+```markdown
 ## Crawl Result: <URL>
 
 **Status:** <status> | **Pages:** <completed>/<total>
@@ -380,7 +380,7 @@ curl -sf http://localhost:3002/v1/crawl/active | jq '.'
 
 Report as a table:
 
-```
+```markdown
 ## Active Crawl Jobs
 
 | ID | URL | Created | Limit |
@@ -440,7 +440,7 @@ curl -sf --max-time 30 http://localhost:3002/v1/map \
 
 ### Map: Report
 
-```
+```markdown
 ## Map Result: <URL>
 
 **URLs found:** <count>
@@ -502,7 +502,7 @@ With `scrapeOptions`, each result also includes `markdown`, `html`, etc.
 
 ### Search: Report
 
-```
+```markdown
 ## Search Results: "<query>"
 
 **Results found:** <count>
@@ -590,7 +590,7 @@ done
 
 ### Extract: Report
 
-```
+```markdown
 ## Extract Result
 
 **Status:** <status>
@@ -605,7 +605,7 @@ done
 
 If the response contains an error about model name or API key:
 
-```
+```text
 RESULT: LLM_NOT_CONFIGURED
 Extract requires OPENAI_BASE_URL and OPENAI_API_KEY in the firecrawl
 environment. Configure your litellm proxy settings.
@@ -679,7 +679,7 @@ done
 
 ### LLMSTXT: Report
 
-```
+```markdown
 ## llms.txt Result: <URL>
 
 **Status:** <status>

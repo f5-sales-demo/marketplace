@@ -21,7 +21,7 @@ Automatically detect the target type:
 
 ## Delegation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="OSINT investigation: [target]",

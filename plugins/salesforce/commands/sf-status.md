@@ -4,6 +4,8 @@ description: >-
   authenticated orgs
 ---
 
+# Salesforce status
+
 Delegate to the cli-operator agent to check Salesforce connectivity.
 
 ## Delegation

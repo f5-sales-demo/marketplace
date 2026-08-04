@@ -1,3 +1,5 @@
+# View Salesforce CLI Help
+
 Show Salesforce CLI help for a command path. Use this before running a command when unsure of a topic's subcommands or flags.
 
 <instruction>

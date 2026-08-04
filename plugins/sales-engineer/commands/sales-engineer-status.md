@@ -3,6 +3,8 @@ description: >-
   Check sales engineering demo environment readiness and available workflows
 ---
 
+# Sales engineering status
+
 Delegate to the demo-housekeeping agent to check sales engineer environment status.
 
 ## Delegation

@@ -1,3 +1,5 @@
+# Execute Read-Only GitLab CLI Commands
+
 Run any read-only `glab` (GitLab CLI) command. Pass arguments as an array without the `glab` prefix, e.g. `["issue", "list", "--output", "json"]`.
 
 ## Safety

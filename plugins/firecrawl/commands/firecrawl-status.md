@@ -3,6 +3,8 @@ description: >-
   Check Firecrawl API service status and connectivity on localhost:3002
 ---
 
+# Firecrawl status
+
 Delegate to the firecrawl-operator agent to check Firecrawl service readiness.
 
 ## Delegation

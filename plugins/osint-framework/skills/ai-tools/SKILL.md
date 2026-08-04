@@ -66,7 +66,7 @@ list of 19 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="AI Tools tool search",
@@ -78,7 +78,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="AI content analysis: [target]",

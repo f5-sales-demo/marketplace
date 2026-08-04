@@ -165,7 +165,7 @@ curl -s "https://overpass-api.de/api/interpreter?data=[out:json];way[railway=rai
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Transportation tool search",
@@ -177,7 +177,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Transportation investigation: [target]",

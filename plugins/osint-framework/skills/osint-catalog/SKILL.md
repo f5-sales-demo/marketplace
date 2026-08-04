@@ -24,7 +24,7 @@ category listing with tool counts.
 
 Delegate to the researcher agent:
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="OSINT catalog search: [query]",

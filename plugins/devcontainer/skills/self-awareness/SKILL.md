@@ -18,7 +18,7 @@ Delegate to the container-introspector agent to preserve main context.
 
 When this skill activates, delegate immediately:
 
-```
+```text
 Agent(
   subagent_type="devcontainer:container-introspector",
   description="[identity/diagnosis/history]: [summarize question in 5 words]",

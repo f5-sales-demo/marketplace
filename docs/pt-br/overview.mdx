@@ -1,54 +1,49 @@
 ---
-title: Visão Geral
-description: >-
-  Como funciona o marketplace de plugins do Claude Code — adicionando fontes,
-  instalando plugins e usando ferramentas compartilhadas.
+title: Visão geral
+description: Como funciona o marketplace de plugins do Claude Code — adicionando fontes, instalando plugins e usando ferramentas compartilhadas.
 sidebar:
   order: 1
 i18n:
-  sourceHash: 04a73c3a9f37
+  sourceHash: 8e0bb8628f0d
   translator: machine
 ---
 
 Um **marketplace de plugins do Claude Code** é uma coleção curada de
 plugins que estendem o Claude Code com novas habilidades, comandos e
-agentes. Os marketplaces permitem que equipes compartilhem ferramentas
-para que todos os desenvolvedores tenham as mesmas capacidades sem
-configuração manual.
+agentes. Os marketplaces permitem que as equipes compartilhem ferramentas para que cada desenvolvedor
+obtenha os mesmos recursos sem configuração manual.
 
-O **Marketplace f5-sales-demo** fornece plugins desenvolvidos para
+O **Marketplace f5-sales-demo** fornece plugins criados para
 a plataforma de documentação [f5-sales-demo](https://github.com/f5-sales-demo)
-— um ecossistema de mais de 20 repositórios que
-publicam sites Astro/Starlight no GitHub Pages usando um pipeline
-de build compartilhado.
+— um ecossistema de mais de 20 repositórios que publicam sites Astro/Starlight no GitHub Pages usando um pipeline de compilação compartilhado.
 
-## Como Funciona
+## Como funciona
 
 1. **Adicione o marketplace** ao Claude Code — isso o registra
    como uma fonte de plugins
 2. **Instale plugins** do marketplace — cada plugin adiciona
    habilidades e comandos à sua sessão do Claude Code
 3. **Use as ferramentas** — os plugins são ativados automaticamente com base no
-   contexto, ou você invoca seus comandos diretamente
+   contexto, ou você pode invocar seus comandos diretamente
 
-## Plugins Disponíveis
+## Plugins disponíveis
 
 | Plugin | Categoria | Descrição |
-|--------|-----------|-----------|
-| [f5xc-docs-tools](/marketplace/pt-br/plugins/f5xc-docs-tools/) | Produtividade | Ferramentas de validação e revisão de conteúdo MDX para repositórios de documentação |
-| [f5xc-sales-engineer](/marketplace/pt-br/plugins/f5xc-sales-engineer/) | Produtividade | Framework de persona para Engenheiro de Vendas — execução de demos, apresentação, Q&A, gerenciamento de ambiente |
+| --- | --- | --- |
+| [f5xc-docs-tools](/marketplace/en/plugins/f5xc-docs-tools/) | Produtividade | Ferramentas de validação e revisão de conteúdo MDX para repositórios de documentação |
+| [f5xc-sales-engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | Produtividade | Framework de persona do Sales Engineer — execução de demonstração, apresentação, Q&A, gerenciamento de ambiente |
 
-## Início Rápido
+## Início rápido
 
 Adicione o marketplace e instale o plugin de ferramentas de documentação:
 
-```
+```text
 /plugin marketplace add f5-sales-demo/marketplace
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
-Consulte [Primeiros Passos](/marketplace/pt-br/getting-started/) para um
-guia completo.
+Consulte [Primeiros passos](/marketplace/en/getting-started/) para um
+guia passo a passo completo.
 
 ## Arquitetura
 
@@ -56,7 +51,7 @@ Um marketplace é um repositório Git que contém um ou mais
 plugins. Cada plugin empacota habilidades, comandos e agentes
 em uma única unidade instalável.
 
-```
+```text
 Marketplace (marketplace.json)
 └── Plugin (plugin.json)
     ├── Skills (SKILL.md)
@@ -71,7 +66,7 @@ Marketplace (marketplace.json)
   habilidades, comandos ou agentes.
 - **Skill** — conhecimento contextual que o Claude ativa
   automaticamente com base na tarefa em questão.
-- **Command** — um comando de barra que o usuário invoca diretamente
-  (ex.: `/review-mdx`).
-- **Agent** — um sub-agente especializado que lida com tarefas complexas
-  e de múltiplas etapas de forma autônoma.
+- **Command** — um comando slash que o usuário invoca diretamente
+  (por exemplo, `/review-mdx`).
+- **Agent** — um subagente especializado que gerencia tarefas complexas
+  e de várias etapas de forma autônoma.

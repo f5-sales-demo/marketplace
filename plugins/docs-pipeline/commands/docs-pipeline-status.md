@@ -3,6 +3,8 @@ description: >-
   Check documentation pipeline configuration and build readiness
 ---
 
+# Documentation pipeline status
+
 Delegate to the pipeline-operator agent to check docs pipeline status.
 
 ## Delegation
@@ -17,4 +19,4 @@ Spawn the pipeline-operator agent with the following instructions:
    - Build tool available and version
    - Managed files governance active (yes/no)
    - Available commands: /docs-pipeline:preview-docs
-4. If pipeline not configured, suggest reviewing the plugin README
+5. If pipeline not configured, suggest reviewing the plugin README

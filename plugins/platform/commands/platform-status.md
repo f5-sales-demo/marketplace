@@ -3,6 +3,8 @@ description: >-
   Check F5 Distributed Cloud platform API connectivity and authentication status
 ---
 
+# Platform status
+
 Delegate to the api-operator agent to check platform readiness.
 
 ## Delegation

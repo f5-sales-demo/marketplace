@@ -56,7 +56,7 @@ If any check fails, return a report with `Status: BLOCKED` and stop.
 
 ### 1. Verify Authentication
 
-```
+```bash
 gh auth status
 ```
 
@@ -67,7 +67,7 @@ Token expiry mid-operation causes cryptic failures — catch it early.
 
 Check if this session is running inside a Git worktree:
 
-```
+```bash
 git rev-parse --is-inside-work-tree >/dev/null 2>&1
 IS_WORKTREE=$(git rev-parse --git-common-dir 2>/dev/null)
 GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
@@ -83,7 +83,7 @@ Note this in the operations table so the caller knows the context.
 
 ### 3. Remove Stale Git Lockfiles
 
-```
+```bash
 LOCK_FILE=$(git rev-parse --git-path index.lock 2>/dev/null)
 [ -f "$LOCK_FILE" ] && rm -f "$LOCK_FILE"
 ```
@@ -93,7 +93,7 @@ Git operations. Safe to remove if no Git process is currently running.
 
 ### 4. Verify Clean Working Tree
 
-```
+```bash
 git status --porcelain
 ```
 
@@ -102,7 +102,7 @@ Never silently discard uncommitted changes.
 
 ### 5. Verify Not in Detached HEAD
 
-```
+```bash
 git symbolic-ref --short HEAD
 ```
 
@@ -113,7 +113,7 @@ Return `BLOCKED` — branch operations will fail or create orphans.
 
 Use `git rev-parse --git-path` to resolve paths (worktree-safe):
 
-```
+```bash
 REBASE_MERGE=$(git rev-parse --git-path rebase-merge 2>/dev/null)
 REBASE_APPLY=$(git rev-parse --git-path rebase-apply 2>/dev/null)
 MERGE_HEAD=$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)
@@ -130,7 +130,7 @@ governance rules, branch naming, PR template requirements.
 
 ### 8. Rate Limit Check
 
-```
+```bash
 gh api rate_limit --jq '{
   remaining: .rate.remaining,
   limit: .rate.limit,
@@ -226,7 +226,7 @@ operator approval.
 
 If an issue number was provided in the input, validate it exists:
 
-```
+```bash
 gh issue view <ISSUE-NUMBER> --json number --jq '.number'
 ```
 
@@ -236,7 +236,7 @@ If the issue does not exist (command fails or returns empty),
 
 If no issue number was provided, create one:
 
-```
+```bash
 gh issue create --title "<type>: <short description>" \
   --body "<detailed description of the changes and why>"
 ```
@@ -255,7 +255,7 @@ every subsequent step depends on the issue number.
 
 Skip if a branch name was provided in the input.
 
-```
+```bash
 git fetch --prune origin
 git checkout main && git pull --ff-only origin main
 git checkout -b <prefix>/<issue-number>-<short-description>
@@ -276,7 +276,7 @@ Branch naming format: `<prefix>/<issue-number>-short-description`
 
 Stage the files listed in the input prompt:
 
-```
+```bash
 git add <specific-files>
 ```
 
@@ -284,7 +284,7 @@ Never use `git add -A` or `git add .` — stage specific files only.
 
 Verify staged files match expectations:
 
-```
+```bash
 git diff --cached --name-only
 ```
 
@@ -292,7 +292,7 @@ git diff --cached --name-only
 
 Run fast pre-commit hooks on staged files (skip Docker super-linter):
 
-```
+```bash
 SKIP=super-linter pre-commit run --files <staged-files>
 ```
 
@@ -310,7 +310,7 @@ the list of failed hooks, and the files checked. Then **STOP**.
 
 ### Step 5: Commit
 
-```
+```bash
 git commit -m "<type>: <description>
 
 Closes #<issue-number>"
@@ -325,7 +325,7 @@ verify the issue number:
    (not empty, not a placeholder, not zero).
 2. Verify the issue still exists on GitHub:
 
-```
+```bash
 gh issue view <ISSUE-NUMBER> --json number,state --jq '"\(.number) \(.state)"'
 ```
 
@@ -335,13 +335,13 @@ Do not push. Do not create a PR.
 
 Only after this check passes, proceed with the push:
 
-```
+```bash
 git push -u origin <branch-name>
 ```
 
 **Before creating the PR**, check if one already exists for this branch:
 
-```
+```bash
 gh pr list --head <branch-name> --json number --jq '.[0].number'
 ```
 
@@ -351,7 +351,7 @@ after fixing lint or CI failures without creating duplicate PRs.
 
 If no PR exists, create one:
 
-```
+```bash
 gh pr create --title "<type>: <short description>" \
   --body "$(cat <<'EOF'
 ## Summary
@@ -374,7 +374,7 @@ EOF
 may not have registered yet. Before polling, wait for at least one
 check to appear:
 
-```
+```bash
 for i in $(seq 1 10); do
   COUNT=$(gh pr checks <NUMBER> --json name --jq 'length' 2>/dev/null)
   [ "$COUNT" -gt 0 ] && break
@@ -418,7 +418,7 @@ below 200.
 **Zombie check detection**: If a check has been `in_progress` for
 more than 30 minutes, report it as a warning. Use:
 
-```
+```bash
 gh api repos/{owner}/{repo}/commits/{sha}/check-runs \
   --jq '.check_runs[] | select(.status == "in_progress") |
     select((now - (.started_at | fromdateiso8601)) > 1800) | .name'
@@ -431,7 +431,7 @@ gh api repos/{owner}/{repo}/commits/{sha}/check-runs \
 1. **Classify the failure** — parse the failed logs to determine
    if this is an infrastructure failure or a code failure:
 
-   ```
+   ```bash
    gh run view <RUN-ID> --log-failed
    ```
 
@@ -444,7 +444,7 @@ gh api repos/{owner}/{repo}/commits/{sha}/check-runs \
 
    If the failure looks like infrastructure, retry failed jobs once:
 
-   ```
+   ```bash
    gh run rerun <RUN-ID> --failed
    ```
 
@@ -457,7 +457,7 @@ gh api repos/{owner}/{repo}/commits/{sha}/check-runs \
 
 2. Post failure summary as a comment on the linked **issue**:
 
-````
+````bash
 gh issue comment <ISSUE-NUMBER> --body "$(cat <<'EOF'
 ## CI Failure Report
 
@@ -479,7 +479,7 @@ EOF
 )"
 ````
 
-3. Return a report with `Status: CI_FAILED` including the full
+1. Return a report with `Status: CI_FAILED` including the full
    error context. Do NOT attempt to fix the code.
 
 ### Step 8: Merge
@@ -487,13 +487,13 @@ EOF
 Once all checks pass, first check if the PR branch is up-to-date
 with the base branch:
 
-```
+```bash
 gh pr view <NUMBER> --json mergeStateStatus --jq '.mergeStateStatus'
 ```
 
 If the status is `BEHIND`, update the branch:
 
-```
+```bash
 gh pr update-branch <NUMBER>
 ```
 
@@ -501,13 +501,13 @@ Then wait for CI to re-run (re-enter Step 7 polling loop).
 
 Once the branch is current and checks pass:
 
-```
+```bash
 gh pr merge <NUMBER> --squash --delete-branch
 ```
 
 If the merge fails, check why:
 
-```
+```bash
 gh pr view <NUMBER> --json mergeable,mergeStateStatus
 ```
 
@@ -535,7 +535,7 @@ to fix — return to the caller.
 
 ### Step 10: Verify and Clean Up
 
-```
+```bash
 # Issue was closed
 gh issue view <ISSUE-NUMBER> --json state --jq '.state'
 
@@ -546,7 +546,7 @@ git branch -d <branch-name>
 
 If `docs/**` changed, verify the docs site via API and HTTP:
 
-```
+```bash
 # Check GitHub Pages build status
 gh api repos/{owner}/{repo}/pages/builds/latest \
   --jq '{status: .status, error: .error.message}'
@@ -574,7 +574,7 @@ backoff). Pause 1 second between consecutive mutative API calls.
 
 Read current settings:
 
-```
+```bash
 gh api repos/{owner}/{repo} --jq '{
   private: .private,
   has_issues: .has_issues,
@@ -598,7 +598,7 @@ gh api repos/{owner}/{repo} --jq '{
 
 Patch only the fields that differ:
 
-```
+```bash
 echo '<JSON_PATCH>' | gh api repos/{owner}/{repo} --method PATCH --input -
 ```
 
@@ -629,13 +629,13 @@ Settable fields and their types:
 
 Read:
 
-```
+```bash
 gh api repos/{owner}/{repo}/actions/permissions/workflow
 ```
 
 Write (PUT replaces all values):
 
-```
+```bash
 echo '{"default_workflow_permissions":"write","can_approve_pull_request_reviews":true}' \
   | gh api repos/{owner}/{repo}/actions/permissions/workflow --method PUT --input -
 ```
@@ -649,13 +649,13 @@ echo '{"default_workflow_permissions":"write","can_approve_pull_request_reviews"
 
 Read (returns 404 if no protection exists):
 
-```
+```bash
 gh api repos/{owner}/{repo}/branches/{branch}/protection
 ```
 
 Write (PUT replaces the entire protection rule):
 
-```
+```bash
 echo '<JSON>' | gh api repos/{owner}/{repo}/branches/{branch}/protection \
   --method PUT --input -
 ```
@@ -703,7 +703,7 @@ Notes on the PUT shape:
 
 Reading individual protection fields for comparison:
 
-```
+```bash
 # enforce_admins (GET returns nested, compare .enforce_admins.enabled)
 gh api repos/{owner}/{repo}/branches/{branch}/protection \
   --jq '.enforce_admins.enabled'
@@ -738,13 +738,13 @@ gh api repos/{owner}/{repo}/branches/{branch}/protection \
 
 Read:
 
-```
+```bash
 gh api repos/{owner}/{repo}/topics --jq '.names'
 ```
 
 Write (PUT replaces all topics):
 
-```
+```bash
 echo '{"names":["topic-1","topic-2"]}' \
   | gh api repos/{owner}/{repo}/topics --method PUT --input -
 ```
@@ -753,21 +753,21 @@ echo '{"names":["topic-1","topic-2"]}' \
 
 Read (returns 404 if Pages not enabled):
 
-```
+```bash
 gh api repos/{owner}/{repo}/pages \
   --jq '{build_type: .build_type, source: .source, status: .status, url: .html_url}'
 ```
 
 Enable Pages (POST — use when GET returns 404):
 
-```
+```bash
 echo '{"build_type":"workflow","source":{"branch":"main","path":"/"}}' \
   | gh api repos/{owner}/{repo}/pages --method POST --input -
 ```
 
 Update Pages (PUT — use when Pages exists but config differs):
 
-```
+```bash
 echo '{"build_type":"workflow","source":{"branch":"main","path":"/"}}' \
   | gh api repos/{owner}/{repo}/pages --method PUT --input -
 ```
@@ -780,14 +780,14 @@ echo '{"build_type":"workflow","source":{"branch":"main","path":"/"}}' \
 
 Check latest Pages build status:
 
-```
+```bash
 gh api repos/{owner}/{repo}/pages/builds/latest \
   --jq '{status: .status, error: .error.message}'
 ```
 
 ### File Contents (read remote config files)
 
-```
+```bash
 gh api repos/{owner}/{repo}/contents/{path} --jq '.content' | base64 -d
 ```
 
@@ -876,7 +876,7 @@ The protocol recognizes these prompt prefixes:
 Before any upstream operation, verify the current repository is
 a GitHub fork:
 
-```
+```bash
 FORK_INFO=$(gh api repos/{owner}/{repo} --jq '{
   fork: .fork,
   parent: .parent.full_name,
@@ -899,21 +899,21 @@ any check.
 
 **1. Search upstream issues (open + closed):**
 
-```
+```bash
 gh search issues --repo {upstream} "<keywords>" --state all --limit 20 \
   --json number,title,state,url --jq '.[]'
 ```
 
 **2. Search upstream PRs (open + closed + draft):**
 
-```
+```bash
 gh search prs --repo {upstream} "<keywords>" --state all --limit 20 \
   --json number,title,state,url --jq '.[]'
 ```
 
 **3. Read upstream CONTRIBUTING.md:**
 
-```
+```bash
 gh api repos/{upstream}/contents/CONTRIBUTING.md --jq '.content' | base64 -d
 ```
 
@@ -928,13 +928,13 @@ continue. Extract from the file:
 
 **4. Check upstream CI/automation workflows:**
 
-```
+```bash
 gh api repos/{upstream}/actions/workflows --jq '.workflows[] | {name, state}'
 ```
 
 **5. Check for upstream issue templates:**
 
-```
+```bash
 gh api repos/{upstream}/contents/.github/ISSUE_TEMPLATE --jq '.[].name' 2>/dev/null
 ```
 
@@ -942,7 +942,7 @@ If templates exist, read the most relevant one for use in Step U1.
 
 **6. Check for upstream PR templates:**
 
-```
+```bash
 gh api repos/{upstream}/contents/.github/pull_request_template.md \
   --jq '.content' | base64 -d 2>/dev/null
 ```
@@ -973,7 +973,7 @@ full research report.
 Skip if `Upstream-Issue:` was provided in the input. If provided,
 validate it exists:
 
-```
+```bash
 gh issue view {number} --repo {upstream} --json number --jq '.number'
 ```
 
@@ -988,7 +988,7 @@ If no upstream issue was provided, create one:
 - Body includes: what the change does, why, and a reference to the
   fork's local work
 
-```
+```bash
 gh issue create --repo {upstream} \
   --title "<title following upstream conventions>" \
   --body "<body following upstream template or standard format>"
@@ -1005,7 +1005,7 @@ proceeding to Step U2.
 Skip if `Upstream-PR:` was provided in the input. If provided,
 validate it exists:
 
-```
+```bash
 gh pr view {number} --repo {upstream} --json number --jq '.number'
 ```
 
@@ -1015,22 +1015,22 @@ If no upstream PR was provided:
 
 1. Ensure the local branch is pushed to the fork's origin:
 
-```
+```bash
 git push -u origin {branch-name}
 ```
 
-2. Check for existing PR from this branch:
+1. Check for existing PR from this branch:
 
-```
+```bash
 gh pr list --repo {upstream} --head {fork-owner}:{branch} \
   --json number --jq '.[0].number'
 ```
 
 If a PR already exists, use it (idempotent re-invocation).
 
-3. If no PR exists, create one:
+1. If no PR exists, create one:
 
-```
+```bash
 gh pr create --repo {upstream} \
   --head {fork-owner}:{branch} \
   --base {upstream-default-branch} \
@@ -1050,7 +1050,7 @@ Capture the upstream PR number. If creation fails, **HALT** with
 
 Create a tracking issue in the fork repo (NOT the upstream):
 
-```
+```bash
 gh issue create \
   --title "upstream: tracking {upstream-owner}/{upstream-repo}#<upstream-issue-number>" \
   --body "$(cat <<'EOF'
@@ -1099,7 +1099,7 @@ remains unchanged:
 
 Additionally, detect bot/automation comments on the upstream PR:
 
-```
+```bash
 gh pr view {number} --repo {upstream} --json comments \
   --jq '[.comments[] | select(
     .authorAssociation == "NONE" or
@@ -1118,21 +1118,21 @@ and `Tracking-Issue:` fields:
 
 1. Check upstream PR state:
 
-```
+```bash
 gh pr view {number} --repo {upstream} \
   --json state,mergedAt,closedAt,reviews,comments,statusCheckRollup,updatedAt
 ```
 
-2. Determine status category:
+1. Determine status category:
    - `MERGED` — `.state == "MERGED"`
    - `CLOSED` — `.state == "CLOSED"` and `.mergedAt` is null
    - `STALE` — `.state == "OPEN"` and `.updatedAt` is more than
      30 days ago
    - `ACTIVE` — `.state == "OPEN"` and updated within 30 days
 
-3. Post status update as a comment on the local tracking issue:
+2. Post status update as a comment on the local tracking issue:
 
-```
+```bash
 gh issue comment {tracking-number} --body "$(cat <<'EOF'
 ## Status Update (<YYYY-MM-DD>)
 
@@ -1146,7 +1146,7 @@ EOF
 )"
 ```
 
-4. Return status report to caller with the status category.
+1. Return status report to caller with the status category.
 
 ### Step U6: Resolve
 
@@ -1174,14 +1174,14 @@ Check the upstream PR state first (same query as U5 step 1).
 
 1. Fetch the closing comment or last comment for context:
 
-```
+```bash
 gh pr view {number} --repo {upstream} --json comments \
   --jq '.comments[-1] | {author: .author.login, body: .body}'
 ```
 
-2. Update the local tracking issue:
+1. Update the local tracking issue:
 
-```
+```bash
 gh issue comment {tracking-number} --body "$(cat <<'EOF'
 ## Upstream PR Closed
 
@@ -1194,14 +1194,14 @@ EOF
 )"
 ```
 
-3. Return `Status: COMPLETE` with the rejection context.
+1. Return `Status: COMPLETE` with the rejection context.
    Local tracking issue stays OPEN.
 
 **If STALE (open, no activity > 30 days):**
 
 1. Update the local tracking issue:
 
-```
+```bash
 gh issue comment {tracking-number} --body "$(cat <<'EOF'
 ## Stale Upstream PR
 
@@ -1215,7 +1215,7 @@ EOF
 )"
 ```
 
-2. Return `Status: COMPLETE` with the stale report.
+1. Return `Status: COMPLETE` with the stale report.
    Local tracking issue stays OPEN.
 
 **If ACTIVE:**
