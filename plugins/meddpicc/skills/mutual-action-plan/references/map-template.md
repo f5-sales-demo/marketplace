@@ -6,7 +6,7 @@ Customer-facing plan template. Customize for each deal.
 
 ```
 # Mutual Action Plan
-## [Customer Name] × [Your Company]
+## [Customer Alias] × [Seller Organization Alias]
 
 ### Business Context
 
@@ -25,48 +25,48 @@ Customer-facing plan template. Customize for each deal.
 
 | # | Milestone | Owner (Customer) | Owner (Seller) | Target Date | Exit Criteria |
 | - | --------- | ---------------- | -------------- | ----------- | ------------- |
-| 1 | Kickoff & requirements alignment | [name] | [name] | [date] | Requirements documented and prioritized |
-| 2 | Technical deep-dive / architecture review | [name] | [name] | [date] | Architecture approach agreed |
-| 3 | Proof of Value — setup | [name] | [name] | [date] | Environment provisioned, test plan approved |
-| 4 | Proof of Value — execution | [name] | [name] | [date] | All test cases executed |
-| 5 | Proof of Value — results review | [name] | [name] | [date] | Results documented, PASS/FAIL assessed |
-| 6 | Business case review | [name] | [name] | [date] | Value model validated by customer |
-| 7 | Executive briefing | [name] | [name] | [date] | EB alignment and sponsorship confirmed |
+| 1 | Kickoff & requirements alignment | [role alias] | [role alias] | [date] | Requirements documented and prioritized |
+| 2 | Technical deep-dive / architecture review | [role alias] | [role alias] | [date] | Architecture approach agreed |
+| 3 | Proof of Value — setup | [role alias] | [role alias] | [date] | Environment provisioned, test plan approved |
+| 4 | Proof of Value — execution | [role alias] | [role alias] | [date] | All test cases executed |
+| 5 | Proof of Value — results review | [role alias] | [role alias] | [date] | Results documented, PASS/FAIL assessed |
+| 6 | Business case review | [role alias] | [role alias] | [date] | Value model validated by customer |
+| 7 | Executive briefing | [role alias] | [role alias] | [date] | EB alignment and sponsorship confirmed |
 
 ### Procurement Roadmap
 
 | # | Step | Owner | Target Date | Notes |
 | - | ---- | ----- | ----------- | ----- |
-| 1 | Vendor onboarding / portal registration | [name] | [date] | |
-| 2 | Security questionnaire submission | [name] | [date] | |
-| 3 | Security review completion | [name] | [date] | |
-| 4 | Legal review — DPA, SLA, terms | [name] | [date] | |
-| 5 | Legal redline resolution | [name] | [date] | |
-| 6 | Quote / proposal delivery | [name] | [date] | |
-| 7 | Internal approval chain | [name] | [date] | |
-| 8 | Signature | [name] | [date] | |
+| 1 | Vendor onboarding / portal registration | [role alias] | [date] | |
+| 2 | Security questionnaire submission | [role alias] | [date] | |
+| 3 | Security review completion | [role alias] | [date] | |
+| 4 | Legal review — DPA, SLA, terms | [role alias] | [date] | |
+| 5 | Legal redline resolution | [role alias] | [date] | |
+| 6 | Quote / proposal delivery | [role alias] | [date] | |
+| 7 | Internal approval chain | [role alias] | [date] | |
+| 8 | Signature | [role alias] | [date] | |
 
 ### Implementation Readiness
 
 | # | Activity | Owner | Target Date | Depends On |
 | - | -------- | ----- | ----------- | ---------- |
-| 1 | Implementation kickoff | [name] | [date] | Signature |
-| 2 | Environment provisioning | [name] | [date] | Kickoff |
-| 3 | Configuration & integration | [name] | [date] | Provisioning |
-| 4 | User training | [name] | [date] | Configuration |
-| 5 | Go-live | [name] | [date] | Training |
-| 6 | 30-day success review | [name] | [date] | Go-live |
+| 1 | Implementation kickoff | [role alias] | [date] | Signature |
+| 2 | Environment provisioning | [role alias] | [date] | Kickoff |
+| 3 | Configuration & integration | [role alias] | [date] | Provisioning |
+| 4 | User training | [role alias] | [date] | Configuration |
+| 5 | Go-live | [role alias] | [date] | Training |
+| 6 | 30-day success review | [role alias] | [date] | Go-live |
 
 ### Stakeholders
 
 | Role | Customer | Seller |
 | ---- | -------- | ------ |
-| Executive Sponsor | [name, title] | [name, title] |
-| Project Lead | [name, title] | [name, title] |
-| Technical Lead | [name, title] | [name, title] |
-| Procurement | [name, title] | [name, title] |
-| Legal | [name, title] | [name, title] |
-| Security | [name, title] | [name, title] |
+| Executive Sponsor | [role alias, title] | [role alias, title] |
+| Project Lead | [role alias, title] | [role alias, title] |
+| Technical Lead | [role alias, title] | [role alias, title] |
+| Procurement | [role alias, title] | [role alias, title] |
+| Legal | [role alias, title] | [role alias, title] |
+| Security | [role alias, title] | [role alias, title] |
 
 ### Success Metrics
 

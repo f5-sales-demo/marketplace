@@ -18,7 +18,9 @@ and this project adheres to
 
 - **`osint-framework`** bumped to v1.0.5
 
-- **`meddpicc`** bumped to v7.5.3
+- **`meddpicc`** v7.5.4 replaces identity-shaped fixtures with reserved role aliases, requires
+  sanitized synthetic inputs and access-controlled artifact storage, and correctly decodes XML
+  entities split across Excel shared-string runs.
 
 - **`devcontainer`** bumped to v1.1.8
 
