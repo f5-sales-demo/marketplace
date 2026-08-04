@@ -211,7 +211,7 @@ export interface PlannedTable {
  * disagree, and neither says so.
  *
  * A plain list row has no such identity: row one is simply the first stakeholder. Swap two names there
- * and the sheet says "David Park" beside "SVP Infrastructure", the deal ends up saying exactly that,
+ * and the sheet says "<DECISION_MAKER>" beside "SVP Infrastructure", the deal ends up saying exactly that,
  * and the two agree. The reader has transcribed a sheet somebody made odd, which is its job. Sorting a
  * single column of a list is the way to make that happen by accident — and it makes the SHEET wrong
  * before any reading occurs, so no read-back policy can recover it. Regenerate instead; the skills say

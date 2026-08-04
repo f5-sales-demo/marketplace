@@ -3,14 +3,14 @@ import { readPath, writePath } from './json-path';
 
 const deal = () => ({
   metadata: { accountName: 'Example Corp', revenue: { acv: 85000 } },
-  stakeholders: [{ name: 'Sarah' }, { name: 'Marcus' }],
+  stakeholders: [{ name: '<STAKEHOLDER_1>' }, { name: '<STAKEHOLDER_2>' }],
   qualification: { metrics: { responses: ['first', 'second'] } },
 });
 
 describe('readPath', () => {
   test('follows properties and indexes', () => {
     expect(readPath(deal(), 'metadata.revenue.acv')).toBe(85000);
-    expect(readPath(deal(), 'stakeholders[1].name')).toBe('Marcus');
+    expect(readPath(deal(), 'stakeholders[1].name')).toBe('<STAKEHOLDER_2>');
     expect(readPath(deal(), 'qualification.metrics.responses[0]')).toBe('first');
   });
 
@@ -40,8 +40,8 @@ describe('writePath', () => {
 
   test('appends at the end of a list', () => {
     const d = deal();
-    expect(writePath(d, 'stakeholders[2].name', 'Dana')).toBeNull();
-    expect(d.stakeholders.map((s) => s.name)).toEqual(['Sarah', 'Marcus', 'Dana']);
+    expect(writePath(d, 'stakeholders[2].name', '<STAKEHOLDER_3>')).toBeNull();
+    expect(d.stakeholders.map((s) => s.name)).toEqual(['<STAKEHOLDER_1>', '<STAKEHOLDER_2>', '<STAKEHOLDER_3>']);
   });
 
   test('builds a list that does not exist yet, but only from its first row', () => {
@@ -58,7 +58,7 @@ describe('writePath', () => {
 
   test('refuses to leave a hole in a list', () => {
     const d = deal();
-    expect(writePath(d, 'stakeholders[4].name', 'Dana')).toMatch(/row 5.*row 3/);
+    expect(writePath(d, 'stakeholders[4].name', '<STAKEHOLDER_5>')).toMatch(/row 5.*row 3/);
     expect(d).toEqual(deal());
   });
 

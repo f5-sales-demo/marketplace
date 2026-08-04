@@ -90,7 +90,10 @@ function unescapeXml(text: string): string {
 function joinTextRuns(xml: string): string {
   // Phonetic hints also live in <t>, and they are annotation, not content.
   const withoutPhonetics = xml.replace(/<rPh[\s\S]*?<\/rPh>/g, '');
-  return [...withoutPhonetics.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((m) => unescapeXml(m[1])).join('');
+  // Excel may split a rich-text run in the middle of an entity (`&` / `lt;`). Join the encoded
+  // fragments first and decode once, otherwise the entity survives as literal text.
+  const encoded = [...withoutPhonetics.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((m) => m[1]).join('');
+  return unescapeXml(encoded);
 }
 
 function attribute(attrs: string, name: string): string | undefined {
@@ -709,7 +712,7 @@ export function readWorkbook(schema: unknown, spec: WorkbookSpec, deal: unknown,
   // stakeholder. That leaves one real hazard: sorting or pasting a SINGLE column detaches its values
   // from the rest of their rows, and a faithful reader then writes the scrambled pairing into the deal,
   // losing the original on `--apply`. Measured before this guard: swapping two stakeholder names gave
-  // `ok` true, no rejections, and David Park ended up with Sarah Chen's title.
+  // `ok` true, no rejections, and <DECISION_MAKER> ended up with <ECONOMIC_BUYER>'s title.
   //
   // The signal is precise. A column holding the SAME SET of values in a DIFFERENT ORDER has been
   // re-ordered — nobody edits two people's names into each other's, and no ordinary edit leaves the

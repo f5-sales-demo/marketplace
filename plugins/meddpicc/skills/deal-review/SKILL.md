@@ -16,6 +16,14 @@ This is the operational heartbeat of MEDDPICC — it keeps deals real
 and forecastable. Reviews read from and write to structured JSON deal
 files.
 
+## Identity safety gate
+
+Use synthetic demo data only. Require role aliases for every person and
+never persist or repeat legal or full names, contact details, social
+handles, or other personal identifiers. If the deal file or new review
+material contains them, stop and ask for a sanitized copy before making
+any write.
+
 ## Schema
 
 The deal data model is defined in
@@ -81,7 +89,7 @@ exact keys in all `jq` paths — display name ≠ key.
 Handle both `null` and `""` as empty with `// ""`:
 
 ```bash
-jq --arg new "[2026-05-20 weekly-review] Fred confirmed ARB slot June 2" \
+jq --arg new "[2026-05-20 weekly-review] <CHAMPION> confirmed ARB slot June 2" \
   '.qualification.metrics.evidence = (
     ((.qualification.metrics.evidence // "") | if . == "" then $new else . + "\n" + $new end)
   )' "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
@@ -225,7 +233,7 @@ For the final writes:
    interaction discussed:
 
    ```bash
-   jq --arg date "2026-05-20" --arg reviewer "John Smith" \
+   jq --arg date "2026-05-20" --arg reviewer "<REVIEWER>" \
       --arg lastDate "2026-05-20" --arg lastOutcome "Weekly review" \
      '.metadata.reviewDate = $date |
       .metadata.reviewer = $reviewer |
@@ -240,8 +248,8 @@ For the final writes:
 
 ## Output Format
 
-```
-## Deal Review: [Account Name]
+```text
+## Deal Review: [Account Alias]
 ### Date: [today's date]
 ### Stage: [stage] → [recommended stage change, if any]
 ### Score: [X/32] ([percentage]%) — [Red/Yellow/Green]

@@ -23,7 +23,7 @@
         },
         "accountTeam": {
           "type": "string",
-          "description": "The account team owning the relationship (the sellers), e.g. \"Randy Dotson and Tyler Brown\". Distinct from `team.internal`, which is the specialist bench assigned to the deal."
+          "description": "The account team owning the relationship (the sellers), using role-based aliases such as \"<SELLER_1> and <SELLER_2>\". Never store legal or full names. Distinct from `team.internal`, which is the specialist bench assigned to the deal."
         },
         "dealName": {
           "type": "string",
@@ -118,7 +118,7 @@
         },
         "reviewer": {
           "type": "string",
-          "description": "Person conducting the review"
+          "description": "Role-based alias for the person conducting the review; never store legal or full names"
         },
         "salesforce": {
           "type": "object",
@@ -467,7 +467,8 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "pattern": "\\S"
+            "pattern": "\\S",
+            "description": "Role-based stakeholder alias; never store legal or full names"
           },
           "title": {
             "type": "string",
@@ -498,7 +499,7 @@
           },
           "relationshipOwner": {
             "type": "string",
-            "description": "Team member responsible for this relationship"
+            "description": "Role-based alias for the team member responsible for this relationship; never store legal or full names"
           }
         },
         "required": ["name", "title", "roleInDeal"]
@@ -552,7 +553,8 @@
                 "type": "string"
               },
               "owner": {
-                "type": "string"
+                "type": "string",
+                "description": "Role-based owner alias; never store legal or full names"
               },
               "dueDate": {
                 "type": "string",
@@ -577,7 +579,8 @@
             "type": "object",
             "properties": {
               "name": {
-                "type": "string"
+                "type": "string",
+                "description": "Role-based internal team alias; never store legal or full names"
               },
               "role": {
                 "type": "string"
@@ -598,7 +601,8 @@
             "type": "object",
             "properties": {
               "name": {
-                "type": "string"
+                "type": "string",
+                "description": "Role-based partner team alias; never store legal or full names"
               },
               "role": {
                 "type": "string"

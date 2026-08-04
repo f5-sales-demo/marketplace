@@ -189,10 +189,10 @@ describe('migrateDeal', () => {
   test('two non-empty lists are never merged — that would invent people', () => {
     // Concatenating would duplicate whoever appears in both, and no order is defensible.
     const legacy = asLegacyDeal();
-    legacy.team.internal = [{ name: 'Someone Else', role: 'AE' }];
+    legacy.team.internal = [{ name: '<LEGACY_TEAM_MEMBER>', role: 'AE' }];
     const result = migrateDeal(legacy);
     expect(result.conflicts).toHaveLength(1);
-    expect(shape(result.deal).team.internal).toEqual([{ name: 'Someone Else', role: 'AE' }]);
+    expect(shape(result.deal).team.internal).toEqual([{ name: '<LEGACY_TEAM_MEMBER>', role: 'AE' }]);
     expect(shape(result.deal).team.f5).toEqual(shape(asLegacyDeal()).team.f5);
   });
 

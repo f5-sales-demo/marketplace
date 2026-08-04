@@ -1,10 +1,10 @@
 ---
 name: deal-update
 description: >-
-  Ingest unstructured intelligence into a MEDDPICC deal file. Accepts
-  any source — meeting notes, email threads, call transcripts, OSINT
-  reports, Salesforce updates, competitive intel briefs, presentation
-  feedback, or any text containing deal-relevant information. Extracts
+  Ingest sanitized unstructured intelligence into a MEDDPICC deal file.
+  Accepts sanitized meeting notes, email threads, call transcripts,
+  Salesforce updates, competitive intel briefs, presentation feedback,
+  or other sanitized deal-relevant text. Extracts
   MEDDPICC elements, proposes updates with a structured diff, and writes
   confirmed changes to the deal JSON. Use when the user says "here are
   my meeting notes", "update the deal with this", "I got an email from",
@@ -20,18 +20,25 @@ MEDDPICC deal file. This is the **primary ongoing interaction** for
 keeping a deal's qualification data current as new information
 arrives throughout the deal cycle.
 
+## Identity safety gate
+
+Accept only synthetic or pre-sanitized inputs. Every person must use a
+stable role alias such as `<ECONOMIC_BUYER>` or `<CHAMPION>`. Never
+persist or repeat legal or full names, email addresses, phone numbers,
+social handles, or other personal identifiers. If an input contains
+them, stop and ask for a sanitized copy; do not write a partial update.
+
 ## Supported Input Types
 
 - Meeting notes and call summaries
-- Email threads (forwarded or pasted)
-- Online meeting transcripts (Zoom, Teams, Google Meet)
-- OSINT research reports
+- Sanitized email excerpts
+- Sanitized online meeting transcripts
 - Competitive intelligence briefs
-- Salesforce opportunity exports or field summaries
+- Sanitized Salesforce opportunity exports or field summaries
 - Presentation or demo feedback
-- Internal Slack/Teams conversations
-- Customer-facing documents (RFPs, SOWs, evaluation matrices)
-- Prospect site or public filings analysis
+- Sanitized internal collaboration excerpts
+- Sanitized customer-facing documents (RFPs, SOWs, evaluation matrices)
+- Company-level public filings analysis
 - News articles about the account or competitors
 
 ## Engine (deterministic source of truth)
@@ -120,7 +127,7 @@ Stakeholders require `name`, `title`, and `roleInDeal` (schema
 required fields). Initialize the array if absent:
 
 ```bash
-jq --argjson s '{"name":"Jane Doe","title":"CISO","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"Meets compliance","sentiment":"Neutral","relationshipOwner":"John Smith"}' \
+jq --argjson s '{"name":"<NEW_STAKEHOLDER>","title":"CISO","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"Meets compliance","sentiment":"Neutral","relationshipOwner":"<RELATIONSHIP_OWNER>"}' \
   'if .stakeholders then .stakeholders += [$s] else .stakeholders = [$s] end' \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
@@ -270,15 +277,15 @@ Read the deal JSON and load current scores and evidence for all
 Before writing anything, display a structured summary of all
 proposed changes:
 
-```
-## Proposed Updates: [Account Name]
+```text
+## Proposed Updates: [Account Alias]
 ### Source: [source-type] — [date]
 
 | # | Element | Update Type | Current Value (truncated) | Proposed Change |
 |---|---------|-------------|--------------------------|-----------------|
 | 1 | Pain | evidence append | "" | "[2026-05-06 meeting] 3 incidents in Q1..." |
-| 2 | Champion | evidence append | "Barney..." | "[2026-05-06 meeting] Barney presented to steering..." |
-| 3 | Economic Buyer | response update | "Fred Flinstone" | "Fred confirmed $500K budget in today's meeting" |
+| 2 | Champion | evidence append | "<CHAMPION>..." | "[2026-05-06 meeting] <CHAMPION> presented to steering..." |
+| 3 | Economic Buyer | response update | "<ECONOMIC_BUYER>" | "The buyer confirmed $500K budget in today's meeting" |
 
 ### Score Recommendations
 
@@ -292,7 +299,7 @@ Current overall: X/32 (Y%) [Rating] → Proposed: X/32 (Y%) [Rating]
 
 ### Flags
 - [CONFLICT] Competition: Input says Vendor A is "not in the running" — contradicts existing note that customer is actively evaluating Vendor A. Clarify before updating.
-- [NEW STAKEHOLDER] Lisa Wang (CISO) mentioned — add to stakeholder list?
+- [NEW STAKEHOLDER] <SECURITY_STAKEHOLDER> (CISO) mentioned — add to stakeholder list?
 ```
 
 **Rules:**
@@ -345,8 +352,8 @@ Display the full MEDDPICC scorecard in the deal-qualification
 output format, highlighting which elements changed and by how
 much since this ingestion session.
 
-```
-## MEDDPICC Scorecard: [Account Name] (Updated)
+```text
+## MEDDPICC Scorecard: [Account Alias] (Updated)
 ### Source ingested: [source-type] — [date]
 ### Elements updated: [list]
 ### Overall: X/32 (Y%) — [Rating] (was Z/32 before this update)

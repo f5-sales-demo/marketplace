@@ -18,6 +18,15 @@ structured data into a JSON file that validates against the MEDDPICC
 schema, score each element 0-4, identify gaps, and recommend next
 actions.
 
+## Identity safety gate
+
+Use synthetic demo data only. Before reading or writing a deal, require
+all people to be represented by stable role aliases such as
+`<ECONOMIC_BUYER>`, `<CHAMPION>`, or `<SELLER_1>`. Never persist or
+repeat legal or full names, email addresses, phone numbers, social
+handles, or other personal identifiers. If source material contains
+them, stop and ask for a sanitized copy.
+
 ## Schema
 
 The deal data model is defined in
@@ -125,7 +134,7 @@ Stakeholders require `name`, `title`, and `roleInDeal`. Initialize
 the array if absent:
 
 ```bash
-jq --argjson item '{"name":"Jane","title":"VP","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"...","sentiment":"Neutral","relationshipOwner":"John Smith"}' \
+jq --argjson item '{"name":"<NEW_STAKEHOLDER>","title":"VP","roleInDeal":"Influencer","mustSayYes":false,"canSayNo":true,"whatTheyNeedToBelieve":"...","sentiment":"Neutral","relationshipOwner":"<RELATIONSHIP_OWNER>"}' \
   'if .stakeholders then .stakeholders += [$item] else .stakeholders = [$item] end' \
   "$DEAL_FILE" > "$DEAL_FILE.tmp" && mv "$DEAL_FILE.tmp" "$DEAL_FILE"
 ```
@@ -244,10 +253,11 @@ User invokes with an existing complete deal.
 Deal JSON files are stored at a configurable path:
 
 1. If the user specifies a path, use it
-2. Otherwise, use the current working directory
-3. File naming: `{accountName}-{dealName}.json` (slugified —
+2. Otherwise, stop and ask the user for an explicit access-controlled
+   location outside any Git worktree
+3. File naming: `{accountAlias}-{dealAlias}.json` (slugified —
    lowercase, spaces replaced with hyphens, special characters
-   removed)
+   removed). Never place a real account or customer name in the path.
 
 ## Scoring Protocol
 
