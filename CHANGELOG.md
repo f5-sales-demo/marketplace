@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.5.5 — CLI parsing and validation now derive from one command declaration,
+  rejecting stray positional arguments and exposing every declared option as named parsed input
+  ([#946](https://github.com/f5-sales-demo/marketplace/issues/946)).
+
 - **`salesforce`** bumped to v1.3.10
 
 - **`salesforce-legacy`** bumped to v1.0.3

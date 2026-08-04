@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { COMMAND_SPECS, parseCommandArguments } from './cli-arguments';
 
 const engineDir = import.meta.dir;
 const example = path.join(engineDir, '..', 'schema', 'example-deal.json');
@@ -55,6 +56,44 @@ async function run(args: string[]): Promise<{ code: number; out: string; err: st
 }
 
 describe('cli', () => {
+  test('every command rejects positional arguments beyond its declaration', async () => {
+    for (const [command, spec] of Object.entries(COMMAND_SPECS)) {
+      const positionals = spec.positionals.map(({ name }) => `<${name}>`);
+      const { code, err } = await run([command, ...positionals, '<unexpected>']);
+      expect(code, command).toBe(1);
+      expect(err, command).toContain(spec.usage);
+      expect(err, command).toMatch(/positional argument/);
+    }
+  });
+
+  test('every declared option is parsed into its named command option', () => {
+    for (const [command, spec] of Object.entries(COMMAND_SPECS)) {
+      const required = spec.positionals.filter(({ required }) => required).map(({ name }) => `<${name}>`);
+      for (const option of spec.options) {
+        const value = `<${option.name}>`;
+        const requiredOptions = spec.options
+          .filter((candidate) => candidate.required && candidate.name !== option.name)
+          .flatMap((candidate) => [candidate.flag, `<${candidate.name}>`]);
+        const parsed = parseCommandArguments(command, [
+          ...required,
+          ...requiredOptions,
+          option.flag,
+          ...(option.kind === 'value' ? [value] : []),
+        ]);
+        expect(parsed.options[option.name], `${command} ${option.flag}`).toBe(option.kind === 'value' ? value : true);
+      }
+    }
+  });
+
+  test('every required option is enforced by its command declaration', () => {
+    for (const [command, spec] of Object.entries(COMMAND_SPECS)) {
+      const positionals = spec.positionals.filter(({ required }) => required).map(({ name }) => `<${name}>`);
+      for (const option of spec.options.filter(({ required }) => required)) {
+        expect(() => parseCommandArguments(command, positionals), `${command} ${option.flag}`).toThrow(option.flag);
+      }
+    }
+  });
+
   test('score', async () => {
     const { code, out } = await run(['score', example]);
     expect(code).toBe(0);

@@ -2,6 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
+import { isCommandName, parseCommandArguments } from './cli-arguments';
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
 import { loadLocale, resolveLocale } from './locale';
@@ -56,78 +57,6 @@ function print(data: unknown): void {
 }
 
 /**
- * The value given for a flag, refusing every way of asking for one and not supplying it.
- *
- * Every flag here takes a value — the boolean ones are read with `includes` — so "present with nothing
- * after it" is never a legitimate call. Collapsing it into "absent" is what let `generate deal.json --spec
- * --locale en` build from the DEFAULT spec and exit 0, and `--out=path` write somewhere else entirely.
- *
- * Six rounds of review found six holes in the parser that used to be here, one at a time: the equals form,
- * a repeated flag, an empty value, a following flag taken as the value, validation on only one code path,
- * and finally this. They are all the same mistake — treating a malformed request as no request — so the
- * checks belong in one place that every flag goes through, rather than in a second function only the newest
- * flag remembered to call.
- */
-/**
- * Refuse an argument that looks like a flag and is not one this command has.
- *
- * The last way left to have a request ignored. `--local=ko` is a typo for `--locale=ko`, and a parser that
- * only looks for names it knows sees no locale request at all — so generation falls back to English, exits
- * 0, and produces a plausible workbook that contradicts what the command line plainly asked for.
- *
- * Seventh and last of the parser findings, all one mistake in different clothes: a malformed request treated
- * as no request. Nothing can be ignored once every unrecognised flag is named.
- */
-function refuseUnknownFlags(args: string[], takes: { values?: readonly string[]; booleans?: readonly string[] }): void {
-  const values = takes.values ?? [];
-  const booleans = takes.booleans ?? [];
-  const known = [...values, ...booleans];
-  for (const arg of args) {
-    // Any leading dash, not only two. `-locale ko` and `-apply` are what a person types by mistake, and
-    // checking `--` alone let them through as positional arguments nothing reads: English output, exit 0,
-    // and for `migrate -apply` a dry run reported as success. No path this CLI takes begins with a dash.
-    if (!arg.startsWith('-')) continue;
-    const name = arg.split('=')[0] ?? arg;
-    if (!known.includes(name)) {
-      throw new Error(`Unknown option ${arg}. This command takes ${known.join(', ')}.`);
-    }
-    // A boolean is read with `includes`, which matches the bare token only — so `--apply=true` would pass an
-    // allowlist keyed on the text before `=` and then do nothing, and `migrate --apply=true` would report
-    // success having changed not one deal. There is no value to give a switch.
-    if (booleans.includes(name) && arg !== name) {
-      throw new Error(`${name} is a switch and takes no value. Pass ${name} on its own.`);
-    }
-  }
-}
-
-function flag(args: string[], name: string): string | undefined {
-  const values: Array<string | undefined> = [];
-  for (const [i, arg] of args.entries()) {
-    if (arg === name) {
-      const next = args[i + 1];
-      // A following flag is not this flag's value: `--spec --locale en` gave `--spec` nothing.
-      values.push(next === undefined || next.startsWith('--') ? undefined : next);
-    } else if (arg.startsWith(`${name}=`)) {
-      values.push(arg.slice(name.length + 1));
-    }
-  }
-  if (values.length === 0) return undefined;
-  if (values.length > 1) {
-    // No right answer to guess at: `--locale en --locale=ko` is what a script appending an override looks
-    // like, and picking a half is how the wrong half gets honoured silently.
-    throw new Error(`${name} was given ${values.length} times. Pass it once.`);
-  }
-  const value = values[0];
-  if (value === undefined) throw new Error(`${name} was given with no value. Pass one, or leave the flag off.`);
-  if (value.trim() === '') {
-    // `--locale ""` and `--locale=` are what an unset shell variable expands to. The flag is present, so
-    // somebody meant to pass something and it evaporated.
-    throw new Error(`${name} was given an empty value. Pass a value, or leave the flag off.`);
-  }
-  return value;
-}
-
-/**
  * Refuse a deal that still uses the retired field names.
  *
  * The schema constrains no additional properties, so an old file validates cleanly while its
@@ -148,14 +77,24 @@ function refuseLegacyDeal(deal: unknown, dealPath: string): number | null {
 }
 
 async function main(): Promise<number> {
-  const [command, ...rest] = process.argv.slice(2);
+  const [requestedCommand, ...rawArguments] = process.argv.slice(2);
+  if (!isCommandName(requestedCommand)) {
+    process.stderr.write(
+      `Unknown command: ${requestedCommand ?? '(none)'}\nCommands: validate, next, score, hint, generate, read, migrate, check-sfdc, check-spec\n`,
+    );
+    return 1;
+  }
+  const command = requestedCommand;
+  let parsed: ReturnType<typeof parseCommandArguments>;
+  try {
+    parsed = parseCommandArguments(command, rawArguments);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
 
   if (command === 'validate' || command === 'next' || command === 'score') {
-    const dealPath = rest[0];
-    if (!dealPath) {
-      process.stderr.write(`Usage: cli.ts ${command} <deal.json>\n`);
-      return 1;
-    }
+    const dealPath = parsed.positionals.dealPath as string;
     const deal = await readJson(dealPath);
     // Before `score` and `next`, not just `validate`: `computeCompletion` reads `threeWhys.us` and
     // `team.internal`, so on an unmigrated deal `next` would call two finished sections
@@ -182,7 +121,7 @@ async function main(): Promise<number> {
 
   if (command === 'hint') {
     const schema = await readJson(SCHEMA_PATH);
-    const element = rest[0];
+    const element = parsed.positionals.element;
     if (!element) {
       print(computeHintOverview(schema));
       return 0;
@@ -197,28 +136,19 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-sfdc') {
-    refuseUnknownFlags(rest, { values: ['--schema', '--sfdc'] });
-    const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
-    const sfdc = await readJson(flag(rest, '--sfdc') ?? SFDC_PATH);
+    const schema = await readJson((parsed.options.schemaPath as string | undefined) ?? SCHEMA_PATH);
+    const sfdc = await readJson((parsed.options.sfdcPath as string | undefined) ?? SFDC_PATH);
     const result = checkSfdcMapping(schema, sfdc);
     print(result);
     return result.ok ? 0 : 1;
   }
 
   if (command === 'generate') {
-    refuseUnknownFlags(rest, {
-      values: ['--out', '--spec', '--locale'],
-      booleans: ['--plan', '--prose-heights'],
-    });
-    const dealPath = rest[0];
-    if (!dealPath) {
-      process.stderr.write(
-        'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>] [--locale <slug>]\n',
-      );
-      return 1;
-    }
+    const dealPath = parsed.positionals.dealPath as string;
     const schema = await readJson(SCHEMA_PATH);
-    const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
+    const spec = (await readJson(
+      (parsed.options.specPath as string | undefined) ?? WORKBOOK_SPEC_PATH,
+    )) as WorkbookSpec;
     const deal = await readJson(dealPath);
 
     // Refuse before writing rather than producing a plausible-looking workbook from bad
@@ -248,9 +178,13 @@ async function main(): Promise<number> {
     // Resolved BEFORE the early returns below. `--plan --locale ar` used to exit 0 while the same request
     // on the writing path was refused, so an explicit locale was validated or ignored depending on which
     // flag came with it. Review caught that; the resolution belongs to the command, not to one branch.
-    const locale = loadLocale(resolveLocale({ flag: flag(rest, '--locale'), deal, env: process.env }), spec, schema);
+    const locale = loadLocale(
+      resolveLocale({ flag: parsed.options.locale as string | undefined, deal, env: process.env }),
+      spec,
+      schema,
+    );
 
-    if (rest.includes('--prose-heights')) {
+    if (parsed.options.proseHeights === true) {
       const plan = planWorkbook(schema, spec, deal, locale);
       const heightOf = new Map<string, number>();
       for (const sheet of plan.sheets) {
@@ -276,7 +210,7 @@ async function main(): Promise<number> {
 
     // `--plan` reports where every input landed without writing a file — that map is what
     // the round-trip reader consumes, so being able to inspect it is worth a flag.
-    if (rest.includes('--plan')) {
+    if (parsed.options.plan === true) {
       const plan = planWorkbook(schema, spec, deal, locale);
       print({
         sheets: plan.sheets.map((s) => ({ name: s.name, rows: s.rows.length })),
@@ -293,7 +227,7 @@ async function main(): Promise<number> {
       return 0;
     }
 
-    const outPath = flag(rest, '--out');
+    const outPath = parsed.options.outPath as string | undefined;
     if (!outPath) {
       process.stderr.write('generate needs --out <file.xlsx> (or --plan to inspect the layout)\n');
       return 1;
@@ -322,15 +256,12 @@ async function main(): Promise<number> {
   }
 
   if (command === 'read') {
-    refuseUnknownFlags(rest, { values: ['--deal', '--spec'], booleans: ['--apply'] });
-    const workbookPath = rest[0];
-    const dealPath = flag(rest, '--deal');
-    if (!workbookPath || !dealPath) {
-      process.stderr.write('Usage: cli.ts read <workbook.xlsx> --deal <deal.json> [--apply]\n');
-      return 1;
-    }
+    const workbookPath = parsed.positionals.workbookPath as string;
+    const dealPath = parsed.options.dealPath as string;
     const schema = await readJson(SCHEMA_PATH);
-    const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
+    const spec = (await readJson(
+      (parsed.options.specPath as string | undefined) ?? WORKBOOK_SPEC_PATH,
+    )) as WorkbookSpec;
     const deal = await readJson(dealPath);
     const legacy = refuseLegacyDeal(deal, dealPath);
     if (legacy !== null) return legacy;
@@ -351,7 +282,7 @@ async function main(): Promise<number> {
     // The deal JSON is the source of truth, so the default is to say what the workbook
     // proposes and change nothing. `--apply` is the only path that writes, and it writes only
     // a deal that validates — a partly-applied file would be worse than no file.
-    const apply = rest.includes('--apply') && report.ok && report.proposals.length > 0;
+    const apply = parsed.options.apply === true && report.ok && report.proposals.length > 0;
     if (apply) await Bun.write(dealPath, `${JSON.stringify(report.deal, null, 2)}\n`);
 
     print({
@@ -368,26 +299,21 @@ async function main(): Promise<number> {
       errors: report.errors,
       applied: apply,
     });
-    if (rest.includes('--apply') && !report.ok) {
+    if (parsed.options.apply === true && !report.ok) {
       process.stderr.write('Refusing to apply: fix the cells listed above, or edit the JSON directly.\n');
     }
     return report.ok ? 0 : 1;
   }
 
   if (command === 'migrate') {
-    refuseUnknownFlags(rest, { booleans: ['--apply'] });
-    const dealPath = rest[0];
-    if (!dealPath) {
-      process.stderr.write('Usage: cli.ts migrate <deal.json> [--apply]\n');
-      return 1;
-    }
+    const dealPath = parsed.positionals.dealPath as string;
     const deal = await readJson(dealPath);
     const { deal: migrated, changes, resolved, conflicts } = migrateDeal(deal);
 
     // Same posture as `read`: say what would change and write nothing unless asked — and write
     // nothing at all while a field is set under both names, since applying the rest would leave a
     // half-migrated file whose remaining conflict is easy to miss.
-    const apply = rest.includes('--apply') && changes.length + resolved.length > 0 && conflicts.length === 0;
+    const apply = parsed.options.apply === true && changes.length + resolved.length > 0 && conflicts.length === 0;
     if (apply) await Bun.write(dealPath, `${JSON.stringify(migrated, null, 2)}\n`);
 
     const schema = await readJson(SCHEMA_PATH);
@@ -401,18 +327,16 @@ async function main(): Promise<number> {
   }
 
   if (command === 'check-spec') {
-    refuseUnknownFlags(rest, { values: ['--spec', '--schema'] });
-    const schema = await readJson(flag(rest, '--schema') ?? SCHEMA_PATH);
-    const spec = (await readJson(flag(rest, '--spec') ?? WORKBOOK_SPEC_PATH)) as WorkbookSpec;
+    const schema = await readJson((parsed.options.schemaPath as string | undefined) ?? SCHEMA_PATH);
+    const spec = (await readJson(
+      (parsed.options.specPath as string | undefined) ?? WORKBOOK_SPEC_PATH,
+    )) as WorkbookSpec;
     const result = checkWorkbookSpec(schema, spec);
     print(result);
     return result.ok ? 0 : 1;
   }
 
-  process.stderr.write(
-    `Unknown command: ${command ?? '(none)'}\nCommands: validate, next, score, hint, generate, read, migrate, check-sfdc, check-spec\n`,
-  );
-  return 1;
+  return command satisfies never;
 }
 
 process.exit(await main());
