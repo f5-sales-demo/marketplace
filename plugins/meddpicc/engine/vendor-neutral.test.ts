@@ -104,7 +104,7 @@ describe('the plugin names no vendor', () => {
     // the camelCase cases are exactly the ones an earlier `\bf5\b` version let through.
     for (const line of [
       '  "viewOfF5": "Positive",',
-      '  "f5Owner": "<HISTORICAL_IDENTITY_A2DD3ACADB>",',
+      '  "f5Owner": "<ACCOUNT_EXECUTIVE>",',
       '  "whyF5": "...",',
       '  "label": "Why F5?"',
       '  "jsonPath": "team.f5"',
@@ -112,7 +112,7 @@ describe('the plugin names no vendor', () => {
     ]) {
       expect(VENDOR.test(line)).toBe(true);
     }
-    for (const line of ['  "sentiment": "Positive",', '  "relationshipOwner": "<HISTORICAL_IDENTITY_A2DD3ACADB>",']) {
+    for (const line of ['  "sentiment": "Positive",', '  "relationshipOwner": "<ACCOUNT_EXECUTIVE>",']) {
       expect(VENDOR.test(line)).toBe(false);
     }
   });

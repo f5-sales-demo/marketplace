@@ -1502,7 +1502,7 @@ echo "PASS: edits made in Excel round-trip into the deal JSON, and applying them
 # found it; this is the case it named.
 nameless="$WORK/nameless.json"
 jq '.team.internal = [{"role": "Solutions Engineer"}]
-  | .closePlan.milestones = [{"owner": "<HISTORICAL_IDENTITY_A2DD3ACADB>", "targetDate": "2026-06-01"}]' "$DEAL" >"$nameless" ||
+  | .closePlan.milestones = [{"owner": "<ACCOUNT_EXECUTIVE>", "targetDate": "2026-06-01"}]' "$DEAL" >"$nameless" ||
   fail "could not build the nameless-entry deal"
 bun "$PLUGIN_ROOT/engine/cli.ts" validate "$nameless" >/dev/null || fail "the nameless-entry deal does not validate"
 nameless_out="$WORK/nameless.xlsx"
@@ -1583,7 +1583,7 @@ done
 wait_until_ready "$GROWN_BOOK" "$grown_sheet" "$name_col$last_row" ||
   fail "Excel never finished opening $GROWN_BOOK"
 excel_do "the overflowing stakeholder row" "  set wb to workbook \"$GROWN_BOOK\"
-  set value of range \"$name_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Dana Reyes\"
+  set value of range \"$name_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"<NEW_STAKEHOLDER_1>\"
   set value of range \"$title_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"VP Platform\"
   set value of range \"$role_col$grown_row\" of worksheet \"$grown_sheet\" of wb to \"Influencer\"
   save wb

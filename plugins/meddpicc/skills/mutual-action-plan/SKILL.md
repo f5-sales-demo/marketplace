@@ -20,6 +20,10 @@ seller and buyer agree to. It converts the Decision Process and
 Paper Process into a concrete, actionable roadmap with dates, owners,
 and exit criteria.
 
+Use synthetic demo data only. Represent every owner and stakeholder by
+a stable role alias; never request, persist, or repeat legal or full
+names or personal contact details.
+
 ## MAP Design Protocol
 
 ### Step 1 — Gather inputs
@@ -49,7 +53,7 @@ full template.
 
 Every task must have:
 
-- **Owner:** Named person (customer or seller side)
+- **Owner:** Role alias (customer or seller side)
 - **Date:** Specific date, not "TBD"
 - **Exit criteria:** How we know this step is complete
 - **Dependencies:** What must happen first

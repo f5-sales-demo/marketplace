@@ -23,7 +23,7 @@
       "objective": "Present POC results to steering committee"
     },
     "reviewDate": "2026-05-05",
-    "reviewer": "<HISTORICAL_IDENTITY_A2DD3ACADB>",
+    "reviewer": "<ACCOUNT_EXECUTIVE>",
     "salesforce": {
       "opportunityId": "006000000000000AAA",
       "accountId": "001000000000000AAA",
@@ -70,7 +70,7 @@
       "definition": "The individual with final budget authority and political power to fund the purchase",
       "questions": ["Who makes the buying decision?", "How are we engaged with them to address their priorities?"],
       "responses": [
-        "<HISTORICAL_IDENTITY_D3C487ABA7>, SVP Infrastructure — confirmed budget authority for all platform security investments up to $500K",
+        "<ECONOMIC_BUYER>, SVP Infrastructure — confirmed budget authority for all platform security investments up to $500K",
         "Direct meeting held 2026-04-20. She is focused on reducing security incidents before Q3 board review. Follow-up scheduled May 15."
       ],
       "score": 3,
@@ -81,8 +81,8 @@
         "3": "Aligned — Direct access achieved; EB priorities and personal win documented",
         "4": "Sponsoring — EB is actively sponsoring the deal through procurement"
       },
-      "evidence": "Meeting notes from 2026-04-20 one-on-one with <HISTORICAL_IDENTITY_D3C487ABA7>. Champion confirmed her budget authority.",
-      "notes": "<HISTORICAL_IDENTITY_7E8C729E4E> reports to CIO; CIO is supportive but not directly involved"
+      "evidence": "Meeting notes from 2026-04-20 one-on-one with <ECONOMIC_BUYER>. Champion confirmed the buyer's budget authority.",
+      "notes": "<ECONOMIC_BUYER> reports to CIO; CIO is supportive but not directly involved"
     },
     "decisionCriteria": {
       "definition": "The requirements the customer will use to evaluate options — technical, business, operational, and commercial",
@@ -169,7 +169,7 @@
       "definition": "A powerful internal advocate who sells for you when you're not in the room",
       "questions": ["Who will benefit most from this transaction?", "Can they influence the buying process?"],
       "responses": [
-        "<HISTORICAL_IDENTITY_AF9456C4DA>, Director of Platform Engineering — he owns the API gateway team and will be directly measured on MTTR improvement",
+        "<CHAMPION>, Director of Platform Engineering — this stakeholder owns the API gateway team and will be directly measured on MTTR improvement",
         "Yes — he reports to the CTO, introduced us to the EB, and is running the POC internally. Shared competitor pricing last week."
       ],
       "score": 4,
@@ -180,8 +180,8 @@
         "3": "Validated — Named individual with influence and credibility; personal win documented",
         "4": "Mobilizing — Champion is actively coaching you, sharing intel, and taking concrete actions weekly"
       },
-      "evidence": "<HISTORICAL_IDENTITY_9DC415325A> scheduled the EB meeting, shared competitor pricing (Vendor A quote), and presented our POC results at the architecture review board on 2026-04-28.",
-      "notes": "<HISTORICAL_IDENTITY_9DC415325A>'s personal win: his team gets headcount if MTTR target is met with automation"
+      "evidence": "<CHAMPION> scheduled the EB meeting, shared competitor pricing (Vendor A quote), and presented our POC results at the architecture review board on 2026-04-28.",
+      "notes": "<CHAMPION>'s personal win: the platform team gets headcount if the MTTR target is met with automation"
     },
     "competition": {
       "definition": "Any alternative the buyer might choose — another vendor, internal build, or do nothing",
@@ -220,44 +220,44 @@
   },
   "stakeholders": [
     {
-      "name": "<HISTORICAL_IDENTITY_D3C487ABA7>",
+      "name": "<ECONOMIC_BUYER>",
       "title": "SVP Infrastructure",
       "roleInDeal": "Economic buyer",
       "mustSayYes": true,
       "canSayNo": true,
       "whatTheyNeedToBelieve": "We will reduce security incidents by 60% within 6 months and the TCO stays under $100K/yr",
       "sentiment": "Positive",
-      "relationshipOwner": "<HISTORICAL_IDENTITY_A2DD3ACADB>"
+      "relationshipOwner": "<ACCOUNT_EXECUTIVE>"
     },
     {
-      "name": "<HISTORICAL_IDENTITY_58AE73013F>",
+      "name": "<DECISION_MAKER>",
       "title": "CTO",
       "roleInDeal": "Decision maker",
       "mustSayYes": true,
       "canSayNo": true,
       "whatTheyNeedToBelieve": "Our platform integrates with their existing Kubernetes platform without migration risk and passes architecture review",
       "sentiment": "Positive",
-      "relationshipOwner": "<HISTORICAL_IDENTITY_63EE5AF378>"
+      "relationshipOwner": "<SOLUTIONS_ENGINEER>"
     },
     {
-      "name": "<HISTORICAL_IDENTITY_AF9456C4DA>",
+      "name": "<CHAMPION>",
       "title": "Director of Platform Engineering",
       "roleInDeal": "Influencer",
       "mustSayYes": false,
       "canSayNo": false,
       "whatTheyNeedToBelieve": "Our platform makes his team more productive and helps him hit the MTTR target that gets him headcount",
       "sentiment": "Positive",
-      "relationshipOwner": "<HISTORICAL_IDENTITY_A2DD3ACADB>"
+      "relationshipOwner": "<ACCOUNT_EXECUTIVE>"
     },
     {
-      "name": "<HISTORICAL_IDENTITY_32383B7228>",
+      "name": "<SECURITY_STAKEHOLDER>",
       "title": "CISO",
       "roleInDeal": "Influencer",
       "mustSayYes": false,
       "canSayNo": true,
       "whatTheyNeedToBelieve": "Our platform meets SOC2 and regulatory requirements without creating new compliance gaps",
       "sentiment": "Neutral",
-      "relationshipOwner": "<HISTORICAL_IDENTITY_63EE5AF378>"
+      "relationshipOwner": "<SOLUTIONS_ENGINEER>"
     }
   ],
   "salesStrategy": {
@@ -295,19 +295,19 @@
     "criticalActions": [
       {
         "action": "Schedule competitive differentiation demo vs Vendor A",
-        "owner": "<HISTORICAL_IDENTITY_63EE5AF378> (SE)",
+        "owner": "<SOLUTIONS_ENGINEER> (SE)",
         "dueDate": "2026-05-19",
         "status": "pending"
       },
       {
         "action": "Begin paper process discovery with procurement contact",
-        "owner": "<HISTORICAL_IDENTITY_A2DD3ACADB> (AE)",
+        "owner": "<ACCOUNT_EXECUTIVE> (AE)",
         "dueDate": "2026-05-15",
         "status": "pending"
       },
       {
         "action": "Get specific dates and owners for architecture review board and procurement gates",
-        "owner": "<HISTORICAL_IDENTITY_A2DD3ACADB> (AE)",
+        "owner": "<ACCOUNT_EXECUTIVE> (AE)",
         "dueDate": "2026-05-12",
         "status": "pending"
       }
@@ -315,13 +315,33 @@
   },
   "team": {
     "internal": [
-      { "name": "<HISTORICAL_IDENTITY_A2DD3ACADB>", "role": "Account Executive", "dateRequiredFrom": "2026-03-01", "assignedToDeal": true },
-      { "name": "<HISTORICAL_IDENTITY_63EE5AF378>", "role": "Solutions Engineer", "dateRequiredFrom": "2026-04-01", "assignedToDeal": true },
-      { "name": "<HISTORICAL_IDENTITY_B7ADD9FB53>", "role": "CSM", "dateRequiredFrom": "2026-06-15", "assignedToDeal": false }
+      {
+        "name": "<ACCOUNT_EXECUTIVE>",
+        "role": "Account Executive",
+        "dateRequiredFrom": "2026-03-01",
+        "assignedToDeal": true
+      },
+      {
+        "name": "<SOLUTIONS_ENGINEER>",
+        "role": "Solutions Engineer",
+        "dateRequiredFrom": "2026-04-01",
+        "assignedToDeal": true
+      },
+      { "name": "<CUSTOMER_SUCCESS_MANAGER>", "role": "CSM", "dateRequiredFrom": "2026-06-15", "assignedToDeal": false }
     ],
     "partner": [
-      { "name": "<HISTORICAL_IDENTITY_5066EBFAA9>", "role": "Lead Engineer", "dateRequiredFrom": "2026-06-01", "assignedToDeal": true },
-      { "name": "<HISTORICAL_IDENTITY_203D10B34A>", "role": "Project Manager", "dateRequiredFrom": "2026-06-01", "assignedToDeal": false }
+      {
+        "name": "<PARTNER_ENGINEER>",
+        "role": "Lead Engineer",
+        "dateRequiredFrom": "2026-06-01",
+        "assignedToDeal": true
+      },
+      {
+        "name": "<PARTNER_PROJECT_MANAGER>",
+        "role": "Project Manager",
+        "dateRequiredFrom": "2026-06-01",
+        "assignedToDeal": false
+      }
     ]
   },
   "scoring": {

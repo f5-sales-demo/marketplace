@@ -286,7 +286,7 @@ describe('proposals', () => {
     const { sheet, address } = addressOf(exampleDeal, 'metadata.reviewer');
     const report = read(exampleDeal, setBlank(generateWorkbook(schema, spec, exampleDeal), sheet, address));
     expect(report.proposals).toHaveLength(1);
-    expect(report.proposals[0]).toMatchObject({ kind: 'clear', from: '<HISTORICAL_IDENTITY_A2DD3ACADB>', to: null });
+    expect(report.proposals[0]).toMatchObject({ kind: 'clear', from: '<ACCOUNT_EXECUTIVE>', to: null });
     expect((report.deal as { metadata: Record<string, unknown> }).metadata.reviewer).toBeUndefined();
   });
 
@@ -396,12 +396,12 @@ describe('list rows', () => {
     const { sheet, address } = addressOf(exampleDeal, listPath(count, 'name'));
     const report = read(
       exampleDeal,
-      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Dana Reyes'),
+      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, '<NEW_STAKEHOLDER_1>'),
     );
     expect(report.rejections).toEqual([]);
     const stakeholders = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders;
     expect(stakeholders).toHaveLength(count + 1);
-    expect(stakeholders[count].name).toBe('Dana Reyes');
+    expect(stakeholders[count].name).toBe('<NEW_STAKEHOLDER_1>');
   });
 
   test('two fields of the same new row make one item, not two', () => {
@@ -409,12 +409,12 @@ describe('list rows', () => {
     let bytes = generateWorkbook(schema, spec, exampleDeal);
     const name = addressOf(exampleDeal, listPath(count, 'name'));
     const title = addressOf(exampleDeal, listPath(count, 'title'));
-    bytes = setText(bytes, name.sheet, name.address, 'Dana Reyes');
+    bytes = setText(bytes, name.sheet, name.address, '<NEW_STAKEHOLDER_1>');
     bytes = setText(bytes, title.sheet, title.address, 'VP Platform');
     const report = read(exampleDeal, bytes);
     const stakeholders = (report.deal as { stakeholders: Array<{ name: string; title: string }> }).stakeholders;
     expect(stakeholders).toHaveLength(count + 1);
-    expect(stakeholders[count]).toMatchObject({ name: 'Dana Reyes', title: 'VP Platform' });
+    expect(stakeholders[count]).toMatchObject({ name: '<NEW_STAKEHOLDER_1>', title: 'VP Platform' });
   });
 
   test('skipping a row is refused — an array cannot have a hole', () => {
@@ -422,7 +422,7 @@ describe('list rows', () => {
     const { sheet, address } = addressOf(exampleDeal, listPath(count + 1, 'name'));
     const report = read(
       exampleDeal,
-      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Dana Reyes'),
+      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, '<NEW_STAKEHOLDER_1>'),
     );
     expect(report.proposals).toEqual([]);
     expect(report.rejections).toHaveLength(1);
@@ -435,8 +435,8 @@ describe('list rows', () => {
     const count = exampleDeal.stakeholders.length;
     let bytes = generateWorkbook(schema, spec, exampleDeal);
     for (const [offset, who] of [
-      [0, 'Dana Reyes'],
-      [1, '<HISTORICAL_IDENTITY_906E16E4FE>'],
+      [0, '<NEW_STAKEHOLDER_1>'],
+      [1, '<NEW_STAKEHOLDER_2>'],
     ] as const) {
       const at = addressOf(exampleDeal, listPath(count + offset, 'name'));
       bytes = setText(bytes, at.sheet, at.address, who);
@@ -444,7 +444,7 @@ describe('list rows', () => {
     const report = read(exampleDeal, bytes);
     expect(report.rejections).toEqual([]);
     const stakeholders = (report.deal as { stakeholders: Array<{ name: string }> }).stakeholders;
-    expect(stakeholders.map((s) => s.name).slice(count)).toEqual(['Dana Reyes', '<HISTORICAL_IDENTITY_906E16E4FE>']);
+    expect(stakeholders.map((s) => s.name).slice(count)).toEqual(['<NEW_STAKEHOLDER_1>', '<NEW_STAKEHOLDER_2>']);
   });
 
   test('answering the last question first is refused — the answers before it are still blank', () => {
@@ -622,7 +622,12 @@ describe('a list holds exactly its padded rows — anything below is reported', 
     const deal = fullDeal();
     const count = (deal.stakeholders as unknown[]).length;
     const at = firstUnmappedCell(deal, 'name');
-    const edited = addCell(generateWorkbook(schema, spec, deal), at.sheet, at.address, text(at.address, 'Dana Reyes'));
+    const edited = addCell(
+      generateWorkbook(schema, spec, deal),
+      at.sheet,
+      at.address,
+      text(at.address, '<NEW_STAKEHOLDER_1>'),
+    );
 
     const report = read(deal, edited);
     expect(report.proposals).toEqual([]);
@@ -638,7 +643,7 @@ describe('a list holds exactly its padded rows — anything below is reported', 
     let bytes = generateWorkbook(schema, spec, deal);
     const refs: string[] = [];
     for (const [field, value] of [
-      ['name', 'Dana Reyes'],
+      ['name', '<NEW_STAKEHOLDER_1>'],
       ['title', 'VP Platform'],
       ['roleInDeal', 'Influencer'],
     ] as const) {
@@ -1006,7 +1011,7 @@ describe('one column of a list, re-ordered, is refused', () => {
    * pattern is refused by name, while any ordinary edit — which changes the set — passes.
    *
    * Measured before this guard: swapping B56 and B57 gave `ok: true`, no rejections, two proposals, and
-   * <HISTORICAL_IDENTITY_58AE73013F> ended up with <HISTORICAL_IDENTITY_D3C487ABA7>'s title.
+   * <DECISION_MAKER> ended up with <ECONOMIC_BUYER>'s title.
    */
   function swapCells(bytes: Uint8Array, sheetName: string, a: string, b: string): Uint8Array {
     const entries = readZip(bytes);
@@ -1068,7 +1073,7 @@ describe('one column of a list, re-ordered, is refused', () => {
     const { sheet, address } = nameCell(0);
     const report = read(
       exampleDeal,
-      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, 'Dana Reyes'),
+      setText(generateWorkbook(schema, spec, exampleDeal), sheet, address, '<NEW_STAKEHOLDER_1>'),
     );
     expect(report.rejections).toEqual([]);
     expect(report.proposals).toHaveLength(1);
@@ -1079,7 +1084,7 @@ describe('one column of a list, re-ordered, is refused', () => {
     let bytes = generateWorkbook(schema, spec, exampleDeal);
     for (const index of [0, 1]) {
       const { sheet, address } = nameCell(index);
-      bytes = setText(bytes, sheet, address, 'Dana Reyes');
+      bytes = setText(bytes, sheet, address, '<NEW_STAKEHOLDER_1>');
     }
     const report = read(exampleDeal, bytes);
     expect(report.rejections).toEqual([]);
@@ -1137,8 +1142,8 @@ describe('one column of a list, re-ordered, is refused', () => {
     );
     // …and then rename a third, which breaks the multiset.
     const third = addressOf(exampleDeal, 'stakeholders[2].name');
-    bytes = setText(bytes, third.sheet, third.address, 'Dana Reyes');
-    expect(names[2]).not.toBe('Dana Reyes');
+    bytes = setText(bytes, third.sheet, third.address, '<NEW_STAKEHOLDER_1>');
+    expect(names[2]).not.toBe('<NEW_STAKEHOLDER_1>');
     const report = read(exampleDeal, bytes);
     expect(report.ok).toBe(false);
     expect(report.proposals).toEqual([]);
@@ -1156,8 +1161,8 @@ describe('one column of a list, re-ordered, is refused', () => {
     const copied = addressOf(exampleDeal, 'stakeholders[2].name');
     bytes = setText(bytes, copied.sheet, copied.address, names[0]);
     const renamed = addressOf(exampleDeal, 'stakeholders[3].name');
-    bytes = setText(bytes, renamed.sheet, renamed.address, 'Dana Reyes');
-    expect(names).not.toContain('Dana Reyes');
+    bytes = setText(bytes, renamed.sheet, renamed.address, '<NEW_STAKEHOLDER_1>');
+    expect(names).not.toContain('<NEW_STAKEHOLDER_1>');
     const report = read(exampleDeal, bytes);
     expect(report.rejections).toEqual([]);
     expect(report.proposals).toHaveLength(2);

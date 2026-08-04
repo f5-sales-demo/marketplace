@@ -84,11 +84,11 @@ describe('cellResolver — what a deal path is on the sheet', () => {
 
   test('a sheet name needing quotes gets them, and an apostrophe in one is doubled', () => {
     const cells = [
-      { jsonPath: 'a', sheet: "<HISTORICAL_IDENTITY_9D5BC00A5F> Review", address: 'D20', valueType: 'string' as const },
+      { jsonPath: 'a', sheet: "Seller's Deal Review", address: 'D20', valueType: 'string' as const },
       { jsonPath: 'b', sheet: 'Plain', address: 'D21', valueType: 'string' as const },
     ];
     const resolve = cellResolver(cells, 'Elsewhere');
-    expect(resolve.cell('a')).toBe("'<HISTORICAL_IDENTITY_CD9FB1E148>''s Deal Review'!$D$20");
+    expect(resolve.cell('a')).toBe("'Seller''s Deal Review'!$D$20");
     expect(resolve.cell('b')).toBe('Plain!$D$21');
   });
 

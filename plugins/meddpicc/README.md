@@ -4,9 +4,19 @@ MEDDPICC sales qualification and deal-execution framework plugin for Claude Code
 
 ## Overview
 
-This plugin turns MEDDPICC from a checkbox exercise into a **living deal intelligence system**. Qualification data accumulates over weeks and months as you feed in meeting notes, emails, call transcripts, OSINT scans, competitive intel, and Salesforce updates. Every piece of evidence is extracted, mapped to the correct MEDDPICC element, and persisted incrementally to a structured JSON deal file.
+This plugin turns MEDDPICC from a checkbox exercise into a **living deal intelligence system**. Qualification data accumulates as you feed in sanitized meeting notes, emails, call transcripts, competitive intel, and Salesforce updates. Every piece of evidence is extracted, mapped to the correct MEDDPICC element, and persisted incrementally to a structured JSON deal file.
 
 The system supports the full deal lifecycle: initial qualification, ongoing intelligence ingestion, weekly structured reviews, champion assessment, and mutual action plan creation.
+
+## Identity and data safety
+
+Use this plugin only with synthetic demo data. Never provide legal or full names, personal contact
+details, raw CRM exports, unsanitized correspondence, or other real employee, customer, or
+third-party data. Replace each person with a stable role alias such as `<ECONOMIC_BUYER>`,
+`<CHAMPION>`, or `<SELLER_1>` before analysis. If an input has not been sanitized, stop and ask the
+user to supply a sanitized copy before continuing.
+
+Deal JSON and generated workbooks are unencrypted files. Store them only at an explicit access-controlled location outside a Git worktree, share them only within the authorized demo scope, and delete them when the demo or review is complete.
 
 ## What is MEDDPICC?
 
@@ -62,14 +72,14 @@ Output: JSON deal file (source of truth) + Markdown scorecard. Add `render` or `
 
 ### Deal update (`/meddpicc:update-deal`)
 
-The **primary ongoing interaction**. Accepts any unstructured text, extracts MEDDPICC-relevant intelligence, and proposes updates to the deal JSON. Supported sources include meeting notes, email threads, call transcripts, OSINT reports, competitive intel, Salesforce exports, presentation feedback, and news articles.
+The **primary ongoing interaction**. Accepts pre-sanitized unstructured text, extracts MEDDPICC-relevant intelligence, and proposes updates to the deal JSON. Supported sources include sanitized meeting notes, email threads, call transcripts, competitive intel, Salesforce exports, presentation feedback, and news articles.
 
 The extraction protocol scans for signals mapped to each MEDDPICC element (KPIs, budget statements, procurement steps, pain language, champion actions, competitor mentions, etc.) and presents a structured diff before writing:
 
-- Evidence is **appended** with `[YYYY-MM-DD source-type]` prefixes — history is never overwritten
+- Evidence is **appended** with `[YYYY-MM-DD source-type]` prefixes until the user deletes the demo artifact under the retention guidance above
 - Score changes are **recommended with reasoning** and require user confirmation
 - Conflicts with existing data are **flagged** for reconciliation
-- New stakeholders are **detected** and offered for addition
+- New stakeholder aliases are **detected** and offered for addition
 
 ### Deal review (`/meddpicc:deal-review`)
 
@@ -107,7 +117,7 @@ Every task has a named owner, specific date, exit criteria, and dependencies.
 
 ## Agents
 
-**`deal-analyst`** — Read-only research agent that analyzes deal health from local files (meeting notes, CRM exports, account plans, proposals). Produces a structured MEDDPICC assessment report with evidence citations, gap analysis, and prioritized actions. Uses WebSearch for competitive intelligence. Does not modify files.
+**`deal-analyst`** — Read-only research agent that analyzes deal health from explicitly supplied, sanitized local files (meeting notes, CRM exports, account plans, proposals). Produces a structured MEDDPICC assessment report with evidence citations, gap analysis, and prioritized actions. Uses WebSearch for company-level competitive intelligence only. Does not modify files.
 
 Use the deal-analyst when you want an independent assessment of deal health without changing the deal file, or when you want to analyze multiple deal artifacts in bulk.
 
@@ -118,7 +128,7 @@ Deals are stored as JSON files conforming to the [MEDDPICC schema](schema/meddpi
 - **Metadata** — deal identification, stage, financials, client interactions, Salesforce integration, completion tracking
 - **Qualification** — all 8 MEDDPICC elements with definitions, questions, responses, scores, score definitions, evidence, and notes
 - **Three Whys** — Why Anything, Why Us, Why Now (for both your own company and the partner)
-- **Stakeholders** — name, title, role in deal, veto power, beliefs needed, sentiment, relationship owner
+- **Stakeholders** — role alias, title, role in deal, veto power, beliefs needed, sentiment, relationship-owner alias
 - **Sales Strategy** — differentiated value proposition and win strategy
 - **Close Plan** — milestones and critical actions with dates and owners
 - **Team** — internal and partner team members assigned to the deal
@@ -204,10 +214,10 @@ The AI extracts MEDDPICC signals, presents a proposed update diff with score rec
 ```text
 /meddpicc:update-deal Example Corp
 FW: RE: API Gateway eval - internal update
-<HISTORICAL_IDENTITY_6E8A4D7CE0>, wanted to give you a heads up. The architecture review
+Hello <ACCOUNT_EXECUTIVE>, wanted to give you a heads up. The architecture review
 board approved us for the shortlist. Vendor A pricing came in at
 $85K/yr vs your $120K. Legal confirmed their standard review takes
-3 weeks. Talk soon, <HISTORICAL_IDENTITY_B2A68545E9>
+3 weeks. Talk soon, <CHAMPION>
 ```
 
 ### Run a weekly deal review
@@ -221,7 +231,7 @@ Loads the deal file, snapshots scores for delta tracking, inspects evidence chan
 ### Test your champion
 
 ```text
-/meddpicc:champion-test <HISTORICAL_IDENTITY_445011F73A> Director of Platform Engineering
+/meddpicc:champion-test <CHAMPION> Director of Platform Engineering
 ```
 
 Scores Power, Personal Win, Access, Intel, and Action (0-3 each) to classify the contact and produce a development plan.
