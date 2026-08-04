@@ -4,6 +4,8 @@ description: >-
   available subscriptions
 ---
 
+# Azure status
+
 Delegate to the cli-operator agent to check Azure connectivity.
 
 ## Delegation

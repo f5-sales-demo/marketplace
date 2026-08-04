@@ -117,7 +117,7 @@ When looking for elements in a snapshot:
 
 After completing a task, report:
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | NEEDS_USER_INPUT]
 
 ### Actions Taken

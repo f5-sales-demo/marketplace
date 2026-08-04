@@ -21,7 +21,7 @@ agent to preserve main context.
 
 When this skill activates, delegate to the tool-advisor agent immediately:
 
-```
+```text
 Agent(
   subagent_type="devcontainer:tool-advisor",
   description="Look up tools for: [summarize user's question in 5 words]",

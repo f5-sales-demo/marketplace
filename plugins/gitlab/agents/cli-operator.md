@@ -51,7 +51,7 @@ You execute GitLab CLI (`glab`) commands on behalf of the main session.
 
 ## Standard Response Format
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
@@ -66,38 +66,38 @@ You execute GitLab CLI (`glab`) commands on behalf of the main session.
 
 ## Environment Variables
 
-| Variable         | Purpose                                                   |
-| ---------------- | --------------------------------------------------------- |
-| `GITLAB_TOKEN`   | Personal/project/group access token                       |
-| `GITLAB_HOST`    | GitLab hostname (default: `gitlab.com`)                   |
-| `CI_JOB_TOKEN`   | Built-in CI/CD job token (pipeline use only)              |
-| `CI_SERVER_HOST` | GitLab server host in CI/CD (default: `gitlab.com`)       |
+| Variable         | Purpose                                             |
+| ---------------- | --------------------------------------------------- |
+| `GITLAB_TOKEN`   | Personal/project/group access token                 |
+| `GITLAB_HOST`    | GitLab hostname (default: `gitlab.com`)             |
+| `CI_JOB_TOKEN`   | Built-in CI/CD job token (pipeline use only)        |
+| `CI_SERVER_HOST` | GitLab server host in CI/CD (default: `gitlab.com`) |
 
 ## Common Commands
 
-| Operation           | Command                                                           |
-| ------------------- | ----------------------------------------------------------------- |
-| Auth status         | `glab auth status`                                                |
-| View project        | `glab repo view --output json`                                    |
-| List issues         | `glab issue list --output json`                                   |
-| View issue          | `glab issue view <id> --output json`                              |
-| List MRs            | `glab mr list --output json`                                      |
-| View MR             | `glab mr view <id> --output json`                                 |
-| MR diff             | `glab mr diff <id>`                                               |
-| List pipelines      | `glab pipeline list --output json`                                |
-| View pipeline       | `glab pipeline view <id> --output json`                           |
-| Pipeline CI status  | `glab ci status`                                                  |
-| Search              | `glab search --type <type> "<query>"`                             |
-| List labels         | `glab label list --output json`                                   |
-| List milestones     | `glab milestone list --output json`                               |
+| Operation          | Command                                 |
+| ------------------ | --------------------------------------- |
+| Auth status        | `glab auth status`                      |
+| View project       | `glab repo view --output json`          |
+| List issues        | `glab issue list --output json`         |
+| View issue         | `glab issue view <id> --output json`    |
+| List MRs           | `glab mr list --output json`            |
+| View MR            | `glab mr view <id> --output json`       |
+| MR diff            | `glab mr diff <id>`                     |
+| List pipelines     | `glab pipeline list --output json`      |
+| View pipeline      | `glab pipeline view <id> --output json` |
+| Pipeline CI status | `glab ci status`                        |
+| Search             | `glab search --type <type> "<query>"`   |
+| List labels        | `glab label list --output json`         |
+| List milestones    | `glab milestone list --output json`     |
 
 ## Error Recovery
 
-| Error                        | Action                                                                   |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| `glab: command not found`    | Report: glab CLI not installed, suggest `/gitlab:setup`                  |
-| `not logged in`              | Report: not authenticated, suggest `/gitlab:glab-login`                  |
-| `project not found`          | Report: no GitLab project detected, check git remote configuration       |
-| `HTTP 401` / `HTTP 403`     | Report: authentication failed or insufficient permissions, re-auth       |
-| `HTTP 404`                   | Report: resource not found, verify project path and resource ID          |
-| `HTTP 429`                   | Report: rate limited, wait and retry after the indicated period           |
+| Error                     | Action                                                             |
+| ------------------------- | ------------------------------------------------------------------ |
+| `glab: command not found` | Report: glab CLI not installed, suggest `/gitlab:setup`            |
+| `not logged in`           | Report: not authenticated, suggest `/gitlab:glab-login`            |
+| `project not found`       | Report: no GitLab project detected, check git remote configuration |
+| `HTTP 401` / `HTTP 403`   | Report: authentication failed or insufficient permissions, re-auth |
+| `HTTP 404`                | Report: resource not found, verify project path and resource ID    |
+| `HTTP 429`                | Report: rate limited, wait and retry after the indicated period    |

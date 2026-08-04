@@ -134,7 +134,7 @@ curl -s "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Public Records tool search",
@@ -146,7 +146,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Public Records investigation: [target]",

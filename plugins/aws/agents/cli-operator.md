@@ -25,7 +25,7 @@ You execute AWS CLI (`aws`) commands on behalf of the main session.
 
 1. **Read-only by default.** Use read-only commands (`aws s3 ls`,
    `aws ec2 describe-instances`, `aws iam get-user`, `aws sts
-   get-caller-identity`) unless the caller explicitly requests a
+get-caller-identity`) unless the caller explicitly requests a
    write operation.
 
 2. **Never delete resources without confirmation.** If the caller
@@ -52,7 +52,7 @@ You execute AWS CLI (`aws`) commands on behalf of the main session.
 
 ## Standard Response Format
 
-```
+```markdown
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
@@ -67,39 +67,39 @@ You execute AWS CLI (`aws`) commands on behalf of the main session.
 
 ## Environment Variables
 
-| Variable                | Purpose                                          |
-| ----------------------- | ------------------------------------------------ |
-| `AWS_ACCESS_KEY_ID`     | IAM access key ID                                |
-| `AWS_SECRET_ACCESS_KEY` | IAM secret access key                            |
-| `AWS_SESSION_TOKEN`     | Temporary session token (STS)                    |
-| `AWS_PROFILE`           | Named profile for SSO or credential file         |
-| `AWS_REGION`            | Default AWS region                               |
-| `AWS_DEFAULT_REGION`    | Fallback region                                  |
-| `AWS_DEFAULT_OUTPUT`    | Default output format (`json`, `text`, `table`)  |
+| Variable                | Purpose                                         |
+| ----------------------- | ----------------------------------------------- |
+| `AWS_ACCESS_KEY_ID`     | IAM access key ID                               |
+| `AWS_SECRET_ACCESS_KEY` | IAM secret access key                           |
+| `AWS_SESSION_TOKEN`     | Temporary session token (STS)                   |
+| `AWS_PROFILE`           | Named profile for SSO or credential file        |
+| `AWS_REGION`            | Default AWS region                              |
+| `AWS_DEFAULT_REGION`    | Fallback region                                 |
+| `AWS_DEFAULT_OUTPUT`    | Default output format (`json`, `text`, `table`) |
 
 ## Common Commands
 
-| Operation              | Command                                                      |
-| ---------------------- | ------------------------------------------------------------ |
-| Check identity         | `aws sts get-caller-identity --output json`                  |
-| List S3 buckets        | `aws s3 ls`                                                  |
-| Describe EC2 instances | `aws ec2 describe-instances --output json`                   |
-| List Lambda functions  | `aws lambda list-functions --output json`                    |
-| Get IAM user           | `aws iam get-user --output json`                             |
-| List CF stacks         | `aws cloudformation list-stacks --output json`               |
-| Describe log groups    | `aws logs describe-log-groups --output json`                 |
-| List ECS clusters      | `aws ecs list-clusters --output json`                        |
-| Describe EKS clusters  | `aws eks list-clusters --output json`                        |
+| Operation              | Command                                        |
+| ---------------------- | ---------------------------------------------- |
+| Check identity         | `aws sts get-caller-identity --output json`    |
+| List S3 buckets        | `aws s3 ls`                                    |
+| Describe EC2 instances | `aws ec2 describe-instances --output json`     |
+| List Lambda functions  | `aws lambda list-functions --output json`      |
+| Get IAM user           | `aws iam get-user --output json`               |
+| List CF stacks         | `aws cloudformation list-stacks --output json` |
+| Describe log groups    | `aws logs describe-log-groups --output json`   |
+| List ECS clusters      | `aws ecs list-clusters --output json`          |
+| Describe EKS clusters  | `aws eks list-clusters --output json`          |
 
 ## Error Recovery
 
-| Error                              | Action                                                               |
-| ---------------------------------- | -------------------------------------------------------------------- |
-| `aws: command not found`           | Report: AWS CLI not installed, suggest `/aws:setup`           |
-| `Unable to locate credentials`     | Report: no credentials configured, suggest `/aws:aws-login`   |
-| `ExpiredToken`                     | Report: session expired, suggest re-authenticating                   |
-| `ExpiredTokenException`            | Report: session expired, suggest re-authenticating                   |
-| `could not find profile`           | Report: profile not found, check `~/.aws/config`                     |
-| `SSO session expired`              | Report: SSO expired, run `aws sso login --profile <profile>`         |
-| `AccessDenied`                     | Report: insufficient permissions for this operation                  |
-| `could not connect`                | Report: cannot reach AWS, check network and endpoint configuration   |
+| Error                          | Action                                                             |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `aws: command not found`       | Report: AWS CLI not installed, suggest `/aws:setup`                |
+| `Unable to locate credentials` | Report: no credentials configured, suggest `/aws:aws-login`        |
+| `ExpiredToken`                 | Report: session expired, suggest re-authenticating                 |
+| `ExpiredTokenException`        | Report: session expired, suggest re-authenticating                 |
+| `could not find profile`       | Report: profile not found, check `~/.aws/config`                   |
+| `SSO session expired`          | Report: SSO expired, run `aws sso login --profile <profile>`       |
+| `AccessDenied`                 | Report: insufficient permissions for this operation                |
+| `could not connect`            | Report: cannot reach AWS, check network and endpoint configuration |

@@ -5,6 +5,8 @@ description: >-
 argument-hint: "[org-alias]"
 ---
 
+# Salesforce login
+
 Delegate to the cli-operator agent to handle Salesforce authentication.
 
 ## Delegation

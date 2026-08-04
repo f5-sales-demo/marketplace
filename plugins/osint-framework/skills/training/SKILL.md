@@ -43,7 +43,7 @@ list of 4 free/freemium tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Training resource search",
@@ -55,7 +55,7 @@ Agent(
 
 ### Guided Learning
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Training guidance: [topic]",

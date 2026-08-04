@@ -111,7 +111,7 @@ This is a **meta-tools category** — its frameworks feed into and receive data 
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="OSINT Tools & Frameworks tool search",
@@ -123,7 +123,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="OSINT Tools & Frameworks investigation: [target]",

@@ -1,6 +1,6 @@
 {
   "name": "github-ops",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling",
   "license": "Apache-2.0"
 }

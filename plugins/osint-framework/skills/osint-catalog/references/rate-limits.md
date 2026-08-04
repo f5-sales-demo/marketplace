@@ -182,7 +182,7 @@ sleep 1.5
 Cache API responses locally to avoid redundant calls and stay within rate
 limits. All cached files use the pattern:
 
-```
+```text
 /tmp/osint-cache-{api}-{target-hash}.json
 ```
 

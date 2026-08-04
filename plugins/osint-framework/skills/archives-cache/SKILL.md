@@ -99,7 +99,7 @@ list of 21 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Archives & Cache tool search",
@@ -111,7 +111,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Archives & Cache investigation: [target]",

@@ -1,3 +1,5 @@
+# Search GitLab Issues
+
 Full-text search across GitLab issue titles, descriptions, labels, and comments via glab CLI.
 
 <instruction>

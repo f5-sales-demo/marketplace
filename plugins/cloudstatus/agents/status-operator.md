@@ -41,7 +41,7 @@ command specifies.
 
 **Minimal** (overall-status, check-component):
 
-```
+```markdown
 ## Cloud Status — [page name]
 **[timestamp]** | **Status:** [emoji] [description]
 ```
@@ -49,7 +49,7 @@ command specifies.
 **Standard** (list-components, active-incidents, recent-incidents,
 maintenance, search):
 
-```
+```markdown
 ## Cloud Status Report — [page name]
 **Generated:** [timestamp]
 **Overall:** [emoji] [indicator] — [description]
@@ -63,7 +63,7 @@ maintenance, search):
 
 **Full Intelligence** (full-briefing, stakeholder-report):
 
-```
+```markdown
 ## Cloud Status Report — [page name]
 **Generated:** [timestamp]
 **Overall Status:** [emoji] [level] — [description]
@@ -89,7 +89,7 @@ maintenance, search):
 
 For stakeholder-report, append:
 
-```
+```markdown
 F5 Distributed Cloud Status Update — [date UTC]
 Current Status: [indicator] — [description]
 Affected Services: [names]
@@ -108,7 +108,7 @@ none=✅ minor=⚠️ major=🟠 critical=🔴
 
 If cURL fails or jq returns empty, report:
 
-```
+```markdown
 ## Cloud Status — Error
 **Error:** [what failed]
 **URL:** [attempted URL]

@@ -6,6 +6,8 @@ allowed_tools:
   - Agent
 ---
 
+# Batch scrape
+
 Invoke the `firecrawl:web-scraper` skill to batch scrape "$ARGUMENTS".
 
 Use the BATCH_SCRAPE protocol. Parse the arguments:

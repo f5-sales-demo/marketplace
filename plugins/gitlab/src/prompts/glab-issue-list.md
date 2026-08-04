@@ -1,3 +1,5 @@
+# List GitLab Issues
+
 List GitLab issues with structured filters via glab CLI. Returns a markdown summary table.
 
 <instruction>

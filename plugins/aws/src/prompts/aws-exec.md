@@ -1,3 +1,5 @@
+# Execute AWS CLI Commands
+
 Execute any `aws` CLI command directly.
 
 This is the general-purpose tool for running AWS CLI commands that are not covered by the typed tools (aws_sts_whoami, aws_s3_ls, aws_ec2_describe_instances). Prefer the typed tools when available — they validate inputs and return structured data.

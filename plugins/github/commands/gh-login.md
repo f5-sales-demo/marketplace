@@ -5,6 +5,8 @@ description: >-
 argument-hint: "[hostname]"
 ---
 
+# GitHub login
+
 Delegate to the cli-operator agent to handle GitHub authentication.
 
 ## Delegation

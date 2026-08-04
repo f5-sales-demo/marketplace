@@ -168,7 +168,7 @@ diff /etc/claude-code/CLAUDE.md /tmp/source-managed-claude.md || true
 
 #### Step 5 — Report
 
-```
+```markdown
 ## Self-Diagnosis Report
 
 ### Build Info

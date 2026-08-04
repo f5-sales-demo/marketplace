@@ -33,7 +33,7 @@ makes code changes, then delegates operational work.
 
 ## Agents
 
-### github-ops
+### GitHub Operations Agent
 
 Exclusive GitHub operations agent that handles the full
 Git lifecycle for all f5-sales-demo repositories.
@@ -68,7 +68,7 @@ or `Write`)
 
 **Delegation pattern:**
 
-```
+```text
 Agent(
   subagent_type="github-ops:github-ops",
   mode="bypassPermissions",

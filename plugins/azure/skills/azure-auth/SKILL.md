@@ -127,14 +127,14 @@ instructions:
 
 ## Environment Variables
 
-| Variable                | Purpose                                               |
-| ----------------------- | ----------------------------------------------------- |
-| `AZURE_CLIENT_ID`       | Service principal application (client) ID             |
-| `AZURE_CLIENT_SECRET`   | Service principal client secret                       |
-| `AZURE_TENANT_ID`       | Microsoft Entra ID tenant ID                          |
-| `AZURE_SUBSCRIPTION_ID` | Default subscription ID to select after login         |
-| `AZURE_DEFAULTS_GROUP`  | Default resource group for az commands                |
-| `AZURE_DEFAULTS_LOCATION` | Default location/region for az commands             |
+| Variable                  | Purpose                                       |
+| ------------------------- | --------------------------------------------- |
+| `AZURE_CLIENT_ID`         | Service principal application (client) ID     |
+| `AZURE_CLIENT_SECRET`     | Service principal client secret               |
+| `AZURE_TENANT_ID`         | Microsoft Entra ID tenant ID                  |
+| `AZURE_SUBSCRIPTION_ID`   | Default subscription ID to select after login |
+| `AZURE_DEFAULTS_GROUP`    | Default resource group for az commands        |
+| `AZURE_DEFAULTS_LOCATION` | Default location/region for az commands       |
 
 ## Security Rules
 

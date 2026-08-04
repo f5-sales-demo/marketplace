@@ -4,6 +4,8 @@ allowed_tools:
   - Bash
 ---
 
+# Preview documentation
+
 Start the local docs preview server using the shared
 Docker build image.
 

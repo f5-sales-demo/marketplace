@@ -1,94 +1,98 @@
 ---
-title: 入门指南
-description: 分步指南：添加 f5-sales-demo 插件市场并安装您的第一个插件。
+title: 快速入门
+description: 关于添加 f5-sales-demo 插件集市并安装第一个插件的分步指南。
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-本指南将引导您完成将 f5-sales-demo 插件市场添加到 Claude Code 并安装第一个插件的全过程。
+本指南将引导您向 Claude Code 添加 f5-sales-demo
+插件集市并安装您的第一个插件。
 
 ## 前提条件
 
-- Claude Code **v1.0.33** 或更高版本（支持插件市场功能）
-- 拥有访问 [f5-sales-demo](https://github.com/f5-sales-demo) 组织权限的 GitHub 账号
+- Claude Code **v1.0.33** 或更高版本（支持插件集市）
+- 拥有访问 [f5-sales-demo](https://github.com/f5-sales-demo)
+  组织的 GitHub 账号
 
-## 安装步骤
+## 安装
 
 <Steps>
 
-1. **添加插件市场**
+1. **添加插件集市**
 
-   在任意 Claude Code 会话中，运行：
+   在任何 Claude Code 会话中运行：
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   此命令将该插件市场注册为插件来源。您只需执行一次。
+   这会将该集市注册为插件源。您只需执行一次此操作。
 
 2. **浏览可用插件**
 
-   列出插件市场中提供的所有插件：
+   列出集市提供的插件：
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **安装插件**
 
-   安装您所需的插件：
+   安装您需要的插件：
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **使用插件**
 
-   导航至任意 f5-sales-demo 内容仓库。
+   导航到任何 f5-sales-demo 内容仓库。
 
    对于 **文档工具**，运行 MDX 审查命令：
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
-   对于 **销售工程师**，使用触发短语，例如"prepare the demo"、"run the demo"或"walk through the demo"——插件将自动激活。
+   对于 **Sales Engineer**，使用形如 "prepare the demo"、"run the demo" 或
+   "walk through the demo" 的触发短语 — 插件会自动激活。
 
 </Steps>
 
 ## 更新插件
 
-将已安装的插件更新至最新版本：
+将已安装的插件更新到最新版本：
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## 卸载
 
-移除插件：
+移除某个插件：
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-完全移除插件市场：
+彻底移除插件集市：
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## 团队配置
 
-如需为整个团队预先配置插件市场，请将其添加至项目的 `.claude/settings.json` 文件：
+要为整个团队预配置插件集市，请将其添加到项目的
+`.claude/settings.json` 中：
 
 ```json
 {
@@ -102,8 +106,9 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 }
 ```
 
-<Aside type="tip" title="共享配置">
-  将 `.claude/settings.json` 提交到您的代码仓库后，每位团队成员都将自动获取插件市场和插件配置，无需手动设置。
+<Aside type="tip" title="Shared settings">
+  将 `.claude/settings.json` 提交到您的仓库意味着
+  每个团队成员都会自动获取插件集市和插件 — 无需手动设置。
 </Aside>
 
-这确保每位贡献者在仓库中首次启动 Claude Code 会话时，即可使用相同的工具集。
+这确保了每位贡献者在仓库中的首次 Claude Code 会话开始时就能使用相同的工具。

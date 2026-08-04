@@ -6,6 +6,8 @@ allowed_tools:
   - Agent
 ---
 
+# Research a question
+
 Invoke the `firecrawl:web-scraper` skill to research "$ARGUMENTS".
 
 Use the RESEARCH protocol. Parse the arguments:

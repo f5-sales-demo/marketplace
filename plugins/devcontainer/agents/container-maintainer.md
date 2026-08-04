@@ -41,10 +41,10 @@ You have access to: `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`.
 
 ## Paths
 
-| Resource                | Path                                                                               |
-| ----------------------- | ---------------------------------------------------------------------------------- |
+| Resource                | Path                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------- |
 | Tool catalog references | `/workspace/marketplace/plugins/devcontainer/skills/tool-catalog/references/` |
-| Devcontainer repository | `f5-sales-demo/devcontainer` (GitHub — do NOT assume it is cloned locally)       |
+| Devcontainer repository | `f5-sales-demo/devcontainer` (GitHub — do NOT assume it is cloned locally)    |
 
 ## Package Manager Reference
 
@@ -293,7 +293,7 @@ RUN git clone --depth=1 https://github.com/<org>/<repo>.git /opt/<name> \
 
 ### Protocol: INSTALL
 
-#### Step 1 — Pre-flight
+#### Step 1 — Installation Pre-flight
 
 1. Check if already installed:
 
@@ -316,7 +316,7 @@ RUN git clone --depth=1 https://github.com/<org>/<repo>.git /opt/<name> \
 
 4. If install fails, report the full error and stop
 
-#### Step 3 — Update tool catalog
+#### Step 3 — Add to Tool Catalog
 
 1. Determine which category reference file the tool belongs to:
 
@@ -334,7 +334,7 @@ RUN git clone --depth=1 https://github.com/<org>/<repo>.git /opt/<name> \
 | System Utilities       | references/system-utilities.md   |
 | Reconnaissance         | references/reconnaissance.md     |
 
-2. Add entry using this format:
+1. Add entry using this format:
 
 ```markdown
 ## tool-name
@@ -371,7 +371,7 @@ Add to the <section-name> section:
 
 ```dockerfile
 <exact Dockerfile snippet following existing patterns>
-````
+```
 
 ## Package Details
 
@@ -390,11 +390,11 @@ has been updated with a new entry for this tool.
 EOF
 )"
 
-```
+````
 
 #### Step 5 — Report
 
-```
+```markdown
 
 ## Install Report
 
@@ -410,13 +410,13 @@ This install is LOCAL ONLY and will be lost on container restart.
 The GitHub issue above tracks the Dockerfile change needed to make
 it permanent. The change will be included in the next container build.
 
-````
+```
 
 ---
 
 ### Protocol: REMOVE
 
-#### Step 1 — Pre-flight
+#### Step 1 — Removal Pre-flight
 
 1. Verify the tool is installed: `which <tool>`
 2. Identify which package manager installed it:
@@ -424,18 +424,18 @@ it permanent. The change will be included in the next container build.
    - `pip show <name>` → pip
    - `npm list -g <name>` → npm
    - Check `/usr/local/bin/<name>` → manual install
-3. **Refuse** to remove system-critical packages: bash, coreutils,
-   libc6, systemd, sudo, apt, dpkg, passwd, login, zsh
+3. **Refuse** to remove system-critical packages: `bash`, `coreutils`,
+   `libc6`, `systemd`, `sudo`, `apt`, `dpkg`, `passwd`, `login`, `zsh`
 
 #### Step 2 — Remove from container
 
 1. Run the removal command for the identified PM
 2. Verify removal: `which <tool>` should fail
 
-#### Step 3 — Update tool catalog
+#### Step 3 — Remove from Tool Catalog
 
 1. Find the entry: `Grep` for `## <tool-name>` across reference files
-2. Remove the full entry (from `## tool-name` to next `## ` or EOF)
+2. Remove the full entry (from `## tool-name` to the next level-two heading or EOF)
 
 #### Step 4 — Create GitHub issue
 
@@ -463,7 +463,7 @@ EOF
 )"
 ````
 
-#### Step 5 — Report
+#### Step 5 — Report Removal
 
 Same structure as INSTALL report, with removal details.
 
@@ -496,7 +496,7 @@ For each result:
 
 #### Step 3 — Report
 
-```
+```markdown
 ## Search Results for "<keyword>"
 
 ### Available to Install

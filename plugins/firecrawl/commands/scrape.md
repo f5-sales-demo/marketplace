@@ -6,6 +6,8 @@ allowed_tools:
   - Agent
 ---
 
+# Scrape a URL
+
 Invoke the `firecrawl:web-scraper` skill to scrape "$ARGUMENTS".
 
 Use the SCRAPE protocol. Parse the arguments:

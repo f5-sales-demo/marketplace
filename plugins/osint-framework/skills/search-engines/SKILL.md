@@ -78,7 +78,7 @@ RUN git clone --depth 1 https://github.com/StractOrg/stract /opt/stract \
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Search Engines tool search",
@@ -90,7 +90,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Search Engines investigation: [target]",

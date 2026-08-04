@@ -3,6 +3,8 @@ description: >-
   Check GitHub CLI authentication status and connectivity
 ---
 
+# GitHub status
+
 Delegate to the cli-operator agent to check GitHub connectivity.
 
 ## Delegation

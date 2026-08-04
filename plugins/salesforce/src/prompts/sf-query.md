@@ -1,3 +1,5 @@
+# Query Salesforce with SOQL
+
 Execute SOQL queries against Salesforce via sf CLI. Returns structured results as markdown tables.
 
 <instruction>

@@ -1,3 +1,5 @@
+# View GitLab CLI Help
+
 Show GitLab CLI help for a command path. Use this before running a query when unsure of a command's subcommands or flags.
 
 <instruction>

@@ -145,7 +145,7 @@ format. Prepare uses the full readiness format.
 
 ### Prepare Report Format
 
-```
+```markdown
 ## Demo Readiness: READY / NOT READY / READY WITH WARNINGS
 
 ## Cleanup Performed: Yes / No
@@ -173,7 +173,7 @@ format. Prepare uses the full readiness format.
 
 ### Teardown Report Format
 
-```
+```markdown
 ## Status: CLEAN / FAILED
 
 ## Resolved Variables

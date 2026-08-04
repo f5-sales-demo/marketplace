@@ -1,3 +1,5 @@
+# View AWS CLI Help
+
 Fetch help documentation for any `aws` CLI service or operation.
 
 Use this tool to discover available services, operations, and flags for AWS CLI commands that are not covered by the embedded tool documentation.

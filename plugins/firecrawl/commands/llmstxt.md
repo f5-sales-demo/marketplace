@@ -6,6 +6,8 @@ allowed_tools:
   - Agent
 ---
 
+# Generate llms.txt
+
 Invoke the `firecrawl:web-scraper` skill to generate llms.txt for "$ARGUMENTS".
 
 Use the LLMSTXT protocol. Parse the arguments:

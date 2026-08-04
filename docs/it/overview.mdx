@@ -1,62 +1,57 @@
 ---
 title: Panoramica
-description: >-
-  Come funziona il marketplace di plugin di Claude Code — aggiungere sorgenti,
-  installare plugin e utilizzare strumenti condivisi.
+description: Come funziona il marketplace di plugin di Claude Code — aggiunta di sorgenti, installazione di plugin e utilizzo di strumenti condivisi.
 sidebar:
   order: 1
 i18n:
-  sourceHash: 04a73c3a9f37
+  sourceHash: 8e0bb8628f0d
   translator: machine
 ---
 
-Un **marketplace di plugin di Claude Code** è una raccolta curata di
+Un **marketplace di plugin di Claude Code** è una raccolta selezionata di
 plugin che estendono Claude Code con nuove competenze, comandi e
-agenti. I marketplace consentono ai team di condividere strumenti
-affinché ogni sviluppatore disponga delle stesse funzionalità senza
-configurazioni manuali.
+agenti. I marketplace consentono ai team di condividere gli strumenti in modo che ogni sviluppatore
+ottenga le stesse funzionalità senza configurazione manuale.
 
-Il **marketplace f5-sales-demo** fornisce plugin sviluppati per
+Il **Marketplace f5-sales-demo** fornisce plugin realizzati per
 la piattaforma di documentazione [f5-sales-demo](https://github.com/f5-sales-demo)
-— un ecosistema di oltre 20 repository che
-pubblicano siti Astro/Starlight su GitHub Pages utilizzando una
-pipeline di build condivisa.
+— un ecosistema di oltre 20 repository che pubblicano siti Astro/Starlight su GitHub Pages utilizzando una pipeline di build condivisa.
 
-## Come Funziona
+## Come funziona
 
-1. **Aggiungere il marketplace** a Claude Code — registrandolo
+1. **Aggiungi il marketplace** a Claude Code — questo lo registra
    come sorgente di plugin
-2. **Installare i plugin** dal marketplace — ogni plugin aggiunge
-   competenze e comandi alla sessione di Claude Code
-3. **Utilizzare gli strumenti** — i plugin si attivano automaticamente in base al
-   contesto, oppure è possibile richiamare direttamente i loro comandi
+2. **Installa i plugin** dal marketplace — ogni plugin aggiunge
+   competenze e comandi alla tua sessione Claude Code
+3. **Usa gli strumenti** — i plugin si attivano automaticamente in base al
+   contesto, oppure puoi invocare direttamente i loro comandi
 
-## Plugin Disponibili
+## Plugin disponibili
 
 | Plugin | Categoria | Descrizione |
-|--------|-----------|-------------|
-| [f5xc-docs-tools](/marketplace/it/plugins/f5xc-docs-tools/) | Produttività | Strumenti di validazione e revisione dei contenuti MDX per i repository di documentazione |
-| [f5xc-sales-engineer](/marketplace/it/plugins/f5xc-sales-engineer/) | Produttività | Framework per il ruolo di Sales Engineer — esecuzione demo, presentazione, Q&A, gestione dell'ambiente |
+| --- | --- | --- |
+| [f5xc-docs-tools](/marketplace/en/plugins/f5xc-docs-tools/) | Produttività | Strumenti di convalida e revisione dei contenuti MDX per repository di documentazione |
+| [f5xc-sales-engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | Produttività | Framework per persona Sales Engineer — esecuzione demo, presentazione, Q&A, gestione dell'ambiente |
 
-## Avvio Rapido
+## Avvio rapido
 
-Aggiungere il marketplace e installare il plugin degli strumenti di documentazione:
+Aggiungi il marketplace e installa il plugin degli strumenti di documentazione:
 
-```
+```text
 /plugin marketplace add f5-sales-demo/marketplace
 /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
 ```
 
-Consultare [Per iniziare](/marketplace/it/getting-started/) per una
-guida completa.
+Vedi [Guida introduttiva](/marketplace/en/getting-started/) per una
+procedura dettagliata completa.
 
 ## Architettura
 
 Un marketplace è un repository Git che contiene uno o più
-plugin. Ogni plugin raccoglie competenze, comandi e agenti
+plugin. Ogni plugin racchiude competenze, comandi e agenti
 in un'unica unità installabile.
 
-```
+```text
 Marketplace (marketplace.json)
 └── Plugin (plugin.json)
     ├── Skills (SKILL.md)
@@ -66,12 +61,12 @@ Marketplace (marketplace.json)
 ```
 
 - **Marketplace** — il registro. Elenca i plugin disponibili
-  con i metadati per la ricerca e l'installazione.
+  con i metadati per l'individuazione e l'installazione.
 - **Plugin** — l'unità installabile. Contiene una o più
   competenze, comandi o agenti.
 - **Skill** — conoscenza contestuale che Claude attiva
-  automaticamente in base all'attività in corso.
-- **Command** — un comando slash che l'utente richiama direttamente
-  (ad es., `/review-mdx`).
-- **Agent** — un agente secondario specializzato che gestisce attività complesse e
-  multi-step in modo autonomo.
+  automaticamente in base al compito da svolgere.
+- **Command** — un comando slash invocato direttamente dall'utente
+  (ad es. `/review-mdx`).
+- **Agent** — un sotto-agente specializzato che gestisce in modo autonomo
+  compiti complessi e articolati in più passaggi.

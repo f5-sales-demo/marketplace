@@ -1,101 +1,98 @@
 ---
-title: 入門指南
-description: 逐步指引，說明如何新增 f5-sales-demo 市集並安裝您的第一個插件。
+title: 快速入門
+description: 關於新增 f5-sales-demo 外掛集市並安裝第一個外掛的逐步指南。
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-本指南將引導您完成將 f5-sales-demo
-市集新增至 Claude Code 並安裝第一個插件的流程。
+本指南將引導您向 Claude Code 新增 f5-sales-demo
+外掛集市並安裝您的第一個外掛。
 
-## 前置條件
+## 先決條件
 
-- Claude Code **v1.0.33** 或更新版本（支援插件市集）
-- 具有
-  [f5-sales-demo](https://github.com/f5-sales-demo)
-  組織存取權限的 GitHub 帳號
+- Claude Code **v1.0.33** 或更高版本（支援外掛集市）
+- 擁有存取 [f5-sales-demo](https://github.com/f5-sales-demo)
+  組織的 GitHub 帳號
 
-## 安裝步驟
+## 安裝
 
 <Steps>
 
-1. **新增市集**
+1. **新增外掛集市**
 
-   在任意 Claude Code 工作階段中執行：
+   在任何 Claude Code 工作階段中執行：
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   此指令會將該市集註冊為插件來源。您只需
-   執行一次即可。
+   這會將該集市註冊為外掛來源。您只需執行一次此操作。
 
-2. **瀏覽可用插件**
+2. **瀏覽可用外掛**
 
-   列出市集提供的插件：
+   列出集市提供的外掛：
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
-3. **安裝插件**
+3. **安裝外掛**
 
-   安裝您所需的插件：
+   安裝您需要的外掛：
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
-4. **使用插件**
+4. **使用外掛**
 
-   導覽至任意 f5-sales-demo 內容儲存庫。
+   導覽至任何 f5-sales-demo 內容儲存庫。
 
-   若使用 **docs tools**，請執行 MDX 審閱指令：
+   對於 **文件工具**，執行 MDX 審查指令：
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
-   若使用 **sales engineer**，請使用觸發語句，例如
-   「prepare the demo」、「run the demo」或「walk through
-   the demo」— 插件將自動啟動。
+   對於 **Sales Engineer**，使用如 "prepare the demo"、"run the demo" 或
+   "walk through the demo" 的觸發片語 — 外掛會自動啟動。
 
 </Steps>
 
-## 更新插件
+## 更新外掛
 
-將已安裝的插件更新至最新版本：
+將已安裝的外掛更新至最新版本：
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## 解除安裝
 
-移除插件：
+移除某個外掛：
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-完全移除市集：
+徹底移除外掛集市：
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## 團隊設定
 
-若要為整個團隊預先設定市集，請將其新增至
-專案的 `.claude/settings.json`：
+要為整個團隊預先設定外掛集市，請將其新增至專案的
+`.claude/settings.json` 中：
 
 ```json
 {
@@ -109,11 +106,9 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 }
 ```
 
-<Aside type="tip" title="共用設定">
-  將 `.claude/settings.json` 提交至您的儲存庫，即可讓
-  每位團隊成員自動取得市集與插件，
-  無需手動設定。
+<Aside type="tip" title="Shared settings">
+  將 `.claude/settings.json` 提交至您的儲存庫代表
+  每位團隊成員都會自動取得外掛集市和外掛 — 無需手動設定。
 </Aside>
 
-如此一來，每位貢獻者從第一次在儲存庫中開啟
-Claude Code 工作階段起，便能使用相同的工具。
+這確保了每位貢獻者在儲存庫中的首次 Claude Code 工作階段開始時就能使用相同的工具。

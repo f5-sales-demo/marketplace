@@ -8,6 +8,8 @@ allowed-tools:
   - Bash
 ---
 
+# Review MDX content
+
 Review MDX content files for the f5-sales-demo documentation pipeline.
 
 **Invoke the `mdx-content-reviewer` skill now** and follow its

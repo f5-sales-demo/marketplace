@@ -1,7 +1,7 @@
 {
   "name": "docs-pipeline",
   "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline",
   "license": "Apache-2.0",
   "author": {

@@ -170,7 +170,7 @@ and offer to review `DEMO_PRODUCT_EXPERTISE.md`, phase files, and
 
 **Debrief Report format:**
 
-```
+```markdown
 ## Debrief Report — [Product Name] Demo
 
 ### Session Summary

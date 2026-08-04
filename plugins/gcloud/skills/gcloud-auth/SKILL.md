@@ -130,9 +130,9 @@ these instructions:
 
 ## Environment Variables
 
-| Variable                         | Purpose                                          |
-| -------------------------------- | ------------------------------------------------ |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON key file (Method 1) |
+| Variable                         | Purpose                                           |
+| -------------------------------- | ------------------------------------------------- |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON key file (Method 1)  |
 | `CLOUDSDK_CORE_PROJECT`          | Default project ID for gcloud commands            |
 | `CLOUDSDK_COMPUTE_REGION`        | Default compute region                            |
 | `CLOUDSDK_COMPUTE_ZONE`          | Default compute zone                              |

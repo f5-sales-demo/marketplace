@@ -1,3 +1,5 @@
+# View a GitHub Issue
+
 Reads a GitHub issue through the local GitHub CLI.
 
 <instruction>

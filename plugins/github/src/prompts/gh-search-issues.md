@@ -1,3 +1,5 @@
+# Search GitHub Issues
+
 Searches GitHub issues through the local GitHub CLI.
 
 <instruction>

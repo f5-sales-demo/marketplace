@@ -1,10 +1,12 @@
 ---
-description: Crawl a website and extract content from multiple pages using local firecrawl
+description: Crawl a site and extract content from multiple pages using local firecrawl
 argument-hint: "<url> [--limit <n>] [--depth <n>] [--include <paths>]"
 allowed_tools:
   - Bash
   - Agent
 ---
+
+# Crawl a site
 
 Invoke the `firecrawl:web-scraper` skill to crawl "$ARGUMENTS".
 

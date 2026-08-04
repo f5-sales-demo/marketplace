@@ -3,6 +3,8 @@ description: >-
   Check container environment status and available development tools
 ---
 
+# Development container status
+
 Delegate to the container-introspector agent to check devcontainer status.
 
 ## Delegation

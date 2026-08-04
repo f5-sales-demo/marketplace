@@ -126,7 +126,7 @@ osint_graph_stats
 When multiple tools produce the same finding, confidence scores are
 fused using the formula:
 
-```
+```text
 C_fused = 1 - (1 - C_1) * (1 - C_2) * ... * (1 - C_n)
 ```
 

@@ -1,3 +1,5 @@
+# View Google Cloud CLI Help
+
 Fetch help documentation for any `gcloud` CLI group or command.
 
 Use this tool to discover available groups, commands, and flags for Google Cloud CLI operations that are not covered by the embedded typed tools.

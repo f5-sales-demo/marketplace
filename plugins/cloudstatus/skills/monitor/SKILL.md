@@ -48,7 +48,7 @@ Status monitoring via Statuspage.io public API v2.
 
 ## Delegation
 
-```
+```text
 Agent(
   subagent_type="cloudstatus:status-operator",
   description="<operation> cloud status",

@@ -1,17 +1,19 @@
+# List Amazon S3 Resources
+
 List Amazon S3 buckets, or the contents of a bucket or prefix, via the AWS CLI.
 
 ## Usage
 
-```
+```bash
 aws s3api list-buckets --output json      # no target: list all buckets
 aws s3 ls s3://bucket/prefix/             # with target: list objects/prefixes
 ```
 
 ## Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `target` | Optional `s3://bucket[/prefix]` URI. Omit to list all buckets in the account. |
+| Parameter | Description                                                                   |
+| --------- | ----------------------------------------------------------------------------- |
+| `target`  | Optional `s3://bucket[/prefix]` URI. Omit to list all buckets in the account. |
 
 ## Output Fields
 

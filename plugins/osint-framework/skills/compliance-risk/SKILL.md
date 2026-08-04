@@ -141,7 +141,7 @@ curl -s "https://ec.europa.eu/taxation_customs/vies/rest-api/ms/GB/vat/123456789
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Compliance & Risk Intelligence tool search",
@@ -153,7 +153,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Compliance & Risk Intelligence investigation: [target]",

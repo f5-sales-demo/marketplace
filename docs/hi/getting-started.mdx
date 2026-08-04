@@ -1,25 +1,23 @@
 ---
 title: शुरुआत करना
-description: >-
-  f5-sales-demo मार्केटप्लेस जोड़ने और अपना पहला प्लगइन इंस्टॉल करने के लिए
-  चरण-दर-चरण मार्गदर्शिका।
+description: f5-sales-demo मार्केटप्लेस को जोड़ने और अपना पहला प्लगइन इंस्टॉल करने के लिए चरण-दर-चरण गाइड।
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-यह मार्गदर्शिका आपको Claude Code में f5-sales-demo
-मार्केटप्लेस जोड़ने और अपना पहला प्लगइन इंस्टॉल करने की प्रक्रिया से परिचित कराती है।
+यह गाइड आपको Claude Code में f5-sales-demo
+मार्केटप्लेस को जोड़ने और अपना पहला प्लगइन इंस्टॉल करने का तरीका बताती है।
 
-## पूर्वापेक्षाएँ
+## पूर्वापेक्षित आवश्यकताएं
 
-- Claude Code **v1.0.33** या बाद का संस्करण (प्लगइन मार्केटप्लेस समर्थन सहित)
+- Claude Code **v1.0.33** या उसके बाद का संस्करण (प्लगइन मार्केटप्लेस समर्थन)
 - [f5-sales-demo](https://github.com/f5-sales-demo)
-  संगठन तक पहुँच वाला एक GitHub खाता
+  संगठन तक पहुंच वाला एक GitHub खाता
 
 ## इंस्टॉलेशन
 
@@ -27,75 +25,74 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 1. **मार्केटप्लेस जोड़ें**
 
-   किसी भी Claude Code सत्र में, यह चलाएँ:
+   किसी भी Claude Code सत्र में, चलाएं:
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   इससे मार्केटप्लेस एक प्लगइन स्रोत के रूप में पंजीकृत हो जाता है। आपको
-   यह केवल एक बार करना होगा।
+   यह मार्केटप्लेस को प्लगइन स्रोत के रूप में पंजीकृत करता है। आपको यह
+   केवल एक बार करने की आवश्यकता है।
 
-2. **उपलब्ध प्लगइन देखें**
+2. **उपलब्ध प्लगइन्स ब्राउज़ करें**
 
-   मार्केटप्लेस में उपलब्ध विकल्पों की सूची देखें:
+   मार्केटप्लेस द्वारा पेश की जाने वाली चीज़ों की सूची देखें:
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
 3. **एक प्लगइन इंस्टॉल करें**
 
-   आवश्यक प्लगइन इंस्टॉल करें:
+   अपनी आवश्यकता के अनुसार प्लगइन इंस्टॉल करें:
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **प्लगइन का उपयोग करें**
 
-   किसी भी f5-sales-demo कंटेंट रिपॉज़िटरी पर जाएँ।
+   किसी भी f5-sales-demo सामग्री रिपॉजिटरी पर जाएं।
 
-   **docs tools** के लिए, MDX समीक्षा कमांड चलाएँ:
+   **डॉक्स टूल्स** के लिए, MDX समीक्षा कमांड चलाएं:
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
-   **sales engineer** के लिए, "prepare the demo", "run the demo", या "walk through
-   the demo" जैसे ट्रिगर वाक्यांशों का उपयोग करें — प्लगइन स्वचालित रूप से सक्रिय हो जाता है।
+   **sales engineer** के लिए, "prepare the demo", "run the demo", या "walk through the demo" जैसे ट्रिगर वाक्यांशों का उपयोग करें — प्लगइन स्वचालित रूप से सक्रिय हो जाता है।
 
 </Steps>
 
-## प्लगइन अपडेट करना
+## प्लगइन्स को अपडेट करना
 
-किसी इंस्टॉल किए गए प्लगइन को नवीनतम संस्करण में अपडेट करने के लिए:
+इंस्टॉल किए गए प्लगइन को नवीनतम संस्करण में अपडेट करने के लिए:
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## अनइंस्टॉल करना
 
-कोई प्लगइन हटाएँ:
+एक प्लगइन हटाएं:
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-मार्केटप्लेस को पूरी तरह हटाएँ:
+मार्केटप्लेस को पूरी तरह से हटाएं:
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
 ## टीम कॉन्फ़िगरेशन
 
-अपनी पूरी टीम के लिए मार्केटप्लेस को पूर्व-कॉन्फ़िगर करने हेतु, इसे
-अपने प्रोजेक्ट की `.claude/settings.json` में जोड़ें:
+अपनी पूरी टीम के लिए मार्केटप्लेस को पहले से कॉन्फ़िगर करने के लिए, इसे अपने प्रोजेक्ट की
+`.claude/settings.json` में जोड़ें:
 
 ```json
 {
@@ -109,11 +106,10 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 }
 ```
 
-<Aside type="tip" title="साझा सेटिंग्स">
-  `.claude/settings.json` को अपनी रिपॉज़िटरी में कमिट करने का अर्थ है कि
-  प्रत्येक टीम सदस्य को मार्केटप्लेस और प्लगइन स्वचालित रूप से मिल जाते हैं —
-  किसी मैन्युअल सेटअप की आवश्यकता नहीं।
+<Aside type="tip" title="Shared settings">
+  अपनी रिपॉजिटरी में `.claude/settings.json` को कमिट करने का अर्थ है कि
+  टीम के प्रत्येक सदस्य को स्वचालित रूप से मार्केटप्लेस और प्लगइन्स प्राप्त होते हैं
+  — किसी मैन्युअल सेटअप की आवश्यकता नहीं है।
 </Aside>
 
-इससे यह सुनिश्चित होता है कि प्रत्येक योगदानकर्ता के पास रिपॉज़िटरी में अपने
-पहले Claude Code सत्र से ही समान उपकरण उपलब्ध हों।
+यह सुनिश्चित करता है कि रिपॉजिटरी में अपने पहले Claude Code सत्र से ही प्रत्येक योगदानकर्ता के पास समान टूल उपलब्ध हों।

@@ -3,6 +3,8 @@ description: Validate your F5 XC API token
 argument-hint: "[api-url]"
 ---
 
+# Check API token
+
 Delegate token validation to the `api-operator` subagent.
 Do NOT run large API sequences in the main session — API
 JSON payloads can be verbose and must stay in the subagent.
@@ -11,7 +13,7 @@ JSON payloads can be verbose and must stay in the subagent.
 
 Spawn the api-operator agent with:
 
-```
+```text
 Agent(
   subagent_type="platform:api-operator",
   description="Validate F5 XC API token",

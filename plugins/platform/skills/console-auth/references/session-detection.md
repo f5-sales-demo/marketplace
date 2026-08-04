@@ -9,7 +9,7 @@ use this check before starting work.
 
 ### Step 1: Snapshot current page
 
-```
+```text
 take_snapshot()
 ```
 
@@ -65,7 +65,7 @@ auth flow handles it naturally.
 Skills that need session verification should include
 this at the start of their workflow:
 
-```
+```text
 # Read references/session-detection.md
 # Execute the session health check
 # If re-auth needed: invoke console-auth, then continue

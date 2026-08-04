@@ -3,6 +3,8 @@ description: >-
   Check AWS CLI authentication status and show current identity
 ---
 
+# AWS status
+
 Delegate to the cli-operator agent to check AWS connectivity.
 
 ## Delegation

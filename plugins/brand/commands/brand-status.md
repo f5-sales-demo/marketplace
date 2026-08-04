@@ -3,6 +3,8 @@ description: >-
   Check F5 brand asset availability and configuration status
 ---
 
+# Brand status
+
 Delegate to the brand-operator agent to check brand compliance readiness.
 
 ## Delegation

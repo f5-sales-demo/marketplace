@@ -76,7 +76,7 @@ Use these patterns to classify the target:
 
 ## Delegation Pattern
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="OSINT: [brief description]",

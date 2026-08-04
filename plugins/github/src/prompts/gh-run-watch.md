@@ -1,3 +1,5 @@
+# Watch a GitHub Actions Run
+
 Watches a GitHub Actions workflow run through the local GitHub CLI.
 
 <instruction>

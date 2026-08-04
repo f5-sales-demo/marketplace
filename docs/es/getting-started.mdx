@@ -1,12 +1,10 @@
 ---
 title: Primeros pasos
-description: >-
-  Guía paso a paso para agregar el marketplace f5-sales-demo e instalar su
-  primer plugin.
+description: Guía paso a paso para agregar el marketplace f5-sales-demo e instalar su primer plugin.
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
@@ -29,7 +27,7 @@ a Claude Code e instalar su primer plugin.
 
    En cualquier sesión de Claude Code, ejecute:
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
@@ -40,7 +38,7 @@ a Claude Code e instalar su primer plugin.
 
    Liste lo que ofrece el marketplace:
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
@@ -48,7 +46,7 @@ a Claude Code e instalar su primer plugin.
 
    Instale el plugin que necesita:
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
@@ -59,7 +57,7 @@ a Claude Code e instalar su primer plugin.
 
    Para las **herramientas de docs**, ejecute el comando de revisión MDX:
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
@@ -73,7 +71,7 @@ a Claude Code e instalar su primer plugin.
 
 Para actualizar un plugin instalado a la versión más reciente:
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
@@ -82,14 +80,14 @@ Para actualizar un plugin instalado a la versión más reciente:
 
 Elimine un plugin:
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 Elimine el marketplace por completo:
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
@@ -110,7 +108,7 @@ al archivo `.claude/settings.json` de su proyecto:
 }
 ```
 
-<Aside type="tip" title="Configuración compartida">
+<Aside type="tip" title="Shared settings">
   Confirmar `.claude/settings.json` en su repositorio significa que
   cada miembro del equipo obtiene el marketplace y los plugins
   automáticamente — sin necesidad de configuración manual.

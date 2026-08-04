@@ -1,3 +1,5 @@
+# Set Up GitLab CLI Access
+
 GitLab onboarding wizard via glab CLI. Check installation, authenticate, discover projects, and persist configuration.
 
 <instruction>

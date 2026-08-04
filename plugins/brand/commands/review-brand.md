@@ -4,6 +4,8 @@ allowed-tools: Read, Grep, Glob, Bash
 argument-hint: "[path-or-glob]"
 ---
 
+# Review brand compliance
+
 Invoke the `brand-reviewer` skill to audit the current
 repository or specified files for F5 brand compliance.
 

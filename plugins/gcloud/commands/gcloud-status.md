@@ -4,6 +4,8 @@ description: >-
   project configuration
 ---
 
+# Google Cloud status
+
 Delegate to the cli-operator agent to check Google Cloud connectivity.
 
 ## Delegation

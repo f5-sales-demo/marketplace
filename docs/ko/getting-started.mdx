@@ -4,19 +4,20 @@ description: f5-sales-demo 마켓플레이스를 추가하고 첫 번째 플러�
 sidebar:
   order: 2
 i18n:
-  sourceHash: dc222a0155a7
+  sourceHash: e31665018f8a
   translator: machine
 ---
 
 import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
-이 가이드는 f5-sales-demo 마켓플레이스를 Claude Code에 추가하고
-첫 번째 플러그인을 설치하는 과정을 안내합니다.
+이 가이드는 Claude Code에 f5-sales-demo 마켓플레이스를
+추가하고 첫 번째 플러그인을 설치하는 과정을 안내합니다.
 
 ## 사전 요구 사항
 
 - Claude Code **v1.0.33** 이상 (플러그인 마켓플레이스 지원)
-- [f5-sales-demo](https://github.com/f5-sales-demo) 조직에 접근 권한이 있는 GitHub 계정
+- [f5-sales-demo](https://github.com/f5-sales-demo)
+  조직에 대한 액세스 권한이 있는 GitHub 계정
 
 ## 설치
 
@@ -24,20 +25,20 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 1. **마켓플레이스 추가**
 
-   Claude Code 세션에서 다음을 실행하세요:
+   모든 Claude Code 세션에서 다음을 실행합니다:
 
-   ```
+   ```text
    /plugin marketplace add f5-sales-demo/marketplace
    ```
 
-   이 명령은 마켓플레이스를 플러그인 소스로 등록합니다. 이 작업은
+   이렇게 하면 마켓플레이스가 플러그인 소스로 등록됩니다. 이 작업은
    한 번만 수행하면 됩니다.
 
 2. **사용 가능한 플러그인 탐색**
 
-   마켓플레이스에서 제공하는 항목을 나열합니다:
+   마켓플레이스에서 제공하는 항목을 확인합니다:
 
-   ```
+   ```text
    /plugin marketplace list f5-sales-demo-marketplace
    ```
 
@@ -45,24 +46,23 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
    필요한 플러그인을 설치합니다:
 
-   ```
+   ```text
    /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
    /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
    ```
 
 4. **플러그인 사용**
 
-   임의의 f5-sales-demo 콘텐츠 저장소로 이동합니다.
+   f5-sales-demo 콘텐츠 리포지토리로 이동합니다.
 
-   **docs tools**의 경우, MDX 검토 명령을 실행합니다:
+   **문서 도구**의 경우 MDX 검토 명령을 실행합니다:
 
-   ```
+   ```text
    /f5xc-docs-tools:review-mdx
    ```
 
-   **sales engineer**의 경우, "prepare the demo", "run the demo",
-   "walk through the demo"와 같은 트리거 문구를 사용하면
-   플러그인이 자동으로 활성화됩니다.
+   **Sales Engineer**의 경우 "prepare the demo", "run the demo" 또는
+   "walk through the demo"와 같은 트리거 문구를 사용하면 플러그인이 자동으로 활성화됩니다.
 
 </Steps>
 
@@ -70,30 +70,30 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 
 설치된 플러그인을 최신 버전으로 업데이트하려면:
 
-```
+```text
 /plugin update f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
 ## 제거
 
-플러그인을 제거합니다:
+플러그인 제거:
 
-```
+```text
 /plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
 /plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
 ```
 
-마켓플레이스를 완전히 제거합니다:
+마켓플레이스 전체 제거:
 
-```
+```text
 /plugin marketplace remove f5-sales-demo-marketplace
 ```
 
-## 팀 구성
+## 팀 설정
 
-팀 전체를 위해 마켓플레이스를 미리 구성하려면, 프로젝트의
-`.claude/settings.json`에 추가하세요:
+전체 팀을 위해 마켓플레이스를 사전 설정하려면 프로젝트의
+`.claude/settings.json`에 추가하십시오:
 
 ```json
 {
@@ -107,11 +107,11 @@ import { Steps, Aside, Code } from '@astrojs/starlight/components';
 }
 ```
 
-<Aside type="tip" title="공유 설정">
-  `.claude/settings.json`을 저장소에 커밋하면 모든 팀 구성원이
-  마켓플레이스와 플러그인을 자동으로 사용할 수 있게 됩니다 —
-  별도의 수동 설정이 필요하지 않습니다.
+<Aside type="tip" title="Shared settings">
+  리포지토리에 `.claude/settings.json`을 커밋하면
+  모든 팀원이 수동 설정 없이 자동으로 마켓플레이스와
+  플러그인을 사용할 수 있습니다.
 </Aside>
 
-이를 통해 모든 기여자가 저장소에서 첫 번째 Claude Code 세션부터
+이를 통해 모든 기여자가 리포지토리의 첫 번째 Claude Code 세션부터
 동일한 도구를 사용할 수 있습니다.

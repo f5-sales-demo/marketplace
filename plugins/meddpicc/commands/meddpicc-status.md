@@ -3,6 +3,8 @@ description: >-
   Check MEDDPICC framework readiness and deal data availability
 ---
 
+# MEDDPICC status
+
 Report MEDDPICC framework readiness and per-deal status. The
 deterministic status (ordering, completion, scores) comes from the
 plugin engine — never count files or compute scores by hand.

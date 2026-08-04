@@ -1,6 +1,6 @@
 {
   "name": "cloudstatus",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Cloud service status monitoring and operational intelligence via Atlassian Statuspage.io API",
   "license": "Apache-2.0"
 }

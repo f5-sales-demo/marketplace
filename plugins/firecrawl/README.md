@@ -34,41 +34,41 @@ the local firecrawl instance on `localhost:3002` inside the devcontainer.
 
 ### Scrape — Extract single page content
 
-```
+```text
 /scrape https://docs.example.com/getting-started
 /scrape https://example.com --format markdown,links --wait 2000
 ```
 
 ### Batch Scrape — Multiple URLs at once
 
-```
+```text
 /batch-scrape https://example.com https://example.org https://example.net
 ```
 
 ### Crawl — Multi-page site crawl
 
-```
+```text
 /crawl https://docs.example.com --limit 20 --depth 2
 /crawl https://docs.example.com --include /api/* --exclude /blog/*
 ```
 
 ### Map — Discover site URLs
 
-```
+```text
 /map https://docs.example.com
 /map https://docs.example.com --search api --subdomains
 ```
 
 ### Search — Web search
 
-```
+```text
 /search "firecrawl web scraping" --limit 10
 /search "AI tools 2026" --scrape --time month
 ```
 
 ### Extract — LLM-powered structured extraction
 
-```
+```text
 /extract https://example.com "Extract the main heading and any links"
 /extract https://example.com/pricing --schema '{"plans": [{"name": "string", "price": "string"}]}'
 ```
@@ -77,7 +77,7 @@ Requires LLM proxy configured (OPENAI_BASE_URL).
 
 ### llms.txt — Generate LLM-readable site summary
 
-```
+```text
 /llmstxt https://docs.example.com
 ```
 
@@ -120,7 +120,7 @@ A `SessionStart` hook checks that the firecrawl API is reachable on
 The extract endpoint requires an OpenAI-compatible LLM proxy. Set these
 environment variables in the firecrawl API startup:
 
-```
+```dotenv
 OPENAI_API_KEY=<your-proxy-key>
 OPENAI_BASE_URL=<your-litellm-proxy-url>
 ```

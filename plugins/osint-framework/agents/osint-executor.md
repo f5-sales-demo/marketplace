@@ -31,7 +31,7 @@ which <tool-name> 2>/dev/null
 
 If not installed, return:
 
-```
+```text
 RESULT: NOT_INSTALLED
 Tool: <tool-name>
 Install: <install command from reference file>

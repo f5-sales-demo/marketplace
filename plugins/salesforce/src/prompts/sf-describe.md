@@ -1,3 +1,5 @@
+# Describe a Salesforce Object
+
 Look up the real field and relationship names on a Salesforce object. Use this **before** writing SOQL that touches any field you have not already seen in this org.
 
 <instruction>
@@ -32,7 +34,7 @@ A table of `Field | Label | Type | Notes`. Notes carry the active picklist value
 
 Matching child relationships are listed separately with the relationship name to use in a SOQL subquery. Competitors, for instance, often live on the child `OpportunityCompetitor` object rather than a field on Opportunity:
 
-```
+```sql
 SELECT Name, (SELECT CompetitorName FROM OpportunityCompetitors) FROM Opportunity
 ```
 

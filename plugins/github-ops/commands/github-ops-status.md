@@ -3,6 +3,8 @@ description: >-
   Check GitHub CLI authentication, rate limits, and repository state
 ---
 
+# GitHub operations status
+
 Delegate to the github-ops agent to check GitHub operations readiness.
 
 ## Delegation

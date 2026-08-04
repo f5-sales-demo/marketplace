@@ -78,7 +78,7 @@ list of 29 free/freemium tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Mobile OSINT tool search",
@@ -90,7 +90,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Mobile OSINT investigation: [target]",

@@ -54,7 +54,7 @@ list of 16 free tools in this category.
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Encoding & Decoding tool search",
@@ -66,7 +66,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Encoding & Decoding investigation: [target]",

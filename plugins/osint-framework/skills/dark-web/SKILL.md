@@ -85,7 +85,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends default-jre-hea
 
 ### Tool Lookup
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-researcher",
   description="Dark Web tool search",
@@ -97,7 +97,7 @@ Agent(
 
 ### Active Investigation
 
-```
+```text
 Agent(
   subagent_type="osint-framework:osint-investigator",
   description="Dark Web investigation: [target]",

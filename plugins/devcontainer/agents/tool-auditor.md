@@ -70,7 +70,7 @@ Parse the Dockerfile to build a list of all installed tools by method:
 
 Read all reference files from the catalog:
 
-```
+```text
 /workspace/marketplace/plugins/devcontainer/skills/tool-catalog/references/*.md
 ```
 

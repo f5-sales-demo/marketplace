@@ -162,7 +162,7 @@ Find all image references in each file:
 For each reference, resolve the root-relative path against
 `docs/images/`. Use Glob to verify the file exists:
 
-```
+```text
 Glob pattern: docs/images/<filename>
 ```
 
@@ -201,7 +201,7 @@ exports will cause build failures.
 
 After running all checks, present findings in this format:
 
-```
+```markdown
 ## MDX Content Review — <repo-name>
 
 Reviewed N file(s). Found X error(s), Y warning(s), Z info(s).
@@ -227,7 +227,7 @@ No errors found. ✓  (if clean)
 
 If all files pass all checks, report:
 
-```
+```markdown
 ## MDX Content Review — <repo-name>
 
 Reviewed N file(s). No issues found. ✓

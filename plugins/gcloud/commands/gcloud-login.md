@@ -5,6 +5,8 @@ description: >-
 argument-hint: "[project-id]"
 ---
 
+# Google Cloud login
+
 Delegate to the cli-operator agent to handle Google Cloud authentication.
 
 ## Delegation

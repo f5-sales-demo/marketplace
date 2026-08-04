@@ -6,6 +6,8 @@ allowed_tools:
   - Agent
 ---
 
+# Search the web
+
 Invoke the `firecrawl:web-scraper` skill to search "$ARGUMENTS".
 
 Use the SEARCH protocol. Parse the arguments:

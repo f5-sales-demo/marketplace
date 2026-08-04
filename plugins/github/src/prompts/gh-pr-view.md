@@ -1,3 +1,5 @@
+# View a GitHub Pull Request
+
 Reads a GitHub pull request through the local GitHub CLI.
 
 <instruction>
