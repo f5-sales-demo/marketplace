@@ -31,7 +31,9 @@ and this project adheres to
 - **`herdr`** v1.0.1 — freshness verification follows the transferred upstream repository and
   relocated skill path while preserving the byte-identical vendored skill.
 
-- Pinned every GitHub Actions dependency that remained on a mutable major-version tag.
+- Pinned every GitHub Actions dependency that remained on a mutable major-version tag, disabled
+  persisted checkout credentials, and limited release write permission to the release job
+  ([#1021](https://github.com/f5-sales-demo/marketplace/issues/1021)).
 
 - **`github-ops`** polling tests now replace retry waits with a deterministic test-local sleep,
   preserving the `Retry-After` contract without depending on workstation timing
