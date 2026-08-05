@@ -9,7 +9,7 @@ description: >-
   and contributors. Does NOT create issues, branches, commits, PRs,
   or perform any mutative GitHub operations.
   All mutative Git/GitHub operations are the exclusive responsibility
-  of github-ops:github-ops.
+  of github:github-ops.
 disallowedTools: Write, Edit, Agent
 tools:
   - Read

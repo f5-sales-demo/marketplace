@@ -8,7 +8,7 @@ description: >-
   Does NOT commit, push, create branches, create issues, create PRs,
   merge, or perform any mutative GitHub operations. All mutative
   Git/GitHub operations are the exclusive responsibility of
-  github-ops:github-ops.
+  github:github-ops.
 tools:
   - Read
   - Bash
