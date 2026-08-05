@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github-ops`** bumped to v2.3.4
+
+- **`github`** bumped to v1.2.6
+
 - **`sales-engineer`** v1.0.8 — command headings and report templates now use explicit,
   lintable Markdown structure.
 

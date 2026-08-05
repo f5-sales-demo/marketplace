@@ -1,24 +1,26 @@
 ---
 name: github-index
 description: >-
-  Top-level intent router for GitHub operations. Routes auth requests
-  to github-auth, repo/PR/issue operations to the cli-operator agent,
-  and CI/CD watching to existing gh tools. Use when the user mentions
-  GitHub, gh CLI, repos, PRs, issues, actions, or any GitHub topic
-  but the request does not clearly match a specific skill trigger.
+  Top-level intent router and operational mastery guide for Git and GitHub CLI.
+  Provides direct native-like mastery of git and gh commands when the GitHub plugin
+  is installed from the marketplace on workstations equipped with git and gh CLI tools.
+  Routes auth requests to github-auth, repo/PR/issue operations to the cli-operator agent,
+  and CI/CD watching to gh tools. Use when the user mentions GitHub, gh CLI, git CLI,
+  repos, PRs, issues, actions, or any Git/GitHub topic.
 user-invocable: false
 ---
 
-# GitHub Intent Router
+# GitHub & Git Intent Router & Operational Mastery
 
-Route the user's request to the correct skill or agent.
+When installed from the marketplace on a workstation with `git` and `gh` tools available, this plugin equips `xcsh` with first-class, native-like operational mastery for direct `git` and `gh` CLI execution.
+
+For detailed operational guidance, read `references/git-gh-cli-mastery.md`.
 
 ## Routing Rules
 
 ### Authentication
 
-Keywords: "login", "authenticate", "gh auth", "GitHub login",
-"token", "connect GitHub"
+Keywords: "login", "authenticate", "gh auth", "GitHub login", "token", "connect GitHub"
 
 - Auth setup -> invoke `github:github-auth` skill
 - Auth status check -> delegate to `github:cli-operator` agent:
@@ -31,10 +33,18 @@ Keywords: "login", "authenticate", "gh auth", "GitHub login",
   )
   ```
 
-### Repository and PR Operations
+### Direct Git Operations
 
-Keywords: "repo", "repository", "pull request", "PR", "issue",
-"merge", "review", "diff", "checkout", "branch"
+Keywords: "git status", "git diff", "git log", "git branch", "git worktree", "git rebase", "git checkout", "git commit", "git stash", "git fetch", "git pull"
+
+When `git` is available, execute direct native Git CLI operations through the operator agent or main session:
+- Status & Staging: `git status --short --branch`, `git diff --cached`, `git add <files>`
+- Branching & Worktrees: `git branch -a`, `git checkout -b <name>`, `git worktree add <path> <branch>`, `git worktree remove <path>`
+- Sync & Hygiene: `git fetch --prune origin`, `git pull --ff-only origin main`, `git branch -d <name>`
+
+### Repository and PR Operations (`gh`)
+
+Keywords: "repo", "repository", "pull request", "PR", "issue", "merge", "review", "diff", "checkout", "branch"
 
 Delegate to the cli-operator agent:
 
@@ -61,11 +71,9 @@ Common patterns:
 
 ### CI/CD and Actions
 
-Keywords: "actions", "workflow", "run", "CI", "CD", "build",
-"pipeline", "checks"
+Keywords: "actions", "workflow", "run", "CI", "CD", "build", "pipeline", "checks"
 
-- Watching a run -> delegate to cli-operator agent or use the
-  existing `gh_run_watch` tool if available
+- Watching a run -> delegate to cli-operator agent or use the `gh_run_watch` tool if available
 - Listing workflows -> delegate to cli-operator agent:
 
   ```text
@@ -78,8 +86,7 @@ Keywords: "actions", "workflow", "run", "CI", "CD", "build",
 
 ### Generic gh Commands
 
-For any gh CLI command not covered above, delegate to the
-cli-operator agent with the specific command:
+For any gh CLI command not covered above, delegate to the cli-operator agent with the specific command:
 
 ```text
 Agent(
@@ -91,8 +98,6 @@ Agent(
 
 ## Important Notes
 
-- The GitHub plugin provides native MCP tools for common operations
-  (gh_repo_view, gh_pr_view, gh_issue_view, etc.) that activate
-  automatically
-- This router handles cases that fall outside the native tools
-- Always check authentication before performing operations
+- **Modular Separation**: Base `xcsh` core does not require or assume `git`/`gh` tools on non-git workstations.
+- Installing this marketplace plugin injects full operational knowledge for `git` and `gh` CLI commands when tools are present.
+- The GitHub plugin provides native MCP tools for common operations (`gh_repo_view`, `gh_pr_view`, `gh_issue_view`, etc.) that activate automatically.
