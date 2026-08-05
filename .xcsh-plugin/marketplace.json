@@ -28,7 +28,7 @@
     {
       "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -38,21 +38,6 @@
       "license": "Apache-2.0",
       "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
       "tags": ["demo", "sales", "persona", "f5xc"],
-      "repository": "https://github.com/f5-sales-demo/marketplace"
-    },
-    {
-      "name": "github-ops",
-      "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
-      "version": "2.3.3",
-      "author": {
-        "name": "f5-sales-demo"
-      },
-      "source": "./plugins/github-ops",
-      "category": "productivity",
-      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github-ops",
-      "license": "Apache-2.0",
-      "keywords": ["github-ops", "workflow", "pr", "ci", "rate-limit", "github"],
-      "tags": ["github-ops", "workflow", "ci", "f5xc"],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     },
     {
@@ -113,7 +98,7 @@
     {
       "name": "devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-      "version": "1.1.10",
+      "version": "1.1.11",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -182,21 +167,6 @@
       "license": "Apache-2.0",
       "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
       "tags": ["firecrawl", "scraping", "web", "local"],
-      "repository": "https://github.com/f5-sales-demo/marketplace"
-    },
-    {
-      "name": "salesforce-legacy",
-      "description": "[ARCHIVED] Original Claude Code-only Salesforce CLI automation. Replaced by unified salesforce plugin with native xcsh tool support.",
-      "version": "1.0.4",
-      "author": {
-        "name": "f5-sales-demo"
-      },
-      "source": "./plugins/salesforce-legacy",
-      "category": "development",
-      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce",
-      "license": "Apache-2.0",
-      "keywords": ["salesforce", "sf", "apex", "lwc", "soql", "metadata", "deploy", "testing", "sfdx", "agentforce"],
-      "tags": ["salesforce", "development", "cli", "crm"],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     },
     {
@@ -363,20 +333,24 @@
     },
     {
       "name": "github",
-      "description": "GitHub CLI integration — native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status via gh CLI",
-      "version": "1.2.5",
+      "description": "Poweruser GitHub & Git Operations plugin combining direct native CLI mastery (git and gh) with complete Git SOPs workflow governance (issue-driven development, PR lifecycle, CI polling, auto-merge, post-merge teardown, and rate limit management)",
+      "version": "2.0.0",
       "author": {
         "name": "f5-sales-demo"
       },
       "source": "./plugins/github",
       "category": "development",
-      "keywords": ["github", "gh", "git", "pr", "issues", "ci"],
-      "tags": ["github", "development", "cli", "xcsh-extension"],
+      "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
+      "tags": ["github", "development", "cli", "workflow", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github",
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "recommended": true,
       "prerequisites": [
+        {
+          "tool": "git",
+          "detectCmd": "git --version"
+        },
         {
           "tool": "gh",
           "installCmd": "brew install gh",

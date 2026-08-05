@@ -9,7 +9,7 @@ description: >-
   install/remove changes as Dockerfile persistence requests.
   Does NOT commit, push, create branches, create PRs, merge, poll CI,
   or perform any Git workflow operations. All Git workflow operations
-  are the exclusive responsibility of github-ops:github-ops.
+  are the exclusive responsibility of github:github-ops.
 tools:
   - Read
   - Write

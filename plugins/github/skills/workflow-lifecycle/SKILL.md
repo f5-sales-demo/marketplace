@@ -38,7 +38,7 @@ completing only the first step.
 
 ```text
 Agent(
-  subagent_type="github-ops:github-ops",
+  subagent_type="github:github-ops",
   mode="bypassPermissions",
   prompt="<type>: <description>\n\nFiles:\n- <file-list>\n\nWhy: <motivation>"
 )

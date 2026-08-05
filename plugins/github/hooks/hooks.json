@@ -5,8 +5,25 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v gh > /dev/null 2>&1 || echo 'WARNING: GitHub CLI (gh) is not installed. Run /github:setup to install and configure.'",
+            "command": "command -v git > /dev/null 2>&1 && command -v gh > /dev/null 2>&1 || echo 'WARNING: git and/or gh CLI tools are missing. Poweruser GitHub plugin features require git and gh. Run /github:setup or install git and gh.'",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-precommit.sh",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/install-github-ops-lib.sh",
+            "timeout": 10
           }
         ]
       }

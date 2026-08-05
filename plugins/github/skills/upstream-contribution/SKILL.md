@@ -47,7 +47,7 @@ Delegate with:
 
 ```text
 Agent(
-  subagent_type="github-ops:github-ops",
+  subagent_type="github:github-ops",
   mode="bypassPermissions",
   prompt="upstream-research: <keywords describing the contribution>
 
@@ -79,7 +79,7 @@ After research passes, delegate the contribution:
 
 ```text
 Agent(
-  subagent_type="github-ops:github-ops",
+  subagent_type="github:github-ops",
   mode="bypassPermissions",
   prompt="upstream-contribute: <type>: <description>
 
@@ -117,7 +117,7 @@ When the user asks to check on an upstream contribution:
 
 ```text
 Agent(
-  subagent_type="github-ops:github-ops",
+  subagent_type="github:github-ops",
   mode="bypassPermissions",
   prompt="upstream-status:
 
@@ -139,7 +139,7 @@ When tracking reveals a terminal state (merged, closed, or stale):
 
 ```text
 Agent(
-  subagent_type="github-ops:github-ops",
+  subagent_type="github:github-ops",
   mode="bypassPermissions",
   prompt="upstream-resolve:
 

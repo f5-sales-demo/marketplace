@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`sales-engineer`** bumped to v1.0.9
+
+- **`devcontainer`** bumped to v1.1.11
+
 - **`sales-engineer`** v1.0.8 — command headings and report templates now use explicit,
   lintable Markdown structure.
 
