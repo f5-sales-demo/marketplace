@@ -533,15 +533,25 @@ your changes, include the failure in the report with
 `Status: CI_FAILED` and post a comment on the issue. Do NOT attempt
 to fix — return to the caller.
 
-### Step 10: Verify and Clean Up
+### Step 10: Verify and Clean Up (Git SOP Post-Merge Hygiene)
 
 ```bash
-# Issue was closed
+# 1. Verify issue was closed
 gh issue view <ISSUE-NUMBER> --json state --jq '.state'
 
-# Clean up local branches
-git checkout main
+# 2. Checkout main and update
+git checkout main && git pull --ff-only origin main
+
+# 3. Clean up local and remote feature branch
 git branch -d <branch-name>
+git push origin --delete <branch-name> 2>/dev/null || true
+
+# 4. Clean up temporary git worktree if one was created
+[ -n "${WORKTREE_PATH:-}" ] && [ -d "$WORKTREE_PATH" ] && git worktree remove "$WORKTREE_PATH" --force
+git worktree prune
+
+# 5. Prune remote tracking references
+git fetch --prune
 ```
 
 If `docs/**` changed, verify the docs site via API and HTTP:

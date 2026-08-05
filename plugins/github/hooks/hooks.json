@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v gh > /dev/null 2>&1 || echo 'WARNING: GitHub CLI (gh) is not installed. Run /github:setup to install and configure.'",
+            "command": "command -v git > /dev/null 2>&1 && command -v gh > /dev/null 2>&1 || echo 'WARNING: git or gh CLI is not installed on this workstation. Run /github:setup to install and configure.'",
             "timeout": 5
           }
         ]

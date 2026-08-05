@@ -43,7 +43,7 @@
     {
       "name": "github-ops",
       "description": "GitHub operations automation — issue-driven development, PR lifecycle, CI polling, post-merge monitoring, verification, rate limit management, upstream contribution workflow, and autonomous workflow operations agent",
-      "version": "2.3.3",
+      "version": "2.3.4",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -364,7 +364,7 @@
     {
       "name": "github",
       "description": "GitHub CLI integration — native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status via gh CLI",
-      "version": "1.2.5",
+      "version": "1.2.6",
       "author": {
         "name": "f5-sales-demo"
       },
