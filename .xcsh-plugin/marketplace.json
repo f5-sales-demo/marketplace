@@ -28,7 +28,7 @@
     {
       "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -98,7 +98,7 @@
     {
       "name": "devcontainer",
       "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-      "version": "1.1.10",
+      "version": "1.1.11",
       "author": {
         "name": "f5-sales-demo"
       },
