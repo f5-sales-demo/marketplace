@@ -7,7 +7,18 @@
     "url": "https://github.com/f5-sales-demo"
   },
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github",
-  "keywords": ["github", "gh", "git", "pull-request", "issues", "actions", "github-ops", "workflow", "git-sops", "xcsh-extension"],
+  "keywords": [
+    "github",
+    "gh",
+    "git",
+    "pull-request",
+    "issues",
+    "actions",
+    "github-ops",
+    "workflow",
+    "git-sops",
+    "xcsh-extension"
+  ],
   "license": "Apache-2.0",
   "repository": "https://github.com/f5-sales-demo/marketplace"
 }
