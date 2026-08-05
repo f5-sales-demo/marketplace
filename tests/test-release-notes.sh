@@ -31,14 +31,14 @@ changelog() {
     echo "## [0.9.0]"
     echo
     echo '- **`demo`** bumped to v0.9.0'
-  } > "$f"
+  } >"$f"
   echo "$f"
 }
 
 assert_body() {
   local label="$1" expected="$2" file="$3" version="$4"
   local actual rc=0
-  actual=$(bash "$SCRIPT" demo "$version" "$file" 2> /dev/null) || rc=$?
+  actual=$(bash "$SCRIPT" demo "$version" "$file" 2>/dev/null) || rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "[FAIL] $label -> exited $rc, expected success"
     FAIL=1
@@ -55,7 +55,7 @@ assert_body() {
 assert_refuses() {
   local label="$1" file="$2" version="$3"
   local rc=0
-  bash "$SCRIPT" demo "$version" "$file" > /dev/null 2>&1 || rc=$?
+  bash "$SCRIPT" demo "$version" "$file" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "[OK] $label -> refused (exit $rc)"
   else
@@ -66,7 +66,7 @@ assert_refuses() {
 
 # ── The happy paths ─────────────────────────────────────────
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 MD
 )
@@ -79,7 +79,7 @@ assert_body "placeholder entry for the tagged version" \
 # salesforce/v1.0.5 went out as a sentence cut mid-clause. The leading "- " is stripped and
 # continuations dedented by two, so the body reads as prose rather than one giant list item.
 MULTILINE_EXPECTED=$(
-  cat << 'EXPECTED'
+  cat <<'EXPECTED'
 **`demo`** v1.0.1 — the summary line, which wraps
 onto a second line.
 
@@ -91,7 +91,7 @@ A paragraph of cause, indented to match.
 EXPECTED
 )
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** v1.0.1 — the summary line, which wraps
   onto a second line.
 
@@ -108,7 +108,7 @@ assert_body "a multi-line entry is emitted whole, dedented" \
   "$MULTILINE_EXPECTED" "$f" 1.0.1
 
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** v1.0.1 — describes the change in prose.
 MD
 )
@@ -116,7 +116,7 @@ assert_body "prose entry for the tagged version" \
   '**`demo`** v1.0.1 — describes the change in prose.' "$f" 1.0.1
 
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`other`** bumped to v3.0.0
 MD
 )
@@ -125,7 +125,7 @@ assert_body "no entry for this plugin falls back to a generic note" \
 
 # Another plugin's entry at a different version must not be mistaken for staleness.
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 
 - **`other`** v9.9.9 — unrelated plugin, unrelated version.
@@ -139,7 +139,7 @@ assert_body "another plugin's entry is ignored" \
 # plus a prose entry labelled with a version that was never tagged. The old selection
 # matched on plugin name and published both. Only the tagged version may appear.
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.2
 
 - **`demo`** v1.0.1 — describes the change, but for the wrong version.
@@ -149,7 +149,7 @@ assert_body "the salesforce v1.3.5 shape publishes only the tagged version" \
   '**`demo`** bumped to v1.0.2' "$f" 1.0.2
 
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.3
 
 - **`demo`** bumped to v1.0.2
@@ -163,7 +163,7 @@ assert_body "accumulated placeholders yield only the tagged one" \
 # This repository keeps entries for past releases under [Unreleased] indefinitely. Treating
 # those as an error would block every future release, so they must be silently skipped.
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v2.0.0
 
 - **`demo`** v1.5.0 — shipped months ago, still listed here by house style.
@@ -176,7 +176,7 @@ assert_body "historical entries under [Unreleased] do not block a release" \
 
 # ── The one genuine refusal: real ambiguity ─────────────────
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 
 - **`demo`** v1.0.1 — a duplicate at the same version.
@@ -187,7 +187,7 @@ assert_refuses "two entries at the tagged version is ambiguous" "$f" 1.0.1
 # ── Version matching is exact ───────────────────────────────
 # The dot in "1.0.1" must not behave as a regex wildcard.
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1x0x1
 MD
 )
@@ -197,7 +197,7 @@ assert_body "a dot in the version is not a wildcard" \
 # A longer version starting with the same digits is a different release, so it must not be
 # mistaken for the tagged one.
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.10
 MD
 )
@@ -206,7 +206,7 @@ assert_body "v1.0.10 is not mistaken for v1.0.1" \
 
 # ── Earlier release sections are out of scope ───────────────
 f=$(
-  changelog << 'MD'
+  changelog <<'MD'
 - **`demo`** bumped to v1.0.1
 MD
 )

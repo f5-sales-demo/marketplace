@@ -114,7 +114,7 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
       if [[ -z "$skill_desc" ]]; then
         error "SKILL.md missing 'description' in frontmatter: $rel_path"
       fi
-    done < <(find "$PLUGIN_DIR/skills" -name "SKILL.md" -print0 2> /dev/null)
+    done < <(find "$PLUGIN_DIR/skills" -name "SKILL.md" -print0 2>/dev/null)
 
     # ── 8. Agent frontmatter validation ─────────────────────────
     AGENT_COUNT=0
@@ -132,7 +132,7 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
       if [[ -z "$agent_desc" ]]; then
         error "Agent missing 'description' in frontmatter: $rel_path"
       fi
-    done < <(find "$PLUGIN_DIR/agents" -name "*.md" -print0 2> /dev/null)
+    done < <(find "$PLUGIN_DIR/agents" -name "*.md" -print0 2>/dev/null)
 
     # ── 9. Command frontmatter validation ──────────────────────
     CMD_COUNT=0
@@ -146,7 +146,7 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
       if [[ -z "$cmd_desc" ]]; then
         error "Command missing 'description' in frontmatter: $rel_path"
       fi
-    done < <(find "$PLUGIN_DIR/commands" -name "*.md" -print0 2> /dev/null)
+    done < <(find "$PLUGIN_DIR/commands" -name "*.md" -print0 2>/dev/null)
 
     # ── 10. Plugin has at least one skill, command, or agent ───
     TOTAL=$((SKILL_COUNT + CMD_COUNT + AGENT_COUNT))

@@ -28,7 +28,7 @@ cd "$REPO_ROOT" || exit 2
 SLEEP_SECONDS="${HERMETIC_SLEEP_SECONDS:-8}"
 CLIS=(aws az gcloud gh glab sf)
 
-command -v bun > /dev/null 2>&1 || {
+command -v bun >/dev/null 2>&1 || {
   echo "FATAL: bun is required" >&2
   exit 2
 }
@@ -40,7 +40,7 @@ trap 'rm -rf "$STUB_BIN"' EXIT
 # only the cloud CLIs are shadowed. Rebuilding a minimal PATH instead would make a missing
 # ordinary utility look like a hermeticity failure.
 for cli in "${CLIS[@]}"; do
-  printf '#!/bin/sh\nsleep %s\n' "$SLEEP_SECONDS" > "$STUB_BIN/$cli"
+  printf '#!/bin/sh\nsleep %s\n' "$SLEEP_SECONDS" >"$STUB_BIN/$cli"
   chmod +x "$STUB_BIN/$cli"
 done
 
@@ -57,7 +57,7 @@ for dir in plugins/*/; do
 done
 
 if [ "${#failed[@]}" -gt 0 ]; then
-  cat >&2 << EOF
+  cat >&2 <<EOF
 
 NOT HERMETIC: ${failed[*]}
 

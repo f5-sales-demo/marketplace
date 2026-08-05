@@ -25,7 +25,7 @@ check_pattern() {
   if [ "${#SOURCE_FILES[@]}" -eq 0 ]; then
     return 0
   fi
-  results=$(grep -nE "$pattern" -- "${SOURCE_FILES[@]}" 2> /dev/null |
+  results=$(grep -nE "$pattern" -- "${SOURCE_FILES[@]}" 2>/dev/null |
     grep -vE "from\s+['\"]@f5-sales-demo/i18n-core" |
     grep -vE "i18n-core/(src|dist)/" ||
     true)

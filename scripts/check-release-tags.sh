@@ -76,7 +76,7 @@ while read -r name version sha; do
     echo "::error::Tag ${name}/v${version} points at ${tagged}, but that version was published" \
       "by ${sha}. Whoever installs it gets a different revision than the version names."
   fi
-done <<< "$HISTORY"
+done <<<"$HISTORY"
 
 if [ "$MISSING" -ne 0 ]; then
   echo "check-release-tags.sh: published versions are missing their tags (see above)." >&2

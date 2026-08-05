@@ -13,7 +13,7 @@ test_atomic_write_creates_file_with_exact_content() {
 test_atomic_write_overwrites_existing() {
   _load
   dst="$GITHUB_OPS_HOME/cache/test.body"
-  echo "old" > "$dst"
+  echo "old" >"$dst"
   atomic_write "$dst" "new"
   [ "$(cat "$dst")" = "new" ] || return 1
 }
@@ -109,8 +109,8 @@ test_gh_poll_200_body_file_contains_body() {
 test_gh_poll_304_returns_cached_body() {
   _load
   k=$(cache_key GET /repos/x/y/commits/abc/check-runs)
-  printf 'W/"v1"' > "$GITHUB_OPS_HOME/cache/$k.etag"
-  printf '{"cached":true}' > "$GITHUB_OPS_HOME/cache/$k.body"
+  printf 'W/"v1"' >"$GITHUB_OPS_HOME/cache/$k.etag"
+  printf '{"cached":true}' >"$GITHUB_OPS_HOME/cache/$k.body"
   rec="$GITHUB_OPS_HOME/gh_record"
   export GH_STUB_RECORD="$rec"
   export GH_STUB_STATUS=304
@@ -126,12 +126,12 @@ test_gh_poll_304_returns_cached_body() {
 test_gh_poll_304_does_not_rewrite_cache() {
   _load
   k=$(cache_key GET /x)
-  printf 'W/"v1"' > "$GITHUB_OPS_HOME/cache/$k.etag"
-  printf 'original' > "$GITHUB_OPS_HOME/cache/$k.body"
+  printf 'W/"v1"' >"$GITHUB_OPS_HOME/cache/$k.etag"
+  printf 'original' >"$GITHUB_OPS_HOME/cache/$k.body"
   old_mtime=$(stat -c %Y "$GITHUB_OPS_HOME/cache/$k.body")
   export GH_STUB_STATUS=304
   sleep 1
-  gh_poll /x > /dev/null
+  gh_poll /x >/dev/null
   new_mtime=$(stat -c %Y "$GITHUB_OPS_HOME/cache/$k.body")
   [ "$old_mtime" = "$new_mtime" ] || return 1
 }
@@ -155,7 +155,7 @@ test_gh_poll_429_returns_status_429() {
 
 test_cache_trim_removes_stale_entries() {
   _load
-  touch -t "$(date -v-2d +%Y%m%d%H%M.%S 2> /dev/null || date -d '2 days ago' +%Y%m%d%H%M.%S)" "$GITHUB_OPS_HOME/cache/old.body"
+  touch -t "$(date -v-2d +%Y%m%d%H%M.%S 2>/dev/null || date -d '2 days ago' +%Y%m%d%H%M.%S)" "$GITHUB_OPS_HOME/cache/old.body"
   touch "$GITHUB_OPS_HOME/cache/fresh.body"
   cache_trim
   [ ! -f "$GITHUB_OPS_HOME/cache/old.body" ] || return 1

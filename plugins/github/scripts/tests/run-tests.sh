@@ -38,7 +38,7 @@ for file in "$HERE"/test_*.sh; do
     tmp="$(mktemp -d)"
     export GITHUB_OPS_HOME="$tmp"
     mkdir -p "$tmp/cache" "$tmp/state" "$tmp/lib"
-    if ("$fn") > "$tmp/out" 2>&1; then
+    if ("$fn") >"$tmp/out" 2>&1; then
       pass=$((pass + 1))
       printf '  PASS  %s\n' "$fn"
     else

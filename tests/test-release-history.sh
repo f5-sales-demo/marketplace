@@ -49,7 +49,7 @@ commit_manifest() {
     json+="{\"name\":\"${pair%%=*}\",\"version\":\"${pair#*=}\"}"
   done
   json+=']}'
-  printf '%s\n' "$json" > "${dir}/${MANIFEST}"
+  printf '%s\n' "$json" >"${dir}/${MANIFEST}"
   git -C "$dir" add -A
   # --allow-empty is deliberately NOT passed: a case that meant to change the manifest and
   # did not is a broken fixture, and `git commit` refusing is how it says so.
@@ -77,7 +77,7 @@ assert_refused() {
 # commit_other <dir> — a commit that does not touch the manifest.
 commit_other() {
   local dir="$1"
-  printf 'x %s\n' "$RANDOM" >> "${dir}/README.md"
+  printf 'x %s\n' "$RANDOM" >>"${dir}/README.md"
   git -C "$dir" add -A
   git -C "$dir" commit -qm "unrelated"
   git -C "$dir" rev-parse HEAD
@@ -127,7 +127,7 @@ demo 2.0.0 ${c}" \
 # A commit that rewrites the manifest without changing any version publishes nothing.
 d=$(new_repo)
 a=$(commit_manifest "$d" demo=1.0.0)
-printf '%s\n' '{"plugins":[{"name":"demo","version":"1.0.0","description":"new"}]}' > "${d}/${MANIFEST}"
+printf '%s\n' '{"plugins":[{"name":"demo","version":"1.0.0","description":"new"}]}' >"${d}/${MANIFEST}"
 git -C "$d" add -A && git -C "$d" commit -qm "description only"
 assert_eq "a manifest edit that changes no version publishes nothing" \
   "demo 1.0.0 ${a}" \
@@ -153,7 +153,7 @@ beta 0.1.0 ${b}" \
 # Removing a plugin publishes nothing and does not retract what it already published.
 d=$(new_repo)
 a=$(commit_manifest "$d" alpha=1.0.0 beta=1.0.0)
-commit_manifest "$d" alpha=1.0.0 > /dev/null
+commit_manifest "$d" alpha=1.0.0 >/dev/null
 assert_eq "removing a plugin publishes nothing and retracts nothing" \
   "alpha 1.0.0 ${a}
 beta 1.0.0 ${a}" \
@@ -164,7 +164,7 @@ beta 1.0.0 ${a}" \
 d=$(new_repo)
 a=$(commit_manifest "$d" demo=1.0.0)
 b=$(commit_manifest "$d" demo=2.0.0)
-commit_manifest "$d" demo=1.0.0 > /dev/null
+commit_manifest "$d" demo=1.0.0 >/dev/null
 assert_eq "a version reappearing after a downgrade is still one release, the earlier one" \
   "demo 1.0.0 ${a}
 demo 2.0.0 ${b}" \
@@ -172,7 +172,7 @@ demo 2.0.0 ${b}" \
 
 # Commits before the manifest existed are not an error.
 d=$(new_repo)
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 a=$(commit_manifest "$d" demo=1.0.0)
 assert_eq "history predating the manifest is not an error" \
   "demo 1.0.0 ${a}" \
@@ -185,10 +185,10 @@ assert_eq "history predating the manifest is not an error" \
 # tag a refactor instead of the release.
 d=$(new_repo)
 mkdir -p "${d}/.claude-plugin"
-printf '%s\n' '{"plugins":[{"name":"demo","version":"1.0.0"}]}' > "${d}/.claude-plugin/marketplace.json"
+printf '%s\n' '{"plugins":[{"name":"demo","version":"1.0.0"}]}' >"${d}/.claude-plugin/marketplace.json"
 git -C "$d" add -A && git -C "$d" commit -qm "old path 1.0.0"
 old_a=$(git -C "$d" rev-parse HEAD)
-printf '%s\n' '{"plugins":[{"name":"demo","version":"1.1.0"}]}' > "${d}/.claude-plugin/marketplace.json"
+printf '%s\n' '{"plugins":[{"name":"demo","version":"1.1.0"}]}' >"${d}/.claude-plugin/marketplace.json"
 git -C "$d" add -A && git -C "$d" commit -qm "old path 1.1.0"
 old_b=$(git -C "$d" rev-parse HEAD)
 git -C "$d" mv .claude-plugin/marketplace.json .xcsh-plugin/marketplace.json
@@ -221,11 +221,11 @@ assert_refused "lookup refuses an unknown plugin" "$rc" "$out" "nosuch"
 # ---------------------------------------------------------------------------
 
 d=$(new_repo)
-commit_manifest "$d" demo=1.0.0 > /dev/null
-commit_manifest "$d" demo=2.0.0 > /dev/null
-commit_manifest "$d" demo=3.0.0 > /dev/null
+commit_manifest "$d" demo=1.0.0 >/dev/null
+commit_manifest "$d" demo=2.0.0 >/dev/null
+commit_manifest "$d" demo=3.0.0 >/dev/null
 shallow="${WORK}/shallow"
-git clone -q --depth 1 "file://${d}" "$shallow" 2> /dev/null
+git clone -q --depth 1 "file://${d}" "$shallow" 2>/dev/null
 
 rc=0
 out=$( (cd "$shallow" && bash "$HISTORY" 2>&1)) || rc=$?
@@ -247,7 +247,7 @@ a=$(commit_manifest "$d" demo=1.0.0)
 b=$(commit_manifest "$d" demo=1.1.0)
 git -C "$d" tag "demo/v1.0.0" "$a"
 git -C "$d" tag "demo/v1.1.0" "$b"
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -285,7 +285,7 @@ fi
 d=$(new_repo)
 a=$(commit_manifest "$d" demo=1.0.0)
 git -C "$d" tag "demo/v1.0.0" "$a"
-commit_manifest "$d" demo=1.1.0 > /dev/null
+commit_manifest "$d" demo=1.1.0 >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -296,7 +296,7 @@ else
 fi
 
 # ...but only for the tip. One commit later, the same untagged version is a real gap.
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'demo/v1.1.0'; then
@@ -312,11 +312,11 @@ fi
 # nothing actionable in it. Versions of plugins still on offer are unaffected — which is
 # what keeps the meddpicc/v7.2.0 case above reportable.
 d=$(new_repo)
-commit_manifest "$d" old=1.0.0 > /dev/null
+commit_manifest "$d" old=1.0.0 >/dev/null
 b=$(commit_manifest "$d" old=1.0.0 keep=1.0.0)
 git -C "$d" tag "keep/v1.0.0" "$b"
-commit_manifest "$d" keep=1.0.0 > /dev/null
-commit_other "$d" > /dev/null
+commit_manifest "$d" keep=1.0.0 >/dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q 'old/v1.0.0'; then
@@ -332,7 +332,7 @@ else
   printf '       output: %s\n' "$out"
 fi
 # ...and the plugin that IS still offered is still audited: same fixture, tag removed.
-git -C "$d" tag -d "keep/v1.0.0" > /dev/null
+git -C "$d" tag -d "keep/v1.0.0" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 assert_refused "a still-offered plugin is audited across its whole history" "$rc" "$out" "keep/v1.0.0"
@@ -347,7 +347,7 @@ a=$(commit_manifest "$d" demo=1.0.0)
 b=$(commit_manifest "$d" demo=2.0.0)
 git -C "$d" tag "demo/v1.0.0" "$a"
 git -C "$d" tag "demo/v2.0.0" "$a" # wrong: v2.0.0 was published by $b
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'demo/v2.0.0'; then
@@ -368,10 +368,10 @@ fi
 # passes having checked nothing. That is the same vacuous green the shallow clone would
 # give, arrived at from the other direction.
 d=$(new_repo)
-commit_manifest "$d" demo=1.0.0 > /dev/null
-printf '%s\n' '{"plugins":[]}' > "${d}/${MANIFEST}"
+commit_manifest "$d" demo=1.0.0 >/dev/null
+printf '%s\n' '{"plugins":[]}' >"${d}/${MANIFEST}"
 git -C "$d" add -A && git -C "$d" commit -qm "empty the manifest"
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 assert_refused "an empty manifest is refused, not treated as everything being out of scope" \
@@ -382,7 +382,7 @@ assert_refused "an empty manifest is refused, not treated as everything being ou
 d=$(new_repo)
 a=$(commit_manifest "$d" demo=1.0.0)
 git -C "$d" tag -a "demo/v1.0.0" -m "hand cut" "$a"
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -396,7 +396,7 @@ fi
 d=$(new_repo)
 a=$(commit_manifest "$d" demo=1.0.0)
 git -C "$d" tag "demo/v1.0.0-rc1" "$a"
-commit_other "$d" > /dev/null
+commit_other "$d" >/dev/null
 rc=0
 out=$(run_in "$d" "$AUDIT" 2>&1) || rc=$?
 assert_refused "a prerelease tag does not satisfy the release it resembles" \

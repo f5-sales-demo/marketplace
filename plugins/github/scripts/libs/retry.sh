@@ -15,7 +15,7 @@ cooldown_get() {
     echo 0
     return
   }
-  jq -r '.until // 0' "$f" 2> /dev/null || echo 0
+  jq -r '.until // 0' "$f" 2>/dev/null || echo 0
 }
 
 cooldown_set() {
@@ -28,7 +28,7 @@ cooldown_set() {
   if [ "$new_until" -le "$current" ]; then return 0; fi
   local tmp
   tmp="$(mktemp "${f}.XXXXXX")"
-  printf '{"until":%s}\n' "$new_until" > "$tmp"
+  printf '{"until":%s}\n' "$new_until" >"$tmp"
   mv -f "$tmp" "$f"
 }
 

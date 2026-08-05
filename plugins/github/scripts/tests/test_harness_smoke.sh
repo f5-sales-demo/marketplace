@@ -11,6 +11,6 @@ test_harness_records_invocation() {
   export GH_STUB_RECORD="$rec"
   export GH_STUB_STATUS=200
   export GH_STUB_BODY='{"ok":true}'
-  gh api -i /bar > /dev/null
+  gh api -i /bar >/dev/null
   grep -q -- '-i /bar' "$rec" || return 1
 }

@@ -51,7 +51,7 @@ VARIABLE_FORMS='^\$|^\{|\$\{|^%[A-Za-z_]+%$'
 # Home directories owned by a CI runner are the same on every machine.
 CI_USERS='runner|circleci|travis|vsts|ubuntu|node|jenkins|gitpod|vscode'
 
-if ! git rev-parse --git-dir > /dev/null 2>&1; then
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo "::error::not a git repository — cannot inspect tracked files"
   exit 1
 fi
@@ -99,7 +99,7 @@ while IFS= read -r -d '' entry; do
   [ -n "$entry" ] || continue
   case "$entry" in 120000\ *) ;; *) continue ;; esac
   path=${entry#*$'\t'}
-  if ! target=$(git cat-file blob ":${path}" 2> /dev/null); then
+  if ! target=$(git cat-file blob ":${path}" 2>/dev/null); then
     # Fail closed: a symlink we cannot read is not a symlink we can clear.
     echo "::error file=${path}::tracked symlink could not be read — cannot verify its target"
     VIOLATIONS=$((VIOLATIONS + 1))

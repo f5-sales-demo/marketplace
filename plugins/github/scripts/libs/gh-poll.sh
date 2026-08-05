@@ -16,7 +16,7 @@ atomic_write() {
   mkdir -p "$dir"
   local tmp
   tmp="$(mktemp "${dst}.XXXXXX")"
-  printf '%s' "$content" > "$tmp"
+  printf '%s' "$content" >"$tmp"
   mv -f "$tmp" "$dst"
 }
 
@@ -86,7 +86,7 @@ gh_poll() {
   200)
     local body
     body="$(parse_body "$raw")"
-    printf '%s' "$body" > "$body_path"
+    printf '%s' "$body" >"$body_path"
     atomic_write "$cache_dir/$key.body" "$body"
     [ -n "$etag" ] && atomic_write "$etag_file" "$etag"
     etag_hit="etag-miss"
@@ -103,7 +103,7 @@ gh_poll() {
   mkdir -p "$(dirname -- "$log_file")"
   printf '%s %s %s %s %s %s\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$url" \
-    "${http_status:-0}" "${remaining:-}" "$etag_hit" >> "$log_file" 2> /dev/null || true
+    "${http_status:-0}" "${remaining:-}" "$etag_hit" >>"$log_file" 2>/dev/null || true
 
   # TSV output: http_status, remaining, reset, etag_hit, body_path, retry_after
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
@@ -126,7 +126,7 @@ poll_until() {
   fi
 
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    command -v wait_out_cooldown > /dev/null && wait_out_cooldown
+    command -v wait_out_cooldown >/dev/null && wait_out_cooldown
 
     local line
     line="$(gh_poll "$url")"
@@ -193,28 +193,28 @@ poll_until() {
 predicate_pr_checks_done() {
   local body="$1"
   local pending
-  pending="$(jq '[.check_runs[] | select(.status != "completed")] | length' "$body" 2> /dev/null || echo 1)"
+  pending="$(jq '[.check_runs[] | select(.status != "completed")] | length' "$body" 2>/dev/null || echo 1)"
   [ "$pending" = "0" ]
 }
 
 predicate_runs_complete() {
   local body="$1"
   local pending
-  pending="$(jq '[.workflow_runs[] | select(.status != "completed")] | length' "$body" 2> /dev/null || echo 1)"
+  pending="$(jq '[.workflow_runs[] | select(.status != "completed")] | length' "$body" 2>/dev/null || echo 1)"
   [ "$pending" = "0" ]
 }
 
 cache_trim() {
   local dir="$GITHUB_OPS_HOME/cache"
   [ -d "$dir" ] || return 0
-  find "$dir" -maxdepth 1 -type f -mtime +1 -delete 2> /dev/null || true
+  find "$dir" -maxdepth 1 -type f -mtime +1 -delete 2>/dev/null || true
   local count
   count=$(find "$dir" -maxdepth 1 -type f | wc -l | tr -d ' ')
   if [ "$count" -gt 1000 ]; then
     local excess=$((count - 1000))
-    ls -tr "$dir" 2> /dev/null |
+    ls -tr "$dir" 2>/dev/null |
       head -n "$excess" |
-      xargs -I{} rm -f "$dir/{}" 2> /dev/null || true
+      xargs -I{} rm -f "$dir/{}" 2>/dev/null || true
   fi
 }
 

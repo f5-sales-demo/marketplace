@@ -24,16 +24,16 @@ trap cleanup EXIT
 new_repo() {
   local dir="${WORK}/$1"
   mkdir -p "$dir/.xcsh-plugin" "$dir/plugins/demo/.xcsh-plugin"
-  git -C "$dir" init -q -b main 2> /dev/null
+  git -C "$dir" init -q -b main 2>/dev/null
   git -C "$dir" config user.email bump@test
   git -C "$dir" config user.name "Bump Test"
-  cat > "$dir/.xcsh-plugin/marketplace.json" << 'JSON'
+  cat >"$dir/.xcsh-plugin/marketplace.json" <<'JSON'
 { "plugins": [{ "name": "demo", "version": "1.0.0" }] }
 JSON
-  cat > "$dir/plugins/demo/.xcsh-plugin/plugin.json" << 'JSON'
+  cat >"$dir/plugins/demo/.xcsh-plugin/plugin.json" <<'JSON'
 { "name": "demo", "version": "1.0.0" }
 JSON
-  cat > "$dir/CHANGELOG.md" << 'MD'
+  cat >"$dir/CHANGELOG.md" <<'MD'
 # Changelog
 
 ## [Unreleased]
@@ -48,13 +48,13 @@ MD
 # REPO_ROOT points the script at the throwaway repository. Without it the script derives
 # its root from its own path and would bump the checkout under test.
 bump() {
-  (cd "$1" && REPO_ROOT="$1" bash "$SCRIPT" demo patch) > /dev/null 2>&1
+  (cd "$1" && REPO_ROOT="$1" bash "$SCRIPT" demo patch) >/dev/null 2>&1
 }
 
 # Lines the release workflow would read: those between the first two "## [" headings,
 # capped at 20, mentioning the plugin. Mirrors release-plugins.yml exactly.
 release_lines() {
-  python3 - "$1" << 'PY'
+  python3 - "$1" <<'PY'
 import sys
 lines = open(sys.argv[1] + '/CHANGELOG.md').read().split('\n')
 idx = [i for i, l in enumerate(lines) if l.startswith('## [')]
@@ -102,7 +102,7 @@ check "manifest agrees with the entry" "1.0.3" "$version"
 # the salesforce v1.3.4/v1.3.5 mismatch was produced.
 repo=$(new_repo prose)
 bump "$repo"
-python3 - "$repo" << 'PY'
+python3 - "$repo" <<'PY'
 import sys
 p = sys.argv[1] + '/CHANGELOG.md'
 s = open(p).read().replace(
@@ -120,7 +120,7 @@ check "prose entry is relabelled, not duplicated" \
 # would silently move a shipped description onto the version being cut and destroy the real
 # note — observed: three bumps rewrote "v1.3.5 — schema is discovered at runtime" to v1.3.8.
 repo=$(new_repo released_prose)
-python3 - "$repo" << 'PY'
+python3 - "$repo" <<'PY'
 import sys
 p = sys.argv[1] + '/CHANGELOG.md'
 s = open(p).read().replace(
@@ -128,8 +128,8 @@ s = open(p).read().replace(
     '## [Unreleased]\n\n- **`demo`** v1.0.0 — shipped, and tagged, months ago.\n')
 open(p, 'w').write(s)
 PY
-git -C "$repo" add -A > /dev/null 2>&1
-git -C "$repo" commit -qm baseline > /dev/null 2>&1
+git -C "$repo" add -A >/dev/null 2>&1
+git -C "$repo" commit -qm baseline >/dev/null 2>&1
 git -C "$repo" tag "demo/v1.0.0"
 bump "$repo"
 check "a tagged version's prose is left intact" \
@@ -139,7 +139,7 @@ check "a tagged version's prose is left intact" \
 # Untagged prose is still the current branch's work, so it is relabelled as before.
 repo=$(new_repo untagged_prose)
 bump "$repo"
-python3 - "$repo" << 'PY'
+python3 - "$repo" <<'PY'
 import sys
 p = sys.argv[1] + '/CHANGELOG.md'
 s = open(p).read().replace(

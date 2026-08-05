@@ -15,10 +15,10 @@ frontmatter_value() {
 # T1.1 — plugin.json is valid JSON with required fields
 test_plugin_json_valid() {
   local pj="$PLUGIN_ROOT/.xcsh-plugin/plugin.json"
-  jq -e '.name' "$pj" > /dev/null
-  jq -e '.description' "$pj" > /dev/null
-  jq -e '.version' "$pj" > /dev/null
-  jq -e '.author.name' "$pj" > /dev/null
+  jq -e '.name' "$pj" >/dev/null
+  jq -e '.description' "$pj" >/dev/null
+  jq -e '.version' "$pj" >/dev/null
+  jq -e '.author.name' "$pj" >/dev/null
 
   local name
   name=$(jq -r '.name' "$pj")
@@ -162,7 +162,7 @@ test_command_frontmatter() {
 # T1.9 — hooks.json is valid JSON with correct structure
 test_hooks_json_structure() {
   local hj="$PLUGIN_ROOT/hooks/hooks.json"
-  jq -e '.' "$hj" > /dev/null || {
+  jq -e '.' "$hj" >/dev/null || {
     echo "hooks.json is not valid JSON"
     return 1
   }
@@ -187,7 +187,7 @@ test_hook_command_syntax() {
   local hj="$PLUGIN_ROOT/hooks/hooks.json"
   local cmd
   cmd=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$hj")
-  bash -n <<< "$cmd" || {
+  bash -n <<<"$cmd" || {
     echo "hook command has syntax error"
     return 1
   }

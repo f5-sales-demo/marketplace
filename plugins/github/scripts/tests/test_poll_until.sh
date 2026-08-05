@@ -16,7 +16,7 @@ _stub_sleep() {
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'printf "%s\n" "$1" >>"$GITHUB_OPS_HOME/sleep.log"' \
-    > "$bin/sleep"
+    >"$bin/sleep"
   chmod +x "$bin/sleep"
   export PATH="$bin:$PATH"
 }
@@ -55,8 +55,8 @@ test_poll_until_handles_429_via_retry_with_backoff() {
 test_poll_until_counts_304_as_free_poll() {
   _load_all
   k=$(cache_key GET /x)
-  printf 'W/"v"' > "$GITHUB_OPS_HOME/cache/$k.etag"
-  printf '{"state":"pending"}' > "$GITHUB_OPS_HOME/cache/$k.body"
+  printf 'W/"v"' >"$GITHUB_OPS_HOME/cache/$k.etag"
+  printf '{"state":"pending"}' >"$GITHUB_OPS_HOME/cache/$k.body"
   export GH_STUB_STATUS=304
   export GH_STUB_REMAINING=4000
   out=$(MAX_POLL_WALLCLOCK=2 POLL_INTERVAL_OVERRIDE=0 poll_until /x _pred_done || true)
@@ -66,7 +66,7 @@ test_poll_until_counts_304_as_free_poll() {
 test_predicate_pr_checks_done_pass() {
   _load_all
   f=$(mktemp)
-  cat > "$f" << 'EOF'
+  cat >"$f" <<'EOF'
 {"check_runs":[{"status":"completed","conclusion":"success"}]}
 EOF
   predicate_pr_checks_done "$f"
@@ -75,7 +75,7 @@ EOF
 test_predicate_pr_checks_done_pending() {
   _load_all
   f=$(mktemp)
-  cat > "$f" << 'EOF'
+  cat >"$f" <<'EOF'
 {"check_runs":[{"status":"in_progress","conclusion":null}]}
 EOF
   ! predicate_pr_checks_done "$f"
@@ -84,7 +84,7 @@ EOF
 test_predicate_pr_checks_done_failure_terminal() {
   _load_all
   f=$(mktemp)
-  cat > "$f" << 'EOF'
+  cat >"$f" <<'EOF'
 {"check_runs":[{"status":"completed","conclusion":"failure"}]}
 EOF
   predicate_pr_checks_done "$f"
@@ -93,7 +93,7 @@ EOF
 test_predicate_runs_complete_all_done() {
   _load_all
   f=$(mktemp)
-  cat > "$f" << 'EOF'
+  cat >"$f" <<'EOF'
 {"workflow_runs":[{"status":"completed","conclusion":"success"}]}
 EOF
   predicate_runs_complete "$f"
@@ -102,7 +102,7 @@ EOF
 test_predicate_runs_complete_some_pending() {
   _load_all
   f=$(mktemp)
-  cat > "$f" << 'EOF'
+  cat >"$f" <<'EOF'
 {"workflow_runs":[{"status":"completed"},{"status":"queued"}]}
 EOF
   ! predicate_runs_complete "$f"
@@ -149,7 +149,7 @@ test_gh_poll_writes_per_pid_log_file() {
   _load_all
   export GH_STUB_STATUS=200
   export GH_STUB_BODY='{"x":1}'
-  gh_poll /x > /dev/null
+  gh_poll /x >/dev/null
   log="$GITHUB_OPS_HOME/state/poll.$$.log"
   [ -s "$log" ] || return 1
   grep -q '/x' "$log" || return 1

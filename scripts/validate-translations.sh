@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  cat << 'EOF'
+  cat <<'EOF'
 Usage:
   scripts/validate-translations.sh --staged
   scripts/validate-translations.sh --base <commit> --head <commit>
@@ -64,11 +64,11 @@ range)
     echo "[i18n] range validation requires --base and --head" >&2
     exit 2
   }
-  git rev-parse --verify --quiet "${base_ref}^{commit}" > /dev/null || {
+  git rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null || {
     echo "[i18n] base does not resolve to a commit: $base_ref" >&2
     exit 2
   }
-  git rev-parse --verify --quiet "${head_ref}^{commit}" > /dev/null || {
+  git rev-parse --verify --quiet "${head_ref}^{commit}" >/dev/null || {
     echo "[i18n] head does not resolve to a commit: $head_ref" >&2
     exit 2
   }
@@ -79,12 +79,12 @@ range)
   ;;
 esac
 
-command -v python3 > /dev/null 2>&1 || {
+command -v python3 >/dev/null 2>&1 || {
   echo "[i18n] python3 is required" >&2
   exit 1
 }
 
-python3 - "$mode" "$base_ref" "$head_ref" << 'PY'
+python3 - "$mode" "$base_ref" "$head_ref" <<'PY'
 from __future__ import annotations
 
 import hashlib

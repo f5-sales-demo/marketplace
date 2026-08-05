@@ -27,14 +27,14 @@ setup_repo() {
   git -C "$WORK/repo" config user.email test@example.com
   git -C "$WORK/repo" config user.name Test
   cp "$REVIEW" "$SCHEMA" "$PRE_PUSH" "$WORK/repo/scripts/"
-  printf 'base\n' > "$WORK/repo/file.txt"
+  printf 'base\n' >"$WORK/repo/file.txt"
   git -C "$WORK/repo" add .
   git -C "$WORK/repo" commit -qm base
   git -C "$WORK/repo" branch -M main
   git -C "$WORK/repo" switch -qc feature
-  printf 'change\n' >> "$WORK/repo/file.txt"
+  printf 'change\n' >>"$WORK/repo/file.txt"
   git -C "$WORK/repo" commit -qam change
-  cat > "$WORK/bin/agy" << 'SH'
+  cat >"$WORK/bin/agy" <<'SH'
 #!/bin/sh
 count=0
 [ ! -f "$FAKE_AGY_COUNT" ] || count=$(cat "$FAKE_AGY_COUNT")
@@ -73,7 +73,7 @@ run_review() {
     cd "$WORK/repo"
     PATH="$path" FAKE_AGY_CALLS="$WORK/calls" FAKE_AGY_COUNT="$WORK/count" \
       AGY_REVIEW_BASE_REF=main "$@" bash scripts/agy-pre-push-review.sh
-  ) > "$WORK/output" 2>&1 || rc=$?
+  ) >"$WORK/output" 2>&1 || rc=$?
   return "$rc"
 }
 
@@ -122,7 +122,7 @@ else
 fi
 
 setup_repo
-printf 'dirty\n' >> "$WORK/repo/file.txt"
+printf 'dirty\n' >>"$WORK/repo/file.txt"
 if run_review "$WORK/bin:$PATH" env; then
   fail "dirty branch is rejected" "review returned success"
 elif [ ! -e "$WORK/count" ] && grep -q 'exact branch' "$WORK/output"; then
@@ -154,7 +154,7 @@ rc=0
   cd "$WORK/repo"
   PATH="$WORK/bin:$PATH" FAKE_AGY_CALLS="$WORK/calls" FAKE_AGY_COUNT="$WORK/count" \
     AGY_REVIEW_ACTIVE=1 bash scripts/agy-pre-push-review.sh
-) > "$WORK/output" 2>&1 || rc=$?
+) >"$WORK/output" 2>&1 || rc=$?
 if [ "$rc" -ne 0 ] && [ ! -e "$WORK/count" ] && grep -q 'nested.*refused' "$WORK/output"; then
   pass "recursive review is rejected before another model call"
 else

@@ -8,7 +8,7 @@
 #
 # These tests shell out to zsh and assert that the libs run clean.
 
-ZSH_BIN="$(command -v zsh 2> /dev/null || true)"
+ZSH_BIN="$(command -v zsh 2>/dev/null || true)"
 
 _skip_if_no_zsh() {
   if [ -z "$ZSH_BIN" ]; then
