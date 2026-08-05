@@ -21,6 +21,7 @@ LIB="$PLUGIN_ROOT/scripts/libs"
 export PATH="$STUBS:$PATH"
 export GITHUB_OPS_LIB="$LIB"
 export MARKETPLACE_ROOT="$MARKETPLACE_ROOT"
+export PLUGIN_ROOT
 filter="${1:-}"
 
 fail=0

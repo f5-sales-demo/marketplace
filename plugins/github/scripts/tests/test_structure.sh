@@ -180,6 +180,22 @@ test_hooks_json_structure() {
     echo "timeout is not a number: $timeout"
     return 1
   }
+
+  jq -e '
+    any(.hooks.PreToolUse[]?;
+      .matcher == "Bash"
+      and any(.hooks[]?;
+        .type == "command"
+        and .command == "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-precommit.sh"
+        and .timeout == 30)
+      and any(.hooks[]?;
+        .type == "command"
+        and .command == "${CLAUDE_PLUGIN_ROOT}/scripts/install-github-ops-lib.sh"
+        and .timeout == 10))
+  ' "$hj" >/dev/null || {
+    echo "PreToolUse must install github-ops libraries and enforce pre-commit"
+    return 1
+  }
 }
 
 # T1.10 — hook command is syntactically valid shell
