@@ -52,7 +52,7 @@ for p in "${CHANGED_PLUGINS[@]}"; do
   rel="plugins/$p/.xcsh-plugin/plugin.json"
 
   # New plugin (no version at base) — initial version is set manually; skip.
-  base_ver=$(git -C "$REPO_ROOT" show "$BASE_REF:$rel" 2>/dev/null | jq -r '.version // empty') || base_ver=""
+  base_ver=$(git -C "$REPO_ROOT" show "$BASE_REF:$rel" 2> /dev/null | jq -r '.version // empty') || base_ver=""
   if [[ -z "$base_ver" ]]; then
     echo "check-version-bumps: '$p' is new (no version at base) — skipping"
     continue
@@ -65,7 +65,7 @@ for p in "${CHANGED_PLUGINS[@]}"; do
     continue
   fi
 
-  head_ver=$(jq -r '.version // empty' "$REPO_ROOT/$rel" 2>/dev/null) || head_ver=""
+  head_ver=$(jq -r '.version // empty' "$REPO_ROOT/$rel" 2> /dev/null) || head_ver=""
   if [[ -z "$head_ver" ]]; then
     echo "::error::Plugin '$p' is missing $rel .version"
     FAILED=1

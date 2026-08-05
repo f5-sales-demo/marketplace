@@ -7,7 +7,7 @@ if [ "${AGY_PRE_PUSH_REVIEW_ACTIVE:-}" = "1" ] || [ "${AGY_REVIEW_ACTIVE:-}" = "
   exit 1
 fi
 
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+repo_root=$(git rev-parse --show-toplevel 2> /dev/null) || {
   echo "[review] must run inside a git repository" >&2
   exit 1
 }

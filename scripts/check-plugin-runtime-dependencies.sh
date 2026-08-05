@@ -39,7 +39,7 @@ require_json_value() {
   local label="$4"
   local actual
 
-  if ! actual=$(jq -er "$filter" "$file" 2>/dev/null); then
+  if ! actual=$(jq -er "$filter" "$file" 2> /dev/null); then
     fail_static "$label is missing from ${file#"$REPO_ROOT"/}"
     return
   fi
@@ -55,7 +55,7 @@ require_installed_json_value() {
   local label="$4"
   local actual
 
-  if ! actual=$(jq -er "$filter" "$file" 2>/dev/null); then
+  if ! actual=$(jq -er "$filter" "$file" 2> /dev/null); then
     fail_installed "$label is missing from ${file#"$REPO_ROOT"/}"
     return
   fi
@@ -98,7 +98,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     "$EXPECTED_TYPEBOX_RANGE" "$plugin TypeBox development range"
   require_json_value "$package_json" '.devDependencies["bun-types"]' \
     "$EXPECTED_BUN_TYPES_RANGE" "$plugin Bun types development range"
-  if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" >/dev/null 2>&1; then
+  if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" > /dev/null 2>&1; then
     require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/pi-utils"]' \
       "^$EXPECTED_XCSH" "$plugin pi-utils peer range"
   fi
@@ -130,7 +130,7 @@ if [ "$STATIC_FAILURES" -ne 0 ]; then
 fi
 
 if [ "$INSTALLED_FAILURES" -ne 0 ] && $REPAIR; then
-  command -v bun >/dev/null 2>&1 || {
+  command -v bun > /dev/null 2>&1 || {
     echo "FATAL: bun is required to repair plugin runtime dependencies" >&2
     exit 2
   }

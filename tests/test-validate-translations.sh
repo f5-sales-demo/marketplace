@@ -21,7 +21,7 @@ fail() {
 }
 
 source_hash() {
-  python3 - "$1" <<'PY'
+  python3 - "$1" << 'PY'
 import hashlib, pathlib, sys
 print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()[:12])
 PY
@@ -53,7 +53,7 @@ write_target() {
     "\`\`\`$fence_info" \
     '# 安全なコマンド' \
     "$code" \
-    '```' >"$repo/docs/$locale/page.mdx"
+    '```' > "$repo/docs/$locale/page.mdx"
 }
 
 make_repo() {
@@ -83,7 +83,7 @@ make_repo() {
     '```sh' \
     '# Safe command' \
     'echo safe' \
-    '```' >"$repo/docs/en/page.mdx"
+    '```' > "$repo/docs/en/page.mdx"
   local hash
   hash=$(source_hash "$repo/docs/en/page.mdx")
   for locale in "${LOCALES[@]}"; do
@@ -97,7 +97,7 @@ make_repo() {
 echo "Deterministic translation validator tests"
 
 repo=$(make_repo)
-printf '\nEnglish update.\n' >>"$repo/docs/en/page.mdx"
+printf '\nEnglish update.\n' >> "$repo/docs/en/page.mdx"
 git -C "$repo" add docs/en/page.mdx
 if (cd "$repo" && bash "$SCRIPT" --staged); then
   pass "English-only staged changes can reach automation"
@@ -106,7 +106,7 @@ else
 fi
 
 repo=$(make_repo)
-printf '\nEnglish update.\n' >>"$repo/docs/en/page.mdx"
+printf '\nEnglish update.\n' >> "$repo/docs/en/page.mdx"
 hash=$(source_hash "$repo/docs/en/page.mdx")
 write_target "$repo" fr "$hash"
 git -C "$repo" add docs/en/page.mdx docs/fr/page.mdx
@@ -120,7 +120,7 @@ repo=$(make_repo)
 sed -i.bak 's/sourceHash: "[0-9a-f]*"/sourceHash: "000000000000"/' "$repo/docs/fr/page.mdx"
 rm -f "$repo/docs/fr/page.mdx.bak"
 git -C "$repo" add docs/fr/page.mdx
-if (cd "$repo" && bash "$SCRIPT" --staged >/dev/null 2>&1); then
+if (cd "$repo" && bash "$SCRIPT" --staged > /dev/null 2>&1); then
   fail "stale staged locale output fails" "validator returned success"
 else
   pass "stale staged locale output fails"
@@ -128,7 +128,7 @@ fi
 
 repo=$(make_repo)
 base=$(git -C "$repo" rev-parse HEAD)
-printf '\nEnglish update.\n' >>"$repo/docs/en/page.mdx"
+printf '\nEnglish update.\n' >> "$repo/docs/en/page.mdx"
 git -C "$repo" add docs/en/page.mdx
 git -C "$repo" commit -qm source
 head=$(git -C "$repo" rev-parse HEAD)
@@ -142,7 +142,7 @@ else
   fail "complete exact-range output passes" "validator rejected all 12 fresh targets"
 fi
 
-printf 'unrelated workspace state\n' >"$repo/notes.txt"
+printf 'unrelated workspace state\n' > "$repo/notes.txt"
 if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head"); then
   pass "unrelated non-translation workspace files do not poison range validation"
 else
@@ -152,15 +152,15 @@ fi
 rm -f "$repo/notes.txt"
 
 rm -f "$repo/docs/th/page.mdx"
-if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" >/dev/null 2>&1); then
+if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" > /dev/null 2>&1); then
   fail "missing exact-range locale fails" "validator returned success"
 else
   pass "missing exact-range locale fails"
 fi
 write_target "$repo" th "$hash"
 
-printf 'out of scope\n' >"$repo/docs/fr/unrelated.mdx"
-if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" >/dev/null 2>&1); then
+printf 'out of scope\n' > "$repo/docs/fr/unrelated.mdx"
+if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" > /dev/null 2>&1); then
   fail "unrelated model output fails" "validator returned success"
 else
   pass "unrelated model output fails"
@@ -168,7 +168,7 @@ fi
 git -C "$repo" add docs/fr/unrelated.mdx
 git -C "$repo" commit -qm out-of-scope
 committed_head=$(git -C "$repo" rev-parse HEAD)
-if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$committed_head" >/dev/null 2>&1); then
+if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$committed_head" > /dev/null 2>&1); then
   fail "committed out-of-scope locale output fails" "validator returned success"
 else
   pass "committed out-of-scope locale output fails"
@@ -178,7 +178,7 @@ git -C "$repo" commit -qm remove-out-of-scope
 head=$(git -C "$repo" rev-parse HEAD)
 
 write_target "$repo" fr "$hash" 'echo safe' bash
-if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" >/dev/null 2>&1); then
+if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" > /dev/null 2>&1); then
   fail "changed fence info string fails" "validator returned success"
 else
   pass "changed fence info string fails"
@@ -190,11 +190,11 @@ rm -f "$repo/docs/fr/page.mdx.bak"
 git -C "$repo" add docs/fr/page.mdx
 if output=$(cd "$repo" && bash "$SCRIPT" --staged 2>&1); then
   fail "functional JSX drift reports the exact token" "validator returned success"
-elif grep -qF 'docs/fr/page.mdx: protected MDX component tags changed' <<<"$output" &&
-  grep -qF 'missing' <<<"$output" &&
-  grep -qF 'type="note"' <<<"$output" &&
-  grep -qF 'unexpected' <<<"$output" &&
-  grep -qF 'type="warning"' <<<"$output"; then
+elif grep -qF 'docs/fr/page.mdx: protected MDX component tags changed' <<< "$output" &&
+  grep -qF 'missing' <<< "$output" &&
+  grep -qF 'type="note"' <<< "$output" &&
+  grep -qF 'unexpected' <<< "$output" &&
+  grep -qF 'type="warning"' <<< "$output"; then
   pass "functional JSX drift reports the exact token"
 else
   fail "functional JSX drift reports the exact token" "$output"
@@ -206,9 +206,9 @@ rm -f "$repo/docs/fr/page.mdx.bak"
 git -C "$repo" add docs/fr/page.mdx
 if output=$(cd "$repo" && bash "$SCRIPT" --staged 2>&1); then
   fail "link-target drift reports the exact token" "validator returned success"
-elif grep -qF 'protected link targets changed' <<<"$output" &&
-  grep -qF "missing '../guide/'" <<<"$output" &&
-  grep -qF "unexpected '../translated/'" <<<"$output"; then
+elif grep -qF 'protected link targets changed' <<< "$output" &&
+  grep -qF "missing '../guide/'" <<< "$output" &&
+  grep -qF "unexpected '../translated/'" <<< "$output"; then
   pass "link-target drift reports the exact token"
 else
   fail "link-target drift reports the exact token" "$output"

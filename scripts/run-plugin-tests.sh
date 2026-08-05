@@ -22,7 +22,7 @@ export REQUIRE_BUN=1
 # developer's partially populated Puppeteer cache.
 export PUPPETEER_SKIP_DOWNLOAD=true
 
-command -v bun >/dev/null 2>&1 || {
+command -v bun > /dev/null 2>&1 || {
   echo "FATAL: bun is required to run the plugin test suites" >&2
   exit 2
 }
@@ -57,7 +57,7 @@ SANITIZED_BIN="$(mktemp -d)"
 RM_BIN="$(command -v rm)"
 trap '"$RM_BIN" -rf "$SANITIZED_BIN"' EXIT
 
-IFS=':' read -r -a _path_entries <<<"$PATH"
+IFS=':' read -r -a _path_entries <<< "$PATH"
 for _entry in "${_path_entries[@]}"; do
   [ -d "$_entry" ] || continue
   _links=()
@@ -84,13 +84,13 @@ export PATH="$SANITIZED_BIN"
 
 # Fail loudly rather than run a gate that is quietly not what it claims to be.
 for _cli in "${CLI_NAMES[@]}"; do
-  if command -v "$_cli" >/dev/null 2>&1; then
+  if command -v "$_cli" > /dev/null 2>&1; then
     printf 'FATAL: %s is still on PATH at %s after sanitising\n' "$_cli" "$(command -v "$_cli")" >&2
     exit 2
   fi
 done
 for _needed in bun jq git bash dirname basename; do
-  command -v "$_needed" >/dev/null 2>&1 || {
+  command -v "$_needed" > /dev/null 2>&1 || {
     printf 'FATAL: sanitising PATH lost %s\n' "$_needed" >&2
     exit 2
   }

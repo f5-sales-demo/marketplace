@@ -26,7 +26,7 @@
 #       .md locally.
 set -euo pipefail
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+REPO_ROOT=$(git rev-parse --show-toplevel 2> /dev/null || pwd)
 
 # Pinned to the exact versions Super-Linter v8.7.0 ships in its container
 # (super-linter/super-linter dependencies/package.json), so .md judged inside the
@@ -48,8 +48,8 @@ TEXTLINT_BIN="${MDX_LINT_TEXTLINT_BIN:-}"
 
 collect_changed() {
   local base="${1:-origin/main}"
-  git diff --name-only --diff-filter=ACMR "${base}...HEAD" 2>/dev/null ||
-    git diff --name-only --diff-filter=ACMR "$base" 2>/dev/null ||
+  git diff --name-only --diff-filter=ACMR "${base}...HEAD" 2> /dev/null ||
+    git diff --name-only --diff-filter=ACMR "$base" 2> /dev/null ||
     true
 }
 

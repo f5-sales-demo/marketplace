@@ -17,7 +17,7 @@ MARKETPLACE="$REPO_ROOT/.xcsh-plugin/marketplace.json"
 # ── Helpers ──────────────────────────────────────────────────
 
 usage() {
-  cat <<EOF
+  cat << EOF
 Usage:
   $(basename "$0") <plugin-name> <major|minor|patch>
   $(basename "$0") --all <major|minor|patch>
@@ -38,7 +38,7 @@ die() {
 bump_semver() {
   local version="$1" level="$2"
   local major minor patch
-  IFS='.' read -r major minor patch <<<"$version"
+  IFS='.' read -r major minor patch <<< "$version"
   case "$level" in
   major)
     major=$((major + 1))
@@ -110,14 +110,14 @@ for name in "${PLUGINS[@]}"; do
   # Update marketplace.json
   jq --arg n "$name" --arg v "$NEW_VER" \
     '(.plugins[] | select(.name == $n)).version = $v' \
-    "$MARKETPLACE" >"$MARKETPLACE.tmp" && command mv "$MARKETPLACE.tmp" "$MARKETPLACE"
+    "$MARKETPLACE" > "$MARKETPLACE.tmp" && command mv "$MARKETPLACE.tmp" "$MARKETPLACE"
 
   # Update plugin.json
   PLUGIN_JSON="$REPO_ROOT/plugins/$name/.xcsh-plugin/plugin.json"
   [[ -f "$PLUGIN_JSON" ]] || die "plugin.json not found at $PLUGIN_JSON"
 
   jq --arg v "$NEW_VER" '.version = $v' \
-    "$PLUGIN_JSON" >"$PLUGIN_JSON.tmp" && command mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
+    "$PLUGIN_JSON" > "$PLUGIN_JSON.tmp" && command mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
   JSON_FILES+=("$PLUGIN_JSON")
 
   # Keep package.json in lockstep when present (TS plugins carry a separate `version`
@@ -127,7 +127,7 @@ for name in "${PLUGINS[@]}"; do
   if [[ -f "$PKG_JSON" ]]; then
     jq --arg v "$NEW_VER" \
       '.version = $v | (if .xcsh then .xcsh.version = $v else . end)' \
-      "$PKG_JSON" >"$PKG_JSON.tmp" && command mv "$PKG_JSON.tmp" "$PKG_JSON"
+      "$PKG_JSON" > "$PKG_JSON.tmp" && command mv "$PKG_JSON.tmp" "$PKG_JSON"
     JSON_FILES+=("$PKG_JSON")
   fi
 
@@ -138,10 +138,10 @@ for name in "${PLUGINS[@]}"; do
   # own sub-package, shallow enough never to walk into node_modules.
   while IFS= read -r nested; do
     [[ -n "$nested" ]] || continue
-    jq --arg v "$NEW_VER" '.version = $v' "$nested" >"$nested.tmp" &&
+    jq --arg v "$NEW_VER" '.version = $v' "$nested" > "$nested.tmp" &&
       command mv "$nested.tmp" "$nested"
     JSON_FILES+=("$nested")
-  done < <(find "$REPO_ROOT/plugins/$name" -mindepth 2 -maxdepth 2 -name package.json -not -path '*/node_modules/*' 2>/dev/null)
+  done < <(find "$REPO_ROOT/plugins/$name" -mindepth 2 -maxdepth 2 -name package.json -not -path '*/node_modules/*' 2> /dev/null)
 
   echo "  $name: $OLD_VER → $NEW_VER"
   # Backtick the plugin name (it is a literal identifier) so the CHANGELOG entry does not
@@ -157,10 +157,10 @@ done
 # fail `biome check` (the local pre-commit hook and the Lint Code Base gate). Format
 # them in place so a bump — manual or via the auto-bump hook — is lint-clean with no
 # manual step. Biome is the repo's JSON formatter (see .pre-commit-config.yaml).
-if command -v biome >/dev/null 2>&1; then
-  biome check --write "${JSON_FILES[@]}" >/dev/null 2>&1 || true
-elif command -v npx >/dev/null 2>&1; then
-  npx --yes @biomejs/biome check --write "${JSON_FILES[@]}" >/dev/null 2>&1 || true
+if command -v biome > /dev/null 2>&1; then
+  biome check --write "${JSON_FILES[@]}" > /dev/null 2>&1 || true
+elif command -v npx > /dev/null 2>&1; then
+  npx --yes @biomejs/biome check --write "${JSON_FILES[@]}" > /dev/null 2>&1 || true
 else
   echo "WARN: biome not found; run 'biome check --write' on the bumped JSON before committing." >&2
 fi
@@ -189,7 +189,7 @@ fi
 # check fails closed and prose is left alone, which is the safe direction.
 already_released() {
   local name="$1" version="$2"
-  [[ -n "$(git -C "$REPO_ROOT" tag -l "${name}/v${version}" 2>/dev/null)" ]]
+  [[ -n "$(git -C "$REPO_ROOT" tag -l "${name}/v${version}" 2> /dev/null)" ]]
 }
 
 # The first [Unreleased] entry for this plugin, as "form<TAB>version", or nothing.
@@ -247,7 +247,7 @@ relabel_changelog_entry() {
       print
     }
     END { exit(updated ? 0 : 1) }
-  ' "$file" >"$file.tmp"
+  ' "$file" > "$file.tmp"
   local rc=$?
   if [[ $rc -eq 0 ]]; then
     command mv "$file.tmp" "$file"
@@ -290,7 +290,7 @@ if [[ -f "$CHANGELOG" ]]; then
     awk '
       { print }
       !inserted && /^## \[Unreleased\]$/ { printf "%s", ENVIRON["INSERT"]; inserted = 1 }
-    ' "$CHANGELOG" >"$CHANGELOG.tmp" && command mv "$CHANGELOG.tmp" "$CHANGELOG"
+    ' "$CHANGELOG" > "$CHANGELOG.tmp" && command mv "$CHANGELOG.tmp" "$CHANGELOG"
   fi
   echo ""
   echo "Updated CHANGELOG.md — edit the entries before committing."

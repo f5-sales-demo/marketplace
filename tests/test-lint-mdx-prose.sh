@@ -23,7 +23,7 @@ mkdir -p "$WORK/bin"
 # Stubs record their arguments and honour a failure switch, so a test can assert
 # both "was this linter asked about this file" and "does a finding fail the gate".
 for tool in markdownlint-cli2 textlint; do
-  cat >"$WORK/bin/$tool" <<STUB
+  cat > "$WORK/bin/$tool" << STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$@" >>"$WORK/${tool}.args"
 if [ -n "\${STUB_FAIL_${tool//-/_}:-}" ]; then exit 1; fi
@@ -37,7 +37,7 @@ reset_calls() { rm -f "$WORK"/markdownlint-cli2.args "$WORK"/textlint.args; }
 run_gate() { # run_gate <paths...> -> echoes exit code
   local rc=0
   MDX_LINT_MARKDOWNLINT_BIN="$WORK/bin/markdownlint-cli2" MDX_LINT_TEXTLINT_BIN="$WORK/bin/textlint" \
-    bash "$SCRIPT" "$@" >"$WORK/out" 2>&1 || rc=$?
+    bash "$SCRIPT" "$@" > "$WORK/out" 2>&1 || rc=$?
   echo "$rc"
 }
 
@@ -56,9 +56,9 @@ workflow_routes_mdx_gate() {
 
 # --- fixtures -------------------------------------------------------------
 mkdir -p "$WORK/docs/en"
-printf -- '---\ntitle: Good\n---\n\nSome prose.\n' >"$WORK/docs/en/good.mdx"
-printf -- '---\ntitle: Also good\n---\n\nMore prose.\n' >"$WORK/docs/en/other.mdx"
-printf -- '# Plain markdown\n' >"$WORK/docs/en/plain.md"
+printf -- '---\ntitle: Good\n---\n\nSome prose.\n' > "$WORK/docs/en/good.mdx"
+printf -- '---\ntitle: Also good\n---\n\nMore prose.\n' > "$WORK/docs/en/other.mdx"
+printf -- '# Plain markdown\n' > "$WORK/docs/en/plain.md"
 
 # --- cases ----------------------------------------------------------------
 
@@ -82,9 +82,9 @@ reset_calls
 rc=$(run_gate "$WORK/docs/en/good.mdx")
 if [ "$rc" -ne 0 ]; then
   bad "a clean .mdx must pass (rc=$rc): $(cat "$WORK/out")"
-elif ! grep -qF "$WORK/docs/en/good.mdx" "$WORK/markdownlint-cli2.args" 2>/dev/null; then
+elif ! grep -qF "$WORK/docs/en/good.mdx" "$WORK/markdownlint-cli2.args" 2> /dev/null; then
   bad "markdownlint was not asked about the .mdx file"
-elif ! grep -qF "$WORK/docs/en/good.mdx" "$WORK/textlint.args" 2>/dev/null; then
+elif ! grep -qF "$WORK/docs/en/good.mdx" "$WORK/textlint.args" 2> /dev/null; then
   bad "textlint was not asked about the .mdx file"
 else
   ok "a .mdx file reaches both markdownlint and textlint"
@@ -100,17 +100,17 @@ fi
 
 reset_calls
 rc=$(run_gate "$WORK/docs/en/good.mdx" "$WORK/docs/en/other.mdx" "$WORK/docs/en/plain.md")
-if [ "$(grep -c '\.mdx$' "$WORK/markdownlint-cli2.args" 2>/dev/null || echo 0)" -eq 2 ] &&
+if [ "$(grep -c '\.mdx$' "$WORK/markdownlint-cli2.args" 2> /dev/null || echo 0)" -eq 2 ] &&
   ! grep -q '\.md$' "$WORK/markdownlint-cli2.args"; then
   ok "a mixed list is filtered to .mdx only"
 else
-  bad "mixed list filtering is wrong: $(cat "$WORK/markdownlint-cli2.args" 2>/dev/null)"
+  bad "mixed list filtering is wrong: $(cat "$WORK/markdownlint-cli2.args" 2> /dev/null)"
 fi
 
 reset_calls
 rc=$(
   STUB_FAIL_markdownlint_cli2=1 MDX_LINT_MARKDOWNLINT_BIN="$WORK/bin/markdownlint-cli2" \
-    MDX_LINT_TEXTLINT_BIN="$WORK/bin/textlint" bash "$SCRIPT" "$WORK/docs/en/good.mdx" >/dev/null 2>&1
+    MDX_LINT_TEXTLINT_BIN="$WORK/bin/textlint" bash "$SCRIPT" "$WORK/docs/en/good.mdx" > /dev/null 2>&1
   echo $?
 )
 if [ "$rc" -ne 0 ]; then
@@ -122,7 +122,7 @@ fi
 reset_calls
 rc=$(
   STUB_FAIL_textlint=1 MDX_LINT_MARKDOWNLINT_BIN="$WORK/bin/markdownlint-cli2" \
-    MDX_LINT_TEXTLINT_BIN="$WORK/bin/textlint" bash "$SCRIPT" "$WORK/docs/en/good.mdx" >/dev/null 2>&1
+    MDX_LINT_TEXTLINT_BIN="$WORK/bin/textlint" bash "$SCRIPT" "$WORK/docs/en/good.mdx" > /dev/null 2>&1
   echo $?
 )
 if [ "$rc" -ne 0 ]; then
@@ -147,7 +147,7 @@ reset_calls
 rc=$(run_gate --textlint-only "$WORK/docs/en/plain.md")
 if [ "$rc" -ne 0 ]; then
   bad "--textlint-only must accept .md (rc=$rc)"
-elif ! grep -qF "$WORK/docs/en/plain.md" "$WORK/textlint.args" 2>/dev/null; then
+elif ! grep -qF "$WORK/docs/en/plain.md" "$WORK/textlint.args" 2> /dev/null; then
   bad "--textlint-only did not pass the .md file to textlint"
 elif [ -f "$WORK/markdownlint-cli2.args" ]; then
   bad "--textlint-only must not run markdownlint — the markdownlint hook owns .md"
@@ -157,7 +157,7 @@ fi
 
 reset_calls
 rc=$(run_gate --textlint-only "$WORK/docs/en/good.mdx")
-if [ "$rc" -eq 0 ] && grep -qF "$WORK/docs/en/good.mdx" "$WORK/textlint.args" 2>/dev/null; then
+if [ "$rc" -eq 0 ] && grep -qF "$WORK/docs/en/good.mdx" "$WORK/textlint.args" 2> /dev/null; then
   ok "--textlint-only still accepts .mdx"
 else
   bad "--textlint-only should accept .mdx too (rc=$rc)"
@@ -166,18 +166,18 @@ fi
 # --- the routing facts this gate exists to compensate for -----------------
 
 mkdir -p "$WORK/workflows"
-cat >"$WORK/workflows/direct.yml" <<'EOF'
+cat > "$WORK/workflows/direct.yml" << 'EOF'
 jobs:
   lint:
     steps:
       - run: bash scripts/lint-mdx-prose.sh --changed origin/main
 EOF
-cat >"$WORK/workflows/reusable.yml" <<'EOF'
+cat > "$WORK/workflows/reusable.yml" << 'EOF'
 jobs:
   lint:
     uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@0123456789abcdef0123456789abcdef01234567
 EOF
-cat >"$WORK/workflows/unrelated.yml" <<'EOF'
+cat > "$WORK/workflows/unrelated.yml" << 'EOF'
 jobs:
   lint:
     uses: example/actions/.github/workflows/lint.yml@0123456789abcdef0123456789abcdef01234567

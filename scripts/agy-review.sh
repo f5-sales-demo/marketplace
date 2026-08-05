@@ -5,7 +5,7 @@
 set -euo pipefail
 
 usage() {
-  cat <<'EOF'
+  cat << 'EOF'
 Usage:
   scripts/agy-review.sh code --base <ref>
   scripts/agy-review.sh document --kind <spec|plan> --file <path>
@@ -80,7 +80,7 @@ document)
   ;;
 esac
 
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+repo_root=$(git rev-parse --show-toplevel 2> /dev/null) || {
   echo "[review] must run inside a git repository" >&2
   exit 1
 }
@@ -89,7 +89,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 schema="$script_dir/agy-review-output.schema.json"
 
 for command in agy jq; do
-  command -v "$command" >/dev/null 2>&1 || {
+  command -v "$command" > /dev/null 2>&1 || {
     echo "[review] required command is unavailable: $command" >&2
     exit 1
   }
@@ -102,7 +102,7 @@ done
 target_description=""
 target_instructions=""
 if [ "$mode" = code ]; then
-  git rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null || {
+  git rev-parse --verify --quiet "${base_ref}^{commit}" > /dev/null || {
     echo "[review] base ref does not resolve to a commit: $base_ref" >&2
     exit 1
   }
@@ -121,7 +121,7 @@ if [ "$mode" = code ]; then
   fi
   target_description="branch range ${base_sha}...${head_sha}"
 else
-  document_path=$(cd "$(dirname "$document_file")" 2>/dev/null && pwd -P)/$(basename "$document_file") || {
+  document_path=$(cd "$(dirname "$document_file")" 2> /dev/null && pwd -P)/$(basename "$document_file") || {
     echo "[review] document not found: $document_file" >&2
     exit 1
   }
@@ -156,7 +156,7 @@ if [ "$mode" = code ]; then
     git log --format='commit %H%n%B' "${base_sha}..${head_sha}"
     printf '\n%s\n' 'Committed diff:'
     git --no-pager diff --no-color --find-renames "${base_sha}...${head_sha}"
-  } >"$review_target"
+  } > "$review_target"
   relative_review_target=${review_target#"$repo_root"/}
   target_instructions="Read $relative_review_target completely. It contains the exact committed diff and commit metadata for the review target. Use read-only file inspection for any relevant source and tests. Do not run terminal commands or reconstruct the target with git."
 fi
@@ -168,7 +168,7 @@ invoke_agy() {
     agy --new-project --sandbox --mode plan --disable-slash-commands \
     --model "Gemini 3.6 Flash (High)" \
     --output-format stream-json --json-schema "$schema" \
-    --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then
+    --print-timeout 25m --print "$(< "$prompt_file")" > "$stream_file"; then
     echo "[review] Antigravity execution failed" >&2
     return 1
   fi
@@ -179,13 +179,13 @@ invoke_agy() {
     elif ($results[0].result.structured_output | type) != "object" then
       error("missing structured output")
     else $results[0].result.structured_output end
-  ' "$stream_file" >"$result_file"; then
+  ' "$stream_file" > "$result_file"; then
     echo "[review] Antigravity returned malformed or incomplete structured output" >&2
     return 1
   fi
 }
 
-cat >"$work/reviewer.prompt" <<EOF
+cat > "$work/reviewer.prompt" << EOF
 Act as the independent Antigravity reviewer for $target_description.
 $target_instructions
 
@@ -199,7 +199,7 @@ Review correctness, security, data loss, concurrency, rollback, maintainability,
 EOF
 invoke_agy "$work/reviewer.prompt" "$work/reviewer.stream" "$work/reviewer.json"
 
-cat >"$work/verifier.prompt" <<EOF
+cat > "$work/verifier.prompt" << EOF
 Act as a second independent Antigravity verifier for $target_description.
 $target_instructions
 
@@ -214,7 +214,7 @@ invoke_agy "$work/verifier.prompt" "$work/verifier.stream" "$work/verifier.json"
 jq -n --slurpfile reviewer "$work/reviewer.json" --slurpfile verifier "$work/verifier.json" '{
   reviewer: $reviewer[0],
   verifier: $verifier[0]
-}' | tee "${AGY_REVIEW_REPORT_FILE:-/dev/stdout}" >/dev/null
+}' | tee "${AGY_REVIEW_REPORT_FILE:-/dev/stdout}" > /dev/null
 
 if [ -n "${AGY_REVIEW_REPORT_FILE:-}" ]; then
   jq . "$AGY_REVIEW_REPORT_FILE"
@@ -222,10 +222,10 @@ fi
 
 if jq -e '
   ([.findings[]? | select(.severity == "critical" or .severity == "high")] | length) == 0
-' "$work/reviewer.json" >/dev/null &&
+' "$work/reviewer.json" > /dev/null &&
   jq -e '
     ([.findings[]? | select(.severity == "critical" or .severity == "high")] | length) == 0
-  ' "$work/verifier.json" >/dev/null; then
+  ' "$work/verifier.json" > /dev/null; then
   echo "[review] Antigravity gate passed: no critical or high finding remains"
   exit 0
 fi

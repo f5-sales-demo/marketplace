@@ -56,7 +56,7 @@ for plugin_name in "${STAGED_PLUGINS[@]}"; do
   fi
 
   # New plugin guard: no HEAD version means initial creation — skip auto-bump.
-  head_version=$(git -C "$REPO_ROOT" show "HEAD:${plugin_json_rel}" 2>/dev/null |
+  head_version=$(git -C "$REPO_ROOT" show "HEAD:${plugin_json_rel}" 2> /dev/null |
     jq -r '.version // empty') || head_version=""
 
   if [[ -z "$head_version" ]]; then
@@ -65,7 +65,7 @@ for plugin_name in "${STAGED_PLUGINS[@]}"; do
   fi
 
   # Read staged version from the git index (not working tree).
-  staged_version=$(git -C "$REPO_ROOT" show ":${plugin_json_rel}" 2>/dev/null |
+  staged_version=$(git -C "$REPO_ROOT" show ":${plugin_json_rel}" 2> /dev/null |
     jq -r '.version // empty') || staged_version=""
 
   if [[ -z "$staged_version" ]]; then

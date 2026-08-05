@@ -34,7 +34,7 @@ WANT_VERSION="${2:-}"
 # A shallow clone answers `git log` with a handful of commits and no error. An audit built
 # on that finds nothing missing and passes — green, and blind. Refuse instead: a checkout
 # that cannot see the history cannot make a claim about it.
-if [ "$(git rev-parse --is-shallow-repository 2>/dev/null || echo unknown)" != "false" ]; then
+if [ "$(git rev-parse --is-shallow-repository 2> /dev/null || echo unknown)" != "false" ]; then
   echo "release-history.sh: refusing to read a shallow repository — the history would be" >&2
   echo "  silently short and every conclusion drawn from it wrong. Check out with" >&2
   echo "  fetch-depth: 0 (actions/checkout) or run 'git fetch --unshallow'." >&2
@@ -48,10 +48,10 @@ fi
 versions_at() {
   local ref="$1" path raw
   for path in "${MANIFEST_PATHS[@]}"; do
-    raw=$(git show "${ref}:${path}" 2>/dev/null) || continue
+    raw=$(git show "${ref}:${path}" 2> /dev/null) || continue
     [ -n "$raw" ] || continue
     printf '%s' "$raw" |
-      jq -r '.plugins[]? | select(.name != null and .version != null) | "\(.name) \(.version)"' 2>/dev/null ||
+      jq -r '.plugins[]? | select(.name != null and .version != null) | "\(.name) \(.version)"' 2> /dev/null ||
       true
     return 0
   done
@@ -96,8 +96,8 @@ while read -r sha; do
     elif [ "$name" = "$WANT_NAME" ] && [ "$version" = "$WANT_VERSION" ]; then
       FOUND_SHA="$sha"
     fi
-  done <<<"$(versions_at "$sha")"
-done <<<"$(git log --first-parent --reverse --format='%H' -- "${MANIFEST_PATHS[@]}")"
+  done <<< "$(versions_at "$sha")"
+done <<< "$(git log --first-parent --reverse --format='%H' -- "${MANIFEST_PATHS[@]}")"
 
 if [ -n "$WANT_NAME" ]; then
   if [ -z "$FOUND_SHA" ]; then

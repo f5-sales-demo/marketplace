@@ -52,9 +52,9 @@ new_fixture() {
     cp "$SOURCE_ROOT/plugins/$plugin/package.json" "$root/plugins/$plugin/package.json"
     cp "$SOURCE_ROOT/plugins/$plugin/bun.lock" "$root/plugins/$plugin/bun.lock"
   done
-  printf '#!/bin/sh\nexit 0\n' >"$root/plugins/demo/scripts/tests/run-tests.sh"
-  printf 'test("demo", () => {});\n' >"$root/plugins/demo/test/demo.test.ts"
-  printf '#!/bin/sh\nset -eu\nprintf "%%s|%%s\\n" "$*" "${PUPPETEER_SKIP_DOWNLOAD:-}" >>"$TEST_STATE/calls"\nif [ "${1:-}" = install ]; then exit "${INSTALL_EXIT:-0}"; fi\nif [ "${1:-}" = test ]; then touch "$TEST_STATE/test-ran"; fi\n' >"$root/bin/bun"
+  printf '#!/bin/sh\nexit 0\n' > "$root/plugins/demo/scripts/tests/run-tests.sh"
+  printf 'test("demo", () => {});\n' > "$root/plugins/demo/test/demo.test.ts"
+  printf '#!/bin/sh\nset -eu\nprintf "%%s|%%s\\n" "$*" "${PUPPETEER_SKIP_DOWNLOAD:-}" >>"$TEST_STATE/calls"\nif [ "${1:-}" = install ]; then exit "${INSTALL_EXIT:-0}"; fi\nif [ "${1:-}" = test ]; then touch "$TEST_STATE/test-ran"; fi\n' > "$root/bin/bun"
   chmod +x "$root/bin/bun" "$root/plugins/demo/scripts/tests/run-tests.sh"
   for tool in bash basename dirname find git grep jq ln mktemp rm sort; do
     ln -s "$(command -v "$tool")" "$root/tools/$tool"
@@ -63,10 +63,10 @@ new_fixture() {
 }
 
 INSTALL_FAILURE=$(new_fixture install-failure)
-printf '{"lockfileVersion":1}\n' >"$INSTALL_FAILURE/plugins/demo/bun.lock"
+printf '{"lockfileVersion":1}\n' > "$INSTALL_FAILURE/plugins/demo/bun.lock"
 if PATH="$INSTALL_FAILURE/bin:$INSTALL_FAILURE/tools" \
   TEST_STATE="$INSTALL_FAILURE/state" INSTALL_EXIT=9 \
-  bash "$INSTALL_FAILURE/scripts/run-plugin-tests.sh" >/dev/null 2>&1; then
+  bash "$INSTALL_FAILURE/scripts/run-plugin-tests.sh" > /dev/null 2>&1; then
   fail "an install failure must fail the runner"
 fi
 if [ -e "$INSTALL_FAILURE/state/test-ran" ]; then
@@ -82,7 +82,7 @@ fi
 
 MISSING_LOCK=$(new_fixture missing-lock)
 if PATH="$MISSING_LOCK/bin:$MISSING_LOCK/tools" TEST_STATE="$MISSING_LOCK/state" \
-  bash "$MISSING_LOCK/scripts/run-plugin-tests.sh" >/dev/null 2>&1; then
+  bash "$MISSING_LOCK/scripts/run-plugin-tests.sh" > /dev/null 2>&1; then
   fail "a Bun-tested plugin without a lockfile must fail the runner"
 fi
 if [ -e "$MISSING_LOCK/state/test-ran" ]; then
