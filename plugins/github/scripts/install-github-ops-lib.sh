@@ -18,13 +18,13 @@ src="${CLAUDE_PLUGIN_ROOT:-$(cd -- "$here/.." && pwd -P)}/scripts/libs"
 mkdir -p "$GITHUB_OPS_HOME/lib" "$GITHUB_OPS_HOME/cache" "$GITHUB_OPS_HOME/state"
 
 lock="$GITHUB_OPS_HOME/.install.lock"
-if command -v flock >/dev/null 2>&1; then
-  exec 9>"$lock"
+if command -v flock > /dev/null 2>&1; then
+  exec 9> "$lock"
   if ! flock -n 9; then exit 0; fi
 elif ! (
   set -C
-  : >"$lock"
-) 2>/dev/null; then
+  : > "$lock"
+) 2> /dev/null; then
   exit 0
 else
   trap 'rm -f "$lock"' EXIT

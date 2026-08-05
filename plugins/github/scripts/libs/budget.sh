@@ -45,10 +45,10 @@ budget_gap_wait_mutation() {
   mkdir -p "$(dirname -- "$stamp")"
   local now last_ms wait_ms
   now=$(($(date +%s) * 1000))
-  last_ms=$(cat "$stamp" 2>/dev/null || echo 0)
+  last_ms=$(cat "$stamp" 2> /dev/null || echo 0)
   wait_ms=$((1000 - (now - last_ms)))
   if [ "$wait_ms" -gt 0 ]; then sleep "$(awk -v ms="$wait_ms" 'BEGIN{print ms/1000}')"; fi
-  echo "$(($(date +%s) * 1000))" >"$stamp"
+  echo "$(($(date +%s) * 1000))" > "$stamp"
 }
 
 if [ "${BASH_SOURCE[0]:-}" = "$0" ]; then

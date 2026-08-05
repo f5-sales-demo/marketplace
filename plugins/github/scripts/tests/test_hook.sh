@@ -9,7 +9,7 @@ _get_hook_command() {
 
 # T2.1 — hook succeeds with no output when gh is installed
 test_hook_succeeds_when_gh_installed() {
-  command -v gh >/dev/null 2>&1 || {
+  command -v gh > /dev/null 2>&1 || {
     echo "SKIP: gh CLI not installed"
     return 0
   }
@@ -31,7 +31,7 @@ test_hook_warns_when_gh_missing() {
   local tmp
   tmp=$(mktemp -d)
   ln -s "$(command -v bash)" "$tmp/bash"
-  ln -s "$(command -v command)" "$tmp/command" 2>/dev/null || true
+  ln -s "$(command -v command)" "$tmp/command" 2> /dev/null || true
   local out
   out=$(PATH="$tmp" bash -c "$cmd" 2>&1) || true
   rm -rf "$tmp"

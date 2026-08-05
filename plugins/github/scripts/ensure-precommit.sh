@@ -15,16 +15,16 @@
 [ -f .pre-commit-config.yaml ] || exit 0
 
 # Not a git repo → nothing to do
-git rev-parse --git-dir >/dev/null 2>&1 || exit 0
+git rev-parse --git-dir > /dev/null 2>&1 || exit 0
 
 # pre-commit CLI not available → block
-command -v pre-commit >/dev/null 2>&1 || {
+command -v pre-commit > /dev/null 2>&1 || {
   echo "BLOCKED: pre-commit CLI not found. Install it first."
   exit 2
 }
 
 # Resolve the hooks path (works in both repos and worktrees)
-HOOK_PATH=$(git rev-parse --git-path hooks/pre-commit 2>/dev/null)
+HOOK_PATH=$(git rev-parse --git-path hooks/pre-commit 2> /dev/null)
 
 # Hooks already installed → nothing to do
 [ -f "$HOOK_PATH" ] && exit 0

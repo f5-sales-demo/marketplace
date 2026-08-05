@@ -6,6 +6,6 @@
 # Detect an active GitHub CLI session.
 # Returns 0 if gh CLI is installed and authenticated.
 _detect_live_session() {
-  command -v gh >/dev/null 2>&1 || return 1
-  gh auth status >/dev/null 2>&1 || return 1
+  command -v gh > /dev/null 2>&1 || return 1
+  gh auth status > /dev/null 2>&1 || return 1
 }

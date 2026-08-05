@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v gh > /dev/null 2>&1 || echo 'WARNING: GitHub CLI (gh) is not installed. Run /github:setup to install and configure.'",
+            "command": "command -v git > /dev/null 2>&1 && command -v gh > /dev/null 2>&1 || echo 'WARNING: git and/or gh CLI tools are missing. Poweruser GitHub plugin features require git and gh. Run /github:setup or install git and gh.'",
             "timeout": 5
           }
         ]
