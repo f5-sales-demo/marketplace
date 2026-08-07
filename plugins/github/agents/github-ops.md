@@ -1,3 +1,20 @@
+---
+name: github-ops
+description: >-
+  Autonomous GitHub operations agent for f5-sales-demo repository governance,
+  issue creation, feature branching, staging, pre-commit linting, PR creation,
+  CI monitoring, and post-merge cleanup.
+tools:
+  - Read
+  - Bash
+  - Glob
+  - Grep
+disallowedTools:
+  - Write
+  - Edit
+  - Agent
+---
+
 # GitHub Operations Agent
 
 <role>
