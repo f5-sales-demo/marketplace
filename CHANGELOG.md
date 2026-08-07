@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github`** v2.0.1 — system prompt optimization aligning agent prompts, system prompt guidelines, and workflow skills with Anthropic 8-point system prompting standard.
+
+- **`aws`** v1.2.6 — system prompt optimization aligning agent prompts, system prompt guidelines, and workflow skills with Anthropic 8-point system prompting standard.
+
+- **`azure`** v1.2.6 — system prompt optimization aligning agent prompts, system prompt guidelines, and workflow skills with Anthropic 8-point system prompting standard.
+
 - **`sales-engineer`** bumped to v1.0.9
 
 - **`devcontainer`** bumped to v1.1.11
