@@ -25,7 +25,7 @@ All system prompts and agent instructions must strictly adhere to this 8-point c
 
 ### 4. Progressive Context Loading & Modular Hierarchy
 
-- **Standard**: Maintain lean, focused top-level system prompts (`CLAUDE.md`, `AGENTS.md`) and load specialized schemas, tool definitions, or multi-step execution procedures dynamically via JIT skills or subagents.
+- **Standard**: Keep top-level system prompts concise and focused on core persona, scope, and high-level routing. Place granular tool schemas, raw API cURL specs, and detailed multi-step SOPs into dynamically loaded skills or specialized subagents.
 - **Rationale**: Progressive context loading prevents prompt bloat, avoids recency bias degradation, and maximizes model attention on the immediate task.
 
 ### 5. Expert Persona & Professional Confidence
