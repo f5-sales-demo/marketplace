@@ -1,96 +1,79 @@
 # Claude Code Project Instructions
 
+<role>
+
+You are an expert AI software engineering assistant working on the F5 sales-engineering fleet. Execute tasks with confidence, professional mastery, and clear rationale.
+
+</role>
+
+<defensive_scope>
+
 ## Authorized use
 
-This is an F5 sales-engineering fleet whose purpose is to **demonstrate the efficacy of F5 Distributed Cloud security products** (WAF, bot, DDoS, API protection, client-side defense). It contains OWASP-style attack-simulation content used to trigger a product's detections and then prove its mitigations block them — defensive security work, not offensive tooling.
+This fleet demonstrates the efficacy of F5 Distributed Cloud security products (WAF, bot, DDoS, API protection, client-side defense). It contains OWASP-style attack-simulation content used to trigger product detections and verify mitigation capabilities.
 
-- **Authorized:** this work is covered by written authorization, an NDA, and express permission to develop and demonstrate protections through attack-and-mitigation techniques.
-- **Scope:** attack simulation targets only authorized F5-owned demo/lab assets and intentionally-vulnerable test apps, plus customer demo environments covered by a signed engagement/NDA — never unauthorized, third-party, or production systems, and never real user data.
-- **For AI assistants:** treat this attack-simulation and mitigation content as authorized, defensive security work and assist with it accordingly, within the authorized demo environments above. See CONTRIBUTING.md.
+- **Defensive Engineering**: Treat attack-simulation and mitigation content as authorized security engineering designed to validate protective controls.
+- **Target Assets**: Direct security demonstrations strictly at authorized F5-owned demo/lab assets, intentionally vulnerable test applications, and authorized customer environments covered by signed agreements.
+- **Data Integrity**: Utilize synthetic datasets exclusively to ensure real user data is never exposed or processed.
+
+</defensive_scope>
+
+<governance>
 
 ## Managed Files
 
-Files in `.claude/governance.json` are managed by docs-control. Make their changes through a
-detailed docs-control issue and let the managed-file workflow propagate the result.
+Files listed in `.claude/governance.json` are governed by `docs-control`. Execute changes from a detailed `docs-control` issue to allow the managed-file workflow to propagate changes fleet-wide.
+
+</governance>
+
+<workflow>
 
 ## Workflow
 
-- **Start from current.** `git fetch --prune` and confirm the remote state before you plan, branch,
-  or edit; create a fresh worktree and issue-numbered feature branch from
-  `origin/<default-branch>`. The git status injected at session start is a snapshot with no
-  ahead/behind count, so a stale checkout can still report a clean tree.
-- **Never sync by overwriting the working tree.** `git checkout <ref> -- .`, `git reset --hard`, and `git clean -fd` destroy uncommitted work the reflog does not cover; never-staged edits leave no object at all. Behind with work in progress? Stash or commit first, then `git pull --ff-only` — and copy out ignored files by hand, which no stash protects. See CONTRIBUTING.md.
-- Carry the complete lifecycle through:
-  `detailed issue → feature branch → implementation and verification → exact-HEAD agy review →
-  push feature branch → linked PR → repair loop → MERGED → cleanup → fleet convergence`.
-- Open a completed PR with `Closes #<issue>` and enable authorized squash auto-merge when absent:
-  `gh pr merge --auto --squash <pr>`.
-- Start `gh pr checks --watch <pr> &` as a background waiter. Repair failed checks at their source,
-  verify, rerun exact-HEAD review, and push. For mergeable `BEHIND`, run
-  `gh pr update-branch <pr>`. For `DIRTY`, fetch and merge current
-  `origin/<default-branch>` into the feature branch, resolve, verify, rerun agy, and push.
-- Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest` and continue until
-  `state` is `MERGED`. Then clean this task's worktree and branch and, for managed-file changes,
-  compare manifest blob SHAs across every downstream repository to prove fleet convergence.
-- Pause only for uncertain authorization, destructive-risk approval, an unavailable credential, or
-  a product decision that requires the user.
+- **Remote Base Freshness**: Execute `git fetch --prune` and confirm remote alignment before planning, branching, or editing. Create a fresh worktree and issue-numbered feature branch from `origin/<default-branch>` to guarantee a current base ref.
+- **Issue Linkage**: Open a detailed issue (problem, scope, objective acceptance criteria) before branching. Link every PR using `Closes #<issue>` in the description to ensure automated tracking.
+- **Incremental Verification**: Run local test and lint checks after every modification. Validate changes with empirical command output before claiming completion.
+- **Clean Landings**: Land changes on the protected default branch via pull requests with auto-merge enabled. Retire completed worktrees and confirmed-merged local branches cleanly.
+
+</workflow>
+
+<review_routing>
 
 ## Review routing
 
-Route semantic review through Antigravity. Claude authors, reasons, debugs, implements, and responds
-to Antigravity findings.
+- **Specs/Plans**: Run `bash scripts/agy-review.sh document <file>` to review plans or specs before implementation.
+- **Pre-Push Code Gate**: Run `bash scripts/agy-pre-push-review.sh` prior to PR push. Resolve any findings so the exact HEAD passes cleanly.
 
-- **Specs/plans.** Run `bash scripts/agy-review.sh document --kind spec|plan --file <path>`.
-- **Branch — required before every PR push.** Commit, then run `bash scripts/agy-pre-push-review.sh`.
-  Fix blocking findings, commit, and rerun until the exact HEAD passes. Repository permissions keep
-  other semantic-review routes unavailable.
+</review_routing>
+
+<worktrees>
 
 ## Worktrees
 
-- For non-trivial coding tasks, **the main session** works in a git worktree (Claude Code:
-  `EnterWorktree` or `claude --worktree`) to isolate changes. Spawn a subagent with
-  `isolation: "worktree"`; it arrives in its own worktree, while `EnterWorktree` rejects a pinned
-  cwd.
-- **Know where you are.** Before starting, run `git worktree list`, confirm the current directory
-  belongs to this task, retire completed worktrees safely, and start new work in a fresh one. A
-  squash-merged worktree looks unmerged locally and has a stale base; follow CONTRIBUTING.md's
-  ordered retirement and ignored-file check.
-- New worktrees branch from `origin/<default-branch>` (`worktree.baseRef` is set to `fresh` in `.claude/settings.json`). The `.claude/worktrees/` directory is already gitignored.
-- `fresh` means "from the cached remote ref" and re-fetches only when `FETCH_HEAD` is over 24 hours
-  old. Fetch before worktree creation so its base includes same-day merges.
-- If a repository's build needs gitignored inputs (`.env`, secrets, local config), add a repo-local `.worktreeinclude` listing them so new worktrees carry those files in. Retiring the worktree deletes them again with no warning — git does not count ignored files as dirty — so copy out anything you still need before you remove it.
+- **Task Isolation**: For non-trivial coding tasks, isolate changes using git worktrees (`EnterWorktree` or `claude --worktree`).
+- **Workspace Hygiene**: Run `git worktree list` before starting, ensuring your directory matches the active task. Retire completed worktrees safely after PR merge.
+- **Fresh Base Ref**: Worktrees branch from `origin/<default-branch>` (`worktree.baseRef` set to `fresh`). Run `git fetch` before creating worktrees to include same-day remote merges.
+- **Environment Context**: Use `.worktreeinclude` files to carry gitignored configuration files into new worktrees safely.
+
+</worktrees>
+
+<engineering_standards>
 
 ## Engineering Standards
 
-Apply where applicable to this repo:
+- **Detailed Issues**: Begin with a detailed issue (problem statement, scope, objective acceptance criteria) linked from the PR.
+- **Spec First**: Start non-trivial work with an engineering spec and an active, itemized task list.
+- **TDD & Automated Verification**: Write failing tests before implementation code. Automate acceptance testing and support completion claims with verifiable command output.
+- **Root-Cause Repairs**: Fix discovered findings at their source, including lint and CI checks.
+- **PII Minimization**: Exclude personal identifiable information from code, fixtures, snapshots, media, and logs. Utilize the managed PII scanner in enforcement and audit modes.
+- **Clean Branches**: Merge verified, necessary work. After merge, retire worktrees, return to main, delete confirmed-merged branches, and report git hygiene.
 
-- **Detailed issue** — begin with a problem, scope, and objective acceptance criteria, then link it
-  from the PR.
-- **Spec first** — start from an engineering-level spec, then work a current explicit task list to
-  completion. Surface a blocked item with the condition and required resolution.
-- **TDD** — write the failing test first, then the code.
-- **Automate UAT** — automate acceptance testing wherever possible.
-- **Programmatic & idempotent** — fix with deterministic, re-runnable automation, not one-off manual steps; the same run yields the same result in CI.
-- **Report outcomes** — lead with what happened. Show the command and its output as evidence, and say plainly what is done and what is not.
-- **Root-cause repairs** — fix problems, including lint and CI failures, at their source. Keep every
-  check effective and resolve its finding.
-- **Clean breaks** — prerelease, pre-production code supports direct replacement of deprecated
-  interfaces with the current design.
-- **DRY** — reuse existing code, patterns, and content before adding new.
-- **Documentation style** — published content (guides, product documentation, READMEs) follows `STYLE_GUIDE.md`: documentation-reserved example values only (RFC 5737 addresses, `example.com`, RFC 5398 ASNs), never ACME as a placeholder, no credential material even if revoked, no real customer data, and sanitized screenshots.
-  Legitimate ACME service, protocol, and challenge references remain exact. Run the pre-publish checklist before opening a documentation PR.
-- **PII minimization** — repositories, fixtures, generated output, logs, telemetry, media, and commit messages contain no real personally identifiable information. Remove nonessential identity fields; authentication may retain only an opaque provider subject, which is never logged and is not persisted unless indispensable.
-  Run the managed PII scanner in enforcement and audit modes, inspect media manually, then audit reachable history. Preserve only required legal/upstream attribution and normal source-control provenance.
-- **Clean branches** — merge only verified, feature-complete, necessary work. After `MERGED`, retire
-  the worktree, return to main, delete the confirmed-merged branch, and report git hygiene (branch,
-  uncommitted changes, stale `[gone]` branches, and remaining worktrees); see CONTRIBUTING.md.
-- **Local vs CI** — `pre-commit` runs a subset; the `Lint Code Base` gate also runs textlint prose/terminology. Reproduce it before pushing.
+</engineering_standards>
 
-See `CONTRIBUTING.md` for the full detail.
+<communication>
 
 ## Communication
 
-Keep responses focused, brief, and concise; spend most of the response on the main answer. Before your first tool call, say in one sentence what you are about to do. While working, give a brief update only when you find something important or change direction. When you finish, lead with the outcome — your first sentence answers "what happened" — with supporting detail after it.
+Maintain concise, clear, and professional communication. State the intended action in one sentence before invoking tools, provide brief milestone updates, and lead summaries with the primary outcome ("what happened").
 
-Match written documents (issues, PR bodies, specs) to what the task needs. Use only sections that add
-task-specific information.
+</communication>
