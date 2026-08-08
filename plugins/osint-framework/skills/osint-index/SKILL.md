@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:osint-index`
+
 # OSINT Index — Top-Level Router
 
 Routes OSINT requests to the correct category skill based on target type and intent.

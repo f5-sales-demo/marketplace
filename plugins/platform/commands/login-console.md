@@ -11,7 +11,7 @@ snapshots are token-heavy and must stay in the subagent.
 
 ## Delegation
 
-Spawn the console-operator agent with:
+Spawn the `platform:console-operator` agent with:
 
 ```text
 Agent(

@@ -7,11 +7,11 @@ argument-hint: "[subscription-name-or-id]"
 
 # Azure login
 
-Delegate to the cli-operator agent to handle Azure authentication.
+Delegate to the `azure:cli-operator` agent to handle Azure authentication.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `azure:cli-operator` agent with the following instructions:
 
 1. The user-provided subscription is `$ARGUMENTS` (skip subscription
    selection if empty).

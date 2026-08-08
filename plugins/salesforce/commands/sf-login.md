@@ -7,11 +7,11 @@ argument-hint: "[org-alias]"
 
 # Salesforce login
 
-Delegate to the cli-operator agent to handle Salesforce authentication.
+Delegate to the `salesforce:cli-operator` agent to handle Salesforce authentication.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `salesforce:cli-operator` agent with the following instructions:
 
 1. The user-provided alias is `$ARGUMENTS` (use `my-dev-org` if empty).
 2. Run `sf org list --json` to check existing orgs.

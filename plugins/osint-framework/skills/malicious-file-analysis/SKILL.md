@@ -6,6 +6,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:malicious-file-analysis`
+
 # Malicious File Analysis
 
 Malware analysis, file reputation, sandbox detonation, document

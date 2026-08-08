@@ -9,6 +9,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://meddpicc:champion-test`
+
 # Champion Test
 
 Assess whether an internal contact meets the bar for a true MEDDPICC

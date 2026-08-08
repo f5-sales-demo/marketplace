@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:transportation`
+
 # Transportation
 
 Vehicle records, flight tracking, ship tracking, railway data,

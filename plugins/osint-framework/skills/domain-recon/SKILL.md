@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:domain-recon`
+
 # Domain Reconnaissance
 
 Comprehensive domain investigation — WHOIS, DNS, subdomains,

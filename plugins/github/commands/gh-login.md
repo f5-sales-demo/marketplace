@@ -7,11 +7,11 @@ argument-hint: "[hostname]"
 
 # GitHub login
 
-Delegate to the cli-operator agent to handle GitHub authentication.
+Delegate to the `github:cli-operator` agent to handle GitHub authentication.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `github:cli-operator` agent with the following instructions:
 
 1. Run `gh auth status` to check existing authentication.
 2. If already authenticated, report the user, account, and token type.

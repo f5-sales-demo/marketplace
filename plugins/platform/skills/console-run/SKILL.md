@@ -10,6 +10,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://platform:console-run`
+
 # Console Run
 
 Execute a catalog workflow against a live F5 XC console browser

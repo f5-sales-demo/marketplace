@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:api-auth`
+
 # API Authentication
 
 Manages authentication for F5 XC REST API operations.

@@ -10,6 +10,8 @@ description: >-
   in any f5-sales-demo content repository's docs/ directory.
 ---
 
+**Canonical skill URI**: `skill://docs-tools:content-reviewer`
+
 # MDX Content Reviewer
 
 Review MDX files in `docs/` for errors that cause Astro/Starlight build

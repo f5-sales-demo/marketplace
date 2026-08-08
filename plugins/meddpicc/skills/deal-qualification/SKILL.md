@@ -11,6 +11,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://meddpicc:deal-qualification`
+
 # MEDDPICC Deal Qualification
 
 Produce an evidence-based MEDDPICC scorecard for a deal. Collect

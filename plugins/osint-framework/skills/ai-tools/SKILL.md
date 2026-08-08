@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:ai-tools`
+
 # AI Tools
 
 AI-powered OSINT analysis tools -- deepfake detection, AI content

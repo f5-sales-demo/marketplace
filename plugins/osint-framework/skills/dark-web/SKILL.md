@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:dark-web`
+
 # Dark Web
 
 Dark web monitoring, onion service analysis, and anonymous network

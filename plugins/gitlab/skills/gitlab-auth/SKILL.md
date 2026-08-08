@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://gitlab:gitlab-auth`
+
 # GitLab CLI Authentication (Container-Adapted)
 
 This skill guides authentication for headless container environments

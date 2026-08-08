@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://aws:aws-index`
+
 # AWS Intent Router
 
 Route the user's request to the correct skill or agent.

@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:email-recon`
+
 # Email Reconnaissance
 
 Search, verify, and investigate email addresses — breach exposure,

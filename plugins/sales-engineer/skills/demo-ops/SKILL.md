@@ -8,6 +8,8 @@ description: >-
   demo-housekeeping agent.
 ---
 
+**Canonical skill URI**: `skill://sales-engineer:demo-ops`
+
 # Demo Environment Operations
 
 ## Identity & Scope

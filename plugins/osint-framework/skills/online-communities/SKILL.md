@@ -6,6 +6,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:online-communities`
+
 # Online Communities
 
 Blog search, forum analysis, Reddit investigation, IRC reconnaissance,

@@ -13,6 +13,8 @@ user-invocable: false
 compatibility: Requires cURL, jq, and network access to the Statuspage.io API
 ---
 
+**Canonical skill URI**: `skill://cloudstatus:monitor`
+
 # Cloud Status Skill
 
 Status monitoring via Statuspage.io public API v2.

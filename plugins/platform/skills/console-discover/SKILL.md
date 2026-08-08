@@ -9,6 +9,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://platform:console-discover`
+
 # Console Discover
 
 Crawl the F5 XC console sidebar navigation and extract the

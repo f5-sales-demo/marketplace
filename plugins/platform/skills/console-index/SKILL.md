@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:console-index`
+
 # Console Index — Intent Router
 
 Routes ambiguous console-related requests to the correct

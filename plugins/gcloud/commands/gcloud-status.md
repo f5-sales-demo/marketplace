@@ -6,11 +6,11 @@ description: >-
 
 # Google Cloud status
 
-Delegate to the cli-operator agent to check Google Cloud connectivity.
+Delegate to the `gcloud:cli-operator` agent to check Google Cloud connectivity.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `gcloud:cli-operator` agent with the following instructions:
 
 1. Verify gcloud CLI is installed: `gcloud version`
 2. List authenticated accounts: `gcloud auth list`

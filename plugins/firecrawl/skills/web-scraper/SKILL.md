@@ -13,6 +13,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://firecrawl:web-scraper`
+
 # Web Scraper (Local Firecrawl)
 
 This skill provides web scraping, crawling, URL mapping, web search,

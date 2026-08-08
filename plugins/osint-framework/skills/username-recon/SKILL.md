@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:username-recon`
+
 # Username Reconnaissance
 
 Find and enumerate accounts associated with a username or handle

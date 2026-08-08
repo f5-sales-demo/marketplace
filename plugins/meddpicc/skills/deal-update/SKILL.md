@@ -13,6 +13,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://meddpicc:deal-update`
+
 # MEDDPICC Deal Update
 
 Ingest unstructured intelligence from any source and update a live

@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:api-index`
+
 # API Index — Intent Router
 
 Routes API-related requests to the correct skill and ensures

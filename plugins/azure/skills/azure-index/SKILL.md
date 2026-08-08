@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://azure:azure-index`
+
 # Azure Intent Router
 
 Route the user's request to the correct skill or agent.

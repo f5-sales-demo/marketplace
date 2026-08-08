@@ -7,11 +7,11 @@ argument-hint: "[profile-name]"
 
 # AWS login
 
-Delegate to the cli-operator agent to handle AWS authentication.
+Delegate to the `aws:cli-operator` agent to handle AWS authentication.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `aws:cli-operator` agent with the following instructions:
 
 1. Run `aws sts get-caller-identity --output json` to check if
    already authenticated.

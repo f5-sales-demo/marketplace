@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:compliance-risk`
+
 # Compliance & Risk Intelligence
 
 Sanctions screening, PEP checks, AML/KYC due diligence, beneficial

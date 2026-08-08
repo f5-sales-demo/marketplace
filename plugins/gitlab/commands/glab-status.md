@@ -5,11 +5,11 @@ description: >-
 
 # GitLab status
 
-Delegate to the cli-operator agent to check GitLab connectivity.
+Delegate to the `gitlab:cli-operator` agent to check GitLab connectivity.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `gitlab:cli-operator` agent with the following instructions:
 
 1. Verify glab CLI is installed: `glab --version`
 2. Check authentication: `glab auth status`

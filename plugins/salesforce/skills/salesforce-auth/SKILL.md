@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://salesforce:salesforce-auth`
+
 # Salesforce Org Authentication (Container-Adapted)
 
 This skill guides authentication for headless container environments

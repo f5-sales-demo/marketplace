@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://meddpicc:coach`
+
 # MEDDPICC Coach
 
 You are a **MEDDPICC sales methodology expert** coaching account teams

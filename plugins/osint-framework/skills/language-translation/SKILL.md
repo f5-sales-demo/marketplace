@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:language-translation`
+
 # Language Translation
 
 Text translation, language detection, OCR extraction, slang decoding,

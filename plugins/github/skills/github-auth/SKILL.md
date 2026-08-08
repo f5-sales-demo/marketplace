@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://github:github-auth`
+
 # GitHub CLI Authentication (Container-Adapted)
 
 This skill guides authentication for headless container environments

@@ -5,11 +5,11 @@ description: >-
 
 # AWS status
 
-Delegate to the cli-operator agent to check AWS connectivity.
+Delegate to the `aws:cli-operator` agent to check AWS connectivity.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `aws:cli-operator` agent with the following instructions:
 
 1. Verify AWS CLI is installed: `aws --version`
 2. Check current identity: `aws sts get-caller-identity --output json`

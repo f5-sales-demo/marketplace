@@ -8,6 +8,8 @@ description: >-
   questions. Reads product expertise from DEMO_PRODUCT_EXPERTISE.md.
 ---
 
+**Canonical skill URI**: `skill://sales-engineer:subject-matter-expert`
+
 # Subject Matter Expert
 
 ## Persona & Voice

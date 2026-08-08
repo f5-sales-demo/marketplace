@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://devcontainer:tool-catalog`
+
 # Devcontainer Tool Catalog
 
 This container has 300+ tools pre-installed. Do NOT suggest installing

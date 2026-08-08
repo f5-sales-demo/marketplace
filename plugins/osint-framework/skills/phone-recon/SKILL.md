@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:phone-recon`
+
 # Phone & Telephone Reconnaissance
 
 Phone number lookup, caller ID, carrier identification, reverse phone

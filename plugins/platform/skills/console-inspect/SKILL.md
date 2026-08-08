@@ -9,6 +9,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://platform:console-inspect`
+
 # Console Inspect
 
 Inspect a single F5 XC console route and extract its complete

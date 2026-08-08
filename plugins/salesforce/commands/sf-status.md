@@ -6,11 +6,11 @@ description: >-
 
 # Salesforce status
 
-Delegate to the cli-operator agent to check Salesforce connectivity.
+Delegate to the `salesforce:cli-operator` agent to check Salesforce connectivity.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `salesforce:cli-operator` agent with the following instructions:
 
 1. Verify sf CLI is installed: `sf --version`
 2. List authenticated orgs: `sf org list --json`

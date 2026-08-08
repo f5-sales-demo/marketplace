@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://devcontainer:self-awareness`
+
 # Container Self-Awareness
 
 This skill provides live introspection of the running container by

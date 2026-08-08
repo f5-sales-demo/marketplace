@@ -6,6 +6,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:blockchain-crypto`
+
 # Blockchain & Cryptocurrency
 
 Blockchain analysis, cryptocurrency tracing, wallet investigation, and transaction tracking.
