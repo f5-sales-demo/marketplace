@@ -12,6 +12,8 @@ description: >-
   documentation.
 ---
 
+**Canonical skill URI**: `skill://brand:reviewer`
+
 # F5 Brand Reviewer
 
 Review content files for F5 brand compliance. Report findings

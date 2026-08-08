@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://sales-engineer:persona`
+
 # Sales Engineer — Role Index
 
 This skill is the dispatcher for the Sales Engineer persona framework.

@@ -6,6 +6,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:osint-tools`
+
 # OSINT Tools & Frameworks
 
 General OSINT automation frameworks, collection tools, visualization

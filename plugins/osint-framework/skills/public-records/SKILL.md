@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:public-records`
+
 # Public Records
 
 Government records, court filings, property records, voter data,

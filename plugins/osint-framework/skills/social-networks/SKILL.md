@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:social-networks`
+
 # Social Networks
 
 Platform-specific OSINT — Facebook, Twitter/X, Instagram, LinkedIn,

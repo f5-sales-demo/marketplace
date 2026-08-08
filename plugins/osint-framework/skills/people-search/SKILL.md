@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:people-search`
+
 # People Search
 
 Person lookup, identity verification, background research, and people

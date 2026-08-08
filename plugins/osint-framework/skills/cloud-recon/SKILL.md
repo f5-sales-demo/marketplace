@@ -12,6 +12,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:cloud-recon`
+
 # Cloud Infrastructure Reconnaissance
 
 Cloud asset discovery — AWS, Azure, GCP enumeration, storage bucket

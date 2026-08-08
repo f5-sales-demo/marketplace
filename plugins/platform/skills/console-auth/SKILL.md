@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:console-auth`
+
 # Console Authentication
 
 Authenticate to the F5 Distributed Cloud console. Supports

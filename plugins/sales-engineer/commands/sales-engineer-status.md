@@ -5,11 +5,11 @@ description: >-
 
 # Sales engineering status
 
-Delegate to the demo-housekeeping agent to check sales engineer environment status.
+Delegate to the `sales-engineer:demo-housekeeping` agent to check sales engineer environment status.
 
 ## Delegation
 
-Spawn the demo-housekeeping agent with the following instructions:
+Spawn the `sales-engineer:demo-housekeeping` agent with the following instructions:
 
 1. Check workspace for demo configuration files
 2. Verify demo-related tools are available: `git --version`, check for infrastructure CLI tools

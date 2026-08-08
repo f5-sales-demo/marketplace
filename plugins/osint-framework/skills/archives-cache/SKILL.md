@@ -6,6 +6,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:archives-cache`
+
 # Archives & Cache
 
 Web archives, cached pages, historical internet data retrieval,

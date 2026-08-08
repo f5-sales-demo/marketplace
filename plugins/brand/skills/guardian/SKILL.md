@@ -12,6 +12,8 @@ description: >-
   asks about F5 colors, fonts, brand guidelines, or visual standards.
 ---
 
+**Canonical skill URI**: `skill://brand:guardian`
+
 # F5 Brand Guardian
 
 ## Why this matters

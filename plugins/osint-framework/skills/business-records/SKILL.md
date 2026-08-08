@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:business-records`
+
 # Business Records
 
 Corporate filings, annual reports, SEC data, company research,

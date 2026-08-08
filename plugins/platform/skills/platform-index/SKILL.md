@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:platform-index`
+
 # Platform Index — Top-Level Router
 
 Routes platform management requests to the correct domain:

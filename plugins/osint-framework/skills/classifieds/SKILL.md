@@ -7,6 +7,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:classifieds`
+
 # Classifieds
 
 Classified ad search and investigation across platforms like Craigslist,

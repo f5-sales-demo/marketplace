@@ -5,11 +5,11 @@ description: >-
 
 # GitHub status
 
-Delegate to the cli-operator agent to check GitHub connectivity.
+Delegate to the `github:cli-operator` agent to check GitHub connectivity.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `github:cli-operator` agent with the following instructions:
 
 1. Verify gh CLI is installed: `gh --version`
 2. Check authentication: `gh auth status`

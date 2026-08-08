@@ -6,11 +6,11 @@ description: >-
 
 # Azure status
 
-Delegate to the cli-operator agent to check Azure connectivity.
+Delegate to the `azure:cli-operator` agent to check Azure connectivity.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `azure:cli-operator` agent with the following instructions:
 
 1. Verify az CLI is installed: `az version --output json`
 2. List available subscriptions: `az account list --output json`

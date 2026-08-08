@@ -6,6 +6,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:geolocation`
+
 # Geolocation & Maps
 
 Location intelligence — geolocation, satellite imagery, mapping, and geographic analysis.

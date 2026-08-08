@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://github:github-index`
+
 # GitHub Intent Router
 
 Route the user's request to the correct skill or agent.

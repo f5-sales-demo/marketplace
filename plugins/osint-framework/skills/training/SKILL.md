@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:training`
+
 # Training
 
 OSINT training resources -- games, CTF challenges, courses, practice

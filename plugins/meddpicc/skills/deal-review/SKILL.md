@@ -9,6 +9,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://meddpicc:deal-review`
+
 # MEDDPICC Deal Review
 
 Facilitate a weekly deal inspection using evidence-based questions.

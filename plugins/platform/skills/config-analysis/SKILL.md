@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:config-analysis`
+
 # Config Analysis — Configuration Q&A
 
 Analyzes customer JSON configurations against the api-operations

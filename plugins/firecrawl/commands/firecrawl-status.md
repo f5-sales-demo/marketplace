@@ -5,11 +5,11 @@ description: >-
 
 # Firecrawl status
 
-Delegate to the firecrawl-operator agent to check Firecrawl service readiness.
+Delegate to the `firecrawl:firecrawl-operator` agent to check Firecrawl service readiness.
 
 ## Delegation
 
-Spawn the firecrawl-operator agent with the following instructions:
+Spawn the `firecrawl:firecrawl-operator` agent with the following instructions:
 
 1. Check if Firecrawl API is reachable: `curl -sf http://localhost:3002/ | head -c 200`
 2. If reachable, check version: `curl -sf http://localhost:3002/v1/health 2>/dev/null | jq -r '.version // "unknown"'`

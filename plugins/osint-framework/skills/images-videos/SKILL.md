@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:images-videos`
+
 # Images, Videos & Documents
 
 Reverse image search, face recognition, video analysis, document metadata extraction, EXIF data, and visual forensics.

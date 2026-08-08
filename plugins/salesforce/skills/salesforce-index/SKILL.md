@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://salesforce:salesforce-index`
+
 # Salesforce Intent Router
 
 Route the user's request to the correct skill or agent.

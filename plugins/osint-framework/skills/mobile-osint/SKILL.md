@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:mobile-osint`
+
 # Mobile OSINT
 
 Mobile device intelligence — Android/iOS app analysis, mobile forensics,

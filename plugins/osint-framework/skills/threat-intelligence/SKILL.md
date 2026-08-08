@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:threat-intelligence`
+
 # Threat Intelligence
 
 Threat feeds, IOC databases, phishing detection, C2 tracking, APT research,

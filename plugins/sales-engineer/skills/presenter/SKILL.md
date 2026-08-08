@@ -7,6 +7,8 @@ description: >-
   DEMO_WALKTHROUGH_CONFIG.md and product expertise from DEMO_PRODUCT_EXPERTISE.md.
 ---
 
+**Canonical skill URI**: `skill://sales-engineer:presenter`
+
 # As-Built Walkthrough Presentation
 
 ## Persona & Voice

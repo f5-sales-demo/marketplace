@@ -14,6 +14,8 @@ description: >-
   Mermaid, Excalidraw, YouTube, or social media content creation.
 ---
 
+**Canonical skill URI**: `skill://brand:visual-content`
+
 # F5 Visual Content
 
 ## Overview

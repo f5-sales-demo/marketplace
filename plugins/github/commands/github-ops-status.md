@@ -5,11 +5,11 @@ description: >-
 
 # GitHub operations status
 
-Delegate to the github-ops agent to check GitHub operations readiness.
+Delegate to the `github:github-ops` agent to check GitHub operations readiness.
 
 ## Delegation
 
-Spawn the github-ops agent with the following instructions:
+Spawn the `github:github-ops` agent with the following instructions:
 
 1. Verify gh CLI is installed: `gh --version`
 2. Check authentication: `gh auth status`

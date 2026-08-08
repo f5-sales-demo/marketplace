@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:search-engines`
+
 # Search Engines
 
 General and specialized search engines — Google dorking, code search,

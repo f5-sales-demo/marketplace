@@ -5,11 +5,11 @@ description: >-
 
 # Documentation tools status
 
-Delegate to the mdx-content-reviewer agent to check docs tooling status.
+Delegate to the `docs-tools:mdx-content-reviewer` agent to check docs tooling status.
 
 ## Delegation
 
-Spawn the mdx-content-reviewer agent with the following instructions:
+Spawn the `docs-tools:mdx-content-reviewer` agent with the following instructions:
 
 1. Check if the current workspace has MDX content: look for `*.mdx` files
 2. Check if Astro/Starlight configuration exists: look for `astro.config.*` files

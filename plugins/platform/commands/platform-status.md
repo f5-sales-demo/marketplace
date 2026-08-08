@@ -5,11 +5,11 @@ description: >-
 
 # Platform status
 
-Delegate to the api-operator agent to check platform readiness.
+Delegate to the `platform:api-operator` agent to check platform readiness.
 
 ## Delegation
 
-Spawn the api-operator agent with the following instructions:
+Spawn the `platform:api-operator` agent with the following instructions:
 
 1. Check if F5XC_API_TOKEN environment variable is set
 2. Check if F5XC_API_URL environment variable is set

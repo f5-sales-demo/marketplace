@@ -11,6 +11,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://docs-pipeline:pipeline-navigator`
+
 # Documentation Pipeline Navigator
 
 All `f5-sales-demo` repositories publish docs to

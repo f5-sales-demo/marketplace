@@ -8,6 +8,8 @@ description: >-
 user-invocable: true
 ---
 
+**Canonical skill URI**: `skill://meddpicc:mutual-action-plan`
+
 # Mutual Action Plan Builder
 
 Create a buyer-approved Mutual Action Plan that makes the Decision

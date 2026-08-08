@@ -7,11 +7,11 @@ argument-hint: "[project-id]"
 
 # Google Cloud login
 
-Delegate to the cli-operator agent to handle Google Cloud authentication.
+Delegate to the `gcloud:cli-operator` agent to handle Google Cloud authentication.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `gcloud:cli-operator` agent with the following instructions:
 
 1. The user-provided project ID is `$ARGUMENTS` (use
    `$CLOUDSDK_CORE_PROJECT` or `$GOOGLE_CLOUD_PROJECT` if empty).

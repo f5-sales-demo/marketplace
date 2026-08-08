@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:encoding-decoding`
+
 # Encoding & Decoding
 
 Encoding and decoding for OSINT investigations — JavaScript deobfuscation,

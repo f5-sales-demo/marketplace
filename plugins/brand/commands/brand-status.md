@@ -5,11 +5,11 @@ description: >-
 
 # Brand status
 
-Delegate to the brand-operator agent to check brand compliance readiness.
+Delegate to the `brand:brand-operator` agent to check brand compliance readiness.
 
 ## Delegation
 
-Spawn the brand-operator agent with the following instructions:
+Spawn the `brand:brand-operator` agent with the following instructions:
 
 1. Check if brand reference files exist in the plugin's references directory
 2. Verify color palette reference is accessible

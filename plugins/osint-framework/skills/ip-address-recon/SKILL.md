@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:ip-address-recon`
+
 # IP & MAC Address Reconnaissance
 
 Comprehensive IP and MAC address investigation — geolocation, port

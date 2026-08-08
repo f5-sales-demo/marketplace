@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://docs-pipeline:content-author`
+
 # Content Authoring
 
 ## Structure

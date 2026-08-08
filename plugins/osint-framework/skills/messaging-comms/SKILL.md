@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:messaging-comms`
+
 # Messaging & Communications
 
 Instant messaging and dating platform investigation — Slack, Telegram,

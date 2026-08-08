@@ -14,9 +14,11 @@ description: >-
   parent/upstream repository from a fork, or needs to check the
   status of an existing upstream contribution.
   Requires the current repository to be a GitHub fork.
-  All operations are delegated to the github-ops subagent.
+  All operations are delegated to the github:github-ops subagent.
 user-invocable: false
 ---
+
+**Canonical skill URI**: `skill://github:upstream-contribution`
 
 # Upstream Contribution Workflow
 

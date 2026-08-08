@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:documentation-evidence`
+
 # Documentation & Evidence Capture
 
 Screenshot tools, web archiving, evidence preservation, and documentation

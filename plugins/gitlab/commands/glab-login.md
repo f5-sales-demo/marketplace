@@ -7,11 +7,11 @@ argument-hint: "[hostname]"
 
 # GitLab login
 
-Delegate to the cli-operator agent to handle GitLab authentication.
+Delegate to the `gitlab:cli-operator` agent to handle GitLab authentication.
 
 ## Delegation
 
-Spawn the cli-operator agent with the following instructions:
+Spawn the `gitlab:cli-operator` agent with the following instructions:
 
 1. The user-provided hostname is `$ARGUMENTS` (use `${GITLAB_HOST:-gitlab.com}` if empty).
 2. Run `glab auth status` to check existing authentication.

@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://azure:azure-auth`
+
 # Azure CLI Authentication (Container-Adapted)
 
 This skill guides authentication for headless container environments

@@ -8,6 +8,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:opsec`
+
 # Operational Security
 
 OPSEC tools -- persona creation, privacy protection, anonymous browsing,

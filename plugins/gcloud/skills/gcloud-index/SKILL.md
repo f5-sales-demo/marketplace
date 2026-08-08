@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://gcloud:gcloud-index`
+
 # Google Cloud Intent Router
 
 Route the user's request to the correct skill or agent.

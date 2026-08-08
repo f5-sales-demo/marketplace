@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://gitlab:gitlab-index`
+
 # GitLab Intent Router
 
 Route the user's request to the correct skill or agent.

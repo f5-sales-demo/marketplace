@@ -10,6 +10,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:disinfo-verification`
+
 # Disinformation & Media Verification
 
 Deepfake detection, fact-checking, media authenticity verification,

@@ -8,6 +8,8 @@ description: >-
   from docs/demo/.
 ---
 
+**Canonical skill URI**: `skill://sales-engineer:demo-executor`
+
 # API-Driven Demo Execution
 
 ## Persona & Voice

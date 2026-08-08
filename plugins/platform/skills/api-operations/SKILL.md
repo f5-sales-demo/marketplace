@@ -15,6 +15,8 @@ compatibility: Requires curl, jq, and network access to F5 XC tenant API
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:api-operations`
+
 # API Operations
 
 This skill gives the `api-operator` agent precise knowledge of F5 XC API

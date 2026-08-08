@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://platform:console-navigator`
+
 # Console Navigator
 
 Navigate to any section of the F5 XC console by name. Verifies

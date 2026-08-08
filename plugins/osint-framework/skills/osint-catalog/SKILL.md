@@ -9,6 +9,8 @@ description: >-
 user-invocable: false
 ---
 
+**Canonical skill URI**: `skill://osint-framework:osint-catalog`
+
 # OSINT Catalog — Tool Discovery
 
 Browse and search 1,084 free/freemium OSINT tools across 34 categories.

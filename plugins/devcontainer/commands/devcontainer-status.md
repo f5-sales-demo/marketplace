@@ -5,11 +5,11 @@ description: >-
 
 # Development container status
 
-Delegate to the container-introspector agent to check devcontainer status.
+Delegate to the `devcontainer:container-introspector` agent to check devcontainer status.
 
 ## Delegation
 
-Spawn the container-introspector agent with the following instructions:
+Spawn the `devcontainer:container-introspector` agent with the following instructions:
 
 1. Detect container runtime: check for `/.dockerenv` or `/run/.containerenv`
 2. If in a container, report container identity: `cat /etc/hostname 2>/dev/null`

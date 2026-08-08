@@ -4,7 +4,8 @@ description: >-
   Repository governance workflow for f5-sales-demo — issue creation,
   branch naming, PR workflow, CI polling, post-merge monitoring,
   verification, and task completion criteria.
-  Use when the user says "commit", "push", "create a pr", "open a pr",
+  Use when the user says "lets sync to github", "sync to github", "sync to gh",
+  "commit", "push", "create a pr", "open a pr",
   "merge", "check ci", "poll ci", "create an issue", "create a branch",
   "start a new task", "land these changes", "ship it", "submit for review",
   "monitor ci", "check the build", "run pre-commit", "lint gate",
@@ -16,9 +17,11 @@ description: >-
   Does NOT handle code editing, file creation, file modification,
   test writing, debugging, or any non-Git operation. Does NOT fix
   lint or CI failures — it reports them and stops.
-  All operations are delegated to the github-ops subagent.
+  All operations are delegated to the github:github-ops subagent.
 user-invocable: false
 ---
+
+**Canonical skill URI**: `skill://github:workflow-lifecycle`
 
 # Repository Workflow Lifecycle
 

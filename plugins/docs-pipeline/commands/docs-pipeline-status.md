@@ -5,11 +5,11 @@ description: >-
 
 # Documentation pipeline status
 
-Delegate to the pipeline-operator agent to check docs pipeline status.
+Delegate to the `docs-pipeline:pipeline-operator` agent to check docs pipeline status.
 
 ## Delegation
 
-Spawn the pipeline-operator agent with the following instructions:
+Spawn the `docs-pipeline:pipeline-operator` agent with the following instructions:
 
 1. Check if pipeline configuration exists: look for `astro.config.*`, `package.json` with astro dependency
 2. Check if build tools are available: `bun --version` or `npm --version`

@@ -11,7 +11,7 @@ JSON payloads can be verbose and must stay in the subagent.
 
 ## Delegation
 
-Spawn the api-operator agent with:
+Spawn the `platform:api-operator` agent with:
 
 ```text
 Agent(
