@@ -1,6 +1,6 @@
 {
   "name": "platform",
-  "version": "3.1.5",
+  "version": "3.1.6",
   "description": "F5 Distributed Cloud platform automation — web console and spec-aware REST API operations",
   "license": "Apache-2.0"
 }

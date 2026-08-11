@@ -3,6 +3,9 @@
 `skills/herdr/SKILL.md` is vendored **verbatim** from the Herdr project. Do not edit it here; change
 it upstream and re-vendor, otherwise `herdr-skill-freshness.yml` will fail.
 
+The marketplace registers this vendored skill under the canonical URI
+`skill://herdr:herdr`. Keep integration metadata here rather than adding it to the upstream file.
+
 | Field | Value |
 | --- | --- |
 | Upstream repository | <https://github.com/herdrdev/herdr> |
