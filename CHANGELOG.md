@@ -10,6 +10,57 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`docs-tools`** v1.1.5 — publishes the deterministic namespacing metadata introduced by
+  #1111 as an installable plugin version.
+
+- **`sales-engineer`** v1.0.10 — publishes the deterministic namespacing metadata introduced by
+  #1111 as an installable plugin version.
+
+- **`docs-pipeline`** v1.0.5 — publishes the deterministic namespacing metadata introduced by
+  #1111 as an installable plugin version.
+
+- **`brand`** v1.0.5 — publishes the deterministic namespacing metadata introduced by #1111 as an
+  installable plugin version.
+
+- **`meddpicc`** v7.5.7 — publishes the deterministic namespacing metadata introduced by #1111 as
+  an installable plugin version.
+
+- **`devcontainer`** v1.1.12 — publishes the deterministic namespacing metadata introduced by
+  #1111 as an installable plugin version.
+
+- **`platform`** v3.1.6 — publishes the deterministic namespacing metadata introduced by #1111 as
+  an installable plugin version.
+
+- **`osint-framework`** v1.0.7 — publishes the deterministic namespacing metadata introduced by
+  #1111 as an installable plugin version.
+
+- **`firecrawl`** v1.1.3 — publishes the deterministic namespacing metadata introduced by #1111 as
+  an installable plugin version.
+
+- **`salesforce`** v1.3.12 — publishes the deterministic namespacing metadata introduced by #1111
+  as an installable plugin version.
+
+- **`cloudstatus`** v1.3.3 — publishes the deterministic namespacing metadata introduced by #1111
+  as an installable plugin version.
+
+- **`azure`** v1.2.7 — publishes the deterministic namespacing metadata introduced by #1111 as an
+  installable plugin version.
+
+- **`aws`** v1.2.7 — publishes the deterministic namespacing metadata introduced by #1111 as an
+  installable plugin version.
+
+- **`gcloud`** v1.2.7 — publishes the deterministic namespacing metadata introduced by #1111 as an
+  installable plugin version.
+
+- **`gitlab`** v1.2.6 — publishes the deterministic namespacing metadata introduced by #1111 as an
+  installable plugin version.
+
+- **`github`** v2.0.2 — publishes the deterministic namespacing metadata introduced by #1111 as an
+  installable plugin version.
+
+- **`herdr`** v1.0.2 — restores the byte-identical upstream skill and records its canonical
+  `skill://herdr:herdr` integration URI outside the vendored file.
+
 - **`github`** v2.0.1 — system prompt optimization aligning agent prompts, system prompt guidelines, and workflow skills with Anthropic 8-point system prompting standard.
 
 - **`aws`** v1.2.6 — system prompt optimization aligning agent prompts, system prompt guidelines, and workflow skills with Anthropic 8-point system prompting standard.
