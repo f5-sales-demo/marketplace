@@ -3,6 +3,7 @@ set -euo pipefail
 
 SOURCE_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORKFLOW="$SOURCE_ROOT/.github/workflows/validate-plugins.yml"
+INSTALLER="$SOURCE_ROOT/scripts/install-ci-bun.sh"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
@@ -15,10 +16,26 @@ fail() {
   exit 1
 }
 
-if grep -Fq 'bun-version: 1.3.14' "$WORKFLOW"; then
+if grep -Fq 'bun_version=1.3.14' "$INSTALLER"; then
   pass "plugin CI uses current Bun 1.3.14"
 else
   fail "plugin CI must use current Bun 1.3.14"
+fi
+
+if grep -Fq 'run: ./scripts/install-ci-bun.sh' "$WORKFLOW" &&
+  ! grep -Fq 'oven-sh/setup-bun' "$WORKFLOW"; then
+  pass "plugin CI uses the repository-owned Bun installer"
+else
+  fail "plugin CI must avoid setup-bun's shared runner-home installation"
+fi
+
+if [ -x "$INSTALLER" ] &&
+  grep -Fq 'RUNNER_TEMP' "$INSTALLER" &&
+  grep -Fq '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f' \
+    "$INSTALLER"; then
+  pass "Bun installer binds the verified artifact to runner temp"
+else
+  fail "Bun installer must be executable and verify the pinned artifact in runner temp"
 fi
 
 missing_locks=()
