@@ -339,4 +339,4 @@ async function main(): Promise<number> {
   return command satisfies never;
 }
 
-process.exit(await main());
+process.exitCode = await main();
