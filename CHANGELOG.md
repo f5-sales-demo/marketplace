@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.5.8 — lets Bun flush piped JSON output before the process exits,
+  preventing truncated MEDDPICC command results in non-interactive workflows.
+
 - **`docs-tools`** v1.1.5 — publishes the deterministic namespacing metadata introduced by
   #1111 as an installable plugin version.
 
