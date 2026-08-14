@@ -34,14 +34,19 @@ proof of physical absence, and an IXP-to-facility join is only a candidate.
 API base: `https://stat.ripe.net/data`
 
 - `network-info/data.json?resource=<IP-or-prefix>` for observed origins
-- `announced-prefixes/data.json?resource=<ASN>` for current announcements
+- `announced-prefixes/data.json?resource=<ASN>` for prefixes observed during the
+  response's stated query window
 - `asn-neighbours/data.json?resource=<ASN>` for observed BGP adjacency
 - `looking-glass/data.json?resource=<resource>` for collector paths
 - `routing-status/data.json?resource=<resource>` for visibility and history
 - `rpki-validation/data.json?resource=<ASN>&prefix=<prefix>` for validation
 
 RIPEstat observations distinguish route origin and adjacency from registration
-and commercial relationship.
+and commercial relationship. Treat announcement and neighbour records as
+windowed observations, not an instantaneous routing-table snapshot. The bundled
+collector returns aggregate neighbour counts with at most 200 ranked details
+and validates at most 25 prefixes per invocation; it reports both bounds in its
+JSON rather than silently implying exhaustive evidence.
 
 ## 4. RDAP registration
 

@@ -30,6 +30,7 @@ HTTP_ATTEMPTS = 3
 MAX_RETRY_AFTER = 10
 DIAGNOSTIC_TIMEOUT = 45
 MAX_RPKI_PREFIXES = 25
+MAX_NEIGHBOUR_DETAILS = 200
 
 STATUSPAGE_COMPONENTS = "https://www.f5cloudstatus.com/api/v2/components.json"
 PEERINGDB_API = "https://www.peeringdb.com/api"
@@ -480,6 +481,13 @@ class Investigator:
         facts: dict[str, Any] = {
             "asn": query.value,
             "announced_prefixes": prefixes,
+            "announcement_observation": {
+                "query_starttime": announced.get("query_starttime"),
+                "query_endtime": announced.get("query_endtime"),
+                "earliest_time": announced.get("earliest_time"),
+                "latest_time": announced.get("latest_time"),
+                "meaning": "Prefixes observed during the RIPEstat source window, not an instantaneous routing-table snapshot.",
+            } if isinstance(announced, dict) else None,
             "route_sample": route_sample,
         }
         if neighbours is not None:
@@ -496,6 +504,12 @@ class Investigator:
                 rpki.append({"origin": query.value, "prefix": prefix, "status": result.get("status", "unknown"), "details": result})
         if rpki:
             facts["rpki"] = rpki
+        facts["rpki_coverage"] = {
+            "announced_prefix_count": len(prefixes),
+            "checked_prefix_count": len(rpki),
+            "limit": MAX_RPKI_PREFIXES,
+            "complete": len(prefixes) <= MAX_RPKI_PREFIXES and len(rpki) == len(prefixes),
+        }
         if len(prefixes) > MAX_RPKI_PREFIXES:
             self._error(
                 "investigation bound",
@@ -508,8 +522,7 @@ class Investigator:
         })
         return facts
 
-    @staticmethod
-    def _summarize_neighbours(data: Any) -> dict[str, Any]:
+    def _summarize_neighbours(self, data: Any) -> dict[str, Any]:
         if not isinstance(data, dict):
             return {"observations": data}
         records = data.get("neighbours") or []
@@ -521,12 +534,23 @@ class Investigator:
             counts[key] = counts.get(key, 0) + 1
         unique = [
             {"asn": f"AS{asn}", "position": position, "observations": count}
-            for (asn, position), count in sorted(counts.items())
+            for (asn, position), count in sorted(
+                counts.items(), key=lambda item: (-item[1], item[0][0], item[0][1])
+            )
         ]
+        returned = unique[:MAX_NEIGHBOUR_DETAILS]
+        omitted = len(unique) - len(returned)
+        if omitted:
+            self._error(
+                "investigation bound",
+                f"Neighbour detail limited to {MAX_NEIGHBOUR_DETAILS} of {len(unique)} unique ASN/position observations",
+            )
         return {
             "observation_count": len(records),
             "unique_neighbour_count": len({asn for asn, _ in counts}),
-            "neighbours": unique,
+            "detail_count": len(returned),
+            "detail_omitted": omitted,
+            "neighbours": returned,
             "source_counts": data.get("neighbour_counts") or {},
             "earliest_time": data.get("earliest_time"),
             "latest_time": data.get("latest_time"),

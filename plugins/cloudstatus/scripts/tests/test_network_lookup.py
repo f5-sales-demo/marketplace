@@ -147,6 +147,39 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual([item["status"] for item in report["facts"]["rpki"]], ["valid", "invalid"])
         self.assertEqual(report["status"], "complete")
 
+    def test_asn_route_exposes_source_window_and_bounds_neighbour_detail(self):
+        neighbours = [
+            {"asn": 64500 + index, "type": "left"}
+            for index in range(self.engine.MAX_NEIGHBOUR_DETAILS + 5)
+        ]
+        fixtures = {
+            "announced-prefixes": {"data": {
+                "prefixes": [{"prefix": "203.0.113.0/24"}],
+                "query_starttime": "2026-07-30T00:00:00",
+                "query_endtime": "2026-08-13T00:00:00",
+                "earliest_time": "2026-07-30T00:00:00",
+                "latest_time": "2026-08-13T00:00:00",
+            }},
+            "asn-neighbours": {"data": {
+                "neighbours": neighbours,
+                "neighbour_counts": {"left": len(neighbours)},
+            }},
+            "routing-status": {"data": {}},
+            "looking-glass": {"data": {"rrcs": []}},
+            "rpki-validation": {"data": {"status": "valid"}},
+        }
+        report = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run("route", "AS64496")
+
+        observation = report["facts"]["announcement_observation"]
+        self.assertEqual(observation["query_starttime"], "2026-07-30T00:00:00")
+        self.assertIn("not an instantaneous", observation["meaning"])
+        summary = report["facts"]["observed_neighbours"]
+        self.assertEqual(summary["detail_count"], self.engine.MAX_NEIGHBOUR_DETAILS)
+        self.assertEqual(summary["detail_omitted"], 5)
+        self.assertEqual(report["facts"]["rpki_coverage"]["checked_prefix_count"], 1)
+        self.assertEqual(report["status"], "partial")
+        self.assertTrue(any(error["source"] == "investigation bound" for error in report["errors"]))
+
 
 class PeeringTests(unittest.TestCase):
     @classmethod
