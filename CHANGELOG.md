@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`cloudstatus`** v1.4.0 — adds xcsh-native live Internet and F5 network intelligence for
+  hostnames, addresses, prefixes, ASNs, routes, peers, IXPs, facilities, and bounded path
+  diagnostics. The release resolves current topology from Statuspage, PeeringDB, RIPEstat, and
+  RDAP; distinguishes observed facts from correlation and inference; keeps partial-source results;
+  and removes the prototype cached facility matrix, fixed live totals, and exact-location claims
+  ([#1142](https://github.com/f5-sales-demo/marketplace/issues/1142)).
+
 - **`meddpicc`** v7.5.8 — lets Bun flush piped JSON output before the process exits,
   preventing truncated MEDDPICC command results in non-interactive workflows.
 

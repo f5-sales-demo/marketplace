@@ -1,229 +1,147 @@
-# cURL Command Templates
+# Statuspage command reference
 
-One section per operation. Agent: run ONLY the section matching your operation.
+Run only the section selected by the monitor skill. The default API root is
+`${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2`. Every request has a
+connection bound and a 15-second total bound. Filters arrive in
+`CLOUDSTATUS_QUERY` through the Bash tool environment.
 
-BASE is always: `${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2`
-
-**JSON sanitizer (used in every command):**
-`python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)"`
-This re-serializes the response through Python's JSON parser, stripping any
-embedded control characters that cause jq parse failures.
+The Python step parses and reserializes JSON before `jq` handles it.
 
 ## overall-status
 
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-curl -sL --connect-timeout 10 --max-time 15 "${BASE}/status.json" \
-  | python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)" \
-  | jq '{
-      page: .page.name,
-      indicator: .status.indicator,
-      description: .status.description,
-      updated_at: .page.updated_at
-    }'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/status.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '{page: .page.name, indicator: .status.indicator, description: .status.description, observed_at: .page.updated_at}'
 ```
 
 ## list-components
 
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-curl -sL --connect-timeout 10 --max-time 15 "${BASE}/components.json" \
-  | python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)" \
-  | jq '
-    (.components | map(select(.group == true))
-      | map({(.id): .name}) | add // {}) as $groups |
-    [.components[]
-      | select(.group == false or .group == null)
-      | {name, status,
-         group: (if .group_id then ($groups[.group_id] // "Ungrouped")
-                 else "Ungrouped" end)}]
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/components.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '(.components | map(select(.group == true)) | map({(.id): .name}) | add // {}) as $groups
+    | [.components[] | select(.group != true)
+      | {name, status, updated_at,
+         group: (if .group_id then ($groups[.group_id] // "Ungrouped") else "Ungrouped" end)}]
     | group_by(.group)
-    | map({
-        group: .[0].group,
-        total: length,
-        operational: [.[] | select(.status == "operational")] | length,
-        degraded: [.[] | select(.status != "operational") | .name]
-      })'
+    | map({group: .[0].group, total: length,
+           operational: ([.[] | select(.status == "operational")] | length),
+           affected: [.[] | select(.status != "operational") | {name, status}]})'
 ```
 
 ## check-component
 
-Replace COMPONENT\_NAME with the user's query (case-insensitive search).
-
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-NAME="COMPONENT_NAME"
-curl -sL --connect-timeout 10 --max-time 15 "${BASE}/components.json" \
-  | python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)" \
-  | jq --arg n "$NAME" \
-    '[.components[] | select(.name | ascii_downcase
-      | contains($n | ascii_downcase)) | {name, status, description}]'
+QUERY="${CLOUDSTATUS_QUERY:-}"
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/components.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq --arg query "$QUERY" '[.components[]
+      | select(.group != true)
+      | select(.name | ascii_downcase | contains($query | ascii_downcase))
+      | {name, status, description, updated_at}]'
 ```
 
 ## active-incidents
 
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-curl -sL --connect-timeout 10 --max-time 15 \
-  "${BASE}/incidents/unresolved.json" \
-  | python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)" \
-  | jq '[.incidents[] | {
-      name, status, impact, created_at, shortlink,
-      duration_h: (((now - (.created_at
-        | sub("\\.[0-9]+"; "") | fromdateiso8601)) / 3600) | floor),
-      latest_update: (.incident_updates[0].body
-        // "No updates")[0:300],
-      affected: [(.components // [])[] | .name]
-    }]'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/incidents/unresolved.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '[.incidents[] | {name, status, impact, created_at, updated_at, shortlink,
+      latest_update: (.incident_updates[0] // null),
+      affected: [(.components // [])[] | {name, status}]}]'
 ```
 
 ## recent-incidents
 
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-curl -sL --connect-timeout 10 --max-time 15 \
-  "${BASE}/incidents.json" \
-  | python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)" \
-  | jq '[.incidents[] | {
-      name, status, impact, created_at, resolved_at, shortlink,
-      latest_update: (.incident_updates[0].body
-        // "No updates")[0:200],
-      affected: [(.components // [])[] | .name]
-    }]'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/incidents.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '[.incidents[] | {name, status, impact, created_at, updated_at, resolved_at,
+      shortlink, latest_update: (.incident_updates[0] // null),
+      affected: [(.components // [])[] | {name, status}]}]'
 ```
-
-Optional filters (add `select(...)` inside the array brackets):
-
-- By days: `select((.created_at | sub("\\.[0-9]+"; "")
-  | fromdateiso8601) > (now - (DAYS * 86400)))`
-- By status: `select(.status == "STATUS")`
-- By impact: `select(.impact == "IMPACT")`
 
 ## maintenance
 
-Run whichever endpoints the user requested (default: both).
-
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-SANITIZE='python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)"'
-FILTER='[.scheduled_maintenances[] | {
-  name, status, impact, scheduled_for, scheduled_until,
-  affected: [(.components // [])[] | .name]}]'
-
-echo "=== Upcoming ===" && \
-curl -sL --connect-timeout 10 --max-time 15 \
-  "${BASE}/scheduled-maintenances/upcoming.json" \
-  | eval "$SANITIZE" | jq "$FILTER"
-
-echo "=== Active ===" && \
-curl -sL --connect-timeout 10 --max-time 15 \
-  "${BASE}/scheduled-maintenances/active.json" \
-  | eval "$SANITIZE" | jq "$FILTER"
+printf '%s\n' 'Upcoming maintenance'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/scheduled-maintenances/upcoming.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '[.scheduled_maintenances[] | {name, status, impact, scheduled_for, scheduled_until,
+      shortlink, affected: [(.components // [])[] | {name, status}]}]'
+printf '%s\n' 'Active maintenance'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/scheduled-maintenances/active.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '[.scheduled_maintenances[] | {name, status, impact, scheduled_for, scheduled_until,
+      shortlink, affected: [(.components // [])[] | {name, status}]}]'
 ```
 
 ## full-briefing
 
-Single API call. summary.json already contains all 153 components
-(identical to components.json), active incidents, and upcoming maintenance.
+The summary response supplies overall status, current components, active
+incidents, and upcoming maintenance in one request.
 
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-curl -sL --connect-timeout 10 --max-time 15 "${BASE}/summary.json" \
-  | python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)" \
-  | jq '
-    (.components | map(select(.group == true))
-      | map({(.id): .name}) | add // {}) as $groups |
-    {
-      page: .page.name,
-      status: {
-        indicator: .status.indicator,
-        description: .status.description,
-        emoji: (if .status.indicator == "none" then "OK"
-                elif .status.indicator == "minor" then "DEGRADED"
-                elif .status.indicator == "major" then "PARTIAL_OUTAGE"
-                else "MAJOR_OUTAGE" end)
-      },
-      component_health: (
-        [.components[]
-          | select(.group == false or .group == null)
-          | {name, status,
-             group: (if .group_id then
-               ($groups[.group_id] // "Ungrouped")
-               else "Ungrouped" end)}]
-        | group_by(.group)
-        | map({
-            group: .[0].group,
-            total: length,
-            operational: ([.[] | select(.status == "operational")]
-              | length),
-            degraded: [.[]
-              | select(.status != "operational") | .name]
-          })
-      ),
-      active_incidents: [.incidents[] | {
-        name, status, impact, created_at,
-        duration_h: (((now - (.created_at
-          | sub("\\.[0-9]+"; "")
-          | fromdateiso8601)) / 3600) | floor),
-        latest_update: (.incident_updates[0].body
-          // "None")[0:300],
-        affected: [(.components // [])[] | .name]
-      }],
-      upcoming_maintenance: [.scheduled_maintenances[] | {
-        name, status, impact,
-        scheduled_for, scheduled_until,
-        affected: [(.components // [])[] | .name]
-      }],
-      stats: {
-        total_components: ([.components[]
-          | select(.group == false or .group == null)]
-          | length),
-        degraded_count: ([.components[]
-          | select((.group == false or .group == null)
-            and .status != "operational")] | length),
-        active_incidents: (.incidents | length),
-        upcoming_maintenance: (.scheduled_maintenances | length)
-      }
-    }'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/summary.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq '(.components | map(select(.group == true)) | map({(.id): .name}) | add // {}) as $groups
+    | {page: .page.name, observed_at: .page.updated_at, status: .status,
+       component_health: ([.components[] | select(.group != true)
+         | {name, status, group: (if .group_id then ($groups[.group_id] // "Ungrouped") else "Ungrouped" end)}]
+         | group_by(.group)
+         | map({group: .[0].group, total: length,
+                operational: ([.[] | select(.status == "operational")] | length),
+                affected: [.[] | select(.status != "operational") | {name, status}]})),
+       active_incidents: [.incidents[] | {name, status, impact, created_at, updated_at, shortlink,
+         latest_update: (.incident_updates[0] // null), affected: [(.components // [])[] | .name]}],
+       upcoming_maintenance: [.scheduled_maintenances[] | {name, status, impact,
+         scheduled_for, scheduled_until, shortlink, affected: [(.components // [])[] | .name]}]}'
 ```
 
 ## search
 
-Replace SEARCH\_QUERY with the user's query.
-
 ```bash
+set -o pipefail
 BASE="${STATUSPAGE_URL:-https://www.f5cloudstatus.com}/api/v2"
-QUERY="SEARCH_QUERY"
-SANITIZE='python3 -c "import sys,json; json.dump(json.load(sys.stdin),sys.stdout)"'
-
-echo "=== Components ===" && \
-curl -sL --connect-timeout 10 --max-time 15 "${BASE}/components.json" \
-  | eval "$SANITIZE" \
-  | jq --arg q "$QUERY" '($q | ascii_downcase) as $ql |
-    [.components[] | select(.name | ascii_downcase
-      | contains($ql)) | {name, status}]'
-
-echo "=== Incidents ===" && \
-curl -sL --connect-timeout 10 --max-time 15 "${BASE}/incidents.json" \
-  | eval "$SANITIZE" \
-  | jq --arg q "$QUERY" '($q | ascii_downcase) as $ql |
-    [.incidents[] | select((.name | ascii_downcase | contains($ql))
-      or ((.incident_updates // [])
-        | any(.body | ascii_downcase | contains($ql))))
-      | {name, status, impact, created_at}]'
-
-echo "=== Maintenances ===" && \
-curl -sL --connect-timeout 10 --max-time 15 \
-  "${BASE}/scheduled-maintenances.json" \
-  | eval "$SANITIZE" \
-  | jq --arg q "$QUERY" '($q | ascii_downcase) as $ql |
-    [.scheduled_maintenances[]
-      | select((.name | ascii_downcase | contains($ql))
-        or ((.incident_updates // [])
-          | any(.body | ascii_downcase | contains($ql))))
-      | {name, status, scheduled_for}]'
+QUERY="${CLOUDSTATUS_QUERY:-}"
+printf '%s\n' 'Components'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/components.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq --arg query "$QUERY" '[.components[] | select(.group != true)
+      | select(.name | ascii_downcase | contains($query | ascii_downcase))
+      | {name, status, updated_at}]'
+printf '%s\n' 'Incidents'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/incidents.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq --arg query "$QUERY" '[.incidents[]
+      | select((.name | ascii_downcase | contains($query | ascii_downcase))
+        or ((.incident_updates // []) | any(.body | ascii_downcase | contains($query | ascii_downcase))))
+      | {name, status, impact, created_at, resolved_at, shortlink}]'
+printf '%s\n' 'Maintenance'
+curl -fsSL --connect-timeout 10 --max-time 15 "${BASE}/scheduled-maintenances.json" \
+  | python3 -c 'import json,sys; json.dump(json.load(sys.stdin),sys.stdout)' \
+  | jq --arg query "$QUERY" '[.scheduled_maintenances[]
+      | select((.name | ascii_downcase | contains($query | ascii_downcase))
+        or ((.incident_updates // []) | any(.body | ascii_downcase | contains($query | ascii_downcase))))
+      | {name, status, impact, scheduled_for, scheduled_until, shortlink}]'
 ```
 
 ## stakeholder-report
 
-Same command as `full-briefing`.
+Run `full-briefing`, then translate only its current evidence into a stakeholder
+summary. Do not add an ETA unless an incident update supplies one.

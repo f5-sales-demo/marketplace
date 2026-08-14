@@ -1,55 +1,34 @@
 #!/usr/bin/env bash
-# Phase 1: Security validation — no external tools required.
+# Security and command-safety contracts.
 
 set -euo pipefail
 
-# T1.20 — no hardcoded API keys in agent or skill files
 test_no_hardcoded_api_keys() {
   local patterns='api_key[[:space:]]*=[[:space:]]*["\x27][A-Za-z0-9]{10,}|apikey[[:space:]]*=[[:space:]]*["\x27][A-Za-z0-9]{10,}|Bearer [A-Za-z0-9]{20,}'
   local matches
-  matches=$(grep -rIin -E "$patterns" \
-    --exclude-dir=node_modules \
-    "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills" \
-    --include='*.md' --include='*.json' ||
-    true)
-
-  if [ -n "$matches" ]; then
-    echo "Possible hardcoded API keys found:"
+  matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills" \
+    --include='*.md' --include='*.py' || true)
+  [ -z "$matches" ] || {
     echo "$matches"
     return 1
-  fi
+  }
 }
 
-# T1.21 — no credential echo in agent files
-test_no_credential_echo() {
+test_no_eval_or_shell_true() {
   local matches
-  matches=$(grep -rIin -E 'echo.*\$(.*password|.*secret|.*token|.*api.key)' \
-    --exclude-dir=node_modules \
-    "$PLUGIN_ROOT/agents" \
-    --include='*.md' ||
-    true)
-
-  if [ -n "$matches" ]; then
-    echo "Credential echo found in agent files:"
+  matches=$(grep -rIEn '\beval\b|shell[[:space:]]*=[[:space:]]*True' \
+    "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/skills" \
+    --exclude-dir=tests --include='*.md' --include='*.py' || true)
+  [ -z "$matches" ] || {
     echo "$matches"
     return 1
-  fi
+  }
 }
 
-# T1.22 — no eval of user input in agent or skill files
-test_no_eval_user_input() {
-  local matches
-  matches=$(grep -rIin -E 'eval\s+.*\$\{?[a-zA-Z]' \
-    --exclude-dir=node_modules \
-    "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills" \
-    --include='*.md' --include='*.sh' |
-    grep -v '#.*eval' |
-    grep -v 'references/' ||
-    true)
-
-  if [ -n "$matches" ]; then
-    echo "eval of user input found:"
-    echo "$matches"
+test_no_scanning_guidance() {
+  if grep -rIEn 'nmap|port scan|service enumeration' "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills" \
+    --include='*.md' | grep -Eiv 'no port scanning|never.*port scan|do not.*service enumeration'; then
+    echo "scanning guidance found"
     return 1
   fi
 }
