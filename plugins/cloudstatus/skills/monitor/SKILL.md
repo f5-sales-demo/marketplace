@@ -1,73 +1,61 @@
 ---
 name: monitor
-description: >-
-  Cloud service status monitoring and operational intelligence via Atlassian
-  Statuspage.io API. Activates when the user asks about cloud status, service
-  health, F5 status, active incidents, outages, degraded services, maintenance
-  windows, component status, operational status, or requests a status briefing.
-  Also activates for: "is [service] up", "any outages", "what's down",
-  "status report for stakeholders", "executive status summary". Delegates
-  all API calls to the status-operator agent — never runs cURL in the main
-  session.
-user-invocable: false
-compatibility: Requires cURL, jq, and network access to the Statuspage.io API
+description: Monitors cloud service health through live Statuspage evidence. Use for F5 Distributed Cloud status, overall health, components, outages, active or recent incidents, maintenance windows, service searches, operational briefings, and stakeholder summaries. This skill is status-only; use the location or network-intelligence skill for physical location, routing, peering, or diagnostics.
 ---
 
-**Canonical skill URI**: `skill://cloudstatus:monitor`
+# Cloud status monitor
 
-# Cloud Status Skill
+Use the F5 Distributed Cloud page by default. Respect an existing
+`STATUSPAGE_URL` setting when the user is clearly asking about another
+Statuspage-backed service.
 
-Status monitoring via Statuspage.io public API v2.
+## Intent routing
 
-**Default:** F5 Distributed Cloud at `https://www.f5cloudstatus.com`
-**Generic:** Set `STATUSPAGE_URL` env var for any Statuspage.io page.
+| Intent | Operation |
+| --- | --- |
+| Overall status or “is it up?” | `overall-status` |
+| List components | `list-components` |
+| Health of one component | `check-component` |
+| Current outages | `active-incidents` |
+| Incident history | `recent-incidents` |
+| Maintenance windows | `maintenance` |
+| Complete operational briefing | `full-briefing` |
+| Search status records | `search` |
+| Executive or stakeholder summary | `stakeholder-report` |
 
-## Intent Routing
+For `/cloud-status`, map no argument and `briefing` to `full-briefing`; map
+`status`, `incidents`, `maintenance`, `search <query>`, and `components` to the
+corresponding operations above.
 
-| User Intent | Operation |
-| ---------------------------------------------------- | --------------------- |
-| "What's the overall status?" / "Is everything OK?" | `overall-status` |
-| "Show me all components" / "What services exist?" | `list-components` |
-| "Is [service] healthy?" / "Status of [component]" | `check-component` |
-| "Any active incidents?" / "Current outages?" | `active-incidents` |
-| "Show recent incidents" / "Incident history" | `recent-incidents` |
-| "Scheduled maintenance?" / "Maintenance windows?" | `maintenance` |
-| "Full status briefing" / "What's going on?" | `full-briefing` |
-| "Search for [query]" | `search` |
-| "Stakeholder report" / "Executive summary" | `stakeholder-report` |
+## Execution
 
-### Command Argument Mapping (`/cloud-status [arg]`)
+Use the xcsh `task` tool with this shape:
 
-| Argument | Operation |
-| ---------------- | --------------------- |
-| (none) | `full-briefing` |
-| `status` | `overall-status` |
-| `incidents` | `active-incidents` |
-| `maintenance` | `maintenance` |
-| `briefing` | `full-briefing` |
-| `search <query>` | `search` |
-| `components` | `list-components` |
+```yaml
+agent: cloudstatus-status-operator
+context: >-
+  Goal: answer the status-only request from current Statuspage evidence.
+  Use the assigned operation, derive counts from the response, and preserve
+  source failures as limitations.
+tasks:
+  - id: RunCloudStatus
+    description: Collect current cloud service status
+    assignment: |-
+      ## Target
+      Run the selected status operation for the exact user request.
 
-## Delegation
+      ## Change
+      Read `skill://cloudstatus:monitor/references/commands.md`, execute only
+      the matching command, and format the result.
 
-```text
-Agent(
-  subagent_type="cloudstatus:status-operator",
-  description="<operation> cloud status",
-  prompt="Operation: <operation-type>
-User request: <user's exact words>
-Filters: <component name | status | impact | days | search query | none>
+      ## Edge Cases
+      Pass any filter through `CLOUDSTATUS_QUERY`. Preserve partial responses
+      and never invent an ETA or operational total.
 
-Read skills/cloud-status/references/commands.md and run the
-<operation-type> section. Return the formatted report."
-)
+      ## Acceptance
+      Return a source-linked report that answers the request and labels any
+      limitation.
 ```
 
-For `check-component`: include the component name or ID as the filter.
-For `search`: include the search query as the filter.
-For `recent-incidents`: include any days/status/impact filters.
-
-## After Delegation
-
-Present the agent's report as-is. For follow-ups, determine the new
-operation and delegate again.
+Give the task the selected operation, the user's exact request, and any filter.
+Present the returned report without silently strengthening its claims.

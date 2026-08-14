@@ -44,6 +44,26 @@ ignore = [
     "PLR2004",
     "TCH",
 ]
+"**/scripts/tests/**" = [
+    "S101",
+    "SLF001",
+    "ARG001",
+    "ARG002",
+    "ANN",
+    "D",
+    "PLR2004",
+    "TCH",
+    "PT",
+    "INP001",
+]
+"plugins/cloudstatus/skills/network-intelligence/scripts/network_lookup.py" = [
+    # Raised messages and protocol constants are part of this command-line
+    # evidence collector's public JSON contract. The checks below add no
+    # safety signal beyond the focused validation and unit coverage.
+    "EM",
+    "TRY003",
+    "PLR2004",
+]
 "**/conftest.py" = [
     "ARG001",
     "ARG002",
