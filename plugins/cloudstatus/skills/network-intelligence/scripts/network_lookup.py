@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines
 """Live Internet and F5 network evidence collector for cloudstatus.
 
 The module deliberately stores no production topology. Every network, route,
 facility, exchange, address, and Regional Edge component is obtained during the
-current invocation.
+current invocation. It intentionally remains a single executable because xcsh
+loads this standard-library collector through a namespaced skill resource,
+without assuming a Python package or the user's working directory.
 """
 
 from __future__ import annotations
