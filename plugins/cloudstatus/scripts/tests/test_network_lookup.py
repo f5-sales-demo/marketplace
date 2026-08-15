@@ -616,7 +616,9 @@ class FailureModeTests(EngineTestCase):
                 "regional_edge_groups": [{"id": "raw", "name": "omitted"}],
             },
             "inferences": [],
-            "sources": [{"name": "F5 Statuspage components", "url": "https://example.test"}],
+            "sources": [
+                {"name": "F5 Statuspage components", "url": "https://example.test"}
+            ],
             "errors": [],
         }
         stdout = io.StringIO()

@@ -1535,7 +1535,16 @@ def _compact_component(edge: dict[str, Any]) -> dict[str, Any]:
     """Return public component evidence without retaining source payload fields."""
     return {
         key: edge.get(key)
-        for key in ("id", "name", "status", "group", "region", "metro", "country", "site_codes")
+        for key in (
+            "id",
+            "name",
+            "status",
+            "group",
+            "region",
+            "metro",
+            "country",
+            "site_codes",
+        )
     }
 
 
