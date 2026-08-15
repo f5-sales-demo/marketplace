@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { assertApplyAllowed, assertObservationFresh, assertActionOwnership } from '../../src/ce/apply';
-import { compileAzureCePlan } from '../../src/ce/planner';
+import { assertActionOwnership, assertApplyAllowed, assertObservationFresh } from '../../src/ce/apply';
 import { fingerprintObservation } from '../../src/ce/canonical';
+import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
 const subscriptionId = '11111111-1111-4111-8111-111111111111';
@@ -27,14 +27,26 @@ const observation: AzureCeObservation = {
   schemaVersion: 1,
   subscription: { id: subscriptionId, tenantId: '22222222-2222-4222-8222-222222222222', cloud: 'AzureCloud' },
   image: {
-    publisher: 'f5-networks', offer: 'f5xc-customer-edge', plan: 'f5xc-ce', version: '1.0.0',
-    urn: 'f5-networks:f5xc-customer-edge:f5xc-ce:1.0.0', termsAccepted: true,
+    publisher: 'f5-networks',
+    offer: 'f5xc-customer-edge',
+    plan: 'f5xc-ce',
+    version: '1.0.0',
+    urn: 'f5-networks:f5xc-customer-edge:f5xc-ce:1.0.0',
+    termsAccepted: true,
   },
-  regions: [{
-    name: 'canadacentral', rank: 1, eligible: true, reasons: [], zones: ['1'], routeServerSupported: true,
-    quotaAvailable: 8, policyAllowed: true,
-    vmSizes: [{ name: 'Standard_D8s_v5', maxNics: 8, vCpus: 8, memoryGb: 32, zones: ['1'], restricted: false }],
-  }],
+  regions: [
+    {
+      name: 'canadacentral',
+      rank: 1,
+      eligible: true,
+      reasons: [],
+      zones: ['1'],
+      routeServerSupported: true,
+      quotaAvailable: 8,
+      policyAllowed: true,
+      vmSizes: [{ name: 'Standard_D8s_v5', maxNics: 8, vCpus: 8, memoryGb: 32, zones: ['1'], restricted: false }],
+    },
+  ],
   resources: [],
 };
 
@@ -58,40 +70,55 @@ describe('Azure CE apply protections', () => {
   });
 
   it('requires exact plan identity', () => {
-    expect(() => assertApplyAllowed(plan, { planId: plan.planId, planSha256: '0'.repeat(64), hasUI: true, env: {} })).toThrow(/hash/i);
+    expect(() =>
+      assertApplyAllowed(plan, { planId: plan.planId, planSha256: '0'.repeat(64), hasUI: true, env: {} }),
+    ).toThrow(/hash/i);
   });
 
   it('fails closed for headless mutation without the environment gate', () => {
-    expect(() => assertApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: false, env: {} })).toThrow(/HEADLESS/);
+    expect(() =>
+      assertApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: false, env: {} }),
+    ).toThrow(/HEADLESS/);
   });
 
   it('requires an independent destructive gate for teardown', () => {
     const teardown = compileAzureCePlan({ ...intent, operation: 'teardown' }, observation);
-    expect(() => assertApplyAllowed(teardown, {
-      planId: teardown.planId,
-      planSha256: teardown.planSha256,
-      hasUI: false,
-      env: { XCSH_AZURE_CE_HEADLESS_MUTATIONS: '1' },
-    })).toThrow(/ALLOW_DESTROY/);
+    expect(() =>
+      assertApplyAllowed(teardown, {
+        planId: teardown.planId,
+        planSha256: teardown.planSha256,
+        hasUI: false,
+        env: { XCSH_AZURE_CE_HEADLESS_MUTATIONS: '1' },
+      }),
+    ).toThrow(/ALLOW_DESTROY/);
   });
 
   it('rejects unmanaged create collisions and resource-ID substitution before mutation', async () => {
     const create = plan.actions.find((action) => action.kind === 'vm-create');
     expect(create?.resourceId).toBeDefined();
+    if (!create) throw new Error('fixture has no VM create action');
     const api = {
       exec: async () => ({
-        stdout: JSON.stringify({ id: create?.resourceId, tags: { owner: 'someone-else' } }), stderr: '', exitCode: 0,
+        stdout: JSON.stringify({ id: create?.resourceId, tags: { owner: 'someone-else' } }),
+        stderr: '',
+        exitCode: 0,
       }),
     };
-    await expect(assertActionOwnership(plan, create!, api)).rejects.toThrow(/unmanaged/i);
+    await expect(assertActionOwnership(plan, create, api)).rejects.toThrow(/unmanaged/i);
   });
 
   it('allows only exact allowlisted brownfield targets', async () => {
     const changed = {
-      id: 'substitution', phase: 'routing' as const, kind: 'route-association-update' as const,
-      description: 'substituted target', resourceId: `/subscriptions/${subscriptionId}/resourceGroups/other/providers/Microsoft.Network/routeTables/substituted`,
-      mutates: true, destructive: false,
+      id: 'substitution',
+      phase: 'routing' as const,
+      kind: 'route-association-update' as const,
+      description: 'substituted target',
+      resourceId: `/subscriptions/${subscriptionId}/resourceGroups/other/providers/Microsoft.Network/routeTables/substituted`,
+      mutates: true,
+      destructive: false,
     };
-    await expect(assertActionOwnership(plan, changed, { exec: async () => ({ stdout: '', stderr: '', exitCode: 1 }) })).rejects.toThrow(/allowlist/i);
+    await expect(
+      assertActionOwnership(plan, changed, { exec: async () => ({ stdout: '', stderr: '', exitCode: 1 }) }),
+    ).rejects.toThrow(/allowlist/i);
   });
 });

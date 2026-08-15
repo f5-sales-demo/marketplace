@@ -28,7 +28,11 @@ describe('storeBootstrapToken', () => {
   it('rejects unsafe session IDs and invalid expiry', async () => {
     const root = await mkdtemp(join(tmpdir(), 'platform-ce-store-test-'));
     roots.push(root);
-    await expect(storeBootstrapToken({ sessionId: '../escape', token: 'x', expiresInSeconds: 60, root })).rejects.toThrow(/session/i);
-    await expect(storeBootstrapToken({ sessionId: 'session-a', token: 'x', expiresInSeconds: 0, root })).rejects.toThrow(/expiry/i);
+    await expect(
+      storeBootstrapToken({ sessionId: '../escape', token: 'x', expiresInSeconds: 60, root }),
+    ).rejects.toThrow(/session/i);
+    await expect(
+      storeBootstrapToken({ sessionId: 'session-a', token: 'x', expiresInSeconds: 0, root }),
+    ).rejects.toThrow(/expiry/i);
   });
 });

@@ -172,9 +172,21 @@ export interface AzureCePlanDraft {
   warnings: string[];
   billableResources: Array<{ type: string; count: number }>;
   actions: AzureCeAction[];
-  rollback: { brownfieldRoutes: Array<{ routeTableId: string; subnetId: string; routeName: string; before: Record<string, unknown>; beforeSubnet: Record<string, unknown> }> };
+  rollback: {
+    brownfieldRoutes: Array<{
+      routeTableId: string;
+      subnetId: string;
+      routeName: string;
+      before: Record<string, unknown>;
+      beforeSubnet: Record<string, unknown>;
+    }>;
+  };
   observationFingerprint: string;
-  ownershipInventory: Array<{ resourceId: string; owned: boolean; action: 'create' | 'reference' | 'modify-approved' | 'delete' }>;
+  ownershipInventory: Array<{
+    resourceId: string;
+    owned: boolean;
+    action: 'create' | 'reference' | 'modify-approved' | 'delete';
+  }>;
   ownershipTagTemplate: {
     'xcsh-managed-by': 'azure-ce';
     'xcsh-deployment-id': string;

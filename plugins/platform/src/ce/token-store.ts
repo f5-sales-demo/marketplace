@@ -19,15 +19,20 @@ export function defaultBootstrapRoot(): string {
 function assertWithin(root: string, target: string): void {
   const base = resolve(root);
   const candidate = resolve(target);
-  if (candidate !== base && !candidate.startsWith(`${base}${sep}`)) throw new Error('Bootstrap path escapes the secure root');
+  if (candidate !== base && !candidate.startsWith(`${base}${sep}`))
+    throw new Error('Bootstrap path escapes the secure root');
 }
 
-export async function storeBootstrapToken(input: StoreBootstrapTokenInput): Promise<{ reference: string; expiresAt: string }> {
+export async function storeBootstrapToken(
+  input: StoreBootstrapTokenInput,
+): Promise<{ reference: string; expiresAt: string }> {
   const root = input.root ?? defaultBootstrapRoot();
   if (!isAbsolute(root)) throw new Error('Bootstrap root must be absolute');
   if (!SAFE_ID.test(input.sessionId)) throw new Error('Invalid session identifier for bootstrap storage');
-  if (!input.token || /[\u0000\r\n]/.test(input.token)) throw new Error('Bootstrap token is empty or malformed');
-  if (!Number.isInteger(input.expiresInSeconds) || input.expiresInSeconds < 1 || input.expiresInSeconds > 900) throw new Error('Bootstrap expiry must be between 1 and 900 seconds');
+  if (!input.token || Array.from(input.token).some((character) => [0, 10, 13].includes(character.charCodeAt(0))))
+    throw new Error('Bootstrap token is empty or malformed');
+  if (!Number.isInteger(input.expiresInSeconds) || input.expiresInSeconds < 1 || input.expiresInSeconds > 900)
+    throw new Error('Bootstrap expiry must be between 1 and 900 seconds');
   const id = randomUUID();
   const sessionDir = join(root, input.sessionId);
   const itemDir = join(sessionDir, id);

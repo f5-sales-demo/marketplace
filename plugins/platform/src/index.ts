@@ -1,6 +1,8 @@
-interface PlatformExtensionApi {
+import type { PlatformToolApi } from './types';
+
+interface PlatformExtensionApi extends PlatformToolApi {
   setLabel(label: string): void;
-  registerTool(tool: any): void;
+  registerTool(tool: unknown): void;
 }
 
 type ExtensionFactory = (pi: PlatformExtensionApi) => void | Promise<void>;

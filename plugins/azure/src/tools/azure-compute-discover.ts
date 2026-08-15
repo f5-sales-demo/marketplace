@@ -1,7 +1,7 @@
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
-import { discoverAzureCompute, type AzureComputeDiscoveryInput } from '../ce/discovery';
 import { saveDiscoveryArtifact } from '../ce/artifacts';
+import { type AzureComputeDiscoveryInput, discoverAzureCompute } from '../ce/discovery';
 import { makeExecApi } from './shared';
 
 export function createAzureComputeDiscoverTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
@@ -9,7 +9,8 @@ export function createAzureComputeDiscoverTool(pi: PluginInterface, makeApi: (cw
   return {
     name: 'azure_compute_discover',
     label: 'Discover Azure CE Compute',
-    description: 'Discover and rank subscription-aware AzureCloud regions for F5 Customer Edge using exact Marketplace image versions, VM SKU/NIC/zones, quota, policy, Route Server support, brownfield proximity, and terms status.',
+    description:
+      'Discover and rank subscription-aware AzureCloud regions for F5 Customer Edge using exact Marketplace image versions, VM SKU/NIC/zones, quota, policy, Route Server support, brownfield proximity, and terms status.',
     parameters: Type.Object({
       subscriptionId: Type.String(),
       publisher: Type.String(),
@@ -24,17 +25,42 @@ export function createAzureComputeDiscoverTool(pi: PluginInterface, makeApi: (cw
       resourceGroup: Type.String(),
       brownfieldResourceIds: Type.Array(Type.String()),
     }),
-    async execute(_id: string, params: AzureComputeDiscoveryInput, _signal: AbortSignal | undefined, _update: unknown, ctx: { cwd: string; sessionManager: Parameters<typeof saveDiscoveryArtifact>[0] }) {
+    async execute(
+      _id: string,
+      params: AzureComputeDiscoveryInput,
+      _signal: AbortSignal | undefined,
+      _update: unknown,
+      ctx: { cwd: string; sessionManager: Parameters<typeof saveDiscoveryArtifact>[0] },
+    ) {
       try {
         const observation = await discoverAzureCompute(params, makeApi(ctx.cwd));
         const artifactId = await saveDiscoveryArtifact(ctx.sessionManager, observation);
-        const ranked = observation.regions.map((region) => `${region.rank}. ${region.name}: ${region.eligible ? 'eligible' : 'ineligible'}${region.reasons.length ? ` (${region.reasons.join(', ')})` : ''}`).join('\n');
+        const ranked = observation.regions
+          .map(
+            (region) =>
+              `${region.rank}. ${region.name}: ${region.eligible ? 'eligible' : 'ineligible'}${region.reasons.length ? ` (${region.reasons.join(', ')})` : ''}`,
+          )
+          .join('\n');
         return {
-          content: [{ type: 'text' as const, text: `Pinned image: ${observation.image.urn}\nMarketplace terms: ${observation.image.termsAccepted ? 'accepted' : 'not accepted'}\n${ranked}\nDiscovery artifact: ${artifactId ? `artifact://${artifactId}` : 'session memory only'}` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Pinned image: ${observation.image.urn}\nMarketplace terms: ${observation.image.termsAccepted ? 'accepted' : 'not accepted'}\n${ranked}\nDiscovery artifact: ${artifactId ? `artifact://${artifactId}` : 'session memory only'}`,
+            },
+          ],
           details: { tool: 'azure_compute_discover', artifactId, observation },
         };
       } catch (error) {
-        return { content: [{ type: 'text' as const, text: `Azure CE discovery failed: ${error instanceof Error ? error.message : String(error)}` }], isError: true, details: { tool: 'azure_compute_discover' } };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Azure CE discovery failed: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+          details: { tool: 'azure_compute_discover' },
+        };
       }
     },
   };

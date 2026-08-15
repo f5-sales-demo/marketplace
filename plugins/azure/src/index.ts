@@ -1,8 +1,21 @@
 import type { PluginInterface } from './az/types';
+import type { runSetupWizard } from './wizard';
 
-type AzureExtensionApi = PluginInterface & Record<string, any> & {
+interface AzureExtensionApi extends PluginInterface {
   exec(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }>;
-};
+  setLabel(label: string): void;
+  registerCommand?(
+    name: string,
+    command: {
+      description: string;
+      handler(args: string, ctx: Parameters<typeof runSetupWizard>[1]): Promise<void>;
+    },
+  ): void;
+  registerTool?(tool: unknown): void;
+  registerServiceStatus?(status: unknown): void;
+  on?(event: string, handler: unknown): void;
+  logger: { debug(message: string): void };
+}
 
 type ExtensionFactory = (pi: AzureExtensionApi) => void | Promise<void>;
 
@@ -17,7 +30,7 @@ const factory: ExtensionFactory = async (pi) => {
   if (typeof pi.registerCommand === 'function') {
     pi.registerCommand('azure:setup', {
       description: 'Install and configure Azure CLI',
-      async handler(_args: string, ctx: any) {
+      async handler(_args: string, ctx: Parameters<typeof runSetupWizard>[1]) {
         const { runSetupWizard } = await import('./wizard');
         await runSetupWizard(pi, ctx);
       },
