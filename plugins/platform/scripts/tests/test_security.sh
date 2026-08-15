@@ -9,7 +9,7 @@ test_no_hardcoded_api_tokens() {
   local matches
   matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT" \
     --exclude-dir=node_modules \
-    --include='*.md' --include='*.json' |
+    --include='*.md' --include='*.json' --include='*.ts' |
     grep -v 'README.md' |
     grep -v '\$F5XC_API_TOKEN' |
     grep -v '\${F5XC_API_TOKEN' |
@@ -21,6 +21,22 @@ test_no_hardcoded_api_tokens() {
     echo "$matches"
     return 1
   fi
+}
+
+# T1.14 — CE bootstrap references use the session-owned single-use store
+test_ce_bootstrap_secret_boundary() {
+  grep -q 'mode: 0o600' "$PLUGIN_ROOT/src/ce/token-store.ts" || {
+    echo "CE bootstrap token files are not created with mode 0600"
+    return 1
+  }
+  grep -q 'f5xc-ce://' "$PLUGIN_ROOT/src/ce/token-store.ts" || {
+    echo "CE bootstrap tool does not return opaque references"
+    return 1
+  }
+  grep -q 'assertSecretFree' "$PLUGIN_ROOT/src/tools/f5xc-ce-v2-site.ts" || {
+    echo "CE site plans do not reject secret fields"
+    return 1
+  }
 }
 
 # T1.12 — no credential echo in agent files

@@ -71,6 +71,9 @@ test_expected_files_exist() {
     "hooks/hooks.json"
     "skills/azure-index/SKILL.md"
     "skills/azure-auth/SKILL.md"
+    "skills/azure-ce/SKILL.md"
+    "skills/azure-ce/agents/openai.yaml"
+    "skills/azure-ce/references/contracts.md"
     "agents/cli-operator.md"
     "commands/az-login.md"
     "commands/az-status.md"
@@ -85,7 +88,7 @@ test_expected_files_exist() {
 
 # T1.4 — SKILL.md frontmatter has name and description
 test_skill_frontmatter() {
-  for skill_dir in azure-index azure-auth; do
+  for skill_dir in azure-index azure-auth azure-ce; do
     local skill="$PLUGIN_ROOT/skills/$skill_dir/SKILL.md"
     local name_line
     name_line=$(frontmatter_value "$skill" "name")
@@ -248,13 +251,27 @@ test_T1_14_tool_factories_exist() {
     return 0
   fi
   local missing=()
-  for f in az-account-show.ts az-group-list.ts az-resource-list.ts az-vm-list.ts az-exec.ts az-help.ts; do
+  for f in az-account-show.ts az-group-list.ts az-resource-list.ts az-vm-list.ts az-exec.ts az-help.ts azure-compute-discover.ts azure-ce-plan.ts azure-ce-apply.ts azure-ce-status.ts azure-ce-diagnose.ts azure-cloud-init-analyze.ts; do
     [[ -f "$tools_dir/$f" ]] || missing+=("$f")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "FAIL: missing tool files: ${missing[*]}"
     return 1
   fi
+}
+
+# T1.16 — Azure 2.x exposes the deterministic CE contract
+test_T1_16_azure_ce_contract() {
+  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 2.* ]] || {
+    echo "FAIL: deterministic CE contract requires Azure 2.x"
+    return 1
+  }
+  for tool in azure_compute_discover azure_ce_plan azure_ce_apply azure_ce_status azure_ce_diagnose azure_cloud_init_analyze; do
+    grep -q "name: '$tool'" "$PLUGIN_ROOT/src/tools/${tool//_/-}.ts" || {
+      echo "FAIL: $tool is not registered by its factory"
+      return 1
+    }
+  done
 }
 
 # T1.15 — hooks.json references /azure:setup, not brew

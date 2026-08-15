@@ -6,6 +6,11 @@ Provides Azure SSO authentication, deterministic console
 navigation, API token management, and a foundation for
 workflow automation across both interfaces.
 
+Platform 4.x also provides native Secure Mesh Site v2 Customer Edge tools for
+canonical site changes, one-use bootstrap checkout, and allowlisted status
+evidence. Legacy Azure VNet Site, Fleet, and shared registration-token workflows
+are removed.
+
 ## Prerequisites
 
 ### Console (Web UI)
@@ -31,6 +36,8 @@ workflow automation across both interfaces.
 | `F5XC_P12_FILE` | API | No (alternative) | Path to P12 certificate |
 | `F5XC_P12_PASSWORD` | API | With P12_FILE | P12 certificate password |
 | `F5XC_NAMESPACE` | Both | No | Default namespace |
+| `F5XC_CE_V2_CAPABILITIES_URL` | CE v2 | No | Same-origin tenant capability document override |
+| `XCSH_F5XC_CE_CONSOLE_HELPER` | CE v2 | Console fallback | Absolute authenticated helper path |
 
 ## Skills
 
@@ -42,6 +49,19 @@ workflow automation across both interfaces.
 | `console-navigator` | Auto-activated | Console | Navigate to console sections by name |
 | `api-index` | Auto-activated | API | Route REST API requests |
 | `api-auth` | Auto-activated | API | API token and P12 certificate auth |
+
+## Secure Mesh Site v2 tools
+
+| Tool | Purpose |
+| ---- | ------- |
+| `f5xc_ce_v2_site` | Plan, read, create, update, or delete CE v2 site and BGP/network configuration |
+| `f5xc_ce_v2_bootstrap` | Check out one short-lived token and return only an opaque session reference |
+| `f5xc_ce_v2_status` | Return allowlisted registration, provisioning, health, interface, route, and BGP evidence |
+
+Bootstrap material is written to a session-owned `0700` temporary directory in
+`0600` files and consumed once by the Azure plugin. The token never appears in a
+plan, tool result, command line, tag, log, or artifact. Headless checkout fails
+closed when only interactive console automation is available.
 
 ## Agents
 
@@ -116,6 +136,7 @@ authentication without a token header.
 ## Security
 
 - Credentials are read from environment variables only
-- Passwords and tokens are never logged, stored, or echoed
+- Long-lived credentials are never logged, persisted, or echoed; one-use CE
+  bootstrap material exists only in the protected temporary handoff described above
 - Session cookies are managed by the browser, not the plugin
 - API tokens use `$F5XC_API_TOKEN` placeholders in output

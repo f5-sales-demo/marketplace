@@ -1,4 +1,10 @@
-import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import type { PluginInterface } from './az/types';
+
+type AzureExtensionApi = PluginInterface & Record<string, any> & {
+  exec(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }>;
+};
+
+type ExtensionFactory = (pi: AzureExtensionApi) => void | Promise<void>;
 
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
@@ -11,7 +17,7 @@ const factory: ExtensionFactory = async (pi) => {
   if (typeof pi.registerCommand === 'function') {
     pi.registerCommand('azure:setup', {
       description: 'Install and configure Azure CLI',
-      async handler(_args, ctx) {
+      async handler(_args: string, ctx: any) {
         const { runSetupWizard } = await import('./wizard');
         await runSetupWizard(pi, ctx);
       },
@@ -33,6 +39,12 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAzVmListTool } = await import('./tools/az-vm-list');
     const { createAzExecTool } = await import('./tools/az-exec');
     const { createAzHelpTool } = await import('./tools/az-help');
+    const { createAzureComputeDiscoverTool } = await import('./tools/azure-compute-discover');
+    const { createAzureCePlanTool } = await import('./tools/azure-ce-plan');
+    const { createAzureCeApplyTool } = await import('./tools/azure-ce-apply');
+    const { createAzureCeStatusTool } = await import('./tools/azure-ce-status');
+    const { createAzureCeDiagnoseTool } = await import('./tools/azure-ce-diagnose');
+    const { createAzureCloudInitAnalyzeTool } = await import('./tools/azure-cloud-init-analyze');
 
     pi.registerTool(createAzAccountShowTool(pi));
     pi.registerTool(createAzGroupListTool(pi));
@@ -40,6 +52,12 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(createAzVmListTool(pi));
     pi.registerTool(createAzExecTool(pi));
     pi.registerTool(createAzHelpTool(pi));
+    pi.registerTool(createAzureComputeDiscoverTool(pi));
+    pi.registerTool(createAzureCePlanTool(pi));
+    pi.registerTool(createAzureCeApplyTool(pi));
+    pi.registerTool(createAzureCeStatusTool(pi));
+    pi.registerTool(createAzureCeDiagnoseTool(pi));
+    pi.registerTool(createAzureCloudInitAnalyzeTool(pi));
   }
 
   if (typeof pi.registerServiceStatus === 'function') {

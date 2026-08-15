@@ -17,6 +17,16 @@ Route the user's request to the correct skill or agent.
 
 ## Routing Rules
 
+### F5 Customer Edge
+
+Keywords: "Customer Edge", "CE site", "Secure Mesh Site", "F5 XC on
+Azure", "Route Server", "CE BGP", "CE bootstrap", "CE lifecycle"
+
+- Invoke `azure:azure-ce` for discovery, planning, mutation, lifecycle,
+  status, diagnostics, cloud-init, or teardown.
+- Never route CE mutation through the generic CLI operator or legacy
+  Azure VNet Site, Fleet, or shared-token procedures.
+
 ### Authentication and Account Management
 
 Keywords: "login", "authenticate", "az login", "subscription",

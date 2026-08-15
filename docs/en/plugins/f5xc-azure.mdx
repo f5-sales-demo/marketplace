@@ -1,0 +1,72 @@
+---
+title: Azure
+description: Deterministic Azure CLI and F5 Customer Edge administration for Secure Mesh Site v2.
+sidebar:
+  order: 12
+---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+The **Azure** plugin keeps its generic Azure CLI tools and adds deterministic
+F5 Distributed Cloud Customer Edge (CE) administration for Secure Mesh Site v2.
+
+<Badge text="v2.0.0" variant="note" /> <Badge text="Development" variant="tip" />
+
+## Prerequisites
+
+- Install Azure CLI and authenticate to an AzureCloud subscription.
+- Install Platform 4.x and configure F5 Distributed Cloud authentication.
+- Confirm that the target is an authorized lab or demo environment.
+
+## Customer Edge tools
+
+| Tool | Purpose |
+| --- | --- |
+| `azure_compute_discover` | Rank regions using exact image, SKU, NIC, zone, quota, policy, Route Server, terms, and brownfield evidence |
+| `azure_ce_plan` | Compile natural-language intent into a canonical secret-free plan and SHA-256 |
+| `azure_ce_apply` | Apply or resume only the exact persisted plan after stale-state and ownership checks |
+| `azure_ce_status` | Correlate Azure resources, checkpoints, Route Server peers, and F5 evidence |
+| `azure_ce_diagnose` | Run passive or separately approved active network, VM, boot, and cross-plane diagnostics |
+| `azure_cloud_init_analyze` | Validate cloud-init stages and summarize boot evidence without returning user data |
+
+The `azure-ce` skill coordinates authentication, discovery, recommendation,
+approval, Secure Mesh Site v2 creation, one-use bootstrap checkout, virtual
+machine launch, registration gates, routing activation, and verification.
+
+<Aside type="caution">
+  A plan never contains bootstrap material. Platform returns an opaque
+  `f5xc-ce://` reference, and Azure consumes its 0600 token file once from a
+  session-owned 0700 temporary directory. Do not inspect or copy this storage.
+</Aside>
+
+## Topology and routing
+
+- Non-HA plans use one node and explicit user-defined routes through its
+  data-plane private address.
+- High-availability plans use three symmetric nodes. Eligible greenfield plans
+  create a dedicated `/26` `RouteServerSubnet`, peer every node, and gate routing
+  on F5 health and BGP evidence.
+- Every node is checked for at least 8 vCPUs and 32 GB memory and receives an
+  80 GB OS disk.
+- Brownfield plans modify only named associations and routes and preserve exact
+  restoration state.
+
+## Headless controls
+
+Set `XCSH_AZURE_CE_HEADLESS_MUTATIONS=1` and supply the exact plan hash for
+headless mutation. Terms also require
+`XCSH_AZURE_CE_ACCEPT_MARKETPLACE_TERMS=1`. Destructive operations also require
+`XCSH_AZURE_CE_ALLOW_DESTROY=1`.
+
+## Verify
+
+Run `azure_ce_status`, `f5xc_ce_v2_status`, and passive
+`azure_ce_diagnose`. Confirm the expected node count, healthy registration,
+established BGP when applicable, correct effective routes, and a complete
+checkpoint.
+
+## Clean up
+
+Create and approve a `teardown` plan. Verify that routing is drained, every
+approved brownfield association is restored, only owned resources are removed,
+F5 site state is deleted, and the final inventory is clean.

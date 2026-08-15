@@ -112,8 +112,8 @@
     },
     {
       "name": "platform",
-      "description": "F5 Distributed Cloud platform automation — web console via Chrome DevTools MCP and spec-aware REST API operations via cURL. Azure SSO authentication, deterministic navigation, API token management, and CRUD operations across 98 resource types with dependency-aware multi-step workflows.",
-      "version": "3.1.6",
+      "description": "F5 Distributed Cloud automation with native Secure Mesh Site v2 configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
+      "version": "4.0.0",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -241,15 +241,15 @@
     },
     {
       "name": "azure",
-      "description": "Azure CLI integration — native xcsh tools, container-adapted auth, context injection, CLI operator agent, and welcome screen status",
-      "version": "1.2.7",
+      "description": "Azure CLI integration with deterministic F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, and diagnostics",
+      "version": "2.0.0",
       "author": {
         "name": "f5-sales-demo"
       },
       "source": "./plugins/azure",
       "category": "development",
-      "keywords": ["azure", "az", "cloud"],
-      "tags": ["azure", "cloud", "xcsh-extension"],
+      "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
+      "tags": ["azure", "cloud", "f5xc", "customer-edge", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
       "repository": "https://github.com/f5-sales-demo/marketplace",

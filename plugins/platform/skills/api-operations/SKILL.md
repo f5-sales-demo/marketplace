@@ -2,7 +2,7 @@
 name: api-operations
 description: >-
   Spec-aware API CRUD operations for F5 Distributed Cloud platform resources.
-  Covers 98 resource types across 38 domains with precise endpoints, payload
+  Covers 95 resource types across 38 domains with precise endpoints, payload
   templates, dependency ordering, and multi-step workflow compositions.
   Use when user wants to list, get, create, update, delete, or deploy any
   F5 XC resource via API — including HTTP load balancers, origin pools,
@@ -67,7 +67,6 @@ dependent resources, check the `references/workflows/` directory first:
 | Configure DNS | `workflows/configure_dns_zone.md` | "set up DNS zone", "configure DNS" |
 | Enable CDN | `workflows/enable_cdn_distribution.md` | "enable CDN", "set up CDN" |
 | Configure Origin Pool | `workflows/configure_origin_pool.md` | "set up origin pool with health checks" |
-| Register Site | `workflows/register_site.md` | "register site", "add CE site" |
 
 ```text
 Agent(
@@ -108,7 +107,7 @@ Users may refer to resources by common names rather than API names:
 | "DNS zone", "zone" | `dns_zone` | `dns` |
 | "DNS LB", "GSLB" | `dns_load_balancer` | `dns` |
 | "AWS site", "AWS VPC" | `aws_vpc_site` | `cloud_infrastructure` |
-| "Azure site", "Azure VNet" | `azure_vnet_site` | `cloud_infrastructure` |
+| "Secure Mesh Site", "Customer Edge" | native `f5xc_ce_v2_site` tool | `ce_v2` |
 | "GCP site", "GCP VPC" | `gcp_vpc_site` | `cloud_infrastructure` |
 | "cloud creds" | `cloud_credentials` | `cloud_infrastructure` |
 | "vK8s", "virtual Kubernetes" | `virtual_k8s` | `container_services` |
@@ -125,7 +124,7 @@ Users may refer to resources by common names rather than API names:
 
 ## Resource Routing Table
 
-98 resources across 38 domains. Use this to find the right profile file.
+95 resources across 38 domains. Use this to find the right profile file.
 
 | Resource | Domain | Category | Profile |
 | ---------- | -------- | ---------- | --------- |
@@ -143,7 +142,6 @@ Users may refer to resources by common names rather than API names:
 | `ca_certificate` | `certificates` | Security | resources/certificates/ca_certificate.md |
 | `certificate_chain` | `certificates` | Security | resources/certificates/certificate_chain.md |
 | `aws_vpc_site` | `cloud_infrastructure` | Infrastructure | resources/cloud_infrastructure/aws_vpc_site.md |
-| `azure_vnet_site` | `cloud_infrastructure` | Infrastructure | resources/cloud_infrastructure/azure_vnet_site.md |
 | `gcp_vpc_site` | `cloud_infrastructure` | Infrastructure | resources/cloud_infrastructure/gcp_vpc_site.md |
 | `cloud_credentials` | `cloud_infrastructure` | Infrastructure | resources/cloud_infrastructure/cloud_credentials.md |
 | `network_policy` | `network_security` | Security | resources/network_security/network_policy.md |
@@ -182,8 +180,6 @@ Users may refer to resources by common names rather than API names:
 | `secret_policy` | `blindfold` | Security | resources/blindfold/secret_policy.md |
 | `nginx_config` | `nginx_one` | Platform | resources/nginx_one/nginx_config.md |
 | `site_config` | `ce_management` | Infrastructure | resources/ce_management/site_config.md |
-| `fleet_config` | `ce_management` | Infrastructure | resources/ce_management/fleet_config.md |
-| `registration_token` | `ce_management` | Infrastructure | resources/ce_management/registration_token.md |
 | `mk8s_cluster` | `managed_kubernetes` | Infrastructure | resources/managed_kubernetes/mk8s_cluster.md |
 | `container_registry` | `managed_kubernetes` | Infrastructure | resources/managed_kubernetes/container_registry.md |
 | `shape_app_firewall` | `shape` | Security | resources/shape/shape_app_firewall.md |

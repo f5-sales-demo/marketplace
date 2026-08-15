@@ -7,5 +7,5 @@
 | Source | f5-sales-demo/api-specs-enriched |
 | Pipeline | 1.0.0 |
 | Domains | 38 |
-| Resources | 98 |
+| Resources | 95 |
 | Workflows | 7 |

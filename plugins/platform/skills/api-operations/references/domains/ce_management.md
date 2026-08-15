@@ -1,14 +1,13 @@
 # Ce Management
 
-Network interfaces, fleets, and site registration.
+Generic site configuration and upgrades. Secure Mesh Site v2 Customer Edge uses
+the native `f5xc_ce_v2_site`, `f5xc_ce_v2_bootstrap`, and `f5xc_ce_v2_status` tools.
 
 Category: Infrastructure. Complexity: advanced. Paths: 28. Schemas: 240.
 
 ## Use Cases
 
-- Manage Customer Edge site lifecycle
-- Configure network interfaces and fleet settings
-- Handle site registration and token workflows
+- Read generic site configuration
 - Execute site upgrades with pre-upgrade checks
 
 ## Resources
@@ -16,8 +15,6 @@ Category: Infrastructure. Complexity: advanced. Paths: 28. Schemas: 240.
 | Resource | Description | Tier | CRUD | Profile |
 | ---------- | ------------- | ------ | ------ | --------- |
 | site_config | Site config | Standard | - | resources/ce_management/site_config.md |
-| fleet_config | Fleet config | Standard | - | resources/ce_management/fleet_config.md |
-| registration_token | Registration token | Standard | - | resources/ce_management/registration_token.md |
 
 ## Related Domains
 
