@@ -13,12 +13,12 @@ network workflow accepts arbitrary hostnames, IP addresses, prefixes, and ASNs.
 | Skill | Use it for |
 | --- | --- |
 | `cloudstatus:monitor` | Service health, incidents, maintenance, components, and status briefings |
-| `cloudstatus:location` | F5 Regional Edge metros, site codes, AS35280 presence, and facility candidates |
+| `cloudstatus:location` | All F5 Regional Edge maps, inventories, metros, site codes, addresses, and facility candidates |
 | `cloudstatus:network-intelligence` | DNS, RDAP, BGP origins, RPKI, routes, neighbours, facilities, IXPs, peering, and bounded path diagnostics |
 
 The plugin installs two task agents. The status operator has only `read` and
-`bash`; the network operator adds `web_search` for the documented fallback
-research ladder.
+`bash`; the general network operator adds `web_search` for its documented
+fallback research ladder. Regional Edge work is never delegated to that agent.
 
 ## Ask in natural language
 
@@ -48,7 +48,7 @@ The existing slash command remains status-only:
 ```
 
 Location and general Internet questions route through skills from ordinary
-language; version 1.5.0 adds no new slash command.
+language; version 1.5.1 adds no new slash command.
 
 ## Investigation model
 
@@ -82,11 +82,15 @@ API throttling and source outages are expected operating conditions. HTTP calls
 have bounded timeouts and retries, duplicate requests are memoized within one
 invocation, and usable partial evidence is retained.
 
-For current Regional Edge inventories, `locations [query]` matches live
-country, region, metro, site code, and component names. It emits normalized
-`MapLocationV1` evidence. Visual intent returns that evidence to the parent xcsh
-session for one `render_map` call; factual intent stays text-first. The operator
-never calls a second renderer or `display_media`.
+For every Regional Edge request, `cloudstatus:location` is the sole
+registry-only workflow. Its direct `locations --format map-v1 [query]` collector
+matches live country, region, metro, site code, and component names and emits
+the compact `cloudstatus.locations/v1` envelope with normalized `MapLocationV1`
+evidence. It consults F5 Statuspage, PeeringDB, and Wikidata only; missing or
+conflicting evidence stays unresolved. Visual intent returns that evidence to
+the parent xcsh session for one `render_map` call; factual intent stays
+text-first. It never delegates, runs general search, or calls a second renderer
+or `display_media`.
 
 ## Evidence boundaries
 

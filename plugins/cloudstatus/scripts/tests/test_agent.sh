@@ -62,4 +62,8 @@ test_network_operator_documents_evidence_boundaries() {
   grep -qi 'inference' "$agent"
   grep -qi 'unresolved' "$agent"
   grep -q 'web_search' "$agent"
+  if grep -Eq 'network_lookup\.py (location|locations)|correlation-rules' "$agent"; then
+    echo "general network operator still handles Regional Edge locations"
+    return 1
+  fi
 }

@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`cloudstatus`** v1.5.1 — makes `cloudstatus:location` the sole registry-only
+  workflow for every F5 Distributed Cloud Regional Edge request. It adds compact
+  `cloudstatus.locations/v1` map output, direct parent-session collection, and
+  routing guards against delegated or ad hoc location research ([#1170](https://github.com/f5-sales-demo/marketplace/issues/1170)).
+
 - **`cloudstatus`** v1.5.0 — adds request-scoped `locations [query]` discovery, current
   provenance-normalized `MapLocationV1` evidence, live representative metro research, and one-call
   parent-session `render_map` visualization. It requires xcsh 20.19.0 or later and ships no
