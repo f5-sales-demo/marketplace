@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, D101, D102, D103, D107, INP001, PT009, PT027, S101, TC003
 """Hermetic unit tests for the cloudstatus network lookup engine."""
 
 from __future__ import annotations
@@ -252,40 +253,39 @@ class RoutingTests(EngineTestCase):
         )
 
 
-class PeeringTests(EngineTestCase):
-    def peering_fixtures(self):
-        return {
-            "net?asn=35280": {
-                "data": [{"id": 777, "asn": 35280, "name": "F5 fixture"}]
-            },
-            "netfac?net_id=777": {"data": [{"fac_id": 10}, {"fac_id": 11}]},
-            "fac?id__in=10%2C11": {
-                "data": [
-                    {
-                        "id": 10,
-                        "name": "Fixture FR4",
-                        "city": "Frankfurt",
-                        "country": "DE",
-                        "address1": "Live street 1",
-                    },
-                    {
-                        "id": 11,
-                        "name": "Fixture FRA campus",
-                        "city": "Frankfurt",
-                        "country": "DE",
-                        "address1": "Live street 2",
-                    },
-                ]
-            },
-            "netixlan?net_id=777": {
-                "data": [{"ix_id": 20, "name": "Fixture IX", "ipaddr4": "192.0.2.1"}]
-            },
-            "ix?id__in=20": {"data": [{"id": 20, "name": "Fixture IX"}]},
-            "ixfac?ix_id__in=20": {"data": [{"ix_id": 20, "fac_id": 11}]},
-        }
+def peering_fixtures() -> dict[str, Any]:
+    return {
+        "net?asn=35280": {"data": [{"id": 777, "asn": 35280, "name": "F5 fixture"}]},
+        "netfac?net_id=777": {"data": [{"fac_id": 10}, {"fac_id": 11}]},
+        "fac?id__in=10%2C11": {
+            "data": [
+                {
+                    "id": 10,
+                    "name": "Fixture FR4",
+                    "city": "Frankfurt",
+                    "country": "DE",
+                    "address1": "Live street 1",
+                },
+                {
+                    "id": 11,
+                    "name": "Fixture FRA campus",
+                    "city": "Frankfurt",
+                    "country": "DE",
+                    "address1": "Live street 2",
+                },
+            ]
+        },
+        "netixlan?net_id=777": {
+            "data": [{"ix_id": 20, "name": "Fixture IX", "ipaddr4": "192.0.2.1"}]
+        },
+        "ix?id__in=20": {"data": [{"id": 20, "name": "Fixture IX"}]},
+        "ixfac?ix_id__in=20": {"data": [{"ix_id": 20, "fac_id": 11}]},
+    }
 
+
+class PeeringTests(EngineTestCase):
     def test_resolves_net_id_and_batches_facility_addresses(self):
-        http = FakeHttp(self.engine, self.peering_fixtures())
+        http = FakeHttp(self.engine, peering_fixtures())
         report = self.engine.Investigator(http=http).run("peering", "AS35280")
         self.assertEqual(report["facts"]["network"]["id"], 777)
         self.assertEqual(
@@ -297,7 +297,7 @@ class PeeringTests(EngineTestCase):
         self.assertIn("ix_facility_candidates", report["facts"])
 
     def test_location_keeps_ambiguous_metro_candidates_unresolved(self):
-        fixtures = self.peering_fixtures() | {
+        fixtures = peering_fixtures() | {
             "components.json": {
                 "components": [
                     {"id": "g1", "name": "Europe PoPs", "group": True},
@@ -328,9 +328,6 @@ class PeeringTests(EngineTestCase):
 
 
 class LocationInventoryTests(EngineTestCase):
-    def peering_fixtures(self):
-        return PeeringTests.peering_fixtures(self)
-
     def base_fixtures(self):
         return {
             "components.json": {
@@ -521,7 +518,7 @@ class LocationInventoryTests(EngineTestCase):
         self.assertNotIn("latitude", location)
 
     def test_site_codes_are_extracted_only_from_live_component_names(self):
-        fixtures = self.peering_fixtures() | {
+        fixtures = peering_fixtures() | {
             "components.json": {
                 "components": [
                     {"id": "g1", "name": "Europe Regional Edges", "group": True},

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EM101, EM102, PLR2004, TRY003
 # pylint: disable=too-many-lines
 """Live Internet and F5 network evidence collector for cloudstatus.
 
@@ -1180,7 +1181,9 @@ ORDER BY ?metroLabel ?place
                 )
         return result
 
-    def _collect_locations(self, query: str = "") -> dict[str, Any]:
+    def _collect_locations(  # pylint: disable=too-many-locals
+        self, query: str = ""
+    ) -> dict[str, Any]:
         """Return current Regional Edge evidence normalized for render_map."""
         edge_facts = self._collect_edges(query)
         edges = edge_facts["edge_components"]
@@ -1207,6 +1210,10 @@ ORDER BY ?metroLabel ?place
             }
             coordinate_source: dict[str, Any] | None = None
             published_point = _coordinate(published)
+            exact_point = _coordinate(exact[0]) if len(exact) == 1 else None
+            direct_point = (
+                _coordinate(direct_metro[0]) if len(direct_metro) == 1 else None
+            )
             if published_point:
                 location.update(
                     {
@@ -1222,13 +1229,12 @@ ORDER BY ?metroLabel ?place
                     "sourceName": "F5 Statuspage components",
                     "claim": "The current component record publishes this coordinate.",
                 }
-            elif len(exact) == 1 and _coordinate(exact[0]):
-                point = _coordinate(exact[0])
+            elif exact_point:
                 facility_id = exact[0].get("id")
                 location.update(
                     {
-                        "longitude": point[0],
-                        "latitude": point[1],
+                        "longitude": exact_point[0],
+                        "latitude": exact_point[1],
                         "precision": "inferred",
                         "resolution": "candidate",
                         "confidence": "medium",
@@ -1239,13 +1245,12 @@ ORDER BY ?metroLabel ?place
                     "sourceName": "PeeringDB facility",
                     "claim": "This coordinate belongs to the sole direct AS35280 facility whose current name matches the live site code; it remains a facility candidate, not proven service placement.",
                 }
-            elif len(direct_metro) == 1 and _coordinate(direct_metro[0]):
-                point = _coordinate(direct_metro[0])
+            elif direct_point:
                 facility_id = direct_metro[0].get("id")
                 location.update(
                     {
-                        "longitude": point[0],
-                        "latitude": point[1],
+                        "longitude": direct_point[0],
+                        "latitude": direct_point[1],
                         "precision": "inferred",
                         "resolution": "candidate",
                         "confidence": "low",
