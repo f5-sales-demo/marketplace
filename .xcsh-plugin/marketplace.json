@@ -210,7 +210,7 @@
     {
       "name": "cloudstatus",
       "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "author": {
         "name": "f5-sales-demo"
       },

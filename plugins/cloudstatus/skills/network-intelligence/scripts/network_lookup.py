@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EM101, EM102, PLR2004, TRY003
 # pylint: disable=too-many-lines
 """Live Internet and F5 network evidence collector for cloudstatus.
 
@@ -39,6 +40,8 @@ STATUSPAGE_COMPONENTS = "https://www.f5cloudstatus.com/api/v2/components.json"
 PEERINGDB_API = "https://www.peeringdb.com/api"
 RIPESTAT_API = "https://stat.ripe.net/data"
 IANA_RDAP = "https://data.iana.org/rdap"
+WIKIDATA_QUERY_SERVICE = "https://query.wikidata.org"
+MAX_WIKIDATA_METROS = 100
 
 
 class InvalidInputError(ValueError):
@@ -185,7 +188,7 @@ class HttpClient:
             url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "cloudstatus-network-intelligence/1.4.0",
+                "User-Agent": "cloudstatus-network-intelligence/1.5.0 (+https://github.com/f5-sales-demo/marketplace)",
             },
         )
         last_error: SourceError | None = None
@@ -339,11 +342,72 @@ def _site_codes(name: str) -> list[str]:
     codes = []
     for candidate in re.findall(r"\(([^()]*)\)", name):
         value = candidate.strip().lower()
-        if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value) and any(
-            char.isdigit() for char in value
-        ):
+        if len(value) <= 32 and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value):
             codes.append(value)
     return list(dict.fromkeys(codes))
+
+
+def _component_place(name: str) -> tuple[str, str]:
+    """Extract only the metro and country text published in a component name."""
+    parts = [part.strip() for part in name.split(",")]
+    metro = re.sub(r"\s*\([^()]*\)\s*$", "", parts[0]).strip() if parts else ""
+    country = parts[-1] if len(parts) > 1 else ""
+    return metro, country
+
+
+def _component_region(group: str) -> str:
+    """Return the live group name without inventing a regional taxonomy."""
+    return re.sub(
+        r"\s*(?:regional\s+edges?|pops?)\s*$", "", group, flags=re.IGNORECASE
+    ).strip()
+
+
+def _coordinate(record: dict[str, Any]) -> tuple[float, float] | None:
+    """Read coordinates only from documented, source-supplied field pairs."""
+    pairs = (("longitude", "latitude"), ("lon", "lat"))
+    for longitude_key, latitude_key in pairs:
+        try:
+            longitude = float(record[longitude_key])
+            latitude = float(record[latitude_key])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if -180 <= longitude <= 180 and -90 <= latitude <= 90:
+            return longitude, latitude
+    return None
+
+
+def _published_location(record: dict[str, Any]) -> dict[str, Any]:
+    """Retain current source fields without creating an embedded location dataset."""
+    result: dict[str, Any] = {}
+    coordinates = _coordinate(record)
+    if coordinates:
+        result["longitude"], result["latitude"] = coordinates
+    for field in ("address", "address1", "address2", "city", "state", "country"):
+        if record.get(field):
+            result[field] = record[field]
+    return result
+
+
+def _location_id(value: Any, index: int) -> str:
+    """Build a stable render_map-compatible ID from the live component ID."""
+    candidate = re.sub(r"[^A-Za-z0-9_.:-]+", "-", str(value or "")).strip("-.")
+    if not candidate or not candidate[0].isalnum():
+        candidate = f"regional-edge-{index + 1}"
+    return candidate[:128]
+
+
+def _wikidata_point(value: Any) -> tuple[float, float] | None:
+    """Parse the WKT Point value returned by the current Wikidata query."""
+    match = re.fullmatch(
+        r"Point\((-?(?:\d+(?:\.\d+)?|\.\d+)) (-?(?:\d+(?:\.\d+)?|\.\d+))\)",
+        str(value),
+    )
+    if not match:
+        return None
+    longitude, latitude = float(match.group(1)), float(match.group(2))
+    if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+        return None
+    return longitude, latitude
 
 
 def _plain_text(value: Any, maximum: int = 65_536) -> str:
@@ -362,6 +426,7 @@ class Investigator:
         self.inferences: list[dict[str, Any]] = []
         self._source_urls: set[str] = set()
         self._required_successes = 0
+        self.observed_at = _utc_now()
 
     def _reset(self) -> None:
         self.sources = []
@@ -369,10 +434,13 @@ class Investigator:
         self.inferences = []
         self._source_urls = set()
         self._required_successes = 0
+        self.observed_at = _utc_now()
 
     def _source(self, name: str, url: str, *, required: bool = True) -> None:
         if url not in self._source_urls:
-            self.sources.append({"name": name, "url": url})
+            self.sources.append(
+                {"name": name, "url": url, "observed_at": self.observed_at}
+            )
             self._source_urls.add(url)
         if required:
             self._required_successes += 1
@@ -396,9 +464,13 @@ class Investigator:
     def run(self, operation: str, raw_query: str = "") -> dict[str, Any]:
         """Run one supported evidence operation and return its JSON-ready report."""
         self._reset()
-        if operation == "edges":
+        if operation in {"edges", "locations"}:
             query_text = normalize_location_query(raw_query, optional=True)
-            facts = self._collect_edges(query_text)
+            facts = (
+                self._collect_locations(query_text)
+                if operation == "locations"
+                else self._collect_edges(query_text)
+            )
             normalized = query_text
         elif operation == "location":
             query_text = normalize_location_query(raw_query)
@@ -433,7 +505,7 @@ class Investigator:
         return {
             "operation": operation,
             "query": normalized,
-            "observed_at": _utc_now(),
+            "observed_at": self.observed_at,
             "status": status,
             "facts": facts,
             "inferences": self.inferences,
@@ -720,7 +792,11 @@ class Investigator:
         return _compact_rdap(payload) if isinstance(payload, dict) else None
 
     def _collect_peering(
-        self, asn: int, *, include_relationship_context: bool
+        self,
+        asn: int,
+        *,
+        include_relationship_context: bool,
+        include_ix_facilities: bool = True,
     ) -> dict[str, Any]:
         net_url = build_url(PEERINGDB_API, "net", {"asn": asn})
         net_payload = self._request(net_url, "PeeringDB net")
@@ -755,7 +831,13 @@ class Investigator:
             }
 
         netfac, netixlan = self._peering_memberships(int(net_id))
-        facts = self._join_peering_records(network, networks, netfac, netixlan)
+        facts = self._join_peering_records(
+            network,
+            networks,
+            netfac,
+            netixlan,
+            include_ix_facilities=include_ix_facilities,
+        )
         if include_relationship_context:
             neighbours = self._ripe("asn-neighbours", f"AS{asn}")
             if neighbours is not None:
@@ -789,10 +871,14 @@ class Investigator:
         candidates: list[dict[str, Any]],
         netfac: list[dict[str, Any]],
         netixlan: list[dict[str, Any]],
+        *,
+        include_ix_facilities: bool,
     ) -> dict[str, Any]:
         """Batch PeeringDB joins while retaining direct and IX evidence separately."""
         ix_ids = self._record_ids(netixlan, "ix_id")
-        exchanges, ixfac = self._exchange_records(ix_ids)
+        exchanges, ixfac = self._exchange_records(
+            ix_ids, include_facilities=include_ix_facilities
+        )
         direct_ids = self._record_ids(netfac, "fac_id")
         facilities = self._facility_records(
             direct_ids | self._record_ids(ixfac, "fac_id")
@@ -830,7 +916,7 @@ class Investigator:
         }
 
     def _exchange_records(
-        self, ix_ids: set[int]
+        self, ix_ids: set[int], *, include_facilities: bool
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Batch-fetch exchange and exchange-facility records."""
         if not ix_ids:
@@ -839,6 +925,8 @@ class Investigator:
         exchanges = self._request(
             build_url(PEERINGDB_API, "ix", {"id__in": joined}), "PeeringDB ix"
         )
+        if not include_facilities:
+            return self._records(exchanges), []
         ixfac = self._request(
             build_url(PEERINGDB_API, "ixfac", {"ix_id__in": joined}), "PeeringDB ixfac"
         )
@@ -925,16 +1013,30 @@ class Investigator:
         for item in components:
             if item.get("group") is True or item.get("group_id") not in groups:
                 continue
+            name = str(item.get("name", ""))
+            group = str(groups[item.get("group_id")] or "")
+            metro, country = _component_place(name)
             record = {
                 "id": item.get("id"),
                 "name": item.get("name"),
                 "status": item.get("status"),
                 "group": groups[item.get("group_id")],
-                "site_codes": _site_codes(str(item.get("name", ""))),
+                "region": _component_region(group),
+                "metro": metro,
+                "country": country,
+                "site_codes": _site_codes(name),
                 "updated_at": item.get("updated_at"),
+                "published_location": _published_location(item),
             }
             searchable = " ".join(
-                [str(record["name"]), str(record["group"]), *record["site_codes"]]
+                [
+                    str(record["name"]),
+                    str(record["group"]),
+                    str(record["region"]),
+                    str(record["metro"]),
+                    str(record["country"]),
+                    *record["site_codes"],
+                ]
             ).casefold()
             if not query_lower or query_lower in searchable:
                 edges.append(record)
@@ -943,6 +1045,282 @@ class Investigator:
                 {"id": key, "name": value} for key, value in groups.items()
             ],
             "edge_components": edges,
+        }
+
+    def _wikidata_metro_candidates(
+        self, edges: list[dict[str, Any]]
+    ) -> dict[tuple[str, str], list[dict[str, Any]]]:
+        """Resolve representative metro points in one request-scoped Wikidata query."""
+        metros = sorted(
+            {
+                str(edge.get("metro", "")).strip()
+                for edge in edges
+                if str(edge.get("metro", "")).strip()
+            },
+            key=str.casefold,
+        )
+        if len(metros) > MAX_WIKIDATA_METROS:
+            self._error(
+                "investigation bound",
+                f"Wikidata metro lookup is limited to {MAX_WIKIDATA_METROS} unique names per request",
+            )
+            metros = metros[:MAX_WIKIDATA_METROS]
+        if not metros:
+            return {}
+        values = " ".join(
+            f"{json.dumps(metro, ensure_ascii=False)}@en" for metro in metros
+        )
+        query = f"""
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+SELECT ?place ?metroLabel ?countryLabel ?coordinate WHERE {{
+  VALUES ?metroLabel {{ {values} }}
+  ?place rdfs:label ?metroLabel ; wdt:P625 ?coordinate .
+  OPTIONAL {{
+    ?place wdt:P17 ?country .
+    ?country rdfs:label ?countryLabel .
+    FILTER(LANG(?countryLabel) = "en")
+  }}
+}}
+ORDER BY ?metroLabel ?place
+""".strip()
+        url = build_url(
+            WIKIDATA_QUERY_SERVICE, "sparql", {"query": query, "format": "json"}
+        )
+        payload = self._request(url, "Wikidata SPARQL", required=False)
+        bindings = (
+            payload.get("results", {}).get("bindings", [])
+            if isinstance(payload, dict)
+            else []
+        )
+        result: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for binding in bindings if isinstance(bindings, list) else []:
+            if not isinstance(binding, dict):
+                continue
+            metro = str(binding.get("metroLabel", {}).get("value", "")).strip()
+            country = str(binding.get("countryLabel", {}).get("value", "")).strip()
+            point = _wikidata_point(
+                binding.get("coordinate", {}).get("value")
+                if isinstance(binding.get("coordinate"), dict)
+                else None
+            )
+            entity = str(binding.get("place", {}).get("value", ""))
+            entity_match = re.fullmatch(
+                r"https?://www\.wikidata\.org/entity/(Q[1-9][0-9]*)", entity
+            )
+            if not metro or not point or not entity_match:
+                continue
+            candidate = {
+                "id": entity_match.group(1),
+                "metro": metro,
+                "country": country,
+                "longitude": point[0],
+                "latitude": point[1],
+                "url": f"https://www.wikidata.org/wiki/{entity_match.group(1)}",
+            }
+            key = (metro.casefold(), country.casefold())
+            if candidate not in result.setdefault(key, []):
+                result[key].append(candidate)
+        return result
+
+    @staticmethod
+    def _matching_facilities(
+        edge: dict[str, Any], facilities: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Return direct metro and stronger live site-code facility correlations."""
+        metro = str(edge.get("metro", "")).casefold()
+        direct_metro = [
+            facility
+            for facility in facilities
+            if metro
+            and (
+                metro in str(facility.get("city", "")).casefold()
+                or metro in str(facility.get("name", "")).casefold()
+            )
+        ]
+        exact = [
+            facility
+            for facility in direct_metro
+            if any(
+                re.search(
+                    rf"(?<![a-z0-9]){re.escape(code)}(?![a-z0-9])",
+                    str(facility.get("name", "")),
+                    re.IGNORECASE,
+                )
+                for code in edge.get("site_codes", [])
+            )
+        ]
+        return direct_metro, exact
+
+    def _location_sources(
+        self,
+        edge: dict[str, Any],
+        coordinate_source: dict[str, Any] | None = None,
+    ) -> list[dict[str, str]]:
+        """Build render_map provenance from sources consulted in this invocation."""
+        result = [
+            {
+                "url": STATUSPAGE_COMPONENTS,
+                "sourceName": "F5 Statuspage components",
+                "observedAt": self.observed_at,
+                "claim": f"The current Regional Edge component is published as {edge.get('name')!r} in {edge.get('group')!r}.",
+            }
+        ]
+        if coordinate_source:
+            coordinate_claim = str(coordinate_source["claim"])
+            if coordinate_source["url"] == STATUSPAGE_COMPONENTS:
+                result[0]["claim"] += f" {coordinate_claim}"
+            else:
+                result.append(
+                    {
+                        "url": str(coordinate_source["url"]),
+                        "sourceName": str(coordinate_source["sourceName"]),
+                        "observedAt": self.observed_at,
+                        "claim": coordinate_claim,
+                    }
+                )
+        return result
+
+    def _collect_locations(  # pylint: disable=too-many-locals
+        self, query: str = ""
+    ) -> dict[str, Any]:
+        """Return current Regional Edge evidence normalized for render_map."""
+        edge_facts = self._collect_edges(query)
+        edges = edge_facts["edge_components"]
+        peering = self._collect_peering(
+            35280,
+            include_relationship_context=False,
+            include_ix_facilities=False,
+        )
+        facilities = peering.get("direct_facilities", [])
+        wikidata = self._wikidata_metro_candidates(edges)
+        records: list[dict[str, Any]] = []
+        map_locations: list[dict[str, Any]] = []
+
+        for index, edge in enumerate(edges):
+            direct_metro, exact = self._matching_facilities(edge, facilities)
+            published = edge.get("published_location", {})
+            location: dict[str, Any] = {
+                "id": _location_id(edge.get("id"), index),
+                "label": str(edge.get("name") or f"Regional Edge {index + 1}"),
+                "precision": "unresolved",
+                "resolution": "unresolved",
+                "confidence": "unknown",
+                "sources": self._location_sources(edge),
+            }
+            coordinate_source: dict[str, Any] | None = None
+            published_point = _coordinate(published)
+            exact_point = _coordinate(exact[0]) if len(exact) == 1 else None
+            direct_point = (
+                _coordinate(direct_metro[0]) if len(direct_metro) == 1 else None
+            )
+            if published_point:
+                location.update(
+                    {
+                        "longitude": published_point[0],
+                        "latitude": published_point[1],
+                        "precision": "approximate",
+                        "resolution": "resolved",
+                        "confidence": "high",
+                    }
+                )
+                coordinate_source = {
+                    "url": STATUSPAGE_COMPONENTS,
+                    "sourceName": "F5 Statuspage components",
+                    "claim": "The current component record publishes this coordinate.",
+                }
+            elif exact_point:
+                facility_id = exact[0].get("id")
+                location.update(
+                    {
+                        "longitude": exact_point[0],
+                        "latitude": exact_point[1],
+                        "precision": "inferred",
+                        "resolution": "candidate",
+                        "confidence": "medium",
+                    }
+                )
+                coordinate_source = {
+                    "url": f"https://www.peeringdb.com/fac/{facility_id}",
+                    "sourceName": "PeeringDB facility",
+                    "claim": "This coordinate belongs to the sole direct AS35280 facility whose current name matches the live site code; it remains a facility candidate, not proven service placement.",
+                }
+            elif direct_point:
+                facility_id = direct_metro[0].get("id")
+                location.update(
+                    {
+                        "longitude": direct_point[0],
+                        "latitude": direct_point[1],
+                        "precision": "inferred",
+                        "resolution": "candidate",
+                        "confidence": "low",
+                    }
+                )
+                coordinate_source = {
+                    "url": f"https://www.peeringdb.com/fac/{facility_id}",
+                    "sourceName": "PeeringDB facility",
+                    "claim": "This coordinate belongs to the sole current direct AS35280 facility found in the metro; it is an indirect candidate and does not prove Regional Edge placement.",
+                }
+            else:
+                key = (
+                    str(edge.get("metro", "")).casefold(),
+                    str(edge.get("country", "")).casefold(),
+                )
+                candidates = wikidata.get(key, [])
+                if not candidates and not key[1]:
+                    candidates = [
+                        candidate
+                        for (metro, _country), values in wikidata.items()
+                        if metro == key[0]
+                        for candidate in values
+                    ]
+                unique = {candidate["id"]: candidate for candidate in candidates}
+                if len(unique) == 1:
+                    candidate = next(iter(unique.values()))
+                    location.update(
+                        {
+                            "longitude": candidate["longitude"],
+                            "latitude": candidate["latitude"],
+                            "precision": "metro",
+                            "resolution": "ambiguous"
+                            if len(direct_metro) > 1
+                            else "approximate",
+                            "confidence": "medium",
+                        }
+                    )
+                    coordinate_source = {
+                        "url": candidate["url"],
+                        "sourceName": "Wikidata Query Service entity",
+                        "claim": "This is a current representative metro coordinate; it does not identify an F5 facility or service placement.",
+                    }
+            if coordinate_source:
+                location["sources"] = self._location_sources(edge, coordinate_source)
+            record = {
+                "component": edge,
+                "direct_metro_facilities": direct_metro,
+                "site_code_facility_candidates": exact,
+                "placement_assessment": (
+                    "candidate"
+                    if len(exact) == 1 or len(direct_metro) == 1
+                    else "ambiguous"
+                    if len(exact) > 1 or len(direct_metro) > 1
+                    else "unresolved"
+                ),
+                "map_location": location,
+            }
+            records.append(record)
+            map_locations.append(location)
+
+        return {
+            "regional_edge_groups": edge_facts["regional_edge_groups"],
+            "location_records": records,
+            "map_locations": map_locations,
+            "as35280_network": peering.get("network"),
+            "ix_participation": peering.get("ix_participation", []),
+            "source_hints": {
+                "instructions": "skill://cloudstatus:location/references/source-hints.md",
+                "durable_cache": False,
+            },
         }
 
     def _collect_location(self, query: str) -> dict[str, Any]:
@@ -1162,8 +1540,9 @@ def build_parser() -> argparse.ArgumentParser:
     for operation in ("inspect", "route", "peering", "location", "path"):
         command = subparsers.add_parser(operation)
         command.add_argument("query")
-    edges = subparsers.add_parser("edges")
-    edges.add_argument("query", nargs="?", default="")
+    for operation in ("edges", "locations"):
+        command = subparsers.add_parser(operation)
+        command.add_argument("query", nargs="?", default="")
     return parser
 
 

@@ -26,7 +26,7 @@ python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py inspe
 python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py route "$CLOUDSTATUS_QUERY"
 python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py peering "$CLOUDSTATUS_QUERY"
 python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py location "$CLOUDSTATUS_QUERY"
-python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py edges "$CLOUDSTATUS_QUERY"
+python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py locations "$CLOUDSTATUS_QUERY"
 python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py path "$CLOUDSTATUS_QUERY"
 ```
 
@@ -56,6 +56,9 @@ relationship evidence; otherwise report `indeterminate`.
 
 For location results, even the strongest public correlation is not proof that
 a particular F5 service instance occupies a building. Preserve that caveat.
+Return the collector's `map_locations` unchanged to the parent for visual
+intent. Do not invoke `render_map` from the delegated operator and never supply
+a remembered coordinate.
 
 ## Output
 

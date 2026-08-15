@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`cloudstatus`** v1.5.0 — adds request-scoped `locations [query]` discovery, current
+  provenance-normalized `MapLocationV1` evidence, live representative metro research, and one-call
+  parent-session `render_map` visualization. It requires xcsh 20.19.0 or later and ships no
+  gazetteer, coordinate table, address inventory, topology snapshot, or durable location cache
+  ([#1166](https://github.com/f5-sales-demo/marketplace/issues/1166)).
+
 - **`cloudstatus`** v1.4.0 — adds xcsh-native live Internet and F5 network intelligence for
   hostnames, addresses, prefixes, ASNs, routes, peers, IXPs, facilities, and bounded path
   diagnostics. The release resolves current topology from Statuspage, PeeringDB, RIPEstat, and

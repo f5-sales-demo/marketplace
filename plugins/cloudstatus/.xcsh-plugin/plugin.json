@@ -1,7 +1,7 @@
 {
   "name": "cloudstatus",
   "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
   "license": "Apache-2.0",
   "author": {

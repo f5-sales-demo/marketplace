@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, D101, D102, D103, D107, INP001, PT009, PT027, S101, TC003
 """Hermetic unit tests for the cloudstatus network lookup engine."""
 
 from __future__ import annotations
@@ -252,40 +253,39 @@ class RoutingTests(EngineTestCase):
         )
 
 
-class PeeringTests(EngineTestCase):
-    def peering_fixtures(self):
-        return {
-            "net?asn=35280": {
-                "data": [{"id": 777, "asn": 35280, "name": "F5 fixture"}]
-            },
-            "netfac?net_id=777": {"data": [{"fac_id": 10}, {"fac_id": 11}]},
-            "fac?id__in=10%2C11": {
-                "data": [
-                    {
-                        "id": 10,
-                        "name": "Fixture FR4",
-                        "city": "Frankfurt",
-                        "country": "DE",
-                        "address1": "Live street 1",
-                    },
-                    {
-                        "id": 11,
-                        "name": "Fixture FRA campus",
-                        "city": "Frankfurt",
-                        "country": "DE",
-                        "address1": "Live street 2",
-                    },
-                ]
-            },
-            "netixlan?net_id=777": {
-                "data": [{"ix_id": 20, "name": "Fixture IX", "ipaddr4": "192.0.2.1"}]
-            },
-            "ix?id__in=20": {"data": [{"id": 20, "name": "Fixture IX"}]},
-            "ixfac?ix_id__in=20": {"data": [{"ix_id": 20, "fac_id": 11}]},
-        }
+def peering_fixtures() -> dict[str, Any]:
+    return {
+        "net?asn=35280": {"data": [{"id": 777, "asn": 35280, "name": "F5 fixture"}]},
+        "netfac?net_id=777": {"data": [{"fac_id": 10}, {"fac_id": 11}]},
+        "fac?id__in=10%2C11": {
+            "data": [
+                {
+                    "id": 10,
+                    "name": "Fixture FR4",
+                    "city": "Frankfurt",
+                    "country": "DE",
+                    "address1": "Live street 1",
+                },
+                {
+                    "id": 11,
+                    "name": "Fixture FRA campus",
+                    "city": "Frankfurt",
+                    "country": "DE",
+                    "address1": "Live street 2",
+                },
+            ]
+        },
+        "netixlan?net_id=777": {
+            "data": [{"ix_id": 20, "name": "Fixture IX", "ipaddr4": "192.0.2.1"}]
+        },
+        "ix?id__in=20": {"data": [{"id": 20, "name": "Fixture IX"}]},
+        "ixfac?ix_id__in=20": {"data": [{"ix_id": 20, "fac_id": 11}]},
+    }
 
+
+class PeeringTests(EngineTestCase):
     def test_resolves_net_id_and_batches_facility_addresses(self):
-        http = FakeHttp(self.engine, self.peering_fixtures())
+        http = FakeHttp(self.engine, peering_fixtures())
         report = self.engine.Investigator(http=http).run("peering", "AS35280")
         self.assertEqual(report["facts"]["network"]["id"], 777)
         self.assertEqual(
@@ -297,7 +297,7 @@ class PeeringTests(EngineTestCase):
         self.assertIn("ix_facility_candidates", report["facts"])
 
     def test_location_keeps_ambiguous_metro_candidates_unresolved(self):
-        fixtures = self.peering_fixtures() | {
+        fixtures = peering_fixtures() | {
             "components.json": {
                 "components": [
                     {"id": "g1", "name": "Europe PoPs", "group": True},
@@ -326,8 +326,199 @@ class PeeringTests(EngineTestCase):
         self.assertEqual(report["inferences"][0]["assessment"], "unresolved")
         self.assertNotIn("exact_facility", report["facts"])
 
+
+class LocationInventoryTests(EngineTestCase):
+    def base_fixtures(self):
+        return {
+            "components.json": {
+                "components": [
+                    {
+                        "id": "group-fixture",
+                        "name": "Example Region Regional Edges",
+                        "group": True,
+                    },
+                    {
+                        "id": "edge-fv1",
+                        "name": "Fixtureville (fv1), Exampleland",
+                        "group": False,
+                        "group_id": "group-fixture",
+                        "status": "operational",
+                        "longitude": 12.25,
+                        "latitude": 45.5,
+                        "address": "Synthetic address from current fixture",
+                    },
+                    {
+                        "id": "edge-sample",
+                        "name": "Sampletown, Testland",
+                        "group": False,
+                        "group_id": "group-fixture",
+                        "status": "operational",
+                    },
+                ]
+            },
+            "net?asn=35280": {
+                "data": [{"id": 900, "asn": 35280, "name": "F5 synthetic"}]
+            },
+            "netfac?net_id=900": {"data": []},
+            "netixlan?net_id=900": {"data": []},
+            "query.wikidata.org": {
+                "results": {
+                    "bindings": [
+                        {
+                            "place": {
+                                "value": "http://www.wikidata.org/entity/Q900001"
+                            },
+                            "metroLabel": {"value": "Sampletown"},
+                            "countryLabel": {"value": "Testland"},
+                            "coordinate": {"value": "Point(-73.5 40.25)"},
+                        }
+                    ]
+                }
+            },
+        }
+
+    def test_global_inventory_normalizes_published_and_live_metro_coordinates(self):
+        report = self.engine.Investigator(
+            http=FakeHttp(self.engine, self.base_fixtures())
+        ).run("locations", "")
+
+        locations = report["facts"]["map_locations"]
+        self.assertEqual(len(locations), 2)
+        self.assertEqual(locations[0]["precision"], "approximate")
+        self.assertEqual(locations[0]["longitude"], 12.25)
+        self.assertEqual(locations[1]["precision"], "metro")
+        self.assertEqual(locations[1]["resolution"], "approximate")
+        self.assertEqual(locations[1]["latitude"], 40.25)
+        self.assertEqual(
+            report["facts"]["location_records"][0]["component"]["published_location"][
+                "address"
+            ],
+            "Synthetic address from current fixture",
+        )
+        for location in locations:
+            for source in location["sources"]:
+                self.assertTrue(source["url"].startswith("https://"))
+                self.assertTrue(source["sourceName"])
+                self.assertEqual(source["observedAt"], report["observed_at"])
+                self.assertTrue(source["claim"])
+
+    def test_country_region_metro_site_code_and_component_queries(self):
+        fixtures = self.base_fixtures()
+        for query in (
+            "Exampleland",
+            "Fixtureville",
+            "fv1",
+            "Fixtureville (fv1)",
+        ):
+            with self.subTest(query=query):
+                report = self.engine.Investigator(
+                    http=FakeHttp(self.engine, fixtures)
+                ).run("locations", query)
+                self.assertEqual(len(report["facts"]["map_locations"]), 1)
+                self.assertEqual(report["facts"]["map_locations"][0]["id"], "edge-fv1")
+        region = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+            "locations", "Example Region"
+        )
+        self.assertEqual(len(region["facts"]["map_locations"]), 2)
+
+    def test_multiple_facilities_remain_ambiguous_at_a_metro_point(self):
+        fixtures = self.base_fixtures()
+        fixtures["components.json"]["components"] = [
+            fixtures["components.json"]["components"][0],
+            {
+                "id": "edge-dual",
+                "name": "Dualtown, Testland",
+                "group": False,
+                "group_id": "group-fixture",
+                "status": "operational",
+            },
+        ]
+        fixtures["netfac?net_id=900"] = {"data": [{"fac_id": 41}, {"fac_id": 42}]}
+        fixtures["fac?id__in=41%2C42"] = {
+            "data": [
+                {"id": 41, "name": "Synthetic One", "city": "Dualtown"},
+                {"id": 42, "name": "Synthetic Two", "city": "Dualtown"},
+            ]
+        }
+        fixtures["query.wikidata.org"] = {
+            "results": {
+                "bindings": [
+                    {
+                        "place": {"value": "http://www.wikidata.org/entity/Q900002"},
+                        "metroLabel": {"value": "Dualtown"},
+                        "countryLabel": {"value": "Testland"},
+                        "coordinate": {"value": "Point(5 6)"},
+                    }
+                ]
+            }
+        }
+
+        record = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+            "locations", "Dualtown"
+        )["facts"]["location_records"][0]
+        self.assertEqual(record["placement_assessment"], "ambiguous")
+        self.assertEqual(len(record["direct_metro_facilities"]), 2)
+        self.assertEqual(record["map_location"]["resolution"], "ambiguous")
+        self.assertEqual(record["map_location"]["precision"], "metro")
+
+    def test_single_direct_metro_facility_is_an_inferred_candidate(self):
+        fixtures = self.base_fixtures()
+        fixtures["components.json"]["components"] = [
+            fixtures["components.json"]["components"][0],
+            {
+                "id": "edge-candidate",
+                "name": "Candidatetown, Testland",
+                "group": False,
+                "group_id": "group-fixture",
+                "status": "operational",
+            },
+        ]
+        fixtures["netfac?net_id=900"] = {"data": [{"fac_id": 51}]}
+        fixtures["fac?id__in=51"] = {
+            "data": [
+                {
+                    "id": 51,
+                    "name": "Synthetic Facility",
+                    "city": "Candidatetown",
+                    "longitude": 8,
+                    "latitude": 9,
+                }
+            ]
+        }
+        fixtures["query.wikidata.org"] = {"results": {"bindings": []}}
+
+        record = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+            "locations", "Candidatetown"
+        )["facts"]["location_records"][0]
+        self.assertEqual(record["placement_assessment"], "candidate")
+        self.assertEqual(record["map_location"]["precision"], "inferred")
+        self.assertEqual(record["map_location"]["resolution"], "candidate")
+        self.assertEqual(record["map_location"]["confidence"], "low")
+
+    def test_unresolved_result_is_preserved_without_coordinates(self):
+        fixtures = self.base_fixtures()
+        fixtures["components.json"]["components"] = [
+            fixtures["components.json"]["components"][0],
+            {
+                "id": "edge-unresolved",
+                "name": "Unresolved Place, Testland",
+                "group": False,
+                "group_id": "group-fixture",
+                "status": "operational",
+            },
+        ]
+        fixtures["query.wikidata.org"] = {"results": {"bindings": []}}
+
+        location = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+            "locations", "Unresolved"
+        )["facts"]["map_locations"][0]
+        self.assertEqual(location["precision"], "unresolved")
+        self.assertEqual(location["resolution"], "unresolved")
+        self.assertNotIn("longitude", location)
+        self.assertNotIn("latitude", location)
+
     def test_site_codes_are_extracted_only_from_live_component_names(self):
-        fixtures = self.peering_fixtures() | {
+        fixtures = peering_fixtures() | {
             "components.json": {
                 "components": [
                     {"id": "g1", "name": "Europe Regional Edges", "group": True},

@@ -67,6 +67,11 @@ IXP participant directories, and operator looking glasses. Useful searches:
 
 Prefer a record page over a search snippet.
 
+For a representative metro point only, query current Wikidata entity data and
+cite the selected entity. Require a unique label/country match, mark the point
+`metro/approximate`, and leave ambiguous matches unresolved. Public Nominatim
+is excluded from the v1 location workflow.
+
 ## 6. Measurements and research
 
 - RIPE RIS and Route Views for independent route observations
