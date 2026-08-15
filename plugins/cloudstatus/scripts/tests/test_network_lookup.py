@@ -517,6 +517,45 @@ class LocationInventoryTests(EngineTestCase):
         self.assertNotIn("longitude", location)
         self.assertNotIn("latitude", location)
 
+    def test_map_v1_is_compact_versioned_and_keeps_provenance(self):
+        report = self.engine.Investigator(
+            http=FakeHttp(self.engine, self.base_fixtures())
+        ).run("locations", "Exampleland")
+        compact = self.engine.compact_locations_report(report)
+
+        self.assertEqual(compact["schema"], "cloudstatus.locations/v1")
+        self.assertEqual(compact["query"], "Exampleland")
+        self.assertEqual(compact["observed_at"], report["observed_at"])
+        self.assertEqual(len(compact["map_locations"]), 1)
+        self.assertEqual(compact["evidence"][0]["component"]["id"], "edge-fv1")
+        self.assertTrue(compact["evidence"][0]["coordinate_provenance"])
+        serialized = json.dumps(compact)
+        self.assertNotIn("Synthetic address from current fixture", serialized)
+        self.assertNotIn("regional_edge_groups", compact)
+        self.assertNotIn("ix_participation", compact)
+
+    def test_map_v1_preserves_ambiguous_and_unresolved_locations(self):
+        fixtures = self.base_fixtures()
+        fixtures["components.json"]["components"] = [
+            fixtures["components.json"]["components"][0],
+            {
+                "id": "edge-fictional",
+                "name": "Fictional Place, Testland",
+                "group": False,
+                "group_id": "group-fixture",
+                "status": "operational",
+            },
+        ]
+        fixtures["query.wikidata.org"] = {"results": {"bindings": []}}
+        report = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+            "locations", "Fictional"
+        )
+        compact = self.engine.compact_locations_report(report)
+        location = compact["map_locations"][0]
+        self.assertEqual(location["resolution"], "unresolved")
+        self.assertNotIn("longitude", location)
+        self.assertEqual(compact["evidence"][0]["placement_assessment"], "unresolved")
+
     def test_site_codes_are_extracted_only_from_live_component_names(self):
         fixtures = peering_fixtures() | {
             "components.json": {
@@ -565,6 +604,36 @@ class LocationInventoryTests(EngineTestCase):
 
 
 class FailureModeTests(EngineTestCase):
+    def test_locations_map_v1_cli_emits_compact_contract(self):
+        full_report = {
+            "operation": "locations",
+            "query": "Canada",
+            "observed_at": "2026-08-15T00:00:00Z",
+            "status": "complete",
+            "facts": {
+                "map_locations": [],
+                "location_records": [],
+                "regional_edge_groups": [{"id": "raw", "name": "omitted"}],
+            },
+            "inferences": [],
+            "sources": [
+                {"name": "F5 Statuspage components", "url": "https://example.test"}
+            ],
+            "errors": [],
+        }
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(self.engine, "Investigator") as investigator,
+            mock.patch("sys.stdout", stdout),
+        ):
+            investigator.return_value.run.return_value = full_report
+            code = self.engine.main(["locations", "--format", "map-v1", "Canada"])
+        self.assertEqual(code, 0)
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(result["schema"], "cloudstatus.locations/v1")
+        self.assertEqual(result["query"], "Canada")
+        self.assertNotIn("facts", result)
+
     def test_partial_source_failure_keeps_usable_results(self):
         http = FakeHttp(
             self.engine,

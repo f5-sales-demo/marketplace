@@ -22,7 +22,7 @@ test_plugin_metadata_is_consistent() {
   package_version=$(jq -r '.version' "$package_json")
   marketplace_version=$(jq -r '.plugins[] | select(.name == "cloudstatus") | .version' "$marketplace_json")
 
-  [ "$plugin_version" = "1.5.0" ] || {
+  [ "$plugin_version" = "1.5.1" ] || {
     echo "plugin version is $plugin_version"
     return 1
   }
@@ -131,12 +131,21 @@ test_no_runtime_topology_or_address_dataset() {
 
 test_locations_use_parent_render_map_contract() {
   local skill="$PLUGIN_ROOT/skills/location/SKILL.md"
-  local operator="$PLUGIN_ROOT/agents/cloudstatus-network-operator.md"
+  local network_skill="$PLUGIN_ROOT/skills/network-intelligence/SKILL.md"
   grep -q 'locations \[query\]' "$skill"
   grep -q 'parent xcsh' "$skill"
   grep -q '`render_map` exactly once' "$skill"
   grep -q 'Do not call `display_media` afterward' "$skill"
-  grep -q 'network_lookup.py locations' "$operator"
+  grep -q 'locations --format map-v1' "$skill"
+  grep -q 'CLOUDSTATUS_QUERY' "$skill"
+  if grep -Eqi '^[[:space:]]*agent:|cloudstatus-network-operator|^[[:space:]]*tasks:' "$skill"; then
+    echo "location workflow delegates or permits prohibited research"
+    return 1
+  fi
+  if grep -Eq '^[[:space:]]*\|.*Regional Edge.*\|' "$network_skill" || grep -Eq 'network_lookup\.py (location|locations)' "$network_skill"; then
+    echo "general network skill advertises Regional Edge handling"
+    return 1
+  fi
 }
 
 test_public_nominatim_endpoint_is_not_shipped() {

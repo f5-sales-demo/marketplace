@@ -188,7 +188,7 @@ class HttpClient:
             url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "cloudstatus-network-intelligence/1.5.0 (+https://github.com/f5-sales-demo/marketplace)",
+                "User-Agent": "cloudstatus-network-intelligence/1.5.1 (+https://github.com/f5-sales-demo/marketplace)",
             },
         )
         last_error: SourceError | None = None
@@ -1531,6 +1531,81 @@ def exit_code(report: dict[str, Any]) -> int:
     return 0
 
 
+def _compact_component(edge: dict[str, Any]) -> dict[str, Any]:
+    """Return public component evidence without retaining source payload fields."""
+    return {
+        key: edge.get(key)
+        for key in (
+            "id",
+            "name",
+            "status",
+            "group",
+            "region",
+            "metro",
+            "country",
+            "site_codes",
+        )
+    }
+
+
+def _compact_facility(
+    facility: dict[str, Any], classification: str, coordinate_provenance: str
+) -> dict[str, Any]:
+    """Keep only a facility candidate's map-relevant, non-sensitive evidence."""
+    return {
+        "id": facility.get("id"),
+        "name": facility.get("name"),
+        "metro": facility.get("city"),
+        "country": facility.get("country"),
+        "classification": classification,
+        "coordinate_provenance": coordinate_provenance,
+    }
+
+
+def compact_locations_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Create the stable, render-oriented locations map-v1 response."""
+    facts = report.get("facts", {})
+    evidence: list[dict[str, Any]] = []
+    for record in facts.get("location_records", []):
+        candidates = [
+            _compact_facility(item, "direct-metro", "PeeringDB facility")
+            for item in record.get("direct_metro_facilities", [])
+        ]
+        for item in record.get("site_code_facility_candidates", []):
+            compact = _compact_facility(item, "site-code", "PeeringDB facility")
+            if compact not in candidates:
+                candidates.append(compact)
+        evidence.append(
+            {
+                "component": _compact_component(record.get("component", {})),
+                "placement_assessment": record.get("placement_assessment"),
+                "facility_candidates": candidates,
+                "coordinate_provenance": [
+                    {
+                        "source_name": source.get("sourceName"),
+                        "url": source.get("url"),
+                        "claim": source.get("claim"),
+                    }
+                    for source in record.get("map_location", {}).get("sources", [])
+                ],
+                "limitations": [
+                    "Facility candidates and metro coordinates do not prove Regional Edge service placement."
+                ],
+            }
+        )
+    return {
+        "schema": "cloudstatus.locations/v1",
+        "observed_at": report.get("observed_at"),
+        "query": report.get("query"),
+        "status": report.get("status"),
+        "map_locations": facts.get("map_locations", []),
+        "evidence": evidence,
+        "sources": report.get("sources", []),
+        "inferences": report.get("inferences", []),
+        "errors": report.get("errors", []),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser for supported lookup operations."""
     parser = argparse.ArgumentParser(
@@ -1543,6 +1618,8 @@ def build_parser() -> argparse.ArgumentParser:
     for operation in ("edges", "locations"):
         command = subparsers.add_parser(operation)
         command.add_argument("query", nargs="?", default="")
+        if operation == "locations":
+            command.add_argument("--format", choices=("full", "map-v1"), default="full")
     return parser
 
 
@@ -1560,6 +1637,8 @@ def main(argv: list[str] | None = None) -> int:
         report = Investigator().run(operation, query)
     except InvalidInputError as error:
         report = invalid_report(operation, query, str(error))
+    if getattr(namespace, "format", "full") == "map-v1":
+        report = compact_locations_report(report)
     print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False))  # noqa: T201
     return exit_code(report)
 
