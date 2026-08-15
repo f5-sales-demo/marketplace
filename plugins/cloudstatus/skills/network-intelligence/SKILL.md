@@ -13,7 +13,7 @@ Choose the narrowest deterministic operation:
 | Origin, announcement, neighbour, looking-glass, or RPKI question | `route` |
 | ASN facilities, exchanges, interconnection, or transit-free assessment | `peering` |
 | F5 Regional Edge metro or site-code question | `location` |
-| Current F5 Regional Edge components | `edges` |
+| Current or visual F5 Regional Edge inventory | `locations` |
 | Clear reachability, latency, hop, or path troubleshooting intent | `path` |
 
 Run `path` automatically for clear troubleshooting or path-analysis intent when

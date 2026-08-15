@@ -10,7 +10,7 @@ network_lookup.py inspect <hostname|IP|prefix|ASN>
 network_lookup.py route <IP|prefix|ASN>
 network_lookup.py peering <ASN>
 network_lookup.py location <metro|site-code>
-network_lookup.py edges [query]
+network_lookup.py locations [query]
 network_lookup.py path <hostname|IP>
 ```
 
@@ -50,6 +50,8 @@ usable results from another source.
 3. Resolve the current PeeringDB record for AS35280 by ASN.
 4. Batch facility and exchange joins.
 5. Apply the location correlation rules and leave ambiguous metros unresolved.
+6. For a visual request, return normalized `MapLocationV1` records to the parent
+   session for one `render_map` call. Keep unresolved entries in that array.
 
 ### Troubleshooting path
 

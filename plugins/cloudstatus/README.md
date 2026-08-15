@@ -30,6 +30,7 @@ Investigate example.net: registration, DNS answers, route origins, and RPKI.
 Which prefixes does AS35280 currently announce, and which neighbours are observed?
 Show the direct facilities and IX participation for AS64496.
 Where is the Frankfurt F5 Regional Edge? Separate facts from facility candidates.
+Show a current map of Canadian F5 Regional Edges with coordinate provenance.
 Is this network potentially transit-free? Tell me when the evidence is indeterminate.
 Troubleshoot the path to 192.0.2.25 with bounded diagnostics.
 ```
@@ -47,7 +48,7 @@ The existing slash command remains status-only:
 ```
 
 Location and general Internet questions route through skills from ordinary
-language; version 1.4.0 adds no new slash command.
+language; version 1.5.0 adds no new slash command.
 
 ## Investigation model
 
@@ -80,6 +81,12 @@ It uses these source classes in order:
 API throttling and source outages are expected operating conditions. HTTP calls
 have bounded timeouts and retries, duplicate requests are memoized within one
 invocation, and usable partial evidence is retained.
+
+For current Regional Edge inventories, `locations [query]` matches live
+country, region, metro, site code, and component names. It emits normalized
+`MapLocationV1` evidence. Visual intent returns that evidence to the parent xcsh
+session for one `render_map` call; factual intent stays text-first. The operator
+never calls a second renderer or `display_media`.
 
 ## Evidence boundaries
 
@@ -130,11 +137,14 @@ export STATUSPAGE_URL=https://status.example.net
 ```
 
 F5 location investigation always uses current F5 Statuspage and AS35280 source
-records. There is no topology-matrix or address override.
+records. Representative metro points may use current cited Wikidata entity
+data. Public Nominatim is not used. There is no topology-matrix, gazetteer,
+address override, or durable location cache.
 
 ## Runtime requirements
 
-- xcsh with plugin skill, task-agent, `skill://`, Bash, and web-search support
+- xcsh 20.19.0 or later, which provides provenance-aware `render_map`
+- Plugin skill, task-agent, `skill://`, Bash, and web-search support
 - Python 3 standard library for network collection
 - `curl` and `jq` for status reports
 - Network access to the selected live sources

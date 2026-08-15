@@ -32,3 +32,17 @@ Do not describe facilities as Tier-1. Report measurable current attributes:
 
 An address is a property of the facility record. It is not proof of F5 service
 placement.
+
+## Map normalization
+
+Every plotted point must have a source consulted during the current request.
+Use a source-published component coordinate when available. A sole current
+site-code/facility correlation is still `inferred/candidate`; multiple
+facilities remain `ambiguous`. A uniquely matched current Wikidata place entity
+may supply a representative `metro/approximate` coordinate, but it must never
+be described as a facility or exact edge location.
+
+Return unresolved components as `MapLocationV1` entries without coordinates so
+`render_map` includes them in its textual evidence without placing markers.
+Never use remembered coordinates or convert an address to coordinates without a
+current cited source.

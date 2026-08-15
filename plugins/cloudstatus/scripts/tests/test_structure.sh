@@ -22,7 +22,7 @@ test_plugin_metadata_is_consistent() {
   package_version=$(jq -r '.version' "$package_json")
   marketplace_version=$(jq -r '.plugins[] | select(.name == "cloudstatus") | .version' "$marketplace_json")
 
-  [ "$plugin_version" = "1.4.0" ] || {
+  [ "$plugin_version" = "1.5.0" ] || {
     echo "plugin version is $plugin_version"
     return 1
   }
@@ -34,6 +34,7 @@ test_plugin_metadata_is_consistent() {
     echo "marketplace version is $marketplace_version"
     return 1
   }
+  jq -e '.peerDependencies["@f5-sales-demo/xcsh"] == ">=20.19.0"' "$package_json" >/dev/null
 }
 
 test_expected_runtime_files_exist() {
@@ -44,6 +45,7 @@ test_expected_runtime_files_exist() {
     "skills/monitor/references/commands.md"
     "skills/location/SKILL.md"
     "skills/location/references/correlation-rules.md"
+    "skills/location/references/source-hints.md"
     "skills/network-intelligence/SKILL.md"
     "skills/network-intelligence/references/source-ladder.md"
     "skills/network-intelligence/references/query-playbook.md"
@@ -107,8 +109,12 @@ PY
 }
 
 test_no_runtime_topology_or_address_dataset() {
-  if find "$PLUGIN_ROOT" -type f \( -iname '*matrix*.json' -o -iname '*topology*.json' -o -iname '*address*.json' \) | grep -q .; then
-    echo "runtime topology or address dataset exists"
+  if find "$PLUGIN_ROOT" -type f \( \
+    -iname '*matrix*.json' -o -iname '*topology*.json' -o \
+    -iname '*address*.json' -o -iname '*gazetteer*' -o \
+    -iname '*coordinate*.json' -o -iname '*location-cache*' -o \
+    -iname '*inventory-snapshot*' \) | grep -q .; then
+    echo "runtime topology, location, or address dataset exists"
     return 1
   fi
 
@@ -121,6 +127,21 @@ test_no_runtime_topology_or_address_dataset() {
     echo "$matches"
     return 1
   }
+}
+
+test_locations_use_parent_render_map_contract() {
+  local skill="$PLUGIN_ROOT/skills/location/SKILL.md"
+  local operator="$PLUGIN_ROOT/agents/cloudstatus-network-operator.md"
+  grep -q 'locations \[query\]' "$skill"
+  grep -q 'parent xcsh' "$skill"
+  grep -q '`render_map` exactly once' "$skill"
+  grep -q 'Do not call `display_media` afterward' "$skill"
+  grep -q 'network_lookup.py locations' "$operator"
+}
+
+test_public_nominatim_endpoint_is_not_shipped() {
+  ! grep -rIqi 'nominatim\.openstreetmap\.org' \
+    "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills"
 }
 
 test_no_runtime_path_depends_on_plugin_cwd() {
