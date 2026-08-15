@@ -60,7 +60,6 @@ Pattern: `/web/system/<path>`
 | Section | Path |
 | --------- | ------ |
 | Sites | `/site_management/sites` |
-| Site Tokens | `/site_management/site_tokens` |
 
 ### Tenant Administration
 

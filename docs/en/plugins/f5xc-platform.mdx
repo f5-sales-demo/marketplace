@@ -11,9 +11,10 @@ The **f5xc-platform** plugin provides full automation for the F5
 Distributed Cloud platform. It covers web console operations via
 Chrome DevTools MCP, spec-aware REST API operations via cURL,
 multi-provider authentication, and configuration analysis across
-98 resource types in 38 domains.
+95 generic resource types in 38 domains, plus native Secure Mesh Site v2
+Customer Edge tools.
 
-<Badge text="v3.1.1" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="v4.0.0" variant="note" /> <Badge text="Productivity" variant="tip" />
 
 ## Installation
 
@@ -25,11 +26,22 @@ multi-provider authentication, and configuration analysis across
 
 ### api-operations
 
-Spec-aware API CRUD operations covering 98 resource types across
+Spec-aware API CRUD operations covering 95 resource types across
 38 domains. Provides precise endpoints, payload templates,
 dependency ordering, and multi-step workflow compositions for
 HTTP load balancers, origin pools, WAF policies, DNS zones,
 certificates, cloud sites, and more.
+
+### Secure Mesh Site v2 tools
+
+The native `f5xc_ce_v2_site` tool plans and applies Secure Mesh Site v2
+configuration. `f5xc_ce_v2_bootstrap` checks out one-use bootstrap material and
+returns only a session-bound `f5xc-ce://` reference. `f5xc_ce_v2_status` returns
+allowlisted registration, provisioning, health, interface, Border Gateway
+Protocol (BGP), and route evidence.
+
+Legacy Azure VNet Site, Fleet, and shared registration-token routes are not
+available in Platform 4.x.
 
 ### config-analysis
 

@@ -39,3 +39,19 @@ test_agent_sanitization_regex() {
     return 1
   }
 }
+
+# T1.S4 — bootstrap material is never accepted as a plan field or CLI argument
+test_ce_secret_boundary() {
+  grep -q 'f5xc-ce:' "$PLUGIN_ROOT/src/ce/token-consumer.ts" || {
+    echo "opaque bootstrap reference validation is missing"
+    return 1
+  }
+  grep -q "assertSecurePath(tokenPath, 0o600" "$PLUGIN_ROOT/src/ce/token-consumer.ts" || {
+    echo "bootstrap file mode validation is missing"
+    return 1
+  }
+  if grep -rIin -E "--custom-data[= ][^']*(token|secret)|--tags[^']*(token|secret)" "$PLUGIN_ROOT/src" --include='*.ts'; then
+    echo "bootstrap material may enter Azure command arguments or tags"
+    return 1
+  fi
+}

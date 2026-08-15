@@ -3,7 +3,13 @@ import type { AzRawResult, AzResource, AzResourceGroup, AzSubscription, AzVm } f
 
 export type AzErrorType = 'auth_required' | 'session_expired' | 'not_found' | 'exec_error';
 
-export type AzToolName = 'az_account' | 'az_group' | 'az_resource' | 'az_vm' | 'az_exec' | 'az_help';
+export type AzToolName =
+  | 'az_account_show'
+  | 'az_group_list'
+  | 'az_resource_list'
+  | 'az_vm_list'
+  | 'az_exec'
+  | 'az_help';
 
 export interface AzToolDetails {
   tool: AzToolName;

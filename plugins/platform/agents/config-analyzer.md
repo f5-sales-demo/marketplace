@@ -58,7 +58,6 @@ indicators:
 | `spec.health_check_port` or `spec.http_health_check` | healthcheck | virtual |
 | `spec.certificate_url` or `spec.private_key` | certificate | certificates |
 | `spec.cloud_credentials` + `spec.aws_vpc_site` | aws_vpc_site | cloud_infrastructure |
-| `spec.cloud_credentials` + `spec.azure_vnet_site` | azure_vnet_site | cloud_infrastructure |
 
 If the resource type is ambiguous, use Glob and Grep to search
 `skills/api-operations/references/resources/` for field names

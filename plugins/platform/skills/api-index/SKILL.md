@@ -69,7 +69,7 @@ autonomously. The main session only receives the result.
 ## Available Skills (read by the agent)
 
 - **api-auth** — API token validation and certificate auth
-- **api-operations** — Spec-aware CRUD for 98 resource types
+- **api-operations** — Spec-aware CRUD for 95 resource types
   across 38 domains, with endpoint paths, payload templates,
   dependency ordering, and multi-step workflow compositions
 - **config-analysis** — Configuration analysis and advisory Q&A.

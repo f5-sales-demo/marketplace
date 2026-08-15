@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v2.0.0 and **`platform`** v4.0.0 — add deterministic F5 Distributed Cloud
+  Customer Edge administration for Azure Secure Mesh Site v2. The release adds live
+  subscription-aware discovery, immutable plan/apply and resume, lifecycle and diagnostics,
+  one-use opaque bootstrap checkout, cross-plane status evidence, and the `azure-ce` skill. It
+  removes legacy Azure VNet Site, Fleet, and shared registration-token routes without compatibility
+  shims ([#1174](https://github.com/f5-sales-demo/marketplace/issues/1174)).
+
 - **`cloudstatus`** v1.5.1 — makes `cloudstatus:location` the sole registry-only
   workflow for every F5 Distributed Cloud Regional Edge request. It adds compact
   `cloudstatus.locations/v1` map output, direct parent-session collection, and

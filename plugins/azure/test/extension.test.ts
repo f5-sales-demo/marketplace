@@ -13,6 +13,7 @@ const mockTypebox = {
     Object: (s: unknown) => s,
     String: (o?: unknown) => ({ type: 'string', ...((o as object) ?? {}) }),
     Boolean: (o?: unknown) => ({ type: 'boolean', ...((o as object) ?? {}) }),
+    Number: (o?: unknown) => ({ type: 'number', ...((o as object) ?? {}) }),
     Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
     Array: (i: unknown, o?: unknown) => ({ type: 'array', items: i, ...((o as object) ?? {}) }),
     Union: (s: unknown[]) => ({ union: s }),
@@ -98,7 +99,7 @@ describe('Azure Status extension', () => {
     60000,
   );
 
-  it('registers 6 tools when az CLI is available', async () => {
+  it('registers generic and Customer Edge tools when az CLI is available', async () => {
     const tools: Array<{ name: string }> = [];
     const mockPi = baseMockPi({
       registerTool(tool: { name: string }) {
@@ -116,6 +117,12 @@ describe('Azure Status extension', () => {
         'az_help',
         'az_resource_list',
         'az_vm_list',
+        'azure_ce_apply',
+        'azure_ce_diagnose',
+        'azure_ce_plan',
+        'azure_ce_status',
+        'azure_cloud_init_analyze',
+        'azure_compute_discover',
       ]);
     }
   });

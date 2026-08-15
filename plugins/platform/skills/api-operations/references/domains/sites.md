@@ -10,7 +10,7 @@ Category: Infrastructure. Complexity: advanced. Paths: 133. Schemas: 1093.
 - Manage XCKS (Managed Kubernetes) site deployments (formerly AppStack)
 - Deploy Secure Mesh sites for networking-focused edge deployments
 - Integrate external Kubernetes clusters as Customer Edge
-- Configure AWS VPC, Azure VNet, and GCP VPC sites
+- Configure AWS VPC and GCP VPC sites; use the native Secure Mesh Site v2 tools for Azure Customer Edge
 - Manage virtual sites and site policies
 
 ## Resources

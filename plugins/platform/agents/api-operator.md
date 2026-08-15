@@ -46,7 +46,7 @@ files that give you precise API knowledge:
 - **Resource operations**: Read the files listed in your task
   prompt from `skills/api-operations/references/`. These contain
   exact endpoints, payload templates, constraints, and dependencies
-  for 98 resource types across 38 domains.
+  for 95 resource types across 38 domains.
 
 Read all referenced files before executing any API calls.
 
