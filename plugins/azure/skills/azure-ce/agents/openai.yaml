@@ -1,4 +1,4 @@
 interface:
   display_name: "Azure Customer Edge"
-  short_description: "Plan and operate deterministic F5 CE sites"
-  default_prompt: "Use $azure-ce to discover, plan, and safely deploy an F5 Customer Edge site in Azure."
+  short_description: "Research, plan, and operate deterministic F5 CE sites"
+  default_prompt: "Use $azure-ce to research current official F5 and Microsoft guidance, run live subscription-aware Azure discovery, and safely plan an F5 Customer Edge site in Azure without guessing image or VM identifiers."

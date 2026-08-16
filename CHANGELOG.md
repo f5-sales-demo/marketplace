@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v2.0.1 — makes current official F5 and Microsoft research plus live Azure
+  Marketplace enumeration a mandatory Customer Edge gate. Natural-language CE paraphrases receive
+  deterministic runtime routing, discovery no longer requires guessed image or VM identifiers, and
+  synthesized prompt traces verify research and tool order through xcsh. Numeric tool schemas are
+  also compatible with Gemini providers ([#1176](https://github.com/f5-sales-demo/marketplace/issues/1176)).
+
 - **`azure`** v2.0.0 and **`platform`** v4.0.0 — add deterministic F5 Distributed Cloud
   Customer Edge administration for Azure Secure Mesh Site v2. The release adds live
   subscription-aware discovery, immutable plan/apply and resume, lifecycle and diagnostics,

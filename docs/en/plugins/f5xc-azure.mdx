@@ -10,7 +10,7 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 The **Azure** plugin keeps its generic Azure CLI tools and adds deterministic
 F5 Distributed Cloud Customer Edge (CE) administration for Secure Mesh Site v2.
 
-<Badge text="v2.0.0" variant="note" /> <Badge text="Development" variant="tip" />
+<Badge text="v2.0.1" variant="note" /> <Badge text="Development" variant="tip" />
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ F5 Distributed Cloud Customer Edge (CE) administration for Secure Mesh Site v2.
 
 | Tool | Purpose |
 | --- | --- |
-| `azure_compute_discover` | Rank regions using exact image, SKU, NIC, zone, quota, policy, Route Server, terms, and brownfield evidence |
+| `azure_compute_discover` | Enumerate the live Marketplace catalog and rank regions using exact image, SKU, NIC, zone, quota, policy, Route Server, terms, and brownfield evidence |
 | `azure_ce_plan` | Compile natural-language intent into a canonical secret-free plan and SHA-256 |
 | `azure_ce_apply` | Apply or resume only the exact persisted plan after stale-state and ownership checks |
 | `azure_ce_status` | Correlate Azure resources, checkpoints, Route Server peers, and F5 evidence |
@@ -32,6 +32,18 @@ F5 Distributed Cloud Customer Edge (CE) administration for Secure Mesh Site v2.
 The `azure-ce` skill coordinates authentication, discovery, recommendation,
 approval, Secure Mesh Site v2 creation, one-use bootstrap checkout, virtual
 machine launch, registration gates, routing activation, and verification.
+
+## Mandatory research gate
+
+Natural-language requests such as “F5 edge appliance,” “XC CE,” and “Secure Mesh
+node” route to the CE workflow. Before recommending an image, size, or region,
+the workflow retrieves the current official F5 Azure deployment guide and
+Microsoft Marketplace/SKU guidance. It then enumerates the live publisher,
+offer, image SKU, exact version, and compatible subscription-aware VM sizes.
+User-supplied catalog values are constraints to verify, never trusted defaults.
+
+The discovery result includes a secret-free research receipt and session
+artifact. Planning fails closed when that live discovery artifact is absent.
 
 <Aside type="caution">
   A plan never contains bootstrap material. Platform returns an opaque
@@ -64,6 +76,13 @@ Run `azure_ce_status`, `f5xc_ce_v2_status`, and passive
 `azure_ce_diagnose`. Confirm the expected node count, healthy registration,
 established BGP when applicable, correct effective routes, and a complete
 checkpoint.
+
+Maintainers can run a real synthesized-prompt trace without cloud mutation:
+
+```bash
+cd plugins/azure
+bun run eval:ce-prompt single-node-greenfield
+```
 
 ## Clean up
 

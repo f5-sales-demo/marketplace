@@ -19,11 +19,18 @@ Route the user's request to the correct skill or agent.
 
 ### F5 Customer Edge
 
-Keywords: "Customer Edge", "CE site", "Secure Mesh Site", "F5 XC on
-Azure", "Route Server", "CE BGP", "CE bootstrap", "CE lifecycle"
+Keywords and paraphrases: "Customer Edge", "F5 CE", "XC CE", "CE site",
+"Secure Mesh Site", "secure mesh node", "F5 XC on Azure", "Distributed Cloud
+node", "Distributed Cloud appliance", "F5 cloud edge", "F5 appliance from the
+Azure Marketplace", "one-node CE", "three-node F5 cluster", "CE HA", "Route
+Server", "CE BGP", "CE bootstrap", "CE lifecycle", "CE image", and requests to
+deploy, resize, replace, repair, inspect, or tear down F5 Distributed Cloud in Azure.
 
 - Invoke `azure:azure-ce` for discovery, planning, mutation, lifecycle,
   status, diagnostics, cloud-init, or teardown.
+- Route ambiguous phrases combining F5 or Distributed Cloud with Azure deployment,
+  VM, appliance, node, edge, routing, or HA to `azure:azure-ce`; do not treat them
+  as generic VM requests.
 - Never route CE mutation through the generic CLI operator or legacy
   Azure VNet Site, Fleet, or shared-token procedures.
 

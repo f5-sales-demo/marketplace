@@ -48,6 +48,20 @@ const observation: AzureCeObservation = {
     },
   ],
   resources: [],
+  research: {
+    method: 'azure-cli-live',
+    officialSourceRetrieval: 'live',
+    catalogRegion: 'canadacentral',
+    commands: [
+      'az vm image list-publishers',
+      'az vm image list-offers',
+      'az vm image list-skus',
+      'az vm image list',
+      'az vm image terms show',
+      'az vm list-skus --all',
+    ],
+    officialSources: ['https://docs.cloud.f5.com/example', 'https://learn.microsoft.com/example'],
+  },
 };
 
 describe('Azure CE apply protections', () => {

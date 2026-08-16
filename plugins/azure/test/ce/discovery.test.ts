@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'bun:test';
 import type { AzExecApi } from '../../src/az/exec';
-import { discoverAzureCompute } from '../../src/ce/discovery';
+import {
+  type AzureComputeDiscoveryInput,
+  discoverAzureCompute as discoverAzureComputeWithOfficialResearch,
+} from '../../src/ce/discovery';
 
-function api(fixtures: Record<string, unknown>): AzExecApi {
+const officialFetch = (async () => new Response('official guidance '.repeat(20), { status: 200 })) as typeof fetch;
+
+function discoverAzureCompute(input: AzureComputeDiscoveryInput, azureApi: AzExecApi) {
+  return discoverAzureComputeWithOfficialResearch(input, azureApi, officialFetch);
+}
+
+function api(fixtures: Record<string, unknown>, calls: string[] = []): AzExecApi {
   return {
     async exec(_command, args) {
       const key = args.filter((arg) => arg !== '--output' && arg !== 'json').join(' ');
+      calls.push(key);
       const value = fixtures[key];
       if (value === undefined && key.startsWith('group show '))
         return { stdout: '', stderr: 'ResourceGroupNotFound', exitCode: 1 };
@@ -30,6 +40,37 @@ const baseFixtures: Record<string, unknown> = {
         { name: 'canadacentral', metadata: { regionType: 'Physical' } },
       ],
     },
+  'vm image list-publishers --location canadacentral --subscription 11111111-1111-4111-8111-111111111111': [
+    { name: 'Canonical' },
+    { name: 'f5-networks' },
+  ],
+  'vm image list-offers --location canadacentral --publisher f5-networks --subscription 11111111-1111-4111-8111-111111111111':
+    [{ name: 'f5-big-ip-best' }, { name: 'f5xc_customer_edge' }],
+  'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription 11111111-1111-4111-8111-111111111111':
+    [
+      { name: 'f5-distributed-cloud-customer-edge-internal' },
+      { name: 'f5xc-ce-crt-20250701' },
+      { name: 'f5xc-ce-crt-20260201' },
+    ],
+  'vm image list --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --sku f5xc-ce-crt-20260201 --all --subscription 11111111-1111-4111-8111-111111111111':
+    [
+      {
+        publisher: 'f5-networks',
+        offer: 'f5xc_customer_edge',
+        sku: 'f5xc-ce-crt-20260201',
+        version: '20260201.0177.1',
+        urn: 'f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0177.1',
+      },
+      {
+        publisher: 'f5-networks',
+        offer: 'f5xc_customer_edge',
+        sku: 'f5xc-ce-crt-20260201',
+        version: '20260201.0178.1',
+        urn: 'f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1',
+      },
+    ],
+  'vm image terms show --urn f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1 --subscription 11111111-1111-4111-8111-111111111111':
+    { accepted: true, plan: 'f5xc-ce-crt-20260201' },
   'vm image list --publisher f5-networks --offer f5xc-customer-edge --sku f5xc-ce --all --subscription 11111111-1111-4111-8111-111111111111':
     [
       {
@@ -79,13 +120,67 @@ const baseFixtures: Record<string, unknown> = {
 };
 
 describe('discoverAzureCompute', () => {
+  it('fails closed when current official guidance cannot be retrieved', async () => {
+    const unavailable = (async () => new Response('unavailable', { status: 503 })) as typeof fetch;
+    const calls: string[] = [];
+    await expect(
+      discoverAzureComputeWithOfficialResearch(
+        {
+          subscriptionId,
+          deploymentName: 'ce-demo',
+          resourceGroup: 'rg-ce-demo',
+          requiredNics: 2,
+          nodeCount: 1,
+          brownfieldResourceIds: [],
+        },
+        api(baseFixtures, calls),
+        unavailable,
+      ),
+    ).rejects.toThrow(/Official CE research failed/);
+    expect(calls).toEqual([]);
+  });
+
+  it('researches the live catalog and compatible VM sizes without guessed identifiers', async () => {
+    const calls: string[] = [];
+    const result = await discoverAzureCompute(
+      {
+        subscriptionId,
+        deploymentName: 'ce-demo',
+        resourceGroup: 'rg-ce-demo',
+        requiredNics: 8,
+        nodeCount: 3,
+        brownfieldResourceIds: [],
+      },
+      api(baseFixtures, calls),
+    );
+
+    expect(result.image).toEqual({
+      publisher: 'f5-networks',
+      offer: 'f5xc_customer_edge',
+      plan: 'f5xc-ce-crt-20260201',
+      version: '20260201.0178.1',
+      urn: 'f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1',
+      termsAccepted: true,
+    });
+    expect(result.regions[0].vmSizes[0].name).toBe('Standard_D8s_v5');
+    expect(result.research.method).toBe('azure-cli-live');
+    expect(result.research.officialSourceRetrieval).toBe('live');
+    expect(result.research.catalogRegion).toBe('canadacentral');
+    expect(calls).toContain(
+      'vm image list-publishers --location canadacentral --subscription 11111111-1111-4111-8111-111111111111',
+    );
+    expect(calls).toContain(
+      'vm image list-offers --location canadacentral --publisher f5-networks --subscription 11111111-1111-4111-8111-111111111111',
+    );
+    expect(calls).toContain(
+      'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription 11111111-1111-4111-8111-111111111111',
+    );
+  });
+
   it('pins the newest exact non-latest image and ranks every physical region', async () => {
     const result = await discoverAzureCompute(
       {
         subscriptionId,
-        publisher: 'f5-networks',
-        offer: 'f5xc-customer-edge',
-        plan: 'f5xc-ce',
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -95,7 +190,7 @@ describe('discoverAzureCompute', () => {
       },
       api(baseFixtures),
     );
-    expect(result.image.version).toBe('2026.08.15');
+    expect(result.image.version).toBe('20260201.0178.1');
     expect(result.regions.map((region) => region.name).sort()).toEqual(['canadacentral', 'eastus']);
     expect(result.regions.find((region) => region.name === 'canadacentral')?.eligible).toBe(true);
     expect(result.regions.find((region) => region.name === 'eastus')?.eligible).toBe(false);
@@ -110,9 +205,6 @@ describe('discoverAzureCompute', () => {
     const result = await discoverAzureCompute(
       {
         subscriptionId,
-        publisher: 'f5-networks',
-        offer: 'f5xc-customer-edge',
-        plan: 'f5xc-ce',
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -126,6 +218,38 @@ describe('discoverAzureCompute', () => {
     expect(result.regions.find((region) => region.name === 'canadacentral')?.reasons).toContain('policy-deny');
   });
 
+  it('selects a live compatible VM candidate instead of a restricted lower-cost size', async () => {
+    const fixtures = structuredClone(baseFixtures);
+    const skus = fixtures['vm list-skus --all --subscription 11111111-1111-4111-8111-111111111111'] as Array<
+      Record<string, unknown>
+    >;
+    skus[0].restrictions = [{ restrictionInfo: { locations: ['canadacentral'] } }];
+    skus.push({
+      name: 'Standard_E8s_v5',
+      resourceType: 'virtualMachines',
+      restrictions: [],
+      capabilities: [
+        { name: 'MaxNetworkInterfaces', value: '8' },
+        { name: 'vCPUs', value: '8' },
+        { name: 'MemoryGB', value: '64' },
+      ],
+      locationInfo: [{ location: 'canadacentral', zones: ['1', '2', '3'] }],
+    });
+    const result = await discoverAzureCompute(
+      {
+        subscriptionId,
+        deploymentName: 'ce-demo',
+        resourceGroup: 'rg-ce-demo',
+        requiredNics: 8,
+        nodeCount: 1,
+        brownfieldResourceIds: [],
+      },
+      api(fixtures),
+    );
+    expect(result.regions[0].name).toBe('canadacentral');
+    expect(result.regions[0].vmSizes[0].name).toBe('Standard_E8s_v5');
+  });
+
   it('keeps an otherwise valid HA region eligible when zones require a declared fallback', async () => {
     const fixtures = structuredClone(baseFixtures);
     const skus = fixtures['vm list-skus --all --subscription 11111111-1111-4111-8111-111111111111'] as Array<{
@@ -135,9 +259,6 @@ describe('discoverAzureCompute', () => {
     const result = await discoverAzureCompute(
       {
         subscriptionId,
-        publisher: 'f5-networks',
-        offer: 'f5xc-customer-edge',
-        plan: 'f5xc-ce',
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -181,9 +302,6 @@ describe('discoverAzureCompute', () => {
     const result = await discoverAzureCompute(
       {
         subscriptionId,
-        publisher: 'f5-networks',
-        offer: 'f5xc-customer-edge',
-        plan: 'f5xc-ce',
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         vmSize: 'Standard_D8s_v5',
@@ -201,9 +319,6 @@ describe('discoverAzureCompute', () => {
       discoverAzureCompute(
         {
           subscriptionId,
-          publisher: 'f5-networks',
-          offer: 'f5xc-customer-edge',
-          plan: 'f5xc-ce',
           version: 'latest',
           deploymentName: 'ce-demo',
           resourceGroup: 'rg-ce-demo',
@@ -220,9 +335,6 @@ describe('discoverAzureCompute', () => {
       discoverAzureCompute(
         {
           subscriptionId,
-          publisher: 'f5-networks',
-          offer: 'f5xc-customer-edge',
-          plan: 'f5xc-ce',
           deploymentName: 'ce-demo',
           resourceGroup: 'rg-ce-demo',
           vmSize: 'Standard_D8s_v5',

@@ -1,15 +1,16 @@
 {
   "name": "@f5-sales-demo/xcsh-azure",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Azure CLI tools and deterministic F5 Customer Edge administration for xcsh",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh"
   },
   "xcsh": {
     "name": "Azure",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "extensions": [
       "src/index.ts"
     ]

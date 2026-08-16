@@ -9,11 +9,11 @@ import type {
 
 export interface AzureComputeDiscoveryInput {
   subscriptionId: string;
-  publisher: string;
-  offer: string;
-  plan: string;
+  publisher?: string;
+  offer?: string;
+  plan?: string;
   version?: string;
-  vmSize: string;
+  vmSize?: string;
   requiredNics: number;
   nodeCount: 1 | 3;
   requireRouteServer?: boolean;
@@ -25,6 +25,48 @@ export interface AzureComputeDiscoveryInput {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_IMAGE_PART = /^[a-zA-Z0-9._-]+$/;
 const RESOURCE_ID = /^\/subscriptions\/([^/]+)\//i;
+const F5_CE_PUBLISHER = 'f5-networks';
+const F5_CE_OFFER = 'f5xc_customer_edge';
+const OFFICIAL_SOURCES = [
+  'https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-az-clickops',
+  'https://learn.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage',
+  'https://learn.microsoft.com/en-us/cli/azure/vm#az-vm-list-skus',
+] as const;
+
+async function verifyOfficialSources(fetcher: typeof fetch): Promise<void> {
+  await Promise.all(
+    OFFICIAL_SOURCES.map(async (url) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
+      try {
+        const response = await fetcher(url, {
+          redirect: 'follow',
+          signal: controller.signal,
+          headers: { 'user-agent': 'xcsh-azure-ce-research/2' },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const body = await response.text();
+        if (body.trim().length < 100) throw new Error('response was empty');
+      } catch (error) {
+        throw new Error(
+          `Official CE research failed for ${url}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    }),
+  );
+}
+
+interface CatalogSelection {
+  catalogRegion: string;
+  publisher: string;
+  offer: string;
+  plan: string;
+  version: string;
+  urn: string;
+  locations: unknown[];
+}
 
 function normalizeLocation(value: unknown): string {
   return String(value ?? '')
@@ -121,6 +163,115 @@ function compareVersionDescending(left: string, right: string): number {
   return 0;
 }
 
+function exactName(items: Array<Record<string, unknown>>, expected: string): string | undefined {
+  return items
+    .map((item) => String(item.name ?? ''))
+    .filter((name) => name.toLowerCase() === expected.toLowerCase())
+    .sort((left, right) => left.localeCompare(right))[0];
+}
+
+async function resolveMarketplaceImage(
+  api: AzExecApi,
+  regions: string[],
+  subscriptionId: string,
+  input: AzureComputeDiscoveryInput,
+): Promise<CatalogSelection> {
+  const requestedPublisher = input.publisher ?? F5_CE_PUBLISHER;
+  const requestedOffer = input.offer ?? F5_CE_OFFER;
+
+  for (const region of regions) {
+    let publishers: Array<Record<string, unknown>>;
+    try {
+      publishers = await json(api, [
+        'vm',
+        'image',
+        'list-publishers',
+        '--location',
+        region,
+        '--subscription',
+        subscriptionId,
+      ]);
+    } catch {
+      continue;
+    }
+    const publisher = exactName(publishers, requestedPublisher);
+    if (!publisher) continue;
+
+    const offers = await json<Array<Record<string, unknown>>>(api, [
+      'vm',
+      'image',
+      'list-offers',
+      '--location',
+      region,
+      '--publisher',
+      publisher,
+      '--subscription',
+      subscriptionId,
+    ]);
+    const offer = exactName(offers, requestedOffer);
+    if (!offer) continue;
+
+    const rawPlans = await json<Array<Record<string, unknown>>>(api, [
+      'vm',
+      'image',
+      'list-skus',
+      '--location',
+      region,
+      '--publisher',
+      publisher,
+      '--offer',
+      offer,
+      '--subscription',
+      subscriptionId,
+    ]);
+    const plans = rawPlans
+      .map((item) => String(item.name ?? ''))
+      .filter(Boolean)
+      .filter((name) => (input.plan ? name.toLowerCase() === input.plan.toLowerCase() : /crt-/i.test(name)))
+      .sort(compareVersionDescending);
+
+    for (const plan of plans) {
+      const images = await json<Array<Record<string, unknown>>>(api, [
+        'vm',
+        'image',
+        'list',
+        '--location',
+        region,
+        '--publisher',
+        publisher,
+        '--offer',
+        offer,
+        '--sku',
+        plan,
+        '--all',
+        '--subscription',
+        subscriptionId,
+      ]);
+      const selected = images
+        .filter((image) => String(image.version).toLowerCase() !== 'latest')
+        .filter((image) => !input.version || String(image.version) === input.version)
+        .sort(
+          (left, right) =>
+            compareVersionDescending(String(left.version), String(right.version)) ||
+            canonicalStringify(left).localeCompare(canonicalStringify(right)),
+        )[0];
+      if (!selected) continue;
+      const version = String(selected.version);
+      return {
+        catalogRegion: region,
+        publisher: String(selected.publisher ?? publisher),
+        offer: String(selected.offer ?? offer),
+        plan: String(selected.sku ?? plan),
+        version,
+        urn: String(selected.urn ?? `${publisher}:${offer}:${plan}:${version}`),
+        locations: Array.isArray(selected.locations) ? selected.locations : [],
+      };
+    }
+  }
+
+  throw new Error('No live F5 CE Marketplace image matched the requested hints in any permitted AzureCloud region');
+}
+
 function capability(raw: Record<string, unknown>, name: string): string | undefined {
   const capabilities = Array.isArray(raw.capabilities) ? (raw.capabilities as Array<Record<string, unknown>>) : [];
   return capabilities.find((item) => String(item.name).toLowerCase() === name.toLowerCase())?.value as
@@ -128,47 +279,53 @@ function capability(raw: Record<string, unknown>, name: string): string | undefi
     | undefined;
 }
 
-function skuForRegion(
+function compareVmSize(left: AzureCeVmSizeObservation, right: AzureCeVmSizeObservation): number {
+  return (
+    Number(left.restricted) - Number(right.restricted) ||
+    left.vCpus - right.vCpus ||
+    left.memoryGb - right.memoryGb ||
+    left.maxNics - right.maxNics ||
+    left.name.localeCompare(right.name)
+  );
+}
+
+function skusForRegion(
   rawSkus: Array<Record<string, unknown>>,
-  vmSize: string,
+  requestedSize: string | undefined,
   region: string,
-): AzureCeVmSizeObservation | undefined {
-  let sku: Record<string, unknown> | undefined;
-  let info: Record<string, unknown> | undefined;
-  for (const candidate of rawSkus) {
-    if (
-      String(candidate.name).toLowerCase() !== vmSize.toLowerCase() ||
-      String(candidate.resourceType).toLowerCase() !== 'virtualmachines'
-    )
-      continue;
-    const candidateInfo = (
-      Array.isArray(candidate.locationInfo) ? (candidate.locationInfo as Array<Record<string, unknown>>) : []
-    ).find((item) => normalizeLocation(item.location) === region);
-    if (candidateInfo) {
-      sku = candidate;
-      info = candidateInfo;
-      break;
-    }
-  }
-  if (!sku || !info) return undefined;
-  const restrictions = Array.isArray(sku.restrictions) ? (sku.restrictions as Array<Record<string, unknown>>) : [];
-  const restricted = restrictions.some((restriction) => {
-    const locations = ((restriction.restrictionInfo as Record<string, unknown> | undefined)?.locations ??
-      restriction.locations) as unknown;
-    return (
-      !Array.isArray(locations) ||
-      locations.length === 0 ||
-      locations.some((location) => normalizeLocation(location) === region)
+): AzureCeVmSizeObservation[] {
+  const byName = new Map<string, AzureCeVmSizeObservation>();
+  for (const sku of rawSkus) {
+    const name = String(sku.name ?? '');
+    if (!name || String(sku.resourceType).toLowerCase() !== 'virtualmachines') continue;
+    if (requestedSize && name.toLowerCase() !== requestedSize.toLowerCase()) continue;
+    const info = (Array.isArray(sku.locationInfo) ? (sku.locationInfo as Array<Record<string, unknown>>) : []).find(
+      (item) => normalizeLocation(item.location) === region,
     );
-  });
-  return {
-    name: String(sku.name),
-    maxNics: Number(capability(sku, 'MaxNetworkInterfaces') ?? 0),
-    vCpus: Number(capability(sku, 'vCPUs') ?? capability(sku, 'vCPUsAvailable') ?? 0),
-    memoryGb: Number(capability(sku, 'MemoryGB') ?? 0),
-    zones: (Array.isArray(info.zones) ? info.zones : []).map(String).sort(),
-    restricted,
-  };
+    if (!info) continue;
+    const restrictions = Array.isArray(sku.restrictions) ? (sku.restrictions as Array<Record<string, unknown>>) : [];
+    const restricted = restrictions.some((restriction) => {
+      const locations = ((restriction.restrictionInfo as Record<string, unknown> | undefined)?.locations ??
+        restriction.locations) as unknown;
+      return (
+        !Array.isArray(locations) ||
+        locations.length === 0 ||
+        locations.some((location) => normalizeLocation(location) === region)
+      );
+    });
+    const observation: AzureCeVmSizeObservation = {
+      name,
+      maxNics: Number(capability(sku, 'MaxNetworkInterfaces') ?? 0),
+      vCpus: Number(capability(sku, 'vCPUs') ?? capability(sku, 'vCPUsAvailable') ?? 0),
+      memoryGb: Number(capability(sku, 'MemoryGB') ?? 0),
+      zones: (Array.isArray(info.zones) ? info.zones : []).map(String).sort(),
+      restricted,
+    };
+    const existing = byName.get(name.toLowerCase());
+    if (!existing || canonicalStringify(observation).localeCompare(canonicalStringify(existing)) < 0)
+      byName.set(name.toLowerCase(), observation);
+  }
+  return [...byName.values()].sort(compareVmSize);
 }
 
 function safeResourceState(raw: Record<string, unknown>): Record<string, unknown> {
@@ -221,7 +378,8 @@ function validateInput(input: AzureComputeDiscoveryInput): void {
     ['plan', input.plan],
     ['vmSize', input.vmSize],
   ] as const) {
-    if (!SAFE_IMAGE_PART.test(value)) throw new Error(`${label} contains unsupported characters`);
+    if (value !== undefined && !SAFE_IMAGE_PART.test(value))
+      throw new Error(`${label} contains unsupported characters`);
   }
   if (input.version?.toLowerCase() === 'latest') throw new Error('The image version latest is forbidden');
   if (input.requiredNics < 1 || input.requiredNics > 8) throw new Error('requiredNics must be between 1 and 8');
@@ -241,10 +399,12 @@ function validateInput(input: AzureComputeDiscoveryInput): void {
 export async function discoverAzureCompute(
   input: AzureComputeDiscoveryInput,
   api: AzExecApi,
+  fetcher: typeof fetch = fetch,
 ): Promise<AzureCeObservation> {
   validateInput(input);
   const subscriptionId = input.subscriptionId.toLowerCase();
-  const [account, locations, rawImages, rawSkus, provider, policies] = await Promise.all([
+  await verifyOfficialSources(fetcher);
+  const [account, locations, rawSkus, provider, policies] = await Promise.all([
     json<Record<string, unknown>>(api, ['account', 'show', '--subscription', subscriptionId]),
     json<{ value?: Array<Record<string, unknown>> }>(api, [
       'rest',
@@ -252,20 +412,6 @@ export async function discoverAzureCompute(
       'get',
       '--url',
       `https://management.azure.com/subscriptions/${subscriptionId}/locations?api-version=2022-12-01`,
-    ]),
-    json<Array<Record<string, unknown>>>(api, [
-      'vm',
-      'image',
-      'list',
-      '--publisher',
-      input.publisher,
-      '--offer',
-      input.offer,
-      '--sku',
-      input.plan,
-      '--all',
-      '--subscription',
-      subscriptionId,
     ]),
     json<Array<Record<string, unknown>>>(api, ['vm', 'list-skus', '--all', '--subscription', subscriptionId]),
     json<Record<string, unknown>>(api, [
@@ -282,17 +428,16 @@ export async function discoverAzureCompute(
     throw new Error('Azure CLI returned a different subscription');
   if (String(account.environmentName) !== 'AzureCloud') throw new Error('Only AzureCloud subscriptions are supported');
 
-  const images = rawImages
-    .filter((image) => String(image.version).toLowerCase() !== 'latest')
-    .filter((image) => !input.version || String(image.version) === input.version)
-    .sort(
-      (a, b) =>
-        compareVersionDescending(String(a.version), String(b.version)) ||
-        canonicalStringify(a).localeCompare(canonicalStringify(b)),
-    );
-  const selected = images[0];
-  if (!selected) throw new Error('No exact F5 CE image version is available for the requested publisher/offer/plan');
-  const urn = String(selected.urn ?? `${input.publisher}:${input.offer}:${input.plan}:${String(selected.version)}`);
+  const physicalRegions = (locations.value ?? [])
+    .filter(
+      (location) =>
+        String((location.metadata as Record<string, unknown> | undefined)?.regionType ?? 'Physical') === 'Physical',
+    )
+    .map((location) => normalizeLocation(location.name))
+    .filter(Boolean)
+    .sort();
+  const selected = await resolveMarketplaceImage(api, physicalRegions, subscriptionId, input);
+  const urn = selected.urn;
   const terms = await json<Record<string, unknown>>(api, [
     'vm',
     'image',
@@ -313,16 +458,7 @@ export async function discoverAzureCompute(
     for (const location of Array.isArray(type.locations) ? type.locations : [])
       routeServerLocations.add(normalizeLocation(location));
   }
-  const physicalRegions = (locations.value ?? [])
-    .filter(
-      (location) =>
-        String((location.metadata as Record<string, unknown> | undefined)?.regionType ?? 'Physical') === 'Physical',
-    )
-    .map((location) => normalizeLocation(location.name))
-    .filter(Boolean);
-  const imageLocations = new Set<string>(
-    (Array.isArray(selected.locations) ? selected.locations : []).map(normalizeLocation),
-  );
+  const imageLocations = new Set<string>(selected.locations.map(normalizeLocation));
   const imageAvailability = new Map<string, boolean | undefined>();
   if (imageLocations.size === 0) {
     const availabilityPairs = await mapLimit(
@@ -371,7 +507,11 @@ export async function discoverAzureCompute(
   }
 
   const preliminary: AzureCeRegionObservation[] = physicalRegions.map((region) => {
-    const vmSize = skuForRegion(rawSkus, input.vmSize, region);
+    const availableVmSizes = skusForRegion(rawSkus, input.vmSize, region);
+    const eligibleVmSizes = availableVmSizes.filter(
+      (size) => !size.restricted && size.maxNics >= input.requiredNics && size.vCpus >= 8 && size.memoryGb >= 32,
+    );
+    const vmSize = eligibleVmSizes[0] ?? availableVmSizes[0];
     const policyDenied = policies.some(
       (policy) =>
         String(policy.complianceState).toLowerCase() === 'noncompliant' &&
@@ -385,11 +525,13 @@ export async function discoverAzureCompute(
     else if (imageLocations.size === 0 && imageAvailability.get(region) === undefined)
       blockers.push('image-observation-failed');
     if (!vmSize) blockers.push('vm-size-unavailable');
-    else {
-      if (vmSize.restricted) blockers.push('sku-restricted');
-      if (vmSize.maxNics < input.requiredNics) blockers.push('nic-limit');
-      if (vmSize.vCpus < 8 || vmSize.memoryGb < 32) blockers.push('ce-minimum-size');
-      if (input.nodeCount === 3 && vmSize.zones.length < 3) reasons.push('fewer-than-three-zones');
+    else if (eligibleVmSizes.length === 0) {
+      if (availableVmSizes.every((size) => size.restricted)) blockers.push('sku-restricted');
+      if (availableVmSizes.every((size) => size.maxNics < input.requiredNics)) blockers.push('nic-limit');
+      if (availableVmSizes.every((size) => size.vCpus < 8 || size.memoryGb < 32)) blockers.push('ce-minimum-size');
+      if (blockers.length === 0) blockers.push('no-compatible-vm-size');
+    } else if (input.nodeCount === 3 && vmSize.zones.length < 3) {
+      reasons.push('fewer-than-three-zones');
     }
     const quota = quotas.get(region);
     if (quota === undefined) blockers.push('quota-observation-failed');
@@ -406,7 +548,7 @@ export async function discoverAzureCompute(
       routeServerSupported: routeServerLocations.has(region),
       quotaAvailable: quota ?? 0,
       policyAllowed: !policyDenied,
-      vmSizes: vmSize ? [vmSize] : [],
+      vmSizes: (eligibleVmSizes.length > 0 ? eligibleVmSizes : availableVmSizes).slice(0, 24),
       proximity: proximity.get(region) ?? 0,
     };
   });
@@ -424,14 +566,28 @@ export async function discoverAzureCompute(
     schemaVersion: 1,
     subscription: { id: subscriptionId, tenantId: String(account.tenantId ?? ''), cloud: 'AzureCloud' },
     image: {
-      publisher: input.publisher,
-      offer: input.offer,
-      plan: String(terms.plan ?? input.plan),
-      version: String(selected.version),
+      publisher: selected.publisher,
+      offer: selected.offer,
+      plan: String(terms.plan ?? selected.plan),
+      version: selected.version,
       urn,
       termsAccepted: Boolean(terms.accepted),
     },
     regions: preliminary,
     resources: resourceObservations,
+    research: {
+      method: 'azure-cli-live',
+      officialSourceRetrieval: 'live',
+      catalogRegion: selected.catalogRegion,
+      commands: [
+        'az vm image list-publishers',
+        'az vm image list-offers',
+        'az vm image list-skus',
+        'az vm image list',
+        'az vm image terms show',
+        'az vm list-skus --all',
+      ],
+      officialSources: [...OFFICIAL_SOURCES],
+    },
   };
 }
