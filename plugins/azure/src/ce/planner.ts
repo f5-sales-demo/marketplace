@@ -1257,6 +1257,24 @@ function buildLifecycleActions(
 export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObservation): AzureCePlan {
   const intent = normalizeIntent(input);
   if (observation.schemaVersion !== 1) fail('unsupported observation schema');
+  const requiredResearchCommands = [
+    'az vm image list-publishers',
+    'az vm image list-offers',
+    'az vm image list-skus',
+    'az vm image list',
+    'az vm image terms show',
+    'az vm list-skus --all',
+  ];
+  if (observation.research?.method !== 'azure-cli-live') fail('live Azure research receipt is required');
+  if (observation.research.officialSourceRetrieval !== 'live')
+    fail('live official-source research receipt is required');
+  for (const command of requiredResearchCommands) {
+    if (!observation.research.commands.includes(command)) fail(`live Azure research receipt is missing ${command}`);
+  }
+  if (!observation.research.officialSources.some((source) => source.startsWith('https://docs.cloud.f5.com/')))
+    fail('official F5 research source is required');
+  if (!observation.research.officialSources.some((source) => source.startsWith('https://learn.microsoft.com/')))
+    fail('official Microsoft research source is required');
   if (observation.subscription.cloud !== 'AzureCloud') fail('only AzureCloud is supported');
   if (observation.subscription.id.toLowerCase() !== intent.subscriptionId)
     fail('observation subscription does not match intent');

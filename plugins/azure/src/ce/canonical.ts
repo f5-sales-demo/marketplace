@@ -37,6 +37,7 @@ export function fingerprintObservation(observation: AzureCeObservation, brownfie
     schemaVersion: observation.schemaVersion,
     subscription: observation.subscription,
     image: observation.image,
+    research: observation.research,
     regions: observation.regions,
     resources: observation.resources.filter((resource) => allowlist.has(resource.id.toLowerCase())),
   });

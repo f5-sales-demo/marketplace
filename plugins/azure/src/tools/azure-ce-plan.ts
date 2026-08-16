@@ -26,7 +26,7 @@ export function createAzureCePlanTool(pi: PluginInterface) {
     parameters: Type.Object({
       discoveryArtifactId: Type.String(),
       intent: Type.Object({
-        schemaVersion: Type.Literal(1),
+        schemaVersion: Type.Number({ minimum: 1, maximum: 1 }),
         operation: Type.Union(
           [
             'deploy',

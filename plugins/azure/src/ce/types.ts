@@ -111,6 +111,13 @@ export interface AzureCeObservation {
   };
   regions: AzureCeRegionObservation[];
   resources: AzureCeResourceObservation[];
+  research: {
+    method: 'azure-cli-live';
+    officialSourceRetrieval: 'live';
+    catalogRegion: string;
+    commands: string[];
+    officialSources: string[];
+  };
 }
 
 export type AzureCeActionKind =

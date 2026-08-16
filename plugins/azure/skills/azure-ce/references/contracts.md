@@ -2,6 +2,13 @@
 
 ## Determinism
 
+- Research current official guidance from F5 and Microsoft before live discovery.
+  A recommendation requires both retrieved official sources and an
+  `azure-cli-live` discovery receipt; neither model memory nor a prior session is an
+  observation.
+- Enumerate the Marketplace publisher, offer, image SKU, and versions using
+  `az vm image list-publishers`, `list-offers`, `list-skus`, and `list`. Treat
+  user-supplied values only as constraints that must be observed live.
 - Treat identical normalized intent and observations as byte-identical input to the
   canonical plan, SHA-256, and ordered argv actions.
 - Pin the exact Marketplace publisher, offer, plan, and image version. Reject
@@ -61,6 +68,8 @@
 ## Authoritative references
 
 - [Azure VM SKU discovery](https://learn.microsoft.com/en-us/cli/azure/vm#az-vm-list-skus)
+- [Azure Marketplace image discovery](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage)
 - [Azure Route Server FAQ](https://learn.microsoft.com/en-us/azure/route-server/route-server-faq)
+- [F5 Secure Mesh Site v2 on Azure](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-az-clickops)
 - [F5 Secure Mesh Site v2 deployment](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/create-secure-mesh-site-v2)
 - [F5 CE registration and upgrade](https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/reference/ce-reg-upg-ref)

@@ -69,7 +69,7 @@ describe('Azure Status extension', () => {
     expect(statuses[0].name).toBe('Azure');
   });
 
-  it('registers session_start event handler', async () => {
+  it('registers session and research-routing event handlers', async () => {
     const events: string[] = [];
     const mockPi = baseMockPi({
       on(event: string) {
@@ -78,6 +78,20 @@ describe('Azure Status extension', () => {
     });
     await factory(mockPi);
     expect(events).toContain('session_start');
+    expect(events).toContain('before_agent_start');
+  });
+
+  it('defines the mandatory research route for synthesized Azure CE paraphrases', async () => {
+    const { AZURE_CE_RESEARCH_GATE, isAzureCePrompt } = await import('../src/index');
+    expect(
+      isAzureCePrompt(
+        'Find the right Azure Marketplace F5 edge appliance for running Distributed Cloud close to my apps.',
+      ),
+    ).toBe(true);
+    expect(isAzureCePrompt('List the virtual machines in Azure.')).toBe(false);
+    expect(AZURE_CE_RESEARCH_GATE).toContain('use web_search');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('azure_compute_discover');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('Never guess identifiers');
   });
 
   it.skipIf(!AZ_INSTALLED)(
