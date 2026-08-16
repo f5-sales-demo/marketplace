@@ -35,6 +35,8 @@ def start(name: str, input_value: dict[str, object]) -> dict[str, object]:
 
 
 class LocationPromptTraceTests(unittest.TestCase):
+    verifier: ModuleType
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.verifier = load_verifier()
