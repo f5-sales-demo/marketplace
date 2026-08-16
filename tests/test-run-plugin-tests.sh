@@ -91,7 +91,7 @@ if [ -e "$INSTALL_FAILURE/state/test-ran" ]; then
 else
   pass "an install failure stops before bun tests"
 fi
-if grep -Fq 'install --frozen-lockfile|true' "$INSTALL_FAILURE/state/calls"; then
+if grep -Eq 'install( --force)? --frozen-lockfile\|(true|1)' "$INSTALL_FAILURE/state/calls"; then
   pass "dependency installs disable browser downloads"
 else
   fail "dependency installs must set PUPPETEER_SKIP_DOWNLOAD=true"

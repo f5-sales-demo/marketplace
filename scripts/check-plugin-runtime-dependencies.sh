@@ -18,6 +18,8 @@ EXPECTED_ACP="1.3.0"
 EXPECTED_GOOGLE_GENAI="2.15.0"
 EXPECTED_TYPEBOX_RANGE="^0.34.52"
 EXPECTED_BUN_TYPES_RANGE="^1.3.14"
+EXPECTED_TYPEBOX="0.34.52"
+EXPECTED_BUN_TYPES="1.3.14"
 RUNTIME_PLUGINS=(aws azure gcloud github gitlab salesforce)
 STATIC_FAILURES=0
 INSTALLED_FAILURES=0
@@ -121,6 +123,14 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
       "$EXPECTED_ACP" "$plugin installed ACP SDK version"
     require_installed_json_value "$node_modules/@google/genai/package.json" '.version' \
       "$EXPECTED_GOOGLE_GENAI" "$plugin installed Google GenAI version"
+    require_installed_json_value "$node_modules/@sinclair/typebox/package.json" '.version' \
+      "$EXPECTED_TYPEBOX" "$plugin installed TypeBox version"
+    require_installed_json_value "$node_modules/bun-types/package.json" '.version' \
+      "$EXPECTED_BUN_TYPES" "$plugin installed Bun types version"
+  elif $REPAIR; then
+    # A fresh checkout has no physical graph yet. The test runner calls this checker with
+    # --repair as its precondition, so that mode must materialize every runtime plugin graph.
+    fail_installed "$plugin node_modules is missing"
   fi
 done
 
@@ -136,12 +146,10 @@ if [ "$INSTALLED_FAILURES" -ne 0 ] && $REPAIR; then
   }
   echo "Repairing installed plugin dependencies from frozen lockfiles..." >&2
   for plugin in "${RUNTIME_PLUGINS[@]}"; do
-    if [ -d "$REPO_ROOT/plugins/$plugin/node_modules" ]; then
-      (
-        cd "$REPO_ROOT/plugins/$plugin"
-        PUPPETEER_SKIP_DOWNLOAD=1 bun install --force --frozen-lockfile
-      ) || exit 1
-    fi
+    (
+      cd "$REPO_ROOT/plugins/$plugin"
+      PUPPETEER_SKIP_DOWNLOAD=1 bun install --force --frozen-lockfile
+    ) || exit 1
   done
   exec bash "$0"
 fi
