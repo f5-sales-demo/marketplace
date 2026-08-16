@@ -9,8 +9,8 @@ import { fingerprintObservation, sha256Hex } from '../ce/canonical';
 import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
 import { consumeBootstrapRef } from '../ce/token-consumer';
-import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
+import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
 
 interface ApplyParams {
