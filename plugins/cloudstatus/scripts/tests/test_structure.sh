@@ -22,7 +22,7 @@ test_plugin_metadata_is_consistent() {
   package_version=$(jq -r '.version' "$package_json")
   marketplace_version=$(jq -r '.plugins[] | select(.name == "cloudstatus") | .version' "$marketplace_json")
 
-  [ "$plugin_version" = "1.5.1" ] || {
+  [ "$plugin_version" = "1.5.2" ] || {
     echo "plugin version is $plugin_version"
     return 1
   }
@@ -50,6 +50,9 @@ test_expected_runtime_files_exist() {
     "skills/network-intelligence/references/source-ladder.md"
     "skills/network-intelligence/references/query-playbook.md"
     "skills/network-intelligence/scripts/network_lookup.py"
+    "benchmarks/location-prompt-scenarios.json"
+    "benchmarks/verify-location-prompt-trace.py"
+    "scripts/evals/run-location-prompt-eval.sh"
     "agents/cloudstatus-status-operator.md"
     "agents/cloudstatus-network-operator.md"
     "commands/cloud-status.md"
@@ -62,6 +65,16 @@ test_expected_runtime_files_exist() {
       return 1
     }
   done
+}
+
+test_location_prompt_scenarios_cover_required_intents() {
+  local scenarios="$PLUGIN_ROOT/benchmarks/location-prompt-scenarios.json"
+  jq -e '
+    .version == 1 and
+    ([.scenarios[].id] | sort) == ["factual-metro", "factual-site-code", "factual-unresolved", "visual-canada", "visual-global", "visual-us"] and
+    ([.scenarios[] | select(.intent == "visual")] | length) == 3 and
+    ([.scenarios[] | select(.intent == "factual")] | length) == 3
+  ' "$scenarios" >/dev/null
 }
 
 test_skill_frontmatter_has_only_name_and_description() {
