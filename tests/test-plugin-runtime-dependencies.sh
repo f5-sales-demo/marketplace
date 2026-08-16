@@ -78,6 +78,28 @@ else
   pass "a stale physical dependency installation fails"
 fi
 
+MISSING_TYPEBOX="$WORK/missing-typebox"
+copy_runtime_state "$MISSING_TYPEBOX"
+AWS_NODE_MODULES="$MISSING_TYPEBOX/plugins/aws/node_modules"
+mkdir -p \
+  "$AWS_NODE_MODULES/@f5-sales-demo/xcsh" \
+  "$AWS_NODE_MODULES/@f5-sales-demo/pi-utils" \
+  "$AWS_NODE_MODULES/@anthropic-ai/sdk" \
+  "$AWS_NODE_MODULES/@agentclientprotocol/sdk" \
+  "$AWS_NODE_MODULES/@google/genai" \
+  "$AWS_NODE_MODULES/bun-types"
+printf '{"version":"20.2.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/xcsh/package.json"
+printf '{"version":"20.2.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/package.json"
+printf '{"version":"0.115.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
+printf '{"version":"1.3.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
+printf '{"version":"2.15.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
+printf '{"version":"1.3.14"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
+if REPO_ROOT="$MISSING_TYPEBOX" bash "$CHECK" >/dev/null 2>&1; then
+  fail "a physical installation missing TypeBox must fail"
+else
+  pass "a physical installation missing TypeBox fails"
+fi
+
 mkdir -p "$BAD_INSTALL/scripts" "$BAD_INSTALL/plugins/aws/scripts/tests"
 cp "$CHECK" "$BAD_INSTALL/scripts/check-plugin-runtime-dependencies.sh"
 cp "$RUNNER" "$BAD_INSTALL/scripts/run-plugin-tests.sh"
@@ -105,12 +127,16 @@ mkdir -p \
   node_modules/@f5-sales-demo/pi-utils \
   node_modules/@anthropic-ai/sdk \
   node_modules/@agentclientprotocol/sdk \
-  node_modules/@google/genai
+  node_modules/@google/genai \
+  node_modules/@sinclair/typebox \
+  node_modules/bun-types
 printf '{"version":"20.2.7"}\n' >node_modules/@f5-sales-demo/xcsh/package.json
 printf '{"version":"20.2.7"}\n' >node_modules/@f5-sales-demo/pi-utils/package.json
 printf '{"version":"0.115.0"}\n' >node_modules/@anthropic-ai/sdk/package.json
 printf '{"version":"1.3.0"}\n' >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"2.15.0"}\n' >node_modules/@google/genai/package.json
+printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
+printf '{"version":"1.3.14"}\n' >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
 if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \
