@@ -11,11 +11,11 @@ The marketplace registers this vendored skill under the canonical URI
 | Upstream repository | <https://github.com/herdrdev/herdr> |
 | Upstream path | `skills/herdr/SKILL.md` |
 | Pinned ref | `master` |
-| Vendored commit | `eacea2daf0b72973173b728936b27478374f2cd2` |
-| Last upstream change to `SKILL.md` | `f6060cf682f69ef8302c25e8924c0b27aef7ae16` (2026-07-29) |
+| Vendored commit | `51b7064ef0a02642393bab1d2eea0f4dbd8414d2` |
+| Last upstream change to `SKILL.md` | `51b7064ef0a02642393bab1d2eea0f4dbd8414d2` (2026-08-15) |
 | SHA-256 of vendored file | `0786182f02ebf92708e09d82d79e4614d1a9c30bfc337643cc2af1d0fb9db29f` |
 | Size | 10140 bytes |
-| Retrieved | 2026-08-03 |
+| Retrieved | 2026-08-16 |
 | Upstream license | Apache-2.0 |
 
 ## Attribution

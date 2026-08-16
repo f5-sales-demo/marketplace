@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`herdr`** bumped to v1.0.3
+
 - **`azure`** v2.0.1 — makes current official F5 and Microsoft research plus live Azure
   Marketplace enumeration a mandatory Customer Edge gate. Natural-language CE paraphrases receive
   deterministic runtime routing, discovery no longer requires guessed image or VM identifiers, and
