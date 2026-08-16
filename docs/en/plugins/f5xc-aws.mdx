@@ -14,7 +14,10 @@ Distributed Cloud Customer Edge administration for Secure Mesh Site v2.
 
 ## Prerequisites
 
-- Install AWS CLI v2 and authenticate to the intended account and partition.
+- Install a current AWS CLI with STS, EC2 Allowed AMIs, SSM, Service Quotas, Marketplace
+  Agreement Service, ELBv2, and Transit Gateway commands, then authenticate to the intended
+  account and partition. The live read-only verification baseline is AWS CLI 1.46.0; AWS CLI v2 is
+  also supported. Full mutation UAT remains a release gate.
 - Install Platform 5.x and configure F5 Distributed Cloud authentication.
 - Confirm that the target is an authorized lab or demo environment.
 - Subscribe to the F5 Marketplace product in the AWS console. The plugin checks Agreement Service
@@ -51,6 +54,9 @@ changed platform capabilities.
 ## Topology and networking
 
 - One-node and three-node topologies support one through eight ordered, symmetric ENIs.
+- Default discovery checks the F5-recommended minimum `m5.2xlarge` and equivalent current
+  generations for one through four ENIs, plus their `4xlarge` variants for five through eight
+  ENIs. The exact regional ENI limits and AZ offerings remain live eligibility gates.
 - `direct-eni` uses explicit VPC routes to the one-node SLI ENI.
 - `nlb-ingress` uses three Availability Zones, IP targets, health checks, and explicit cross-zone
   behavior. The NLB is not a routed VPC/TGW next hop.
@@ -58,6 +64,14 @@ changed platform capabilities.
   propagations, routes, and CE ENI routes.
 - Capability-gated `tgw-connect` uses an appliance transport attachment, one GRE Connect peer per
   node, six AWS-managed BGP sessions, deterministic inside addressing, and three-zone symmetry.
+
+<Aside type="caution">
+  The current F5 AWS guide recommends NLB ingress for network-based HA composed of multiple
+  single-node CEs and sends traffic to secondary CE IP addresses. It does not document NLB ingress
+  for the default three-node CE cluster, nor does it document Transit Gateway integration. Treat
+  the generated three-node NLB and TGW profiles as release/UAT gated: the authenticated tenant
+  capability and the approved site design must confirm the exact topology before apply.
+</Aside>
 
 Plans list all billable resources before approval. Every created resource receives the exact
 `xcsh-managed-by=aws-ce`, deployment, plan, and F5 site tags. Routed appliances have EC2

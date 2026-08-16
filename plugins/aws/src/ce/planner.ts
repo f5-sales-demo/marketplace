@@ -13,6 +13,7 @@ const REGION = /^[a-z]{2}(?:-gov)?-[a-z]+-\d$/;
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]+)\/\d{1,3}$/;
 const AMI = /^ami-[0-9a-f]{8,17}$/;
+const DEVICE_NAME = /^\/dev\/[a-zA-Z0-9._-]{1,32}$/;
 const AWS_ID =
   /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
 
@@ -61,7 +62,10 @@ function tgwInsideNetwork(value: string): number {
   const fourth = Number(match[2]);
   if (third > 255 || fourth > 255 || fourth % 8 !== 0)
     fail('TGW Connect inside CIDR must be a valid /29 network boundary');
-  return third * 256 + fourth;
+  const network = third * 256 + fourth;
+  // AWS reserves the first five /29s plus the EC2 instance metadata /29.
+  if (new Set([0, 8, 16, 24, 32, 43_512]).has(network)) fail('TGW Connect inside CIDR is reserved by AWS');
+  return network;
 }
 
 function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
@@ -198,8 +202,11 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     if (new Set(insideNetworks).size !== insideNetworks.length)
       fail('TGW Connect inside CIDRs must be non-overlapping');
   }
-  if (input.routing.profile === 'nlb-ingress' && input.topology.nodeCount !== 3)
-    fail('NLB ingress requires a three-node, three-zone topology');
+  if (input.routing.profile === 'nlb-ingress') {
+    if (input.topology.nodeCount !== 3) fail('NLB ingress requires a three-node, three-zone topology');
+    if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
+      fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
+  }
   for (const routeTableId of [...input.routing.associations, ...input.routing.propagations])
     if (!input.brownfield.transitGatewayRouteTableIds.includes(routeTableId))
       fail('TGW association or propagation is outside the explicit route-table allowlist');
@@ -306,7 +313,7 @@ function validateResearch(observation: AwsCeObservation): void {
 function tags(intent: AwsCeIntent, node?: number, interfaceIndex?: number): string {
   const nodeTag = node === undefined ? '' : `,{Key=xcsh-node-index,Value=${node}}`;
   const interfaceTag = interfaceIndex === undefined ? '' : `,{Key=xcsh-interface-index,Value=${interfaceIndex}}`;
-  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves.io/site-name,Value=${intent.siteName}}${nodeTag}${interfaceTag}]`;
+  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${intent.siteName}}${nodeTag}${interfaceTag}]`;
 }
 
 function tagSpec(intent: AwsCeIntent, resourceType: string, node?: number, interfaceIndex?: number): string {
@@ -443,7 +450,12 @@ function compileActions(
   const actions: AwsCeAction[] = [];
   const add = (action: Omit<AwsCeAction, 'id'>) =>
     actions.push({ ...action, id: `aws-ce-action-${String(++sequence).padStart(4, '0')}` });
-  const base = ['--region', intent.region, '--no-cli-pager'];
+  // Captured non-interactive subprocess output does not invoke a pager. Avoid
+  // the AWS CLI v2-only --no-cli-pager flag so exact argv plans also run on
+  // the distro AWS CLI supported by the plugin installer.
+  const base = ['--region', intent.region];
+  const rootDeviceName = observation.regions.find((item) => item.name === intent.region)?.ami?.rootDeviceName ?? '';
+  if (!DEVICE_NAME.test(rootDeviceName)) fail('observed AMI root device name is invalid');
   if (intent.operation === 'teardown') {
     for (const route of intent.routes) {
       const state = restorationById.get(route.routeTableId);
@@ -867,7 +879,7 @@ function compileActions(
         '--instance-type',
         intent.instance.type,
         '--block-device-mappings',
-        `DeviceName=/dev/sda1,Ebs={VolumeSize=${intent.instance.diskGiB},VolumeType=gp3,DeleteOnTermination=true}`,
+        `DeviceName=${rootDeviceName},Ebs={VolumeSize=${intent.instance.diskGiB},VolumeType=gp3,DeleteOnTermination=true}`,
         '--network-interfaces',
         ...nodeEnis.map((eni, index) => `DeviceIndex=${index},NetworkInterfaceId=${eni.id}`),
         ...(intent.instance.instanceProfileArn
@@ -878,7 +890,6 @@ function compileActions(
         '--tag-specifications',
         tags(intent, node),
         tagSpec(intent, 'volume', node),
-        tagSpec(intent, 'volume'),
         ...base,
       ],
       node,
@@ -1123,7 +1134,7 @@ function compileActions(
         '--instance-type',
         intent.instance.type,
         '--block-device-mappings',
-        `DeviceName=/dev/sda1,Ebs={VolumeSize=${intent.instance.diskGiB},VolumeType=gp3,DeleteOnTermination=true}`,
+        `DeviceName=${rootDeviceName},Ebs={VolumeSize=${intent.instance.diskGiB},VolumeType=gp3,DeleteOnTermination=true}`,
         '--network-interfaces',
         ...networkInterfaces,
         ...(intent.instance.instanceProfileArn
@@ -1244,6 +1255,7 @@ function compileActions(
         `Key=xcsh-managed-by,Value=aws-ce`,
         `Key=xcsh-deployment-id,Value=${intent.deploymentName}`,
         `Key=xcsh-plan-sha256,Value=__PLAN_SHA256__`,
+        `Key=ves-io-site-name,Value=${intent.siteName}`,
         ...base,
       ],
       resourceId: `aws://${intent.region}/nlb/${intent.deploymentName}`,
@@ -1275,6 +1287,7 @@ function compileActions(
         `Key=xcsh-managed-by,Value=aws-ce`,
         `Key=xcsh-deployment-id,Value=${intent.deploymentName}`,
         `Key=xcsh-plan-sha256,Value=__PLAN_SHA256__`,
+        `Key=ves-io-site-name,Value=${intent.siteName}`,
         ...base,
       ],
       resourceId: `aws://${intent.region}/nlb-target-group/${intent.deploymentName}`,
@@ -1673,7 +1686,7 @@ export function compileAwsCePlan(
       'xcsh-managed-by': 'aws-ce',
       'xcsh-deployment-id': intent.deploymentName,
       'xcsh-plan-sha256': '__PLAN_SHA256__',
-      'ves.io/site-name': intent.siteName,
+      'ves-io-site-name': intent.siteName,
     },
     observationFingerprint: fingerprintObservation(observation, [
       ...brownfieldIds,

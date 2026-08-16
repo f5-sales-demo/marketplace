@@ -45,7 +45,17 @@ const INSTANCE_TYPE = /^[a-z0-9][a-z0-9.-]{1,40}$/;
 const REGION = /^[a-z]{2}(?:-gov)?-[a-z]+-\d$/;
 const RESOURCE_ID =
   /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
-const DEFAULT_INSTANCE_TYPES = ['m5.2xlarge', 'm6i.2xlarge', 'm7i.2xlarge'] as const;
+// F5 documents m5.2xlarge as the minimum AWS CE size, but AWS exposes only
+// four ENIs on the 2xlarge variants. Include the corresponding 4xlarge sizes
+// so default discovery can satisfy the documented eight-interface CE shape.
+const DEFAULT_INSTANCE_TYPES = [
+  'm5.2xlarge',
+  'm5.4xlarge',
+  'm6i.2xlarge',
+  'm6i.4xlarge',
+  'm7i.2xlarge',
+  'm7i.4xlarge',
+] as const;
 
 async function json<T>(api: AwsExecApi, args: string[]): Promise<T> {
   const result = await api.exec('aws', [...args, '--output', 'json']);

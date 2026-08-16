@@ -240,7 +240,7 @@ export interface AwsCePlanDraft {
     'xcsh-managed-by': 'aws-ce';
     'xcsh-deployment-id': string;
     'xcsh-plan-sha256': '__PLAN_SHA256__';
-    'ves.io/site-name': string;
+    'ves-io-site-name': string;
   };
   observationFingerprint: string;
   f5CapabilitiesSha256: string;

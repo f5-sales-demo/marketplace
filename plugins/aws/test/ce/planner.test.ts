@@ -76,8 +76,8 @@ function observation(overrides: Partial<AwsCeObservation> = {}): AwsCeObservatio
           architecture: 'x86_64',
           creationDate: '2026-08-01T00:00:00.000Z',
           state: 'available',
-          rootDeviceName: '/dev/sda1',
-          rootVolumeGiB: 80,
+          rootDeviceName: '/dev/xvda',
+          rootVolumeGiB: 79,
           launchPermission: true,
           allowedByPolicy: true,
         },
@@ -144,6 +144,12 @@ describe('compileAwsCePlan', () => {
     expect(first.planSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(first)).not.toMatch(/bootstrapToken|fixture-secret/i);
     expect(first.actions.every((action) => !action.command || action.command === 'aws')).toBe(true);
+    expect(first.actions.flatMap((action) => action.args ?? [])).not.toContain('--no-cli-pager');
+    expect(first.ownershipTags['ves-io-site-name']).toBe('ce-demo');
+    expect(JSON.stringify(first.actions)).toContain('Key=ves-io-site-name,Value=ce-demo');
+    expect(first.actions.find((action) => action.kind === 'instance-run')?.args).toContain(
+      'DeviceName=/dev/xvda,Ebs={VolumeSize=80,VolumeType=gp3,DeleteOnTermination=true}',
+    );
   });
 
   for (const count of [1, 2, 4, 8])
@@ -169,6 +175,20 @@ describe('compileAwsCePlan', () => {
     expect(
       plan.actions.filter((action) => action.kind === 'route-create' || action.kind === 'route-replace'),
     ).toHaveLength(0);
+  });
+
+  it('rejects deployment names that cannot form valid NLB and target-group names', () => {
+    expect(() =>
+      compileAwsCePlan(
+        intent({
+          deploymentName: 'invalid_nlb_name',
+          topology: { nodeCount: 3 },
+          interfaces: interfaces(3, 2),
+          routing: { profile: 'nlb-ingress', destinationCidrs: [], associations: [], propagations: [] },
+        }),
+        observation(),
+      ),
+    ).toThrow(/valid name/i);
   });
 
   for (const mode of ['nat-gateway', 'firewall', 'proxy'] as const)
@@ -387,6 +407,33 @@ describe('compileAwsCePlan', () => {
         observation(),
       ),
     ).toThrow(/release-blocked/i);
+  });
+
+  it('rejects AWS-reserved TGW Connect inside CIDRs before planning', () => {
+    expect(() =>
+      compileAwsCePlan(
+        intent({
+          topology: { nodeCount: 3 },
+          interfaces: interfaces(3, 2),
+          routing: {
+            profile: 'tgw-connect',
+            destinationCidrs: [],
+            transitGatewayId: 'tgw-0123456789abcdef0',
+            customerAsn: 65010,
+            transitGatewayAsn: 64512,
+            insideCidrs: ['169.254.0.0/29', '169.254.10.8/29', '169.254.10.16/29'],
+            associations: [],
+            propagations: [],
+          },
+          brownfield: {
+            resourceIds: ['tgw-0123456789abcdef0'],
+            routeTableIds: [],
+            transitGatewayRouteTableIds: [],
+          },
+        }),
+        observation(),
+      ),
+    ).toThrow(/reserved by AWS/i);
   });
 
   it('requires an active Marketplace agreement and exact rediscovery', () => {

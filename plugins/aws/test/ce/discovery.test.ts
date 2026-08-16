@@ -69,17 +69,20 @@ class FixtureApi implements AwsExecApi {
           return {
             InstanceTypes: [
               {
-                InstanceType: 'm6i.2xlarge',
-                VCpuInfo: { DefaultVCpus: 8 },
-                MemoryInfo: { SizeInMiB: 32768 },
-                NetworkInfo: { MaximumNetworkInterfaces: 8, Ipv4AddressesPerInterface: 30 },
+                InstanceType: args.some((arg) => arg.includes('m6i.4xlarge')) ? 'm6i.4xlarge' : 'm6i.2xlarge',
+                VCpuInfo: { DefaultVCpus: args.some((arg) => arg.includes('m6i.4xlarge')) ? 16 : 8 },
+                MemoryInfo: { SizeInMiB: args.some((arg) => arg.includes('m6i.4xlarge')) ? 65536 : 32768 },
+                NetworkInfo: {
+                  MaximumNetworkInterfaces: args.some((arg) => arg.includes('m6i.4xlarge')) ? 8 : 4,
+                  Ipv4AddressesPerInterface: args.some((arg) => arg.includes('m6i.4xlarge')) ? 30 : 15,
+                },
               },
             ],
           };
         case 'ec2 describe-instance-type-offerings':
           return {
             InstanceTypeOfferings: ['a', 'b', 'c'].map((zone) => ({
-              InstanceType: 'm6i.2xlarge',
+              InstanceType: args.some((arg) => arg.includes('m6i.4xlarge')) ? 'm6i.4xlarge' : 'm6i.2xlarge',
               Location: `us-east-1${zone}`,
             })),
           };
@@ -141,6 +144,29 @@ describe('discoverAwsCompute', () => {
     expect(observation.research.f5AwsGuide.tgwConnectDocumented).toBe(false);
     expect(api.calls.filter((args) => args.includes('us-west-2'))).toHaveLength(0);
     expect(api.calls.find((args) => args[0] === 'marketplace-agreement')?.join(' ')).toContain('AgreementType');
+  });
+
+  it('includes an eight-ENI instance size in default discovery', async () => {
+    const api = new FixtureApi();
+    const observation = await discoverAwsCompute(
+      {
+        accountId: '123456789012',
+        partition: 'aws',
+        deploymentName: 'fixture',
+        requiredEnis: 8,
+        nodeCount: 1,
+        brownfieldResourceIds: [],
+        egressMode: 'elastic-ip',
+        routingProfile: 'direct-eni',
+        f5Capabilities: capabilities,
+      },
+      api,
+      fetcher as typeof fetch,
+    );
+    const instanceArgs = api.calls.find((args) => args[0] === 'ec2' && args[1] === 'describe-instance-types');
+    expect(instanceArgs).toContain('m6i.4xlarge');
+    expect(observation.regions[0].instanceTypes[0]?.name).toBe('m6i.4xlarge');
+    expect(observation.regions[0].reasons).toEqual([]);
   });
 
   it('uses the public Marketplace AMI flag when its seller-owned launchPermission attribute is unreadable', async () => {
