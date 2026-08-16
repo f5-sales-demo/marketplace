@@ -5,7 +5,14 @@ import {
   discoverAzureCompute as discoverAzureComputeWithOfficialResearch,
 } from '../../src/ce/discovery';
 
-const officialFetch = (async () => new Response('official guidance '.repeat(20), { status: 200 })) as typeof fetch;
+const officialFetch = (async (input: RequestInfo | URL) => {
+  const url = String(input);
+  const body = url.includes('/automation-contract.txt')
+    ? 'contract_id: f5xc-ce-automation\ncontract_version: v1\ncombined: f5xc-ce-automation/v1\n' +
+      'provider-neutral guidance '.repeat(12)
+    : 'official guidance '.repeat(20);
+  return new Response(body, { status: 200 });
+}) as typeof fetch;
 
 function discoverAzureCompute(input: AzureComputeDiscoveryInput, azureApi: AzExecApi) {
   return discoverAzureComputeWithOfficialResearch(input, azureApi, officialFetch);
@@ -165,6 +172,13 @@ describe('discoverAzureCompute', () => {
     expect(result.regions[0].vmSizes[0].name).toBe('Standard_D8s_v5');
     expect(result.research.method).toBe('azure-cli-live');
     expect(result.research.officialSourceRetrieval).toBe('live');
+    expect(result.schemaVersion).toBe(2);
+    expect(result.research.sharedContract).toMatchObject({
+      contractId: 'f5xc-ce-automation',
+      contractVersion: 'v1',
+    });
+    expect(result.research.sharedContract.normalizedSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.research.sourceReceipts).toHaveLength(4);
     expect(result.research.catalogRegion).toBe('canadacentral');
     expect(calls).toContain(
       'vm image list-publishers --location canadacentral --subscription 11111111-1111-4111-8111-111111111111',

@@ -13,6 +13,8 @@ const mockTypebox = {
     Object: (s: unknown) => s,
     String: (o?: unknown) => ({ type: 'string', ...((o as object) ?? {}) }),
     Boolean: (o?: unknown) => ({ type: 'boolean', ...((o as object) ?? {}) }),
+    Number: (o?: unknown) => ({ type: 'number', ...((o as object) ?? {}) }),
+    Null: () => ({ type: 'null' }),
     Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
     Array: (i: unknown, o?: unknown) => ({ type: 'array', items: i, ...((o as object) ?? {}) }),
     Union: (s: unknown[]) => ({ union: s }),
@@ -79,7 +81,7 @@ describe('AWS Status extension', () => {
     60000,
   );
 
-  it('registers 5 tools when aws CLI is available', async () => {
+  it('registers generic and six Customer Edge tools when aws CLI is available', async () => {
     const tools: Array<{ name: string }> = [];
     const mockPi = baseMockPi({
       registerTool(tool: { name: string }) {
@@ -91,8 +93,30 @@ describe('AWS Status extension', () => {
     // If aws CLI is installed, should register all 5; if not, should skip gracefully
     if (tools.length > 0) {
       const toolNames = tools.map((t) => t.name).sort();
-      expect(toolNames).toEqual(['aws_ec2_describe_instances', 'aws_exec', 'aws_help', 'aws_s3_ls', 'aws_sts_whoami']);
+      expect(toolNames).toEqual([
+        'aws_ce_apply',
+        'aws_ce_diagnose',
+        'aws_ce_plan',
+        'aws_ce_status',
+        'aws_cloud_init_analyze',
+        'aws_compute_discover',
+        'aws_ec2_describe_instances',
+        'aws_exec',
+        'aws_help',
+        'aws_s3_ls',
+        'aws_sts_whoami',
+      ]);
     }
+  });
+
+  it('defines the mandatory research route for AWS CE paraphrases', async () => {
+    const { AWS_CE_RESEARCH_GATE, isAwsCePrompt } = await import('../src/index');
+    expect(isAwsCePrompt('Research an F5 Distributed Cloud Customer Edge appliance in AWS.')).toBe(true);
+    expect(isAwsCePrompt('List my EC2 instances in AWS.')).toBe(false);
+    expect(AWS_CE_RESEARCH_GATE).toContain('use web_search');
+    expect(AWS_CE_RESEARCH_GATE).toContain('aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover');
+    expect(AWS_CE_RESEARCH_GATE).toContain('release-blocked');
+    expect(AWS_CE_RESEARCH_GATE).toContain('Never use generic aws_exec');
   });
 
   it('each registered tool has required fields', async () => {

@@ -43,7 +43,7 @@ export function createF5xcCeV2StatusTool(pi: PlatformToolApi, makeDriver: () => 
     name: 'f5xc_ce_v2_status',
     label: 'F5 CE v2 Status',
     description:
-      'Return non-secret Secure Mesh Site v2 registration, provisioning, health, ordered interfaces, BGP peers, and routing evidence for Azure correlation.',
+      'Return provider-neutral, non-secret Secure Mesh Site v2 registration, provisioning, health, ordered-interface, BGP-peer, and routing evidence.',
     parameters: Type.Object({ namespace: Type.String(), siteName: Type.String() }),
     async execute(
       _id: string,
@@ -57,7 +57,8 @@ export function createF5xcCeV2StatusTool(pi: PlatformToolApi, makeDriver: () => 
         assertSafeName(params.siteName, 'siteName');
         const driver = makeDriver();
         const capabilities = await driver.capabilities();
-        if (capabilities.version !== 'v2') throw new Error('Secure Mesh Site v2 capability is unavailable');
+        if (capabilities.smsv2ContractVersion !== 'v2')
+          throw new Error('Secure Mesh Site v2 capability is unavailable');
         const result = evidence(await driver.status(params));
         const healthy = result.nodes.filter(
           (node) => node.registration === 'REGISTERED' && node.health === 'HEALTHY',

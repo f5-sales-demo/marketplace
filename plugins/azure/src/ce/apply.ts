@@ -22,18 +22,18 @@ export function assertApplyAllowed(
   if (request.planId !== plan.planId) throw new Error('The requested plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested plan hash does not match the persisted plan');
-  if (!request.hasUI && request.env.XCSH_AZURE_CE_HEADLESS_MUTATIONS !== '1') {
-    throw new Error('Headless Azure CE mutations require XCSH_AZURE_CE_HEADLESS_MUTATIONS=1');
+  if (!request.hasUI && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1') {
+    throw new Error('Headless Azure CE mutations require XCSH_CE_HEADLESS_MUTATIONS=1');
   }
-  if (plan.intent.operation === 'teardown' && !request.hasUI && request.env.XCSH_AZURE_CE_ALLOW_DESTROY !== '1') {
-    throw new Error('Headless teardown requires XCSH_AZURE_CE_ALLOW_DESTROY=1');
+  if (plan.intent.operation === 'teardown' && !request.hasUI && request.env.XCSH_CE_ALLOW_DESTROY !== '1') {
+    throw new Error('Headless teardown requires XCSH_CE_ALLOW_DESTROY=1');
   }
   if (
     plan.actions.some((action) => action.kind === 'marketplace-terms-accept') &&
     !request.hasUI &&
-    request.env.XCSH_AZURE_CE_ACCEPT_MARKETPLACE_TERMS !== '1'
+    request.env.XCSH_CE_ACCEPT_MARKETPLACE_TERMS !== '1'
   ) {
-    throw new Error('Headless Marketplace terms acceptance requires XCSH_AZURE_CE_ACCEPT_MARKETPLACE_TERMS=1');
+    throw new Error('Headless Marketplace terms acceptance requires XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1');
   }
 }
 

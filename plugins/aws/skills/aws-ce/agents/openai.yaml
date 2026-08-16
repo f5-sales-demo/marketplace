@@ -1,0 +1,4 @@
+interface:
+  display_name: "AWS Customer Edge"
+  short_description: "Research, plan, and operate deterministic F5 CE sites"
+  default_prompt: "Use $aws-ce to retrieve the canonical Customer Edge contract and current official F5/AWS guidance, run live account-aware discovery, and safely plan an F5 Secure Mesh Site v2 Customer Edge deployment without guessing AMIs or networking capabilities."

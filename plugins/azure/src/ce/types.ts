@@ -1,4 +1,6 @@
-export const AZURE_CE_SCHEMA_VERSION = 1 as const;
+export const AZURE_CE_SCHEMA_VERSION = 2 as const;
+export const AZURE_CE_SHARED_CONTRACT_URL =
+  'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 
 export type AzureCeOperation =
   | 'deploy'
@@ -117,6 +119,13 @@ export interface AzureCeObservation {
     catalogRegion: string;
     commands: string[];
     officialSources: string[];
+    sourceReceipts: Array<{ url: string; normalizedSha256: string }>;
+    sharedContract: {
+      url: typeof AZURE_CE_SHARED_CONTRACT_URL;
+      contractId: 'f5xc-ce-automation';
+      contractVersion: 'v1';
+      normalizedSha256: string;
+    };
   };
 }
 

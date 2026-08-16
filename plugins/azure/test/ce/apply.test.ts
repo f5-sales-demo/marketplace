@@ -5,8 +5,9 @@ import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
 const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
 const intent: AzureCeIntent = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   operation: 'deploy',
   subscriptionId,
   deploymentName: 'ce-demo',
@@ -24,7 +25,7 @@ const intent: AzureCeIntent = {
   brownfield: { resourceIds: [], routeChanges: [] },
 };
 const observation: AzureCeObservation = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   subscription: { id: subscriptionId, tenantId: '22222222-2222-4222-8222-222222222222', cloud: 'AzureCloud' },
   image: {
     publisher: 'f5-networks',
@@ -61,6 +62,17 @@ const observation: AzureCeObservation = {
       'az vm list-skus --all',
     ],
     officialSources: ['https://docs.cloud.f5.com/example', 'https://learn.microsoft.com/example'],
+    sourceReceipts: [
+      { url: 'https://docs.cloud.f5.com/example', normalizedSha256: '1'.repeat(64) },
+      { url: 'https://learn.microsoft.com/example', normalizedSha256: '2'.repeat(64) },
+      { url: sharedContractUrl, normalizedSha256: '3'.repeat(64) },
+    ],
+    sharedContract: {
+      url: sharedContractUrl,
+      contractId: 'f5xc-ce-automation',
+      contractVersion: 'v1',
+      normalizedSha256: '3'.repeat(64),
+    },
   },
 };
 
@@ -71,6 +83,16 @@ describe('Azure CE apply protections', () => {
     const changed = structuredClone(observation);
     changed.image.version = '1.0.1';
     changed.image.urn = 'f5-networks:f5xc-customer-edge:f5xc-ce:1.0.1';
+    expect(() => assertObservationFresh(plan, changed)).toThrow(/stale/i);
+  });
+
+  it('rejects a changed MCN contract digest before mutation', () => {
+    const changed = structuredClone(observation);
+    changed.research.sharedContract.normalizedSha256 = '4'.repeat(64);
+    const sharedReceipt = changed.research.sourceReceipts.find((receipt) => receipt.url === sharedContractUrl);
+    expect(sharedReceipt).toBeDefined();
+    if (!sharedReceipt) throw new Error('shared contract fixture receipt is missing');
+    sharedReceipt.normalizedSha256 = '4'.repeat(64);
     expect(() => assertObservationFresh(plan, changed)).toThrow(/stale/i);
   });
 
@@ -102,7 +124,7 @@ describe('Azure CE apply protections', () => {
         planId: teardown.planId,
         planSha256: teardown.planSha256,
         hasUI: false,
-        env: { XCSH_AZURE_CE_HEADLESS_MUTATIONS: '1' },
+        env: { XCSH_CE_HEADLESS_MUTATIONS: '1' },
       }),
     ).toThrow(/ALLOW_DESTROY/);
   });

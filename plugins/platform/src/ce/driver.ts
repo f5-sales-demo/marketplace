@@ -1,15 +1,56 @@
 import { isAbsolute } from 'node:path';
 
 export interface CeV2Capabilities {
-  version: 'v2';
-  bootstrapApi: boolean;
-  consoleFallback: boolean;
+  smsv2ContractVersion: 'v2';
+  supportedProviders: Array<'aws' | 'azure'>;
+  bootstrapDrivers: Array<'api' | 'console'>;
+  providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
+  awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
+}
+
+export interface CeV2InterfaceAddressing {
+  mode: 'dhcp' | 'static';
+  addresses: string[];
+  gateway?: string;
+}
+
+export interface CeV2Interface {
+  index: number;
+  role: 'slo' | 'sli' | 'management' | 'service' | 'workload';
+  vrf: string;
+  addressing: CeV2InterfaceAddressing;
+}
+
+export interface CeV2Vrf {
+  index: number;
+  name: string;
+}
+
+export interface CeV2BgpPeer {
+  index: number;
+  vrf: string;
+  interfaceIndex: number;
+  peerAddress: string;
+  localAsn: number;
+  peerAsn: number;
+}
+
+export interface CeV2SiteConfig {
+  provider: 'aws' | 'azure';
+  haMode: 'one-node' | 'three-node';
+  interfaces: CeV2Interface[];
+  vrfs: CeV2Vrf[];
+  bgpPeers: CeV2BgpPeer[];
+  providerNetwork: {
+    profile: string;
+    metadata: Record<string, string | number | boolean | string[]>;
+  };
 }
 
 export interface CeV2SiteRequest {
   namespace: string;
   siteName: string;
-  config?: Record<string, unknown>;
+  config?: CeV2SiteConfig;
   expectedEtag?: string;
 }
 
@@ -23,8 +64,7 @@ export interface CeV2Driver {
   status(request: CeV2SiteRequest): Promise<Record<string, unknown>>;
 }
 
-interface CapabilityDocument {
-  version: 'v2';
+interface CapabilityDocument extends CeV2Capabilities {
   endpoints: {
     siteCollection: string;
     siteItem: string;
@@ -35,7 +75,14 @@ interface CapabilityDocument {
 }
 
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
+const SAFE_SCHEMA = /^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,127}$/;
 const LEGACY_CE_ROUTE = /(?:azure.?vnet|fleet|registration.?token|site.?token|shared.?token)/i;
+const PROVIDERS = new Set(['aws', 'azure']);
+const BOOTSTRAP_DRIVERS = new Set(['api', 'console']);
+const NETWORKING_PROFILES = {
+  aws: new Set(['direct-eni', 'nlb-ingress', 'tgw-static', 'tgw-connect']),
+  azure: new Set(['direct-nic', 'load-balancer-ingress', 'route-server-bgp']),
+} as const;
 
 export class HttpCeV2Driver implements CeV2Driver {
   readonly #base: URL;
@@ -74,11 +121,69 @@ export class HttpCeV2Driver implements CeV2Driver {
     if (this.#document) return this.#document;
     const raw = await this.#request(this.#capabilityUrl);
     const endpoints = raw.endpoints as CapabilityDocument['endpoints'] | undefined;
-    if (raw.version !== 'v2' || !endpoints?.siteCollection || !endpoints.siteItem || !endpoints.status)
+    const providers = raw.supportedProviders;
+    const bootstrapDrivers = raw.bootstrapDrivers;
+    const profiles = raw.providerNetworkingProfiles;
+    const tgwConnect = raw.awsSmsv2TgwConnect;
+    if (
+      raw.smsv2ContractVersion !== 'v2' ||
+      !Array.isArray(providers) ||
+      providers.length < 1 ||
+      providers.some((provider) => typeof provider !== 'string' || !PROVIDERS.has(provider)) ||
+      new Set(providers).size !== providers.length ||
+      !Array.isArray(bootstrapDrivers) ||
+      bootstrapDrivers.length < 1 ||
+      bootstrapDrivers.some((driver) => typeof driver !== 'string' || !BOOTSTRAP_DRIVERS.has(driver)) ||
+      new Set(bootstrapDrivers).size !== bootstrapDrivers.length ||
+      !profiles ||
+      typeof profiles !== 'object' ||
+      !tgwConnect ||
+      typeof tgwConnect !== 'object' ||
+      typeof (tgwConnect as Record<string, unknown>).supported !== 'boolean' ||
+      !endpoints?.siteCollection ||
+      !endpoints.siteItem ||
+      !endpoints.status
+    )
+      throw new Error('Tenant does not advertise the required Secure Mesh Site v2 capability contract');
+    const canonicalProfiles: Partial<Record<'aws' | 'azure', string[]>> = {};
+    for (const provider of providers as Array<'aws' | 'azure'>) {
+      const providerProfiles = (profiles as Record<string, unknown>)[provider];
+      if (
+        !Array.isArray(providerProfiles) ||
+        providerProfiles.length < 1 ||
+        providerProfiles.some(
+          (profile) => typeof profile !== 'string' || !NETWORKING_PROFILES[provider].has(profile as never),
+        ) ||
+        new Set(providerProfiles).size !== providerProfiles.length
+      )
+        throw new Error('Tenant does not advertise the required Secure Mesh Site v2 capability contract');
+      canonicalProfiles[provider] = [...providerProfiles].sort() as string[];
+    }
+    const supported = (tgwConnect as Record<string, unknown>).supported as boolean;
+    const schemaVersion = (tgwConnect as Record<string, unknown>).schemaVersion;
+    const awsProfiles = canonicalProfiles.aws ?? [];
+    if (
+      (supported &&
+        (!providers.includes('aws') ||
+          !awsProfiles.includes('tgw-connect') ||
+          typeof schemaVersion !== 'string' ||
+          !SAFE_SCHEMA.test(schemaVersion))) ||
+      (!supported && schemaVersion !== null) ||
+      (awsProfiles.includes('tgw-connect') && !supported) ||
+      (bootstrapDrivers.includes('api') && !endpoints.bootstrapCheckout)
+    )
       throw new Error('Tenant does not advertise the required Secure Mesh Site v2 capability contract');
     for (const endpoint of Object.values(endpoints))
       if (endpoint) this.#endpoint(endpoint, { namespace: 'system', site: 'capability-check' });
-    this.#document = { version: 'v2', endpoints, consoleFallback: Boolean(raw.consoleFallback) };
+    this.#document = {
+      smsv2ContractVersion: 'v2',
+      supportedProviders: [...(providers as Array<'aws' | 'azure'>)].sort(),
+      bootstrapDrivers: [...(bootstrapDrivers as Array<'api' | 'console'>)].sort(),
+      providerNetworkingProfiles: canonicalProfiles,
+      awsSmsv2TgwConnect: { supported, schemaVersion: supported ? (schemaVersion as string) : null },
+      endpoints,
+      consoleFallback: Boolean(raw.consoleFallback),
+    };
     return this.#document;
   }
 
@@ -98,9 +203,13 @@ export class HttpCeV2Driver implements CeV2Driver {
   async capabilities(): Promise<CeV2Capabilities> {
     const document = await this.#capabilityDocument();
     return {
-      version: 'v2',
-      bootstrapApi: Boolean(document.endpoints.bootstrapCheckout),
-      consoleFallback: Boolean(document.consoleFallback && this.#consoleHelper),
+      smsv2ContractVersion: document.smsv2ContractVersion,
+      supportedProviders: document.supportedProviders,
+      bootstrapDrivers: document.bootstrapDrivers.filter(
+        (driver) => driver !== 'console' || Boolean(document.consoleFallback && this.#consoleHelper),
+      ),
+      providerNetworkingProfiles: document.providerNetworkingProfiles,
+      awsSmsv2TgwConnect: document.awsSmsv2TgwConnect,
     };
   }
 
@@ -133,7 +242,7 @@ export class HttpCeV2Driver implements CeV2Driver {
     allowConsole: boolean,
   ): Promise<{ token: string; driver: 'api' | 'console' }> {
     const document = await this.#capabilityDocument();
-    if (document.endpoints.bootstrapCheckout) {
+    if (document.bootstrapDrivers.includes('api') && document.endpoints.bootstrapCheckout) {
       const response = await this.#request(
         this.#endpoint(document.endpoints.bootstrapCheckout, { namespace: request.namespace, site: request.siteName }),
         {

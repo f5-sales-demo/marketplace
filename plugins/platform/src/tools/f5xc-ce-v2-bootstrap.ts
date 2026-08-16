@@ -32,13 +32,13 @@ export function createF5xcCeV2BootstrapTool(
         assertSafeName(params.namespace, 'namespace');
         assertSafeName(params.siteName, 'siteName');
         assertSafeName(params.nodeName, 'nodeName');
-        if (!ctx.hasUI && process.env.XCSH_AZURE_CE_HEADLESS_MUTATIONS !== '1')
-          throw new PublicCeError('Headless bootstrap checkout requires XCSH_AZURE_CE_HEADLESS_MUTATIONS=1');
+        if (!ctx.hasUI && process.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
+          throw new PublicCeError('Headless bootstrap checkout requires XCSH_CE_HEADLESS_MUTATIONS=1');
         const driver = makeDriver();
         const capabilities = await driver.capabilities();
-        if (!capabilities.bootstrapApi && !ctx.hasUI)
+        if (!capabilities.bootstrapDrivers.includes('api') && !ctx.hasUI)
           throw new PublicCeError('Headless bootstrap checkout fails closed when only console fallback is available');
-        if (!capabilities.bootstrapApi && !capabilities.consoleFallback)
+        if (capabilities.bootstrapDrivers.length === 0)
           throw new PublicCeError('Tenant exposes no supported Secure Mesh Site v2 bootstrap checkout capability');
         if (
           ctx.hasUI &&

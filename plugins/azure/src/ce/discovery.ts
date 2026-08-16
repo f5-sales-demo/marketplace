@@ -1,11 +1,12 @@
 import type { AzExecApi } from '../az/exec';
-import { canonicalStringify } from './canonical';
+import { canonicalStringify, sha256Hex } from './canonical';
 import type {
   AzureCeObservation,
   AzureCeRegionObservation,
   AzureCeResourceObservation,
   AzureCeVmSizeObservation,
 } from './types';
+import { AZURE_CE_SCHEMA_VERSION, AZURE_CE_SHARED_CONTRACT_URL } from './types';
 
 export interface AzureComputeDiscoveryInput {
   subscriptionId: string;
@@ -33,20 +34,42 @@ const OFFICIAL_SOURCES = [
   'https://learn.microsoft.com/en-us/cli/azure/vm#az-vm-list-skus',
 ] as const;
 
-async function verifyOfficialSources(fetcher: typeof fetch): Promise<void> {
-  await Promise.all(
-    OFFICIAL_SOURCES.map(async (url) => {
+export function normalizeResearchDocument(body: string): string {
+  const normalized = body
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n?/g, '\n')
+    .normalize('NFC')
+    .split('\n')
+    .map((line) => line.replace(/[\t ]+$/g, ''))
+    .join('\n')
+    .trimEnd();
+  return `${normalized}\n`;
+}
+
+async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObservation['research']> {
+  const sourceUrls = [...OFFICIAL_SOURCES, AZURE_CE_SHARED_CONTRACT_URL];
+  const sourceReceipts = await Promise.all(
+    sourceUrls.map(async (url) => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15_000);
       try {
         const response = await fetcher(url, {
           redirect: 'follow',
           signal: controller.signal,
-          headers: { 'user-agent': 'xcsh-azure-ce-research/2' },
+          headers: { 'user-agent': 'xcsh-azure-ce-research/3' },
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.text();
         if (body.trim().length < 100) throw new Error('response was empty');
+        const normalized = normalizeResearchDocument(body);
+        if (
+          url === AZURE_CE_SHARED_CONTRACT_URL &&
+          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
+            !/^contract_version: v1$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation/v1'))
+        )
+          throw new Error('document did not advertise f5xc-ce-automation/v1');
+        return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
           `Official CE research failed for ${url}: ${error instanceof Error ? error.message : String(error)}`,
@@ -56,6 +79,23 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<void> {
       }
     }),
   );
+  sourceReceipts.sort((left, right) => left.url.localeCompare(right.url));
+  const contract = sourceReceipts.find((receipt) => receipt.url === AZURE_CE_SHARED_CONTRACT_URL);
+  if (!contract) throw new Error('Shared Customer Edge automation contract receipt is unavailable');
+  return {
+    method: 'azure-cli-live',
+    officialSourceRetrieval: 'live',
+    catalogRegion: '',
+    commands: [],
+    officialSources: [...OFFICIAL_SOURCES],
+    sourceReceipts,
+    sharedContract: {
+      url: AZURE_CE_SHARED_CONTRACT_URL,
+      contractId: 'f5xc-ce-automation',
+      contractVersion: 'v1',
+      normalizedSha256: contract.normalizedSha256,
+    },
+  };
 }
 
 interface CatalogSelection {
@@ -403,7 +443,7 @@ export async function discoverAzureCompute(
 ): Promise<AzureCeObservation> {
   validateInput(input);
   const subscriptionId = input.subscriptionId.toLowerCase();
-  await verifyOfficialSources(fetcher);
+  const research = await verifyOfficialSources(fetcher);
   const [account, locations, rawSkus, provider, policies] = await Promise.all([
     json<Record<string, unknown>>(api, ['account', 'show', '--subscription', subscriptionId]),
     json<{ value?: Array<Record<string, unknown>> }>(api, [
@@ -563,7 +603,7 @@ export async function discoverAzureCompute(
     region.rank = index + 1;
   });
   return {
-    schemaVersion: 1,
+    schemaVersion: AZURE_CE_SCHEMA_VERSION,
     subscription: { id: subscriptionId, tenantId: String(account.tenantId ?? ''), cloud: 'AzureCloud' },
     image: {
       publisher: selected.publisher,
@@ -576,8 +616,7 @@ export async function discoverAzureCompute(
     regions: preliminary,
     resources: resourceObservations,
     research: {
-      method: 'azure-cli-live',
-      officialSourceRetrieval: 'live',
+      ...research,
       catalogRegion: selected.catalogRegion,
       commands: [
         'az vm image list-publishers',
@@ -587,7 +626,6 @@ export async function discoverAzureCompute(
         'az vm image terms show',
         'az vm list-skus --all',
       ],
-      officialSources: [...OFFICIAL_SOURCES],
     },
   };
 }

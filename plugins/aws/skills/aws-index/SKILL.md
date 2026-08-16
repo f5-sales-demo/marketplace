@@ -17,6 +17,14 @@ Route the user's request to the correct skill or agent.
 
 ## Routing Rules
 
+### F5 Customer Edge
+
+Keywords: "Customer Edge", "F5 CE", "Secure Mesh Site", "F5 Distributed Cloud edge",
+"AWS CE AMI", "CE NLB", "CE TGW"
+
+- Invoke `aws:aws-ce` before generic service or CLI routing.
+- Do not delegate CE research or planning to the generic cli-operator.
+
 ### Authentication and Credentials
 
 Keywords: "login", "authenticate", "aws sso", "credentials",

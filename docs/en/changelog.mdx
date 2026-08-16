@@ -7,6 +7,20 @@ sidebar:
 
 Notable changes to the f5-sales-demo marketplace.
 
+## AWS 2.0.0, Azure 3.0.0, and Platform 5.0.0
+
+- Publish one shared `f5xc-ce-automation/v1` contract receipt across AWS and Azure discovery and
+  reject stale contract/provider digests before planning or mutation.
+- Add full AWS Secure Mesh Site v2 discovery, immutable plans, approved apply/resume, lifecycle,
+  NLB ingress, capability-gated TGW networking, status, diagnostics, and cloud-init analysis while
+  preserving the generic AWS CLI tools.
+- Advance Azure CE intent/plan schema to v2 and keep only Azure-specific Marketplace, compute,
+  networking, and diagnostics guidance in the provider skill.
+- Add provider-neutral Platform capabilities and typed site configuration, plus neutral headless
+  mutation, legal, and destruction gates.
+- Generalize synthesized Customer Edge prompt-trace evaluation across both clouds. TGW Connect
+  remains release-blocked until current F5 documentation and tenant capability evidence agree.
+
 ## Azure 2.0.1
 
 - Require current official F5 and Microsoft research plus live Azure catalog and

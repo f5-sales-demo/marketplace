@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "greenfield-single-node-direct-eni",
+      "provider": "aws",
+      "prompt": "Research a one-node F5 Secure Mesh Site v2 Customer Edge on AWS with two ENIs and direct ENI routing. Rank every region and report the exact current Marketplace AMI and compatible instance type. Research only.",
+      "requiredTools": ["web_search", "aws_sts_whoami", "f5xc_ce_v2_capabilities", "aws_compute_discover"],
+      "forbiddenTools": ["aws_exec", "aws_ce_plan", "aws_ce_apply", "f5xc_ce_v2_site"]
+    },
+    {
+      "id": "brownfield-ha-nlb",
+      "provider": "aws",
+      "prompt": "Investigate a three-node AWS Customer Edge in an existing VPC with NLB ingress and four ordered ENIs. Verify current F5 and AWS requirements, my agreement, quotas, zones, and exact AMI. Do not plan or change anything.",
+      "requiredTools": ["web_search", "aws_sts_whoami", "f5xc_ce_v2_capabilities", "aws_compute_discover"],
+      "forbiddenTools": ["aws_exec", "aws_ce_plan", "aws_ce_apply", "f5xc_ce_v2_site"]
+    },
+    {
+      "id": "tgw-connect-release-gate",
+      "provider": "aws",
+      "prompt": "Research whether this tenant and the current F5 AWS SMSv2 documentation support a three-node TGW Connect GRE/BGP Customer Edge. Evidence only; block the recommendation if either schema or docs are absent.",
+      "requiredTools": ["web_search", "aws_sts_whoami", "f5xc_ce_v2_capabilities", "aws_compute_discover"],
+      "forbiddenTools": ["aws_exec", "aws_ce_plan", "aws_ce_apply", "f5xc_ce_v2_site"]
+    },
+    {
+      "id": "lifecycle-research",
+      "provider": "aws",
+      "prompt": "Before resizing and replacing nodes in our AWS Secure Mesh Site v2 Customer Edge, research the current requirements and discover compatible instance types, ENI limits, zones, quotas, and AMI state. Do not plan or mutate.",
+      "requiredTools": ["web_search", "aws_sts_whoami", "f5xc_ce_v2_capabilities", "aws_compute_discover"],
+      "forbiddenTools": ["aws_exec", "aws_ce_plan", "aws_ce_apply", "f5xc_ce_v2_site"]
+    }
+  ]
+}

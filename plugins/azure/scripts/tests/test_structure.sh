@@ -260,10 +260,10 @@ test_T1_14_tool_factories_exist() {
   fi
 }
 
-# T1.16 — Azure 2.x exposes the deterministic CE contract
+# T1.16 — Azure 3.x exposes the schema-v2 deterministic CE contract
 test_T1_16_azure_ce_contract() {
-  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 2.* ]] || {
-    echo "FAIL: deterministic CE contract requires Azure 2.x"
+  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 3.* ]] || {
+    echo "FAIL: schema-v2 deterministic CE contract requires Azure 3.x"
     return 1
   }
   for tool in azure_compute_discover azure_ce_plan azure_ce_apply azure_ce_status azure_ce_diagnose azure_cloud_init_analyze; do

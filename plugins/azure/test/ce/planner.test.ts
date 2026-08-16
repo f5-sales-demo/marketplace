@@ -3,10 +3,13 @@ import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
 const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const f5Source = 'https://docs.cloud.f5.com/example';
+const microsoftSource = 'https://learn.microsoft.com/example';
+const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
 
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId: '22222222-2222-4222-8222-222222222222' },
     image: {
       publisher: 'f5-networks',
@@ -44,7 +47,18 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
         'az vm image terms show',
         'az vm list-skus --all',
       ],
-      officialSources: ['https://docs.cloud.f5.com/example', 'https://learn.microsoft.com/example'],
+      officialSources: [f5Source, microsoftSource],
+      sourceReceipts: [
+        { url: f5Source, normalizedSha256: '1'.repeat(64) },
+        { url: microsoftSource, normalizedSha256: '2'.repeat(64) },
+        { url: sharedContractUrl, normalizedSha256: '3'.repeat(64) },
+      ],
+      sharedContract: {
+        url: sharedContractUrl,
+        contractId: 'f5xc-ce-automation',
+        contractVersion: 'v1',
+        normalizedSha256: '3'.repeat(64),
+      },
     },
     ...overrides,
   };
@@ -52,7 +66,7 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
 
 function intent(overrides: Partial<AzureCeIntent> = {}): AzureCeIntent {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     operation: 'deploy',
     subscriptionId,
     deploymentName: 'ce-demo',
@@ -113,6 +127,15 @@ describe('compileAzureCePlan', () => {
     const missing = observation();
     missing.research.commands = missing.research.commands.filter((command) => command !== 'az vm image list-offers');
     expect(() => compileAzureCePlan(intent(), missing)).toThrow(/research receipt/i);
+  });
+
+  it('rejects version-1 intent and an invalid shared-contract receipt', () => {
+    expect(() =>
+      compileAzureCePlan({ ...intent(), schemaVersion: 1 } as unknown as AzureCeIntent, observation()),
+    ).toThrow(/schema version 1/i);
+    const invalid = observation();
+    invalid.research.sharedContract.contractVersion = 'v2' as 'v1';
+    expect(() => compileAzureCePlan(intent(), invalid)).toThrow(/shared.*contract/i);
   });
 
   it('uses one node and UDR routing for non-HA', () => {

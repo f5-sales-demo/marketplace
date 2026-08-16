@@ -118,8 +118,8 @@ export function createAzureCeDiagnoseTool(pi: PluginInterface, makeApi: (cwd: st
       try {
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
         if (params.mode === 'active') {
-          if (!ctx.hasUI && process.env.XCSH_AZURE_CE_HEADLESS_MUTATIONS !== '1')
-            throw new Error('Active headless diagnostics require XCSH_AZURE_CE_HEADLESS_MUTATIONS=1');
+          if (!ctx.hasUI && process.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
+            throw new Error('Active headless diagnostics require XCSH_CE_HEADLESS_MUTATIONS=1');
           if (
             ctx.hasUI &&
             !(await ctx.ui.confirm(

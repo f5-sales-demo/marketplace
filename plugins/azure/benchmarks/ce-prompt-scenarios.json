@@ -3,24 +3,28 @@
   "scenarios": [
     {
       "id": "single-node-greenfield",
+      "provider": "azure",
       "prompt": "I need an F5 Distributed Cloud Customer Edge in Azure named ce-research-eval with one node and two NICs in a new resource group named rg-ce-research-eval. Research the current official requirements and live options, then recommend the region, exact Marketplace image, and VM size. Do not create a plan or change anything.",
       "requiredTools": ["web_search", "az_account_show", "azure_compute_discover"],
       "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
     },
     {
       "id": "ha-brownfield",
+      "provider": "azure",
       "prompt": "Investigate a three-node highly available XC Customer Edge deployment named ce-ha-research in resource group rg-ce-ha-research into an existing Azure VNet. It needs four ordered interfaces and Route Server/BGP. Use current vendor documentation and my live subscription to identify viable regions, the real image plan and version, and compatible sizes. I will provide the brownfield resource IDs later, so use an empty brownfield list for this research pass. Research and report only; do not mutate or plan yet.",
       "requiredTools": ["web_search", "az_account_show", "azure_compute_discover"],
       "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
     },
     {
       "id": "marketplace-paraphrase",
+      "provider": "azure",
       "prompt": "Find the right Azure Marketplace F5 edge appliance for running Distributed Cloud close to my apps. Use the proposed name ce-edge-research and resource group rg-ce-edge-research. I want a single appliance with eight interfaces. Verify the current F5 and Microsoft guidance and check my subscription before recommending anything. Do not deploy resources or create a plan.",
       "requiredTools": ["web_search", "az_account_show", "azure_compute_discover"],
       "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
     },
     {
       "id": "lifecycle-research",
+      "provider": "azure",
       "prompt": "Before I resize our Azure Secure Mesh deployment ce-lifecycle-research in resource group rg-ce-lifecycle-research, research the current Customer Edge compute requirements and discover which subscription-aware VM sizes support all eight NICs. Give me evidence only and make no changes or plan.",
       "requiredTools": ["web_search", "az_account_show", "azure_compute_discover"],
       "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
