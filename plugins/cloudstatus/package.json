@@ -1,6 +1,6 @@
 {
   "name": "cloudstatus",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Live cloud status and Internet network intelligence for xcsh",
   "license": "Apache-2.0",
   "peerDependencies": {

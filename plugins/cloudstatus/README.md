@@ -48,7 +48,7 @@ The existing slash command remains status-only:
 ```
 
 Location and general Internet questions route through skills from ordinary
-language; version 1.5.1 adds no new slash command.
+language; version 1.5.2 adds no new slash command.
 
 ## Investigation model
 
@@ -91,6 +91,22 @@ conflicting evidence stays unresolved. Visual intent returns that evidence to
 the parent xcsh session for one `render_map` call; factual intent stays
 text-first. It never delegates, runs general search, or calls a second renderer
 or `display_media`.
+
+## Prompt-trace acceptance
+
+`benchmarks/location-prompt-scenarios.json` defines visual and factual
+Regional Edge prompts. The verifier checks xcsh JSONL tool traces: every
+scenario reads `cloudstatus:location`, invokes one registry collector, forbids
+delegation and search, and renders exactly once only for visual intent.
+
+Run the hermetic contract suite with the plugin tests. To run an authenticated
+local acceptance scenario, provide an xcsh 20.19.0+ executable (or use the
+installed `xcsh`):
+
+```bash
+XCSH_BIN=xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh visual-us gpt-5.6-luna
+XCSH_BIN=xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh factual-site-code gpt-5.6-luna
+```
 
 ## Evidence boundaries
 

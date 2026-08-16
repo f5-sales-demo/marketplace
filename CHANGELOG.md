@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`cloudstatus`** v1.5.2 — adds an xcsh JSONL prompt-trace acceptance matrix
+  for Regional Edge routing. It verifies one registry collector, visual-only
+  single-map rendering, factual non-rendering, ordering, and prohibited-tool
+  behavior against both hermetic and authenticated local runs ([#1192](https://github.com/f5-sales-demo/marketplace/issues/1192)).
+
 - **`herdr`** bumped to v1.0.3
 
 - **`azure`** v2.0.1 — makes current official F5 and Microsoft research plus live Azure
