@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "visual-us",
+      "intent": "visual",
+      "prompt": "Show a current map of F5 Distributed Cloud Regional Edges in the United States, with coordinate provenance.",
+      "collector": "locations --format map-v1"
+    },
+    {
+      "id": "visual-address-us",
+      "intent": "visual",
+      "prompt": "show me a map of all the address locations of the F5 regional edges that are located in the united states",
+      "collector": "locations --format map-v1"
+    },
+    {
+      "id": "visual-canada",
+      "intent": "visual",
+      "prompt": "Show Canadian F5 Distributed Cloud Regional Edges on a map with coordinate provenance.",
+      "collector": "locations --format map-v1"
+    },
+    {
+      "id": "visual-global",
+      "intent": "visual",
+      "prompt": "Which F5 Distributed Cloud Regional Edges are currently published? Show the global inventory on a map.",
+      "collector": "locations --format map-v1"
+    },
+    {
+      "id": "factual-metro",
+      "intent": "factual",
+      "prompt": "Investigate the Frankfurt F5 Distributed Cloud Regional Edge. Give the evidence and limitations only; do not make a map.",
+      "collector": "location"
+    },
+    {
+      "id": "factual-site-code",
+      "intent": "factual",
+      "prompt": "Investigate F5 Distributed Cloud Regional Edge site code fr4. Give the evidence and limitations only; do not make a map.",
+      "collector": "location"
+    },
+    {
+      "id": "factual-unresolved",
+      "intent": "factual",
+      "prompt": "Investigate the fictional F5 Distributed Cloud Regional Edge in Exampleville. Preserve unresolved evidence and do not make a map.",
+      "collector": "location"
+    }
+  ]
+}

@@ -48,7 +48,7 @@ The existing slash command remains status-only:
 ```
 
 Location and general Internet questions route through skills from ordinary
-language; version 1.5.1 adds no new slash command.
+language; version 1.5.3 adds no new slash command.
 
 ## Investigation model
 
@@ -91,6 +91,42 @@ conflicting evidence stays unresolved. Visual intent returns that evidence to
 the parent xcsh session for one `render_map` call; factual intent stays
 text-first. It never delegates, runs general search, or calls a second renderer
 or `display_media`.
+
+## Prompt-trace acceptance
+
+`benchmarks/location-prompt-scenarios.json` defines visual and factual
+Regional Edge prompts. The verifier checks xcsh JSONL tool traces: every
+scenario reads `cloudstatus:location`, invokes one registry collector, forbids
+delegation and search, and proves exactly one successful `render_map`
+start/completion pair with a canonical, byte-verified PNG only for visual
+intent. Factual scenarios prove that no render or image result occurred.
+
+Run the hermetic contract suite with the plugin tests. To run an authenticated
+local acceptance scenario, provide an xcsh 20.19.0+ executable (or use the
+installed `xcsh`):
+
+```bash
+XCSH_BIN=xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh visual-us gpt-5.6-luna
+XCSH_BIN=xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh factual-site-code gpt-5.6-luna
+```
+
+For local xcsh development, set `XCSH_DEV_DIR` to the xcsh checkout; the
+runner then starts a fresh `bun run dev -- --plugin-dir … --no-session` process
+for every attempt. Run the whole matrix, or repeat and synthesize controlled
+variants of the exact address-map regression:
+
+```bash
+XCSH_DEV_DIR=/path/to/xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh --all gpt-5.6-luna
+XCSH_DEV_DIR=/path/to/xcsh LOCATION_UAT_REPEAT=4 LOCATION_UAT_SYNTHESIZE=1 \
+  bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh visual-address-us gpt-5.6-luna
+```
+
+Each attempt emits a compact JSON receipt with named claims, tool ordering,
+dimensions, decoded byte count, SHA-256, and basemap. Failed runs retain their
+JSONL trace, receipt, and any verified PNG under `/tmp` for diagnosis;
+successful runs leave no temporary artifacts. A caller-supplied
+`LOCATION_UAT_ARTIFACT_DIR` is always retained and stores the PNG beside its
+trace and receipt. Receipts and summaries never contain image base64.
 
 ## Evidence boundaries
 

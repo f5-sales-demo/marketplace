@@ -10,9 +10,10 @@ Do not route it to `cloudstatus:network-intelligence`, a general operator, web
 search, OSINT geolocation, remembered information, source-code inspection, or
 an ad hoc HTTP/Python command.
 
-Run the collector directly in the parent session exactly once. Pass the exact
-geographic filter through the Bash environment as `CLOUDSTATUS_QUERY`; do not
-interpolate user text into the command.
+Run the collector directly in the parent session exactly once. Pass only the
+normalized geographic filter through the Bash environment as
+`CLOUDSTATUS_QUERY` (for example, `United States`, not the full user request);
+do not interpolate user text into the command.
 
 For inventory, map, show, where, country, region, or “which Regional Edges”
 intent, use the compact map contract:
@@ -26,6 +27,11 @@ For one narrow factual metro, site-code, or address investigation, use:
 ```bash
 python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py location "$CLOUDSTATUS_QUERY"
 ```
+
+For example, “show me a map of all the address locations of the F5 Regional
+Edges that are located in the United States” is an inventory/map request. “All
+address locations” remains collector-only: use `locations --format map-v1` and
+do not research individual addresses or facilities.
 
 Bounded retries built into the collector are allowed. Do not run a second
 collector command, follow up with general research, or inspect raw registry
