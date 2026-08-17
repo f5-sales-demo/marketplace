@@ -8,6 +8,12 @@
       "collector": "locations --format map-v1"
     },
     {
+      "id": "visual-address-us",
+      "intent": "visual",
+      "prompt": "show me a map of all the address locations of the F5 regional edges that are located in the united states",
+      "collector": "locations --format map-v1"
+    },
+    {
       "id": "visual-canada",
       "intent": "visual",
       "prompt": "Show Canadian F5 Distributed Cloud Regional Edges on a map with coordinate provenance.",

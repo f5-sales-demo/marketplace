@@ -27,6 +27,11 @@ For one narrow factual metro, site-code, or address investigation, use:
 python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py location "$CLOUDSTATUS_QUERY"
 ```
 
+For example, “show me a map of all the address locations of the F5 Regional
+Edges that are located in the United States” is an inventory/map request. “All
+address locations” remains collector-only: use `locations --format map-v1` and
+do not research individual addresses or facilities.
+
 Bounded retries built into the collector are allowed. Do not run a second
 collector command, follow up with general research, or inspect raw registry
 responses. Keep missing or conflicting evidence visibly unresolved.

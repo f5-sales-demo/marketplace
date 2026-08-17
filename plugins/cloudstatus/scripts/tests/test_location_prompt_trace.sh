@@ -6,3 +6,7 @@ set -euo pipefail
 test_location_prompt_trace_suite() {
   python3 "$PLUGIN_ROOT/scripts/tests/test_location_prompt_trace.py" -v
 }
+
+test_location_prompt_synthesis_suite() {
+  python3 "$PLUGIN_ROOT/scripts/tests/test_location_prompt_synthesis.py" -v
+}

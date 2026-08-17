@@ -48,7 +48,7 @@ The existing slash command remains status-only:
 ```
 
 Location and general Internet questions route through skills from ordinary
-language; version 1.5.2 adds no new slash command.
+language; version 1.5.3 adds no new slash command.
 
 ## Investigation model
 
@@ -107,6 +107,21 @@ installed `xcsh`):
 XCSH_BIN=xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh visual-us gpt-5.6-luna
 XCSH_BIN=xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh factual-site-code gpt-5.6-luna
 ```
+
+For local xcsh development, set `XCSH_DEV_DIR` to the xcsh checkout; the
+runner then starts a fresh `bun run dev -- --plugin-dir … --no-session` process
+for every attempt. Run the whole matrix, or repeat and synthesize controlled
+variants of the exact address-map regression:
+
+```bash
+XCSH_DEV_DIR=/path/to/xcsh bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh --all gpt-5.6-luna
+XCSH_DEV_DIR=/path/to/xcsh LOCATION_UAT_REPEAT=4 LOCATION_UAT_SYNTHESIZE=1 \
+  bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh visual-address-us gpt-5.6-luna
+```
+
+Failed runs retain their JSONL trace under `/tmp` (or
+`LOCATION_UAT_ARTIFACT_DIR`) for diagnosis; successful runs leave no temporary
+artifacts. A caller-supplied artifact directory is always retained.
 
 ## Evidence boundaries
 

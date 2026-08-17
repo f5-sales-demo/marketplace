@@ -57,6 +57,20 @@ class LocationPromptTraceTests(unittest.TestCase):
         )
         self.assertTrue(result["pass"], result["errors"])
 
+    def test_exact_address_map_regression_is_a_visual_collector_scenario(self) -> None:
+        scenarios = json.loads(
+            (PLUGIN_ROOT / "benchmarks/location-prompt-scenarios.json").read_text(
+                encoding="utf-8"
+            )
+        )["scenarios"]
+        scenario = next(item for item in scenarios if item["id"] == "visual-address-us")
+        self.assertEqual(scenario["intent"], "visual")
+        self.assertEqual(scenario["collector"], "locations --format map-v1")
+        self.assertEqual(
+            scenario["prompt"],
+            "show me a map of all the address locations of the F5 regional edges that are located in the united states",
+        )
+
     def test_factual_trace_rejects_a_renderer(self) -> None:
         result = self.verifier.evaluate_trace(
             {"intent": "factual", "collector": "location"},
