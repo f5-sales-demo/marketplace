@@ -40,17 +40,17 @@ const factualCollector = {
   command: 'python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py location "$CLOUDSTATUS_QUERY"',
 };
 const png = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/P9mW6QAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==',
   'base64',
 );
 
-function mapResult(overrides: Record<string, unknown> = {}) {
-  const sha256 = createHash('sha256').update(png).digest('hex');
+function mapResult(overrides: Record<string, unknown> = {}, image = png) {
+  const sha256 = createHash('sha256').update(image).digest('hex');
   return {
     toolCallId: 'render-call',
     toolName: 'render_map',
     input: { locations: [] },
-    content: [{ type: 'image', mimeType: 'image/png', data: png.toString('base64') }],
+    content: [{ type: 'image', mimeType: 'image/png', data: image.toString('base64') }],
     details: {
       mediaResult: 'xcsh.media/v1',
       descriptor: {
@@ -58,7 +58,7 @@ function mapResult(overrides: Record<string, unknown> = {}) {
         kind: 'image',
         width: 1,
         height: 1,
-        original: { ref: `blob:sha256:${sha256}`, mimeType: 'image/png', bytes: png.length },
+        original: { ref: `blob:sha256:${sha256}`, mimeType: 'image/png', bytes: image.length },
         provenance: { sourceType: 'tool', source: 'render_map' },
         metadata: { producer: 'render_map', basemap: 'schematic' },
       },
@@ -79,10 +79,13 @@ describe('Cloudstatus Regional Edge guard', () => {
   });
 
   it('marks errored, image-less, and non-canonical map results as failed without allowing a retry', () => {
+    const corruptCrc = Buffer.from(png);
+    corruptCrc[corruptCrc.length - 1] ^= 1;
     for (const invalid of [
       mapResult({ isError: true }),
       mapResult({ content: [{ type: 'text', text: 'fallback' }] }),
       mapResult({ details: undefined }),
+      mapResult({}, corruptCrc),
       mapResult({
         details: {
           ...mapResult().details,

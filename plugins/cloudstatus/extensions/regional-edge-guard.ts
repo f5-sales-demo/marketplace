@@ -36,6 +36,50 @@ function decodeStrictBase64(value: unknown): Buffer | undefined {
   return decoded.toString('base64') === value ? decoded : undefined;
 }
 
+function crc32(data: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngDimensions(png: Buffer): [number, number] | undefined {
+  if (png.length < 33 || !png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return undefined;
+  let offset = 8;
+  let dimensions: [number, number] | undefined;
+  let sawIdat = false;
+  let sawIend = false;
+  while (offset < png.length) {
+    if (png.length - offset < 12) return undefined;
+    const length = png.readUInt32BE(offset);
+    const type = png.subarray(offset + 4, offset + 8);
+    const dataEnd = offset + 8 + length;
+    const crcEnd = dataEnd + 4;
+    if (crcEnd > png.length || png.readUInt32BE(dataEnd) !== crc32(png.subarray(offset + 4, dataEnd))) {
+      return undefined;
+    }
+    if (!dimensions) {
+      if (!type.equals(Buffer.from('IHDR')) || length !== 13) return undefined;
+      const width = png.readUInt32BE(offset + 8);
+      const height = png.readUInt32BE(offset + 12);
+      if (width <= 0 || height <= 0) return undefined;
+      dimensions = [width, height];
+    } else if (type.equals(Buffer.from('IHDR'))) {
+      return undefined;
+    } else if (type.equals(Buffer.from('IDAT'))) {
+      if (sawIend) return undefined;
+      sawIdat = true;
+    } else if (type.equals(Buffer.from('IEND'))) {
+      if (length !== 0 || !sawIdat || crcEnd !== png.length) return undefined;
+      sawIend = true;
+    }
+    offset = crcEnd;
+  }
+  return dimensions && sawIdat && sawIend ? dimensions : undefined;
+}
+
 function invalidMapResult(event: {
   content: Array<{ type: string; mimeType?: string; data?: string }>;
   details: unknown;
@@ -46,12 +90,9 @@ function invalidMapResult(event: {
   if (images.length !== 1 || images[0].mimeType !== 'image/png')
     return 'render_map did not return exactly one PNG image';
   const png = decodeStrictBase64(images[0].data);
-  if (!png || png.length < 24 || !png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) {
-    return 'render_map returned malformed PNG media';
-  }
-  const width = png.readUInt32BE(16);
-  const height = png.readUInt32BE(20);
-  if (width <= 0 || height <= 0) return 'render_map returned invalid PNG dimensions';
+  const dimensions = png ? pngDimensions(png) : undefined;
+  if (!png || !dimensions) return 'render_map returned malformed PNG media';
+  const [width, height] = dimensions;
   if (!event.details || typeof event.details !== 'object') return 'render_map omitted canonical media details';
   const details = event.details as Record<string, unknown>;
   const descriptor = details.descriptor;
