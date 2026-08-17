@@ -3,6 +3,7 @@ import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDr
 import {
   AWS_CE_F5_GUIDE_URL,
   AWS_CE_MARKETPLACE_PRODUCT_ID,
+  AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB,
   AWS_CE_SCHEMA_VERSION,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
@@ -136,8 +137,12 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (input.image.productId !== AWS_CE_MARKETPLACE_PRODUCT_ID) fail('unsupported Marketplace product');
   if (!AMI.test(input.image.amiId)) fail('image.amiId must be an exact regional AMI ID');
   if (!/^[a-z0-9][a-z0-9.-]{1,40}$/.test(input.instance.type)) fail('instance type is invalid');
-  if (!Number.isInteger(input.instance.diskGiB) || input.instance.diskGiB < 80)
-    fail('instance disk must be at least 80 GiB');
+  if (!Number.isInteger(input.instance.diskGiB) || input.instance.diskGiB < 1)
+    fail('instance disk must be a positive integer');
+  // Preserve the request in the caller's input artifact, but make the
+  // effective launch size explicit in the normalized, hashed plan. This keeps
+  // a boot-only Marketplace default from becoming an upgrade-time outage.
+  const upgradeSafeDiskGiB = Math.max(input.instance.diskGiB, AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB);
   if (
     input.instance.instanceProfileArn &&
     !input.instance.instanceProfileArn.startsWith(`arn:${input.partition}:iam::${input.accountId}:instance-profile/`)
@@ -215,6 +220,10 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     deploymentName,
     siteName,
     namespace,
+    instance: {
+      ...input.instance,
+      diskGiB: upgradeSafeDiskGiB,
+    },
     interfaces,
     routing: {
       ...input.routing,

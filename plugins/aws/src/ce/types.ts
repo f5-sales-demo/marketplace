@@ -5,6 +5,10 @@ export const AWS_CE_F5_GUIDE_URL =
   'https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-aws-clickops' as const;
 export const AWS_CE_MARKETPLACE_PRODUCT_ID = 'prod-wrwzhcymymama' as const;
 export const AWS_CE_SSM_PARAMETER = `/aws/service/marketplace/${AWS_CE_MARKETPLACE_PRODUCT_ID}/latest` as const;
+// The Marketplace image currently advertises a 79 GiB root volume. 80 GiB is
+// enough to boot but not enough headroom for a CE software upgrade, so every
+// generated launch must reserve this larger root volume up front.
+export const AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB = 100 as const;
 
 export type AwsCeOperation =
   | 'deploy'

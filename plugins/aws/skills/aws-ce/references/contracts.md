@@ -13,7 +13,7 @@ records its normalized SHA-256. This reference contains only AWS-specific requir
   architecture, state/deprecation, Allowed AMI policy, root disk, and launch permission.
 - Check active purchase agreements with AWS Marketplace Agreement Service. Never automate initial
   legal acceptance; provide the exact Marketplace console action, then rediscover and replan.
-- Rank AMI availability, requested instance/AZ offerings, ENI limits, minimum 8 vCPU/32 GiB/80 GiB,
+- Rank AMI availability, requested instance/AZ offerings, ENI limits, and minimum 8 vCPU/32 GiB/100 GiB root disk. The launch plan must override the Marketplace AMI root mapping to 100 GiB or larger; the current 79 GiB image default is boot-only and is not upgrade-safe.
   regional vCPU quota, permissions/policy evidence, TGW availability, and brownfield proximity.
 
 ## AWS networking

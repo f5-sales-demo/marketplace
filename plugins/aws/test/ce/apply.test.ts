@@ -6,6 +6,7 @@ import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
 import {
   AWS_CE_F5_GUIDE_URL,
   AWS_CE_MARKETPLACE_PRODUCT_ID,
+  AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
 } from '../../src/ce/types';
@@ -33,7 +34,7 @@ const intent: AwsCeIntent = {
   egress: { mode: 'elastic-ip' },
   routing: { profile: 'direct-eni', destinationCidrs: [], associations: [], propagations: [] },
   image: { productId: AWS_CE_MARKETPLACE_PRODUCT_ID, amiId: 'ami-0123456789abcdef0' },
-  instance: { type: 'm6i.2xlarge', diskGiB: 80 },
+  instance: { type: 'm6i.2xlarge', diskGiB: AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB },
   securityGroups: [],
   routes: [],
   brownfield: { resourceIds: [], routeTableIds: [], transitGatewayRouteTableIds: [] },

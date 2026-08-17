@@ -5,6 +5,7 @@ import type { AwsCeF5Capabilities, AwsCeIntent, AwsCeObservation } from '../../s
 import {
   AWS_CE_F5_GUIDE_URL,
   AWS_CE_MARKETPLACE_PRODUCT_ID,
+  AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
 } from '../../src/ce/types';
@@ -45,7 +46,7 @@ function intent(overrides: Partial<AwsCeIntent> = {}): AwsCeIntent {
     egress: { mode: 'elastic-ip' },
     routing: { profile: 'direct-eni', destinationCidrs: [], associations: [], propagations: [] },
     image: { productId: AWS_CE_MARKETPLACE_PRODUCT_ID, amiId: 'ami-0123456789abcdef0' },
-    instance: { type: 'm6i.2xlarge', diskGiB: 80 },
+    instance: { type: 'm6i.2xlarge', diskGiB: AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB },
     securityGroups: [{ name: 'ce', ingress: [], egress: [] }],
     routes: [],
     brownfield: { resourceIds: [], routeTableIds: [], transitGatewayRouteTableIds: [] },
@@ -148,7 +149,14 @@ describe('compileAwsCePlan', () => {
     expect(first.ownershipTags['ves-io-site-name']).toBe('ce-demo');
     expect(JSON.stringify(first.actions)).toContain('Key=ves-io-site-name,Value=ce-demo');
     expect(first.actions.find((action) => action.kind === 'instance-run')?.args).toContain(
-      'DeviceName=/dev/xvda,Ebs={VolumeSize=80,VolumeType=gp3,DeleteOnTermination=true}',
+      `DeviceName=/dev/xvda,Ebs={VolumeSize=${AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB},VolumeType=gp3,DeleteOnTermination=true}`,
+    );
+  });
+
+  it('raises a boot-only root volume to the upgrade-safe size in the immutable launch plan', () => {
+    const plan = compileAwsCePlan(intent({ instance: { type: 'm6i.2xlarge', diskGiB: 80 } }), observation());
+    expect(plan.actions.find((action) => action.kind === 'instance-run')?.args).toContain(
+      `DeviceName=/dev/xvda,Ebs={VolumeSize=${AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB},VolumeType=gp3,DeleteOnTermination=true}`,
     );
   });
 
