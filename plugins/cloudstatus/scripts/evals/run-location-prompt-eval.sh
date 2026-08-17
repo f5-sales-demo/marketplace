@@ -42,14 +42,24 @@ run_one() {
   local run_id=$1
   local prompt=$2
   local trace_file="$artifact_dir/${scenario_id}-${run_id}.jsonl"
+  local receipt_file="${trace_file%.jsonl}.receipt.json"
+  local png_file="${trace_file%.jsonl}.png"
+  local xcsh_status=0
+  local verification_status=0
   run_xcsh \
     --model "$model" \
     --thinking low \
     --mode json \
     --plugin-dir "$plugin_dir" \
     --no-session \
-    -p "$prompt" >"$trace_file"
-  if ! python3 "$plugin_dir/benchmarks/verify-location-prompt-trace.py" "$scenario_file" "$scenario_id" "$trace_file"; then
+    -p "$prompt" >"$trace_file" || xcsh_status=$?
+  python3 "$plugin_dir/benchmarks/verify-location-prompt-trace.py" \
+    "$scenario_file" \
+    "$scenario_id" \
+    "$trace_file" \
+    --receipt "$receipt_file" \
+    --extract-png "$png_file" || verification_status=$?
+  if [ "$xcsh_status" -ne 0 ] || [ "$verification_status" -ne 0 ]; then
     keep_artifacts=1
     echo "trace retained for diagnosis: $trace_file" >&2
     return 1

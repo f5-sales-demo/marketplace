@@ -97,7 +97,9 @@ or `display_media`.
 `benchmarks/location-prompt-scenarios.json` defines visual and factual
 Regional Edge prompts. The verifier checks xcsh JSONL tool traces: every
 scenario reads `cloudstatus:location`, invokes one registry collector, forbids
-delegation and search, and renders exactly once only for visual intent.
+delegation and search, and proves exactly one successful `render_map`
+start/completion pair with a canonical, byte-verified PNG only for visual
+intent. Factual scenarios prove that no render or image result occurred.
 
 Run the hermetic contract suite with the plugin tests. To run an authenticated
 local acceptance scenario, provide an xcsh 20.19.0+ executable (or use the
@@ -119,9 +121,12 @@ XCSH_DEV_DIR=/path/to/xcsh LOCATION_UAT_REPEAT=4 LOCATION_UAT_SYNTHESIZE=1 \
   bash plugins/cloudstatus/scripts/evals/run-location-prompt-eval.sh visual-address-us gpt-5.6-luna
 ```
 
-Failed runs retain their JSONL trace under `/tmp` (or
-`LOCATION_UAT_ARTIFACT_DIR`) for diagnosis; successful runs leave no temporary
-artifacts. A caller-supplied artifact directory is always retained.
+Each attempt emits a compact JSON receipt with named claims, tool ordering,
+dimensions, decoded byte count, SHA-256, and basemap. Failed runs retain their
+JSONL trace, receipt, and any verified PNG under `/tmp` for diagnosis;
+successful runs leave no temporary artifacts. A caller-supplied
+`LOCATION_UAT_ARTIFACT_DIR` is always retained and stores the PNG beside its
+trace and receipt. Receipts and summaries never contain image base64.
 
 ## Evidence boundaries
 
