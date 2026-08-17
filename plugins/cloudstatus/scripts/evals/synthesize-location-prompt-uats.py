@@ -12,18 +12,23 @@ ADDRESS_MAP_VARIANTS = (
     EXACT_ADDRESS_MAP_PROMPT,
     "Show a map of every address location for F5 Regional Edges located in the United States.",
     "Map all United States address locations of the F5 Distributed Cloud Regional Edges.",
-    "I need a US map of all address locations for F5 Regional Edges; do not research the addresses one by one.",
+    "I need a map of all United States address locations for F5 Regional Edges; use United States as the registry filter and do not research addresses one by one.",
 )
 
 
 def synthesize(scenario_id: str, count: int) -> list[dict[str, str]]:
     """Return deterministic, semantically equivalent prompts for one live scenario."""
     if scenario_id != "visual-address-us":
-        raise ValueError(f"prompt synthesis is only defined for visual-address-us, not {scenario_id}")
+        raise ValueError(
+            f"prompt synthesis is only defined for visual-address-us, not {scenario_id}"
+        )
     if count < 1:
         raise ValueError("count must be positive")
     return [
-        {"id": scenario_id, "prompt": ADDRESS_MAP_VARIANTS[index % len(ADDRESS_MAP_VARIANTS)]}
+        {
+            "id": scenario_id,
+            "prompt": ADDRESS_MAP_VARIANTS[index % len(ADDRESS_MAP_VARIANTS)],
+        }
         for index in range(count)
     ]
 

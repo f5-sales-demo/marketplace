@@ -10,9 +10,10 @@ Do not route it to `cloudstatus:network-intelligence`, a general operator, web
 search, OSINT geolocation, remembered information, source-code inspection, or
 an ad hoc HTTP/Python command.
 
-Run the collector directly in the parent session exactly once. Pass the exact
-geographic filter through the Bash environment as `CLOUDSTATUS_QUERY`; do not
-interpolate user text into the command.
+Run the collector directly in the parent session exactly once. Pass only the
+normalized geographic filter through the Bash environment as
+`CLOUDSTATUS_QUERY` (for example, `United States`, not the full user request);
+do not interpolate user text into the command.
 
 For inventory, map, show, where, country, region, or “which Regional Edges”
 intent, use the compact map contract:

@@ -12,7 +12,9 @@ SYNTHESIS_PATH = PLUGIN_ROOT / "scripts/evals/synthesize-location-prompt-uats.py
 
 
 def load_synthesis():
-    spec = importlib.util.spec_from_file_location("location_prompt_synthesis", SYNTHESIS_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "location_prompt_synthesis", SYNTHESIS_PATH
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {SYNTHESIS_PATH}")
     module = importlib.util.module_from_spec(spec)
@@ -27,14 +29,15 @@ class LocationPromptSynthesisTests(unittest.TestCase):
         cls.synthesis = load_synthesis()
 
     def test_synthesizes_address_map_variants_from_the_exact_regression(self) -> None:
-        variants = self.synthesis.synthesize("visual-address-us", 3)
-        self.assertEqual(len(variants), 3)
+        variants = self.synthesis.synthesize("visual-address-us", 4)
+        self.assertEqual(len(variants), 4)
         self.assertEqual(variants[0]["id"], "visual-address-us")
         self.assertEqual(
             variants[0]["prompt"],
             "show me a map of all the address locations of the F5 regional edges that are located in the united states",
         )
         self.assertIn("Regional Edge", variants[1]["prompt"])
+        self.assertIn("United States as the registry filter", variants[3]["prompt"])
 
     def test_rejects_unknown_scenarios_and_non_positive_counts(self) -> None:
         with self.assertRaises(ValueError):
