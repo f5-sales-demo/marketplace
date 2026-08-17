@@ -1,3 +1,5 @@
+# ruff: noqa: D101, D102, D103, EM102, INP001, PT009, PT027, TC003, TRY003
+# pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring
 """Hermetic tests for live Regional Edge UAT prompt synthesis."""
 
 from __future__ import annotations
@@ -6,12 +8,13 @@ import importlib.util
 import pathlib
 import sys
 import unittest
+from types import ModuleType
 
 PLUGIN_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SYNTHESIS_PATH = PLUGIN_ROOT / "scripts/evals/synthesize-location-prompt-uats.py"
 
 
-def load_synthesis():
+def load_synthesis() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         "location_prompt_synthesis", SYNTHESIS_PATH
     )
@@ -24,6 +27,8 @@ def load_synthesis():
 
 
 class LocationPromptSynthesisTests(unittest.TestCase):
+    synthesis: ModuleType
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.synthesis = load_synthesis()

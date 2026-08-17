@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# pylint: disable=invalid-name,line-too-long,missing-function-docstring
+# ruff: noqa: D103, EM101, EM102, T201, TRY003
 """Generate controlled live-UAT variants for the Regional Edge address-map regression."""
 
 from __future__ import annotations

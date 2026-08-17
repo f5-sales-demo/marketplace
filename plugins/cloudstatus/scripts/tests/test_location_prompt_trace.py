@@ -1,4 +1,5 @@
 # ruff: noqa: D101, D102, D103, EM102, INP001, PT009, S603, TC003, TRY003
+# pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring,too-many-arguments
 """Hermetic trace-contract tests for Cloudstatus Regional Edge prompt routing."""
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import tempfile
 import unittest
 import zlib
 from types import ModuleType
+from typing import Any
 
 PLUGIN_ROOT = pathlib.Path(__file__).resolve().parents[2]
 VERIFIER_PATH = PLUGIN_ROOT / "benchmarks/verify-location-prompt-trace.py"
@@ -34,13 +36,13 @@ def load_verifier() -> ModuleType:
     return module
 
 
-def trace(*events: dict[str, object]) -> str:
+def trace(*events: dict[str, Any]) -> str:
     return "\n".join(json.dumps(event) for event in events)
 
 
 def start(
-    name: str, input_value: dict[str, object], call_id: str | None = None
-) -> dict[str, object]:
+    name: str, input_value: dict[str, Any], call_id: str | None = None
+) -> dict[str, Any]:
     return {
         "type": "tool_execution_start",
         "toolCallId": call_id or f"{name}-call",
@@ -72,10 +74,10 @@ def render_result(
     image: bytes | None = None,
     image_data: str | None = None,
     is_error: bool = False,
-    details: object | None = None,
+    details: Any | None = None,
     width: int = 2,
     height: int = 3,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     payload = valid_png(width, height) if image is None else image
     digest = hashlib.sha256(payload).hexdigest()
     if details is None:
@@ -97,7 +99,7 @@ def render_result(
             },
             "displayMethod": "inline",
         }
-    content: list[dict[str, object]] = [
+    content: list[dict[str, Any]] = [
         {
             "type": "image",
             "mimeType": "image/png",
@@ -116,7 +118,7 @@ def render_result(
     }
 
 
-def workflow(*render_events: dict[str, object]) -> str:
+def workflow(*render_events: dict[str, Any]) -> str:
     return trace(
         start("read", {"path": "skill://cloudstatus/location"}),
         start(
@@ -141,7 +143,7 @@ class LocationPromptTraceTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.verifier = load_verifier()
 
-    def assert_error(self, result: dict[str, object], fragment: str) -> None:
+    def assert_error(self, result: dict[str, Any], fragment: str) -> None:
         self.assertFalse(result["pass"])
         self.assertTrue(
             any(fragment in error for error in result["errors"]), result["errors"]

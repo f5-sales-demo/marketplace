@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,missing-function-docstring,too-many-branches,too-many-locals,too-many-statements
 # ruff: noqa: D103, EM101, EM102, PLR2004, T201, TRY003, TRY004
 """Verify deterministic Cloudstatus Regional Edge tool traces from xcsh JSONL."""
 
