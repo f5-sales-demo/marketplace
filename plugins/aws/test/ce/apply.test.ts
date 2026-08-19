@@ -42,7 +42,7 @@ const intent: AwsCeIntent = {
 const capabilities = {
   smsv2ContractVersion: 'v2' as const,
   supportedProviders: ['aws' as const],
-  bootstrapDrivers: ['api' as const],
+  bootstrapDrivers: ['console' as const],
   providerNetworkingProfiles: { aws: ['direct-eni'] },
   awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
 };

@@ -19,7 +19,7 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
       f5Capabilities: Type.Object({
         smsv2ContractVersion: Type.Literal('v2'),
         supportedProviders: Type.Array(Type.Union([Type.Literal('aws'), Type.Literal('azure')])),
-        bootstrapDrivers: Type.Array(Type.Union([Type.Literal('api'), Type.Literal('console')])),
+        bootstrapDrivers: Type.Array(Type.Literal('console')),
         providerNetworkingProfiles: Type.Object({
           aws: Type.Optional(Type.Array(Type.String())),
           azure: Type.Optional(Type.Array(Type.String())),

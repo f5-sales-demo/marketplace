@@ -1604,15 +1604,8 @@ export function compileAwsCePlan(
   if (!instance?.supported) fail(`instance type ${intent.instance.type} is not supported in ${intent.region}`);
   if (intent.topology.nodeCount === 3 && instance.availabilityZones.length < 3)
     fail('three-node topology requires three Availability Zones');
-  if (
-    intent.routing.profile === 'tgw-connect' &&
-    (!observation.research.f5AwsGuide.tgwConnectDocumented ||
-      !observation.f5Capabilities.awsSmsv2TgwConnect.supported ||
-      !observation.f5Capabilities.awsSmsv2TgwConnect.schemaVersion)
-  )
-    fail(
-      'aws-smsv2-tgw-connect is release-blocked until current F5 documentation and tenant capability schema both confirm support',
-    );
+  if (intent.routing.profile === 'tgw-connect')
+    fail('AWS TGW Connect is unavailable until F5 publishes the separate authenticated telemetry contract');
   if (
     !observation.f5Capabilities.supportedProviders.includes('aws') ||
     !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes(intent.routing.profile)

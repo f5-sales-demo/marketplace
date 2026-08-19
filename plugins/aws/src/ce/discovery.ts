@@ -85,7 +85,7 @@ function validateCapabilities(value: AwsCeF5Capabilities): void {
   if (
     value?.smsv2ContractVersion !== 'v2' ||
     !value.supportedProviders?.includes('aws') ||
-    !value.bootstrapDrivers?.includes('api') ||
+    !value.bootstrapDrivers?.includes('console') ||
     !Array.isArray(value.providerNetworkingProfiles?.aws) ||
     typeof value.awsSmsv2TgwConnect?.supported !== 'boolean' ||
     (value.awsSmsv2TgwConnect.supported && !value.awsSmsv2TgwConnect.schemaVersion) ||

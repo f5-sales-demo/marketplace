@@ -26,7 +26,7 @@ export type AwsCeRoutingProfile = 'direct-eni' | 'nlb-ingress' | 'tgw-static' | 
 export interface AwsCeF5Capabilities {
   smsv2ContractVersion: 'v2';
   supportedProviders: Array<'aws' | 'azure'>;
-  bootstrapDrivers: Array<'api' | 'console'>;
+  bootstrapDrivers: Array<'console'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
 }

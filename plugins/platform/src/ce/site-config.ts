@@ -97,10 +97,6 @@ export function assertCapabilitiesSupportConfig(capabilities: CeV2Capabilities, 
     throw new PublicCeError(
       `Tenant does not advertise ${config.providerNetwork.profile} for Secure Mesh Site v2 on ${config.provider}`,
     );
-  if (
-    config.provider === 'aws' &&
-    config.providerNetwork.profile === 'tgw-connect' &&
-    (!capabilities.awsSmsv2TgwConnect.supported || !capabilities.awsSmsv2TgwConnect.schemaVersion)
-  )
-    throw new PublicCeError('Tenant does not advertise a supported aws-smsv2-tgw-connect schema');
+  if (config.provider === 'aws' && config.providerNetwork.profile === 'tgw-connect')
+    throw new PublicCeError('AWS TGW Connect is unavailable until the separate F5 telemetry contract is published');
 }

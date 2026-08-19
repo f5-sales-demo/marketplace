@@ -13,7 +13,7 @@ import {
 const capabilities: AwsCeF5Capabilities = {
   smsv2ContractVersion: 'v2',
   supportedProviders: ['aws', 'azure'],
-  bootstrapDrivers: ['api'],
+  bootstrapDrivers: ['console'],
   providerNetworkingProfiles: { aws: ['direct-eni', 'nlb-ingress', 'tgw-static'], azure: ['direct-nic'] },
   awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
 };
@@ -414,7 +414,7 @@ describe('compileAwsCePlan', () => {
         }),
         observation(),
       ),
-    ).toThrow(/release-blocked/i);
+    ).toThrow(/unavailable.*telemetry/i);
   });
 
   it('rejects AWS-reserved TGW Connect inside CIDRs before planning', () => {

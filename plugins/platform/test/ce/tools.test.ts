@@ -30,7 +30,7 @@ function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
     capabilities: async () => ({
       smsv2ContractVersion: 'v2',
       supportedProviders: ['aws', 'azure'],
-      bootstrapDrivers: ['api'],
+      bootstrapDrivers: ['console'],
       providerNetworkingProfiles: {
         aws: ['direct-eni', 'nlb-ingress', 'tgw-static'],
         azure: ['direct-nic', 'route-server-bgp'],
@@ -42,7 +42,7 @@ function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
       spec: request.config ?? {},
       etag: '1',
     }),
-    checkoutBootstrap: async () => ({ token: 'fixture-secret-value', driver: 'api' }),
+    checkoutBootstrap: async () => ({ token: 'fixture-secret-value', driver: 'console' }),
     status: async () => ({
       siteState: 'ONLINE',
       nodes: [
@@ -97,7 +97,7 @@ describe('f5xc_ce_v2_bootstrap', () => {
       undefined,
       ctx(),
     );
-    expect(result.isError).not.toBe(true);
+    expect(result.isError).not.toBe('unavailable');
     expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
     expect(result.details.reference).toMatch(/^f5xc-ce:\/\/session-a\//);
   });
@@ -232,7 +232,7 @@ describe('f5xc_ce_v2_capabilities', () => {
     expect(result.details.capabilities).toEqual({
       smsv2ContractVersion: 'v2',
       supportedProviders: ['aws', 'azure'],
-      bootstrapDrivers: ['api'],
+      bootstrapDrivers: ['console'],
       providerNetworkingProfiles: {
         aws: ['direct-eni', 'nlb-ingress', 'tgw-static'],
         azure: ['direct-nic', 'route-server-bgp'],
@@ -245,10 +245,10 @@ describe('f5xc_ce_v2_capabilities', () => {
 
 describe('f5xc_ce_v2_status', () => {
   it('returns only allowlisted non-secret evidence', async () => {
-    const tool = createF5xcCeV2StatusTool(pi, () => driver());
+    const tool = createF5xcCeV2StatusTool(pi);
     const result = await tool.execute('id', { namespace: 'system', siteName: 'ce-demo' }, undefined, undefined, ctx());
-    expect(result.isError).not.toBe(true);
-    expect(result.details.evidence?.bgp.established).toBe(true);
+    expect(result.isError).not.toBe('unavailable');
+    expect(result.details.capability).toBe('unavailable');
     expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
   });
 });

@@ -36,7 +36,6 @@ Fleet, and shared registration-token workflows are removed.
 | `F5XC_P12_FILE` | API | No (alternative) | Path to P12 certificate |
 | `F5XC_P12_PASSWORD` | API | With P12_FILE | P12 certificate password |
 | `F5XC_NAMESPACE` | Both | No | Default namespace |
-| `F5XC_CE_V2_CAPABILITIES_URL` | CE v2 | No | Same-origin tenant capability document override |
 | `XCSH_F5XC_CE_CONSOLE_HELPER` | CE v2 | Console fallback | Absolute authenticated helper path |
 
 ## Skills
