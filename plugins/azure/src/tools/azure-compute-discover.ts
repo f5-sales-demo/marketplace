@@ -10,7 +10,7 @@ export function createAzureComputeDiscoverTool(pi: PluginInterface, makeApi: (cw
     name: 'azure_compute_discover',
     label: 'Discover Azure CE Compute',
     description:
-      'Mandatory live research gate for F5 Customer Edge. Enumerates the Azure Marketplace publisher, offer, plan, and exact image version plus subscription-aware VM SKU/NIC/zones, quota, policy, Route Server support, brownfield proximity, and terms status. Call this before any recommendation or plan; do not guess catalog identifiers or VM sizes.',
+      'Mandatory live research gate for F5 Customer Edge. Retrieves and hashes the canonical MCN contract plus current F5 and Microsoft guidance, then enumerates Azure Marketplace identifiers, exact image version, subscription-aware VM SKU/NIC/zones, quota, policy, Route Server support, brownfield proximity, and terms status.',
     parameters: Type.Object({
       subscriptionId: Type.String(),
       publisher: Type.Optional(Type.String()),
@@ -53,7 +53,7 @@ export function createAzureComputeDiscoverTool(pi: PluginInterface, makeApi: (cw
           content: [
             {
               type: 'text' as const,
-              text: `Research: live Azure CLI catalog and subscription observations (${observation.research.catalogRegion})\nOfficial sources: retrieved live from F5 and Microsoft\nPinned image: ${observation.image.urn}\nMarketplace terms: ${observation.image.termsAccepted ? 'accepted' : 'not accepted'}\nLeading eligible region: ${leadingRegion?.name ?? 'none'}\nCompatible VM sizes: ${compatibleSizes || 'none'}\n${ranked}\nDiscovery artifact: ${artifactId ? `artifact://${artifactId}` : 'session memory only'}`,
+              text: `Research: live Azure CLI catalog and subscription observations (${observation.research.catalogRegion})\nShared contract: ${observation.research.sharedContract.contractId}/${observation.research.sharedContract.contractVersion} (${observation.research.sharedContract.normalizedSha256})\nOfficial sources: retrieved live from F5 and Microsoft with normalized digests\nPinned image: ${observation.image.urn}\nMarketplace terms: ${observation.image.termsAccepted ? 'accepted' : 'not accepted'}\nLeading eligible region: ${leadingRegion?.name ?? 'none'}\nCompatible VM sizes: ${compatibleSizes || 'none'}\n${ranked}\nDiscovery artifact: ${artifactId ? `artifact://${artifactId}` : 'session memory only'}`,
             },
           ],
           details: { tool: 'azure_compute_discover', artifactId, observation },

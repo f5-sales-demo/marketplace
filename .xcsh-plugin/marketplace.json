@@ -112,8 +112,8 @@
     },
     {
       "name": "platform",
-      "description": "F5 Distributed Cloud automation with native Secure Mesh Site v2 configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
-      "version": "4.0.0",
+      "description": "F5 Distributed Cloud automation with provider-neutral Secure Mesh Site v2 capabilities, typed configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
+      "version": "5.0.0",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -242,7 +242,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration with official-source research, live F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, and diagnostics",
-      "version": "2.0.1",
+      "version": "3.0.0",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -266,15 +266,15 @@
     },
     {
       "name": "aws",
-      "description": "AWS CLI integration — container-adapted auth, context injection, CLI operator agent, SSO expiry detection, and welcome screen status",
-      "version": "1.2.7",
+      "description": "AWS CLI integration with current-source F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, NLB/TGW networking, and diagnostics",
+      "version": "2.0.0",
       "author": {
         "name": "f5-sales-demo"
       },
       "source": "./plugins/aws",
       "category": "development",
-      "keywords": ["aws", "amazon", "cloud"],
-      "tags": ["aws", "cloud", "xcsh-extension"],
+      "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
+      "tags": ["aws", "cloud", "f5xc", "customer-edge", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws",
       "repository": "https://github.com/f5-sales-demo/marketplace",

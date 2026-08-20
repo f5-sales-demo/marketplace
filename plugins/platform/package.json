@@ -1,7 +1,7 @@
 {
   "name": "platform",
-  "version": "4.0.0",
-  "description": "F5 Distributed Cloud platform automation with Secure Mesh Site v2 Customer Edge tools",
+  "version": "5.0.0",
+  "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
   "license": "Apache-2.0",
   "main": "src/index.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "Platform",
-    "version": "4.0.0",
+    "version": "5.0.0",
     "extensions": [
       "src/index.ts"
     ]

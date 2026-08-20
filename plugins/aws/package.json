@@ -1,15 +1,16 @@
 {
   "name": "@f5-sales-demo/xcsh-aws",
-  "version": "1.2.7",
-  "description": "AWS CLI status for xcsh welcome screen",
+  "version": "2.0.0",
+  "description": "AWS CLI tools and deterministic F5 Secure Mesh Site v2 Customer Edge administration for xcsh",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh"
   },
   "xcsh": {
     "name": "AWS",
-    "version": "1.2.7",
+    "version": "2.0.0",
     "extensions": [
       "src/index.ts"
     ]

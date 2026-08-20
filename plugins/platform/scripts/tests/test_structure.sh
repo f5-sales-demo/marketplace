@@ -96,13 +96,13 @@ test_expected_files_exist() {
   done
 }
 
-# T1.8 — Platform 4.x exposes only Secure Mesh Site v2 CE tools
-test_platform_v4_ce_contract() {
-  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 4.* ]] || {
-    echo "Platform Secure Mesh Site v2 contract requires 4.x"
+# T1.8 — Platform 5.x exposes only provider-neutral Secure Mesh Site v2 CE tools
+test_platform_v5_ce_contract() {
+  [[ "$(jq -r '.version' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" == 5.* ]] || {
+    echo "Provider-neutral Secure Mesh Site v2 contract requires Platform 5.x"
     return 1
   }
-  for tool in f5xc_ce_v2_site f5xc_ce_v2_bootstrap f5xc_ce_v2_status; do
+  for tool in f5xc_ce_v2_capabilities f5xc_ce_v2_site f5xc_ce_v2_bootstrap f5xc_ce_v2_status; do
     grep -q "name: '$tool'" "$PLUGIN_ROOT/src/tools/${tool//_/-}.ts" || {
       echo "$tool factory is missing"
       return 1

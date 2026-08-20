@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { CeV2Driver } from '../ce/driver';
+import type { CeV2Driver, CeV2SiteConfig } from '../ce/driver';
 import { createDefaultCeV2Driver } from '../ce/driver';
 import {
   assertSafeName,
@@ -9,13 +9,14 @@ import {
   publicFailure,
   redactExternal,
 } from '../ce/security';
+import { assertCapabilitiesSupportConfig, assertCeV2SiteConfig } from '../ce/site-config';
 import type { PlatformToolApi, PlatformToolContext } from '../types';
 
 interface SiteParams {
   action: 'create' | 'read' | 'update' | 'delete';
   namespace: string;
   siteName: string;
-  config?: Record<string, unknown>;
+  config?: CeV2SiteConfig;
   expectedEtag?: string;
   planSha256?: string;
 }
@@ -44,6 +45,7 @@ export function createSitePlan(request: Omit<SiteParams, 'planSha256'>) {
   assertSafeName(request.namespace, 'namespace');
   assertSafeName(request.siteName, 'siteName');
   assertSecretFree(request.config ?? {});
+  if (request.action === 'create' || request.action === 'update') assertCeV2SiteConfig(request.config);
   if (request.expectedEtag && containsControlCharacters(request.expectedEtag))
     throw new PublicCeError('expectedEtag contains control characters');
   const draft = {
@@ -51,7 +53,7 @@ export function createSitePlan(request: Omit<SiteParams, 'planSha256'>) {
     action: request.action,
     namespace: request.namespace,
     siteName: request.siteName,
-    config: request.config ?? {},
+    config: request.config ?? null,
     expectedEtag: request.expectedEtag ?? null,
   };
   const planSha256 = hash(draft);
@@ -74,7 +76,42 @@ export function createF5xcCeV2SiteTool(pi: PlatformToolApi, makeDriver: () => Ce
       ]),
       namespace: Type.String(),
       siteName: Type.String(),
-      config: Type.Optional(Type.Unknown()),
+      config: Type.Optional(
+        Type.Object({
+          provider: Type.Union([Type.Literal('aws'), Type.Literal('azure')]),
+          haMode: Type.Union([Type.Literal('one-node'), Type.Literal('three-node')]),
+          vrfs: Type.Array(Type.Object({ index: Type.Number(), name: Type.String() })),
+          interfaces: Type.Array(
+            Type.Object({
+              index: Type.Number(),
+              role: Type.Union([
+                Type.Literal('slo'),
+                Type.Literal('sli'),
+                Type.Literal('management'),
+                Type.Literal('service'),
+                Type.Literal('workload'),
+              ]),
+              vrf: Type.String(),
+              addressing: Type.Object({
+                mode: Type.Union([Type.Literal('dhcp'), Type.Literal('static')]),
+                addresses: Type.Array(Type.String()),
+                gateway: Type.Optional(Type.String()),
+              }),
+            }),
+          ),
+          bgpPeers: Type.Array(
+            Type.Object({
+              index: Type.Number(),
+              vrf: Type.String(),
+              interfaceIndex: Type.Number(),
+              peerAddress: Type.String(),
+              localAsn: Type.Number(),
+              peerAsn: Type.Number(),
+            }),
+          ),
+          providerNetwork: Type.Object({ profile: Type.String(), metadata: Type.Unknown() }),
+        }),
+      ),
       expectedEtag: Type.Optional(Type.String()),
       planSha256: Type.Optional(Type.String()),
     }),
@@ -90,7 +127,6 @@ export function createF5xcCeV2SiteTool(pi: PlatformToolApi, makeDriver: () => Ce
         assertSafeName(params.siteName, 'siteName');
         const driver = makeDriver();
         const capabilities = await driver.capabilities();
-        if (capabilities.version !== 'v2') throw new Error('Secure Mesh Site v2 capability is unavailable');
         if (params.action === 'read') {
           const result = await driver.site('read', params);
           return {
@@ -101,6 +137,8 @@ export function createF5xcCeV2SiteTool(pi: PlatformToolApi, makeDriver: () => Ce
           };
         }
         const plan = createSitePlan(params);
+        if (plan.config && (params.action === 'create' || params.action === 'update'))
+          assertCapabilitiesSupportConfig(capabilities, plan.config);
         if (!params.planSha256) {
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({ kind: 'f5xc-ce-v2-site-plan', plan }),
@@ -118,10 +156,10 @@ export function createF5xcCeV2SiteTool(pi: PlatformToolApi, makeDriver: () => Ce
         }
         if (!hashesEqual(params.planSha256, plan.planSha256))
           throw new Error('Site plan SHA-256 does not match the canonical request');
-        if (!ctx.hasUI && process.env.XCSH_AZURE_CE_HEADLESS_MUTATIONS !== '1')
-          throw new Error('Headless site mutation requires XCSH_AZURE_CE_HEADLESS_MUTATIONS=1');
-        if (params.action === 'delete' && !ctx.hasUI && process.env.XCSH_AZURE_CE_ALLOW_DESTROY !== '1')
-          throw new Error('Headless site deletion requires XCSH_AZURE_CE_ALLOW_DESTROY=1');
+        if (!ctx.hasUI && process.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
+          throw new Error('Headless site mutation requires XCSH_CE_HEADLESS_MUTATIONS=1');
+        if (params.action === 'delete' && !ctx.hasUI && process.env.XCSH_CE_ALLOW_DESTROY !== '1')
+          throw new Error('Headless site deletion requires XCSH_CE_ALLOW_DESTROY=1');
         if (
           ctx.hasUI &&
           !(await ctx.ui.confirm(`${params.action} Secure Mesh Site v2`, `${plan.planId}\n${plan.planSha256}`))

@@ -6,10 +6,10 @@ Provides Azure SSO authentication, deterministic console
 navigation, API token management, and a foundation for
 workflow automation across both interfaces.
 
-Platform 4.x also provides native Secure Mesh Site v2 Customer Edge tools for
-canonical site changes, one-use bootstrap checkout, and allowlisted status
-evidence. Legacy Azure VNet Site, Fleet, and shared registration-token workflows
-are removed.
+Platform 5.x provides provider-neutral Secure Mesh Site v2 Customer Edge tools
+for capability evidence, typed canonical site changes, one-use bootstrap
+checkout, and allowlisted status. Legacy Azure VNet Site, AWS VPC/TGW Site,
+Fleet, and shared registration-token workflows are removed.
 
 ## Prerequisites
 
@@ -36,7 +36,6 @@ are removed.
 | `F5XC_P12_FILE` | API | No (alternative) | Path to P12 certificate |
 | `F5XC_P12_PASSWORD` | API | With P12_FILE | P12 certificate password |
 | `F5XC_NAMESPACE` | Both | No | Default namespace |
-| `F5XC_CE_V2_CAPABILITIES_URL` | CE v2 | No | Same-origin tenant capability document override |
 | `XCSH_F5XC_CE_CONSOLE_HELPER` | CE v2 | Console fallback | Absolute authenticated helper path |
 
 ## Skills
@@ -54,13 +53,15 @@ are removed.
 
 | Tool | Purpose |
 | ---- | ------- |
+| `f5xc_ce_v2_capabilities` | Return non-secret SMSv2 provider, bootstrap, network-profile, and AWS TGW Connect schema evidence |
 | `f5xc_ce_v2_site` | Plan, read, create, update, or delete CE v2 site and BGP/network configuration |
 | `f5xc_ce_v2_bootstrap` | Check out one short-lived token and return only an opaque session reference |
 | `f5xc_ce_v2_status` | Return allowlisted registration, provisioning, health, interface, route, and BGP evidence |
 
 Bootstrap material is written to a session-owned `0700` temporary directory in
 `0600` files and consumed once by the Azure plugin. The token never appears in a
-plan, tool result, command line, tag, log, or artifact. Headless checkout fails
+plan, tool result, command line, tag, log, or artifact. AWS and Azure consume
+the same opaque format. Headless checkout fails
 closed when only interactive console automation is available.
 
 ## Agents

@@ -10,12 +10,12 @@ import { Aside, Badge } from '@astrojs/starlight/components';
 The **Azure** plugin keeps its generic Azure CLI tools and adds deterministic
 F5 Distributed Cloud Customer Edge (CE) administration for Secure Mesh Site v2.
 
-<Badge text="v2.0.1" variant="note" /> <Badge text="Development" variant="tip" />
+<Badge text="v3.0.0" variant="note" /> <Badge text="Development" variant="tip" />
 
 ## Prerequisites
 
 - Install Azure CLI and authenticate to an AzureCloud subscription.
-- Install Platform 4.x and configure F5 Distributed Cloud authentication.
+- Install Platform 5.x and configure F5 Distributed Cloud authentication.
 - Confirm that the target is an authorized lab or demo environment.
 
 ## Customer Edge tools
@@ -37,13 +37,16 @@ machine launch, registration gates, routing activation, and verification.
 
 Natural-language requests such as “F5 edge appliance,” “XC CE,” and “Secure Mesh
 node” route to the CE workflow. Before recommending an image, size, or region,
-the workflow retrieves the current official F5 Azure deployment guide and
-Microsoft Marketplace/SKU guidance. It then enumerates the live publisher,
+the workflow retrieves and hashes the canonical `f5xc-ce-automation/v1` contract,
+the current official F5 Azure deployment guide, and Microsoft Marketplace/SKU
+guidance. It then enumerates the live publisher,
 offer, image SKU, exact version, and compatible subscription-aware VM sizes.
 User-supplied catalog values are constraints to verify, never trusted defaults.
 
-The discovery result includes a secret-free research receipt and session
-artifact. Planning fails closed when that live discovery artifact is absent.
+The discovery result includes a secret-free research receipt, normalized source
+digests, and session artifact. Planning fails closed when the contract is invalid,
+unavailable, or changed, or when that live discovery artifact is absent. Schema-v1
+Azure intent, observations, and plans are unsupported.
 
 <Aside type="caution">
   A plan never contains bootstrap material. Platform returns an opaque
@@ -65,10 +68,10 @@ artifact. Planning fails closed when that live discovery artifact is absent.
 
 ## Headless controls
 
-Set `XCSH_AZURE_CE_HEADLESS_MUTATIONS=1` and supply the exact plan hash for
-headless mutation. Terms also require
-`XCSH_AZURE_CE_ACCEPT_MARKETPLACE_TERMS=1`. Destructive operations also require
-`XCSH_AZURE_CE_ALLOW_DESTROY=1`.
+Set `XCSH_CE_HEADLESS_MUTATIONS=1` and supply the exact plan hash for headless
+mutation. Terms also require `XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1`. Destructive
+operations also require `XCSH_CE_ALLOW_DESTROY=1`. Azure-named compatibility
+environment variables are not supported.
 
 ## Verify
 

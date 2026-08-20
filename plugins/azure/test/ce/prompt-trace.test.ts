@@ -20,7 +20,7 @@ const successfulDiscovery = {
     content: [
       {
         type: 'text',
-        text: 'Research: live Azure CLI catalog and subscription observations (canadacentral)\nOfficial sources: retrieved live from F5 and Microsoft\nPinned image: f5-networks:f5xc_customer_edge:f5xc-ce-crt:1.2.3\nCompatible VM sizes: Standard_D8s_v5 (8 vCPU, 32 GB, 8 NICs, zones 1/2/3)\nDiscovery artifact: artifact://azure-ce-discovery-abc',
+        text: 'Research: live Azure CLI catalog and subscription observations (canadacentral)\nShared contract: f5xc-ce-automation/v1 (abc)\nOfficial sources: retrieved live from F5 and Microsoft\nPinned image: f5-networks:f5xc_customer_edge:f5xc-ce-crt:1.2.3\nCompatible VM sizes: Standard_D8s_v5 (8 vCPU, 32 GB, 8 NICs, zones 1/2/3)\nDiscovery artifact: artifact://azure-ce-discovery-abc',
       },
     ],
   },
@@ -63,6 +63,6 @@ describe('CE synthesized prompt trace evaluation', () => {
     const result = evaluateTrace(scenario, trace);
     expect(result.pass).toBe(false);
     expect(result.errors).toContain('azure_compute_discover returned an error');
-    expect(result.errors).toContain('discovery result lacks the live-research receipt');
+    expect(result.errors).toContain('discovery result lacks f5xc-ce-automation/v1 receipt');
   });
 });

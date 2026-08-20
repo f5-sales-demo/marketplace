@@ -7,6 +7,7 @@ import type {
   AzureCePlanDraft,
   AzureCeResourceObservation,
 } from './types';
+import { AZURE_CE_SCHEMA_VERSION, AZURE_CE_SHARED_CONTRACT_URL } from './types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
@@ -52,7 +53,8 @@ function validateResourceId(id: string, subscriptionId: string): void {
 }
 
 function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
-  if (input.schemaVersion !== 1) fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
+  if (input.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
+    fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
   if (!UUID.test(input.subscriptionId)) fail('subscriptionId must be a UUID');
   if (input.nics.length < 1 || input.nics.length > 8) fail('NIC count must be between 1 and 8');
   if (input.nics[0]?.role !== 'slo') fail('NIC 0 must have role slo');
@@ -1256,7 +1258,7 @@ function buildLifecycleActions(
 
 export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObservation): AzureCePlan {
   const intent = normalizeIntent(input);
-  if (observation.schemaVersion !== 1) fail('unsupported observation schema');
+  if (observation.schemaVersion !== AZURE_CE_SCHEMA_VERSION) fail('unsupported observation schema');
   const requiredResearchCommands = [
     'az vm image list-publishers',
     'az vm image list-offers',
@@ -1275,6 +1277,27 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     fail('official F5 research source is required');
   if (!observation.research.officialSources.some((source) => source.startsWith('https://learn.microsoft.com/')))
     fail('official Microsoft research source is required');
+  if (
+    observation.research.sharedContract?.url !== AZURE_CE_SHARED_CONTRACT_URL ||
+    observation.research.sharedContract.contractId !== 'f5xc-ce-automation' ||
+    observation.research.sharedContract.contractVersion !== 'v1' ||
+    !/^[a-f0-9]{64}$/.test(observation.research.sharedContract.normalizedSha256)
+  )
+    fail('valid live shared Customer Edge automation contract receipt is required');
+  const receiptUrls = new Set<string>();
+  for (const receipt of observation.research.sourceReceipts ?? []) {
+    if (!receipt.url.startsWith('https://') || !/^[a-f0-9]{64}$/.test(receipt.normalizedSha256))
+      fail('live official-source research receipt contains an invalid digest');
+    if (receiptUrls.has(receipt.url)) fail('live official-source research receipt contains duplicate URLs');
+    receiptUrls.add(receipt.url);
+  }
+  for (const source of [...observation.research.officialSources, AZURE_CE_SHARED_CONTRACT_URL])
+    if (!receiptUrls.has(source)) fail(`live official-source research receipt is missing ${source}`);
+  const sharedReceipt = observation.research.sourceReceipts.find(
+    (receipt) => receipt.url === AZURE_CE_SHARED_CONTRACT_URL,
+  );
+  if (sharedReceipt?.normalizedSha256 !== observation.research.sharedContract.normalizedSha256)
+    fail('shared Customer Edge automation contract receipt digest is inconsistent');
   if (observation.subscription.cloud !== 'AzureCloud') fail('only AzureCloud is supported');
   if (observation.subscription.id.toLowerCase() !== intent.subscriptionId)
     fail('observation subscription does not match intent');
@@ -1459,7 +1482,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
       : []),
   ];
   const draft: AzureCePlanDraft = {
-    schemaVersion: 1,
+    schemaVersion: AZURE_CE_SCHEMA_VERSION,
     intent,
     subscription: observation.subscription,
     deploymentName: intent.deploymentName,

@@ -2,6 +2,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256, safeHexEqual } from './canonical';
 import type { AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
+import { AZURE_CE_SCHEMA_VERSION } from './types';
 
 export interface SessionManagerLike {
   getSessionId(): string;
@@ -31,6 +32,8 @@ interface DiscoveryEnvelope {
 const memoryPlans = new Map<string, PlanEnvelope[]>();
 
 function verifyPlan(plan: AzureCePlan): void {
+  if (plan.schemaVersion !== AZURE_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
+    throw new Error('Persisted Azure CE plan uses an unsupported schema version');
   const { planId, planSha256, ...draft } = plan;
   const actual = canonicalSha256(draft);
   if (!safeHexEqual(actual, planSha256) || planId !== `azure-ce-${planSha256.slice(0, 24)}`) {
@@ -42,6 +45,8 @@ export async function saveDiscoveryArtifact(
   session: SessionManagerLike,
   observation: AzureCeObservation,
 ): Promise<string | undefined> {
+  if (observation.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
+    throw new Error('Azure CE discovery observation uses an unsupported schema version');
   return session.saveArtifact(
     JSON.stringify({ kind: 'azure-ce-discovery', observation } satisfies DiscoveryEnvelope),
     'azure-ce-discovery',
@@ -53,7 +58,7 @@ export async function loadDiscoveryArtifact(session: SessionManagerLike, id: str
   const path = await session.getArtifactPath(id);
   if (!path) throw new Error(`Discovery artifact ${id} was not found in this session`);
   const envelope = JSON.parse(await Bun.file(path).text()) as DiscoveryEnvelope;
-  if (envelope.kind !== 'azure-ce-discovery' || envelope.observation?.schemaVersion !== 1)
+  if (envelope.kind !== 'azure-ce-discovery' || envelope.observation?.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     throw new Error('Artifact is not an Azure CE discovery observation');
   return envelope.observation;
 }
@@ -136,6 +141,7 @@ export async function loadCheckpoint(
       };
       if (
         envelope.kind === 'azure-ce-checkpoint' &&
+        envelope.checkpoint.schemaVersion === AZURE_CE_SCHEMA_VERSION &&
         envelope.checkpoint.planId === planId &&
         envelope.checkpoint.planSha256 === planSha256
       )

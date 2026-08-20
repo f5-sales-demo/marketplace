@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CeV2Driver } from '../../src/ce/driver';
+import type { CeV2Driver, CeV2SiteConfig } from '../../src/ce/driver';
 import { createF5xcCeV2BootstrapTool } from '../../src/tools/f5xc-ce-v2-bootstrap';
+import { createF5xcCeV2CapabilitiesTool } from '../../src/tools/f5xc-ce-v2-capabilities';
 import { createF5xcCeV2SiteTool, createSitePlan } from '../../src/tools/f5xc-ce-v2-site';
 import { createF5xcCeV2StatusTool } from '../../src/tools/f5xc-ce-v2-status';
 import type { PlatformToolApi } from '../../src/types';
@@ -26,13 +27,22 @@ const pi: PlatformToolApi = { typebox: { Type } };
 
 function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
   return {
-    capabilities: async () => ({ version: 'v2', bootstrapApi: true, consoleFallback: false }),
+    capabilities: async () => ({
+      smsv2ContractVersion: 'v2',
+      supportedProviders: ['aws', 'azure'],
+      bootstrapDrivers: ['console'],
+      providerNetworkingProfiles: {
+        aws: ['direct-eni', 'nlb-ingress', 'tgw-static'],
+        azure: ['direct-nic', 'route-server-bgp'],
+      },
+      awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+    }),
     site: async (_action, request) => ({
       metadata: { name: request.siteName, namespace: request.namespace },
       spec: request.config ?? {},
       etag: '1',
     }),
-    checkoutBootstrap: async () => ({ token: 'fixture-secret-value', driver: 'api' }),
+    checkoutBootstrap: async () => ({ token: 'fixture-secret-value', driver: 'console' }),
     status: async () => ({
       siteState: 'ONLINE',
       nodes: [
@@ -50,6 +60,22 @@ function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
     ...overrides,
   };
 }
+
+const siteConfig = {
+  provider: 'aws' as const,
+  haMode: 'one-node' as const,
+  vrfs: [{ index: 0, name: 'default' }],
+  interfaces: [
+    {
+      index: 0,
+      role: 'slo' as const,
+      vrf: 'default',
+      addressing: { mode: 'dhcp' as const, addresses: [] },
+    },
+  ],
+  bgpPeers: [],
+  providerNetwork: { profile: 'direct-eni', metadata: { vpcId: 'vpc-example' } },
+};
 
 function ctx(hasUI = true) {
   return {
@@ -71,7 +97,7 @@ describe('f5xc_ce_v2_bootstrap', () => {
       undefined,
       ctx(),
     );
-    expect(result.isError).not.toBe(true);
+    expect(result.isError).not.toBe('unavailable');
     expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
     expect(result.details.reference).toMatch(/^f5xc-ce:\/\/session-a\//);
   });
@@ -84,7 +110,10 @@ describe('f5xc_ce_v2_bootstrap', () => {
       pi,
       () =>
         driver({
-          capabilities: async () => ({ version: 'v2', bootstrapApi: false, consoleFallback: true }),
+          capabilities: async () => ({
+            ...(await driver().capabilities()),
+            bootstrapDrivers: ['console'],
+          }),
           checkoutBootstrap: async () => {
             called = true;
             return { token: 'secret', driver: 'console' };
@@ -134,7 +163,7 @@ describe('f5xc_ce_v2_site', () => {
       action: 'create' as const,
       namespace: 'system',
       siteName: 'ce-demo',
-      config: { bgp: { localAsn: 65010 }, interfaces: [{ index: 0, role: 'slo' }] },
+      config: siteConfig,
     };
     expect(JSON.stringify(createSitePlan(request))).toBe(JSON.stringify(createSitePlan(request)));
     const tool = createF5xcCeV2SiteTool(pi, () => driver());
@@ -145,13 +174,32 @@ describe('f5xc_ce_v2_site', () => {
     expect(applied.isError).not.toBe(true);
   });
 
+  it('rejects untyped and non-symmetric provider configurations', () => {
+    expect(() =>
+      createSitePlan({
+        action: 'create',
+        namespace: 'system',
+        siteName: 'ce-demo',
+        config: { bgp: { localAsn: 65010 }, interfaces: [{ index: 4, role: 'slo' }] } as unknown as CeV2SiteConfig,
+      }),
+    ).toThrow(/provider-neutral/i);
+    expect(() =>
+      createSitePlan({
+        action: 'create',
+        namespace: 'system',
+        siteName: 'ce-demo',
+        config: { ...siteConfig, interfaces: [{ ...siteConfig.interfaces[0], index: 1 }] },
+      }),
+    ).toThrow(/ordered/i);
+  });
+
   it('rejects secret-bearing plans and redacts tenant response fields', async () => {
     expect(() =>
       createSitePlan({
         action: 'create',
         namespace: 'system',
         siteName: 'ce-demo',
-        config: { bootstrap_token: 'fixture-secret-value' },
+        config: { bootstrap_token: 'fixture-secret-value' } as unknown as CeV2SiteConfig,
       }),
     ).toThrow(/secret-free/);
     const tool = createF5xcCeV2SiteTool(pi, () =>
@@ -176,12 +224,31 @@ describe('f5xc_ce_v2_site', () => {
   });
 });
 
+describe('f5xc_ce_v2_capabilities', () => {
+  it('returns canonical non-secret capability evidence', async () => {
+    const tool = createF5xcCeV2CapabilitiesTool(pi, () => driver());
+    const result = await tool.execute('id', {}, undefined, undefined, ctx());
+    expect(result.isError).not.toBe(true);
+    expect(result.details.capabilities).toEqual({
+      smsv2ContractVersion: 'v2',
+      supportedProviders: ['aws', 'azure'],
+      bootstrapDrivers: ['console'],
+      providerNetworkingProfiles: {
+        aws: ['direct-eni', 'nlb-ingress', 'tgw-static'],
+        azure: ['direct-nic', 'route-server-bgp'],
+      },
+      awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
+  });
+});
+
 describe('f5xc_ce_v2_status', () => {
   it('returns only allowlisted non-secret evidence', async () => {
-    const tool = createF5xcCeV2StatusTool(pi, () => driver());
+    const tool = createF5xcCeV2StatusTool(pi);
     const result = await tool.execute('id', { namespace: 'system', siteName: 'ce-demo' }, undefined, undefined, ctx());
-    expect(result.isError).not.toBe(true);
-    expect(result.details.evidence?.bgp.established).toBe(true);
+    expect(result.isError).not.toBe('unavailable');
+    expect(result.details.capability).toBe('unavailable');
     expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
   });
 });

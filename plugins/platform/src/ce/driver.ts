@@ -1,15 +1,57 @@
 import { isAbsolute } from 'node:path';
+import { resolveSmsv2AwsReleaseContract } from './release-contract';
 
 export interface CeV2Capabilities {
-  version: 'v2';
-  bootstrapApi: boolean;
-  consoleFallback: boolean;
+  smsv2ContractVersion: 'v2';
+  supportedProviders: Array<'aws' | 'azure'>;
+  bootstrapDrivers: Array<'console'>;
+  providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
+  awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
+}
+
+export interface CeV2InterfaceAddressing {
+  mode: 'dhcp' | 'static';
+  addresses: string[];
+  gateway?: string;
+}
+
+export interface CeV2Interface {
+  index: number;
+  role: 'slo' | 'sli' | 'management' | 'service' | 'workload';
+  vrf: string;
+  addressing: CeV2InterfaceAddressing;
+}
+
+export interface CeV2Vrf {
+  index: number;
+  name: string;
+}
+
+export interface CeV2BgpPeer {
+  index: number;
+  vrf: string;
+  interfaceIndex: number;
+  peerAddress: string;
+  localAsn: number;
+  peerAsn: number;
+}
+
+export interface CeV2SiteConfig {
+  provider: 'aws' | 'azure';
+  haMode: 'one-node' | 'three-node';
+  interfaces: CeV2Interface[];
+  vrfs: CeV2Vrf[];
+  bgpPeers: CeV2BgpPeer[];
+  providerNetwork: {
+    profile: string;
+    metadata: Record<string, string | number | boolean | string[]>;
+  };
 }
 
 export interface CeV2SiteRequest {
   namespace: string;
   siteName: string;
-  config?: Record<string, unknown>;
+  config?: CeV2SiteConfig;
   expectedEtag?: string;
 }
 
@@ -19,12 +61,12 @@ export interface CeV2Driver {
   checkoutBootstrap(
     request: CeV2SiteRequest & { nodeName: string; expiresInSeconds: number },
     allowConsole: boolean,
-  ): Promise<{ token: string; driver: 'api' | 'console' }>;
+  ): Promise<{ token: string; driver: 'console' }>;
   status(request: CeV2SiteRequest): Promise<Record<string, unknown>>;
 }
 
-interface CapabilityDocument {
-  version: 'v2';
+interface CapabilityDocument extends CeV2Capabilities {
+  namespace: 'system';
   endpoints: {
     siteCollection: string;
     siteItem: string;
@@ -40,23 +82,21 @@ const LEGACY_CE_ROUTE = /(?:azure.?vnet|fleet|registration.?token|site.?token|sh
 export class HttpCeV2Driver implements CeV2Driver {
   readonly #base: URL;
   readonly #apiToken: string | undefined;
-  readonly #capabilityUrl: URL;
   readonly #consoleHelper: string | undefined;
+  readonly #resolveContract: typeof resolveSmsv2AwsReleaseContract;
   #document?: CapabilityDocument;
 
-  constructor(env: Record<string, string | undefined> = process.env) {
+  constructor(
+    env: Record<string, string | undefined> = process.env,
+    resolveContract: typeof resolveSmsv2AwsReleaseContract = resolveSmsv2AwsReleaseContract,
+  ) {
     if (!env.F5XC_API_URL) throw new Error('F5XC_API_URL is required');
     this.#base = new URL(env.F5XC_API_URL);
     if (this.#base.protocol !== 'https:' && this.#base.hostname !== 'localhost' && this.#base.hostname !== '127.0.0.1')
       throw new Error('F5XC_API_URL must use HTTPS');
     this.#apiToken = env.F5XC_API_TOKEN;
-    this.#capabilityUrl = new URL(
-      env.F5XC_CE_V2_CAPABILITIES_URL ?? '/api/web/capabilities/secure-mesh-site-v2',
-      this.#base,
-    );
-    if (this.#capabilityUrl.origin !== this.#base.origin)
-      throw new Error('CE v2 capability URL must use the tenant origin');
     this.#consoleHelper = env.XCSH_F5XC_CE_CONSOLE_HELPER;
+    this.#resolveContract = resolveContract;
   }
 
   async #request(url: URL, init: RequestInit = {}): Promise<Record<string, unknown>> {
@@ -72,13 +112,17 @@ export class HttpCeV2Driver implements CeV2Driver {
 
   async #capabilityDocument(): Promise<CapabilityDocument> {
     if (this.#document) return this.#document;
-    const raw = await this.#request(this.#capabilityUrl);
-    const endpoints = raw.endpoints as CapabilityDocument['endpoints'] | undefined;
-    if (raw.version !== 'v2' || !endpoints?.siteCollection || !endpoints.siteItem || !endpoints.status)
-      throw new Error('Tenant does not advertise the required Secure Mesh Site v2 capability contract');
-    for (const endpoint of Object.values(endpoints))
-      if (endpoint) this.#endpoint(endpoint, { namespace: 'system', site: 'capability-check' });
-    this.#document = { version: 'v2', endpoints, consoleFallback: Boolean(raw.consoleFallback) };
+    const release = await this.#resolveContract();
+    this.#document = {
+      smsv2ContractVersion: 'v2',
+      supportedProviders: ['aws'],
+      bootstrapDrivers: ['console'],
+      providerNetworkingProfiles: {},
+      awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+      namespace: release.namespace,
+      endpoints: { siteCollection: release.collectionPath, siteItem: release.itemPath, status: '' },
+      consoleFallback: true,
+    };
     return this.#document;
   }
 
@@ -87,7 +131,8 @@ export class HttpCeV2Driver implements CeV2Driver {
       throw new Error('Invalid namespace or site name');
     const path = template
       .replaceAll('{namespace}', encodeURIComponent(values.namespace))
-      .replaceAll('{site}', encodeURIComponent(values.site));
+      .replaceAll('{site}', encodeURIComponent(values.site))
+      .replaceAll('{name}', encodeURIComponent(values.site));
     const url = new URL(path, this.#base);
     if (url.origin !== this.#base.origin) throw new Error('CE v2 endpoint substitution changed tenant origin');
     if (LEGACY_CE_ROUTE.test(url.pathname))
@@ -98,9 +143,13 @@ export class HttpCeV2Driver implements CeV2Driver {
   async capabilities(): Promise<CeV2Capabilities> {
     const document = await this.#capabilityDocument();
     return {
-      version: 'v2',
-      bootstrapApi: Boolean(document.endpoints.bootstrapCheckout),
-      consoleFallback: Boolean(document.consoleFallback && this.#consoleHelper),
+      smsv2ContractVersion: document.smsv2ContractVersion,
+      supportedProviders: document.supportedProviders,
+      bootstrapDrivers: document.bootstrapDrivers.filter(
+        (driver) => driver !== 'console' || Boolean(document.consoleFallback && this.#consoleHelper),
+      ),
+      providerNetworkingProfiles: document.providerNetworkingProfiles,
+      awsSmsv2TgwConnect: document.awsSmsv2TgwConnect,
     };
   }
 
@@ -109,6 +158,8 @@ export class HttpCeV2Driver implements CeV2Driver {
     request: CeV2SiteRequest,
   ): Promise<Record<string, unknown>> {
     const document = await this.#capabilityDocument();
+    if (request.namespace !== document.namespace)
+      throw new Error('Verified SMSv2 AWS CE creation requires namespace system');
     const values = { namespace: request.namespace, site: request.siteName };
     const collection = this.#endpoint(document.endpoints.siteCollection, values);
     const item = this.#endpoint(document.endpoints.siteItem, values);
@@ -131,21 +182,9 @@ export class HttpCeV2Driver implements CeV2Driver {
   async checkoutBootstrap(
     request: CeV2SiteRequest & { nodeName: string; expiresInSeconds: number },
     allowConsole: boolean,
-  ): Promise<{ token: string; driver: 'api' | 'console' }> {
+  ): Promise<{ token: string; driver: 'console' }> {
     const document = await this.#capabilityDocument();
-    if (document.endpoints.bootstrapCheckout) {
-      const response = await this.#request(
-        this.#endpoint(document.endpoints.bootstrapCheckout, { namespace: request.namespace, site: request.siteName }),
-        {
-          method: 'POST',
-          body: JSON.stringify({ node_name: request.nodeName, expires_in_seconds: request.expiresInSeconds }),
-        },
-      );
-      const token = response.token ?? response.bootstrap_token;
-      if (typeof token !== 'string' || !token) throw new Error('CE v2 bootstrap API returned no one-use token');
-      return { token, driver: 'api' };
-    }
-    if (!allowConsole) throw new Error('Headless bootstrap checkout cannot use interactive console fallback');
+    if (!allowConsole) throw new Error('Headless bootstrap checkout is unavailable until F5 publishes a supported API');
     if (!document.consoleFallback || !this.#consoleHelper)
       throw new Error('Tenant has no supported CE v2 bootstrap checkout capability');
     if (!isAbsolute(this.#consoleHelper)) throw new Error('Console bootstrap helper path must be absolute');
@@ -174,10 +213,9 @@ export class HttpCeV2Driver implements CeV2Driver {
     return { token: parsed.token, driver: 'console' };
   }
 
-  async status(request: CeV2SiteRequest): Promise<Record<string, unknown>> {
-    const document = await this.#capabilityDocument();
-    return this.#request(
-      this.#endpoint(document.endpoints.status, { namespace: request.namespace, site: request.siteName }),
+  async status(_request: CeV2SiteRequest): Promise<Record<string, unknown>> {
+    throw new Error(
+      'Secure Mesh Site v2 runtime status is unavailable until the separate F5 telemetry contract is published',
     );
   }
 }

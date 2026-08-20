@@ -71,6 +71,9 @@ test_expected_files_exist() {
     "hooks/hooks.json"
     "skills/aws-index/SKILL.md"
     "skills/aws-auth/SKILL.md"
+    "skills/aws-ce/SKILL.md"
+    "skills/aws-ce/references/contracts.md"
+    "skills/aws-ce/agents/openai.yaml"
     "agents/cli-operator.md"
     "commands/aws-login.md"
     "commands/aws-status.md"
@@ -85,7 +88,7 @@ test_expected_files_exist() {
 
 # T1.4 — SKILL.md frontmatter has name and description
 test_skill_frontmatter() {
-  for skill_dir in aws-index aws-auth; do
+  for skill_dir in aws-index aws-auth aws-ce; do
     local skill="$PLUGIN_ROOT/skills/$skill_dir/SKILL.md"
     local name_line
     name_line=$(frontmatter_value "$skill" "name")

@@ -10,6 +10,7 @@ import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
 import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
+import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
 
 interface ApplyParams {
@@ -119,7 +120,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
   }
 
   const checkpoint: AzureCeCheckpoint = {
-    schemaVersion: 1,
+    schemaVersion: AZURE_CE_SCHEMA_VERSION,
     planId: plan.planId,
     planSha256: plan.planSha256,
     completedActionIds: [...completed],

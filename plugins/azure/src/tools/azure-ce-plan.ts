@@ -2,6 +2,7 @@ import type { PluginInterface } from '../az/types';
 import { loadDiscoveryArtifact, savePlanArtifact } from '../ce/artifacts';
 import { compileAzureCePlan } from '../ce/planner';
 import type { AzureCeIntent } from '../ce/types';
+import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 
 export function createAzureCePlanTool(pi: PluginInterface) {
   const { Type } = pi.typebox;
@@ -26,7 +27,7 @@ export function createAzureCePlanTool(pi: PluginInterface) {
     parameters: Type.Object({
       discoveryArtifactId: Type.String(),
       intent: Type.Object({
-        schemaVersion: Type.Number({ minimum: 1, maximum: 1 }),
+        schemaVersion: Type.Literal(AZURE_CE_SCHEMA_VERSION),
         operation: Type.Union(
           [
             'deploy',
