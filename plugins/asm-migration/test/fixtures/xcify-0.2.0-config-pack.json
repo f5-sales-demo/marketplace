@@ -9,31 +9,8 @@
       "spec": {
         "allowed_response_codes": {
           "response_code": [
-            100,
-            101,
-            102,
-            103,
-            200,
-            201,
-            202,
-            203,
-            204,
-            205,
-            206,
-            207,
-            208,
-            226,
-            300,
-            301,
-            302,
-            303,
-            304,
-            305,
-            306,
-            307,
-            308,
-            401,
-            404
+            100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306,
+            307, 308, 401, 404
           ]
         },
         "blocking": {},
@@ -83,9 +60,7 @@
                   ]
                 },
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "waf_action": {
                   "waf_skip_processing": {}
@@ -102,9 +77,7 @@
                 "any_client": {},
                 "any_ip": {},
                 "path": {
-                  "prefix_values": [
-                    "/private"
-                  ]
+                  "prefix_values": ["/private"]
                 }
               }
             },
@@ -118,9 +91,7 @@
                 "any_client": {},
                 "any_ip": {},
                 "path": {
-                  "prefix_values": [
-                    "/private"
-                  ]
+                  "prefix_values": ["/private"]
                 },
                 "waf_action": {
                   "app_firewall_detection_control": {
@@ -145,16 +116,10 @@
                 "any_ip": {},
                 "http_method": {
                   "invert_matcher": true,
-                  "methods": [
-                    "GET",
-                    "PATCH",
-                    "POST"
-                  ]
+                  "methods": ["GET", "PATCH", "POST"]
                 },
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 }
               }
             },
@@ -174,9 +139,7 @@
                   }
                 ],
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 }
               }
             },
@@ -190,16 +153,12 @@
                 "any_client": {},
                 "any_ip": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "query_params": [
                   {
                     "item": {
-                      "regex_values": [
-                        "^(?!(?:1\\d|2[0-5])$).+"
-                      ]
+                      "regex_values": ["^(?!(?:1\\d|2[0-5])$).+"]
                     },
                     "key": "quantity"
                   }
@@ -216,16 +175,12 @@
                 "any_client": {},
                 "any_ip": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "query_params": [
                   {
                     "item": {
-                      "regex_values": [
-                        "^.{3,}$"
-                      ]
+                      "regex_values": ["^.{3,}$"]
                     },
                     "key": "quantity"
                   }
@@ -242,13 +197,8 @@
                 "any_client": {},
                 "any_ip": {},
                 "path": {
-                  "suffix_values": [
-                    ".bak",
-                    ".exe"
-                  ],
-                  "transformers": [
-                    "LOWER_CASE"
-                  ]
+                  "suffix_values": [".bak", ".exe"],
+                  "transformers": ["LOWER_CASE"]
                 }
               }
             },
@@ -262,9 +212,7 @@
                 "any_client": {},
                 "any_ip": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "waf_action": {
                   "app_firewall_detection_control": {
