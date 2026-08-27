@@ -33,7 +33,7 @@ concurrency:
 jobs:
   release:
     name: Create plugin releases
-    runs-on: [self-hosted, Linux, X64, marketplace, ubuntu-24.04]
+    runs-on: managed-socketless
     permissions:
       contents: write # `gh release create` writes the release and its tag
     steps:
