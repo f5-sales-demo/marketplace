@@ -1,0 +1,288 @@
+{
+  "resources": [
+    {
+      "kind": "app_firewall",
+      "metadata": {
+        "name": "synthetic-policy-app-firewall",
+        "namespace": "example"
+      },
+      "spec": {
+        "allowed_response_codes": {
+          "response_code": [
+            100,
+            101,
+            102,
+            103,
+            200,
+            201,
+            202,
+            203,
+            204,
+            205,
+            206,
+            207,
+            208,
+            226,
+            300,
+            301,
+            302,
+            303,
+            304,
+            305,
+            306,
+            307,
+            308,
+            401,
+            404
+          ]
+        },
+        "blocking": {},
+        "blocking_page": {
+          "blocking_page": "string:///PGh0bWw+UmVxdWVzdCB7e3JlcXVlc3RfaWR9fTwvaHRtbD4=",
+          "response_code": "OK"
+        }
+      }
+    },
+    {
+      "kind": "ip_prefix_set",
+      "metadata": {
+        "name": "synthetic-policy-trusted-clients",
+        "namespace": "example"
+      },
+      "spec": {
+        "ipv4_prefixes": [
+          {
+            "ipv4_prefix": "192.0.2.10/32"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "service_policy",
+      "metadata": {
+        "name": "synthetic-policy-service-policy",
+        "namespace": "example"
+      },
+      "spec": {
+        "rule_list": {
+          "rules": [
+            {
+              "metadata": {
+                "name": "bypass-waf-for-trusted-clients"
+              },
+              "spec": {
+                "action": "NEXT_POLICY",
+                "any_asn": {},
+                "any_client": {},
+                "ip_matcher": {
+                  "prefix_sets": [
+                    {
+                      "name": "synthetic-policy-trusted-clients",
+                      "namespace": "example"
+                    }
+                  ]
+                },
+                "path": {
+                  "prefix_values": [
+                    "/"
+                  ]
+                },
+                "waf_action": {
+                  "waf_skip_processing": {}
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "deny-url-private"
+              },
+              "spec": {
+                "action": "DENY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "path": {
+                  "prefix_values": [
+                    "/private"
+                  ]
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "disable-signatures-url-private"
+              },
+              "spec": {
+                "action": "NEXT_POLICY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "path": {
+                  "prefix_values": [
+                    "/private"
+                  ]
+                },
+                "waf_action": {
+                  "app_firewall_detection_control": {
+                    "exclude_signature_contexts": [
+                      {
+                        "context": "CONTEXT_URL",
+                        "signature_id": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "deny-illegal-methods"
+              },
+              "spec": {
+                "action": "DENY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "http_method": {
+                  "invert_matcher": true,
+                  "methods": [
+                    "GET",
+                    "PATCH",
+                    "POST"
+                  ]
+                },
+                "path": {
+                  "prefix_values": [
+                    "/"
+                  ]
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "require-header-x-synthetic-token"
+              },
+              "spec": {
+                "action": "DENY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "headers": [
+                  {
+                    "check_not_present": {},
+                    "name": "x-synthetic-token"
+                  }
+                ],
+                "path": {
+                  "prefix_values": [
+                    "/"
+                  ]
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "parameter-range-quantity"
+              },
+              "spec": {
+                "action": "DENY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "path": {
+                  "prefix_values": [
+                    "/"
+                  ]
+                },
+                "query_params": [
+                  {
+                    "item": {
+                      "regex_values": [
+                        "^(?!(?:1\\d|2[0-5])$).+"
+                      ]
+                    },
+                    "key": "quantity"
+                  }
+                ]
+              }
+            },
+            {
+              "metadata": {
+                "name": "parameter-maximum-length-quantity"
+              },
+              "spec": {
+                "action": "DENY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "path": {
+                  "prefix_values": [
+                    "/"
+                  ]
+                },
+                "query_params": [
+                  {
+                    "item": {
+                      "regex_values": [
+                        "^.{3,}$"
+                      ]
+                    },
+                    "key": "quantity"
+                  }
+                ]
+              }
+            },
+            {
+              "metadata": {
+                "name": "deny-file-types"
+              },
+              "spec": {
+                "action": "DENY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "path": {
+                  "suffix_values": [
+                    ".bak",
+                    ".exe"
+                  ],
+                  "transformers": [
+                    "LOWER_CASE"
+                  ]
+                }
+              }
+            },
+            {
+              "metadata": {
+                "name": "signature-exclusion-parameter-quantity"
+              },
+              "spec": {
+                "action": "NEXT_POLICY",
+                "any_asn": {},
+                "any_client": {},
+                "any_ip": {},
+                "path": {
+                  "prefix_values": [
+                    "/"
+                  ]
+                },
+                "waf_action": {
+                  "app_firewall_detection_control": {
+                    "exclude_signature_contexts": [
+                      {
+                        "context": "CONTEXT_PARAMETER",
+                        "context_name": "quantity",
+                        "signature_id": 200900001
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "schema_version": "asm-migration.config-pack/v1"
+}

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policy>
+  <blocking>
+    <enforcement_mode>blocking</enforcement_mode>
+    <violation id="FILETYPE"><alarm>true</alarm><block>true</block></violation>
+    <violation id="HTTP_STATUS_IN_RESPONSE"><alarm>true</alarm><block>true</block></violation>
+    <violation id="METHOD"><alarm>true</alarm><block>true</block></violation>
+    <response_page cause="default">
+      <response_type>custom</response_type>
+      <response_html_code>&lt;html&gt;Request &lt;%TS.request.ID()%&gt;&lt;/html&gt;</response_html_code>
+    </response_page>
+  </blocking>
+  <allowed_response_code>404</allowed_response_code>
+  <allowed_response_code>401</allowed_response_code>
+  <methods>
+    <method name="GET" />
+    <method name="POST" />
+    <method name="UPDATE" />
+  </methods>
+  <urls>
+    <url name="/private*">
+      <is_allowed>false</is_allowed>
+      <check_attack_signatures>false</check_attack_signatures>
+    </url>
+    <url name="/health"><is_allowed>true</is_allowed></url>
+  </urls>
+  <headers>
+    <header name="X-Synthetic-Token">
+      <is_mandatory>true</is_mandatory>
+    </header>
+  </headers>
+  <parameters>
+    <parameter name="quantity" location="query">
+      <minimum_value>10</minimum_value>
+      <maximum_value>25</maximum_value>
+      <maximum_length>2</maximum_length>
+      <attack_signature>
+        <enabled>false</enabled>
+        <signature id="1001" />
+      </attack_signature>
+    </parameter>
+  </parameters>
+  <file_types>
+    <disallowed_file_types>
+      <file_type name="exe" />
+      <file_type name="bak" />
+    </disallowed_file_types>
+  </file_types>
+  <whitelist>
+    <ip_address>192.0.2.10</ip_address>
+    <subnet_mask>255.255.255.255</subnet_mask>
+  </whitelist>
+</policy>

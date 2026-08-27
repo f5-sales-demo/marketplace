@@ -1,0 +1,35 @@
+{
+  "name": "@f5-sales-demo/xcsh-asm-migration",
+  "version": "1.0.0",
+  "description": "Deterministic offline BIG-IP ASM to F5 Distributed Cloud migration for xcsh",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/runtime.ts --target=bun --format=esm --outfile=dist/runtime.js",
+    "check:bundle": "bun run scripts/check-bundle.ts",
+    "test": "bun test"
+  },
+  "xcsh": {
+    "name": "ASM Migration",
+    "version": "1.0.0",
+    "description": "Offline ASM policy migration and validation",
+    "extensions": [
+      "src/index.ts"
+    ],
+    "commands": [
+      "commands/validate.md",
+      "commands/convert.md"
+    ]
+  },
+  "peerDependencies": {
+    "@f5-sales-demo/xcsh": "^20.22.3"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "fast-xml-parser": "5.2.5",
+    "ipaddr.js": "2.2.0",
+    "@sinclair/typebox": "0.34.41",
+    "bun-types": "1.2.22"
+  },
+  "license": "Apache-2.0"
+}

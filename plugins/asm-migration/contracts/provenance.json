@@ -1,0 +1,26 @@
+{
+  "bundle_sha256": "6a65a55a83eaeca45e8ce0a77b88a682715e3a8e688700cf8d938ed06f7cb62a",
+  "commit": "3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e",
+  "generator": {
+    "name": "asm-migration contract import",
+    "version": "1"
+  },
+  "license": {
+    "attribution": "Copyright f5-sales-demo/api-specs-enriched contributors",
+    "spdx": "MIT"
+  },
+  "repository": "f5-sales-demo/api-specs-enriched",
+  "roots": {
+    "app_firewall": "app_firewallCreateRequest",
+    "ip_prefix_set": "ip_prefix_setCreateRequest",
+    "service_policy": "service_policyCreateRequest",
+    "service_policy_rule": "service_policy_ruleCreateRequest"
+  },
+  "schema_count": 76,
+  "source": {
+    "catalog_path": "release/api-catalog.json",
+    "catalog_sha256": "f283a8a60ce76a545c2b683a38c8dd85ce9e6f69e84e1359818308d908b93fce",
+    "openapi_path": "docs/specifications/api/openapi.json",
+    "source_spec_sha256": "820ef34f935b916f183021dc515b274d1b6dc4107cd96d54ca46522a475caae4"
+  }
+}

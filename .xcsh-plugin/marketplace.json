@@ -382,6 +382,22 @@
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
       "repository": "https://github.com/f5-sales-demo/marketplace"
+    },
+    {
+      "name": "asm-migration",
+      "description": "Deterministic offline BIG-IP ASM to F5 Distributed Cloud migration and contract validation",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/asm-migration",
+      "category": "security",
+      "keywords": ["asm", "waf", "migration", "f5xc", "xcsh-extension"],
+      "tags": ["asm", "waf", "security", "migration", "f5xc"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": false
     }
   ]
 }
