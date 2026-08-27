@@ -31,7 +31,7 @@ concurrency:
 jobs:
   validate:
     name: Validate plugin manifests
-    runs-on: [self-hosted, Linux, X64, marketplace, ubuntu-24.04]
+    runs-on: managed-socketless
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +51,7 @@ jobs:
 
   test:
     name: Run plugin test suites
-    runs-on: [self-hosted, Linux, X64, marketplace, ubuntu-24.04]
+    runs-on: managed-socketless
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -78,7 +78,7 @@ jobs:
     # Push only. On a pull request the version being bumped is legitimately untagged — the
     # tag is created at merge — so running this there would fail every release PR.
     if: github.event_name == 'push'
-    runs-on: [self-hosted, Linux, X64, marketplace, ubuntu-24.04]
+    runs-on: managed-socketless
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
