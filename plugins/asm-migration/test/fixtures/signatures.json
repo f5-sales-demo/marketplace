@@ -1,0 +1,10 @@
+{
+  "schema_version": "asm-migration.signatures/v1",
+  "signatures": [
+    {
+      "asm_id": 1001,
+      "name": "synthetic test signature",
+      "xc_id": 200900001
+    }
+  ]
+}

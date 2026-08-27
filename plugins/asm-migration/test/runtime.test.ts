@@ -1,0 +1,100 @@
+import { afterEach, describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { convertInput, MANAGED_OUTPUT_FILES, validateInput } from '../src/runtime';
+
+const roots: string[] = [];
+afterEach(() => {
+  while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+});
+const temporary = () => {
+  const path = mkdtempSync(join(tmpdir(), 'asm-migration-test-'));
+  roots.push(path);
+  return path;
+};
+const fixtures = resolve(import.meta.dir, 'fixtures');
+
+describe('runtime', () => {
+  test('validates without writing files and resolves relative paths', async () => {
+    const result = await validateInput({
+      inputPath: 'test/fixtures/minimal-policy.xml',
+      inputType: 'asm-policy',
+      cwd: resolve(import.meta.dir, '..'),
+    });
+    expect(result.valid).toBe(true);
+    expect(result.policy?.sourceName).toBe('minimal-policy');
+  });
+
+  test('writes exactly four deterministic files without sensitive metadata', async () => {
+    const root = temporary();
+    const request = {
+      policyPath: resolve(fixtures, 'minimal-policy.xml'),
+      signaturesPath: resolve(fixtures, 'signatures.json'),
+      namespace: 'example',
+      cwd: root,
+    };
+    await convertInput({ ...request, outputDirectory: 'first' });
+    await convertInput({ ...request, outputDirectory: 'second' });
+    expect(readdirSync(join(root, 'first')).sort()).toEqual([...MANAGED_OUTPUT_FILES].sort());
+    for (const name of MANAGED_OUTPUT_FILES)
+      expect(readFileSync(join(root, 'first', name))).toEqual(readFileSync(join(root, 'second', name)));
+    const all = MANAGED_OUTPUT_FILES.map((name) => readFileSync(join(root, 'first', name), 'utf8')).join('');
+    expect(all).not.toContain(root);
+    expect(all).not.toContain('timestamp');
+    expect(all).not.toContain('customer');
+    const hashes = Object.fromEntries(
+      MANAGED_OUTPUT_FILES.map((name) => [
+        name,
+        createHash('sha256')
+          .update(readFileSync(join(root, 'first', name)))
+          .digest('hex'),
+      ]),
+    );
+    expect(hashes).toEqual({
+      'config-pack.json': '5ad3487121a8d231cab4d640c4c1b8141f5b909577aac1d47a3996a6adc9ccd9',
+      'warnings.json': '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
+      'report.json': '88f359e4d87ca9d7584c4c6a43c8e4040ad0f1112249492f0127efeebec0b8ff',
+      'manifest.json': 'b859a6e78cc0873a56669c01a0483a5c08d139dc3790202bb060b6e4662e5cdc',
+    });
+  });
+
+  test('protects managed files and preserves unrelated files on overwrite', async () => {
+    const root = temporary();
+    const output = join(root, 'output');
+    const request = {
+      policyPath: resolve(fixtures, 'minimal-policy.xml'),
+      signaturesPath: resolve(fixtures, 'signatures.json'),
+      namespace: 'example',
+      outputDirectory: output,
+      cwd: root,
+    };
+    await convertInput(request);
+    writeFileSync(join(output, 'notes.txt'), 'preserve me');
+    await expect(convertInput(request)).rejects.toThrow('already exists');
+    await convertInput({ ...request, overwrite: true });
+    expect(readFileSync(join(output, 'notes.txt'), 'utf8')).toBe('preserve me');
+  });
+
+  test('rejects symlinked output directories and honors cancellation', async () => {
+    const root = temporary();
+    const real = join(root, 'real');
+    const link = join(root, 'link');
+    Bun.spawnSync(['mkdir', '-p', real]);
+    symlinkSync(real, link);
+    const request = {
+      policyPath: resolve(fixtures, 'minimal-policy.xml'),
+      signaturesPath: resolve(fixtures, 'signatures.json'),
+      namespace: 'example',
+      outputDirectory: link,
+      cwd: root,
+    };
+    await expect(convertInput(request)).rejects.toThrow('symlinked');
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      convertInput({ ...request, outputDirectory: join(root, 'other'), signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
