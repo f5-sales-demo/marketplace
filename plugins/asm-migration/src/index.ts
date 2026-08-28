@@ -17,7 +17,11 @@ interface ExtensionApi {
   registerTool(tool: unknown): void;
   on?(
     event: 'before_agent_start' | 'before_provider_request' | 'agent_end',
-    handler: (event: { prompt?: string; systemPrompt?: string; payload?: unknown }) =>
+    handler: (event: {
+      prompt?: string;
+      systemPrompt?: string;
+      payload?: unknown;
+    }) =>
       | { systemPrompt?: string; [key: string]: unknown }
       | undefined
       | Promise<{ systemPrompt?: string; [key: string]: unknown } | undefined>,
@@ -54,9 +58,7 @@ function countText(counts: Record<string, number>): string {
 }
 
 function warningText(warnings: ConversionWarning[]): string {
-  return warnings.length
-    ? warnings.map((warning) => `${warning.code}: ${warning.message}`).join('; ')
-    : 'none';
+  return warnings.length ? warnings.map((warning) => `${warning.code}: ${warning.message}`).join('; ') : 'none';
 }
 
 function errorResult(tool: string, error: unknown) {
@@ -65,8 +67,7 @@ function errorResult(tool: string, error: unknown) {
   const category = known && 'category' in error ? String(error.category) : 'io';
   let message = known ? error.message : 'The operation could not be completed.';
   if (category === 'output' && message.includes('symlinked'))
-    message +=
-      ' On macOS, use /private/tmp or another normal directory instead of /tmp, which is a symlink.';
+    message += ' On macOS, use /private/tmp or another normal directory instead of /tmp, which is a symlink.';
   return {
     content: [{ type: 'text' as const, text: `ASM migration failed (${category}): ${message}` }],
     isError: true,

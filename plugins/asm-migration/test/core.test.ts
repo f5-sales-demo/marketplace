@@ -239,7 +239,9 @@ describe('utilities and contract', () => {
     });
     expect(report.valid).toBe(false);
     expect(report.issues.some((issue) => issue.path === '$.schema_version')).toBe(true);
-    expect(report.issues.some((issue) => issue.resource_index === 0 && issue.message === 'unsupported resource kind')).toBe(true);
+    expect(
+      report.issues.some((issue) => issue.resource_index === 0 && issue.message === 'unsupported resource kind'),
+    ).toBe(true);
     expect(report.issues.some((issue) => issue.resource_index === 1 && issue.path !== '$')).toBe(true);
   });
 });
