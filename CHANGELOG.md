@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** v2.0.0 — adds a receipt-backed XC deployment lifecycle with deterministic planning, ownership and namespace guards, digest-bound apply/cleanup confirmations, TOCTOU checks, rollback, drift-aware verification, and idempotent cleanup. Credentials remain environment-only and conversion still emits exactly four files ([#1257](https://github.com/f5-sales-demo/marketplace/issues/1257)).
+
 - **`asm-migration`** v1.0.1 — hardens slash-command and natural-language
   routing so missing inputs are never guessed and native validation/conversion
   is the sole execution path. Native results now include policy mode,

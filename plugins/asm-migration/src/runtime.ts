@@ -132,7 +132,7 @@ export function renderDirectory(result: ConversionResult, output: string, overwr
     'report.json': result.report,
     'manifest.json': {
       schema_version: 'asm-migration.config-pack/v1',
-      tool: { name: 'asm-migration', version: '1.0.1' },
+      tool: { name: 'asm-migration', version: '2.0.0' },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count },
@@ -200,3 +200,6 @@ export { regexForRange } from './ranges';
 export type * from './types';
 export { MigrationError } from './types';
 export { contractIdentity, validateConfigPack };
+
+export { deploy } from './deployment';
+export type { DeployRequest, DeploymentAction, DeploymentReceipt } from './deployment';

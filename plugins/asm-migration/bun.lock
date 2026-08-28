@@ -13,7 +13,7 @@
         "ipaddr.js": "2.2.0",
       },
       "peerDependencies": {
-        "@f5-sales-demo/xcsh": "^20.22.3",
+        "@f5-sales-demo/xcsh": "^21.0.0",
       },
     },
   },

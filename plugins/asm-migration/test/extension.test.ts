@@ -16,7 +16,11 @@ test('registers both native tools and returns structured results', async () => {
       tools.push(tool as (typeof tools)[number]);
     },
   });
-  expect(tools.map((tool) => tool.name)).toEqual(['asm_migration_validate', 'asm_migration_convert']);
+  expect(tools.map((tool) => tool.name)).toEqual([
+    'asm_migration_validate',
+    'asm_migration_convert',
+    'asm_migration_deploy',
+  ]);
   const cwd = resolve(import.meta.dir, '..');
   const validate = await tools[0]!.execute(
     'one',
