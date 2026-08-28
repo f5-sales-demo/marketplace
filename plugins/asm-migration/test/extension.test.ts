@@ -149,3 +149,32 @@ test('returns stable macOS guidance for symlinked output', async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('replaces the system prompt only for ASM migration requests', async () => {
+  let beforeAgentStart:
+    | ((event: { prompt: string; systemPrompt: string }) => { systemPrompt?: string } | undefined)
+    | undefined;
+  await factory({
+    typebox: { Type },
+    setLabel() {},
+    registerTool() {},
+    on(event, handler) {
+      expect(event).toBe('before_agent_start');
+      beforeAgentStart = handler;
+    },
+  });
+  expect(beforeAgentStart).toBeDefined();
+  const routed = beforeAgentStart!({
+    prompt: 'Convert this ASM policy with asm-migration',
+    systemPrompt: 'general assistant',
+  });
+  expect(routed?.systemPrompt).toContain('dedicated ASM migration router');
+  expect(routed?.systemPrompt).toContain('call no tool');
+  expect(routed?.systemPrompt).toContain('Never call todo_write');
+  expect(
+    beforeAgentStart!({
+      prompt: 'Explain a TypeScript type',
+      systemPrompt: 'general assistant',
+    }),
+  ).toBeUndefined();
+});

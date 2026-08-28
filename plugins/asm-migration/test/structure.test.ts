@@ -42,6 +42,8 @@ test('commands and skill route through native tools', () => {
 test('extension runtime is bundled and offline', () => {
   const index = readFileSync(resolve(root, 'src/index.ts'), 'utf8');
   const runtime = readFileSync(resolve(root, 'dist/runtime.js'), 'utf8');
+  expect(index).toContain("pi.on?.('before_agent_start'");
+  expect(index).toContain('dedicated ASM migration router');
   expect(index).toContain('../dist/runtime.js');
   expect(runtime.length).toBeGreaterThan(100_000);
   for (const forbidden of ['fetch(', 'http.request', 'https.request', 'child_process', 'Bun.spawn('])

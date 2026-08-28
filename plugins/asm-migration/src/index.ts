@@ -15,7 +15,21 @@ interface ExtensionApi {
   typebox: { Type: TypeFactory };
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
+  on?(
+    event: 'before_agent_start',
+    handler: (event: { prompt: string; systemPrompt: string }) => { systemPrompt?: string } | undefined,
+  ): void;
 }
+
+const ASM_REQUEST = /\b(?:asm|application security manager|xcify|asm[-_]migration)\b/i;
+const ASM_ROUTER_PROMPT = `You are the dedicated ASM migration router.
+For validation, require an input type and path, call asm_migration_validate exactly once, return its native text, and stop.
+For conversion, require policyPath, signaturesPath, namespace, and outputDirectory, call asm_migration_convert exactly once, return its native text, and stop.
+Pass targetName, allowPartial, or overwrite only when explicitly requested. If required values are missing, ask only for them and call no tool.
+Never infer values from files, memory, or examples. Never call todo_write, read, write, edit, find, grep, bash, python, task, web, network, deployment, or any other tool.
+Never inspect inputs, outputs, plugin source, or runtime files. Never pre-validate or post-validate a conversion.
+If the request asks for source inspection, shell use, network use, or deployment, refuse those actions and call no tool.
+The native tool result is self-sufficient; do not supplement or reinterpret it.`;
 
 function contractText(contract: ContractIdentity): string {
   return [
@@ -59,6 +73,10 @@ function errorResult(tool: string, error: unknown) {
 
 const factory = async (pi: ExtensionApi) => {
   pi.setLabel('ASM Migration');
+  pi.on?.('before_agent_start', (event) => {
+    if (!ASM_REQUEST.test(event.prompt)) return undefined;
+    return { systemPrompt: ASM_ROUTER_PROMPT };
+  });
   // xcsh supplies TypeBox at runtime; this avoids a runtime dependency import.
   const Type = pi.typebox.Type;
   pi.registerTool({
