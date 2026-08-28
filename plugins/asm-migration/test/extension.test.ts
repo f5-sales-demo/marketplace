@@ -150,29 +150,42 @@ test('returns stable macOS guidance for symlinked output', async () => {
   }
 });
 
-test('replaces the system prompt only for ASM migration requests', async () => {
-  let beforeAgentStart:
-    | ((event: { prompt: string; systemPrompt: string }) => { systemPrompt?: string } | undefined)
-    | undefined;
+test('isolates ASM turns to native tools and restores the prior tool set', async () => {
+  const handlers = new Map<string, (event: { prompt?: string; systemPrompt?: string }) => unknown>();
+  const activeToolUpdates: string[][] = [];
   await factory({
     typebox: { Type },
     setLabel() {},
     registerTool() {},
+    getActiveTools() {
+      return ['read', 'todo_write', 'asm_migration_validate', 'asm_migration_convert'];
+    },
+    async setActiveTools(toolNames) {
+      activeToolUpdates.push(toolNames);
+    },
     on(event, handler) {
-      expect(event).toBe('before_agent_start');
-      beforeAgentStart = handler;
+      handlers.set(event, handler);
     },
   });
+  const beforeAgentStart = handlers.get('before_agent_start');
+  const agentEnd = handlers.get('agent_end');
   expect(beforeAgentStart).toBeDefined();
-  const routed = beforeAgentStart!({
+  expect(agentEnd).toBeDefined();
+  const routed = (await beforeAgentStart!({
     prompt: 'Convert this ASM policy with asm-migration',
     systemPrompt: 'general assistant',
-  });
+  })) as { systemPrompt?: string };
   expect(routed?.systemPrompt).toContain('dedicated ASM migration router');
   expect(routed?.systemPrompt).toContain('call no tool');
   expect(routed?.systemPrompt).toContain('Never call todo_write');
+  expect(activeToolUpdates).toEqual([['asm_migration_validate', 'asm_migration_convert']]);
+  await agentEnd!({});
+  expect(activeToolUpdates).toEqual([
+    ['asm_migration_validate', 'asm_migration_convert'],
+    ['read', 'todo_write', 'asm_migration_validate', 'asm_migration_convert'],
+  ]);
   expect(
-    beforeAgentStart!({
+    await beforeAgentStart!({
       prompt: 'Explain a TypeScript type',
       systemPrompt: 'general assistant',
     }),
