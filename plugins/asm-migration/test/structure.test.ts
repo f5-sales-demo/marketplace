@@ -43,6 +43,7 @@ test('extension runtime is bundled and offline', () => {
   const index = readFileSync(resolve(root, 'src/index.ts'), 'utf8');
   const runtime = readFileSync(resolve(root, 'dist/runtime.js'), 'utf8');
   expect(index).toContain("pi.on?.('before_agent_start'");
+  expect(index).toContain("pi.on?.('agent_end'");
   expect(index).toContain("pi.on?.('before_provider_request'");
   expect(index).toContain('dedicated ASM migration router');
   expect(index).toContain('../dist/runtime.js');

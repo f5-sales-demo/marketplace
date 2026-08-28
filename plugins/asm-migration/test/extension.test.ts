@@ -161,7 +161,9 @@ test('isolates ASM provider requests to native tools without session-global stat
     },
   });
   const beforeAgentStart = handlers.get('before_agent_start');
+  const agentEnd = handlers.get('agent_end');
   expect(beforeAgentStart).toBeDefined();
+  expect(agentEnd).toBeDefined();
   const routed = (await beforeAgentStart!({
     prompt: 'Convert this ASM policy with asm-migration',
     systemPrompt: 'general assistant',
@@ -174,7 +176,6 @@ test('isolates ASM provider requests to native tools without session-global stat
   expect(
     await beforeProviderRequest!({
       payload: {
-        messages: [{ role: 'developer', content: routed?.systemPrompt }],
         tools: [
           { type: 'function', function: { name: 'todo_write' } },
           { type: 'function', function: { name: 'read' } },
@@ -185,13 +186,13 @@ test('isolates ASM provider requests to native tools without session-global stat
       },
     }),
   ).toEqual({
-    messages: [{ role: 'developer', content: routed?.systemPrompt }],
     tools: [
       { type: 'function', function: { name: 'asm_migration_validate' } },
       { type: 'function', function: { name: 'asm_migration_convert' } },
     ],
     tool_choice: 'auto',
   });
+  await agentEnd!({});
   expect(
     await beforeProviderRequest!({
       payload: {
@@ -205,6 +206,14 @@ test('isolates ASM provider requests to native tools without session-global stat
     await beforeAgentStart!({
       prompt: 'Explain a TypeScript type',
       systemPrompt: 'general assistant',
+    }),
+  ).toBeUndefined();
+  expect(
+    await beforeProviderRequest!({
+      payload: {
+        tools: [{ type: 'function', function: { name: 'read' } }],
+        tool_choice: { type: 'function', function: { name: 'read' } },
+      },
     }),
   ).toBeUndefined();
 });

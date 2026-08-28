@@ -16,7 +16,7 @@ interface ExtensionApi {
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
   on?(
-    event: 'before_agent_start' | 'before_provider_request',
+    event: 'before_agent_start' | 'before_provider_request' | 'agent_end',
     handler: (event: { prompt?: string; systemPrompt?: string; payload?: unknown }) =>
       | { systemPrompt?: string; [key: string]: unknown }
       | undefined
@@ -76,24 +76,21 @@ function errorResult(tool: string, error: unknown) {
 
 const factory = async (pi: ExtensionApi) => {
   pi.setLabel('ASM Migration');
+  // Extension factories are session-scoped, and xcsh serializes turns within a session.
+  let asmTurnActive = false;
   pi.on?.('before_agent_start', async (event) => {
-    if (!event.prompt || !ASM_REQUEST.test(event.prompt)) return undefined;
+    asmTurnActive = Boolean(event.prompt && ASM_REQUEST.test(event.prompt));
+    if (!asmTurnActive) return undefined;
     return { systemPrompt: ASM_ROUTER_PROMPT };
   });
+  pi.on?.('agent_end', () => {
+    asmTurnActive = false;
+    return undefined;
+  });
   pi.on?.('before_provider_request', (event) => {
-    if (!event.payload || typeof event.payload !== 'object') return undefined;
+    if (!asmTurnActive || !event.payload || typeof event.payload !== 'object') return undefined;
     const payload = event.payload as Record<string, unknown>;
-    const messages = Array.isArray(payload.messages) ? payload.messages : [];
-    const isAsmRequest = messages.some(
-      (message) =>
-        typeof message === 'object' &&
-        message !== null &&
-        'role' in message &&
-        (message.role === 'system' || message.role === 'developer') &&
-        'content' in message &&
-        message.content === ASM_ROUTER_PROMPT,
-    );
-    if (!isAsmRequest || !Array.isArray(payload.tools)) return undefined;
+    if (!Array.isArray(payload.tools)) return undefined;
     const allowedNames = new Set(['asm_migration_validate', 'asm_migration_convert']);
     const tools = payload.tools.filter((tool) => {
       if (!tool || typeof tool !== 'object') return false;
