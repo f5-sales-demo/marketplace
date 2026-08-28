@@ -194,12 +194,11 @@ export async function convertInput(request: ConvertRequest): Promise<ConvertResp
 }
 
 export { convert, mergeConfigPacks } from './converter';
+export type { DeploymentAction, DeploymentReceipt, DeployRequest } from './deployment';
+export { deploy } from './deployment';
 export { dnsLabel, uniqueRuleNames } from './naming';
 export { parseAsmXml, parseSignatureDatabase } from './parser';
 export { regexForRange } from './ranges';
 export type * from './types';
 export { MigrationError } from './types';
 export { contractIdentity, validateConfigPack };
-
-export { deploy } from './deployment';
-export type { DeployRequest, DeploymentAction, DeploymentReceipt } from './deployment';

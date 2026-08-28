@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
 type Scenario = { id: string; intent: string; expectedTool: string | null };
 const root = resolve(import.meta.dir, '..');
 const spec = JSON.parse(readFileSync(resolve(root, 'uat/scenarios.json'), 'utf8')) as {

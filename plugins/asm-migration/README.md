@@ -20,7 +20,11 @@ check because development dependencies are intentionally absent there.
 - `/asm-migration:convert` collects the required paths and namespace, then calls the native conversion tool.
 - `/asm-migration:deploy` plans, applies, verifies, or cleans up a receipt-backed deployment. `plan` validates all four artifacts; `apply` and `cleanup` require digest-bound confirmations.
 
-Conversion writes exactly `config-pack.json`, `warnings.json`, `report.json`, and `manifest.json`. Existing managed files are protected unless `overwrite` is explicitly enabled. Partial output is marked incomplete and cannot be deployed. Deployment requires `XCSH_API_URL`, `XCSH_API_TOKEN`, `XCSH_USERNAME`, and `XCSH_NAMESPACE`; never pass credentials in prompts or tool arguments. Receipts must be outside the conversion directory and are written atomically with mode 0600.
+Conversion writes exactly `config-pack.json`, `warnings.json`, `report.json`, and `manifest.json`.
+Existing managed files are protected unless `overwrite` is explicitly enabled. Partial output is marked
+incomplete and cannot be deployed. Deployment requires `XCSH_API_URL`, `XCSH_API_TOKEN`,
+`XCSH_USERNAME`, and `XCSH_NAMESPACE`; never pass credentials in prompts or tool arguments.
+Receipts must be outside the conversion directory and are written atomically with mode 0600.
 
 The signature mapping must use schema version `asm-migration.signatures/v1`. Generated packs use `asm-migration.config-pack/v1`.
 

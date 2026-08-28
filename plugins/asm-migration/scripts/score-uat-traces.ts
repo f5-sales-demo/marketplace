@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+
 const file = process.argv[2];
 if (!file) throw new Error('usage: score-uat-traces.ts <jsonl>');
 const secret = process.env.XCSH_API_TOKEN;
