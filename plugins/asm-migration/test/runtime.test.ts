@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { convertInput, MANAGED_OUTPUT_FILES, validateInput } from '../src/runtime';
+import { convertInput, MANAGED_OUTPUT_FILES, resolveOutputDirectory, validateInput } from '../src/runtime';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -25,6 +25,12 @@ describe('runtime', () => {
     });
     expect(result.valid).toBe(true);
     expect(result.policy?.sourceName).toBe('minimal-policy');
+  });
+
+  test('normalizes xcsh macOS /tmp aliases only for relative output paths', () => {
+    expect(resolveOutputDirectory('/tmp/asm-uat', 'output', 'darwin')).toBe('/private/tmp/asm-uat/output');
+    expect(resolveOutputDirectory('/tmp/asm-uat', '/tmp/output', 'darwin')).toBe('/tmp/output');
+    expect(resolveOutputDirectory('/tmp/asm-uat', 'output', 'linux')).toBe('/tmp/asm-uat/output');
   });
 
   test('writes exactly four deterministic files without sensitive metadata', async () => {
@@ -56,7 +62,7 @@ describe('runtime', () => {
       'config-pack.json': '5ad3487121a8d231cab4d640c4c1b8141f5b909577aac1d47a3996a6adc9ccd9',
       'warnings.json': '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
       'report.json': '88f359e4d87ca9d7584c4c6a43c8e4040ad0f1112249492f0127efeebec0b8ff',
-      'manifest.json': 'b859a6e78cc0873a56669c01a0483a5c08d139dc3790202bb060b6e4662e5cdc',
+      'manifest.json': '5f03ee1b6f1c856530d2b54050b612508c95386e26458e5fc735cac75d9f584b',
     });
   });
 
@@ -96,5 +102,24 @@ describe('runtime', () => {
     await expect(
       convertInput({ ...request, outputDirectory: join(root, 'other'), signal: controller.signal }),
     ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  test('runs the installed bundle without development dependencies', () => {
+    const root = temporary();
+    copyFileSync(resolve(import.meta.dir, '../dist/runtime.js'), join(root, 'runtime.js'));
+    copyFileSync(resolve(fixtures, 'minimal-policy.xml'), join(root, 'policy.xml'));
+    const script = [
+      "import { validateInput } from './runtime.js';",
+      "const result = await validateInput({ inputPath: 'policy.xml', inputType: 'asm-policy', cwd: '.' });",
+      "if (!result.valid || result.policy?.enforcementMode !== 'blocking') process.exit(1);",
+    ].join('');
+    const result = Bun.spawnSync(['bun', '--eval', script], {
+      cwd: root,
+      env: { PATH: process.env.PATH ?? '' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(new TextDecoder().decode(result.stderr)).toBe('');
+    expect(result.exitCode).toBe(0);
   });
 });

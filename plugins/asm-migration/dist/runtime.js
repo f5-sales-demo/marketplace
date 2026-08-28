@@ -15196,19 +15196,29 @@ function isResource(value) {
 }
 function validateConfigPack(raw) {
   const identity = contractIdentity();
-  if (!raw || typeof raw !== "object" || raw.schema_version !== "asm-migration.config-pack/v1" || !Array.isArray(raw.resources)) {
+  if (!raw || typeof raw !== "object") {
     return {
       valid: false,
       contract: identity,
       resource_count: 0,
       validated_resource_count: 0,
-      issues: [
-        { path: "$", message: "config pack must use asm-migration.config-pack/v1 and contain a resources array" }
-      ]
+      issues: [{ path: "$", message: "config pack must be a JSON object" }]
+    };
+  }
+  const issues = [];
+  if (raw.schema_version !== "asm-migration.config-pack/v1")
+    issues.push({ path: "$.schema_version", message: "must equal asm-migration.config-pack/v1" });
+  if (!Array.isArray(raw.resources)) {
+    issues.push({ path: "$.resources", message: "must be an array" });
+    return {
+      valid: false,
+      contract: identity,
+      resource_count: 0,
+      validated_resource_count: 0,
+      issues
     };
   }
   const resources = raw.resources;
-  const issues = [];
   let validated = 0;
   const ajv = new import__2020.default({ strict: false, allErrors: true, validateFormats: true });
   import_ajv_formats.default(ajv);
@@ -17552,6 +17562,12 @@ function abort(signal) {
 function absolute(cwd, value) {
   return isAbsolute(value) ? resolve(value) : resolve(cwd, value);
 }
+function resolveOutputDirectory(cwd, value, platform = process.platform) {
+  if (platform === "darwin" && !isAbsolute(value) && (cwd === "/tmp" || cwd.startsWith("/tmp/"))) {
+    return resolve(`/private${cwd}`, value);
+  }
+  return absolute(cwd, value);
+}
 async function read(path, limit) {
   try {
     const file = Bun.file(path);
@@ -17644,7 +17660,7 @@ function renderDirectory(result, output, overwrite) {
     "report.json": result.report,
     "manifest.json": {
       schema_version: "asm-migration.config-pack/v1",
-      tool: { name: "asm-migration", version: "1.0.0" },
+      tool: { name: "asm-migration", version: "1.0.1" },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count }
@@ -17675,7 +17691,7 @@ async function convertInput(request) {
   abort(request.signal);
   const policyPath = absolute(request.cwd, request.policyPath);
   const signaturesPath = absolute(request.cwd, request.signaturesPath);
-  const outputDirectory = absolute(request.cwd, request.outputDirectory);
+  const outputDirectory = resolveOutputDirectory(request.cwd, request.outputDirectory);
   const policyPayload = await read(policyPath, MAX_XML_BYTES);
   abort(request.signal);
   const signaturePayload = await read(signaturesPath);
@@ -17707,6 +17723,7 @@ export {
   validateInput,
   validateConfigPack,
   uniqueRuleNames,
+  resolveOutputDirectory,
   renderDirectory,
   regexForRange,
   parseSignatureDatabase,

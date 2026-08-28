@@ -27,6 +27,12 @@ function abort(signal?: AbortSignal): void {
 function absolute(cwd: string, value: string): string {
   return isAbsolute(value) ? resolve(value) : resolve(cwd, value);
 }
+export function resolveOutputDirectory(cwd: string, value: string, platform = process.platform): string {
+  if (platform === 'darwin' && !isAbsolute(value) && (cwd === '/tmp' || cwd.startsWith('/tmp/'))) {
+    return resolve(`/private${cwd}`, value);
+  }
+  return absolute(cwd, value);
+}
 
 async function read(path: string, limit?: number): Promise<Uint8Array> {
   try {
@@ -126,7 +132,7 @@ export function renderDirectory(result: ConversionResult, output: string, overwr
     'report.json': result.report,
     'manifest.json': {
       schema_version: 'asm-migration.config-pack/v1',
-      tool: { name: 'asm-migration', version: '1.0.0' },
+      tool: { name: 'asm-migration', version: '1.0.1' },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count },
@@ -158,7 +164,7 @@ export async function convertInput(request: ConvertRequest): Promise<ConvertResp
   abort(request.signal);
   const policyPath = absolute(request.cwd, request.policyPath);
   const signaturesPath = absolute(request.cwd, request.signaturesPath);
-  const outputDirectory = absolute(request.cwd, request.outputDirectory);
+  const outputDirectory = resolveOutputDirectory(request.cwd, request.outputDirectory);
   const policyPayload = await read(policyPath, MAX_XML_BYTES);
   abort(request.signal);
   const signaturePayload = await read(signaturesPath);

@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** v1.0.1 — hardens slash-command and natural-language
+  routing so missing inputs are never guessed and native validation/conversion
+  is the sole execution path. Native results now include policy mode,
+  unsupported features, contract identity, resource counts, filenames,
+  warnings, and deployment-review guidance, with stable macOS symlink advice
+  ([#1255](https://github.com/f5-sales-demo/marketplace/issues/1255)).
+
 - **`cloudstatus`** v1.5.2 — adds an xcsh JSONL prompt-trace acceptance matrix
   for Regional Edge routing. It verifies one registry collector, visual-only
   single-map rendering, factual non-rendering, ordering, and prohibited-tool

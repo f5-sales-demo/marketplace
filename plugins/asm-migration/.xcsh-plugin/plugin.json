@@ -1,7 +1,7 @@
 {
   "name": "asm-migration",
   "description": "Deterministic offline BIG-IP ASM to F5 Distributed Cloud conversion and validation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
