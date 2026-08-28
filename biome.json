@@ -28,7 +28,6 @@
     {
       "includes": [
         "dist/**",
-        "plugins/asm-migration/dist/**",
         "build/**",
         "release/**",
         "vendor/**",
@@ -36,9 +35,6 @@
         ".github/config/managed-files-manifest.json",
         "**/*.svg"
       ],
-      "assist": {
-        "enabled": false
-      },
       "formatter": {
         "enabled": false
       },
