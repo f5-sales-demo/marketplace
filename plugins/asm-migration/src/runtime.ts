@@ -27,6 +27,12 @@ function abort(signal?: AbortSignal): void {
 function absolute(cwd: string, value: string): string {
   return isAbsolute(value) ? resolve(value) : resolve(cwd, value);
 }
+export function resolveOutputDirectory(cwd: string, value: string, platform = process.platform): string {
+  if (platform === 'darwin' && !isAbsolute(value) && (cwd === '/tmp' || cwd.startsWith('/tmp/'))) {
+    return resolve(`/private${cwd}`, value);
+  }
+  return absolute(cwd, value);
+}
 
 async function read(path: string, limit?: number): Promise<Uint8Array> {
   try {
@@ -158,7 +164,7 @@ export async function convertInput(request: ConvertRequest): Promise<ConvertResp
   abort(request.signal);
   const policyPath = absolute(request.cwd, request.policyPath);
   const signaturesPath = absolute(request.cwd, request.signaturesPath);
-  const outputDirectory = absolute(request.cwd, request.outputDirectory);
+  const outputDirectory = resolveOutputDirectory(request.cwd, request.outputDirectory);
   const policyPayload = await read(policyPath, MAX_XML_BYTES);
   abort(request.signal);
   const signaturePayload = await read(signaturesPath);

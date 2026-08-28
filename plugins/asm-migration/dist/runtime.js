@@ -17562,6 +17562,12 @@ function abort(signal) {
 function absolute(cwd, value) {
   return isAbsolute(value) ? resolve(value) : resolve(cwd, value);
 }
+function resolveOutputDirectory(cwd, value, platform = process.platform) {
+  if (platform === "darwin" && !isAbsolute(value) && (cwd === "/tmp" || cwd.startsWith("/tmp/"))) {
+    return resolve(`/private${cwd}`, value);
+  }
+  return absolute(cwd, value);
+}
 async function read(path, limit) {
   try {
     const file = Bun.file(path);
@@ -17685,7 +17691,7 @@ async function convertInput(request) {
   abort(request.signal);
   const policyPath = absolute(request.cwd, request.policyPath);
   const signaturesPath = absolute(request.cwd, request.signaturesPath);
-  const outputDirectory = absolute(request.cwd, request.outputDirectory);
+  const outputDirectory = resolveOutputDirectory(request.cwd, request.outputDirectory);
   const policyPayload = await read(policyPath, MAX_XML_BYTES);
   abort(request.signal);
   const signaturePayload = await read(signaturesPath);
@@ -17717,6 +17723,7 @@ export {
   validateInput,
   validateConfigPack,
   uniqueRuleNames,
+  resolveOutputDirectory,
   renderDirectory,
   regexForRange,
   parseSignatureDatabase,

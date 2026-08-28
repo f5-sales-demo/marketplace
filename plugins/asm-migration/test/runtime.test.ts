@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { convertInput, MANAGED_OUTPUT_FILES, validateInput } from '../src/runtime';
+import { convertInput, MANAGED_OUTPUT_FILES, resolveOutputDirectory, validateInput } from '../src/runtime';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -25,6 +25,12 @@ describe('runtime', () => {
     });
     expect(result.valid).toBe(true);
     expect(result.policy?.sourceName).toBe('minimal-policy');
+  });
+
+  test('normalizes xcsh macOS /tmp aliases only for relative output paths', () => {
+    expect(resolveOutputDirectory('/tmp/asm-uat', 'output', 'darwin')).toBe('/private/tmp/asm-uat/output');
+    expect(resolveOutputDirectory('/tmp/asm-uat', '/tmp/output', 'darwin')).toBe('/tmp/output');
+    expect(resolveOutputDirectory('/tmp/asm-uat', 'output', 'linux')).toBe('/tmp/asm-uat/output');
   });
 
   test('writes exactly four deterministic files without sensitive metadata', async () => {
