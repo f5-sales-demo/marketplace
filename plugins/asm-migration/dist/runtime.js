@@ -8421,19 +8421,19 @@ var require_ipaddr = __commonJS((exports, module) => {
 });
 
 // src/runtime.ts
-import { createHash as createHash2, randomBytes } from "crypto";
+import { createHash as createHash3, randomBytes as randomBytes2 } from "crypto";
 import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  lstatSync,
+  closeSync as closeSync2,
+  existsSync as existsSync2,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync2,
   mkdirSync,
-  openSync,
-  renameSync,
-  rmSync,
-  writeFileSync
+  openSync as openSync2,
+  renameSync as renameSync2,
+  rmSync as rmSync2,
+  writeFileSync as writeFileSync2
 } from "fs";
-import { isAbsolute, parse, resolve } from "path";
+import { isAbsolute, parse as parse2, resolve as resolve2 } from "path";
 
 // src/contract.ts
 var import__2020 = __toESM(require_2020(), 1);
@@ -17551,20 +17551,454 @@ function parseSignatureDatabase(payload) {
   });
   return { schema_version: "asm-migration.signatures/v1", signatures };
 }
+// src/deployment.ts
+import { createHash as createHash2, randomBytes } from "crypto";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from "fs";
+import { dirname, parse, relative, resolve, sep } from "path";
+var MANAGED_OUTPUT_FILES = ["config-pack.json", "warnings.json", "report.json", "manifest.json"];
+var ORDER = ["ip_prefix_set", "app_firewall", "service_policy_rule", "service_policy"];
+var COLLECTIONS = {
+  ip_prefix_set: "ip_prefix_sets",
+  app_firewall: "app_firewalls",
+  service_policy_rule: "service_policy_rules",
+  service_policy: "service_policys"
+};
+var TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504]);
+function abort(signal) {
+  if (signal?.aborted)
+    throw new DOMException("The operation was aborted.", "AbortError");
+}
+function hash(bytes) {
+  return createHash2("sha256").update(bytes).digest("hex");
+}
+function stable(value) {
+  if (Array.isArray(value))
+    return value.map(stable);
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, stable(child)]));
+  return value;
+}
+function canonical(value) {
+  return JSON.stringify(stable(value));
+}
+function receiptBytes(value) {
+  return new TextEncoder().encode(`${JSON.stringify(stable(value), null, 2)}
+`);
+}
+function env() {
+  const rawUrl = process.env.XCSH_API_URL;
+  const token = process.env.XCSH_API_TOKEN;
+  const username = process.env.XCSH_USERNAME;
+  const namespace = process.env.XCSH_NAMESPACE;
+  if (!rawUrl || !token || !username || !namespace)
+    throw new MigrationError("authentication", "XCSH_API_URL, XCSH_API_TOKEN, XCSH_USERNAME, and XCSH_NAMESPACE are required");
+  let apiUrl;
+  try {
+    apiUrl = new URL(rawUrl);
+  } catch {
+    throw new MigrationError("authentication", "XCSH_API_URL is invalid");
+  }
+  if (apiUrl.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(apiUrl.hostname))
+    throw new MigrationError("authentication", "XCSH_API_URL must use HTTPS except for a loopback test server");
+  apiUrl.pathname = apiUrl.pathname.replace(/\/$/, "");
+  return { apiUrl, token, username, namespace };
+}
+function resourcePath(environment, collection, name2) {
+  const base = environment.apiUrl;
+  const suffix = `/api/config/namespaces/${encodeURIComponent(environment.namespace)}/${collection}${name2 ? `/${encodeURIComponent(name2)}` : ""}`;
+  const url = new URL(`${base.pathname.replace(/\/$/, "")}${suffix}`, base.origin);
+  if (url.origin !== base.origin)
+    throw new MigrationError("deployment", "refusing an API origin change");
+  return url;
+}
+function safeResource(raw, fallback) {
+  if (!raw || typeof raw !== "object")
+    throw new MigrationError("transport", "XC returned an invalid resource");
+  const value = raw;
+  const metadata = value.metadata;
+  const spec = value.spec;
+  if (!metadata || !spec || typeof spec !== "object")
+    throw new MigrationError("transport", "XC returned an invalid resource");
+  return {
+    kind: fallback.kind,
+    metadata: {
+      name: String(metadata.name ?? fallback.metadata.name),
+      namespace: String(metadata.namespace ?? fallback.metadata.namespace),
+      ...typeof metadata.description === "string" ? { description: metadata.description } : {},
+      ...metadata.labels && typeof metadata.labels === "object" ? { labels: metadata.labels } : {},
+      ...typeof metadata.disable === "boolean" ? { disable: metadata.disable } : {}
+    },
+    spec
+  };
+}
+function creator(raw) {
+  if (!raw || typeof raw !== "object")
+    return;
+  const meta = raw.system_metadata;
+  return meta && typeof meta === "object" ? String(meta.creator_id ?? "") || undefined : undefined;
+}
+function subset(expected, actual) {
+  if (Array.isArray(expected))
+    return Array.isArray(actual) && expected.length === actual.length && expected.every((item, i) => subset(item, actual[i]));
+  if (expected && typeof expected === "object") {
+    if (!actual || typeof actual !== "object")
+      return false;
+    return Object.entries(expected).every(([key, value]) => subset(value, actual[key]));
+  }
+  return Object.is(expected, actual);
+}
+function receiptFile(path, cwd) {
+  const target = resolve(cwd, path);
+  const root = parse(target).root;
+  let cursor = root;
+  for (const part of target.slice(root.length).split(sep).filter(Boolean)) {
+    cursor = resolve(cursor, part);
+    if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink())
+      throw new MigrationError("receipt", "receipt path must not contain symlinked components");
+  }
+  const parent = dirname(target);
+  if (!existsSync(parent) || !lstatSync(parent).isDirectory())
+    throw new MigrationError("receipt", "receipt parent must exist and be a directory");
+  if (existsSync(target) && !lstatSync(target).isFile())
+    throw new MigrationError("receipt", "receipt path must be a regular file");
+  return target;
+}
+function writeReceipt(path, receipt) {
+  const temporary = `${path}.${randomBytes(12).toString("hex")}.tmp`;
+  try {
+    writeFileSync(temporary, receiptBytes(receipt), { mode: 384, flag: "wx" });
+    const file = openSync(temporary, "r");
+    try {
+      fsyncSync(file);
+    } finally {
+      closeSync(file);
+    }
+    renameSync(temporary, path);
+    const directory = openSync(dirname(path), "r");
+    try {
+      fsyncSync(directory);
+    } finally {
+      closeSync(directory);
+    }
+  } catch (error) {
+    try {
+      rmSync(temporary);
+    } catch {}
+    throw error;
+  }
+}
+function readReceipt(path) {
+  const receipt = JSON.parse(readFileSync(path, "utf8"));
+  if (receipt.schema_version !== "asm-migration.deployment-receipt/v1")
+    throw new MigrationError("receipt", "unsupported receipt schema");
+  const digest = planDigest(receipt.artifact_hashes, receipt.contract, receipt.namespace, receipt.resources);
+  if (digest !== receipt.plan_digest)
+    throw new MigrationError("receipt", "receipt plan digest is invalid");
+  return receipt;
+}
+function planDigest(hashes, contract, namespace, resources) {
+  return hash(canonical({ artifact_hashes: hashes, contract, namespace, resources }));
+}
+async function request(environment, method, url, body, signal) {
+  const attempts = method === "GET" ? 3 : 1;
+  let last;
+  for (let attempt = 0;attempt < attempts; attempt += 1) {
+    abort(signal);
+    try {
+      const response = await fetch(url, {
+        method,
+        redirect: "manual",
+        signal,
+        headers: { Authorization: `APIToken ${environment.token}`, "Content-Type": "application/json" },
+        ...body === undefined ? {} : { body: canonical(body) }
+      });
+      if (response.url && new URL(response.url).origin !== environment.apiUrl.origin)
+        throw new MigrationError("transport", "XC response changed API origin");
+      if (response.status >= 300 && response.status < 400)
+        throw new MigrationError("transport", "XC redirects are not allowed");
+      if (method === "GET" && TRANSIENT.has(response.status) && attempt + 1 < attempts)
+        continue;
+      return response;
+    } catch (error) {
+      last = error;
+      if (error instanceof MigrationError || attempt + 1 >= attempts)
+        break;
+    }
+  }
+  throw new MigrationError("transport", `XC request failed${last instanceof DOMException && last.name === "AbortError" ? ": aborted" : ""}`);
+}
+async function get(environment, planned, signal) {
+  const response = await request(environment, "GET", resourcePath(environment, planned.collection, planned.name), undefined, signal);
+  if (response.status === 404)
+    return;
+  if (!response.ok)
+    throw new MigrationError(response.status === 401 || response.status === 403 ? "authentication" : "transport", `XC read failed with HTTP ${response.status}`);
+  const raw = await response.json();
+  return { raw, resource: safeResource(raw, planned.desired) };
+}
+async function mutate(environment, method, planned, body, signal) {
+  let response;
+  try {
+    response = await request(environment, method, resourcePath(environment, planned.collection, method === "POST" ? undefined : planned.name), body, signal);
+  } catch {
+    const observed = await get(environment, planned, signal);
+    if (method === "DELETE" ? !observed : Boolean(observed && subset(planned.desired, observed.resource)))
+      return;
+    throw new MigrationError("transport", "mutation outcome is uncertain and reconciliation did not confirm success");
+  }
+  if (!response.ok)
+    throw new MigrationError(response.status === 401 || response.status === 403 ? "authentication" : "deployment", `XC mutation failed with HTTP ${response.status}`);
+}
+function basePlanned(resource) {
+  return {
+    kind: resource.kind,
+    name: resource.metadata.name,
+    namespace: resource.metadata.namespace,
+    collection: COLLECTIONS[resource.kind],
+    operation: "create",
+    desired: resource
+  };
+}
+async function classify(environment, resource, signal) {
+  const planned = basePlanned(resource);
+  const live = await get(environment, planned, signal);
+  if (!live)
+    return planned;
+  if (creator(live.raw) !== environment.username)
+    throw new MigrationError("ownership", `resource ${resource.kind}/${resource.metadata.name} is not creator-owned`);
+  planned.before = live.resource;
+  planned.operation = subset(resource, live.resource) ? "noop" : "update";
+  return planned;
+}
+function loadArtifacts(directory, receiptPath, environment) {
+  const root = resolve(directory);
+  const rel = relative(root, receiptPath);
+  if (rel === "" || !rel.startsWith("..") && !rel.startsWith(`..${sep}`))
+    throw new MigrationError("receipt", "receipt must reside outside the conversion artifact directory");
+  const hashes = {};
+  const parsed = {};
+  for (const name2 of MANAGED_OUTPUT_FILES) {
+    const path = resolve(root, name2);
+    if (!existsSync(path) || lstatSync(path).isSymbolicLink())
+      throw new MigrationError("artifact", `required artifact is missing or unsafe: ${name2}`);
+    const bytes = readFileSync(path);
+    hashes[name2] = hash(bytes);
+    parsed[name2] = JSON.parse(bytes.toString("utf8"));
+  }
+  const pack = parsed["config-pack.json"];
+  const report = parsed["report.json"];
+  const warnings = parsed["warnings.json"];
+  const manifest = parsed["manifest.json"];
+  const validation = validateConfigPack(pack);
+  if (!validation.valid || validation.validated_resource_count !== validation.resource_count)
+    throw new MigrationError("contract", "config pack does not satisfy the pinned contract");
+  if (report.complete !== true || !Array.isArray(warnings) || warnings.length !== 0)
+    throw new MigrationError("artifact", "deployment requires complete output with empty warnings");
+  if (canonical(report.contract) !== canonical(contractIdentity()) || canonical(manifest.contract) !== canonical(contractIdentity()))
+    throw new MigrationError("contract", "artifact contract does not match the pinned contract");
+  const manifestInputs = manifest.inputs;
+  if (!manifestInputs || typeof manifestInputs !== "object")
+    throw new MigrationError("artifact", "manifest input hashes are missing");
+  if (pack.resources.some((resource) => resource.metadata.namespace !== environment.namespace))
+    throw new MigrationError("namespace", "artifact namespace must equal XCSH_NAMESPACE");
+  return { pack, hashes };
+}
+async function makePlan(request2, environment, path) {
+  if (!request2.artifactDirectory)
+    throw new MigrationError("validation", "artifactDirectory is required for plan");
+  const artifacts = loadArtifacts(resolve(request2.cwd, request2.artifactDirectory), path, environment);
+  const sorted = [...artifacts.pack.resources].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || a.metadata.name.localeCompare(b.metadata.name));
+  const resources = [];
+  for (const resource of sorted)
+    resources.push(await classify(environment, resource, request2.signal));
+  const contract = contractIdentity();
+  const digest = planDigest(artifacts.hashes, contract, environment.namespace, resources);
+  return {
+    schema_version: "asm-migration.deployment-receipt/v1",
+    plan_digest: digest,
+    artifact_hashes: artifacts.hashes,
+    contract,
+    namespace: environment.namespace,
+    resources,
+    outcomes: [],
+    rollback: { status: "not_required", outcomes: [] }
+  };
+}
+async function rollback(environment, completed, receipt, signal) {
+  const failures = [];
+  for (const planned of [...completed].reverse()) {
+    try {
+      const live = await get(environment, planned, signal);
+      if (!live && planned.operation === "create") {
+        receipt.rollback.outcomes.push({
+          kind: planned.kind,
+          name: planned.name,
+          operation: planned.operation,
+          status: "already_absent"
+        });
+        continue;
+      }
+      if (!live || creator(live.raw) !== environment.username || !subset(planned.desired, live.resource))
+        throw new MigrationError("ownership", `rollback drift for ${planned.kind}/${planned.name}`);
+      if (planned.operation === "create")
+        await mutate(environment, "DELETE", planned, undefined, signal);
+      else if (planned.operation === "update" && planned.before)
+        await mutate(environment, "PUT", { ...planned, desired: planned.before }, planned.before, signal);
+      receipt.rollback.outcomes.push({
+        kind: planned.kind,
+        name: planned.name,
+        operation: planned.operation,
+        status: "restored"
+      });
+    } catch {
+      const outcome = {
+        kind: planned.kind,
+        name: planned.name,
+        operation: planned.operation,
+        status: "failed",
+        guidance: `inspect and restore ${planned.kind}/${planned.name} manually`
+      };
+      failures.push(outcome);
+      receipt.rollback.outcomes.push(outcome);
+    }
+  }
+  receipt.rollback.status = failures.length ? "remediation_required" : "complete";
+}
+async function deploy(request2) {
+  abort(request2.signal);
+  const environment = env();
+  const path = receiptFile(request2.receiptPath, request2.cwd);
+  if (request2.action === "plan") {
+    if (existsSync(path))
+      throw new MigrationError("receipt", "plan requires a new receipt path");
+    const receipt2 = await makePlan(request2, environment, path);
+    writeReceipt(path, receipt2);
+    return {
+      action: "plan",
+      planDigest: receipt2.plan_digest,
+      outcomes: receipt2.resources.map((r) => ({
+        kind: r.kind,
+        name: r.name,
+        operation: r.operation,
+        status: "planned"
+      })),
+      rollback: receipt2.rollback
+    };
+  }
+  if (!existsSync(path))
+    throw new MigrationError("receipt", "receipt does not exist");
+  const receipt = readReceipt(path);
+  if (receipt.namespace !== environment.namespace)
+    throw new MigrationError("namespace", "receipt namespace must equal XCSH_NAMESPACE");
+  if (request2.action === "apply") {
+    if (!request2.planDigest || request2.planDigest !== receipt.plan_digest)
+      throw new MigrationError("confirmation", "planDigest must exactly match the receipt");
+    if (request2.confirmation !== `APPLY ${receipt.plan_digest}`)
+      throw new MigrationError("confirmation", "exact APPLY confirmation is required");
+    const reclassified = [];
+    for (const item of receipt.resources)
+      reclassified.push(await classify(environment, item.desired, request2.signal));
+    if (planDigest(receipt.artifact_hashes, receipt.contract, receipt.namespace, reclassified) !== receipt.plan_digest)
+      throw new MigrationError("stale_plan", "live state changed after planning; create a new plan");
+    const completed = [];
+    try {
+      for (const item of receipt.resources) {
+        if (item.operation === "create")
+          await mutate(environment, "POST", item, item.desired, request2.signal);
+        else if (item.operation === "update")
+          await mutate(environment, "PUT", item, item.desired, request2.signal);
+        receipt.outcomes.push({
+          kind: item.kind,
+          name: item.name,
+          operation: item.operation,
+          status: item.operation === "noop" ? "unchanged" : "applied"
+        });
+        if (item.operation !== "noop")
+          completed.push(item);
+        writeReceipt(path, receipt);
+      }
+    } catch (error) {
+      await rollback(environment, completed, receipt, request2.signal);
+      writeReceipt(path, receipt);
+      throw error;
+    }
+  } else if (request2.action === "verify") {
+    receipt.outcomes = [];
+    for (const item of receipt.resources) {
+      const live = await get(environment, item, request2.signal);
+      const ok = Boolean(live && creator(live.raw) === environment.username && subset(item.desired, live.resource));
+      receipt.outcomes.push({
+        kind: item.kind,
+        name: item.name,
+        operation: "verify",
+        status: ok ? "verified" : "drift"
+      });
+    }
+    writeReceipt(path, receipt);
+    if (receipt.outcomes.some((item) => item.status === "drift"))
+      throw new MigrationError("verification", "live resources differ from the deployment plan");
+  } else {
+    if (request2.confirmation !== `CLEANUP ${receipt.plan_digest}`)
+      throw new MigrationError("confirmation", "exact CLEANUP confirmation is required");
+    receipt.outcomes = [];
+    for (const item of [...receipt.resources].reverse()) {
+      const live = await get(environment, item, request2.signal);
+      if (item.operation === "create") {
+        if (!live) {
+          receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "already_absent" });
+          continue;
+        }
+        if (creator(live.raw) !== environment.username || !subset(item.desired, live.resource))
+          throw new MigrationError("ownership", `cleanup drift for ${item.kind}/${item.name}`);
+        await mutate(environment, "DELETE", item, undefined, request2.signal);
+        receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "deleted" });
+      } else if (item.operation === "update" && item.before) {
+        if (!live || creator(live.raw) !== environment.username)
+          throw new MigrationError("ownership", `cleanup drift for ${item.kind}/${item.name}`);
+        if (subset(item.before, live.resource)) {
+          receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "already_restored" });
+          continue;
+        }
+        if (!subset(item.desired, live.resource))
+          throw new MigrationError("ownership", `cleanup drift for ${item.kind}/${item.name}`);
+        await mutate(environment, "PUT", { ...item, desired: item.before }, item.before, request2.signal);
+        receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "restored" });
+      } else
+        receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "unchanged" });
+      writeReceipt(path, receipt);
+    }
+  }
+  return {
+    action: request2.action,
+    planDigest: receipt.plan_digest,
+    outcomes: receipt.outcomes,
+    rollback: receipt.rollback
+  };
+}
 
 // src/runtime.ts
-var MANAGED_OUTPUT_FILES = ["config-pack.json", "warnings.json", "report.json", "manifest.json"];
-var sha256 = (payload) => createHash2("sha256").update(payload).digest("hex");
-function abort(signal) {
+var MANAGED_OUTPUT_FILES2 = ["config-pack.json", "warnings.json", "report.json", "manifest.json"];
+var sha256 = (payload) => createHash3("sha256").update(payload).digest("hex");
+function abort2(signal) {
   if (signal?.aborted)
     throw new DOMException("The operation was cancelled", "AbortError");
 }
 function absolute(cwd, value) {
-  return isAbsolute(value) ? resolve(value) : resolve(cwd, value);
+  return isAbsolute(value) ? resolve2(value) : resolve2(cwd, value);
 }
 function resolveOutputDirectory(cwd, value, platform = process.platform) {
   if (platform === "darwin" && !isAbsolute(value) && (cwd === "/tmp" || cwd.startsWith("/tmp/"))) {
-    return resolve(`/private${cwd}`, value);
+    return resolve2(`/private${cwd}`, value);
   }
   return absolute(cwd, value);
 }
@@ -17589,17 +18023,17 @@ function parseJson(payload) {
     throw new MigrationError("validation", "input is not valid UTF-8 JSON");
   }
 }
-async function validateInput(request) {
-  abort(request.signal);
-  const inputPath = absolute(request.cwd, request.inputPath);
-  const payload = await read(inputPath, request.inputType === "asm-policy" ? MAX_XML_BYTES : undefined);
-  abort(request.signal);
-  if (request.inputType === "asm-policy") {
+async function validateInput(request2) {
+  abort2(request2.signal);
+  const inputPath = absolute(request2.cwd, request2.inputPath);
+  const payload = await read(inputPath, request2.inputType === "asm-policy" ? MAX_XML_BYTES : undefined);
+  abort2(request2.signal);
+  if (request2.inputType === "asm-policy") {
     const policy = parseAsmXml(payload, inputPath);
-    abort(request.signal);
+    abort2(request2.signal);
     return {
       valid: true,
-      inputType: request.inputType,
+      inputType: request2.inputType,
       policy: {
         sourceName: policy.sourceName,
         enforcementMode: policy.enforcementMode,
@@ -17608,41 +18042,41 @@ async function validateInput(request) {
     };
   }
   const contract = validateConfigPack(parseJson(payload));
-  abort(request.signal);
-  return { valid: contract.valid, inputType: request.inputType, contract };
+  abort2(request2.signal);
+  return { valid: contract.valid, inputType: request2.inputType, contract };
 }
 function assertNoSymlinkDirectory(path) {
-  const root = parse(path).root;
+  const root = parse2(path).root;
   let cursor = root;
   for (const part of path.slice(root.length).split("/").filter(Boolean)) {
-    cursor = resolve(cursor, part);
-    if (!existsSync(cursor))
+    cursor = resolve2(cursor, part);
+    if (!existsSync2(cursor))
       continue;
-    const stat = lstatSync(cursor);
+    const stat = lstatSync2(cursor);
     if (stat.isSymbolicLink())
       throw new MigrationError("output", "output directory must not contain symlinked path components");
     if (cursor === path && !stat.isDirectory())
       throw new MigrationError("output", "output path is not a directory");
   }
 }
-function stable(value) {
+function stable2(value) {
   if (Array.isArray(value))
-    return value.map(stable);
+    return value.map(stable2);
   if (value && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, stable(child)]));
+    return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, stable2(child)]));
   return value;
 }
 function jsonBytes(value) {
-  return new TextEncoder().encode(`${JSON.stringify(stable(value), null, 2)}
+  return new TextEncoder().encode(`${JSON.stringify(stable2(value), null, 2)}
 `);
 }
 function syncWrite(path, payload) {
-  writeFileSync(path, payload, { mode: 384 });
-  const descriptor = openSync(path, "r");
+  writeFileSync2(path, payload, { mode: 384 });
+  const descriptor = openSync2(path, "r");
   try {
-    fsyncSync(descriptor);
+    fsyncSync2(descriptor);
   } finally {
-    closeSync(descriptor);
+    closeSync2(descriptor);
   }
 }
 function renderDirectory(result, output, overwrite) {
@@ -17651,7 +18085,7 @@ function renderDirectory(result, output, overwrite) {
     throw new MigrationError("contract", "refusing to render a config pack that violates the pinned contract");
   assertNoSymlinkDirectory(output);
   mkdirSync(output, { recursive: true, mode: 448 });
-  const existing = MANAGED_OUTPUT_FILES.filter((name2) => existsSync(resolve(output, name2)));
+  const existing = MANAGED_OUTPUT_FILES2.filter((name2) => existsSync2(resolve2(output, name2)));
   if (existing.length && !overwrite)
     throw new MigrationError("output", `managed output already exists: ${existing.join(", ")}`);
   const documents = {
@@ -17660,62 +18094,62 @@ function renderDirectory(result, output, overwrite) {
     "report.json": result.report,
     "manifest.json": {
       schema_version: "asm-migration.config-pack/v1",
-      tool: { name: "asm-migration", version: "1.0.1" },
+      tool: { name: "asm-migration", version: "2.0.0" },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count }
     }
   };
-  const token = randomBytes(12).toString("hex");
-  const staged = MANAGED_OUTPUT_FILES.map((name2) => [name2, resolve(output, `.${name2}.${token}.tmp`)]);
+  const token = randomBytes2(12).toString("hex");
+  const staged = MANAGED_OUTPUT_FILES2.map((name2) => [name2, resolve2(output, `.${name2}.${token}.tmp`)]);
   try {
     for (const [name2, path] of staged)
       syncWrite(path, jsonBytes(documents[name2]));
     for (const [name2, path] of staged)
-      renameSync(path, resolve(output, name2));
-    const directory = openSync(output, "r");
+      renameSync2(path, resolve2(output, name2));
+    const directory = openSync2(output, "r");
     try {
-      fsyncSync(directory);
+      fsyncSync2(directory);
     } finally {
-      closeSync(directory);
+      closeSync2(directory);
     }
   } catch {
     for (const [, path] of staged)
       try {
-        rmSync(path);
+        rmSync2(path);
       } catch {}
     throw new MigrationError("output", "managed output files could not be written");
   }
 }
-async function convertInput(request) {
-  abort(request.signal);
-  const policyPath = absolute(request.cwd, request.policyPath);
-  const signaturesPath = absolute(request.cwd, request.signaturesPath);
-  const outputDirectory = resolveOutputDirectory(request.cwd, request.outputDirectory);
+async function convertInput(request2) {
+  abort2(request2.signal);
+  const policyPath = absolute(request2.cwd, request2.policyPath);
+  const signaturesPath = absolute(request2.cwd, request2.signaturesPath);
+  const outputDirectory = resolveOutputDirectory(request2.cwd, request2.outputDirectory);
   const policyPayload = await read(policyPath, MAX_XML_BYTES);
-  abort(request.signal);
+  abort2(request2.signal);
   const signaturePayload = await read(signaturesPath);
-  abort(request.signal);
+  abort2(request2.signal);
   const policy = parseAsmXml(policyPayload, policyPath);
-  abort(request.signal);
+  abort2(request2.signal);
   const signatures = parseSignatureDatabase(signaturePayload);
-  abort(request.signal);
+  abort2(request2.signal);
   const result = convert(policy, {
-    namespace: request.namespace,
-    targetName: request.targetName,
-    allowPartial: request.allowPartial ?? false,
+    namespace: request2.namespace,
+    targetName: request2.targetName,
+    allowPartial: request2.allowPartial ?? false,
     signatures
   });
   result.inputHashes = { policy: sha256(policyPayload), signatures: sha256(signaturePayload) };
-  abort(request.signal);
-  renderDirectory(result, outputDirectory, request.overwrite ?? false);
-  abort(request.signal);
+  abort2(request2.signal);
+  renderDirectory(result, outputDirectory, request2.overwrite ?? false);
+  abort2(request2.signal);
   return {
     complete: result.report.complete,
     resourceCounts: result.report.resource_counts,
     warnings: result.warnings,
     contract: result.report.contract,
-    outputFiles: [...MANAGED_OUTPUT_FILES],
+    outputFiles: [...MANAGED_OUTPUT_FILES2],
     outputDirectory
   };
 }
@@ -17731,9 +18165,10 @@ export {
   mergeConfigPacks,
   jsonBytes,
   dnsLabel,
+  deploy,
   convertInput,
   convert,
   contractIdentity,
   MigrationError,
-  MANAGED_OUTPUT_FILES
+  MANAGED_OUTPUT_FILES2 as MANAGED_OUTPUT_FILES
 };

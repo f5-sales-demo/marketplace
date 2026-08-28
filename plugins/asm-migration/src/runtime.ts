@@ -132,7 +132,7 @@ export function renderDirectory(result: ConversionResult, output: string, overwr
     'report.json': result.report,
     'manifest.json': {
       schema_version: 'asm-migration.config-pack/v1',
-      tool: { name: 'asm-migration', version: '1.0.1' },
+      tool: { name: 'asm-migration', version: '2.0.0' },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count },
@@ -194,6 +194,8 @@ export async function convertInput(request: ConvertRequest): Promise<ConvertResp
 }
 
 export { convert, mergeConfigPacks } from './converter';
+export type { DeploymentAction, DeploymentReceipt, DeployRequest } from './deployment';
+export { deploy } from './deployment';
 export { dnsLabel, uniqueRuleNames } from './naming';
 export { parseAsmXml, parseSignatureDatabase } from './parser';
 export { regexForRange } from './ranges';

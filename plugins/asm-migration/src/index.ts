@@ -1,5 +1,5 @@
 // @ts-expect-error dist/runtime.js is a committed artifact generated from src/runtime.ts.
-import { convertInput, validateInput } from '../dist/runtime.js';
+import { convertInput, deploy, validateInput } from '../dist/runtime.js';
 import type { ContractIdentity, ContractIssue, ConversionWarning } from './types';
 
 interface TypeFactory {
@@ -32,10 +32,11 @@ const ASM_REQUEST = /\b(?:asm|application security manager|xcify|asm[-_]migratio
 const ASM_ROUTER_PROMPT = `You are the dedicated ASM migration router.
 For validation, require an input type and path, call asm_migration_validate exactly once, return its native text, and stop.
 For conversion, require policyPath, signaturesPath, namespace, and outputDirectory, call asm_migration_convert exactly once, return its native text, and stop.
+For deployment, call asm_migration_deploy exactly once. Plan requires artifactDirectory and receiptPath; apply requires receiptPath, planDigest, and exact confirmation; verify requires receiptPath; cleanup requires receiptPath and exact confirmation.
 Pass targetName, allowPartial, or overwrite only when explicitly requested. If required values are missing, ask only for them and call no tool.
-Never infer values from files, memory, or examples. Never call todo_write, read, write, edit, find, grep, bash, python, task, web, network, deployment, or any other tool.
+Never infer values from files, memory, or examples. Never accept or request credentials as arguments; the native deployment tool reads its environment. Never call todo_write, read, write, edit, find, grep, bash, python, task, web, or any other tool.
 Never inspect inputs, outputs, plugin source, or runtime files. Never pre-validate or post-validate a conversion.
-If the request asks for source inspection, shell use, network use, or deployment, refuse those actions and call no tool.
+If the request asks for source inspection, shell use, direct network use, or credentials, refuse those actions and call no tool.
 The native tool result is self-sufficient; do not supplement or reinterpret it.`;
 
 function contractText(contract: ContractIdentity): string {
@@ -92,7 +93,7 @@ const factory = async (pi: ExtensionApi) => {
     if (!asmTurnActive || !event.payload || typeof event.payload !== 'object') return undefined;
     const payload = event.payload as Record<string, unknown>;
     if (!Array.isArray(payload.tools)) return undefined;
-    const allowedNames = new Set(['asm_migration_validate', 'asm_migration_convert']);
+    const allowedNames = new Set(['asm_migration_validate', 'asm_migration_convert', 'asm_migration_deploy']);
     const tools = payload.tools.filter((tool) => {
       if (!tool || typeof tool !== 'object') return false;
       const candidate = tool as { name?: unknown; function?: { name?: unknown } };
@@ -227,6 +228,58 @@ const factory = async (pi: ExtensionApi) => {
         };
       } catch (error) {
         return errorResult('asm_migration_convert', error);
+      }
+    },
+  });
+  pi.registerTool({
+    name: 'asm_migration_deploy',
+    label: 'Deploy ASM Migration Artifacts',
+    description:
+      'Plan, apply, verify, or clean up a guarded F5 XC deployment using environment-only credentials and a durable receipt.',
+    parameters: Type.Object({
+      action: Type.Union([
+        Type.Literal('plan'),
+        Type.Literal('apply'),
+        Type.Literal('verify'),
+        Type.Literal('cleanup'),
+      ]),
+      artifactDirectory: Type.Optional(
+        Type.String({ description: 'Four-file conversion directory; required only for plan' }),
+      ),
+      receiptPath: Type.String({ description: 'Receipt path outside the conversion directory' }),
+      planDigest: Type.Optional(Type.String({ description: 'Exact plan digest; required for apply' })),
+      confirmation: Type.Optional(Type.String({ description: 'Exact APPLY or CLEANUP confirmation' })),
+    }),
+    async execute(
+      _id: string,
+      params: {
+        action: 'plan' | 'apply' | 'verify' | 'cleanup';
+        artifactDirectory?: string;
+        receiptPath: string;
+        planDigest?: string;
+        confirmation?: string;
+      },
+      signal: AbortSignal | undefined,
+      _update: unknown,
+      ctx: { cwd: string },
+    ) {
+      try {
+        const result = await deploy({ ...params, cwd: ctx.cwd, signal });
+        const summary =
+          result.outcomes
+            .map((item: { kind: string; name: string; status: string }) => `${item.kind}/${item.name}:${item.status}`)
+            .join(', ') || 'none';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Deployment ${result.action} complete. Plan digest: ${result.planDigest}. Outcomes: ${summary}. Rollback: ${result.rollback.status}.`,
+            },
+          ],
+          details: { tool: 'asm_migration_deploy', ok: true, ...result },
+        };
+      } catch (error) {
+        return errorResult('asm_migration_deploy', error);
       }
     },
   });

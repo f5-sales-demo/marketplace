@@ -1,4 +1,21 @@
-export type ErrorCategory = 'validation' | 'unsafe_input' | 'signature' | 'conversion' | 'contract' | 'output' | 'io';
+export type ErrorCategory =
+  | 'validation'
+  | 'unsafe_input'
+  | 'signature'
+  | 'conversion'
+  | 'contract'
+  | 'output'
+  | 'io'
+  | 'authentication'
+  | 'transport'
+  | 'deployment'
+  | 'receipt'
+  | 'artifact'
+  | 'namespace'
+  | 'ownership'
+  | 'confirmation'
+  | 'stale_plan'
+  | 'verification';
 
 export class MigrationError extends Error {
   constructor(

@@ -1,8 +1,8 @@
 # ASM Migration
 
-`asm-migration` is a self-contained xcsh plugin for deterministic, offline conversion of exported BIG-IP ASM policies into F5 Distributed Cloud review artifacts. It ports the behavior of XCify 0.2.0 at commit `f8cfc01fa2548f9aa5eb9376104715a523248a6a` under the marketplace's Apache-2.0 license.
+`asm-migration` is a self-contained xcsh plugin for deterministic conversion of exported BIG-IP ASM policies into F5 Distributed Cloud review artifacts. It ports the behavior of XCify 0.2.0 at commit `f8cfc01fa2548f9aa5eb9376104715a523248a6a` under the marketplace's Apache-2.0 license.
 
-The plugin never contacts an F5 XC tenant and cannot deploy resources. Its contract is derived from `f5-sales-demo/api-specs-enriched` commit `3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e`.
+Conversion remains offline. The guarded deployment lifecycle contacts only the `XCSH_API_URL` origin and uses environment-only credentials. Its contract is derived from `f5-sales-demo/api-specs-enriched` commit `3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e`.
 
 ## Install
 
@@ -18,8 +18,13 @@ check because development dependencies are intentionally absent there.
 
 - `/asm-migration:validate` validates an ASM XML policy or generated config pack without writing files.
 - `/asm-migration:convert` collects the required paths and namespace, then calls the native conversion tool.
+- `/asm-migration:deploy` plans, applies, verifies, or cleans up a receipt-backed deployment. `plan` validates all four artifacts; `apply` and `cleanup` require digest-bound confirmations.
 
-Conversion writes exactly `config-pack.json`, `warnings.json`, `report.json`, and `manifest.json`. Existing managed files are protected unless `overwrite` is explicitly enabled. Partial output is marked incomplete and is unsuitable for deployment until every warning is reviewed and remediated.
+Conversion writes exactly `config-pack.json`, `warnings.json`, `report.json`, and `manifest.json`.
+Existing managed files are protected unless `overwrite` is explicitly enabled. Partial output is marked
+incomplete and cannot be deployed. Deployment requires `XCSH_API_URL`, `XCSH_API_TOKEN`,
+`XCSH_USERNAME`, and `XCSH_NAMESPACE`; never pass credentials in prompts or tool arguments.
+Receipts must be outside the conversion directory and are written atomically with mode 0600.
 
 The signature mapping must use schema version `asm-migration.signatures/v1`. Generated packs use `asm-migration.config-pack/v1`.
 
