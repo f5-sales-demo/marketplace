@@ -5,6 +5,17 @@ argument-hint: "<policy-path> <signatures-path> <namespace> <output-directory>"
 
 # Convert ASM policy
 
-Collect any missing required values from `$ARGUMENTS`, then call `asm_migration_convert` with `policyPath`, `signaturesPath`, `namespace`, and `outputDirectory`. Pass `targetName`, `allowPartial`, or `overwrite` only when the user explicitly supplies them. Never perform model-driven conversion, call the network, or attempt deployment.
+Parse only `$ARGUMENTS` as `policyPath`, `signaturesPath`, `namespace`,
+and `outputDirectory`. If a required value is missing, ask only for the missing
+values and stop. Do not infer values from files, memory, or the working
+directory.
 
-Report completeness, resource counts, contract identity, and the four output filenames. Explain every warning individually. If `complete` is false, state prominently that the partial output is unsuitable for deployment until every warning is reviewed and remediated. Even complete output requires operator review before deployment.
+Otherwise, immediately call `asm_migration_convert` exactly once with those
+four values. Pass `targetName`, `allowPartial`, or `overwrite` only when
+the user explicitly supplies them. Then report the native result verbatim
+without inspecting generated files.
+
+Do not call `todo_write`, `read`, `write`, `edit`, `find`, `grep`,
+`bash`, validation, network, deployment, or any other tool. Do not load a
+skill, inspect inputs or implementation files, pre-validate, post-validate, or
+perform model-driven conversion. The native result is self-sufficient.

@@ -9,7 +9,7 @@ test('manifest versions and public names agree', () => {
   const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
   const plugin = JSON.parse(readFileSync(resolve(root, '.xcsh-plugin/plugin.json'), 'utf8'));
   const provenance = JSON.parse(readFileSync(resolve(root, 'contracts/provenance.json'), 'utf8'));
-  expect(packageJson.version).toBe('1.0.0');
+  expect(packageJson.version).toBe('1.0.1');
   expect(packageJson.xcsh.version).toBe(packageJson.version);
   expect(plugin.version).toBe(packageJson.version);
   expect(provenance.commit).toBe('3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e');
@@ -20,7 +20,19 @@ test('commands and skill route through native tools', () => {
   const convert = readFileSync(resolve(root, 'commands/convert.md'), 'utf8');
   const skill = readFileSync(resolve(root, 'skills/asm-migration/SKILL.md'), 'utf8');
   expect(validate).toContain('asm_migration_validate');
+  expect(validate).toContain('exactly once');
+  expect(validate).toContain('Do not call');
   expect(convert).toContain('asm_migration_convert');
+  expect(convert).toContain('ask only for the missing');
+  expect(convert).toContain('exactly once');
+  expect(convert).toContain('Do not call');
+  expect(skill).toContain('exactly one native tool');
+  expect(skill).toContain('never infer');
+  expect(skill).toContain('Refuse without calling any tool');
+  for (const instructions of [validate, convert, skill]) {
+    expect(instructions).toContain('deployment');
+    expect(instructions).toContain('network');
+  }
   expect(skill).toContain('unsuitable for deployment');
   expect(skill).toContain('Do not create a fifth output file');
 });

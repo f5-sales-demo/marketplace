@@ -1,6 +1,6 @@
 // @ts-expect-error dist/runtime.js is a committed artifact generated from src/runtime.ts.
 import { convertInput, validateInput } from '../dist/runtime.js';
-import type { ContractIssue, ConversionWarning } from './types';
+import type { ContractIdentity, ContractIssue, ConversionWarning } from './types';
 
 interface TypeFactory {
   Object(properties: Record<string, unknown>): unknown;
@@ -17,11 +17,39 @@ interface ExtensionApi {
   registerTool(tool: unknown): void;
 }
 
+function contractText(contract: ContractIdentity): string {
+  return [
+    `repository ${contract.repository}`,
+    `commit ${contract.commit}`,
+    `bundle SHA-256 ${contract.bundle_sha256}`,
+  ].join(', ');
+}
+
+function issueText(issue: ContractIssue): string {
+  const resource = issue.resource_index === undefined ? 'config pack' : `resource ${issue.resource_index}`;
+  const kind = issue.kind ? ` (${issue.kind})` : '';
+  return `${resource}${kind}, path ${issue.path}: ${issue.message}`;
+}
+
+function countText(counts: Record<string, number>): string {
+  const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right));
+  return entries.length ? entries.map(([kind, count]) => `${kind}=${count}`).join(', ') : 'none';
+}
+
+function warningText(warnings: ConversionWarning[]): string {
+  return warnings.length
+    ? warnings.map((warning) => `${warning.code}: ${warning.message}`).join('; ')
+    : 'none';
+}
+
 function errorResult(tool: string, error: unknown) {
   if (error instanceof Error && (error.name === 'AbortError' || error.name === 'ToolAbortError')) throw error;
   const known = error instanceof Error && error.name === 'MigrationError';
   const category = known && 'category' in error ? String(error.category) : 'io';
-  const message = known ? error.message : 'The operation could not be completed.';
+  let message = known ? error.message : 'The operation could not be completed.';
+  if (category === 'output' && message.includes('symlinked'))
+    message +=
+      ' On macOS, use /private/tmp or another normal directory instead of /tmp, which is a symlink.';
   return {
     content: [{ type: 'text' as const, text: `ASM migration failed (${category}): ${message}` }],
     isError: true,
@@ -52,9 +80,25 @@ const factory = async (pi: ExtensionApi) => {
       try {
         const result = await validateInput({ ...params, cwd: ctx.cwd, signal });
         const issues = result.contract?.issues ?? [];
-        const text = result.valid
-          ? `${params.inputType} is valid.`
-          : `${params.inputType} is invalid: ${issues.map((issue: ContractIssue) => `${issue.path}: ${issue.message}`).join('; ')}`;
+        let text: string;
+        if (result.policy) {
+          const unsupported = result.policy.unsupportedEnabledFeatures.length
+            ? result.policy.unsupportedEnabledFeatures.join(', ')
+            : 'none';
+          text = [
+            'asm-policy is valid.',
+            `Enforcement mode: ${result.policy.enforcementMode}.`,
+            `Unsupported enabled features: ${unsupported}.`,
+          ].join(' ');
+        } else {
+          const contract = result.contract!;
+          const status = contract.valid ? 'valid' : 'invalid';
+          const issueSummary = issues.length ? ` Issues: ${issues.map(issueText).join('; ')}.` : ' Issues: none.';
+          text =
+            `config-pack is ${status} against the pinned contract (${contractText(contract.contract)}). ` +
+            `Resource count: ${contract.resource_count}; validated resource count: ${contract.validated_resource_count}.` +
+            issueSummary;
+        }
         return {
           content: [{ type: 'text' as const, text }],
           ...(result.valid ? {} : { isError: true }),
@@ -106,15 +150,21 @@ const factory = async (pi: ExtensionApi) => {
     ) {
       try {
         const result = await convertInput({ ...params, cwd: ctx.cwd, signal });
-        const warningText = result.warnings.length
-          ? ` Warnings: ${result.warnings.map((warning: ConversionWarning) => `${warning.code}: ${warning.message}`).join('; ')}`
-          : '';
         const review = result.complete
-          ? 'Output is complete and still requires operator review before deployment.'
-          : 'Output is PARTIAL and unsuitable for deployment until every warning is reviewed and remediated.';
+          ? 'Complete output still requires operator review before deployment, including rules, signature mappings, client networks, blocking behavior, and the contract validation report.'
+          : 'PARTIAL REVIEW OUTPUT: unsuitable for deployment until every warning is reviewed and remediated.';
         return {
           content: [
-            { type: 'text' as const, text: `Created ${result.outputFiles.join(', ')}. ${review}${warningText}` },
+            {
+              type: 'text' as const,
+              text: [
+                `Conversion complete: ${result.complete}. Resource counts: ${countText(result.resourceCounts)}.`,
+                `Pinned contract: ${contractText(result.contract)}.`,
+                `Created exactly four managed review files: ${result.outputFiles.join(', ')}.`,
+                `Warnings: ${warningText(result.warnings)}.`,
+                review,
+              ].join(' '),
+            },
           ],
           details: { tool: 'asm_migration_convert', ...result },
         };

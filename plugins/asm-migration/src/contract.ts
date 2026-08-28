@@ -158,24 +158,29 @@ function isResource(value: unknown): value is Resource {
 
 export function validateConfigPack(raw: unknown): ContractReport {
   const identity = contractIdentity();
-  if (
-    !raw ||
-    typeof raw !== 'object' ||
-    (raw as Json).schema_version !== 'asm-migration.config-pack/v1' ||
-    !Array.isArray((raw as Json).resources)
-  ) {
+  if (!raw || typeof raw !== 'object') {
     return {
       valid: false,
       contract: identity,
       resource_count: 0,
       validated_resource_count: 0,
-      issues: [
-        { path: '$', message: 'config pack must use asm-migration.config-pack/v1 and contain a resources array' },
-      ],
+      issues: [{ path: '$', message: 'config pack must be a JSON object' }],
+    };
+  }
+  const issues: ContractIssue[] = [];
+  if ((raw as Json).schema_version !== 'asm-migration.config-pack/v1')
+    issues.push({ path: '$.schema_version', message: 'must equal asm-migration.config-pack/v1' });
+  if (!Array.isArray((raw as Json).resources)) {
+    issues.push({ path: '$.resources', message: 'must be an array' });
+    return {
+      valid: false,
+      contract: identity,
+      resource_count: 0,
+      validated_resource_count: 0,
+      issues,
     };
   }
   const resources = (raw as Json).resources as unknown[];
-  const issues: ContractIssue[] = [];
   let validated = 0;
   const ajv = new Ajv2020({ strict: false, allErrors: true, validateFormats: true });
   addFormats(ajv);

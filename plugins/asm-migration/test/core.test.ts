@@ -228,4 +228,18 @@ describe('utilities and contract', () => {
     };
     expect(validateConfigPack(pack('service_policy', { rule_list: { rules: [rule] } })).valid).toBe(false);
   });
+
+  test('reports envelope and resource issues together', () => {
+    const report = validateConfigPack({
+      schema_version: 'wrong/v0',
+      resources: [
+        { kind: 'unknown', metadata: { name: 'one', namespace: 'example' }, spec: {} },
+        { kind: 'app_firewall', metadata: { name: 'two', namespace: 'example' }, spec: { bogus: {} } },
+      ],
+    });
+    expect(report.valid).toBe(false);
+    expect(report.issues.some((issue) => issue.path === '$.schema_version')).toBe(true);
+    expect(report.issues.some((issue) => issue.resource_index === 0 && issue.message === 'unsupported resource kind')).toBe(true);
+    expect(report.issues.some((issue) => issue.resource_index === 1 && issue.path !== '$')).toBe(true);
+  });
 });

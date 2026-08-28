@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-asm-migration",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Deterministic offline BIG-IP ASM to F5 Distributed Cloud migration for xcsh",
   "main": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "ASM Migration",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Offline ASM policy migration and validation",
     "extensions": [
       "src/index.ts"

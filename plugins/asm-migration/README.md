@@ -8,6 +8,12 @@ The plugin never contacts an F5 XC tenant and cannot deploy resources. Its contr
 
 Add this repository as a local marketplace in xcsh 20.22.3 or later, then install the non-default `asm-migration` plugin. The committed runtime bundle includes its XML parser and schema validator; Python and a separate dependency-install step are not required.
 
+Restart xcsh after installing or upgrading so a fresh process loads the new
+plugin version. On macOS, use `/private/tmp` or a normal non-symlinked
+directory for output; `/tmp` is a symlink and is intentionally rejected.
+Running `bun test` inside xcsh's installation cache is not an installation
+check because development dependencies are intentionally absent there.
+
 ## Use
 
 - `/asm-migration:validate` validates an ASM XML policy or generated config pack without writing files.
