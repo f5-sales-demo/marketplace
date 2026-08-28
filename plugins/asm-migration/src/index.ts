@@ -15,14 +15,12 @@ interface ExtensionApi {
   typebox: { Type: TypeFactory };
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
-  getActiveTools?(): string[];
-  setActiveTools?(toolNames: string[]): Promise<void>;
   on?(
-    event: 'before_agent_start' | 'agent_end',
-    handler: (event: { prompt?: string; systemPrompt?: string }) =>
-      | { systemPrompt?: string }
+    event: 'before_agent_start' | 'before_provider_request',
+    handler: (event: { prompt?: string; systemPrompt?: string; payload?: unknown }) =>
+      | { systemPrompt?: string; [key: string]: unknown }
       | undefined
-      | Promise<{ systemPrompt?: string } | undefined>,
+      | Promise<{ systemPrompt?: string; [key: string]: unknown } | undefined>,
   ): void;
 }
 
@@ -78,21 +76,47 @@ function errorResult(tool: string, error: unknown) {
 
 const factory = async (pi: ExtensionApi) => {
   pi.setLabel('ASM Migration');
-  let previousActiveTools: string[] | undefined;
   pi.on?.('before_agent_start', async (event) => {
     if (!event.prompt || !ASM_REQUEST.test(event.prompt)) return undefined;
-    if (previousActiveTools === undefined && pi.getActiveTools && pi.setActiveTools) {
-      previousActiveTools = pi.getActiveTools();
-      await pi.setActiveTools(['asm_migration_validate', 'asm_migration_convert']);
-    }
     return { systemPrompt: ASM_ROUTER_PROMPT };
   });
-  pi.on?.('agent_end', async () => {
-    if (previousActiveTools === undefined || !pi.setActiveTools) return undefined;
-    const toolsToRestore = previousActiveTools;
-    previousActiveTools = undefined;
-    await pi.setActiveTools(toolsToRestore);
-    return undefined;
+  pi.on?.('before_provider_request', (event) => {
+    if (!event.payload || typeof event.payload !== 'object') return undefined;
+    const payload = event.payload as Record<string, unknown>;
+    const messages = Array.isArray(payload.messages) ? payload.messages : [];
+    const isAsmRequest = messages.some(
+      (message) =>
+        typeof message === 'object' &&
+        message !== null &&
+        'role' in message &&
+        (message.role === 'system' || message.role === 'developer') &&
+        'content' in message &&
+        message.content === ASM_ROUTER_PROMPT,
+    );
+    if (!isAsmRequest || !Array.isArray(payload.tools)) return undefined;
+    const allowedNames = new Set(['asm_migration_validate', 'asm_migration_convert']);
+    const tools = payload.tools.filter((tool) => {
+      if (!tool || typeof tool !== 'object') return false;
+      const candidate = tool as { name?: unknown; function?: { name?: unknown } };
+      const name = candidate.name ?? candidate.function?.name;
+      return typeof name === 'string' && allowedNames.has(name);
+    });
+    const choice = payload.tool_choice;
+    const choiceName =
+      choice &&
+      typeof choice === 'object' &&
+      'function' in choice &&
+      typeof choice.function === 'object' &&
+      choice.function !== null &&
+      'name' in choice.function &&
+      typeof choice.function.name === 'string'
+        ? choice.function.name
+        : undefined;
+    return {
+      ...payload,
+      tools,
+      ...(choiceName && !allowedNames.has(choiceName) ? { tool_choice: 'auto' } : {}),
+    };
   });
   // xcsh supplies TypeBox at runtime; this avoids a runtime dependency import.
   const Type = pi.typebox.Type;

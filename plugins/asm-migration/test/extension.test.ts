@@ -150,27 +150,18 @@ test('returns stable macOS guidance for symlinked output', async () => {
   }
 });
 
-test('isolates ASM turns to native tools and restores the prior tool set', async () => {
-  const handlers = new Map<string, (event: { prompt?: string; systemPrompt?: string }) => unknown>();
-  const activeToolUpdates: string[][] = [];
+test('isolates ASM provider requests to native tools without session-global state', async () => {
+  const handlers = new Map<string, (event: Record<string, unknown>) => unknown>();
   await factory({
     typebox: { Type },
     setLabel() {},
     registerTool() {},
-    getActiveTools() {
-      return ['read', 'todo_write', 'asm_migration_validate', 'asm_migration_convert'];
-    },
-    async setActiveTools(toolNames) {
-      activeToolUpdates.push(toolNames);
-    },
     on(event, handler) {
       handlers.set(event, handler);
     },
   });
   const beforeAgentStart = handlers.get('before_agent_start');
-  const agentEnd = handlers.get('agent_end');
   expect(beforeAgentStart).toBeDefined();
-  expect(agentEnd).toBeDefined();
   const routed = (await beforeAgentStart!({
     prompt: 'Convert this ASM policy with asm-migration',
     systemPrompt: 'general assistant',
@@ -178,12 +169,38 @@ test('isolates ASM turns to native tools and restores the prior tool set', async
   expect(routed?.systemPrompt).toContain('dedicated ASM migration router');
   expect(routed?.systemPrompt).toContain('call no tool');
   expect(routed?.systemPrompt).toContain('Never call todo_write');
-  expect(activeToolUpdates).toEqual([['asm_migration_validate', 'asm_migration_convert']]);
-  await agentEnd!({});
-  expect(activeToolUpdates).toEqual([
-    ['asm_migration_validate', 'asm_migration_convert'],
-    ['read', 'todo_write', 'asm_migration_validate', 'asm_migration_convert'],
-  ]);
+  const beforeProviderRequest = handlers.get('before_provider_request');
+  expect(beforeProviderRequest).toBeDefined();
+  expect(
+    await beforeProviderRequest!({
+      payload: {
+        messages: [{ role: 'developer', content: routed?.systemPrompt }],
+        tools: [
+          { type: 'function', function: { name: 'todo_write' } },
+          { type: 'function', function: { name: 'read' } },
+          { type: 'function', function: { name: 'asm_migration_validate' } },
+          { type: 'function', function: { name: 'asm_migration_convert' } },
+        ],
+        tool_choice: { type: 'function', function: { name: 'read' } },
+      },
+    }),
+  ).toEqual({
+    messages: [{ role: 'developer', content: routed?.systemPrompt }],
+    tools: [
+      { type: 'function', function: { name: 'asm_migration_validate' } },
+      { type: 'function', function: { name: 'asm_migration_convert' } },
+    ],
+    tool_choice: 'auto',
+  });
+  expect(
+    await beforeProviderRequest!({
+      payload: {
+        messages: [{ role: 'developer', content: 'general assistant' }],
+        tools: [{ type: 'function', function: { name: 'read' } }],
+        tool_choice: { type: 'function', function: { name: 'read' } },
+      },
+    }),
+  ).toBeUndefined();
   expect(
     await beforeAgentStart!({
       prompt: 'Explain a TypeScript type',
