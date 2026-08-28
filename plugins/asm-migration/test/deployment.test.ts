@@ -21,6 +21,8 @@ const temporary = () => {
   return root;
 };
 const fixtures = resolve(import.meta.dir, 'fixtures');
+const EXAMPLE_NAMESPACE = 'example';
+const OTHER_EXAMPLE_NAMESPACE = 'example-other';
 
 function server(owner = 'operator') {
   const resources = new Map<string, Record<string, unknown>>();
@@ -58,7 +60,7 @@ function server(owner = 'operator') {
   servers.push(instance);
   return { resources, calls, url: `http://127.0.0.1:${instance.port}` };
 }
-async function artifacts(root: string, namespace = 'lab') {
+async function artifacts(root: string, namespace = EXAMPLE_NAMESPACE) {
   const output = join(root, 'artifacts');
   await convertInput({
     policyPath: resolve(fixtures, 'minimal-policy.xml'),
@@ -70,7 +72,7 @@ async function artifacts(root: string, namespace = 'lab') {
   });
   return output;
 }
-function configure(url: string, namespace = 'lab') {
+function configure(url: string, namespace = EXAMPLE_NAMESPACE) {
   process.env.XCSH_API_URL = url;
   process.env.XCSH_API_TOKEN = 'synthetic-secret';
   process.env.XCSH_USERNAME = 'operator';
@@ -122,14 +124,14 @@ describe('deployment lifecycle', () => {
         : first.kind === 'ip_prefix_set'
           ? 'ip_prefix_sets'
           : 'service_policys';
-    mock.resources.set(`/api/config/namespaces/lab/${collection}/${first.metadata.name}`, {
+    mock.resources.set(`/api/config/namespaces/example/${collection}/${first.metadata.name}`, {
       ...first,
       system_metadata: { creator_id: 'foreign' },
     });
     await expect(
       deploy({ action: 'plan', artifactDirectory: directory, receiptPath: join(root, 'foreign.json'), cwd: root }),
     ).rejects.toThrow('not creator-owned');
-    configure(mock.url, 'other');
+    configure(mock.url, 'example-other');
     await expect(
       deploy({ action: 'plan', artifactDirectory: directory, receiptPath: join(root, 'namespace.json'), cwd: root }),
     ).rejects.toThrow('namespace');
@@ -142,7 +144,7 @@ describe('deployment lifecycle', () => {
     );
     chmodSync(receiptPath, 0o600);
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
-    receipt.namespace = 'changed';
+    receipt.namespace = OTHER_EXAMPLE_NAMESPACE;
     await Bun.write(receiptPath, JSON.stringify(receipt));
     await expect(deploy({ action: 'verify', receiptPath, cwd: root })).rejects.toThrow('digest');
   });
@@ -177,7 +179,7 @@ describe('deployment lifecycle', () => {
     const directory = await artifacts(root);
     const pack = JSON.parse(readFileSync(join(directory, 'config-pack.json'), 'utf8'));
     const desired = pack.resources.find((item: any) => item.kind === 'app_firewall');
-    const key = `/api/config/namespaces/lab/app_firewalls/${desired.metadata.name}`;
+    const key = `/api/config/namespaces/example/app_firewalls/${desired.metadata.name}`;
     const before = {
       ...desired,
       spec: { monitoring: {} },
@@ -216,7 +218,7 @@ describe('deployment lifecycle', () => {
     const planned = await deploy({ action: 'plan', artifactDirectory: directory, receiptPath, cwd: root });
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
     const first = receipt.resources[0];
-    const key = `/api/config/namespaces/lab/${first.collection}/${first.name}`;
+    const key = `/api/config/namespaces/example/${first.collection}/${first.name}`;
     mock.resources.set(key, { ...first.desired, spec: { changed: true }, system_metadata: { creator_id: 'operator' } });
     await expect(
       deploy({
@@ -239,7 +241,7 @@ describe('deployment lifecycle', () => {
     });
     const freshReceipt = JSON.parse(readFileSync(freshPath, 'utf8'));
     const deployed = freshReceipt.resources[0];
-    const deployedKey = `/api/config/namespaces/lab/${deployed.collection}/${deployed.name}`;
+    const deployedKey = `/api/config/namespaces/example/${deployed.collection}/${deployed.name}`;
     mock.resources.set(deployedKey, {
       ...deployed.desired,
       spec: { drift: true },
@@ -267,7 +269,7 @@ describe('deployment lifecycle', () => {
     await expect(
       deploy({ action: 'plan', artifactDirectory: directory, receiptPath: join(root, 'contract.json'), cwd: root }),
     ).rejects.toThrow('pinned contract');
-    await artifacts(root, 'lab').catch(() => undefined);
+    await artifacts(root, EXAMPLE_NAMESPACE).catch(() => undefined);
     delete process.env.XCSH_API_TOKEN;
     await expect(deploy({ action: 'verify', receiptPath: join(root, 'absent.json'), cwd: root })).rejects.toThrow(
       'required',

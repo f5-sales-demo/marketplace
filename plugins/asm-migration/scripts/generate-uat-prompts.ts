@@ -16,7 +16,7 @@ const paths = {
 function core(item: Scenario): string {
   if (item.intent === 'validate') return `Validate asm-policy ${paths.policy}`;
   if (item.intent === 'convert')
-    return `Convert ${paths.policy} with ${paths.signatures} for namespace lab into ${paths.artifacts}`;
+    return `Convert ${paths.policy} with ${paths.signatures} for namespace example into ${paths.artifacts}`;
   if (item.intent === 'deploy-plan')
     return `Plan ASM migration deployment from ${paths.artifacts} and write receipt ${paths.receipt}`;
   if (item.intent === 'deploy-apply')
