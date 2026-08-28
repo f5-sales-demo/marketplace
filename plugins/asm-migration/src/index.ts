@@ -109,11 +109,11 @@ const factory = async (pi: ExtensionApi) => {
       typeof choice.function.name === 'string'
         ? choice.function.name
         : undefined;
-    return {
-      ...payload,
-      tools,
-      ...(choiceName && !allowedNames.has(choiceName) ? { tool_choice: 'auto' } : {}),
-    };
+    // xcsh 20.22.3's OpenAI-completions adapter observes payload mutations but
+    // does not consume a replacement object returned by the payload callback.
+    payload.tools = tools;
+    if (choiceName && !allowedNames.has(choiceName)) payload.tool_choice = 'auto';
+    return undefined;
   });
   // xcsh supplies TypeBox at runtime; this avoids a runtime dependency import.
   const Type = pi.typebox.Type;

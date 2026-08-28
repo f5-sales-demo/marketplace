@@ -173,19 +173,17 @@ test('isolates ASM provider requests to native tools without session-global stat
   expect(routed?.systemPrompt).toContain('Never call todo_write');
   const beforeProviderRequest = handlers.get('before_provider_request');
   expect(beforeProviderRequest).toBeDefined();
-  expect(
-    await beforeProviderRequest!({
-      payload: {
-        tools: [
-          { type: 'function', function: { name: 'todo_write' } },
-          { type: 'function', function: { name: 'read' } },
-          { type: 'function', function: { name: 'asm_migration_validate' } },
-          { type: 'function', function: { name: 'asm_migration_convert' } },
-        ],
-        tool_choice: { type: 'function', function: { name: 'read' } },
-      },
-    }),
-  ).toEqual({
+  const payload = {
+    tools: [
+      { type: 'function', function: { name: 'todo_write' } },
+      { type: 'function', function: { name: 'read' } },
+      { type: 'function', function: { name: 'asm_migration_validate' } },
+      { type: 'function', function: { name: 'asm_migration_convert' } },
+    ],
+    tool_choice: { type: 'function', function: { name: 'read' } } as unknown,
+  };
+  expect(await beforeProviderRequest!({ payload })).toBeUndefined();
+  expect(payload).toEqual({
     tools: [
       { type: 'function', function: { name: 'asm_migration_validate' } },
       { type: 'function', function: { name: 'asm_migration_convert' } },
