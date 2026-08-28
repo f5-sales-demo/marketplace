@@ -1,6 +1,8 @@
 ---
 description: Convert an exported BIG-IP ASM policy into offline F5 XC review artifacts
 argument-hint: "<policy-path> <signatures-path> <namespace> <output-directory>"
+allowed_tools:
+  - asm_migration_convert
 ---
 
 # Convert ASM policy

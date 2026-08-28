@@ -35,6 +35,8 @@ test('commands and skill route through native tools', () => {
   }
   expect(skill).toContain('unsuitable for deployment');
   expect(skill).toContain('Do not create a fifth output file');
+  expect(validate).toContain('allowed_tools:\n  - asm_migration_validate');
+  expect(convert).toContain('allowed_tools:\n  - asm_migration_convert');
 });
 
 test('extension runtime is bundled and offline', () => {

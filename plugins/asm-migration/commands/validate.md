@@ -1,6 +1,8 @@
 ---
 description: Validate an ASM policy or ASM migration config pack offline
 argument-hint: "<asm-policy|config-pack> <path>"
+allowed_tools:
+  - asm_migration_validate
 ---
 
 # Validate ASM migration input
