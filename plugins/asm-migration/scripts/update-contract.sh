@@ -8,8 +8,11 @@ command -v bun >/dev/null
 
 release=$(gh release view --repo "$REPOSITORY" --json tagName --jq .tagName)
 case "$release" in
-  v[0-9]*.[0-9]*.[0-9]*) ;;
-  *) echo "latest release has an invalid tag: $release" >&2; exit 1 ;;
+v[0-9]*.[0-9]*.[0-9]*) ;;
+*)
+  echo "latest release has an invalid tag: $release" >&2
+  exit 1
+  ;;
 esac
 commit=$(gh api "repos/$REPOSITORY/commits/$release" --jq .sha)
 if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
