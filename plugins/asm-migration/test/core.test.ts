@@ -100,7 +100,29 @@ describe('conversion', () => {
     expect(signature.spec.waf_action.app_firewall_detection_control.exclude_signature_contexts[0].signature_id).toBe(
       200900001,
     );
+    const validWafActions = new Set(['app_firewall_detection_control', 'none', 'waf_skip_processing']);
+    for (const rule of rules) {
+      const variants = Object.keys(rule.spec.waf_action ?? {});
+      expect(variants).toHaveLength(1);
+      expect(validWafActions.has(variants[0] ?? '')).toBe(true);
+    }
+    expect(rules.find((rule) => rule.metadata.name === 'deny-illegal-methods')?.spec.waf_action).toEqual({ none: {} });
+    expect(rules.find((rule) => rule.metadata.name.startsWith('bypass-waf-for'))?.spec.waf_action).toEqual({
+      waf_skip_processing: {},
+    });
     expect(validateConfigPack(result.configPack).valid).toBe(true);
+    for (const required of ['action', 'waf_action']) {
+      const malformed = structuredClone(result.configPack);
+      const malformedPolicy = malformed.resources.find((item) => item.kind === 'service_policy');
+      if (!malformedPolicy) throw new Error('missing service policy');
+      const ruleList = malformedPolicy.spec.rule_list as { rules: Array<{ spec: Record<string, unknown> }> };
+      const malformedRule = ruleList.rules[0];
+      if (!malformedRule) throw new Error('missing service-policy rule');
+      delete malformedRule.spec[required];
+      const rejected = validateConfigPack(malformed);
+      expect(rejected.valid).toBe(false);
+      expect(rejected.issues.some((issue) => issue.path.includes(required))).toBe(true);
+    }
   });
 
   test('matches the XCify 0.2.0 synthetic reference after intentional renames', () => {

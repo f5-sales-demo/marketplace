@@ -3,13 +3,23 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '..');
+const banner = [
+  '// biome-ignore-all lint: generated bundle',
+  '// biome-ignore-all format: generated bundle',
+  '// biome-ignore-all assist/source/organizeImports: generated bundle',
+].join('\n');
 const temporary = mkdtempSync(resolve(tmpdir(), 'asm-migration-bundle-'));
 try {
   const output = resolve(temporary, 'runtime.js');
-  const result = Bun.spawnSync(
-    ['bun', 'build', 'src/runtime.ts', '--target=bun', '--format=esm', `--outfile=${output}`],
-    { cwd: root, stdout: 'inherit', stderr: 'inherit' },
-  );
+  const result = Bun.spawnSync([
+    'bun',
+    'build',
+    'src/runtime.ts',
+    '--target=bun',
+    '--format=esm',
+    `--outfile=${output}`,
+    `--banner=${banner}`,
+  ]);
   if (result.exitCode !== 0) process.exit(result.exitCode);
   const expected = readFileSync(resolve(root, 'dist/runtime.js'));
   const actual = readFileSync(output);

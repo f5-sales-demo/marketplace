@@ -1,4 +1,5 @@
 {
+  "schema_version": "asm-migration.config-pack/v1",
   "resources": [
     {
       "kind": "app_firewall",
@@ -7,16 +8,16 @@
         "namespace": "example"
       },
       "spec": {
+        "blocking": {},
         "allowed_response_codes": {
           "response_code": [
             100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306,
             307, 308, 401, 404
           ]
         },
-        "blocking": {},
         "blocking_page": {
-          "blocking_page": "string:///PGh0bWw+UmVxdWVzdCB7e3JlcXVlc3RfaWR9fTwvaHRtbD4=",
-          "response_code": "OK"
+          "response_code": "OK",
+          "blocking_page": "string:///PGh0bWw+UmVxdWVzdCB7e3JlcXVlc3RfaWR9fTwvaHRtbD4="
         }
       }
     },
@@ -49,8 +50,11 @@
               },
               "spec": {
                 "action": "NEXT_POLICY",
-                "any_asn": {},
                 "any_client": {},
+                "any_asn": {},
+                "path": {
+                  "prefix_values": ["/"]
+                },
                 "ip_matcher": {
                   "prefix_sets": [
                     {
@@ -58,9 +62,6 @@
                       "namespace": "example"
                     }
                   ]
-                },
-                "path": {
-                  "prefix_values": ["/"]
                 },
                 "waf_action": {
                   "waf_skip_processing": {}
@@ -73,9 +74,12 @@
               },
               "spec": {
                 "action": "DENY",
-                "any_asn": {},
+                "waf_action": {
+                  "none": {}
+                },
                 "any_client": {},
                 "any_ip": {},
+                "any_asn": {},
                 "path": {
                   "prefix_values": ["/private"]
                 }
@@ -87,12 +91,6 @@
               },
               "spec": {
                 "action": "NEXT_POLICY",
-                "any_asn": {},
-                "any_client": {},
-                "any_ip": {},
-                "path": {
-                  "prefix_values": ["/private"]
-                },
                 "waf_action": {
                   "app_firewall_detection_control": {
                     "exclude_signature_contexts": [
@@ -102,6 +100,12 @@
                       }
                     ]
                   }
+                },
+                "any_client": {},
+                "any_ip": {},
+                "any_asn": {},
+                "path": {
+                  "prefix_values": ["/private"]
                 }
               }
             },
@@ -111,15 +115,18 @@
               },
               "spec": {
                 "action": "DENY",
-                "any_asn": {},
+                "waf_action": {
+                  "none": {}
+                },
                 "any_client": {},
                 "any_ip": {},
-                "http_method": {
-                  "invert_matcher": true,
-                  "methods": ["GET", "PATCH", "POST"]
-                },
+                "any_asn": {},
                 "path": {
                   "prefix_values": ["/"]
+                },
+                "http_method": {
+                  "methods": ["GET", "PATCH", "POST"],
+                  "invert_matcher": true
                 }
               }
             },
@@ -129,18 +136,21 @@
               },
               "spec": {
                 "action": "DENY",
-                "any_asn": {},
+                "waf_action": {
+                  "none": {}
+                },
                 "any_client": {},
                 "any_ip": {},
-                "headers": [
-                  {
-                    "check_not_present": {},
-                    "name": "x-synthetic-token"
-                  }
-                ],
+                "any_asn": {},
                 "path": {
                   "prefix_values": ["/"]
-                }
+                },
+                "headers": [
+                  {
+                    "name": "x-synthetic-token",
+                    "check_not_present": {}
+                  }
+                ]
               }
             },
             {
@@ -149,18 +159,21 @@
               },
               "spec": {
                 "action": "DENY",
-                "any_asn": {},
+                "waf_action": {
+                  "none": {}
+                },
                 "any_client": {},
                 "any_ip": {},
+                "any_asn": {},
                 "path": {
                   "prefix_values": ["/"]
                 },
                 "query_params": [
                   {
+                    "key": "quantity",
                     "item": {
                       "regex_values": ["^(?!(?:1\\d|2[0-5])$).+"]
-                    },
-                    "key": "quantity"
+                    }
                   }
                 ]
               }
@@ -171,18 +184,21 @@
               },
               "spec": {
                 "action": "DENY",
-                "any_asn": {},
+                "waf_action": {
+                  "none": {}
+                },
                 "any_client": {},
                 "any_ip": {},
+                "any_asn": {},
                 "path": {
                   "prefix_values": ["/"]
                 },
                 "query_params": [
                   {
+                    "key": "quantity",
                     "item": {
                       "regex_values": ["^.{3,}$"]
-                    },
-                    "key": "quantity"
+                    }
                   }
                 ]
               }
@@ -193,9 +209,12 @@
               },
               "spec": {
                 "action": "DENY",
-                "any_asn": {},
+                "waf_action": {
+                  "none": {}
+                },
                 "any_client": {},
                 "any_ip": {},
+                "any_asn": {},
                 "path": {
                   "suffix_values": [".bak", ".exe"],
                   "transformers": ["LOWER_CASE"]
@@ -208,12 +227,6 @@
               },
               "spec": {
                 "action": "NEXT_POLICY",
-                "any_asn": {},
-                "any_client": {},
-                "any_ip": {},
-                "path": {
-                  "prefix_values": ["/"]
-                },
                 "waf_action": {
                   "app_firewall_detection_control": {
                     "exclude_signature_contexts": [
@@ -224,6 +237,12 @@
                       }
                     ]
                   }
+                },
+                "any_client": {},
+                "any_ip": {},
+                "any_asn": {},
+                "path": {
+                  "prefix_values": ["/"]
                 }
               }
             }
@@ -231,6 +250,5 @@
         }
       }
     }
-  ],
-  "schema_version": "asm-migration.config-pack/v1"
+  ]
 }

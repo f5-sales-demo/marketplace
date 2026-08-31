@@ -1,4 +1,7 @@
 // @bun
+// biome-ignore-all lint: generated bundle
+// biome-ignore-all format: generated bundle
+// biome-ignore-all assist/source/organizeImports: generated bundle
 var __create = Object.create;
 var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
@@ -8443,6 +8446,7 @@ var f5xc_create_v1_default = {
   components: {
     schemas: {
       app_firewallAIEnhancementsConfig: {
+        description: "Actions complimented by the additional intelligence of the F5 AI Powered Risk-based analysis.",
         properties: {
           mitigate_high_medium_risk_action: {
             allOf: [
@@ -8471,21 +8475,45 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "AI Enhancements Config",
         type: "object",
+        "x-displayname": "AI Enhancements Config.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Actions complimented by the additional intelligence of the F5 AI Powered Risk-based analysis.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAIEnhancementsConfig",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallAIEnhancementsConfig
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-risk_score_action_choice": '["mitigate_high_medium_risk_action","mitigate_high_risk_action"]',
         "x-ves-proto-message": "ves.io.schema.app_firewall.AIEnhancementsConfig"
       },
       app_firewallAllowedResponseCodes: {
+        description: "List of HTTP response status codes that are allowed.",
         properties: {
           response_code: {
+            description: "List of HTTP response status codes that are allowed.",
             items: {
               format: "int64",
               type: "integer"
             },
             maxItems: 48,
             minItems: 1,
+            title: "response_code",
             type: "array",
+            "x-displayname": "Response Code.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -8499,6 +8527,8 @@ var f5xc_create_v1_default = {
               minItems: 1,
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of HTTP response status codes that are allowed.",
+            "x-f5xc-example": "[200, 201, 204, 300, 302, 400, 403, 404, 500, 501, 503]",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8513,6 +8543,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.min_items": "1",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "[200, 201, 204, 300, 302, 400, 403, 404, 500, 501, 503]",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -8524,11 +8555,35 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Allowed Response Codes",
         type: "object",
+        "x-displayname": "Allowed Response Codes.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "List of HTTP response status codes that are allowed.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAllowedResponseCodes",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "response_code": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallAllowedResponseCodes
+metadata:
+  name: example
+  namespace: default
+spec:
+  response_code: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["response_code"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AllowedResponseCodes"
       },
       app_firewallAnonymizationConfiguration: {
+        description: "Configure anonymization for HTTP headers, parameters or cookies which may contain sensitive data.",
         properties: {
           cookie: {
             allOf: [
@@ -8549,6 +8604,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAnonymizeHttpHeader"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for http header.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8562,6 +8618,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAnonymizeHttpQueryParameter"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for query parameter.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8570,19 +8627,43 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "AnonymizationConfiguration",
         type: "object",
+        "x-displayname": "Anonymization Configuration.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Configure anonymization for HTTP headers, parameters or cookies which may contain sensitive data.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAnonymizationConfiguration",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallAnonymizationConfiguration
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-anonymization_choice": '["cookie","http_header","query_parameter"]',
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizationConfiguration"
       },
       app_firewallAnonymizationSetting: {
+        description: "Anonymization settings which is a list of HTTP headers, parameters and cookies.",
         properties: {
           anonymization_config: {
+            description: "List of HTTP headers, cookies and query parameters whose values will be masked.",
             items: {
               $ref: "#/components/schemas/app_firewallAnonymizationConfiguration"
             },
             maxItems: 64,
+            title: "AnonymizationConfiguration",
             type: "array",
+            "x-displayname": "Configuration.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -8595,6 +8676,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of HTTP headers, cookies and query parameters whose values will be masked.",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8614,15 +8696,44 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "AnonymizationSetting",
         type: "object",
+        "x-displayname": "Anonymization Configuration.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Anonymization settings which is a list of HTTP headers, parameters and cookies.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAnonymizationSetting",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "anonymization_config": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallAnonymizationSetting
+metadata:
+  name: example
+  namespace: default
+spec:
+  anonymization_config: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["anonymization_config"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizationSetting"
       },
       app_firewallAnonymizeHttpCookie: {
+        description: "Configure anonymization for HTTP Cookies.",
         properties: {
           cookie_name: {
+            description: `Masks the cookie value. The setting does not mask the cookie name.
+Wildcard matching can be used by prefixing or suffixing the cookie name
+with a wildcard asterisk (*), or by using only an asterisk to match any cookie name.`,
             maxLength: 256,
+            title: "cookie_name",
             type: "string",
+            "x-displayname": "Cookie Name.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "string",
@@ -8634,6 +8745,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Masks the cookie value. The setting does not mask the cookie name. Wildcard matching can be used by prefixing or suffixing the cookie name with a wildcard asterisk (*), or by using only an asterisk to match any cookie name.",
+            "x-f5xc-description-short": "Masks the cookie value. The setting does not mask the cookie name.",
+            "x-f5xc-example": "value",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8644,6 +8758,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.message.required": "true",
               "ves.io.schema.rules.string.max_len": "256"
             },
+            "x-ves-example": "Value",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -8651,14 +8766,43 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "AnonymizeHttpCookie",
         type: "object",
+        "x-displayname": "Anonymize HTTP Cookie.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Configure anonymization for HTTP Cookies.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAnonymizeHttpCookie",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "cookie_name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallAnonymizeHttpCookie
+metadata:
+  name: example
+  namespace: default
+spec:
+  cookie_name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["cookie_name"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpCookie"
       },
       app_firewallAnonymizeHttpHeader: {
+        description: "Configure anonymization for HTTP Headers.",
         properties: {
           header_name: {
+            description: `Masks the HTTP header value. The setting does not mask the HTTP header name.
+Wildcard matching can be used by prefixing or suffixing the HTTP header name
+with a wildcard asterisk (*), or by using only an asterisk to match any HTTP header name.`,
+            title: "header_name",
             type: "string",
+            "x-displayname": "Header Name.",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -8669,6 +8813,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Masks the HTTP header value. The setting does not mask the HTTP header name. Wildcard matching can be used by prefixing or suffixing the HTTP header name with a wildcard asterisk (*), or by using only an asterisk to match any HTTP header name.",
+            "x-f5xc-description-short": "Masks the HTTP header value. The setting does not mask the HTTP header name.",
+            "x-f5xc-example": "value",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8679,6 +8826,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.message.required": "true",
               "ves.io.schema.rules.string.http_header_field": "true"
             },
+            "x-ves-example": "Value",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -8686,15 +8834,44 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "AnonymizeHttpHeader",
         type: "object",
+        "x-displayname": "Anonymize HTTP Header.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Configure anonymization for HTTP Headers.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAnonymizeHttpHeader",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "header_name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallAnonymizeHttpHeader
+metadata:
+  name: example
+  namespace: default
+spec:
+  header_name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["header_name"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpHeader"
       },
       app_firewallAnonymizeHttpQueryParameter: {
+        description: "Configure anonymization for HTTP Parameters.",
         properties: {
           query_param_name: {
+            description: `Masks the query parameter value. The setting does not mask the query parameter name.
+Wildcard matching can be used by prefixing or suffixing the query parameter name
+with a wildcard asterisk (*), or by using only an asterisk to match any query parameter name.`,
             maxLength: 256,
+            title: "query_param_name",
             type: "string",
+            "x-displayname": "Query Parameter Name.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "string",
@@ -8706,6 +8883,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Masks the query parameter value. The setting does not mask the query parameter name. Wildcard matching can be used by prefixing or suffixing the query parameter name with a wildcard asterisk (*), or by using only an asterisk to match any query parameter name.",
+            "x-f5xc-description-short": "Masks the query parameter value. The setting does not mask the query parameter name.",
+            "x-f5xc-example": "value",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8716,6 +8896,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.message.required": "true",
               "ves.io.schema.rules.string.max_len": "256"
             },
+            "x-ves-example": "Value",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -8723,12 +8904,77 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "AnonymizeHttpQueryParameter",
         type: "object",
+        "x-displayname": "Anonymize HTTP Query Parameter.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Configure anonymization for HTTP Parameters.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAnonymizeHttpQueryParameter",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "query_param_name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallAnonymizeHttpQueryParameter
+metadata:
+  name: example
+  namespace: default
+spec:
+  query_param_name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["query_param_name"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpQueryParameter"
       },
       app_firewallAppFirewallViolationType: {
         default: "VIOL_NONE",
+        description: `List of all supported Violation Types
+
+VIOL_NONE
+VIOL_FILETYPE
+VIOL_METHOD
+VIOL_MANDATORY_HEADER
+VIOL_HTTP_RESPONSE_STATUS
+VIOL_REQUEST_MAX_LENGTH
+VIOL_FILE_UPLOAD
+VIOL_FILE_UPLOAD_IN_BODY
+VIOL_XML_MALFORMED
+VIOL_JSON_MALFORMED
+VIOL_ASM_COOKIE_MODIFIED
+VIOL_HTTP_PROTOCOL_MULTIPLE_HOST_HEADERS
+VIOL_HTTP_PROTOCOL_BAD_HOST_HEADER_VALUE
+VIOL_HTTP_PROTOCOL_UNPARSABLE_REQUEST_CONTENT
+VIOL_HTTP_PROTOCOL_NULL_IN_REQUEST
+VIOL_HTTP_PROTOCOL_BAD_HTTP_VERSION
+VIOL_HTTP_PROTOCOL_CRLF_CHARACTERS_BEFORE_REQUEST_START
+VIOL_HTTP_PROTOCOL_NO_HOST_HEADER_IN_HTTP_1_1_REQUEST
+VIOL_HTTP_PROTOCOL_BAD_MULTIPART_PARAMETERS_PARSING
+VIOL_HTTP_PROTOCOL_SEVERAL_CONTENT_LENGTH_HEADERS
+VIOL_HTTP_PROTOCOL_CONTENT_LENGTH_SHOULD_BE_A_POSITIVE_NUMBER
+VIOL_EVASION_DIRECTORY_TRAVERSALS
+VIOL_MALFORMED_REQUEST
+VIOL_EVASION_MULTIPLE_DECODING
+VIOL_DATA_GUARD
+VIOL_EVASION_APACHE_WHITESPACE
+VIOL_COOKIE_MODIFIED
+VIOL_EVASION_IIS_UNICODE_CODEPOINTS
+VIOL_EVASION_IIS_BACKSLASHES
+VIOL_EVASION_PERCENT_U_DECODING
+VIOL_EVASION_BARE_BYTE_DECODING
+VIOL_EVASION_BAD_UNESCAPE
+VIOL_HTTP_PROTOCOL_BAD_MULTIPART_FORMDATA_REQUEST_PARSING
+VIOL_HTTP_PROTOCOL_BODY_IN_GET_OR_HEAD_REQUEST
+VIOL_HTTP_PROTOCOL_HIGH_ASCII_CHARACTERS_IN_HEADERS
+VIOL_ENCODING
+VIOL_COOKIE_MALFORMED
+VIOL_GRAPHQL_FORMAT
+VIOL_GRAPHQL_MALFORMED
+VIOL_GRAPHQL_INTROSPECTION_QUERY.`,
         enum: [
           "VIOL_NONE",
           "VIOL_FILETYPE",
@@ -8771,12 +9017,62 @@ var f5xc_create_v1_default = {
           "VIOL_GRAPHQL_MALFORMED",
           "VIOL_GRAPHQL_INTROSPECTION_QUERY"
         ],
+        title: "App Firewall Violation Type",
         type: "string",
+        "x-displayname": "App Firewall Violation Type.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-medium": "List of all supported Violation Types VIOL_NONE VIOL_FILETYPE VIOL_METHOD VIOL_MANDATORY_HEADER VIOL_HTTP_RESPONSE_STATUS VIOL_REQUEST_MAX_LENGTH VIOL_FILE_UPLOAD VIOL_FILE_UPLOAD_IN_BODY VIOL_XML_MALFORMED VIOL_JSON_MALFORMED VIOL_ASM_COOKIE_MODIFIED VIOL_HTTP_PROTOCOL_MULTIPLE_HOST_HEADERS...",
+        "x-f5xc-description-short": "List of all supported Violation Types VIOL_NONE VIOL_FILETYPE VIOL_METHOD VIOL_MANDATORY_HEADER VIOL_HTTP_RESPONSE_STATUS VIOL_REQUEST_MAX_LENGTH...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAppFirewallViolationType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallAppFirewallViolationType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.app_firewall.AppFirewallViolationType"
       },
       app_firewallAttackType: {
         default: "ATTACK_TYPE_NONE",
+        description: `List of all Attack Types
+
+ATTACK_TYPE_NONE
+ATTACK_TYPE_NON_BROWSER_CLIENT
+ATTACK_TYPE_OTHER_APPLICATION_ATTACKS
+ATTACK_TYPE_TROJAN_BACKDOOR_SPYWARE
+ATTACK_TYPE_DETECTION_EVASION
+ATTACK_TYPE_VULNERABILITY_SCAN
+ATTACK_TYPE_ABUSE_OF_FUNCTIONALITY
+ATTACK_TYPE_AUTHENTICATION_AUTHORIZATION_ATTACKS
+ATTACK_TYPE_BUFFER_OVERFLOW
+ATTACK_TYPE_PREDICTABLE_RESOURCE_LOCATION
+ATTACK_TYPE_INFORMATION_LEAKAGE
+ATTACK_TYPE_DIRECTORY_INDEXING
+ATTACK_TYPE_PATH_TRAVERSAL
+ATTACK_TYPE_XPATH_INJECTION
+ATTACK_TYPE_LDAP_INJECTION
+ATTACK_TYPE_SERVER_SIDE_CODE_INJECTION
+ATTACK_TYPE_COMMAND_EXECUTION
+ATTACK_TYPE_SQL_INJECTION
+ATTACK_TYPE_CROSS_SITE_SCRIPTING
+ATTACK_TYPE_DENIAL_OF_SERVICE
+ATTACK_TYPE_HTTP_PARSER_ATTACK
+ATTACK_TYPE_SESSION_HIJACKING
+ATTACK_TYPE_HTTP_RESPONSE_SPLITTING
+ATTACK_TYPE_FORCEFUL_BROWSING
+ATTACK_TYPE_REMOTE_FILE_INCLUDE
+ATTACK_TYPE_MALICIOUS_FILE_UPLOAD
+ATTACK_TYPE_GRAPHQL_PARSER_ATTACK.`,
         enum: [
           "ATTACK_TYPE_NONE",
           "ATTACK_TYPE_NON_BROWSER_CLIENT",
@@ -8806,18 +9102,43 @@ var f5xc_create_v1_default = {
           "ATTACK_TYPE_MALICIOUS_FILE_UPLOAD",
           "ATTACK_TYPE_GRAPHQL_PARSER_ATTACK"
         ],
+        title: "AttackType",
         type: "string",
+        "x-displayname": "Attack Types.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-medium": "List of all Attack Types ATTACK_TYPE_NONE ATTACK_TYPE_NON_BROWSER_CLIENT ATTACK_TYPE_OTHER_APPLICATION_ATTACKS ATTACK_TYPE_TROJAN_BACKDOOR_SPYWARE ATTACK_TYPE_DETECTION_EVASION ATTACK_TYPE_VULNERABILITY_SCAN ATTACK_TYPE_ABUSE_OF_FUNCTIONALITY ATTACK_TYPE_AUTHENTICATION_AUTHORIZATION_ATTACKS...",
+        "x-f5xc-description-short": "List of all Attack Types ATTACK_TYPE_NONE ATTACK_TYPE_NON_BROWSER_CLIENT ATTACK_TYPE_OTHER_APPLICATION_ATTACKS ATTACK_TYPE_TROJAN_BACKDOOR_SPYWARE...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAttackType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallAttackType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.app_firewall.AttackType"
       },
       app_firewallAttackTypeSettings: {
+        description: "Specifies attack-type settings to be used by WAF.",
         properties: {
           disabled_attack_types: {
+            description: "List of Attack Types that will be ignored and not trigger a detection.",
             items: {
               $ref: "#/components/schemas/app_firewallAttackType"
             },
             maxItems: 22,
+            title: "Disabled Attack Types",
             type: "array",
+            "x-displayname": "Disabled Attack Types.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -8830,6 +9151,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of Attack Types that will be ignored and not trigger a detection.",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8849,18 +9171,67 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Attack Type Settings",
         type: "object",
+        "x-displayname": "Attack Type Settings.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Specifies attack-type settings to be used by WAF.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallAttackTypeSettings",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "disabled_attack_types": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallAttackTypeSettings
+metadata:
+  name: example
+  namespace: default
+spec:
+  disabled_attack_types: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["disabled_attack_types"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AttackTypeSettings"
       },
       app_firewallBotAction: {
         default: "BLOCK",
+        description: `Action to be performed on the request
+
+Log and block
+Log only
+Disable detection.`,
         enum: ["BLOCK", "REPORT", "IGNORE"],
+        title: "Bot Action",
         type: "string",
+        "x-displayname": "Bot Action.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Action to be performed on the request Log and block Log only Disable detection.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallBotAction",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallBotAction
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.app_firewall.BotAction"
       },
       app_firewallBotProtectionSetting: {
+        description: "Configuration of WAF Bot Protection.",
         properties: {
           good_bot_action: {
             allOf: [
@@ -8902,11 +9273,31 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "BotProtectionSetting",
         type: "object",
+        "x-displayname": "Bot Protection.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallBotProtectionSetting",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallBotProtectionSetting
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.BotProtectionSetting"
       },
       app_firewallCreateRequest: {
+        description: "This is the input message of the 'Create' RPC.",
         properties: {
           metadata: {
             allOf: [
@@ -8914,6 +9305,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaObjectCreateMetaType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -8927,6 +9319,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallCreateSpecType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8935,11 +9328,73 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "CreateRequest is used to create an instance of app_firewall",
         type: "object",
+        "x-displayname": "Create Request.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-minimum-configuration": {
+          description: "Web Application Firewall (WAF) policy for protecting HTTP applications",
+          example_json: `{
+  "metadata": {
+    "name": "default-waf",
+    "namespace": "default"
+  },
+  "spec": {
+    "blocking": {}
+  }
+}
+`,
+          example_yaml: `apiVersion: v1
+kind: app_firewall
+metadata:
+  name: default-waf
+  namespace: default
+spec:
+  blocking: {}
+`,
+          mutually_exclusive_groups: [
+            {
+              fields: ["spec.monitoring", "spec.blocking"],
+              name: "enforcement_mode_choice",
+              reason: "Server default is monitoring (no blocking). Use blocking: {} for production WAF protection."
+            },
+            {
+              fields: ["spec.default_detection_settings", "spec.detection_settings"],
+              name: "detection_setting_choice",
+              reason: "Server applies default_detection_settings: {} when omitted"
+            },
+            {
+              fields: ["spec.allow_all_response_codes", "spec.allowed_response_codes"],
+              name: "allowed_response_codes_choice",
+              reason: "Server applies allow_all_response_codes: {} when omitted"
+            },
+            {
+              fields: ["spec.default_bot_setting", "spec.bot_protection_setting"],
+              name: "bot_protection_choice",
+              reason: "Server applies default_bot_setting: {} when omitted"
+            },
+            {
+              fields: ["spec.default_anonymization", "spec.custom_anonymization", "spec.disable_anonymization"],
+              name: "anonymization_setting",
+              reason: "Server applies default_anonymization: {} when omitted"
+            },
+            {
+              fields: ["spec.use_default_blocking_page", "spec.blocking_page"],
+              name: "blocking_page_choice",
+              reason: "Server applies use_default_blocking_page: {} when omitted"
+            },
+            {
+              fields: ["spec.disable_ai_enhancements", "spec.enable_ai_enhancements"],
+              name: "enhance_with_ai_choice",
+              reason: "Server applies disable_ai_enhancements: {} when omitted"
+            }
+          ],
+          required_fields: ["metadata.name", "metadata.namespace"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.CreateRequest"
       },
       app_firewallCreateSpecType: {
+        description: "Create Application Firewall.",
         properties: {
           allow_all_response_codes: {
             allOf: [
@@ -8947,6 +9402,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for allow all response codes.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8960,6 +9416,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAllowedResponseCodes"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for allowed response codes.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8973,6 +9430,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8986,6 +9444,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallCustomBlockingPage"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -8999,6 +9458,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallBotProtectionSetting"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for bot protection setting.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9012,6 +9472,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAnonymizationSetting"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for custom anonymization.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9025,6 +9486,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for default anonymization.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9038,6 +9500,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for default bot setting.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9051,6 +9514,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for default detection settings.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9064,6 +9528,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallDetectionSetting"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for detection settings.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9077,6 +9542,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for disable ai enhancements.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9090,6 +9556,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for disable anonymization.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9103,6 +9570,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAIEnhancementsConfig"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for enable ai enhancements.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9129,6 +9597,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9137,8 +9606,69 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Create Application Firewall",
         type: "object",
+        "x-displayname": "Create Application Firewall.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-minimum-configuration": {
+          description: "Web Application Firewall (WAF) policy for protecting HTTP applications",
+          example_json: `{
+  "metadata": {
+    "name": "default-waf",
+    "namespace": "default"
+  },
+  "spec": {
+    "blocking": {}
+  }
+}
+`,
+          example_yaml: `apiVersion: v1
+kind: app_firewall
+metadata:
+  name: default-waf
+  namespace: default
+spec:
+  blocking: {}
+`,
+          mutually_exclusive_groups: [
+            {
+              fields: ["spec.monitoring", "spec.blocking"],
+              name: "enforcement_mode_choice",
+              reason: "Server default is monitoring (no blocking). Use blocking: {} for production WAF protection."
+            },
+            {
+              fields: ["spec.default_detection_settings", "spec.detection_settings"],
+              name: "detection_setting_choice",
+              reason: "Server applies default_detection_settings: {} when omitted"
+            },
+            {
+              fields: ["spec.allow_all_response_codes", "spec.allowed_response_codes"],
+              name: "allowed_response_codes_choice",
+              reason: "Server applies allow_all_response_codes: {} when omitted"
+            },
+            {
+              fields: ["spec.default_bot_setting", "spec.bot_protection_setting"],
+              name: "bot_protection_choice",
+              reason: "Server applies default_bot_setting: {} when omitted"
+            },
+            {
+              fields: ["spec.default_anonymization", "spec.custom_anonymization", "spec.disable_anonymization"],
+              name: "anonymization_setting",
+              reason: "Server applies default_anonymization: {} when omitted"
+            },
+            {
+              fields: ["spec.use_default_blocking_page", "spec.blocking_page"],
+              name: "blocking_page_choice",
+              reason: "Server applies use_default_blocking_page: {} when omitted"
+            },
+            {
+              fields: ["spec.disable_ai_enhancements", "spec.enable_ai_enhancements"],
+              name: "enhance_with_ai_choice",
+              reason: "Server applies disable_ai_enhancements: {} when omitted"
+            }
+          ],
+          required_fields: ["metadata.name", "metadata.namespace"]
+        },
         "x-ves-oneof-field-allowed_response_codes_choice": '["allow_all_response_codes","allowed_response_codes"]',
         "x-ves-oneof-field-anonymization_setting": '["custom_anonymization","default_anonymization","disable_anonymization"]',
         "x-ves-oneof-field-blocking_page_choice": '["blocking_page","use_default_blocking_page"]',
@@ -9149,10 +9679,18 @@ var f5xc_create_v1_default = {
         "x-ves-proto-message": "ves.io.schema.app_firewall.CreateSpecType"
       },
       app_firewallCustomBlockingPage: {
+        description: "Custom blocking response page body.",
         properties: {
           blocking_page: {
+            description: `Define the content of the response page (e.g., an HTML document or a JSON object), use the
+{{request_id}} placeholder to provide users with a unique
+identifier to be able to trace the blocked request in the logs.
+The maximum allowed size of response body is 4096 bytes after base64 encoding,
+which would be about 3070 bytes in plain text.`,
             maxLength: 4096,
+            title: "blocking_page",
             type: "string",
+            "x-displayname": "Blocking Response Page Body.",
             "x-f5xc-constraints": {
               category: "content",
               constraintType: "string",
@@ -9167,6 +9705,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Define the content of the response page (e.g., an HTML document or a JSON object), use the {{request_id}} placeholder to provide users with a unique identifier to be able to trace the blocked request in the logs. The maximum allowed size of response body is 4096 bytes after base64 encoding...",
+            "x-f5xc-description-short": "Define the content of the response page (e.g., an HTML document or a JSON object), use the {{request_id}} placeholder to provide users with a...",
+            "x-f5xc-example": '"<html><head><title>Request Rejected</title></head><body>The requested URL was rejected. Please consult with your administrator.<br/><br/>Your support ID is{{request_id}}<br/><br/><a href=\\"javascript:history.back()\\">[Go Back]</a></body></html>"',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9177,6 +9718,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.string.max_len": "4096",
               "ves.io.schema.rules.string.uri_ref": "true"
             },
+            "x-ves-example": "<HTML><HEAD><title>Request Rejected</title></HEAD><body>The requested URL was rejected. Please consult with your administrator.<br/><br/>Your support ID is: {{request_id}}<br/><br/><a href=\\\"javascript:history.back()\\\">[Go Back]</a></body></HTML>",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_len": "4096",
               "ves.io.schema.rules.string.uri_ref": "true"
@@ -9188,6 +9730,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaHttpStatusCode"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for response code.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9196,12 +9739,32 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Custom Blocking Page",
         type: "object",
+        "x-displayname": "Custom Blocking Response Page.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallCustomBlockingPage",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallCustomBlockingPage
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-displayorder": "2,1",
         "x-ves-proto-message": "ves.io.schema.app_firewall.CustomBlockingPage"
       },
       app_firewallDetectionSetting: {
+        description: "Specifies detection settings to be used by WAF.",
         properties: {
           bot_protection_setting: {
             allOf: [
@@ -9209,6 +9772,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallBotProtectionSetting"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for bot protection setting.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9222,6 +9786,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for default bot setting.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9235,6 +9800,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for default violation settings.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9261,6 +9827,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for disable suppression.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9274,6 +9841,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9287,6 +9855,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for enable suppression.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9300,6 +9869,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9313,6 +9883,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallSignatureSelectionSetting"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for signature selection setting.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9352,6 +9923,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallViolationSettings"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for violation settings.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9360,10 +9932,15 @@ var f5xc_create_v1_default = {
             }
           },
           violations_view: {
+            description: "List of violation checks that are performed on HTTP request to ensure the requests are properly formatted, detection of evasion techniques and other violations.",
             items: {
               $ref: "#/components/schemas/app_firewallViolationConfigView"
             },
+            title: "Violations configuration settings for view only",
             type: "array",
+            "x-displayname": "Violations.",
+            "x-f5xc-description-medium": "List of violation checks that are performed on HTTP request to ensure the requests are properly formatted, detection of evasion techniques and other violations.",
+            "x-f5xc-description-short": "List of violation checks that are performed on HTTP request to ensure the requests are properly formatted, detection of evasion techniques and...",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -9379,8 +9956,31 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Detection Settings",
         type: "object",
+        "x-displayname": "Detection Settings.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Specifies detection settings to be used by WAF.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallDetectionSetting",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "violations_view": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallDetectionSetting
+metadata:
+  name: example
+  namespace: default
+spec:
+  violations_view: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["violations_view"]
+        },
         "x-ves-displayorder": "1,2,12,5,8,16",
         "x-ves-oneof-field-bot_protection_choice": '["bot_protection_setting","default_bot_setting"]',
         "x-ves-oneof-field-false_positive_suppression": '["disable_suppression","enable_suppression"]',
@@ -9390,6 +9990,7 @@ var f5xc_create_v1_default = {
         "x-ves-proto-message": "ves.io.schema.app_firewall.DetectionSetting"
       },
       app_firewallSignatureSelectionSetting: {
+        description: "Attack Signatures are patterns that identify attacks on a web application and its components.",
         properties: {
           attack_type_settings: {
             allOf: [
@@ -9397,6 +9998,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAttackTypeSettings"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for attack type settings.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9410,6 +10012,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for default attack type settings.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9423,6 +10026,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for high medium accuracy signatures.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9436,6 +10040,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for high medium low accuracy signatures.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9449,6 +10054,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for only high accuracy signatures.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9457,18 +10063,43 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Attack Signatures",
         type: "object",
+        "x-displayname": "Attack Signatures.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Attack Signatures are patterns that identify attacks on a web application and its components.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallSignatureSelectionSetting",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallSignatureSelectionSetting
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-displayorder": "5,1",
         "x-ves-oneof-field-attack_type_setting": '["attack_type_settings","default_attack_type_settings"]',
         "x-ves-oneof-field-signature_selection_by_accuracy": '["high_medium_accuracy_signatures","high_medium_low_accuracy_signatures","only_high_accuracy_signatures"]',
         "x-ves-proto-message": "ves.io.schema.app_firewall.SignatureSelectionSetting"
       },
       app_firewallSignaturesStagingSettings: {
+        description: "Attack Signatures staging configuration.",
         properties: {
           staging_period: {
+            description: `Define staging period in days. The default staging period is 7 days and the max supported staging period is
+20 days.`,
             format: "int64",
+            title: "Staging Period",
             type: "integer",
+            "x-displayname": "Staging Period.",
             "x-f5xc-constraints": {
               category: "timing",
               constraintType: "number",
@@ -9483,6 +10114,9 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-medium": "Define staging period in days. The default staging period is 7 days and the max supported staging period is 20 days.",
+            "x-f5xc-description-short": "Define staging period in days. The default staging period is 7 days and the max supported staging period is 20 days.",
+            "x-f5xc-example": "7",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -9494,6 +10128,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "20"
             },
+            "x-ves-example": "7",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -9502,15 +10137,71 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Attack Signatures Staging Settings",
         type: "object",
+        "x-displayname": "Attack Signatures Staging Settings.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Attack Signatures staging configuration.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallSignaturesStagingSettings",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "staging_period": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallSignaturesStagingSettings
+metadata:
+  name: example
+  namespace: default
+spec:
+  staging_period: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["staging_period"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.SignaturesStagingSettings"
       },
       app_firewallViolationConfigView: {
+        description: "Custom configuration for a violation.",
         properties: {
+          description: {
+            description: "Human-readable description text",
+            title: "description",
+            type: "string",
+            "x-displayname": "Description.",
+            "x-f5xc-constraints": {
+              category: "content",
+              characterSet: {
+                description: "Free text with UTF-8 support"
+              },
+              constraintType: "string",
+              maxLength: 1024,
+              metadata: {
+                confidence: 0.8,
+                source: "inferred",
+                validatedAt: "2026-08-20T09:12:47+00:00"
+              },
+              minLength: 0
+            },
+            "x-f5xc-required-for": {
+              create: false,
+              minimum_config: false,
+              read: false,
+              update: false
+            },
+            "x-reconciled-at": "2026-08-20T09:12:47+00:00",
+            "x-reconciled-from-discovery": true
+          },
           enabled: {
+            description: "Enable or disable the feature",
             format: "boolean",
+            title: "user customised state",
             type: "boolean",
+            "x-displayname": "State",
+            "x-f5xc-example": "True",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9519,7 +10210,10 @@ var f5xc_create_v1_default = {
             }
           },
           enabled_by_default: {
+            description: "Violations that are enabled by default by F5 are advisable to leave enabled.",
+            title: "enabled_by_default",
             type: "string",
+            "x-displayname": "Enabled by Default.",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -9530,6 +10224,7 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-short": "Violations that are enabled by default by F5 are advisable to leave enabled.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9538,11 +10233,15 @@ var f5xc_create_v1_default = {
             }
           },
           name: {
+            description: "Human-readable name for the resource",
+            title: "code",
             type: "string",
+            "x-displayname": "Name",
             "x-f5xc-constraints": {
               category: "naming",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -9563,6 +10262,32 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-example": "example-resource",
+            "x-f5xc-required-for": {
+              create: false,
+              minimum_config: false,
+              read: false,
+              update: false
+            },
+            "x-reconciled-at": "2026-08-20T09:12:47+00:00",
+            "x-reconciled-from-discovery": true
+          },
+          title: {
+            description: "Human-readable title for the resource",
+            title: "name",
+            type: "string",
+            "x-displayname": "Title",
+            "x-f5xc-constraints": {
+              category: "general",
+              constraintType: "string",
+              maxLength: 1024,
+              metadata: {
+                confidence: 0.85,
+                source: "inferred",
+                validatedAt: "2026-08-20T09:12:47+00:00"
+              }
+            },
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9573,18 +10298,41 @@ var f5xc_create_v1_default = {
             "x-reconciled-from-discovery": true
           }
         },
+        title: "Violation Config will be used by UI for view only",
         type: "object",
+        "x-displayname": "Violation Configuration.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallViolationConfigView",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for app_firewallViolationConfigView
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.ViolationConfigView"
       },
       app_firewallViolationSettings: {
+        description: "Specifies violation settings to be used by WAF.",
         properties: {
           disabled_violation_types: {
+            description: "List of violations to be excluded.",
             items: {
               $ref: "#/components/schemas/app_firewallAppFirewallViolationType"
             },
             maxItems: 40,
+            title: "Disabled Violations",
             type: "array",
+            "x-displayname": "Disabled Violations.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -9616,20 +10364,71 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Violation Settings",
         type: "object",
+        "x-displayname": "Violation Settings.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-short": "Specifies violation settings to be used by WAF.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for app_firewallViolationSettings",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "disabled_violation_types": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for app_firewallViolationSettings
+metadata:
+  name: example
+  namespace: default
+spec:
+  disabled_violation_types: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["disabled_violation_types"]
+        },
         "x-ves-proto-message": "ves.io.schema.app_firewall.ViolationSettings"
       },
       ioschemaEmpty: {
+        description: "This can be used for messages where no values are needed.",
+        title: "Empty",
         type: "object",
+        "x-displayname": "Empty",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for ioschemaEmpty",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for ioschemaEmpty
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.Empty"
       },
       ioschemaObjectRefType: {
+        description: `This type establishes a 'direct reference' from one object(the referrer) to another(the referred).
+Such a reference is in form of tenant/namespace/name for public API and Uid for private API
+This type of reference is called direct because the relation is explicit and concrete (as opposed
+to selector reference which builds a group based on labels of selectee objects)`,
         properties: {
           kind: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then kind will hold the referred object's kind (e.g. "route")`,
             readOnly: true,
+            title: "kind",
             type: "string",
+            "x-displayname": "Kind",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -9640,6 +10439,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": `When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. "route").`,
+            "x-f5xc-description-short": `When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. "route")`,
+            "x-f5xc-example": "virtual_site",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9647,10 +10449,15 @@ var f5xc_create_v1_default = {
               update: false
             },
             "x-reconciled-at": "2026-08-20T09:12:47+00:00",
-            "x-reconciled-from-discovery": true
+            "x-reconciled-from-discovery": true,
+            "x-ves-example": "Virtual_site."
           },
           name: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then name will hold the referred object's(e.g. Route's) name.`,
+            title: "name",
             type: "string",
+            "x-displayname": "Name",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -9661,6 +10468,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+            "x-f5xc-example": "contactus-route",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9668,14 +10478,20 @@ var f5xc_create_v1_default = {
               update: false
             },
             "x-reconciled-at": "2026-08-20T09:12:47+00:00",
-            "x-reconciled-from-discovery": true
+            "x-reconciled-from-discovery": true,
+            "x-ves-example": "Contactus-route."
           },
           namespace: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then namespace will hold the referred object's(e.g. Route's) namespace.`,
+            title: "namespace",
             type: "string",
+            "x-displayname": "Namespace",
             "x-f5xc-constraints": {
               category: "naming",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -9696,6 +10512,9 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+            "x-f5xc-example": "ns1",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9703,11 +10522,16 @@ var f5xc_create_v1_default = {
               update: false
             },
             "x-reconciled-at": "2026-08-20T09:12:47+00:00",
-            "x-reconciled-from-discovery": true
+            "x-reconciled-from-discovery": true,
+            "x-ves-example": "Ns1"
           },
           tenant: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then tenant will hold the referred object's(e.g. Route's) tenant.`,
             readOnly: true,
+            title: "tenant",
             type: "string",
+            "x-displayname": "Tenant",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -9718,6 +10542,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+            "x-f5xc-example": "example-corp",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9726,12 +10553,17 @@ var f5xc_create_v1_default = {
             },
             "x-field-mutability": "read-only",
             "x-reconciled-at": "2026-08-20T09:12:47+00:00",
-            "x-reconciled-from-discovery": true
+            "x-reconciled-from-discovery": true,
+            "x-ves-example": "Example-corp."
           },
           uid: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then uid will hold the referred object's(e.g. Route's) uid.`,
             format: "uuid",
             readOnly: true,
+            title: "uid",
             type: "string",
+            "x-displayname": "UID",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -9742,6 +10574,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g.",
+            "x-f5xc-example": "00000000-0000-4000-8000-0df41b679859",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9750,14 +10585,37 @@ var f5xc_create_v1_default = {
             },
             "x-field-mutability": "read-only",
             "x-reconciled-at": "2026-08-20T09:12:47+00:00",
-            "x-reconciled-from-discovery": true
+            "x-reconciled-from-discovery": true,
+            "x-ves-example": "00000000-0000-4000-8000-0df41b679859."
           }
         },
+        title: "ObjectRefType",
         type: "object",
+        "x-displayname": "Object reference.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name for public API and Uid for private API This type of reference is called direct because the relation is explicit and concrete (as opposed to selector...",
+        "x-f5xc-description-short": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred).",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for ioschemaObjectRefType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for ioschemaObjectRefType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.ObjectRefType"
       },
       ip_prefix_setCreateRequest: {
+        description: "This is the input message of the 'Create' RPC.",
         properties: {
           metadata: {
             allOf: [
@@ -9765,6 +10623,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaObjectCreateMetaType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9778,6 +10637,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ip_prefix_setCreateSpecType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9786,18 +10646,40 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "CreateRequest is used to create an instance of ip_prefix_set",
         type: "object",
+        "x-displayname": "Create Request.",
         "x-f5xc-cli-domain": "network",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for ip_prefix_setCreateRequest",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for ip_prefix_setCreateRequest
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.ip_prefix_set.CreateRequest"
       },
       ip_prefix_setCreateSpecType: {
+        description: "Create ip_prefix_set creates a new object in the storage backend for metadata.namespace.",
         properties: {
           ipv4_prefixes: {
+            description: "List of IPv4 prefixes with description.",
             items: {
               $ref: "#/components/schemas/ip_prefix_setIpv4Prefix"
             },
             maxItems: 1024,
             type: "array",
+            "x-displayname": "IPv4 Prefixes.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -9826,14 +10708,79 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Create ip prefix set",
         type: "object",
+        "x-displayname": "Create IP Prefix Set.",
         "x-f5xc-cli-domain": "network",
+        "x-f5xc-description-short": "Create ip_prefix_set creates a new object in the storage backend for metadata.namespace.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for ip_prefix_setCreateSpecType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for ip_prefix_setCreateSpecType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.ip_prefix_set.CreateSpecType"
       },
       ip_prefix_setIpv4Prefix: {
+        description: "IPv4 Prefix with Description.",
         properties: {
-          ipv4_prefix: {
+          description: {
+            description: "Human-readable description text",
+            maxLength: 64,
+            title: "description",
             type: "string",
+            "x-displayname": "Description.",
+            "x-f5xc-constraints": {
+              byteLength: {
+                max: 64
+              },
+              category: "discovery",
+              characterSet: {
+                description: "Free text with UTF-8 support"
+              },
+              constraintType: "string",
+              deterministic: true,
+              maxLength: 64,
+              metadata: {
+                confidence: 0.99,
+                source: "discovery",
+                validatedAt: "2026-08-20T09:12:47+00:00"
+              },
+              minLength: 0
+            },
+            "x-f5xc-example": "blocked ip",
+            "x-f5xc-required-for": {
+              create: false,
+              minimum_config: false,
+              read: false,
+              update: false
+            },
+            "x-reconciled-at": "2026-08-20T09:12:47+00:00",
+            "x-reconciled-from-discovery": true,
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-ves-example": "Blocked IP.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            }
+          },
+          ipv4_prefix: {
+            description: "IP address configuration",
+            title: "ipv4 prefix",
+            type: "string",
+            "x-displayname": "IPv4 Prefix.",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -9844,6 +10791,7 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-example": "192.0.2.146/22",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -9855,6 +10803,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.string.ipv4_prefix": "true",
               "ves.io.schema.rules.string.not_empty": "true"
             },
+            "x-ves-example": "192.0.2.146/22.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -9863,11 +10812,34 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "IPv4Prefix",
         type: "object",
+        "x-displayname": "IPv4 Prefix with Description.",
         "x-f5xc-cli-domain": "network",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for ip_prefix_setIpv4Prefix",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "ipv4_prefix": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for ip_prefix_setIpv4Prefix
+metadata:
+  name: example
+  namespace: default
+spec:
+  ipv4_prefix: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["ipv4_prefix"]
+        },
         "x-ves-proto-message": "ves.io.schema.ip_prefix_set.Ipv4Prefix"
       },
       policyAppFirewallAttackTypeContext: {
+        description: "App Firewall Attack Type context changes to be applied for this request.",
         properties: {
           context: {
             allOf: [
@@ -9875,6 +10847,8 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyDetectionContext"
               }
             ],
+            description: "Exclusion scope. Use CONTEXT_PARAMETER with context_name for one parameter, CONTEXT_COOKIE for one cookie, or CONTEXT_ANY only for an intentionally global scope.",
+            "x-f5xc-description-medium": "Exclusion scope. Use CONTEXT_PARAMETER with context_name for one parameter, CONTEXT_COOKIE for one cookie, or CONTEXT_ANY only for an intentionally global scope.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9883,8 +10857,11 @@ var f5xc_create_v1_default = {
             }
           },
           context_name: {
+            description: "Parameter, cookie, or header name selected by context. For a parameter-scoped WAF exception, set context to CONTEXT_PARAMETER and name only the intended parameter.",
             maxLength: 128,
+            title: "Context Name",
             type: "string",
+            "x-displayname": "Context Name.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "string",
@@ -9896,12 +10873,16 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Parameter, cookie, or header name selected by context. For a parameter-scoped WAF exception, set context to CONTEXT_PARAMETER and name only the intended parameter.",
+            "x-f5xc-description-short": "Parameter, cookie, or header name selected by context.",
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
               read: false,
               update: false
             },
+            "x-ves-example": "Example: user-agent for Header.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_len": "128"
             }
@@ -9912,6 +10893,9 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAttackType"
               }
             ],
+            description: "Attack-type enum excluded in this context, for example ATTACK_TYPE_CROSS_SITE_SCRIPTING. Other attack types remain enforced.",
+            "x-f5xc-description-medium": "Attack-type enum excluded in this context, for example ATTACK_TYPE_CROSS_SITE_SCRIPTING. Other attack types remain enforced.",
+            "x-f5xc-description-short": "Attack-type enum excluded in this context, for example ATTACK_TYPE_CROSS_SITE_SCRIPTING.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9920,18 +10904,42 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "App Firewall Attack Type Context",
         type: "object",
+        "x-displayname": "App Firewall Attack Type Context.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "App Firewall Attack Type context changes to be applied for this request.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyAppFirewallAttackTypeContext",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyAppFirewallAttackTypeContext
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.AppFirewallAttackTypeContext"
       },
       policyAppFirewallDetectionControl: {
+        description: "Define the list of Signature IDs, Violations, Attack Types and Bot Names that should be excluded from triggering on the defined match criteria.",
         properties: {
           exclude_attack_type_contexts: {
+            description: "Exclude an entire attack type only in the named context. For migrated per-parameter exceptions, prefer this over signature-ID exclusions because one payload can trigger several signatures; unrelated parameters and attack types remain protected.",
             items: {
               $ref: "#/components/schemas/policyAppFirewallAttackTypeContext"
             },
             maxItems: 64,
+            title: "Exclude Attack Types Contexts",
             type: "array",
+            "x-displayname": "Attack Types.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -9944,6 +10952,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-medium": "Exclude an entire attack type only in the named context. For migrated per-parameter exceptions, prefer this over signature-ID exclusions because one payload can trigger several signatures; unrelated parameters and attack types remain protected.",
+            "x-f5xc-description-short": "Exclude an entire attack type only in the named context.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9956,11 +10966,14 @@ var f5xc_create_v1_default = {
             }
           },
           exclude_bot_name_contexts: {
+            description: "Bot Names to be excluded for the defined match criteria.",
             items: {
               $ref: "#/components/schemas/policyBotNameContext"
             },
             maxItems: 64,
+            title: "Exclude Bot Names Contexts",
             type: "array",
+            "x-displayname": "Bot Names",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -9973,6 +10986,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "Bot Names to be excluded for the defined match criteria.",
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -9989,11 +11004,14 @@ var f5xc_create_v1_default = {
             }
           },
           exclude_signature_contexts: {
+            description: "Signature IDs to be excluded for the defined match criteria.",
             items: {
               $ref: "#/components/schemas/policyAppFirewallSignatureContext"
             },
             maxItems: 1024,
+            title: "Exclude Signature Contexts",
             type: "array",
+            "x-displayname": "Signature IDs.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10006,6 +11024,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "Signature IDs to be excluded for the defined match criteria.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10022,11 +11041,14 @@ var f5xc_create_v1_default = {
             }
           },
           exclude_violation_contexts: {
+            description: "Violations to be excluded for the defined match criteria.",
             items: {
               $ref: "#/components/schemas/policyAppFirewallViolationContext"
             },
             maxItems: 64,
+            title: "Exclude Violation Contexts",
             type: "array",
+            "x-displayname": "Violations.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10039,6 +11061,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "Violations to be excluded for the defined match criteria.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10055,11 +11078,33 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "App Firewall Detection Control",
         type: "object",
+        "x-displayname": "App Firewall Detection Control.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Define the list of Signature IDs, Violations, Attack Types and Bot Names that should be excluded from triggering on the defined match criteria.",
+        "x-f5xc-description-short": "Define the list of Signature IDs, Violations, Attack Types and Bot Names that should be excluded from triggering on the defined match criteria.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyAppFirewallDetectionControl",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyAppFirewallDetectionControl
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.AppFirewallDetectionControl"
       },
       policyAppFirewallSignatureContext: {
+        description: "App Firewall signature context changes to be applied for this request.",
         properties: {
           context: {
             allOf: [
@@ -10075,8 +11120,14 @@ var f5xc_create_v1_default = {
             }
           },
           context_name: {
+            description: `Relevant only for contexts: Header, Cookie and Parameter.
+Name of the Context that the WAF Exclusion Rules will check.
+Wildcard matching can be used by prefixing or suffixing the context name
+with an wildcard asterisk (*).`,
             maxLength: 128,
+            title: "Context Name",
             type: "string",
+            "x-displayname": "Context Name.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "string",
@@ -10088,6 +11139,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Relevant only for contexts: Header, Cookie and Parameter. Name of the Context that the WAF Exclusion Rules will check. Wildcard matching can be used by prefixing or suffixing the context name with an wildcard asterisk (*).",
+            "x-f5xc-description-short": "Relevant only for contexts: Header, Cookie and Parameter. Name of the Context that the WAF Exclusion Rules will check.",
+            "x-f5xc-example": "exampleuser-agent for Header",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10097,13 +11151,18 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_len": "128"
             },
+            "x-ves-example": "Example: user-agent for Header.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_len": "128"
             }
           },
           signature_id: {
+            description: `The allowed values for signature ID are 0 and in the range of 200000001-299999999.
+0 implies that all signatures will be excluded for the specified context.`,
             format: "int64",
+            title: "SignatureID",
             type: "integer",
+            "x-displayname": "SignatureID.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -10116,6 +11175,9 @@ var f5xc_create_v1_default = {
               },
               minimum: 0
             },
+            "x-f5xc-description-medium": "The allowed values for signature ID are 0 and in the range of 200000001-299999999. 0 implies that all signatures will be excluded for the specified context.",
+            "x-f5xc-description-short": "The allowed values for signature ID are 0 and in the range of 200000001-299999999. 0 implies that all signatures will be excluded for the...",
+            "x-f5xc-example": "10000001",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10128,6 +11190,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "0",
               "ves.io.schema.rules.uint32.lte": "299999999"
             },
+            "x-ves-example": "10000001",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -10136,11 +11199,35 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "App Firewall Signature Context",
         type: "object",
+        "x-displayname": "App Firewall Signature Context.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "App Firewall signature context changes to be applied for this request.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyAppFirewallSignatureContext",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "signature_id": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyAppFirewallSignatureContext
+metadata:
+  name: example
+  namespace: default
+spec:
+  signature_id: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["signature_id"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.AppFirewallSignatureContext"
       },
       policyAppFirewallViolationContext: {
+        description: "App Firewall violation context changes to be applied for this request.",
         properties: {
           context: {
             allOf: [
@@ -10156,8 +11243,14 @@ var f5xc_create_v1_default = {
             }
           },
           context_name: {
+            description: `Relevant only for contexts: Header, Cookie and Parameter.
+Name of the Context that the WAF Exclusion Rules will check.
+Wildcard matching can be used by prefixing or suffixing the context name
+with an wildcard asterisk (*).`,
             maxLength: 128,
+            title: "Context Name",
             type: "string",
+            "x-displayname": "Context Name.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "string",
@@ -10169,6 +11262,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Relevant only for contexts: Header, Cookie and Parameter. Name of the Context that the WAF Exclusion Rules will check. Wildcard matching can be used by prefixing or suffixing the context name with an wildcard asterisk (*).",
+            "x-f5xc-description-short": "Relevant only for contexts: Header, Cookie and Parameter. Name of the Context that the WAF Exclusion Rules will check.",
+            "x-f5xc-example": "exampleuser-agent for Header",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10178,6 +11274,7 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_len": "128"
             },
+            "x-ves-example": "Example: user-agent for Header.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_len": "128"
             }
@@ -10188,6 +11285,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/app_firewallAppFirewallViolationType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for exclude violation.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10196,11 +11294,35 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "App Firewall Violation Context",
         type: "object",
+        "x-displayname": "App Firewall Violation Context.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "App Firewall violation context changes to be applied for this request.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyAppFirewallViolationContext",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyAppFirewallViolationContext
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.AppFirewallViolationContext"
       },
       policyArgMatcherType: {
+        description: `A argument matcher specifies the name of a single argument in the body and the criteria to match it.
+A argument matcher can check for one of the following:
+* Presence or absence of the argument
+* At least one of the values for the argument in the request satisfies the MatcherType item.`,
         properties: {
           check_not_present: {
             allOf: [
@@ -10208,6 +11330,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check not present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10221,6 +11344,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10229,8 +11353,11 @@ var f5xc_create_v1_default = {
             }
           },
           invert_matcher: {
+            description: "Invert Match of the expression defined.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10254,8 +11381,11 @@ var f5xc_create_v1_default = {
             "x-reconciled-from-discovery": true
           },
           name: {
+            description: "A case-sensitive JSON path in the HTTP request body.",
             maxLength: 256,
+            title: "name",
             type: "string",
+            "x-displayname": "Argument Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -10263,6 +11393,7 @@ var f5xc_create_v1_default = {
               category: "discovery",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -10283,6 +11414,8 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-description-short": "Case-sensitive JSON path in the HTTP request body.",
+            "x-f5xc-example": "name",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10296,6 +11429,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.string.json_path": "true",
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "Name",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -10304,22 +11438,50 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "ArgMatcherType",
         type: "object",
+        "x-displayname": "Argument Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Argument matcher specifies the name of a single argument in the body and the criteria to match it. A argument matcher can check for one of the following: * Presence or absence of the argument * At least one of the values for the argument in the request satisfies the MatcherType item.",
+        "x-f5xc-description-short": "Argument matcher specifies the name of a single argument in the body and the criteria to match it.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyArgMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyArgMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
         "x-ves-proto-message": "ves.io.schema.policy.ArgMatcherType"
       },
       policyAsnMatchList: {
+        description: "An unordered set of RFC 6793 defined 4-byte AS numbers that can be used to create allow or deny lists for use in network policy or service policy. It can be used to create the allow list only for DNS Load Balancer.",
         properties: {
           as_numbers: {
+            description: "An unordered set of RFC 6793 defined 4-byte AS numbers that can be used to create allow or deny lists for use in network policy or service policy. It can be used to create the allow list only for DNS Load Balancer.",
             items: {
               format: "int64",
               type: "integer"
             },
             maxItems: 16,
             minItems: 1,
+            title: "as numbers",
             type: "array",
+            "x-displayname": "AS Numbers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10333,6 +11495,9 @@ var f5xc_create_v1_default = {
               minItems: 1,
               uniqueItems: true
             },
+            "x-f5xc-description-medium": "Unordered set of RFC 6793 defined 4-byte AS numbers that can be used to create allow or deny lists for use in network policy or service policy. It can be used to create the allow list only for DNS Load Balancer.",
+            "x-f5xc-description-short": "Unordered set of RFC 6793 defined 4-byte AS numbers that can be used to create allow or deny lists for use in network policy or service policy.",
+            "x-f5xc-example": "[713, 7932, 847325, 4683, 15269, 1000001]",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10345,6 +11510,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.min_items": "1",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "[713, 7932, 847325, 4683, 15269, 1000001]",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -10354,18 +11520,46 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Asn Match List",
         type: "object",
+        "x-displayname": "ASN Match List.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Unordered set of RFC 6793 defined 4-byte AS numbers that can be used to create allow or deny lists for use in network policy or service policy. It can be used to create the allow list only for DNS Load Balancer.",
+        "x-f5xc-description-short": "Unordered set of RFC 6793 defined 4-byte AS numbers that can be used to create allow or deny lists for use in network policy or service policy.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyAsnMatchList",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "as_numbers": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyAsnMatchList
+metadata:
+  name: example
+  namespace: default
+spec:
+  as_numbers: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["as_numbers"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.AsnMatchList"
       },
       policyAsnMatcherType: {
+        description: "Match any AS number contained in the list of bgp_asn_sets.",
         properties: {
           asn_sets: {
+            description: "A list of references to bgp_asn_set objects.",
             items: {
               $ref: "#/components/schemas/ioschemaObjectRefType"
             },
             maxItems: 4,
+            title: "asn_sets",
             type: "array",
+            "x-displayname": "BGP ASN Sets.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10377,6 +11571,7 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-short": "List of references to bgp_asn_set objects.",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10394,14 +11589,41 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "asn matcher type",
         type: "object",
+        "x-displayname": "ASN Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "Match any AS number contained in the list of bgp_asn_sets.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyAsnMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "asn_sets": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyAsnMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  asn_sets: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["asn_sets"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.AsnMatcherType"
       },
       policyBotNameContext: {
+        description: "Specifies bot to be excluded by its name.",
         properties: {
           bot_name: {
+            description: "Human-readable name for the resource",
+            title: "BotName",
             type: "string",
+            "x-displayname": "Bot Name",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -10412,6 +11634,7 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-example": "Hydra",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10421,17 +11644,46 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.message.required": "true"
             },
+            "x-ves-example": "Hydra",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true"
             }
           }
         },
+        title: "Bot Name Context",
         type: "object",
+        "x-displayname": "Bot Name",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "Specifies bot to be excluded by its name.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyBotNameContext",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "bot_name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyBotNameContext
+metadata:
+  name: example
+  namespace: default
+spec:
+  bot_name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["bot_name"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.BotNameContext"
       },
       policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer: {
+        description: `A cookie matcher specifies the name of a single cookie and the criteria to match it. The input has a list of values for each
+cookie in the request.
+A cookie matcher can check for one of the following:
+* Presence or absence of the cookie
+* At least one of the values for the cookie in the request satisfies the MatcherType item.`,
         properties: {
           check_not_present: {
             allOf: [
@@ -10439,6 +11691,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check not present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10452,6 +11705,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10460,8 +11714,11 @@ var f5xc_create_v1_default = {
             }
           },
           invert_matcher: {
+            description: "Invert Match of the expression defined.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10485,8 +11742,11 @@ var f5xc_create_v1_default = {
             "x-reconciled-from-discovery": true
           },
           name: {
+            description: "A case-sensitive cookie name.",
             maxLength: 256,
+            title: "name",
             type: "string",
+            "x-displayname": "Cookie Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -10494,6 +11754,7 @@ var f5xc_create_v1_default = {
               category: "discovery",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -10514,6 +11775,7 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-example": "Session",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10526,6 +11788,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.message.required": "true",
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "Session",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -10533,14 +11796,39 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "CookieMatcherType",
         type: "object",
+        "x-displayname": "Cookie Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Cookie matcher specifies the name of a single cookie and the criteria to match it. The input has a list of values for each cookie in the request. A cookie matcher can check for one of the following: * Presence or absence of the cookie * At least one of the values for the cookie in the request...",
+        "x-f5xc-description-short": "Cookie matcher specifies the name of a single cookie and the criteria to match it.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyCookieMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyCookieMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
         "x-ves-proto-message": "ves.io.schema.policy.CookieMatcherType"
       },
       policyCountryCode: {
         default: "COUNTRY_NONE",
+        description: "ISO 3166 Aplpha-2 country codes.",
         enum: [
           "COUNTRY_NONE",
           "COUNTRY_AD",
@@ -10797,12 +12085,57 @@ var f5xc_create_v1_default = {
           "COUNTRY_ZM",
           "COUNTRY_ZW"
         ],
+        title: "CountryCode",
         type: "string",
+        "x-displayname": "Country Code.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyCountryCode",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyCountryCode
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.policy.CountryCode"
       },
       policyDetectionContext: {
         default: "CONTEXT_ANY",
+        description: `The available contexts for Exclusion rules.
+
+- CONTEXT_ANY: CONTEXT_ANY
+
+Detection will be excluded for all contexts.
+- CONTEXT_BODY: CONTEXT_BODY
+
+Detection will be excluded for the request body.
+- CONTEXT_REQUEST: CONTEXT_REQUEST
+
+Detection will be excluded for the request.
+- CONTEXT_RESPONSE: CONTEXT_RESPONSE
+
+- CONTEXT_PARAMETER: CONTEXT_PARAMETER
+
+Detection will be excluded for the parameters. The parameter name is required in the Context name field. If the field is left empty, the detection will be excluded for all parameters.
+- CONTEXT_HEADER: CONTEXT_HEADER
+
+Detection will be excluded for the headers. The header name is required in the Context name field. If the field is left empty, the detection will be excluded for all headers.
+- CONTEXT_COOKIE: CONTEXT_COOKIE
+
+Detection will be excluded for the cookies. The cookie name is required in the Context name field. If the field is left empty, the detection will be excluded for all cookies.
+- CONTEXT_URL: CONTEXT_URL
+
+Detection will be excluded for the request URL.
+- CONTEXT_URI: CONTEXT_URI.`,
         enum: [
           "CONTEXT_ANY",
           "CONTEXT_BODY",
@@ -10814,15 +12147,41 @@ var f5xc_create_v1_default = {
           "CONTEXT_URL",
           "CONTEXT_URI"
         ],
+        title: "Detection Context",
         type: "string",
+        "x-displayname": "WAF Exclusion Context OPTIONS.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "The available contexts for Exclusion rules. - CONTEXT_ANY: CONTEXT_ANY Detection will be excluded for all contexts. - CONTEXT_BODY: CONTEXT_BODY Detection will be excluded for the request body. - CONTEXT_REQUEST: CONTEXT_REQUEST Detection will be excluded for the request. - CONTEXT_RESPONSE...",
+        "x-f5xc-description-short": "The available contexts for Exclusion rules. - CONTEXT_ANY: CONTEXT_ANY Detection will be excluded for all contexts. - CONTEXT_BODY: CONTEXT_BODY...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyDetectionContext",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyDetectionContext
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.policy.DetectionContext"
       },
       policyHttpMethodMatcherType: {
+        description: `A HTTP method matcher specifies a list of methods to match an input HTTP method. The match is considered successful if the input method is a member of the list.
+The result of the match based on the method list is inverted if invert_matcher is true.`,
         properties: {
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Method Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10831,11 +12190,14 @@ var f5xc_create_v1_default = {
             }
           },
           methods: {
+            description: "List of methods values to match against.",
             items: {
               $ref: "#/components/schemas/schemaHttpMethod"
             },
             maxItems: 16,
+            title: "methods",
             type: "array",
+            "x-displayname": "Method List.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10848,6 +12210,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of methods values to match against.",
+            "x-f5xc-example": "['GET', 'POST', 'DELETE']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10859,6 +12223,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['GET', 'POST', 'DELETE']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.enum.defined_only": "true",
               "ves.io.schema.rules.repeated.max_items": "16",
@@ -10866,12 +12231,58 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "HttpMethodMatcherType",
         type: "object",
+        "x-displayname": "HTTP Method Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "HTTP method matcher specifies a list of methods to match an input HTTP method. The match is considered successful if the input method is a member of the list. The result of the match based on the method list is inverted if invert_matcher is true.",
+        "x-f5xc-description-short": "HTTP method matcher specifies a list of methods to match an input HTTP method.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyHttpMethodMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyHttpMethodMatcherType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.HttpMethodMatcherType"
       },
       policyIPThreatCategory: {
         default: "SPAM_SOURCES",
+        description: `The IP threat categories to use when a policy based IP threat category is configured.
+
+- SPAM_SOURCES: SPAM_SOURCES
+
+- WINDOWS_EXPLOITS: WINDOWS_EXPLOITS
+
+- WEB_ATTACKS: WEB_ATTACKS
+
+- BOTNETS: BOTNETS
+
+- SCANNERS: SCANNERS
+
+- REPUTATION: REPUTATION
+
+- PHISHING: PHISHING
+
+- PROXY: PROXY
+
+- MOBILE_THREATS: MOBILE_THREATS
+
+- TOR_PROXY: TOR_PROXY
+
+- DENIAL_OF_SERVICE: DENIAL_OF_SERVICE
+
+- NETWORK: NETWORK.`,
         enum: [
           "SPAM_SOURCES",
           "WINDOWS_EXPLOITS",
@@ -10886,15 +12297,41 @@ var f5xc_create_v1_default = {
           "DENIAL_OF_SERVICE",
           "NETWORK"
         ],
+        title: "IP Threat Category",
         type: "string",
+        "x-displayname": "IP Threat Category.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "The IP threat categories to use when a policy based IP threat category is configured. - SPAM_SOURCES: SPAM_SOURCES - WINDOWS_EXPLOITS: WINDOWS_EXPLOITS - WEB_ATTACKS: WEB_ATTACKS - BOTNETS: BOTNETS - SCANNERS: SCANNERS - REPUTATION: REPUTATION - PHISHING: PHISHING - PROXY: PROXY ...",
+        "x-f5xc-description-short": "The IP threat categories to use when a policy based IP threat category is configured. - SPAM_SOURCES: SPAM_SOURCES - WINDOWS_EXPLOITS...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyIPThreatCategory",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyIPThreatCategory
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.policy.IPThreatCategory"
       },
       policyIpMatcherType: {
+        description: `Match any IP prefix contained in the list of ip_prefix_sets.
+The result of the match is inverted if invert_matcher is true.`,
         properties: {
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert IP Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10903,11 +12340,14 @@ var f5xc_create_v1_default = {
             }
           },
           prefix_sets: {
+            description: "A list of references to ip_prefix_set objects.",
             items: {
               $ref: "#/components/schemas/ioschemaObjectRefType"
             },
             maxItems: 4,
+            title: "prefix_sets",
             type: "array",
+            "x-displayname": "IP Prefix Sets.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10919,6 +12359,7 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-short": "List of references to ip_prefix_set objects.",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -10936,18 +12377,47 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "ip matcher type",
         type: "object",
+        "x-displayname": "IP Prefix Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Match any IP prefix contained in the list of ip_prefix_sets. The result of the match is inverted if invert_matcher is true.",
+        "x-f5xc-description-short": "Match any IP prefix contained in the list of ip_prefix_sets. The result of the match is inverted if invert_matcher is true.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyIpMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "prefix_sets": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyIpMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  prefix_sets: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["prefix_sets"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.IpMatcherType"
       },
       policyJA4TlsFingerprintMatcherType: {
+        description: `An extended version of JA3 that includes additional fields for more comprehensive fingerprinting of
+SSL/TLS clients and potentially has a different structure and length.`,
         properties: {
           exact_values: {
+            description: "A list of exact JA4 TLS fingerprint to match the input JA4 TLS fingerprint against.",
             items: {
               type: "string"
             },
             maxItems: 16,
+            title: "exact values",
             type: "array",
+            "x-displayname": "Exact Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -10960,6 +12430,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact JA4 TLS fingerprint to match the input JA4 TLS fingerprint against.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -10978,11 +12449,37 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "JA4TlsFingerprintMatcherType",
         type: "object",
+        "x-displayname": "JA4 TLS Fingerprint Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Extended version of JA3 that includes additional fields for more comprehensive fingerprinting of SSL/TLS clients and potentially has a different structure and length.",
+        "x-f5xc-description-short": "Extended version of JA3 that includes additional fields for more comprehensive fingerprinting of SSL/TLS clients and potentially has a different...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyJA4TlsFingerprintMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyJA4TlsFingerprintMatcherType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.JA4TlsFingerprintMatcherType"
       },
       policyJWTClaimMatcherType__ves_io_schema_views_cdn_loadbalancer: {
+        description: `A JWT claim matcher specifies the name of a single JWT claim and the criteria for the input request to match it.
+The input has a list of actual values for each JWT claim name in the JWT payload.
+A JWT claim matcher can check for one of the following:
+* Presence or absence of the JWT Claim in the input
+* At least one of the values for the JWT Claim in the input satisfies the MatcherType item.`,
         properties: {
           check_not_present: {
             allOf: [
@@ -10990,6 +12487,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check not present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11003,6 +12501,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11011,8 +12510,11 @@ var f5xc_create_v1_default = {
             }
           },
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11036,8 +12538,11 @@ var f5xc_create_v1_default = {
             "x-reconciled-from-discovery": true
           },
           name: {
+            description: "JWT claim name.",
             maxLength: 256,
+            title: "name",
             type: "string",
+            "x-displayname": "JWT Claim Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -11045,6 +12550,7 @@ var f5xc_create_v1_default = {
               category: "discovery",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -11065,6 +12571,7 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-example": "user_id",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -11077,6 +12584,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.message.required": "true",
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "User_id",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -11084,14 +12592,82 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "JWTClaimMatcherType",
         type: "object",
+        "x-displayname": "JWT Claim Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "JWT claim matcher specifies the name of a single JWT claim and the criteria for the input request to match it. The input has a list of actual values for each JWT claim name in the JWT payload. A JWT claim matcher can check for one of the following: * Presence or absence of the JWT Claim in the...",
+        "x-f5xc-description-short": "JWT claim matcher specifies the name of a single JWT claim and the criteria for the input request to match it.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyJWTClaimMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyJWTClaimMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-displayorder": "1,2,6",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
         "x-ves-proto-message": "ves.io.schema.policy.JWTClaimMatcherType"
       },
       policyKnownTlsFingerprintClass: {
         default: "TLS_FINGERPRINT_NONE",
+        description: `Specifies known TLS fingerprint classes
+
+- TLS_FINGERPRINT_NONE: TLS_FINGERPRINT_NONE
+
+No TLS fingerprint
+- ANY_MALICIOUS_FINGERPRINT: ANY_MALICIOUS_FINGERPRINT
+
+TLS fingerprints known to be associated with malicious clients
+- ADWARE: ADWARE
+
+TLS fingerprints known to be associated with adware
+- ADWIND: ADWIND
+
+TLS fingerprints known to be associated with adwind
+- DRIDEX: DRIDEX
+
+TLS fingerprints known to be associated with dridex
+- GOOTKIT: GOOTKIT
+
+TLS fingerprints known to be associated with gootkit
+- GOZI: GOZI
+
+TLS fingerprints known to be associated with gozi
+- JBIFROST: JBIFROST
+
+TLS fingerprints known to be associated with jbifrost
+- QUAKBOT: QUAKBOT
+
+TLS fingerprints known to be associated with quakbot
+- RANSOMWARE: RANSOMWARE
+
+TLS fingerprints known to be associated with ransomware
+- TROLDESH: TROLDESH
+
+TLS fingerprints known to be associated with troldesh
+- TOFSEE: TOFSEE
+
+TLS fingerprints known to be associated with tofsee
+- TORRENTLOCKER: TORRENTLOCKER
+
+TLS fingerprints known to be associated with torrentlocker
+- TRICKBOT: TRICKBOT
+
+TLS fingerprints known to be associated with trickbot.`,
         enum: [
           "TLS_FINGERPRINT_NONE",
           "ANY_MALICIOUS_FINGERPRINT",
@@ -11108,19 +12684,45 @@ var f5xc_create_v1_default = {
           "TORRENTLOCKER",
           "TRICKBOT"
         ],
+        title: "TLS known fingerprint class",
         type: "string",
+        "x-displayname": "TLS known fingerprint class.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Specifies known TLS fingerprint classes - TLS_FINGERPRINT_NONE: TLS_FINGERPRINT_NONE No TLS fingerprint - ANY_MALICIOUS_FINGERPRINT: ANY_MALICIOUS_FINGERPRINT TLS fingerprints known to be associated with malicious clients - ADWARE: ADWARE TLS fingerprints known to be associated with adware ...",
+        "x-f5xc-description-short": "Specifies known TLS fingerprint classes - TLS_FINGERPRINT_NONE: TLS_FINGERPRINT_NONE No TLS fingerprint - ANY_MALICIOUS_FINGERPRINT...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyKnownTlsFingerprintClass",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyKnownTlsFingerprintClass
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.policy.KnownTlsFingerprintClass"
       },
       policyMatcherType: {
+        description: `A matcher specifies multiple criteria for matching an input string. The match is considered successful if any of the criteria are satisfied. The set
+of supported match criteria includes a list of exact values and a list of regular expressions.`,
         properties: {
           exact_values: {
+            description: "A list of exact values to match the input against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 64,
+            title: "exact values",
             type: "array",
+            "x-displayname": "Exact Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -11133,6 +12735,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact values to match the input against.",
+            "x-f5xc-example": "['new york', 'london', 'sydney', 'tokyo', 'cairo']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11145,6 +12749,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "64",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['new york', 'london', 'sydney', 'tokyo', 'cairo']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -11153,12 +12758,15 @@ var f5xc_create_v1_default = {
             }
           },
           regex_values: {
+            description: "A list of regular expressions to match the input against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 16,
+            title: "regex values",
             type: "array",
+            "x-displayname": "Regex Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -11171,6 +12779,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of regular expressions to match the input against.",
+            "x-f5xc-example": "['^new .*$', 'san f.*', '.* del .*']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11184,6 +12794,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['^new .*$', 'san f.*', '.* del .*']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -11193,11 +12804,14 @@ var f5xc_create_v1_default = {
             }
           },
           transformers: {
+            description: "An ordered list of transformers (starting from index 0) to be applied to the path before matching.",
             items: {
               $ref: "#/components/schemas/policyTransformer"
             },
             maxItems: 9,
+            title: "transformers",
             type: "array",
+            "x-displayname": "Transformers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -11210,6 +12824,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "Ordered list of transformers (starting from index 0) to be applied to the path before matching.",
+            "x-f5xc-example": '"[BASE64_DECODE, LOWER_CASE]',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11226,19 +12842,45 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "MatcherType",
         type: "object",
+        "x-displayname": "Matcher",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Matcher specifies multiple criteria for matching an input string. The match is considered successful if any of the criteria are satisfied. The set of supported match criteria includes a list of exact values and a list of regular expressions.",
+        "x-f5xc-description-short": "Matcher specifies multiple criteria for matching an input string. The match is considered successful if any of the criteria are satisfied.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyMatcherType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.MatcherType"
       },
       policyMatcherTypeBasic: {
+        description: `A matcher specifies multiple criteria for matching an input string. The match is considered successful if any of the criteria are satisfied. The set
+of supported match criteria includes a list of exact values and a list of regular expressions.`,
         properties: {
           exact_values: {
+            description: "A list of exact values to match the input against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 64,
+            title: "exact values",
             type: "array",
+            "x-displayname": "Exact Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -11251,6 +12893,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact values to match the input against.",
+            "x-f5xc-example": "['new york', 'london', 'sydney', 'tokyo', 'cairo']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11263,6 +12907,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "64",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['new york', 'london', 'sydney', 'tokyo', 'cairo']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -11271,12 +12916,15 @@ var f5xc_create_v1_default = {
             }
           },
           regex_values: {
+            description: "A list of regular expressions to match the input against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 16,
+            title: "regex values",
             type: "array",
+            "x-displayname": "Regex Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -11289,6 +12937,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of regular expressions to match the input against.",
+            "x-f5xc-example": "['^new .*$', 'san f.*', '.* del .*']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11302,6 +12952,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['^new .*$', 'san f.*', '.* del .*']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -11311,11 +12962,33 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "MatcherTypeBasic",
         type: "object",
+        "x-displayname": "Matcher",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Matcher specifies multiple criteria for matching an input string. The match is considered successful if any of the criteria are satisfied. The set of supported match criteria includes a list of exact values and a list of regular expressions.",
+        "x-f5xc-description-short": "Matcher specifies multiple criteria for matching an input string. The match is considered successful if any of the criteria are satisfied.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyMatcherTypeBasic",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyMatcherTypeBasic
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.MatcherTypeBasic"
       },
       policyModifyAction: {
+        description: "Modify behavior for a matching request. The modification could be to entirely skip processing.",
         properties: {
           default: {
             allOf: [
@@ -11323,6 +12996,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": "True",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11344,16 +13018,40 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Select Modification Action",
         type: "object",
+        "x-displayname": "Select Modification Action.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "Modify behavior for a matching request. The modification could be to entirely skip processing.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyModifyAction",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyModifyAction
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-action_type": '["default","skip_processing"]',
         "x-ves-proto-message": "ves.io.schema.policy.ModifyAction"
       },
       policyPrefixMatchList: {
+        description: "List of IP Prefix strings to match against.",
         properties: {
           invert_match: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Match Result.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11362,11 +13060,14 @@ var f5xc_create_v1_default = {
             }
           },
           ip_prefixes: {
+            description: "List of IPv4 prefix strings.",
             items: {
               type: "string"
             },
             maxItems: 128,
+            title: "ip prefixes",
             type: "array",
+            "x-displayname": "IPv4 Prefix List.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -11379,6 +13080,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-example": "192.0.2.0/24",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11391,6 +13093,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "128",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "192.0.2.0/24.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.ipv4_prefix": "true",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -11399,15 +13102,38 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "IP Prefix Match List",
         type: "object",
+        "x-displayname": "IP Prefix Match List.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "List of IP Prefix strings to match against.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyPrefixMatchList",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyPrefixMatchList
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.PrefixMatchList"
       },
       policyRequestConstraintType: {
         properties: {
           max_cookie_count_exceeds: {
+            description: "Exclusive with [max_cookie_count_none]",
             format: "int64",
+            title: "max_cookie_count_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Count for all Cookies that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11420,6 +13146,7 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-example": "40",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11430,6 +13157,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
             },
+            "x-ves-example": "40",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
@@ -11441,6 +13169,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max cookie count none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11449,8 +13178,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_cookie_key_size_exceeds: {
+            description: "Exclusive with [max_cookie_key_size_none]",
             format: "int64",
+            title: "max_cookie_key_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Name Size per Cookie that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11463,6 +13195,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_cookie_key_size_none].",
+            "x-f5xc-example": "64",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11473,6 +13207,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
             },
+            "x-ves-example": "64",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
@@ -11484,6 +13219,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max cookie key size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11492,8 +13228,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_cookie_value_size_exceeds: {
+            description: "Exclusive with [max_cookie_value_size_none]",
             format: "int64",
+            title: "max_cookie_value_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Value Size per Cookie that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11506,6 +13245,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_cookie_value_size_none].",
+            "x-f5xc-example": "4096",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11516,6 +13257,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "32768"
             },
+            "x-ves-example": "4096",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "32768"
@@ -11527,6 +13269,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max cookie value size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11535,8 +13278,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_header_count_exceeds: {
+            description: "Exclusive with [max_header_count_none]",
             format: "int64",
+            title: "max_header_count_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Count for all Headers that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11549,6 +13295,7 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-example": "20",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11559,6 +13306,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "40"
             },
+            "x-ves-example": "20",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "40"
@@ -11570,6 +13318,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max header count none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11578,8 +13327,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_header_key_size_exceeds: {
+            description: "Exclusive with [max_header_key_size_none]",
             format: "int64",
+            title: "max_header_key_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Name Size per Header that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11592,6 +13344,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_header_key_size_none].",
+            "x-f5xc-example": "32",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11602,6 +13356,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
             },
+            "x-ves-example": "32",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
@@ -11613,6 +13368,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max header key size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11621,8 +13377,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_header_value_size_exceeds: {
+            description: "Exclusive with [max_header_value_size_none]",
             format: "int64",
+            title: "max_header_value_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Value Size per Header that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11635,6 +13394,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_header_value_size_none].",
+            "x-f5xc-example": "1024",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11645,6 +13406,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "64000"
             },
+            "x-ves-example": "1024",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "64000"
@@ -11656,6 +13418,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max header value size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11664,8 +13427,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_parameter_count_exceeds: {
+            description: "Exclusive with [max_parameter_count_none]",
             format: "int64",
+            title: "max_parameter_count_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Parameter Count that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11678,6 +13444,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_parameter_count_none].",
+            "x-f5xc-example": "4",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11688,6 +13456,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
             },
+            "x-ves-example": "4",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
@@ -11699,6 +13468,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max parameter count none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11707,8 +13477,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_parameter_name_size_exceeds: {
+            description: "Exclusive with [max_parameter_name_size_none]",
             format: "int64",
+            title: "max_parameter_name_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Parameter Name Size that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11721,6 +13494,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_parameter_name_size_none].",
+            "x-f5xc-example": "64",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11731,6 +13506,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
             },
+            "x-ves-example": "64",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1024"
@@ -11742,6 +13518,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11750,8 +13527,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_parameter_value_size_exceeds: {
+            description: "Exclusive with [max_parameter_value_size_none]",
             format: "int64",
+            title: "max_parameter_value_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Parameter Value Size that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11764,6 +13544,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_parameter_value_size_none].",
+            "x-f5xc-example": "1000",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11774,6 +13556,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1073741824"
             },
+            "x-ves-example": "1000",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "1073741824"
@@ -11785,6 +13568,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max parameter value size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11793,8 +13577,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_query_size_exceeds: {
+            description: "Exclusive with [max_query_size_none]",
             format: "int64",
+            title: "max_query_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the URL Query Size that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11807,6 +13594,7 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-example": "4096",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11817,6 +13605,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "60000"
             },
+            "x-ves-example": "4096",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "60000"
@@ -11828,6 +13617,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max query size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11836,8 +13626,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_request_line_size_exceeds: {
+            description: "Exclusive with [max_request_line_size_none]",
             format: "int64",
+            title: "max_query_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Request Line Size that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11850,6 +13643,8 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-description-short": "Exclusive with [max_request_line_size_none].",
+            "x-f5xc-example": "4096",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11860,6 +13655,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "65536"
             },
+            "x-ves-example": "4096",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "65536"
@@ -11871,6 +13667,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max request line size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11879,8 +13676,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_request_size_exceeds: {
+            description: "Exclusive with [max_request_size_none]",
             format: "int64",
+            title: "max_request_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the Request Size that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11893,6 +13693,7 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-example": "32768",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11903,6 +13704,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "65536"
             },
+            "x-ves-example": "32768",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "65536"
@@ -11914,6 +13716,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for max request size none.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11922,8 +13725,11 @@ var f5xc_create_v1_default = {
             }
           },
           max_url_size_exceeds: {
+            description: "Exclusive with [max_url_size_none]",
             format: "int64",
+            title: "max_url_size_exceeds",
             type: "integer",
+            "x-displayname": "Match on the URL Size that exceed this value.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "number",
@@ -11936,6 +13742,7 @@ var f5xc_create_v1_default = {
               },
               minimum: 1
             },
+            "x-f5xc-example": "4096",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -11946,6 +13753,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "128000"
             },
+            "x-ves-example": "4096",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.uint32.gte": "1",
               "ves.io.schema.rules.uint32.lte": "128000"
@@ -11965,8 +13773,27 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "RequestConstraintType",
         type: "object",
+        "x-displayname": "Request Constraints.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyRequestConstraintType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyRequestConstraintType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-max_cookie_count_choice": '["max_cookie_count_exceeds","max_cookie_count_none"]',
         "x-ves-oneof-field-max_cookie_key_size_choice": '["max_cookie_key_size_exceeds","max_cookie_key_size_none"]',
         "x-ves-oneof-field-max_cookie_value_size_choice": '["max_cookie_value_size_exceeds","max_cookie_value_size_none"]',
@@ -11984,12 +13811,60 @@ var f5xc_create_v1_default = {
       },
       policyRuleAction: {
         default: "DENY",
+        description: `The rule action determines the disposition of the input request API. If a policy matches a rule with an ALLOW action, the processing of the request proceeds
+forward. If it matches a rule with a DENY action, the processing of the request is terminated and an appropriate message/code returned to the originator. If
+it matches a rule with a NEXT_POLICY_SET action, evaluation of the current policy set terminates and evaluation of the next policy set in the chain begins.
+
+- DENY: DENY
+
+Deny the request.
+- ALLOW: ALLOW
+
+Allow the request to proceed.
+- NEXT_POLICY_SET: NEXT_POLICY_SET
+
+Terminate evaluation of the current policy set and begin evaluating the next policy set in the chain. Note that the evaluation of any remaining policies
+in the current policy set is skipped.
+- NEXT_POLICY: NEXT_POLICY
+
+Terminate evaluation of the current policy and begin evaluating the next policy in the policy set. Note that the evaluation of any remaining rules in the
+current policy is skipped.
+- LAST_POLICY: LAST_POLICY
+
+Terminate evaluation of the current policy and begin evaluating the last policy in the policy set. Note that the evaluation of any remaining rules in the
+current policy is skipped.
+- GOTO_POLICY: GOTO_POLICY
+
+Terminate evaluation of the current policy and begin evaluating a specific policy in the policy set. The policy is specified using the goto_policy field in
+the rule and must be after the current policy in the policy set.`,
         enum: ["DENY", "ALLOW", "NEXT_POLICY"],
+        title: "Rule Action",
         type: "string",
+        "x-displayname": "Rule Action.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "The rule action determines the disposition of the input request API. If a policy matches a rule with an ALLOW action, the processing of the request proceeds forward. If it matches a rule with a DENY action, the processing of the request is terminated and an appropriate message/code returned to...",
+        "x-f5xc-description-short": "The rule action determines the disposition of the input request API.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyRuleAction",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyRuleAction
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.policy.RuleAction"
       },
       policySegmentPolicyType: {
+        description: "Configure source and destination segment for policy.",
         properties: {
           dst_any: {
             allOf: [
@@ -12010,6 +13885,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/viewsSegmentRefList"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for dst segments.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12023,6 +13899,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for intra segment.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12049,6 +13926,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/viewsSegmentRefList"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for src segments.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12057,17 +13935,42 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Segment Choice",
         type: "object",
+        "x-displayname": "Configure Segments.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-short": "Configure source and destination segment for policy.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policySegmentPolicyType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policySegmentPolicyType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-dst_segment_choice": '["dst_any","dst_segments","intra_segment"]',
         "x-ves-oneof-field-src_segment_choice": '["src_any","src_segments"]',
         "x-ves-proto-message": "ves.io.schema.policy.SegmentPolicyType"
       },
       policyStringMatcherType: {
+        description: `A matcher specifies a list of values for matching an input string. The match is considered successful if the input value is present in the list. The result of
+the match is inverted if invert_matcher is true.`,
         properties: {
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert String Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12076,12 +13979,15 @@ var f5xc_create_v1_default = {
             }
           },
           match: {
+            description: "A list of exact values to match the input against.",
             items: {
               maxLength: 63,
               type: "string"
             },
             maxItems: 64,
+            title: "match",
             type: "array",
+            "x-displayname": "Exact Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12094,6 +14000,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact values to match the input against.",
+            "x-f5xc-example": "['new york', 'london', 'sydney', 'tokyo', 'cairo']",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -12106,6 +14014,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "64",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['new york', 'london', 'sydney', 'tokyo', 'cairo']",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -12115,18 +14024,48 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "StringMatcherType",
         type: "object",
+        "x-displayname": "String Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Matcher specifies a list of values for matching an input string. The match is considered successful if the input value is present in the list. The result of the match is inverted if invert_matcher is true.",
+        "x-f5xc-description-short": "Matcher specifies a list of values for matching an input string. The match is considered successful if the input value is present in the list.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyStringMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "match": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for policyStringMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  match: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["match"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.StringMatcherType"
       },
       policyTlsFingerprintMatcherType: {
+        description: `A TLS fingerprint matcher specifies multiple criteria for matching a TLS fingerprint. The set of supported positive match criteria includes a list of known
+classes of TLS fingerprints and a list of exact values. The match is considered successful if either of these positive criteria are satisfied and the input
+fingerprint is not one of the excluded values.`,
         properties: {
           classes: {
+            description: "A list of known classes of TLS fingerprints to match the input TLS JA3 fingerprint against.",
             items: {
               $ref: "#/components/schemas/policyKnownTlsFingerprintClass"
             },
             maxItems: 16,
+            title: "classes",
             type: "array",
+            "x-displayname": "TLS fingerprint classes.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12139,6 +14078,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of known classes of TLS fingerprints to match the input TLS JA3 fingerprint against.",
+            "x-f5xc-example": `"['ADWARE', 'TRICKBOT']`,
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12155,11 +14096,14 @@ var f5xc_create_v1_default = {
             }
           },
           exact_values: {
+            description: "A list of exact TLS JA3 fingerprints to match the input TLS JA3 fingerprint against.",
             items: {
               type: "string"
             },
             maxItems: 16,
+            title: "exact values",
             type: "array",
+            "x-displayname": "Exact Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12172,6 +14116,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact TLS JA3 fingerprints to match the input TLS JA3 fingerprint against.",
+            "x-f5xc-example": "['ed6dfd54b01ebe31b7a65b88abfa7297', '16efcf0e00504ddfedde13bfea997952', 'de364c46b0dfc283b5e38c79ceae3f8f']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12183,6 +14129,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['ed6dfd54b01ebe31b7a65b88abfa7297', '16efcf0e00504ddfedde13bfea997952', 'de364c46b0dfc283b5e38c79ceae3f8f']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.len": "32",
               "ves.io.schema.rules.repeated.max_items": "16",
@@ -12190,11 +14137,15 @@ var f5xc_create_v1_default = {
             }
           },
           excluded_values: {
+            description: `A list of TLS JA3 fingerprints to be excluded when matching the input TLS JA3 fingerprint. This can be used to skip known false positives when using one
+or more known TLS fingerprint classes in the enclosing matcher.`,
             items: {
               type: "string"
             },
             maxItems: 32,
+            title: "excluded values",
             type: "array",
+            "x-displayname": "Excluded Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12207,6 +14158,9 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-medium": "List of TLS JA3 fingerprints to be excluded when matching the input TLS JA3 fingerprint. This can be used to skip known false positives when using one or more known TLS fingerprint classes in the enclosing matcher.",
+            "x-f5xc-description-short": "List of TLS JA3 fingerprints to be excluded when matching the input TLS JA3 fingerprint.",
+            "x-f5xc-example": "['fb00055a1196aeea8d1bc609885ba953', 'b386946a5a44d1ddcc843bc75336dfce']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12218,6 +14172,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "32",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['fb00055a1196aeea8d1bc609885ba953', 'b386946a5a44d1ddcc843bc75336dfce']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.len": "32",
               "ves.io.schema.rules.repeated.max_items": "32",
@@ -12225,11 +14180,64 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "TlsFingerprintMatcherType",
         type: "object",
+        "x-displayname": "TLS Fingerprint Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "TLS fingerprint matcher specifies multiple criteria for matching a TLS fingerprint. The set of supported positive match criteria includes a list of known classes of TLS fingerprints and a list of exact values. The match is considered successful if either of these positive criteria are satisfied...",
+        "x-f5xc-description-short": "TLS fingerprint matcher specifies multiple criteria for matching a TLS fingerprint.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyTlsFingerprintMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyTlsFingerprintMatcherType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.TlsFingerprintMatcherType"
       },
       policyTransformer: {
+        description: `Transformers to be applied on the part of the request before matching.
+
+- TRANSFORMER_NONE: transformer none
+
+No transformers enabled
+- LOWER_CASE: lower case
+
+Convert string to lower case
+- UPPER_CASE: upper case
+
+Convert string to upper case
+- BASE64_DECODE: base64 decode
+
+Decode string assuming base64 encoding
+- NORMALIZE_PATH: normalize path
+
+Normalize URL path so that /a/b/../c will be transformed to /a/c
+- REMOVE_WHITESPACE: remove whitespace
+
+Remove whitespaces
+- URL_DECODE: URL decode
+
+Decode string assuming URL encoding as per rfc1738
+- TRIM_LEFT: trim left
+
+Remove whitespace from the left side of the input string
+- TRIM_RIGHT: trim right
+
+Remove whitespace from the right side of the input string
+- TRIM: trim
+
+Remove whitespace from the both sides of the input string.`,
         enum: [
           "LOWER_CASE",
           "UPPER_CASE",
@@ -12241,11 +14249,34 @@ var f5xc_create_v1_default = {
           "TRIM_RIGHT",
           "TRIM"
         ],
+        title: "Transformer",
         type: "string",
+        "x-displayname": "Transformer.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Transformers to be applied on the part of the request before matching. - TRANSFORMER_NONE: transformer none No transformers enabled - LOWER_CASE: lower case Convert string to lower case - UPPER_CASE: upper case Convert string to upper case - BASE64_DECODE: base64 decode Decode string assuming...",
+        "x-f5xc-description-short": "Transformers to be applied on the part of the request before matching. - TRANSFORMER_NONE: transformer none No transformers enabled - LOWER_CASE...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyTransformer",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyTransformer
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.policy.Transformer"
       },
       policyWafAction: {
+        description: `Modify App Firewall behavior for a matching request. The modification could either be to entirely skip firewall processing or to customize the firewall rules
+to be applied as defined by App Firewall Rule Control settings.`,
         properties: {
           app_firewall_detection_control: {
             allOf: [
@@ -12253,6 +14284,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyAppFirewallDetectionControl"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for app firewall detection control.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12287,20 +14319,123 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "App Firewall Action",
         type: "object",
+        "x-displayname": "App Firewall Action.",
         "x-f5xc-cli-domain": "virtual",
+        "x-f5xc-description-medium": "Modify App Firewall behavior for a matching request. The modification could either be to entirely skip firewall processing or to customize the firewall rules to be applied as defined by App Firewall Rule Control settings.",
+        "x-f5xc-description-short": "Modify App Firewall behavior for a matching request.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for policyWafAction",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for policyWafAction
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-action_type": '["app_firewall_detection_control","none","waf_skip_processing"]',
         "x-ves-proto-message": "ves.io.schema.policy.WafAction"
       },
       schemaHttpMethod: {
         default: "ANY",
+        description: `Specifies the HTTP method used to access a resource.
+
+Any HTTP Method.`,
         enum: ["ANY", "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "COPY"],
+        title: "HttpMethod",
         type: "string",
+        "x-displayname": "HTTP Method.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "Specifies the HTTP method used to access a resource. Any HTTP Method.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaHttpMethod",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for schemaHttpMethod
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.HttpMethod"
       },
       schemaHttpStatusCode: {
         default: "EmptyStatusCode",
+        description: `HTTP response status codes
+
+EmptyStatusCode response codes means it is not specified
+Continue status code
+OK status code
+Created status code
+Accepted status code
+Non Authoritative Information status code
+No Content status code
+Reset Content status code
+Partial Content status code
+Multi Status status code
+Already Reported status code
+Im Used status code
+Multiple Choices status code
+Moved Permanently status code
+Found status code
+See Other status code
+Not Modified status code
+Use Proxy status code
+Temporary Redirect status code
+Permanent Redirect status code
+Bad Request status code
+Unauthorized status code
+Payment Required status code
+Forbidden status code
+Not Found status code
+Method Not Allowed status code
+Not Acceptable status code
+Proxy Authentication Required status code
+Request Timeout status code
+Conflict status code
+Gone status code
+Length Required status code
+Precondition Failed status code
+Payload Too Large status code
+URI Too Long status code
+Unsupported Media Type status code
+Range Not Satisfiable status code
+Expectation Failed status code
+Misdirected Request status code
+Unprocessable Entity status code
+Locked status code
+Failed Dependency status code
+Upgrade Required status code
+Precondition Required status code
+Too Many Requests status code
+Request Header Fields Too Large status code
+Internal Server Error status code
+Not Implemented status code
+Bad Gateway status code
+Service Unavailable status code
+Gateway Timeout status code
+HTTP Version Not Supported status code
+Variant Also Negotiates status code
+Insufficient Storage status code
+Loop Detected status code
+Not Extended status code
+Network Authentication Required status code.`,
         enum: [
           "EmptyStatusCode",
           "Continue",
@@ -12360,20 +14495,48 @@ var f5xc_create_v1_default = {
           "NotExtended",
           "NetworkAuthenticationRequired"
         ],
+        title: "HttpStatusCode",
         type: "string",
+        "x-displayname": "HTTP Status Code.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "HTTP response status codes EmptyStatusCode response codes means it is not specified Continue status code OK status code Created status code Accepted status code Non Authoritative Information status code No Content status code Reset Content status code Partial Content status code Multi Status...",
+        "x-f5xc-description-short": "HTTP response status codes EmptyStatusCode response codes means it is not specified Continue status code OK status code Created status code...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaHttpStatusCode",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for schemaHttpStatusCode
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-enum": "ves.io.schema.HttpStatusCode"
       },
       schemaLabelMatcherType: {
+        description: `A label matcher specifies a list of label keys whose values need to match for
+source/client and destination/server. Note that the actual label values are not
+specified and do not matter. This allows an ability to scope grouping by the
+label key name.`,
         properties: {
           keys: {
+            description: "The list of label key names that have to match.",
             items: {
               maxLength: 64,
               minLength: 1,
               type: "string"
             },
             maxItems: 16,
+            title: "keys",
             type: "array",
+            "x-displayname": "Keys",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12386,6 +14549,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "The list of label key names that have to match.",
+            "x-f5xc-example": "['environment', 'location', 'deployment']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12398,6 +14563,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['environment', 'location', 'deployment']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_len": "64",
               "ves.io.schema.rules.repeated.items.string.min_len": "1",
@@ -12406,20 +14572,60 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "LabelMatcherType",
         type: "object",
+        "x-displayname": "Label Matcher.",
         "x-f5xc-cli-domain": "label",
+        "x-f5xc-description-medium": "Label matcher specifies a list of label keys whose values need to match for source/client and destination/server. Note that the actual label values are not specified and do not matter. This allows an ability to scope grouping by the label key name.",
+        "x-f5xc-description-short": "Label matcher specifies a list of label keys whose values need to match for source/client and destination/server.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaLabelMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for schemaLabelMatcherType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.LabelMatcherType"
       },
       schemaLabelSelectorType: {
+        description: `This type can be used to establish a 'selector reference' from one object(called selector) to
+a set of other objects(called selectees) based on the value of expressions.
+A label selector is a label query over a set of resources. An empty label selector matches all objects.
+A null label selector matches no objects. Label selector is immutable.
+Expressions is a list of strings of label selection expression.
+Each string has "," separated values which are "AND" and all strings are logically "OR".
+BNF for expression string
+<selector-syntax> ::= <requirement> | <requirement> "," <selector-syntax>
+<requirement> ::= [!] KEY [ <set-based-restriction> | <exact-match-restriction> ]
+<set-based-restriction> ::= "" | <inclusion-exclusion> <value-set>
+<inclusion-exclusion> ::= <inclusion> | <exclusion>
+<exclusion> ::= "notin"
+<inclusion> ::= "in"
+<value-set> ::= "(" <values> ")"
+<values> ::= VALUE | VALUE "," <values>
+<exact-match-restriction> ::= ["="|"=="|"!="] VALUE.`,
         properties: {
           expressions: {
+            description: "Expressions contains the Kubernetes style label expression for selections.",
             items: {
               maxLength: 4096,
               minLength: 1,
               type: "string"
             },
             maxItems: 1,
+            title: "expressions",
             type: "array",
+            "x-displayname": "Selector Expression.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12431,6 +14637,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-short": "Expressions contains the Kubernetes style label expression for selections.",
+            "x-f5xc-example": "region in (us-west1, us-west2),tier in (staging)",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -12444,6 +14652,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.items.string.min_len": "1",
               "ves.io.schema.rules.repeated.max_items": "1"
             },
+            "x-ves-example": "Region in (us-west1, us-west2),tier in (staging)",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -12454,19 +14663,90 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "LabelSelectorType",
         type: "object",
+        "x-displayname": "Label Selector.",
         "x-f5xc-cli-domain": "label",
+        "x-f5xc-description-medium": "Type can be used to establish a 'selector reference' from one object(called selector) to a set of other objects(called selectees) based on the value of expressions. A label selector is a label query over a set of resources. An empty label selector matches all objects.",
+        "x-f5xc-description-short": "Type can be used to establish a 'selector reference' from one object(called selector) to a set of other objects(called selectees) based on the...",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaLabelSelectorType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "expressions": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemaLabelSelectorType
+metadata:
+  name: example
+  namespace: default
+spec:
+  expressions: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["expressions"]
+        },
         "x-ves-proto-message": "ves.io.schema.LabelSelectorType"
       },
       schemaMessageMetaType: {
+        description: `MessageMetaType is metadata (common attributes) of a message that only certain messages
+have. This information is propagated to the metadata of a child object that gets created
+from the containing message during view processing.
+The information in this type can be specified by user during create and replace APIs.`,
         properties: {
-          name: {
-            minLength: 1,
+          description: {
+            description: "Human readable description.",
+            maxLength: 256,
+            title: "description",
             type: "string",
+            "x-displayname": "Description.",
+            "x-f5xc-constraints": {
+              category: "discovery",
+              characterSet: {
+                description: "Free text with UTF-8 support"
+              },
+              constraintType: "string",
+              deterministic: true,
+              maxLength: 256,
+              metadata: {
+                confidence: 0.99,
+                source: "discovery",
+                validatedAt: "2026-08-20T09:12:47+00:00"
+              },
+              minLength: 0
+            },
+            "x-f5xc-example": "Virtual Host for Example Corp website",
+            "x-f5xc-required-for": {
+              create: false,
+              minimum_config: false,
+              read: false,
+              update: false
+            },
+            "x-reconciled-at": "2026-08-20T09:12:47+00:00",
+            "x-reconciled-from-discovery": true,
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_len": "256"
+            },
+            "x-ves-example": "Virtual Host for Example Corp website.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_len": "256"
+            }
+          },
+          name: {
+            description: `This is the name of the message.
+The value of name has to follow DNS-1035 format.`,
+            minLength: 1,
+            title: "name",
+            type: "string",
+            "x-displayname": "Name",
             "x-f5xc-constraints": {
               category: "discovery",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -12487,6 +14767,8 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-description-short": "Name of the message. The value of name has to follow DNS-1035 format.",
+            "x-f5xc-example": "example-corp-web",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -12498,6 +14780,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.string.min_len": "1",
               "ves.io.schema.rules.string.ves_object_name": "true"
             },
+            "x-ves-example": "Example-corp-web.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -12506,14 +14789,47 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "MessageMetaType",
         type: "object",
+        "x-displayname": "Message Metadata.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "MessageMetaType is metadata (common attributes) of a message that only certain messages have. This information is propagated to the metadata of a child object that gets created from the containing message during view processing. The information in this type can be specified by user during create...",
+        "x-f5xc-description-short": "MessageMetaType is metadata (common attributes) of a message that only certain messages have.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaMessageMetaType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemaMessageMetaType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-proto-message": "ves.io.schema.MessageMetaType"
       },
       schemaObjectCreateMetaType: {
+        description: "ObjectCreateMetaType is metadata that can be specified in Create request of an object.",
         properties: {
           annotations: {
+            description: `Annotations is an unstructured key value map stored with a resource that may be
+set by external tools to store and retrieve arbitrary metadata. They are not
+queryable and should be preserved when modifying objects.`,
+            title: "annotations",
             type: "object",
+            "x-displayname": "Annotation.",
+            "x-f5xc-description-medium": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects.",
+            "x-f5xc-description-short": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.",
+            "x-f5xc-example": "value",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12533,9 +14849,56 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.map.values.string.min_len": "1"
             }
           },
+          description: {
+            description: "Human readable description for the object.",
+            maxLength: 1200,
+            title: "description",
+            type: "string",
+            "x-displayname": "Description.",
+            "x-f5xc-constraints": {
+              byteLength: {
+                max: 1200
+              },
+              category: "discovery",
+              characterSet: {
+                description: "Free text with UTF-8 support"
+              },
+              constraintType: "string",
+              deterministic: true,
+              maxLength: 1200,
+              metadata: {
+                confidence: 0.99,
+                source: "discovery",
+                validatedAt: "2026-08-20T09:12:47+00:00"
+              },
+              minLength: 0
+            },
+            "x-f5xc-description-short": "Human readable description for the object.",
+            "x-f5xc-example": "Virtual Host for Example Corp website",
+            "x-f5xc-required-for": {
+              create: false,
+              minimum_config: false,
+              read: false,
+              update: false
+            },
+            "x-reconciled-at": "2026-08-20T09:12:47+00:00",
+            "x-reconciled-from-discovery": true,
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "1200"
+            },
+            "x-ves-example": "Virtual Host for Example Corp website.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "1200"
+            }
+          },
           disable: {
+            description: "A value of true will administratively disable the object.",
             format: "boolean",
+            title: "disable",
             type: "boolean",
+            "x-displayname": "Disable",
+            "x-f5xc-description-short": "Value of true will administratively disable the object.",
+            "x-f5xc-example": "true",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12544,7 +14907,15 @@ var f5xc_create_v1_default = {
             }
           },
           labels: {
+            description: `Map of string keys and values that can be used to organize and categorize
+(scope and select) objects as chosen by the user. Values specified here will be used
+by selector expression.`,
+            title: "labels",
             type: "object",
+            "x-displayname": "Labels",
+            "x-f5xc-description-medium": "Map of string keys and values that can be used to organize and categorize (scope and select) objects as chosen by the user. Values specified here will be used by selector expression.",
+            "x-f5xc-description-short": "Map of string keys and values that can be used to organize and categorize (scope and select) objects as chosen by the user.",
+            "x-f5xc-example": "value",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12553,11 +14924,17 @@ var f5xc_create_v1_default = {
             }
           },
           name: {
+            description: `This is the name of configuration object. It has to be unique within the namespace.
+It can only be specified during create API and cannot be changed during replace API.
+The value of name has to follow DNS-1035 format.`,
+            title: "name",
             type: "string",
+            "x-displayname": "Name",
             "x-f5xc-constraints": {
               category: "naming",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -12578,6 +14955,9 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-description-medium": "Name of configuration object. It has to be unique within the namespace. It can only be specified during create API and cannot be changed during replace API.",
+            "x-f5xc-description-short": "Name of configuration object. It has to be unique within the namespace.",
+            "x-f5xc-example": "example-corp-web",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -12589,17 +14969,23 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.message.required": "true"
             },
+            "x-ves-example": "Example-corp-web.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true"
             }
           },
           namespace: {
+            description: `This defines the workspace within which each the configuration object is to be created.
+Must be a DNS_LABEL format. For a namespace object itself, namespace value will be ""`,
+            title: "namespace",
             type: "string",
+            "x-displayname": "Namespace",
             "x-f5xc-constraints": {
               category: "naming",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -12620,6 +15006,9 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-description-medium": 'Defines the workspace within which each the configuration object is to be created. Must be a DNS_LABEL format. For a namespace object itself, namespace value will be "".',
+            "x-f5xc-description-short": "Defines the workspace within which each the configuration object is to be created.",
+            "x-f5xc-example": "staging",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12627,14 +15016,39 @@ var f5xc_create_v1_default = {
               update: false
             },
             "x-reconciled-at": "2026-08-20T09:12:47+00:00",
-            "x-reconciled-from-discovery": true
+            "x-reconciled-from-discovery": true,
+            "x-ves-example": "Staging"
           }
         },
+        title: "ObjectCreateMetaType",
         type: "object",
+        "x-displayname": "Create Metadata.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "ObjectCreateMetaType is metadata that can be specified in Create request of an object.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaObjectCreateMetaType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemaObjectCreateMetaType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-proto-message": "ves.io.schema.ObjectCreateMetaType"
       },
       schemapolicyBotAction: {
+        description: "Modify Bot protection behavior for a matching request. The modification could be to entirely skip Bot processing.",
         properties: {
           bot_skip_processing: {
             allOf: [
@@ -12663,12 +15077,38 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Bot Action",
         type: "object",
+        "x-displayname": "Bot Action.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Modify Bot protection behavior for a matching request. The modification could be to entirely skip Bot processing.",
+        "x-f5xc-description-short": "Modify Bot protection behavior for a matching request. The modification could be to entirely skip Bot processing.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemapolicyBotAction",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for schemapolicyBotAction
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-oneof-field-action_type": '["bot_skip_processing","none"]',
         "x-ves-proto-message": "ves.io.schema.policy.BotAction"
       },
       schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer: {
+        description: `A header matcher specifies the name of a single HTTP header and the criteria for the input request to match it. The input has a list of actual values for each
+header name in the original HTTP request.
+A header matcher can check for one of the following:
+* Presence or absence of the header in the input
+* At least one of the values for the header in the input satisfies the MatcherType item.`,
         properties: {
           check_not_present: {
             allOf: [
@@ -12676,6 +15116,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check not present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12689,6 +15130,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12697,8 +15139,11 @@ var f5xc_create_v1_default = {
             }
           },
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Header Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12722,8 +15167,11 @@ var f5xc_create_v1_default = {
             "x-reconciled-from-discovery": true
           },
           name: {
+            description: "A case-insensitive HTTP header name.",
             maxLength: 256,
+            title: "name",
             type: "string",
+            "x-displayname": "Header Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -12731,6 +15179,7 @@ var f5xc_create_v1_default = {
               category: "discovery",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -12751,6 +15200,7 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-example": "Accept-Encoding",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -12764,6 +15214,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.string.http_header_field": "true",
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "Accept-Encoding.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -12772,31 +15223,66 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "HeaderMatcherType",
         type: "object",
+        "x-displayname": "Header Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Header matcher specifies the name of a single HTTP header and the criteria for the input request to match it. The input has a list of actual values for each header name in the original HTTP request. A header matcher can check for one of the following: * Presence or absence of the header in the...",
+        "x-f5xc-description-short": "Header matcher specifies the name of a single HTTP header and the criteria for the input request to match it.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemapolicyHeaderMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemapolicyHeaderMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
         "x-ves-proto-message": "ves.io.schema.policy.HeaderMatcherType"
       },
       schemapolicyPathMatcherType: {
+        description: `A path matcher specifies multiple criteria for matching an HTTP path string. The match is considered successful if any of the criteria are satisfied. The set
+of supported match criteria includes a list of path prefixes, a list of exact path values and a list of regular expressions.`,
         properties: {
           encoded_path_matcher: {
+            description: "Match against the encoded, escaped path.",
             format: "boolean",
+            title: "Encoded_Path",
             type: "boolean",
+            "x-displayname": "Match Encoded Path.",
+            "x-f5xc-description-short": "Match against the encoded, escaped path.",
+            "x-f5xc-example": '"match \\"/path/%20another%20path\\" instead of default \\"/path/ another path\\""',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
               read: false,
               update: false
-            }
+            },
+            "x-ves-example": "Match \\\"/path/%20another%20path\\\" instead of default \\\"/path/ another path\\\""
           },
           exact_values: {
+            description: "A list of exact path values to match the input HTTP path against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 16,
+            title: "exact values",
             type: "array",
+            "x-displayname": "Exact Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12809,6 +15295,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact path values to match the input HTTP path against.",
+            "x-f5xc-example": "['/api/web/namespaces/project179/users/user1', '/api/config/configconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfignamespaces/accounting/bgps', '/api/data/datadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatanamespaces/project443/virtual_host_101']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12822,6 +15310,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['/API/web/namespaces/project179/users/user1', '/API/config/configconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfignamespaces/accounting/bgps', '/API/data/datadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatanamespaces/project443/virtual_host_101']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.http_path": "true",
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
@@ -12831,8 +15320,11 @@ var f5xc_create_v1_default = {
             }
           },
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Path Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12841,12 +15333,15 @@ var f5xc_create_v1_default = {
             }
           },
           prefix_values: {
+            description: "A list of path prefix values to match the input HTTP path against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 16,
+            title: "prefix values",
             type: "array",
+            "x-displayname": "Prefix Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12859,6 +15354,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of path prefix values to match the input HTTP path against.",
+            "x-f5xc-example": "['/api/web/namespaces/project179/users/', '/api/config/configconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfignamespaces/', '/api/data/datadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatanamespaces/']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12872,6 +15369,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['/API/web/namespaces/project179/users/', '/API/config/configconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfigconfignamespaces/', '/API/data/datadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatanamespaces/']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.http_path": "true",
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
@@ -12881,12 +15379,15 @@ var f5xc_create_v1_default = {
             }
           },
           regex_values: {
+            description: "A list of regular expressions to match the input HTTP path against.",
             items: {
               maxLength: 256,
               type: "string"
             },
             maxItems: 16,
+            title: "regex values",
             type: "array",
+            "x-displayname": "Regex Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12899,6 +15400,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of regular expressions to match the input HTTP path against.",
+            "x-f5xc-example": "['^/api/web/namespaces/abc/users/([a-z]([-a-z0-9]*[a-z0-9])?)$', '/api/data/datadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatanamespaces/proj404/virtual_hosts/([a-z]([-a-z0-9]*[a-z0-9])?)$']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12912,6 +15415,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['^/API/web/namespaces/abc/users/([a-z]([-a-z0-9]*[a-z0-9])?)$', '/API/data/datadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatadatanamespaces/proj404/virtual_hosts/([a-z]([-a-z0-9]*[a-z0-9])?)$']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_bytes": "256",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -12921,12 +15425,15 @@ var f5xc_create_v1_default = {
             }
           },
           suffix_values: {
+            description: "A list of path suffix values to match the input HTTP path against.",
             items: {
               maxLength: 64,
               type: "string"
             },
             maxItems: 64,
+            title: "Suffix values",
             type: "array",
+            "x-displayname": "Suffix Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12939,6 +15446,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of path suffix values to match the input HTTP path against.",
+            "x-f5xc-example": "['.exe', '.shtml', '.wmz']",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12951,6 +15460,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "64",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "['.exe', '.shtml', '.wmz']",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.max_bytes": "64",
               "ves.io.schema.rules.repeated.items.string.not_empty": "true",
@@ -12959,11 +15469,14 @@ var f5xc_create_v1_default = {
             }
           },
           transformers: {
+            description: "An ordered list of transformers (starting from index 0) to be applied to the path before matching.",
             items: {
               $ref: "#/components/schemas/policyTransformer"
             },
             maxItems: 9,
+            title: "transformers",
             type: "array",
+            "x-displayname": "Transformers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -12976,6 +15489,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "Ordered list of transformers (starting from index 0) to be applied to the path before matching.",
+            "x-f5xc-example": '"[BASE64_DECODE, LOWER_CASE]',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -12992,15 +15507,41 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "PathMatcherType",
         type: "object",
+        "x-displayname": "Path Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Path matcher specifies multiple criteria for matching an HTTP path string. The match is considered successful if any of the criteria are satisfied. The set of supported match criteria includes a list of path prefixes, a list of exact path values and a list of regular expressions.",
+        "x-f5xc-description-short": "Path matcher specifies multiple criteria for matching an HTTP path string. The match is considered successful if any of the criteria are satisfied.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemapolicyPathMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for schemapolicyPathMatcherType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.policy.PathMatcherType"
       },
       schemapolicyPortMatcherType: {
+        description: `A port matcher specifies a list of port ranges as match criteria. The match is considered successful if the input port falls within any of the port ranges.
+The result of the match is inverted if invert_matcher is true.`,
         properties: {
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Port Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13009,11 +15550,15 @@ var f5xc_create_v1_default = {
             }
           },
           ports: {
+            description: `A list of strings, each of which is a single port value or a tuple of start and end port values separated by "-". The start and end values are considered
+to be part of the range.`,
             items: {
               type: "string"
             },
             maxItems: 16,
+            title: "port ranges",
             type: "array",
+            "x-displayname": "Port Ranges.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13026,6 +15571,9 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-medium": 'List of strings, each of which is a single port value or a tuple of start and end port values separated by "-". The start and end values are considered to be part of the range.',
+            "x-f5xc-description-short": 'List of strings, each of which is a single port value or a tuple of start and end port values separated by "-".',
+            "x-f5xc-example": "8000-8191",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -13038,6 +15586,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "8000-8191",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -13047,11 +15596,40 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "port matcher type",
         type: "object",
+        "x-displayname": "Port Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Port matcher specifies a list of port ranges as match criteria. The match is considered successful if the input port falls within any of the port ranges. The result of the match is inverted if invert_matcher is true.",
+        "x-f5xc-description-short": "Port matcher specifies a list of port ranges as match criteria.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemapolicyPortMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "ports": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemapolicyPortMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  ports: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["ports"]
+        },
         "x-ves-proto-message": "ves.io.schema.policy.PortMatcherType"
       },
       schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer: {
+        description: `A query parameter matcher specifies the name of a single query parameter and the criteria for the input request to match it. The input has a list of actual
+values for each query parameter name in the original HTTP request.
+A query parameter matcher can check for one of the following:
+* Presence or absence of the query parameter in the input
+* At least one of the values for the query parameter in the input satisfies the MatcherType item.`,
         properties: {
           check_not_present: {
             allOf: [
@@ -13059,6 +15637,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check not present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13072,6 +15651,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for check present.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13080,8 +15660,11 @@ var f5xc_create_v1_default = {
             }
           },
           invert_matcher: {
+            description: "Invert the match result.",
             format: "boolean",
+            title: "invert_matcher",
             type: "boolean",
+            "x-displayname": "Invert Query Parameter Matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13105,8 +15688,11 @@ var f5xc_create_v1_default = {
             "x-reconciled-from-discovery": true
           },
           key: {
+            description: "A case-sensitive HTTP query parameter name.",
             maxLength: 256,
+            title: "key",
             type: "string",
+            "x-displayname": "Query Parameter Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -13121,6 +15707,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-short": "Case-sensitive HTTP query parameter name.",
+            "x-f5xc-example": "sourceid",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -13133,6 +15721,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.message.required": "true",
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "Sourceid",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -13140,13 +15729,38 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "QueryParameterMatcherType",
         type: "object",
+        "x-displayname": "Query Parameter Matcher.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Query parameter matcher specifies the name of a single query parameter and the criteria for the input request to match it. The input has a list of actual values for each query parameter name in the original HTTP request. A query parameter matcher can check for one of the following: * Presence or...",
+        "x-f5xc-description-short": "Query parameter matcher specifies the name of a single query parameter and the criteria for the input request to match it.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemapolicyQueryParameterMatcherType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "key": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemapolicyQueryParameterMatcherType
+metadata:
+  name: example
+  namespace: default
+spec:
+  key: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["key"]
+        },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
         "x-ves-proto-message": "ves.io.schema.policy.QueryParameterMatcherType"
       },
       schemaservice_policyCreateSpecType: {
+        description: "Create service_policy creates a new object in the storage backend for metadata.namespace.",
         properties: {
           allow_all_requests: {
             allOf: [
@@ -13154,6 +15768,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for allow all requests.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13193,6 +15808,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for deny all requests.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13219,6 +15835,10 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/service_policyRuleList"
               }
             ],
+            description: "Ordered service-policy rules for non-geographic predicates and actions. Do not use country_list for a geo-only rule here: the platform adds match-all any_ip and any_asn selectors on readback, so the rule can match all traffic. Use deny_list or allow_list with country_list for geographic source matching.",
+            "x-f5xc-description-medium": "Ordered service-policy rules for non-geographic predicates and actions. Do not use country_list for a geo-only rule here: the platform adds match-all any_ip and any_asn selectors on readback, so the rule can match all traffic. Use deny_list or allow_list with country_list for geographic source...",
+            "x-f5xc-description-short": "Ordered service-policy rules for non-geographic predicates and actions.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13227,8 +15847,14 @@ var f5xc_create_v1_default = {
             }
           },
           server_name: {
+            description: `Exclusive with [any_server server_name_matcher server_selector]
+The expected name of the server to which the request API is directed. The actual names for the server are extracted from the HTTP Host header and the name
+of the virtual_host to which the request is directed. If the request is directed to a virtual K8s service, the actual names also contain the name of that
+service.
+The predicate evaluates to true if any of the actual names is the same as the expected server name.`,
             maxLength: 256,
             type: "string",
+            "x-displayname": "Server Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -13243,6 +15869,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Exclusive with [any_server server_name_matcher server_selector] The expected name of the server to which the request API is directed. The actual names for the server are extracted from the HTTP Host header and the name of the virtual_host to which the request is directed. If the request is...",
+            "x-f5xc-description-short": "Exclusive with [any_server server_name_matcher server_selector] The expected name of the server to which the request API is directed.",
+            "x-f5xc-example": "database.production.customer.F5 Distributed cloud.us",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13252,6 +15881,7 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "database.production.customer.F5 Distributed cloud.us.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "256"
             }
@@ -13262,6 +15892,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyMatcherTypeBasic"
               }
             ],
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13275,6 +15906,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaLabelSelectorType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for server selector.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13283,13 +15915,51 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Create service policy",
         type: "object",
+        "x-displayname": "Create Service Policy.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-short": "Create service_policy creates a new object in the storage backend for metadata.namespace.",
+        "x-f5xc-minimum-configuration": {
+          description: "Service policy for network-level access control and traffic rules",
+          example_json: `{
+  "metadata": {
+    "name": "allow-all",
+    "namespace": "default"
+  },
+  "spec": {
+    "allow_all_requests": {}
+  }
+}
+`,
+          example_yaml: `apiVersion: v1
+kind: service_policy
+metadata:
+  name: allow-all
+  namespace: default
+spec:
+  allow_all_requests: {}
+`,
+          mutually_exclusive_groups: [
+            {
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
+              name: "rule_choice",
+              reason: "Choose exactly one rule selection method (REQUIRED)"
+            },
+            {
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
+              name: "server_choice",
+              reason: "Choose server scope (default: any_server)"
+            }
+          ],
+          required_fields: ["metadata.name", "metadata.namespace"]
+        },
         "x-ves-oneof-field-rule_choice": '["allow_all_requests","allow_list","deny_all_requests","deny_list","rule_list"]',
         "x-ves-oneof-field-server_choice": '["any_server","server_name","server_name_matcher","server_selector"]',
         "x-ves-proto-message": "ves.io.schema.service_policy.CreateSpecType"
       },
       schemaservice_policy_ruleCreateSpecType: {
+        description: "Create service_policy_rule creates a new object in the storage backend for metadata.namespace.",
         properties: {
           action: {
             allOf: [
@@ -13298,11 +15968,12 @@ var f5xc_create_v1_default = {
               }
             ],
             "x-f5xc-required-for": {
-              create: false,
-              minimum_config: false,
+              create: true,
+              minimum_config: true,
               read: false,
               update: false
-            }
+            },
+            "x-ves-required": "true"
           },
           any_asn: {
             allOf: [
@@ -13323,6 +15994,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13357,11 +16029,15 @@ var f5xc_create_v1_default = {
             }
           },
           arg_matchers: {
+            description: `A list of predicates for all POST args that need to be matched. The criteria for matching each arg are described in individual instances
+of ArgMatcherType. The actual arg values are extracted from the request API as a list of strings for each arg selector name.
+Note that all specified arg matcher predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/policyArgMatcherType"
             },
             maxItems: 16,
             type: "array",
+            "x-displayname": "Argument Matchers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13373,6 +16049,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for all POST args that need to be matched. The criteria for matching each arg are described in individual instances of ArgMatcherType. The actual arg values are extracted from the request API as a list of strings for each arg selector name.",
+            "x-f5xc-description-short": "List of predicates for all POST args that need to be matched.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13405,6 +16083,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyAsnMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for asn matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13439,8 +16118,12 @@ var f5xc_create_v1_default = {
             }
           },
           client_name: {
+            description: `Exclusive with [any_client client_name_matcher client_selector ip_threat_category_list]
+The expected name of the client invoking the request API.
+The predicate evaluates to true if any of the actual names is the same as the expected client name.`,
             maxLength: 256,
             type: "string",
+            "x-displayname": "Client Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -13455,6 +16138,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Exclusive with [any_client client_name_matcher client_selector ip_threat_category_list] The expected name of the client invoking the request API. The predicate evaluates to true if any of the actual names is the same as the expected client name.",
+            "x-f5xc-description-short": "Exclusive with [any_client client_name_matcher client_selector ip_threat_category_list] The expected name of the client invoking the request API.",
+            "x-f5xc-example": "backend.production.customer.F5 Distributed cloud.us",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13464,6 +16150,7 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "backend.production.customer.F5 Distributed cloud.us.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "256"
             }
@@ -13474,6 +16161,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyMatcherTypeBasic"
               }
             ],
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13487,6 +16175,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaLabelSelectorType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13495,11 +16184,15 @@ var f5xc_create_v1_default = {
             }
           },
           cookie_matchers: {
+            description: `A list of predicates for all cookies that need to be matched. The criteria for matching each cookie is described in individual instances
+of CookieMatcherType. The actual cookie values are extracted from the request API as a list of strings for each cookie name.
+Note that all specified cookie matcher predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
             type: "array",
+            "x-displayname": "Cookie Matchers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13511,6 +16204,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for all cookies that need to be matched. The criteria for matching each cookie is described in individual instances of CookieMatcherType. The actual cookie values are extracted from the request API as a list of strings for each cookie name.",
+            "x-f5xc-description-short": "List of predicates for all cookies that need to be matched.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13530,6 +16225,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyMatcherTypeBasic"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for domain matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13538,8 +16234,11 @@ var f5xc_create_v1_default = {
             }
           },
           expiration_timestamp: {
+            description: `The expiration_timestamp is the RFC 3339 format timestamp at which the containing rule is considered to be logically expired. The rule continues to exist in
+the configuration but is not applied anymore.`,
             format: "date-time",
             type: "string",
+            "x-displayname": "Expiration Timestamp.",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -13551,19 +16250,27 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Specifies expiration_timestamp the RFC 3339 format timestamp at which the containing rule is considered to be logically expired. The rule continues to exist in the configuration but is not applied anymore.",
+            "x-f5xc-description-short": "Specifies expiration_timestamp the RFC 3339 format timestamp at which the containing rule is considered to be logically expired.",
+            "x-f5xc-example": "2019-12-31:44:34.171543432Z",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
               read: false,
               update: false
-            }
+            },
+            "x-ves-example": "2019-12-31:44:34.171543432Z."
           },
           headers: {
+            description: `A list of predicates for various HTTP headers that need to match. The criteria for matching each HTTP header are described in individual HeaderMatcherType
+instances. The actual HTTP header values are extracted from the request API as a list of strings for each HTTP header type.
+Note that all specified header predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
             type: "array",
+            "x-displayname": "HTTP Headers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13577,6 +16284,9 @@ var f5xc_create_v1_default = {
               minItems: 0,
               uniqueItems: false
             },
+            "x-f5xc-description-medium": "List of predicates for various HTTP headers that need to match. The criteria for matching each HTTP header are described in individual HeaderMatcherType instances. The actual HTTP header values are extracted from the request API as a list of strings for each HTTP header type.",
+            "x-f5xc-description-short": "List of predicates for various HTTP headers that need to match.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13596,6 +16306,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyHttpMethodMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for http method.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13635,6 +16346,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaservice_policy_ruleIPThreatCategoryListType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13648,6 +16360,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyJA4TlsFingerprintMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for ja4 tls fingerprint.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13656,11 +16369,15 @@ var f5xc_create_v1_default = {
             }
           },
           jwt_claims: {
+            description: `A list of predicates for various JWT claims that need to match. The criteria for matching each JWT claim are described in individual JWTClaimMatcherType
+instances. The actual JWT claims values are extracted from the JWT payload as a list of strings.
+Note that all specified JWT claim predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/policyJWTClaimMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
             type: "array",
+            "x-displayname": "JWT Claims.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13672,6 +16389,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for various JWT claims that need to match. The criteria for matching each JWT claim are described in individual JWTClaimMatcherType instances. The actual JWT claims values are extracted from the JWT payload as a list of strings.",
+            "x-f5xc-description-short": "List of predicates for various JWT claims that need to match.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13699,8 +16418,12 @@ var f5xc_create_v1_default = {
             }
           },
           log_rule_evaluation: {
+            description: "Log the rule match details along with the request and continue to evaluate rules in the sequence.",
             format: "boolean",
             type: "boolean",
+            "x-displayname": "Log Rule Evaluation.",
+            "x-f5xc-description-short": "Log the rule match details along with the request and continue to evaluate rules in the sequence.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13727,6 +16450,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemapolicyPathMatcherType"
               }
             ],
+            "x-f5xc-example": "/api/v1/resources",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13748,11 +16472,15 @@ var f5xc_create_v1_default = {
             }
           },
           query_params: {
+            description: `A list of predicates for all query parameters that need to be matched. The criteria for matching each query parameter are described in individual instances
+of QueryParameterMatcherType. The actual query parameter values are extracted from the request API as a list of strings for each query parameter name.
+Note that all specified query parameter predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
             type: "array",
+            "x-displayname": "HTTP Query Parameters.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13764,6 +16492,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for all query parameters that need to be matched. The criteria for matching each query parameter are described in individual instances of QueryParameterMatcherType. The actual query parameter values are extracted from the request API as a list of strings for each query...",
+            "x-f5xc-description-short": "List of predicates for all query parameters that need to be matched.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13783,6 +16513,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyRequestConstraintType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for request constraints.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13796,6 +16527,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policySegmentPolicyType"
               }
             ],
+            "x-f5xc-description-short": "Policy configuration for this feature.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13809,6 +16541,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyTlsFingerprintMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for tls fingerprint matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13823,15 +16556,53 @@ var f5xc_create_v1_default = {
               }
             ],
             "x-f5xc-required-for": {
-              create: false,
-              minimum_config: false,
+              create: true,
+              minimum_config: true,
               read: false,
               update: false
-            }
+            },
+            "x-ves-required": "true"
           }
         },
+        title: "Create service policy rule",
         type: "object",
+        "x-displayname": "Create Service Policy Rule.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-short": "Create service_policy_rule creates a new object in the storage backend for metadata.namespace.",
+        "x-f5xc-minimum-configuration": {
+          description: "Service policy for network-level access control and traffic rules",
+          example_json: `{
+  "metadata": {
+    "name": "allow-all",
+    "namespace": "default"
+  },
+  "spec": {
+    "allow_all_requests": {}
+  }
+}
+`,
+          example_yaml: `apiVersion: v1
+kind: service_policy
+metadata:
+  name: allow-all
+  namespace: default
+spec:
+  allow_all_requests: {}
+`,
+          mutually_exclusive_groups: [
+            {
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
+              name: "rule_choice",
+              reason: "Choose exactly one rule selection method (REQUIRED)"
+            },
+            {
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
+              name: "server_choice",
+              reason: "Choose server scope (default: any_server)"
+            }
+          ],
+          required_fields: ["metadata.name", "metadata.namespace"]
+        },
         "x-ves-oneof-field-asn_choice": '["any_asn","asn_list","asn_matcher"]',
         "x-ves-oneof-field-client_choice": '["any_client","client_name","client_name_matcher","client_selector","ip_threat_category_list"]',
         "x-ves-oneof-field-dst_asn_choice": "[]",
@@ -13841,6 +16612,7 @@ var f5xc_create_v1_default = {
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.CreateSpecType"
       },
       schemaservice_policy_ruleGlobalSpecType: {
+        description: "Shape of service_policy_rule in the storage backend.",
         properties: {
           action: {
             allOf: [
@@ -13849,11 +16621,12 @@ var f5xc_create_v1_default = {
               }
             ],
             "x-f5xc-required-for": {
-              create: false,
-              minimum_config: false,
+              create: true,
+              minimum_config: true,
               read: false,
               update: false
-            }
+            },
+            "x-ves-required": "true"
           },
           any_asn: {
             allOf: [
@@ -13874,6 +16647,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13908,11 +16682,16 @@ var f5xc_create_v1_default = {
             }
           },
           arg_matchers: {
+            description: `A list of predicates for all POST args that need to be matched. The criteria for matching each arg are described in individual instances
+of ArgMatcherType. The actual arg values are extracted from the request API as a list of strings for each arg selector name.
+Note that all specified arg matcher predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/policyArgMatcherType"
             },
             maxItems: 16,
+            title: "arg matchers",
             type: "array",
+            "x-displayname": "Argument Matchers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -13924,6 +16703,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for all POST args that need to be matched. The criteria for matching each arg are described in individual instances of ArgMatcherType. The actual arg values are extracted from the request API as a list of strings for each arg selector name.",
+            "x-f5xc-description-short": "List of predicates for all POST args that need to be matched.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13956,6 +16737,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyAsnMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for asn matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -13990,8 +16772,13 @@ var f5xc_create_v1_default = {
             }
           },
           client_name: {
+            description: `Exclusive with [any_client client_name_matcher client_selector ip_threat_category_list]
+The expected name of the client invoking the request API.
+The predicate evaluates to true if any of the actual names is the same as the expected client name.`,
             maxLength: 256,
+            title: "client name",
             type: "string",
+            "x-displayname": "Client Name.",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 256
@@ -14006,6 +16793,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Exclusive with [any_client client_name_matcher client_selector ip_threat_category_list] The expected name of the client invoking the request API. The predicate evaluates to true if any of the actual names is the same as the expected client name.",
+            "x-f5xc-description-short": "Exclusive with [any_client client_name_matcher client_selector ip_threat_category_list] The expected name of the client invoking the request API.",
+            "x-f5xc-example": "backend.production.customer.F5 Distributed cloud.us",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14015,6 +16805,7 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "256"
             },
+            "x-ves-example": "backend.production.customer.F5 Distributed cloud.us.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "256"
             }
@@ -14025,6 +16816,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyMatcherType"
               }
             ],
+            "x-f5xc-example": "example-resource",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14038,6 +16830,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaLabelSelectorType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14046,11 +16839,16 @@ var f5xc_create_v1_default = {
             }
           },
           cookie_matchers: {
+            description: `A list of predicates for all cookies that need to be matched. The criteria for matching each cookie is described in individual instances
+of CookieMatcherType. The actual cookie values are extracted from the request API as a list of strings for each cookie name.
+Note that all specified cookie matcher predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/policyCookieMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
+            title: "cookie matchers",
             type: "array",
+            "x-displayname": "Cookie Matchers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14062,6 +16860,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for all cookies that need to be matched. The criteria for matching each cookie is described in individual instances of CookieMatcherType. The actual cookie values are extracted from the request API as a list of strings for each cookie name.",
+            "x-f5xc-description-short": "List of predicates for all cookies that need to be matched.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14081,6 +16881,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for domain matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14089,8 +16890,12 @@ var f5xc_create_v1_default = {
             }
           },
           expiration_timestamp: {
+            description: `The expiration_timestamp is the RFC 3339 format timestamp at which the containing rule is considered to be logically expired. The rule continues to exist in
+the configuration but is not applied anymore.`,
             format: "date-time",
+            title: "expiration timestamp",
             type: "string",
+            "x-displayname": "Expiration Timestamp.",
             "x-f5xc-constraints": {
               category: "general",
               constraintType: "string",
@@ -14102,19 +16907,28 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "Specifies expiration_timestamp the RFC 3339 format timestamp at which the containing rule is considered to be logically expired. The rule continues to exist in the configuration but is not applied anymore.",
+            "x-f5xc-description-short": "Specifies expiration_timestamp the RFC 3339 format timestamp at which the containing rule is considered to be logically expired.",
+            "x-f5xc-example": "2019-12-31:44:34.171543432Z",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
               read: false,
               update: false
-            }
+            },
+            "x-ves-example": "2019-12-31:44:34.171543432Z."
           },
           headers: {
+            description: `A list of predicates for various HTTP headers that need to match. The criteria for matching each HTTP header are described in individual HeaderMatcherType
+instances. The actual HTTP header values are extracted from the request API as a list of strings for each HTTP header type.
+Note that all specified header predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/schemapolicyHeaderMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
+            title: "headers",
             type: "array",
+            "x-displayname": "HTTP Headers.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14128,6 +16942,9 @@ var f5xc_create_v1_default = {
               minItems: 0,
               uniqueItems: false
             },
+            "x-f5xc-description-medium": "List of predicates for various HTTP headers that need to match. The criteria for matching each HTTP header are described in individual HeaderMatcherType instances. The actual HTTP header values are extracted from the request API as a list of strings for each HTTP header type.",
+            "x-f5xc-description-short": "List of predicates for various HTTP headers that need to match.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14147,6 +16964,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyHttpMethodMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for http method.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14186,6 +17004,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaservice_policy_ruleIPThreatCategoryListType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14199,6 +17018,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyJA4TlsFingerprintMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for ja4 tls fingerprint.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14207,11 +17027,16 @@ var f5xc_create_v1_default = {
             }
           },
           jwt_claims: {
+            description: `A list of predicates for various JWT claims that need to match. The criteria for matching each JWT claim are described in individual JWTClaimMatcherType
+instances. The actual JWT claims values are extracted from the JWT payload as a list of strings.
+Note that all specified JWT claim predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/policyJWTClaimMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
+            title: "JWT claims",
             type: "array",
+            "x-displayname": "JWT Claims.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14223,6 +17048,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for various JWT claims that need to match. The criteria for matching each JWT claim are described in individual JWTClaimMatcherType instances. The actual JWT claims values are extracted from the JWT payload as a list of strings.",
+            "x-f5xc-description-short": "List of predicates for various JWT claims that need to match.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14250,8 +17077,13 @@ var f5xc_create_v1_default = {
             }
           },
           log_rule_evaluation: {
+            description: "Log the rule match details along with the request and continue to evaluate rules in the sequence.",
             format: "boolean",
+            title: "Log Rule Evaluation",
             type: "boolean",
+            "x-displayname": "Log Rule Evaluation.",
+            "x-f5xc-description-short": "Log the rule match details along with the request and continue to evaluate rules in the sequence.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14278,6 +17110,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemapolicyPathMatcherType"
               }
             ],
+            "x-f5xc-example": "/api/v1/resources",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14299,11 +17132,16 @@ var f5xc_create_v1_default = {
             }
           },
           query_params: {
+            description: `A list of predicates for all query parameters that need to be matched. The criteria for matching each query parameter are described in individual instances
+of QueryParameterMatcherType. The actual query parameter values are extracted from the request API as a list of strings for each query parameter name.
+Note that all specified query parameter predicates must evaluate to true.`,
             items: {
               $ref: "#/components/schemas/schemapolicyQueryParameterMatcherType__ves_io_schema_views_cdn_loadbalancer"
             },
             maxItems: 16,
+            title: "query params",
             type: "array",
+            "x-displayname": "HTTP Query Parameters.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14315,6 +17153,8 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "List of predicates for all query parameters that need to be matched. The criteria for matching each query parameter are described in individual instances of QueryParameterMatcherType. The actual query parameter values are extracted from the request API as a list of strings for each query...",
+            "x-f5xc-description-short": "List of predicates for all query parameters that need to be matched.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14334,6 +17174,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyRequestConstraintType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for request constraints.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14347,6 +17188,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policySegmentPolicyType"
               }
             ],
+            "x-f5xc-description-short": "Policy configuration for this feature.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14360,6 +17202,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyTlsFingerprintMatcherType"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for tls fingerprint matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14373,6 +17216,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/policyMatcherTypeBasic"
               }
             ],
+            "x-f5xc-description-short": "Configuration parameter for user identity matcher.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14388,15 +17232,41 @@ var f5xc_create_v1_default = {
               }
             ],
             "x-f5xc-required-for": {
-              create: false,
-              minimum_config: false,
+              create: true,
+              minimum_config: true,
               read: false,
               update: false
-            }
+            },
+            "x-ves-required": "true"
           }
         },
+        title: "GlobalSpecType",
         type: "object",
+        "x-displayname": "Specification.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-short": "Shape of service_policy_rule in the storage backend.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaservice_policy_ruleGlobalSpecType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "action": "value",
+    "waf_action": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemaservice_policy_ruleGlobalSpecType
+metadata:
+  name: example
+  namespace: default
+spec:
+  action: value
+  waf_action: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["action", "waf_action"]
+        },
         "x-ves-oneof-field-asn_choice": '["any_asn","asn_list","asn_matcher"]',
         "x-ves-oneof-field-client_choice": '["any_client","client_name","client_name_matcher","client_selector","ip_threat_category_list"]',
         "x-ves-oneof-field-dst_asn_choice": "[]",
@@ -14406,13 +17276,17 @@ var f5xc_create_v1_default = {
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.GlobalSpecType"
       },
       schemaservice_policy_ruleIPThreatCategoryListType: {
+        description: "List of IP threat categories.",
         properties: {
           ip_threat_categories: {
+            description: "The IP threat categories is obtained from the list and is used to auto-generate equivalent label selection expressions.",
             items: {
               $ref: "#/components/schemas/policyIPThreatCategory"
             },
             maxItems: 32,
+            title: "IP Threat Categories",
             type: "array",
+            "x-displayname": "List of IP Threat Categories to choose.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14425,6 +17299,9 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-medium": "The IP threat categories is obtained from the list and is used to auto-generate equivalent label selection expressions.",
+            "x-f5xc-description-short": "The IP threat categories is obtained from the list and is used to auto-generate equivalent label selection expressions.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -14444,16 +17321,44 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "IP Threat Category List Type",
         type: "object",
+        "x-displayname": "IP Threat Category List Type.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaservice_policy_ruleIPThreatCategoryListType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "ip_threat_categories": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemaservice_policy_ruleIPThreatCategoryListType
+metadata:
+  name: example
+  namespace: default
+spec:
+  ip_threat_categories: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["ip_threat_categories"]
+        },
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.IPThreatCategoryListType"
       },
       schemaviewsObjectRefType: {
+        description: `This type establishes a direct reference from one object(the referrer) to another(the referred).
+Such a reference is in form of tenant/namespace/name.`,
         properties: {
           name: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then name will hold the referred object's(e.g. Route's) name.`,
             maxLength: 128,
             minLength: 1,
+            title: "name",
             type: "string",
+            "x-displayname": "Name",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 128,
@@ -14470,6 +17375,9 @@ var f5xc_create_v1_default = {
               },
               minLength: 1
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+            "x-f5xc-example": "contacts-route",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -14481,6 +17389,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.string.max_bytes": "128",
               "ves.io.schema.rules.string.min_bytes": "1"
             },
+            "x-ves-example": "Contacts-route.",
             "x-ves-required": "true",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.message.required": "true",
@@ -14489,8 +17398,12 @@ var f5xc_create_v1_default = {
             }
           },
           namespace: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then namespace will hold the referred object's(e.g. Route's) namespace.`,
             maxLength: 64,
+            title: "namespace",
             type: "string",
+            "x-displayname": "Namespace",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 64
@@ -14498,6 +17411,7 @@ var f5xc_create_v1_default = {
               category: "discovery",
               characterSet: {
                 allowed: "[a-z0-9-]",
+                description: "Lowercase letter start, alphanumeric with hyphens, alphanumeric end",
                 required: "[a-z0-9]",
                 restricted: "[^a-z0-9-]"
               },
@@ -14518,6 +17432,9 @@ var f5xc_create_v1_default = {
                 standard: "DNS-1035 label (alpha-first)"
               }
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+            "x-f5xc-example": "ns1",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14529,14 +17446,19 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "64"
             },
+            "x-ves-example": "Ns1",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "64"
             }
           },
           tenant: {
+            description: `When a configuration object(e.g. Virtual_host) refers to another(e.g route)
+then tenant will hold the referred object's(e.g. Route's) tenant.`,
             maxLength: 64,
             readOnly: true,
+            title: "tenant",
             type: "string",
+            "x-displayname": "Tenant",
             "x-f5xc-constraints": {
               byteLength: {
                 max: 64
@@ -14551,6 +17473,9 @@ var f5xc_create_v1_default = {
                 validatedAt: "2026-08-20T09:12:47+00:00"
               }
             },
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+            "x-f5xc-example": "example-corp",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14563,16 +17488,42 @@ var f5xc_create_v1_default = {
             "x-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "64"
             },
+            "x-ves-example": "Example-corp.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.string.max_bytes": "64"
             }
           }
         },
+        title: "ObjectRefType",
         type: "object",
+        "x-displayname": "Object reference.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-medium": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+        "x-f5xc-description-short": "Type establishes a direct reference from one object(the referrer) to another(the referred).",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for schemaviewsObjectRefType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "name": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for schemaviewsObjectRefType
+metadata:
+  name: example
+  namespace: default
+spec:
+  name: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["name"]
+        },
         "x-ves-proto-message": "ves.io.schema.views.ObjectRefType"
       },
       service_policyCreateRequest: {
+        description: "This is the input message of the 'Create' RPC.",
         properties: {
           metadata: {
             allOf: [
@@ -14580,6 +17531,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaObjectCreateMetaType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -14593,6 +17545,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaservice_policyCreateSpecType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14601,11 +17554,51 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "CreateRequest is used to create an instance of service_policy",
         type: "object",
+        "x-displayname": "Create Request.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-minimum-configuration": {
+          description: "Service policy for network-level access control and traffic rules",
+          example_json: `{
+  "metadata": {
+    "name": "allow-all",
+    "namespace": "default"
+  },
+  "spec": {
+    "allow_all_requests": {}
+  }
+}
+`,
+          example_yaml: `apiVersion: v1
+kind: service_policy
+metadata:
+  name: allow-all
+  namespace: default
+spec:
+  allow_all_requests: {}
+`,
+          mutually_exclusive_groups: [
+            {
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
+              name: "rule_choice",
+              reason: "Choose exactly one rule selection method (REQUIRED)"
+            },
+            {
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
+              name: "server_choice",
+              reason: "Choose server scope (default: any_server)"
+            }
+          ],
+          required_fields: ["metadata.name", "metadata.namespace"]
+        },
         "x-ves-proto-message": "ves.io.schema.service_policy.CreateRequest"
       },
       service_policyRule: {
+        description: `A Rule consists of an unordered list of predicates and an action. The predicates are evaluated against a set of input fields that are extracted from
+or derived from an L7 request API. A request API is considered to match the simple rule if all predicates in the rule evaluate to true for that request. Any
+predicates that are not specified in a rule are implicitly considered to be true. If a request API matches a simple rule, the action for the simple rule is
+enforced.`,
         properties: {
           metadata: {
             allOf: [
@@ -14613,6 +17606,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaMessageMetaType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14626,6 +17620,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaservice_policy_ruleGlobalSpecType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14634,18 +17629,45 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "rule",
         type: "object",
+        "x-displayname": "Rule",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-medium": "Rule consists of an unordered list of predicates and an action. The predicates are evaluated against a set of input fields that are extracted from or derived from an L7 request API. A request API is considered to match the simple rule if all predicates in the rule evaluate to true for that request.",
+        "x-f5xc-description-short": "Rule consists of an unordered list of predicates and an action.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for service_policyRule",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for service_policyRule
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.service_policy.Rule"
       },
       service_policyRuleList: {
+        description: `A list of rules.
+The order of evaluation of the rules depends on the rule combining algorithm.`,
         properties: {
           rules: {
+            description: `Define the list of rules (with an order) that should be evaluated by this service policy.
+Rules are evaluated from top to bottom in the list.`,
             items: {
               $ref: "#/components/schemas/service_policyRule"
             },
             maxItems: 256,
+            title: "rules",
             type: "array",
+            "x-displayname": "Rules",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14659,6 +17681,9 @@ var f5xc_create_v1_default = {
               minItems: 0,
               uniqueItems: false
             },
+            "x-f5xc-description-medium": "Define the list of rules (with an order) that should be evaluated by this service policy. Rules are evaluated from top to bottom in the list.",
+            "x-f5xc-description-short": "Define the list of rules (with an order) that should be evaluated by this service policy.",
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14675,11 +17700,32 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "rule list",
         type: "object",
+        "x-displayname": "Rule List",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-short": "List of rules. The order of evaluation of the rules depends on the rule combining algorithm.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for service_policyRuleList",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for service_policyRuleList
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.service_policy.RuleList"
       },
       service_policySourceList: {
+        description: "List of sources. A request belongs to this list if it satisfies any of the match criteria.",
         properties: {
           asn_list: {
             allOf: [
@@ -14695,11 +17741,15 @@ var f5xc_create_v1_default = {
             }
           },
           asn_set: {
+            description: `Addresses that belong to the ASNs in the given bgp_asn_set
+The ASN is obtained by performing a lookup for the source IPv4 Address in a GeoIP DB.`,
             items: {
               $ref: "#/components/schemas/schemaviewsObjectRefType"
             },
             maxItems: 4,
+            title: "asn_set",
             type: "array",
+            "x-displayname": "BGP ASN Set.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14712,6 +17762,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-medium": "Addresses that belong to the ASNs in the given bgp_asn_set The ASN is obtained by performing a lookup for the source IPv4 Address in a GeoIP DB.",
+            "x-f5xc-description-short": "Addresses that belong to the ASNs in the given bgp_asn_set The ASN is obtained by performing a lookup for the source IPv4 Address in a GeoIP DB.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14728,11 +17780,15 @@ var f5xc_create_v1_default = {
             }
           },
           country_list: {
+            description: `Addresses that belong to one of the countries in the given list
+The country is obtained by performing a lookup for the source IPv4 Address in a GeoIP DB.`,
             items: {
               $ref: "#/components/schemas/policyCountryCode"
             },
             maxItems: 64,
+            title: "country_list",
             type: "array",
+            "x-displayname": "Country List.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14745,6 +17801,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-medium": "Addresses that belong to one of the countries in the given list The country is obtained by performing a lookup for the source IPv4 Address in a GeoIP DB.",
+            "x-f5xc-description-short": "Addresses that belong to one of the countries in the given list The country is obtained by performing a lookup for the source IPv4 Address in a...",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14796,6 +17854,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/ioschemaEmpty"
               }
             ],
+            "x-f5xc-description-short": "Policy configuration for this feature.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14804,11 +17863,14 @@ var f5xc_create_v1_default = {
             }
           },
           ip_prefix_set: {
+            description: "Addresses that are covered by the prefixes in the given ip_prefix_set.",
             items: {
               $ref: "#/components/schemas/schemaviewsObjectRefType"
             },
             maxItems: 4,
+            title: "ip_prefix_set",
             type: "array",
+            "x-displayname": "IP Prefix Set.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14821,6 +17883,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "Addresses that are covered by the prefixes in the given ip_prefix_set.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14850,11 +17913,14 @@ var f5xc_create_v1_default = {
             }
           },
           tls_fingerprint_classes: {
+            description: "A list of known classes of TLS fingerprints to match the input TLS JA3 fingerprint against.",
             items: {
               $ref: "#/components/schemas/policyKnownTlsFingerprintClass"
             },
             maxItems: 16,
+            title: "tls_fingerprint_classes",
             type: "array",
+            "x-displayname": "TLS Fingerprint Classes.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14867,6 +17933,7 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of known classes of TLS fingerprints to match the input TLS JA3 fingerprint against.",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14883,11 +17950,14 @@ var f5xc_create_v1_default = {
             }
           },
           tls_fingerprint_values: {
+            description: "A list of exact TLS JA3 fingerprints to match the input TLS JA3 fingerprint against.",
             items: {
               type: "string"
             },
             maxItems: 16,
+            title: "tls_fingerprint_classes",
             type: "array",
+            "x-displayname": "TLS Fingerprint Values.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14900,6 +17970,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of exact TLS JA3 fingerprints to match the input TLS JA3 fingerprint against.",
+            "x-f5xc-example": "1aa7bf8b97e540ca5edd75f7b8384bfa",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14911,6 +17983,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "16",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "1aa7bf8b97e540ca5edd75f7b8384bfa.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.len": "32",
               "ves.io.schema.rules.repeated.max_items": "16",
@@ -14918,13 +17991,34 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "source_list",
         type: "object",
+        "x-displayname": "Source List.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-description-short": "List of sources. A request belongs to this list if it satisfies any of the match criteria.",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for service_policySourceList",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for service_policySourceList
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-displayorder": "2,3,4,5,6,7,8,10",
         "x-ves-oneof-field-default_action_choice": '["default_action_allow","default_action_deny","default_action_next_policy"]',
         "x-ves-proto-message": "ves.io.schema.service_policy.SourceList"
       },
       service_policy_ruleCreateRequest: {
+        description: "This is the input message of the 'Create' RPC.",
         properties: {
           metadata: {
             allOf: [
@@ -14932,6 +18026,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaObjectCreateMetaType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -14945,6 +18040,7 @@ var f5xc_create_v1_default = {
                 $ref: "#/components/schemas/schemaservice_policy_ruleCreateSpecType"
               }
             ],
+            "x-f5xc-example": '{"key": "value"}',
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14953,18 +18049,58 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "CreateRequest is used to create an instance of service_policy_rule",
         type: "object",
+        "x-displayname": "Create Request.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-minimum-configuration": {
+          description: "Service policy for network-level access control and traffic rules",
+          example_json: `{
+  "metadata": {
+    "name": "allow-all",
+    "namespace": "default"
+  },
+  "spec": {
+    "allow_all_requests": {}
+  }
+}
+`,
+          example_yaml: `apiVersion: v1
+kind: service_policy
+metadata:
+  name: allow-all
+  namespace: default
+spec:
+  allow_all_requests: {}
+`,
+          mutually_exclusive_groups: [
+            {
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
+              name: "rule_choice",
+              reason: "Choose exactly one rule selection method (REQUIRED)"
+            },
+            {
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
+              name: "server_choice",
+              reason: "Choose server scope (default: any_server)"
+            }
+          ],
+          required_fields: ["metadata.name", "metadata.namespace"]
+        },
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.CreateRequest"
       },
       viewsPrefixStringListType: {
+        description: "List of IPv4 prefixes that represent an endpoint.",
         properties: {
           prefixes: {
+            description: "List of IPv4 prefixes that represent an endpoint.",
             items: {
               type: "string"
             },
             maxItems: 128,
+            title: "ipv4 prefix list",
             type: "array",
+            "x-displayname": "IPv4 Prefix List.",
             "x-f5xc-constraints": {
               category: "discovery",
               constraintType: "array",
@@ -14977,6 +18113,8 @@ var f5xc_create_v1_default = {
               },
               uniqueItems: true
             },
+            "x-f5xc-description-short": "List of IPv4 prefixes that represent an endpoint.",
+            "x-f5xc-example": "192.0.2.0/24",
             "x-f5xc-required-for": {
               create: false,
               minimum_config: false,
@@ -14988,6 +18126,7 @@ var f5xc_create_v1_default = {
               "ves.io.schema.rules.repeated.max_items": "128",
               "ves.io.schema.rules.repeated.unique": "true"
             },
+            "x-ves-example": "192.0.2.0/24.",
             "x-ves-validation-rules": {
               "ves.io.schema.rules.repeated.items.string.ipv4_prefix": "true",
               "ves.io.schema.rules.repeated.max_items": "128",
@@ -14995,17 +18134,42 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "ipv4 prefix list",
         type: "object",
+        "x-displayname": "IPv4 Prefix List.",
         "x-f5xc-cli-domain": "other",
+        "x-f5xc-description-short": "List of IPv4 prefixes that represent an endpoint.",
+        "x-f5xc-example": "192.0.2.0/24",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for viewsPrefixStringListType",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {}
+}`,
+          example_yaml: `# Minimal example for viewsPrefixStringListType
+metadata:
+  name: example
+  namespace: default
+spec: {}`,
+          mutually_exclusive_groups: [],
+          required_fields: []
+        },
         "x-ves-proto-message": "ves.io.schema.views.PrefixStringListType"
       },
       viewsSegmentRefList: {
+        description: "List of references to Segments.",
         properties: {
           segments: {
+            description: "Select list of segments.",
             items: {
               $ref: "#/components/schemas/schemaviewsObjectRefType"
             },
+            title: "Segments",
             type: "array",
+            "x-displayname": "Segments",
             "x-f5xc-required-for": {
               create: true,
               minimum_config: true,
@@ -15021,15 +18185,37 @@ var f5xc_create_v1_default = {
             }
           }
         },
+        title: "Segment List",
         type: "object",
+        "x-displayname": "Segment List.",
         "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-minimum-configuration": {
+          description: "Minimum configuration for viewsSegmentRefList",
+          example_json: `{
+  "metadata": {
+    "name": "example",
+    "namespace": "default"
+  },
+  "spec": {
+    "segments": "value"
+  }
+}`,
+          example_yaml: `# Minimal example for viewsSegmentRefList
+metadata:
+  name: example
+  namespace: default
+spec:
+  segments: value`,
+          mutually_exclusive_groups: [],
+          required_fields: ["segments"]
+        },
         "x-ves-proto-message": "ves.io.schema.views.SegmentRefList"
       }
     }
   },
   info: {
     title: "XCify pinned F5 XC create contract",
-    version: "3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e"
+    version: "6931752088bc2f0d5dd16aee63755cbbcfd804dd"
   },
   openapi: "3.0.3",
   "x-asm-migration-roots": {
@@ -15041,16 +18227,17 @@ var f5xc_create_v1_default = {
 };
 // contracts/provenance.json
 var provenance_default = {
-  bundle_sha256: "6a65a55a83eaeca45e8ce0a77b88a682715e3a8e688700cf8d938ed06f7cb62a",
-  commit: "3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e",
+  bundle_sha256: "305a95158e006f5bf9e8404679769f4ac24f092005828178a3398b6fa05ee72f",
+  commit: "6931752088bc2f0d5dd16aee63755cbbcfd804dd",
   generator: {
     name: "asm-migration contract import",
-    version: "1"
+    version: "2"
   },
   license: {
     attribution: "Copyright f5-sales-demo/api-specs-enriched contributors",
     spdx: "MIT"
   },
+  release: "v4.0.3",
   repository: "f5-sales-demo/api-specs-enriched",
   roots: {
     app_firewall: "app_firewallCreateRequest",
@@ -15060,10 +18247,10 @@ var provenance_default = {
   },
   schema_count: 76,
   source: {
-    catalog_path: "release/api-catalog.json",
-    catalog_sha256: "f283a8a60ce76a545c2b683a38c8dd85ce9e6f69e84e1359818308d908b93fce",
-    openapi_path: "docs/specifications/api/openapi.json",
-    source_spec_sha256: "820ef34f935b916f183021dc515b274d1b6dc4107cd96d54ca46522a475caae4"
+    catalog_path: "api-catalog.json",
+    catalog_sha256: "6e2a25f4d97167ddcca0116de0d1635a3c24731304ef06b8f9a402dd2f64e5c8",
+    openapi_path: "openapi.json",
+    source_spec_sha256: "9467423a0209b70ba871549f5f29651fe1f53e3aff12feee624fcc9e874062ad"
   }
 };
 
@@ -15417,7 +18604,15 @@ function failOrWarn(message, code, allowPartial, warnings) {
   warnings.push({ code, message, blocking: true });
 }
 function baseRule(action, extra = {}) {
-  return { action, any_client: {}, any_ip: {}, any_asn: {}, path: { prefix_values: ["/"] }, ...extra };
+  return {
+    action,
+    waf_action: { none: {} },
+    any_client: {},
+    any_ip: {},
+    any_asn: {},
+    path: { prefix_values: ["/"] },
+    ...extra
+  };
 }
 function pathMatcher(value) {
   if (!value)
@@ -15514,7 +18709,7 @@ function clientControls(policy, namespace, target, options, warnings) {
           any_asn: {},
           path: { prefix_values: ["/"] },
           ip_matcher: { prefix_sets: refs },
-          ...skipWaf ? { waf_action: { waf_skip_processing: {} } } : {}
+          waf_action: skipWaf ? { waf_skip_processing: {} } : { none: {} }
         }
       });
   }
@@ -18094,7 +21289,7 @@ function renderDirectory(result, output, overwrite) {
     "report.json": result.report,
     "manifest.json": {
       schema_version: "asm-migration.config-pack/v1",
-      tool: { name: "asm-migration", version: "2.0.0" },
+      tool: { name: "asm-migration", version: "2.0.1" },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count }

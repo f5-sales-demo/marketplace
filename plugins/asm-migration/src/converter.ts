@@ -55,7 +55,15 @@ function failOrWarn(message: string, code: string, allowPartial: boolean, warnin
   warnings.push({ code, message, blocking: true });
 }
 function baseRule(action: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { action, any_client: {}, any_ip: {}, any_asn: {}, path: { prefix_values: ['/'] }, ...extra };
+  return {
+    action,
+    waf_action: { none: {} },
+    any_client: {},
+    any_ip: {},
+    any_asn: {},
+    path: { prefix_values: ['/'] },
+    ...extra,
+  };
 }
 function pathMatcher(value?: string): Record<string, unknown> {
   if (!value) return { prefix_values: ['/'] };
@@ -195,7 +203,7 @@ function clientControls(
           any_asn: {},
           path: { prefix_values: ['/'] },
           ip_matcher: { prefix_sets: refs },
-          ...(skipWaf ? { waf_action: { waf_skip_processing: {} } } : {}),
+          waf_action: skipWaf ? { waf_skip_processing: {} } : { none: {} },
         },
       });
   }

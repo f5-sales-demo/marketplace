@@ -24,7 +24,7 @@ const fixtures = resolve(import.meta.dir, 'fixtures');
 const EXAMPLE_NAMESPACE = 'example';
 const OTHER_EXAMPLE_NAMESPACE = 'example-other';
 
-function server(owner = 'operator') {
+function server(owner = 'operator', rejectServicePolicy = false) {
   const resources = new Map<string, Record<string, unknown>>();
   const calls: string[] = [];
   const instance = Bun.serve({
@@ -41,6 +41,16 @@ function server(owner = 'operator') {
       }
       if (request.method === 'POST') {
         const body = (await request.json()) as Record<string, any>;
+        if (key.endsWith('/service_policys')) {
+          const rules = body.spec?.rule_list?.rules;
+          const malformed =
+            !Array.isArray(rules) ||
+            rules.some(
+              (rule: { spec?: { action?: unknown; waf_action?: unknown } }) =>
+                !rule.spec?.action || !rule.spec?.waf_action,
+            );
+          if (malformed || rejectServicePolicy) return new Response('invalid service-policy rule', { status: 400 });
+        }
         const created = `${key}/${body.metadata.name}`;
         resources.set(created, { ...body, system_metadata: { creator_id: owner }, server_default: true });
         return Response.json(resources.get(created), { status: 201 });
@@ -109,6 +119,39 @@ describe('deployment lifecycle', () => {
     expect(mock.resources.size).toBe(0);
     await deploy({ action: 'cleanup', receiptPath, confirmation: `CLEANUP ${planned.planDigest}`, cwd: root });
     expect(mock.resources.size).toBe(0);
+  });
+
+  test('models the live malformed-rule 400 and rolls back prior creates', async () => {
+    const direct = server();
+    const malformed = await fetch(`${direct.url}/api/config/namespaces/example/service_policys`, {
+      method: 'POST',
+      headers: { authorization: 'APIToken synthetic-secret', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        metadata: { name: 'malformed', namespace: EXAMPLE_NAMESPACE },
+        spec: { rule_list: { rules: [{ metadata: { name: 'deny' }, spec: { action: 'DENY' } }] } },
+      }),
+    });
+    expect(malformed.status).toBe(400);
+
+    const root = temporary();
+    const mock = server('operator', true);
+    configure(mock.url);
+    const directory = await artifacts(root);
+    const receiptPath = join(root, 'receipt.json');
+    const planned = await deploy({ action: 'plan', artifactDirectory: directory, receiptPath, cwd: root });
+    await expect(
+      deploy({
+        action: 'apply',
+        receiptPath,
+        planDigest: planned.planDigest,
+        confirmation: `APPLY ${planned.planDigest}`,
+        cwd: root,
+      }),
+    ).rejects.toThrow('HTTP 400');
+    expect(mock.resources.size).toBe(0);
+    const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
+    expect(receipt.rollback.status).toBe('complete');
+    expect(receipt.rollback.outcomes).toHaveLength(2);
   });
 
   test('rejects foreign ownership, namespace mismatch, receipt tampering, and missing confirmation', async () => {

@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** v2.0.1 — imports the latest published enriched API
+  contract and emits the required neutral `waf_action: { none: {} }` for
+  ordinary service-policy rules while preserving bypass and signature-control
+  variants ([#1269](https://github.com/f5-sales-demo/marketplace/issues/1269)).
+
 - **`asm-migration`** v2.0.0 — adds a receipt-backed XC deployment lifecycle with deterministic planning, ownership and namespace guards, digest-bound apply/cleanup confirmations, TOCTOU checks, rollback, drift-aware verification, and idempotent cleanup. Credentials remain environment-only and conversion still emits exactly four files ([#1257](https://github.com/f5-sales-demo/marketplace/issues/1257)).
 
 - **`asm-migration`** v1.0.1 — hardens slash-command and natural-language

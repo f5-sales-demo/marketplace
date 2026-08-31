@@ -59,10 +59,10 @@ describe('runtime', () => {
       ]),
     );
     expect(hashes).toEqual({
-      'config-pack.json': '5ad3487121a8d231cab4d640c4c1b8141f5b909577aac1d47a3996a6adc9ccd9',
+      'config-pack.json': '8a56ca9c1987b4df2a6cdc3c9a08dc06993057b053c52d7deb2d2b7c252905f2',
       'warnings.json': '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
-      'report.json': '88f359e4d87ca9d7584c4c6a43c8e4040ad0f1112249492f0127efeebec0b8ff',
-      'manifest.json': 'b73ba38aa71b5893ff293421c161eb8c732e4191159f4710b3c68887caa686b7',
+      'report.json': 'b09e4cfb1af2b3605766a247e3ec1d92319a87928f6864b21e614728efd96de8',
+      'manifest.json': '1b51475b022244e8c57485efc41a76585ab6a595212f824a1eba955d54e6b222',
     });
   });
 
