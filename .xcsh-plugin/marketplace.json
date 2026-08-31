@@ -386,7 +386,7 @@
     {
       "name": "asm-migration",
       "description": "Deterministic BIG-IP ASM conversion and guarded F5 Distributed Cloud deployment",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "author": {
         "name": "f5-sales-demo"
       },

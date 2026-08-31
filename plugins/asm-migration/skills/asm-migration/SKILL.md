@@ -32,4 +32,4 @@ identity, all four filenames, every warning, and deployment-review guidance.
 Partial native results state prominently that they are unsuitable for deployment
 until every warning is reviewed and remediated.
 
-Do not create a fifth output file. This plugin has no live deployment capability.
+Do not create a fifth output file. This plugin supports only its guarded, receipt-backed live deployment lifecycle.

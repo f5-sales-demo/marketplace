@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** v2.0.2 — makes the acceptance prompts Ubuntu-portable, documents the official install command, and accurately describes guarded live deployment.
+
 - **`asm-migration`** v2.0.1 — imports the latest published enriched API
   contract and emits the required neutral `waf_action: { none: {} }` for
   ordinary service-policy rules while preserving bypass and signature-control

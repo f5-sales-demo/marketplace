@@ -7,11 +7,13 @@ const spec = JSON.parse(readFileSync(resolve(root, 'uat/scenarios.json'), 'utf8'
   seed: number;
   cases: Scenario[];
 };
+const uatRoot = process.env.ASM_MIGRATION_UAT_ROOT ?? '/tmp/asm-migration-uat';
+if (!uatRoot.startsWith('/')) throw new Error('ASM_MIGRATION_UAT_ROOT must be an absolute path');
 const paths = {
-  policy: '/private/tmp/asm-uat/policy.xml',
-  signatures: '/private/tmp/asm-uat/signatures.json',
-  artifacts: '/private/tmp/asm-uat/artifacts',
-  receipt: '/private/tmp/asm-uat/receipt.json',
+  policy: `${uatRoot}/policy.xml`,
+  signatures: `${uatRoot}/signatures.json`,
+  artifacts: `${uatRoot}/artifacts`,
+  receipt: `${uatRoot}/receipt.json`,
   digest: 'a'.repeat(64),
 };
 function core(item: Scenario): string {
@@ -21,9 +23,9 @@ function core(item: Scenario): string {
   const cases: Record<string, string> = {
     'validate-policy': `Validate asm-policy ${paths.policy}`,
     'validate-pack': `Validate config-pack ${paths.artifacts}/config-pack.json`,
-    'invalid-xml': `Validate asm-policy /private/tmp/asm-uat/invalid.xml`,
-    'unsafe-xml': `Validate asm-policy /private/tmp/asm-uat/unsafe.xml`,
-    'invalid-pack': `Validate config-pack /private/tmp/asm-uat/invalid-pack.json`,
+    'invalid-xml': `Validate asm-policy ${uatRoot}/invalid.xml`,
+    'unsafe-xml': `Validate asm-policy ${uatRoot}/unsafe.xml`,
+    'invalid-pack': `Validate config-pack ${uatRoot}/invalid-pack.json`,
     'convert-strict': `Convert ${paths.policy} with ${paths.signatures} for namespace example into ${paths.artifacts}/strict`,
     'convert-target-name': `Convert ${paths.policy} with ${paths.signatures} for namespace example into ${paths.artifacts}/named with targetName example-target`,
     'convert-overwrite': `Convert ${paths.policy} with ${paths.signatures} for namespace example into ${paths.artifacts}/overwrite with overwrite enabled`,

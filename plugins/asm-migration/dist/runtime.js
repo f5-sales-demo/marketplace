@@ -21289,7 +21289,7 @@ function renderDirectory(result, output, overwrite) {
     "report.json": result.report,
     "manifest.json": {
       schema_version: "asm-migration.config-pack/v1",
-      tool: { name: "asm-migration", version: "2.0.1" },
+      tool: { name: "asm-migration", version: "2.0.2" },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count }
