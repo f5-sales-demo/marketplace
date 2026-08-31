@@ -1,4 +1,7 @@
 // @bun
+// biome-ignore-all lint: generated bundle
+// biome-ignore-all format: generated bundle
+// biome-ignore-all assist/source/organizeImports: generated bundle
 var __create = Object.create;
 var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
@@ -8575,9 +8578,7 @@ metadata:
 spec:
   response_code: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "response_code"
-          ]
+          required_fields: ["response_code"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AllowedResponseCodes"
       },
@@ -8718,9 +8719,7 @@ metadata:
 spec:
   anonymization_config: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "anonymization_config"
-          ]
+          required_fields: ["anonymization_config"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizationSetting"
       },
@@ -8790,9 +8789,7 @@ metadata:
 spec:
   cookie_name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "cookie_name"
-          ]
+          required_fields: ["cookie_name"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpCookie"
       },
@@ -8860,9 +8857,7 @@ metadata:
 spec:
   header_name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "header_name"
-          ]
+          required_fields: ["header_name"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpHeader"
       },
@@ -8932,9 +8927,7 @@ metadata:
 spec:
   query_param_name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "query_param_name"
-          ]
+          required_fields: ["query_param_name"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpQueryParameter"
       },
@@ -9201,9 +9194,7 @@ metadata:
 spec:
   disabled_attack_types: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "disabled_attack_types"
-          ]
+          required_fields: ["disabled_attack_types"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AttackTypeSettings"
       },
@@ -9214,11 +9205,7 @@ spec:
 Log and block
 Log only
 Disable detection.`,
-        enum: [
-          "BLOCK",
-          "REPORT",
-          "IGNORE"
-        ],
+        enum: ["BLOCK", "REPORT", "IGNORE"],
         title: "Bot Action",
         type: "string",
         "x-displayname": "Bot Action.",
@@ -9367,67 +9354,42 @@ spec:
 `,
           mutually_exclusive_groups: [
             {
-              fields: [
-                "spec.monitoring",
-                "spec.blocking"
-              ],
+              fields: ["spec.monitoring", "spec.blocking"],
               name: "enforcement_mode_choice",
               reason: "Server default is monitoring (no blocking). Use blocking: {} for production WAF protection."
             },
             {
-              fields: [
-                "spec.default_detection_settings",
-                "spec.detection_settings"
-              ],
+              fields: ["spec.default_detection_settings", "spec.detection_settings"],
               name: "detection_setting_choice",
               reason: "Server applies default_detection_settings: {} when omitted"
             },
             {
-              fields: [
-                "spec.allow_all_response_codes",
-                "spec.allowed_response_codes"
-              ],
+              fields: ["spec.allow_all_response_codes", "spec.allowed_response_codes"],
               name: "allowed_response_codes_choice",
               reason: "Server applies allow_all_response_codes: {} when omitted"
             },
             {
-              fields: [
-                "spec.default_bot_setting",
-                "spec.bot_protection_setting"
-              ],
+              fields: ["spec.default_bot_setting", "spec.bot_protection_setting"],
               name: "bot_protection_choice",
               reason: "Server applies default_bot_setting: {} when omitted"
             },
             {
-              fields: [
-                "spec.default_anonymization",
-                "spec.custom_anonymization",
-                "spec.disable_anonymization"
-              ],
+              fields: ["spec.default_anonymization", "spec.custom_anonymization", "spec.disable_anonymization"],
               name: "anonymization_setting",
               reason: "Server applies default_anonymization: {} when omitted"
             },
             {
-              fields: [
-                "spec.use_default_blocking_page",
-                "spec.blocking_page"
-              ],
+              fields: ["spec.use_default_blocking_page", "spec.blocking_page"],
               name: "blocking_page_choice",
               reason: "Server applies use_default_blocking_page: {} when omitted"
             },
             {
-              fields: [
-                "spec.disable_ai_enhancements",
-                "spec.enable_ai_enhancements"
-              ],
+              fields: ["spec.disable_ai_enhancements", "spec.enable_ai_enhancements"],
               name: "enhance_with_ai_choice",
               reason: "Server applies disable_ai_enhancements: {} when omitted"
             }
           ],
-          required_fields: [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          required_fields: ["metadata.name", "metadata.namespace"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.CreateRequest"
       },
@@ -9670,67 +9632,42 @@ spec:
 `,
           mutually_exclusive_groups: [
             {
-              fields: [
-                "spec.monitoring",
-                "spec.blocking"
-              ],
+              fields: ["spec.monitoring", "spec.blocking"],
               name: "enforcement_mode_choice",
               reason: "Server default is monitoring (no blocking). Use blocking: {} for production WAF protection."
             },
             {
-              fields: [
-                "spec.default_detection_settings",
-                "spec.detection_settings"
-              ],
+              fields: ["spec.default_detection_settings", "spec.detection_settings"],
               name: "detection_setting_choice",
               reason: "Server applies default_detection_settings: {} when omitted"
             },
             {
-              fields: [
-                "spec.allow_all_response_codes",
-                "spec.allowed_response_codes"
-              ],
+              fields: ["spec.allow_all_response_codes", "spec.allowed_response_codes"],
               name: "allowed_response_codes_choice",
               reason: "Server applies allow_all_response_codes: {} when omitted"
             },
             {
-              fields: [
-                "spec.default_bot_setting",
-                "spec.bot_protection_setting"
-              ],
+              fields: ["spec.default_bot_setting", "spec.bot_protection_setting"],
               name: "bot_protection_choice",
               reason: "Server applies default_bot_setting: {} when omitted"
             },
             {
-              fields: [
-                "spec.default_anonymization",
-                "spec.custom_anonymization",
-                "spec.disable_anonymization"
-              ],
+              fields: ["spec.default_anonymization", "spec.custom_anonymization", "spec.disable_anonymization"],
               name: "anonymization_setting",
               reason: "Server applies default_anonymization: {} when omitted"
             },
             {
-              fields: [
-                "spec.use_default_blocking_page",
-                "spec.blocking_page"
-              ],
+              fields: ["spec.use_default_blocking_page", "spec.blocking_page"],
               name: "blocking_page_choice",
               reason: "Server applies use_default_blocking_page: {} when omitted"
             },
             {
-              fields: [
-                "spec.disable_ai_enhancements",
-                "spec.enable_ai_enhancements"
-              ],
+              fields: ["spec.disable_ai_enhancements", "spec.enable_ai_enhancements"],
               name: "enhance_with_ai_choice",
               reason: "Server applies disable_ai_enhancements: {} when omitted"
             }
           ],
-          required_fields: [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          required_fields: ["metadata.name", "metadata.namespace"]
         },
         "x-ves-oneof-field-allowed_response_codes_choice": '["allow_all_response_codes","allowed_response_codes"]',
         "x-ves-oneof-field-anonymization_setting": '["custom_anonymization","default_anonymization","disable_anonymization"]',
@@ -10042,9 +9979,7 @@ metadata:
 spec:
   violations_view: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "violations_view"
-          ]
+          required_fields: ["violations_view"]
         },
         "x-ves-displayorder": "1,2,12,5,8,16",
         "x-ves-oneof-field-bot_protection_choice": '["bot_protection_setting","default_bot_setting"]',
@@ -10225,9 +10160,7 @@ metadata:
 spec:
   staging_period: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "staging_period"
-          ]
+          required_fields: ["staging_period"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.SignaturesStagingSettings"
       },
@@ -10454,9 +10387,7 @@ metadata:
 spec:
   disabled_violation_types: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "disabled_violation_types"
-          ]
+          required_fields: ["disabled_violation_types"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.ViolationSettings"
       },
@@ -10903,9 +10834,7 @@ metadata:
 spec:
   ipv4_prefix: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "ipv4_prefix"
-          ]
+          required_fields: ["ipv4_prefix"]
         },
         "x-ves-proto-message": "ves.io.schema.ip_prefix_set.Ipv4Prefix"
       },
@@ -11293,9 +11222,7 @@ metadata:
 spec:
   signature_id: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "signature_id"
-          ]
+          required_fields: ["signature_id"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.AppFirewallSignatureContext"
       },
@@ -11535,9 +11462,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
@@ -11619,9 +11544,7 @@ metadata:
 spec:
   as_numbers: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "as_numbers"
-          ]
+          required_fields: ["as_numbers"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.AsnMatchList"
       },
@@ -11689,9 +11612,7 @@ metadata:
 spec:
   asn_sets: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "asn_sets"
-          ]
+          required_fields: ["asn_sets"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.AsnMatcherType"
       },
@@ -11753,9 +11674,7 @@ metadata:
 spec:
   bot_name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "bot_name"
-          ]
+          required_fields: ["bot_name"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.BotNameContext"
       },
@@ -11901,9 +11820,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
@@ -12484,9 +12401,7 @@ metadata:
 spec:
   prefix_sets: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "prefix_sets"
-          ]
+          required_fields: ["prefix_sets"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.IpMatcherType"
       },
@@ -12701,9 +12616,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-displayorder": "1,2,6",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
@@ -13924,11 +13837,7 @@ current policy is skipped.
 
 Terminate evaluation of the current policy and begin evaluating a specific policy in the policy set. The policy is specified using the goto_policy field in
 the rule and must be after the current policy in the policy set.`,
-        enum: [
-          "DENY",
-          "ALLOW",
-          "NEXT_POLICY"
-        ],
+        enum: ["DENY", "ALLOW", "NEXT_POLICY"],
         title: "Rule Action",
         type: "string",
         "x-displayname": "Rule Action.",
@@ -14139,9 +14048,7 @@ metadata:
 spec:
   match: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "match"
-          ]
+          required_fields: ["match"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.StringMatcherType"
       },
@@ -14443,19 +14350,7 @@ spec: {}`,
         description: `Specifies the HTTP method used to access a resource.
 
 Any HTTP Method.`,
-        enum: [
-          "ANY",
-          "GET",
-          "HEAD",
-          "POST",
-          "PUT",
-          "DELETE",
-          "CONNECT",
-          "OPTIONS",
-          "TRACE",
-          "PATCH",
-          "COPY"
-        ],
+        enum: ["ANY", "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "COPY"],
         title: "HttpMethod",
         type: "string",
         "x-displayname": "HTTP Method.",
@@ -14792,9 +14687,7 @@ metadata:
 spec:
   expressions: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "expressions"
-          ]
+          required_fields: ["expressions"]
         },
         "x-ves-proto-message": "ves.io.schema.LabelSelectorType"
       },
@@ -14920,9 +14813,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-proto-message": "ves.io.schema.MessageMetaType"
       },
@@ -15152,9 +15043,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-proto-message": "ves.io.schema.ObjectCreateMetaType"
       },
@@ -15358,9 +15247,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
@@ -15733,9 +15620,7 @@ metadata:
 spec:
   ports: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "ports"
-          ]
+          required_fields: ["ports"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.PortMatcherType"
       },
@@ -15868,9 +15753,7 @@ metadata:
 spec:
   key: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "key"
-          ]
+          required_fields: ["key"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": '["check_not_present","check_present","item"]',
@@ -16059,29 +15942,17 @@ spec:
 `,
           mutually_exclusive_groups: [
             {
-              fields: [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               name: "rule_choice",
               reason: "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              fields: [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               name: "server_choice",
               reason: "Choose server scope (default: any_server)"
             }
           ],
-          required_fields: [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          required_fields: ["metadata.name", "metadata.namespace"]
         },
         "x-ves-oneof-field-rule_choice": '["allow_all_requests","allow_list","deny_all_requests","deny_list","rule_list"]',
         "x-ves-oneof-field-server_choice": '["any_server","server_name","server_name_matcher","server_selector"]',
@@ -16720,29 +16591,17 @@ spec:
 `,
           mutually_exclusive_groups: [
             {
-              fields: [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               name: "rule_choice",
               reason: "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              fields: [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               name: "server_choice",
               reason: "Choose server scope (default: any_server)"
             }
           ],
-          required_fields: [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          required_fields: ["metadata.name", "metadata.namespace"]
         },
         "x-ves-oneof-field-asn_choice": '["any_asn","asn_list","asn_matcher"]',
         "x-ves-oneof-field-client_choice": '["any_client","client_name","client_name_matcher","client_selector","ip_threat_category_list"]',
@@ -17406,10 +17265,7 @@ spec:
   action: value
   waf_action: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "action",
-            "waf_action"
-          ]
+          required_fields: ["action", "waf_action"]
         },
         "x-ves-oneof-field-asn_choice": '["any_asn","asn_list","asn_matcher"]',
         "x-ves-oneof-field-client_choice": '["any_client","client_name","client_name_matcher","client_selector","ip_threat_category_list"]',
@@ -17487,9 +17343,7 @@ metadata:
 spec:
   ip_threat_categories: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "ip_threat_categories"
-          ]
+          required_fields: ["ip_threat_categories"]
         },
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.IPThreatCategoryListType"
       },
@@ -17664,9 +17518,7 @@ metadata:
 spec:
   name: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "name"
-          ]
+          required_fields: ["name"]
         },
         "x-ves-proto-message": "ves.io.schema.views.ObjectRefType"
       },
@@ -17728,29 +17580,17 @@ spec:
 `,
           mutually_exclusive_groups: [
             {
-              fields: [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               name: "rule_choice",
               reason: "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              fields: [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               name: "server_choice",
               reason: "Choose server scope (default: any_server)"
             }
           ],
-          required_fields: [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          required_fields: ["metadata.name", "metadata.namespace"]
         },
         "x-ves-proto-message": "ves.io.schema.service_policy.CreateRequest"
       },
@@ -18235,29 +18075,17 @@ spec:
 `,
           mutually_exclusive_groups: [
             {
-              fields: [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              fields: ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               name: "rule_choice",
               reason: "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              fields: [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              fields: ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               name: "server_choice",
               reason: "Choose server scope (default: any_server)"
             }
           ],
-          required_fields: [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          required_fields: ["metadata.name", "metadata.namespace"]
         },
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.CreateRequest"
       },
@@ -18379,9 +18207,7 @@ metadata:
 spec:
   segments: value`,
           mutually_exclusive_groups: [],
-          required_fields: [
-            "segments"
-          ]
+          required_fields: ["segments"]
         },
         "x-ves-proto-message": "ves.io.schema.views.SegmentRefList"
       }
@@ -18401,7 +18227,7 @@ spec:
 };
 // contracts/provenance.json
 var provenance_default = {
-  bundle_sha256: "7b8ab6125d8292cfcdc26b489845225fd2c440e1a7c7bd78251736689c41c63a",
+  bundle_sha256: "305a95158e006f5bf9e8404679769f4ac24f092005828178a3398b6fa05ee72f",
   commit: "6931752088bc2f0d5dd16aee63755cbbcfd804dd",
   generator: {
     name: "asm-migration contract import",

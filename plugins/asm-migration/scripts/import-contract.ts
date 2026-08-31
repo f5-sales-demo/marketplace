@@ -153,6 +153,22 @@ if (import.meta.main) {
   if (!openapiPath || !catalogPath || !release || !commit)
     throw new Error('usage: bun scripts/import-contract.ts OPENAPI CATALOG RELEASE COMMIT [OUTPUT_DIRECTORY]');
   const { bundle, provenance } = buildContract(readFileSync(openapiPath), readFileSync(catalogPath), release, commit);
-  writeFileSync(resolve(outputDirectory, 'f5xc-create-v1.json'), `${JSON.stringify(bundle, null, 2)}\n`);
+  const bundlePath = resolve(outputDirectory, 'f5xc-create-v1.json');
+  writeFileSync(bundlePath, `${JSON.stringify(bundle, null, 2)}\n`);
+  const format = Bun.spawnSync(
+    [
+      'bun',
+      'x',
+      'biome',
+      'format',
+      '--write',
+      '--config-path',
+      resolve(import.meta.dir, '../../../biome.json'),
+      bundlePath,
+    ],
+    { cwd: resolve(import.meta.dir, '..'), stdout: 'inherit', stderr: 'inherit' },
+  );
+  if (format.exitCode !== 0) throw new Error('Biome could not format the generated contract');
+  provenance.bundle_sha256 = digest(readFileSync(bundlePath));
   writeFileSync(resolve(outputDirectory, 'provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`);
 }

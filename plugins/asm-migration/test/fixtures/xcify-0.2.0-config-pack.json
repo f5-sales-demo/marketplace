@@ -11,31 +11,8 @@
         "blocking": {},
         "allowed_response_codes": {
           "response_code": [
-            100,
-            101,
-            102,
-            103,
-            200,
-            201,
-            202,
-            203,
-            204,
-            205,
-            206,
-            207,
-            208,
-            226,
-            300,
-            301,
-            302,
-            303,
-            304,
-            305,
-            306,
-            307,
-            308,
-            401,
-            404
+            100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306,
+            307, 308, 401, 404
           ]
         },
         "blocking_page": {
@@ -76,9 +53,7 @@
                 "any_client": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "ip_matcher": {
                   "prefix_sets": [
@@ -106,9 +81,7 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/private"
-                  ]
+                  "prefix_values": ["/private"]
                 }
               }
             },
@@ -132,9 +105,7 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/private"
-                  ]
+                  "prefix_values": ["/private"]
                 }
               }
             },
@@ -151,16 +122,10 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "http_method": {
-                  "methods": [
-                    "GET",
-                    "PATCH",
-                    "POST"
-                  ],
+                  "methods": ["GET", "PATCH", "POST"],
                   "invert_matcher": true
                 }
               }
@@ -178,9 +143,7 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "headers": [
                   {
@@ -203,17 +166,13 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "query_params": [
                   {
                     "key": "quantity",
                     "item": {
-                      "regex_values": [
-                        "^(?!(?:1\\d|2[0-5])$).+"
-                      ]
+                      "regex_values": ["^(?!(?:1\\d|2[0-5])$).+"]
                     }
                   }
                 ]
@@ -232,17 +191,13 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 },
                 "query_params": [
                   {
                     "key": "quantity",
                     "item": {
-                      "regex_values": [
-                        "^.{3,}$"
-                      ]
+                      "regex_values": ["^.{3,}$"]
                     }
                   }
                 ]
@@ -261,13 +216,8 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "suffix_values": [
-                    ".bak",
-                    ".exe"
-                  ],
-                  "transformers": [
-                    "LOWER_CASE"
-                  ]
+                  "suffix_values": [".bak", ".exe"],
+                  "transformers": ["LOWER_CASE"]
                 }
               }
             },
@@ -292,9 +242,7 @@
                 "any_ip": {},
                 "any_asn": {},
                 "path": {
-                  "prefix_values": [
-                    "/"
-                  ]
+                  "prefix_values": ["/"]
                 }
               }
             }

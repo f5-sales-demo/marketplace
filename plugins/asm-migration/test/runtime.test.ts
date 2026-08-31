@@ -61,8 +61,8 @@ describe('runtime', () => {
     expect(hashes).toEqual({
       'config-pack.json': '8a56ca9c1987b4df2a6cdc3c9a08dc06993057b053c52d7deb2d2b7c252905f2',
       'warnings.json': '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
-      'report.json': 'ec4d9732d0420e362d415142a7bc7a1fc52062dd8f9c079d7d8d269382f926e6',
-      'manifest.json': 'b6621c467170aa39ca38f331bffbbde50a1655dd8d06690747ed638460b8d5ce',
+      'report.json': 'b09e4cfb1af2b3605766a247e3ec1d92319a87928f6864b21e614728efd96de8',
+      'manifest.json': '1b51475b022244e8c57485efc41a76585ab6a595212f824a1eba955d54e6b222',
     });
   });
 

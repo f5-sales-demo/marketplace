@@ -111,9 +111,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"response_code\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallAllowedResponseCodes\nmetadata:\n  name: example\n  namespace: default\nspec:\n  response_code: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "response_code"
-          ]
+          "required_fields": ["response_code"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AllowedResponseCodes"
       },
@@ -231,9 +229,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"anonymization_config\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallAnonymizationSetting\nmetadata:\n  name: example\n  namespace: default\nspec:\n  anonymization_config: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "anonymization_config"
-          ]
+          "required_fields": ["anonymization_config"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizationSetting"
       },
@@ -288,9 +284,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"cookie_name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallAnonymizeHttpCookie\nmetadata:\n  name: example\n  namespace: default\nspec:\n  cookie_name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "cookie_name"
-          ]
+          "required_fields": ["cookie_name"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpCookie"
       },
@@ -343,9 +337,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"header_name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallAnonymizeHttpHeader\nmetadata:\n  name: example\n  namespace: default\nspec:\n  header_name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "header_name"
-          ]
+          "required_fields": ["header_name"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpHeader"
       },
@@ -400,9 +392,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"query_param_name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallAnonymizeHttpQueryParameter\nmetadata:\n  name: example\n  namespace: default\nspec:\n  query_param_name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "query_param_name"
-          ]
+          "required_fields": ["query_param_name"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AnonymizeHttpQueryParameter"
       },
@@ -567,20 +557,14 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"disabled_attack_types\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallAttackTypeSettings\nmetadata:\n  name: example\n  namespace: default\nspec:\n  disabled_attack_types: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "disabled_attack_types"
-          ]
+          "required_fields": ["disabled_attack_types"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.AttackTypeSettings"
       },
       "app_firewallBotAction": {
         "default": "BLOCK",
         "description": "Action to be performed on the request\n\nLog and block\nLog only\nDisable detection.",
-        "enum": [
-          "BLOCK",
-          "REPORT",
-          "IGNORE"
-        ],
+        "enum": ["BLOCK", "REPORT", "IGNORE"],
         "title": "Bot Action",
         "type": "string",
         "x-displayname": "Bot Action.",
@@ -693,67 +677,42 @@
           "example_yaml": "apiVersion: v1\nkind: app_firewall\nmetadata:\n  name: default-waf\n  namespace: default\nspec:\n  blocking: {}\n",
           "mutually_exclusive_groups": [
             {
-              "fields": [
-                "spec.monitoring",
-                "spec.blocking"
-              ],
+              "fields": ["spec.monitoring", "spec.blocking"],
               "name": "enforcement_mode_choice",
               "reason": "Server default is monitoring (no blocking). Use blocking: {} for production WAF protection."
             },
             {
-              "fields": [
-                "spec.default_detection_settings",
-                "spec.detection_settings"
-              ],
+              "fields": ["spec.default_detection_settings", "spec.detection_settings"],
               "name": "detection_setting_choice",
               "reason": "Server applies default_detection_settings: {} when omitted"
             },
             {
-              "fields": [
-                "spec.allow_all_response_codes",
-                "spec.allowed_response_codes"
-              ],
+              "fields": ["spec.allow_all_response_codes", "spec.allowed_response_codes"],
               "name": "allowed_response_codes_choice",
               "reason": "Server applies allow_all_response_codes: {} when omitted"
             },
             {
-              "fields": [
-                "spec.default_bot_setting",
-                "spec.bot_protection_setting"
-              ],
+              "fields": ["spec.default_bot_setting", "spec.bot_protection_setting"],
               "name": "bot_protection_choice",
               "reason": "Server applies default_bot_setting: {} when omitted"
             },
             {
-              "fields": [
-                "spec.default_anonymization",
-                "spec.custom_anonymization",
-                "spec.disable_anonymization"
-              ],
+              "fields": ["spec.default_anonymization", "spec.custom_anonymization", "spec.disable_anonymization"],
               "name": "anonymization_setting",
               "reason": "Server applies default_anonymization: {} when omitted"
             },
             {
-              "fields": [
-                "spec.use_default_blocking_page",
-                "spec.blocking_page"
-              ],
+              "fields": ["spec.use_default_blocking_page", "spec.blocking_page"],
               "name": "blocking_page_choice",
               "reason": "Server applies use_default_blocking_page: {} when omitted"
             },
             {
-              "fields": [
-                "spec.disable_ai_enhancements",
-                "spec.enable_ai_enhancements"
-              ],
+              "fields": ["spec.disable_ai_enhancements", "spec.enable_ai_enhancements"],
               "name": "enhance_with_ai_choice",
               "reason": "Server applies disable_ai_enhancements: {} when omitted"
             }
           ],
-          "required_fields": [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          "required_fields": ["metadata.name", "metadata.namespace"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.CreateRequest"
       },
@@ -980,67 +939,42 @@
           "example_yaml": "apiVersion: v1\nkind: app_firewall\nmetadata:\n  name: default-waf\n  namespace: default\nspec:\n  blocking: {}\n",
           "mutually_exclusive_groups": [
             {
-              "fields": [
-                "spec.monitoring",
-                "spec.blocking"
-              ],
+              "fields": ["spec.monitoring", "spec.blocking"],
               "name": "enforcement_mode_choice",
               "reason": "Server default is monitoring (no blocking). Use blocking: {} for production WAF protection."
             },
             {
-              "fields": [
-                "spec.default_detection_settings",
-                "spec.detection_settings"
-              ],
+              "fields": ["spec.default_detection_settings", "spec.detection_settings"],
               "name": "detection_setting_choice",
               "reason": "Server applies default_detection_settings: {} when omitted"
             },
             {
-              "fields": [
-                "spec.allow_all_response_codes",
-                "spec.allowed_response_codes"
-              ],
+              "fields": ["spec.allow_all_response_codes", "spec.allowed_response_codes"],
               "name": "allowed_response_codes_choice",
               "reason": "Server applies allow_all_response_codes: {} when omitted"
             },
             {
-              "fields": [
-                "spec.default_bot_setting",
-                "spec.bot_protection_setting"
-              ],
+              "fields": ["spec.default_bot_setting", "spec.bot_protection_setting"],
               "name": "bot_protection_choice",
               "reason": "Server applies default_bot_setting: {} when omitted"
             },
             {
-              "fields": [
-                "spec.default_anonymization",
-                "spec.custom_anonymization",
-                "spec.disable_anonymization"
-              ],
+              "fields": ["spec.default_anonymization", "spec.custom_anonymization", "spec.disable_anonymization"],
               "name": "anonymization_setting",
               "reason": "Server applies default_anonymization: {} when omitted"
             },
             {
-              "fields": [
-                "spec.use_default_blocking_page",
-                "spec.blocking_page"
-              ],
+              "fields": ["spec.use_default_blocking_page", "spec.blocking_page"],
               "name": "blocking_page_choice",
               "reason": "Server applies use_default_blocking_page: {} when omitted"
             },
             {
-              "fields": [
-                "spec.disable_ai_enhancements",
-                "spec.enable_ai_enhancements"
-              ],
+              "fields": ["spec.disable_ai_enhancements", "spec.enable_ai_enhancements"],
               "name": "enhance_with_ai_choice",
               "reason": "Server applies disable_ai_enhancements: {} when omitted"
             }
           ],
-          "required_fields": [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          "required_fields": ["metadata.name", "metadata.namespace"]
         },
         "x-ves-oneof-field-allowed_response_codes_choice": "[\"allow_all_response_codes\",\"allowed_response_codes\"]",
         "x-ves-oneof-field-anonymization_setting": "[\"custom_anonymization\",\"default_anonymization\",\"disable_anonymization\"]",
@@ -1325,9 +1259,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"violations_view\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallDetectionSetting\nmetadata:\n  name: example\n  namespace: default\nspec:\n  violations_view: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "violations_view"
-          ]
+          "required_fields": ["violations_view"]
         },
         "x-ves-displayorder": "1,2,12,5,8,16",
         "x-ves-oneof-field-bot_protection_choice": "[\"bot_protection_setting\",\"default_bot_setting\"]",
@@ -1484,9 +1416,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"staging_period\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallSignaturesStagingSettings\nmetadata:\n  name: example\n  namespace: default\nspec:\n  staging_period: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "staging_period"
-          ]
+          "required_fields": ["staging_period"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.SignaturesStagingSettings"
       },
@@ -1690,9 +1620,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"disabled_violation_types\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for app_firewallViolationSettings\nmetadata:\n  name: example\n  namespace: default\nspec:\n  disabled_violation_types: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "disabled_violation_types"
-          ]
+          "required_fields": ["disabled_violation_types"]
         },
         "x-ves-proto-message": "ves.io.schema.app_firewall.ViolationSettings"
       },
@@ -2078,9 +2006,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"ipv4_prefix\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for ip_prefix_setIpv4Prefix\nmetadata:\n  name: example\n  namespace: default\nspec:\n  ipv4_prefix: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "ipv4_prefix"
-          ]
+          "required_fields": ["ipv4_prefix"]
         },
         "x-ves-proto-message": "ves.io.schema.ip_prefix_set.Ipv4Prefix"
       },
@@ -2431,9 +2357,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"signature_id\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyAppFirewallSignatureContext\nmetadata:\n  name: example\n  namespace: default\nspec:\n  signature_id: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "signature_id"
-          ]
+          "required_fields": ["signature_id"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.AppFirewallSignatureContext"
       },
@@ -2644,9 +2568,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyArgMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
@@ -2715,9 +2637,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"as_numbers\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyAsnMatchList\nmetadata:\n  name: example\n  namespace: default\nspec:\n  as_numbers: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "as_numbers"
-          ]
+          "required_fields": ["as_numbers"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.AsnMatchList"
       },
@@ -2772,9 +2692,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"asn_sets\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyAsnMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  asn_sets: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "asn_sets"
-          ]
+          "required_fields": ["asn_sets"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.AsnMatcherType"
       },
@@ -2823,9 +2741,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"bot_name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyBotNameContext\nmetadata:\n  name: example\n  namespace: default\nspec:\n  bot_name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "bot_name"
-          ]
+          "required_fields": ["bot_name"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.BotNameContext"
       },
@@ -2954,9 +2870,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyCookieMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
@@ -3433,9 +3347,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"prefix_sets\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyIpMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  prefix_sets: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "prefix_sets"
-          ]
+          "required_fields": ["prefix_sets"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.IpMatcherType"
       },
@@ -3622,9 +3534,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyJWTClaimMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-displayorder": "1,2,6",
         "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
@@ -4715,11 +4625,7 @@
       "policyRuleAction": {
         "default": "DENY",
         "description": "The rule action determines the disposition of the input request API. If a policy matches a rule with an ALLOW action, the processing of the request proceeds\nforward. If it matches a rule with a DENY action, the processing of the request is terminated and an appropriate message/code returned to the originator. If\nit matches a rule with a NEXT_POLICY_SET action, evaluation of the current policy set terminates and evaluation of the next policy set in the chain begins.\n\n- DENY: DENY\n\nDeny the request.\n- ALLOW: ALLOW\n\nAllow the request to proceed.\n- NEXT_POLICY_SET: NEXT_POLICY_SET\n\nTerminate evaluation of the current policy set and begin evaluating the next policy set in the chain. Note that the evaluation of any remaining policies\nin the current policy set is skipped.\n- NEXT_POLICY: NEXT_POLICY\n\nTerminate evaluation of the current policy and begin evaluating the next policy in the policy set. Note that the evaluation of any remaining rules in the\ncurrent policy is skipped.\n- LAST_POLICY: LAST_POLICY\n\nTerminate evaluation of the current policy and begin evaluating the last policy in the policy set. Note that the evaluation of any remaining rules in the\ncurrent policy is skipped.\n- GOTO_POLICY: GOTO_POLICY\n\nTerminate evaluation of the current policy and begin evaluating a specific policy in the policy set. The policy is specified using the goto_policy field in\nthe rule and must be after the current policy in the policy set.",
-        "enum": [
-          "DENY",
-          "ALLOW",
-          "NEXT_POLICY"
-        ],
+        "enum": ["DENY", "ALLOW", "NEXT_POLICY"],
         "title": "Rule Action",
         "type": "string",
         "x-displayname": "Rule Action.",
@@ -4896,9 +4802,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"match\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for policyStringMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  match: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "match"
-          ]
+          "required_fields": ["match"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.StringMatcherType"
       },
@@ -5133,19 +5037,7 @@
       "schemaHttpMethod": {
         "default": "ANY",
         "description": "Specifies the HTTP method used to access a resource.\n\nAny HTTP Method.",
-        "enum": [
-          "ANY",
-          "GET",
-          "HEAD",
-          "POST",
-          "PUT",
-          "DELETE",
-          "CONNECT",
-          "OPTIONS",
-          "TRACE",
-          "PATCH",
-          "COPY"
-        ],
+        "enum": ["ANY", "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "COPY"],
         "title": "HttpMethod",
         "type": "string",
         "x-displayname": "HTTP Method.",
@@ -5363,9 +5255,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"expressions\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemaLabelSelectorType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  expressions: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "expressions"
-          ]
+          "required_fields": ["expressions"]
         },
         "x-ves-proto-message": "ves.io.schema.LabelSelectorType"
       },
@@ -5474,9 +5364,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemaMessageMetaType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-proto-message": "ves.io.schema.MessageMetaType"
       },
@@ -5686,9 +5574,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemaObjectCreateMetaType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-proto-message": "ves.io.schema.ObjectCreateMetaType"
       },
@@ -5865,9 +5751,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemapolicyHeaderMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
@@ -6214,9 +6098,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"ports\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemapolicyPortMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  ports: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "ports"
-          ]
+          "required_fields": ["ports"]
         },
         "x-ves-proto-message": "ves.io.schema.policy.PortMatcherType"
       },
@@ -6332,9 +6214,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"key\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemapolicyQueryParameterMatcherType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  key: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "key"
-          ]
+          "required_fields": ["key"]
         },
         "x-ves-displayorder": "1,6,4",
         "x-ves-oneof-field-match": "[\"check_not_present\",\"check_present\",\"item\"]",
@@ -6503,29 +6383,17 @@
           "example_yaml": "apiVersion: v1\nkind: service_policy\nmetadata:\n  name: allow-all\n  namespace: default\nspec:\n  allow_all_requests: {}\n",
           "mutually_exclusive_groups": [
             {
-              "fields": [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              "fields": ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               "name": "rule_choice",
               "reason": "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              "fields": [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              "fields": ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               "name": "server_choice",
               "reason": "Choose server scope (default: any_server)"
             }
           ],
-          "required_fields": [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          "required_fields": ["metadata.name", "metadata.namespace"]
         },
         "x-ves-oneof-field-rule_choice": "[\"allow_all_requests\",\"allow_list\",\"deny_all_requests\",\"deny_list\",\"rule_list\"]",
         "x-ves-oneof-field-server_choice": "[\"any_server\",\"server_name\",\"server_name_matcher\",\"server_selector\"]",
@@ -7135,29 +7003,17 @@
           "example_yaml": "apiVersion: v1\nkind: service_policy\nmetadata:\n  name: allow-all\n  namespace: default\nspec:\n  allow_all_requests: {}\n",
           "mutually_exclusive_groups": [
             {
-              "fields": [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              "fields": ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               "name": "rule_choice",
               "reason": "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              "fields": [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              "fields": ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               "name": "server_choice",
               "reason": "Choose server scope (default: any_server)"
             }
           ],
-          "required_fields": [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          "required_fields": ["metadata.name", "metadata.namespace"]
         },
         "x-ves-oneof-field-asn_choice": "[\"any_asn\",\"asn_list\",\"asn_matcher\"]",
         "x-ves-oneof-field-client_choice": "[\"any_client\",\"client_name\",\"client_name_matcher\",\"client_selector\",\"ip_threat_category_list\"]",
@@ -7793,10 +7649,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"action\": \"value\",\n    \"waf_action\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemaservice_policy_ruleGlobalSpecType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  action: value\n  waf_action: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "action",
-            "waf_action"
-          ]
+          "required_fields": ["action", "waf_action"]
         },
         "x-ves-oneof-field-asn_choice": "[\"any_asn\",\"asn_list\",\"asn_matcher\"]",
         "x-ves-oneof-field-client_choice": "[\"any_client\",\"client_name\",\"client_name_matcher\",\"client_selector\",\"ip_threat_category_list\"]",
@@ -7861,9 +7714,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"ip_threat_categories\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemaservice_policy_ruleIPThreatCategoryListType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  ip_threat_categories: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "ip_threat_categories"
-          ]
+          "required_fields": ["ip_threat_categories"]
         },
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.IPThreatCategoryListType"
       },
@@ -8021,9 +7872,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"name\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for schemaviewsObjectRefType\nmetadata:\n  name: example\n  namespace: default\nspec:\n  name: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "name"
-          ]
+          "required_fields": ["name"]
         },
         "x-ves-proto-message": "ves.io.schema.views.ObjectRefType"
       },
@@ -8069,29 +7918,17 @@
           "example_yaml": "apiVersion: v1\nkind: service_policy\nmetadata:\n  name: allow-all\n  namespace: default\nspec:\n  allow_all_requests: {}\n",
           "mutually_exclusive_groups": [
             {
-              "fields": [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              "fields": ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               "name": "rule_choice",
               "reason": "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              "fields": [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              "fields": ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               "name": "server_choice",
               "reason": "Choose server scope (default: any_server)"
             }
           ],
-          "required_fields": [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          "required_fields": ["metadata.name", "metadata.namespace"]
         },
         "x-ves-proto-message": "ves.io.schema.service_policy.CreateRequest"
       },
@@ -8523,29 +8360,17 @@
           "example_yaml": "apiVersion: v1\nkind: service_policy\nmetadata:\n  name: allow-all\n  namespace: default\nspec:\n  allow_all_requests: {}\n",
           "mutually_exclusive_groups": [
             {
-              "fields": [
-                "spec.allow_all_requests",
-                "spec.deny_all_requests",
-                "spec.rule_list"
-              ],
+              "fields": ["spec.allow_all_requests", "spec.deny_all_requests", "spec.rule_list"],
               "name": "rule_choice",
               "reason": "Choose exactly one rule selection method (REQUIRED)"
             },
             {
-              "fields": [
-                "spec.any_server",
-                "spec.server_name",
-                "spec.server_selector",
-                "spec.server_name_matcher"
-              ],
+              "fields": ["spec.any_server", "spec.server_name", "spec.server_selector", "spec.server_name_matcher"],
               "name": "server_choice",
               "reason": "Choose server scope (default: any_server)"
             }
           ],
-          "required_fields": [
-            "metadata.name",
-            "metadata.namespace"
-          ]
+          "required_fields": ["metadata.name", "metadata.namespace"]
         },
         "x-ves-proto-message": "ves.io.schema.service_policy_rule.CreateRequest"
       },
@@ -8644,9 +8469,7 @@
           "example_json": "{\n  \"metadata\": {\n    \"name\": \"example\",\n    \"namespace\": \"default\"\n  },\n  \"spec\": {\n    \"segments\": \"value\"\n  }\n}",
           "example_yaml": "# Minimal example for viewsSegmentRefList\nmetadata:\n  name: example\n  namespace: default\nspec:\n  segments: value",
           "mutually_exclusive_groups": [],
-          "required_fields": [
-            "segments"
-          ]
+          "required_fields": ["segments"]
         },
         "x-ves-proto-message": "ves.io.schema.views.SegmentRefList"
       }

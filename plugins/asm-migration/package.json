@@ -4,7 +4,7 @@
   "description": "Deterministic BIG-IP ASM conversion and guarded F5 Distributed Cloud deployment for xcsh",
   "main": "src/index.ts",
   "scripts": {
-    "build": "bun build src/runtime.ts --target=bun --format=esm --outfile=dist/runtime.js",
+    "build": "bun build src/runtime.ts --target=bun --format=esm --outfile=dist/runtime.js --banner='// biome-ignore-all lint: generated bundle\n// biome-ignore-all format: generated bundle\n// biome-ignore-all assist/source/organizeImports: generated bundle'",
     "contract:update": "bash scripts/update-contract.sh",
     "check:bundle": "bun run scripts/check-bundle.ts",
     "test": "bun test"
@@ -26,12 +26,13 @@
     "@f5-sales-demo/xcsh": "^21.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.6",
+    "@sinclair/typebox": "0.34.41",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
+    "bun-types": "1.2.22",
     "fast-xml-parser": "5.2.5",
-    "ipaddr.js": "2.2.0",
-    "@sinclair/typebox": "0.34.41",
-    "bun-types": "1.2.22"
+    "ipaddr.js": "2.2.0"
   },
   "license": "Apache-2.0"
 }

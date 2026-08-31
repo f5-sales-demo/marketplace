@@ -1,5 +1,5 @@
 {
-  "bundle_sha256": "7b8ab6125d8292cfcdc26b489845225fd2c440e1a7c7bd78251736689c41c63a",
+  "bundle_sha256": "305a95158e006f5bf9e8404679769f4ac24f092005828178a3398b6fa05ee72f",
   "commit": "6931752088bc2f0d5dd16aee63755cbbcfd804dd",
   "generator": {
     "name": "asm-migration contract import",
