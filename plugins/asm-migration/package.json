@@ -1,17 +1,17 @@
 {
   "name": "@f5-sales-demo/xcsh-asm-migration",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Deterministic BIG-IP ASM conversion and guarded F5 Distributed Cloud deployment for xcsh",
   "main": "src/index.ts",
   "scripts": {
-    "build": "bun build src/runtime.ts --target=bun --format=esm --outfile=dist/runtime.js --banner='// biome-ignore-all lint: generated bundle\n// biome-ignore-all format: generated bundle\n// biome-ignore-all assist/source/organizeImports: generated bundle'",
+    "build": "bun build src/runtime.ts --target=bun --format=esm --outfile=dist/runtime.js --banner='// codespell:ignore ambiguos notin\n// biome-ignore-all lint: generated bundle\n// biome-ignore-all format: generated bundle\n// biome-ignore-all assist/source/organizeImports: generated bundle'",
     "contract:update": "bash scripts/update-contract.sh",
     "check:bundle": "bun run scripts/check-bundle.ts",
     "test": "bun test"
   },
   "xcsh": {
     "name": "ASM Migration",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "description": "ASM policy migration, validation, and guarded deployment",
     "extensions": [
       "src/index.ts"

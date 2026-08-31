@@ -110,6 +110,16 @@ describe('conversion', () => {
     expect(rules.find((rule) => rule.metadata.name.startsWith('bypass-waf-for'))?.spec.waf_action).toEqual({
       waf_skip_processing: {},
     });
+    const rangeRule = rules.find((rule) => rule.metadata.name === 'parameter-range-quantity')!;
+    expect(rangeRule.spec.query_params).toEqual([
+      { key: 'quantity', check_present: {} },
+      {
+        key: 'quantity',
+        invert_matcher: true,
+        item: { regex_values: ['^(?:1\\d|2[0-5])$'] },
+      },
+    ]);
+    expect(JSON.stringify(rangeRule.spec.query_params)).not.toContain('(?!');
     expect(validateConfigPack(result.configPack).valid).toBe(true);
     for (const required of ['action', 'waf_action']) {
       const malformed = structuredClone(result.configPack);
