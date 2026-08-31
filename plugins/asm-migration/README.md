@@ -2,7 +2,7 @@
 
 `asm-migration` is a self-contained xcsh plugin for deterministic conversion of exported BIG-IP ASM policies into F5 Distributed Cloud review artifacts. It ports the behavior of XCify 0.2.0 at commit `f8cfc01fa2548f9aa5eb9376104715a523248a6a` under the marketplace's Apache-2.0 license.
 
-Conversion remains offline. The guarded deployment lifecycle contacts only the `XCSH_API_URL` origin and uses environment-only credentials. Its contract is derived from `f5-sales-demo/api-specs-enriched` commit `3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e`.
+Conversion remains offline. The guarded deployment lifecycle contacts only the `XCSH_API_URL` origin and uses environment-only credentials. Its bundled contract is refreshed from the latest published `f5-sales-demo/api-specs-enriched` release by `scripts/update-contract.sh`; exact release, commit, and content hashes are recorded in `contracts/provenance.json`.
 
 ## Install
 
@@ -26,12 +26,13 @@ incomplete and cannot be deployed. Deployment requires `XCSH_API_URL`, `XCSH_API
 `XCSH_USERNAME`, and `XCSH_NAMESPACE`; never pass credentials in prompts or tool arguments.
 Receipts must be outside the conversion directory and are written atomically with mode 0600.
 
-The signature mapping must use schema version `asm-migration.signatures/v1`. Generated packs use `asm-migration.config-pack/v1`.
+The signature mapping must use schema version `asm-migration.signatures/v1`. Generated packs use `asm-migration.config-pack/v1`. Version 2.0.1 requires reconversion: deployment does not repair older config packs whose inline service-policy rules omit required API fields.
 
 ## Development
 
 ```sh
 bun install --frozen-lockfile
+bun run contract:update
 bun test
 bun run check:bundle
 ```

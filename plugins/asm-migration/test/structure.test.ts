@@ -9,10 +9,14 @@ test('manifest versions and public names agree', () => {
   const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
   const plugin = JSON.parse(readFileSync(resolve(root, '.xcsh-plugin/plugin.json'), 'utf8'));
   const provenance = JSON.parse(readFileSync(resolve(root, 'contracts/provenance.json'), 'utf8'));
-  expect(packageJson.version).toBe('2.0.0');
+  const updater = readFileSync(resolve(root, 'scripts/update-contract.sh'), 'utf8');
+  expect(packageJson.version).toBe('2.0.1');
   expect(packageJson.xcsh.version).toBe(packageJson.version);
   expect(plugin.version).toBe(packageJson.version);
-  expect(provenance.commit).toBe('3ce4b0b270f35cbd35aeb93cbe35c3d23a74542e');
+  expect(provenance.release).toMatch(/^v\d+\.\d+\.\d+$/);
+  expect(provenance.commit).toMatch(/^[0-9a-f]{40}$/);
+  expect(updater).toContain('gh release view');
+  expect(updater).not.toMatch(/gh release view v\d/);
 });
 
 test('commands and skill route through native tools', () => {

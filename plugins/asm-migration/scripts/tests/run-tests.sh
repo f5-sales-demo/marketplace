@@ -3,11 +3,13 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 
-jq -e '.name == "asm-migration" and .version == "2.0.0"' "$ROOT/.xcsh-plugin/plugin.json" >/dev/null
+jq -e '.name == "asm-migration" and .version == "2.0.1"' "$ROOT/.xcsh-plugin/plugin.json" >/dev/null
 jq -e '.xcsh.extensions == ["src/index.ts"] and (.xcsh.commands | length) == 3' "$ROOT/package.json" >/dev/null
 test -s "$ROOT/dist/runtime.js"
 test -s "$ROOT/contracts/f5xc-create-v1.json"
 test "$(sha256sum "$ROOT/contracts/f5xc-create-v1.json" | awk '{print $1}')" = "$(jq -r .bundle_sha256 "$ROOT/contracts/provenance.json")"
+test -s "$ROOT/scripts/import-contract.ts"
+test -x "$ROOT/scripts/update-contract.sh"
 if grep -ERn 'Bun\.spawn\(|child_process' "$ROOT/src" --include='*.ts'; then
   echo 'process entry point found in source' >&2
   exit 1
