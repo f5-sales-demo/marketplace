@@ -7,7 +7,10 @@ import { convertInput, MANAGED_OUTPUT_FILES, resolveOutputDirectory, validateInp
 
 const roots: string[] = [];
 afterEach(() => {
-  while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+  while (roots.length) {
+    const root = roots.pop();
+    if (root) rmSync(root, { recursive: true, force: true });
+  }
 });
 const temporary = () => {
   const path = mkdtempSync(join(tmpdir(), 'asm-migration-test-'));
@@ -62,7 +65,7 @@ describe('runtime', () => {
       'config-pack.json': '8a56ca9c1987b4df2a6cdc3c9a08dc06993057b053c52d7deb2d2b7c252905f2',
       'warnings.json': '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
       'report.json': 'b09e4cfb1af2b3605766a247e3ec1d92319a87928f6864b21e614728efd96de8',
-      'manifest.json': '1b51475b022244e8c57485efc41a76585ab6a595212f824a1eba955d54e6b222',
+      'manifest.json': 'a64e505e08c8a0eb7d30a0fe5ffe5adbc00c407705e9a5a953c1855213407e2a',
     });
   });
 

@@ -6,7 +6,12 @@ Conversion remains offline. The guarded deployment lifecycle contacts only the `
 
 ## Install
 
-Add this repository as a local marketplace in xcsh 20.22.3 or later, then install the non-default `asm-migration` plugin. The committed runtime bundle includes its XML parser and schema validator; Python and a separate dependency-install step are not required.
+Install the official marketplace release in xcsh 20.22.3 or later:
+
+```sh
+xcsh plugin marketplace add f5-sales-demo/marketplace
+xcsh plugin install asm-migration@f5-sales-demo-marketplace
+```
 
 Restart xcsh after installing or upgrading so a fresh process loads the new
 plugin version. On macOS, use `/private/tmp` or a normal non-symlinked

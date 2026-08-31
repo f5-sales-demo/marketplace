@@ -10,7 +10,7 @@ test('manifest versions and public names agree', () => {
   const plugin = JSON.parse(readFileSync(resolve(root, '.xcsh-plugin/plugin.json'), 'utf8'));
   const provenance = JSON.parse(readFileSync(resolve(root, 'contracts/provenance.json'), 'utf8'));
   const updater = readFileSync(resolve(root, 'scripts/update-contract.sh'), 'utf8');
-  expect(packageJson.version).toBe('2.0.1');
+  expect(packageJson.version).toBe('2.0.2');
   expect(packageJson.xcsh.version).toBe(packageJson.version);
   expect(plugin.version).toBe(packageJson.version);
   expect(provenance.release).toMatch(/^v\d+\.\d+\.\d+$/);
@@ -42,6 +42,8 @@ test('commands and skill route through native tools', () => {
   }
   expect(skill).toContain('unsuitable for deployment');
   expect(skill).toContain('Do not create a fifth output file');
+  expect(skill).toContain('guarded, receipt-backed live deployment lifecycle');
+  expect(skill).not.toContain('no live deployment capability');
   expect(validate).toContain('allowed_tools:\n  - asm_migration_validate');
   expect(convert).toContain('allowed_tools:\n  - asm_migration_convert');
 });
@@ -85,4 +87,18 @@ test('UAT specification preserves 18 conversion and 20 deployment cases', () => 
   expect(rows.filter((item) => item.style !== 'heldout')).toHaveLength(114);
   expect(rows.filter((item) => item.style === 'heldout')).toHaveLength(20);
   expect(new Set(rows.map((item) => item.prompt)).size).toBe(134);
+  expect(rows.every((item) => item.prompt.includes('/private/tmp'))).toBeFalse();
+  expect(rows.some((item) => item.prompt.includes('/tmp/asm-migration-uat'))).toBeTrue();
+  const custom = Bun.spawnSync(['bun', 'scripts/generate-uat-prompts.ts'], {
+    cwd: root,
+    stdout: 'pipe',
+    env: { ...process.env, ASM_MIGRATION_UAT_ROOT: '/tmp/asm-migration-uat-custom' },
+  });
+  const customRows = new TextDecoder()
+    .decode(custom.stdout)
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  expect(custom.exitCode).toBe(0);
+  expect(customRows.some((item) => item.prompt.includes('/tmp/asm-migration-uat-custom'))).toBeTrue();
 });
