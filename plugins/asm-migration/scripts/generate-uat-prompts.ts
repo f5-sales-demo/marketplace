@@ -78,7 +78,8 @@ const prompts = spec.cases.flatMap((item, caseIndex) =>
   })),
 );
 const heldout = Array.from({ length: 20 }, (_, index) => {
-  const item = spec.cases[(index * 7 + 5) % spec.cases.length]!;
+  const item = spec.cases[(index * 7 + 5) % spec.cases.length];
+  if (!item) throw new Error('UAT scenarios must not be empty');
   return {
     id: `heldout-${index + 1}`,
     caseId: item.id,

@@ -7,7 +7,10 @@ import { convertInput, MANAGED_OUTPUT_FILES, resolveOutputDirectory, validateInp
 
 const roots: string[] = [];
 afterEach(() => {
-  while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+  while (roots.length) {
+    const root = roots.pop();
+    if (root) rmSync(root, { recursive: true, force: true });
+  }
 });
 const temporary = () => {
   const path = mkdtempSync(join(tmpdir(), 'asm-migration-test-'));
