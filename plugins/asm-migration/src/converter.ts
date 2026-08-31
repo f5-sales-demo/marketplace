@@ -244,7 +244,10 @@ function serviceRules(policy: AsmPolicy, options: ConvertOptions, warnings: Conv
         `parameter-range-${parameter.name}`,
         baseRule('DENY', {
           path,
-          query_params: [{ key: parameter.name, item: { regex_values: [`^(?!${regex}$).+`] } }],
+          query_params: [
+            { key: parameter.name, check_present: {} },
+            { key: parameter.name, invert_matcher: true, item: { regex_values: [`^${regex}$`] } },
+          ],
         }),
       ]);
     }

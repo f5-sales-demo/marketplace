@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '..');
 const banner = [
+  '// codespell:ignore ambiguos notin',
   '// biome-ignore-all lint: generated bundle',
   '// biome-ignore-all format: generated bundle',
   '// biome-ignore-all assist/source/organizeImports: generated bundle',
