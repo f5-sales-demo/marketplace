@@ -94,7 +94,11 @@ test('UAT specification preserves 18 conversion and 20 deployment cases', () => 
     stdout: 'pipe',
     env: { ...process.env, ASM_MIGRATION_UAT_ROOT: '/tmp/asm-migration-uat-custom' },
   });
-  const customRows = new TextDecoder().decode(custom.stdout).trim().split('\n').map((line) => JSON.parse(line));
+  const customRows = new TextDecoder()
+    .decode(custom.stdout)
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
   expect(custom.exitCode).toBe(0);
   expect(customRows.some((item) => item.prompt.includes('/tmp/asm-migration-uat-custom'))).toBeTrue();
 });
