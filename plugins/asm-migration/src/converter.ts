@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { validateConfigPack } from './contract';
 import { dnsLabel, uniqueRuleNames } from './naming';
-import { regexForRange } from './ranges';
+import { regexesOutsideRange } from './ranges';
 import type { AsmPolicy, ConfigPack, ConversionResult, ConversionWarning, Resource, SignatureDatabase } from './types';
 import { MigrationError } from './types';
 
@@ -239,15 +239,12 @@ function serviceRules(policy: AsmPolicy, options: ConvertOptions, warnings: Conv
   for (const parameter of policy.parameters) {
     const path = parameter.url ? pathMatcher(parameter.url) : { prefix_values: ['/'] };
     if (parameter.minimumValue !== undefined && parameter.maximumValue !== undefined) {
-      const regex = regexForRange(parameter.minimumValue, parameter.maximumValue);
+      const regexes = regexesOutsideRange(parameter.minimumValue, parameter.maximumValue);
       raw.push([
         `parameter-range-${parameter.name}`,
         baseRule('DENY', {
           path,
-          query_params: [
-            { key: parameter.name, check_present: {} },
-            { key: parameter.name, invert_matcher: true, item: { regex_values: [`^${regex}$`] } },
-          ],
+          query_params: [{ key: parameter.name, item: { regex_values: regexes } }],
         }),
       ]);
     }
