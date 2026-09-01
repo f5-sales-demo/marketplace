@@ -7,6 +7,7 @@ import {
   mergeConfigPacks,
   parseAsmXml,
   parseSignatureDatabase,
+  regexesOutsideRange,
   regexForRange,
   validateConfigPack,
 } from '../src/runtime';
@@ -111,14 +112,15 @@ describe('conversion', () => {
       waf_skip_processing: {},
     });
     const rangeRule = rules.find((rule) => rule.metadata.name === 'parameter-range-quantity')!;
-    expect(rangeRule.spec.query_params).toEqual([
-      { key: 'quantity', check_present: {} },
-      {
-        key: 'quantity',
-        invert_matcher: true,
-        item: { regex_values: ['^(?:1\\d|2[0-5])$'] },
-      },
-    ]);
+    expect(rangeRule.spec.query_params).toHaveLength(1);
+    const rangeMatcher = rangeRule.spec.query_params[0];
+    expect(rangeMatcher.key).toBe('quantity');
+    expect(rangeMatcher.invert_matcher).toBeUndefined();
+    const rejectedValues = rangeMatcher.item.regex_values.map((expression: string) => new RegExp(expression));
+    for (const value of ['', '10', '25'])
+      expect(rejectedValues.some((expression: RegExp) => expression.test(value))).toBe(false);
+    for (const value of ['9', '26', '01', '-1', '10.5', 'text', '1000'])
+      expect(rejectedValues.some((expression: RegExp) => expression.test(value))).toBe(true);
     expect(JSON.stringify(rangeRule.spec.query_params)).not.toContain('(?!');
     expect(validateConfigPack(result.configPack).valid).toBe(true);
     for (const required of ['action', 'waf_action']) {
@@ -230,6 +232,22 @@ describe('utilities and contract', () => {
     const expression = new RegExp(`^${regexForRange(minimum, maximum)}$`);
     for (let value = Math.max(0, minimum - 2); value <= maximum + 2; value += 1)
       expect(expression.test(String(value))).toBe(value >= minimum && value <= maximum);
+  });
+
+  test('renders bounded RE2-compatible complements for integer ranges', () => {
+    const expressions = regexesOutsideRange(1_000_000_000_000_000, Number.MAX_SAFE_INTEGER);
+    expect(expressions.length).toBeLessThanOrEqual(16);
+    expect(expressions.every((expression) => expression.length <= 256 && !expression.includes('(?!'))).toBe(true);
+    const rejected = (value: string) => expressions.some((expression) => new RegExp(expression).test(value));
+    expect(rejected('')).toBe(false);
+    expect(rejected('1000000000000000')).toBe(false);
+    expect(rejected(String(Number.MAX_SAFE_INTEGER))).toBe(false);
+    expect(rejected('999999999999999')).toBe(true);
+    expect(rejected('9007199254740992')).toBe(true);
+    expect(rejected('9999999999999999')).toBe(true);
+    expect(rejected('10000000000000000')).toBe(true);
+    expect(rejected('01')).toBe(true);
+    expect(rejected('-1')).toBe(true);
   });
 
   test('rejects unknown fields, union conflicts, invalid IPv4 and low signature IDs', () => {

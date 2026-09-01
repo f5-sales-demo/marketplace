@@ -32,8 +32,8 @@ incomplete and cannot be deployed. Deployment requires `XCSH_API_URL`, `XCSH_API
 Receipts must be outside the conversion directory and are written atomically with mode 0600.
 
 The signature mapping must use schema version `asm-migration.signatures/v1`. Generated packs use `asm-migration.config-pack/v1`. Version 2.0.1 requires reconversion: deployment does not repair older config packs whose inline service-policy rules omit required API fields.
-Versions through 2.0.2 require reconversion when parameter-range rules are present:
-deployment does not repair old config packs containing unsupported lookahead expressions.
+Versions through 2.0.3 require reconversion when parameter-range rules are present:
+deployment does not repair old config packs containing unsupported or duplicate query predicates.
 
 ## Development
 

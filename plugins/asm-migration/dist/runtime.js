@@ -18489,6 +18489,71 @@ function regexForRange(minimum, maximum) {
   }
   return `(?:${patterns.join("|")})`;
 }
+function regexesOutsideRange(minimum, maximum) {
+  if (!Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum) || minimum < 0 || maximum < minimum) {
+    throw new Error("range must satisfy 0 <= minimum <= maximum");
+  }
+  const patterns = [".*[^0-9].*", "0[0-9]+"];
+  const minimumText = String(minimum);
+  const maximumText = String(maximum);
+  if (minimum > 0) {
+    if (minimumText.length > 1) {
+      patterns.push("0");
+      patterns.push(minimumText.length === 2 ? "[1-9]" : `[1-9][0-9]{0,${minimumText.length - 2}}`);
+    }
+    patterns.push(...fixedWidthBelow(minimumText));
+  }
+  patterns.push(...fixedWidthAbove(maximumText));
+  patterns.push(`[1-9][0-9]{${maximumText.length},}`);
+  return chunkAlternatives([...new Set(patterns)]);
+}
+function digitSpan(low, high) {
+  return low === high ? String(low) : `[${low}-${high}]`;
+}
+function digitTail(length) {
+  if (length === 0)
+    return "";
+  return length === 1 ? "[0-9]" : `[0-9]{${length}}`;
+}
+function fixedWidthBelow(bound) {
+  const patterns = [];
+  for (let index = 0;index < bound.length; index += 1) {
+    const high = Number(bound[index]) - 1;
+    const low = index === 0 && bound.length > 1 ? 1 : 0;
+    if (high < low)
+      continue;
+    patterns.push(`${bound.slice(0, index)}${digitSpan(low, high)}${digitTail(bound.length - index - 1)}`);
+  }
+  return patterns;
+}
+function fixedWidthAbove(bound) {
+  const patterns = [];
+  for (let index = 0;index < bound.length; index += 1) {
+    const low = Number(bound[index]) + 1;
+    if (low > 9)
+      continue;
+    patterns.push(`${bound.slice(0, index)}${digitSpan(low, 9)}${digitTail(bound.length - index - 1)}`);
+  }
+  return patterns;
+}
+function chunkAlternatives(patterns) {
+  const expressions = [];
+  let current = [];
+  for (const pattern of patterns) {
+    const candidate = `^(?:${[...current, pattern].join("|")})$`;
+    if (candidate.length > 256 && current.length) {
+      expressions.push(`^(?:${current.join("|")})$`);
+      current = [pattern];
+    } else
+      current.push(pattern);
+  }
+  if (current.length)
+    expressions.push(`^(?:${current.join("|")})$`);
+  if (expressions.length > 16 || expressions.some((expression) => expression.length > 256)) {
+    throw new Error("range complement exceeds XC regex limits");
+  }
+  return expressions;
+}
 function splitRanges(minimum, maximum) {
   const stops = new Set([maximum]);
   let nines = 1;
@@ -18747,15 +18812,12 @@ function serviceRules(policy, options, warnings) {
   for (const parameter of policy.parameters) {
     const path = parameter.url ? pathMatcher(parameter.url) : { prefix_values: ["/"] };
     if (parameter.minimumValue !== undefined && parameter.maximumValue !== undefined) {
-      const regex = regexForRange(parameter.minimumValue, parameter.maximumValue);
+      const regexes = regexesOutsideRange(parameter.minimumValue, parameter.maximumValue);
       raw.push([
         `parameter-range-${parameter.name}`,
         baseRule("DENY", {
           path,
-          query_params: [
-            { key: parameter.name, check_present: {} },
-            { key: parameter.name, invert_matcher: true, item: { regex_values: [`^${regex}$`] } }
-          ]
+          query_params: [{ key: parameter.name, item: { regex_values: regexes } }]
         })
       ]);
     }
@@ -21293,7 +21355,7 @@ function renderDirectory(result, output, overwrite) {
     "report.json": result.report,
     "manifest.json": {
       schema_version: "asm-migration.config-pack/v1",
-      tool: { name: "asm-migration", version: "2.0.3" },
+      tool: { name: "asm-migration", version: "2.0.4" },
       inputs: Object.fromEntries(Object.entries(result.inputHashes).sort(([a], [b]) => a.localeCompare(b))),
       contract: validation.contract,
       contract_validation: { valid: validation.valid, validated_resource_count: validation.validated_resource_count }
@@ -21358,6 +21420,7 @@ export {
   uniqueRuleNames,
   resolveOutputDirectory,
   renderDirectory,
+  regexesOutsideRange,
   regexForRange,
   parseSignatureDatabase,
   parseAsmXml,
