@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 
-jq -e '.name == "asm-migration" and .version == "2.0.7"' "$ROOT/.xcsh-plugin/plugin.json" >/dev/null
+jq -e '.name == "asm-migration" and .version == "2.0.8"' "$ROOT/.xcsh-plugin/plugin.json" >/dev/null
 jq -e '.xcsh.extensions == ["src/index.ts"] and (.xcsh.commands | length) == 3' "$ROOT/package.json" >/dev/null
 test -s "$ROOT/dist/runtime.js"
 test -s "$ROOT/contracts/f5xc-create-v1.json"
