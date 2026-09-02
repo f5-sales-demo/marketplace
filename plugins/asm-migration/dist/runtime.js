@@ -7714,7 +7714,7 @@ var require_ipaddr = __commonJS((exports, module) => {
       if (string.substr(-2, 2) === "::") {
         colonCount--;
       }
-      if (colonCount > parts) {
+      if (colonCount >= parts) {
         return null;
       }
       replacementCount = parts - colonCount;
@@ -7733,7 +7733,7 @@ var require_ipaddr = __commonJS((exports, module) => {
         const ref = string.split(":");
         const results = [];
         for (let i = 0;i < ref.length; i++) {
-          results.push(parseInt(ref[i], 16));
+          results.push(ref[i].length > 4 ? NaN : parseInt(ref[i], 16));
         }
         return results;
       }();
@@ -7900,7 +7900,7 @@ var require_ipaddr = __commonJS((exports, module) => {
         }
         return new this(octets);
       } catch (e) {
-        throw new Error("ipaddr: the address does not have IPv4 CIDR format");
+        throw new Error("ipaddr: the address does not have IPv4 CIDR format", { cause: e });
       }
     };
     ipaddr.IPv4.isIPv4 = function(string) {
@@ -7910,7 +7910,7 @@ var require_ipaddr = __commonJS((exports, module) => {
       try {
         new this(this.parser(string));
         return true;
-      } catch (e) {
+      } catch {
         return false;
       }
     };
@@ -7918,7 +7918,7 @@ var require_ipaddr = __commonJS((exports, module) => {
       try {
         this.parseCIDR(string);
         return true;
-      } catch (e) {
+      } catch {
         return false;
       }
     };
@@ -7928,6 +7928,13 @@ var require_ipaddr = __commonJS((exports, module) => {
       } else {
         return false;
       }
+    };
+    ipaddr.IPv4.isValidCIDRFourPartDecimal = function(string) {
+      const match = string.match(/^(.+)\/(\d+)$/);
+      if (!ipaddr.IPv4.isValidCIDR(string) || !match) {
+        return false;
+      }
+      return ipaddr.IPv4.isValidFourPartDecimal(match[1]);
     };
     ipaddr.IPv4.networkAddressFromCIDR = function(string) {
       let cidr, i, ipInterfaceOctets, octets, subnetMaskOctets;
@@ -7943,7 +7950,7 @@ var require_ipaddr = __commonJS((exports, module) => {
         }
         return new this(octets);
       } catch (e) {
-        throw new Error("ipaddr: the address does not have IPv4 CIDR format");
+        throw new Error("ipaddr: the address does not have IPv4 CIDR format", { cause: e });
       }
     };
     ipaddr.IPv4.parse = function(string) {
@@ -8028,7 +8035,7 @@ var require_ipaddr = __commonJS((exports, module) => {
     };
     ipaddr.IPv4.subnetMaskFromPrefixLength = function(prefix) {
       prefix = parseInt(prefix);
-      if (prefix < 0 || prefix > 32) {
+      if (Number.isNaN(prefix) || prefix < 0 || prefix > 32) {
         throw new Error("ipaddr: invalid IPv4 prefix length");
       }
       const octets = [0, 0, 0, 0];
@@ -8073,9 +8080,13 @@ var require_ipaddr = __commonJS((exports, module) => {
         loopback: [new IPv6([0, 0, 0, 0, 0, 0, 0, 1]), 128],
         uniqueLocal: [new IPv6([64512, 0, 0, 0, 0, 0, 0, 0]), 7],
         ipv4Mapped: [new IPv6([0, 0, 0, 0, 0, 65535, 0, 0]), 96],
+        deprecatedSiteLocal: [new IPv6([65216, 0, 0, 0, 0, 0, 0, 0]), 10],
         discard: [new IPv6([256, 0, 0, 0, 0, 0, 0, 0]), 64],
         rfc6145: [new IPv6([0, 0, 0, 0, 65535, 0, 0, 0]), 96],
-        rfc6052: [new IPv6([100, 65435, 0, 0, 0, 0, 0, 0]), 96],
+        rfc6052: [
+          [new IPv6([100, 65435, 0, 0, 0, 0, 0, 0]), 96],
+          [new IPv6([100, 65435, 1, 0, 0, 0, 0, 0]), 48]
+        ],
         "6to4": [new IPv6([8194, 0, 0, 0, 0, 0, 0, 0]), 16],
         teredo: [new IPv6([8193, 0, 0, 0, 0, 0, 0, 0]), 32],
         benchmarking: [new IPv6([8193, 2, 0, 0, 0, 0, 0, 0]), 48],
@@ -8084,12 +8095,14 @@ var require_ipaddr = __commonJS((exports, module) => {
           [new IPv6([8193, 4, 274, 0, 0, 0, 0, 0]), 48],
           [new IPv6([9760, 79, 32768, 0, 0, 0, 0, 0]), 48]
         ],
-        deprecated: [new IPv6([8193, 16, 0, 0, 0, 0, 0, 0]), 28],
+        deprecatedOrchid: [new IPv6([8193, 16, 0, 0, 0, 0, 0, 0]), 28],
         orchid2: [new IPv6([8193, 32, 0, 0, 0, 0, 0, 0]), 28],
         droneRemoteIdProtocolEntityTags: [new IPv6([8193, 48, 0, 0, 0, 0, 0, 0]), 28],
+        segmentRouting: [new IPv6([24320, 0, 0, 0, 0, 0, 0, 0]), 16],
         reserved: [
           [new IPv6([8193, 0, 0, 0, 0, 0, 0, 0]), 23],
-          [new IPv6([8193, 3512, 0, 0, 0, 0, 0, 0]), 32]
+          [new IPv6([8193, 3512, 0, 0, 0, 0, 0, 0]), 32],
+          [new IPv6([16383, 0, 0, 0, 0, 0, 0, 0]), 20]
         ]
       };
       IPv6.prototype.isIPv4MappedAddress = function() {
@@ -8203,20 +8216,28 @@ var require_ipaddr = __commonJS((exports, module) => {
       };
       IPv6.prototype.toRFC5952String = function() {
         const regex = /((^|:)(0(:|$)){2,})/g;
-        const string = this.toNormalizedString();
+        let suffix = "";
+        if (this.zoneId) {
+          suffix = `%${this.zoneId}`;
+        }
+        const normalized = this.toNormalizedString();
+        const string = normalized.slice(0, normalized.length - suffix.length);
         let bestMatchIndex = 0;
         let bestMatchLength = -1;
+        let bestMatchGroups = -1;
         let match;
         while (match = regex.exec(string)) {
-          if (match[0].length > bestMatchLength) {
+          const groups = (match[0].match(/0/g) || []).length;
+          if (groups > bestMatchGroups) {
+            bestMatchGroups = groups;
             bestMatchIndex = match.index;
             bestMatchLength = match[0].length;
           }
         }
         if (bestMatchLength < 0) {
-          return string;
+          return string + suffix;
         }
-        return `${string.substring(0, bestMatchIndex)}::${string.substring(bestMatchIndex + bestMatchLength)}`;
+        return `${string.substring(0, bestMatchIndex)}::${string.substring(bestMatchIndex + bestMatchLength)}${suffix}`;
       };
       IPv6.prototype.toString = function() {
         return this.toRFC5952String();
@@ -8236,7 +8257,7 @@ var require_ipaddr = __commonJS((exports, module) => {
         }
         return new this(octets);
       } catch (e) {
-        throw new Error(`ipaddr: the address does not have IPv6 CIDR format (${e})`);
+        throw new Error("ipaddr: the address does not have IPv6 CIDR format", { cause: e });
       }
     };
     ipaddr.IPv6.isIPv6 = function(string) {
@@ -8250,7 +8271,7 @@ var require_ipaddr = __commonJS((exports, module) => {
         const addr = this.parser(string);
         new this(addr.parts, addr.zoneId);
         return true;
-      } catch (e) {
+      } catch {
         return false;
       }
     };
@@ -8261,7 +8282,7 @@ var require_ipaddr = __commonJS((exports, module) => {
       try {
         this.parseCIDR(string);
         return true;
-      } catch (e) {
+      } catch {
         return false;
       }
     };
@@ -8279,12 +8300,12 @@ var require_ipaddr = __commonJS((exports, module) => {
         }
         return new this(octets);
       } catch (e) {
-        throw new Error(`ipaddr: the address does not have IPv6 CIDR format (${e})`);
+        throw new Error("ipaddr: the address does not have IPv6 CIDR format", { cause: e });
       }
     };
     ipaddr.IPv6.parse = function(string) {
       const addr = this.parser(string);
-      if (addr.parts === null) {
+      if (addr === null) {
         throw new Error("ipaddr: string is not formatted like an IPv6 Address");
       }
       return new this(addr.parts, addr.zoneId);
@@ -8320,7 +8341,7 @@ var require_ipaddr = __commonJS((exports, module) => {
           addr = addr.slice(0, -1);
         }
         addr = expandIPv6(addr + zoneId, 6);
-        if (addr.parts) {
+        if (addr && addr.parts) {
           octets = [
             parseInt(match[2]),
             parseInt(match[3]),
@@ -8345,7 +8366,7 @@ var require_ipaddr = __commonJS((exports, module) => {
     };
     ipaddr.IPv6.subnetMaskFromPrefixLength = function(prefix) {
       prefix = parseInt(prefix);
-      if (prefix < 0 || prefix > 128) {
+      if (Number.isNaN(prefix) || prefix < 0 || prefix > 128) {
         throw new Error("ipaddr: invalid IPv6 prefix length");
       }
       const octets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -8388,11 +8409,11 @@ var require_ipaddr = __commonJS((exports, module) => {
     ipaddr.parseCIDR = function(string) {
       try {
         return ipaddr.IPv6.parseCIDR(string);
-      } catch (e) {
+      } catch {
         try {
           return ipaddr.IPv4.parseCIDR(string);
-        } catch (e2) {
-          throw new Error("ipaddr: the address has neither IPv6 nor IPv4 CIDR format");
+        } catch (e) {
+          throw new Error("ipaddr: the address has neither IPv6 nor IPv4 CIDR format", { cause: e });
         }
       }
     };
