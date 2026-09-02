@@ -80,6 +80,18 @@ Every feature branch and pull request must link to a valid GitHub tracking issue
 
 Execute these lifecycle steps in sequence:
 
+### Step 0: Verify CLI Availability
+
+Before changing repository or GitHub state, verify both required CLIs:
+
+```bash
+command -v git >/dev/null || { echo "Status: BLOCKED — git is not installed"; exit 1; }
+command -v gh >/dev/null || { echo "Status: BLOCKED — gh is not installed"; exit 1; }
+gh auth status
+```
+
+If a command is unavailable or `gh` is unauthenticated, return `Status: BLOCKED` with the exact missing prerequisite. Do not install software or partially mutate repository state.
+
 ### Step 1: Establish Tracking Issue
 
 Verify or create the issue number following the Issue Linkage Standards above.
@@ -158,13 +170,30 @@ gh pr checks <pr-number> --watch
 
 ### Step 8: Post-Merge Cleanup
 
-Once PR state transitions to `MERGED`:
+Once the PR transitions to `MERGED`, first record and verify its repository, base branch, head branch, exact reviewed head SHA, and merge commit. Confirm the task worktree is clean (including an explicit `git status --short --ignored` inspection) and that no process is using it. Cleanup must run from the verified primary checkout, never from inside the task worktree.
 
 ```bash
-git switch main
-git pull --ff-only
-git branch -D <branch-name>
 git fetch --prune
+git switch main
+git merge --ff-only origin/main
+git worktree remove <verified-task-worktree>
+git branch -d <branch-name>
+```
+
+Use `git branch -d` when Git can prove ancestry. A squash-merged branch is not an ancestor of `main`; only in that case, after verifying the PR is `MERGED`, its `headRefOid` equals the recorded reviewed head, its merge commit is on `origin/main`, and the task diff is represented by that merge commit, use:
+
+```bash
+git branch -D <branch-name>
+```
+
+Delete the exact remote task branch only if it still exists and all identity checks above succeeded, then prune again. Never use `--force` for worktree removal, never delete an unclean or ambiguous worktree, and preserve unrelated worktrees, branches, stashes, and processes.
+
+After cleanup, audit:
+
+```bash
+git worktree list --porcelain
+git branch -vv
+git status --short --branch
 ```
 
 Return `Status: COMPLETE` with the PR URL and merge confirmation.
