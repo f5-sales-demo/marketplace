@@ -285,3 +285,33 @@ test_T1_15_hook_references_setup_command() {
     return 1
   fi
 }
+
+# T1.16 — github-ops fails cleanly without required CLIs and safely retires worktrees
+test_T1_16_github_ops_lifecycle_safety() {
+  local agent="$PLUGIN_ROOT/agents/github-ops.md"
+
+  grep -q 'command -v git' "$agent" || {
+    echo "FAIL: github-ops must preflight git"
+    return 1
+  }
+  grep -q 'command -v gh' "$agent" || {
+    echo "FAIL: github-ops must preflight gh"
+    return 1
+  }
+  grep -q 'git worktree remove <verified-task-worktree>' "$agent" || {
+    echo "FAIL: github-ops must remove the verified task worktree"
+    return 1
+  }
+  grep -q 'git branch -d <branch-name>' "$agent" || {
+    echo "FAIL: github-ops must prefer safe branch deletion"
+    return 1
+  }
+  grep -q 'git worktree list --porcelain' "$agent" || {
+    echo "FAIL: github-ops must audit remaining worktrees"
+    return 1
+  }
+  grep -q 'Never use `--force` for worktree removal' "$agent" || {
+    echo "FAIL: github-ops must prohibit forced worktree cleanup"
+    return 1
+  }
+}
