@@ -30,7 +30,7 @@
     "@sinclair/typebox": "0.34.41",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
-    "bun-types": "1.2.22",
+    "bun-types": "1.4.0",
     "fast-xml-parser": "5.2.5",
     "ipaddr.js": "2.2.0"
   },
