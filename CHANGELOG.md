@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** v2.0.5 — updates the development-only `bun-types`
+  dependency to v1.4.0.
+
 - **`github`** v2.0.3 — preflights Git and authenticated GitHub CLI availability
   before mutation, and safely verifies and removes task worktrees and branches
   after merge while preserving unrelated resources.

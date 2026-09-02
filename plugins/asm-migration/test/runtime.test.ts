@@ -65,7 +65,7 @@ describe('runtime', () => {
       'config-pack.json': 'f86b2d9dfd36f06ab57bb0f5ec4e29ba18fe3e0c63b6bd14ee0f0913f3ffe8bd',
       'warnings.json': '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
       'report.json': 'b09e4cfb1af2b3605766a247e3ec1d92319a87928f6864b21e614728efd96de8',
-      'manifest.json': '8d9dc50c9510fd7e0efa332f0b429aac96faf90f9a893c4a51f45e7aa3e57143',
+      'manifest.json': 'ec75fc44816175f70f4e25566405374fd98f9bf953eab9af46b661e369606730',
     });
   });
 
