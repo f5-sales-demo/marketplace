@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github`** v2.0.3 — preflights Git and authenticated GitHub CLI availability
+  before mutation, and safely verifies and removes task worktrees and branches
+  after merge while preserving unrelated resources.
+
 - **`asm-migration`** v2.0.4 — emits a single XC-compatible query-parameter
   predicate containing bounded RE2 complement expressions, preserving absent
   parameters while rejecting values outside configured integer ranges

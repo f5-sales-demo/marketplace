@@ -342,7 +342,7 @@
     {
       "name": "github",
       "description": "Poweruser GitHub & Git Operations plugin combining direct native CLI mastery (git and gh) with complete Git SOPs workflow governance (issue-driven development, PR lifecycle, CI polling, auto-merge, post-merge teardown, and rate limit management)",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "author": {
         "name": "f5-sales-demo"
       },
