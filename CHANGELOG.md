@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`asm-migration`** bumped to v2.0.6
+
 - **`asm-migration`** v2.0.5 — updates the development-only `bun-types`
   dependency to v1.4.0.
 
