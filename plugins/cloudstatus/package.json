@@ -11,6 +11,6 @@
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=20.19.0"
+    "@f5-sales-demo/xcsh": ">=20.22.2"
   }
 }
