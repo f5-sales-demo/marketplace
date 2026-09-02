@@ -18988,6 +18988,16 @@ var isName = function(string) {
 function isExist(v) {
   return typeof v !== "undefined";
 }
+var DANGEROUS_PROPERTY_NAMES = [
+  "hasOwnProperty",
+  "toString",
+  "valueOf",
+  "__defineGetter__",
+  "__defineSetter__",
+  "__lookupGetter__",
+  "__lookupSetter__"
+];
+var criticalProperties = ["__proto__", "constructor", "prototype"];
 
 // node_modules/fast-xml-parser/src/validator.js
 var defaultOptions = {
@@ -19224,7 +19234,7 @@ function validateAttributeString(attrStr, options) {
     if (!validateAttrName(attrName)) {
       return getErrorObject("InvalidAttr", "Attribute '" + attrName + "' is an invalid name.", getPositionFromMatch(matches[i]));
     }
-    if (!attrNames.hasOwnProperty(attrName)) {
+    if (!Object.prototype.hasOwnProperty.call(attrNames, attrName)) {
       attrNames[attrName] = 1;
     } else {
       return getErrorObject("InvalidAttr", "Attribute '" + attrName + "' is repeated.", getPositionFromMatch(matches[i]));
@@ -19291,7 +19301,351 @@ function getPositionFromMatch(match) {
   return match.startIndex + match[1].length;
 }
 
+// node_modules/@nodable/entities/src/entities.js
+var CURRENCY = {
+  cent: "\xA2",
+  pound: "\xA3",
+  curren: "\xA4",
+  yen: "\xA5",
+  euro: "\u20AC",
+  dollar: "$",
+  fnof: "\u0192",
+  inr: "\u20B9",
+  af: "\u060B",
+  birr: "\u1265\u122D",
+  peso: "\u20B1",
+  rub: "\u20BD",
+  won: "\u20A9",
+  yuan: "\xA5",
+  cedil: "\xB8"
+};
+var XML = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  lt: "<",
+  quot: '"'
+};
+var COMMON_HTML = {
+  nbsp: "\xA0",
+  copy: "\xA9",
+  reg: "\xAE",
+  trade: "\u2122",
+  mdash: "\u2014",
+  ndash: "\u2013",
+  hellip: "\u2026",
+  laquo: "\xAB",
+  raquo: "\xBB",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201C",
+  rdquo: "\u201D",
+  bull: "\u2022",
+  para: "\xB6",
+  sect: "\xA7",
+  deg: "\xB0",
+  frac12: "\xBD",
+  frac14: "\xBC",
+  frac34: "\xBE"
+};
+
+// node_modules/@nodable/entities/src/EntityDecoder.js
+var ENTITY_ACTION = Object.freeze({
+  ALLOW: "allow",
+  BLOCK: "block",
+  THROW: "throw"
+});
+var SPECIAL_CHARS = new Set("!?\\\\/[]$%{}^&*()<>|+");
+function validateEntityName(name) {
+  if (name[0] === "#") {
+    throw new Error(`[EntityReplacer] Invalid character '#' in entity name: "${name}"`);
+  }
+  for (const ch of name) {
+    if (SPECIAL_CHARS.has(ch)) {
+      throw new Error(`[EntityReplacer] Invalid character '${ch}' in entity name: "${name}"`);
+    }
+  }
+  return name;
+}
+function mergeEntityMaps(...maps) {
+  const out = Object.create(null);
+  for (const map of maps) {
+    if (!map)
+      continue;
+    for (const key of Object.keys(map)) {
+      const raw = map[key];
+      if (typeof raw === "string") {
+        out[key] = raw;
+      } else if (raw && typeof raw === "object" && raw.val !== undefined) {
+        const val = raw.val;
+        if (typeof val === "string") {
+          out[key] = val;
+        }
+      }
+    }
+  }
+  return out;
+}
+var LIMIT_TIER_EXTERNAL = "external";
+var LIMIT_TIER_BASE = "base";
+var LIMIT_TIER_ALL = "all";
+function parseLimitTiers(raw) {
+  if (!raw || raw === LIMIT_TIER_EXTERNAL)
+    return new Set([LIMIT_TIER_EXTERNAL]);
+  if (raw === LIMIT_TIER_ALL)
+    return new Set([LIMIT_TIER_ALL]);
+  if (raw === LIMIT_TIER_BASE)
+    return new Set([LIMIT_TIER_BASE]);
+  if (Array.isArray(raw))
+    return new Set(raw);
+  return new Set([LIMIT_TIER_EXTERNAL]);
+}
+var NCR_LEVEL = Object.freeze({ allow: 0, leave: 1, remove: 2, throw: 3 });
+var XML10_ALLOWED_C0 = new Set([9, 10, 13]);
+function parseNCRConfig(ncr) {
+  if (!ncr) {
+    return { xmlVersion: 1, onLevel: NCR_LEVEL.allow, nullLevel: NCR_LEVEL.remove };
+  }
+  const xmlVersion = ncr.xmlVersion === 1.1 ? 1.1 : 1;
+  const onLevel = NCR_LEVEL[ncr.onNCR] ?? NCR_LEVEL.allow;
+  const nullLevel = NCR_LEVEL[ncr.nullNCR] ?? NCR_LEVEL.remove;
+  const clampedNull = Math.max(nullLevel, NCR_LEVEL.remove);
+  return { xmlVersion, onLevel, nullLevel: clampedNull };
+}
+
+class EntityDecoder {
+  constructor(options = {}) {
+    this._limit = options.limit || {};
+    this._maxTotalExpansions = this._limit.maxTotalExpansions || 0;
+    this._maxExpandedLength = this._limit.maxExpandedLength || 0;
+    this._postCheck = typeof options.postCheck === "function" ? options.postCheck : (r) => r;
+    this._limitTiers = parseLimitTiers(this._limit.applyLimitsTo ?? LIMIT_TIER_EXTERNAL);
+    this._numericAllowed = options.numericAllowed ?? true;
+    this._baseMap = mergeEntityMaps(XML, options.namedEntities || null);
+    this._externalMap = Object.create(null);
+    this._inputMap = Object.create(null);
+    this._totalExpansions = 0;
+    this._expandedLength = 0;
+    this._removeSet = new Set(options.remove && Array.isArray(options.remove) ? options.remove : []);
+    this._leaveSet = new Set(options.leave && Array.isArray(options.leave) ? options.leave : []);
+    const ncrCfg = parseNCRConfig(options.ncr);
+    this._ncrXmlVersion = ncrCfg.xmlVersion;
+    this._ncrOnLevel = ncrCfg.onLevel;
+    this._ncrNullLevel = ncrCfg.nullLevel;
+    this._onExternalEntity = typeof options.onExternalEntity === "function" ? options.onExternalEntity : null;
+    this._onInputEntity = typeof options.onInputEntity === "function" ? options.onInputEntity : null;
+  }
+  _applyRegistrationHook(hook, name, value, context) {
+    if (!hook)
+      return true;
+    const action = hook(name, value);
+    if (action === ENTITY_ACTION.BLOCK)
+      return false;
+    if (action === ENTITY_ACTION.THROW) {
+      throw new Error(`[EntityDecoder] Registration of ${context} entity "&${name};" was rejected by hook`);
+    }
+    return true;
+  }
+  setExternalEntities(map) {
+    if (map) {
+      for (const key of Object.keys(map)) {
+        validateEntityName(key);
+      }
+    }
+    if (!this._onExternalEntity) {
+      this._externalMap = mergeEntityMaps(map);
+      return;
+    }
+    const flat = mergeEntityMaps(map);
+    const filtered = Object.create(null);
+    for (const [name, value] of Object.entries(flat)) {
+      if (this._applyRegistrationHook(this._onExternalEntity, name, value, "external")) {
+        filtered[name] = value;
+      }
+    }
+    this._externalMap = filtered;
+  }
+  addExternalEntity(key, value) {
+    validateEntityName(key);
+    if (typeof value === "string" && value.indexOf("&") === -1) {
+      if (this._applyRegistrationHook(this._onExternalEntity, key, value, "external")) {
+        this._externalMap[key] = value;
+      }
+    }
+  }
+  addInputEntities(map) {
+    this._totalExpansions = 0;
+    this._expandedLength = 0;
+    if (!this._onInputEntity) {
+      this._inputMap = mergeEntityMaps(map);
+      return;
+    }
+    const flat = mergeEntityMaps(map);
+    const filtered = Object.create(null);
+    for (const [name, value] of Object.entries(flat)) {
+      if (this._applyRegistrationHook(this._onInputEntity, name, value, "input")) {
+        filtered[name] = value;
+      }
+    }
+    this._inputMap = filtered;
+  }
+  reset() {
+    this._inputMap = Object.create(null);
+    this._totalExpansions = 0;
+    this._expandedLength = 0;
+    return this;
+  }
+  setXmlVersion(version) {
+    this._ncrXmlVersion = version === 1.1 ? 1.1 : 1;
+  }
+  decode(str) {
+    if (typeof str !== "string" || str.length === 0)
+      return str;
+    if (str.indexOf("&") === -1)
+      return str;
+    const original = str;
+    const chunks2 = [];
+    const len = str.length;
+    let last = 0;
+    let i = 0;
+    const limitExpansions = this._maxTotalExpansions > 0;
+    const limitLength = this._maxExpandedLength > 0;
+    const checkLimits = limitExpansions || limitLength;
+    while (i < len) {
+      if (str.charCodeAt(i) !== 38) {
+        i++;
+        continue;
+      }
+      let j = i + 1;
+      while (j < len && str.charCodeAt(j) !== 59 && j - i <= 32)
+        j++;
+      if (j >= len || str.charCodeAt(j) !== 59) {
+        i++;
+        continue;
+      }
+      const token = str.slice(i + 1, j);
+      if (token.length === 0) {
+        i++;
+        continue;
+      }
+      let replacement;
+      let tier;
+      if (this._removeSet.has(token)) {
+        replacement = "";
+        if (tier === undefined) {
+          tier = LIMIT_TIER_EXTERNAL;
+        }
+      } else if (this._leaveSet.has(token)) {
+        i++;
+        continue;
+      } else if (token.charCodeAt(0) === 35) {
+        const ncrResult = this._resolveNCR(token);
+        if (ncrResult === undefined) {
+          i++;
+          continue;
+        }
+        replacement = ncrResult;
+        tier = LIMIT_TIER_BASE;
+      } else {
+        const resolved = this._resolveName(token);
+        replacement = resolved?.value;
+        tier = resolved?.tier;
+      }
+      if (replacement === undefined) {
+        i++;
+        continue;
+      }
+      if (i > last)
+        chunks2.push(str.slice(last, i));
+      chunks2.push(replacement);
+      last = j + 1;
+      i = last;
+      if (checkLimits && this._tierCounts(tier)) {
+        if (limitExpansions) {
+          this._totalExpansions++;
+          if (this._totalExpansions > this._maxTotalExpansions) {
+            throw new Error(`[EntityReplacer] Entity expansion count limit exceeded: ` + `${this._totalExpansions} > ${this._maxTotalExpansions}`);
+          }
+        }
+        if (limitLength) {
+          const delta = replacement.length - (token.length + 2);
+          if (delta > 0) {
+            this._expandedLength += delta;
+            if (this._expandedLength > this._maxExpandedLength) {
+              throw new Error(`[EntityReplacer] Expanded content length limit exceeded: ` + `${this._expandedLength} > ${this._maxExpandedLength}`);
+            }
+          }
+        }
+      }
+    }
+    if (last < len)
+      chunks2.push(str.slice(last));
+    const result = chunks2.length === 0 ? str : chunks2.join("");
+    return this._postCheck(result, original);
+  }
+  _tierCounts(tier) {
+    if (this._limitTiers.has(LIMIT_TIER_ALL))
+      return true;
+    return this._limitTiers.has(tier);
+  }
+  _resolveName(name) {
+    if (name in this._inputMap)
+      return { value: this._inputMap[name], tier: LIMIT_TIER_EXTERNAL };
+    if (name in this._externalMap)
+      return { value: this._externalMap[name], tier: LIMIT_TIER_EXTERNAL };
+    if (name in this._baseMap)
+      return { value: this._baseMap[name], tier: LIMIT_TIER_BASE };
+    return;
+  }
+  _classifyNCR(cp) {
+    if (cp === 0)
+      return this._ncrNullLevel;
+    if (cp >= 55296 && cp <= 57343)
+      return NCR_LEVEL.remove;
+    if (this._ncrXmlVersion === 1) {
+      if (cp >= 1 && cp <= 31 && !XML10_ALLOWED_C0.has(cp))
+        return NCR_LEVEL.remove;
+    }
+    return -1;
+  }
+  _applyNCRAction(action, token, cp) {
+    switch (action) {
+      case NCR_LEVEL.allow:
+        return String.fromCodePoint(cp);
+      case NCR_LEVEL.remove:
+        return "";
+      case NCR_LEVEL.leave:
+        return;
+      case NCR_LEVEL.throw:
+        throw new Error(`[EntityDecoder] Prohibited numeric character reference ` + `&${token}; (U+${cp.toString(16).toUpperCase().padStart(4, "0")})`);
+      default:
+        return String.fromCodePoint(cp);
+    }
+  }
+  _resolveNCR(token) {
+    const second = token.charCodeAt(1);
+    let cp;
+    if (second === 120 || second === 88) {
+      cp = parseInt(token.slice(2), 16);
+    } else {
+      cp = parseInt(token.slice(1), 10);
+    }
+    if (Number.isNaN(cp) || cp < 0 || cp > 1114111)
+      return;
+    const minimum = this._classifyNCR(cp);
+    if (!this._numericAllowed && minimum < NCR_LEVEL.remove)
+      return;
+    const effective = minimum === -1 ? this._ncrOnLevel : Math.max(this._ncrOnLevel, minimum);
+    return this._applyNCRAction(effective, token, cp);
+  }
+}
 // node_modules/fast-xml-parser/src/xmlparser/OptionsBuilder.js
+var defaultOnDangerousProperty = (name) => {
+  if (DANGEROUS_PROPERTY_NAMES.includes(name)) {
+    return "__" + name;
+  }
+  return name;
+};
 var defaultOptions2 = {
   preserveOrder: false,
   attributeNamePrefix: "@_",
@@ -19307,7 +19661,8 @@ var defaultOptions2 = {
   numberParseOptions: {
     hex: true,
     leadingZeros: true,
-    eNotation: true
+    eNotation: true,
+    unicode: false
   },
   tagValueProcessor: function(tagName, val) {
     return val;
@@ -19322,6 +19677,7 @@ var defaultOptions2 = {
   unpairedTags: [],
   processEntities: true,
   htmlEntities: false,
+  entityDecoder: null,
   ignoreDeclaration: false,
   ignorePiTags: false,
   transformTagName: false,
@@ -19329,10 +19685,81 @@ var defaultOptions2 = {
   updateTag: function(tagName, jPath, attrs) {
     return tagName;
   },
-  captureMetaData: false
+  captureMetaData: false,
+  maxNestedTags: 100,
+  strictReservedNames: true,
+  jPath: true,
+  onDangerousProperty: defaultOnDangerousProperty
 };
+function validatePropertyName(propertyName, optionName) {
+  if (typeof propertyName !== "string") {
+    return;
+  }
+  const normalized = propertyName.toLowerCase();
+  if (DANGEROUS_PROPERTY_NAMES.some((dangerous) => normalized === dangerous.toLowerCase())) {
+    throw new Error(`[SECURITY] Invalid ${optionName}: "${propertyName}" is a reserved JavaScript keyword that could cause prototype pollution`);
+  }
+  if (criticalProperties.some((dangerous) => normalized === dangerous.toLowerCase())) {
+    throw new Error(`[SECURITY] Invalid ${optionName}: "${propertyName}" is a reserved JavaScript keyword that could cause prototype pollution`);
+  }
+}
+function normalizeProcessEntities(value, htmlEntities) {
+  if (typeof value === "boolean") {
+    return {
+      enabled: value,
+      maxEntitySize: 1e4,
+      maxExpansionDepth: 1e4,
+      maxTotalExpansions: Infinity,
+      maxExpandedLength: 1e5,
+      maxEntityCount: 1000,
+      allowedTags: null,
+      tagFilter: null,
+      appliesTo: "all"
+    };
+  }
+  if (typeof value === "object" && value !== null) {
+    return {
+      enabled: value.enabled !== false,
+      maxEntitySize: Math.max(1, value.maxEntitySize ?? 1e4),
+      maxExpansionDepth: Math.max(1, value.maxExpansionDepth ?? 1e4),
+      maxTotalExpansions: Math.max(1, value.maxTotalExpansions ?? Infinity),
+      maxExpandedLength: Math.max(1, value.maxExpandedLength ?? 1e5),
+      maxEntityCount: Math.max(1, value.maxEntityCount ?? 1000),
+      allowedTags: value.allowedTags ?? null,
+      tagFilter: value.tagFilter ?? null,
+      appliesTo: value.appliesTo ?? "all"
+    };
+  }
+  return normalizeProcessEntities(true);
+}
 var buildOptions = function(options) {
-  return Object.assign({}, defaultOptions2, options);
+  const built = Object.assign({}, defaultOptions2, options);
+  const propertyNameOptions = [
+    { value: built.attributeNamePrefix, name: "attributeNamePrefix" },
+    { value: built.attributesGroupName, name: "attributesGroupName" },
+    { value: built.textNodeName, name: "textNodeName" },
+    { value: built.cdataPropName, name: "cdataPropName" },
+    { value: built.commentPropName, name: "commentPropName" }
+  ];
+  for (const { value, name } of propertyNameOptions) {
+    if (value) {
+      validatePropertyName(value, name);
+    }
+  }
+  if (built.onDangerousProperty === null) {
+    built.onDangerousProperty = defaultOnDangerousProperty;
+  }
+  built.processEntities = normalizeProcessEntities(built.processEntities, built.htmlEntities);
+  built.unpairedTagsSet = new Set(built.unpairedTags);
+  if (built.stopNodes && Array.isArray(built.stopNodes)) {
+    built.stopNodes = built.stopNodes.map((node) => {
+      if (typeof node === "string" && node.startsWith("*.")) {
+        return ".." + node.substring(2);
+      }
+      return node;
+    });
+  }
+  return built;
 };
 
 // node_modules/fast-xml-parser/src/xmlparser/xmlNode.js
@@ -19347,7 +19774,7 @@ class XmlNode {
   constructor(tagname) {
     this.tagname = tagname;
     this.child = [];
-    this[":@"] = {};
+    this[":@"] = Object.create(null);
   }
   add(key, val) {
     if (key === "__proto__")
@@ -19362,8 +19789,17 @@ class XmlNode {
     } else {
       this.child.push({ [node.tagname]: node.child });
     }
+    this.addStartIndex(startIndex);
+  }
+  addStartIndex(startIndex) {
     if (startIndex !== undefined) {
       this.child[this.child.length - 1][METADATA_SYMBOL] = { startIndex };
+    }
+  }
+  addEndIndex(endIndex) {
+    const lastChild = this.child[this.child.length - 1];
+    if (lastChild !== undefined && lastChild[METADATA_SYMBOL] !== undefined && lastChild[METADATA_SYMBOL].endIndex === undefined) {
+      lastChild[METADATA_SYMBOL].endIndex = endIndex;
     }
   }
   static getMetaDataSymbol() {
@@ -19371,66 +19807,307 @@ class XmlNode {
   }
 }
 
+// node_modules/xml-naming/src/index.js
+var nameStartChar10 = ":A-Za-z_" + "\xC0-\xD6\xD8-\xF6\xF8-\u02FF" + "\u0370-\u037D" + "\u037F-\u0486\u0488-\u1FFF" + "\u200C-\u200D" + "\u2070-\u218F" + "\u2C00-\u2FEF" + "\u3001-\uD7FF" + "\uF900-\uFDCF" + "\uFDF0-\uFFFD";
+var nameChar10 = nameStartChar10 + "\\-\\.\\d" + "\xB7" + "\u0300-\u036F" + "\u203F-\u2040";
+var nameStartChar11 = ":A-Za-z_" + "\xC0-\u02FF" + "\u0370-\u037D" + "\u037F-\u0486\u0488-\u1FFF" + "\u200C-\u200D" + "\u2070-\u218F" + "\u2C00-\u2FEF" + "\u3001-\uD7FF" + "\uF900-\uFDCF" + "\uFDF0-\uFFFD" + "\uD800\uDC00-\uDB7F\uDFFF";
+var nameChar11 = nameStartChar11 + "\\-\\.\\d" + "\xB7" + "\u0300-\u036F" + "\u0487" + "\u203F-\u2040";
+var buildRegexes = (startChar, char, flags = "") => {
+  const ncStart = startChar.replace(":", "");
+  const ncChar = char.replace(":", "");
+  const ncNamePat = `[${ncStart}][${ncChar}]*`;
+  return {
+    name: new RegExp(`^[${startChar}][${char}]*$`, flags),
+    ncName: new RegExp(`^${ncNamePat}$`, flags),
+    qName: new RegExp(`^${ncNamePat}(?::${ncNamePat})?$`, flags),
+    nmToken: new RegExp(`^[${char}]+$`, flags),
+    nmTokens: new RegExp(`^[${char}]+(?:\\s+[${char}]+)*$`, flags)
+  };
+};
+var regexes10 = buildRegexes(nameStartChar10, nameChar10);
+var regexes11 = buildRegexes(nameStartChar11, nameChar11, "u");
+var nameStartCharAscii = ":A-Za-z_";
+var nameCharAscii = nameStartCharAscii + "\\-\\.\\d";
+var regexesAscii = buildRegexes(nameStartCharAscii, nameCharAscii);
+var getRegexes = (xmlVersion = "1.0", asciiOnly = false) => {
+  if (asciiOnly)
+    return regexesAscii;
+  return xmlVersion === "1.1" ? regexes11 : regexes10;
+};
+var qName = (str, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str);
+
 // node_modules/fast-xml-parser/src/xmlparser/DocTypeReader.js
-function readDocType(xmlData, i) {
-  const entities = {};
-  if (xmlData[i + 3] === "O" && xmlData[i + 4] === "C" && xmlData[i + 5] === "T" && xmlData[i + 6] === "Y" && xmlData[i + 7] === "P" && xmlData[i + 8] === "E") {
-    i = i + 9;
-    let angleBracketsCount = 1;
-    let hasBody = false, comment = false;
-    let exp = "";
-    for (;i < xmlData.length; i++) {
-      if (xmlData[i] === "<" && !comment) {
-        if (hasBody && hasSeq(xmlData, "!ENTITY", i)) {
-          i += 7;
-          let entityName, val;
-          [entityName, val, i] = readEntityExp(xmlData, i + 1);
-          if (val.indexOf("&") === -1)
-            entities[entityName] = {
-              regx: RegExp(`&${entityName};`, "g"),
-              val
-            };
-        } else if (hasBody && hasSeq(xmlData, "!ELEMENT", i)) {
-          i += 8;
-          const { index } = readElementExp(xmlData, i + 1);
-          i = index;
-        } else if (hasBody && hasSeq(xmlData, "!ATTLIST", i)) {
-          i += 8;
-        } else if (hasBody && hasSeq(xmlData, "!NOTATION", i)) {
-          i += 9;
-          const { index } = readNotationExp(xmlData, i + 1);
-          i = index;
-        } else if (hasSeq(xmlData, "!--", i))
-          comment = true;
-        else
-          throw new Error(`Invalid DOCTYPE`);
-        angleBracketsCount++;
-        exp = "";
-      } else if (xmlData[i] === ">") {
-        if (comment) {
-          if (xmlData[i - 1] === "-" && xmlData[i - 2] === "-") {
-            comment = false;
+class DocTypeReader {
+  constructor(options, xmlVersion) {
+    this.suppressValidationErr = !options;
+    this.options = options;
+    this.xmlVersion = xmlVersion || 1;
+  }
+  setXmlVersion(xmlVersion = 1) {
+    this.xmlVersion = xmlVersion;
+  }
+  readDocType(xmlData, i) {
+    const entities = Object.create(null);
+    let entityCount = 0;
+    if (xmlData[i + 3] === "O" && xmlData[i + 4] === "C" && xmlData[i + 5] === "T" && xmlData[i + 6] === "Y" && xmlData[i + 7] === "P" && xmlData[i + 8] === "E") {
+      i = i + 9;
+      let angleBracketsCount = 1;
+      let hasBody = false, comment = false;
+      let quoteChar = null;
+      let exp = "";
+      for (;i < xmlData.length; i++) {
+        if (quoteChar !== null) {
+          if (xmlData[i] === quoteChar)
+            quoteChar = null;
+          exp += xmlData[i];
+          continue;
+        }
+        if (!hasBody && !comment && (xmlData[i] === '"' || xmlData[i] === "'")) {
+          quoteChar = xmlData[i];
+          exp += xmlData[i];
+          continue;
+        }
+        if (xmlData[i] === "<" && !comment) {
+          if (hasBody && hasSeq(xmlData, "!ENTITY", i)) {
+            i += 7;
+            let entityName, val;
+            [entityName, val, i] = this.readEntityExp(xmlData, i + 1, this.suppressValidationErr);
+            if (val.indexOf("&") === -1) {
+              if (this.options.enabled !== false && this.options.maxEntityCount != null && entityCount >= this.options.maxEntityCount) {
+                throw new Error(`Entity count (${entityCount + 1}) exceeds maximum allowed (${this.options.maxEntityCount})`);
+              }
+              entities[entityName] = val;
+              entityCount++;
+            }
+          } else if (hasBody && hasSeq(xmlData, "!ELEMENT", i)) {
+            i += 8;
+            const { index } = this.readElementExp(xmlData, i + 1);
+            i = index;
+          } else if (hasBody && hasSeq(xmlData, "!ATTLIST", i)) {
+            i += 8;
+          } else if (hasBody && hasSeq(xmlData, "!NOTATION", i)) {
+            i += 9;
+            const { index } = this.readNotationExp(xmlData, i + 1, this.suppressValidationErr);
+            i = index;
+          } else if (hasSeq(xmlData, "!--", i))
+            comment = true;
+          else
+            throw new Error(`Invalid DOCTYPE`);
+          angleBracketsCount++;
+          exp = "";
+        } else if (xmlData[i] === ">") {
+          if (comment) {
+            if (xmlData[i - 1] === "-" && xmlData[i - 2] === "-") {
+              comment = false;
+              angleBracketsCount--;
+            }
+          } else {
             angleBracketsCount--;
           }
+          if (angleBracketsCount === 0) {
+            break;
+          }
+        } else if (xmlData[i] === "[") {
+          hasBody = true;
         } else {
-          angleBracketsCount--;
+          exp += xmlData[i];
         }
-        if (angleBracketsCount === 0) {
-          break;
-        }
-      } else if (xmlData[i] === "[") {
-        hasBody = true;
-      } else {
-        exp += xmlData[i];
+      }
+      if (quoteChar !== null || angleBracketsCount !== 0) {
+        throw new Error(`Unclosed DOCTYPE`);
+      }
+    } else {
+      throw new Error(`Invalid Tag instead of DOCTYPE`);
+    }
+    return { entities, i };
+  }
+  readEntityExp(xmlData, i) {
+    i = skipWhitespace(xmlData, i);
+    const startIndex = i;
+    while (i < xmlData.length && !/\s/.test(xmlData[i]) && xmlData[i] !== '"' && xmlData[i] !== "'") {
+      i++;
+    }
+    let entityName = xmlData.substring(startIndex, i);
+    validateEntityName2(entityName, { xmlVersion: this.xmlVersion });
+    i = skipWhitespace(xmlData, i);
+    if (!this.suppressValidationErr) {
+      if (xmlData.substring(i, i + 6).toUpperCase() === "SYSTEM") {
+        throw new Error("External entities are not supported");
+      } else if (xmlData[i] === "%") {
+        throw new Error("Parameter entities are not supported");
       }
     }
-    if (angleBracketsCount !== 0) {
-      throw new Error(`Unclosed DOCTYPE`);
+    let entityValue = "";
+    [i, entityValue] = this.readIdentifierVal(xmlData, i, "entity");
+    if (this.options.enabled !== false && this.options.maxEntitySize != null && entityValue.length > this.options.maxEntitySize) {
+      throw new Error(`Entity "${entityName}" size (${entityValue.length}) exceeds maximum allowed size (${this.options.maxEntitySize})`);
     }
-  } else {
-    throw new Error(`Invalid Tag instead of DOCTYPE`);
+    i--;
+    return [entityName, entityValue, i];
   }
-  return { entities, i };
+  readNotationExp(xmlData, i) {
+    i = skipWhitespace(xmlData, i);
+    const startIndex = i;
+    while (i < xmlData.length && !/\s/.test(xmlData[i])) {
+      i++;
+    }
+    let notationName = xmlData.substring(startIndex, i);
+    !this.suppressValidationErr && validateEntityName2(notationName, { xmlVersion: this.xmlVersion });
+    i = skipWhitespace(xmlData, i);
+    const identifierType = xmlData.substring(i, i + 6).toUpperCase();
+    if (!this.suppressValidationErr && identifierType !== "SYSTEM" && identifierType !== "PUBLIC") {
+      throw new Error(`Expected SYSTEM or PUBLIC, found "${identifierType}"`);
+    }
+    i += identifierType.length;
+    i = skipWhitespace(xmlData, i);
+    let publicIdentifier = null;
+    let systemIdentifier = null;
+    if (identifierType === "PUBLIC") {
+      [i, publicIdentifier] = this.readIdentifierVal(xmlData, i, "publicIdentifier");
+      i = skipWhitespace(xmlData, i);
+      if (xmlData[i] === '"' || xmlData[i] === "'") {
+        [i, systemIdentifier] = this.readIdentifierVal(xmlData, i, "systemIdentifier");
+      }
+    } else if (identifierType === "SYSTEM") {
+      [i, systemIdentifier] = this.readIdentifierVal(xmlData, i, "systemIdentifier");
+      if (!this.suppressValidationErr && !systemIdentifier) {
+        throw new Error("Missing mandatory system identifier for SYSTEM notation");
+      }
+    }
+    return { notationName, publicIdentifier, systemIdentifier, index: --i };
+  }
+  readIdentifierVal(xmlData, i, type) {
+    let identifierVal = "";
+    const startChar = xmlData[i];
+    if (startChar !== '"' && startChar !== "'") {
+      throw new Error(`Expected quoted string, found "${startChar}"`);
+    }
+    i++;
+    const startIndex = i;
+    while (i < xmlData.length && xmlData[i] !== startChar) {
+      i++;
+    }
+    identifierVal = xmlData.substring(startIndex, i);
+    if (xmlData[i] !== startChar) {
+      throw new Error(`Unterminated ${type} value`);
+    }
+    i++;
+    return [i, identifierVal];
+  }
+  readElementExp(xmlData, i) {
+    i = skipWhitespace(xmlData, i);
+    const startIndex = i;
+    while (i < xmlData.length && !/\s/.test(xmlData[i])) {
+      i++;
+    }
+    let elementName = xmlData.substring(startIndex, i);
+    if (!this.suppressValidationErr && !qName(elementName, { xmlVersion: this.xmlVersion })) {
+      throw new Error(`Invalid element name: "${elementName}"`);
+    }
+    i = skipWhitespace(xmlData, i);
+    let contentModel = "";
+    if (xmlData[i] === "E" && hasSeq(xmlData, "MPTY", i))
+      i += 4;
+    else if (xmlData[i] === "A" && hasSeq(xmlData, "NY", i))
+      i += 2;
+    else if (xmlData[i] === "(") {
+      i++;
+      const startIndex2 = i;
+      while (i < xmlData.length && xmlData[i] !== ")") {
+        i++;
+      }
+      contentModel = xmlData.substring(startIndex2, i);
+      if (xmlData[i] !== ")") {
+        throw new Error("Unterminated content model");
+      }
+    } else if (!this.suppressValidationErr) {
+      throw new Error(`Invalid Element Expression, found "${xmlData[i]}"`);
+    }
+    return {
+      elementName,
+      contentModel: contentModel.trim(),
+      index: i
+    };
+  }
+  readAttlistExp(xmlData, i) {
+    i = skipWhitespace(xmlData, i);
+    let startIndex = i;
+    while (i < xmlData.length && !/\s/.test(xmlData[i])) {
+      i++;
+    }
+    let elementName = xmlData.substring(startIndex, i);
+    validateEntityName2(elementName, { xmlVersion: this.xmlVersion });
+    i = skipWhitespace(xmlData, i);
+    startIndex = i;
+    while (i < xmlData.length && !/\s/.test(xmlData[i])) {
+      i++;
+    }
+    let attributeName = xmlData.substring(startIndex, i);
+    if (!validateEntityName2(attributeName, { xmlVersion: this.xmlVersion })) {
+      throw new Error(`Invalid attribute name: "${attributeName}"`);
+    }
+    i = skipWhitespace(xmlData, i);
+    let attributeType = "";
+    if (xmlData.substring(i, i + 8).toUpperCase() === "NOTATION") {
+      attributeType = "NOTATION";
+      i += 8;
+      i = skipWhitespace(xmlData, i);
+      if (xmlData[i] !== "(") {
+        throw new Error(`Expected '(', found "${xmlData[i]}"`);
+      }
+      i++;
+      let allowedNotations = [];
+      while (i < xmlData.length && xmlData[i] !== ")") {
+        const startIndex2 = i;
+        while (i < xmlData.length && xmlData[i] !== "|" && xmlData[i] !== ")") {
+          i++;
+        }
+        let notation = xmlData.substring(startIndex2, i);
+        notation = notation.trim();
+        if (!validateEntityName2(notation, { xmlVersion: this.xmlVersion })) {
+          throw new Error(`Invalid notation name: "${notation}"`);
+        }
+        allowedNotations.push(notation);
+        if (xmlData[i] === "|") {
+          i++;
+          i = skipWhitespace(xmlData, i);
+        }
+      }
+      if (xmlData[i] !== ")") {
+        throw new Error("Unterminated list of notations");
+      }
+      i++;
+      attributeType += " (" + allowedNotations.join("|") + ")";
+    } else {
+      const startIndex2 = i;
+      while (i < xmlData.length && !/\s/.test(xmlData[i])) {
+        i++;
+      }
+      attributeType += xmlData.substring(startIndex2, i);
+      const validTypes = ["CDATA", "ID", "IDREF", "IDREFS", "ENTITY", "ENTITIES", "NMTOKEN", "NMTOKENS"];
+      if (!this.suppressValidationErr && !validTypes.includes(attributeType.toUpperCase())) {
+        throw new Error(`Invalid attribute type: "${attributeType}"`);
+      }
+    }
+    i = skipWhitespace(xmlData, i);
+    let defaultValue = "";
+    if (xmlData.substring(i, i + 8).toUpperCase() === "#REQUIRED") {
+      defaultValue = "#REQUIRED";
+      i += 8;
+    } else if (xmlData.substring(i, i + 7).toUpperCase() === "#IMPLIED") {
+      defaultValue = "#IMPLIED";
+      i += 7;
+    } else {
+      [i, defaultValue] = this.readIdentifierVal(xmlData, i, "ATTLIST");
+    }
+    return {
+      elementName,
+      attributeName,
+      attributeType,
+      defaultValue,
+      index: i
+    };
+  }
 }
 var skipWhitespace = (data, index) => {
   while (index < data.length && /\s/.test(data[index])) {
@@ -19438,107 +20115,6 @@ var skipWhitespace = (data, index) => {
   }
   return index;
 };
-function readEntityExp(xmlData, i) {
-  i = skipWhitespace(xmlData, i);
-  let entityName = "";
-  while (i < xmlData.length && !/\s/.test(xmlData[i]) && xmlData[i] !== '"' && xmlData[i] !== "'") {
-    entityName += xmlData[i];
-    i++;
-  }
-  validateEntityName(entityName);
-  i = skipWhitespace(xmlData, i);
-  if (xmlData.substring(i, i + 6).toUpperCase() === "SYSTEM") {
-    throw new Error("External entities are not supported");
-  } else if (xmlData[i] === "%") {
-    throw new Error("Parameter entities are not supported");
-  }
-  let entityValue = "";
-  [i, entityValue] = readIdentifierVal(xmlData, i, "entity");
-  i--;
-  return [entityName, entityValue, i];
-}
-function readNotationExp(xmlData, i) {
-  i = skipWhitespace(xmlData, i);
-  let notationName = "";
-  while (i < xmlData.length && !/\s/.test(xmlData[i])) {
-    notationName += xmlData[i];
-    i++;
-  }
-  validateEntityName(notationName);
-  i = skipWhitespace(xmlData, i);
-  const identifierType = xmlData.substring(i, i + 6).toUpperCase();
-  if (identifierType !== "SYSTEM" && identifierType !== "PUBLIC") {
-    throw new Error(`Expected SYSTEM or PUBLIC, found "${identifierType}"`);
-  }
-  i += identifierType.length;
-  i = skipWhitespace(xmlData, i);
-  let publicIdentifier = null;
-  let systemIdentifier = null;
-  if (identifierType === "PUBLIC") {
-    [i, publicIdentifier] = readIdentifierVal(xmlData, i, "publicIdentifier");
-    i = skipWhitespace(xmlData, i);
-    if (xmlData[i] === '"' || xmlData[i] === "'") {
-      [i, systemIdentifier] = readIdentifierVal(xmlData, i, "systemIdentifier");
-    }
-  } else if (identifierType === "SYSTEM") {
-    [i, systemIdentifier] = readIdentifierVal(xmlData, i, "systemIdentifier");
-    if (!systemIdentifier) {
-      throw new Error("Missing mandatory system identifier for SYSTEM notation");
-    }
-  }
-  return { notationName, publicIdentifier, systemIdentifier, index: --i };
-}
-function readIdentifierVal(xmlData, i, type) {
-  let identifierVal = "";
-  const startChar = xmlData[i];
-  if (startChar !== '"' && startChar !== "'") {
-    throw new Error(`Expected quoted string, found "${startChar}"`);
-  }
-  i++;
-  while (i < xmlData.length && xmlData[i] !== startChar) {
-    identifierVal += xmlData[i];
-    i++;
-  }
-  if (xmlData[i] !== startChar) {
-    throw new Error(`Unterminated ${type} value`);
-  }
-  i++;
-  return [i, identifierVal];
-}
-function readElementExp(xmlData, i) {
-  i = skipWhitespace(xmlData, i);
-  let elementName = "";
-  while (i < xmlData.length && !/\s/.test(xmlData[i])) {
-    elementName += xmlData[i];
-    i++;
-  }
-  if (!validateEntityName(elementName)) {
-    throw new Error(`Invalid element name: "${elementName}"`);
-  }
-  i = skipWhitespace(xmlData, i);
-  let contentModel = "";
-  if (xmlData[i] === "E" && hasSeq(xmlData, "MPTY", i))
-    i += 4;
-  else if (xmlData[i] === "A" && hasSeq(xmlData, "NY", i))
-    i += 2;
-  else if (xmlData[i] === "(") {
-    i++;
-    while (i < xmlData.length && xmlData[i] !== ")") {
-      contentModel += xmlData[i];
-      i++;
-    }
-    if (xmlData[i] !== ")") {
-      throw new Error("Unterminated content model");
-    }
-  } else {
-    throw new Error(`Invalid Element Expression, found "${xmlData[i]}"`);
-  }
-  return {
-    elementName,
-    contentModel: contentModel.trim(),
-    index: i
-  };
-}
 function hasSeq(data, seq, i) {
   for (let j = 0;j < seq.length; j++) {
     if (seq[j] !== data[i + j + 1])
@@ -19546,8 +20122,8 @@ function hasSeq(data, seq, i) {
   }
   return true;
 }
-function validateEntityName(name) {
-  if (isName(name))
+function validateEntityName2(name, xmlVersion) {
+  if (qName(name, { xmlVersion }))
     return name;
   else
     throw new Error(`Invalid entity name ${name}`);
@@ -19891,33 +20467,1275 @@ function getIgnoreAttributesFn(ignoreAttributes) {
   return () => false;
 }
 
+// node_modules/path-expression-matcher/src/Expression.js
+class Expression {
+  constructor(pattern, options = {}, data) {
+    this.pattern = pattern;
+    this.separator = options.separator || ".";
+    this.segments = this._parse(pattern);
+    this.data = data;
+    this._hasDeepWildcard = this.segments.some((seg) => seg.type === "deep-wildcard");
+    this._hasAttributeCondition = this.segments.some((seg) => seg.attrName !== undefined);
+    this._hasPositionSelector = this.segments.some((seg) => seg.position !== undefined);
+  }
+  _parse(pattern) {
+    const segments = [];
+    let i = 0;
+    let currentPart = "";
+    while (i < pattern.length) {
+      if (pattern[i] === this.separator) {
+        if (i + 1 < pattern.length && pattern[i + 1] === this.separator) {
+          if (currentPart.trim()) {
+            segments.push(this._parseSegment(currentPart.trim()));
+            currentPart = "";
+          }
+          segments.push({ type: "deep-wildcard" });
+          i += 2;
+        } else {
+          if (currentPart.trim()) {
+            segments.push(this._parseSegment(currentPart.trim()));
+          }
+          currentPart = "";
+          i++;
+        }
+      } else {
+        currentPart += pattern[i];
+        i++;
+      }
+    }
+    if (currentPart.trim()) {
+      segments.push(this._parseSegment(currentPart.trim()));
+    }
+    return segments;
+  }
+  _parseSegment(part) {
+    const segment = { type: "tag" };
+    let bracketContent = null;
+    let withoutBrackets = part;
+    const bracketMatch = part.match(/^([^\[]+)(\[[^\]]*\])(.*)$/);
+    if (bracketMatch) {
+      withoutBrackets = bracketMatch[1] + bracketMatch[3];
+      if (bracketMatch[2]) {
+        const content = bracketMatch[2].slice(1, -1);
+        if (content) {
+          bracketContent = content;
+        }
+      }
+    }
+    let namespace = undefined;
+    let tagAndPosition = withoutBrackets;
+    if (withoutBrackets.includes("::")) {
+      const nsIndex = withoutBrackets.indexOf("::");
+      namespace = withoutBrackets.substring(0, nsIndex).trim();
+      tagAndPosition = withoutBrackets.substring(nsIndex + 2).trim();
+      if (!namespace) {
+        throw new Error(`Invalid namespace in pattern: ${part}`);
+      }
+    }
+    let tag = undefined;
+    let positionMatch = null;
+    if (tagAndPosition.includes(":")) {
+      const colonIndex = tagAndPosition.lastIndexOf(":");
+      const tagPart = tagAndPosition.substring(0, colonIndex).trim();
+      const posPart = tagAndPosition.substring(colonIndex + 1).trim();
+      const isPositionKeyword = ["first", "last", "odd", "even"].includes(posPart) || /^nth\(\d+\)$/.test(posPart);
+      if (isPositionKeyword) {
+        tag = tagPart;
+        positionMatch = posPart;
+      } else {
+        tag = tagAndPosition;
+      }
+    } else {
+      tag = tagAndPosition;
+    }
+    if (!tag) {
+      throw new Error(`Invalid segment pattern: ${part}`);
+    }
+    segment.tag = tag;
+    if (namespace) {
+      segment.namespace = namespace;
+    }
+    if (bracketContent) {
+      if (bracketContent.includes("=")) {
+        const eqIndex = bracketContent.indexOf("=");
+        segment.attrName = bracketContent.substring(0, eqIndex).trim();
+        segment.attrValue = bracketContent.substring(eqIndex + 1).trim();
+      } else {
+        segment.attrName = bracketContent.trim();
+      }
+    }
+    if (positionMatch) {
+      const nthMatch = positionMatch.match(/^nth\((\d+)\)$/);
+      if (nthMatch) {
+        segment.position = "nth";
+        segment.positionValue = parseInt(nthMatch[1], 10);
+      } else {
+        segment.position = positionMatch;
+      }
+    }
+    return segment;
+  }
+  get length() {
+    return this.segments.length;
+  }
+  hasDeepWildcard() {
+    return this._hasDeepWildcard;
+  }
+  hasAttributeCondition() {
+    return this._hasAttributeCondition;
+  }
+  hasPositionSelector() {
+    return this._hasPositionSelector;
+  }
+  toString() {
+    return this.pattern;
+  }
+}
+
+// node_modules/path-expression-matcher/src/ExpressionSet.js
+class ExpressionSet {
+  constructor() {
+    this._byDepthAndTag = new Map;
+    this._wildcardByDepth = new Map;
+    this._deepWildcards = [];
+    this._deepByTerminalTag = new Map;
+    this._patterns = new Set;
+    this._sealed = false;
+  }
+  add(expression) {
+    if (this._sealed) {
+      throw new TypeError("ExpressionSet is sealed. Create a new ExpressionSet to add more expressions.");
+    }
+    if (this._patterns.has(expression.pattern))
+      return this;
+    this._patterns.add(expression.pattern);
+    if (expression.hasDeepWildcard()) {
+      const lastSeg2 = expression.segments[expression.segments.length - 1];
+      if (lastSeg2 && lastSeg2.type !== "deep-wildcard" && lastSeg2.tag !== "*") {
+        const tag2 = lastSeg2.tag;
+        if (!this._deepByTerminalTag.has(tag2))
+          this._deepByTerminalTag.set(tag2, []);
+        this._deepByTerminalTag.get(tag2).push(expression);
+      } else {
+        this._deepWildcards.push(expression);
+      }
+      return this;
+    }
+    const depth = expression.length;
+    const lastSeg = expression.segments[expression.segments.length - 1];
+    const tag = lastSeg?.tag;
+    if (!tag || tag === "*") {
+      if (!this._wildcardByDepth.has(depth))
+        this._wildcardByDepth.set(depth, []);
+      this._wildcardByDepth.get(depth).push(expression);
+    } else {
+      const key = `${depth}:${tag}`;
+      if (!this._byDepthAndTag.has(key))
+        this._byDepthAndTag.set(key, []);
+      this._byDepthAndTag.get(key).push(expression);
+    }
+    return this;
+  }
+  addAll(expressions) {
+    for (const expr of expressions)
+      this.add(expr);
+    return this;
+  }
+  has(expression) {
+    return this._patterns.has(expression.pattern);
+  }
+  get size() {
+    return this._patterns.size;
+  }
+  seal() {
+    this._sealed = true;
+    return this;
+  }
+  get isSealed() {
+    return this._sealed;
+  }
+  matchesAny(matcher) {
+    return this.findMatch(matcher) !== null;
+  }
+  findMatch(matcher) {
+    const depth = matcher.getDepth();
+    const tag = matcher.getCurrentTag();
+    const exactKey = `${depth}:${tag}`;
+    const exactBucket = this._byDepthAndTag.get(exactKey);
+    if (exactBucket) {
+      for (let i = 0;i < exactBucket.length; i++) {
+        if (matcher.matches(exactBucket[i]))
+          return exactBucket[i];
+      }
+    }
+    const wildcardBucket = this._wildcardByDepth.get(depth);
+    if (wildcardBucket) {
+      for (let i = 0;i < wildcardBucket.length; i++) {
+        if (matcher.matches(wildcardBucket[i]))
+          return wildcardBucket[i];
+      }
+    }
+    const deepBucket = this._deepByTerminalTag.get(tag);
+    if (deepBucket) {
+      for (let i = 0;i < deepBucket.length; i++) {
+        if (matcher.matches(deepBucket[i]))
+          return deepBucket[i];
+      }
+    }
+    for (let i = 0;i < this._deepWildcards.length; i++) {
+      if (matcher.matches(this._deepWildcards[i]))
+        return this._deepWildcards[i];
+    }
+    return null;
+  }
+}
+
+// node_modules/path-expression-matcher/src/Matcher.js
+class MatcherView {
+  constructor(matcher) {
+    this._matcher = matcher;
+  }
+  get separator() {
+    return this._matcher.separator;
+  }
+  getCurrentTag() {
+    const path = this._matcher.path;
+    return path.length > 0 ? path[path.length - 1].tag : undefined;
+  }
+  getCurrentNamespace() {
+    const path = this._matcher.path;
+    return path.length > 0 ? path[path.length - 1].namespace : undefined;
+  }
+  getAttrValue(attrName) {
+    const path = this._matcher.path;
+    if (path.length === 0)
+      return;
+    return path[path.length - 1].values?.[attrName];
+  }
+  hasAttr(attrName) {
+    const path = this._matcher.path;
+    if (path.length === 0)
+      return false;
+    const current = path[path.length - 1];
+    return current.values !== undefined && attrName in current.values;
+  }
+  getAnyParentAttr(attrName) {
+    return this._matcher.getAnyParentAttr(attrName);
+  }
+  hasAnyParentAttr(attrName) {
+    return this._matcher.hasAnyParentAttr(attrName);
+  }
+  getPosition() {
+    const path = this._matcher.path;
+    if (path.length === 0)
+      return -1;
+    return path[path.length - 1].position ?? 0;
+  }
+  getCounter() {
+    const path = this._matcher.path;
+    if (path.length === 0)
+      return -1;
+    return path[path.length - 1].counter ?? 0;
+  }
+  getIndex() {
+    return this.getPosition();
+  }
+  getDepth() {
+    return this._matcher.path.length;
+  }
+  toString(separator, includeNamespace = true) {
+    return this._matcher.toString(separator, includeNamespace);
+  }
+  toArray() {
+    return this._matcher.path.map((n) => n.tag);
+  }
+  matches(expression) {
+    return this._matcher.matches(expression);
+  }
+  matchesAny(exprSet) {
+    return exprSet.matchesAny(this._matcher);
+  }
+}
+
+class Matcher {
+  constructor(options = {}) {
+    this.separator = options.separator || ".";
+    this.path = [];
+    this.siblingStacks = [];
+    this._pathStringCache = null;
+    this._view = new MatcherView(this);
+    this._keptAttrs = [];
+  }
+  push(tagName, attrValues = null, namespace = null, options = null) {
+    this._pathStringCache = null;
+    if (this.path.length > 0) {
+      this.path[this.path.length - 1].values = undefined;
+    }
+    const currentLevel = this.path.length;
+    let level = this.siblingStacks[currentLevel];
+    if (!level) {
+      level = { counts: new Map, total: 0 };
+      this.siblingStacks[currentLevel] = level;
+    }
+    const siblingKey = namespace ? `${namespace}:${tagName}` : tagName;
+    const counter = level.counts.get(siblingKey) || 0;
+    const position = level.total;
+    level.counts.set(siblingKey, counter + 1);
+    level.total++;
+    const node = {
+      tag: tagName,
+      position,
+      counter
+    };
+    if (namespace !== null && namespace !== undefined) {
+      node.namespace = namespace;
+    }
+    if (attrValues !== null && attrValues !== undefined) {
+      node.values = attrValues;
+    }
+    this.path.push(node);
+    const depth = this.path.length;
+    const keep = options !== null ? options.keep : null;
+    if (keep !== null && keep !== undefined && keep.length > 0 && attrValues) {
+      for (let i = 0;i < keep.length; i++) {
+        const name = keep[i];
+        if (attrValues[name] !== undefined) {
+          this._keptAttrs.push({ depth, name, value: attrValues[name] });
+        }
+      }
+    }
+  }
+  pop() {
+    if (this.path.length === 0)
+      return;
+    this._pathStringCache = null;
+    const node = this.path.pop();
+    if (this.siblingStacks.length > this.path.length + 1) {
+      this.siblingStacks.length = this.path.length + 1;
+    }
+    const poppedDepth = this.path.length + 1;
+    while (this._keptAttrs.length > 0 && this._keptAttrs[this._keptAttrs.length - 1].depth >= poppedDepth) {
+      this._keptAttrs.pop();
+    }
+    return node;
+  }
+  updateCurrent(attrValues) {
+    if (this.path.length > 0) {
+      const current = this.path[this.path.length - 1];
+      if (attrValues !== null && attrValues !== undefined) {
+        current.values = attrValues;
+      }
+    }
+  }
+  getCurrentTag() {
+    return this.path.length > 0 ? this.path[this.path.length - 1].tag : undefined;
+  }
+  getCurrentNamespace() {
+    return this.path.length > 0 ? this.path[this.path.length - 1].namespace : undefined;
+  }
+  getAttrValue(attrName) {
+    if (this.path.length === 0)
+      return;
+    return this.path[this.path.length - 1].values?.[attrName];
+  }
+  hasAttr(attrName) {
+    if (this.path.length === 0)
+      return false;
+    const current = this.path[this.path.length - 1];
+    return current.values !== undefined && attrName in current.values;
+  }
+  getAnyParentAttr(attrName) {
+    const kept = this._keptAttrs;
+    for (let i = kept.length - 1;i >= 0; i--) {
+      if (kept[i].name === attrName)
+        return kept[i].value;
+    }
+    return;
+  }
+  hasAnyParentAttr(attrName) {
+    const kept = this._keptAttrs;
+    for (let i = kept.length - 1;i >= 0; i--) {
+      if (kept[i].name === attrName)
+        return true;
+    }
+    return false;
+  }
+  getPosition() {
+    if (this.path.length === 0)
+      return -1;
+    return this.path[this.path.length - 1].position ?? 0;
+  }
+  getCounter() {
+    if (this.path.length === 0)
+      return -1;
+    return this.path[this.path.length - 1].counter ?? 0;
+  }
+  getIndex() {
+    return this.getPosition();
+  }
+  getDepth() {
+    return this.path.length;
+  }
+  toString(separator, includeNamespace = true) {
+    const sep = separator || this.separator;
+    const isDefault = sep === this.separator && includeNamespace === true;
+    if (isDefault) {
+      if (this._pathStringCache !== null) {
+        return this._pathStringCache;
+      }
+      const result = this.path.map((n) => n.namespace ? `${n.namespace}:${n.tag}` : n.tag).join(sep);
+      this._pathStringCache = result;
+      return result;
+    }
+    return this.path.map((n) => includeNamespace && n.namespace ? `${n.namespace}:${n.tag}` : n.tag).join(sep);
+  }
+  toArray() {
+    return this.path.map((n) => n.tag);
+  }
+  reset() {
+    this._pathStringCache = null;
+    this.path = [];
+    this.siblingStacks = [];
+    this._keptAttrs = [];
+  }
+  matches(expression) {
+    const segments = expression.segments;
+    if (segments.length === 0) {
+      return false;
+    }
+    if (expression.hasDeepWildcard()) {
+      return this._matchWithDeepWildcard(segments);
+    }
+    return this._matchSimple(segments);
+  }
+  _matchSimple(segments) {
+    if (this.path.length !== segments.length) {
+      return false;
+    }
+    for (let i = 0;i < segments.length; i++) {
+      if (!this._matchSegment(segments[i], this.path[i], i === this.path.length - 1)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  _matchWithDeepWildcard(segments) {
+    let pathIdx = this.path.length - 1;
+    let segIdx = segments.length - 1;
+    while (segIdx >= 0 && pathIdx >= 0) {
+      const segment = segments[segIdx];
+      if (segment.type === "deep-wildcard") {
+        segIdx--;
+        if (segIdx < 0) {
+          return true;
+        }
+        const nextSeg = segments[segIdx];
+        let found = false;
+        for (let i = pathIdx;i >= 0; i--) {
+          if (this._matchSegment(nextSeg, this.path[i], i === this.path.length - 1)) {
+            pathIdx = i - 1;
+            segIdx--;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          return false;
+        }
+      } else {
+        if (!this._matchSegment(segment, this.path[pathIdx], pathIdx === this.path.length - 1)) {
+          return false;
+        }
+        pathIdx--;
+        segIdx--;
+      }
+    }
+    return segIdx < 0;
+  }
+  _matchSegment(segment, node, isCurrentNode) {
+    if (segment.tag !== "*" && segment.tag !== node.tag) {
+      return false;
+    }
+    if (segment.namespace !== undefined) {
+      if (segment.namespace !== "*" && segment.namespace !== node.namespace) {
+        return false;
+      }
+    }
+    if (segment.attrName !== undefined) {
+      if (!isCurrentNode) {
+        return false;
+      }
+      if (!node.values || !(segment.attrName in node.values)) {
+        return false;
+      }
+      if (segment.attrValue !== undefined) {
+        if (String(node.values[segment.attrName]) !== String(segment.attrValue)) {
+          return false;
+        }
+      }
+    }
+    if (segment.position !== undefined) {
+      if (!isCurrentNode) {
+        return false;
+      }
+      const counter = node.counter ?? 0;
+      if (segment.position === "first" && counter !== 0) {
+        return false;
+      } else if (segment.position === "odd" && counter % 2 !== 1) {
+        return false;
+      } else if (segment.position === "even" && counter % 2 !== 0) {
+        return false;
+      } else if (segment.position === "nth" && counter !== segment.positionValue) {
+        return false;
+      }
+    }
+    return true;
+  }
+  matchesAny(exprSet) {
+    return exprSet.matchesAny(this);
+  }
+  snapshot() {
+    return {
+      path: this.path.map((node) => ({ ...node })),
+      siblingStacks: this.siblingStacks.map((level) => level ? { counts: new Map(level.counts), total: level.total } : level),
+      keptAttrs: this._keptAttrs.map((entry) => ({ ...entry }))
+    };
+  }
+  restore(snapshot) {
+    this._pathStringCache = null;
+    this.path = snapshot.path.map((node) => ({ ...node }));
+    this.siblingStacks = snapshot.siblingStacks.map((level) => level ? { counts: new Map(level.counts), total: level.total } : level);
+    this._keptAttrs = (snapshot.keptAttrs || []).map((entry) => ({ ...entry }));
+  }
+  readOnly() {
+    return this._view;
+  }
+}
+
+// node_modules/is-unsafe/src/contexts/html.js
+var HTML_PATTERNS = [
+  {
+    id: "html-script-open",
+    description: "<script opening tag",
+    pattern: /<script[\s>/]/i
+  },
+  {
+    id: "html-script-close",
+    description: "</script closing tag",
+    pattern: /<\/script[\s>]/i
+  },
+  {
+    id: "html-javascript-protocol",
+    description: "javascript: URI scheme (with optional whitespace/encoding)",
+    pattern: /j[\t\n\r ]*a[\t\n\r ]*v[\t\n\r ]*a[\t\n\r ]*s[\t\n\r ]*c[\t\n\r ]*r[\t\n\r ]*i[\t\n\r ]*p[\t\n\r ]*t[\t\n\r ]*:/i
+  },
+  {
+    id: "html-vbscript-protocol",
+    description: "vbscript: URI scheme",
+    pattern: /vbscript[\t\n\r ]*:/i
+  },
+  {
+    id: "html-data-html",
+    description: "data:text/html URI \u2014 can execute scripts in browsers",
+    pattern: /data[\t\n\r ]*:[\t\n\r ]*text\/html/i
+  },
+  {
+    id: "html-data-xhtml",
+    description: "data:application/xhtml+xml URI",
+    pattern: /data[\t\n\r ]*:[\t\n\r ]*application\/xhtml/i
+  },
+  {
+    id: "html-data-svg",
+    description: "data:image/svg+xml URI \u2014 can execute scripts",
+    pattern: /data[\t\n\r ]*:[\t\n\r ]*image\/svg\+xml/i
+  },
+  {
+    id: "html-inline-event-handler",
+    description: "Inline event handler attributes: onclick=, onerror=, onload=, etc.",
+    pattern: /\bon\w{1,30}\s*=/i
+  },
+  {
+    id: "html-entity-obfuscated-script",
+    description: "HTML-entity-encoded <script (e.g. &#x3C;script or &lt;script)",
+    pattern: /(?:&#x0*3[Cc];?|&#0*60;?|&lt;)\s*script/i
+  },
+  {
+    id: "html-entity-obfuscated-javascript",
+    description: 'HTML-entity-encoded javascript: (partial \u2014 catches common &#106; or &#x6a; for "j")',
+    pattern: /(?:&#x0*6[Aa];?|&#0*106;?)\s*(?:&#x0*61;?|a)[\s\S]{0,80}script\s*:/i
+  },
+  {
+    id: "html-style-expression",
+    description: "CSS expression() \u2014 IE-era code execution in style attributes",
+    pattern: /style[\s\S]{0,20}expression\s*\(/i
+  },
+  {
+    id: "html-object-embed",
+    description: "<object or <embed tags that can load active content",
+    pattern: /<(?:object|embed)[\s>/]/i
+  },
+  {
+    id: "html-base-tag",
+    description: "<base href= \u2014 can hijack all relative URLs on a page",
+    pattern: /<base[\s>]/i
+  },
+  {
+    id: "html-meta-refresh",
+    description: '<meta http-equiv="refresh" \u2014 can redirect users',
+    pattern: /<meta[\s\S]{0,40}http-equiv[\s\S]{0,20}refresh/i
+  },
+  {
+    id: "html-srcdoc",
+    description: "srcdoc= attribute on iframes \u2014 embeds HTML that can run scripts",
+    pattern: /srcdoc\s*=/i
+  },
+  {
+    id: "html-iframe",
+    description: "<iframe tag",
+    pattern: /<iframe[\s>/]/i
+  },
+  {
+    id: "html-form",
+    description: "<form tag \u2014 can be used for phishing / credential harvesting injection",
+    pattern: /<form[\s>/]/i
+  }
+];
+var html_default = HTML_PATTERNS;
+// node_modules/is-unsafe/src/contexts/xml.js
+var XML_PATTERNS = [
+  {
+    id: "xml-cdata-injection",
+    description: "CDATA section injection: <![CDATA[ breaks out of text node context",
+    pattern: /<!\[CDATA\[/i
+  },
+  {
+    id: "xml-cdata-close",
+    description: "CDATA close sequence: ]]> can terminate an enclosing CDATA section",
+    pattern: /\]\]>/
+  },
+  {
+    id: "xml-processing-instruction",
+    description: "XML processing instruction: <?xml-stylesheet or <?php etc.",
+    pattern: /<\?(?:xml[\- ]|php|asp)/i
+  },
+  {
+    id: "xml-doctype-injection",
+    description: "DOCTYPE declaration embedded in content \u2014 can define entities",
+    pattern: /<!DOCTYPE(?:[\s[]|$)/i
+  },
+  {
+    id: "xml-entity-system",
+    description: "SYSTEM keyword \u2014 used in external entity declarations (XXE)",
+    pattern: /\bSYSTEM\s+["']/i
+  },
+  {
+    id: "xml-entity-public",
+    description: "PUBLIC keyword \u2014 used in external entity declarations (XXE)",
+    pattern: /\bPUBLIC\s+["']/i
+  },
+  {
+    id: "xml-entity-declaration",
+    description: "<!ENTITY declaration \u2014 defines entities, potential XXE or entity expansion",
+    pattern: /<!ENTITY[\s%]/i
+  },
+  {
+    id: "xml-billion-laughs",
+    description: "Entity reference chaining / billion laughs: repeated &eX; style references",
+    pattern: /(?:&\w{1,20};){3,}/
+  },
+  {
+    id: "xml-namespace-confusion",
+    description: "xmlns: attribute injection \u2014 can redefine namespaces to confuse parsers",
+    pattern: /\bxmlns(?::\w{1,40})?\s*=/i
+  },
+  {
+    id: "xml-comment-injection",
+    description: "<!-- comment injection \u2014 can hide content from some parsers",
+    pattern: /<!--/
+  },
+  {
+    id: "xml-comment-close",
+    description: "--> closes an enclosing XML comment",
+    pattern: /-->/
+  },
+  {
+    id: "xml-pi-close",
+    description: "?> closes an enclosing processing instruction",
+    pattern: /\?>/
+  }
+];
+var xml_default = XML_PATTERNS;
+// node_modules/is-unsafe/src/contexts/svg.js
+var SVG_PATTERNS = [
+  {
+    id: "svg-script-element",
+    description: "<script element inside SVG executes JavaScript",
+    pattern: /<script[\s>/]/i
+  },
+  {
+    id: "svg-xlink-href-javascript",
+    description: "xlink:href with javascript: \u2014 classic SVG XSS via <a> or <use>",
+    pattern: /xlink\s*:\s*href\s*=\s*["']?\s*javascript\s*:/i
+  },
+  {
+    id: "svg-href-javascript",
+    description: "href= with javascript: in SVG context (<a>, <animate>, etc.)",
+    pattern: /href\s*=\s*["']?\s*javascript\s*:/i
+  },
+  {
+    id: "svg-foreignobject",
+    description: "<foreignObject embeds HTML inside SVG \u2014 can execute scripts",
+    pattern: /<foreignObject[\s>/]/i
+  },
+  {
+    id: "svg-use-external",
+    description: "<use xlink:href or href pointing to external resource (non-fragment URL)",
+    pattern: /<use[\s\S]{0,60}(?:xlink\s*:\s*)?href\s*=\s*(?:["'][^#]|[^"'#\s>])/i
+  },
+  {
+    id: "svg-animate-href",
+    description: '<animate attributeName="href" \u2014 can dynamically change href to javascript:',
+    pattern: /<animate[\s\S]{0,80}attributeName\s*=\s*["'][\s]*href["']/i
+  },
+  {
+    id: "svg-animate-xlinkhref",
+    description: '<animate attributeName="xlink:href"',
+    pattern: /<animate[\s\S]{0,80}attributeName\s*=\s*["'][\s]*xlink\s*:\s*href["']/i
+  },
+  {
+    id: "svg-set-javascript",
+    description: '<set to="javascript:..." \u2014 sets an attribute to a javascript: URI',
+    pattern: /<set[\s\S]{0,80}to\s*=\s*["']?\s*javascript\s*:/i
+  },
+  {
+    id: "svg-event-handler",
+    description: "SVG-specific event handler attributes: onload=, onerror=, onactivate=, etc.",
+    pattern: /\bon(?:load|error|activate|begin|end|repeat|focus|blur|click|mouse\w{1,20}|key\w{1,20})\s*=/i
+  },
+  {
+    id: "svg-handler-generic",
+    description: "Generic on* handler catch-all for SVG attributes",
+    pattern: /\bon\w{1,30}\s*=/i
+  },
+  {
+    id: "svg-filter-feimage",
+    description: "<feImage href= \u2014 filter primitive that can load external resources",
+    pattern: /<feImage[\s\S]{0,80}(?:xlink\s*:\s*)?href\s*=/i
+  },
+  {
+    id: "svg-image-external",
+    description: "<image xlink:href with http/https or javascript protocol",
+    pattern: /<image[\s\S]{0,80}(?:xlink\s*:\s*)?href\s*=\s*["']?\s*(?:https?|javascript)\s*:/i
+  },
+  {
+    id: "svg-style-javascript",
+    description: "style= attribute containing javascript: (e.g. background:url(javascript:...))",
+    pattern: /style\s*=[\s\S]{0,60}javascript\s*:/i
+  }
+];
+var svg_default = SVG_PATTERNS;
+
+// node_modules/is-unsafe/src/contexts/sql.js
+var SQL_PATTERNS = [
+  {
+    id: "sql-block-comment-open",
+    description: "SQL block comment open: /* ... */ \u2014 unusual in legitimate user text",
+    pattern: /\/\*/
+  },
+  {
+    id: "sql-union-select",
+    description: "UNION SELECT \u2014 most common SQL injection aggregation attack",
+    pattern: /\bUNION\s{1,20}(?:ALL\s{1,20})?SELECT\b/i
+  },
+  {
+    id: "sql-drop-table",
+    description: "DROP TABLE \u2014 destructive DDL injection",
+    pattern: /\bDROP\s{1,20}TABLE\b/i
+  },
+  {
+    id: "sql-drop-database",
+    description: "DROP DATABASE \u2014 destructive DDL injection",
+    pattern: /\bDROP\s{1,20}DATABASE\b/i
+  },
+  {
+    id: "sql-insert-into",
+    description: "INSERT INTO \u2014 data injection",
+    pattern: /\bINSERT\s{1,20}INTO\b/i
+  },
+  {
+    id: "sql-delete-from",
+    description: "DELETE FROM \u2014 data deletion injection",
+    pattern: /\bDELETE\s{1,20}FROM\b/i
+  },
+  {
+    id: "sql-update-set",
+    description: "UPDATE ... SET \u2014 data modification injection",
+    pattern: /\bUPDATE\b[\s\S]{1,60}\bSET\b/i
+  },
+  {
+    id: "sql-exec-xp",
+    description: "EXEC xp_ \u2014 MSSQL extended stored procedure execution",
+    pattern: /\bEXEC(?:UTE)?\s{1,20}xp_/i
+  },
+  {
+    id: "sql-tautology-string",
+    description: `Classic string tautology: ' OR '1'='1 or " OR "1"="1"`,
+    pattern: /'\s{0,10}OR\s{0,10}'[^']{0,20}'\s*=\s*'[^']{0,20}/i
+  },
+  {
+    id: "sql-tautology-numeric",
+    description: "Numeric tautology: OR 1=1",
+    pattern: /\bOR\s{1,10}1\s*=\s*1\b/i
+  },
+  {
+    id: "sql-always-true-zero",
+    description: "Numeric tautology: OR 0=0",
+    pattern: /\bOR\s{1,10}0\s*=\s*0\b/i
+  },
+  {
+    id: "sql-sleep-benchmark",
+    description: "Time-based blind injection: SLEEP() or BENCHMARK()",
+    pattern: /\b(?:SLEEP|BENCHMARK)\s*\(/i
+  },
+  {
+    id: "sql-waitfor-delay",
+    description: "MSSQL time-based blind injection: WAITFOR DELAY",
+    pattern: /\bWAITFOR\s{1,20}DELAY\b/i
+  },
+  {
+    id: "sql-char-function",
+    description: "CHAR() function \u2014 used to obfuscate injected strings",
+    pattern: /\bCHAR\s*\(\s*\d{1,3}/i
+  },
+  {
+    id: "sql-information-schema",
+    description: "INFORMATION_SCHEMA \u2014 reconnaissance query for table/column enumeration",
+    pattern: /\bINFORMATION_SCHEMA\b/i
+  }
+];
+var sql_default = SQL_PATTERNS;
+
+// node_modules/is-unsafe/src/contexts/shell.js
+var SHELL_PATTERNS = [
+  {
+    id: "shell-path-traversal-unix",
+    description: "Unix path traversal: ../  \u2014 climbing the directory tree",
+    pattern: /\.\.\//
+  },
+  {
+    id: "shell-path-traversal-windows",
+    description: "Windows path traversal: ..\\ \u2014 climbing the directory tree",
+    pattern: /\.\.\\/
+  },
+  {
+    id: "shell-path-traversal-encoded",
+    description: "URL-encoded path traversal: %2e%2e or %2f variants",
+    pattern: /%2e%2e|%2f\.\.|\.\.%2f/i
+  },
+  {
+    id: "shell-null-byte",
+    description: "Null byte injection: \\x00 or %00 \u2014 truncates strings in C-backed functions",
+    pattern: /\x00|%00/
+  },
+  {
+    id: "shell-semicolon",
+    description: "Semicolon command separator: cmd1; cmd2",
+    pattern: /;/
+  },
+  {
+    id: "shell-pipe",
+    description: "Pipe operator: cmd1 | cmd2",
+    pattern: /\|/
+  },
+  {
+    id: "shell-and-operator",
+    description: "AND operator: cmd1 && cmd2",
+    pattern: /&&/
+  },
+  {
+    id: "shell-or-operator",
+    description: "OR operator: cmd1 || cmd2",
+    pattern: /\|\|/
+  },
+  {
+    id: "shell-backtick",
+    description: "Backtick command substitution: `cmd`",
+    pattern: /`/
+  },
+  {
+    id: "shell-dollar-paren",
+    description: "Dollar-paren command substitution: $(cmd)",
+    pattern: /\$\(/
+  },
+  {
+    id: "shell-dollar-brace",
+    description: "Dollar-brace variable expansion: ${var} \u2014 can be abused for injection",
+    pattern: /\$\{/
+  },
+  {
+    id: "shell-redirect-out",
+    description: "Output redirection: cmd > file or cmd >> file",
+    pattern: />{1,2}/
+  },
+  {
+    id: "shell-redirect-in",
+    description: "Input redirection: cmd < file",
+    pattern: /</
+  },
+  {
+    id: "shell-newline-injection",
+    description: "Newline injection: \\n or \\r \u2014 can inject new shell commands",
+    pattern: /[\n\r]/
+  },
+  {
+    id: "shell-glob-star",
+    description: "Glob expansion: * or ? \u2014 can expand to unintended files",
+    pattern: /[/\\][*?]/
+  },
+  {
+    id: "shell-absolute-root",
+    description: "Absolute root path injection: string starting with / or \\ (Windows UNC)",
+    pattern: /^(?:\/|\\\\)/
+  },
+  {
+    id: "shell-windows-drive",
+    description: "Windows drive letter path injection: C:\\ or D:/",
+    pattern: /^[a-zA-Z]:[/\\]/
+  },
+  {
+    id: "shell-curl-wget",
+    description: "curl/wget with URL or flags \u2014 can exfiltrate data or download payloads",
+    pattern: /\b(?:curl|wget)\s+(?:https?:\/\/|ftp:\/\/|-)/i
+  }
+];
+var shell_default = SHELL_PATTERNS;
+
+// node_modules/is-unsafe/src/contexts/redos.js
+var REDOS_PATTERNS = [
+  {
+    id: "redos-nested-quantifier-plus",
+    description: "Nested + quantifier inside a group with outer quantifier: (a+)+, (.+b)*, etc.",
+    pattern: /\([^)]*\+[^)]*\)[+*]/
+  },
+  {
+    id: "redos-nested-quantifier-star",
+    description: "Nested * quantifier: (a*)* or (a*)+ \u2014 catastrophic backtracking",
+    pattern: /\([^)]*\*[^)]*\)[*+]/
+  },
+  {
+    id: "redos-nested-groups",
+    description: "Doubly nested quantified groups: ((a+)+) \u2014 guaranteed catastrophic",
+    pattern: /\(\([^)]{0,40}\)[+*]\)[+*]/
+  },
+  {
+    id: "redos-alternation-overlap",
+    description: "Overlapping alternation under quantifier: (a|a)+ \u2014 ambiguous NFA paths",
+    pattern: /\(([^|()]{1,20})\|(?:\1)(?:\|[^|()]{1,20}){0,5}\)[+*?]{1,2}/
+  },
+  {
+    id: "redos-star-plus-concat",
+    description: "(x*x)+ pattern \u2014 triggers super-linear backtracking",
+    pattern: /\([^)]{0,10}\*[^)]{0,10}\)[+*]/
+  },
+  {
+    id: "redos-dot-star-greedy",
+    description: "(.*){n,} or (.+){n,} \u2014 repeated greedy dot quantifiers",
+    pattern: /\(\.[*+]\)\{?\d/
+  },
+  {
+    id: "redos-large-repetition",
+    description: "Very large fixed or range repetition count {1000,} or {1000,n} \u2014 denial of service via backtracking",
+    pattern: /\{\d{4,}(?:,\d*)?\}/
+  },
+  {
+    id: "redos-catastrophic-alternation",
+    description: "Long alternation with many similar branches \u2014 polynomial backtracking risk",
+    pattern: /\([^)]{0,200}(?:\|[^|)]{0,50}){9,}\)/
+  }
+];
+var redos_default = REDOS_PATTERNS;
+
+// node_modules/is-unsafe/src/contexts/nosql.js
+var sep = `["'\\s]*:`;
+var NOSQL_PATTERNS = [
+  {
+    id: "nosql-where-operator",
+    description: "$where \u2014 executes arbitrary JavaScript server-side in MongoDB",
+    pattern: new RegExp(`\\$where${sep}`, "i")
+  },
+  {
+    id: "nosql-ne-operator",
+    description: '$ne \u2014 "not equal" operator used to bypass equality checks',
+    pattern: new RegExp(`\\$ne${sep}`, "i")
+  },
+  {
+    id: "nosql-gt-operator",
+    description: '$gt \u2014 "greater than" used to bypass password/value checks',
+    pattern: new RegExp(`\\$gte?${sep}`, "i")
+  },
+  {
+    id: "nosql-lt-operator",
+    description: '$lt / $lte \u2014 "less than" bypass variants',
+    pattern: new RegExp(`\\$lte?${sep}`, "i")
+  },
+  {
+    id: "nosql-regex-operator",
+    description: "$regex \u2014 can be used to extract data character by character (blind injection)",
+    pattern: new RegExp(`\\$regex${sep}`, "i")
+  },
+  {
+    id: "nosql-or-operator",
+    description: "$or \u2014 logical OR; used to create always-true conditions",
+    pattern: new RegExp(`\\$or${sep}\\s*\\[`, "i")
+  },
+  {
+    id: "nosql-and-operator",
+    description: "$and \u2014 logical AND operator injection",
+    pattern: new RegExp(`\\$and${sep}\\s*\\[`, "i")
+  },
+  {
+    id: "nosql-nor-operator",
+    description: "$nor \u2014 logical NOR operator injection",
+    pattern: new RegExp(`\\$nor${sep}\\s*\\[`, "i")
+  },
+  {
+    id: "nosql-exists-operator",
+    description: "$exists \u2014 can enumerate fields to determine schema",
+    pattern: new RegExp(`\\$exists${sep}`, "i")
+  },
+  {
+    id: "nosql-in-operator",
+    description: "$in \u2014 matches any value in a list; can enumerate values",
+    pattern: new RegExp(`\\$in${sep}\\s*\\[`, "i")
+  },
+  {
+    id: "nosql-expr-operator",
+    description: "$expr \u2014 allows aggregation expressions in queries (MongoDB 3.6+)",
+    pattern: new RegExp(`\\$expr${sep}`, "i")
+  },
+  {
+    id: "nosql-function-operator",
+    description: "$function \u2014 executes arbitrary JavaScript in MongoDB 4.4+",
+    pattern: new RegExp(`\\$function${sep}`, "i")
+  },
+  {
+    id: "nosql-accumulator-operator",
+    description: "$accumulator \u2014 custom aggregation with arbitrary JS execution",
+    pattern: new RegExp(`\\$accumulator${sep}`, "i")
+  },
+  {
+    id: "nosql-proto-pollution",
+    description: "__proto__ \u2014 prototype pollution via object key injection",
+    pattern: /__proto__/
+  },
+  {
+    id: "nosql-constructor-prototype",
+    description: "constructor.prototype \u2014 alternative prototype pollution vector (dot notation or JSON key)",
+    pattern: /constructor[\s"':.,{\[]*prototype/i
+  },
+  {
+    id: "nosql-proto-bracket",
+    description: '["__proto__"] \u2014 bracket-notation prototype pollution',
+    pattern: /\[["']__proto__["']\]/
+  }
+];
+var nosql_default = NOSQL_PATTERNS;
+
+// node_modules/is-unsafe/src/contexts/log.js
+var LOG_PATTERNS = [
+  {
+    id: "log-crlf-injection",
+    description: "CRLF injection: literal \\r or \\n embeds fake log lines",
+    pattern: /[\r\n]/
+  },
+  {
+    id: "log-url-encoded-crlf",
+    description: "URL-encoded CRLF: %0d, %0a, %0D, %0A \u2014 decoded by some log parsers",
+    pattern: /%0[dDaA]/
+  },
+  {
+    id: "log-unicode-newline",
+    description: "Unicode newline variants: U+2028 (line separator), U+2029 (paragraph separator)",
+    pattern: /[\u2028\u2029]/
+  },
+  {
+    id: "log-log4shell-jndi",
+    description: "Log4Shell: ${jndi:...} triggers remote code execution in Apache Log4j",
+    pattern: /\$\{jndi\s*:/i
+  },
+  {
+    id: "log-log4shell-obfuscated",
+    description: "Obfuscated Log4Shell: ${::-j}... lookup-bypass prefix used to evade WAF detection",
+    pattern: /\$\{::-/
+  },
+  {
+    id: "log-log4j-lookup",
+    description: "Log4j lookup syntax: ${env:...}, ${sys:...}, ${ctx:...} \u2014 data exfiltration",
+    pattern: /\$\{(?:env|sys|ctx|main|map|sd|web|docker|k8s|spring)\s*:/i
+  },
+  {
+    id: "log-ssti-double-brace",
+    description: "SSTI double-brace: {{expression}} \u2014 Jinja2, Twig, Handlebars, etc.",
+    pattern: /\{\{[\s\S]{0,80}\}\}/
+  },
+  {
+    id: "log-ssti-hash-brace",
+    description: "SSTI hash-brace: #{expression} \u2014 Thymeleaf, Velocity, Ruby ERB",
+    pattern: /#\{[\s\S]{0,80}\}/
+  },
+  {
+    id: "log-ssti-dollar-brace",
+    description: "SSTI/EL injection: ${expression with operators or method calls} \u2014 JSP EL, Freemarker, SpEL",
+    pattern: /\$\{[^}]*(?:\.|\(|\*|\+|\bclass\b|\bruntime\b|\bprocess\b|\bexec\b)[^}]{0,80}\}/i
+  },
+  {
+    id: "log-ssti-percent-tag",
+    description: "SSTI ERB/ASP tag: <%= expression %> \u2014 Ruby ERB, ASP",
+    pattern: /<%=[\s\S]{0,80}%>/
+  },
+  {
+    id: "log-null-byte",
+    description: "Null byte: \\x00 or %00 \u2014 can truncate log entries in C-backed loggers",
+    pattern: /\x00|%00/
+  },
+  {
+    id: "log-ansi-escape",
+    description: "ANSI escape sequence: ESC[ \u2014 can manipulate terminal output when logs are tailed",
+    pattern: /\x1b\[/
+  }
+];
+var log_default = LOG_PATTERNS;
+
+// node_modules/is-unsafe/src/contexts/sql-strict.js
+var SQL_STRICT_EXTRA = [
+  {
+    id: "sql-line-comment",
+    description: "SQL line comment: -- followed by whitespace or end of string",
+    pattern: /--(?:\s|$)/
+  },
+  {
+    id: "sql-stacked-query",
+    description: "Stacked queries: semicolon immediately followed by a SQL keyword",
+    pattern: /;\s{0,10}(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC)\b/i
+  },
+  {
+    id: "sql-hex-encoding",
+    description: "Hex-encoded string injection: 0x41414141 style (MySQL)",
+    pattern: /\b0x[0-9a-f]{4,}/i
+  }
+];
+var SQL_STRICT_PATTERNS = [...sql_default, ...SQL_STRICT_EXTRA];
+var sql_strict_default = SQL_STRICT_PATTERNS;
+
+// node_modules/is-unsafe/src/index.js
+html_default.label = "HTML";
+xml_default.label = "XML";
+svg_default.label = "SVG";
+sql_default.label = "SQL";
+sql_strict_default.label = "SQL-STRICT";
+shell_default.label = "SHELL";
+redos_default.label = "REDOS";
+nosql_default.label = "NOSQL";
+log_default.label = "LOG";
+var VALID_CONTEXTS = Object.freeze({
+  HTML: html_default,
+  XML: xml_default,
+  SVG: svg_default,
+  SQL: sql_default,
+  "SQL-STRICT": sql_strict_default,
+  SHELL: shell_default,
+  REDOS: redos_default,
+  NOSQL: nosql_default,
+  LOG: log_default
+});
+function assertString(value) {
+  if (typeof value !== "string") {
+    throw new TypeError(`is-unsafe: first argument must be a string, got ${typeof value}`);
+  }
+}
+function assertContext(context) {
+  if (context instanceof RegExp)
+    return;
+  if (Array.isArray(context)) {
+    if (context.length === 0) {
+      throw new TypeError("is-unsafe: context must not be an empty array");
+    }
+    if (Array.isArray(context[0])) {
+      for (const list of context) {
+        if (!Array.isArray(list) || list.length === 0) {
+          throw new TypeError("is-unsafe: each context in the array must be a non-empty pattern array (PatternList)");
+        }
+      }
+    }
+    return;
+  }
+  throw new TypeError(`is-unsafe: second argument must be a PatternList (e.g. HTML), ` + `an array of PatternLists (e.g. [HTML, XML]), or a RegExp. Got: ${typeof context}`);
+}
+function normalise(context) {
+  if (context instanceof RegExp)
+    return { lists: null, regex: context };
+  if (Array.isArray(context[0]))
+    return { lists: context, regex: null };
+  return { lists: [context], regex: null };
+}
+function matchList(value, list) {
+  const label = list.label ?? "CUSTOM";
+  for (const rule of list) {
+    if (rule.pattern.test(value)) {
+      return { context: label, id: rule.id, description: rule.description, pattern: rule.pattern };
+    }
+  }
+  return null;
+}
+function isUnsafe(value, context) {
+  assertString(value);
+  assertContext(context);
+  const { lists, regex } = normalise(context);
+  if (regex)
+    return regex.test(value);
+  for (const list of lists) {
+    if (matchList(value, list) !== null)
+      return true;
+  }
+  return false;
+}
+
 // node_modules/fast-xml-parser/src/xmlparser/OrderedObjParser.js
+function extractRawAttributes(prefixedAttrs, options) {
+  if (!prefixedAttrs)
+    return {};
+  const attrs = options.attributesGroupName ? prefixedAttrs[options.attributesGroupName] : prefixedAttrs;
+  if (!attrs)
+    return {};
+  const rawAttrs = {};
+  for (const key in attrs) {
+    if (key.startsWith(options.attributeNamePrefix)) {
+      const rawName = key.substring(options.attributeNamePrefix.length);
+      rawAttrs[rawName] = attrs[key];
+    } else {
+      rawAttrs[key] = attrs[key];
+    }
+  }
+  return rawAttrs;
+}
+function extractNamespace(rawTagName) {
+  if (!rawTagName || typeof rawTagName !== "string")
+    return;
+  const colonIndex = rawTagName.indexOf(":");
+  if (colonIndex !== -1 && colonIndex > 0) {
+    const ns = rawTagName.substring(0, colonIndex);
+    if (ns !== "xmlns") {
+      return ns;
+    }
+  }
+  return;
+}
+
 class OrderedObjParser {
-  constructor(options) {
+  constructor(options, externalEntities) {
     this.options = options;
     this.currentNode = null;
     this.tagsNodeStack = [];
-    this.docTypeEntities = {};
-    this.lastEntities = {
-      apos: { regex: /&(apos|#39|#x27);/g, val: "'" },
-      gt: { regex: /&(gt|#62|#x3E);/g, val: ">" },
-      lt: { regex: /&(lt|#60|#x3C);/g, val: "<" },
-      quot: { regex: /&(quot|#34|#x22);/g, val: '"' }
-    };
-    this.ampEntity = { regex: /&(amp|#38|#x26);/g, val: "&" };
-    this.htmlEntities = {
-      space: { regex: /&(nbsp|#160);/g, val: " " },
-      cent: { regex: /&(cent|#162);/g, val: "\xA2" },
-      pound: { regex: /&(pound|#163);/g, val: "\xA3" },
-      yen: { regex: /&(yen|#165);/g, val: "\xA5" },
-      euro: { regex: /&(euro|#8364);/g, val: "\u20AC" },
-      copyright: { regex: /&(copy|#169);/g, val: "\xA9" },
-      reg: { regex: /&(reg|#174);/g, val: "\xAE" },
-      inr: { regex: /&(inr|#8377);/g, val: "\u20B9" },
-      num_dec: { regex: /&#([0-9]{1,7});/g, val: (_, str) => String.fromCodePoint(Number.parseInt(str, 10)) },
-      num_hex: { regex: /&#x([0-9a-fA-F]{1,6});/g, val: (_, str) => String.fromCodePoint(Number.parseInt(str, 16)) }
-    };
-    this.addExternalEntities = addExternalEntities;
     this.parseXml = parseXml;
     this.parseTextData = parseTextData;
     this.resolveNameSpace = resolveNameSpace;
@@ -19928,37 +21746,67 @@ class OrderedObjParser {
     this.saveTextToParentTag = saveTextToParentTag;
     this.addChild = addChild;
     this.ignoreAttributesFn = getIgnoreAttributesFn(this.options.ignoreAttributes);
-  }
-}
-function addExternalEntities(externalEntities) {
-  const entKeys = Object.keys(externalEntities);
-  for (let i = 0;i < entKeys.length; i++) {
-    const ent = entKeys[i];
-    this.lastEntities[ent] = {
-      regex: new RegExp("&" + ent + ";", "g"),
-      val: externalEntities[ent]
-    };
+    this.entityExpansionCount = 0;
+    this.currentExpandedLength = 0;
+    this.doctypefound = false;
+    let namedEntities = { ...XML };
+    if (this.options.entityDecoder) {
+      this.entityDecoder = this.options.entityDecoder;
+    } else {
+      if (typeof this.options.htmlEntities === "object")
+        namedEntities = this.options.htmlEntities;
+      else if (this.options.htmlEntities === true)
+        namedEntities = { ...COMMON_HTML, ...CURRENCY };
+      this.entityDecoder = new EntityDecoder({
+        namedEntities: { ...namedEntities, ...externalEntities },
+        numericAllowed: this.options.htmlEntities,
+        limit: {
+          maxTotalExpansions: this.options.processEntities.maxTotalExpansions,
+          maxExpandedLength: this.options.processEntities.maxExpandedLength,
+          applyLimitsTo: this.options.processEntities.appliesTo
+        },
+        onInputEntity: (name, value) => isUnsafe(value, [html_default, xml_default]) ? ENTITY_ACTION.BLOCK : ENTITY_ACTION.ALLOW
+      });
+    }
+    this.matcher = new Matcher;
+    this.readonlyMatcher = this.matcher.readOnly();
+    this.isCurrentNodeStopNode = false;
+    this.stopNodeExpressionsSet = new ExpressionSet;
+    const stopNodesOpts = this.options.stopNodes;
+    if (stopNodesOpts && stopNodesOpts.length > 0) {
+      for (let i = 0;i < stopNodesOpts.length; i++) {
+        const stopNodeExp = stopNodesOpts[i];
+        if (typeof stopNodeExp === "string") {
+          this.stopNodeExpressionsSet.add(new Expression(stopNodeExp));
+        } else if (stopNodeExp instanceof Expression) {
+          this.stopNodeExpressionsSet.add(stopNodeExp);
+        }
+      }
+      this.stopNodeExpressionsSet.seal();
+    }
   }
 }
 function parseTextData(val, tagName, jPath, dontTrim, hasAttributes, isLeafNode, escapeEntities) {
+  const options = this.options;
   if (val !== undefined) {
-    if (this.options.trimValues && !dontTrim) {
+    if (options.trimValues && !dontTrim) {
       val = val.trim();
     }
     if (val.length > 0) {
       if (!escapeEntities)
-        val = this.replaceEntitiesValue(val);
-      const newval = this.options.tagValueProcessor(tagName, val, jPath, hasAttributes, isLeafNode);
+        val = this.replaceEntitiesValue(val, tagName, jPath);
+      const jPathOrMatcher = options.jPath ? jPath.toString() : jPath;
+      const newval = options.tagValueProcessor(tagName, val, jPathOrMatcher, hasAttributes, isLeafNode);
       if (newval === null || newval === undefined) {
         return val;
       } else if (typeof newval !== typeof val || newval !== val) {
         return newval;
-      } else if (this.options.trimValues) {
-        return parseValue(val, this.options.parseTagValue, this.options.numberParseOptions);
+      } else if (options.trimValues) {
+        return parseValue(val, options.parseTagValue, options.numberParseOptions);
       } else {
         const trimmedVal = val.trim();
         if (trimmedVal === val) {
-          return parseValue(val, this.options.parseTagValue, this.options.numberParseOptions);
+          return parseValue(val, options.parseTagValue, options.numberParseOptions);
         } else {
           return val;
         }
@@ -19980,48 +21828,65 @@ function resolveNameSpace(tagname) {
   return tagname;
 }
 var attrsRegx = new RegExp(`([^\\s=]+)\\s*(=\\s*(['"])([\\s\\S]*?)\\3)?`, "gm");
-function buildAttributesMap(attrStr, jPath, tagName) {
-  if (this.options.ignoreAttributes !== true && typeof attrStr === "string") {
+function buildAttributesMap(attrStr, jPath, tagName, force = false) {
+  const options = this.options;
+  if (force === true || options.ignoreAttributes !== true && typeof attrStr === "string") {
     const matches = getAllMatches(attrStr, attrsRegx);
     const len = matches.length;
     const attrs = {};
+    const processedVals = new Array(len);
+    let hasRawAttrs = false;
+    const rawAttrsForMatcher = {};
     for (let i = 0;i < len; i++) {
       const attrName = this.resolveNameSpace(matches[i][1]);
-      if (this.ignoreAttributesFn(attrName, jPath)) {
-        continue;
+      const oldVal = matches[i][4];
+      if (attrName.length && oldVal !== undefined) {
+        let val = oldVal;
+        if (options.trimValues)
+          val = val.trim();
+        val = this.replaceEntitiesValue(val, tagName, this.readonlyMatcher);
+        processedVals[i] = val;
+        rawAttrsForMatcher[attrName] = val;
+        hasRawAttrs = true;
       }
-      let oldVal = matches[i][4];
-      let aName = this.options.attributeNamePrefix + attrName;
+    }
+    if (hasRawAttrs && typeof jPath === "object" && jPath.updateCurrent) {
+      jPath.updateCurrent(rawAttrsForMatcher);
+    }
+    const jPathStr = options.jPath ? jPath.toString() : this.readonlyMatcher;
+    let hasAttrs = false;
+    for (let i = 0;i < len; i++) {
+      const attrName = this.resolveNameSpace(matches[i][1]);
+      if (this.ignoreAttributesFn(attrName, jPathStr))
+        continue;
+      let aName = options.attributeNamePrefix + attrName;
       if (attrName.length) {
-        if (this.options.transformAttributeName) {
-          aName = this.options.transformAttributeName(aName);
+        if (options.transformAttributeName) {
+          aName = options.transformAttributeName(aName);
         }
-        if (aName === "__proto__")
-          aName = "#__proto__";
-        if (oldVal !== undefined) {
-          if (this.options.trimValues) {
-            oldVal = oldVal.trim();
-          }
-          oldVal = this.replaceEntitiesValue(oldVal);
-          const newVal = this.options.attributeValueProcessor(attrName, oldVal, jPath);
+        aName = sanitizeName(aName, options);
+        if (matches[i][4] !== undefined) {
+          const oldVal = processedVals[i];
+          const newVal = options.attributeValueProcessor(attrName, oldVal, jPathStr);
           if (newVal === null || newVal === undefined) {
             attrs[aName] = oldVal;
           } else if (typeof newVal !== typeof oldVal || newVal !== oldVal) {
             attrs[aName] = newVal;
           } else {
-            attrs[aName] = parseValue(oldVal, this.options.parseAttributeValue, this.options.numberParseOptions);
+            attrs[aName] = parseValue(oldVal, options.parseAttributeValue, options.numberParseOptions);
           }
-        } else if (this.options.allowBooleanAttributes) {
+          hasAttrs = true;
+        } else if (options.allowBooleanAttributes) {
           attrs[aName] = true;
+          hasAttrs = true;
         }
       }
     }
-    if (!Object.keys(attrs).length) {
+    if (!hasAttrs)
       return;
-    }
-    if (this.options.attributesGroupName) {
+    if (options.attributesGroupName && !options.preserveOrder) {
       const attrCollection = {};
-      attrCollection[this.options.attributesGroupName] = attrs;
+      attrCollection[options.attributesGroupName] = attrs;
       return attrCollection;
     }
     return attrs;
@@ -20033,115 +21898,156 @@ var parseXml = function(xmlData) {
   const xmlObj = new XmlNode("!xml");
   let currentNode = xmlObj;
   let textData = "";
-  let jPath = "";
-  for (let i = 0;i < xmlData.length; i++) {
+  this.matcher.reset();
+  this.entityDecoder.reset();
+  this.entityExpansionCount = 0;
+  this.currentExpandedLength = 0;
+  this.doctypefound = false;
+  const options = this.options;
+  const docTypeReader = new DocTypeReader(options.processEntities);
+  const xmlLen = xmlData.length;
+  for (let i = 0;i < xmlLen; i++) {
     const ch = xmlData[i];
     if (ch === "<") {
-      if (xmlData[i + 1] === "/") {
+      const c1 = xmlData.charCodeAt(i + 1);
+      if (c1 === 47) {
         const closeIndex = findClosingIndex(xmlData, ">", i, "Closing Tag is not closed.");
         let tagName = xmlData.substring(i + 2, closeIndex).trim();
-        if (this.options.removeNSPrefix) {
+        if (options.removeNSPrefix) {
           const colonIndex = tagName.indexOf(":");
           if (colonIndex !== -1) {
             tagName = tagName.substr(colonIndex + 1);
           }
         }
-        if (this.options.transformTagName) {
-          tagName = this.options.transformTagName(tagName);
-        }
+        tagName = transformTagName(options.transformTagName, tagName, "", options).tagName;
         if (currentNode) {
-          textData = this.saveTextToParentTag(textData, currentNode, jPath);
+          textData = this.saveTextToParentTag(textData, currentNode, this.readonlyMatcher);
         }
-        const lastTagName = jPath.substring(jPath.lastIndexOf(".") + 1);
-        if (tagName && this.options.unpairedTags.indexOf(tagName) !== -1) {
+        const lastTagName = this.matcher.getCurrentTag();
+        if (tagName && options.unpairedTagsSet.has(tagName)) {
           throw new Error(`Unpaired tag can not be used as closing tag: </${tagName}>`);
         }
-        let propIndex = 0;
-        if (lastTagName && this.options.unpairedTags.indexOf(lastTagName) !== -1) {
-          propIndex = jPath.lastIndexOf(".", jPath.lastIndexOf(".") - 1);
+        if (lastTagName && options.unpairedTagsSet.has(lastTagName)) {
+          this.matcher.pop();
           this.tagsNodeStack.pop();
-        } else {
-          propIndex = jPath.lastIndexOf(".");
         }
-        jPath = jPath.substring(0, propIndex);
-        currentNode = this.tagsNodeStack.pop();
+        this.matcher.pop();
+        this.isCurrentNodeStopNode = false;
+        currentNode = this.tagsNodeStack.pop() || xmlObj;
+        if (options.captureMetaData && currentNode) {
+          currentNode.addEndIndex(closeIndex + 1);
+        }
         textData = "";
         i = closeIndex;
-      } else if (xmlData[i + 1] === "?") {
+      } else if (c1 === 63) {
         let tagData = readTagExp(xmlData, i, false, "?>");
         if (!tagData)
           throw new Error("Pi Tag is not closed.");
-        textData = this.saveTextToParentTag(textData, currentNode, jPath);
-        if (this.options.ignoreDeclaration && tagData.tagName === "?xml" || this.options.ignorePiTags) {} else {
+        textData = this.saveTextToParentTag(textData, currentNode, this.readonlyMatcher);
+        const attsMap = this.buildAttributesMap(tagData.tagExp, this.matcher, tagData.tagName, true);
+        if (attsMap) {
+          const ver = attsMap[this.options.attributeNamePrefix + "version"];
+          this.entityDecoder.setXmlVersion(Number(ver) || 1);
+          docTypeReader.setXmlVersion(Number(ver) || 1);
+        }
+        if (options.ignoreDeclaration && tagData.tagName === "?xml" || options.ignorePiTags) {} else {
           const childNode = new XmlNode(tagData.tagName);
-          childNode.add(this.options.textNodeName, "");
-          if (tagData.tagName !== tagData.tagExp && tagData.attrExpPresent) {
-            childNode[":@"] = this.buildAttributesMap(tagData.tagExp, jPath, tagData.tagName);
+          childNode.add(options.textNodeName, "");
+          if (tagData.tagName !== tagData.tagExp && tagData.attrExpPresent && options.ignoreAttributes !== true) {
+            childNode[":@"] = attsMap;
           }
-          this.addChild(currentNode, childNode, jPath, i);
+          this.addChild(currentNode, childNode, this.readonlyMatcher, i);
+          if (options.captureMetaData) {
+            currentNode.addEndIndex(tagData.closeIndex + 2);
+          }
         }
         i = tagData.closeIndex + 1;
-      } else if (xmlData.substr(i + 1, 3) === "!--") {
+      } else if (c1 === 33 && xmlData.charCodeAt(i + 2) === 45 && xmlData.charCodeAt(i + 3) === 45) {
         const endIndex = findClosingIndex(xmlData, "-->", i + 4, "Comment is not closed.");
-        if (this.options.commentPropName) {
+        if (options.commentPropName) {
           const comment = xmlData.substring(i + 4, endIndex - 2);
-          textData = this.saveTextToParentTag(textData, currentNode, jPath);
-          currentNode.add(this.options.commentPropName, [{ [this.options.textNodeName]: comment }]);
+          textData = this.saveTextToParentTag(textData, currentNode, this.readonlyMatcher);
+          currentNode.add(options.commentPropName, [{ [options.textNodeName]: comment }]);
         }
         i = endIndex;
-      } else if (xmlData.substr(i + 1, 2) === "!D") {
-        const result = readDocType(xmlData, i);
-        this.docTypeEntities = result.entities;
+      } else if (c1 === 33 && xmlData.charCodeAt(i + 2) === 68) {
+        if (this.doctypefound)
+          throw new Error("Multiple DOCTYPE declarations found.");
+        this.doctypefound = true;
+        const result = docTypeReader.readDocType(xmlData, i);
+        this.entityDecoder.addInputEntities(result.entities);
         i = result.i;
-      } else if (xmlData.substr(i + 1, 2) === "![") {
+      } else if (c1 === 33 && xmlData.charCodeAt(i + 2) === 91) {
         const closeIndex = findClosingIndex(xmlData, "]]>", i, "CDATA is not closed.") - 2;
         const tagExp = xmlData.substring(i + 9, closeIndex);
-        textData = this.saveTextToParentTag(textData, currentNode, jPath);
-        let val = this.parseTextData(tagExp, currentNode.tagname, jPath, true, false, true, true);
+        textData = this.saveTextToParentTag(textData, currentNode, this.readonlyMatcher);
+        let val = this.parseTextData(tagExp, currentNode.tagname, this.readonlyMatcher, true, false, true, true);
         if (val == undefined)
           val = "";
-        if (this.options.cdataPropName) {
-          currentNode.add(this.options.cdataPropName, [{ [this.options.textNodeName]: tagExp }]);
+        if (options.cdataPropName) {
+          currentNode.add(options.cdataPropName, [{ [options.textNodeName]: tagExp }]);
         } else {
-          currentNode.add(this.options.textNodeName, val);
+          currentNode.add(options.textNodeName, val);
         }
         i = closeIndex + 2;
       } else {
-        let result = readTagExp(xmlData, i, this.options.removeNSPrefix);
+        let result = readTagExp(xmlData, i, options.removeNSPrefix);
+        if (!result) {
+          const context = xmlData.substring(Math.max(0, i - 50), Math.min(xmlLen, i + 50));
+          throw new Error(`readTagExp returned undefined at position ${i}. Context: "${context}"`);
+        }
         let tagName = result.tagName;
         const rawTagName = result.rawTagName;
         let tagExp = result.tagExp;
         let attrExpPresent = result.attrExpPresent;
         let closeIndex = result.closeIndex;
-        if (this.options.transformTagName) {
-          tagName = this.options.transformTagName(tagName);
+        ({ tagName, tagExp } = transformTagName(options.transformTagName, tagName, tagExp, options));
+        if (options.strictReservedNames && (tagName === options.commentPropName || tagName === options.cdataPropName || tagName === options.textNodeName || tagName === options.attributesGroupName)) {
+          throw new Error(`Invalid tag name: ${tagName}`);
         }
         if (currentNode && textData) {
           if (currentNode.tagname !== "!xml") {
-            textData = this.saveTextToParentTag(textData, currentNode, jPath, false);
+            textData = this.saveTextToParentTag(textData, currentNode, this.readonlyMatcher, false);
           }
         }
         const lastTag = currentNode;
-        if (lastTag && this.options.unpairedTags.indexOf(lastTag.tagname) !== -1) {
+        if (lastTag && options.unpairedTagsSet.has(lastTag.tagname)) {
           currentNode = this.tagsNodeStack.pop();
-          jPath = jPath.substring(0, jPath.lastIndexOf("."));
+          this.matcher.pop();
+        }
+        let isSelfClosing = false;
+        if (tagExp.length > 0 && tagExp.lastIndexOf("/") === tagExp.length - 1) {
+          isSelfClosing = true;
+          if (tagName[tagName.length - 1] === "/") {
+            tagName = tagName.substr(0, tagName.length - 1);
+            tagExp = tagName;
+          } else {
+            tagExp = tagExp.substr(0, tagExp.length - 1);
+          }
+          attrExpPresent = tagName !== tagExp;
+        }
+        let prefixedAttrs = null;
+        let rawAttrs = {};
+        let namespace = undefined;
+        namespace = extractNamespace(rawTagName);
+        if (tagName !== xmlObj.tagname) {
+          this.matcher.push(tagName, {}, namespace);
+        }
+        if (tagName !== tagExp && attrExpPresent) {
+          prefixedAttrs = this.buildAttributesMap(tagExp, this.matcher, tagName);
+          if (prefixedAttrs) {
+            rawAttrs = extractRawAttributes(prefixedAttrs, options);
+          }
         }
         if (tagName !== xmlObj.tagname) {
-          jPath += jPath ? "." + tagName : tagName;
+          this.isCurrentNodeStopNode = this.isItStopNode();
         }
         const startIndex = i;
-        if (this.isItStopNode(this.options.stopNodes, jPath, tagName)) {
+        if (this.isCurrentNodeStopNode) {
           let tagContent = "";
-          if (tagExp.length > 0 && tagExp.lastIndexOf("/") === tagExp.length - 1) {
-            if (tagName[tagName.length - 1] === "/") {
-              tagName = tagName.substr(0, tagName.length - 1);
-              jPath = jPath.substr(0, jPath.length - 1);
-              tagExp = tagName;
-            } else {
-              tagExp = tagExp.substr(0, tagExp.length - 1);
-            }
+          if (isSelfClosing) {
             i = result.closeIndex;
-          } else if (this.options.unpairedTags.indexOf(tagName) !== -1) {
+          } else if (options.unpairedTagsSet.has(tagName)) {
             i = result.closeIndex;
           } else {
             const result2 = this.readStopNodeData(xmlData, rawTagName, closeIndex + 1);
@@ -20151,40 +22057,52 @@ var parseXml = function(xmlData) {
             tagContent = result2.tagContent;
           }
           const childNode = new XmlNode(tagName);
-          if (tagName !== tagExp && attrExpPresent) {
-            childNode[":@"] = this.buildAttributesMap(tagExp, jPath, tagName);
+          if (prefixedAttrs) {
+            childNode[":@"] = prefixedAttrs;
           }
-          if (tagContent) {
-            tagContent = this.parseTextData(tagContent, tagName, jPath, true, attrExpPresent, true, true);
+          childNode.add(options.textNodeName, tagContent);
+          this.matcher.pop();
+          this.isCurrentNodeStopNode = false;
+          this.addChild(currentNode, childNode, this.readonlyMatcher, startIndex);
+          if (options.captureMetaData) {
+            currentNode.addEndIndex(i + 1);
           }
-          jPath = jPath.substr(0, jPath.lastIndexOf("."));
-          childNode.add(this.options.textNodeName, tagContent);
-          this.addChild(currentNode, childNode, jPath, startIndex);
         } else {
-          if (tagExp.length > 0 && tagExp.lastIndexOf("/") === tagExp.length - 1) {
-            if (tagName[tagName.length - 1] === "/") {
-              tagName = tagName.substr(0, tagName.length - 1);
-              jPath = jPath.substr(0, jPath.length - 1);
-              tagExp = tagName;
-            } else {
-              tagExp = tagExp.substr(0, tagExp.length - 1);
-            }
-            if (this.options.transformTagName) {
-              tagName = this.options.transformTagName(tagName);
-            }
+          if (isSelfClosing) {
+            ({ tagName, tagExp } = transformTagName(options.transformTagName, tagName, tagExp, options));
             const childNode = new XmlNode(tagName);
-            if (tagName !== tagExp && attrExpPresent) {
-              childNode[":@"] = this.buildAttributesMap(tagExp, jPath, tagName);
+            if (prefixedAttrs) {
+              childNode[":@"] = prefixedAttrs;
             }
-            this.addChild(currentNode, childNode, jPath, startIndex);
-            jPath = jPath.substr(0, jPath.lastIndexOf("."));
+            this.addChild(currentNode, childNode, this.readonlyMatcher, startIndex);
+            if (options.captureMetaData) {
+              currentNode.addEndIndex(closeIndex + 1);
+            }
+            this.matcher.pop();
+            this.isCurrentNodeStopNode = false;
+          } else if (options.unpairedTagsSet.has(tagName)) {
+            const childNode = new XmlNode(tagName);
+            if (prefixedAttrs) {
+              childNode[":@"] = prefixedAttrs;
+            }
+            this.addChild(currentNode, childNode, this.readonlyMatcher, startIndex);
+            if (options.captureMetaData) {
+              currentNode.addEndIndex(result.closeIndex + 1);
+            }
+            this.matcher.pop();
+            this.isCurrentNodeStopNode = false;
+            i = result.closeIndex;
+            continue;
           } else {
             const childNode = new XmlNode(tagName);
-            this.tagsNodeStack.push(currentNode);
-            if (tagName !== tagExp && attrExpPresent) {
-              childNode[":@"] = this.buildAttributesMap(tagExp, jPath, tagName);
+            if (this.tagsNodeStack.length > options.maxNestedTags) {
+              throw new Error("Maximum nested tags exceeded");
             }
-            this.addChild(currentNode, childNode, jPath, startIndex);
+            this.tagsNodeStack.push(currentNode);
+            if (prefixedAttrs) {
+              childNode[":@"] = prefixedAttrs;
+            }
+            this.addChild(currentNode, childNode, this.readonlyMatcher, startIndex);
             currentNode = childNode;
           }
           textData = "";
@@ -20197,10 +22115,11 @@ var parseXml = function(xmlData) {
   }
   return xmlObj.child;
 };
-function addChild(currentNode, childNode, jPath, startIndex) {
+function addChild(currentNode, childNode, matcher, startIndex) {
   if (!this.options.captureMetaData)
     startIndex = undefined;
-  const result = this.options.updateTag(childNode.tagname, jPath, childNode[":@"]);
+  const jPathOrMatcher = this.options.jPath ? matcher.toString() : matcher;
+  const result = this.options.updateTag(childNode.tagname, jPathOrMatcher, childNode[":@"]);
   if (result === false) {} else if (typeof result === "string") {
     childNode.tagname = result;
     currentNode.addChild(childNode, startIndex);
@@ -20208,74 +22127,70 @@ function addChild(currentNode, childNode, jPath, startIndex) {
     currentNode.addChild(childNode, startIndex);
   }
 }
-var replaceEntitiesValue = function(val) {
-  if (this.options.processEntities) {
-    for (let entityName in this.docTypeEntities) {
-      const entity = this.docTypeEntities[entityName];
-      val = val.replace(entity.regx, entity.val);
-    }
-    for (let entityName in this.lastEntities) {
-      const entity = this.lastEntities[entityName];
-      val = val.replace(entity.regex, entity.val);
-    }
-    if (this.options.htmlEntities) {
-      for (let entityName in this.htmlEntities) {
-        const entity = this.htmlEntities[entityName];
-        val = val.replace(entity.regex, entity.val);
-      }
-    }
-    val = val.replace(this.ampEntity.regex, this.ampEntity.val);
+function replaceEntitiesValue(val, tagName, jPath) {
+  const entityConfig = this.options.processEntities;
+  if (!entityConfig || !entityConfig.enabled) {
+    return val;
   }
-  return val;
-};
-function saveTextToParentTag(textData, currentNode, jPath, isLeafNode) {
+  if (entityConfig.allowedTags) {
+    const jPathOrMatcher = this.options.jPath ? jPath.toString() : jPath;
+    const allowed = Array.isArray(entityConfig.allowedTags) ? entityConfig.allowedTags.includes(tagName) : entityConfig.allowedTags(tagName, jPathOrMatcher);
+    if (!allowed) {
+      return val;
+    }
+  }
+  if (entityConfig.tagFilter) {
+    const jPathOrMatcher = this.options.jPath ? jPath.toString() : jPath;
+    if (!entityConfig.tagFilter(tagName, jPathOrMatcher)) {
+      return val;
+    }
+  }
+  return this.entityDecoder.decode(val);
+}
+function saveTextToParentTag(textData, parentNode, matcher, isLeafNode) {
   if (textData) {
     if (isLeafNode === undefined)
-      isLeafNode = currentNode.child.length === 0;
-    textData = this.parseTextData(textData, currentNode.tagname, jPath, false, currentNode[":@"] ? Object.keys(currentNode[":@"]).length !== 0 : false, isLeafNode);
+      isLeafNode = parentNode.child.length === 0;
+    textData = this.parseTextData(textData, parentNode.tagname, matcher, false, parentNode[":@"] ? Object.keys(parentNode[":@"]).length !== 0 : false, isLeafNode);
     if (textData !== undefined && textData !== "")
-      currentNode.add(this.options.textNodeName, textData);
+      parentNode.add(this.options.textNodeName, textData);
     textData = "";
   }
   return textData;
 }
-function isItStopNode(stopNodes, jPath, currentTagName) {
-  const allNodesExp = "*." + currentTagName;
-  for (const stopNodePath in stopNodes) {
-    const stopNodeExp = stopNodes[stopNodePath];
-    if (allNodesExp === stopNodeExp || jPath === stopNodeExp)
-      return true;
-  }
-  return false;
+function isItStopNode() {
+  if (this.stopNodeExpressionsSet.size === 0)
+    return false;
+  return this.matcher.matchesAny(this.stopNodeExpressionsSet);
 }
 function tagExpWithClosingIndex(xmlData, i, closingChar = ">") {
-  let attrBoundary;
-  let tagExp = "";
-  for (let index = i;index < xmlData.length; index++) {
-    let ch = xmlData[index];
+  let attrBoundary = 0;
+  const len = xmlData.length;
+  const closeCode0 = closingChar.charCodeAt(0);
+  const closeCode1 = closingChar.length > 1 ? closingChar.charCodeAt(1) : -1;
+  let result = "";
+  let segmentStart = i;
+  for (let index = i;index < len; index++) {
+    const code = xmlData.charCodeAt(index);
     if (attrBoundary) {
-      if (ch === attrBoundary)
-        attrBoundary = "";
-    } else if (ch === '"' || ch === "'") {
-      attrBoundary = ch;
-    } else if (ch === closingChar[0]) {
-      if (closingChar[1]) {
-        if (xmlData[index + 1] === closingChar[1]) {
-          return {
-            data: tagExp,
-            index
-          };
+      if (code === attrBoundary)
+        attrBoundary = 0;
+    } else if (code === 34 || code === 39) {
+      attrBoundary = code;
+    } else if (code === closeCode0) {
+      if (closeCode1 !== -1) {
+        if (xmlData.charCodeAt(index + 1) === closeCode1) {
+          result += xmlData.substring(segmentStart, index);
+          return { data: result, index };
         }
       } else {
-        return {
-          data: tagExp,
-          index
-        };
+        result += xmlData.substring(segmentStart, index);
+        return { data: result, index };
       }
-    } else if (ch === "\t") {
-      ch = " ";
+    } else if (code === 9 && !attrBoundary) {
+      result += xmlData.substring(segmentStart, index) + " ";
+      segmentStart = index + 1;
     }
-    tagExp += ch;
   }
 }
 function findClosingIndex(xmlData, str, i, errMsg) {
@@ -20285,6 +22200,12 @@ function findClosingIndex(xmlData, str, i, errMsg) {
   } else {
     return closingIndex + str.length - 1;
   }
+}
+function findClosingChar(xmlData, char, i, errMsg) {
+  const closingIndex = xmlData.indexOf(char, i);
+  if (closingIndex === -1)
+    throw new Error(errMsg);
+  return closingIndex;
 }
 function readTagExp(xmlData, i, removeNSPrefix, closingChar = ">") {
   const result = tagExpWithClosingIndex(xmlData, i + 1, closingChar);
@@ -20318,10 +22239,12 @@ function readTagExp(xmlData, i, removeNSPrefix, closingChar = ">") {
 function readStopNodeData(xmlData, tagName, i) {
   const startIndex = i;
   let openTagCount = 1;
-  for (;i < xmlData.length; i++) {
+  const xmllen = xmlData.length;
+  for (;i < xmllen; i++) {
     if (xmlData[i] === "<") {
-      if (xmlData[i + 1] === "/") {
-        const closeIndex = findClosingIndex(xmlData, ">", i, `${tagName} is not closed`);
+      const c1 = xmlData.charCodeAt(i + 1);
+      if (c1 === 47) {
+        const closeIndex = findClosingChar(xmlData, ">", i, `${tagName} is not closed`);
         let closeTagName = xmlData.substring(i + 2, closeIndex).trim();
         if (closeTagName === tagName) {
           openTagCount--;
@@ -20333,17 +22256,17 @@ function readStopNodeData(xmlData, tagName, i) {
           }
         }
         i = closeIndex;
-      } else if (xmlData[i + 1] === "?") {
+      } else if (c1 === 63) {
         const closeIndex = findClosingIndex(xmlData, "?>", i + 1, "StopNode is not closed.");
         i = closeIndex;
-      } else if (xmlData.substr(i + 1, 3) === "!--") {
+      } else if (c1 === 33 && xmlData.charCodeAt(i + 2) === 45 && xmlData.charCodeAt(i + 3) === 45) {
         const closeIndex = findClosingIndex(xmlData, "-->", i + 3, "StopNode is not closed.");
         i = closeIndex;
-      } else if (xmlData.substr(i + 1, 2) === "![") {
+      } else if (c1 === 33 && xmlData.charCodeAt(i + 2) === 91) {
         const closeIndex = findClosingIndex(xmlData, "]]>", i, "StopNode is not closed.") - 2;
         i = closeIndex;
       } else {
-        const tagData = readTagExp(xmlData, i, ">");
+        const tagData = readTagExp(xmlData, i, false);
         if (tagData) {
           const openTagName = tagData && tagData.tagName;
           if (openTagName === tagName && tagData.tagExp[tagData.tagExp.length - 1] !== "/") {
@@ -20372,23 +22295,57 @@ function parseValue(val, shouldParse, options) {
     }
   }
 }
+function transformTagName(fn, tagName, tagExp, options) {
+  if (fn) {
+    const newTagName = fn(tagName);
+    if (tagExp === tagName) {
+      tagExp = newTagName;
+    }
+    tagName = newTagName;
+  }
+  tagName = sanitizeName(tagName, options);
+  return { tagName, tagExp };
+}
+function sanitizeName(name, options) {
+  if (criticalProperties.includes(name)) {
+    throw new Error(`[SECURITY] Invalid name: "${name}" is a reserved JavaScript keyword that could cause prototype pollution`);
+  } else if (DANGEROUS_PROPERTY_NAMES.includes(name)) {
+    return options.onDangerousProperty(name);
+  }
+  return name;
+}
 
 // node_modules/fast-xml-parser/src/xmlparser/node2json.js
 var METADATA_SYMBOL2 = XmlNode.getMetaDataSymbol();
-function prettify(node, options) {
-  return compress(node, options);
+function stripAttributePrefix(attrs, prefix) {
+  if (!attrs || typeof attrs !== "object")
+    return {};
+  if (!prefix)
+    return attrs;
+  const rawAttrs = {};
+  for (const key in attrs) {
+    if (key.startsWith(prefix)) {
+      const rawName = key.substring(prefix.length);
+      rawAttrs[rawName] = attrs[key];
+    } else {
+      rawAttrs[key] = attrs[key];
+    }
+  }
+  return rawAttrs;
 }
-function compress(arr, options, jPath) {
+function prettify(node, options, matcher, readonlyMatcher) {
+  return compress(node, options, matcher, readonlyMatcher);
+}
+function compress(arr, options, matcher, readonlyMatcher) {
   let text;
   const compressedObj = {};
   for (let i = 0;i < arr.length; i++) {
     const tagObj = arr[i];
     const property = propName(tagObj);
-    let newJpath = "";
-    if (jPath === undefined)
-      newJpath = property;
-    else
-      newJpath = jPath + "." + property;
+    if (property !== undefined && property !== options.textNodeName) {
+      const rawAttrs = stripAttributePrefix(tagObj[":@"] || {}, options.attributeNamePrefix);
+      matcher.push(property, rawAttrs);
+    }
     if (property === options.textNodeName) {
       if (text === undefined)
         text = tagObj[property];
@@ -20397,13 +22354,13 @@ function compress(arr, options, jPath) {
     } else if (property === undefined) {
       continue;
     } else if (tagObj[property]) {
-      let val = compress(tagObj[property], options, newJpath);
+      let val = compress(tagObj[property], options, matcher, readonlyMatcher);
       const isLeaf = isLeafTag(val, options);
-      if (tagObj[METADATA_SYMBOL2] !== undefined) {
-        val[METADATA_SYMBOL2] = tagObj[METADATA_SYMBOL2];
+      if (Object.keys(val).length === 0 && options.alwaysCreateTextNode) {
+        val[options.textNodeName] = "";
       }
       if (tagObj[":@"]) {
-        assignAttributes(val, tagObj[":@"], newJpath, options);
+        assignAttributes(val, tagObj[":@"], readonlyMatcher, options);
       } else if (Object.keys(val).length === 1 && val[options.textNodeName] !== undefined && !options.alwaysCreateTextNode) {
         val = val[options.textNodeName];
       } else if (Object.keys(val).length === 0) {
@@ -20412,17 +22369,24 @@ function compress(arr, options, jPath) {
         else
           val = "";
       }
-      if (compressedObj[property] !== undefined && compressedObj.hasOwnProperty(property)) {
+      if (tagObj[METADATA_SYMBOL2] !== undefined && typeof val === "object" && val !== null) {
+        val[METADATA_SYMBOL2] = tagObj[METADATA_SYMBOL2];
+      }
+      if (compressedObj[property] !== undefined && Object.prototype.hasOwnProperty.call(compressedObj, property)) {
         if (!Array.isArray(compressedObj[property])) {
           compressedObj[property] = [compressedObj[property]];
         }
         compressedObj[property].push(val);
       } else {
-        if (options.isArray(property, newJpath, isLeaf)) {
+        const jPathOrMatcher = options.jPath ? readonlyMatcher.toString() : readonlyMatcher;
+        if (options.isArray(property, jPathOrMatcher, isLeaf)) {
           compressedObj[property] = [val];
         } else {
           compressedObj[property] = val;
         }
+      }
+      if (property !== undefined && property !== options.textNodeName) {
+        matcher.pop();
       }
     }
   }
@@ -20441,13 +22405,15 @@ function propName(obj) {
       return key;
   }
 }
-function assignAttributes(obj, attrMap, jpath, options) {
+function assignAttributes(obj, attrMap, readonlyMatcher, options) {
   if (attrMap) {
     const keys = Object.keys(attrMap);
     const len = keys.length;
     for (let i = 0;i < len; i++) {
       const atrrName = keys[i];
-      if (options.isArray(atrrName, jpath + "." + atrrName, true, true)) {
+      const rawAttrName = atrrName.startsWith(options.attributeNamePrefix) ? atrrName.substring(options.attributeNamePrefix.length) : atrrName;
+      const jPathOrMatcher = options.jPath ? readonlyMatcher.toString() + "." + rawAttrName : readonlyMatcher;
+      if (options.isArray(atrrName, jPathOrMatcher, true, true)) {
         obj[atrrName] = [attrMap[atrrName]];
       } else {
         obj[atrrName] = attrMap[atrrName];
@@ -20474,9 +22440,9 @@ class XMLParser {
     this.options = buildOptions(options);
   }
   parse(xmlData, validationOption) {
-    if (typeof xmlData === "string") {} else if (xmlData.toString) {
+    if (typeof xmlData !== "string" && xmlData.toString) {
       xmlData = xmlData.toString();
-    } else {
+    } else if (typeof xmlData !== "string") {
       throw new Error("XML data is accepted in String or Bytes[] form.");
     }
     if (validationOption) {
@@ -20487,13 +22453,12 @@ class XMLParser {
         throw Error(`${result.err.msg}:${result.err.line}:${result.err.col}`);
       }
     }
-    const orderedObjParser = new OrderedObjParser(this.options);
-    orderedObjParser.addExternalEntities(this.externalEntities);
+    const orderedObjParser = new OrderedObjParser(this.options, this.externalEntities);
     const orderedResult = orderedObjParser.parseXml(xmlData);
     if (this.options.preserveOrder || orderedResult === undefined)
       return orderedResult;
     else
-      return prettify(orderedResult, this.options);
+      return prettify(orderedResult, this.options, orderedObjParser.matcher, orderedObjParser.readonlyMatcher);
   }
   addEntity(key, value) {
     if (value.indexOf("&") !== -1) {
@@ -20834,7 +22799,7 @@ import {
   rmSync,
   writeFileSync
 } from "fs";
-import { dirname, parse, relative, resolve, sep } from "path";
+import { dirname, parse, relative, resolve, sep as sep2 } from "path";
 var MANAGED_OUTPUT_FILES = ["config-pack.json", "warnings.json", "report.json", "manifest.json"];
 var ORDER = ["ip_prefix_set", "app_firewall", "service_policy_rule", "service_policy"];
 var COLLECTIONS = {
@@ -20931,7 +22896,7 @@ function receiptFile(path, cwd) {
   const target = resolve(cwd, path);
   const root = parse(target).root;
   let cursor = root;
-  for (const part of target.slice(root.length).split(sep).filter(Boolean)) {
+  for (const part of target.slice(root.length).split(sep2).filter(Boolean)) {
     cursor = resolve(cursor, part);
     if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink())
       throw new MigrationError("receipt", "receipt path must not contain symlinked components");
@@ -21053,7 +23018,7 @@ async function classify(environment, resource, signal) {
 function loadArtifacts(directory, receiptPath, environment) {
   const root = resolve(directory);
   const rel = relative(root, receiptPath);
-  if (rel === "" || !rel.startsWith("..") && !rel.startsWith(`..${sep}`))
+  if (rel === "" || !rel.startsWith("..") && !rel.startsWith(`..${sep2}`))
     throw new MigrationError("receipt", "receipt must reside outside the conversion artifact directory");
   const hashes = {};
   const parsed = {};

@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-asm-migration",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Deterministic BIG-IP ASM conversion and guarded F5 Distributed Cloud deployment for xcsh",
   "main": "src/index.ts",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "xcsh": {
     "name": "ASM Migration",
-    "version": "2.0.6",
+    "version": "2.0.7",
     "description": "ASM policy migration, validation, and guarded deployment",
     "extensions": [
       "src/index.ts"
@@ -31,7 +31,7 @@
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "bun-types": "1.4.0",
-    "fast-xml-parser": "5.2.5",
+    "fast-xml-parser": "5.11.0",
     "ipaddr.js": "2.2.0"
   },
   "license": "Apache-2.0"
