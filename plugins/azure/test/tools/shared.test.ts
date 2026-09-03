@@ -11,6 +11,8 @@ import {
   textResult,
 } from '../../src/tools/shared';
 
+const SYNTHETIC_TENANT_ID = 'TENANT_ID';
+
 describe('textResult', () => {
   it('returns content array with text type', () => {
     const result = textResult('hello', { tool: 'az_account' });
@@ -62,7 +64,7 @@ describe('normalizeSubscription', () => {
       name: 'My Sub',
       state: 'Enabled',
       isDefault: true,
-      tenantId: 'tenant-1',
+      tenantId: SYNTHETIC_TENANT_ID,
       user: { name: 'user@example.com', type: 'user' },
       extraField: 'should be ignored',
     };
@@ -72,7 +74,7 @@ describe('normalizeSubscription', () => {
       name: 'My Sub',
       state: 'Enabled',
       isDefault: true,
-      tenantId: 'tenant-1',
+      tenantId: SYNTHETIC_TENANT_ID,
       user: { name: 'user@example.com', type: 'user' },
     });
     expect(result).not.toHaveProperty('extraField');
@@ -145,13 +147,13 @@ describe('normalizeVm', () => {
       osProfile: { adminUsername: 'SHOULD_NOT_APPEAR', adminPassword: 'SECRET' },
       networkProfile: { networkInterfaces: [{ id: 'nic-1' }] },
     };
-    const result = normalizeVm(raw);
+    const result = normalizeVm(raw, { includePowerState: true, includeNetworkIdentifiers: true });
     expect(result.name).toBe('web-01');
     expect(result.vmSize).toBe('Standard_D2s_v5');
     expect(result.osType).toBe('Linux');
     expect(result.powerState).toBe('VM running');
-    expect(result.publicIps).toBe('192.0.2.21');
-    expect(result.fqdns).toBe('web-01.eastus2.cloudapp.azure.com');
+    expect(result.publicIps).toEqual(['192.0.2.21']);
+    expect(result.fqdns).toEqual(['web-01.eastus2.cloudapp.azure.com']);
     expect(result).not.toHaveProperty('osProfile');
     expect(result).not.toHaveProperty('networkProfile');
     expect(JSON.stringify(result)).not.toContain('SHOULD_NOT_APPEAR');
@@ -163,8 +165,48 @@ describe('normalizeVm', () => {
     expect(result.vmSize).toBe('');
     expect(result.osType).toBe('');
     expect(result.powerState).toBe('');
-    expect(result.publicIps).toBe('');
-    expect(result.fqdns).toBe('');
+    expect(result).not.toHaveProperty('publicIps');
+    expect(result).not.toHaveProperty('fqdns');
+  });
+
+  it('omits endpoint keys by default even when unprojected input contains them', () => {
+    const result = normalizeVm({
+      name: 'example-vm',
+      publicIps: ['192.0.2.45', '2001:db8::45'],
+      fqdns: ['vm.example.invalid'],
+    });
+    expect(result).not.toHaveProperty('publicIps');
+    expect(result).not.toHaveProperty('fqdns');
+    expect(JSON.stringify(result)).not.toContain('192.0.2.45');
+  });
+
+  it('preserves opted-in endpoint values as arrays without delimiter parsing', () => {
+    const result = normalizeVm(
+      {
+        name: 'example-vm',
+        publicIps: ['192.0.2.46', '2001:db8::46', '192.0.2.47, 2001:db8::47'],
+        fqdns: ['one.example.invalid', 'two.example.invalid'],
+      },
+      { includePowerState: false, includeNetworkIdentifiers: true },
+    );
+    expect(result.publicIps).toEqual(['192.0.2.46', '2001:db8::46', '192.0.2.47, 2001:db8::47']);
+    expect(result.fqdns).toEqual(['one.example.invalid', 'two.example.invalid']);
+    expect(result).not.toHaveProperty('powerState');
+  });
+
+  it('normalizes VMSS-shaped power state without exposing network fields', () => {
+    const result = normalizeVm({
+      name: 'example-vmss_3',
+      instanceView: {
+        statuses: [
+          { code: 'ProvisioningState/succeeded', displayStatus: 'Provisioning succeeded' },
+          { code: 'PowerState/running', displayStatus: 'VM running' },
+        ],
+      },
+      publicIps: ['192.0.2.48'],
+    });
+    expect(result.powerState).toBe('VM running');
+    expect(result).not.toHaveProperty('publicIps');
   });
 });
 

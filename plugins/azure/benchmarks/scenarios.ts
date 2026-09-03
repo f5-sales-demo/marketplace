@@ -2,12 +2,12 @@ import { mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Type } from '@sinclair/typebox';
-import { createAzAccountTool } from '../src/tools/az-account';
+import { createAzAccountShowTool } from '../src/tools/az-account-show';
 import { createAzExecTool } from '../src/tools/az-exec';
-import { createAzGroupTool } from '../src/tools/az-group';
+import { createAzGroupListTool } from '../src/tools/az-group-list';
 import { createAzHelpTool } from '../src/tools/az-help';
-import { createAzResourceTool } from '../src/tools/az-resource';
-import { createAzVmTool } from '../src/tools/az-vm';
+import { createAzResourceListTool } from '../src/tools/az-resource-list';
+import { createAzVmListTool } from '../src/tools/az-vm-list';
 
 const PLUGIN_ROOT = join(import.meta.dir, '..');
 const FIXTURES_DIR = join(import.meta.dir, 'fixtures');
@@ -103,7 +103,7 @@ const scenarios: Scenario[] = [
     name: 'account-show-current',
     run: () =>
       withFixture('account-show.json', async () => {
-        const tool = createAzAccountTool(pi);
+        const tool = createAzAccountShowTool(pi);
         const result = await tool.execute('t', { action: 'show' }, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
@@ -115,7 +115,7 @@ const scenarios: Scenario[] = [
     name: 'account-show-by-id',
     run: () =>
       withFixture('account-show.json', async () => {
-        const tool = createAzAccountTool(pi);
+        const tool = createAzAccountShowTool(pi);
         const result = await tool.execute(
           't',
           { action: 'show', subscription: '11111111-2222-3333-4444-555555555555' },
@@ -130,7 +130,7 @@ const scenarios: Scenario[] = [
     name: 'account-list-all',
     run: () =>
       withFixture('account-list.json', async () => {
-        const tool = createAzAccountTool(pi);
+        const tool = createAzAccountShowTool(pi);
         const result = await tool.execute('t', { action: 'list' }, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
@@ -142,7 +142,7 @@ const scenarios: Scenario[] = [
     name: 'account-list-filtered',
     run: () =>
       withFixture('account-list.json', async () => {
-        const tool = createAzAccountTool(pi);
+        const tool = createAzAccountShowTool(pi);
         const result = await tool.execute('t', { action: 'list', subscription: 'Staging' }, null, null, {
           cwd: '/tmp',
         });
@@ -156,7 +156,7 @@ const scenarios: Scenario[] = [
   {
     name: 'account-injection-rejected',
     async run() {
-      const tool = createAzAccountTool(pi);
+      const tool = createAzAccountShowTool(pi);
       const result = await tool.execute('t', { action: 'show', subscription: '$(whoami)' }, null, null, {
         cwd: '/tmp',
       });
@@ -167,7 +167,7 @@ const scenarios: Scenario[] = [
     name: 'group-list',
     run: () =>
       withFixture('group-list.json', async () => {
-        const tool = createAzGroupTool(pi);
+        const tool = createAzGroupListTool(pi);
         const result = await tool.execute('t', { action: 'list' }, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
@@ -179,7 +179,7 @@ const scenarios: Scenario[] = [
     name: 'group-show',
     run: () =>
       withFixture('group-show.json', async () => {
-        const tool = createAzGroupTool(pi);
+        const tool = createAzGroupListTool(pi);
         const result = await tool.execute('t', { action: 'show', name: 'rg-dev-eastus' }, null, null, { cwd: '/tmp' });
         return checkResult(result, { isError: false, contains: ['rg-dev-eastus', 'eastus'] });
       }),
@@ -188,7 +188,7 @@ const scenarios: Scenario[] = [
     name: 'resource-list',
     run: () =>
       withFixture('resource-list.json', async () => {
-        const tool = createAzResourceTool(pi);
+        const tool = createAzResourceListTool(pi);
         const result = await tool.execute('t', { resource_group: 'rg-dev-eastus' }, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
@@ -199,7 +199,7 @@ const scenarios: Scenario[] = [
   {
     name: 'resource-injection-rejected',
     async run() {
-      const tool = createAzResourceTool(pi);
+      const tool = createAzResourceListTool(pi);
       const result = await tool.execute('t', { resource_group: ';rm -rf /' }, null, null, { cwd: '/tmp' });
       return checkResult(result, { isError: true, contains: ['invalid'] });
     },
@@ -208,7 +208,7 @@ const scenarios: Scenario[] = [
     name: 'vm-list-basic',
     run: () =>
       withFixture('vm-list.json', async () => {
-        const tool = createAzVmTool(pi);
+        const tool = createAzVmListTool(pi);
         const result = await tool.execute('t', {}, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
@@ -218,14 +218,27 @@ const scenarios: Scenario[] = [
       }),
   },
   {
-    name: 'vm-list-details',
+    name: 'vm-list-power-state-private-by-default',
     run: () =>
       withFixture('vm-list-details.json', async () => {
-        const tool = createAzVmTool(pi);
-        const result = await tool.execute('t', { show_details: true }, null, null, { cwd: '/tmp' });
+        const tool = createAzVmListTool(pi);
+        const result = await tool.execute('t', {}, null, null, { cwd: '/tmp' });
         return checkResult(result, {
           isError: false,
-          contains: ['web-vm-01', '192.0.2.20', 'VM running', 'Public IPs'],
+          contains: ['web-vm-01', 'VM running'],
+          notContains: ['azureuser', '192.0.2.20', 'web-vm-01.eastus.cloudapp.azure.com', 'Public IPs'],
+        });
+      }),
+  },
+  {
+    name: 'vm-list-network-identifiers-explicit-opt-in',
+    run: () =>
+      withFixture('vm-list-details.json', async () => {
+        const tool = createAzVmListTool(pi);
+        const result = await tool.execute('t', { include_network_identifiers: true }, null, null, { cwd: '/tmp' });
+        return checkResult(result, {
+          isError: false,
+          contains: ['web-vm-01', '192.0.2.20', '2001:db8::20', 'VM running', 'Public IPs'],
           notContains: ['azureuser'],
         });
       }),
@@ -243,8 +256,8 @@ const scenarios: Scenario[] = [
     name: 'exec-injection-blocked',
     async run() {
       const tool = createAzExecTool(pi);
-      const result = await tool.execute('t', { args: ['vm', 'list;rm -rf /'] }, null, null, { cwd: '/tmp' });
-      return checkResult(result, { isError: true, contains: ['unsafe'] });
+      const result = await tool.execute('t', { args: ['vm', 'delete'] }, null, null, { cwd: '/tmp' });
+      return checkResult(result, { isError: true, contains: ['mutating'] });
     },
   },
   {
@@ -294,7 +307,7 @@ function measureTurnEfficiency(): number {
 
   const tasks = [
     { minTurns: 1, keywords: ['account show', '--subscription'] },
-    { minTurns: 1, keywords: ['--show-details', '--resource-group', 'publicIps'] },
+    { minTurns: 1, keywords: ['include_power_state', 'include_network_identifiers', 'publicIps'] },
     { minTurns: 1, keywords: ['storage account', 'az_exec', '--subscription'] },
     { minTurns: 1, keywords: ['--tag', 'key=value', 'key[=value]'] },
     { minTurns: 1, keywords: ['az_help', 'command_path', 'network'] },

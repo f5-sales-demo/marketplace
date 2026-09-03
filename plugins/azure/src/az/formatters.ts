@@ -1,4 +1,4 @@
-import type { AzResource, AzResourceGroup, AzSubscription, AzVm } from './types';
+import type { AzResource, AzResourceGroup, AzSubscription, AzVm, VmDisclosurePolicy } from './types';
 
 export function formatSubscriptionTable(subs: AzSubscription[]): string {
   if (subs.length === 0) return 'No subscriptions found.';
@@ -43,23 +43,23 @@ export function formatResourceTable(resources: AzResource[]): string {
   return [header, sep, ...rows].join('\n');
 }
 
-export function formatVmTable(vms: AzVm[]): string {
+export function formatVmTable(
+  vms: AzVm[],
+  policy: VmDisclosurePolicy = { includePowerState: true, includeNetworkIdentifiers: false },
+): string {
   if (vms.length === 0) return 'No VMs found.';
-  const hasDetails = vms.some((v) => v.publicIps || v.fqdns);
-  if (hasDetails) {
-    const header = '| Name | Resource Group | Location | VM Size | OS | Power | Public IPs | FQDNs |';
-    const sep = '|------|----------------|----------|---------|-----|-------|------------|-------|';
-    const rows = vms.map(
-      (v) =>
-        `| ${v.name} | ${v.resourceGroup} | ${v.location} | ${v.vmSize} | ${v.osType} | ${v.powerState} | ${v.publicIps || '-'} | ${v.fqdns || '-'} |`,
-    );
-    return [header, sep, ...rows].join('\n');
-  }
-  const header = '| Name | Resource Group | Location | VM Size | OS | State | Power |';
-  const sep = '|------|----------------|----------|---------|-----|-------|-------|';
-  const rows = vms.map(
-    (v) =>
-      `| ${v.name} | ${v.resourceGroup} | ${v.location} | ${v.vmSize} | ${v.osType} | ${v.provisioningState} | ${v.powerState} |`,
-  );
+  const headings = ['Name', 'Resource Group', 'Location', 'VM Size', 'OS', 'State'];
+  if (policy.includePowerState) headings.push('Power');
+  if (policy.includeNetworkIdentifiers) headings.push('Public IPs', 'FQDNs');
+  const header = `| ${headings.join(' | ')} |`;
+  const sep = `|${headings.map(() => '---').join('|')}|`;
+  const rows = vms.map((vm) => {
+    const fields = [vm.name, vm.resourceGroup, vm.location, vm.vmSize, vm.osType, vm.provisioningState];
+    if (policy.includePowerState) fields.push(vm.powerState || '-');
+    if (policy.includeNetworkIdentifiers) {
+      fields.push(vm.publicIps?.join(', ') || '-', vm.fqdns?.join(', ') || '-');
+    }
+    return `| ${fields.join(' | ')} |`;
+  });
   return [header, sep, ...rows].join('\n');
 }

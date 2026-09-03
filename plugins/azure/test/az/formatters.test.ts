@@ -8,6 +8,8 @@ import {
 } from '../../src/az/formatters';
 import type { AzResource, AzResourceGroup, AzSubscription, AzVm } from '../../src/az/types';
 
+const SYNTHETIC_TENANT_ID = 'TENANT_ID';
+
 describe('formatSubscriptionTable', () => {
   it('returns no-data message for empty array', () => {
     expect(formatSubscriptionTable([])).toContain('No subscriptions found');
@@ -20,7 +22,7 @@ describe('formatSubscriptionTable', () => {
         name: 'Dev',
         state: 'Enabled',
         isDefault: true,
-        tenantId: 't1',
+        tenantId: SYNTHETIC_TENANT_ID,
         user: { name: 'u@example.com', type: 'user' },
       },
       {
@@ -28,7 +30,7 @@ describe('formatSubscriptionTable', () => {
         name: 'Prod',
         state: 'Enabled',
         isDefault: false,
-        tenantId: 't2',
+        tenantId: SYNTHETIC_TENANT_ID,
         user: { name: 'u@example.com', type: 'user' },
       },
     ];
@@ -47,7 +49,7 @@ describe('formatSubscriptionDetail', () => {
       name: 'My Sub',
       state: 'Enabled',
       isDefault: true,
-      tenantId: 'tenant-1',
+      tenantId: SYNTHETIC_TENANT_ID,
       user: { name: 'user@example.com', type: 'user' },
     };
     const result = formatSubscriptionDetail(sub);
@@ -111,8 +113,6 @@ describe('formatVmTable', () => {
         provisioningState: 'Succeeded',
         osType: 'Linux',
         powerState: 'running',
-        publicIps: '',
-        fqdns: '',
       },
     ];
     const result = formatVmTable(vms);
@@ -121,7 +121,7 @@ describe('formatVmTable', () => {
     expect(result).toContain('Linux');
   });
 
-  it('includes public IPs and FQDNs when show_details data present', () => {
+  it('does not infer endpoint permission from populated fields', () => {
     const vms: AzVm[] = [
       {
         id: '/sub/vm1',
@@ -132,13 +132,34 @@ describe('formatVmTable', () => {
         provisioningState: 'Succeeded',
         osType: 'Linux',
         powerState: 'VM running',
-        publicIps: '192.0.2.21',
-        fqdns: 'web-01.eastus2.cloudapp.azure.com',
+        publicIps: ['192.0.2.21'],
+        fqdns: ['web-01.example.invalid'],
       },
     ];
     const result = formatVmTable(vms);
-    expect(result).toContain('192.0.2.21');
-    expect(result).toContain('web-01.eastus2.cloudapp.azure.com');
+    expect(result).not.toContain('192.0.2.21');
+    expect(result).not.toContain('web-01.example.invalid');
+    expect(result).not.toContain('Public IPs');
+  });
+
+  it('includes all endpoint values only under explicit formatter policy', () => {
+    const vms: AzVm[] = [
+      {
+        id: '/sub/vm1',
+        name: 'web-01',
+        location: 'example-region',
+        resourceGroup: 'example-rg',
+        vmSize: 'Standard_D2s_v5',
+        provisioningState: 'Succeeded',
+        osType: 'Linux',
+        publicIps: ['192.0.2.21', '2001:db8::21'],
+        fqdns: ['web-01.example.invalid'],
+      },
+    ];
+    const result = formatVmTable(vms, { includePowerState: false, includeNetworkIdentifiers: true });
+    expect(result).toContain('192.0.2.21, 2001:db8::21');
+    expect(result).toContain('web-01.example.invalid');
     expect(result).toContain('Public IPs');
+    expect(result).not.toContain('Power');
   });
 });

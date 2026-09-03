@@ -33,9 +33,14 @@ export interface AzVm {
   vmSize: string;
   provisioningState: string;
   osType: string;
-  powerState: string;
-  publicIps: string;
-  fqdns: string;
+  powerState?: string;
+  publicIps?: string[];
+  fqdns?: string[];
+}
+
+export interface VmDisclosurePolicy {
+  includePowerState: boolean;
+  includeNetworkIdentifiers: boolean;
 }
 
 export interface PluginInterface {
