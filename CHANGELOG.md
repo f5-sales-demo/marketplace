@@ -10,6 +10,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.3.0 — adds a deterministic, read-only `azure_ce_inventory` workflow for existing
+  Customer Edge resources. It paginates typed Resource Graph discovery, collects privacy-safe VM
+  runtime and bounded Activity Log evidence, correlates optional platform sites by hashed MAC or
+  hostname evidence, keeps control-plane dimensions independent, and saves a canonical digest-bound
+  artifact. CE routing now distinguishes inventory from deployment intent; inventory uses only
+  `az_account_show` followed by the composite inventory tool and never generic execution, web
+  research, deployment discovery/planning, or mutation
+  ([#1309](https://github.com/f5-sales-demo/marketplace/issues/1309)).
+
 - **`azure`** v4.2.0 — adds the typed, read-only `az_activity_log_list` evidence primitive with a
   retention-safe relative 89-day default, bounded scope and event inputs, deterministic UTC
   coverage and normalization, conservative create/modify/unknown attribution, identity-kind

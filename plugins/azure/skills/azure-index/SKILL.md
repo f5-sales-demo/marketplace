@@ -33,6 +33,11 @@ deploy, resize, replace, repair, inspect, or tear down F5 Distributed Cloud in A
   as generic VM requests.
 - Never route CE mutation through the generic CLI operator or legacy
   Azure VNet Site, Fleet, or shared-token procedures.
+- Existing-state, inventory, ownership, creator, and activity questions about Azure CE remain in
+  `azure:azure-ce`. Use `az_account_show` followed by `azure_ce_inventory`; do not delegate, search
+  the web, call `az_exec`, or invoke deployment discovery/planning/mutation.
+- Mutation and planning language takes precedence over inventory language. Unmatched Azure CE
+  requests retain the deployment research gate.
 
 ### Authentication and Account Management
 

@@ -167,6 +167,42 @@ function summarizeScope(
   };
 }
 
+export function normalizeActivityLogPayload(
+  params: ActivityLogParams,
+  rawPayload: unknown[],
+  end: Date,
+): AzActivityLogResult {
+  const lookbackDays = params.lookback_days ?? DEFAULT_LOOKBACK_DAYS;
+  const maxEvents = params.max_events ?? DEFAULT_MAX_EVENTS;
+  const rawEvents = rawPayload.filter((item): item is RawEvent => typeof item === 'object' && item !== null);
+  const creationTime = rawEvents.map((event) => isoTime(event.resourceMetadataCreationTime)).find(Boolean);
+  const requestedFamily = params.operation_family ?? 'write';
+  const requestedStatus = params.status ?? 'succeeded';
+  const requestedCaller = params.caller?.toLocaleLowerCase('en-US');
+  const unique = new Map<string, ReturnType<typeof normalizeEvent>>();
+  for (const raw of rawEvents) {
+    const event = normalizeEvent(raw);
+    if (!event.eventId || !event.eventTime || !event.resourceId) continue;
+    if (requestedFamily !== 'all' && event.operationFamily !== requestedFamily) continue;
+    if (requestedStatus !== 'all' && event.status !== requestedStatus) continue;
+    if (requestedCaller !== undefined && event.callerComparison !== requestedCaller) continue;
+    if (!unique.has(event.eventId)) unique.set(event.eventId, event);
+  }
+  const sorted = [...unique.values()].sort(
+    (left, right) => left.eventTime.localeCompare(right.eventTime) || left.eventId.localeCompare(right.eventId),
+  );
+  const truncated = rawEvents.length > maxEvents || sorted.length > maxEvents;
+  const coverage: AzActivityLogCoverage = {
+    startTime: new Date(end.getTime() - lookbackDays * 86_400_000).toISOString(),
+    endTime: end.toISOString(),
+    lookbackDays,
+    complete: !truncated,
+    truncated,
+  };
+  const events = classifyEvents(sorted.slice(0, maxEvents), coverage.complete);
+  return { coverage, scopeEvidence: summarizeScope(params, events, coverage, creationTime), events };
+}
+
 export function validateActivityLogParams(params: ActivityLogParams): string | undefined {
   if (!params.subscription?.trim()) return 'subscription is required.';
   if (!SUBSCRIPTION_ID_PATTERN.test(params.subscription) && !SUBSCRIPTION_NAME_PATTERN.test(params.subscription)) {
@@ -274,10 +310,6 @@ export function createAzActivityLogListTool(
       if (validation) return invalid(validation);
       const end = now();
       if (!Number.isFinite(end.getTime())) return invalid('the UTC clock returned an invalid instant.');
-      const lookbackDays = params.lookback_days ?? DEFAULT_LOOKBACK_DAYS;
-      const maxEvents = params.max_events ?? DEFAULT_MAX_EVENTS;
-      const coverageEnd = end.toISOString();
-      const coverageStart = new Date(end.getTime() - lookbackDays * 86_400_000).toISOString();
       const api = makeApi(ctx.cwd);
       let result: Awaited<ReturnType<AzExecApi['exec']>>;
       try {
@@ -309,34 +341,8 @@ export function createAzActivityLogListTool(
             ? parsed.value
             : undefined;
         if (!rawPayload) throw new Error('unexpected Activity Log response shape');
-        const rawEvents = rawPayload.filter((item): item is RawEvent => typeof item === 'object' && item !== null);
-        const creationTime = rawEvents.map((event) => isoTime(event.resourceMetadataCreationTime)).find(Boolean);
-        const requestedFamily = params.operation_family ?? 'write';
-        const requestedStatus = params.status ?? 'succeeded';
-        const requestedCaller = params.caller?.toLocaleLowerCase('en-US');
-        const unique = new Map<string, ReturnType<typeof normalizeEvent>>();
-        for (const raw of rawEvents) {
-          const event = normalizeEvent(raw);
-          if (!event.eventId || !event.eventTime || !event.resourceId) continue;
-          if (requestedFamily !== 'all' && event.operationFamily !== requestedFamily) continue;
-          if (requestedStatus !== 'all' && event.status !== requestedStatus) continue;
-          if (requestedCaller !== undefined && event.callerComparison !== requestedCaller) continue;
-          if (!unique.has(event.eventId)) unique.set(event.eventId, event);
-        }
-        const sorted = [...unique.values()].sort(
-          (left, right) => left.eventTime.localeCompare(right.eventTime) || left.eventId.localeCompare(right.eventId),
-        );
-        const truncated = rawEvents.length > maxEvents || sorted.length > maxEvents;
-        const coverage: AzActivityLogCoverage = {
-          startTime: coverageStart,
-          endTime: coverageEnd,
-          lookbackDays,
-          complete: !truncated,
-          truncated,
-        };
-        const events = classifyEvents(sorted.slice(0, maxEvents), coverage.complete);
-        const scopeEvidence = summarizeScope(params, events, coverage, creationTime);
-        const activity: AzActivityLogResult = { coverage, scopeEvidence, events };
+        const activity = normalizeActivityLogPayload(params, rawPayload, end);
+        const { coverage, scopeEvidence, events } = activity;
         return textResult(formatActivityLogEvidence(activity), {
           tool: 'az_activity_log_list',
           outcome: 'success',

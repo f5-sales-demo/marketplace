@@ -15,7 +15,18 @@ Use only Secure Mesh Site v2. Read the
 contract is fetched and validated by `azure_compute_discover`; do not copy it into prompts or infer
 it from this skill. Never substitute generic `az_exec`, Azure VNet Site, Fleet, or shared-token flows.
 
-## Workflow
+## Existing-state inventory
+
+For questions about existing CE deployments, inventory, ownership, creator evidence, activity, or
+the current CE footprint, call `az_account_show` and then `azure_ce_inventory`. Pass only the
+subscription UUID plus optional caller and non-secret platform-site evidence. The composite tool
+owns all Resource Graph paging, instance-view runtime checks, retained Activity Log evidence,
+correlation, deterministic classification, and artifact persistence. Do not use web search, generic
+delegation, `az_exec`, `azure_compute_discover`, `azure_ce_plan`, or mutation for this path. Treat
+caller association as evidence, never as an ownership claim, and keep infrastructure, runtime,
+platform, routing, and traffic-health states independent.
+
+## Deployment workflow
 
 1. Use `web_search` to read the dedicated `f5xc-ce-automation/v1` document, the current
    official F5 Azure SMSv2 guide, and relevant Microsoft Marketplace, VM SKU, and networking
