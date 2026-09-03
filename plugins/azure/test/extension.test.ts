@@ -129,6 +129,7 @@ describe('Azure Status extension', () => {
         'az_exec',
         'az_group_list',
         'az_help',
+        'az_resource_graph_query',
         'az_resource_list',
         'az_vm_list',
         'azure_ce_apply',

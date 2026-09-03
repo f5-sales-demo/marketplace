@@ -4,6 +4,7 @@ import {
   createAzExecTool,
   findVerb,
   hasControlChars,
+  hasResourceGraphQueryFlagMisuse,
   isMutating,
   MUTATING_VERBS,
 } from '../../src/tools/az-exec';
@@ -118,6 +119,21 @@ describe('hasControlChars (argv hygiene)', () => {
   });
 });
 
+describe('Resource Graph flag diagnostics', () => {
+  it('detects obvious KQL passed to global --query', () => {
+    expect(hasResourceGraphQueryFlagMisuse(['graph', 'query', '--query', 'Resources | where name =~ "edge"'])).toBe(
+      true,
+    );
+    expect(hasResourceGraphQueryFlagMisuse(['graph', 'query', '--query=ResourceContainers | project id'])).toBe(true);
+  });
+
+  it('does not rewrite or reject ambiguous JMESPath or correctly flagged KQL', () => {
+    expect(hasResourceGraphQueryFlagMisuse(['graph', 'query', '--query', '[].{name:name}'])).toBe(false);
+    expect(hasResourceGraphQueryFlagMisuse(['graph', 'query', '--graph-query', 'Resources | project id'])).toBe(false);
+    expect(hasResourceGraphQueryFlagMisuse(['graph', 'query', '-q=Resources | project id'])).toBe(false);
+  });
+});
+
 describe('buildAzArgs (output flag handling)', () => {
   it('appends --output json when the caller did not specify output', () => {
     expect(buildAzArgs(['vm', 'list'])).toEqual(['vm', 'list', '--output', 'json']);
@@ -154,6 +170,18 @@ describe('az_exec execute', () => {
     const result = await tool.execute('id', { args: ['group', 'delete', '--name', 'x'] }, null, null, { cwd: '/tmp' });
     expect(result.isError).toBe(true);
     expect(result.content[0].text.toLowerCase()).toContain('read-only');
+  });
+
+  it('rejects obvious Resource Graph flag misuse before spawning az', async () => {
+    const result = await tool.execute(
+      'id',
+      { args: ['graph', 'query', '--query', 'Resources | project id'] },
+      null,
+      null,
+      { cwd: '/tmp' },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('--graph-query');
   });
 
   it('does NOT reject valid JMESPath with || (the reported failure)', async () => {

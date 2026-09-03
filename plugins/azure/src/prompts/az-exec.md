@@ -33,6 +33,10 @@ The full JMESPath grammar is supported — pass the expression as a single argum
 
 All of the above — including `||`, `|`, and backticks — are accepted verbatim.
 
+For `az graph query`, use the typed `az_resource_graph_query` tool. Resource Graph KQL belongs in
+its `query` field and maps to `--graph-query`; global `--query` remains only a JMESPath output
+projection. An unambiguous `az graph query --query <KQL>` mix-up is rejected before execution.
+
 ## Common Subcommands Not Covered by Typed Tools
 
 - `az webapp list` / `az webapp show` — App Service

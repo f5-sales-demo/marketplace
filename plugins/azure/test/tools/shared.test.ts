@@ -222,11 +222,11 @@ describe('makeExecApi forwards AbortSignal to Bun.spawn only while live', () => 
     killed: false,
   });
 
-  let recordedOptions: { signal?: AbortSignal } | undefined;
+  let recordedOptions: { signal?: AbortSignal; env?: Record<string, string | undefined> } | undefined;
 
   function installSpawnSpy() {
     recordedOptions = undefined;
-    Bun.spawn = ((_cmd: string[], options: { signal?: AbortSignal }) => {
+    Bun.spawn = ((_cmd: string[], options: { signal?: AbortSignal; env?: Record<string, string | undefined> }) => {
       recordedOptions = options;
       return fakeChild();
     }) as unknown as typeof Bun.spawn;
@@ -252,6 +252,15 @@ describe('makeExecApi forwards AbortSignal to Bun.spawn only while live', () => 
     await makeExecApi('/tmp').exec('az', ['account', 'show'], { signal: controller.signal });
     expect(recordedOptions).toBeDefined();
     expect('signal' in (recordedOptions ?? {})).toBe(false);
+  });
+
+  it('merges a process-scoped environment override into the inherited environment', async () => {
+    installSpawnSpy();
+    await makeExecApi('/tmp').exec('az', ['graph', 'query'], {
+      env: { AZURE_EXTENSION_USE_DYNAMIC_INSTALL: 'no' },
+    });
+    expect(recordedOptions?.env?.AZURE_EXTENSION_USE_DYNAMIC_INSTALL).toBe('no');
+    expect(recordedOptions?.env?.PATH).toBe(process.env.PATH);
   });
 });
 

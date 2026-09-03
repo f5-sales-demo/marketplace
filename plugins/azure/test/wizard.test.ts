@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PlatformInfo } from '../src/platform';
-import { buildAuthStep, buildInstallStep, buildVerifyCommand, runSetupWizard } from '../src/wizard';
+import {
+  buildAuthStep,
+  buildInstallStep,
+  buildVerifyCommand,
+  ensureResourceGraphExtension,
+  RESOURCE_GRAPH_REQUIRED_FLAGS,
+  runSetupWizard,
+} from '../src/wizard';
 
 // ---------------------------------------------------------------------------
 // Helper builders — exact command assertions
@@ -96,12 +103,15 @@ describe('buildVerifyCommand', () => {
 function buildMockCtx(overrides?: {
   selectResponses?: Array<string | undefined>;
   inputResponses?: Array<string | undefined>;
+  confirmResponses?: boolean[];
 }) {
   const notifications: Array<{ message: string; type?: string }> = [];
   let selectIndex = 0;
   let inputIndex = 0;
   const selectResponses = overrides?.selectResponses ?? [];
   const inputResponses = overrides?.inputResponses ?? [];
+  let confirmIndex = 0;
+  const confirmResponses = overrides?.confirmResponses ?? [];
   let reloadCalled = false;
 
   return {
@@ -111,7 +121,7 @@ function buildMockCtx(overrides?: {
           return Promise.resolve(selectResponses[selectIndex++]);
         },
         confirm(_title: string, _message: string) {
-          return Promise.resolve(true);
+          return Promise.resolve(confirmResponses[confirmIndex++] ?? true);
         },
         input(_title: string, _placeholder?: string) {
           return Promise.resolve(inputResponses[inputIndex++]);
@@ -129,6 +139,77 @@ function buildMockCtx(overrides?: {
     wasReloadCalled: () => reloadCalled,
   };
 }
+
+describe('ensureResourceGraphExtension', () => {
+  const supportedHelp = RESOURCE_GRAPH_REQUIRED_FLAGS.join('\n');
+
+  it('does not prompt or install when the installed command is supported', async () => {
+    const { pi, calls } = buildMockPi({
+      'extension show': { stdout: JSON.stringify({ name: 'resource-graph', version: '2.1.0' }), stderr: '', code: 0 },
+      'graph query --help': { stdout: supportedHelp, stderr: '', code: 0 },
+    });
+    let prompts = 0;
+    const result = await ensureResourceGraphExtension(pi.exec, async () => {
+      prompts++;
+      return true;
+    });
+    expect(result.state).toBe('ready');
+    expect(prompts).toBe(0);
+    expect(calls.some((call) => call.args.includes('add'))).toBe(false);
+  });
+
+  it('requires explicit confirmation and stops cleanly when declined', async () => {
+    const { pi, calls } = buildMockPi({ 'extension show': { stdout: '', stderr: 'missing', code: 1 } });
+    const result = await ensureResourceGraphExtension(pi.exec, async () => false);
+    expect(result.state).toBe('declined');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does not accept a successful inspection with an invalid extension identity', async () => {
+    const { pi, calls } = buildMockPi({
+      'extension show': { stdout: JSON.stringify({ name: 'other', version: '2.1.0' }), stderr: '', code: 0 },
+      'graph query --help': { stdout: supportedHelp, stderr: '', code: 0 },
+    });
+    const result = await ensureResourceGraphExtension(pi.exec, async () => false);
+    expect(result.state).toBe('declined');
+    expect(calls.some((call) => call.args.includes('add'))).toBe(false);
+  });
+
+  it('installs with the exact upgrade command and verifies identity and capabilities', async () => {
+    let showCount = 0;
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const exec = async (cmd: string, args: string[]) => {
+      calls.push({ cmd, args });
+      if (args[0] === 'extension' && args[1] === 'show') {
+        showCount++;
+        return showCount === 1
+          ? { stdout: '', stderr: 'missing', code: 1 }
+          : { stdout: JSON.stringify({ name: 'resource-graph', version: '2.1.0' }), stderr: '', code: 0 };
+      }
+      if (args.includes('--help')) return { stdout: supportedHelp, stderr: '', code: 0 };
+      return { stdout: '', stderr: '', code: 0 };
+    };
+    const result = await ensureResourceGraphExtension(exec, async () => true);
+    expect(result.state).toBe('ready');
+    expect(calls.find((call) => call.args[1] === 'add')?.args).toEqual([
+      'extension',
+      'add',
+      '--name',
+      'resource-graph',
+      '--upgrade',
+    ]);
+  });
+
+  it('fails closed when post-install capability verification fails', async () => {
+    const { pi } = buildMockPi({
+      'extension show': { stdout: JSON.stringify({ name: 'resource-graph', version: 'old' }), stderr: '', code: 0 },
+      'graph query --help': { stdout: '--graph-query', stderr: '', code: 0 },
+      'extension add': { stdout: '', stderr: '', code: 0 },
+    });
+    const result = await ensureResourceGraphExtension(pi.exec, async () => true);
+    expect(result.state).toBe('failed');
+  });
+});
 
 function buildMockPi(execResponses?: Record<string, { stdout: string; stderr: string; code: number }>) {
   const calls: Array<{ cmd: string; args: string[] }> = [];

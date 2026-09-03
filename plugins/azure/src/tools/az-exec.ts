@@ -18,6 +18,25 @@ export function hasControlChars(arg: string): boolean {
   return CONTROL_CHAR_PATTERN.test(arg);
 }
 
+export function hasResourceGraphQueryFlagMisuse(args: string[]): boolean {
+  const graphIndex = args.findIndex((arg, index) => arg === 'graph' && args[index + 1] === 'query');
+  if (
+    graphIndex < 0 ||
+    args.some(
+      (arg) => arg === '-q' || arg.startsWith('-q=') || arg === '--graph-query' || arg.startsWith('--graph-query='),
+    )
+  ) {
+    return false;
+  }
+  const queryIndex = args.indexOf('--query');
+  const inlineQuery = args.find((arg) => arg.startsWith('--query='))?.slice('--query='.length);
+  const candidate = queryIndex >= 0 ? args[queryIndex + 1] : inlineQuery;
+  if (!candidate) return false;
+  return /\b(?:Resources|ResourceContainers)\b[\s\S]*\|[\s\S]*\b(?:where|project|extend|summarize|take|limit|join)\b|=~/i.test(
+    candidate,
+  );
+}
+
 // Read-only-by-default guardrail. `az` verbs are conventional; we block clearly
 // mutating verbs so writes must go through an explicit, confirmed path (the
 // cli-operator agent). Reads (list*, show, get*, check*, ...) pass by default.
@@ -153,6 +172,13 @@ export function createAzExecTool(pi: PluginInterface, makeApi: (cwd: string) => 
         if (hasControlChars(arg)) {
           return errorResult(`Error: argument contains a control character and cannot be passed to az: "${arg}"`, base);
         }
+      }
+
+      if (hasResourceGraphQueryFlagMisuse(params.args)) {
+        return errorResult(
+          'Error: Resource Graph KQL must use -q/--graph-query. Global --query is reserved for JMESPath output projection; use az_resource_graph_query for typed execution.',
+          base,
+        );
       }
 
       const mutatingVerb = findMutatingVerb(params.args);

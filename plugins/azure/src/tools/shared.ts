@@ -8,6 +8,7 @@ export type AzToolName =
   | 'az_group_list'
   | 'az_resource_list'
   | 'az_vm_list'
+  | 'az_resource_graph_query'
   | 'az_exec'
   | 'az_help';
 
@@ -19,6 +20,24 @@ export interface AzToolDetails {
   resources?: AzResource[];
   vms?: AzVm[];
   errorType?: AzErrorType;
+  outcome?:
+    | 'success'
+    | 'partial_scope'
+    | 'setup_required'
+    | 'unsupported_extension'
+    | 'throttled'
+    | 'invalid_input'
+    | 'authentication_failure'
+    | 'execution_failure';
+  data?: unknown[];
+  count?: number;
+  totalRecords?: number;
+  truncated?: boolean;
+  skipToken?: string;
+  inaccessibleScopeCount?: number;
+  retryAfterSeconds?: number;
+  extension?: { name: string; version: string };
+  missingFlags?: string[];
 }
 
 export function textResult(text: string, details: AzToolDetails) {
@@ -38,7 +57,11 @@ export function detectErrorType(err: unknown): AzErrorType {
 
 export function makeExecApi(cwd: string): AzExecApi {
   return {
-    async exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<AzRawResult> {
+    async exec(
+      command: string,
+      args: string[],
+      options?: { signal?: AbortSignal; env?: Record<string, string> },
+    ): Promise<AzRawResult> {
       // Thread the AbortSignal so a genuine in-flight cancellation terminates the child.
       // Only wire it in while still live at spawn time — handing an already-aborted
       // (stale) signal to Bun.spawn would kill the fresh process immediately, resurrecting
@@ -49,7 +72,7 @@ export function makeExecApi(cwd: string): AzExecApi {
         cwd,
         stdout: 'pipe',
         stderr: 'pipe',
-        env: process.env,
+        env: { ...process.env, ...options?.env },
         ...(signal && !signal.aborted ? { signal } : {}),
       });
       const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
