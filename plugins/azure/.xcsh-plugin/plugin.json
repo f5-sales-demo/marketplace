@@ -1,7 +1,7 @@
 {
   "name": "azure",
   "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-  "version": "4.3.0",
+  "version": "4.3.1",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
   "license": "Apache-2.0",
   "author": {

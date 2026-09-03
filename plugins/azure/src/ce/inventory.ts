@@ -1,18 +1,19 @@
 import { createHash } from 'node:crypto';
 import type { AzExecApi } from '../az/exec';
-import { parseAzJsonOutput } from '../az/exec';
+import { detectAzError, parseAzJsonOutput } from '../az/exec';
 import { RESOURCE_GRAPH_REQUIRED_FLAGS } from '../az/resource-graph';
 import type { AzActivityLogResult } from '../az/types';
 import { SUBSCRIPTION_ID_PATTERN } from '../az/types';
 import { buildActivityLogArgs, normalizeActivityLogPayload } from '../tools/az-activity-log-list';
 import { buildResourceGraphArgs, RESOURCE_GRAPH_ENV } from '../tools/az-resource-graph-query';
+import { type AzErrorType, detectErrorType } from '../tools/shared';
 import { canonicalSha256, canonicalStringify } from './canonical';
 
 export const AZURE_CE_INVENTORY_SCHEMA_VERSION = 1 as const;
 
 export const AZURE_CE_INVENTORY_QUERY = `resourcecontainers
 | where type =~ 'microsoft.resources/subscriptions/resourcegroups'
-| project kind='resourceGroup', id, name, type, resourceGroup=name, location, tags,
+| project inventoryKind='resourceGroup', id, name, type, resourceGroup=name, location, tags,
     provisioningState=tostring(properties.provisioningState), imagePublisher='', imageOffer='', imageSku='',
     computerName='', networkInterfaceIds=dynamic([]), diskIds=dynamic([]), macAddress='', primary=false,
     vmId='', subnetIds=dynamic([]), networkSecurityGroupId='', publicIpResourceIds=dynamic([]),
@@ -26,7 +27,7 @@ export const AZURE_CE_INVENTORY_QUERY = `resourcecontainers
       'microsoft.network/bastionhosts', 'microsoft.network/publicipaddresses',
       'microsoft.network/natgateways', 'microsoft.network/azurefirewalls',
       'microsoft.network/applicationgateways', 'microsoft.network/virtualnetworks')
-  | project kind='resource', id, name, type, resourceGroup, location, tags,
+  | project inventoryKind='resource', id, name, type, resourceGroup, location, tags,
       provisioningState=tostring(properties.provisioningState),
       imagePublisher=tostring(properties.storageProfile.imageReference.publisher),
       imageOffer=tostring(properties.storageProfile.imageReference.offer),
@@ -59,6 +60,57 @@ export interface AzureCeInventoryInput {
   subscriptionId: string;
   caller?: { objectId?: string; userPrincipalName?: string };
   platformSites?: AzureCePlatformSiteInput[];
+}
+
+export type AzureCeInventoryFailureStage =
+  | 'input_validation'
+  | 'setup'
+  | 'resource_graph'
+  | 'vm_runtime'
+  | 'activity_log'
+  | 'envelope_serialization'
+  | 'artifact_persistence'
+  | 'collector';
+
+export type AzureCeInventoryErrorType =
+  | 'invalid_input'
+  | AzErrorType
+  | 'unsupported_extension'
+  | 'invalid_response'
+  | 'paging_error'
+  | 'serialization_error'
+  | 'persistence_error'
+  | 'unexpected_error';
+
+export class AzureCeInventoryFailure extends Error {
+  constructor(
+    readonly failureStage: AzureCeInventoryFailureStage,
+    readonly errorType: AzureCeInventoryErrorType,
+  ) {
+    super('Azure CE inventory failed.');
+    this.name = 'AzureCeInventoryFailure';
+  }
+}
+
+function failure(stage: AzureCeInventoryFailureStage, errorType: AzureCeInventoryErrorType): AzureCeInventoryFailure {
+  return new AzureCeInventoryFailure(stage, errorType);
+}
+
+function cliErrorType(stderr: string, stdout: string, exitCode: number): AzErrorType {
+  return detectErrorType(detectAzError(stderr || stdout, exitCode));
+}
+
+async function execAtStage(
+  api: AzExecApi,
+  stage: AzureCeInventoryFailureStage,
+  args: string[],
+  options?: { signal?: AbortSignal; env?: Record<string, string> },
+) {
+  try {
+    return await api.exec('az', args, options);
+  } catch {
+    throw failure(stage, 'exec_error');
+  }
 }
 
 export type AzureCeInventoryClassification =
@@ -197,6 +249,8 @@ type NormalizedResource = {
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Azure inputs must not contain control bytes.
 const CONTROL = /[\u0000-\u001F\u007F]/g;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: Azure inputs must not contain control bytes.
+const HAS_CONTROL = /[\u0000-\u001F\u007F]/;
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?\b/g;
 const IPV6 = /\b(?:[0-9a-f]{0,4}:){2,}[0-9a-f:]+(?:\/\d{1,3})?\b/gi;
 const CE_SIGNAL =
@@ -306,7 +360,7 @@ function normalizeResource(row: Record<string, unknown>): NormalizedResource {
     routeTableId: safe(row.routeTableId),
     routeNames: strings(row.routeNames).map((item) => safe(item, 256)),
     bgpPeerStates: strings(row.bgpPeerStates).map((item) => safe(item, 128)),
-    kind: String(row.kind ?? 'resource'),
+    kind: String(row.inventoryKind ?? row.kind ?? 'resource'),
     deploymentId: safe(normalizedTags['xcsh-deployment-id'], 256),
     candidate: Boolean(family) || hasTagSignal(normalizedTags) || CE_SIGNAL.test(signalText),
     ...(family ? { imageFamily: family } : {}),
@@ -761,13 +815,22 @@ export function buildAzureCeInventoryEnvelope(
 }
 
 function validateInput(input: AzureCeInventoryInput): void {
-  if (!SUBSCRIPTION_ID_PATTERN.test(input.subscriptionId)) throw new Error('subscriptionId must be a UUID.');
+  if (!SUBSCRIPTION_ID_PATTERN.test(input.subscriptionId)) throw failure('input_validation', 'invalid_input');
+  if (input.caller) {
+    const { objectId, userPrincipalName } = input.caller;
+    if (objectId === undefined && userPrincipalName === undefined) throw failure('input_validation', 'invalid_input');
+    if (objectId !== undefined && !SUBSCRIPTION_ID_PATTERN.test(objectId))
+      throw failure('input_validation', 'invalid_input');
+    if (
+      userPrincipalName !== undefined &&
+      (!userPrincipalName.trim() || userPrincipalName.length > 320 || HAS_CONTROL.test(userPrincipalName))
+    )
+      throw failure('input_validation', 'invalid_input');
+  }
   for (const site of input.platformSites ?? []) {
-    if (!site.name?.trim() || CONTROL.test(site.name))
-      throw new Error('platform site names must be non-empty and contain no control characters.');
+    if (!site.name?.trim() || HAS_CONTROL.test(site.name)) throw failure('input_validation', 'invalid_input');
     for (const mac of site.nodes?.flatMap((node) => node.macAddresses ?? []) ?? [])
-      if (!normalizeMac(mac))
-        throw new Error('platform node MAC addresses must contain exactly 12 hexadecimal digits.');
+      if (!normalizeMac(mac)) throw failure('input_validation', 'invalid_input');
   }
 }
 
@@ -775,11 +838,11 @@ function parseGraphPage(stdout: string): { data: Record<string, unknown>[]; skip
   const parsed = parseAzJsonOutput<Record<string, unknown> | unknown[]>(stdout);
   const envelope = Array.isArray(parsed) ? { data: parsed } : parsed;
   if (!Array.isArray(envelope.data)) throw new Error('Azure CE inventory Resource Graph response was invalid.');
+  if (envelope.data.some((item) => !item || typeof item !== 'object' || Array.isArray(item)))
+    throw new Error('Azure CE inventory Resource Graph response was invalid.');
   const rawToken = envelope.skipToken ?? envelope.skip_token;
   return {
-    data: envelope.data.filter(
-      (item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item),
-    ),
+    data: envelope.data as Record<string, unknown>[],
     ...(typeof rawToken === 'string' && rawToken ? { skipToken: rawToken } : {}),
   };
 }
@@ -792,32 +855,40 @@ export async function collectAzureCeInventory(
 ): Promise<AzureCeInventoryEnvelope> {
   validateInput(input);
   const options = { signal, env: RESOURCE_GRAPH_ENV };
-  const extension = await api.exec(
-    'az',
+  const extension = await execAtStage(
+    api,
+    'setup',
     ['extension', 'show', '--name', 'resource-graph', '--output', 'json'],
     options,
   );
-  if (extension.exitCode !== 0) throw new Error('Azure CE inventory setup is unavailable. Run /azure:setup.');
-  const help = await api.exec('az', ['graph', 'query', '--help'], options);
+  if (extension.exitCode !== 0) {
+    const errorType = cliErrorType(extension.stderr, extension.stdout, extension.exitCode);
+    throw failure('setup', errorType === 'exec_error' ? 'unsupported_extension' : errorType);
+  }
+  const help = await execAtStage(api, 'setup', ['graph', 'query', '--help'], options);
   const helpText = `${help.stdout}\n${help.stderr}`;
-  if (help.exitCode !== 0 || RESOURCE_GRAPH_REQUIRED_FLAGS.some((flag) => !helpText.includes(flag)))
-    throw new Error('Azure CE inventory setup is unavailable. Run /azure:setup.');
+  if (help.exitCode !== 0) {
+    const errorType = cliErrorType(help.stderr, help.stdout, help.exitCode);
+    throw failure('setup', errorType === 'exec_error' ? 'unsupported_extension' : errorType);
+  }
+  if (RESOURCE_GRAPH_REQUIRED_FLAGS.some((flag) => !helpText.includes(flag)))
+    throw failure('setup', 'unsupported_extension');
 
   let observedCaller: string | undefined;
   if (!input.caller) {
-    const account = await api.exec(
-      'az',
-      ['account', 'show', '--subscription', input.subscriptionId, '--query', '{user:user}', '--output', 'json'],
-      { signal },
-    );
-    if (account.exitCode === 0) {
-      try {
+    try {
+      const account = await api.exec(
+        'az',
+        ['account', 'show', '--subscription', input.subscriptionId, '--query', '{user:user}', '--output', 'json'],
+        { signal },
+      );
+      if (account.exitCode === 0) {
         const parsed = parseAzJsonOutput<Record<string, unknown>>(account.stdout);
         const user = parsed.user as Record<string, unknown> | undefined;
         observedCaller = typeof user?.name === 'string' ? user.name : undefined;
-      } catch {
-        /* Caller inference is optional. */
       }
+    } catch {
+      /* Caller inference is optional. */
     }
   }
 
@@ -832,14 +903,19 @@ export async function collectAzureCeInventory(
       first: 1000,
       ...(skipToken ? { skip_token: skipToken } : {}),
     });
-    const result = await api.exec('az', args, options);
+    const result = await execAtStage(api, 'resource_graph', args, options);
     if (result.exitCode !== 0 || /partial scope|inaccessible scope|not authorized for all/i.test(result.stderr))
-      throw new Error('Azure CE inventory Resource Graph collection failed.');
-    const page = parseGraphPage(result.stdout);
+      throw failure('resource_graph', cliErrorType(result.stderr, result.stdout, result.exitCode || 1));
+    let page: ReturnType<typeof parseGraphPage>;
+    try {
+      page = parseGraphPage(result.stdout);
+    } catch {
+      throw failure('resource_graph', 'invalid_response');
+    }
     rows.push(...page.data);
     resourceGraphPages += 1;
     skipToken = page.skipToken;
-    if (skipToken && seenTokens.has(skipToken)) throw new Error('Azure CE inventory Resource Graph paging failed.');
+    if (skipToken && seenTokens.has(skipToken)) throw failure('resource_graph', 'paging_error');
     if (skipToken) seenTokens.add(skipToken);
   } while (skipToken);
 
@@ -850,8 +926,9 @@ export async function collectAzureCeInventory(
   const candidateVms = normalized.filter((item) => item.type === 'microsoft.compute/virtualmachines' && item.candidate);
   const runtimeByVmId: Record<string, string> = {};
   for (const vm of candidateVms.sort((a, b) => normalizeKey(a.id).localeCompare(normalizeKey(b.id)))) {
-    const result = await api.exec(
-      'az',
+    const result = await execAtStage(
+      api,
+      'vm_runtime',
       [
         'vm',
         'get-instance-view',
@@ -866,12 +943,16 @@ export async function collectAzureCeInventory(
       ],
       { signal },
     );
-    if (result.exitCode !== 0) throw new Error('Azure CE inventory VM runtime collection failed.');
+    if (result.exitCode !== 0) throw failure('vm_runtime', cliErrorType(result.stderr, result.stdout, result.exitCode));
     try {
       const payload = parseAzJsonOutput<Record<string, unknown>>(result.stdout);
-      runtimeByVmId[vm.id] = String(payload.powerState ?? 'unknown');
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+        throw failure('vm_runtime', 'invalid_response');
+      if (payload.powerState !== undefined && payload.powerState !== null && typeof payload.powerState !== 'string')
+        throw failure('vm_runtime', 'invalid_response');
+      runtimeByVmId[vm.id] = payload.powerState ?? 'unknown';
     } catch {
-      throw new Error('Azure CE inventory VM runtime response was invalid.');
+      throw failure('vm_runtime', 'invalid_response');
     }
   }
 
@@ -886,22 +967,27 @@ export async function collectAzureCeInventory(
       max_events: 1000,
       lookback_days: 89,
     };
-    const result = await api.exec('az', buildActivityLogArgs(params), { signal });
-    if (result.exitCode !== 0) throw new Error('Azure CE inventory Activity Log collection failed.');
+    const result = await execAtStage(api, 'activity_log', buildActivityLogArgs(params), { signal });
+    if (result.exitCode !== 0)
+      throw failure('activity_log', cliErrorType(result.stderr, result.stdout, result.exitCode));
     try {
       const parsed = parseAzJsonOutput<unknown[] | Record<string, unknown>>(result.stdout);
       const payload = Array.isArray(parsed) ? parsed : Array.isArray(parsed.value) ? parsed.value : undefined;
       if (!payload) throw new Error('bad payload');
       activityByResourceGroup[group] = normalizeActivityLogPayload(params, payload, now());
     } catch {
-      throw new Error('Azure CE inventory Activity Log response was invalid.');
+      throw failure('activity_log', 'invalid_response');
     }
   }
-  return buildAzureCeInventoryEnvelope(
-    input,
-    { rows, runtimeByVmId, activityByResourceGroup, resourceGraphPages, observedCaller },
-    now(),
-  );
+  try {
+    return buildAzureCeInventoryEnvelope(
+      input,
+      { rows, runtimeByVmId, activityByResourceGroup, resourceGraphPages, observedCaller },
+      now(),
+    );
+  } catch {
+    throw failure('envelope_serialization', 'serialization_error');
+  }
 }
 
 export function formatAzureCeInventory(envelope: AzureCeInventoryEnvelope, artifactId?: string): string {
