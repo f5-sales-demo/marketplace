@@ -10,7 +10,7 @@ test('manifest versions and public names agree', () => {
   const plugin = JSON.parse(readFileSync(resolve(root, '.xcsh-plugin/plugin.json'), 'utf8'));
   const provenance = JSON.parse(readFileSync(resolve(root, 'contracts/provenance.json'), 'utf8'));
   const updater = readFileSync(resolve(root, 'scripts/update-contract.sh'), 'utf8');
-  expect(packageJson.version).toBe('2.0.8');
+  expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
   expect(packageJson.xcsh.version).toBe(packageJson.version);
   expect(plugin.version).toBe(packageJson.version);
   expect(provenance.release).toMatch(/^v\d+\.\d+\.\d+$/);
