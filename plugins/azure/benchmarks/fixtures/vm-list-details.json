@@ -1,12 +1,12 @@
 [
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
+    "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/web-vm-01",
     "location": "eastus",
     "name": "web-vm-01",
     "provisioningState": "Succeeded",
     "powerState": "VM running",
-    "publicIps": "192.0.2.20",
-    "fqdns": "web-vm-01.eastus.cloudapp.azure.com",
+    "publicIps": ["192.0.2.20", "2001:db8::20"],
+    "fqdns": ["web-vm-01.example.invalid"],
     "resourceGroup": "rg-dev-eastus",
     "hardwareProfile": { "vmSize": "Standard_D2s_v5" },
     "storageProfile": { "osDisk": { "osType": "Linux" } },
@@ -15,13 +15,13 @@
     "tags": { "env": "dev" }
   },
   {
-    "id": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/db-vm-01",
+    "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/rg-dev-eastus/providers/Microsoft.Compute/virtualMachines/db-vm-01",
     "location": "eastus",
     "name": "db-vm-01",
     "provisioningState": "Succeeded",
     "powerState": "VM deallocated",
-    "publicIps": "",
-    "fqdns": "",
+    "publicIps": [],
+    "fqdns": [],
     "resourceGroup": "rg-dev-eastus",
     "hardwareProfile": { "vmSize": "Standard_D4s_v5" },
     "storageProfile": { "osDisk": { "osType": "Linux" } },

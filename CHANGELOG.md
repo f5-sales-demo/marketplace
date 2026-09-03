@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.0.0 — decouples VM runtime-state inventory from public endpoint disclosure.
+  `az_vm_list` now includes power state by default while omitting public IP and FQDN fields from
+  both result channels. This is a clean breaking change: replace `show_details: true` used for state
+  with the default or `include_power_state: true`, and add `include_network_identifiers: true` only
+  when the user explicitly requests public endpoints. No legacy alias is provided
+  ([#1306](https://github.com/f5-sales-demo/marketplace/issues/1306)).
+
 - **`asm-migration`** bumped to v2.0.8
 
 - **`asm-migration`** v2.0.5 — updates the development-only `bun-types`

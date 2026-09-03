@@ -6,6 +6,23 @@ import { RESOURCE_GROUP_PATTERN, SUBSCRIPTION_ID_PATTERN, SUBSCRIPTION_NAME_PATT
 import azVmDescription from '../prompts/az-vm-list.md' with { type: 'text' };
 import { detectErrorType, errorResult, makeExecApi, normalizeVm, textResult } from './shared';
 
+const BASE_VM_FIELDS = [
+  'id:id',
+  'name:name',
+  'location:location',
+  'resourceGroup:resourceGroup',
+  'vmSize:hardwareProfile.vmSize',
+  'provisioningState:provisioningState',
+  'osType:storageProfile.osDisk.osType',
+];
+
+export function vmListProjection(includePowerState: boolean, includeNetworkIdentifiers: boolean): string {
+  const fields = [...BASE_VM_FIELDS];
+  if (includePowerState) fields.push('powerState:powerState');
+  if (includeNetworkIdentifiers) fields.push('publicIps:to_array(publicIps)', 'fqdns:to_array(fqdns)');
+  return `[].{${fields.join(',')}}`;
+}
+
 /**
  * `makeApi` is injected by tests so a validation case can assert what the tool lets
  * through without spawning the real CLI.
@@ -16,7 +33,12 @@ export function createAzVmListTool(pi: PluginInterface, makeApi: (cwd: string) =
   const parameters = Type.Object({
     resource_group: Type.Optional(Type.String({ description: 'Filter by resource group' })),
     subscription: Type.Optional(Type.String({ description: 'Subscription name or ID' })),
-    show_details: Type.Optional(Type.Boolean({ description: 'Include public IP, FQDN, and power state (slower)' })),
+    include_power_state: Type.Optional(Type.Boolean({ description: 'Include VM runtime power state (default: true)' })),
+    include_network_identifiers: Type.Optional(
+      Type.Boolean({
+        description: 'Include public IP addresses and FQDNs only when explicitly requested (default: false)',
+      }),
+    ),
   });
 
   return {
@@ -26,7 +48,12 @@ export function createAzVmListTool(pi: PluginInterface, makeApi: (cwd: string) =
     parameters,
     async execute(
       _toolCallId: string,
-      params: { resource_group?: string; subscription?: string; show_details?: boolean },
+      params: {
+        resource_group?: string;
+        subscription?: string;
+        include_power_state?: boolean;
+        include_network_identifiers?: boolean;
+      },
       signal: AbortSignal | undefined,
       _onUpdate: unknown,
       ctx: { cwd: string },
@@ -52,12 +79,17 @@ export function createAzVmListTool(pi: PluginInterface, makeApi: (cwd: string) =
       const args = ['vm', 'list'];
       if (params.resource_group) args.push('--resource-group', params.resource_group);
       if (params.subscription) args.push('--subscription', params.subscription);
-      if (params.show_details) args.push('--show-details');
+      const policy = {
+        includePowerState: params.include_power_state ?? true,
+        includeNetworkIdentifiers: params.include_network_identifiers === true,
+      };
+      if (policy.includePowerState || policy.includeNetworkIdentifiers) args.push('--show-details');
+      args.push('--query', vmListProjection(policy.includePowerState, policy.includeNetworkIdentifiers));
 
       try {
         const raw = await execAzJson<Record<string, unknown>[]>(api, args, signal);
-        const vms = raw.map(normalizeVm);
-        return textResult(formatVmTable(vms), { ...base, vms });
+        const vms = raw.map((vm) => normalizeVm(vm, policy));
+        return textResult(formatVmTable(vms, policy), { ...base, vms });
       } catch (err) {
         return errorResult(`Error: ${err instanceof Error ? err.message : String(err)}`, {
           ...base,

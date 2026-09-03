@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-azure",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Azure CLI tools and deterministic F5 Customer Edge administration for xcsh",
   "main": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "Azure",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "extensions": [
       "src/index.ts"
     ]

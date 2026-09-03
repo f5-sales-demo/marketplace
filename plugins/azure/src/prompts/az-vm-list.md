@@ -4,37 +4,44 @@ Use `az vm list`.
 
 ## Usage
 
-```bash
-az vm list [--resource-group NAME] [--show-details] [--vmss VMSS_ID] [--subscription NAME_OR_ID]
+```json
+{
+  "resource_group": "optional-name",
+  "subscription": "optional-name-or-id",
+  "include_power_state": true,
+  "include_network_identifiers": false
+}
 ```
 
 ## Flags
 
-| Flag | Description |
+| Parameter | Description |
 | --- | --- |
-| `--resource-group`, `-g` | Filter by resource group |
-| `--show-details`, `-d` | Include public IP, FQDN, and power state. **Runs slower.** |
-| `--vmss` | List VMs in a specific Virtual Machine Scale Set |
-| `--subscription` | Name or ID of subscription |
+| `resource_group` | Filter by resource group |
+| `subscription` | Name or ID of subscription |
+| `include_power_state` | Include runtime state. Defaults to `true` and may require additional Azure API calls. |
+| `include_network_identifiers` | Include public IP addresses and FQDNs. Defaults to `false`; enable only for an explicit endpoint request. |
 
 ## Output Fields (JSON)
 
-Without `--show-details`:
+The result always includes:
 
 - `id` — Full resource ID
 - `name` — VM name
 - `location` — Azure region
 - `resourceGroup` — Parent resource group
-- `hardwareProfile.vmSize` — VM size (e.g. Standard_D2s_v5)
-- `storageProfile.osDisk.osType` — Linux or Windows
+- `vmSize` — VM size (for example, Standard_D2s_v5)
+- `osType` — Linux or Windows
 - `provisioningState` — Succeeded, Failed, etc.
 
-With `--show-details`:
+With `include_power_state` enabled (the default):
 
-- All above fields plus:
 - `powerState` — VM running, VM deallocated, VM stopped, etc.
-- `publicIps` — Public IP addresses
-- `fqdns` — Fully qualified domain names
+
+Only with `include_network_identifiers: true`:
+
+- `publicIps` — Public IP addresses as an array
+- `fqdns` — Fully qualified domain names as an array
 
 ## Common VM Operations
 
@@ -49,5 +56,6 @@ With `--show-details`:
 
 ## Notes
 
-Without `--resource-group`, lists all VMs in the subscription.
-`--show-details` makes additional API calls per VM, significantly slower on large fleets.
+Without `resource_group`, the tool lists all VMs in the subscription. Runtime state and endpoint
+lookups may require additional Azure API calls. Network identifiers are excluded from both text and
+structured results unless `include_network_identifiers` is explicitly true.

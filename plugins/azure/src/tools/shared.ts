@@ -1,5 +1,5 @@
 import { AzAuthError, type AzExecApi, AzNotFoundError, AzSessionExpiredError } from '../az/exec';
-import type { AzRawResult, AzResource, AzResourceGroup, AzSubscription, AzVm } from '../az/types';
+import type { AzRawResult, AzResource, AzResourceGroup, AzSubscription, AzVm, VmDisclosurePolicy } from '../az/types';
 
 export type AzErrorType = 'auth_required' | 'session_expired' | 'not_found' | 'exec_error';
 
@@ -94,20 +94,47 @@ export function normalizeResource(raw: Record<string, unknown>): AzResource {
   };
 }
 
-export function normalizeVm(raw: Record<string, unknown>): AzVm {
+function normalizeStringArray(value: unknown): string[] {
+  const values = Array.isArray(value) ? value.flat(Infinity) : [value];
+  return values
+    .filter((entry): entry is string | number => typeof entry === 'string' || typeof entry === 'number')
+    .map(String)
+    .filter((entry) => entry.length > 0);
+}
+
+function vmPowerState(raw: Record<string, unknown>): string {
+  if (raw.powerState !== undefined && raw.powerState !== null) return String(raw.powerState);
+  const instanceView = (raw.instanceView as Record<string, unknown>) ?? {};
+  const statuses = Array.isArray(instanceView.statuses) ? instanceView.statuses : [];
+  const power = statuses.find((status) => {
+    const item = status as Record<string, unknown>;
+    return String(item.code ?? '')
+      .toLowerCase()
+      .startsWith('powerstate/');
+  }) as Record<string, unknown> | undefined;
+  return String(power?.displayStatus ?? power?.code ?? '');
+}
+
+export function normalizeVm(
+  raw: Record<string, unknown>,
+  policy: VmDisclosurePolicy = { includePowerState: true, includeNetworkIdentifiers: false },
+): AzVm {
   const hw = (raw.hardwareProfile as Record<string, unknown>) ?? {};
   const storage = (raw.storageProfile as Record<string, unknown>) ?? {};
   const osDisk = (storage.osDisk as Record<string, unknown>) ?? {};
-  return {
+  const vm: AzVm = {
     id: String(raw.id ?? ''),
     name: String(raw.name ?? ''),
     location: String(raw.location ?? ''),
     resourceGroup: String(raw.resourceGroup ?? ''),
-    vmSize: String(hw.vmSize ?? ''),
+    vmSize: String(raw.vmSize ?? hw.vmSize ?? ''),
     provisioningState: String(raw.provisioningState ?? ''),
-    osType: String(osDisk.osType ?? ''),
-    powerState: String(raw.powerState ?? ''),
-    publicIps: String(raw.publicIps ?? ''),
-    fqdns: String(raw.fqdns ?? ''),
+    osType: String(raw.osType ?? osDisk.osType ?? ''),
   };
+  if (policy.includePowerState) vm.powerState = vmPowerState(raw);
+  if (policy.includeNetworkIdentifiers) {
+    vm.publicIps = normalizeStringArray(raw.publicIps);
+    vm.fqdns = normalizeStringArray(raw.fqdns);
+  }
+  return vm;
 }
