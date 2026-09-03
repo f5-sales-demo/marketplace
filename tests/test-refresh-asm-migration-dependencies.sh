@@ -7,7 +7,10 @@ SCRIPT="$SOURCE_ROOT/scripts/refresh-asm-migration-dependencies.sh"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-fail() { echo "FAIL: $1" >&2; exit 1; }
+fail() {
+  echo "FAIL: $1" >&2
+  exit 1
+}
 pass() { echo "PASS: $1"; }
 
 new_repo() {
