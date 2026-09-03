@@ -1,3 +1,5 @@
+# Azure Activity Log Evidence
+
 Retrieve bounded, read-only Azure Activity Log evidence for exactly one resource group or exact resource.
 
 The default window is the retention-safe relative offset `89d`, the default status is `succeeded`, and the
