@@ -3,6 +3,7 @@ export type CeProvider = 'aws' | 'azure';
 export interface PromptScenario {
   id: string;
   provider?: CeProvider;
+  workflow?: 'deployment' | 'inventory';
   prompt: string;
   requiredTools: string[];
   forbiddenTools: string[];
@@ -53,6 +54,28 @@ export function evaluateTrace(scenario: PromptScenario, jsonl: string): TraceEva
   for (const forbidden of scenario.forbiddenTools)
     if (tools.includes(forbidden)) errors.push(`forbidden tool invoked: ${forbidden}`);
   if (tools.includes(genericTool)) errors.push(`generic ${genericTool} is forbidden for Customer Edge research`);
+
+  const inventoryWorkflow = scenario.workflow === 'inventory' || scenario.requiredTools.includes('azure_ce_inventory');
+  if (inventoryWorkflow) {
+    const accountIndex = tools.indexOf('az_account_show');
+    const inventoryIndex = tools.indexOf('azure_ce_inventory');
+    if (accountIndex >= 0 && inventoryIndex >= 0 && accountIndex >= inventoryIndex)
+      errors.push('az_account_show must complete before azure_ce_inventory');
+    for (const forbidden of ['web_search', discoveryTool, planTool, 'azure_ce_apply'])
+      if (tools.includes(forbidden)) errors.push(`inventory invoked forbidden tool: ${forbidden}`);
+    const result = events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'azure_ce_inventory');
+    if (!result) errors.push('missing azure_ce_inventory result');
+    else {
+      if (result.result?.isError) errors.push('azure_ce_inventory returned an error');
+      const text = (result.result?.content ?? []).map((item) => item.text ?? '').join('\n');
+      if (!text.includes('Digest: ')) errors.push('inventory result lacks a canonical digest');
+      if (!text.includes('Inventory artifact: artifact://')) errors.push('inventory result lacks a session artifact');
+    }
+    for (const tool of tools)
+      if (/_(?:apply|delete|create|update|teardown)$/.test(tool) || tool === 'f5xc_ce_v2_site')
+        errors.push(`mutation-capable tool invoked during inventory: ${tool}`);
+    return { pass: errors.length === 0, tools, errors };
+  }
 
   const discoveryIndex = tools.indexOf(discoveryTool);
   let previous = -1;

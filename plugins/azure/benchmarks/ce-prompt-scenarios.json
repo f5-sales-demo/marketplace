@@ -32,9 +32,18 @@
     {
       "id": "existing-attribution",
       "provider": "azure",
+      "workflow": "inventory",
       "prompt": "Inventory the existing Azure Customer Edge resources in resource group rg-ce-existing and report bounded Activity Log caller evidence without claiming ownership. Do not plan or change anything.",
-      "requiredTools": ["web_search", "az_account_show", "azure_compute_discover", "az_activity_log_list"],
-      "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
+      "requiredTools": ["az_account_show", "azure_ce_inventory"],
+      "forbiddenTools": ["web_search", "az_exec", "azure_compute_discover", "azure_ce_plan", "azure_ce_apply"]
+    },
+    {
+      "id": "subscription-footprint",
+      "provider": "azure",
+      "workflow": "inventory",
+      "prompt": "Which active Azure F5 Customer Edge sites did I create? Inventory my existing subscription footprint and do not change anything.",
+      "requiredTools": ["az_account_show", "azure_ce_inventory"],
+      "forbiddenTools": ["web_search", "az_exec", "azure_compute_discover", "azure_ce_plan", "azure_ce_apply"]
     }
   ]
 }

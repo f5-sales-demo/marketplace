@@ -41,21 +41,28 @@ describe('CE synthesized prompt trace evaluation', () => {
     });
   });
 
-  it('requires the typed Activity Log primitive for existing-state attribution', () => {
+  it('requires only account identity then composite inventory for existing-state attribution', () => {
     const attributionScenario = {
       ...scenario,
-      requiredTools: [...scenario.requiredTools, 'az_activity_log_list'],
-      forbiddenTools: [...scenario.forbiddenTools, 'azure_ce_plan'],
+      workflow: 'inventory' as const,
+      requiredTools: ['az_account_show', 'azure_ce_inventory'],
+      forbiddenTools: ['web_search', 'az_exec', 'azure_compute_discover', 'azure_ce_plan', 'azure_ce_apply'],
     };
     const trace = [
-      event({ type: 'tool_execution_start', toolName: 'web_search' }),
       event({ type: 'tool_execution_start', toolName: 'az_account_show' }),
-      event({ type: 'tool_execution_start', toolName: 'azure_compute_discover' }),
-      event(successfulDiscovery),
-      event({ type: 'tool_execution_start', toolName: 'az_activity_log_list' }),
+      event({ type: 'tool_execution_start', toolName: 'azure_ce_inventory' }),
+      event({
+        type: 'tool_execution_end',
+        toolName: 'azure_ce_inventory',
+        result: { content: [{ type: 'text', text: 'Digest: abc\nInventory artifact: artifact://42' }] },
+      }),
     ].join('\n');
     expect(evaluateTrace(attributionScenario, trace)).toMatchObject({ pass: true });
-    expect(evaluateTrace(attributionScenario, trace.replace('az_activity_log_list', 'az_exec')).pass).toBe(false);
+    expect(evaluateTrace(attributionScenario, trace.replaceAll('azure_ce_inventory', 'az_exec')).pass).toBe(false);
+    expect(
+      evaluateTrace(attributionScenario, `${event({ type: 'tool_execution_start', toolName: 'web_search' })}\n${trace}`)
+        .pass,
+    ).toBe(false);
   });
 
   it('rejects a trace that guesses a plan before research', () => {

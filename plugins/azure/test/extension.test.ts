@@ -82,21 +82,25 @@ describe('Azure Status extension', () => {
   });
 
   it('defines the mandatory research route for synthesized Azure CE paraphrases', async () => {
-    const { AZURE_CE_RESEARCH_GATE, isAzureCePrompt } = await import('../src/index');
+    const { AZURE_CE_INVENTORY_GATE, AZURE_CE_RESEARCH_GATE, classifyAzureCePrompt, isAzureCePrompt } = await import(
+      '../src/index'
+    );
     expect(
       isAzureCePrompt(
         'Find the right Azure Marketplace F5 edge appliance for running Distributed Cloud close to my apps.',
       ),
     ).toBe(true);
     expect(isAzureCePrompt('List the virtual machines in Azure.')).toBe(false);
+    expect(classifyAzureCePrompt('Which active Azure Customer Edge sites did I create?')).toBe('inventory');
+    expect(classifyAzureCePrompt('Inventory existing Azure Secure Mesh Site resources.')).toBe('inventory');
+    expect(classifyAzureCePrompt('Plan changes to my existing Azure Customer Edge.')).toBe('deployment');
+    expect(classifyAzureCePrompt('Explain Azure Customer Edge.')).toBe('deployment');
     expect(AZURE_CE_RESEARCH_GATE).toContain('use web_search');
     expect(AZURE_CE_RESEARCH_GATE).toContain('azure_compute_discover');
     expect(AZURE_CE_RESEARCH_GATE).toContain('Never guess identifiers');
-    expect(AZURE_CE_RESEARCH_GATE).toContain('az_activity_log_list');
-    expect(AZURE_CE_RESEARCH_GATE).toContain('not ownership');
-    expect(AZURE_CE_RESEARCH_GATE).toContain(
-      'Never use az_exec or an absolute start date for Activity Log attribution',
-    );
+    expect(AZURE_CE_INVENTORY_GATE).toContain('az_account_show, then azure_ce_inventory');
+    expect(AZURE_CE_INVENTORY_GATE).toContain('Do not use web_search');
+    expect(AZURE_CE_INVENTORY_GATE).toContain('never an ownership claim');
   });
 
   it.skipIf(!AZ_INSTALLED)(
@@ -140,6 +144,7 @@ describe('Azure Status extension', () => {
         'az_vm_list',
         'azure_ce_apply',
         'azure_ce_diagnose',
+        'azure_ce_inventory',
         'azure_ce_plan',
         'azure_ce_status',
         'azure_cloud_init_analyze',
