@@ -10,6 +10,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.2.0 — adds the typed, read-only `az_activity_log_list` evidence primitive with a
+  retention-safe relative 89-day default, bounded scope and event inputs, deterministic UTC
+  coverage and normalization, conservative create/modify/unknown attribution, identity-kind
+  classification, and allowlisted privacy-preserving output. Customer Edge attribution now uses
+  this primitive instead of generic Azure CLI execution or absolute retention-boundary dates;
+  caller provenance is explicitly not an ownership claim
+  ([#1308](https://github.com/f5-sales-demo/marketplace/issues/1308)).
+
 - **`azure`** v4.1.0 — adds a typed, read-only Azure Resource Graph query tool with strict KQL and
   JMESPath separation, validated paging and subscription scope, structured partial and failure
   outcomes, dynamic-install suppression, and explicit setup confirmation for the required extension

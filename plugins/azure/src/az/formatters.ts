@@ -1,4 +1,11 @@
-import type { AzResource, AzResourceGroup, AzSubscription, AzVm, VmDisclosurePolicy } from './types';
+import type {
+  AzActivityLogResult,
+  AzResource,
+  AzResourceGroup,
+  AzSubscription,
+  AzVm,
+  VmDisclosurePolicy,
+} from './types';
 
 export function formatSubscriptionTable(subs: AzSubscription[]): string {
   if (subs.length === 0) return 'No subscriptions found.';
@@ -62,4 +69,25 @@ export function formatVmTable(
     return `| ${fields.join(' | ')} |`;
   });
   return [header, sep, ...rows].join('\n');
+}
+
+export function formatActivityLogEvidence(result: AzActivityLogResult): string {
+  const { coverage, scopeEvidence, events } = result;
+  const lines = [
+    `Activity Log coverage: ${coverage.startTime} through ${coverage.endTime} (${coverage.lookbackDays} days; ${coverage.complete ? 'complete' : 'incomplete'})`,
+    `Scope evidence: ${scopeEvidence.evidenceType} (${scopeEvidence.confidence}; ${scopeEvidence.reasonCode})`,
+    'Caller evidence is historical operation provenance, not resource ownership.',
+  ];
+  if (events.length === 0) {
+    lines.push('No matching event was observed in the returned coverage.');
+    return lines.join('\n');
+  }
+  lines.push('| Time (UTC) | Operation | Scope | Caller | Caller kind | Evidence |');
+  lines.push('|---|---|---|---|---|---|');
+  for (const event of events) {
+    lines.push(
+      `| ${event.eventTime} | ${event.operation} | ${event.scopeType} | ${event.callerDisplay || '-'} | ${event.callerKind} | ${event.evidenceType} (${event.reasonCode}) |`,
+    );
+  }
+  return lines.join('\n');
 }

@@ -242,7 +242,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration with official-source research, live F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, and diagnostics",
-      "version": "4.1.0",
+      "version": "4.2.0",
       "author": {
         "name": "f5-sales-demo"
       },

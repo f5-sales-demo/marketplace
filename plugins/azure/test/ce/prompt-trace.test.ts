@@ -41,6 +41,23 @@ describe('CE synthesized prompt trace evaluation', () => {
     });
   });
 
+  it('requires the typed Activity Log primitive for existing-state attribution', () => {
+    const attributionScenario = {
+      ...scenario,
+      requiredTools: [...scenario.requiredTools, 'az_activity_log_list'],
+      forbiddenTools: [...scenario.forbiddenTools, 'azure_ce_plan'],
+    };
+    const trace = [
+      event({ type: 'tool_execution_start', toolName: 'web_search' }),
+      event({ type: 'tool_execution_start', toolName: 'az_account_show' }),
+      event({ type: 'tool_execution_start', toolName: 'azure_compute_discover' }),
+      event(successfulDiscovery),
+      event({ type: 'tool_execution_start', toolName: 'az_activity_log_list' }),
+    ].join('\n');
+    expect(evaluateTrace(attributionScenario, trace)).toMatchObject({ pass: true });
+    expect(evaluateTrace(attributionScenario, trace.replace('az_activity_log_list', 'az_exec')).pass).toBe(false);
+  });
+
   it('rejects a trace that guesses a plan before research', () => {
     const trace = [
       event({ type: 'tool_execution_start', toolName: 'azure_ce_plan' }),

@@ -43,6 +43,48 @@ export interface VmDisclosurePolicy {
   includeNetworkIdentifiers: boolean;
 }
 
+export type AzActivityCallerKind = 'user' | 'service_principal' | 'managed_identity' | 'unknown';
+export type AzActivityEvidenceType = 'created' | 'modified' | 'unknown';
+export type AzActivityConfidence = 'high' | 'medium' | 'none';
+
+export interface AzActivityLogCoverage {
+  startTime: string;
+  endTime: string;
+  lookbackDays: number;
+  complete: boolean;
+  truncated: boolean;
+}
+
+export interface AzActivityLogEvent {
+  eventId: string;
+  retryGroupId: string;
+  eventTime: string;
+  resourceId: string;
+  scopeType: 'resource_group' | 'exact_resource';
+  operation: string;
+  operationFamily: 'write' | 'delete' | 'action' | 'unknown';
+  status: string;
+  callerDisplay: string;
+  callerComparison: string;
+  callerKind: AzActivityCallerKind;
+  evidenceType: AzActivityEvidenceType;
+  confidence: AzActivityConfidence;
+  reasonCode: string;
+}
+
+export interface AzActivityScopeEvidence {
+  scope: string;
+  evidenceType: AzActivityEvidenceType;
+  confidence: AzActivityConfidence;
+  reasonCode: string;
+}
+
+export interface AzActivityLogResult {
+  coverage: AzActivityLogCoverage;
+  scopeEvidence: AzActivityScopeEvidence;
+  events: AzActivityLogEvent[];
+}
+
 export interface PluginInterface {
   typebox: { Type: Record<string, (...args: unknown[]) => unknown> };
   [key: string]: unknown;
