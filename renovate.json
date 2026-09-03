@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "packageRules": [
+    {
+      "description": "Refresh the shipped ASM Migration runtime and patch release after dependency updates.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["plugins/asm-migration/package.json"],
+      "postUpgradeTasks": {
+        "commands": ["bash scripts/refresh-asm-migration-dependencies.sh"],
+        "fileFilters": [
+          "CHANGELOG.md",
+          ".xcsh-plugin/marketplace.json",
+          "plugins/asm-migration/.xcsh-plugin/plugin.json",
+          "plugins/asm-migration/package.json",
+          "plugins/asm-migration/bun.lock",
+          "plugins/asm-migration/dist/runtime.js"
+        ],
+        "executionMode": "update",
+        "installTools": {
+          "bun": {}
+        }
+      }
+    }
+  ]
+}
