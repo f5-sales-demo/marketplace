@@ -3,6 +3,7 @@ import type { AzExecApi } from '../../src/az/exec';
 import {
   AZURE_CE_INVENTORY_QUERY,
   type AzureCeInventoryCollected,
+  AzureCeInventoryFailure,
   buildAzureCeInventoryEnvelope,
   collectAzureCeInventory,
   formatAzureCeInventory,
@@ -353,6 +354,8 @@ describe('Azure CE inventory collection', () => {
     expect(graphCalls).toHaveLength(2);
     expect(graphCalls[0].args).toContain('--graph-query');
     expect(graphCalls[0].args).toContain(AZURE_CE_INVENTORY_QUERY);
+    expect(AZURE_CE_INVENTORY_QUERY).toContain("inventoryKind='resourceGroup'");
+    expect(AZURE_CE_INVENTORY_QUERY).not.toContain('project kind=');
     expect(graphCalls[0].args).not.toContain('--query');
     expect(graphCalls[1].args).toContain('--skip-token');
     expect(graphCalls.every((call) => call.env?.AZURE_EXTENSION_USE_DYNAMIC_INSTALL === 'no')).toBe(true);
@@ -363,14 +366,156 @@ describe('Azure CE inventory collection', () => {
     expect(JSON.stringify(result)).not.toMatch(/publicIpAddress|privateIpAddress|addressPrefix|userData/i);
   });
 
-  it('fails with sanitized errors and never returns partial inventory', async () => {
+  it('fails with typed sanitized errors and never retains raw output', async () => {
     const api: AzExecApi = {
       async exec() {
         return { stdout: '', stderr: 'sensitive output at 192.0.2.10', exitCode: 1 };
       },
     };
-    await expect(collectAzureCeInventory({ subscriptionId: SUBSCRIPTION_ID }, api, () => NOW)).rejects.toThrow(
-      'Azure CE inventory setup is unavailable',
+    try {
+      await collectAzureCeInventory({ subscriptionId: SUBSCRIPTION_ID }, api, () => NOW);
+      throw new Error('expected collection to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AzureCeInventoryFailure);
+      expect(error).toMatchObject({ failureStage: 'setup', errorType: 'unsupported_extension' });
+      expect(JSON.stringify(error)).not.toMatch(/sensitive|192\.0\.2\.10/i);
+    }
+  });
+
+  const caller = { objectId: SUBSCRIPTION_ID };
+  const modes = [
+    ['setup execution', 'setup_throw', 'setup', 'exec_error'],
+    ['setup capability', 'setup_missing', 'setup', 'unsupported_extension'],
+    ['Graph invocation', 'graph_throw', 'resource_graph', 'exec_error'],
+    ['Graph execution', 'graph_auth', 'resource_graph', 'auth_required'],
+    ['Graph malformed page', 'graph_malformed', 'resource_graph', 'invalid_response'],
+    ['Graph repeated token', 'graph_repeat', 'resource_graph', 'paging_error'],
+    ['VM invocation', 'vm_throw', 'vm_runtime', 'exec_error'],
+    ['VM execution', 'vm_exit', 'vm_runtime', 'exec_error'],
+    ['VM malformed response', 'vm_invalid', 'vm_runtime', 'invalid_response'],
+    ['Activity Log invocation', 'activity_throw', 'activity_log', 'exec_error'],
+    ['Activity Log execution', 'activity_exit', 'activity_log', 'exec_error'],
+    ['Activity Log malformed response', 'activity_invalid', 'activity_log', 'invalid_response'],
+    ['envelope serialization', 'envelope', 'envelope_serialization', 'serialization_error'],
+  ] as const;
+
+  function boundaryApi(mode: (typeof modes)[number][1]): AzExecApi {
+    return {
+      async exec(_command, args) {
+        if (args[0] === 'extension') {
+          if (mode === 'setup_throw') throw new Error('sentinel-secret setup https://private.example.test');
+          if (mode === 'setup_missing')
+            return { stdout: 'partial-inventory', stderr: 'sentinel-secret 192.0.2.20', exitCode: 1 };
+          return { stdout: '{"name":"resource-graph"}', stderr: '', exitCode: 0 };
+        }
+        if (args.includes('--help'))
+          return {
+            stdout: '--graph-query --subscriptions --first --skip --skip-token --allow-partial-scopes',
+            stderr: '',
+            exitCode: 0,
+          };
+        if (args[0] === 'graph') {
+          if (mode === 'graph_throw') throw new Error('sentinel-secret graph https://private.example.test');
+          if (mode === 'graph_auth')
+            return { stdout: 'partial-inventory', stderr: 'Please run az login sentinel-secret', exitCode: 1 };
+          if (mode === 'graph_malformed')
+            return { stdout: '{"data":"partial-inventory","endpoint":"192.0.2.30"}', stderr: '', exitCode: 0 };
+          if (mode === 'graph_repeat')
+            return {
+              stdout: JSON.stringify({ data: [], skipToken: 'repeated-sentinel-token' }),
+              stderr: '',
+              exitCode: 0,
+            };
+          if (mode === 'envelope') return { stdout: '{"data":[]}', stderr: '', exitCode: 0 };
+          return { stdout: JSON.stringify({ data: [vm('rg-boundary', 'ce-boundary')] }), stderr: '', exitCode: 0 };
+        }
+        if (args[0] === 'vm') {
+          if (mode === 'vm_throw') throw new Error('sentinel-secret vm https://private.example.test');
+          if (mode === 'vm_exit')
+            return { stdout: 'partial-inventory', stderr: 'sentinel-secret 192.0.2.40', exitCode: 1 };
+          if (mode === 'vm_invalid')
+            return { stdout: '{"powerState":{"secret":"sentinel-secret"}}', stderr: '', exitCode: 0 };
+          return { stdout: '{"powerState":"PowerState/running"}', stderr: '', exitCode: 0 };
+        }
+        if (args[0] === 'monitor') {
+          if (mode === 'activity_throw') throw new Error('sentinel-secret activity https://private.example.test');
+          if (mode === 'activity_exit')
+            return { stdout: 'partial-inventory', stderr: 'sentinel-secret 192.0.2.50', exitCode: 1 };
+          if (mode === 'activity_invalid')
+            return { stdout: '{"value":"partial-inventory","secret":"sentinel-secret"}', stderr: '', exitCode: 0 };
+          return { stdout: '[]', stderr: '', exitCode: 0 };
+        }
+        return { stdout: '{}', stderr: '', exitCode: 0 };
+      },
+    };
+  }
+
+  for (const [name, mode, failureStage, errorType] of modes) {
+    it(`classifies ${name} without retaining sensitive or partial data`, async () => {
+      const clock = mode === 'envelope' ? () => new Date(Number.NaN) : () => NOW;
+      try {
+        await collectAzureCeInventory(
+          { subscriptionId: SUBSCRIPTION_ID, caller, platformSites: [] },
+          boundaryApi(mode),
+          clock,
+        );
+        throw new Error('expected collection to fail');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AzureCeInventoryFailure);
+        expect(error).toMatchObject({ failureStage, errorType });
+        const serialized = JSON.stringify(error);
+        expect(serialized).not.toMatch(/sentinel|secret|partial-inventory|192\.0\.2\.|private\.example/i);
+        expect(serialized).not.toMatch(/rows|runtimeByVmId|activityByResourceGroup/i);
+      }
+    });
+  }
+
+  it('strictly validates supplied caller identities before executing Azure CLI', async () => {
+    let calls = 0;
+    const api: AzExecApi = {
+      async exec() {
+        calls += 1;
+        return { stdout: '{}', stderr: '', exitCode: 0 };
+      },
+    };
+    const invalidCallers = [
+      {},
+      { objectId: '' },
+      { objectId: 'not-a-uuid' },
+      { userPrincipalName: '' },
+      { userPrincipalName: 'operator\u0000@example.com' },
+      { userPrincipalName: `${'a'.repeat(310)}@example.test` },
+    ];
+    for (const invalidCaller of invalidCallers) {
+      await expect(
+        collectAzureCeInventory({ subscriptionId: SUBSCRIPTION_ID, caller: invalidCaller }, api, () => NOW),
+      ).rejects.toMatchObject({ failureStage: 'input_validation', errorType: 'invalid_input' });
+    }
+    expect(calls).toBe(0);
+  });
+
+  it('accepts omitted caller and distinguishes omitted from empty platform evidence', async () => {
+    const api: AzExecApi = {
+      async exec(_command, args) {
+        if (args[0] === 'extension') return { stdout: '{}', stderr: '', exitCode: 0 };
+        if (args.includes('--help'))
+          return {
+            stdout: '--graph-query --subscriptions --first --skip --skip-token --allow-partial-scopes',
+            stderr: '',
+            exitCode: 0,
+          };
+        if (args[0] === 'account') return { stdout: '{"user":{}}', stderr: '', exitCode: 0 };
+        if (args[0] === 'graph') return { stdout: '{"data":[]}', stderr: '', exitCode: 0 };
+        return { stdout: '[]', stderr: '', exitCode: 0 };
+      },
+    };
+    const unavailable = await collectAzureCeInventory({ subscriptionId: SUBSCRIPTION_ID }, api, () => NOW);
+    const available = await collectAzureCeInventory(
+      { subscriptionId: SUBSCRIPTION_ID, platformSites: [] },
+      api,
+      () => NOW,
     );
+    expect(unavailable.inventory.platformEvidence).toBe('unavailable');
+    expect(available.inventory.platformEvidence).toBe('available');
   });
 });

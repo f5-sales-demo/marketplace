@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.3.1 — preserves all-or-nothing privacy for `azure_ce_inventory` failures while
+  returning allowlisted collector-stage and error-category diagnostics for setup, Resource Graph,
+  VM runtime, Activity Log, envelope serialization, and artifact persistence boundaries. Caller
+  identity validation is now explicit, and omitted versus empty platform evidence remains distinct
+  ([#1317](https://github.com/f5-sales-demo/marketplace/issues/1317)).
+
 - **`azure`** v4.3.0 — adds a deterministic, read-only `azure_ce_inventory` workflow for existing
   Customer Edge resources. It paginates typed Resource Graph discovery, collects privacy-safe VM
   runtime and bounded Activity Log evidence, correlates optional platform sites by hashed MAC or
