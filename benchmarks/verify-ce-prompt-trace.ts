@@ -63,7 +63,9 @@ export function evaluateTrace(scenario: PromptScenario, jsonl: string): TraceEva
       errors.push('az_account_show must complete before azure_ce_inventory');
     for (const forbidden of ['web_search', discoveryTool, planTool, 'azure_ce_apply'])
       if (tools.includes(forbidden)) errors.push(`inventory invoked forbidden tool: ${forbidden}`);
-    const result = events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'azure_ce_inventory');
+    const result = events.find(
+      (event) => event.type === 'tool_execution_end' && event.toolName === 'azure_ce_inventory',
+    );
     if (!result) errors.push('missing azure_ce_inventory result');
     else {
       if (result.result?.isError) errors.push('azure_ce_inventory returned an error');
