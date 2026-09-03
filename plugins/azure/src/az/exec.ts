@@ -52,7 +52,11 @@ export function parseAzJsonOutput<T>(raw: string): T {
 }
 
 export interface AzExecApi {
-  exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<AzRawResult>;
+  exec(
+    command: string,
+    args: string[],
+    options?: { signal?: AbortSignal; env?: Record<string, string> },
+  ): Promise<AzRawResult>;
 }
 
 export async function execAzJson<T>(api: AzExecApi, args: string[], signal?: AbortSignal): Promise<T> {

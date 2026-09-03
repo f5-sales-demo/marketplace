@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`azure`** v4.1.0 — adds a typed, read-only Azure Resource Graph query tool with strict KQL and
+  JMESPath separation, validated paging and subscription scope, structured partial and failure
+  outcomes, dynamic-install suppression, and explicit setup confirmation for the required extension
+  ([#1307](https://github.com/f5-sales-demo/marketplace/issues/1307)).
+
 - **`azure`** v4.0.0 — decouples VM runtime-state inventory from public endpoint disclosure.
   `az_vm_list` now includes power state by default while omitting public IP and FQDN fields from
   both result channels. This is a clean breaking change: replace `show_details: true` used for state

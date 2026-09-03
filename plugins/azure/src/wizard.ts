@@ -1,4 +1,62 @@
+import { RESOURCE_GRAPH_REQUIRED_FLAGS } from './az/resource-graph';
 import { detectPlatform, type PlatformInfo } from './platform';
+
+export { RESOURCE_GRAPH_REQUIRED_FLAGS } from './az/resource-graph';
+
+type SetupExec = (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string; code: number }>;
+
+export async function ensureResourceGraphExtension(
+  exec: SetupExec,
+  confirm: (title: string, message: string) => Promise<boolean>,
+): Promise<{ state: 'ready' | 'declined' | 'failed'; message: string }> {
+  const inspect = await exec('az', ['extension', 'show', '--name', 'resource-graph', '--output', 'json']);
+  let help = inspect.code === 0 ? await exec('az', ['graph', 'query', '--help']) : undefined;
+  let installedIdentity: Record<string, unknown>;
+  try {
+    installedIdentity = JSON.parse(inspect.stdout) as Record<string, unknown>;
+  } catch {
+    installedIdentity = {};
+  }
+  const supported =
+    inspect.code === 0 &&
+    installedIdentity.name === 'resource-graph' &&
+    typeof installedIdentity.version === 'string' &&
+    installedIdentity.version.length > 0 &&
+    help?.code === 0 &&
+    RESOURCE_GRAPH_REQUIRED_FLAGS.every((flag) => `${help?.stdout}\n${help?.stderr}`.includes(flag));
+  if (supported) return { state: 'ready', message: 'Azure Resource Graph extension is ready.' };
+
+  const approved = await confirm(
+    'Install Azure Resource Graph?',
+    'Install or upgrade the resource-graph extension with: az extension add --name resource-graph --upgrade',
+  );
+  if (!approved) return { state: 'declined', message: 'Azure Resource Graph extension setup was declined.' };
+
+  const install = await exec('az', ['extension', 'add', '--name', 'resource-graph', '--upgrade']);
+  if (install.code !== 0) return { state: 'failed', message: 'Azure Resource Graph extension installation failed.' };
+
+  const verified = await exec('az', ['extension', 'show', '--name', 'resource-graph', '--output', 'json']);
+  help = verified.code === 0 ? await exec('az', ['graph', 'query', '--help']) : undefined;
+  let identity: Record<string, unknown>;
+  try {
+    identity = JSON.parse(verified.stdout) as Record<string, unknown>;
+  } catch {
+    identity = {};
+  }
+  const missing = RESOURCE_GRAPH_REQUIRED_FLAGS.filter(
+    (flag) => !`${help?.stdout ?? ''}\n${help?.stderr ?? ''}`.includes(flag),
+  );
+  if (
+    verified.code !== 0 ||
+    help?.code !== 0 ||
+    identity.name !== 'resource-graph' ||
+    typeof identity.version !== 'string' ||
+    missing.length > 0
+  ) {
+    return { state: 'failed', message: 'Azure Resource Graph extension verification failed.' };
+  }
+  return { state: 'ready', message: `Azure Resource Graph extension ${identity.version} is ready.` };
+}
 
 export function buildInstallStep(platform: PlatformInfo): Array<{ label: string; command: string[]; manager: string }> {
   const options: Array<{ label: string; command: string[]; manager: string }> = [];
@@ -224,6 +282,8 @@ export async function runSetupWizard(
     } catch {
       ctx.ui.notify('Azure authenticated. Run /azure:setup to confirm.', 'info');
     }
+    const graph = await ensureResourceGraphExtension(pi.exec.bind(pi), ctx.ui.confirm.bind(ctx.ui));
+    ctx.ui.notify(graph.message, graph.state === 'ready' ? 'info' : graph.state === 'declined' ? 'warning' : 'error');
   } else {
     ctx.ui.notify('Authentication may have succeeded. Run /azure:setup to verify.', 'warning');
   }

@@ -46,7 +46,7 @@ const factory: ExtensionFactory = async (pi) => {
 
   if (typeof pi.registerCommand === 'function') {
     pi.registerCommand('azure:setup', {
-      description: 'Install and configure Azure CLI',
+      description: 'Install and configure Azure CLI and optional extensions',
       async handler(_args: string, ctx: Parameters<typeof runSetupWizard>[1]) {
         const { runSetupWizard } = await import('./wizard');
         await runSetupWizard(pi, ctx);
@@ -67,6 +67,7 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAzGroupListTool } = await import('./tools/az-group-list');
     const { createAzResourceListTool } = await import('./tools/az-resource-list');
     const { createAzVmListTool } = await import('./tools/az-vm-list');
+    const { createAzResourceGraphQueryTool } = await import('./tools/az-resource-graph-query');
     const { createAzExecTool } = await import('./tools/az-exec');
     const { createAzHelpTool } = await import('./tools/az-help');
     const { createAzureComputeDiscoverTool } = await import('./tools/azure-compute-discover');
@@ -80,6 +81,7 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(createAzGroupListTool(pi));
     pi.registerTool(createAzResourceListTool(pi));
     pi.registerTool(createAzVmListTool(pi));
+    pi.registerTool(createAzResourceGraphQueryTool(pi));
     pi.registerTool(createAzExecTool(pi));
     pi.registerTool(createAzHelpTool(pi));
     pi.registerTool(createAzureComputeDiscoverTool(pi));
