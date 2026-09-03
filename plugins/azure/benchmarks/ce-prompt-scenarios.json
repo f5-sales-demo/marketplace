@@ -28,6 +28,13 @@
       "prompt": "Before I resize our Azure Secure Mesh deployment ce-lifecycle-research in resource group rg-ce-lifecycle-research, research the current Customer Edge compute requirements and discover which subscription-aware VM sizes support all eight NICs. Give me evidence only and make no changes or plan.",
       "requiredTools": ["web_search", "az_account_show", "azure_compute_discover"],
       "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
+    },
+    {
+      "id": "existing-attribution",
+      "provider": "azure",
+      "prompt": "Inventory the existing Azure Customer Edge resources in resource group rg-ce-existing and report bounded Activity Log caller evidence without claiming ownership. Do not plan or change anything.",
+      "requiredTools": ["web_search", "az_account_show", "azure_compute_discover", "az_activity_log_list"],
+      "forbiddenTools": ["az_exec", "azure_ce_plan", "azure_ce_apply"]
     }
   ]
 }

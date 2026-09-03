@@ -1,5 +1,15 @@
 import { AzAuthError, type AzExecApi, AzNotFoundError, AzSessionExpiredError } from '../az/exec';
-import type { AzRawResult, AzResource, AzResourceGroup, AzSubscription, AzVm, VmDisclosurePolicy } from '../az/types';
+import type {
+  AzActivityLogCoverage,
+  AzActivityLogEvent,
+  AzActivityScopeEvidence,
+  AzRawResult,
+  AzResource,
+  AzResourceGroup,
+  AzSubscription,
+  AzVm,
+  VmDisclosurePolicy,
+} from '../az/types';
 
 export type AzErrorType = 'auth_required' | 'session_expired' | 'not_found' | 'exec_error';
 
@@ -9,6 +19,7 @@ export type AzToolName =
   | 'az_resource_list'
   | 'az_vm_list'
   | 'az_resource_graph_query'
+  | 'az_activity_log_list'
   | 'az_exec'
   | 'az_help';
 
@@ -38,6 +49,9 @@ export interface AzToolDetails {
   retryAfterSeconds?: number;
   extension?: { name: string; version: string };
   missingFlags?: string[];
+  coverage?: AzActivityLogCoverage;
+  scopeEvidence?: AzActivityScopeEvidence;
+  events?: AzActivityLogEvent[];
 }
 
 export function textResult(text: string, details: AzToolDetails) {

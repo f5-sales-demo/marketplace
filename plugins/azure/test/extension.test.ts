@@ -92,6 +92,11 @@ describe('Azure Status extension', () => {
     expect(AZURE_CE_RESEARCH_GATE).toContain('use web_search');
     expect(AZURE_CE_RESEARCH_GATE).toContain('azure_compute_discover');
     expect(AZURE_CE_RESEARCH_GATE).toContain('Never guess identifiers');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('az_activity_log_list');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('not ownership');
+    expect(AZURE_CE_RESEARCH_GATE).toContain(
+      'Never use az_exec or an absolute start date for Activity Log attribution',
+    );
   });
 
   it.skipIf(!AZ_INSTALLED)(
@@ -126,6 +131,7 @@ describe('Azure Status extension', () => {
       const toolNames = tools.map((t) => t.name).sort();
       expect(toolNames).toEqual([
         'az_account_show',
+        'az_activity_log_list',
         'az_exec',
         'az_group_list',
         'az_help',
