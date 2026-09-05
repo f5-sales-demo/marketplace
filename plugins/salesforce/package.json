@@ -17,7 +17,7 @@
   },
   "peerDependencies": {
     "@f5-sales-demo/xcsh": "^20.2.7",
-    "@f5-sales-demo/pi-utils": "^20.2.7"
+    "@f5-sales-demo/pi-utils": "^20.2.7 || ^21.0.0"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
