@@ -189,6 +189,21 @@ function ipv4Range(cidr: string): [number, number] | undefined {
   return [start, start + size - 1];
 }
 
+function validateRouteServerIntent(intent: AzureCeIntent): void {
+  // peerAsn is the CE ASN as seen by Azure's peering API, not Route Server's 65515.
+  const local = intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010;
+  const peer = intent.routing.peerAsn ?? local;
+  if (local !== peer) fail('Route Server peering ASN must match the CE local ASN');
+  const reserved = new Set([8074, 8075, 12076, 23456, 65515, 65517, 65518, 65519, 65520]);
+  if (local > 65534 || reserved.has(local) || (local >= 64496 && local <= 64511))
+    fail('Route Server requires an unreserved 16-bit CE ASN');
+  for (const nic of intent.nics) {
+    if (nic.subnet.name?.toLowerCase() === 'routeserversubnet')
+      fail('RouteServerSubnet is dedicated to Route Server and cannot host a CE NIC');
+    if (!nic.subnet.cidr || !ipv4Range(nic.subnet.cidr)) fail('Route Server requires IPv4 CE VNet subnets');
+  }
+}
+
 function routeServerSubnetCidr(intent: AzureCeIntent): string {
   const occupied = intent.nics
     .flatMap((nic) => (nic.subnet.cidr ? [ipv4Range(nic.subnet.cidr)] : []))
@@ -686,7 +701,7 @@ function buildDeployActions(
             '--peer-ip',
             `__NODE_${node}_SLO_PRIVATE_IP__`,
             '--peer-asn',
-            String(intent.routing.peerAsn ?? 65010),
+            String(intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010),
             '--subscription',
             intent.subscriptionId,
           ],
@@ -1368,7 +1383,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
         ? 'route-server'
         : 'udr'
       : intent.routing.mode;
-  if (routingMode === 'route-server' && !intent.topology.ha) fail('Route Server routing requires three-node HA');
+  if (routingMode === 'route-server') validateRouteServerIntent(intent);
   if (routingMode === 'route-server' && !allGreenfield)
     fail('same-VNet brownfield Route Server insertion is unsupported; use explicitly approved UDR associations');
   if (routingMode === 'route-server' && !region.routeServerSupported)
@@ -1495,8 +1510,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     routing: {
       mode: routingMode,
       destinationCidrs: intent.routing.destinationCidrs,
-      localAsn: intent.routing.localAsn ?? 65010,
-      peerAsn: intent.routing.peerAsn ?? 65010,
+      localAsn: intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010,
+      peerAsn: intent.routing.peerAsn ?? intent.routing.localAsn ?? 65010,
     },
     securityRules: intent.securityRules,
     image: observation.image,

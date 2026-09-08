@@ -56,8 +56,12 @@ export function createAzureCePlanTool(pi: PluginInterface) {
         routing: Type.Object({
           mode: Type.Union(['auto', 'udr', 'route-server'].map((value) => Type.Literal(value))),
           destinationCidrs: Type.Array(Type.String()),
-          localAsn: Type.Optional(Type.Number()),
-          peerAsn: Type.Optional(Type.Number()),
+          localAsn: Type.Optional(
+            Type.Number({ description: 'CE local ASN; Route Server requires an unreserved 16-bit value.' }),
+          ),
+          peerAsn: Type.Optional(
+            Type.Number({ description: 'CE ASN passed to Azure peering; must equal localAsn when both are supplied.' }),
+          ),
         }),
         securityRules: Type.Array(
           Type.Object({

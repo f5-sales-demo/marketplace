@@ -485,3 +485,46 @@ describe('compileAzureCePlan', () => {
     expect(deletes.at(-1)?.args?.slice(0, 2)).toEqual(['group', 'delete']);
   });
 });
+
+it('supports explicitly selected Route Server with a single CE and one consistent local ASN', () => {
+  const plan = compileAzureCePlan(
+    intent({ topology: { ha: false }, routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512 } }),
+    observation(),
+  );
+  expect(plan.topology.nodeCount).toBe(1);
+  expect(plan.routing.localAsn).toBe(64512);
+  expect(plan.routing.peerAsn).toBe(64512);
+  const peers = plan.actions.filter((action) => action.kind === 'route-server-peer-create');
+  expect(peers).toHaveLength(1);
+  expect(peers[0].args).toContain('64512');
+});
+
+it('rejects Azure-reserved, IANA-reserved, 32-bit and conflicting Route Server CE ASNs', () => {
+  for (const asn of [
+    8074, 8075, 12076, 23456, 64496, 64511, 65515, 65517, 65518, 65519, 65520, 65535, 65536, 4200000000,
+  ]) {
+    expect(() =>
+      compileAzureCePlan(
+        intent({ routing: { mode: 'route-server', destinationCidrs: [], localAsn: asn } }),
+        observation(),
+      ),
+    ).toThrow('16-bit');
+  }
+  expect(() =>
+    compileAzureCePlan(
+      intent({ routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512, peerAsn: 65010 } }),
+      observation(),
+    ),
+  ).toThrow('must match');
+});
+
+it('keeps CE interfaces out of RouteServerSubnet and rejects IPv6 VNet addressing for Route Server', () => {
+  for (const subnet of [
+    { name: 'RouteServerSubnet', cidr: '10.0.0.0/24' },
+    { name: 'outside', cidr: '2001:db8::/64' },
+  ]) {
+    const input = intent({ routing: { mode: 'route-server', destinationCidrs: [] } });
+    Object.assign(input.nics[0].subnet, subnet);
+    expect(() => compileAzureCePlan(input, observation())).toThrow(/dedicated|IPv4/);
+  }
+});
