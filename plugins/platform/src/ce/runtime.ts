@@ -192,6 +192,11 @@ export class CeRuntime {
     this.#binding(binding);
     return this.#request(this.#sitePath(binding), {}, signal);
   }
+  async observeOwnedSite(binding: SiteBinding, signal?: AbortSignal): Promise<Json> {
+    const site = await this.observeSite(binding, signal);
+    this.#owned(site, binding);
+    return site;
+  }
   async ensureSite(
     binding: SiteBinding,
     intent: WireSiteIntent,
