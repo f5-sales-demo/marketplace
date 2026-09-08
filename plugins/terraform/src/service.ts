@@ -4,6 +4,7 @@ import { type Deployment, type PlanReceipt, TerraformRunner } from './runner';
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  reviseConfiguration(expectedSha256: string, configuration: string): Promise<string>;
   plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
@@ -35,6 +36,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async reviseConfiguration(expectedSha256, configuration) {
+          await checkOwner();
+          return runner.reviseConfiguration(expectedSha256, configuration);
+        },
         async plan(env, signal) {
           await checkOwner();
           return runner.plan(env, signal);

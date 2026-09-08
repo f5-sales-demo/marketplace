@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Invocation, TerraformRunner, terraformExecutor } from '../src/runner';
@@ -148,4 +148,85 @@ test('executor bounds output and kills a process that ignores cancellation', asy
   setTimeout(() => controller.abort(), 50);
   await expect(running).rejects.toThrow('cancelled');
   await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
+});
+
+test('revises configuration while retaining state and invalidating obsolete saved plans', async () => {
+  const { root, runner } = await fixture();
+  const old = await runner.plan({});
+  const directory = join(root, 'ce-test');
+  await writeFile(join(directory, 'terraform.tfstate'), 'sensitive-state', { mode: 0o600 });
+  const configuration =
+    '{"terraform":{"required_version":"= 1.14.0"},"resource":{"terraform_data":{"ce":{"input":"stage-two"}}}}';
+  expect(await runner.reviseConfiguration(old.configurationSha256, configuration)).toBe(hash(configuration));
+  expect(await readFile(join(directory, 'terraform.tfstate'), 'utf8')).toBe('sensitive-state');
+  await expect(runner.apply(old, {})).rejects.toThrow('receipt does not match');
+  await expect(runner.reviseConfiguration(old.configurationSha256, '{}')).rejects.toThrow('stale');
+  const current = await runner.plan({});
+  expect(current.configurationSha256).toBe(hash(configuration));
+  await runner.apply(current, {});
+  const resumed = new TerraformRunner(root);
+  await resumed.resume('ce-test');
+  expect(await resumed.reviseConfiguration(hash(configuration), configuration)).toBe(hash(configuration));
+});
+
+test('configuration revision rejects backend changes and interrupted apply', async () => {
+  const { root, runner } = await fixture();
+  const receipt = await runner.plan({});
+  for (const configuration of ['{"terraform":{"backend":{"s3":{}}}}', '{"terraform":{"cloud":{}}}', 'malformed'])
+    await expect(runner.reviseConfiguration(receipt.configurationSha256, configuration)).rejects.toThrow();
+  await writeFile(join(root, 'ce-test', 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt }), {
+    mode: 0o600,
+  });
+  await expect(runner.reviseConfiguration(receipt.configurationSha256, '{}')).rejects.toThrow('Reconcile interrupted');
+});
+
+test('resume completes a journaled revision across configuration and manifest replacement boundaries', async () => {
+  for (const boundary of ['journal', 'configuration', 'manifest']) {
+    const { root, runner } = await fixture();
+    await runner.plan({});
+    const directory = join(root, 'ce-test');
+    const previous = JSON.parse(await readFile(join(directory, 'deployment.json'), 'utf8'));
+    const configuration = '{"terraform":{"required_version":"= 1.14.0"},"output":{"stage":{"value":2}}}';
+    const next = { ...previous, configurationSha256: hash(configuration) };
+    const archiveId = '00000000-0000-0000-0000-000000000001';
+    await writeFile(
+      join(directory, 'configuration-transition.json'),
+      JSON.stringify({ previous, next, configuration, archiveId }),
+      { mode: 0o600 },
+    );
+    if (boundary !== 'journal') {
+      const archive = join(directory, 'revisions', archiveId);
+      await mkdir(archive, { recursive: true, mode: 0o700 });
+      await writeFile(join(archive, 'main.tf.json'), await readFile(join(directory, 'main.tf.json')), { mode: 0o600 });
+      await writeFile(join(directory, 'main.tf.json'), configuration, { mode: 0o600 });
+    }
+    if (boundary === 'manifest')
+      await writeFile(join(directory, 'deployment.json'), JSON.stringify(next), { mode: 0o600 });
+    const resumed = new TerraformRunner(root);
+    await resumed.resume('ce-test');
+    expect(await readFile(join(directory, 'main.tf.json'), 'utf8')).toBe(configuration);
+    expect(JSON.parse(await readFile(join(directory, 'deployment.json'), 'utf8'))).toEqual(next);
+    await expect(readFile(join(directory, 'configuration-transition.json'))).rejects.toThrow();
+  }
+});
+
+test('pending or forged configuration transitions cannot authorize execution or engine migration', async () => {
+  const { root, runner } = await fixture();
+  const receipt = await runner.plan({});
+  const directory = join(root, 'ce-test');
+  const previous = JSON.parse(await readFile(join(directory, 'deployment.json'), 'utf8'));
+  const configuration = '{}';
+  await writeFile(
+    join(directory, 'configuration-transition.json'),
+    JSON.stringify({
+      previous,
+      next: { ...previous, engine: 'native', configurationSha256: hash(configuration) },
+      configuration,
+      archiveId: '00000000-0000-0000-0000-000000000001',
+    }),
+    { mode: 0o600 },
+  );
+  await expect(runner.apply(receipt, {})).rejects.toThrow('Resume the interrupted');
+  await expect(runner.plan({})).rejects.toThrow('Resume the interrupted');
+  await expect(new TerraformRunner(root).resume('ce-test')).rejects.toThrow('transition is malformed');
 });

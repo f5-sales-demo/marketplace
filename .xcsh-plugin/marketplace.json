@@ -402,7 +402,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "author": {
         "name": "f5-sales-demo"
       },

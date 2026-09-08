@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-terraform",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Isolated Terraform lifecycle execution with immutable saved plans and deployment ownership",
   "license": "Apache-2.0",
   "main": "src/index.ts",
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "Terraform",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "extensions": [
       "src/index.ts"
     ]
