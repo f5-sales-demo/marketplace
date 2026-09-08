@@ -5,7 +5,7 @@ import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { assertAttachmentAvailable } from './attachment-gate';
 import { collectAwsNetworkHealth } from './network-health';
-import { configureAwsRouting } from './routing-apply';
+import { type AwsRoutingRebind, configureAwsRouting, validateAwsRoutingRebind } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import type { AwsCeCheckpoint, AwsCePlan } from './types';
@@ -84,8 +84,10 @@ export async function configureAwsTerraformRouting(
   api: AwsExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  rebind?: AwsRoutingRebind,
 ) {
   await storage.verify();
+  if (rebind) validateAwsRoutingRebind(plan, rebind);
   const outputs = await session.readOutputs(
     ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_connect_peers', 'ce_transport_attachment'],
     env,
@@ -99,13 +101,18 @@ export async function configureAwsTerraformRouting(
     planSha256: plan.planSha256,
     completedActionIds: [],
     state: 'running',
-    resolvedValues: bindTerraformConnectPeers(plan, outputs, discovered.bindings),
+    resolvedValues: {
+      ...Object.fromEntries(
+        Object.entries(rebind?.checkpoint.resolvedValues ?? {}).filter(([key]) => key.startsWith('__XC_ROUTING_')),
+      ),
+      ...bindTerraformConnectPeers(plan, outputs, discovered.bindings),
+    },
   } as AwsCeCheckpoint;
   const persist = () => storage.write('terraform-routing-checkpoint.json', checkpoint);
   await persist();
   const scoped = scopedAwsApi(api, plan.intent.awsProfile, signal);
   for (const action of plan.actions.filter((action) => action.kind === 'tgw-attachment-gate'))
     await assertAttachmentAvailable(action, plan, checkpoint, scoped);
-  await configureAwsRouting(runtime, plan, checkpoint, scoped, persist, signal);
+  await configureAwsRouting(runtime, plan, checkpoint, scoped, persist, signal, rebind);
   return collectAwsNetworkHealth('bgp', plan, checkpoint, scoped, signal);
 }

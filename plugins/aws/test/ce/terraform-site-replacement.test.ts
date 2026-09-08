@@ -490,3 +490,15 @@ test('source admission with different bootstrap is rejected before shutdown', as
     await f.cleanup();
   }
 });
+
+test('Connect replacement rejects missing automatic routing recovery before any Terraform action', async () => {
+  const f = await fixture();
+  try {
+    f.base.routing = { profile: 'tgw-connect' };
+    await expect(f.open()).rejects.toThrow('automatic routing recovery');
+    expect(f.events).toHaveLength(0);
+    await expect(f.store.read(`${f.replacement.planId}-terraform-source.json`)).rejects.toThrow();
+  } finally {
+    await f.cleanup();
+  }
+});

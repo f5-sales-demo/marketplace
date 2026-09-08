@@ -95,6 +95,14 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
         boundary('quiesce');
       }
     },
+    restoreRouting: async (_plan: unknown, replacementUid: string) => {
+      expect(replacementUid).toBe('new-site');
+      boundary('routing-rebind');
+      return true;
+    },
+    finalize: async () => {
+      events.push('finalize');
+    },
     launch: async () => {
       expect(uid).toBe('new-site');
       if (!launched) {
@@ -194,10 +202,13 @@ for (const engine of ['native', 'terraform'] as const) {
     await expect(f.run()).rejects.toThrow('checkpoint unavailable');
     expect(f.events).not.toContain('quiesce');
   });
-  for (const boundary of ['', 'quiesce', 'token-delete', 'site-delete', 'site-create', 'launch']) {
+  for (const boundary of ['', 'quiesce', 'token-delete', 'site-delete', 'site-create', 'launch', 'routing-rebind']) {
     test(`${engine} coupled replacement resumes after ${boundary || 'no interruption'}`, async () => {
       const f = fixture(engine, boundary);
-      if (boundary) await expect(f.run()).rejects.toThrow('interrupted');
+      if (boundary) {
+        await expect(f.run()).rejects.toThrow('interrupted');
+        expect(f.events).not.toContain('finalize');
+      }
       expect((await f.run()).status).toBe('registered-with-configured-interfaces');
       expect((await f.run()).status).toBe('registered-with-configured-interfaces');
       expect(f.events.filter((event) => event === 'site-create')).toHaveLength(1);
@@ -447,3 +458,16 @@ test('published but still installing replacement versions remain pending', async
   expect((await f.run()).status).toBe('registered-with-configured-interfaces');
   expect(f.events.filter((event) => event === 'launch')).toHaveLength(1);
 });
+
+for (const engine of ['native', 'terraform'] as const)
+  test(`${engine} waits for routing recovery before finalization`, async () => {
+    const f = fixture(engine);
+    f.driver.restoreRouting = async () => false;
+    expect((await f.run()).status).toBe('pending-routing');
+    expect(f.events).not.toContain('finalize');
+    f.driver.restoreRouting = async () => true;
+    expect((await f.run()).status).toBe('registered-with-configured-interfaces');
+    expect(f.events.filter((event) => event === 'site-create')).toHaveLength(1);
+    expect(f.events.filter((event) => event === 'launch')).toHaveLength(1);
+    expect(f.events).toContain('finalize');
+  });

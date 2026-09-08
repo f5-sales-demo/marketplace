@@ -61,3 +61,37 @@ it('rejects duplicate peer identities, wrong physical roles and collapsed attach
     expect(() => bindTerraformConnectPeers(f.plan, f.outputs, {})).toThrow();
   }
 });
+
+it('rejects incomplete, duplicated and cross-deployment replacement routing locators before observation', async () => {
+  const { validateAwsRoutingRebind } = await import('../../src/ce/routing-apply');
+  const { plan } = fixture();
+  plan.deploymentName = 'ce';
+  const checkpoint = {
+    schemaVersion: 2,
+    engine: plan.engine,
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    resolvedValues: {
+      '__XC_ROUTING_ce-gre-1__': 'one',
+      '__XC_ROUTING_ce-gre-2__': 'two',
+      '__XC_ROUTING_site-1-tgw-bgp__': 'three',
+    },
+  };
+  const rebind = {
+    siteName: 'site-1',
+    siteUid: 'new-site',
+    checkpoint,
+    contract: {},
+  } as unknown as import('../../src/ce/routing-apply').AwsRoutingRebind;
+  expect(() => validateAwsRoutingRebind(plan, rebind)).not.toThrow();
+  for (const change of [
+    { planSha256: 'foreign' },
+    { engine: 'native' },
+    { resolvedValues: {} },
+    { resolvedValues: { ...checkpoint.resolvedValues, '__XC_ROUTING_ce-gre-2__': 'one' } },
+  ])
+    expect(() =>
+      validateAwsRoutingRebind(plan, { ...rebind, checkpoint: { ...checkpoint, ...change } as never }),
+    ).toThrow();
+  expect(() => validateAwsRoutingRebind(plan, { ...rebind, siteName: 'foreign' })).toThrow();
+});

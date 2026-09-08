@@ -1,15 +1,19 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { VerifiedRoutingContract } from '../../../platform/src/ce/routing-contract';
+import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
+import { collectAwsNetworkHealth } from './network-health';
+import { configureAwsRouting, validateAwsRoutingRebind } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import type { AwsSiteReplacementDriver, AwsSiteReplacementPlan } from './site-replacement';
 import { siteBindings } from './topology';
-import type { AwsCePlan } from './types';
+import type { AwsCeCheckpoint, AwsCePlan } from './types';
 
 type Json = Record<string, unknown>;
 type Storage = Pick<CeDeploymentStore, 'owner' | 'verify' | 'read' | 'write' | 'directory'>;
@@ -29,10 +33,14 @@ export function createNativeAwsSiteReplacementDriver(
   source: AwsCePlan,
   raw: AwsExecApi,
   storage: Storage,
+  routing?: { runtime: CeRuntime; contract: VerifiedRoutingContract; checkpoint: AwsCeCheckpoint },
 ): AwsSiteReplacementDriver {
   verifyAwsCePlan(source);
   if (source.engine !== 'native') throw new Error('Replacement requires a native source plan');
   const base = structuredClone(source);
+  const routingSource = routing ? structuredClone(routing.checkpoint) : undefined;
+  if (base.routing?.profile === 'tgw-connect' && routing?.runtime.engine !== 'native')
+    throw new Error('Connect replacement requires automatic routing recovery');
   const token = (plan: AwsSiteReplacementPlan, node: string) => canonicalSha256({ replacement: plan.planSha256, node });
   const nodeIndex = (node: string) => {
     const index = Number(node.slice(base.deploymentName.length + 1));
@@ -60,6 +68,24 @@ export function createNativeAwsSiteReplacementDriver(
       canonicalSha256(storage.owner) !== canonicalSha256(plan.binding.owner)
     )
       throw new Error('Native replacement ownership or plan integrity differs');
+    if (base.routing?.profile === 'tgw-connect') {
+      if (!routing || !routingSource) throw new Error('Replacement routing runtime is unavailable');
+      validateAwsRoutingRebind(base, {
+        siteName: plan.binding.siteName,
+        siteUid: String(plan.preparation.uid),
+        contract: routing.contract,
+        checkpoint: routingSource,
+      });
+      const name = `${plan.planId}-routing-source.json`;
+      const expected = { replacementPlanSha256: plan.planSha256, checkpoint: routingSource };
+      try {
+        if (canonicalSha256(await storage.read(name)) !== canonicalSha256(expected))
+          throw new Error('Replacement routing source changed');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        await storage.write(name, expected);
+      }
+    }
     for (const node of plan.binding.nodes) launchArgs(plan, node);
     await storage.verify();
   };
@@ -224,6 +250,23 @@ export function createNativeAwsSiteReplacementDriver(
   return {
     quiescenceAdmissionVersion: 1,
     engine: 'native',
+    async restoreRouting(plan, siteUid, signal) {
+      await validate(plan);
+      if (base.routing?.profile !== 'tgw-connect') return;
+      if (!routing || !routingSource) throw new Error('Replacement routing runtime is unavailable');
+      const checkpoint = structuredClone(routingSource);
+      const scoped = scopedAwsApi(raw, base.intent.awsProfile, signal);
+      await configureAwsRouting(
+        routing.runtime,
+        base,
+        checkpoint,
+        scoped,
+        () => storage.write(`${plan.planId}-routing-restored.json`, checkpoint),
+        signal,
+        { siteName: plan.binding.siteName, siteUid, contract: routing.contract, checkpoint: routingSource },
+      );
+      return (await collectAwsNetworkHealth('bgp', base, checkpoint, scoped, signal)).status === 'healthy';
+    },
     async assertOwnership(plan, _phase, instances, signal) {
       await inspect(plan, signal, instances);
     },

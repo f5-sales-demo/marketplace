@@ -59,6 +59,8 @@ export interface AwsSiteReplacementDriver {
     bootstrap: Record<string, string>,
     signal?: AbortSignal,
   ): Promise<Record<string, string>>;
+  /** Restore site-bound routing before admitting replacement completion. Must reconcile repeated calls. */
+  restoreRouting?(plan: AwsSiteReplacementPlan, siteUid: string, signal?: AbortSignal): Promise<boolean | undefined>;
   /** Commit engine-specific admission state only after fresh registration and configuration convergence. */
   finalize?(plan: AwsSiteReplacementPlan, instances: Record<string, string>, signal?: AbortSignal): Promise<void>;
 }
@@ -489,6 +491,13 @@ export async function runAwsSiteReplacement(
         throw new Error('Replacement physical identity or effective versions differ');
       checkpoint.physicalSiteUid = observation.physicalSiteUid;
       await save();
+      if ((await driver.restoreRouting?.(plan, checkpoint.siteUid, signal)) === false)
+        return {
+          status: 'pending-routing',
+          versions: structuredClone(effective),
+          routing: 'unknown',
+          traffic: 'unknown',
+        };
       await driver.finalize?.(plan, checkpoint.instances, signal);
       checkpoint.phase = 'complete';
       await save();

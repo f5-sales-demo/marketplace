@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { VerifiedRoutingContract } from '../../../platform/src/ce/routing-contract';
+import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256 } from './canonical';
 import { observeAwsResources } from './discovery';
+import { validateAwsRoutingRebind } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import type {
   AwsQuiescenceAdmission,
@@ -14,8 +17,9 @@ import type {
 } from './site-replacement';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { applyAwsTerraformReplacementStage, awsTerraformReplacementStages } from './terraform-replacement-stages';
+import { configureAwsTerraformRouting } from './terraform-routing';
 import { siteBindings } from './topology';
-import type { AwsCePlan } from './types';
+import type { AwsCeCheckpoint, AwsCePlan } from './types';
 
 type Json = Record<string, unknown>;
 type Storage = Pick<CeDeploymentStore, 'owner' | 'verify' | 'read' | 'write'>;
@@ -39,6 +43,7 @@ export async function createTerraformAwsSiteReplacementDriver(
   storage: Storage,
   raw: AwsExecApi,
   env: Record<string, string | undefined>,
+  routing?: { runtime: CeRuntime; contract: VerifiedRoutingContract },
 ): Promise<AwsSiteReplacementDriver> {
   const base = structuredClone(source);
   const plan = structuredClone(replacement);
@@ -53,6 +58,53 @@ export async function createTerraformAwsSiteReplacementDriver(
     await storage.verify();
   };
   await validate(plan);
+  let routingCheckpoint: AwsCeCheckpoint | undefined;
+  if (base.routing?.profile === 'tgw-connect') {
+    if (!routing || routing.runtime.engine !== base.engine)
+      throw new Error('Connect replacement requires automatic routing recovery');
+    const name = `${plan.planId}-routing-source.json`;
+    let saved: Json;
+    try {
+      saved = object(await storage.read(name));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      saved = {
+        replacementPlanSha256: plan.planSha256,
+        checkpoint: await storage.read('terraform-routing-checkpoint.json'),
+      };
+      const cp = object(saved.checkpoint);
+      if (
+        cp.schemaVersion !== 2 ||
+        cp.engine !== base.engine ||
+        cp.planId !== base.planId ||
+        cp.planSha256 !== base.planSha256
+      )
+        throw new Error('Replacement routing source differs from deployment');
+      validateAwsRoutingRebind(base, {
+        siteName: plan.binding.siteName,
+        siteUid: String(plan.preparation.uid),
+        contract: routing.contract,
+        checkpoint: cp as unknown as AwsCeCheckpoint,
+      });
+      await storage.write(name, saved);
+    }
+    const cp = object(saved.checkpoint);
+    if (
+      saved.replacementPlanSha256 !== plan.planSha256 ||
+      cp.schemaVersion !== 2 ||
+      cp.engine !== base.engine ||
+      cp.planId !== base.planId ||
+      cp.planSha256 !== base.planSha256
+    )
+      throw new Error('Replacement routing source differs from deployment');
+    routingCheckpoint = structuredClone(cp) as unknown as AwsCeCheckpoint;
+    validateAwsRoutingRebind(base, {
+      siteName: plan.binding.siteName,
+      siteUid: String(plan.preparation.uid),
+      contract: routing.contract,
+      checkpoint: routingCheckpoint,
+    });
+  }
   const snapshotName = `${plan.planId}-terraform-source.json`;
   let snapshot: Json;
   try {
@@ -97,6 +149,7 @@ export async function createTerraformAwsSiteReplacementDriver(
     snapshot = {
       schemaVersion: 1,
       admissionSha256,
+      routingSourceSha256: routingCheckpoint ? canonicalSha256(routingCheckpoint) : null,
       replacementPlanSha256: plan.planSha256,
       configurationSha256: expectedConfigurationSha256,
       configuration,
@@ -105,6 +158,7 @@ export async function createTerraformAwsSiteReplacementDriver(
   }
   if (
     snapshot.schemaVersion !== 1 ||
+    (routingCheckpoint && snapshot.routingSourceSha256 !== canonicalSha256(routingCheckpoint)) ||
     !Object.hasOwn(snapshot, 'admissionSha256') ||
     (snapshot.admissionSha256 !== null &&
       (typeof snapshot.admissionSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(snapshot.admissionSha256))) ||
@@ -309,6 +363,18 @@ export async function createTerraformAwsSiteReplacementDriver(
   return {
     quiescenceAdmissionVersion: 1,
     engine: 'terraform',
+    async restoreRouting(candidate, siteUid, signal) {
+      await validate(candidate);
+      if (!routingCheckpoint) return;
+      if (!routing) throw new Error('Replacement routing runtime is unavailable');
+      const observed = await configureAwsTerraformRouting(base, session, routing.runtime, storage, raw, env, signal, {
+        siteName: plan.binding.siteName,
+        siteUid,
+        contract: routing.contract,
+        checkpoint: routingCheckpoint,
+      });
+      return observed.status === 'healthy';
+    },
     async finalize(candidate, expected, signal) {
       await validate(candidate);
       const live = await observe(candidate, true, signal);
@@ -336,6 +402,10 @@ export async function createTerraformAwsSiteReplacementDriver(
       );
       if (stages.launch(material).configurationSha256 !== marker.configurationSha256)
         throw new Error('Terraform replacement completion configuration differs');
+      const refresh = await session.plan(env, signal);
+      if (refresh.configurationSha256 !== marker.configurationSha256 || !refresh.noChanges)
+        throw new Error('Replacement completion requires a final refresh-enabled no-change plan');
+      await storage.write(`${plan.planId}-terraform-final-refresh.json`, refresh);
       let admission: Json;
       try {
         admission = object(await storage.read('terraform-admission.json'));
