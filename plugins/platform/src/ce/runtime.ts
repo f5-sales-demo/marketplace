@@ -5,6 +5,7 @@ import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
+import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
 import {
   parseSiteUpgradeState,
@@ -665,12 +666,30 @@ export class CeRuntime {
     interfaces: AwsGreBinding[],
     checkpoint: (resource: Json) => Promise<void>,
     signal?: AbortSignal,
+    rebind?: {
+      contract: VerifiedRoutingContract;
+      siteUid: string;
+      resources: { kind: RoutingKind; name: string; uid: string }[];
+    },
   ): Promise<void> {
     this.#binding(binding, true);
     if (binding.owner.provider !== 'aws' || interfaces.some((item) => !binding.nodes.includes(item.node)))
       throw new Error('AWS routing interface and site ownership differ');
     this.#owned(await this.observeSite(binding, signal), binding);
     const routing = this.contract.buildAwsRouting(binding.siteName, localAsn, remoteAsn, interfaces);
+    if (rebind) {
+      const expected = [...routing.connectors.map((r) => `external_connector/${r.name}`), `bgp/${routing.bgp.name}`];
+      const recorded = rebind.resources.map((r) => `${r.kind}/${r.name}`);
+      if (
+        !rebind.siteUid.trim() ||
+        recorded.length !== expected.length ||
+        new Set(recorded).size !== recorded.length ||
+        expected.some((key) => !recorded.includes(key)) ||
+        rebind.resources.some((r) => !r.uid.trim())
+      )
+        throw new Error('Exact replacement routing inventory required');
+    }
+
     for (const [kind, resources] of [
       ['external_connector', routing.connectors],
       ['bgp', [routing.bgp]],
@@ -684,6 +703,7 @@ export class CeRuntime {
         } catch (error) {
           if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
         }
+        if (!existing && rebind) throw new Error('Recorded replacement routing object is missing');
         if (!existing) {
           // Revalidate site ownership at each child-object mutation boundary.
           this.#owned(await this.observeSite(binding, signal), binding);
@@ -717,6 +737,55 @@ export class CeRuntime {
           throw new Error('Existing routing object differs from site-bound intent; replan required');
         const uid = object(existing.system_metadata).uid;
         if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+        if (rebind) {
+          const recorded = rebind.resources.find((r) => r.kind === kind && r.name === resource.name);
+          if (uid !== recorded?.uid) throw new Error('Replacement routing object UID changed');
+          const site = await this.observeSite(binding, signal);
+          this.#owned(site, binding);
+          if (object(site.system_metadata).uid !== rebind.siteUid) throw new Error('Replacement site UID changed');
+          if (object(object(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid) {
+            const body = rebind.contract.build(kind, existing, resource.spec, rebind.siteUid);
+            // Durable intent precedes the mutation. A lost response is reconciled by exact UID and label.
+            await checkpoint({
+              kind,
+              name: resource.name,
+              uid,
+              siteName: binding.siteName,
+              owner: binding.owner,
+              siteUid: rebind.siteUid,
+              phase: 'rebind-pending',
+              contractFingerprint: rebind.contract.fingerprint,
+            });
+            const freshSite = await this.observeSite(binding, signal);
+            this.#owned(freshSite, binding);
+            if (object(freshSite.system_metadata).uid !== rebind.siteUid)
+              throw new Error('Replacement site UID changed');
+            const fresh = await observe();
+            this.#owned(fresh, { ...binding, siteName: resource.name });
+            if (
+              object(fresh.system_metadata).uid !== uid ||
+              fresh.resource_version !== existing.resource_version ||
+              !subset(fresh.metadata, existing.metadata) ||
+              !subset(existing.metadata, fresh.metadata) ||
+              !subset(fresh.spec, existing.spec) ||
+              !subset(existing.spec, fresh.spec)
+            )
+              throw new Error('Routing changed before replacement rebind');
+            try {
+              await this.#request(path, { method: 'PUT', body: JSON.stringify(body) }, signal);
+            } catch (error) {
+              if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+            }
+            existing = await observe();
+            this.#owned(existing, { ...binding, siteName: resource.name });
+            if (
+              object(existing.system_metadata).uid !== uid ||
+              object(object(existing.metadata).labels)['xcsh-ce-site-uid'] !== rebind.siteUid ||
+              !subset(existing.spec, resource.spec)
+            )
+              throw new Error('Routing replacement readback differs');
+          }
+        }
         await checkpoint({
           kind,
           name: resource.name,

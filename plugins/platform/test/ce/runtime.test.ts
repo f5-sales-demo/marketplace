@@ -592,3 +592,93 @@ test('routing teardown treats absence as complete and reports a still-present ob
     expect(deletes).toBe(present ? 1 : 0);
   }
 });
+
+test('replacement routing rebind resumes lost PUT responses and checkpoint interruptions without repeat updates', async () => {
+  const { contract } = await candidate(true);
+  type RoutingObject = {
+    metadata: { name: string; namespace: string; labels: Record<string, string> };
+    system_metadata: { uid: string };
+    resource_version: string;
+    spec: unknown;
+  };
+  const objects = new Map<string, RoutingObject>();
+  const puts: string[] = [];
+  let siteUid = 'replacement-site';
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path.includes('securemesh_site_v2s/'))
+      return json({
+        metadata: { name: binding.siteName, namespace: 'system', labels },
+        system_metadata: { uid: siteUid },
+      });
+    if (init?.method === 'PUT') {
+      puts.push(path);
+      const current = objects.get(path);
+      if (!current) throw new Error('Missing test routing object');
+      objects.set(path, { ...JSON.parse(String(init.body)), system_metadata: current.system_metadata });
+      throw new Error('response lost after durable update');
+    }
+    return objects.has(path) ? json(objects.get(path)) : json({}, 404);
+  });
+  const interfaces = [
+    {
+      name: 'ce-gre',
+      node: 'node-one',
+      interfaceName: 'eth0',
+      interfaceMtu: 1500,
+      awsGreAddress: '100.64.0.1',
+      ceInsideAddress: '169.254.10.1',
+      awsBgpAddresses: ['169.254.10.2', '169.254.10.3'] as [string, string],
+    },
+  ];
+  const desired = contract.buildAwsRouting(binding.siteName, 65010, 64512, interfaces);
+  const resources = [
+    { kind: 'external_connector' as const, name: 'ce-gre', uid: 'connector' },
+    { kind: 'bgp' as const, name: desired.bgp.name, uid: 'bgp' },
+  ];
+  for (const [index, resource] of resources.entries())
+    objects.set(`/api/config/namespaces/system/${resource.kind}s/${resource.name}`, {
+      metadata: { name: resource.name, namespace: 'system', labels: { ...labels, 'xcsh-ce-site': binding.siteName } },
+      system_metadata: { uid: resource.uid },
+      resource_version: '1',
+      spec: index ? desired.bgp.spec : desired.connectors[0].spec,
+    });
+  const rebind = {
+    siteUid,
+    resources,
+    contract: {
+      fingerprint: 'test-contract',
+      build: (_kind: string, snapshot: RoutingObject, spec: unknown, uid: string) => ({
+        metadata: { ...snapshot.metadata, labels: { ...snapshot.metadata.labels, 'xcsh-ce-site-uid': uid } },
+        spec,
+        resource_version: snapshot.resource_version,
+      }),
+    } as unknown as import('../../src/ce/routing-contract').VerifiedRoutingContract,
+  };
+  const run = (checkpoint: (record: Record<string, unknown>) => Promise<void> = async () => {}) =>
+    runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, checkpoint, undefined, rebind);
+  await expect(
+    run(async () => {
+      throw new Error('checkpoint interrupted');
+    }),
+  ).rejects.toThrow('checkpoint interrupted');
+  expect(puts).toHaveLength(0);
+  await expect(
+    run(async (record) => {
+      if (record.phase !== 'rebind-pending') throw new Error('after update');
+    }),
+  ).rejects.toThrow('after update');
+  expect(puts).toHaveLength(1);
+  await run();
+  await run();
+  expect(puts).toHaveLength(2);
+  siteUid = 'foreign-site';
+  await expect(run()).rejects.toThrow('Replacement site UID changed');
+  expect(puts).toHaveLength(2);
+  siteUid = rebind.siteUid;
+  const connector = objects.get('/api/config/namespaces/system/external_connectors/ce-gre');
+  if (!connector) throw new Error('Missing test connector');
+  connector.system_metadata.uid = 'foreign';
+  await expect(run()).rejects.toThrow('Replacement routing object UID changed');
+  expect(puts).toHaveLength(2);
+});
