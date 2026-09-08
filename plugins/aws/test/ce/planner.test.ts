@@ -691,6 +691,16 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     );
     const actions = plan.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
     expect(actions).toHaveLength(6);
+    const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
+    expect(attachments).toHaveLength(2);
+    const peerCounts = new Map<string, number>();
+    for (const action of actions) {
+      const attachment = action.args?.[(action.args?.indexOf('--transit-gateway-attachment-id') ?? -1) + 1] ?? '';
+      peerCounts.set(attachment, (peerCounts.get(attachment) ?? 0) + 1);
+    }
+    expect([...peerCounts.values()].sort()).toEqual([2, 4]);
+    expect(plan.billableResources.find((resource) => resource.type === 'transit-gateway-attachment')?.count).toBe(3);
+
     expect(new Set(actions.map((action) => action.capture?.placeholder)).size).toBe(6);
     for (const [index, action] of actions.entries()) {
       expect(action.args).toContain(`__NODE_${peers[index].node}_SLO_IP__`);
@@ -700,5 +710,38 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(plan.actions.find((action) => action.kind === 'bgp-gate')?.description).toContain(
       '12 AWS-managed BGP sessions',
     );
+  }
+});
+
+it('rejects every AWS-reserved Connect inside network including .1.0 through .5.0', () => {
+  for (const reserved of [
+    '169.254.0.0/29',
+    '169.254.1.0/29',
+    '169.254.2.0/29',
+    '169.254.3.0/29',
+    '169.254.4.0/29',
+    '169.254.5.0/29',
+    '169.254.169.248/29',
+  ]) {
+    expect(() =>
+      compileAwsCePlan(
+        intent({
+          topology: { nodeCount: 3 },
+          interfaces: interfaces(3, 2),
+          brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
+          routing: {
+            profile: 'tgw-connect',
+            transitGatewayId: 'tgw-0123456789abcdef0',
+            customerAsn: 65010,
+            transitGatewayAsn: 64512,
+            insideCidrs: [reserved, '169.254.10.0/29', '169.254.11.0/29'],
+            destinationCidrs: [],
+            associations: [],
+            propagations: [],
+          },
+        }),
+        observation(),
+      ),
+    ).toThrow('reserved');
   }
 });

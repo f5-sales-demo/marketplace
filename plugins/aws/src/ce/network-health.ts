@@ -73,16 +73,23 @@ export async function collectAwsNetworkHealth(
       for (const value of raw.TransitGatewayConnectPeers) {
         const peer = object(value);
         const id = String(peer.TransitGatewayConnectPeerId);
+        const action = actions[ids.indexOf(id)];
+        const attachmentArgument = action?.args?.includes('--transit-gateway-attachment-id')
+          ? action.args[action.args.indexOf('--transit-gateway-attachment-id') + 1]
+          : undefined;
+        const expectedAttachment = attachmentArgument?.startsWith('__')
+          ? values[attachmentArgument]
+          : (attachmentArgument ?? values.__TGW_CONNECT_ATTACHMENT__);
+
         if (
           !ids.includes(id) ||
           seen.has(id) ||
           !owned(peer.Tags, plan) ||
-          peer.TransitGatewayAttachmentId !== values.__TGW_CONNECT_ATTACHMENT__
+          peer.TransitGatewayAttachmentId !== expectedAttachment
         )
           throw new Error('Foreign peer evidence');
         seen.add(id);
         const config = object(peer.ConnectPeerConfiguration);
-        const action = actions[ids.indexOf(id)];
         const transportArgument = action.args?.[(action.args?.indexOf('--peer-address') ?? -1) + 1];
         const transportAddress = transportArgument?.startsWith('__') ? values[transportArgument] : transportArgument;
         const expectedGatewayAddress = action.args?.includes('--transit-gateway-address')

@@ -67,9 +67,17 @@ function tgwInsideNetwork(value: string): number {
   if (third > 255 || fourth > 255 || fourth % 8 !== 0)
     fail('TGW Connect inside CIDR must be a valid /29 network boundary');
   const network = third * 256 + fourth;
-  // AWS reserves the first five /29s plus the EC2 instance metadata /29.
-  if (new Set([0, 8, 16, 24, 32, 43_512]).has(network)) fail('TGW Connect inside CIDR is reserved by AWS');
+  // AWS reserves .0.0/29 through .5.0/29 and the EC2 metadata /29.
+  if (new Set([0, 256, 512, 768, 1024, 1280, 43_512]).has(network)) fail('TGW Connect inside CIDR is reserved by AWS');
   return network;
+}
+
+function connectAttachmentCount(intent: AwsCeIntent): number {
+  if (intent.routing.profile !== 'tgw-connect') return 0;
+  const roles =
+    intent.routing.connectPeers?.map((peer) => peer.transportInterfaceIndex) ??
+    (intent.routing.insideCidrs ?? []).map(() => 1);
+  return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
 }
 
 function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
@@ -1567,34 +1575,35 @@ function compileActions(
   }
   if (intent.routing.profile === 'tgw-static' || intent.routing.profile === 'tgw-connect') {
     const transitGatewayId = intent.routing.transitGatewayId ?? '';
-    add({
-      phase: 'routing',
-      kind: 'tgw-vpc-attachment-create',
-      description: 'Create appliance VPC transport attachment',
-      command: 'aws',
-      args: [
-        'ec2',
-        'create-transit-gateway-vpc-attachment',
-        '--transit-gateway-id',
-        transitGatewayId,
-        '--vpc-id',
-        intent.vpc.vpcId ?? '__VPC_ID__',
-        '--subnet-ids',
-        ...intent.interfaces[1].subnets.map((subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_1__`),
-        '--options',
-        'ApplianceModeSupport=enable',
-        '--tag-specifications',
-        tagSpec(intent, 'transit-gateway-attachment'),
-        ...base,
-      ],
-      resourceId: `aws://${intent.region}/tgw-attachment/${intent.deploymentName}`,
-      mutates: true,
-      destructive: false,
-      capture: {
-        placeholder: '__TGW_TRANSPORT_ATTACHMENT__',
-        path: 'TransitGatewayVpcAttachment.TransitGatewayAttachmentId',
-      },
-    });
+    if (!intent.routing.transportAttachmentId)
+      add({
+        phase: 'routing',
+        kind: 'tgw-vpc-attachment-create',
+        description: 'Create appliance VPC transport attachment',
+        command: 'aws',
+        args: [
+          'ec2',
+          'create-transit-gateway-vpc-attachment',
+          '--transit-gateway-id',
+          transitGatewayId,
+          '--vpc-id',
+          intent.vpc.vpcId ?? '__VPC_ID__',
+          '--subnet-ids',
+          ...intent.interfaces[1].subnets.map((subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_1__`),
+          '--options',
+          'ApplianceModeSupport=enable',
+          '--tag-specifications',
+          tagSpec(intent, 'transit-gateway-attachment'),
+          ...base,
+        ],
+        resourceId: `aws://${intent.region}/tgw-attachment/${intent.deploymentName}`,
+        mutates: true,
+        destructive: false,
+        capture: {
+          placeholder: '__TGW_TRANSPORT_ATTACHMENT__',
+          path: 'TransitGatewayVpcAttachment.TransitGatewayAttachmentId',
+        },
+      });
     for (const routeTableId of intent.routing.associations)
       add({
         phase: 'routing',
@@ -1686,27 +1695,62 @@ function compileActions(
         transportInterfaceIndex: 1,
         transitGatewayAddress: undefined,
       }));
-    add({
-      phase: 'routing',
-      kind: 'tgw-connect-attachment-create',
-      description: 'Create TGW Connect attachment over the appliance transport attachment',
-      command: 'aws',
-      args: [
-        'ec2',
-        'create-transit-gateway-connect',
-        '--transport-transit-gateway-attachment-id',
-        intent.routing.transportAttachmentId ?? '__TGW_TRANSPORT_ATTACHMENT__',
-        '--options',
-        'Protocol=gre',
-        '--tag-specifications',
-        tagSpec(intent, 'transit-gateway-attachment'),
-        ...base,
-      ],
-      resourceId: `aws://${intent.region}/tgw-connect/${intent.deploymentName}`,
-      mutates: true,
-      destructive: false,
-      capture: { placeholder: '__TGW_CONNECT_ATTACHMENT__', path: 'TransitGatewayConnect.TransitGatewayAttachmentId' },
+    const roleCounts = new Map<number, number>();
+    const peerGroups = peers.map((peer) => {
+      const position = roleCounts.get(peer.transportInterfaceIndex) ?? 0;
+      roleCounts.set(peer.transportInterfaceIndex, position + 1);
+      return `${peer.transportInterfaceIndex}_${Math.floor(position / 4) + 1}`;
     });
+    for (const group of [...new Set(peerGroups)].sort()) {
+      add({
+        phase: 'routing',
+        kind: 'tgw-connect-attachment-create',
+        description: `Create TGW Connect attachment ${group} with at most four peers`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'create-transit-gateway-connect',
+          '--transport-transit-gateway-attachment-id',
+          intent.routing.transportAttachmentId ?? '__TGW_TRANSPORT_ATTACHMENT__',
+          '--options',
+          'Protocol=gre',
+          '--tag-specifications',
+          tagSpec(intent, 'transit-gateway-attachment'),
+          ...base,
+        ],
+        resourceId: `aws://${intent.region}/tgw-connect/${intent.deploymentName}-${group}`,
+        mutates: true,
+        destructive: false,
+        capture: {
+          placeholder: `__TGW_CONNECT_ATTACHMENT_${group}__`,
+          path: 'TransitGatewayConnect.TransitGatewayAttachmentId',
+        },
+      });
+
+      for (const [tables, operation, kind] of [
+        [intent.routing.associations, 'associate-transit-gateway-route-table', 'tgw-associate'],
+        [intent.routing.propagations, 'enable-transit-gateway-route-table-propagation', 'tgw-propagate'],
+      ] as const)
+        for (const table of tables)
+          add({
+            phase: 'routing',
+            kind,
+            description: `${operation} for Connect attachment ${group}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              operation,
+              '--transit-gateway-route-table-id',
+              table,
+              '--transit-gateway-attachment-id',
+              `__TGW_CONNECT_ATTACHMENT_${group}__`,
+              ...base,
+            ],
+            resourceId: table,
+            mutates: true,
+            destructive: true,
+          });
+    }
     for (const [index, peer] of peers.entries())
       add({
         phase: 'routing',
@@ -1717,7 +1761,7 @@ function compileActions(
           'ec2',
           'create-transit-gateway-connect-peer',
           '--transit-gateway-attachment-id',
-          '__TGW_CONNECT_ATTACHMENT__',
+          `__TGW_CONNECT_ATTACHMENT_${peerGroups[index]}__`,
           '--peer-address',
           `__NODE_${peer.node}_${peer.transportInterfaceIndex === 0 ? 'SLO' : 'SLI'}_IP__`,
           ...(peer.transitGatewayAddress ? ['--transit-gateway-address', peer.transitGatewayAddress] : []),
@@ -1856,7 +1900,13 @@ export function compileAwsCePlan(
         destructive: false,
       },
     );
-  for (const action of actions) prepareRecoverableAction(action);
+  for (const action of actions) {
+    if (intent.routing.transportAttachmentId && action.args)
+      action.args = action.args.map((arg) =>
+        arg.replaceAll('__TGW_TRANSPORT_ATTACHMENT__', intent.routing.transportAttachmentId ?? ''),
+      );
+    prepareRecoverableAction(action);
+  }
   const ownershipInventory = [
     ...brownfieldIds.map((resourceId) => ({ resourceId, owned: false as const, action: 'modify-approved' as const })),
     ...actions.flatMap((action) =>
@@ -1882,7 +1932,12 @@ export function compileAwsCePlan(
     ...(intent.egress.mode === 'elastic-ip' ? [{ type: 'elastic-ip', count: intent.topology.nodeCount }] : []),
     ...(intent.routing.profile === 'nlb-ingress' ? [{ type: 'network-load-balancer', count: 1 }] : []),
     ...(intent.routing.profile.startsWith('tgw-')
-      ? [{ type: 'transit-gateway-attachment', count: intent.routing.profile.startsWith('tgw-connect') ? 2 : 1 }]
+      ? [
+          {
+            type: 'transit-gateway-attachment',
+            count: 1 + connectAttachmentCount(intent),
+          },
+        ]
       : []),
   ];
   const draft: AwsCePlanDraft = {
