@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import { TerraformCommandError, type TerraformFailureCategory, terraformFailureCategories } from './failure';
 
 export interface Invocation {
   cwd: string;
@@ -8,7 +9,9 @@ export interface Invocation {
   env: Record<string, string | undefined>;
   signal?: AbortSignal;
 }
-type Executor = (request: Invocation) => Promise<{ code: number; stdout: string }>;
+type Executor = (
+  request: Invocation,
+) => Promise<{ code: number; stdout: string; failureCategory?: TerraformFailureCategory }>;
 export interface Deployment {
   schemaVersion: 1;
   deploymentId: string;
@@ -126,10 +129,12 @@ export function terraformExecutor(
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
     const timer = setTimeout(() => stop('Terraform operation deadline exceeded'), limits.timeoutMs);
+    const categories = new Set<TerraformFailureCategory>();
     const collect = async (stream: ReadableStream<Uint8Array>, retain: boolean) => {
       const reader = stream.getReader();
       const chunks: Uint8Array[] = [];
       let size = 0;
+      let tail = '';
       try {
         while (true) {
           const { value, done } = await reader.read();
@@ -137,6 +142,12 @@ export function terraformExecutor(
           size += value.byteLength;
           if (size > limits.maxOutputBytes) stop('Terraform response exceeded size limit');
           if (retain && !failure) chunks.push(value);
+          if (!retain && !failure) {
+            // Keep only enough context to recognize an error code split across stream chunks.
+            const text = tail + Buffer.from(value).toString('utf8');
+            for (const category of terraformFailureCategories(text)) categories.add(category);
+            tail = text.slice(-512);
+          }
         }
       } finally {
         reader.releaseLock();
@@ -150,7 +161,20 @@ export function terraformExecutor(
         child.exited,
       ]);
       if (failure) throw new Error(failure);
-      return { code, stdout };
+      if (code !== 0 && args[0] === 'validate') {
+        try {
+          const diagnostics = JSON.parse(stdout).diagnostics;
+          if (Array.isArray(diagnostics))
+            for (const item of diagnostics)
+              if (item?.severity === 'error' && typeof item.summary === 'string')
+                for (const category of terraformFailureCategories(`Error: ${item.summary}`)) categories.add(category);
+        } catch {
+          // Malformed validation output remains unknown; never fall back to exporting it.
+        }
+      }
+      return code === 0
+        ? { code, stdout }
+        : { code, stdout: '', failureCategory: categories.size === 1 ? [...categories][0] : 'unknown' };
     } catch {
       stop('Terraform process failed');
       await child.exited;
@@ -391,7 +415,7 @@ export class TerraformRunner {
   async #run(args: string[], env: Record<string, string | undefined>, signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted();
     const result = await this.execute({ cwd: this.#state().directory, args, env: this.#environment(env), signal });
-    if (result.code !== 0) throw new Error(`Terraform ${args[0]} failed; exit code ${result.code}`);
+    if (result.code !== 0) throw new TerraformCommandError(args[0], result.code, result.failureCategory);
     return result.stdout;
   }
   async #exclusive<T>(operation: () => Promise<T>): Promise<T> {

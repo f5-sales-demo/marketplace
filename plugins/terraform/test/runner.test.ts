@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { TerraformCommandError } from '../src/failure';
 import { type Invocation, TerraformRunner, terraformExecutor } from '../src/runner';
 
 const directories: string[] = [];
@@ -194,6 +195,69 @@ test('executor bounds output and kills a process that ignores cancellation', asy
   setTimeout(() => controller.abort(), 50);
   await expect(running).rejects.toThrow('cancelled');
   await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
+});
+
+test('failed executors expose only fixed categories and discard potentially sensitive output', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-tf-errors-'));
+  directories.push(root);
+  const executable = join(root, 'terraform');
+  const executor = terraformExecutor();
+  for (const [diagnostic, category] of [
+    ['API error InsufficientInstanceCapacity', 'capacity'],
+    ['API error AccessDenied', 'authorization'],
+    ['ExpiredToken: credentials expired', 'expired'],
+    ['RequestLimitExceeded', 'throttled'],
+    ['Error: Missing block label', 'configuration'],
+    ['\x1b[31mError:\x1b[0m Missing block label', 'configuration'],
+    ['Error acquiring the state lock', 'state-lock'],
+    ['AccessDenied and InsufficientInstanceCapacity', 'unknown'],
+    ['unrecognized failure', 'unknown'],
+  ]) {
+    await writeFile(
+      executable,
+      `#!/bin/sh\nprintf 'PRIVATE_BOOTSTRAP'\nprintf '${diagnostic} PRIVATE_BOOTSTRAP' >&2\nexit 1\n`,
+      { mode: 0o700 },
+    );
+    const result = await executor({ cwd: root, args: ['apply'], env: { PATH: root } });
+    expect(result).toEqual({ code: 1, stdout: '', failureCategory: category });
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_BOOTSTRAP');
+    const error = new TerraformCommandError('apply', result.code, result.failureCategory);
+    expect(error.category).toBe(category);
+    expect(error.message).not.toContain('PRIVATE_BOOTSTRAP');
+  }
+  await writeFile(executable, '#!/bin/sh\nprintf "InsufficientInstanceCapacity" >&2\nprintf "ok"\n');
+  expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root } })).toEqual({ code: 0, stdout: 'ok' });
+  await writeFile(
+    executable,
+    '#!/bin/sh\nprintf \'{"diagnostics":[{"severity":"error","summary":"Unsupported argument","detail":"PRIVATE_BOOTSTRAP"}]}\'\nexit 1\n',
+  );
+  expect(await executor({ cwd: root, args: ['validate', '-json'], env: { PATH: root } })).toEqual({
+    code: 1,
+    stdout: '',
+    failureCategory: 'configuration',
+  });
+});
+
+test('runner propagates sanitized failure category without retrying or applying', async () => {
+  const { root } = await fixture();
+  const operations: string[] = [];
+  const runner = new TerraformRunner(root, async ({ args }) => {
+    operations.push(args[0]);
+    return args[0] === 'version'
+      ? { code: 0, stdout: JSON.stringify({ terraform_version: '1.14.0' }) }
+      : { code: 1, stdout: 'PRIVATE_BOOTSTRAP', failureCategory: 'capacity' };
+  });
+  await runner.resume('ce-test');
+  let caught: unknown;
+  try {
+    await runner.plan({});
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toBeInstanceOf(TerraformCommandError);
+  expect((caught as TerraformCommandError).category).toBe('capacity');
+  expect(String(caught)).not.toContain('PRIVATE_BOOTSTRAP');
+  expect(operations).toEqual(['version', 'init']);
 });
 
 test('revises configuration while retaining state and invalidating obsolete saved plans', async () => {
