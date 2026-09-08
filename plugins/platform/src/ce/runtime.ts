@@ -846,6 +846,143 @@ export class CeRuntime {
     this.#owned(site, binding);
     await this.#request(this.#sitePath(binding), { method: 'DELETE' }, signal);
   }
+  /** Teardown mutation bound to the recorded logical UID, with ambiguous-response readback. */
+  async deleteSiteExact(binding: SiteBinding, expectedUid: string, signal?: AbortSignal) {
+    this.#binding(binding, true);
+    signal?.throwIfAborted();
+    if (typeof expectedUid !== 'string' || !expectedUid.trim()) throw new Error('Exact site UID required for deletion');
+    const source = this.#sitePath(binding);
+    const read = async () => {
+      try {
+        return await this.#request(source, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return undefined;
+        throw error;
+      }
+    };
+    const check = (site: Json) => {
+      this.#owned(site, binding);
+      if (object(site.system_metadata).uid !== expectedUid)
+        throw new Error('Site UID changed before or during deletion');
+    };
+    let current = await read();
+    if (current) {
+      check(current);
+      try {
+        await this.#request(source, { method: 'DELETE' }, signal);
+      } catch (error) {
+        if (!(error instanceof CeApiError) || !['not-found', 'transient', 'deadline'].includes(error.category))
+          throw error;
+      }
+      current = await read();
+      if (current) check(current);
+    }
+    return {
+      status: current ? ('pending' as const) : ('deleted' as const),
+      owner: binding.owner,
+      siteName: binding.siteName,
+      siteUid: expectedUid,
+      source,
+      contractFingerprint: this.contract.fingerprint,
+      observedAt: new Date().toISOString(),
+    };
+  }
+  /** Logical deletion alone does not prove physical-site and registration retirement. */
+  async observeSiteDeletion(
+    binding: SiteBinding,
+    expected: { siteUid: string; physicalSiteUid: string },
+    signal?: AbortSignal,
+  ) {
+    this.#binding(binding);
+    signal?.throwIfAborted();
+    if (![expected.siteUid, expected.physicalSiteUid].every((uid) => typeof uid === 'string' && uid.trim()))
+      throw new Error('Logical and physical site UIDs are required for deletion observation');
+    const sources = {
+      logical: this.#sitePath(binding),
+      physical: `/api/config/namespaces/system/sites/${binding.siteName}`,
+      registrations: `/api/register/namespaces/system/registrations_by_site/${binding.siteName}`,
+    };
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      ...expected,
+      sources,
+      contractFingerprint: this.contract.fingerprint,
+    };
+    const read = async (path: string) => {
+      try {
+        return await this.#request(path, {}, signal);
+      } catch (error) {
+        if (error instanceof CeApiError && error.category === 'not-found') return undefined;
+        throw error;
+      }
+    };
+    try {
+      const logical = await read(sources.logical);
+      if (logical) {
+        this.#owned(logical, binding);
+        if (object(logical.system_metadata).uid !== expected.siteUid) throw new Error('Logical site identity changed');
+      }
+      const physical = await read(sources.physical);
+      if (
+        physical &&
+        (object(physical.metadata).name !== binding.siteName ||
+          object(physical.metadata).namespace !== 'system' ||
+          object(physical.system_metadata).uid !== expected.physicalSiteUid)
+      )
+        throw new Error('Physical site identity changed');
+      const registrations = await read(sources.registrations);
+      let activeRegistrations = 0;
+      if (registrations) {
+        if (
+          !Array.isArray(registrations.items) ||
+          registrations.next_page_token ||
+          registrations.next_token ||
+          registrations.continuation_token ||
+          registrations.continue ||
+          registrations.nextLink ||
+          (registrations.errors !== undefined && (!Array.isArray(registrations.errors) || registrations.errors.length))
+        )
+          throw new Error('Incomplete registration retirement evidence');
+        const seen = new Set<string>();
+        const inactive = ['RETIRED', 'FAILED', 'DONE', 'FAILED_INACTIVE'];
+        const active = ['NOTSET', 'NEW', 'APPROVED', 'ADMITTED', 'PENDING', 'ONLINE', 'UPGRADING', 'MAINTENANCE'];
+        for (const raw of registrations.items) {
+          const item = object(raw),
+            spec = object(item.get_spec),
+            state = object(object(item.object).status).current_state;
+          if (
+            typeof item.name !== 'string' ||
+            !/^r-[a-z0-9-]+$/.test(item.name) ||
+            seen.has(item.name) ||
+            object(spec.passport).cluster_name !== binding.siteName ||
+            !binding.nodes.includes(String(object(spec.infra).hostname)) ||
+            typeof state !== 'string' ||
+            ![...inactive, ...active].includes(state)
+          )
+            throw new Error('Registration retirement identity is malformed or foreign');
+          seen.add(item.name);
+          if (active.includes(state)) activeRegistrations++;
+        }
+      }
+      return {
+        ...base,
+        status: !logical && !physical && activeRegistrations === 0 ? ('deleted' as const) : ('pending' as const),
+        logicalAbsent: !logical,
+        physicalAbsent: !physical,
+        activeRegistrations,
+        observedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        reason: error instanceof CeApiError ? error.category : 'identity-or-response-invalid',
+        observedAt: new Date().toISOString(),
+      };
+    }
+  }
   async bootstrap(
     binding: SiteBinding,
     node: string,

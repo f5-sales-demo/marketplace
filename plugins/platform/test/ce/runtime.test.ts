@@ -139,6 +139,110 @@ test('foreign engine and foreign live ownership cannot delete resources', async 
   await expect(runtime.deleteSite(binding)).rejects.toThrow('ownership');
   expect(deletes).toBe(0);
 });
+
+test('exact site deletion binds the observed UID and reconciles pending or lost delete responses', async () => {
+  const { contract } = await candidate();
+  for (const mode of [
+    'deleted',
+    'pending',
+    'lost-response',
+    'foreign-uid',
+    'replaced-during-delete',
+    'forbidden',
+    'already-absent',
+  ] as const) {
+    let deletes = 0;
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (_url, init) => {
+      if (init?.method === 'DELETE') {
+        deletes++;
+        return json({}, mode === 'lost-response' ? 503 : mode === 'forbidden' ? 403 : 200);
+      }
+      if (mode === 'already-absent' || (deletes && !['pending', 'replaced-during-delete', 'forbidden'].includes(mode)))
+        return json({}, 404);
+      return json({
+        metadata: { name: binding.siteName, namespace: 'system', labels },
+        system_metadata: {
+          uid: mode === 'foreign-uid' || (mode === 'replaced-during-delete' && deletes) ? 'new-site' : 'original-site',
+        },
+      });
+    });
+    if (mode === 'foreign-uid' || mode === 'replaced-during-delete') {
+      await expect(runtime.deleteSiteExact(binding, 'original-site')).rejects.toThrow(/UID/);
+      expect(deletes).toBe(mode === 'foreign-uid' ? 0 : 1);
+    } else if (mode === 'forbidden') {
+      await expect(runtime.deleteSiteExact(binding, 'original-site')).rejects.toMatchObject({
+        category: 'authorization',
+      });
+      expect(deletes).toBe(1);
+    } else {
+      const result = await runtime.deleteSiteExact(binding, 'original-site');
+      expect(result.status).toBe(mode === 'pending' ? 'pending' : 'deleted');
+      expect(result.siteUid).toBe('original-site');
+      expect(deletes).toBe(mode === 'already-absent' ? 0 : 1);
+    }
+  }
+});
+
+test('site deletion acceptance requires logical and physical absence plus complete inactive registration evidence', async () => {
+  const { contract } = await candidate();
+  for (const mode of [
+    'deleted',
+    'physical-present',
+    'foreign-physical',
+    'inactive-registration',
+    'duplicate-registration',
+    'active-registration',
+    'partial',
+    'malformed',
+    'foreign-registration',
+  ] as const) {
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url) => {
+      const path = new URL(url).pathname;
+      if (path.includes('registrations_by_site')) {
+        if (mode === 'partial') return json({ items: [], next_page_token: 'more' });
+        if (mode === 'malformed') return json({ items: [{}] });
+        if (
+          ['active-registration', 'foreign-registration', 'inactive-registration', 'duplicate-registration'].includes(
+            mode,
+          )
+        )
+          return json({
+            items: Array.from({ length: mode === 'duplicate-registration' ? 2 : 1 }, () => ({
+              name: 'r-example',
+              get_spec: {
+                passport: { cluster_name: mode === 'foreign-registration' ? 'other-site' : binding.siteName },
+                infra: { hostname: binding.nodes[0] },
+              },
+              object: {
+                status: {
+                  current_state:
+                    mode === 'inactive-registration' || mode === 'duplicate-registration' ? 'RETIRED' : 'ONLINE',
+                },
+              },
+            })),
+          });
+        return json({ items: [] });
+      }
+      if (path.includes('/sites/') && ['physical-present', 'foreign-physical'].includes(mode))
+        return json({
+          metadata: { name: binding.siteName, namespace: 'system' },
+          system_metadata: { uid: mode === 'foreign-physical' ? 'other-physical-site' : 'physical-site' },
+        });
+      return json({}, 404);
+    });
+    const result = await runtime.observeSiteDeletion(binding, {
+      siteUid: 'original-site',
+      physicalSiteUid: 'physical-site',
+    });
+    expect(result.status).toBe(
+      ['deleted', 'inactive-registration'].includes(mode)
+        ? 'deleted'
+        : ['physical-present', 'active-registration'].includes(mode)
+          ? 'pending'
+          : 'unknown',
+    );
+  }
+});
 test('token checkpoint failure resumes through GET without duplicate token issuance', async () => {
   const { contract } = await candidate();
   let token: unknown;
