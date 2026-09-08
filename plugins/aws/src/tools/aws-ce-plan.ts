@@ -95,6 +95,17 @@ export function createAwsCePlanTool(pi: PluginInterface) {
           customerAsn: Type.Optional(Type.Number()),
           transitGatewayAsn: Type.Optional(Type.Number()),
           insideCidrs: Type.Optional(stringArray),
+          connectPeers: Type.Optional(
+            Type.Array(
+              Type.Object({
+                node: Type.Integer({ minimum: 1, maximum: 3 }),
+                insideCidr: Type.String(),
+                transportInterfaceIndex: Type.Union([Type.Literal(0), Type.Literal(1)]),
+                transitGatewayAddress: Type.Optional(Type.String()),
+              }),
+              { minItems: 1, maxItems: 12 },
+            ),
+          ),
           associations: stringArray,
           propagations: stringArray,
         }),

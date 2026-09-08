@@ -68,6 +68,12 @@ export interface AwsCeIntent {
     customerAsn?: number;
     transitGatewayAsn?: number;
     insideCidrs?: string[];
+    connectPeers?: Array<{
+      node: number;
+      insideCidr: string;
+      transportInterfaceIndex: number;
+      transitGatewayAddress?: string;
+    }>;
     associations: string[];
     propagations: string[];
   };

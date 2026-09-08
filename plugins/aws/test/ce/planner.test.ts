@@ -649,3 +649,56 @@ it('persists independent site identity in both engines and each node resource ta
     }
   }
 });
+
+it('plans six independent GRE peers and twelve sessions for either engine with explicit transport selection', () => {
+  const peers = Array.from({ length: 6 }, (_, index) => ({
+    node: Math.floor(index / 2) + 1,
+    insideCidr: `169.254.${index + 10}.0/29`,
+    transportInterfaceIndex: 0,
+    transitGatewayAddress: `10.0.20.${index + 10}`,
+  }));
+  const sites = [1, 2, 3].map((node) => ({ name: `site-${node}`, nodeIndexes: [node] }));
+  const evidence = observation();
+  evidence.resources = [
+    { id: 'tgw-0123456789abcdef0', region: 'us-east-1', exists: true, owned: false, tags: {}, state: {} },
+  ];
+  evidence.research.f5AwsGuide.tgwConnectDocumented = true;
+  evidence.f5Capabilities = {
+    ...capabilities,
+    providerNetworkingProfiles: { aws: ['tgw-connect'] },
+    awsSmsv2TgwConnect: { supported: true, schemaVersion: 'f5xc-smsv2-aws-tgw-telemetry/v2' },
+  };
+  evidence.f5CapabilitiesSha256 = canonicalSha256(evidence.f5Capabilities);
+  for (const engine of ['native', 'terraform'] as const) {
+    const plan = compileAwsCePlan(
+      intent({
+        engine,
+        brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
+        topology: { nodeCount: 3, sites },
+        interfaces: interfaces(3, 2),
+        routing: {
+          profile: 'tgw-connect',
+          destinationCidrs: [],
+          associations: [],
+          propagations: [],
+          transitGatewayId: 'tgw-0123456789abcdef0',
+          customerAsn: 65010,
+          transitGatewayAsn: 64512,
+          connectPeers: peers,
+        },
+      }),
+      evidence,
+    );
+    const actions = plan.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
+    expect(actions).toHaveLength(6);
+    expect(new Set(actions.map((action) => action.capture?.placeholder)).size).toBe(6);
+    for (const [index, action] of actions.entries()) {
+      expect(action.args).toContain(`__NODE_${peers[index].node}_SLO_IP__`);
+      expect(action.args).toContain(peers[index].transitGatewayAddress);
+      expect(action.args).toContain(peers[index].insideCidr);
+    }
+    expect(plan.actions.find((action) => action.kind === 'bgp-gate')?.description).toContain(
+      '12 AWS-managed BGP sessions',
+    );
+  }
+});

@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import { prepareRecoverableAction } from './create-recovery';
 import { siteForNode, siteTopology } from './topology';
@@ -206,9 +207,40 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     }
     if (input.topology.nodeCount !== 3) fail('TGW Connect requires three-zone symmetry');
     if (input.interfaces.length < 2) fail('TGW Connect requires an SLI interface');
-    if (input.routing.insideCidrs?.length !== 3)
-      fail('TGW Connect requires one deterministic 169.254.0.0/16 /29 inside CIDR per node');
-    const insideNetworks = input.routing.insideCidrs.map(tgwInsideNetwork);
+    if (input.routing.connectPeers && input.routing.insideCidrs)
+      fail('Select explicit Connect peers or legacy inside CIDRs, not both');
+    const peers =
+      input.routing.connectPeers ??
+      input.routing.insideCidrs?.map((insideCidr, index) => ({
+        node: index + 1,
+        insideCidr,
+        transportInterfaceIndex: 1,
+      }));
+    if (!peers?.length || peers.length > 12) fail('TGW Connect requires explicit peers or one inside CIDR per node');
+    const counts = new Map<number, number>();
+    const endpoints = new Set<string>();
+    for (const peer of peers) {
+      if (
+        !Number.isInteger(peer.node) ||
+        peer.node < 1 ||
+        peer.node > input.topology.nodeCount ||
+        ![0, 1].includes(peer.transportInterfaceIndex)
+      )
+        fail('Connect peer must select a real node and SLO or SLI GRE transport');
+      counts.set(peer.node, (counts.get(peer.node) ?? 0) + 1);
+      if ('transitGatewayAddress' in peer && peer.transitGatewayAddress !== undefined) {
+        if (
+          typeof peer.transitGatewayAddress !== 'string' ||
+          isIP(peer.transitGatewayAddress) !== 4 ||
+          endpoints.has(peer.transitGatewayAddress)
+        )
+          fail('GRE transit gateway endpoints must be unique IPv4 addresses');
+        endpoints.add(peer.transitGatewayAddress);
+      }
+    }
+    if (counts.size !== input.topology.nodeCount || new Set(counts.values()).size !== 1)
+      fail('Connect topology requires equal peer counts on every node');
+    const insideNetworks = peers.map((peer) => tgwInsideNetwork(peer.insideCidr));
     if (new Set(insideNetworks).size !== insideNetworks.length)
       fail('TGW Connect inside CIDRs must be non-overlapping');
   }
@@ -814,7 +846,7 @@ function compileActions(
       add({
         phase: 'verify',
         kind: 'bgp-gate',
-        description: 'Verify six AWS-managed BGP sessions and learned/advertised routes',
+        description: `Verify ${(intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0) * 2} AWS-managed BGP sessions across ${intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0} Connect peers`,
         mutates: false,
         destructive: false,
       });
@@ -1646,7 +1678,14 @@ function compileActions(
       });
   }
   if (intent.routing.profile === 'tgw-connect') {
-    const insideCidrs = intent.routing.insideCidrs ?? [];
+    const peers =
+      intent.routing.connectPeers ??
+      (intent.routing.insideCidrs ?? []).map((insideCidr, index) => ({
+        node: index + 1,
+        insideCidr,
+        transportInterfaceIndex: 1,
+        transitGatewayAddress: undefined,
+      }));
     add({
       phase: 'routing',
       kind: 'tgw-connect-attachment-create',
@@ -1668,11 +1707,11 @@ function compileActions(
       destructive: false,
       capture: { placeholder: '__TGW_CONNECT_ATTACHMENT__', path: 'TransitGatewayConnect.TransitGatewayAttachmentId' },
     });
-    for (let node = 1; node <= 3; node++)
+    for (const [index, peer] of peers.entries())
       add({
         phase: 'routing',
         kind: 'tgw-connect-peer-create',
-        description: `Create node ${node} Connect peer with two AWS-managed BGP sessions`,
+        description: `Create node ${peer.node} Connect peer with two AWS-managed BGP sessions`,
         command: 'aws',
         args: [
           'ec2',
@@ -1680,28 +1719,29 @@ function compileActions(
           '--transit-gateway-attachment-id',
           '__TGW_CONNECT_ATTACHMENT__',
           '--peer-address',
-          `__NODE_${node}_SLI_IP__`,
+          `__NODE_${peer.node}_${peer.transportInterfaceIndex === 0 ? 'SLO' : 'SLI'}_IP__`,
+          ...(peer.transitGatewayAddress ? ['--transit-gateway-address', peer.transitGatewayAddress] : []),
           '--bgp-options',
           `PeerAsn=${intent.routing.customerAsn}`,
           '--inside-cidr-blocks',
-          insideCidrs[node - 1],
+          peer.insideCidr,
           '--tag-specifications',
-          tagSpec(intent, 'transit-gateway-connect-peer', node),
+          tagSpec(intent, 'transit-gateway-connect-peer', peer.node),
           ...base,
         ],
-        node,
-        resourceId: `aws://${intent.region}/tgw-connect-peer/${intent.deploymentName}-${node}`,
+        node: peer.node,
+        resourceId: `aws://${intent.region}/tgw-connect-peer/${intent.deploymentName}-${peer.node}-${index + 1}`,
         mutates: true,
         destructive: false,
         capture: {
-          placeholder: `__TGW_CONNECT_PEER_${node}__`,
+          placeholder: `__TGW_CONNECT_PEER_${index + 1}__`,
           path: 'TransitGatewayConnectPeer.TransitGatewayConnectPeerId',
         },
       });
     add({
       phase: 'verify',
       kind: 'bgp-gate',
-      description: 'Verify six AWS-managed BGP sessions and learned/advertised routes',
+      description: `Verify ${(intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0) * 2} AWS-managed BGP sessions across ${intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0} Connect peers`,
       mutates: false,
       destructive: false,
     });
@@ -1777,8 +1817,13 @@ export function compileAwsCePlan(
   if (!instance?.supported) fail(`instance type ${intent.instance.type} is not supported in ${intent.region}`);
   if (intent.topology.nodeCount === 3 && instance.availabilityZones.length < 3)
     fail('three-node topology requires three Availability Zones');
-  if (intent.routing.profile === 'tgw-connect')
-    fail('AWS TGW Connect is unavailable until F5 publishes the separate authenticated telemetry contract');
+  if (
+    intent.routing.profile === 'tgw-connect' &&
+    (!observation.research.f5AwsGuide.tgwConnectDocumented ||
+      !observation.f5Capabilities.awsSmsv2TgwConnect.supported ||
+      observation.f5Capabilities.awsSmsv2TgwConnect.schemaVersion !== 'f5xc-smsv2-aws-tgw-telemetry/v2')
+  )
+    fail('AWS TGW Connect is unavailable without current F5 documentation and the authenticated telemetry contract');
   if (
     !observation.f5Capabilities.supportedProviders.includes('aws') ||
     !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes(intent.routing.profile)

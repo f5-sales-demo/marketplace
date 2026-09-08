@@ -83,8 +83,14 @@ export async function collectAwsNetworkHealth(
         seen.add(id);
         const config = object(peer.ConnectPeerConfiguration);
         const action = actions[ids.indexOf(id)];
+        const transportArgument = action.args?.[(action.args?.indexOf('--peer-address') ?? -1) + 1];
+        const transportAddress = transportArgument?.startsWith('__') ? values[transportArgument] : transportArgument;
+        const expectedGatewayAddress = action.args?.includes('--transit-gateway-address')
+          ? action.args[action.args.indexOf('--transit-gateway-address') + 1]
+          : undefined;
         if (
-          config.PeerAddress !== values[`__NODE_${action.node}_SLI_IP__`] ||
+          config.PeerAddress !== (transportAddress ?? values[`__NODE_${action.node}_SLI_IP__`]) ||
+          (expectedGatewayAddress !== undefined && config.TransitGatewayAddress !== expectedGatewayAddress) ||
           config.Protocol !== 'gre' ||
           !Array.isArray(config.BgpConfigurations) ||
           config.BgpConfigurations.length !== 2
