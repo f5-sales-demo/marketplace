@@ -8,6 +8,7 @@ import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoi
 import { fingerprintObservation, sha256Hex } from '../ce/canonical';
 import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
+import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
 import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
@@ -138,7 +139,8 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
           replacements.__BOOTSTRAP_FILE__ = bootstrapPath;
         }
         const result = await api.exec(action.command, resolveActionArgs(action.args, plan.planSha256, replacements));
-        if (result.exitCode !== 0) throw new Error(`Azure action ${action.id} failed: ${result.stderr.slice(0, 500)}`);
+        if (result.exitCode !== 0)
+          throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
       }
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
@@ -189,12 +191,12 @@ export function createAzureCeApplyTool(pi: PluginInterface, makeApi: (cwd: strin
     async execute(
       _id: string,
       params: ApplyParams,
-      _signal: AbortSignal | undefined,
+      signal: AbortSignal | undefined,
       _update: unknown,
       ctx: AzureCeToolContext,
     ) {
       try {
-        const { plan, checkpoint } = await executeApply(params, ctx, makeApi(ctx.cwd));
+        const { plan, checkpoint } = await executeApply(params, ctx, withAzureCeExecution(makeApi(ctx.cwd), signal));
         return {
           content: [
             {
