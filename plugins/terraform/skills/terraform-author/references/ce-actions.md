@@ -28,3 +28,10 @@ resource in the workspace. The runner refreshes state, permits only delete/no-op
 changes, and applies the exact saved binary. Preserve the source configuration and
 receipts for inspection. Verify empty state with a subsequent refresh-enabled destroy
 plan; an ordinary plan against retained source configuration would propose recreation.
+
+Failed Terraform commands retain bounded stdout and stderr in `failure-diagnostics/`
+inside the restricted deployment workspace. These files can contain bootstrap or
+provider credentials: inspect them locally and export only a sanitized finding.
+The executor omits environment variables and returns only a fixed error category.
+Successful commands do not create diagnostic files. Retain failed plans and state
+alongside diagnostics when reconciling a partial apply.

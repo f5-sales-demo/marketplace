@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TerraformCommandError } from '../src/failure';
@@ -198,6 +198,50 @@ test('executor bounds output and kills a process that ignores cancellation', asy
   setTimeout(() => controller.abort(), 50);
   await expect(running).rejects.toThrow('cancelled');
   await expect(executor({ cwd: root, args: [], env: { PATH: root } })).rejects.toThrow('deadline');
+});
+
+test('failed command diagnostics remain private, unique and absent from exported results', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ce-tf-private-diagnostics-'));
+  directories.push(root);
+  const executable = join(root, 'terraform');
+  await writeFile(
+    executable,
+    '#!/bin/sh\nprintf "PRIVATE_BOOTSTRAP"\nprintf "VpcLimitExceeded PRIVATE_CREDENTIAL" >&2\nexit 1\n',
+    { mode: 0o700 },
+  );
+  const executor = terraformExecutor(undefined, true);
+  for (let attempt = 0; attempt < 2; attempt++)
+    expect(await executor({ cwd: root, args: ['apply'], env: { PATH: root, PRIVATE_ENV: 'ENV_SECRET' } })).toEqual({
+      code: 1,
+      stdout: '',
+      failureCategory: 'quota',
+    });
+  const directory = join(root, 'failure-diagnostics');
+  expect((await lstat(directory)).mode & 0o777).toBe(0o700);
+  const names = await readdir(directory);
+  expect(names).toHaveLength(2);
+  for (const name of names) {
+    const path = join(directory, name);
+    expect((await lstat(path)).mode & 0o777).toBe(0o600);
+    const content = await readFile(path, 'utf8');
+    expect(JSON.parse(content)).toMatchObject({
+      operation: 'apply',
+      category: 'quota',
+      stdout: 'PRIVATE_BOOTSTRAP',
+      stderr: 'VpcLimitExceeded PRIVATE_CREDENTIAL',
+    });
+    expect(content).not.toContain('ENV_SECRET');
+  }
+  await writeFile(executable, '#!/bin/sh\nprintf "success"\n');
+  expect(await executor({ cwd: root, args: ['version'], env: { PATH: root } })).toEqual({ code: 0, stdout: 'success' });
+  expect(await readdir(directory)).toEqual(names);
+  await rm(directory, { recursive: true });
+  const outside = await mkdtemp(join(tmpdir(), 'ce-tf-diagnostics-outside-'));
+  directories.push(outside);
+  await symlink(outside, directory);
+  await writeFile(executable, '#!/bin/sh\nexit 1\n');
+  await expect(executor({ cwd: root, args: ['apply'], env: { PATH: root } })).rejects.toThrow();
+  expect(await readdir(outside)).toEqual([]);
 });
 
 test('failed executors expose only fixed categories and discard potentially sensitive output', async () => {
