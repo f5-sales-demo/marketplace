@@ -573,6 +573,11 @@ async function observeResource(
     throw new Error(`AWS resource observation failed for ${id}: ${result.stderr}`);
   }
   const raw = JSON.parse(result.stdout) as Record<string, unknown>;
+  const complete = (response: Record<string, unknown>) => {
+    if (response.NextToken || response.NextMarker || response.nextToken)
+      throw new Error('Incomplete AWS resource observation');
+  };
+  complete(raw);
   if (id.startsWith('tgw-rtb-')) {
     const table = await json<Record<string, unknown>>(api, [
       'ec2',
@@ -582,6 +587,7 @@ async function observeResource(
       '--region',
       region,
     ]);
+    complete(table);
     raw.TransitGatewayRouteTables = table.TransitGatewayRouteTables;
     const propagation = await api.exec('aws', [
       'ec2',
@@ -595,8 +601,11 @@ async function observeResource(
     ]);
     if (propagation.exitCode !== 0)
       throw new Error(`AWS TGW propagation observation failed for ${id}: ${propagation.stderr}`);
-    raw.Propagations =
-      (JSON.parse(propagation.stdout) as Record<string, unknown>).TransitGatewayRouteTablePropagations ?? [];
+    const propagated = JSON.parse(propagation.stdout) as Record<string, unknown>;
+    complete(propagated);
+    if (!Array.isArray(propagated.TransitGatewayRouteTablePropagations))
+      throw new Error('Incomplete AWS TGW propagation observation');
+    raw.Propagations = propagated.TransitGatewayRouteTablePropagations;
   }
   if (/^arn:[^:]+:elasticloadbalancing:/.test(id)) {
     const tagResult = await api.exec('aws', [

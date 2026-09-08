@@ -383,3 +383,30 @@ it('keeps the MCN routing recipe distinct from generic deployment or legacy TGW 
     ),
   ).toBe(true);
 });
+
+it('rejects truncated TGW association, route-table and propagation evidence', async () => {
+  for (const truncated of [
+    'get-transit-gateway-route-table-associations',
+    'describe-transit-gateway-route-tables',
+    'get-transit-gateway-route-table-propagations',
+  ]) {
+    const api: AwsExecApi = {
+      async exec(_command, args) {
+        const body =
+          args[1] === 'get-transit-gateway-route-table-associations'
+            ? { Associations: [] }
+            : args[1] === 'describe-transit-gateway-route-tables'
+              ? { TransitGatewayRouteTables: [] }
+              : { TransitGatewayRouteTablePropagations: [] };
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({ ...body, ...(args[1] === truncated ? { NextToken: 'more' } : {}) }),
+        };
+      },
+    };
+    await expect(
+      observeAwsResources(api, ['tgw-rtb-12345678'], 'ca-west-1', { deploymentName: 'ce', planSha256s: [] }),
+    ).rejects.toThrow('Incomplete');
+  }
+});

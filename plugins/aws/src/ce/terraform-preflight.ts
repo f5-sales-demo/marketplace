@@ -2,8 +2,9 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256, resourceConfiguration } from './canonical';
-import { discoverAwsCompute } from './discovery';
+import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { scopedAwsApi } from './scoped-exec';
+import { ownedRoutingAdditions, routingAttachmentIds } from './terraform-routing-references';
 import type { AwsCeObservation, AwsCePlan } from './types';
 
 /** Recheck immutable inputs and remaining capacity, allowing this deployment's already allocated EIPs. */
@@ -69,6 +70,14 @@ export async function revalidateAwsTerraformPlan(
     api,
     fetcher,
   );
+  const attachmentIds = routingAttachmentIds(plan, current);
+  if (attachmentIds.length)
+    current.resources.push(
+      ...(await observeAwsResources(api, attachmentIds, plan.region, {
+        deploymentName: plan.deploymentName,
+        planSha256s: [plan.planSha256],
+      })),
+    );
   assertAwsTerraformPreflight(plan, baseline, current);
   return current;
 }
@@ -110,7 +119,8 @@ export function assertAwsTerraformPreflight(
       before.length !== references.length ||
       after.length !== references.length ||
       after.some((item) => !item.exists || item.region !== plan.region) ||
-      canonicalSha256(resourceConfiguration(before)) !== canonicalSha256(resourceConfiguration(after))
+      canonicalSha256(resourceConfiguration(before)) !==
+        canonicalSha256(resourceConfiguration(ownedRoutingAdditions(plan, before, after, current.resources)))
     )
       throw new Error('Terraform routing reference configuration changed');
   }
