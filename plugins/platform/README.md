@@ -25,6 +25,13 @@ after an upgrade. A replacement coordinator must freeze these values into its pl
 revalidate them before the first destructive boundary, and verify the replacement
 after registration. The version gate alone does not implement that lifecycle.
 
+`captureCeReplacementVersions` records the selected logical site, physical site,
+contract identities, and stable runtime versions. `verifyCeReplacementVersions`
+collects a new observation and rejects identity or version drift before an intact
+site's first destructive operation. Partial shutdown recovery must reconcile the
+cloud's actual state and its recorded admission before using these functions;
+an offline site cannot pass the stable-version gate.
+
 The verified HTTP ingress contract also maps site-local HTTP origins. It binds
 each outside-network endpoint to an explicit CE site and uses `LOCAL_PREFERRED`
 selection. The API's site-bound `private_ip` variant can carry a public address.
