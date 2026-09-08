@@ -403,3 +403,15 @@ test('obsolete replacement schema and forged version admission fail closed', asy
   Object.assign(f.replacement, { schemaVersion: 1 });
   await expect(f.run()).rejects.toThrow('obsolete');
 });
+
+test('saved shutdown admission cannot outlive its configuration guard', async () => {
+  const f = fixture('terraform', 'token-delete');
+  await expect(f.run()).rejects.toThrow('interrupted');
+  const path = `${f.replacement.planId}.json`;
+  const checkpoint = (await f.storage.read(path)) as Record<string, unknown>;
+  delete checkpoint.quiesceConfigurationSha256;
+  await f.storage.write(path, checkpoint);
+  const count = f.events.length;
+  await expect(f.run()).rejects.toThrow('configuration admission is missing');
+  expect(f.events).toHaveLength(count);
+});

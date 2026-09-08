@@ -281,6 +281,8 @@ export async function runAwsSiteReplacement(
       checkpoint.physicalSiteUid === plan.versions.identity.physicalSiteUid)
   )
     throw new Error('Replacement physical site checkpoint differs');
+  if (checkpoint.versionAdmissionSha256 && !checkpoint.quiesceConfigurationSha256)
+    throw new Error('Replacement configuration admission is missing');
   object(checkpoint.bootstrap);
   object(checkpoint.bootstrapSha256);
   object(checkpoint.instances);
