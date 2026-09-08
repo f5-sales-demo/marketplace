@@ -190,3 +190,37 @@ it('refuses mutation when live resource ownership belongs to another engine', as
   };
   await expect(assertActionOwnership(plan, action, api)).rejects.toThrow('another or unknown execution engine');
 });
+
+it('rechecks exact brownfield ownership and refuses a conflicting engine despite allowlist approval', async () => {
+  const target = `/subscriptions/${subscriptionId}/resourceGroups/brownfield/providers/Microsoft.Network/routeTables/existing`;
+  const plan = compileAzureCePlan(intent, observation);
+  plan.ownershipInventory.push({ resourceId: target, owned: false, action: 'modify-approved' });
+  const action = {
+    id: 'brownfield',
+    phase: 'routing' as const,
+    kind: 'route-association-update' as const,
+    resourceId: target,
+    description: 'approved route update',
+    mutates: true,
+    destructive: true,
+  };
+  const api = (value: unknown) => ({
+    exec: async (_command: string, args: string[]) => {
+      expect(args).toContain(target);
+      expect(args).toContain(subscriptionId);
+      return { stdout: JSON.stringify(value), stderr: '', exitCode: 0 };
+    },
+  });
+  await assertActionOwnership(plan, action, api({ id: target, tags: { owner: 'existing-network' } }));
+  for (const value of [
+    { id: target, tags: { 'xcsh-execution-engine': 'terraform' } },
+    {
+      id: target,
+      tags: { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'other', 'xcsh-execution-engine': 'native' },
+    },
+    { id: `${target}-substituted` },
+    {},
+    { id: target, tags: [] },
+  ])
+    await expect(assertActionOwnership(plan, action, api(value))).rejects.toThrow();
+});

@@ -66,6 +66,41 @@ const CREATE_KINDS = new Set([
 ]);
 const OWNED_MUTATION_KINDS = new Set(['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'nic-update']);
 
+async function assertBrownfieldOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
+  const id = action.resourceId ?? '';
+  if (!id.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
+    throw new Error('Brownfield mutation target is outside the selected subscription');
+  const result = await api.exec('az', [
+    'resource',
+    'show',
+    '--ids',
+    id,
+    '--subscription',
+    plan.subscription.id,
+    '--output',
+    'json',
+  ]);
+  if (result.exitCode !== 0) throw new Error('Brownfield ownership observation unavailable');
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(result.stdout) as Record<string, unknown>;
+  } catch {
+    throw new Error('Malformed brownfield ownership observation');
+  }
+  if (!raw || typeof raw.id !== 'string' || raw.id.toLowerCase() !== id.toLowerCase() || raw.nextLink)
+    throw new Error('Brownfield ownership identity is missing or substituted');
+  if (raw.tags !== undefined && (!raw.tags || typeof raw.tags !== 'object' || Array.isArray(raw.tags)))
+    throw new Error('Malformed brownfield ownership tags');
+  const tags = (raw.tags ?? {}) as Record<string, unknown>;
+  if (tags['xcsh-execution-engine'] !== undefined && tags['xcsh-execution-engine'] !== plan.engine)
+    throw new Error('Brownfield resource belongs to another execution engine');
+  if (
+    tags['xcsh-managed-by'] === 'azure-ce' &&
+    (tags['xcsh-deployment-id'] !== plan.deploymentName || tags['xcsh-execution-engine'] !== plan.engine)
+  )
+    throw new Error('Brownfield resource belongs to another or unknown CE deployment owner');
+}
+
 export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
   if (!action.mutates || action.kind === 'marketplace-terms-accept') return;
   if (['route-association-update', 'brownfield-restore'].includes(action.kind)) {
@@ -74,6 +109,7 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
     );
     if (!allowed)
       throw new Error(`Brownfield resource is outside the approved allowlist: ${action.resourceId ?? '<missing>'}`);
+    await assertBrownfieldOwnership(plan, action, api);
     return;
   }
   if (!action.resourceId) {
@@ -93,6 +129,7 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
       (item) => item.action === 'modify-approved' && item.resourceId.toLowerCase() === action.resourceId?.toLowerCase(),
     );
     if (!allowed) throw new Error(`Brownfield route target is outside the approved allowlist: ${action.resourceId}`);
+    await assertBrownfieldOwnership(plan, action, api);
     return;
   }
   if (!CREATE_KINDS.has(action.kind) && action.kind !== 'resource-delete' && !OWNED_MUTATION_KINDS.has(action.kind))
@@ -116,7 +153,7 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
     throw new Error(`Ownership response was invalid for ${action.resourceId}`);
   }
   const observedId = String(raw.id ?? '').toLowerCase();
-  if (observedId && observedId !== action.resourceId.toLowerCase())
+  if (!observedId || observedId !== action.resourceId.toLowerCase())
     throw new Error(`Azure substituted a different resource ID for ${action.resourceId}`);
   const tags = (raw.tags as Record<string, string> | undefined) ?? {};
   const owned = tags['xcsh-managed-by'] === 'azure-ce' && tags['xcsh-deployment-id'] === plan.deploymentName;
