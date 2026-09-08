@@ -445,3 +445,48 @@ test('Terraform admission recognizes an association-only partial shutdown before
     await f.cleanup();
   }
 });
+
+test('replacement binds the prior admission even when composed routing changed the current configuration hash', async () => {
+  const f = await fixture();
+  try {
+    const bootstrapByNode = Object.fromEntries(
+      Object.entries(f.original.resource.aws_instance).map(([name, value]) => [
+        name.slice(5),
+        Buffer.from((value as Json).user_data_base64, 'base64').toString('utf8'),
+      ]),
+    );
+    await f.store.write('terraform-admission.json', {
+      schemaVersion: 1,
+      planSha256: f.base.planSha256,
+      configurationSha256: 'a'.repeat(64),
+      admittedSites: f.base.intent.topology.sites?.map((site) => site.name),
+      bootstrapByNode,
+    });
+    const driver = await f.open();
+    await driver.quiesce(f.replacement);
+    const instances = await driver.launch(f.replacement, f.material);
+    await driver.finalize?.(f.replacement, instances);
+    const admission = (await f.store.read('terraform-admission.json')) as Json;
+    expect(admission.configurationSha256).not.toBe('a'.repeat(64));
+    await driver.finalize?.(f.replacement, instances);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('source admission with different bootstrap is rejected before shutdown', async () => {
+  const f = await fixture();
+  try {
+    await f.store.write('terraform-admission.json', {
+      schemaVersion: 1,
+      planSha256: f.base.planSha256,
+      configurationSha256: 'a'.repeat(64),
+      admittedSites: ['site-1'],
+      bootstrapByNode: {},
+    });
+    await expect(f.open()).rejects.toThrow('source admission differs');
+    expect(f.events).not.toContain('apply');
+  } finally {
+    await f.cleanup();
+  }
+});

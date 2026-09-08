@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-aws",
-  "version": "2.0.32",
+  "version": "2.0.33",
   "description": "AWS CLI tools and deterministic F5 Secure Mesh Site v2 Customer Edge administration for xcsh",
   "main": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "AWS",
-    "version": "2.0.32",
+    "version": "2.0.33",
     "extensions": [
       "src/index.ts"
     ]

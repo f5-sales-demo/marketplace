@@ -62,8 +62,41 @@ export async function createTerraformAwsSiteReplacementDriver(
     const configuration = await session.readConfiguration(expectedConfigurationSha256);
     // Validate engine, source plan, site topology and the exact configuration before persisting it.
     awsTerraformReplacementStages(base, plan, configuration, expectedConfigurationSha256);
+    let admissionSha256: string | null = null;
+    try {
+      const admission = object(await storage.read('terraform-admission.json'));
+      const configured = object(object(object(JSON.parse(configuration)).resource).aws_instance);
+      const bootstrapByNode = Object.fromEntries(
+        Object.entries(configured).map(([name, value]) => {
+          const encoded = object(value).user_data_base64;
+          if (!/^node_[1-3]$/.test(name) || typeof encoded !== 'string')
+            throw new Error('Terraform source bootstrap admission is incomplete');
+          return [name.slice(5), Buffer.from(encoded, 'base64').toString('utf8')];
+        }),
+      );
+      if (
+        admission.schemaVersion !== 1 ||
+        admission.planSha256 !== base.planSha256 ||
+        typeof admission.configurationSha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(admission.configurationSha256) ||
+        !Array.isArray(admission.admittedSites) ||
+        !admission.admittedSites.includes(plan.binding.siteName) ||
+        canonicalSha256(admission.admittedSites) !==
+          canonicalSha256(
+            siteBindings(base)
+              .map(({ site }) => site.name)
+              .slice(0, admission.admittedSites.length),
+          ) ||
+        canonicalSha256(admission.bootstrapByNode) !== canonicalSha256(bootstrapByNode)
+      )
+        throw new Error('Terraform source admission differs from deployment and bootstrap');
+      admissionSha256 = canonicalSha256(admission);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
     snapshot = {
       schemaVersion: 1,
+      admissionSha256,
       replacementPlanSha256: plan.planSha256,
       configurationSha256: expectedConfigurationSha256,
       configuration,
@@ -72,6 +105,9 @@ export async function createTerraformAwsSiteReplacementDriver(
   }
   if (
     snapshot.schemaVersion !== 1 ||
+    !Object.hasOwn(snapshot, 'admissionSha256') ||
+    (snapshot.admissionSha256 !== null &&
+      (typeof snapshot.admissionSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(snapshot.admissionSha256))) ||
     snapshot.replacementPlanSha256 !== plan.planSha256 ||
     snapshot.configurationSha256 !== expectedConfigurationSha256 ||
     typeof snapshot.configuration !== 'string' ||
@@ -305,6 +341,7 @@ export async function createTerraformAwsSiteReplacementDriver(
         admission = object(await storage.read('terraform-admission.json'));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if (snapshot.admissionSha256 !== null) throw new Error('Terraform admission disappeared during replacement');
         return;
       }
       if (
@@ -321,7 +358,8 @@ export async function createTerraformAwsSiteReplacementDriver(
       )
         throw new Error('Terraform admission ownership or selected site differs');
       const isOriginal =
-        admission.configurationSha256 === expectedConfigurationSha256 &&
+        snapshot.admissionSha256 !== null &&
+        canonicalSha256(admission) === snapshot.admissionSha256 &&
         canonicalSha256(admission.bootstrapByNode) === canonicalSha256(oldBootstrap);
       const isCompleted =
         admission.configurationSha256 === marker.configurationSha256 &&
