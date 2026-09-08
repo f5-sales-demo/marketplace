@@ -9,7 +9,7 @@ export interface Invocation {
   signal?: AbortSignal;
 }
 type Executor = (request: Invocation) => Promise<{ code: number; stdout: string }>;
-interface Deployment {
+export interface Deployment {
   schemaVersion: 1;
   deploymentId: string;
   engine: 'terraform';
@@ -204,13 +204,23 @@ export class TerraformRunner {
     this.#directory = directory;
     this.#manifest = manifest;
   }
-  async resume(deploymentId: string): Promise<void> {
+  async resume(deploymentId: string, expected?: Deployment): Promise<void> {
     if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
     const directory = join(this.root, deploymentId);
     await privateDirectory(directory);
     const manifest = decode((await privateRead(join(directory, 'deployment.json'))).toString()) as unknown as Manifest;
     if (manifest.schemaVersion !== 1 || manifest.engine !== 'terraform' || manifest.deploymentId !== deploymentId)
       throw new Error('Terraform deployment ownership is invalid');
+    if (expected) {
+      const { configuration, providerLock, ...identity } = expected;
+      const expectedManifest = {
+        ...identity,
+        configurationSha256: digest(configuration),
+        providerLockSha256: digest(providerLock),
+      };
+      if (canonical(manifest) !== canonical(expectedManifest))
+        throw new Error('Terraform deployment differs from the requested identity or configuration');
+    }
     this.#directory = directory;
     this.#manifest = manifest;
     await this.#verifyInputs();
