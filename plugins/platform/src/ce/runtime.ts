@@ -1,5 +1,6 @@
 import { bindAwsCloudInit } from './bootstrap';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
+import { correlateRegistrationDevices } from './registration-devices';
 import type { VerifiedCeContract } from './verified-contract';
 import type { AwsGreBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
@@ -274,6 +275,37 @@ export class CeRuntime {
   requireAwsRoutingContract(): void {
     if (!this.contract.awsRoutingAvailable)
       throw new Error('Pinned AWS routing schemas are required before deployment');
+  }
+  async observeAwsGuestDevices(
+    binding: SiteBinding,
+    expectedInstances: Record<string, string>,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ) {
+    this.#binding(binding);
+    const source = `/api/register/namespaces/system/registrations_by_site/${binding.siteName}`;
+    const base = {
+      owner: binding.owner,
+      siteName: binding.siteName,
+      source,
+      observedAt: new Date().toISOString(),
+      evidenceKind: 'registration-hardware-inventory' as const,
+    };
+    try {
+      if (
+        binding.owner.provider !== 'aws' ||
+        Object.keys(expectedInstances).length !== binding.nodes.length ||
+        binding.nodes.some((node) => !Object.hasOwn(expectedInstances, node))
+      )
+        throw new Error('Registration inventory scope differs');
+      this.#owned(await this.observeSite(binding, signal), binding);
+      const response = await this.#request(source, {}, signal);
+      const interfaces = correlateRegistrationDevices(response, binding.siteName, expectedInstances, expected);
+      return { ...base, status: 'observed' as const, interfaces };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return { ...base, status: 'unknown' as const, interfaces: [] };
+    }
   }
   async observeAwsInterfaces(
     binding: SiteBinding,
