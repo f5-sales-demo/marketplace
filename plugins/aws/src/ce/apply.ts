@@ -10,6 +10,7 @@ import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from 
 import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
+import { associateAwsCeEip } from './eip-association';
 import { collectAwsNetworkHealth } from './network-health';
 import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
@@ -507,17 +508,20 @@ export async function executeAwsCeApply(
           checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
         }
         const args = replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues);
-        const result = hasCreateRecovery(action)
-          ? await executeRecoverableCreate(
-              api,
-              plan,
-              action,
-              args,
-              checkpoint,
-              () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
-              signal,
-            )
-          : await api.exec(action.command, args);
+        const result =
+          action.kind === 'elastic-ip-associate'
+            ? await associateAwsCeEip(api, plan, args, signal)
+            : hasCreateRecovery(action)
+              ? await executeRecoverableCreate(
+                  api,
+                  plan,
+                  action,
+                  args,
+                  checkpoint,
+                  () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+                  signal,
+                )
+              : await api.exec(action.command, args);
         if (launchDirectory) {
           delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
           await rm(launchDirectory, { recursive: true, force: true });
