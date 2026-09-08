@@ -58,7 +58,12 @@ export function fingerprintObservation(observation: AwsCeObservation, brownfield
     schemaVersion: observation.schemaVersion,
     identity: observation.identity,
     agreement: observation.agreement,
-    regions: observation.regions,
+    // Allocation counts change during this plan. Discovery still recalculates eligibility
+    // from remaining capacity and exact owned EIPs; quota limits remain immutable inputs.
+    regions: observation.regions.map(({ elasticIpCapacity, ...region }) => ({
+      ...region,
+      ...(elasticIpCapacity ? { elasticIpCapacity: { limit: elasticIpCapacity.limit } } : {}),
+    })),
     resources: resourceConfiguration(observation.resources.filter((resource) => allowlist.has(resource.id))),
     ownershipPlanSha256s: observation.ownershipPlanSha256s,
     research: observation.research,

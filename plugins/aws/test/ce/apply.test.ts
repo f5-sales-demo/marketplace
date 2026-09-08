@@ -218,3 +218,29 @@ describe('mutation boundary ownership', () => {
     ).rejects.toThrow('outside the deployment inventory');
   });
 });
+
+it('resume tolerates owned EIP allocation while rejecting quota or eligibility changes', () => {
+  const initial = structuredClone(observation);
+  initial.regions[0].elasticIpCapacity = {
+    limit: 5,
+    allocated: 0,
+    reusableOwned: 0,
+    available: 5,
+    requiredAdditional: 1,
+  };
+  const plan = compileAwsCePlan(intent, initial);
+  const resumed = structuredClone(initial);
+  resumed.regions[0].elasticIpCapacity = {
+    limit: 5,
+    allocated: 1,
+    reusableOwned: 1,
+    available: 4,
+    requiredAdditional: 0,
+  };
+  expect(() => assertAwsObservationFresh(plan, resumed)).not.toThrow();
+  resumed.regions[0].eligible = false;
+  expect(() => assertAwsObservationFresh(plan, resumed)).toThrow('Stale');
+  resumed.regions[0].eligible = true;
+  resumed.regions[0].elasticIpCapacity.limit = 2;
+  expect(() => assertAwsObservationFresh(plan, resumed)).toThrow('Stale');
+});
