@@ -1,7 +1,7 @@
 # Azure Customer Edge Provider Contract
 
 The provider-neutral automation contract is published at
-[`f5xc-ce-automation/v1`](https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt).
+[`f5xc-ce-automation-policy/v2`](https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt).
 `azure_compute_discover` retrieves that dedicated document, validates its identity and version,
 and records its normalized SHA-256. This reference adds only Azure-specific requirements.
 

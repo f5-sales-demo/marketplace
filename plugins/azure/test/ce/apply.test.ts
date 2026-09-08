@@ -69,8 +69,8 @@ const observation: AzureCeObservation = {
     ],
     sharedContract: {
       url: sharedContractUrl,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: '3'.repeat(64),
     },
   },

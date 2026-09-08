@@ -37,7 +37,7 @@ export function isAwsCePrompt(prompt: string): boolean {
 
 export const AWS_CE_RESEARCH_GATE = [
   'AWS CUSTOMER EDGE ROUTE: Use the aws:aws-ce workflow for this request.',
-  'Before recommendations or aws_ce_plan, use web_search to retrieve the dedicated f5xc-ce-automation/v1 contract, the current official F5 Secure Mesh Site v2 AWS guide, and current AWS Marketplace, EC2, AMI policy, quota, NLB, and Transit Gateway documentation.',
+  'Before recommendations or aws_ce_plan, use web_search to retrieve the dedicated f5xc-ce-automation-policy/v2 contract, the current official F5 Secure Mesh Site v2 AWS guide, and current AWS Marketplace, EC2, AMI policy, quota, NLB, and Transit Gateway documentation.',
   'Then call aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover in that order. Live discovery must enumerate all regions and pin the exact regional SSM AMI and version.',
   'Require the validated shared-contract identity/digest, provider-source receipts, current Marketplace agreement, platform capability evidence, and discovery artifact. Never use generic aws_exec for CE research, plan before discovery, automate initial legal acceptance, mutate during research, or fall back to a legacy AWS site type.',
   'Treat TGW Connect as release-blocked unless both current F5 documentation and f5xc_ce_v2_capabilities advertise an explicit supported SMSv2 GRE/BGP schema.',

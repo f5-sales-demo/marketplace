@@ -3,29 +3,18 @@ import type { PluginInterface } from '../aws/types';
 import { saveAwsDiscovery } from '../ce/artifacts';
 import type { AwsComputeDiscoveryInput } from '../ce/discovery';
 import { discoverAwsCompute } from '../ce/discovery';
+import { awsPlatformService } from '../ce/platform';
 import { makeExecApi } from './shared';
 
 export function createAwsComputeDiscoverTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
   const { Type } = pi.typebox;
-  const capabilitySchema = Type.Object({
-    smsv2ContractVersion: Type.Literal('v2'),
-    supportedProviders: Type.Array(Type.Union([Type.Literal('aws'), Type.Literal('azure')])),
-    bootstrapDrivers: Type.Array(Type.Literal('console')),
-    providerNetworkingProfiles: Type.Object({
-      aws: Type.Optional(Type.Array(Type.String())),
-      azure: Type.Optional(Type.Array(Type.String())),
-    }),
-    awsSmsv2TgwConnect: Type.Object({
-      supported: Type.Boolean(),
-      schemaVersion: Type.Union([Type.String(), Type.Null()]),
-    }),
-  });
   return {
     name: 'aws_compute_discover',
     label: 'Discover AWS CE Compute',
     description:
       'Mandatory read-only AWS Customer Edge research gate. Retrieves the canonical MCN contract and current F5/AWS sources, verifies STS identity and Marketplace agreement, enumerates all regions, pins the regional SSM AMI, and ranks instance, ENI, AZ, quota, policy, TGW, and brownfield evidence deterministically.',
     parameters: Type.Object({
+      awsProfile: Type.Optional(Type.String()),
       accountId: Type.String(),
       partition: Type.Union([Type.Literal('aws'), Type.Literal('aws-us-gov'), Type.Literal('aws-cn')]),
       deploymentName: Type.String(),
@@ -42,17 +31,20 @@ export function createAwsComputeDiscoverTool(pi: PluginInterface, makeApi: (cwd:
       routingProfile: Type.Optional(
         Type.Union(['direct-eni', 'nlb-ingress', 'tgw-static', 'tgw-connect'].map((value) => Type.Literal(value))),
       ),
-      f5Capabilities: capabilitySchema,
+      platformContext: Type.Optional(Type.String()),
     }),
     async execute(
       _id: string,
-      params: AwsComputeDiscoveryInput,
-      _signal: AbortSignal | undefined,
+      params: Omit<AwsComputeDiscoveryInput, 'f5Capabilities'> & { platformContext?: string },
+      signal: AbortSignal | undefined,
       _update: unknown,
       ctx: { cwd: string; sessionManager: Parameters<typeof saveAwsDiscovery>[0] },
     ) {
       try {
-        const observation = await discoverAwsCompute(params, makeApi(ctx.cwd));
+        if (Object.hasOwn(params, 'f5Capabilities')) throw new Error('Caller-supplied F5 capabilities are unsupported');
+        const platform = await awsPlatformService(pi, signal);
+        const f5Capabilities = await platform.capabilities(params.platformContext);
+        const observation = await discoverAwsCompute({ ...params, f5Capabilities }, makeApi(ctx.cwd));
         const artifactId = await saveAwsDiscovery(ctx.sessionManager, observation);
         const regions = observation.regions
           .map(

@@ -237,3 +237,57 @@ test('registration health needs exact site/node/instance correlation and complet
     );
   }
 });
+
+test('registration approval checkpoints before mutation and preserves the server passport', async () => {
+  const { contract } = await candidate();
+  let state = 'NEW';
+  const requests: Array<Record<string, unknown>> = [];
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+    const path = new URL(url).pathname;
+    if (path.includes('securemesh_site_v2s'))
+      return json({ metadata: { name: 'ce-one', namespace: 'system', labels } });
+    if (path.includes('registrations_by_site'))
+      return json({
+        items: [
+          {
+            name: 'r-test',
+            get_spec: {
+              passport: { cluster_name: 'ce-one', cluster_size: state === 'NEW' ? 0 : 1 },
+              infra: { hostname: 'node-one', instance_id: 'i-fixture' },
+            },
+            object: { status: { current_state: state } },
+          },
+        ],
+      });
+    if (path.endsWith('/approve')) {
+      requests.push(JSON.parse(String(init?.body)));
+      state = 'APPROVED';
+      return json({});
+    }
+    return json({
+      object: {
+        spec: { gc_spec: { passport: { cluster_name: 'ce-one', cluster_size: 0, marker: 'preserve-server-value' } } },
+        status: { current_state: state },
+      },
+    });
+  });
+  await expect(
+    runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {
+      throw new Error('checkpoint failed');
+    }),
+  ).rejects.toThrow('checkpoint');
+  expect(requests).toHaveLength(0);
+  const records: unknown[] = [];
+  await runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async (record) => {
+    records.push(record);
+  });
+  expect(requests[0]).toEqual({
+    namespace: 'system',
+    name: 'r-test',
+    state: 'APPROVED',
+    passport: { cluster_name: 'ce-one', cluster_size: 1, marker: 'preserve-server-value' },
+  });
+  expect(records).toHaveLength(2);
+  await runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {});
+  expect(requests).toHaveLength(1);
+});

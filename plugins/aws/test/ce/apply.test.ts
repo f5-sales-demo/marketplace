@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { assertAwsApplyAllowed, assertAwsObservationFresh } from '../../src/ce/apply';
+import { assertAwsActionOwnership, assertAwsApplyAllowed, assertAwsObservationFresh } from '../../src/ce/apply';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
@@ -12,7 +12,8 @@ import {
 } from '../../src/ce/types';
 
 const intent: AwsCeIntent = {
-  schemaVersion: 1,
+  schemaVersion: 2,
+  engine: 'native',
   operation: 'deploy',
   accountId: '123456789012',
   partition: 'aws',
@@ -47,7 +48,7 @@ const capabilities = {
   awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
 };
 const observation: AwsCeObservation = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   identity: { accountId: '123456789012', partition: 'aws', arn: 'arn:aws:iam::123456789012:role/example' },
   agreement: { productId: AWS_CE_MARKETPLACE_PRODUCT_ID, active: true, agreementIds: ['agreement'] },
   resources: [],
@@ -118,8 +119,8 @@ const observation: AwsCeObservation = {
     ],
     sharedContract: {
       url: AWS_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: '1'.repeat(64),
     },
     f5AwsGuide: { url: AWS_CE_F5_GUIDE_URL, normalizedSha256: '2'.repeat(64), tgwConnectDocumented: false },
@@ -140,5 +141,80 @@ describe('AWS CE apply protections', () => {
     expect(() =>
       assertAwsApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: false, env: {} }),
     ).toThrow(/XCSH_CE_HEADLESS/);
+  });
+});
+
+describe('resume authorization', () => {
+  it('honors existing approval bound to the exact plan while retaining engine restrictions', () => {
+    const plan = compileAwsCePlan(intent, observation);
+    expect(() =>
+      assertAwsApplyAllowed(plan, {
+        planId: plan.planId,
+        planSha256: plan.planSha256,
+        hasUI: false,
+        env: {},
+        authorized: true,
+      }),
+    ).not.toThrow();
+    const terraform = compileAwsCePlan({ ...intent, engine: 'terraform' }, observation);
+    expect(() =>
+      assertAwsApplyAllowed(terraform, {
+        planId: terraform.planId,
+        planSha256: terraform.planSha256,
+        hasUI: true,
+        env: {},
+      }),
+    ).toThrow('Terraform-owned');
+  });
+});
+
+describe('mutation boundary ownership', () => {
+  it('resolves synthetic plan targets and rejects an engine change observed immediately before mutation', async () => {
+    const plan = compileAwsCePlan(intent, observation);
+    const instanceId = 'i-0123456789abcdef0';
+    let engine = 'native';
+    const calls: string[][] = [];
+    const api = {
+      exec: async (_command: string, args: string[]) => {
+        calls.push(args);
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            Reservations: [
+              {
+                Instances: [
+                  {
+                    InstanceId: instanceId,
+                    Tags: [
+                      { Key: 'xcsh-managed-by', Value: 'aws-ce' },
+                      { Key: 'xcsh-deployment-id', Value: plan.deploymentName },
+                      { Key: 'xcsh-execution-engine', Value: engine },
+                      { Key: 'xcsh-plan-sha256', Value: plan.planSha256 },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+        };
+      },
+    };
+    const action = {
+      ...plan.actions[0],
+      mutates: true,
+      resourceId: 'aws://ce-demo/node/1',
+      args: ['ec2', 'stop-instances', '--instance-ids', '__INSTANCE_1__'],
+    };
+    await assertAwsActionOwnership(plan, action, api, { __INSTANCE_1__: instanceId });
+    expect(calls[0]).toContain(instanceId);
+    engine = 'terraform';
+    await expect(assertAwsActionOwnership(plan, action, api, { __INSTANCE_1__: instanceId })).rejects.toThrow(
+      'another owner or engine',
+    );
+    await expect(assertAwsActionOwnership(plan, action, api)).rejects.toThrow('unresolved');
+    await expect(
+      assertAwsActionOwnership(plan, { ...action, args: ['ec2', 'stop-instances', '--instance-ids', instanceId] }, api),
+    ).rejects.toThrow('outside the deployment inventory');
   });
 });

@@ -29,6 +29,8 @@ const memoryPlans = new Map<string, AwsCePlanEnvelope[]>();
 export function verifyAwsCePlan(plan: AwsCePlan): void {
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AWS_CE_SCHEMA_VERSION)
     throw new Error('Persisted AWS CE plan uses an unsupported schema version');
+  if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)
+    throw new Error('Persisted AWS CE engine ownership is invalid');
   const { planId, planSha256, ...draft } = plan;
   if (!safeHexEqual(canonicalSha256(draft), planSha256) || planId !== `aws-ce-${planSha256.slice(0, 24)}`)
     throw new Error('Persisted AWS CE plan failed integrity validation');
@@ -46,7 +48,7 @@ export async function loadAwsDiscovery(session: AwsCeSessionManager, id: string)
   if (!path) throw new Error(`AWS CE discovery artifact ${id} was not found in this session`);
   const envelope = JSON.parse(await Bun.file(path).text()) as { kind?: string; observation?: AwsCeObservation };
   if (envelope.kind !== 'aws-ce-discovery' || envelope.observation?.schemaVersion !== AWS_CE_SCHEMA_VERSION)
-    throw new Error('Artifact is not an AWS CE schema-v1 discovery observation');
+    throw new Error('Artifact is not an AWS CE schema-v2 discovery observation');
   return envelope.observation;
 }
 
@@ -94,7 +96,9 @@ export async function loadAwsPlan(
 }
 
 export async function saveAwsCheckpoint(session: AwsCeSessionManager, checkpoint: AwsCeCheckpoint) {
-  return session.saveArtifact(JSON.stringify({ kind: 'aws-ce-checkpoint', checkpoint }), 'aws-ce-checkpoint');
+  const id = await session.saveArtifact(JSON.stringify({ kind: 'aws-ce-checkpoint', checkpoint }), 'aws-ce-checkpoint');
+  if (!id) throw new Error('AWS CE checkpoint could not be persisted');
+  return id;
 }
 
 export async function loadAwsCheckpoint(

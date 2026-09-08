@@ -1,5 +1,6 @@
 import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256, normalizeResearchDocument, sha256Hex } from './canonical';
+import { scopedAwsApi } from './scoped-exec';
 import type {
   AwsCeEgressMode,
   AwsCeF5Capabilities,
@@ -17,6 +18,7 @@ import {
 } from './types';
 
 export interface AwsComputeDiscoveryInput {
+  awsProfile?: string;
   accountId: string;
   partition: 'aws' | 'aws-us-gov' | 'aws-cn';
   deploymentName: string;
@@ -44,7 +46,7 @@ const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const INSTANCE_TYPE = /^[a-z0-9][a-z0-9.-]{1,40}$/;
 const REGION = /^[a-z]{2}(?:-gov)?-[a-z]+-\d$/;
 const RESOURCE_ID =
-  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
 // F5 documents m5.2xlarge as the minimum AWS CE size, but AWS exposes only
 // four ENIs on the 2xlarge variants. Include the corresponding 4xlarge sizes
 // so default discovery can satisfy the documented eight-interface CE shape.
@@ -85,7 +87,7 @@ function validateCapabilities(value: AwsCeF5Capabilities): void {
   if (
     value?.smsv2ContractVersion !== 'v2' ||
     !value.supportedProviders?.includes('aws') ||
-    !value.bootstrapDrivers?.includes('console') ||
+    !value.bootstrapDrivers?.some((driver) => driver === 'api' || driver === 'console') ||
     !Array.isArray(value.providerNetworkingProfiles?.aws) ||
     typeof value.awsSmsv2TgwConnect?.supported !== 'boolean' ||
     (value.awsSmsv2TgwConnect.supported && !value.awsSmsv2TgwConnect.schemaVersion) ||
@@ -192,11 +194,11 @@ async function research(fetcher: typeof fetch): Promise<AwsCeObservation['resear
         if (normalized.trim().length < 100) throw new Error('response was empty');
         if (
           url === AWS_CE_SHARED_CONTRACT_URL &&
-          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
-            !/^contract_version: v1$/m.test(normalized) ||
-            !normalized.includes('f5xc-ce-automation/v1'))
+          (!/^contract_id: f5xc-ce-automation-policy$/m.test(normalized) ||
+            !/^contract_version: v2$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation-policy/v2'))
         )
-          throw new Error('document did not advertise f5xc-ce-automation/v1');
+          throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         if (url === AWS_CE_F5_GUIDE_URL) f5Body = normalized;
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
@@ -221,8 +223,8 @@ async function research(fetcher: typeof fetch): Promise<AwsCeObservation['resear
     sourceReceipts,
     sharedContract: {
       url: AWS_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: shared.normalizedSha256,
     },
     f5AwsGuide: {
@@ -479,6 +481,7 @@ async function observeResource(
   else if (id.startsWith('vpce-')) args = ['ec2', 'describe-vpc-endpoints', '--vpc-endpoint-ids', id];
   else if (id.startsWith('rtb-')) args = ['ec2', 'describe-route-tables', '--route-table-ids', id];
   else if (id.startsWith('subnet-')) args = ['ec2', 'describe-subnets', '--subnet-ids', id];
+  else if (id.startsWith('igw-')) args = ['ec2', 'describe-internet-gateways', '--internet-gateway-ids', id];
   else if (id.startsWith('vpc-')) args = ['ec2', 'describe-vpcs', '--vpc-ids', id];
   else if (id.startsWith('tgw-rtb-'))
     args = ['ec2', 'get-transit-gateway-route-table-associations', '--transit-gateway-route-table-id', id];
@@ -502,6 +505,15 @@ async function observeResource(
   }
   const raw = JSON.parse(result.stdout) as Record<string, unknown>;
   if (id.startsWith('tgw-rtb-')) {
+    const table = await json<Record<string, unknown>>(api, [
+      'ec2',
+      'describe-transit-gateway-route-tables',
+      '--transit-gateway-route-table-ids',
+      id,
+      '--region',
+      region,
+    ]);
+    raw.TransitGatewayRouteTables = table.TransitGatewayRouteTables;
     const propagation = await api.exec('aws', [
       'ec2',
       'get-transit-gateway-route-table-propagations',
@@ -531,15 +543,35 @@ async function observeResource(
     if (tagResult.exitCode !== 0) throw new Error(`AWS ELB tag observation failed for ${id}: ${tagResult.stderr}`);
     raw.TagDescriptions = (JSON.parse(tagResult.stdout) as Record<string, unknown>).TagDescriptions ?? [];
   }
-  const serialized = JSON.stringify(raw);
+  // Bind tags to the requested resource, never to a nested ENI or another response member.
+  const matches: Record<string, unknown>[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+    } else if (value && typeof value === 'object') {
+      const object = value as Record<string, unknown>;
+      if (Object.values(object).some((item) => item === id)) matches.push(object);
+      for (const item of Object.values(object)) visit(item);
+    }
+  };
+  visit(raw);
+  const tagSets = matches.filter((object) => Array.isArray(object.Tags));
+  if (tagSets.length > 1) throw new Error('AWS ownership evidence is ambiguous');
   const tags: Record<string, string> = {};
-  for (const match of serialized.matchAll(/"Key":"([^"]+)","Value":"([^"]*)"/g)) tags[match[1]] = match[2];
+  for (const item of (tagSets[0]?.Tags ?? []) as unknown[]) {
+    if (!item || typeof item !== 'object') throw new Error('AWS ownership tags are malformed');
+    const { Key, Value } = item as Record<string, unknown>;
+    if (typeof Key !== 'string' || typeof Value !== 'string' || Object.hasOwn(tags, Key))
+      throw new Error('AWS ownership tags are malformed or duplicated');
+    tags[Key] = Value;
+  }
   return {
     id,
     region,
-    exists: true,
+    exists: matches.length > 0,
     owned:
       tags['xcsh-managed-by'] === 'aws-ce' &&
+      ['native', 'terraform'].includes(tags['xcsh-execution-engine']) &&
       tags['xcsh-deployment-id'] === deploymentName &&
       ownedPlanSha256s.includes(tags['xcsh-plan-sha256'] ?? ''),
     tags,
@@ -568,6 +600,7 @@ export async function discoverAwsCompute(
   api: AwsExecApi,
   fetcher: typeof fetch = fetch,
 ): Promise<AwsCeObservation> {
+  api = scopedAwsApi(api, input.awsProfile);
   const instanceTypes = validateInput(input);
   const researchReceipt = await research(fetcher);
   const identity = await json<Record<string, unknown>>(api, ['sts', 'get-caller-identity']);
@@ -647,7 +680,12 @@ export async function discoverAwsCompute(
   ];
   return {
     schemaVersion: AWS_CE_SCHEMA_VERSION,
-    identity: { accountId: input.accountId, partition: input.partition, arn },
+    identity: {
+      accountId: input.accountId,
+      partition: input.partition,
+      arn,
+      ...(input.awsProfile ? { awsProfile: input.awsProfile } : {}),
+    },
     agreement: {
       productId: AWS_CE_MARKETPLACE_PRODUCT_ID,
       active: activeAgreements.length > 0,

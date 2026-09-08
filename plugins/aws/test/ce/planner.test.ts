@@ -32,7 +32,8 @@ function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] 
 
 function intent(overrides: Partial<AwsCeIntent> = {}): AwsCeIntent {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    engine: 'native',
     operation: 'deploy',
     accountId: '123456789012',
     partition: 'aws',
@@ -56,7 +57,7 @@ function intent(overrides: Partial<AwsCeIntent> = {}): AwsCeIntent {
 
 function observation(overrides: Partial<AwsCeObservation> = {}): AwsCeObservation {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     identity: { accountId: '123456789012', partition: 'aws', arn: 'arn:aws:iam::123456789012:role/example' },
     agreement: { productId: AWS_CE_MARKETPLACE_PRODUCT_ID, active: true, agreementIds: ['agreement-example'] },
     regions: [
@@ -127,8 +128,8 @@ function observation(overrides: Partial<AwsCeObservation> = {}): AwsCeObservatio
       ],
       sharedContract: {
         url: AWS_CE_SHARED_CONTRACT_URL,
-        contractId: 'f5xc-ce-automation',
-        contractVersion: 'v1',
+        contractId: 'f5xc-ce-automation-policy',
+        contractVersion: 'v2',
         normalizedSha256: '1'.repeat(64),
       },
       f5AwsGuide: { url: AWS_CE_F5_GUIDE_URL, normalizedSha256: '2'.repeat(64), tgwConnectDocumented: false },
@@ -181,7 +182,11 @@ describe('compileAwsCePlan', () => {
     expect(plan.actions.some((action) => action.kind === 'nlb-register-targets')).toBe(true);
     expect(plan.actions.some((action) => action.kind === 'nlb-listener-create')).toBe(true);
     expect(
-      plan.actions.filter((action) => action.kind === 'route-create' || action.kind === 'route-replace'),
+      plan.actions.filter(
+        (action) =>
+          (action.kind === 'route-create' || action.kind === 'route-replace') &&
+          action.args?.some((arg) => arg.includes('__NLB')),
+      ),
     ).toHaveLength(0);
   });
 
@@ -292,6 +297,7 @@ describe('compileAwsCePlan', () => {
       owned: true,
       tags: {
         'xcsh-managed-by': 'aws-ce',
+        'xcsh-execution-engine': 'native',
         'xcsh-deployment-id': 'ce-demo',
         'xcsh-plan-sha256': ownerPlanSha256,
         'xcsh-node-index': node,
@@ -335,6 +341,7 @@ describe('compileAwsCePlan', () => {
             owned: true,
             tags: {
               'xcsh-managed-by': 'aws-ce',
+              'xcsh-execution-engine': 'native',
               'xcsh-deployment-id': 'ce-demo',
               'xcsh-plan-sha256': ownerPlanSha256,
               'xcsh-node-index': '1',
@@ -501,6 +508,7 @@ describe('compileAwsCePlan', () => {
               owned: true,
               tags: {
                 'xcsh-managed-by': 'aws-ce',
+                'xcsh-execution-engine': 'native',
                 'xcsh-deployment-id': 'another-deployment',
                 'xcsh-plan-sha256': ownerPlanSha256,
                 'xcsh-node-index': '1',
@@ -512,4 +520,107 @@ describe('compileAwsCePlan', () => {
       ),
     ).toThrow(/approved prior plan tags/i);
   });
+});
+
+it('persists engine ownership and rejects obsolete plans', () => {
+  const native = compileAwsCePlan(intent(), observation());
+  const terraform = compileAwsCePlan(intent({ engine: 'terraform' }), observation());
+  expect(native.engine).toBe('native');
+  expect(terraform.engine).toBe('terraform');
+  expect(terraform.planSha256).not.toBe(native.planSha256);
+  expect(terraform.ownershipTags['xcsh-execution-engine']).toBe('terraform');
+  expect(() => compileAwsCePlan({ ...intent(), schemaVersion: 1 } as never, observation())).toThrow('schema');
+});
+it('captures real MAC identities before launching an HA site and waits until all nodes launch before registration gates', () => {
+  const plan = compileAwsCePlan(
+    intent({
+      topology: { nodeCount: 3 },
+      interfaces: interfaces(3, 2),
+      routing: { profile: 'nlb-ingress', destinationCidrs: [], associations: [], propagations: [] },
+    }),
+    observation(),
+  );
+  const firstLaunch = plan.actions.findIndex((action) => action.kind === 'instance-run');
+  const firstGate = plan.actions.findIndex((action) => action.kind === 'registration-gate');
+  expect(plan.actions.slice(0, firstLaunch).filter((action) => action.kind === 'eni-create')).toHaveLength(6);
+  expect(plan.actions.slice(0, firstGate).filter((action) => action.kind === 'instance-run')).toHaveLength(3);
+  expect(
+    plan.actions
+      .filter((action) => action.kind === 'eni-create')
+      .every((action) => action.captures?.some((capture) => capture.path === 'NetworkInterface.MacAddress')),
+  ).toBe(true);
+});
+
+it('provides internet routing only to SLO subnets before launching greenfield nodes', () => {
+  const plan = compileAwsCePlan(
+    intent({
+      topology: { nodeCount: 3 },
+      interfaces: interfaces(3, 2),
+      routing: { profile: 'nlb-ingress', destinationCidrs: [], associations: [], propagations: [] },
+    }),
+    observation(),
+  );
+  const firstLaunch = plan.actions.findIndex((action) => action.kind === 'instance-run');
+  const network = plan.actions.slice(0, firstLaunch);
+  expect(network.filter((action) => action.kind === 'internet-gateway-create')).toHaveLength(1);
+  expect(network.filter((action) => action.kind === 'internet-gateway-attach')).toHaveLength(1);
+  const associations = network.filter((action) => action.kind === 'route-table-associate');
+  expect(associations).toHaveLength(3);
+  expect(associations.map((action) => action.args?.[action.args.indexOf('--subnet-id') + 1])).toEqual([
+    '__SUBNET_1_0__',
+    '__SUBNET_2_0__',
+    '__SUBNET_3_0__',
+  ]);
+  const defaultRoute = network.find((action) => action.kind === 'route-create');
+  expect(defaultRoute?.args).toContain('0.0.0.0/0');
+  expect(defaultRoute?.args).toContain('__IGW_ID__');
+});
+
+it('removes SLO associations and detaches gateways before deleting owned network resources', () => {
+  const digest = 'a'.repeat(64);
+  const vpc = 'vpc-0123456789abcdef0';
+  const table = 'rtb-0123456789abcdef0';
+  const gateway = 'igw-0123456789abcdef0';
+  const tags = {
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-execution-engine': 'native',
+    'xcsh-deployment-id': 'ce-demo',
+    'xcsh-plan-sha256': digest,
+  };
+  const resources = [
+    { id: vpc, state: { Vpcs: [{ VpcId: vpc }] } },
+    {
+      id: table,
+      state: {
+        RouteTables: [
+          {
+            RouteTableId: table,
+            Associations: [{ Main: false, RouteTableAssociationId: 'rtbassoc-0123456789abcdef0' }],
+          },
+        ],
+      },
+    },
+    { id: gateway, state: { InternetGateways: [{ InternetGatewayId: gateway, Attachments: [{ VpcId: vpc }] }] } },
+  ].map((resource) => ({ ...resource, tags, exists: true, owned: true, region: 'us-east-1' }));
+  const plan = compileAwsCePlan(
+    intent({ operation: 'teardown' }),
+    observation({ resources, ownershipPlanSha256s: [digest] }),
+  );
+  expect(plan.actions.map((action) => action.args?.[1])).toEqual([
+    'disassociate-route-table',
+    'delete-route-table',
+    'detach-internet-gateway',
+    'delete-internet-gateway',
+    'delete-vpc',
+  ]);
+  const changed = structuredClone(resources);
+  const tables = changed[1].state.RouteTables;
+  if (!tables) throw new Error('test fixture missing route table');
+  tables[0].Associations[0].Main = true;
+  expect(() =>
+    compileAwsCePlan(
+      intent({ operation: 'teardown' }),
+      observation({ resources: changed, ownershipPlanSha256s: [digest] }),
+    ),
+  ).toThrow('VPC main');
 });

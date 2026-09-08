@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import type { AwsExecApi } from '../../src/aws/exec';
 import { canonicalSha256 } from '../../src/ce/canonical';
-import { discoverAwsCompute, extractF5AwsGuideDocument, isF5Smsv2TgwConnectDocumented } from '../../src/ce/discovery';
+import {
+  discoverAwsCompute,
+  extractF5AwsGuideDocument,
+  isF5Smsv2TgwConnectDocumented,
+  observeAwsResources,
+} from '../../src/ce/discovery';
 import { AWS_CE_SHARED_CONTRACT_URL, AWS_CE_SSM_PARAMETER } from '../../src/ce/types';
 
 const capabilities = {
@@ -16,7 +21,7 @@ function fetcher(url: string | URL | Request): Promise<Response> {
   const href = String(url);
   const body =
     href === AWS_CE_SHARED_CONTRACT_URL
-      ? `contract_id: f5xc-ce-automation\ncontract_version: v1\ncontract: f5xc-ce-automation/v1\n${'provider neutral safety '.repeat(8)}`
+      ? `contract_id: f5xc-ce-automation-policy\ncontract_version: v2\ncontract: f5xc-ce-automation-policy/v2\n${'provider neutral safety '.repeat(8)}`
       : `${href}\nSecure Mesh Site v2 Customer Edge current official documentation. ${'verified provider guidance '.repeat(8)}`;
   return Promise.resolve(new Response(body, { status: 200 }));
 }
@@ -207,7 +212,52 @@ describe('discoverAwsCompute', () => {
         api,
         invalid,
       ),
-    ).rejects.toThrow(/f5xc-ce-automation\/v1/);
+    ).rejects.toThrow(/f5xc-ce-automation-policy\/v2/);
     expect(api.calls).toHaveLength(0);
   });
+});
+
+it('binds ownership tags to the exact resource instead of nested or reordered tags', async () => {
+  const id = 'i-0123456789abcdef0';
+  const digest = 'a'.repeat(64);
+  const tags = [
+    { Value: 'aws-ce', Key: 'xcsh-managed-by' },
+    { Value: 'native', Key: 'xcsh-execution-engine' },
+    { Value: 'ce-demo', Key: 'xcsh-deployment-id' },
+    { Value: digest, Key: 'xcsh-plan-sha256' },
+  ];
+  let raw: unknown = {
+    Reservations: [
+      {
+        Instances: [
+          {
+            InstanceId: id,
+            Tags: tags,
+            NetworkInterfaces: [
+              {
+                NetworkInterfaceId: 'eni-0123456789abcdef0',
+                Tags: [{ Key: 'xcsh-execution-engine', Value: 'terraform' }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const api = { exec: async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify(raw) }) };
+  const observe = () =>
+    observeAwsResources(api, [id], 'us-east-1', { deploymentName: 'ce-demo', planSha256s: [digest] });
+  expect((await observe())[0].owned).toBe(true);
+  raw = {
+    Reservations: [
+      {
+        Instances: [
+          { InstanceId: id, NetworkInterfaces: [{ NetworkInterfaceId: 'eni-0123456789abcdef0', Tags: tags }] },
+        ],
+      },
+    ],
+  };
+  expect((await observe())[0].owned).toBe(false);
+  raw = { Reservations: [] };
+  expect((await observe())[0].exists).toBe(false);
 });

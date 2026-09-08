@@ -55,8 +55,8 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
       ],
       sharedContract: {
         url: sharedContractUrl,
-        contractId: 'f5xc-ce-automation',
-        contractVersion: 'v1',
+        contractId: 'f5xc-ce-automation-policy',
+        contractVersion: 'v2',
         normalizedSha256: '3'.repeat(64),
       },
     },
@@ -134,7 +134,7 @@ describe('compileAzureCePlan', () => {
       compileAzureCePlan({ ...intent(), schemaVersion: 1 } as unknown as AzureCeIntent, observation()),
     ).toThrow(/schema version 1/i);
     const invalid = observation();
-    invalid.research.sharedContract.contractVersion = 'v2' as 'v1';
+    invalid.research.sharedContract.contractVersion = 'v1' as 'v2';
     expect(() => compileAzureCePlan(intent(), invalid)).toThrow(/shared.*contract/i);
   });
 

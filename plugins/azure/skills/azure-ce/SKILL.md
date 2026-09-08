@@ -28,7 +28,7 @@ platform, routing, and traffic-health states independent.
 
 ## Deployment workflow
 
-1. Use `web_search` to read the dedicated `f5xc-ce-automation/v1` document, the current
+1. Use `web_search` to read the dedicated `f5xc-ce-automation-policy/v2` document, the current
    official F5 Azure SMSv2 guide, and relevant Microsoft Marketplace, VM SKU, and networking
    documentation. Cite the sources used.
 2. Call `az_account_show`, then `azure_compute_discover`. Omit image and VM hints unless the

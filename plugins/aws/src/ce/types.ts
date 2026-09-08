@@ -1,4 +1,4 @@
-export const AWS_CE_SCHEMA_VERSION = 1 as const;
+export const AWS_CE_SCHEMA_VERSION = 2 as const;
 export const AWS_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 export const AWS_CE_F5_GUIDE_URL =
@@ -24,9 +24,12 @@ export type AwsCeEgressMode = 'elastic-ip' | 'nat-gateway' | 'firewall' | 'proxy
 export type AwsCeRoutingProfile = 'direct-eni' | 'nlb-ingress' | 'tgw-static' | 'tgw-connect';
 
 export interface AwsCeF5Capabilities {
+  platformContext?: string;
+  contractFingerprint?: string;
+  tenantOrigin?: string;
   smsv2ContractVersion: 'v2';
   supportedProviders: Array<'aws' | 'azure'>;
-  bootstrapDrivers: Array<'console'>;
+  bootstrapDrivers: Array<'api' | 'console'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
 }
@@ -41,6 +44,9 @@ export interface AwsCeInterfaceIntent {
 
 export interface AwsCeIntent {
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
+  engine: 'native' | 'terraform';
+  awsProfile?: string;
+  platformContext?: string;
   operation: AwsCeOperation;
   accountId: string;
   partition: 'aws' | 'aws-us-gov' | 'aws-cn';
@@ -135,7 +141,7 @@ export interface AwsCeResourceObservation {
 
 export interface AwsCeObservation {
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
-  identity: { accountId: string; partition: AwsCeIntent['partition']; arn: string };
+  identity: { accountId: string; partition: AwsCeIntent['partition']; arn: string; awsProfile?: string };
   agreement: { productId: typeof AWS_CE_MARKETPLACE_PRODUCT_ID; active: boolean; agreementIds: string[] };
   regions: AwsCeRegionObservation[];
   resources: AwsCeResourceObservation[];
@@ -150,8 +156,8 @@ export interface AwsCeObservation {
     sourceReceipts: AwsCeSourceReceipt[];
     sharedContract: {
       url: typeof AWS_CE_SHARED_CONTRACT_URL;
-      contractId: 'f5xc-ce-automation';
-      contractVersion: 'v1';
+      contractId: 'f5xc-ce-automation-policy';
+      contractVersion: 'v2';
       normalizedSha256: string;
     };
     f5AwsGuide: { url: typeof AWS_CE_F5_GUIDE_URL; normalizedSha256: string; tgwConnectDocumented: boolean };
@@ -160,6 +166,12 @@ export interface AwsCeObservation {
 
 export type AwsCeActionKind =
   | 'vpc-create'
+  | 'internet-gateway-create'
+  | 'internet-gateway-attach'
+  | 'internet-gateway-detach'
+  | 'route-table-create'
+  | 'route-table-associate'
+  | 'route-table-disassociate'
   | 'subnet-create'
   | 'security-group-create'
   | 'security-group-rule-create'
@@ -188,6 +200,7 @@ export type AwsCeActionKind =
   | 'tgw-route-create'
   | 'tgw-connect-attachment-create'
   | 'tgw-connect-peer-create'
+  | 'registration-approve'
   | 'registration-gate'
   | 'health-gate'
   | 'bgp-gate'
@@ -215,6 +228,7 @@ export interface AwsCeAction {
 
 export interface AwsCePlanDraft {
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
+  engine: 'native' | 'terraform';
   intent: AwsCeIntent;
   accountId: string;
   partition: AwsCeIntent['partition'];
@@ -242,6 +256,7 @@ export interface AwsCePlanDraft {
   }>;
   ownershipTags: {
     'xcsh-managed-by': 'aws-ce';
+    'xcsh-execution-engine': 'native' | 'terraform';
     'xcsh-deployment-id': string;
     'xcsh-plan-sha256': '__PLAN_SHA256__';
     'ves-io-site-name': string;
@@ -256,7 +271,9 @@ export interface AwsCePlan extends AwsCePlanDraft {
 }
 
 export interface AwsCeCheckpoint {
+  authorization?: { planSha256: string; mutations: true; destruction: boolean };
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
+  engine: 'native' | 'terraform';
   planId: string;
   planSha256: string;
   completedActionIds: string[];

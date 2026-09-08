@@ -122,8 +122,8 @@ export interface AzureCeObservation {
     sourceReceipts: Array<{ url: string; normalizedSha256: string }>;
     sharedContract: {
       url: typeof AZURE_CE_SHARED_CONTRACT_URL;
-      contractId: 'f5xc-ce-automation';
-      contractVersion: 'v1';
+      contractId: 'f5xc-ce-automation-policy';
+      contractVersion: 'v2';
       normalizedSha256: string;
     };
   };

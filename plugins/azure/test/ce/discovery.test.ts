@@ -8,7 +8,7 @@ import {
 const officialFetch = (async (input: RequestInfo | URL) => {
   const url = String(input);
   const body = url.includes('/automation-contract.txt')
-    ? 'contract_id: f5xc-ce-automation\ncontract_version: v1\ncombined: f5xc-ce-automation/v1\n' +
+    ? 'contract_id: f5xc-ce-automation-policy\ncontract_version: v2\ncombined: f5xc-ce-automation-policy/v2\n' +
       'provider-neutral guidance '.repeat(12)
     : 'official guidance '.repeat(20);
   return new Response(body, { status: 200 });
@@ -174,8 +174,8 @@ describe('discoverAzureCompute', () => {
     expect(result.research.officialSourceRetrieval).toBe('live');
     expect(result.schemaVersion).toBe(2);
     expect(result.research.sharedContract).toMatchObject({
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
     });
     expect(result.research.sharedContract.normalizedSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.research.sourceReceipts).toHaveLength(4);

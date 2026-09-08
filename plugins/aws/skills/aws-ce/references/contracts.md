@@ -1,7 +1,7 @@
 # AWS Customer Edge Provider Contract
 
 The provider-neutral automation contract is published at
-[`f5xc-ce-automation/v1`](https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt).
+[`f5xc-ce-automation-policy/v2`](https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt).
 `aws_compute_discover` retrieves the dedicated document, validates its identity/version, and
 records its normalized SHA-256. This reference contains only AWS-specific requirements.
 

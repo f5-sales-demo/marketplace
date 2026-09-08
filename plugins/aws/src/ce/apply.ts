@@ -1,29 +1,20 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
+import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
 import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
-import { canonicalSha256, fingerprintObservation, safeHexEqual, sha256Hex } from './canonical';
+import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
-import { consumeAwsBootstrapRef } from './token-consumer';
-import type { AwsCeAction, AwsCeCheckpoint, AwsCeF5Capabilities, AwsCeObservation, AwsCePlan } from './types';
+import { scopedAwsApi } from './scoped-exec';
+import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_SCHEMA_VERSION } from './types';
 
 export interface AwsCeApplyInput {
   planId: string;
   planSha256: string;
-  bootstrapRefs?: Array<{ node: number; reference: string }>;
-  f5Capabilities: AwsCeF5Capabilities;
-  f5Evidence?: {
-    registeredNodes?: number[];
-    healthyNodes?: number[];
-    bgpEstablished?: boolean;
-    nlbHealthy?: boolean;
-    tgwRoutesHealthy?: boolean;
-    trafficHealthy?: boolean;
-  };
 }
 
 export function assertAwsObservationFresh(
@@ -44,15 +35,28 @@ export function assertAwsObservationFresh(
 
 export function assertAwsApplyAllowed(
   plan: AwsCePlan,
-  request: { planId: string; planSha256: string; hasUI: boolean; env: Record<string, string | undefined> },
+  request: {
+    planId: string;
+    planSha256: string;
+    hasUI: boolean;
+    env: Record<string, string | undefined>;
+    authorized?: boolean;
+    destructionAuthorized?: boolean;
+  },
 ) {
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION) throw new Error('AWS CE plan schema is unsupported');
+  if (plan.engine !== 'native') throw new Error('Terraform-owned deployments require the Terraform lifecycle adapter');
   if (request.planId !== plan.planId) throw new Error('The requested AWS CE plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested AWS CE plan hash does not match');
-  if (!request.hasUI && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
+  if (!request.hasUI && !request.authorized && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1')
     throw new Error('Headless AWS CE mutations require XCSH_CE_HEADLESS_MUTATIONS=1');
-  if (plan.intent.operation === 'teardown' && !request.hasUI && request.env.XCSH_CE_ALLOW_DESTROY !== '1')
+  if (
+    plan.intent.operation === 'teardown' &&
+    !request.hasUI &&
+    !request.destructionAuthorized &&
+    request.env.XCSH_CE_ALLOW_DESTROY !== '1'
+  )
     throw new Error('Headless AWS CE teardown requires XCSH_CE_ALLOW_DESTROY=1');
 }
 
@@ -77,53 +81,199 @@ function valueAtPath(raw: unknown, path: string): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
 }
 
-export async function assertAwsActionOwnership(plan: AwsCePlan, action: AwsCeAction, _api: AwsExecApi): Promise<void> {
-  if (!action.mutates || action.resourceId?.startsWith('aws://')) return;
-  if (action.kind === 'brownfield-restore' || action.kind.startsWith('route-') || action.kind.startsWith('tgw-')) {
-    const allowlisted = plan.ownershipInventory.some(
-      (item) => item.resourceId === action.resourceId && item.action === 'modify-approved',
-    );
-    if (action.resourceId && !allowlisted && !action.args?.some((arg) => arg.startsWith('__')))
-      throw new Error(`AWS brownfield target is outside the approved inventory: ${action.resourceId}`);
-    return;
+export async function assertAwsActionOwnership(
+  plan: AwsCePlan,
+  action: AwsCeAction,
+  api: AwsExecApi,
+  resolved: Record<string, string> = {},
+): Promise<void> {
+  if (!action.mutates) return;
+  const ids = new Set<string>();
+  if (action.resourceId && !action.resourceId.startsWith('aws://') && !action.resourceId.includes('__'))
+    ids.add(action.resourceId);
+  const targetFlags = new Set([
+    '--instance-id',
+    '--instance-ids',
+    '--network-interface-id',
+    '--network-interface-ids',
+    '--network-interfaces',
+    '--allocation-id',
+    '--association-id',
+    '--group-id',
+    '--group-ids',
+    '--vpc-id',
+    '--internet-gateway-id',
+    '--gateway-id',
+    '--subnet-id',
+    '--subnet-ids',
+    '--route-table-id',
+    '--transit-gateway-route-table-id',
+    '--transit-gateway-attachment-id',
+    '--transit-gateway-connect-peer-id',
+    '--target-group-arn',
+    '--load-balancer-arn',
+    '--listener-arn',
+  ]);
+  const args = action.args ?? [];
+  for (let index = 0; index < args.length; index++) {
+    if (!targetFlags.has(args[index])) continue;
+    for (let position = index + 1; position < args.length && !args[position].startsWith('--'); position++) {
+      let value = args[position];
+      for (const [placeholder, replacement] of Object.entries(resolved))
+        value = value.replaceAll(placeholder, replacement);
+      if (/__[A-Z0-9_]+__/.test(value)) throw new Error('AWS ownership target is unresolved');
+      for (const match of value.matchAll(
+        /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:i|eni|sg|vpc|subnet|rtb|igw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
+      ))
+        ids.add(match[0]);
+    }
   }
-  if (!action.resourceId || action.resourceId.includes('__')) return;
-  const owned = plan.ownershipInventory.some(
-    (item) =>
-      item.resourceId === action.resourceId && item.owned && (item.action === 'reference' || item.action === 'delete'),
-  );
-  if (!owned) throw new Error(`Refusing to mutate unmanaged AWS resource ${action.resourceId}`);
+  const known = new Set(Object.values(resolved));
+  for (const id of ids)
+    if (!known.has(id) && !plan.ownershipInventory.some((item) => item.resourceId === id))
+      throw new Error('AWS mutation target is outside the deployment inventory');
+  if (!ids.size) return;
+  const observed = await observeAwsResources(api, [...ids], plan.region, {
+    deploymentName: plan.deploymentName,
+    planSha256s: [
+      plan.planSha256,
+      ...plan.rollback.resources
+        .map((resource) =>
+          String((resource.before.tags as Record<string, string> | undefined)?.['xcsh-plan-sha256'] ?? ''),
+        )
+        .filter((digest) => /^[a-f0-9]{64}$/.test(digest)),
+    ],
+  });
+  for (const resource of observed) {
+    if (!resource.exists) throw new Error('AWS mutation target no longer exists');
+    const brownfield = plan.ownershipInventory.some(
+      (item) => item.resourceId === resource.id && item.action === 'modify-approved' && !item.owned,
+    );
+    if (
+      !brownfield &&
+      (resource.tags['xcsh-managed-by'] !== 'aws-ce' ||
+        resource.tags['xcsh-deployment-id'] !== plan.deploymentName ||
+        resource.tags['xcsh-execution-engine'] !== plan.engine)
+    )
+      throw new Error('Live AWS resource belongs to another owner or engine');
+  }
 }
 
-function assertGate(action: AwsCeAction, input: AwsCeApplyInput): void {
-  if (action.kind === 'registration-gate' && action.node && !input.f5Evidence?.registeredNodes?.includes(action.node))
-    throw new Error(`F5 registration evidence is missing for node ${action.node}`);
-  if (action.kind === 'health-gate' && action.node && !input.f5Evidence?.healthyNodes?.includes(action.node))
-    throw new Error(`F5 health evidence is missing for node ${action.node}`);
-  if (action.kind === 'bgp-gate' && !input.f5Evidence?.bgpEstablished)
-    throw new Error('F5 BGP evidence is not established');
-  if (action.kind === 'nlb-gate' && !input.f5Evidence?.nlbHealthy)
-    throw new Error('NLB target evidence is not healthy');
-  if (action.kind === 'tgw-route-gate' && !input.f5Evidence?.tgwRoutesHealthy)
-    throw new Error('Transit Gateway route evidence is not healthy');
-  if (action.kind === 'traffic-gate' && !input.f5Evidence?.trafficHealthy)
-    throw new Error('End-to-end traffic evidence is not healthy');
+async function assertGate(
+  action: AwsCeAction,
+  runtime: CeRuntime,
+  plan: AwsCePlan,
+  checkpoint: AwsCeCheckpoint,
+  persist: () => Promise<unknown>,
+  signal?: AbortSignal,
+): Promise<void> {
+  const binding: SiteBinding = {
+    owner: {
+      deploymentId: plan.deploymentName,
+      engine: plan.engine,
+      provider: 'aws',
+      account: plan.accountId,
+      region: plan.region,
+    },
+    siteName: plan.siteName,
+    nodes: Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`),
+  };
+  if (action.kind === 'registration-gate' || action.kind === 'registration-approve') {
+    const instances = Object.fromEntries(
+      binding.nodes.map((node, index) => [node, checkpoint.resolvedValues[`__INSTANCE_${index + 1}__`]]),
+    );
+    const evidence =
+      action.kind === 'registration-approve'
+        ? await runtime.approveRegistrations(
+            binding,
+            instances,
+            async (record) => {
+              checkpoint.resolvedValues[`__REGISTRATION_${String(record.node)}__`] = String(record.registration);
+              checkpoint.resolvedValues[`__REGISTRATION_STATE_${String(record.node)}__`] = String(record.state);
+              await persist();
+            },
+            signal,
+          )
+        : await runtime.observeRegistrations(binding, instances, signal);
+    if (['authorization', 'expired', 'malformed', 'ownership-or-response-invalid'].includes(String(evidence.reason)))
+      throw new Error(`F5 registration evidence is unavailable: ${String(evidence.reason)}`);
+    if (action.kind === 'registration-approve') {
+      if (
+        !Array.isArray(evidence.nodes) ||
+        evidence.nodes.some(
+          (node: unknown) =>
+            !node ||
+            typeof node !== 'object' ||
+            !['APPROVED', 'ADMITTED', 'ONLINE', 'UPGRADING', 'MAINTENANCE'].includes(
+              String((node as Record<string, unknown>).state),
+            ),
+        )
+      )
+        throw new Error('Observed F5 registration approval has not converged');
+    } else if (evidence.status !== 'healthy') throw new Error('Observed F5 registration has not converged');
+  }
+  if (action.kind === 'health-gate') {
+    const evidence = await runtime.observeHealth(binding, signal);
+    if (
+      [
+        'authorization',
+        'expired',
+        'malformed',
+        'ownership-or-response-invalid',
+        'provider-health-contract-unavailable',
+      ].includes(String(evidence.reason))
+    )
+      throw new Error(`F5 health evidence is unavailable: ${String(evidence.reason)}`);
+    if (evidence.status !== 'healthy') throw new Error('Observed F5 site health has not converged');
+  }
+  if (['bgp-gate', 'nlb-gate', 'tgw-route-gate', 'traffic-gate'].includes(action.kind))
+    throw new Error(`Collected ${action.kind} evidence is not yet available`);
 }
 
 export async function executeAwsCeApply(
   input: AwsCeApplyInput,
   ctx: AwsCeToolContext,
   api: AwsExecApi,
+  platform: CePlatformService,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ) {
+  if (
+    Object.hasOwn(input, 'f5Capabilities') ||
+    Object.hasOwn(input, 'f5Evidence') ||
+    Object.hasOwn(input, 'bootstrapRefs')
+  )
+    throw new Error('Caller-supplied capability or health assertions are unsupported');
   const { plan, observation } = await loadAwsPlan(ctx.sessionManager, input.planId, input.planSha256);
+  const existing = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+  const authorized =
+    existing?.authorization?.planSha256 === plan.planSha256 && existing.authorization.mutations === true;
   assertAwsApplyAllowed(plan, {
     planId: input.planId,
     planSha256: input.planSha256,
     hasUI: ctx.hasUI,
     env: process.env,
+    authorized,
+    destructionAuthorized: authorized && existing?.authorization?.destruction,
   });
-  const existing = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+  api = scopedAwsApi(api, plan.intent.awsProfile, signal);
+  if (
+    plan.intent.operation === 'deploy' &&
+    plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
+  )
+    throw new Error('The requested interface configuration needs an explicit supported F5 wire mapping');
+  const f5Capabilities = await platform.capabilities(plan.intent.platformContext);
+  const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
+  const storage = await platform.storage({
+    deploymentId: plan.deploymentName,
+    engine: plan.engine,
+    provider: 'aws',
+    account: plan.accountId,
+    region: plan.region,
+  });
+
+  if (existing && existing.engine !== plan.engine)
+    throw new Error('Checkpoint execution engine differs from deployment');
   const brownfieldIds = [
     ...new Set([
       ...plan.intent.brownfield.resourceIds,
@@ -132,7 +282,7 @@ export async function executeAwsCeApply(
     ]),
   ].sort();
   const resourceIdPattern =
-    /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+    /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
   const observedOwnedIds = () =>
     [
       ...new Set([
@@ -152,6 +302,7 @@ export async function executeAwsCeApply(
   ].sort();
   const current = await discoverAwsCompute(
     {
+      awsProfile: plan.intent.awsProfile,
       accountId: plan.accountId,
       partition: plan.partition,
       deploymentName: plan.deploymentName,
@@ -164,7 +315,7 @@ export async function executeAwsCeApply(
       resourceRegion: plan.region,
       egressMode: plan.egress.mode,
       routingProfile: plan.routing.profile,
-      f5Capabilities: input.f5Capabilities,
+      f5Capabilities,
     },
     api,
     fetcher,
@@ -174,7 +325,7 @@ export async function executeAwsCeApply(
     ...observedOwnedIds(),
   ]);
   if (existing?.ownedStateFingerprint) {
-    const actualOwnedState = canonicalSha256(
+    const actualOwnedState = fingerprintOwnedResources(
       current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
     );
     if (!safeHexEqual(existing.ownedStateFingerprint, actualOwnedState))
@@ -184,10 +335,11 @@ export async function executeAwsCeApply(
   if (existing && JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
     throw new Error('AWS CE checkpoint is not an ordered prefix of the immutable plan');
   if (ctx.hasUI) {
-    if (!(await ctx.ui.confirm('Apply immutable AWS CE plan', `${plan.planId}\n${plan.planSha256}`)))
+    if (!authorized && !(await ctx.ui.confirm('Apply immutable AWS CE plan', `${plan.planId}\n${plan.planSha256}`)))
       throw new Error('AWS CE apply was not approved');
     if (
       plan.intent.operation === 'teardown' &&
+      !(authorized && existing?.authorization?.destruction) &&
       !(await ctx.ui.confirm(
         'Tear down AWS Customer Edge',
         'Restore approved brownfield state and delete only owned resources?',
@@ -198,6 +350,8 @@ export async function executeAwsCeApply(
   const completed = new Set(existing?.completedActionIds ?? []);
   const checkpoint: AwsCeCheckpoint = {
     schemaVersion: AWS_CE_SCHEMA_VERSION,
+    engine: plan.engine,
+    authorization: { planSha256: plan.planSha256, mutations: true, destruction: plan.intent.operation === 'teardown' },
     planId: plan.planId,
     planSha256: plan.planSha256,
     completedActionIds: [...completed],
@@ -209,24 +363,106 @@ export async function executeAwsCeApply(
     if (completed.has(action.id)) continue;
     let launchDirectory: string | undefined;
     try {
-      await assertAwsActionOwnership(plan, action, api);
-      assertGate(action, input);
+      await assertAwsActionOwnership(plan, action, api, checkpoint.resolvedValues);
+      const convergenceDeadline = Date.now() + 15 * 60_000;
+      while (true) {
+        try {
+          await assertGate(
+            action,
+            runtime,
+            plan,
+            checkpoint,
+            () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+            signal,
+          );
+          break;
+        } catch (error) {
+          if (
+            signal?.aborted ||
+            !(error instanceof Error) ||
+            !error.message.includes('has not converged') ||
+            Date.now() >= convergenceDeadline
+          )
+            throw error;
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(new Error('AWS CE convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
+        }
+      }
       if (action.command && action.args) {
         if (action.requiresBootstrap && action.node) {
-          const reference = input.bootstrapRefs?.find((item) => item.node === action.node)?.reference;
-          if (!reference) throw new Error(`A just-in-time bootstrap reference is required for node ${action.node}`);
-          const token = await consumeAwsBootstrapRef(reference, ctx.sessionManager.getSessionId());
-          const root = join(tmpdir(), 'xcsh-aws-ce-launch', sha256Hex(ctx.sessionManager.getSessionId()).slice(0, 24));
+          const nodes = Array.from(
+            { length: plan.topology.nodeCount },
+            (_, index) => `${plan.deploymentName}-${index + 1}`,
+          );
+          const binding: SiteBinding = {
+            owner: {
+              deploymentId: plan.deploymentName,
+              engine: plan.engine,
+              provider: 'aws',
+              account: plan.accountId,
+              region: plan.region,
+            },
+            siteName: plan.siteName,
+            nodes,
+          };
+          await runtime.ensureSite(
+            binding,
+            {
+              schemaVersion: 2,
+              provider: 'aws',
+              haMode: nodes.length === 3 ? 'three-node' : 'one-node',
+              settings: {},
+              nodes: nodes.map((hostname, index) => ({
+                hostname,
+                interfaces: plan.interfaces.map((item) => {
+                  if (!['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
+                    throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
+                  const mac = checkpoint.resolvedValues[`__ENI_${index + 1}_${item.index}_MAC__`];
+                  if (!mac) throw new Error('Provider-assigned ENI MAC identity is unavailable');
+                  return {
+                    name: item.role,
+                    ethernet_interface: { mac },
+                    network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
+                    dhcp_client: {},
+                  };
+                }),
+              })),
+            },
+            async (site) => {
+              checkpoint.resolvedValues.__F5_SITE_UID__ = String(site.uid);
+              await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+            },
+            signal,
+          );
+          const root = storage.directory;
           await mkdir(root, { recursive: true, mode: 0o700 });
           await chmod(root, 0o700);
           launchDirectory = await mkdtemp(join(root, 'node-'));
           await chmod(launchDirectory, 0o700);
           const path = join(launchDirectory, 'cloud-init.yaml');
-          await writeFile(
-            path,
-            renderAwsCeCloudInit({ siteName: plan.siteName, nodeName: `${plan.deploymentName}-${action.node}`, token }),
-            { mode: 0o600 },
+          const tokenName = `${plan.deploymentName.slice(0, 40)}-${action.node}-${plan.planSha256.slice(0, 12)}`;
+          const material = await runtime.bootstrap(
+            binding,
+            nodes[action.node - 1],
+            tokenName,
+            async (secret) => {
+              await storage.write(`${tokenName}.json`, secret);
+              checkpoint.resolvedValues[`__F5_TOKEN_${action.node}__`] = tokenName;
+              await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+            },
+            signal,
           );
+          await writeFile(path, renderAwsCeCloudInit({ nodeName: nodes[action.node - 1], material }), { mode: 0o600 });
           checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
         }
         const args = replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues);
@@ -236,7 +472,7 @@ export async function executeAwsCeApply(
           await rm(launchDirectory, { recursive: true, force: true });
           launchDirectory = undefined;
         }
-        if (result.exitCode !== 0) throw new Error(`AWS action ${action.id} failed: ${result.stderr.slice(0, 500)}`);
+        if (result.exitCode !== 0) throw new Error(`AWS action ${action.id} failed with exit code ${result.exitCode}`);
         if (action.capture || action.captures) {
           let raw: unknown;
           try {
@@ -268,7 +504,7 @@ export async function executeAwsCeApply(
             planSha256s: ownershipPlanSha256s,
           });
           const ownedIds = ids.filter((id) => !brownfieldIds.includes(id));
-          checkpoint.ownedStateFingerprint = canonicalSha256(
+          checkpoint.ownedStateFingerprint = fingerprintOwnedResources(
             resources.filter((resource) => ownedIds.includes(resource.id)),
           );
           checkpoint.observationFingerprint = fingerprintObservation({ ...current, resources }, ids);

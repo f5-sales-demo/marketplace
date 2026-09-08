@@ -17,7 +17,7 @@ Site, Fleet, or shared-token flows.
 
 ## Workflow
 
-1. Use `web_search` to read the dedicated `f5xc-ce-automation/v1` document, the current official
+1. Use `web_search` to read the dedicated `f5xc-ce-automation-policy/v2` document, the current official
    F5 AWS SMSv2 guide, and relevant current AWS Marketplace, EC2, AMI policy, quota, NLB, and TGW
    documentation. Cite the sources used.
 2. Call `aws_sts_whoami`, `f5xc_ce_v2_capabilities`, then `aws_compute_discover`. Require live

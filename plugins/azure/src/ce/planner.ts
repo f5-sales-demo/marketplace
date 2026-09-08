@@ -1279,8 +1279,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     fail('official Microsoft research source is required');
   if (
     observation.research.sharedContract?.url !== AZURE_CE_SHARED_CONTRACT_URL ||
-    observation.research.sharedContract.contractId !== 'f5xc-ce-automation' ||
-    observation.research.sharedContract.contractVersion !== 'v1' ||
+    observation.research.sharedContract.contractId !== 'f5xc-ce-automation-policy' ||
+    observation.research.sharedContract.contractVersion !== 'v2' ||
     !/^[a-f0-9]{64}$/.test(observation.research.sharedContract.normalizedSha256)
   )
     fail('valid live shared Customer Edge automation contract receipt is required');

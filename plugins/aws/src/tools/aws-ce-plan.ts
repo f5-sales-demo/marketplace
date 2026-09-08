@@ -39,6 +39,9 @@ export function createAwsCePlanTool(pi: PluginInterface) {
       restorationPlanSha256: Type.Optional(Type.String()),
       intent: Type.Object({
         schemaVersion: Type.Literal(AWS_CE_SCHEMA_VERSION),
+        engine: Type.Optional(Type.Union([Type.Literal('native'), Type.Literal('terraform')])),
+        awsProfile: Type.Optional(Type.String()),
+        platformContext: Type.Optional(Type.String()),
         operation: Type.Union(
           [
             'deploy',

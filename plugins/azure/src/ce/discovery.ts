@@ -64,11 +64,11 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
         const normalized = normalizeResearchDocument(body);
         if (
           url === AZURE_CE_SHARED_CONTRACT_URL &&
-          (!/^contract_id: f5xc-ce-automation$/m.test(normalized) ||
-            !/^contract_version: v1$/m.test(normalized) ||
-            !normalized.includes('f5xc-ce-automation/v1'))
+          (!/^contract_id: f5xc-ce-automation-policy$/m.test(normalized) ||
+            !/^contract_version: v2$/m.test(normalized) ||
+            !normalized.includes('f5xc-ce-automation-policy/v2'))
         )
-          throw new Error('document did not advertise f5xc-ce-automation/v1');
+          throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
@@ -91,8 +91,8 @@ async function verifyOfficialSources(fetcher: typeof fetch): Promise<AzureCeObse
     sourceReceipts,
     sharedContract: {
       url: AZURE_CE_SHARED_CONTRACT_URL,
-      contractId: 'f5xc-ce-automation',
-      contractVersion: 'v1',
+      contractId: 'f5xc-ce-automation-policy',
+      contractVersion: 'v2',
       normalizedSha256: contract.normalizedSha256,
     },
   };

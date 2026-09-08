@@ -488,7 +488,7 @@ export class CeRuntime {
           !/^r-[a-z0-9-]+$/.test(item.name) ||
           typeof state !== 'string' ||
           !['NOTSET', 'NEW', 'APPROVED', 'ADMITTED', 'PENDING', 'ONLINE', 'UPGRADING', 'MAINTENANCE'].includes(state) ||
-          object(spec.passport).cluster_size !== binding.nodes.length
+          (state !== 'NEW' && object(spec.passport).cluster_size !== binding.nodes.length)
         )
           return { node, status: 'unknown', reason: 'registration-resource-binding-incomplete' };
         return {
@@ -516,5 +516,64 @@ export class CeRuntime {
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };
     }
+  }
+  async approveRegistrations(
+    binding: SiteBinding,
+    expectedInstances: Record<string, string>,
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<Json> {
+    this.#binding(binding, true);
+    const observation = await this.observeRegistrations(binding, expectedInstances, signal);
+    if (!Array.isArray(observation.nodes)) return observation;
+    for (const value of observation.nodes) {
+      const node = object(value);
+      if (node.state !== 'NEW' || typeof node.registration !== 'string' || typeof node.node !== 'string') continue;
+      this.#owned(await this.observeSite(binding, signal), binding);
+      const path = `/api/register/namespaces/system/registrations/${node.registration}`;
+      const source = await this.#request(path, {}, signal);
+      const nested = (...paths: string[]): unknown => {
+        for (const candidate of paths) {
+          let current: unknown = source;
+          for (const segment of candidate.split('.'))
+            current = current && typeof current === 'object' ? (current as Json)[segment] : undefined;
+          if (current !== undefined) return current;
+        }
+        return undefined;
+      };
+      const passport = object(nested('object.spec.gc_spec.passport', 'spec.gc_spec.passport', 'spec.passport'));
+      const state = nested(
+        'object.status.current_state',
+        'object.status.state',
+        'status.current_state',
+        'status.state',
+        'state',
+      );
+      if (passport.cluster_name !== binding.siteName) throw new Error('Registration passport belongs to another site');
+      if (state !== 'NEW') continue;
+      const record = {
+        siteName: binding.siteName,
+        node: node.node,
+        registration: node.registration,
+        instanceId: node.instanceId,
+        action: 'approve-registration',
+      };
+      await checkpoint({ ...record, state: 'requested' });
+      await this.#request(
+        `/api/register/namespaces/system/registration/${node.registration}/approve`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            namespace: 'system',
+            name: node.registration,
+            state: 'APPROVED',
+            passport: { ...passport, cluster_size: binding.nodes.length },
+          }),
+        },
+        signal,
+      );
+      await checkpoint({ ...record, state: 'submitted' });
+    }
+    return this.observeRegistrations(binding, expectedInstances, signal);
   }
 }

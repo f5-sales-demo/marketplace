@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { AwsCeObservation } from './types';
+import type { AwsCeObservation, AwsCeResourceObservation } from './types';
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -31,6 +31,27 @@ export function safeHexEqual(left: string, right: string): boolean {
   return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
 }
 
+/** AWS runtime transitions are health evidence; they do not change ownership or desired configuration. */
+export function resourceConfiguration(resources: AwsCeResourceObservation[]): unknown[] {
+  const normalize = (value: unknown): unknown => {
+    if (Array.isArray(value))
+      return value.map(normalize).sort((a, b) => canonicalStringify(a).localeCompare(canonicalStringify(b)));
+    if (value && typeof value === 'object')
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([key]) => !['State', 'Status', 'StateTransitionReason', 'TargetHealth'].includes(key))
+          .map(([key, item]) => [key, normalize(item)]),
+      );
+    return value;
+  };
+  return resources
+    .map((resource) => ({ ...resource, state: normalize(resource.state) }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+export function fingerprintOwnedResources(resources: AwsCeResourceObservation[]): string {
+  return canonicalSha256(resourceConfiguration(resources));
+}
+
 export function fingerprintObservation(observation: AwsCeObservation, brownfieldIds: string[]): string {
   const allowlist = new Set(brownfieldIds);
   return canonicalSha256({
@@ -38,7 +59,7 @@ export function fingerprintObservation(observation: AwsCeObservation, brownfield
     identity: observation.identity,
     agreement: observation.agreement,
     regions: observation.regions,
-    resources: observation.resources.filter((resource) => allowlist.has(resource.id)),
+    resources: resourceConfiguration(observation.resources.filter((resource) => allowlist.has(resource.id))),
     ownershipPlanSha256s: observation.ownershipPlanSha256s,
     research: observation.research,
     f5Capabilities: observation.f5Capabilities,

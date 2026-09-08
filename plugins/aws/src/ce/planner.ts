@@ -16,7 +16,7 @@ const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]+)\/\d{1,3}$/;
 const AMI = /^ami-[0-9a-f]{8,17}$/;
 const DEVICE_NAME = /^\/dev\/[a-zA-Z0-9._-]{1,32}$/;
 const AWS_ID =
-  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
+  /^(?:arn:(?:aws|aws-us-gov|aws-cn):[a-z0-9-]+:[a-z0-9-]*:\d{12}:[A-Za-z0-9_+=,.@:/-]+|(?:i|vpc|subnet|rtb|igw|tgw|tgw-attach|tgw-connect-peer|tgw-rtb|eni|sg|eipalloc|eipassoc|nat|vpce)-[0-9a-f]{8,21})$/;
 
 function fail(message: string): never {
   throw new Error(`AWS CE plan validation failed: ${message}`);
@@ -76,6 +76,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (!REGION.test(input.region)) fail('region is invalid');
   if (!['aws', 'aws-us-gov', 'aws-cn'].includes(input.partition)) fail('partition is invalid');
   if (!regionMatchesPartition(input.region, input.partition)) fail('region does not match partition');
+  const engine = input.engine ?? 'native';
+  if (!['native', 'terraform'].includes(engine)) fail('execution engine must be native or terraform');
   const deploymentName = name(input.deploymentName, 'deploymentName');
   const siteName = name(input.siteName, 'siteName');
   const namespace = name(input.namespace, 'namespace');
@@ -217,6 +219,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('TGW association or propagation is outside the explicit route-table allowlist');
   return {
     ...input,
+    engine,
     deploymentName,
     siteName,
     namespace,
@@ -285,8 +288,8 @@ function validateResearch(observation: AwsCeObservation): void {
     fail('live AWS research receipt is required');
   if (
     observation.research.sharedContract?.url !== AWS_CE_SHARED_CONTRACT_URL ||
-    observation.research.sharedContract.contractId !== 'f5xc-ce-automation' ||
-    observation.research.sharedContract.contractVersion !== 'v1' ||
+    observation.research.sharedContract.contractId !== 'f5xc-ce-automation-policy' ||
+    observation.research.sharedContract.contractVersion !== 'v2' ||
     !/^[a-f0-9]{64}$/.test(observation.research.sharedContract.normalizedSha256)
   )
     fail('valid shared Customer Edge automation contract receipt is required');
@@ -322,7 +325,7 @@ function validateResearch(observation: AwsCeObservation): void {
 function tags(intent: AwsCeIntent, node?: number, interfaceIndex?: number): string {
   const nodeTag = node === undefined ? '' : `,{Key=xcsh-node-index,Value=${node}}`;
   const interfaceTag = interfaceIndex === undefined ? '' : `,{Key=xcsh-interface-index,Value=${interfaceIndex}}`;
-  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${intent.siteName}}${nodeTag}${interfaceTag}]`;
+  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-execution-engine,Value=${intent.engine}},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${intent.siteName}}${nodeTag}${interfaceTag}]`;
 }
 
 function tagSpec(intent: AwsCeIntent, resourceType: string, node?: number, interfaceIndex?: number): string {
@@ -378,6 +381,8 @@ function resourceDeleteArgs(resource: AwsCeObservation['resources'][number], bas
   if (/^sg-/.test(id)) return ['ec2', 'delete-security-group', '--group-id', id, ...base];
   if (/^eipalloc-/.test(id)) return ['ec2', 'release-address', '--allocation-id', id, ...base];
   if (/^eipassoc-/.test(id)) return ['ec2', 'disassociate-address', '--association-id', id, ...base];
+  if (/^igw-/.test(id)) return ['ec2', 'delete-internet-gateway', '--internet-gateway-id', id, ...base];
+  if (/^rtb-/.test(id)) return ['ec2', 'delete-route-table', '--route-table-id', id, ...base];
   if (/^vpc-/.test(id)) return ['ec2', 'delete-vpc', '--vpc-id', id, ...base];
   if (/^tgw-attach-/.test(id))
     return JSON.stringify(resource.state).includes('"ResourceType":"connect"')
@@ -403,7 +408,9 @@ function deletionPriority(id: string): number {
   if (id.startsWith('eipalloc-')) return 60;
   if (id.startsWith('eni-')) return 70;
   if (id.startsWith('sg-')) return 80;
+  if (id.startsWith('rtb-')) return 85;
   if (id.startsWith('subnet-')) return 90;
+  if (id.startsWith('igw-')) return 95;
   if (id.startsWith('vpc-')) return 100;
   return 75;
 }
@@ -583,7 +590,60 @@ function compileActions(
     }
     for (const resource of observation.resources
       .filter((item) => item.owned)
-      .sort((a, b) => deletionPriority(a.id) - deletionPriority(b.id) || a.id.localeCompare(b.id)))
+      .sort((a, b) => deletionPriority(a.id) - deletionPriority(b.id) || a.id.localeCompare(b.id))) {
+      if (resource.id.startsWith('rtb-')) {
+        const tables = resource.state.RouteTables as
+          | Array<{ Associations?: Array<{ Main?: boolean; RouteTableAssociationId?: string }> }>
+          | undefined;
+        for (const association of tables?.[0]?.Associations ?? []) {
+          if (association.Main) fail('refusing to delete an owned route table promoted to VPC main');
+          if (!/^rtbassoc-[0-9a-f]{8,21}$/.test(association.RouteTableAssociationId ?? ''))
+            fail('invalid route table association');
+          add({
+            phase: 'teardown',
+            kind: 'route-table-disassociate',
+            description: `Disassociate ${resource.id}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'disassociate-route-table',
+              '--association-id',
+              String(association.RouteTableAssociationId),
+              ...base,
+            ],
+            resourceId: resource.id,
+            mutates: true,
+            destructive: true,
+          });
+        }
+      }
+      if (resource.id.startsWith('igw-')) {
+        const gateways = resource.state.InternetGateways as
+          | Array<{ Attachments?: Array<{ VpcId?: string }> }>
+          | undefined;
+        for (const attachment of gateways?.[0]?.Attachments ?? []) {
+          if (!observation.resources.some((item) => item.id === attachment.VpcId && item.owned))
+            fail('internet gateway attachment is outside the owned deployment');
+          add({
+            phase: 'teardown',
+            kind: 'internet-gateway-detach',
+            description: `Detach ${resource.id}`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'detach-internet-gateway',
+              '--internet-gateway-id',
+              resource.id,
+              '--vpc-id',
+              String(attachment.VpcId),
+              ...base,
+            ],
+            resourceId: resource.id,
+            mutates: true,
+            destructive: true,
+          });
+        }
+      }
       add({
         phase: 'teardown',
         kind: 'resource-delete',
@@ -594,6 +654,7 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
+    }
     return actions;
   }
   const ownedInstances = orderedOwnedInstances(observation, intent.topology.nodeCount);
@@ -1025,6 +1086,99 @@ function compileActions(
           capture: { placeholder: `__SUBNET_${nodeIndex + 1}_${item.index}__`, path: 'Subnet.SubnetId' },
         });
       }
+  if (intent.vpc.mode === 'greenfield' && intent.egress.mode === 'elastic-ip') {
+    const gateway = `aws://${intent.region}/internet-gateway/${intent.deploymentName}`;
+    const routeTable = `aws://${intent.region}/route-table/${intent.deploymentName}-slo`;
+    add({
+      phase: 'network',
+      kind: 'internet-gateway-create',
+      description: 'Create CE internet gateway',
+      command: 'aws',
+      args: ['ec2', 'create-internet-gateway', '--tag-specifications', tagSpec(intent, 'internet-gateway'), ...base],
+      resourceId: gateway,
+      mutates: true,
+      destructive: false,
+      capture: { placeholder: '__IGW_ID__', path: 'InternetGateway.InternetGatewayId' },
+    });
+    add({
+      phase: 'network',
+      kind: 'internet-gateway-attach',
+      description: 'Attach CE internet gateway',
+      command: 'aws',
+      args: [
+        'ec2',
+        'attach-internet-gateway',
+        '--internet-gateway-id',
+        '__IGW_ID__',
+        '--vpc-id',
+        '__VPC_ID__',
+        ...base,
+      ],
+      resourceId: gateway,
+      mutates: true,
+      destructive: false,
+    });
+    add({
+      phase: 'network',
+      kind: 'route-table-create',
+      description: 'Create dedicated SLO route table',
+      command: 'aws',
+      args: [
+        'ec2',
+        'create-route-table',
+        '--vpc-id',
+        '__VPC_ID__',
+        '--tag-specifications',
+        tagSpec(intent, 'route-table'),
+        ...base,
+      ],
+      resourceId: routeTable,
+      mutates: true,
+      destructive: false,
+      capture: { placeholder: '__SLO_ROUTE_TABLE__', path: 'RouteTable.RouteTableId' },
+    });
+    add({
+      phase: 'network',
+      kind: 'route-create',
+      description: 'Route SLO internet traffic through the CE gateway',
+      command: 'aws',
+      args: [
+        'ec2',
+        'create-route',
+        '--route-table-id',
+        '__SLO_ROUTE_TABLE__',
+        '--destination-cidr-block',
+        '0.0.0.0/0',
+        '--gateway-id',
+        '__IGW_ID__',
+        ...base,
+      ],
+      resourceId: routeTable,
+      mutates: true,
+      destructive: false,
+    });
+    for (let node = 1; node <= intent.topology.nodeCount; node++)
+      add({
+        phase: 'network',
+        kind: 'route-table-associate',
+        description: `Associate node ${node} SLO subnet with internet routing`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'associate-route-table',
+          '--route-table-id',
+          '__SLO_ROUTE_TABLE__',
+          '--subnet-id',
+          `__SUBNET_${node}_0__`,
+          ...base,
+        ],
+        resourceId: routeTable,
+        node,
+        mutates: true,
+        destructive: false,
+        capture: { placeholder: `__SLO_ROUTE_ASSOCIATION_${node}__`, path: 'AssociationId' },
+      });
+  }
   for (const group of intent.securityGroups)
     add({
       phase: 'network',
@@ -1103,6 +1257,7 @@ function compileActions(
         destructive: false,
         captures: [
           { placeholder: `__ENI_${node}_${item.index}__`, path: 'NetworkInterface.NetworkInterfaceId' },
+          { placeholder: `__ENI_${node}_${item.index}_MAC__`, path: 'NetworkInterface.MacAddress' },
           { placeholder: `__NODE_${node}_${item.role.toUpperCase()}_IP__`, path: 'NetworkInterface.PrivateIpAddress' },
         ],
       });
@@ -1262,6 +1417,7 @@ function compileActions(
         ...subnetIds,
         '--tags',
         `Key=xcsh-managed-by,Value=aws-ce`,
+        `Key=xcsh-execution-engine,Value=${intent.engine}`,
         `Key=xcsh-deployment-id,Value=${intent.deploymentName}`,
         `Key=xcsh-plan-sha256,Value=__PLAN_SHA256__`,
         `Key=ves-io-site-name,Value=${intent.siteName}`,
@@ -1294,6 +1450,7 @@ function compileActions(
         'TCP',
         '--tags',
         `Key=xcsh-managed-by,Value=aws-ce`,
+        `Key=xcsh-execution-engine,Value=${intent.engine}`,
         `Key=xcsh-deployment-id,Value=${intent.deploymentName}`,
         `Key=xcsh-plan-sha256,Value=__PLAN_SHA256__`,
         `Key=ves-io-site-name,Value=${intent.siteName}`,
@@ -1566,7 +1723,16 @@ export function compileAwsCePlan(
   observation: AwsCeObservation,
   restorationState: Array<{ id: string; before: Record<string, unknown> }> = [],
 ): AwsCePlan {
-  const intent = normalizeIntent(input);
+  const intent = normalizeIntent({
+    ...input,
+    awsProfile: input.awsProfile ?? observation.identity.awsProfile,
+    platformContext: input.platformContext ?? observation.f5Capabilities.platformContext,
+  });
+  if (
+    intent.awsProfile !== observation.identity.awsProfile ||
+    intent.platformContext !== observation.f5Capabilities.platformContext
+  )
+    fail('execution contexts differ from discovery');
   validateResearch(observation);
   if (canonicalSha256(observation.f5Capabilities) !== observation.f5CapabilitiesSha256)
     fail('F5 capability digest is inconsistent');
@@ -1582,6 +1748,7 @@ export function compileAwsCePlan(
     const ownerPlanSha256 = resource.tags['xcsh-plan-sha256'] ?? '';
     if (
       resource.tags['xcsh-managed-by'] !== 'aws-ce' ||
+      resource.tags['xcsh-execution-engine'] !== intent.engine ||
       resource.tags['xcsh-deployment-id'] !== intent.deploymentName ||
       !observation.ownershipPlanSha256s.includes(ownerPlanSha256)
     )
@@ -1625,6 +1792,19 @@ export function compileAwsCePlan(
     if (!observationById.get(id)?.exists) fail(`brownfield resource was not observed: ${id}`);
   const restorationById = new Map(restorationState.map((item) => [item.id, item.before]));
   const actions = compileActions(intent, observation, restorationById);
+  if (actions.some((action) => action.kind === 'registration-gate'))
+    actions.splice(
+      actions.findIndex((action) => action.kind === 'registration-gate'),
+      0,
+      {
+        id: 'f5-registration-approval',
+        phase: 'registration',
+        kind: 'registration-approve',
+        description: 'Approve registrations only after exact site, node and cloud instance correlation',
+        mutates: true,
+        destructive: false,
+      },
+    );
   const ownershipInventory = [
     ...brownfieldIds.map((resourceId) => ({ resourceId, owned: false as const, action: 'modify-approved' as const })),
     ...actions.flatMap((action) =>
@@ -1650,12 +1830,13 @@ export function compileAwsCePlan(
     ...(intent.egress.mode === 'elastic-ip' ? [{ type: 'elastic-ip', count: intent.topology.nodeCount }] : []),
     ...(intent.routing.profile === 'nlb-ingress' ? [{ type: 'network-load-balancer', count: 1 }] : []),
     ...(intent.routing.profile.startsWith('tgw-')
-      ? [{ type: 'transit-gateway-attachment', count: intent.routing.profile === 'tgw-connect' ? 2 : 1 }]
+      ? [{ type: 'transit-gateway-attachment', count: intent.routing.profile.startsWith('tgw-connect') ? 2 : 1 }]
       : []),
   ];
   const draft: AwsCePlanDraft = {
     schemaVersion: AWS_CE_SCHEMA_VERSION,
     intent,
+    engine: intent.engine,
     accountId: intent.accountId,
     partition: intent.partition,
     region: intent.region,
@@ -1674,7 +1855,15 @@ export function compileAwsCePlan(
     securityGroups: intent.securityGroups,
     warnings,
     billableResources,
-    actions,
+    actions:
+      intent.operation === 'deploy'
+        ? [
+            ...actions.filter((action) => action.phase === 'network'),
+            ...actions.filter((action) => action.phase === 'nodes'),
+            ...actions.filter((action) => action.phase === 'registration'),
+            ...actions.filter((action) => !['network', 'nodes', 'registration'].includes(action.phase)),
+          ]
+        : actions,
     rollback: {
       resources: (restorationState.length
         ? restorationState.filter((resource) => brownfieldIds.includes(resource.id))
@@ -1686,6 +1875,7 @@ export function compileAwsCePlan(
     ownershipInventory,
     ownershipTags: {
       'xcsh-managed-by': 'aws-ce',
+      'xcsh-execution-engine': intent.engine,
       'xcsh-deployment-id': intent.deploymentName,
       'xcsh-plan-sha256': '__PLAN_SHA256__',
       'ves-io-site-name': intent.siteName,
