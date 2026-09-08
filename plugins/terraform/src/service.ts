@@ -6,6 +6,12 @@ export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
   /** Sensitive internal snapshot, bound to the caller's expected revision. */
   readConfiguration(expectedSha256: string): Promise<string>;
+  readPlannedResourceIds(
+    receipt: PlanReceipt,
+    addresses: string[],
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, string | null>>;
   readOutputs(
     names: string[],
     env: Record<string, string | undefined>,
@@ -43,6 +49,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async readPlannedResourceIds(receipt, addresses, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourceIds(receipt, addresses, env, signal);
+        },
         async readConfiguration(expectedSha256) {
           await checkOwner();
           return runner.readConfiguration(expectedSha256);

@@ -210,7 +210,9 @@ export class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
-      return (await privateRead(join(directory, 'main.tf.json'))).toString();
+      const configuration = await privateRead(join(directory, 'main.tf.json'));
+      if (digest(configuration) !== expectedSha256) throw new Error('Terraform configuration snapshot changed');
+      return configuration.toString();
     });
   }
   /** Advance desired configuration without changing cloud ownership, providers or backend. */
@@ -503,6 +505,62 @@ export class TerraformRunner {
         selected[name] = output.value;
       }
       return selected;
+    });
+  }
+  /** Private lifecycle identity projection from the exact saved plan; never a conversational summary. */
+  async readPlannedResourceIds(
+    receipt: PlanReceipt,
+    addresses: string[],
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, string | null>> {
+    if (
+      !addresses.length ||
+      new Set(addresses).size !== addresses.length ||
+      addresses.some((address) => !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address))
+    )
+      throw new Error('Explicit unique root resource addresses are required');
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+      if (
+        journal.state !== 'planned' ||
+        canonical(journal.receipt) !== canonical(receipt) ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan')))
+      )
+        throw new Error('Terraform identity inspection saved plan differs');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+      if (!Array.isArray(plan.resource_changes)) throw new Error('Terraform plan resource identities unavailable');
+      const result: Record<string, string | null> = {};
+      for (const address of addresses) {
+        const matches = plan.resource_changes.map(object).filter((resource) => resource.address === address);
+        if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
+        if (!matches.length) {
+          result[address] = null;
+          continue;
+        }
+        const change = object(matches[0].change);
+        if (change.before === null || change.before === undefined) {
+          result[address] = null;
+          continue;
+        }
+        const before = object(change.before);
+        if (
+          change.before_sensitive === true ||
+          (change.before_sensitive && object(change.before_sensitive).id === true) ||
+          typeof before.id !== 'string' ||
+          !before.id
+        )
+          throw new Error('Terraform resource ID is unavailable or sensitive');
+        result[address] = before.id;
+      }
+      if (receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))))
+        throw new Error('Terraform identity inspection saved plan changed');
+      return result;
     });
   }
   async apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void> {

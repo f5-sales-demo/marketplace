@@ -267,7 +267,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration with current-source F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, NLB/TGW networking, and diagnostics",
-      "version": "2.0.19",
+      "version": "2.0.20",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -402,7 +402,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.0.5",
+      "version": "2.0.6",
       "author": {
         "name": "f5-sales-demo"
       },

@@ -92,6 +92,36 @@ test('reads only the exact private configuration revision for lifecycle translat
   await expect(runner.readConfiguration(hash(configuration))).rejects.toThrow();
 });
 
+test('projects resource IDs privately from the exact saved plan and rejects sensitive IDs', async () => {
+  const resource = {
+    address: 'aws_instance.ce',
+    type: 'aws_instance',
+    change: {
+      actions: ['delete'],
+      before: { id: 'i-12345678', user_data: 'PRIVATE' },
+      before_sensitive: { user_data: true },
+      after: null,
+    },
+  };
+  const { runner } = await fixture({ resource_changes: [resource], output_changes: {} });
+  const receipt = await runner.plan({});
+  expect(JSON.stringify(receipt)).not.toContain('i-12345678');
+  expect(await runner.readPlannedResourceIds(receipt, ['aws_instance.ce'], {})).toEqual({
+    'aws_instance.ce': 'i-12345678',
+  });
+  await expect(
+    runner.readPlannedResourceIds({ ...receipt, planSha256: '0'.repeat(64) }, ['aws_instance.ce'], {}),
+  ).rejects.toThrow('differs');
+  const sensitive = await fixture({
+    resource_changes: [{ ...resource, change: { ...resource.change, before_sensitive: { id: true } } }],
+    output_changes: {},
+  });
+  const privateReceipt = await sensitive.runner.plan({});
+  await expect(sensitive.runner.readPlannedResourceIds(privateReceipt, ['aws_instance.ce'], {})).rejects.toThrow(
+    'sensitive',
+  );
+});
+
 test('rejects malformed output changes even when resources change', async () => {
   for (const actions of [undefined, [], ['forget'], ['create', 'delete'], ['no-op,create']]) {
     const { runner } = await fixture({ output_changes: { token: { actions } } });
