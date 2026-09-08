@@ -222,13 +222,25 @@ export function createNativeAwsSiteReplacementDriver(
     return [...args, '--client-token', token(plan, node)];
   };
   return {
+    quiescenceAdmissionVersion: 1,
     engine: 'native',
     async assertOwnership(plan, _phase, instances, signal) {
       await inspect(plan, signal, instances);
     },
-    async quiesce(plan, signal) {
+    async quiesce(plan, signal, admission) {
       for (const node of plan.binding.nodes) {
-        const { api, old } = await inspect(plan, signal);
+        const { api, old, enis } = await inspect(plan, signal);
+        const states = Object.values(old).map((row) => object(row.State).Name);
+        const complete =
+          states.every((state) => state === 'terminated') &&
+          Object.values(enis).every((eni) => !eni.Attachment && eni.Status === 'available');
+        await admission?.(
+          complete
+            ? 'complete'
+            : states.some((state) => ['shutting-down', 'terminated'].includes(String(state)))
+              ? 'partial'
+              : 'intact',
+        );
         const id = String(old[node].InstanceId);
         const state = object(old[node].State).Name;
         if (state !== 'terminated' && state !== 'shutting-down') {

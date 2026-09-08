@@ -31,7 +31,10 @@ export interface AwsSiteReplacementPlan {
   planId: string;
   planSha256: string;
 }
+export type AwsQuiescenceState = 'intact' | 'partial' | 'complete';
+export type AwsQuiescenceAdmission = (state: AwsQuiescenceState) => Promise<void>;
 export interface AwsSiteReplacementDriver {
+  readonly quiescenceAdmissionVersion: 1;
   engine: 'native' | 'terraform';
   assertOwnership(
     plan: AwsSiteReplacementPlan,
@@ -40,7 +43,7 @@ export interface AwsSiteReplacementDriver {
     signal?: AbortSignal,
   ): Promise<void>;
   /** Must reconcile an already terminated node; retained ENIs must remain owned and unattached. */
-  quiesce(plan: AwsSiteReplacementPlan, signal?: AbortSignal): Promise<void>;
+  quiesce(plan: AwsSiteReplacementPlan, signal?: AbortSignal, admission?: AwsQuiescenceAdmission): Promise<void>;
   /** Must reconcile lost responses using the immutable replacement hash, not repeat an ambiguous create. */
   launch(
     plan: AwsSiteReplacementPlan,

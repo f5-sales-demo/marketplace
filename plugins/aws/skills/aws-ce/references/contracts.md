@@ -51,7 +51,17 @@ and verified API contract. It uses an isolated stage and the checksum-verified X
 provider lock. OS eligibility follows the currently installed software, including a
 preceding software upgrade. This adapter establishes version readiness only; registration,
 routing, traffic, and serial admission must converge before invocation and before moving
-to the next site. Public lifecycle integration and live upgrade acceptance remain pending.
+to the next site. Separate AWS Terraform software and OS upgrade acceptance receipts are
+recorded in [the parity ledger](https://github.com/f5-sales-demo/marketplace/issues/1326).
+Public lifecycle integration and acceptance for the other cloud/engine combinations remain pending.
+
+The internal native and Terraform replacement drivers expose an admission callback before
+shutdown mutation. Fresh owned-resource observations distinguish an intact deployment,
+partial shutdown, and completed shutdown. Terraform also detects partial shutdown when an
+EIP association has been removed while its original VM remains. Callback rejection prevents
+the destructive call; a resumed completed shutdown remains observable without another deletion.
+The replacement coordinator still needs to bind this callback to persisted effective-version
+admission before post-upgrade replacement can be accepted.
 
 ## AWS operations and diagnostics
 

@@ -95,11 +95,13 @@ async function fixture(ha = false) {
       const desired = JSON.parse(configuration).resource.aws_instance ?? {};
       const changes: PlanReceipt['changes'] = [];
       for (const node of selected) {
-        const exists = !flags.lostState && !!active[node];
         const want = !!desired[`node_${node}`];
-        if (exists !== want)
-          for (const type of ['aws_instance', 'aws_eip_association'])
+        for (const type of ['aws_instance', 'aws_eip_association']) {
+          const exists =
+            !flags.lostState && !!(type === 'aws_instance' ? active[node] : addresses[node - 1].AssociationId);
+          if (exists !== want)
             changes.push({ address: `${type}.node_${node}`, type, actions: [want ? 'create' : 'delete'] });
+        }
       }
       return {
         ...f.receipt(desired.node_1 ? 'launch' : 'quiesce'),
@@ -212,7 +214,17 @@ async function fixture(ha = false) {
   };
   const open = () =>
     createTerraformAwsSiteReplacementDriver(f.base, f.replacement, hash(f.configuration), session, store, api, {});
-  return { ...f, open, store, flags, events, enis, active, cleanup: () => rm(root, { recursive: true, force: true }) };
+  return {
+    ...f,
+    open,
+    store,
+    flags,
+    events,
+    enis,
+    active,
+    addresses,
+    cleanup: () => rm(root, { recursive: true, force: true }),
+  };
 }
 
 for (const ha of [false, true])
@@ -375,3 +387,52 @@ for (const ha of [false, true])
       await f.cleanup();
     }
   });
+
+for (const ha of [false, true])
+  test(`Terraform ${ha ? 'HA' : 'independent'} quiescence gates the exact apply and reports completed recovery`, async () => {
+    const f = await fixture(ha);
+    try {
+      const driver = await f.open();
+      const states: string[] = [];
+      await expect(
+        driver.quiesce(f.replacement, undefined, async (state) => {
+          states.push(state);
+          throw new Error('version admission rejected');
+        }),
+      ).rejects.toThrow('version admission rejected');
+      expect(f.events).not.toContain('apply');
+      const admit = async (state: string) => {
+        states.push(state);
+      };
+      await driver.quiesce(f.replacement, undefined, admit);
+      await driver.quiesce(f.replacement, undefined, admit);
+      expect(states).toEqual(['intact', 'intact', 'complete']);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+test('Terraform admission recognizes an association-only partial shutdown before VM deletion', async () => {
+  const f = await fixture();
+  try {
+    const driver = await f.open();
+    delete f.addresses[0].AssociationId;
+    const states: string[] = [];
+    await expect(
+      driver.quiesce(f.replacement, undefined, async (state) => {
+        states.push(state);
+        throw new Error('recorded admission required');
+      }),
+    ).rejects.toThrow('recorded admission required');
+    expect(states).toEqual(['partial']);
+    expect(f.events).not.toContain('apply');
+    const admit = async (state: string) => {
+      states.push(state);
+    };
+    await driver.quiesce(f.replacement, undefined, admit);
+    await driver.quiesce(f.replacement, undefined, admit);
+    expect(states).toEqual(['partial', 'partial', 'complete']);
+  } finally {
+    await f.cleanup();
+  }
+});

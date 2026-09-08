@@ -77,6 +77,7 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
     },
   };
   const driver = {
+    quiescenceAdmissionVersion: 1 as const,
     engine,
     assertOwnership: async () => {
       events.push('ownership');

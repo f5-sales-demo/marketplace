@@ -6,7 +6,12 @@ import type { AwsExecApi } from '../aws/exec';
 import { canonicalSha256 } from './canonical';
 import { observeAwsResources } from './discovery';
 import { scopedAwsApi } from './scoped-exec';
-import type { AwsSiteReplacementDriver, AwsSiteReplacementPlan } from './site-replacement';
+import type {
+  AwsQuiescenceAdmission,
+  AwsQuiescenceState,
+  AwsSiteReplacementDriver,
+  AwsSiteReplacementPlan,
+} from './site-replacement';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { applyAwsTerraformReplacementStage, awsTerraformReplacementStages } from './terraform-replacement-stages';
 import { siteBindings } from './topology';
@@ -124,6 +129,7 @@ export async function createTerraformAwsSiteReplacementDriver(
     const current: Record<string, string> = {};
     const associations: Record<string, string> = {};
     let terminated = true;
+    let quiescenceStarted = false;
     let detached = true;
     for (const node of plan.binding.nodes) {
       const index = nodeIndex(node);
@@ -141,6 +147,7 @@ export async function createTerraformAwsSiteReplacementDriver(
       if (!['pending', 'running', 'stopping', 'stopped', 'shutting-down', 'terminated'].includes(String(state)))
         throw new Error('Original Terraform instance state is unknown');
       terminated &&= state === 'terminated';
+      quiescenceStarted ||= state === 'terminated' || state === 'shutting-down';
       const vpcs = new Set<string>();
       for (const iface of base.intent.interfaces) {
         const key = `${node}/${iface.role}`;
@@ -214,7 +221,14 @@ export async function createTerraformAwsSiteReplacementDriver(
       )
         throw new Error('New Terraform instance ownership differs');
     }
-    return { current, associations, terminated, detached };
+    const missingAssociations = Object.keys(associations).length < Object.keys(plan.elasticIpAllocationIds).length;
+    const quiescence: AwsQuiescenceState =
+      terminated && detached && !Object.keys(associations).length
+        ? 'complete'
+        : quiescenceStarted || missingAssociations
+          ? 'partial'
+          : 'intact';
+    return { current, associations, terminated, detached, quiescence };
   };
   const outputs = async (signal?: AbortSignal) => {
     const values = await session.readOutputs(['ce_vpc_id', 'ce_interfaces', 'ce_instances'], env, signal);
@@ -228,7 +242,12 @@ export async function createTerraformAwsSiteReplacementDriver(
       }
     return object(values.ce_instances);
   };
-  const authorizeReceipt = async (receipt: PlanReceipt, phase: 'quiesce' | 'launch', signal?: AbortSignal) => {
+  const authorizeReceipt = async (
+    receipt: PlanReceipt,
+    phase: 'quiesce' | 'launch',
+    signal?: AbortSignal,
+    admission?: AwsQuiescenceAdmission,
+  ) => {
     const identities = await session.readPlannedResourceIds(receipt, stages.quiesce.addresses, env, signal);
     const live = await observe(plan, phase === 'launch', signal);
     for (const change of receipt.changes.filter((change) => stages.quiesce.addresses.includes(change.address))) {
@@ -249,8 +268,10 @@ export async function createTerraformAwsSiteReplacementDriver(
       }
     }
     await storage.write(`${plan.planId}-terraform-${phase}-plan.json`, { receipt, identities });
+    if (phase === 'quiesce') await admission?.(live.quiescence);
   };
   return {
+    quiescenceAdmissionVersion: 1,
     engine: 'terraform',
     async finalize(candidate, expected, signal) {
       await validate(candidate);
@@ -327,12 +348,12 @@ export async function createTerraformAwsSiteReplacementDriver(
             throw new Error('Terraform output and replacement instance checkpoint differ');
       }
     },
-    async quiesce(candidate, signal) {
+    async quiesce(candidate, signal, admission) {
       await observe(candidate, false, signal);
       await applyAwsTerraformReplacementStage(
         session,
         stages.quiesce,
-        (receipt) => authorizeReceipt(receipt, 'quiesce', signal),
+        (receipt) => authorizeReceipt(receipt, 'quiesce', signal, admission),
         env,
         signal,
       );

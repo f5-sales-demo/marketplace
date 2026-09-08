@@ -354,3 +354,45 @@ test('native replacement rejects obsolete launch checkpoints without another mut
     await f.cleanup();
   }
 });
+
+test('native quiescence admission runs before deletion and reports resumed cloud state', async () => {
+  const f = await fixture();
+  try {
+    const states: string[] = [];
+    await expect(
+      f.driver.quiesce(f.plan, undefined, async (state) => {
+        states.push(state);
+        throw new Error('version admission rejected');
+      }),
+    ).rejects.toThrow('version admission rejected');
+    expect(f.events).not.toContain('terminate-instances');
+    expect(states).toEqual(['intact']);
+    const admit = async (state: string) => {
+      states.push(state);
+    };
+    await f.driver.quiesce(f.plan, undefined, admit);
+    await f.driver.quiesce(f.plan, undefined, admit);
+    expect(states).toEqual(['intact', 'intact', 'complete']);
+    expect(f.events.filter((event) => event === 'terminate-instances')).toHaveLength(1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('native shutdown already in progress is reported as partial before reconciliation', async () => {
+  const f = await fixture();
+  try {
+    f.old.State.Name = 'shutting-down';
+    const states: string[] = [];
+    await expect(
+      f.driver.quiesce(f.plan, undefined, async (state) => {
+        states.push(state);
+        throw new Error('recorded admission required');
+      }),
+    ).rejects.toThrow('recorded admission required');
+    expect(states).toEqual(['partial']);
+    expect(f.events).not.toContain('terminate-instances');
+  } finally {
+    await f.cleanup();
+  }
+});
