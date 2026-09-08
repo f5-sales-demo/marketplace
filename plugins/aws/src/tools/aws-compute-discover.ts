@@ -18,7 +18,11 @@ export function createAwsComputeDiscoverTool(pi: PluginInterface, makeApi: (cwd:
       accountId: Type.String(),
       partition: Type.Union([Type.Literal('aws'), Type.Literal('aws-us-gov'), Type.Literal('aws-cn')]),
       deploymentName: Type.String(),
-      requiredEnis: Type.Number({ minimum: 1, maximum: 8 }),
+      requiredEnis: Type.Number({
+        minimum: 1,
+        maximum: 8,
+        description: 'Required physical ENIs per instance, not the deployment total.',
+      }),
       nodeCount: Type.Union([Type.Literal(1), Type.Literal(3)]),
       instanceTypes: Type.Optional(Type.Array(Type.String())),
       brownfieldResourceIds: Type.Array(Type.String()),
