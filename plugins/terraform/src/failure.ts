@@ -1,5 +1,6 @@
 export type TerraformFailureCategory =
   | 'capacity'
+  | 'quota'
   | 'authorization'
   | 'expired'
   | 'throttled'
@@ -9,6 +10,7 @@ export type TerraformFailureCategory =
 
 const patterns: Array<[TerraformFailureCategory, RegExp]> = [
   ['capacity', /\bInsufficientInstanceCapacity\b/],
+  ['quota', /\bVpcLimitExceeded\b/],
   ['authorization', /\b(?:AccessDenied|AccessDeniedException|UnauthorizedOperation|AuthorizationFailed)\b/],
   ['expired', /\b(?:ExpiredToken|ExpiredTokenException|AuthenticationTokenExpired)\b/],
   ['throttled', /\b(?:Throttling|ThrottlingException|RequestLimitExceeded|TooManyRequests)\b/],

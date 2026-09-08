@@ -207,6 +207,9 @@ test('failed executors expose only fixed categories and discard potentially sens
   const executor = terraformExecutor();
   for (const [diagnostic, category] of [
     ['API error InsufficientInstanceCapacity', 'capacity'],
+    ['API error VpcLimitExceeded: The maximum number of VPCs has been reached.', 'quota'],
+    ['Client.VpcLimitExceeded', 'quota'],
+    ['VpcLimitExceeded and InsufficientInstanceCapacity', 'unknown'],
     ['API error AccessDenied', 'authorization'],
     ['ExpiredToken: credentials expired', 'expired'],
     ['RequestLimitExceeded', 'throttled'],
