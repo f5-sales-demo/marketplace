@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { correlateCeInterfaces } from '../../src/ce/interface-evidence';
+import recorded from '../fixtures/aws-site-publisher-links.json';
 
 function fixture() {
   const mac = 'aa:bb:cc:dd:ee:ff';
@@ -96,4 +97,69 @@ test('rejects stale, down, duplicated, foreign-owner and wrong-MTU evidence', ()
     mutate(f);
     expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow();
   }
+});
+
+function sitePublisherFixture() {
+  const f = fixture();
+  return {
+    ...f,
+    physical: {
+      ...f.physical,
+      system_metadata: { uid: 'physical-site-uid' },
+      status: [
+        {
+          ...f.physical.status[0],
+          metadata: { ...f.physical.status[0].metadata, creator_id: 'site-a', status_id: 'node-a_SiteStatusMgr' },
+          ver_status: { ...f.physical.status[0].ver_status, ver_instance_name: 'node-a-site-a' },
+          object_refs: [{ kind: 'ves.io.vega.cfg.site.Object', uid: 'physical-site-uid' }],
+        },
+      ],
+    },
+  };
+}
+test('correlates site-published node links using both node identifiers and physical-site UID', () => {
+  const f = sitePublisherFixture();
+  expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].interfaceName).toBe(
+    'authoritative-interface-object',
+  );
+});
+test('rejects conflicting site-publisher node identities, stale links, references and duplicate publications', () => {
+  for (const mutate of [
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].metadata.creator_id = 'foreign-site';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].metadata.status_id = 'other-node_SiteStatusMgr';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].ver_status.ver_instance_name = 'other-node-site-a';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].object_refs[0].uid = 'foreign-uid';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].object_refs = [];
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.system_metadata.uid = '';
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status[0].metadata.vtrp_stale = true;
+    },
+    (f: ReturnType<typeof sitePublisherFixture>) => {
+      f.physical.status.push(f.physical.status[0]);
+    },
+  ]) {
+    const f = sitePublisherFixture();
+    mutate(f);
+    expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow();
+  }
+});
+
+test('replays sanitized current AWS site-publisher interface evidence', () => {
+  const expected = recorded.expected.map((item) => ({ ...item, role: item.role as 'slo' | 'sli' }));
+  const interfaces = correlateCeInterfaces(recorded.configuration, recorded.objects, recorded.physical, expected);
+  expect(interfaces).toHaveLength(2);
+  expect(interfaces.map((item) => item.role)).toEqual(['slo', 'sli']);
+  expect(interfaces.every((item) => item.linkUp && item.mtu === 1500)).toBe(true);
 });

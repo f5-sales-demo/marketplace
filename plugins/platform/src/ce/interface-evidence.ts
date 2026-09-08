@@ -103,13 +103,24 @@ export function correlateCeInterfaces(
     });
     if (matches.length !== 1) throw new Error('Ambiguous realized interface identity');
     const publications = statuses.filter((item) => {
-      if (item.ver_status === undefined) return false;
+      if (item.ver_status === undefined || item.ver_status === null) return false;
       const publisher = object(item.metadata);
       return (
         publisher.creator_class === 'ver' &&
         publisher.publish === 'STATUS_PUBLISH' &&
         publisher.vtrp_stale === false &&
-        matchesNode(iface.node, publisher.creator_id)
+        (matchesNode(iface.node, publisher.creator_id) ||
+          // Current SMSv2 publications use the site as publisher. Require both
+          // observed node identifiers and the exact physical-site reference.
+          (publisher.creator_id === metadata.name &&
+            publisher.status_id === `${iface.node}_SiteStatusMgr` &&
+            object(item.ver_status).ver_instance_name === `${iface.node}-${metadata.name}` &&
+            typeof object(physical.system_metadata ?? {}).uid === 'string' &&
+            object(physical.system_metadata).uid !== '' &&
+            array(item.object_refs).filter((ref) => {
+              const value = object(ref);
+              return value.kind === 'ves.io.vega.cfg.site.Object' && value.uid === object(physical.system_metadata).uid;
+            }).length === 1))
       );
     });
     if (publications.length !== 1) throw new Error('Physical interface publication is missing, stale or duplicated');
