@@ -29,7 +29,8 @@ Distinguish site count from node count. In schema v2, `topology.sites` assigns e
 (starting at 1) to exactly one named site. One site with `[1, 2, 3]` is HA; three sites each with
 one index are independent sites. Each site has one or three nodes. Persist the names and membership
 in the plan; lifecycle work must preserve them. AWS bootstrap, registration and status use these
-site bindings. Terraform execution of the translated topology remains pending.
+site bindings. Internal Terraform adapters execute these topologies; consult the provider
+contract for their acceptance scope and public-tool integration status.
 
 ## Workflow
 
@@ -47,13 +48,13 @@ site bindings. Terraform execution of the translated topology remains pending.
 4. Apply the exact approved AWS plan with `aws_ce_apply`. Native execution uses the shared platform
    service to create the site, issue site-bound bootstrap, correlate and approve registrations, and
    observe health. Do not supply caller-made bootstrap or health assertions. The Terraform runner
-   service exists, but its AWS lifecycle translator is still pending; do not substitute native
-   execution for an explicitly selected Terraform engine.
+   service and internal AWS lifecycle adapters exist; complete public lifecycle integration
+   remains pending. Do not substitute native execution for an explicitly selected Terraform engine.
 5. Use `f5xc_ce_v2_status` at registration, health, BGP, NLB/TGW routing, and traffic gates. Resume
    only the same AWS plan ID/hash; rediscover and replan for source, AMI, quota, agreement, route,
    target, attachment, peer, tag, or capability drift.
-6. Finish with `aws_ce_status`, passive `aws_ce_diagnose`, and platform evidence. Obtain separate
-   approval for active diagnostics and teardown.
+6. Finish with `aws_ce_status`, passive `aws_ce_diagnose`, and platform evidence. Keep active
+   diagnostics and teardown within the user's authorized scope, preserving authorization on resume.
 
 TGW Connect is disabled unless both the current F5 guide and `f5xc_ce_v2_capabilities` prove the
 supported SMSv2 GRE/BGP schema. Missing evidence is a release blocker, never permission to use a

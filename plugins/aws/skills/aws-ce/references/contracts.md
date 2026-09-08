@@ -13,8 +13,10 @@ records its normalized SHA-256. This reference contains only AWS-specific requir
   architecture, state/deprecation, Allowed AMI policy, root disk, and launch permission.
 - Check active purchase agreements with AWS Marketplace Agreement Service. Never automate initial
   legal acceptance; provide the exact Marketplace console action, then rediscover and replan.
-- Rank AMI availability, requested instance/AZ offerings, ENI limits, and minimum 8 vCPU/32 GiB/100 GiB root disk. The launch plan must override the Marketplace AMI root mapping to 100 GiB or larger; the current 79 GiB image default is boot-only and is not upgrade-safe.
-  regional vCPU quota, permissions/policy evidence, TGW availability, and brownfield proximity.
+- Rank AMI availability, requested instance/AZ offerings, ENI limits, regional vCPU quota,
+  permissions/policy evidence, TGW availability, and brownfield proximity. The CE planner requires
+  at least 8 vCPUs, 32 GiB memory, and a 100 GiB root disk. Override a smaller AMI root mapping;
+  boot success alone does not establish enough disk space for upgrades.
 
 ## AWS networking
 
@@ -26,10 +28,18 @@ records its normalized SHA-256. This reference contains only AWS-specific requir
   is ingress only and is never modeled as a VPC or TGW route next hop.
 - `tgw-static` uses an appliance-mode VPC attachment, explicit TGW route tables, associations,
   propagations, TGW routes, and CE SLI ENI routes.
-- `tgw-connect` uses an appliance-mode transport attachment, GRE on SLI, one Connect peer per node,
-  two AWS-managed BGP sessions per peer, deterministic non-overlapping `/29` inside CIDRs, valid
-  distinct ASNs, explicit propagation, and three-zone symmetry. Enable it only with current F5
-  documentation and an explicit tenant capability schema.
+- `tgw-connect` uses an appliance-mode transport attachment and explicit `routing.connectPeers`.
+  Each peer binds a node, a non-overlapping `/29` inside CIDR, and an observed transport interface
+  index. The planner supports SLO or SLI transport selection; the payload routing context remains
+  SLI. Keep transport interface identity separate from payload routing context.
+- Derive session counts from the peers: two AWS BGP endpoints per peer. Three independent sites
+  with two physical interfaces and two peers each require six peers and twelve sessions. Do not
+  equate this topology with one three-node HA site. Correlate the actual node, MAC, interface name,
+  GRE endpoint, and both AWS BGP endpoints before configuring routing.
+- Ingress remains separate from routing. The internal Terraform adapters compose TGW Connect
+  with NLB targets and exact site placement. A successful BGP session is neither packet-level
+  multihop TTL evidence nor proof that a listener delivers traffic. Keep routes, targets, raw
+  requests, retry-window requests, and origin-control health as separate acceptance evidence.
 
 ## Initial software and OS baseline
 
@@ -68,15 +78,29 @@ on an intact retry, and requires that admission during partial shutdown recovery
 uses the frozen installed versions without changing the original deployment baseline.
 Registration completion requires a new physical site identity and matching installed versions;
 missing or installing version evidence returns `pending-versions` for checkpoint resume.
-Routing and traffic still require separate verification. Live post-upgrade replacement
-acceptance remains pending.
+Connect replacement requires the owning driver's routing recovery integration and the frozen
+routing-object UID inventory before shutdown. After registration and version convergence, it
+rediscovers interface bindings and rebinds the selected site's retained routing objects through
+schema-validated updates. The coordinator returns `pending-routing` until observed BGP health
+converges. Configuration readback alone cannot satisfy this gate. Terraform finalization requires
+a refresh-enabled no-change plan before updating admission.
+
+The [2026-09-08 AWS Terraform checkpoint-resume receipt](https://github.com/f5-sales-demo/marketplace/issues/1326#issuecomment-5592628652)
+verifies one post-upgrade replacement with automatic routing recovery, retained routing-object
+UIDs, restored twelve-session health, traffic checks, and final no-change plans. The local network
+interruption required restarting the same executable checkpoint, with no deployment-state edits
+or separate routing repair. Its BGP observation gap is recorded explicitly. This establishes that
+scenario only; uninterrupted completion, native replacement, Azure, HA, and complete public
+lifecycle acceptance remain separate requirements. Preserve failed or manually repaired runs as
+such rather than counting them as unattended acceptance.
 
 ## AWS operations and diagnostics
 
 - Correlate EC2 status/boot, ENIs, security groups, route tables, NLB targets, TGW attachments,
   Connect peers/BGP, and platform registration/health/routing evidence.
-- Treat SSM probes as active diagnostics and request separate approval. Return allowlisted states,
-  counts, and digests; withhold console output, user data, SSM output, tokens, and environment data.
+- Run SSM probes only within the user's authorized diagnostic or acceptance scope. Preserve that
+  authorization across resume. Return allowlisted states, counts, and digests; withhold raw
+  console output, user data, SSM output, tokens, and environment data.
 - Operate a three-node lifecycle one node at a time and gate EC2 state, registration, F5 health,
   BGP, NLB/TGW routes, and traffic before advancing. Warn that single-node disruption requires a
   maintenance window.
