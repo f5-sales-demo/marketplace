@@ -193,6 +193,7 @@ export type AwsCeActionKind =
   | 'security-group-create'
   | 'security-group-rule-create'
   | 'security-group-egress-reset'
+  | 'instance-termination-gate'
   | 'eni-create'
   | 'elastic-ip-allocate'
   | 'elastic-ip-associate'

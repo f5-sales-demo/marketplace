@@ -703,6 +703,17 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
+      if (resource.id.startsWith('i-'))
+        add({
+          phase: 'teardown',
+          kind: 'instance-termination-gate',
+          description: `Wait for owned instance ${resource.id} to terminate before deleting its interfaces`,
+          command: 'aws',
+          args: ['ec2', 'wait', 'instance-terminated', '--instance-ids', resource.id, ...base],
+          resourceId: resource.id,
+          mutates: false,
+          destructive: false,
+        });
     }
     return actions;
   }

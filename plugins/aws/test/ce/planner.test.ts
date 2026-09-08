@@ -375,6 +375,10 @@ describe('compileAwsCePlan', () => {
       expect.arrayContaining(['replace-route', '--nat-gateway-id', 'nat-0123456789abcdef0']),
     );
     expect(mutations.at(-1)?.args).toEqual(expect.arrayContaining(['terminate-instances', ownedInstanceId]));
+    expect(plan.actions.at(-1)?.kind).toBe('instance-termination-gate');
+    expect(plan.actions.at(-1)?.args).toEqual(
+      expect.arrayContaining(['wait', 'instance-terminated', '--instance-ids', ownedInstanceId]),
+    );
     expect(plan.actions.some((action) => action.kind === 'resource-delete' && action.resourceId === routeTableId)).toBe(
       false,
     );
