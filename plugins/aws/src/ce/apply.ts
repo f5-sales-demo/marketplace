@@ -47,10 +47,12 @@ export function assertAwsApplyAllowed(
     env: Record<string, string | undefined>;
     authorized?: boolean;
     destructionAuthorized?: boolean;
+    executionEngine?: 'native' | 'terraform';
   },
 ) {
   if (plan.schemaVersion !== AWS_CE_SCHEMA_VERSION) throw new Error('AWS CE plan schema is unsupported');
-  if (plan.engine !== 'native') throw new Error('Terraform-owned deployments require the Terraform lifecycle adapter');
+  if (plan.engine !== (request.executionEngine ?? 'native'))
+    throw new Error('Terraform-owned deployments require the Terraform lifecycle adapter');
   if (request.planId !== plan.planId) throw new Error('The requested AWS CE plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested AWS CE plan hash does not match');

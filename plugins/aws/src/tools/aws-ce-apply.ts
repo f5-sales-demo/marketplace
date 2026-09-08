@@ -2,8 +2,9 @@ import type { AwsExecApi } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
 import type { AwsCeApplyInput } from '../ce/apply';
 import { executeAwsCeApply } from '../ce/apply';
-import type { AwsCeToolContext } from '../ce/artifacts';
+import { type AwsCeToolContext, loadAwsPlan } from '../ce/artifacts';
 import { awsPlatformService } from '../ce/platform';
+import { awsTerraformService, executeAwsCeTerraformApply } from '../ce/terraform-apply';
 import { makeExecApi } from './shared';
 
 export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string) => AwsExecApi = makeExecApi) {
@@ -25,6 +26,27 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
       ctx: AwsCeToolContext,
     ) {
       try {
+        const selected = await loadAwsPlan(ctx.sessionManager, params.planId, params.planSha256);
+        if (selected.plan.engine === 'terraform') {
+          const result = await executeAwsCeTerraformApply(
+            params,
+            ctx,
+            makeApi(ctx.cwd),
+            await awsPlatformService(pi, signal),
+            await awsTerraformService(pi, signal),
+            fetch,
+            signal,
+          );
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `AWS CE Terraform ${selected.plan.deploymentName}: ${result.status}. Routing and traffic acceptance remain unverified.`,
+              },
+            ],
+            details: { tool: 'aws_ce_apply', ...result },
+          };
+        }
         const { plan, checkpoint } = await executeAwsCeApply(
           params,
           ctx,
