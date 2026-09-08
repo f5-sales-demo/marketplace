@@ -46,8 +46,15 @@ function fixture() {
     },
   };
   let puts = 0;
+  let posts = 0;
+  let absent = false;
   const receipts: Record<string, unknown>[] = [];
-  const contract = {} as VerifiedCeContract;
+  const contract = {
+    siteCreateRequest(snapshot: typeof site) {
+      return { metadata: structuredClone(snapshot.metadata), spec: structuredClone(snapshot.spec) };
+    },
+    validateSiteCreate() {},
+  } as unknown as VerifiedCeContract;
   const runtime = new CeRuntime(contract, 'terraform', 'https://tenant.test', 'fixture', async (url, init) => {
     if (String(url).includes('registrations_by_site'))
       return Response.json({
@@ -66,18 +73,35 @@ function fixture() {
         ],
         errors: [],
       });
+    if (init?.method === 'POST') {
+      posts++;
+      const request = JSON.parse(String(init.body));
+      Object.assign(site, request, { system_metadata: { uid: 'replacement-uid' } });
+      absent = false;
+      throw new Error('Create response lost');
+    }
     if (init?.method === 'PUT') {
       puts++;
       throw new Error('Unexpected post-registration interface mutation');
     }
-    return Response.json(site);
+    return absent ? Response.json({}, { status: 404 }) : Response.json(site);
   });
   const run = () =>
     runtime.ensureAwsInterfaceMtu(binding, { 'node-one': 'i-1234567890abcdef0' }, expected, async (record) => {
       expect(record.packetMtu).toBe('unknown');
       receipts.push(record);
     });
-  return { site, runtime, run, receipts, puts: () => puts };
+  return {
+    site,
+    runtime,
+    run,
+    receipts,
+    puts: () => puts,
+    posts: () => posts,
+    removeOldSite: () => {
+      absent = true;
+    },
+  };
 }
 test('registered primary MTU differences produce a bound replacement checkpoint without PUT', async () => {
   const f = fixture();
@@ -90,6 +114,22 @@ test('registered primary MTU differences produce a bound replacement checkpoint 
     uid: 'site-uid',
     instances: { 'node-one': 'i-1234567890abcdef0' },
     interfaces: [{ ...expected[0], device: 'ens5' }],
+    request: {
+      metadata: f.site.metadata,
+      spec: {
+        no_network_policy: {},
+        aws: {
+          not_managed: {
+            node_list: [
+              {
+                hostname: 'node-one',
+                interface_list: [{ mtu: 1500, ethernet_interface: { device: 'ens5', mac: expected[0].mac } }],
+              },
+            ],
+          },
+        },
+      },
+    },
   });
 });
 test('already configured MTU is verified without mutation or replacement', async () => {
@@ -118,4 +158,38 @@ test('MTU evidence rejects wrong ownership and missing resource version before r
     ),
   ).rejects.toThrow('owning');
   expect(wrong.puts()).toBe(0);
+});
+
+test('prepared creation waits for old-site removal and reconciles a lost create response without duplication', async () => {
+  const f = fixture();
+  f.site.metadata.labels['custom-label'] = 'preserved';
+  await expect(f.run()).rejects.toThrow('coupled VM/site replacement');
+  const preparation = f.receipts[0];
+  await expect(f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {})).rejects.toThrow(
+    'Original site still exists',
+  );
+  expect(f.posts()).toBe(0);
+  f.removeOldSite();
+  const created: Record<string, unknown>[] = [];
+  await f.runtime.ensureAwsPreparedSite(binding, preparation, async (record) => {
+    created.push(record);
+  });
+  await f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {});
+  expect(f.posts()).toBe(1);
+  expect(created[0].uid).toBe('replacement-uid');
+  expect(f.site.metadata.labels['custom-label']).toBe('preserved');
+  expect(f.site.spec.aws.not_managed.node_list[0].interface_list[0].mtu).toBe(1500);
+});
+
+test('prepared creation rejects a request whose MTU differs from the collected requirement', async () => {
+  const f = fixture();
+  await expect(f.run()).rejects.toThrow('coupled VM/site replacement');
+  const preparation = f.receipts[0];
+  const request = preparation.request as typeof f.site;
+  request.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 9000;
+  f.removeOldSite();
+  await expect(f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {})).rejects.toThrow(
+    'Prepared MTU differs',
+  );
+  expect(f.posts()).toBe(0);
 });

@@ -134,6 +134,22 @@ export class VerifiedCeContract {
   validateSite(spec: unknown): void {
     this.#validate(spec);
   }
+  siteCreateRequest(snapshot: Json): Json {
+    const request = {
+      metadata: projectReplaceSnapshot(snapshot.metadata, this.#schemas, 'schemaObjectCreateMetaType'),
+      spec: projectReplaceSnapshot(snapshot.spec, this.#schemas, 'viewssecuremesh_site_v2CreateSpecType', [
+        'site_state',
+        'site_errors',
+        'operating_system_version',
+        'volterra_software_version',
+      ]),
+    };
+    this.validateSiteCreate(request);
+    return request;
+  }
+  validateSiteCreate(request: Json): void {
+    createWireValidator(this.#schemas, 'securemesh_site_v2CreateRequest')(request);
+  }
   siteReplaceRequest(snapshot: Json): Json {
     const request = {
       metadata: projectReplaceSnapshot(snapshot.metadata, this.#schemas, 'schemaObjectReplaceMetaType'),

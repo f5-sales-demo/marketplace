@@ -210,6 +210,60 @@ export class CeRuntime {
     const spec = this.contract.buildSite(intent);
     await this.#ensureSpec(binding, spec, checkpoint, signal);
   }
+  /** Recreate only after the owning cloud adapter has quiesced the recorded nodes and removed the old site. */
+  async ensureAwsPreparedSite(
+    binding: SiteBinding,
+    preparation: Json,
+    checkpoint: (site: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#binding(binding, true);
+    const request = object(preparation.request);
+    if (
+      binding.owner.provider !== 'aws' ||
+      !subset(preparation.owner, binding.owner) ||
+      preparation.contractFingerprint !== this.contract.fingerprint ||
+      preparation.siteName !== binding.siteName ||
+      preparation.evidenceKind !== 'preboot-interface-configuration-required' ||
+      typeof preparation.uid !== 'string' ||
+      !preparation.uid
+    )
+      throw new Error('Prepared site ownership, contract or identity differs');
+    this.#owned(request, binding);
+    this.contract.validateSiteCreate(request);
+    const interfaces = preparation.interfaces as Array<ExpectedCeInterface & { device: string; mtu: number }>;
+    if (
+      !Array.isArray(interfaces) ||
+      interfaces.some((item) => !binding.nodes.includes(item.node)) ||
+      new Set(interfaces.map((item) => item.node)).size !== binding.nodes.length
+    )
+      throw new Error('Prepared site nodes differ from deployment');
+    verifyRegisteredInterfaceConfiguration(object(request.spec), interfaces);
+    const nodes = object(object(object(request.spec).aws).not_managed).node_list as Json[];
+    for (const node of nodes)
+      for (const iface of node.interface_list as Json[]) {
+        const expected = interfaces.find(
+          (item) => item.node === node.hostname && item.mac === object(iface.ethernet_interface).mac,
+        );
+        if (
+          !expected ||
+          !Number.isInteger(expected.mtu) ||
+          expected.mtu < 576 ||
+          expected.mtu > 9000 ||
+          iface.mtu !== expected.mtu
+        )
+          throw new Error('Prepared MTU differs from the replacement requirement');
+      }
+    let existing: Json | undefined;
+    try {
+      existing = await this.observeSite(binding, signal);
+    } catch (error) {
+      if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
+    }
+    if (existing && object(existing.system_metadata).uid === preparation.uid)
+      throw new Error('Original site still exists; coupled replacement has not removed it');
+    await this.#ensureSpec(binding, object(request.spec), checkpoint, signal, object(request.metadata));
+  }
   /** Reserve a site before provider-assigned NIC identities exist. No node is claimed registered. */
   async reserveSite(
     binding: SiteBinding,
@@ -235,6 +289,7 @@ export class CeRuntime {
     spec: Json,
     checkpoint: (site: Json) => Promise<void>,
     signal?: AbortSignal,
+    metadata?: Json,
   ): Promise<void> {
     let existing: Json | undefined;
     try {
@@ -249,7 +304,7 @@ export class CeRuntime {
           {
             method: 'POST',
             body: JSON.stringify({
-              metadata: { name: binding.siteName, namespace: 'system', labels: this.#labels(binding) },
+              metadata: metadata ?? { name: binding.siteName, namespace: 'system', labels: this.#labels(binding) },
               spec,
             }),
           },
@@ -262,6 +317,8 @@ export class CeRuntime {
       existing = await this.observeSite(binding, signal);
     }
     this.#owned(existing, binding);
+    if (metadata && !subset(existing.metadata, metadata))
+      throw new Error('Existing site metadata differs; replan required');
     if (!subset(existing.spec, spec)) throw new Error('Existing site configuration differs; replan required');
     const uid = object(existing.system_metadata).uid;
     if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
@@ -361,6 +418,15 @@ export class CeRuntime {
     if (changed) {
       if (typeof before.resource_version !== 'string' || !before.resource_version)
         throw new Error('Site resource version is required for an interface update');
+      const request = this.contract.siteCreateRequest(before);
+      const desiredNodes = object(object(object(request.spec).aws).not_managed).node_list as Json[];
+      for (const node of desiredNodes)
+        for (const iface of node.interface_list as Json[]) {
+          const desired = matches(node, iface);
+          if (!desired) throw new Error('Preboot interface identity differs from observed inventory');
+          iface.mtu = desired.mtu;
+        }
+      this.contract.validateSiteCreate(request);
       await checkpoint({
         owner: binding.owner,
         siteName: binding.siteName,
@@ -374,6 +440,7 @@ export class CeRuntime {
         })),
         source: this.#sitePath(binding),
         deviceSource: `/api/register/namespaces/system/registrations_by_site/${binding.siteName}`,
+        request,
         evidenceKind: 'preboot-interface-configuration-required',
         observedAt: new Date().toISOString(),
         packetMtu: 'unknown',
