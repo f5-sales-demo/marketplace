@@ -12,9 +12,9 @@ and this project adheres to
 
 - **`azure`** bumped to v4.3.3
 
-- **`aws`** bumped to v2.0.18
+- **`aws`** bumped to v2.0.19
 
-- **`terraform`** bumped to v2.0.4
+- **`terraform`** bumped to v2.0.5
 
 - **`platform`** bumped to v5.0.5
 

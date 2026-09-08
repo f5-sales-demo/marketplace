@@ -60,6 +60,7 @@ test('Terraform revalidates durable ownership before execution', async () => {
     { mode: 0o600 },
   );
   await expect(session.plan({})).rejects.toThrow();
+  await expect(session.readConfiguration('0'.repeat(64))).rejects.toThrow();
 });
 test('installed Terraform extension registers an executable service through the supported bus', async () => {
   const { platform } = await fixture();

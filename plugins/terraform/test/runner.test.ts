@@ -82,6 +82,16 @@ test('isolates CLI settings and exports only a sanitized saved-plan receipt', as
   expect(await readFile(plan.env.TF_CLI_CONFIG_FILE, 'utf8')).toContain('direct {}');
 });
 
+test('reads only the exact private configuration revision for lifecycle translation', async () => {
+  const configuration = '{"terraform":{"required_version":"= 1.14.0"}}';
+  const { runner, calls, root } = await fixture({}, {}, configuration);
+  expect(await runner.readConfiguration(hash(configuration))).toBe(configuration);
+  await expect(runner.readConfiguration('0'.repeat(64))).rejects.toThrow('stale');
+  expect(calls).toHaveLength(0);
+  await writeFile(join(root, 'ce-test', 'main.tf.json'), '{}', { mode: 0o600 });
+  await expect(runner.readConfiguration(hash(configuration))).rejects.toThrow();
+});
+
 test('rejects malformed output changes even when resources change', async () => {
   for (const actions of [undefined, [], ['forget'], ['create', 'delete'], ['no-op,create']]) {
     const { runner } = await fixture({ output_changes: { token: { actions } } });

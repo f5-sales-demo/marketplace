@@ -204,6 +204,15 @@ export class TerraformRunner {
     this.#directory = directory;
     this.#manifest = manifest;
   }
+  /** Internal lifecycle input. May contain bootstrap secrets; never export as a tool summary. */
+  async readConfiguration(expectedSha256: string): Promise<string> {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration snapshot is stale');
+      return (await privateRead(join(directory, 'main.tf.json'))).toString();
+    });
+  }
   /** Advance desired configuration without changing cloud ownership, providers or backend. */
   async reviseConfiguration(expectedSha256: string, configuration: string): Promise<string> {
     return this.#exclusive(async () => {
