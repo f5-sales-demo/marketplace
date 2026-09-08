@@ -64,6 +64,11 @@ export function buildWireSite(intent: WireSiteIntent, schemas: Json): Json {
       if (typeof ethernet.mac !== 'string' || !macs.test(ethernet.mac) || identities.has(ethernet.mac))
         throw new Error('SMSv2 MAC identity is missing, malformed or duplicated');
       identities.add(ethernet.mac);
+      if (
+        intent.provider === 'aws' &&
+        (typeof ethernet.device !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(ethernet.device))
+      )
+        throw new Error('An observed AWS guest device is required before configuring an interface');
       if (typeof item.name !== 'string' || !names.test(item.name) || interfaceNames.has(item.name))
         throw new Error('SMSv2 interface names must be unique');
       interfaceNames.add(item.name);

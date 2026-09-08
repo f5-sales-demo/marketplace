@@ -8,14 +8,14 @@ const node = (number: number) => ({
     {
       name: 'slo',
       mtu: 1500,
-      ethernet_interface: { mac: `02:00:00:00:0${number}:01` },
+      ethernet_interface: { mac: `02:00:00:00:0${number}:01`, device: 'ens5' },
       network_option: { site_local_network: {} },
       dhcp_client: {},
     },
     {
       name: 'sli',
       mtu: 1500,
-      ethernet_interface: { mac: `02:00:00:00:0${number}:02` },
+      ethernet_interface: { mac: `02:00:00:00:0${number}:02`, device: 'ens6' },
       network_option: { site_local_inside_network: {} },
       dhcp_client: {},
     },
@@ -78,4 +78,12 @@ test('accepts schema-supported advanced choices and rejects identity overrides',
     { non_existent_setting: {} },
   ])
     expect(() => buildWireSite({ ...intent(), settings }, fixture.schemas)).toThrow();
+});
+
+
+test('rejects AWS MAC-only create before wire submission without asserting Azure runtime equivalence', () => {
+  const value = intent();
+  for (const iface of value.nodes[0].interfaces) delete (iface.ethernet_interface as Record<string, unknown>).device;
+  expect(() => buildWireSite(value, fixture.schemas)).toThrow('observed AWS guest device');
+  expect(() => buildWireSite({ ...value, provider: 'azure' }, fixture.schemas)).not.toThrow();
 });

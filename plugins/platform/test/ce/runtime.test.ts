@@ -85,7 +85,7 @@ const intent = {
       interfaces: [
         {
           name: 'slo',
-          ethernet_interface: { mac: '02:00:00:00:00:01' },
+          ethernet_interface: { mac: '02:00:00:00:00:01', device: 'ens5' },
           network_option: { site_local_network: {} },
           dhcp_client: {},
         },
@@ -350,4 +350,18 @@ test('creates schema-validated routing objects in order and resumes lost respons
   expect(posts).toHaveLength(2);
   const bgp = objects.get('/api/config/namespaces/system/bgps/ce-one-tgw-bgp') as { spec: { peers: unknown[] } };
   expect(bgp.spec.peers).toHaveLength(2);
+});
+
+
+test('AWS configured creation rejects missing observed devices before any API request', async () => {
+  const { contract } = await candidate();
+  let requests = 0;
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
+    requests++;
+    return json({}, 404);
+  });
+  const missing = structuredClone(intent);
+  delete (missing.nodes[0].interfaces[0].ethernet_interface as Record<string, unknown>).device;
+  await expect(runtime.ensureSite(binding, missing, async () => {})).rejects.toThrow('observed AWS guest device');
+  expect(requests).toBe(0);
 });
