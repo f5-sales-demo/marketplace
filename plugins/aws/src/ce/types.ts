@@ -192,6 +192,7 @@ export type AwsCeActionKind =
   | 'subnet-create'
   | 'security-group-create'
   | 'security-group-rule-create'
+  | 'security-group-egress-reset'
   | 'eni-create'
   | 'elastic-ip-allocate'
   | 'elastic-ip-associate'

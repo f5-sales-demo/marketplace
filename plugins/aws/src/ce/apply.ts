@@ -13,6 +13,7 @@ import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { collectAwsNetworkHealth } from './network-health';
 import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
+import { resetAwsSecurityGroupEgress } from './security-group-defaults';
 import { siteBindings } from './topology';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_DEFAULT_INTERFACE_MTU, AWS_CE_SCHEMA_VERSION } from './types';
@@ -176,6 +177,10 @@ async function assertGate(
   api: AwsExecApi,
   signal?: AbortSignal,
 ): Promise<void> {
+  if (action.kind === 'security-group-egress-reset') {
+    await resetAwsSecurityGroupEgress(action, plan, checkpoint, api);
+    return;
+  }
   if (action.kind === 'tgw-attachment-gate') {
     await assertAttachmentAvailable(action, plan, checkpoint, api);
     return;

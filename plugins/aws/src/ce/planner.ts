@@ -1254,6 +1254,15 @@ function compileActions(
       capture: { placeholder: `__SG_${group.name}__`, path: 'GroupId' },
     });
   for (const group of intent.securityGroups)
+    add({
+      phase: 'network',
+      kind: 'security-group-egress-reset',
+      description: `Remove default egress from newly owned security group ${group.name}`,
+      resourceId: `__SG_${group.name}__`,
+      mutates: true,
+      destructive: false,
+    });
+  for (const group of intent.securityGroups)
     for (const direction of ['ingress', 'egress'] as const)
       for (const [ruleIndex, rule] of group[direction].entries()) {
         const permission = {
