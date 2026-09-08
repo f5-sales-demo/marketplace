@@ -16,7 +16,11 @@ for (const ha of [false, true])
     const f = fixture(ha);
     const quiesced = JSON.parse(f.stages.quiesce.configuration);
     const launched = JSON.parse(f.stages.launch(f.material).configuration);
-    expect(Object.keys(quiesced.resource.aws_instance)).toHaveLength(ha ? 0 : 2);
+    expect(Object.keys(quiesced.resource.aws_instance ?? {})).toHaveLength(ha ? 0 : 2);
+    if (ha) {
+      expect(quiesced.resource).not.toHaveProperty('aws_instance');
+      expect(quiesced.resource).not.toHaveProperty('aws_eip_association');
+    }
     expect(Object.keys(quiesced.output.ce_instances.value)).toHaveLength(ha ? 0 : 2);
     for (const type of [
       'aws_network_interface',
@@ -38,6 +42,25 @@ for (const ha of [false, true])
     inspectAwsTerraformReplacementStage(f.stages.quiesce, f.receipt('quiesce'));
     inspectAwsTerraformReplacementStage(f.stages.launch(f.material), f.receipt('launch'));
   });
+
+test('quiescing the only admitted independent site omits empty resource type labels', () => {
+  const f = fixture();
+  for (const node of [2, 3]) {
+    delete f.original.resource.aws_instance[`node_${node}`];
+    delete f.original.resource.aws_eip_association[`node_${node}`];
+    delete f.original.output.ce_instances.value[String(node)];
+  }
+  const configuration = JSON.stringify(f.original);
+  const stages = awsTerraformReplacementStages(f.base, f.replacement, configuration, hash(configuration));
+  const quiesced = JSON.parse(stages.quiesce.configuration);
+  expect(quiesced.resource).not.toHaveProperty('aws_instance');
+  expect(quiesced.resource).not.toHaveProperty('aws_eip_association');
+  expect(quiesced.resource.aws_network_interface).toEqual(f.original.resource.aws_network_interface);
+  expect(quiesced.output.ce_instances.value).toEqual({});
+  const launch = JSON.parse(stages.launch(f.material).configuration);
+  expect(Object.keys(launch.resource.aws_instance)).toEqual(['node_1']);
+  expect(Object.keys(launch.resource.aws_eip_association)).toEqual(['node_1']);
+});
 
 test('Terraform stage rejects retained-resource deletion, other-site mutation and combined replacement', () => {
   const f = fixture();

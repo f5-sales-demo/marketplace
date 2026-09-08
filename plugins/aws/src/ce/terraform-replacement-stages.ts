@@ -98,6 +98,9 @@ export function awsTerraformReplacementStages(
     delete object(quiescedResources.aws_eip_association)[`node_${node}`];
     delete object(object(object(quiesced.output).ce_instances).value)[String(node)];
   }
+  // HCL JSON requires both resource labels; an empty type map is not a valid resource block.
+  for (const type of ['aws_instance', 'aws_eip_association'])
+    if (!Object.keys(object(quiescedResources[type])).length) delete quiescedResources[type];
   const quiesceConfiguration = JSON.stringify(quiesced);
   const make = (
     phase: AwsTerraformReplacementStage['phase'],

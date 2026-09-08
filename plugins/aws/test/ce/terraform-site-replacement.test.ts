@@ -92,7 +92,7 @@ async function fixture(ha = false) {
       return hash(value);
     },
     plan: async () => {
-      const desired = JSON.parse(configuration).resource.aws_instance;
+      const desired = JSON.parse(configuration).resource.aws_instance ?? {};
       const changes: PlanReceipt['changes'] = [];
       for (const node of selected) {
         const exists = !flags.lostState && !!active[node];
@@ -126,7 +126,7 @@ async function fixture(ha = false) {
       ),
     apply: async (receipt) => {
       events.push('apply');
-      const launching = JSON.parse(configuration).resource.aws_instance.node_1 !== undefined;
+      const launching = JSON.parse(configuration).resource.aws_instance?.node_1 !== undefined;
       if (receipt.noChanges) return;
       for (const node of selected) {
         const group = enis.filter((eni) =>
