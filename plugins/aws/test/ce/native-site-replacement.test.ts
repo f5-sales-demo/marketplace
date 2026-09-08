@@ -325,3 +325,32 @@ test('native replacement refuses duplicate client-token candidates and changed b
     await f.cleanup();
   }
 });
+
+test('native replacement refuses launch before quiescence and cancellation before cloud requests', async () => {
+  const f = await fixture();
+  try {
+    await expect(f.launch()).rejects.toThrow('terminate before');
+    expect(f.events).not.toContain('run-instances');
+    f.events.length = 0;
+    await expect(f.driver.quiesce(f.plan, AbortSignal.abort())).rejects.toThrow();
+    expect(f.events).toHaveLength(0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('native replacement rejects obsolete launch checkpoints without another mutation', async () => {
+  const f = await fixture();
+  try {
+    await f.driver.quiesce(f.plan);
+    await f.launch();
+    const name = `${f.plan.planId}-1-launch.json`;
+    const record = (await f.storage.read(name)) as Record<string, unknown>;
+    await f.storage.write(name, { ...record, schemaVersion: 0 });
+    f.events.length = 0;
+    await expect(f.launch()).rejects.toThrow('request differs');
+    expect(f.events).toHaveLength(0);
+  } finally {
+    await f.cleanup();
+  }
+});

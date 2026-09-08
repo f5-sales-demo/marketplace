@@ -278,7 +278,8 @@ export function createNativeAwsSiteReplacementDriver(
         }
         if (
           record &&
-          (record.planSha256 !== plan.planSha256 ||
+          (record.schemaVersion !== 1 ||
+            record.planSha256 !== plan.planSha256 ||
             record.requestSha256 !== requestSha256 ||
             record.clientToken !== token(plan, node))
         )
