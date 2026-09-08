@@ -132,6 +132,7 @@ export function renderAwsTerraformConnect(
     });
     peerOutputs[String(index + 1)] = {
       id: ref(`aws_ec2_transit_gateway_connect_peer.${name}.id`),
+      attachment_id: ref(`aws_ec2_transit_gateway_connect.${groups[index]}.id`),
       node: peer.node,
       transport_interface_index: peer.transportInterfaceIndex,
       transit_gateway_address: ref(`aws_ec2_transit_gateway_connect_peer.${name}.transit_gateway_address`),

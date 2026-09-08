@@ -22,11 +22,11 @@ function fixture() {
       ConnectPeerConfiguration: {
         PeerAddress: `10.0.0.${node}`,
         TransitGatewayAddress: `100.64.0.${index + 1}`,
-        InsideCidrBlocks: [`169.254.${index}.0/29`],
+        InsideCidrBlocks: [`169.254.${index + 10}.0/29`],
         Protocol: 'gre',
         BgpConfigurations: [2, 3].map((last) => ({
-          TransitGatewayAddress: `169.254.${index}.${last}`,
-          PeerAddress: `169.254.${index}.1`,
+          TransitGatewayAddress: `169.254.${index + 10}.${last}`,
+          PeerAddress: `169.254.${index + 10}.1`,
           PeerAsn: 65010,
           TransitGatewayAsn: 64512,
           BgpStatus: 'up',
@@ -47,6 +47,7 @@ function fixture() {
       kind: 'tgw-connect-peer-create',
       node: Math.floor(index / 2) + 1,
       capture: { placeholder: `__PEER_${index}__` },
+      args: ['--inside-cidr-blocks', `169.254.${index + 10}.0/29`],
     })),
   } as AwsCePlan;
   const calls: string[][] = [];
@@ -114,4 +115,15 @@ test('NLB health requires exact owned target membership and never establishes tr
   expect(health.traffic).toBe('unknown');
   targets[1].Target.Id = targets[0].Target.Id;
   expect((await collectAwsNetworkHealth('nlb', f.plan, f.checkpoint, api)).status).toBe('unknown');
+});
+
+test('mismatched inside CIDRs and out-of-tunnel BGP addresses remain unknown', async () => {
+  const cidr = fixture();
+  cidr.peers[0].ConnectPeerConfiguration.InsideCidrBlocks = ['169.254.99.0/29'];
+  expect((await collectAwsNetworkHealth('bgp', cidr.plan, cidr.checkpoint, cidr.api)).status).toBe('unknown');
+  const endpoint = fixture();
+  endpoint.peers[0].ConnectPeerConfiguration.BgpConfigurations[0].TransitGatewayAddress = '169.254.99.2';
+  expect((await collectAwsNetworkHealth('bgp', endpoint.plan, endpoint.checkpoint, endpoint.api)).status).toBe(
+    'unknown',
+  );
 });

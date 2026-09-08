@@ -24,6 +24,8 @@ test('configures XC from observed AWS endpoints and authoritative XC interface o
         args: [
           'ec2',
           'create-transit-gateway-connect-peer',
+          '--inside-cidr-blocks',
+          '169.254.10.0/29',
           '--peer-address',
           '__NODE_1_SLO_IP__',
           '--transit-gateway-attachment-id',

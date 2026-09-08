@@ -91,7 +91,8 @@ export async function collectAwsNetworkHealth(
           throw new Error('Foreign peer evidence');
         seen.add(id);
         const config = object(peer.ConnectPeerConfiguration);
-        const transportArgument = action.args?.[(action.args?.indexOf('--peer-address') ?? -1) + 1];
+        const transportIndex = action.args?.indexOf('--peer-address') ?? -1;
+        const transportArgument = transportIndex >= 0 ? action.args?.[transportIndex + 1] : undefined;
         const transportAddress = transportArgument?.startsWith('__') ? values[transportArgument] : transportArgument;
         const expectedGatewayAddress = action.args?.includes('--transit-gateway-address')
           ? action.args[action.args.indexOf('--transit-gateway-address') + 1]
@@ -111,6 +112,19 @@ export async function collectAwsNetworkHealth(
           typeof config.InsideCidrBlocks[0] !== 'string'
         )
           throw new Error('Missing GRE endpoint facts');
+        const cidrIndex = action.args?.indexOf('--inside-cidr-blocks') ?? -1;
+        const plannedCidr = cidrIndex >= 0 ? action.args?.[cidrIndex + 1] : undefined;
+        const [insideAddress, insidePrefix] = String(config.InsideCidrBlocks[0]).split('/');
+        const ipv4 = (address: string) => address.split('.').reduce((value, octet) => value * 256 + Number(octet), 0);
+        if (
+          config.InsideCidrBlocks[0] !== plannedCidr ||
+          isIP(insideAddress) !== 4 ||
+          insidePrefix !== '29' ||
+          ipv4(insideAddress) % 8 !== 0
+        )
+          throw new Error('GRE inside CIDR differs from plan');
+        const insideNetwork = ipv4(insideAddress);
+        let ceEndpoint: string | undefined;
         transports.push({
           peerId: id,
           awsGreAddress: config.TransitGatewayAddress,
@@ -131,6 +145,14 @@ export async function collectAwsNetworkHealth(
             !['up', 'down'].includes(String(session.BgpStatus))
           )
             throw new Error('Invalid BGP session evidence');
+          const local = String(session.PeerAddress);
+          if (
+            [endpoint, local].some((address) => ipv4(address) <= insideNetwork || ipv4(address) >= insideNetwork + 7) ||
+            endpoint === local ||
+            (ceEndpoint !== undefined && ceEndpoint !== local)
+          )
+            throw new Error('BGP endpoint is outside its planned tunnel');
+          ceEndpoint = local;
           addresses.add(endpoint);
           sessions.push({
             peerId: id,
