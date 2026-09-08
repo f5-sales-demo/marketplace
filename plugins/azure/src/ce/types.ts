@@ -49,6 +49,7 @@ export interface AzureCeBrownfieldRouteChange {
 }
 
 export interface AzureCeIntent {
+  platformContext?: string;
   engine?: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   operation: AzureCeOperation;
