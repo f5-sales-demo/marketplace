@@ -1,6 +1,6 @@
 import type { AzExecApi } from '../az/exec';
 import { fingerprintObservation, safeHexEqual } from './canonical';
-import type { AzureCeAction, AzureCeObservation, AzureCePlan } from './types';
+import type { AzureCeAction, AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
 
 export function assertObservationFresh(
   plan: AzureCePlan,
@@ -17,22 +17,34 @@ export function assertObservationFresh(
 
 export function assertApplyAllowed(
   plan: AzureCePlan,
-  request: { planId: string; planSha256: string; hasUI: boolean; env: Record<string, string | undefined> },
+  request: {
+    planId: string;
+    planSha256: string;
+    hasUI: boolean;
+    env: Record<string, string | undefined>;
+    authorization?: AzureCeCheckpoint['authorization'];
+  },
 ): void {
   if (plan.engine !== 'native')
     throw new Error('Terraform CE plans require the Terraform lifecycle adapter; native execution is forbidden');
   if (request.planId !== plan.planId) throw new Error('The requested plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested plan hash does not match the persisted plan');
-  if (!request.hasUI && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1') {
+  if (!request.hasUI && request.authorization?.apply !== true && request.env.XCSH_CE_HEADLESS_MUTATIONS !== '1') {
     throw new Error('Headless Azure CE mutations require XCSH_CE_HEADLESS_MUTATIONS=1');
   }
-  if (plan.intent.operation === 'teardown' && !request.hasUI && request.env.XCSH_CE_ALLOW_DESTROY !== '1') {
+  if (
+    plan.intent.operation === 'teardown' &&
+    !request.hasUI &&
+    request.authorization?.destroy !== true &&
+    request.env.XCSH_CE_ALLOW_DESTROY !== '1'
+  ) {
     throw new Error('Headless teardown requires XCSH_CE_ALLOW_DESTROY=1');
   }
   if (
     plan.actions.some((action) => action.kind === 'marketplace-terms-accept') &&
     !request.hasUI &&
+    request.authorization?.terms !== true &&
     request.env.XCSH_CE_ACCEPT_MARKETPLACE_TERMS !== '1'
   ) {
     throw new Error('Headless Marketplace terms acceptance requires XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1');

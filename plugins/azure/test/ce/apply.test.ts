@@ -224,3 +224,50 @@ it('rechecks exact brownfield ownership and refuses a conflicting engine despite
   ])
     await expect(assertActionOwnership(plan, action, api(value))).rejects.toThrow();
 });
+
+it('reuses persisted apply authorization for the same immutable plan without requiring renewed headless flags', () => {
+  const plan = compileAzureCePlan(intent, observation);
+  const request = {
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    hasUI: false,
+    env: {},
+    authorization: { apply: true, terms: false, destroy: false },
+  };
+  expect(() => assertApplyAllowed(plan, request)).not.toThrow();
+  expect(() => assertApplyAllowed(plan, { ...request, planSha256: '0'.repeat(64) })).toThrow('hash');
+  expect(() =>
+    assertApplyAllowed(plan, { ...request, authorization: { ...request.authorization, apply: false } }),
+  ).toThrow('HEADLESS');
+});
+
+it('does not promote apply authorization into Marketplace terms or teardown authorization', () => {
+  const plan = compileAzureCePlan(intent, observation);
+  const request = {
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    hasUI: false,
+    env: {},
+    authorization: { apply: true, terms: false, destroy: false },
+  };
+  expect(() => assertApplyAllowed({ ...plan, intent: { ...plan.intent, operation: 'teardown' } }, request)).toThrow(
+    'ALLOW_DESTROY',
+  );
+  const termsPlan = {
+    ...plan,
+    actions: [
+      {
+        id: 'terms',
+        phase: 'preflight' as const,
+        kind: 'marketplace-terms-accept' as const,
+        description: 'terms',
+        mutates: true,
+        destructive: false,
+      },
+    ],
+  };
+  expect(() => assertApplyAllowed(termsPlan, request)).toThrow('ACCEPT_MARKETPLACE_TERMS');
+  expect(() =>
+    assertApplyAllowed(termsPlan, { ...request, authorization: { ...request.authorization, terms: true } }),
+  ).not.toThrow();
+});

@@ -35,12 +35,6 @@ async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan
 
 async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: AzExecApi) {
   const { plan, observation } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
-  assertApplyAllowed(plan, {
-    planId: params.planId,
-    planSha256: params.planSha256,
-    hasUI: ctx.hasUI,
-    env: process.env,
-  });
   const existing = await loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
   if (existing) {
     if (existing.engine !== plan.engine) throw new Error('Checkpoint execution engine does not match the plan');
@@ -50,6 +44,13 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     if (existing.observationFingerprint && !/^[a-f0-9]{64}$/.test(existing.observationFingerprint))
       throw new Error('Persisted checkpoint has an invalid observation fingerprint');
   }
+  assertApplyAllowed(plan, {
+    planId: params.planId,
+    planSha256: params.planSha256,
+    hasUI: ctx.hasUI,
+    env: process.env,
+    authorization: existing?.authorization,
+  });
   const completed = new Set(existing?.completedActionIds ?? []);
   const observe = () =>
     discoverAzureCompute(
@@ -77,29 +78,49 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     current.image.termsAccepted = observation.image.termsAccepted;
   assertObservationFresh(plan, current, existing?.observationFingerprint);
 
+  const authorization = {
+    apply: existing?.authorization?.apply === true,
+    terms: existing?.authorization?.terms === true,
+    destroy: existing?.authorization?.destroy === true,
+  };
   if (ctx.hasUI) {
-    const confirmed = await ctx.ui.confirm(
-      'Apply immutable Azure CE plan',
-      `${plan.planId}\n${plan.planSha256}\n${plan.actions.length - completed.size} action(s) remain.`,
-    );
-    if (!confirmed) throw new Error('Apply was not approved');
-    if (plan.actions.some((action) => action.kind === 'marketplace-terms-accept' && !completed.has(action.id))) {
+    if (!authorization.apply) {
+      const confirmed = await ctx.ui.confirm(
+        'Apply immutable Azure CE plan',
+        `${plan.planId}\n${plan.planSha256}\n${plan.actions.length - completed.size} action(s) remain.`,
+      );
+      if (!confirmed) throw new Error('Apply was not approved');
+      authorization.apply = true;
+    }
+    if (
+      !authorization.terms &&
+      plan.actions.some((action) => action.kind === 'marketplace-terms-accept' && !completed.has(action.id))
+    ) {
       const terms = await ctx.ui.confirm(
         'Accept Azure Marketplace terms',
         `Accept the legal terms for ${plan.image.urn}?`,
       );
       if (!terms) throw new Error('Marketplace terms were not approved');
+      authorization.terms = true;
     }
-    if (plan.intent.operation === 'teardown') {
+    if (plan.intent.operation === 'teardown' && !authorization.destroy) {
       const destroy = await ctx.ui.confirm(
         'Tear down Customer Edge',
         `Drain routing, restore approved brownfield state, and delete only resources owned by ${plan.deploymentName}?`,
       );
       if (!destroy) throw new Error('Teardown was not approved');
+      authorization.destroy = true;
     }
   }
 
+  if (!ctx.hasUI) {
+    authorization.apply ||= process.env.XCSH_CE_HEADLESS_MUTATIONS === '1';
+    authorization.terms ||= process.env.XCSH_CE_ACCEPT_MARKETPLACE_TERMS === '1';
+    authorization.destroy ||= process.env.XCSH_CE_ALLOW_DESTROY === '1';
+  }
+
   const checkpoint: AzureCeCheckpoint = {
+    authorization,
     engine: plan.engine,
     schemaVersion: AZURE_CE_SCHEMA_VERSION,
     planId: plan.planId,
@@ -108,6 +129,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     observationFingerprint: existing?.observationFingerprint,
     state: 'running',
   };
+  await saveCheckpoint(ctx.sessionManager, checkpoint);
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
     let launchDir: string | undefined;

@@ -219,6 +219,7 @@ export interface AzureCePlan extends AzureCePlanDraft {
 }
 
 export interface AzureCeCheckpoint {
+  authorization?: { apply: boolean; terms: boolean; destroy: boolean };
   engine: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   planId: string;
