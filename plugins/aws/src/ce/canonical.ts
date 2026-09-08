@@ -65,7 +65,8 @@ export function fingerprintObservation(observation: AwsCeObservation, brownfield
       ...(elasticIpCapacity ? { elasticIpCapacity: { limit: elasticIpCapacity.limit } } : {}),
     })),
     resources: resourceConfiguration(observation.resources.filter((resource) => allowlist.has(resource.id))),
-    ownershipPlanSha256s: observation.ownershipPlanSha256s,
+    // The current plan is added to this authorization allowlist at apply time.
+    // Actual resource ownership remains covered by the selected resource snapshots.
     research: observation.research,
     f5Capabilities: observation.f5Capabilities,
     f5CapabilitiesSha256: observation.f5CapabilitiesSha256,

@@ -244,3 +244,13 @@ it('resume tolerates owned EIP allocation while rejecting quota or eligibility c
   resumed.regions[0].elasticIpCapacity.limit = 2;
   expect(() => assertAwsObservationFresh(plan, resumed)).toThrow('Stale');
 });
+
+it('adding the executing plan to the ownership allowlist does not invalidate a fresh plan', () => {
+  const plan = compileAwsCePlan(intent, observation);
+  expect(() =>
+    assertAwsObservationFresh(plan, {
+      ...observation,
+      ownershipPlanSha256s: [...observation.ownershipPlanSha256s, plan.planSha256],
+    }),
+  ).not.toThrow();
+});
