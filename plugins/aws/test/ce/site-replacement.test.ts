@@ -98,6 +98,7 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
   };
   const runtime = {
     engine,
+    ownedSiteConfiguration: () => ({ routing: 'original' }),
     observeOwnedSite: async () => {
       if (!uid) throw Object.assign(new Error('absent'), { category: 'not-found' });
       return { system_metadata: { uid }, resource_version: 'one' };
@@ -141,6 +142,41 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
   };
 }
 for (const engine of ['native', 'terraform'] as const) {
+  test(`${engine} recovers lost quiesce response when only XC resource version advances`, async () => {
+    const f = fixture(engine, 'quiesce');
+    await expect(f.run()).rejects.toThrow('interrupted');
+    const observe = f.runtime.observeOwnedSite;
+    f.runtime.observeOwnedSite = async () => ({ ...(await observe()), resource_version: 'two' });
+    expect((await f.run()).status).toBe('registered-with-configured-interfaces');
+    expect(f.events.filter((event) => event === 'quiesce')).toHaveLength(1);
+    expect(f.events.filter((event) => event === 'site-create')).toHaveLength(1);
+  });
+  test(`${engine} rejects configuration drift after interrupted quiesce`, async () => {
+    const f = fixture(engine, 'quiesce');
+    await expect(f.run()).rejects.toThrow('interrupted');
+    f.runtime.ownedSiteConfiguration = () => ({ routing: 'changed' });
+    await expect(f.run()).rejects.toThrow('configuration changed during');
+    expect(f.events).not.toContain('token-delete');
+    expect(f.events).not.toContain('site-delete');
+  });
+  test(`${engine} rejects a changed initial resource version before quiescing`, async () => {
+    const f = fixture(engine);
+    const observe = f.runtime.observeOwnedSite;
+    f.runtime.observeOwnedSite = async () => ({ ...(await observe()), resource_version: 'two' });
+    await expect(f.run()).rejects.toThrow('configuration changed before');
+    expect(f.events).not.toContain('quiesce');
+  });
+  test(`${engine} persists the configuration guard before any quiesce mutation`, async () => {
+    const f = fixture(engine);
+    const write = f.storage.write;
+    f.storage.write = async (name, value) => {
+      if ((value as { quiesceConfigurationSha256?: string }).quiesceConfigurationSha256)
+        throw new Error('checkpoint unavailable');
+      return write(name, value);
+    };
+    await expect(f.run()).rejects.toThrow('checkpoint unavailable');
+    expect(f.events).not.toContain('quiesce');
+  });
   for (const boundary of ['', 'quiesce', 'token-delete', 'site-delete', 'site-create', 'launch']) {
     test(`${engine} coupled replacement resumes after ${boundary || 'no interruption'}`, async () => {
       const f = fixture(engine, boundary);
@@ -152,6 +188,22 @@ for (const engine of ['native', 'terraform'] as const) {
     });
   }
 }
+test('configuration changes after token deletion still block site deletion', async () => {
+  const f = fixture('terraform');
+  const remove = f.runtime.deleteBootstrapToken;
+  f.runtime.deleteBootstrapToken = async () => {
+    await remove();
+    f.runtime.ownedSiteConfiguration = () => ({ routing: 'changed' });
+  };
+  await expect(f.run()).rejects.toThrow('configuration changed before deletion');
+  expect(f.events).not.toContain('site-delete');
+});
+test('an older platform runtime is rejected before replacement mutation', async () => {
+  const f = fixture('terraform');
+  Object.assign(f.runtime, { ownedSiteConfiguration: undefined });
+  await expect(f.run()).rejects.toThrow('updated platform runtime');
+  expect(f.events).not.toContain('quiesce');
+});
 test('rejects wrong engine or authorization before any cloud action', async () => {
   const f = fixture('native');
   await expect(

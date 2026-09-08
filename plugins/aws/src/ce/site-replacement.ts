@@ -58,6 +58,7 @@ interface Checkpoint {
   bootstrapSha256: Record<string, string>;
   instances: Record<string, string>;
   siteUid?: string;
+  quiesceConfigurationSha256?: string;
 }
 const object = (value: unknown): Json => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement evidence');
@@ -172,6 +173,7 @@ type Runtime = Pick<
   CeRuntime,
   | 'engine'
   | 'observeOwnedSite'
+  | 'ownedSiteConfiguration'
   | 'deleteBootstrapToken'
   | 'deleteSite'
   | 'ensureAwsPreparedSite'
@@ -203,6 +205,8 @@ export async function runAwsSiteReplacement(
   if (!safeHexEqual(planSha256, authorizedPlanSha256)) throw new Error('Exact replacement authorization is required');
   if (driver.engine !== plan.engine || runtime.engine !== plan.engine || storage.owner.engine !== plan.engine)
     throw new Error('Only the owning engine may replace this site');
+  if (typeof runtime.ownedSiteConfiguration !== 'function')
+    throw new Error('AWS site replacement requires an updated platform runtime with owned configuration projection');
   if (canonicalSha256(storage.owner) !== canonicalSha256(plan.binding.owner))
     throw new Error('Replacement storage ownership differs');
   await storage.verify();
@@ -216,6 +220,11 @@ export async function runAwsSiteReplacement(
   }
   if (checkpoint.schemaVersion !== 1 || checkpoint.planSha256 !== planSha256 || !phases.includes(checkpoint.phase))
     throw new Error('Replacement checkpoint differs from plan');
+  if (
+    checkpoint.quiesceConfigurationSha256 !== undefined &&
+    !/^[a-f0-9]{64}$/.test(checkpoint.quiesceConfigurationSha256)
+  )
+    throw new Error('Replacement configuration checkpoint is malformed');
   object(checkpoint.bootstrap);
   object(checkpoint.bootstrapSha256);
   object(checkpoint.instances);
@@ -258,10 +267,22 @@ export async function runAwsSiteReplacement(
     if (['quiesce', 'remove-tokens', 'bootstrap', 'launch', 'registration', 'complete'].includes(phase)) {
       const currentSite = await runtime.observeOwnedSite(binding, signal);
       const expectedUid = ['quiesce', 'remove-tokens'].includes(phase) ? plan.preparation.uid : checkpoint.siteUid;
-      if (phase === 'quiesce' && currentSite.resource_version !== plan.preparation.resourceVersion)
-        throw new Error('Site configuration changed before replacement');
       if (!expectedUid || object(currentSite.system_metadata).uid !== expectedUid)
         throw new Error('Site UID changed at a replacement boundary');
+      if (phase === 'quiesce' || (phase === 'remove-tokens' && checkpoint.quiesceConfigurationSha256)) {
+        const configurationSha256 = canonicalSha256(runtime.ownedSiteConfiguration(binding, currentSite));
+        if (checkpoint.quiesceConfigurationSha256) {
+          if (!safeHexEqual(configurationSha256, checkpoint.quiesceConfigurationSha256))
+            throw new Error('Site configuration changed during replacement');
+        } else {
+          if (currentSite.resource_version !== plan.preparation.resourceVersion)
+            throw new Error('Site configuration changed before replacement');
+          // Persist the verified configuration before the first cloud mutation. A lost response
+          // may leave this phase while XC advances its version because a node went offline.
+          checkpoint.quiesceConfigurationSha256 = configurationSha256;
+          await save();
+        }
+      }
     }
     if (phase === 'quiesce') await driver.quiesce(plan, signal);
     if (phase === 'remove-tokens') {
@@ -278,6 +299,14 @@ export async function runAwsSiteReplacement(
       if (existing) {
         if (object(existing.system_metadata).uid !== plan.preparation.uid)
           throw new Error('Original site UID changed before deletion');
+        if (
+          checkpoint.quiesceConfigurationSha256 &&
+          !safeHexEqual(
+            canonicalSha256(runtime.ownedSiteConfiguration(binding, existing)),
+            checkpoint.quiesceConfigurationSha256,
+          )
+        )
+          throw new Error('Site configuration changed before deletion');
         await runtime.deleteSite(binding, signal);
       }
     }

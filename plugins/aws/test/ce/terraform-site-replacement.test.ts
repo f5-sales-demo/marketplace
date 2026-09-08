@@ -330,6 +330,7 @@ for (const ha of [false, true])
       let creates = 0;
       const runtime = {
         engine: 'terraform' as const,
+        ownedSiteConfiguration: () => ({ routing: 'original' }),
         observeOwnedSite: async () => {
           if (!uid) throw Object.assign(new Error('absent'), { category: 'not-found' });
           return { system_metadata: { uid }, resource_version: 'one' };

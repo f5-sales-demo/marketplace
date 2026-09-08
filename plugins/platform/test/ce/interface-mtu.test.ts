@@ -103,6 +103,19 @@ function fixture() {
     },
   };
 }
+test('owned configuration projection excludes resource versions and keeps writable settings', () => {
+  const f = fixture();
+  const before = f.runtime.ownedSiteConfiguration(binding, f.site);
+  f.site.resource_version = 'two';
+  expect(f.runtime.ownedSiteConfiguration(binding, f.site)).toEqual(before);
+  f.site.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 1500;
+  expect(f.runtime.ownedSiteConfiguration(binding, f.site)).not.toEqual(before);
+  f.site.metadata.labels['xcsh-ce-engine'] = 'native';
+  expect(() => f.runtime.ownedSiteConfiguration(binding, f.site)).toThrow('ownership');
+  expect(f.puts()).toBe(0);
+  expect(f.posts()).toBe(0);
+});
+
 test('registered primary MTU differences produce a bound replacement checkpoint without PUT', async () => {
   const f = fixture();
   await expect(f.run()).rejects.toThrow('coupled VM/site replacement');

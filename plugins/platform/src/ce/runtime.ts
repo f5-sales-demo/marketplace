@@ -197,6 +197,12 @@ export class CeRuntime {
     this.#owned(site, binding);
     return site;
   }
+  /** Schema-projected writable configuration, excluding runtime status and resource versions. */
+  ownedSiteConfiguration(binding: SiteBinding, site: Json): Json {
+    this.#binding(binding);
+    this.#owned(site, binding);
+    return this.contract.siteCreateRequest(site);
+  }
   async ensureSite(
     binding: SiteBinding,
     intent: WireSiteIntent,
