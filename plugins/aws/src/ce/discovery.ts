@@ -603,10 +603,12 @@ async function observeResource(
     }
   };
   visit(raw);
-  const tagSets = matches.filter((object) => Array.isArray(object.Tags));
+  const tagSets = matches.filter((object) => Array.isArray(object.Tags) || Array.isArray(object.TagSet));
   if (tagSets.length > 1) throw new Error('AWS ownership evidence is ambiguous');
+  if (tagSets[0]?.Tags !== undefined && tagSets[0]?.TagSet !== undefined)
+    throw new Error('AWS ownership tag representation is ambiguous');
   const tags: Record<string, string> = {};
-  for (const item of (tagSets[0]?.Tags ?? []) as unknown[]) {
+  for (const item of (tagSets[0]?.TagSet ?? tagSets[0]?.Tags ?? []) as unknown[]) {
     if (!item || typeof item !== 'object') throw new Error('AWS ownership tags are malformed');
     const { Key, Value } = item as Record<string, unknown>;
     if (typeof Key !== 'string' || typeof Value !== 'string' || Object.hasOwn(tags, Key))

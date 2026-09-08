@@ -315,3 +315,32 @@ it('checks unused Elastic IP capacity and leaves incomplete usage evidence ineli
     }
   }
 });
+
+it('binds ENI ownership to authoritative TagSet and rejects ambiguous tag representations', async () => {
+  const id = 'eni-0123456789abcdef0';
+  const digest = 'a'.repeat(64);
+  const TagSet = Object.entries({
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-execution-engine': 'native',
+    'xcsh-deployment-id': 'ce-demo',
+    'xcsh-plan-sha256': digest,
+  }).map(([Key, Value]) => ({ Key, Value }));
+  const query = (extra: Record<string, unknown> = {}) =>
+    observeAwsResources(
+      {
+        async exec() {
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({ NetworkInterfaces: [{ NetworkInterfaceId: id, TagSet, ...extra }] }),
+          };
+        },
+      },
+      [id],
+      'us-east-1',
+      { deploymentName: 'ce-demo', planSha256s: [digest] },
+    );
+  expect((await query())[0].owned).toBe(true);
+  expect((await query())[0].tags['xcsh-execution-engine']).toBe('native');
+  await expect(query({ Tags: TagSet })).rejects.toThrow('ambiguous');
+});
