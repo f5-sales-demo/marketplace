@@ -113,7 +113,7 @@
     {
       "name": "platform",
       "description": "F5 Distributed Cloud automation with provider-neutral Secure Mesh Site v2 capabilities, typed configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
-      "version": "5.0.21",
+      "version": "5.0.22",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -267,7 +267,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration with current-source F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, NLB/TGW networking, and diagnostics",
-      "version": "2.0.29",
+      "version": "2.0.30",
       "author": {
         "name": "f5-sales-demo"
       },

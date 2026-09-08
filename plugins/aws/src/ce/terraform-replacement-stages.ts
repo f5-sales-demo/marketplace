@@ -39,7 +39,7 @@ export function awsTerraformReplacementStages(
     base.engine !== 'terraform' ||
     replacement.engine !== 'terraform' ||
     replacement.kind !== 'aws-ce-site-replacement' ||
-    replacement.schemaVersion !== 1 ||
+    replacement.schemaVersion !== 2 ||
     replacement.sourcePlanSha256 !== base.planSha256 ||
     canonicalSha256(draft) !== planSha256 ||
     planId !== `aws-ce-replace-${planSha256.slice(0, 24)}` ||

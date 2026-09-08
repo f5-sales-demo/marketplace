@@ -30,7 +30,11 @@ contract identities, and stable runtime versions. `verifyCeReplacementVersions`
 collects a new observation and rejects identity or version drift before an intact
 site's first destructive operation. Partial shutdown recovery must reconcile the
 cloud's actual state and its recorded admission before using these functions;
-an offline site cannot pass the stable-version gate.
+an offline site cannot pass the stable-version gate. The AWS v2 replacement coordinator now
+uses this admission workflow and verifies the new physical identity and installed versions
+after registration. `prepareAwsSiteReplacement` collects owned configuration and registered
+hardware evidence for an explicit replacement, including a site whose MTUs already match.
+Live replacement acceptance is tracked separately from these runtime checks.
 
 The verified HTTP ingress contract also maps site-local HTTP origins. It binds
 each outside-network endpoint to an explicit CE site and uses `LOCAL_PREFERRED`

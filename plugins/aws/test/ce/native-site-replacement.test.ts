@@ -9,6 +9,7 @@ import { createNativeAwsSiteReplacementDriver } from '../../src/ce/native-site-r
 import { compileAwsSiteReplacement } from '../../src/ce/site-replacement';
 import { siteBindings } from '../../src/ce/topology';
 import type { AwsCePlan } from '../../src/ce/types';
+import { replacementVersions } from './replacement-version-fixtures';
 import { foundationPlan } from './terraform-fixtures';
 
 test('native replacement refuses a Terraform source plan before any cloud request', () => {
@@ -92,6 +93,7 @@ async function fixture() {
     request: { metadata: { name: binding.siteName }, spec: {} },
   };
   const plan = compileAwsSiteReplacement(base, binding.siteName, preparation, {
+    versions: replacementVersions(binding),
     interfaceIds: { 'ce-1/slo': 'eni-12345678', 'ce-1/sli': 'eni-12345679' },
     elasticIpAllocationIds: { 'ce-1': 'eipalloc-12345678' },
     bootstrapTokenNames: { 'ce-1': 'observed-token' },

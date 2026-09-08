@@ -9,6 +9,7 @@ import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../../src/aws/exec';
 import { runAwsSiteReplacement } from '../../src/ce/site-replacement';
 import { createTerraformAwsSiteReplacementDriver } from '../../src/ce/terraform-site-replacement';
+import { replacementContract, replacementObservation } from './replacement-version-fixtures';
 import { terraformReplacementFixture } from './terraform-replacement-fixtures';
 
 // biome-ignore lint/suspicious/noExplicitAny: Heterogeneous AWS response fixtures are intentionally mutable for failure injection.
@@ -342,6 +343,7 @@ for (const ha of [false, true])
       let creates = 0;
       const runtime = {
         engine: 'terraform' as const,
+        observeUpgrade: async () => replacementObservation(f.replacement.binding, uid),
         ownedSiteConfiguration: () => ({ routing: 'original' }),
         observeOwnedSite: async () => {
           if (!uid) throw Object.assign(new Error('absent'), { category: 'not-found' });
@@ -371,7 +373,14 @@ for (const ha of [false, true])
         ensureAwsInterfaceMtu: async () => {},
       };
       const run = () =>
-        runAwsSiteReplacement(f.replacement, f.replacement.planSha256, driver, runtime as never, f.store);
+        runAwsSiteReplacement(
+          f.replacement,
+          f.replacement.planSha256,
+          driver,
+          runtime as never,
+          f.store,
+          replacementContract,
+        );
       expect((await run()).status).toBe('registered-with-configured-interfaces');
       expect((await run()).status).toBe('registered-with-configured-interfaces');
       expect(creates).toBe(1);

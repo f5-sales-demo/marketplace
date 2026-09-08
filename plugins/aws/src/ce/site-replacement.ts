@@ -1,5 +1,12 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
+import {
+  type CeReplacementVersions,
+  captureCeReplacementVersions,
+  verifyCeReplacementVersions,
+} from '../../../platform/src/ce/replacement-versions';
 import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
+import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256, safeHexEqual } from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
@@ -19,12 +26,13 @@ const phases = [
 ] as const;
 type Phase = (typeof phases)[number];
 export interface AwsSiteReplacementPlan {
-  schemaVersion: 1;
+  schemaVersion: 2;
   kind: 'aws-ce-site-replacement';
   engine: 'native' | 'terraform';
   sourcePlanSha256: string;
   binding: SiteBinding;
   preparation: Json;
+  versions: CeReplacementVersions;
   interfaceIds: Record<string, string>;
   elasticIpAllocationIds: Record<string, string>;
   oldTokenNames: Record<string, string>;
@@ -54,7 +62,7 @@ export interface AwsSiteReplacementDriver {
   finalize?(plan: AwsSiteReplacementPlan, instances: Record<string, string>, signal?: AbortSignal): Promise<void>;
 }
 interface Checkpoint {
-  schemaVersion: 1;
+  schemaVersion: 2;
   planSha256: string;
   phase: Phase;
   bootstrap: Record<string, string>;
@@ -62,6 +70,8 @@ interface Checkpoint {
   instances: Record<string, string>;
   siteUid?: string;
   quiesceConfigurationSha256?: string;
+  versionAdmissionSha256?: string;
+  physicalSiteUid?: string;
 }
 const object = (value: unknown): Json => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed replacement evidence');
@@ -74,6 +84,7 @@ export function compileAwsSiteReplacement(
   siteName: string,
   preparation: Json,
   resources: {
+    versions: CeReplacementVersions;
     interfaceIds: Record<string, string>;
     elasticIpAllocationIds: Record<string, string>;
     bootstrapTokenNames: Record<string, string>;
@@ -88,7 +99,9 @@ export function compileAwsSiteReplacement(
     throw new Error('Fresh replacement evidence is required');
   const { binding } = selected;
   if (
-    preparation.evidenceKind !== 'preboot-interface-configuration-required' ||
+    !['preboot-interface-configuration-required', 'owned-site-replacement'].includes(
+      String(preparation.evidenceKind),
+    ) ||
     preparation.siteName !== siteName ||
     canonicalSha256(preparation.owner) !== canonicalSha256(binding.owner)
   )
@@ -156,14 +169,27 @@ export function compileAwsSiteReplacement(
       new Set(Object.values(elasticIpAllocationIds)).size !== binding.nodes.length)
   )
     throw new Error('Replacement EIP inventory is incomplete or duplicated');
-  object(preparation.request);
+  const versions = structuredClone(resources.versions);
+  if (
+    versions?.schemaVersion !== 1 ||
+    canonicalSha256(versions.identity.binding) !== canonicalSha256(binding) ||
+    versions.identity.siteUid !== preparation.uid ||
+    versions.identity.siteContractFingerprint !== preparation.contractFingerprint ||
+    !versions.identity.physicalSiteUid ||
+    !/^sha256:[a-f0-9]{64}$/.test(versions.identity.contractFingerprint)
+  )
+    throw new Error('Replacement version identity differs from the selected site');
+  const request = structuredClone(object(preparation.request));
+  request.spec = { ...object(request.spec), software_settings: initialSoftwareSettings(versions.versions) };
+
   const draft = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     kind: 'aws-ce-site-replacement' as const,
     engine: base.engine,
     sourcePlanSha256: base.planSha256,
     binding,
-    preparation: structuredClone(preparation),
+    preparation: { ...structuredClone(preparation), request },
+    versions,
     interfaceIds: { ...interfaceIds },
     elasticIpAllocationIds: { ...elasticIpAllocationIds },
     oldTokenNames: { ...bootstrapTokenNames },
@@ -175,6 +201,7 @@ export function compileAwsSiteReplacement(
 type Runtime = Pick<
   CeRuntime,
   | 'engine'
+  | 'observeUpgrade'
   | 'observeOwnedSite'
   | 'ownedSiteConfiguration'
   | 'deleteBootstrapToken'
@@ -195,20 +222,34 @@ export async function runAwsSiteReplacement(
   driver: AwsSiteReplacementDriver,
   runtime: Runtime,
   storage: Storage,
+  contract: VerifiedUpgradeContract,
   signal?: AbortSignal,
 ) {
+  plan = structuredClone(plan);
   const { planId, planSha256, ...draft } = plan;
   if (
-    plan.schemaVersion !== 1 ||
+    plan.schemaVersion !== 2 ||
     plan.kind !== 'aws-ce-site-replacement' ||
     !safeHexEqual(canonicalSha256(draft), planSha256) ||
     planId !== `aws-ce-replace-${planSha256.slice(0, 24)}`
   )
-    throw new Error('Replacement plan integrity differs');
+    throw new Error('Replacement plan integrity differs or schema is obsolete; prepare a new v2 plan');
   if (!safeHexEqual(planSha256, authorizedPlanSha256)) throw new Error('Exact replacement authorization is required');
   if (driver.engine !== plan.engine || runtime.engine !== plan.engine || storage.owner.engine !== plan.engine)
     throw new Error('Only the owning engine may replace this site');
-  if (typeof runtime.ownedSiteConfiguration !== 'function')
+  if (driver.quiescenceAdmissionVersion !== 1)
+    throw new Error('Replacement driver requires shutdown admission support');
+  if (
+    plan.versions?.schemaVersion !== 1 ||
+    canonicalSha256(plan.versions.identity.binding) !== canonicalSha256(plan.binding) ||
+    plan.versions.identity.siteUid !== plan.preparation.uid ||
+    plan.versions.identity.siteContractFingerprint !== plan.preparation.contractFingerprint ||
+    plan.versions.identity.contractFingerprint !== contract.fingerprint ||
+    canonicalSha256(object(object(plan.preparation.request).spec).software_settings) !==
+      canonicalSha256(initialSoftwareSettings(plan.versions.versions))
+  )
+    throw new Error('Replacement version snapshot differs from plan or contract');
+  if (typeof runtime.ownedSiteConfiguration !== 'function' || typeof runtime.observeUpgrade !== 'function')
     throw new Error('AWS site replacement requires an updated platform runtime with owned configuration projection');
   if (canonicalSha256(storage.owner) !== canonicalSha256(plan.binding.owner))
     throw new Error('Replacement storage ownership differs');
@@ -219,15 +260,27 @@ export async function runAwsSiteReplacement(
     checkpoint = (await storage.read(path)) as Checkpoint;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    checkpoint = { schemaVersion: 1, planSha256, phase: 'quiesce', bootstrap: {}, bootstrapSha256: {}, instances: {} };
+    checkpoint = { schemaVersion: 2, planSha256, phase: 'quiesce', bootstrap: {}, bootstrapSha256: {}, instances: {} };
   }
-  if (checkpoint.schemaVersion !== 1 || checkpoint.planSha256 !== planSha256 || !phases.includes(checkpoint.phase))
+  if (checkpoint.schemaVersion !== 2 || checkpoint.planSha256 !== planSha256 || !phases.includes(checkpoint.phase))
     throw new Error('Replacement checkpoint differs from plan');
   if (
     checkpoint.quiesceConfigurationSha256 !== undefined &&
     !/^[a-f0-9]{64}$/.test(checkpoint.quiesceConfigurationSha256)
   )
     throw new Error('Replacement configuration checkpoint is malformed');
+  const admissionSha256 = canonicalSha256(plan.versions);
+  if (checkpoint.versionAdmissionSha256 !== undefined && checkpoint.versionAdmissionSha256 !== admissionSha256)
+    throw new Error('Replacement version admission differs from plan');
+  if (checkpoint.phase !== 'quiesce' && checkpoint.versionAdmissionSha256 !== admissionSha256)
+    throw new Error('Replacement version admission is missing');
+  if (
+    checkpoint.physicalSiteUid !== undefined &&
+    (typeof checkpoint.physicalSiteUid !== 'string' ||
+      !checkpoint.physicalSiteUid ||
+      checkpoint.physicalSiteUid === plan.versions.identity.physicalSiteUid)
+  )
+    throw new Error('Replacement physical site checkpoint differs');
   object(checkpoint.bootstrap);
   object(checkpoint.bootstrapSha256);
   object(checkpoint.instances);
@@ -261,6 +314,8 @@ export async function runAwsSiteReplacement(
     throw new Error('Replacement instance checkpoint identity is invalid');
   const save = () => storage.write(path, checkpoint);
   await save();
+  if (checkpoint.phase === 'complete' && !checkpoint.physicalSiteUid)
+    throw new Error('Replacement physical site checkpoint is missing');
   const binding = plan.binding;
   for (let index = phases.indexOf(checkpoint.phase); index < phases.length; index++) {
     const phase = phases[index];
@@ -287,7 +342,28 @@ export async function runAwsSiteReplacement(
         }
       }
     }
-    if (phase === 'quiesce') await driver.quiesce(plan, signal);
+    if (phase === 'quiesce') {
+      let admitted = false;
+      await driver.quiesce(plan, signal, async (state) => {
+        signal?.throwIfAborted();
+        await storage.verify();
+        const current = await runtime.observeOwnedSite(binding, signal);
+        if (
+          object(current.system_metadata).uid !== plan.preparation.uid ||
+          canonicalSha256(runtime.ownedSiteConfiguration(binding, current)) !== checkpoint.quiesceConfigurationSha256
+        )
+          throw new Error('Site identity or configuration changed before shutdown admission');
+        if (state === 'intact') {
+          await verifyCeReplacementVersions(plan.versions, runtime, contract, signal);
+          checkpoint.versionAdmissionSha256 = admissionSha256;
+          await save();
+        } else if (!['partial', 'complete'].includes(state) || checkpoint.versionAdmissionSha256 !== admissionSha256) {
+          throw new Error('Partial shutdown requires recorded version admission');
+        }
+        admitted = true;
+      });
+      if (!admitted) throw new Error('Replacement driver did not perform shutdown admission');
+    }
     if (phase === 'remove-tokens') {
       for (const node of binding.nodes)
         await runtime.deleteBootstrapToken(binding, node, plan.oldTokenNames[node], signal);
@@ -315,7 +391,7 @@ export async function runAwsSiteReplacement(
     }
     if (phase === 'create-site') {
       await runtime.ensureAwsPreparedSite(
-        binding,
+        { ...binding, initialVersions: structuredClone(plan.versions.versions) },
         plan.preparation,
         async (record) => {
           if (typeof record.uid !== 'string' || !record.uid || record.uid === plan.preparation.uid)
@@ -385,6 +461,23 @@ export async function runAwsSiteReplacement(
       );
       if ((await runtime.observeRegistrations(binding, checkpoint.instances, signal)).status !== 'healthy')
         return { status: 'pending-registration', routing: 'unknown', traffic: 'unknown' };
+      if (!checkpoint.siteUid) throw new Error('Replacement logical identity is missing');
+      const effective = await captureCeReplacementVersions(
+        binding,
+        checkpoint.siteUid,
+        plan.versions.identity.siteContractFingerprint,
+        runtime,
+        contract,
+        signal,
+      );
+      if (
+        effective.identity.physicalSiteUid === plan.versions.identity.physicalSiteUid ||
+        (checkpoint.physicalSiteUid && checkpoint.physicalSiteUid !== effective.identity.physicalSiteUid) ||
+        canonicalSha256(effective.versions) !== canonicalSha256(plan.versions.versions)
+      )
+        throw new Error('Replacement physical identity or effective versions differ');
+      checkpoint.physicalSiteUid = effective.identity.physicalSiteUid;
+      await save();
       await driver.finalize?.(plan, checkpoint.instances, signal);
       checkpoint.phase = 'complete';
       await save();
@@ -392,6 +485,8 @@ export async function runAwsSiteReplacement(
         status: 'registered-with-configured-interfaces',
         instances: checkpoint.instances,
         siteUid: checkpoint.siteUid,
+        physicalSiteUid: checkpoint.physicalSiteUid,
+        versions: structuredClone(effective.versions),
         routing: 'unknown',
         traffic: 'unknown',
       };
@@ -400,4 +495,30 @@ export async function runAwsSiteReplacement(
     await save();
   }
   throw new Error('Invalid replacement phase');
+}
+
+/** Gather platform identities and effective versions before compiling an explicitly requested replacement. */
+export async function prepareAwsSiteReplacement(
+  base: AwsCePlan,
+  siteName: string,
+  instances: Record<string, string>,
+  interfaces: Parameters<CeRuntime['prepareAwsSiteReplacement']>[2],
+  resources: Omit<Parameters<typeof compileAwsSiteReplacement>[3], 'versions'>,
+  runtime: Pick<CeRuntime, 'engine' | 'prepareAwsSiteReplacement' | 'observeUpgrade'>,
+  contract: VerifiedUpgradeContract,
+  signal?: AbortSignal,
+): Promise<AwsSiteReplacementPlan> {
+  verifyAwsCePlan(base);
+  const selected = siteBindings(base).find(({ site }) => site.name === siteName);
+  if (!selected || runtime.engine !== base.engine) throw new Error('Replacement site or engine differs');
+  const preparation = await runtime.prepareAwsSiteReplacement(selected.binding, instances, interfaces, signal);
+  const versions = await captureCeReplacementVersions(
+    selected.binding,
+    String(preparation.uid),
+    String(preparation.contractFingerprint),
+    runtime,
+    contract,
+    signal,
+  );
+  return compileAwsSiteReplacement(base, siteName, preparation, { ...resources, versions });
 }

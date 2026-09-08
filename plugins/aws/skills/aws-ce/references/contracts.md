@@ -60,8 +60,15 @@ shutdown mutation. Fresh owned-resource observations distinguish an intact deplo
 partial shutdown, and completed shutdown. Terraform also detects partial shutdown when an
 EIP association has been removed while its original VM remains. Callback rejection prevents
 the destructive call; a resumed completed shutdown remains observable without another deletion.
-The replacement coordinator still needs to bind this callback to persisted effective-version
-admission before post-upgrade replacement can be accepted.
+Replacement plans and checkpoints use schema v2; v1 artifacts remain inspectable but cannot
+execute. Planning collects owned configuration, registered hardware identities, and stable
+installed software/OS versions. An explicitly requested replacement also works when MTUs
+already match. The coordinator persists version admission before shutdown, rechecks versions
+on an intact retry, and requires that admission during partial shutdown recovery. Creation
+uses the frozen installed versions without changing the original deployment baseline.
+Registration completion requires a new physical site identity and matching installed versions;
+routing and traffic still require separate verification. Live post-upgrade replacement
+acceptance remains pending.
 
 ## AWS operations and diagnostics
 

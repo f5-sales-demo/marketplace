@@ -206,3 +206,33 @@ test('prepared creation rejects a request whose MTU differs from the collected r
   );
   expect(f.posts()).toBe(0);
 });
+
+test('explicit replacement of an already configured site collects current identity without inventing MTU drift', async () => {
+  const f = fixture();
+  f.site.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 1500;
+  const preparation = await f.runtime.prepareAwsSiteReplacement(
+    binding,
+    { 'node-one': 'i-1234567890abcdef0' },
+    expected,
+  );
+  expect(preparation.evidenceKind).toBe('owned-site-replacement');
+  expect(preparation.uid).toBe('site-uid');
+  expect(preparation.interfaces).toEqual([{ ...expected[0], device: 'ens5' }]);
+  expect(preparation.request).toEqual(f.runtime.ownedSiteConfiguration(binding, f.site));
+  expect(f.posts()).toBe(0);
+  f.removeOldSite();
+  await f.runtime.ensureAwsPreparedSite(binding, preparation, async () => {});
+  expect(f.posts()).toBe(1);
+});
+
+test('explicit replacement planning refuses uncorrelated hardware and missing version evidence', async () => {
+  const f = fixture();
+  await expect(
+    f.runtime.prepareAwsSiteReplacement(binding, { 'node-one': 'i-8765432100abcdef0' }, expected),
+  ).rejects.toThrow();
+  f.site.resource_version = '';
+  await expect(
+    f.runtime.prepareAwsSiteReplacement(binding, { 'node-one': 'i-1234567890abcdef0' }, expected),
+  ).rejects.toThrow();
+  expect(f.posts()).toBe(0);
+});

@@ -49,7 +49,7 @@ export function createNativeAwsSiteReplacementDriver(
     const { planId, planSha256, ...draft } = plan;
     const selected = siteBindings(base).find(({ binding }) => binding.siteName === plan.binding.siteName);
     if (
-      plan.schemaVersion !== 1 ||
+      plan.schemaVersion !== 2 ||
       plan.kind !== 'aws-ce-site-replacement' ||
       plan.engine !== 'native' ||
       plan.sourcePlanSha256 !== base.planSha256 ||

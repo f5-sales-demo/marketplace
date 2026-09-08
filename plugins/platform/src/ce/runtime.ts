@@ -326,6 +326,53 @@ export class CeRuntime {
     const spec = this.contract.buildSite(intent);
     await this.#ensureSpec(binding, spec, checkpoint, signal);
   }
+  /** Explicit owned-site replacement, including sites whose interfaces already match the plan. */
+  async prepareAwsSiteReplacement(
+    binding: SiteBinding,
+    instances: Record<string, string>,
+    expected: Array<ExpectedCeInterface & { mtu: number }>,
+    signal?: AbortSignal,
+  ): Promise<Json> {
+    this.#binding(binding, true);
+    const devices = await this.observeAwsGuestDevices(binding, instances, expected, signal);
+    if (devices.status !== 'observed') throw new Error('Replacement guest interface inventory is unavailable');
+    const before = await this.observeOwnedSite(binding, signal);
+    verifyRegisteredInterfaceConfiguration(object(before.spec), devices.interfaces);
+    const uid = object(before.system_metadata).uid;
+    if (typeof uid !== 'string' || !uid || typeof before.resource_version !== 'string' || !before.resource_version)
+      throw new Error('Replacement site identity and resource version are required');
+    const request = this.ownedSiteConfiguration(binding, before);
+    const interfaces = devices.interfaces.map((device) => {
+      const desired = expected.find((item) => item.node === device.node && item.mac.toLowerCase() === device.mac);
+      if (!desired || !Number.isInteger(desired.mtu) || desired.mtu < 576 || desired.mtu > 9000)
+        throw new Error('Replacement interface MTU is invalid');
+      return { ...device, mtu: desired.mtu };
+    });
+    const nodes = object(object(object(request.spec).aws).not_managed).node_list as Json[];
+    for (const node of nodes)
+      for (const iface of node.interface_list as Json[]) {
+        const expected = interfaces.find(
+          (item) => item.node === node.hostname && item.mac === object(iface.ethernet_interface).mac,
+        );
+        if (!expected) throw new Error('Replacement interface identity differs');
+        iface.mtu = expected.mtu;
+      }
+    this.contract.validateSiteCreate(request);
+    return {
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      uid,
+      resourceVersion: before.resource_version,
+      contractFingerprint: this.contract.fingerprint,
+      instances: { ...instances },
+      interfaces,
+      request,
+      source: this.#sitePath(binding),
+      deviceSource: devices.source,
+      evidenceKind: 'owned-site-replacement',
+      observedAt: new Date().toISOString(),
+    };
+  }
   /** Recreate only after the owning cloud adapter has quiesced the recorded nodes and removed the old site. */
   async ensureAwsPreparedSite(
     binding: SiteBinding,
@@ -340,7 +387,9 @@ export class CeRuntime {
       !subset(preparation.owner, binding.owner) ||
       preparation.contractFingerprint !== this.contract.fingerprint ||
       preparation.siteName !== binding.siteName ||
-      preparation.evidenceKind !== 'preboot-interface-configuration-required' ||
+      !['preboot-interface-configuration-required', 'owned-site-replacement'].includes(
+        String(preparation.evidenceKind),
+      ) ||
       typeof preparation.uid !== 'string' ||
       !preparation.uid
     )

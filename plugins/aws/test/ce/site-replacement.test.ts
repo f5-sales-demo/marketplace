@@ -1,7 +1,12 @@
 import { expect, test } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
-import { compileAwsSiteReplacement, runAwsSiteReplacement } from '../../src/ce/site-replacement';
+import {
+  type AwsQuiescenceAdmission,
+  compileAwsSiteReplacement,
+  runAwsSiteReplacement,
+} from '../../src/ce/site-replacement';
 import { siteBindings } from '../../src/ce/topology';
+import { replacementContract, replacementObservation, replacementVersions } from './replacement-version-fixtures';
 import { foundationPlan } from './terraform-fixtures';
 
 function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
@@ -41,6 +46,7 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
     request: { metadata: { name: binding.siteName }, spec: {} },
   };
   const resources = {
+    versions: replacementVersions(binding),
     interfaceIds: Object.fromEntries(
       preparation.interfaces.map((item, index) => [`${item.node}/${item.role}`, `eni-${12345678 + index}`]),
     ),
@@ -82,7 +88,8 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
     assertOwnership: async () => {
       events.push('ownership');
     },
-    quiesce: async () => {
+    quiesce: async (_plan: unknown, _signal?: AbortSignal, admission?: AwsQuiescenceAdmission) => {
+      await admission?.(stopped ? 'complete' : 'intact');
       if (!stopped) {
         stopped = true;
         boundary('quiesce');
@@ -99,6 +106,7 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
   };
   const runtime = {
     engine,
+    observeUpgrade: async () => replacementObservation(binding, uid),
     ownedSiteConfiguration: () => ({ routing: 'original' }),
     observeOwnedSite: async () => {
       if (!uid) throw Object.assign(new Error('absent'), { category: 'not-found' });
@@ -139,7 +147,15 @@ function fixture(engine: 'native' | 'terraform', failAt = '', ha = false) {
     driver,
     runtime,
     storage,
-    run: () => runAwsSiteReplacement(replacement, replacement.planSha256, driver, runtime as never, storage),
+    run: () =>
+      runAwsSiteReplacement(
+        replacement,
+        replacement.planSha256,
+        driver,
+        runtime as never,
+        storage,
+        replacementContract,
+      ),
   };
 }
 for (const engine of ['native', 'terraform'] as const) {
@@ -208,7 +224,7 @@ test('an older platform runtime is rejected before replacement mutation', async 
 test('rejects wrong engine or authorization before any cloud action', async () => {
   const f = fixture('native');
   await expect(
-    runAwsSiteReplacement(f.replacement, '0'.repeat(64), f.driver, f.runtime as never, f.storage),
+    runAwsSiteReplacement(f.replacement, '0'.repeat(64), f.driver, f.runtime as never, f.storage, replacementContract),
   ).rejects.toThrow('authorization');
   await expect(
     runAwsSiteReplacement(
@@ -217,6 +233,7 @@ test('rejects wrong engine or authorization before any cloud action', async () =
       { ...f.driver, engine: 'terraform' },
       f.runtime as never,
       f.storage,
+      replacementContract,
     ),
   ).rejects.toThrow('engine');
   expect(f.events).toHaveLength(0);
@@ -286,4 +303,103 @@ test('interrupted replacement rejects altered cached bootstrap before another cl
   const count = f.events.length;
   await expect(f.run()).rejects.toThrow('bootstrap checkpoint integrity');
   expect(f.events).toHaveLength(count);
+});
+
+for (const engine of ['native', 'terraform'] as const) {
+  test(`${engine} replacement preserves observed versions and binds admission before shutdown`, async () => {
+    const f = fixture(engine);
+    expect(f.replacement.schemaVersion).toBe(2);
+    const original = structuredClone(f.replacement.binding);
+    f.runtime.ensureAwsPreparedSite = async (binding, preparation, _save) => {
+      expect(binding).toMatchObject({ initialVersions: f.resources.versions.versions });
+      expect(preparation.request.spec.software_settings).toEqual({
+        sw: { volterra_software_version: 'crt-20260201-0179' },
+        os: { operating_system_version: '9.2026.17' },
+      });
+      throw new Error('creation inspected');
+    };
+    await expect(f.run()).rejects.toThrow('creation inspected');
+    expect(f.replacement.binding).toEqual(original);
+    const cp = (await f.storage.read(`${f.replacement.planId}.json`)) as Record<string, unknown>;
+    expect(cp.versionAdmissionSha256).toBe(canonicalSha256(f.resources.versions));
+  });
+  test(`${engine} rejects version drift before any shutdown`, async () => {
+    const f = fixture(engine);
+    const observe = f.runtime.observeUpgrade;
+    f.runtime.observeUpgrade = async () => ({ ...(await observe()), physicalSiteUid: 'changed' });
+    await expect(f.run()).rejects.toThrow('effective versions changed');
+    expect(f.events).not.toContain('quiesce');
+  });
+  test(`${engine} rejects an old driver before cloud inspection`, async () => {
+    const f = fixture(engine);
+    Object.assign(f.driver, { quiescenceAdmissionVersion: undefined });
+    await expect(f.run()).rejects.toThrow('admission');
+    expect(f.events).toHaveLength(0);
+  });
+  test(`${engine} partial shutdown cannot resume without saved admission`, async () => {
+    const f = fixture(engine, 'quiesce');
+    await expect(f.run()).rejects.toThrow('interrupted');
+    const path = `${f.replacement.planId}.json`;
+    const cp = (await f.storage.read(path)) as Record<string, unknown>;
+    delete cp.versionAdmissionSha256;
+    await f.storage.write(path, cp);
+    await expect(f.run()).rejects.toThrow('admission');
+    expect(f.events).not.toContain('site-delete');
+  });
+}
+
+for (const engine of ['native', 'terraform'] as const) {
+  test(`${engine} an intact retry rechecks versions despite a saved admission`, async () => {
+    const f = fixture(engine);
+    const quiesce = f.driver.quiesce;
+    f.driver.quiesce = async (_plan, _signal, admit) => {
+      await admit?.('intact');
+      throw new Error('before cloud mutation');
+    };
+    await expect(f.run()).rejects.toThrow('before cloud mutation');
+    f.driver.quiesce = quiesce;
+    const observe = f.runtime.observeUpgrade;
+    f.runtime.observeUpgrade = async () => ({ ...(await observe()), physicalSiteUid: 'changed' });
+    await expect(f.run()).rejects.toThrow('effective versions changed');
+    expect(f.events).not.toContain('quiesce');
+  });
+  test(`${engine} partial shutdown resumes without requiring the old site online`, async () => {
+    const f = fixture(engine, 'quiesce');
+    await expect(f.run()).rejects.toThrow('interrupted');
+    const observe = f.runtime.observeUpgrade;
+    f.runtime.observeUpgrade = async () => {
+      const value = await observe();
+      if (value.siteUid === 'old-site') throw new Error('offline site must not be observed');
+      return value;
+    };
+    expect((await f.run()).status).toBe('registered-with-configured-interfaces');
+  });
+  test(`${engine} replacement cannot converge with the old baseline or reused physical identity`, async () => {
+    for (const wrong of ['version', 'identity']) {
+      const f = fixture(engine);
+      const observe = f.runtime.observeUpgrade;
+      f.runtime.observeUpgrade = async () => {
+        const value = await observe();
+        if (value.siteUid !== 'old-site') {
+          if (wrong === 'identity') value.physicalSiteUid = 'old-physical';
+          else value.os.installed = '9.2026.14';
+        }
+        return value;
+      };
+      await expect(f.run()).rejects.toThrow('physical identity or effective versions differ');
+      const cp = (await f.storage.read(`${f.replacement.planId}.json`)) as Record<string, unknown>;
+      expect(cp.phase).toBe('registration');
+    }
+  });
+}
+test('obsolete replacement schema and forged version admission fail closed', async () => {
+  const f = fixture('terraform', 'quiesce');
+  await expect(f.run()).rejects.toThrow('interrupted');
+  const path = `${f.replacement.planId}.json`;
+  const cp = (await f.storage.read(path)) as Record<string, unknown>;
+  cp.versionAdmissionSha256 = '0'.repeat(64);
+  await f.storage.write(path, cp);
+  await expect(f.run()).rejects.toThrow('admission differs');
+  Object.assign(f.replacement, { schemaVersion: 1 });
+  await expect(f.run()).rejects.toThrow('obsolete');
 });

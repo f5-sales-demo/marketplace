@@ -5,6 +5,7 @@ import { compileAwsSiteReplacement } from '../../src/ce/site-replacement';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
 import { awsTerraformReplacementStages } from '../../src/ce/terraform-replacement-stages';
 import { siteBindings } from '../../src/ce/topology';
+import { replacementVersions } from './replacement-version-fixtures';
 import { foundationPlan } from './terraform-fixtures';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -45,6 +46,7 @@ export function terraformReplacementFixture(ha = false) {
     ),
   };
   const replacement = compileAwsSiteReplacement(base, selected.site.name, preparation, {
+    versions: replacementVersions(selected.binding),
     interfaceIds: Object.fromEntries(
       preparation.interfaces.map((iface, index) => [`${iface.node}/${iface.role}`, `eni-${12345678 + index}`]),
     ),
