@@ -50,6 +50,7 @@ export function siteBindings(plan: AwsCePlan): Array<{ site: AwsCeSiteTopology; 
         region: plan.region,
       },
       siteName: site.name,
+      ...(plan.intent.initialVersions ? { initialVersions: structuredClone(plan.intent.initialVersions) } : {}),
       nodes: site.nodeIndexes.map((index) => `${plan.deploymentName}-${index}`),
     },
   }));

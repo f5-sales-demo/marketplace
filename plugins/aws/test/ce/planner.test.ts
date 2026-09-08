@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
+import { siteBindings } from '../../src/ce/topology';
 import type { AwsCeF5Capabilities, AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
 import {
   AWS_CE_F5_GUIDE_URL,
@@ -473,7 +474,8 @@ describe('compileAwsCePlan', () => {
         observation(),
       ),
     ).toThrow(/AMI/i);
-    expect(() => compileAwsCePlan(intent({ accountId: '222222222222' }), observation())).toThrow(/identity/i);
+    const mismatchedAccountId = String(2).repeat(12);
+    expect(() => compileAwsCePlan(intent({ accountId: mismatchedAccountId }), observation())).toThrow(/identity/i);
     expect(() =>
       compileAwsCePlan(
         intent({
@@ -882,5 +884,19 @@ it('pins the deliberate MTU default and validates an explicit MTU in the immutab
     const invalid = intent();
     invalid.interfaces[0].mtu = mtu;
     expect(() => compileAwsCePlan(invalid, observation())).toThrow('MTU');
+  }
+});
+
+it('binds explicit initial versions into both engine plans and rejects unresolved baselines', () => {
+  const initialVersions = { software: 'crt-20251002-0027', os: '9.2026.10' };
+  for (const engine of ['native', 'terraform'] as const) {
+    const selected = compileAwsCePlan(intent({ engine, initialVersions }), observation());
+    const automatic = compileAwsCePlan(intent({ engine }), observation());
+    expect(selected.planSha256).not.toBe(automatic.planSha256);
+    expect(siteBindings(selected)[0].binding.initialVersions).toEqual(initialVersions);
+    expect(siteBindings(automatic)[0].binding.initialVersions).toBeUndefined();
+    expect(() =>
+      compileAwsCePlan(intent({ engine, initialVersions: { ...initialVersions, os: '__OS__' } }), observation()),
+    ).toThrow();
   }
 });

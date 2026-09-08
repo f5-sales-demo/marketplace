@@ -1,3 +1,4 @@
+import type { InitialSiteVersions } from '../../../platform/src/ce/initial-versions';
 import type { AwsCeSiteTopology } from './topology';
 export const AWS_CE_SCHEMA_VERSION = 2 as const;
 export const AWS_CE_SHARED_CONTRACT_URL =
@@ -60,6 +61,7 @@ export interface AwsCeIntent {
   deploymentName: string;
   siteName: string;
   namespace: string;
+  initialVersions?: InitialSiteVersions;
   topology: { nodeCount: 1 | 3; sites?: AwsCeSiteTopology[] };
   vpc: { mode: 'greenfield' | 'brownfield'; vpcId?: string; cidr?: string };
   interfaces: AwsCeInterfaceIntent[];

@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { initialSoftwareSettings } from '../../../platform/src/ce/initial-versions';
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import { prepareRecoverableAction } from './create-recovery';
 import { siteForNode, siteTopology } from './topology';
@@ -94,6 +95,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (!['native', 'terraform'].includes(engine)) fail('execution engine must be native or terraform');
   const deploymentName = name(input.deploymentName, 'deploymentName');
   const siteName = name(input.siteName, 'siteName');
+  if (input.initialVersions !== undefined) initialSoftwareSettings(input.initialVersions);
   const namespace = name(input.namespace, 'namespace');
   if (input.topology.nodeCount !== 1 && input.topology.nodeCount !== 3)
     fail('topology must contain one or three nodes');

@@ -2,6 +2,7 @@ import { bindAwsCloudInit } from './bootstrap';
 import type { CeDeploymentStore } from './deployment-store';
 import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
+import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import type { VerifiedCeContract } from './verified-contract';
@@ -21,6 +22,7 @@ export interface SiteBinding {
   owner: CeOwner;
   siteName: string;
   nodes: string[];
+  initialVersions?: InitialSiteVersions;
 }
 export class CeApiError extends Error {
   constructor(
@@ -234,6 +236,12 @@ export class CeRuntime {
       )
     )
       throw new Error('Site intent and deployment binding disagree');
+    if (binding.initialVersions) {
+      const software = initialSoftwareSettings(binding.initialVersions);
+      if (intent.settings.software_settings && !subset(intent.settings.software_settings, software))
+        throw new Error('Initial versions differ from the owning site binding');
+      intent = { ...intent, settings: { ...intent.settings, software_settings: software } };
+    }
     const spec = this.contract.buildSite(intent);
     await this.#ensureSpec(binding, spec, checkpoint, signal);
   }
@@ -258,6 +266,11 @@ export class CeRuntime {
       throw new Error('Prepared site ownership, contract or identity differs');
     this.#owned(request, binding);
     this.contract.validateSiteCreate(request);
+    if (
+      binding.initialVersions &&
+      !subset(object(request.spec).software_settings, initialSoftwareSettings(binding.initialVersions))
+    )
+      throw new Error('Prepared site initial versions differ from the owning binding');
     const interfaces = preparation.interfaces as Array<ExpectedCeInterface & { device: string; mtu: number }>;
     if (
       !Array.isArray(interfaces) ||
@@ -300,6 +313,7 @@ export class CeRuntime {
     this.#binding(binding, true);
     if (![1, 3].includes(binding.nodes.length)) throw new Error('A site reservation needs one or three intended nodes');
     const spec = {
+      ...(binding.initialVersions ? { software_settings: initialSoftwareSettings(binding.initialVersions) } : {}),
       [binding.owner.provider]: { not_managed: {} },
       [binding.nodes.length === 3 ? 'enable_ha' : 'disable_ha']: {},
       disable_management_network: {},

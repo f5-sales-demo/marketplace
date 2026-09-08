@@ -352,7 +352,6 @@ test('creates schema-validated routing objects in order and resumes lost respons
   expect(bgp.spec.peers).toHaveLength(2);
 });
 
-
 test('AWS configured creation rejects missing observed devices before any API request', async () => {
   const { contract } = await candidate();
   let requests = 0;
@@ -364,4 +363,51 @@ test('AWS configured creation rejects missing observed devices before any API re
   delete (missing.nodes[0].interfaces[0].ethernet_interface as Record<string, unknown>).device;
   await expect(runtime.ensureSite(binding, missing, async () => {})).rejects.toThrow('observed AWS guest device');
   expect(requests).toBe(0);
+});
+
+test('pins the initial software and OS before bootstrap for either owning engine and rejects changed baselines', async () => {
+  const { contract } = await candidate();
+  for (const engine of ['native', 'terraform'] as const) {
+    const selected: SiteBinding = {
+      ...binding,
+      owner: { ...binding.owner, engine },
+      initialVersions: { software: 'crt-20251002-0027', os: '9.2026.10' },
+    };
+    let site: Record<string, unknown> | undefined;
+    let posts = 0;
+    const runtime = new CeRuntime(contract, engine, 'https://tenant.test', 'test-credential', async (_url, init) => {
+      if (init?.method === 'POST') {
+        posts++;
+        site = { ...JSON.parse(String(init.body)), system_metadata: { uid: 'baseline-site-uid' } };
+        return json({});
+      }
+      return site ? json(site) : json({}, 404);
+    });
+    await runtime.reserveSite(selected, async () => {});
+    expect(site).toHaveProperty('spec.software_settings', {
+      os: { operating_system_version: '9.2026.10' },
+      sw: { volterra_software_version: 'crt-20251002-0027' },
+    });
+    await runtime.reserveSite(selected, async () => {});
+    await expect(
+      runtime.reserveSite(
+        { ...selected, initialVersions: { software: 'crt-20260201-0179', os: '9.2026.17' } },
+        async () => {},
+      ),
+    ).rejects.toThrow();
+    expect(posts).toBe(1);
+  }
+});
+
+test('rejects unresolved initial version pairs before contacting the API', async () => {
+  const { contract } = await candidate();
+  let calls = 0;
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
+    calls++;
+    return json({});
+  });
+  await expect(
+    runtime.reserveSite({ ...binding, initialVersions: { software: 'latest', os: '9.2026.10' } }, async () => {}),
+  ).rejects.toThrow('explicit version pair');
+  expect(calls).toBe(0);
 });

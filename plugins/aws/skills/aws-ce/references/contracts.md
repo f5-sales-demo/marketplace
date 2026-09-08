@@ -31,6 +31,20 @@ records its normalized SHA-256. This reference contains only AWS-specific requir
   distinct ASNs, explicit propagation, and three-zone symmetry. Enable it only with current F5
   documentation and an explicit tenant capability schema.
 
+## Initial software and OS baseline
+
+`aws_ce_plan` accepts `intent.initialVersions` with an exact `software` and `os` pair.
+Both native and Terraform site reservations carry this pair into the schema-validated
+`software_settings` before issuing bootstrap material. Omitting the pair selects the platform's
+initial version policy; an exact AMI alone does not pin the versions installed on first boot.
+
+For upgrade acceptance, select a supported baseline and separately discover an advertised target.
+Use the create-time settings in the [MCN procedure](https://f5-sales-demo.github.io/mcn/en/customer-edge/smsv2/)
+as a reference. The initial settings are immutable: changing them is not a software or OS upgrade
+operation. A provisioning-time installation of the target does not prove the explicit upgrade
+workflow. Upgrade invocation, per-node convergence, traffic continuity and final no-change evidence
+remain required before claiming lifecycle acceptance.
+
 ## AWS operations and diagnostics
 
 - Correlate EC2 status/boot, ENIs, security groups, route tables, NLB targets, TGW attachments,
