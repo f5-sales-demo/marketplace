@@ -19,6 +19,8 @@ export function assertApplyAllowed(
   plan: AzureCePlan,
   request: { planId: string; planSha256: string; hasUI: boolean; env: Record<string, string | undefined> },
 ): void {
+  if (plan.engine !== 'native')
+    throw new Error('Terraform CE plans require the Terraform lifecycle adapter; native execution is forbidden');
   if (request.planId !== plan.planId) throw new Error('The requested plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested plan hash does not match the persisted plan');
@@ -118,6 +120,8 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
     throw new Error(`Azure substituted a different resource ID for ${action.resourceId}`);
   const tags = (raw.tags as Record<string, string> | undefined) ?? {};
   const owned = tags['xcsh-managed-by'] === 'azure-ce' && tags['xcsh-deployment-id'] === plan.deploymentName;
+  if (owned && tags['xcsh-execution-engine'] !== plan.engine)
+    throw new Error('Azure resource belongs to another or unknown execution engine');
   if (!owned) throw new Error(`Refusing to mutate unmanaged resource ${action.resourceId}`);
   if (CREATE_KINDS.has(action.kind) && tags['xcsh-plan-sha256'] !== plan.planSha256)
     throw new Error(`Existing resource belongs to a different Azure CE plan: ${action.resourceId}`);

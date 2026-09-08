@@ -43,6 +43,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
   });
   const existing = await loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
   if (existing) {
+    if (existing.engine !== plan.engine) throw new Error('Checkpoint execution engine does not match the plan');
     const expectedPrefix = plan.actions.slice(0, existing.completedActionIds.length).map((action) => action.id);
     if (JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
       throw new Error('Persisted checkpoint is not an ordered prefix of the immutable plan');
@@ -99,6 +100,7 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
   }
 
   const checkpoint: AzureCeCheckpoint = {
+    engine: plan.engine,
     schemaVersion: AZURE_CE_SCHEMA_VERSION,
     planId: plan.planId,
     planSha256: plan.planSha256,

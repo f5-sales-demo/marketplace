@@ -34,6 +34,8 @@ const memoryPlans = new Map<string, PlanEnvelope[]>();
 function verifyPlan(plan: AzureCePlan): void {
   if (plan.schemaVersion !== AZURE_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     throw new Error('Persisted Azure CE plan uses an unsupported schema version');
+  if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)
+    throw new Error('Persisted Azure CE plan has invalid execution ownership');
   const { planId, planSha256, ...draft } = plan;
   const actual = canonicalSha256(draft);
   if (!safeHexEqual(actual, planSha256) || planId !== `azure-ce-${planSha256.slice(0, 24)}`) {

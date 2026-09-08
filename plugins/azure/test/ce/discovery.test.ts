@@ -172,7 +172,7 @@ describe('discoverAzureCompute', () => {
     expect(result.regions[0].vmSizes[0].name).toBe('Standard_D8s_v5');
     expect(result.research.method).toBe('azure-cli-live');
     expect(result.research.officialSourceRetrieval).toBe('live');
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.research.sharedContract).toMatchObject({
       contractId: 'f5xc-ce-automation-policy',
       contractVersion: 'v2',

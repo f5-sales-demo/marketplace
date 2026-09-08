@@ -1,4 +1,4 @@
-export const AZURE_CE_SCHEMA_VERSION = 2 as const;
+export const AZURE_CE_SCHEMA_VERSION = 3 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 
@@ -49,6 +49,7 @@ export interface AzureCeBrownfieldRouteChange {
 }
 
 export interface AzureCeIntent {
+  engine?: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   operation: AzureCeOperation;
   subscriptionId: string;
@@ -171,6 +172,7 @@ export interface AzureCeAction {
 }
 
 export interface AzureCePlanDraft {
+  engine: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   intent: AzureCeIntent;
   subscription: AzureCeObservation['subscription'];
@@ -205,6 +207,7 @@ export interface AzureCePlanDraft {
   }>;
   ownershipTagTemplate: {
     'xcsh-managed-by': 'azure-ce';
+    'xcsh-execution-engine': 'native' | 'terraform';
     'xcsh-deployment-id': string;
     'xcsh-plan-sha256': '__PLAN_SHA256__';
   };
@@ -216,6 +219,7 @@ export interface AzureCePlan extends AzureCePlanDraft {
 }
 
 export interface AzureCeCheckpoint {
+  engine: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   planId: string;
   planSha256: string;

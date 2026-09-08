@@ -32,19 +32,25 @@ platform, routing, and traffic-health states independent.
    official F5 Azure SMSv2 guide, and relevant Microsoft Marketplace, VM SKU, and networking
    documentation. Cite the sources used.
 2. Call `az_account_show`, then `azure_compute_discover`. Omit image and VM hints unless the
-   user explicitly constrained them. Require schema v2, the validated shared-contract receipt,
+   user explicitly constrained them. Require schema v3, the validated shared-contract receipt,
    live provider-source digests, ranked regions, exact Marketplace tuple, subscription terms,
    VM/NIC/zone/quota/policy evidence, and a discovery artifact.
-3. Translate the request into `AzureCeIntent` schema v2 and call `azure_ce_plan`. Show the exact
+3. Select the execution engine: default to `native` for new conversational requests;
+   preserve an explicit `terraform` request. Plans and checkpoints bind ownership to
+   that engine. Native apply rejects Terraform plans while the Terraform lifecycle
+   adapter is pending. Do not switch engines to bypass this limitation. Schema v2
+   artifacts remain historical and require replanning; engine migration is unsupported.
+
+4. Translate the request into `AzureCeIntent` schema v3 and call `azure_ce_plan`. Show the exact
    plan ID/hash, region, image, topology, NIC order, egress/routing/security changes, restoration
    state, billable resources, warnings, and action order before approval.
-4. Plan the platform site with `f5xc_ce_v2_site`; after approval, submit its exact hash. Checkout
+5. Plan the platform site with `f5xc_ce_v2_site`; after approval, submit its exact hash. Checkout
    one opaque bootstrap reference per node immediately before `azure_ce_apply` needs it.
-5. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
+6. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
-6. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
+7. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
    active diagnostics or teardown, obtain the separate approval required by the shared contract.
 
 For headless execution, use only `XCSH_CE_HEADLESS_MUTATIONS=1`,
 `XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1`, and `XCSH_CE_ALLOW_DESTROY=1` for their respective
-operations. Version-1 plans and Azure-named compatibility gates are unsupported.
+operations. Version-1 and version-2 plans and Azure-named compatibility gates are unsupported.

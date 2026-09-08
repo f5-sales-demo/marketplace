@@ -6,6 +6,7 @@ const root = '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups
 const nicId = `${root}/Microsoft.Network/networkInterfaces/ce-1-nic0`;
 const vmId = `${root}/Microsoft.Compute/virtualMachines/ce-1`;
 const plan = {
+  engine: 'native',
   subscription: { id: '00000000-0000-0000-0000-000000000001' },
   intent: { resourceGroup: 'ce-rg' },
   deploymentName: 'ce',
@@ -16,7 +17,12 @@ const plan = {
     { kind: 'vm-create', node: 1, resourceId: vmId },
   ],
 } as unknown as AzureCePlan;
-const tags = { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'ce', 'xcsh-plan-sha256': 'plan' };
+const tags = {
+  'xcsh-managed-by': 'azure-ce',
+  'xcsh-execution-engine': 'native',
+  'xcsh-deployment-id': 'ce',
+  'xcsh-plan-sha256': 'plan',
+};
 const nic = {
   id: nicId,
   tags,

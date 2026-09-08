@@ -9,7 +9,7 @@ const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/cust
 
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId: '22222222-2222-4222-8222-222222222222' },
     image: {
       publisher: 'f5-networks',
@@ -66,7 +66,7 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
 
 function intent(overrides: Partial<AzureCeIntent> = {}): AzureCeIntent {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     operation: 'deploy',
     subscriptionId,
     deploymentName: 'ce-demo',
@@ -445,7 +445,7 @@ describe('compileAzureCePlan', () => {
             id: ownedId,
             exists: true,
             owned: true,
-            tags: { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'ce-demo' },
+            tags: { 'xcsh-managed-by': 'azure-ce', 'xcsh-execution-engine': 'native', 'xcsh-deployment-id': 'ce-demo' },
             state: {},
           },
         ],
@@ -465,7 +465,7 @@ describe('compileAzureCePlan', () => {
     const groupId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo`;
     const vmId = `${groupId}/providers/Microsoft.Compute/virtualMachines/ce-demo-1`;
     const vnetId = `${groupId}/providers/Microsoft.Network/virtualNetworks/ce-demo-vnet`;
-    const tags = { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'ce-demo' };
+    const tags = { 'xcsh-managed-by': 'azure-ce', 'xcsh-execution-engine': 'native', 'xcsh-deployment-id': 'ce-demo' };
     const plan = compileAzureCePlan(
       intent({ operation: 'teardown' }),
       observation({

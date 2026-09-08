@@ -7,7 +7,7 @@ import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 const subscriptionId = '11111111-1111-4111-8111-111111111111';
 const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
 const intent: AzureCeIntent = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   operation: 'deploy',
   subscriptionId,
   deploymentName: 'ce-demo',
@@ -25,7 +25,7 @@ const intent: AzureCeIntent = {
   brownfield: { resourceIds: [], routeChanges: [] },
 };
 const observation: AzureCeObservation = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   subscription: { id: subscriptionId, tenantId: '22222222-2222-4222-8222-222222222222', cloud: 'AzureCloud' },
   image: {
     publisher: 'f5-networks',
@@ -157,4 +157,36 @@ describe('Azure CE apply protections', () => {
       assertActionOwnership(plan, changed, { exec: async () => ({ stdout: '', stderr: '', exitCode: 1 }) }),
     ).rejects.toThrow(/allowlist/i);
   });
+});
+
+it('preserves explicit Terraform intent and forbids native execution of that plan', () => {
+  const plan = compileAzureCePlan({ ...intent, engine: 'terraform' }, observation);
+  expect(plan.engine).toBe('terraform');
+  expect(plan.intent.engine).toBe('terraform');
+  expect(plan.ownershipTagTemplate['xcsh-execution-engine']).toBe('terraform');
+  expect(() =>
+    assertApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: true, env: {} }),
+  ).toThrow('native execution is forbidden');
+});
+
+it('refuses mutation when live resource ownership belongs to another engine', async () => {
+  const plan = compileAzureCePlan(intent, observation);
+  const action = plan.actions.find((entry) => entry.kind === 'vm-create');
+  if (!action) throw new Error('missing VM action');
+  const api = {
+    exec: async () => ({
+      stdout: JSON.stringify({
+        id: action.resourceId,
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': plan.deploymentName,
+          'xcsh-plan-sha256': plan.planSha256,
+          'xcsh-execution-engine': 'terraform',
+        },
+      }),
+      stderr: '',
+      exitCode: 0,
+    }),
+  };
+  await expect(assertActionOwnership(plan, action, api)).rejects.toThrow('another or unknown execution engine');
 });

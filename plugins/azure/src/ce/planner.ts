@@ -55,6 +55,8 @@ function validateResourceId(id: string, subscriptionId: string): void {
 function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
   if (input.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
+  if (input.engine !== undefined && !['native', 'terraform'].includes(input.engine))
+    fail('unsupported execution engine');
   if (!UUID.test(input.subscriptionId)) fail('subscriptionId must be a UUID');
   if (input.nics.length < 1 || input.nics.length > 8) fail('NIC count must be between 1 and 8');
   if (input.nics[0]?.role !== 'slo') fail('NIC 0 must have role slo');
@@ -119,6 +121,7 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
 
   return {
     ...input,
+    engine: input.engine ?? 'native',
     subscriptionId: input.subscriptionId.toLowerCase(),
     deploymentName: validateName('deploymentName', input.deploymentName),
     siteName: validateName('siteName', input.siteName),
@@ -154,8 +157,13 @@ function actionFactory() {
   });
 }
 
-function tagsArgs(deploymentName: string): string[] {
-  return ['xcsh-managed-by=azure-ce', `xcsh-deployment-id=${deploymentName}`, 'xcsh-plan-sha256=__PLAN_SHA256__'];
+function tagsArgs(deploymentName: string, engine: string): string[] {
+  return [
+    `xcsh-execution-engine=${engine}`,
+    'xcsh-managed-by=azure-ce',
+    `xcsh-deployment-id=${deploymentName}`,
+    'xcsh-plan-sha256=__PLAN_SHA256__',
+  ];
 }
 
 function groupId(subscriptionId: string, resourceGroup: string): string {
@@ -250,7 +258,7 @@ function buildDeployActions(
 ): AzureCeAction[] {
   const next = actionFactory();
   const actions: AzureCeAction[] = [];
-  const tags = tagsArgs(intent.deploymentName);
+  const tags = tagsArgs(intent.deploymentName, intent.engine ?? 'native');
   const greenfield = intent.nics.some((nic) => nic.subnet.mode === 'greenfield');
 
   if (!termsAccepted) {
@@ -994,7 +1002,7 @@ function buildLifecycleActions(
           '--subscription',
           intent.subscriptionId,
           '--tags',
-          ...tagsArgs(intent.deploymentName),
+          ...tagsArgs(intent.deploymentName, intent.engine ?? 'native'),
         ],
         resourceId: vmId,
         node,
@@ -1274,6 +1282,15 @@ function buildLifecycleActions(
 export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObservation): AzureCePlan {
   const intent = normalizeIntent(input);
   if (observation.schemaVersion !== AZURE_CE_SCHEMA_VERSION) fail('unsupported observation schema');
+  for (const resource of observation.resources) {
+    if (
+      resource.owned &&
+      resource.tags['xcsh-deployment-id'] === intent.deploymentName &&
+      resource.tags['xcsh-execution-engine'] !== intent.engine
+    )
+      fail('deployment resources belong to another or unknown execution engine');
+  }
+
   const requiredResearchCommands = [
     'az vm image list-publishers',
     'az vm image list-offers',
@@ -1509,6 +1526,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
       : []),
   ];
   const draft: AzureCePlanDraft = {
+    engine: intent.engine ?? 'native',
     schemaVersion: AZURE_CE_SCHEMA_VERSION,
     intent,
     subscription: observation.subscription,
@@ -1536,6 +1554,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     ownershipInventory,
     ownershipTagTemplate: {
       'xcsh-managed-by': 'azure-ce',
+      'xcsh-execution-engine': intent.engine ?? 'native',
       'xcsh-deployment-id': intent.deploymentName,
       'xcsh-plan-sha256': '__PLAN_SHA256__',
     },

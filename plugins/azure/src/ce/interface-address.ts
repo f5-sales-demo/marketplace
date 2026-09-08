@@ -63,6 +63,7 @@ export async function resolveInterfaceAddress(
     )
       throw new Error('CE resource identity or readiness does not match');
     if (
+      value.tags?.['xcsh-execution-engine'] !== plan.engine ||
       value.tags?.['xcsh-managed-by'] !== 'azure-ce' ||
       value.tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
       value.tags?.['xcsh-plan-sha256'] !== plan.planSha256

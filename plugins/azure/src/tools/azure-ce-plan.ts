@@ -28,6 +28,7 @@ export function createAzureCePlanTool(pi: PluginInterface) {
       discoveryArtifactId: Type.String(),
       intent: Type.Object({
         schemaVersion: Type.Literal(AZURE_CE_SCHEMA_VERSION),
+        engine: Type.Optional(Type.Union([Type.Literal('native'), Type.Literal('terraform')])),
         operation: Type.Union(
           [
             'deploy',
