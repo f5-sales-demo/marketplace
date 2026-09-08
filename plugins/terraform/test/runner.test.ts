@@ -54,7 +54,7 @@ async function fixture(
     schemaVersion: 1,
     deploymentId: 'ce-test',
     engine: 'terraform',
-    scope: { cloud: 'aws', account: 'demo-account', region: 'us-east-1' },
+    scope: { cloud: 'aws', account: 'example-account', region: 'us-east-1' },
     terraformVersion: '1.14.0',
     configuration,
     providerLock: '# fixture lock',
