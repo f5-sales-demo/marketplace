@@ -3,6 +3,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import { renderAwsTerraformConnect } from './terraform-connect';
+import { renderAwsTerraformFoundation } from './terraform-foundation';
 import { siteBindings } from './topology';
 import type { AwsCeObservation, AwsCePlan } from './types';
 
@@ -35,6 +36,14 @@ export async function applyAwsTerraformConnectStage(
     throw new Error('Terraform Connect requires complete owned site admission');
   const configuration = renderAwsTerraformConnect(plan, observation, admission.bootstrapByNode);
   const desired = hash(configuration);
+  const addresses = (value: string) =>
+    new Map<string, string>(
+      Object.entries(JSON.parse(value).resource as Record<string, Record<string, unknown>>).flatMap(
+        ([type, resources]) => Object.keys(resources).map((name) => [`${type}.${name}`, type] as const),
+      ),
+    );
+  const foundation = addresses(renderAwsTerraformFoundation(plan, admission.bootstrapByNode));
+  const expected = addresses(configuration);
   await storage.write('terraform-connect-stage.json', {
     schemaVersion: 1,
     engine: 'terraform',
@@ -45,9 +54,17 @@ export async function applyAwsTerraformConnectStage(
   const apply = async (receipt: PlanReceipt) => {
     if (
       receipt.configurationSha256 !== desired ||
-      receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
+      receipt.changes.some(
+        (change) =>
+          expected.get(change.address) !== change.type ||
+          change.actions.length !== 1 ||
+          !['create', 'read', 'no-op'].includes(change.actions[0]) ||
+          (change.actions[0] === 'create' && foundation.has(change.address)),
+      )
     )
-      throw new Error('Terraform Connect would change or replace an existing resource');
+      throw new Error(
+        'Terraform Connect would change, recreate an existing resource, or create an unexpected resource',
+      );
     await storage.write('terraform-connect-plan.json', receipt);
     await storage.verify();
     await revalidate();

@@ -55,7 +55,7 @@ function fixture() {
         planSha256: 'binary',
         changes: [
           {
-            address: 'aws_ec2_transit_gateway_connect.peer',
+            address: 'aws_ec2_transit_gateway_connect.role_0_1',
             type: 'aws_ec2_transit_gateway_connect',
             actions: ['create'],
           },
@@ -114,4 +114,24 @@ test('Connect stage refuses existing-resource replacement', async () => {
   });
   await expect(f.run()).rejects.toThrow('existing resource');
   expect(f.applies()).toBe(0);
+});
+
+test('Connect stage rejects missing foundation state and unexpected create addresses', async () => {
+  for (const change of [
+    { address: 'aws_instance.node_1', type: 'aws_instance', actions: ['create'] },
+    { address: 'aws_network_interface.node_1_nic_0', type: 'aws_network_interface', actions: ['create'] },
+    {
+      address: 'aws_ec2_transit_gateway_connect.foreign',
+      type: 'aws_ec2_transit_gateway_connect',
+      actions: ['create'],
+    },
+    { address: 'aws_ec2_transit_gateway_connect.role_0_1', type: 'aws_instance', actions: ['create'] },
+    { address: 'aws_ec2_transit_gateway_connect.role_0_1', type: 'aws_ec2_transit_gateway_connect', actions: [] },
+  ]) {
+    const f = fixture();
+    const plan = f.session.plan;
+    f.session.plan = async (...args) => ({ ...(await plan(...args)), changes: [change] });
+    await expect(f.run()).rejects.toThrow('resource');
+    expect(f.applies()).toBe(0);
+  }
 });
