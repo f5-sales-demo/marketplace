@@ -107,6 +107,38 @@ function nics(count: number): AzureCeIntent['nics'] {
 }
 
 describe('compileAzureCePlan', () => {
+  for (const engine of ['native', 'terraform'] as const) {
+    for (const cidr of ['999.20.0.0/24', '10.20.0.0/33', '10.20.0.0/999', 'abcd/64', '2001:::1/64', '2001:db8::/129']) {
+      it(`rejects invalid addressing ${cidr} before producing a ${engine} plan`, () => {
+        const invalidSubnet = intent({ engine });
+        invalidSubnet.nics[0].subnet.cidr = cidr;
+        expect(() => compileAzureCePlan(invalidSubnet, observation())).toThrow(/CIDR/i);
+        const invalidRoute = intent({ engine });
+        invalidRoute.routing.destinationCidrs = [cidr];
+        expect(() => compileAzureCePlan(invalidRoute, observation())).toThrow(/CIDR/i);
+        const invalidRule = intent({ engine });
+        invalidRule.securityRules = [
+          {
+            name: 'application',
+            purpose: 'application-vip',
+            direction: 'Inbound',
+            protocol: 'Tcp',
+            sourceCidrs: [cidr],
+            destinationCidrs: ['10.20.1.0/24'],
+            destinationPorts: ['80'],
+          },
+        ];
+        expect(() => compileAzureCePlan(invalidRule, observation())).toThrow(/CIDR/i);
+      });
+    }
+    it(`preserves valid IPv4 and IPv6 route prefixes in a ${engine} plan`, () => {
+      const valid = intent({ engine });
+      valid.routing.destinationCidrs = ['0.0.0.0/0', '10.30.0.1/32', '::/0', '2001:db8::/64', '2001:db8::1/128'];
+      const plan = compileAzureCePlan(valid, observation());
+      expect(plan.routing.destinationCidrs).toEqual([...valid.routing.destinationCidrs].sort());
+    });
+  }
+
   it('is byte-identical for identical normalized intent and observations', () => {
     const first = compileAzureCePlan(intent(), observation());
     const second = compileAzureCePlan(intent(), observation());

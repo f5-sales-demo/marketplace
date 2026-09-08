@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import type {
   AzureCeAction,
@@ -12,7 +13,6 @@ import { AZURE_CE_SCHEMA_VERSION, AZURE_CE_SHARED_CONTRACT_URL } from './types';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const RESOURCE_ID = /^\/subscriptions\/([^/]+)\/resourceGroups\/([^/]+)(?:\/providers\/([^/]+)\/(.+))?$/i;
-const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]+)\/\d{1,3}$/;
 const PORT = /^(?:\*|\d{1,5}(?:-\d{1,5})?)$/;
 
 function fail(message: string): never {
@@ -40,7 +40,16 @@ function validateName(label: string, value: string): string {
 
 function validateCidr(label: string, value: string): string {
   const normalized = validateSafeString(label, value);
-  if (!CIDR.test(normalized)) fail(`${label} is not a CIDR`);
+  const [address, prefix, extra] = normalized.split('/');
+  const family = isIP(address);
+  if (
+    !family ||
+    address.includes('%') ||
+    extra !== undefined ||
+    !/^(?:0|[1-9]\d{0,2})$/.test(prefix ?? '') ||
+    Number(prefix) > (family === 4 ? 32 : 128)
+  )
+    fail(`${label} is not a CIDR`);
   return normalized;
 }
 

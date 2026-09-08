@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`azure`** bumped to v4.3.4
+- **`azure`** bumped to v4.3.5
 
 - **`aws`** bumped to v2.0.36
 
