@@ -4,6 +4,8 @@ export const AWS_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 export const AWS_CE_F5_GUIDE_URL =
   'https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-aws-clickops' as const;
+export const AWS_CE_TGW_GUIDE_URL =
+  'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/smsv2/aws-tgw-connect.txt' as const;
 export const AWS_CE_MARKETPLACE_PRODUCT_ID = 'prod-wrwzhcymymama' as const;
 export const AWS_CE_SSM_PARAMETER = `/aws/service/marketplace/${AWS_CE_MARKETPLACE_PRODUCT_ID}/latest` as const;
 // The Marketplace image currently advertises a 79 GiB root volume. 80 GiB is
@@ -178,6 +180,7 @@ export interface AwsCeObservation {
       normalizedSha256: string;
     };
     f5AwsGuide: { url: typeof AWS_CE_F5_GUIDE_URL; normalizedSha256: string; tgwConnectDocumented: boolean };
+    mcnTgwGuide?: { url: typeof AWS_CE_TGW_GUIDE_URL; normalizedSha256: string; documented: boolean };
   };
 }
 

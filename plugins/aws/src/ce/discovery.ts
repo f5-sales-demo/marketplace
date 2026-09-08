@@ -15,6 +15,7 @@ import {
   AWS_CE_SCHEMA_VERSION,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
+  AWS_CE_TGW_GUIDE_URL,
 } from './types';
 
 export interface AwsComputeDiscoveryInput {
@@ -173,9 +174,21 @@ export function isF5Smsv2TgwConnectDocumented(body: string): boolean {
   );
 }
 
+/** The separately maintained routing recipe is documentation evidence, not current platform acceptance. */
+export function isMcnAwsTgwConnectDocumented(body: string): boolean {
+  return (
+    /MCN deploys three independent/i.test(body) &&
+    /Secure Mesh Site v2/i.test(body) &&
+    /six GRE Connect peers/i.test(body) &&
+    /twelve BGP sessions/i.test(body) &&
+    /SLI payload/i.test(body)
+  );
+}
+
 async function research(fetcher: typeof fetch): Promise<AwsCeObservation['research']> {
-  const urls = [AWS_CE_SHARED_CONTRACT_URL, AWS_CE_F5_GUIDE_URL, ...AWS_SOURCES];
+  const urls = [AWS_CE_SHARED_CONTRACT_URL, AWS_CE_F5_GUIDE_URL, AWS_CE_TGW_GUIDE_URL, ...AWS_SOURCES];
   let f5Body = '';
+  let tgwBody = '';
   const sourceReceipts = await Promise.all(
     urls.map(async (url) => {
       const controller = new AbortController();
@@ -200,6 +213,7 @@ async function research(fetcher: typeof fetch): Promise<AwsCeObservation['resear
         )
           throw new Error('document did not advertise f5xc-ce-automation-policy/v2');
         if (url === AWS_CE_F5_GUIDE_URL) f5Body = normalized;
+        if (url === AWS_CE_TGW_GUIDE_URL) tgwBody = normalized;
         return { url, normalizedSha256: sha256Hex(normalized) };
       } catch (error) {
         throw new Error(
@@ -213,13 +227,19 @@ async function research(fetcher: typeof fetch): Promise<AwsCeObservation['resear
   sourceReceipts.sort((left, right) => left.url.localeCompare(right.url));
   const shared = sourceReceipts.find((item) => item.url === AWS_CE_SHARED_CONTRACT_URL);
   const f5 = sourceReceipts.find((item) => item.url === AWS_CE_F5_GUIDE_URL);
-  if (!shared || !f5) throw new Error('Official AWS CE research did not return every required source receipt');
+  const tgw = sourceReceipts.find((item) => item.url === AWS_CE_TGW_GUIDE_URL);
+  if (!shared || !f5 || !tgw) throw new Error('Official AWS CE research did not return every required source receipt');
   const tgwConnectDocumented = isF5Smsv2TgwConnectDocumented(f5Body);
   return {
     method: 'aws-cli-live',
     officialSourceRetrieval: 'live',
     commands: [],
-    officialSources: [AWS_CE_F5_GUIDE_URL, ...AWS_SOURCES],
+    officialSources: [AWS_CE_F5_GUIDE_URL, AWS_CE_TGW_GUIDE_URL, ...AWS_SOURCES],
+    mcnTgwGuide: {
+      url: AWS_CE_TGW_GUIDE_URL,
+      normalizedSha256: tgw.normalizedSha256,
+      documented: isMcnAwsTgwConnectDocumented(tgwBody),
+    },
     sourceReceipts,
     sharedContract: {
       url: AWS_CE_SHARED_CONTRACT_URL,

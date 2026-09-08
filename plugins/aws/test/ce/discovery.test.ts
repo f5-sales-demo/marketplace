@@ -5,9 +5,10 @@ import {
   discoverAwsCompute,
   extractF5AwsGuideDocument,
   isF5Smsv2TgwConnectDocumented,
+  isMcnAwsTgwConnectDocumented,
   observeAwsResources,
 } from '../../src/ce/discovery';
-import { AWS_CE_SHARED_CONTRACT_URL, AWS_CE_SSM_PARAMETER } from '../../src/ce/types';
+import { AWS_CE_SHARED_CONTRACT_URL, AWS_CE_SSM_PARAMETER, AWS_CE_TGW_GUIDE_URL } from '../../src/ce/types';
 
 const capabilities = {
   smsv2ContractVersion: 'v2' as const,
@@ -22,7 +23,9 @@ function fetcher(url: string | URL | Request): Promise<Response> {
   const body =
     href === AWS_CE_SHARED_CONTRACT_URL
       ? `contract_id: f5xc-ce-automation-policy\ncontract_version: v2\ncontract: f5xc-ce-automation-policy/v2\n${'provider neutral safety '.repeat(8)}`
-      : `${href}\nSecure Mesh Site v2 Customer Edge current official documentation. ${'verified provider guidance '.repeat(8)}`;
+      : href === AWS_CE_TGW_GUIDE_URL
+        ? 'MCN deploys three independent Secure Mesh Site v2 sites, with six GRE Connect peers and twelve BGP sessions. Both transport roles select SLI payload.'
+        : `${href}\nSecure Mesh Site v2 Customer Edge current official documentation. ${'verified provider guidance '.repeat(8)}`;
   return Promise.resolve(new Response(body, { status: 200 }));
 }
 
@@ -149,6 +152,10 @@ describe('discoverAwsCompute', () => {
     expect(observation.f5CapabilitiesSha256).toBe(canonicalSha256(capabilities));
     expect(observation.research.sourceReceipts.length).toBeGreaterThan(6);
     expect(observation.research.f5AwsGuide.tgwConnectDocumented).toBe(false);
+    expect(observation.research.mcnTgwGuide?.documented).toBe(true);
+    expect(observation.research.sourceReceipts.find((row) => row.url === AWS_CE_TGW_GUIDE_URL)?.normalizedSha256).toBe(
+      observation.research.mcnTgwGuide?.normalizedSha256,
+    );
     expect(api.calls.filter((args) => args.includes('us-west-2'))).toHaveLength(0);
     expect(api.calls.find((args) => args[0] === 'marketplace-agreement')?.join(' ')).toContain('AgreementType');
   });
@@ -365,4 +372,14 @@ it('observes EIP associations through the supported association-id filter', asyn
     'us-east-1',
     { deploymentName: 'ce-demo', planSha256s: [] },
   );
+});
+
+it('keeps the MCN routing recipe distinct from generic deployment or legacy TGW text', () => {
+  expect(isMcnAwsTgwConnectDocumented('Secure Mesh Site v2 AWS deployment guide')).toBe(false);
+  expect(isMcnAwsTgwConnectDocumented('Legacy AWS TGW orchestrated GRE and BGP')).toBe(false);
+  expect(
+    isMcnAwsTgwConnectDocumented(
+      'MCN deploys three independent Secure Mesh Site v2 sites with six GRE Connect peers and twelve BGP sessions using SLI payload.',
+    ),
+  ).toBe(true);
 });

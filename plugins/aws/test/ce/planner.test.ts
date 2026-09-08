@@ -8,6 +8,7 @@ import {
   AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
+  AWS_CE_TGW_GUIDE_URL,
 } from '../../src/ce/types';
 
 const capabilities: AwsCeF5Capabilities = {
@@ -425,7 +426,7 @@ describe('compileAwsCePlan', () => {
         }),
         observation(),
       ),
-    ).toThrow(/unavailable.*telemetry/i);
+    ).toThrow(/MCN routing recipe.*telemetry/i);
   });
 
   it('rejects AWS-reserved TGW Connect inside CIDRs before planning', () => {
@@ -681,7 +682,9 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       },
     },
   ];
-  evidence.research.f5AwsGuide.tgwConnectDocumented = true;
+  evidence.research.f5AwsGuide.tgwConnectDocumented = false;
+  evidence.research.mcnTgwGuide = { url: AWS_CE_TGW_GUIDE_URL, normalizedSha256: '3'.repeat(64), documented: true };
+  evidence.research.sourceReceipts.push({ url: AWS_CE_TGW_GUIDE_URL, normalizedSha256: '3'.repeat(64) });
   evidence.f5Capabilities = {
     ...capabilities,
     providerNetworkingProfiles: { aws: ['tgw-connect'] },

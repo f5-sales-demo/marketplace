@@ -9,6 +9,7 @@ import { scopedAwsApi } from './scoped-exec';
 import type { AwsSiteReplacementDriver, AwsSiteReplacementPlan } from './site-replacement';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { applyAwsTerraformReplacementStage, awsTerraformReplacementStages } from './terraform-replacement-stages';
+import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
 type Json = Record<string, unknown>;
@@ -251,6 +252,67 @@ export async function createTerraformAwsSiteReplacementDriver(
   };
   return {
     engine: 'terraform',
+    async finalize(candidate, expected, signal) {
+      await validate(candidate);
+      const live = await observe(candidate, true, signal);
+      if (plan.binding.nodes.some((node) => !expected[node] || live.current[node] !== expected[node]))
+        throw new Error('Terraform replacement completion identity differs');
+      const marker = await readLaunch();
+      if (!marker) throw new Error('Terraform replacement launch marker is unavailable');
+      const configuration = await session.readConfiguration(String(marker.configurationSha256));
+      const bootstraps = (configuration: string): Record<string, string> => {
+        const instances = object(object(object(JSON.parse(configuration)).resource).aws_instance);
+        return Object.fromEntries(
+          Object.entries(instances)
+            .filter(([name]) => /^node_[1-3]$/.test(name))
+            .map(([name, value]) => {
+              const encoded = object(value).user_data_base64;
+              if (typeof encoded !== 'string') throw new Error('Terraform admission bootstrap snapshot is incomplete');
+              return [name.slice(5), Buffer.from(encoded, 'base64').toString('utf8')];
+            }),
+        );
+      };
+      const oldBootstrap = bootstraps(String(snapshot.configuration));
+      const nextBootstrap = bootstraps(configuration);
+      const material = Object.fromEntries(
+        plan.binding.nodes.map((node) => [node, nextBootstrap[String(nodeIndex(node))]]),
+      );
+      if (stages.launch(material).configurationSha256 !== marker.configurationSha256)
+        throw new Error('Terraform replacement completion configuration differs');
+      let admission: Json;
+      try {
+        admission = object(await storage.read('terraform-admission.json'));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        return;
+      }
+      if (
+        admission.schemaVersion !== 1 ||
+        admission.planSha256 !== base.planSha256 ||
+        !Array.isArray(admission.admittedSites) ||
+        !admission.admittedSites.includes(plan.binding.siteName) ||
+        canonicalSha256(admission.admittedSites) !==
+          canonicalSha256(
+            siteBindings(base)
+              .map(({ site }) => site.name)
+              .slice(0, admission.admittedSites.length),
+          )
+      )
+        throw new Error('Terraform admission ownership or selected site differs');
+      const isOriginal =
+        admission.configurationSha256 === expectedConfigurationSha256 &&
+        canonicalSha256(admission.bootstrapByNode) === canonicalSha256(oldBootstrap);
+      const isCompleted =
+        admission.configurationSha256 === marker.configurationSha256 &&
+        canonicalSha256(admission.bootstrapByNode) === canonicalSha256(nextBootstrap);
+      if (!isOriginal && !isCompleted) throw new Error('Terraform admission changed during replacement');
+      if (!isCompleted)
+        await storage.write('terraform-admission.json', {
+          ...admission,
+          configurationSha256: marker.configurationSha256,
+          bootstrapByNode: nextBootstrap,
+        });
+    },
     async assertOwnership(candidate, phase, expected = {}, signal) {
       const marker = await readLaunch();
       const live = await observe(candidate, !!marker && ['launch', 'registration', 'complete'].includes(phase), signal);

@@ -12,6 +12,7 @@ import {
   AWS_CE_SCHEMA_VERSION,
   AWS_CE_SHARED_CONTRACT_URL,
   AWS_CE_SSM_PARAMETER,
+  AWS_CE_TGW_GUIDE_URL,
 } from './types';
 
 const ACCOUNT = /^\d{12}$/;
@@ -354,6 +355,14 @@ function validateResearch(observation: AwsCeObservation): void {
     fail('shared contract digest is inconsistent');
   if (receipts.get(AWS_CE_F5_GUIDE_URL) !== observation.research.f5AwsGuide.normalizedSha256)
     fail('F5 AWS guide digest is inconsistent');
+  const tgwGuide = observation.research.mcnTgwGuide;
+  if (
+    tgwGuide &&
+    (tgwGuide.url !== AWS_CE_TGW_GUIDE_URL ||
+      !/^[a-f0-9]{64}$/.test(tgwGuide.normalizedSha256) ||
+      receipts.get(tgwGuide.url) !== tgwGuide.normalizedSha256)
+  )
+    fail('MCN AWS TGW guide evidence is inconsistent');
   const requiredCommands = [
     'aws sts get-caller-identity',
     'aws ec2 describe-regions --all-regions',
@@ -1986,11 +1995,11 @@ export function compileAwsCePlan(
     fail('three-node topology requires three Availability Zones');
   if (
     intent.routing.profile === 'tgw-connect' &&
-    (!observation.research.f5AwsGuide.tgwConnectDocumented ||
+    (!observation.research.mcnTgwGuide?.documented ||
       !observation.f5Capabilities.awsSmsv2TgwConnect.supported ||
       observation.f5Capabilities.awsSmsv2TgwConnect.schemaVersion !== 'f5xc-smsv2-aws-tgw-telemetry/v2')
   )
-    fail('AWS TGW Connect is unavailable without current F5 documentation and the authenticated telemetry contract');
+    fail('AWS TGW Connect requires the current MCN routing recipe and the authenticated telemetry contract');
   if (
     !observation.f5Capabilities.supportedProviders.includes('aws') ||
     !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes(intent.routing.profile)

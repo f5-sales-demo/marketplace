@@ -311,6 +311,20 @@ for (const ha of [false, true])
   test(`shared coordinator completes the Terraform ${ha ? 'HA' : 'independent'} replacement loop`, async () => {
     const f = await fixture(ha);
     try {
+      const originalBootstrap = Object.fromEntries(
+        Object.entries(f.original.resource.aws_instance).map(([name, value]) => [
+          name.slice(5),
+          Buffer.from((value as Json).user_data_base64, 'base64').toString('utf8'),
+        ]),
+      );
+      const admittedSites = f.base.intent.topology.sites?.map((site) => site.name) ?? ['site'];
+      await f.store.write('terraform-admission.json', {
+        schemaVersion: 1,
+        planSha256: f.base.planSha256,
+        configurationSha256: hash(f.configuration),
+        bootstrapByNode: originalBootstrap,
+        admittedSites,
+      });
       const driver = await f.open();
       let uid: string | undefined = 'old-site';
       let creates = 0;
@@ -348,6 +362,14 @@ for (const ha of [false, true])
       expect((await run()).status).toBe('registered-with-configured-interfaces');
       expect((await run()).status).toBe('registered-with-configured-interfaces');
       expect(creates).toBe(1);
+      const admission = (await f.store.read('terraform-admission.json')) as Json;
+      expect(admission.admittedSites).toEqual(admittedSites);
+      expect(admission.bootstrapByNode['1']).not.toBe(originalBootstrap['1']);
+      if (!ha) expect(admission.bootstrapByNode['2']).toBe(originalBootstrap['2']);
+      const marker = (await f.store.read(`${f.replacement.planId}-terraform-launch.json`)) as Json;
+      expect(admission.configurationSha256).toBe(marker.configurationSha256);
+      await f.store.write('terraform-admission.json', { ...admission, configurationSha256: '0'.repeat(64) });
+      await expect(run()).rejects.toThrow('admission changed');
     } finally {
       await f.cleanup();
     }

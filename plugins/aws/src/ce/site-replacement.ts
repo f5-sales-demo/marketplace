@@ -47,6 +47,8 @@ export interface AwsSiteReplacementDriver {
     bootstrap: Record<string, string>,
     signal?: AbortSignal,
   ): Promise<Record<string, string>>;
+  /** Commit engine-specific admission state only after fresh registration and configuration convergence. */
+  finalize?(plan: AwsSiteReplacementPlan, instances: Record<string, string>, signal?: AbortSignal): Promise<void>;
 }
 interface Checkpoint {
   schemaVersion: 1;
@@ -351,6 +353,7 @@ export async function runAwsSiteReplacement(
       );
       if ((await runtime.observeRegistrations(binding, checkpoint.instances, signal)).status !== 'healthy')
         return { status: 'pending-registration', routing: 'unknown', traffic: 'unknown' };
+      await driver.finalize?.(plan, checkpoint.instances, signal);
       checkpoint.phase = 'complete';
       await save();
       return {
