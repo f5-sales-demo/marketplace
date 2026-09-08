@@ -123,7 +123,6 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       throw new Error('Terraform node admission requires resolved platform cloud-init');
     add('aws_instance', `node_${node}`, {
       ami: intent.image.amiId,
-      source_dest_check: false,
       instance_type: intent.instance.type,
       user_data_base64: Buffer.from(bootstrap).toString('base64'),
       user_data_replace_on_change: true,

@@ -133,7 +133,7 @@ function fixture() {
   const bootstrapped: string[] = [];
   let healthy = false;
   const runtime = {
-    async ensureSite() {},
+    async reserveSite() {},
     async bootstrap(_binding: unknown, node: string) {
       bootstrapped.push(node);
       return '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture\n';
@@ -168,7 +168,9 @@ it('admits independent sites cumulatively and waits for registration before the 
   );
   expect([...f.nodes]).toEqual([1]);
   f.healthy();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
+  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe(
+    'registered-awaiting-interface-configuration',
+  );
   expect([...f.nodes]).toEqual([1, 2, 3]);
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
   const checkpoint = (await f.storage.read('terraform-admission.json')) as { bootstrapByNode: Record<string, string> };
@@ -181,7 +183,9 @@ it('resumes after interrupted apply without minting bootstrap again or omitting 
     'interrupted',
   );
   f.healthy();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
+  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe(
+    'registered-awaiting-interface-configuration',
+  );
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
   expect([...f.nodes]).toEqual([1, 2, 3]);
 });

@@ -25,6 +25,7 @@ it('admits independent sites cumulatively and preserves exact bootstrap bytes', 
   expect(second.resource.aws_instance.node_1).toEqual(first.resource.aws_instance.node_1);
   expect(Buffer.from(first.resource.aws_instance.node_1.user_data_base64, 'base64').toString()).toBe(bootstrap);
   expect(first.resource.aws_instance.node_1.user_data_replace_on_change).toBe(true);
+  expect(first.resource.aws_instance.node_1.source_dest_check).toBeUndefined();
   expect(first.resource.aws_instance.node_1.root_block_device[0].volume_size).toBe(100);
 });
 it('rejects partial HA admission, unresolved bootstrap and native or obsolete plans', () => {

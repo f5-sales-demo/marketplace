@@ -23,7 +23,7 @@ interface Admission {
 export async function admitAwsTerraformSites(
   plan: AwsCePlan,
   session: TerraformSession,
-  runtime: Pick<CeRuntime, 'ensureSite' | 'bootstrap' | 'observeRegistrations' | 'approveRegistrations'>,
+  runtime: Pick<CeRuntime, 'reserveSite' | 'bootstrap' | 'observeRegistrations' | 'approveRegistrations'>,
   storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   api: AwsExecApi,
   env: Record<string, string | undefined>,
@@ -31,6 +31,8 @@ export async function admitAwsTerraformSites(
 ) {
   verifyAwsCePlan(plan);
   const initial = renderAwsTerraformFoundation(plan);
+  if (plan.intent.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
+    throw new Error('Terraform admission requires supported SLO/SLI DHCP mapping');
   let checkpoint: Admission;
   try {
     checkpoint = (await storage.read('terraform-admission.json')) as Admission;
@@ -85,34 +87,9 @@ export async function admitAwsTerraformSites(
     signal?.throwIfAborted();
     await storage.verify();
     const outputs = await readOutputs();
-    const discovered = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
+    await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
     if (!checkpoint.admittedSites.includes(site.name)) {
-      await runtime.ensureSite(
-        binding,
-        {
-          schemaVersion: 2,
-          provider: 'aws',
-          haMode: binding.nodes.length === 3 ? 'three-node' : 'one-node',
-          settings: {},
-          nodes: binding.nodes.map((hostname, index) => ({
-            hostname,
-            interfaces: plan.intent.interfaces.map((item) => {
-              if (!['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
-                throw new Error('Terraform admission requires supported SLO/SLI DHCP mapping');
-              return {
-                name: item.role,
-                ethernet_interface: {
-                  mac: discovered.bindings[`__ENI_${site.nodeIndexes[index]}_${item.index}_MAC__`],
-                },
-                network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
-                dhcp_client: {},
-              };
-            }),
-          })),
-        },
-        (record) => storage.write(`terraform-site-${site.name}.json`, record),
-        signal,
-      );
+      await runtime.reserveSite(binding, (record) => storage.write(`terraform-site-${site.name}.json`, record), signal);
       for (const node of site.nodeIndexes) {
         if (checkpoint.bootstrapByNode[String(node)]) continue;
         const tokenName = `${plan.deploymentName.slice(0, 40)}-${node}-${plan.planSha256.slice(0, 12)}`;
@@ -170,5 +147,10 @@ export async function admitAwsTerraformSites(
     if (registrations.status !== 'healthy')
       return { status: 'pending-registration', sites: observations, routing: 'unknown', traffic: 'unknown' };
   }
-  return { status: 'registered', sites: observations, routing: 'unknown', traffic: 'unknown' };
+  return {
+    status: 'registered-awaiting-interface-configuration',
+    sites: observations,
+    routing: 'unknown',
+    traffic: 'unknown',
+  };
 }
