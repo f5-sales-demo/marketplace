@@ -2,6 +2,7 @@ import { isIP } from 'node:net';
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import { prepareRecoverableAction } from './create-recovery';
 import { siteForNode, siteTopology } from './topology';
+import { observedConnectCidrs } from './transport-routes';
 import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDraft } from './types';
 import {
   AWS_CE_F5_GUIDE_URL,
@@ -1697,6 +1698,77 @@ function compileActions(
         transportInterfaceIndex: 1,
         transitGatewayAddress: undefined,
       }));
+    if (intent.vpc.mode === 'greenfield') {
+      const transportCidrs = observedConnectCidrs(intent, observation);
+      for (const role of [...new Set(peers.map((peer) => peer.transportInterfaceIndex))].sort()) {
+        const reuseSlo = role === 0 && intent.egress.mode === 'elastic-ip';
+        const table = reuseSlo ? '__SLO_ROUTE_TABLE__' : `__GRE_ROUTE_TABLE_${role}__`;
+        const resourceId = `aws://${intent.region}/route-table/${intent.deploymentName}-${role === 0 ? 'slo' : 'sli'}`;
+        if (!reuseSlo) {
+          add({
+            phase: 'routing',
+            kind: 'route-table-create',
+            description: `Create interface ${role} GRE transport route table`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'create-route-table',
+              '--vpc-id',
+              '__VPC_ID__',
+              '--tag-specifications',
+              tagSpec(intent, 'route-table'),
+              ...base,
+            ],
+            resourceId,
+            mutates: true,
+            destructive: false,
+            capture: { placeholder: table, path: 'RouteTable.RouteTableId' },
+          });
+          for (let node = 1; node <= intent.topology.nodeCount; node++)
+            add({
+              phase: 'routing',
+              kind: 'route-table-associate',
+              description: `Associate node ${node} interface ${role} subnet with GRE transport routing`,
+              command: 'aws',
+              args: [
+                'ec2',
+                'associate-route-table',
+                '--route-table-id',
+                table,
+                '--subnet-id',
+                `__SUBNET_${node}_${role}__`,
+                ...base,
+              ],
+              resourceId,
+              node,
+              mutates: true,
+              destructive: false,
+              capture: { placeholder: `__GRE_ROUTE_ASSOCIATION_${node}_${role}__`, path: 'AssociationId' },
+            });
+        }
+        for (const destination of transportCidrs)
+          add({
+            phase: 'routing',
+            kind: 'route-create',
+            description: `Route interface ${role} GRE transport ${destination} to the Transit Gateway`,
+            command: 'aws',
+            args: [
+              'ec2',
+              'create-route',
+              '--route-table-id',
+              table,
+              '--destination-cidr-block',
+              destination,
+              '--transit-gateway-id',
+              intent.routing.transitGatewayId ?? '',
+              ...base,
+            ],
+            resourceId,
+            mutates: true,
+            destructive: false,
+          });
+      }
+    }
     const roleCounts = new Map<number, number>();
     const peerGroups = peers.map((peer) => {
       const position = roleCounts.get(peer.transportInterfaceIndex) ?? 0;

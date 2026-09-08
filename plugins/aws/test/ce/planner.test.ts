@@ -655,12 +655,27 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     node: Math.floor(index / 2) + 1,
     insideCidr: `169.254.${index + 10}.0/29`,
     transportInterfaceIndex: 0,
-    transitGatewayAddress: `10.0.20.${index + 10}`,
+    transitGatewayAddress: `172.31.240.${index + 10}`,
   }));
   const sites = [1, 2, 3].map((node) => ({ name: `site-${node}`, nodeIndexes: [node] }));
   const evidence = observation();
   evidence.resources = [
-    { id: 'tgw-0123456789abcdef0', region: 'us-east-1', exists: true, owned: false, tags: {}, state: {} },
+    {
+      id: 'tgw-0123456789abcdef0',
+      region: 'us-east-1',
+      exists: true,
+      owned: false,
+      tags: {},
+      state: {
+        TransitGateways: [
+          {
+            TransitGatewayId: 'tgw-0123456789abcdef0',
+            State: 'available',
+            Options: { AmazonSideAsn: 64512, TransitGatewayCidrBlocks: ['172.31.240.0/24'] },
+          },
+        ],
+      },
+    },
   ];
   evidence.research.f5AwsGuide.tgwConnectDocumented = true;
   evidence.f5Capabilities = {
@@ -689,6 +704,12 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       }),
       evidence,
     );
+    const greRoutes = plan.actions.filter(
+      (action) => action.kind === 'route-create' && action.args?.includes('--transit-gateway-id'),
+    );
+    expect(greRoutes).toHaveLength(1);
+    expect(greRoutes[0].args).toContain('__SLO_ROUTE_TABLE__');
+    expect(greRoutes[0].args).toContain('172.31.240.0/24');
     const actions = plan.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
     expect(actions).toHaveLength(6);
     const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
@@ -710,6 +731,33 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(plan.actions.find((action) => action.kind === 'bgp-gate')?.description).toContain(
       '12 AWS-managed BGP sessions',
     );
+    const mixed = compileAwsCePlan(
+      {
+        ...plan.intent,
+        routing: {
+          ...plan.intent.routing,
+          connectPeers: peers.map((peer, index) => ({ ...peer, transportInterfaceIndex: index % 2 })),
+        },
+      },
+      evidence,
+    );
+    const mixedRoutes = mixed.actions.filter(
+      (action) => action.kind === 'route-create' && action.args?.includes('--transit-gateway-id'),
+    );
+    expect(mixedRoutes).toHaveLength(2);
+    expect(mixedRoutes.map((action) => action.args?.[(action.args?.indexOf('--route-table-id') ?? -1) + 1])).toEqual([
+      '__SLO_ROUTE_TABLE__',
+      '__GRE_ROUTE_TABLE_1__',
+    ]);
+    const sliAssociations = mixed.actions.filter(
+      (action) => action.kind === 'route-table-associate' && action.args?.includes('__GRE_ROUTE_TABLE_1__'),
+    );
+    expect(sliAssociations).toHaveLength(3);
+    expect(sliAssociations.map((action) => action.args?.[(action.args?.indexOf('--subnet-id') ?? -1) + 1])).toEqual([
+      '__SUBNET_1_1__',
+      '__SUBNET_2_1__',
+      '__SUBNET_3_1__',
+    ]);
   }
 });
 

@@ -111,6 +111,7 @@ export async function assertAwsActionOwnership(
     '--subnet-id',
     '--subnet-ids',
     '--route-table-id',
+    '--transit-gateway-id',
     '--transit-gateway-route-table-id',
     '--transit-gateway-attachment-id',
     '--transit-gateway-connect-peer-id',
@@ -127,7 +128,7 @@ export async function assertAwsActionOwnership(
         value = value.replaceAll(placeholder, replacement);
       if (/__[A-Z0-9_]+__/.test(value)) throw new Error('AWS ownership target is unresolved');
       for (const match of value.matchAll(
-        /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:i|eni|sg|vpc|subnet|rtb|igw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
+        /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:i|eni|sg|vpc|subnet|rtb|igw|tgw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
       ))
         ids.add(match[0]);
     }
