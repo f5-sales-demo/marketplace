@@ -7,7 +7,8 @@ export function scopedAwsApi(api: AwsExecApi, profile?: string, signal?: AbortSi
   return {
     async exec(command, args, options) {
       if (command !== 'aws') throw new Error('CE AWS executor accepts only AWS commands');
-      const cancellation = options?.signal ?? signal;
+      const cancellation =
+        options?.signal && signal ? AbortSignal.any([signal, options.signal]) : (options?.signal ?? signal);
       cancellation?.throwIfAborted();
       const existing = args.indexOf('--profile');
       if (args.some((arg) => arg.startsWith('--profile=')) || (existing >= 0 && args[existing + 1] !== profile))

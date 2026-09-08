@@ -42,3 +42,25 @@ test('CE commands keep the selected profile and propagate cancellation', async (
   await expect(api.exec('aws', [], { signal: controller.signal })).rejects.toThrow();
   expect(calls).toHaveLength(1);
 });
+
+test('a per-command signal cannot mask deployment cancellation', async () => {
+  for (const abortParent of [true, false]) {
+    const parent = new AbortController();
+    const command = new AbortController();
+    let observed: AbortSignal | undefined;
+    const api = scopedAwsApi(
+      {
+        async exec(_command, _args, options) {
+          observed = options?.signal;
+          return { stdout: '', stderr: '', exitCode: 0 };
+        },
+      },
+      'demo-role',
+      parent.signal,
+    );
+    await api.exec('aws', ['sts', 'get-caller-identity'], { signal: command.signal });
+    (abortParent ? parent : command).abort(new Error('qualification cancelled'));
+    expect(observed?.aborted).toBe(true);
+    await expect(api.exec('aws', [], { signal: command.signal })).rejects.toThrow('qualification cancelled');
+  }
+});
