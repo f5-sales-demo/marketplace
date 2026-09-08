@@ -14,7 +14,7 @@ and this project adheres to
 
 - **`aws`** bumped to v2.0.26
 
-- **`terraform`** bumped to v2.0.8
+- **`terraform`** bumped to v2.0.9
 
 - **`platform`** bumped to v5.0.14
 

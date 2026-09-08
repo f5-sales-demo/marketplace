@@ -1,0 +1,24 @@
+# CE lifecycle action plans
+
+The Terraform service exposes `planAction` for one explicit action at a time.
+Cloud lifecycle adapters supply site ownership, current readiness, target eligibility,
+and subsequent convergence checks. A successful action request does not prove an upgrade completed.
+
+For a separate lifecycle workspace, set `Deployment.stage` and bind the backend to
+`local:<deploymentId>:stage:<stage>`. The service retains the deployment owner and
+places the stage under restricted deployment storage. Its provider lock and CLI
+configuration are independent of the infrastructure workspace.
+
+Supply the exact action address, type, provider source, and SHA-256 of canonical
+(sorted-key JSON) configuration values. The runner checks the saved plan for exactly
+that invocation. It rejects deferred or unrequested actions, lifecycle triggers,
+unknown or sensitive action inputs, mismatched configuration, and resource or output
+changes. Ordinary resource plans also reject action invocations.
+
+Apply the returned receipt through the same session. Application rechecks the saved
+binary and action identity. Retain ambiguous attempts for observation and recovery;
+do not automatically repeat an upgrade after an interrupted apply. Final convergence
+requires a fresh ordinary plan with no resource, output, or action changes.
+
+See [HashiCorp action invocation](https://developer.hashicorp.com/terraform/language/invoke-actions)
+and the [Terraform 1.16.1 action JSON contract](https://github.com/hashicorp/terraform/blob/v1.16.1/internal/command/jsonplan/action_invocations.go).

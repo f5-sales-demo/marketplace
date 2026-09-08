@@ -1,6 +1,7 @@
+import { join } from 'node:path';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import type { CeEventBus, CePlatformService } from '../../platform/src/ce/service';
-import { type Deployment, type PlanReceipt, TerraformRunner } from './runner';
+import { type Deployment, type PlanReceipt, type TerraformActionIntent, TerraformRunner } from './runner';
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
@@ -18,6 +19,11 @@ export interface TerraformSession {
     signal?: AbortSignal,
   ): Promise<Record<string, unknown>>;
   reviseConfiguration(expectedSha256: string, configuration: string): Promise<string>;
+  planAction(
+    intent: TerraformActionIntent,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlanReceipt>;
   plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
@@ -42,7 +48,11 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         throw new Error('Terraform deployment and cloud ownership differ');
       const shared = await platform();
       const store = await shared.storage(owner);
-      const runner = new TerraformRunner(store.directory);
+      if (deployment.stage !== undefined && !/^[a-z][a-z0-9-]{0,62}$/.test(deployment.stage))
+        throw new Error('Invalid Terraform stage identity');
+      const runner = new TerraformRunner(
+        deployment.stage ? join(store.directory, 'terraform-stages', deployment.stage) : store.directory,
+      );
       if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
@@ -64,6 +74,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();
           return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async planAction(intent, env, signal) {
+          await checkOwner();
+          return runner.planAction(intent, env, signal);
         },
         async plan(env, signal) {
           await checkOwner();

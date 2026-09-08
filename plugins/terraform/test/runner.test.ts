@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TerraformCommandError } from '../src/failure';
 import { type Invocation, TerraformRunner, terraformExecutor } from '../src/runner';
+import actionFixture from './fixtures/site-upgrade-action.json';
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -15,12 +16,14 @@ async function fixture(
   planOverrides: Record<string, unknown> = {},
   outputValues: Record<string, unknown> = {},
   configuration = '{"terraform":{"required_version":"= 1.14.0"}}',
+  onApply?: () => void,
 ) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
   directories.push(root);
   const calls: Invocation[] = [];
   const runner = new TerraformRunner(root, async (request) => {
     calls.push(request);
+    if (request.args[0] === 'apply') onApply?.();
     if (request.args[0] === 'plan') await writeFile(join(request.cwd, 'saved.tfplan'), 'binary-plan', { mode: 0o600 });
     return {
       code: 0,
@@ -452,4 +455,81 @@ test('failed refresh retains the prior sensitive plan and receipt in restricted 
   await expect(failing.plan({})).rejects.toThrow();
   expect(await readdir(join(directory, 'plan-history'))).toHaveLength(2);
   expect(await readFile(join(archive, 'saved.tfplan'), 'utf8')).toBe('binary-plan');
+});
+
+const actionConfig = { name: 'ce-one', namespace: 'system', version: 'crt-20260201-0179', force: false };
+const actionIntent = {
+  address: 'action.xcsh_site_upgrade_sw.ce',
+  type: 'xcsh_site_upgrade_sw',
+  providerName: 'registry.terraform.io/f5-sales-demo/xcsh',
+  configValuesSha256: hash(
+    JSON.stringify({ force: false, name: 'ce-one', namespace: 'system', version: 'crt-20260201-0179' }),
+  ),
+};
+const actionRow = actionFixture.action;
+test('serial action planning binds exactly one invocation and applies only its saved binary', async () => {
+  const { runner, calls } = await fixture({
+    resource_changes: [],
+    output_changes: {},
+    action_invocations: [actionRow],
+  });
+  const receipt = await runner.planAction(actionIntent, {});
+  expect(receipt.noChanges).toBe(false);
+  expect(receipt.actionInvocations).toEqual([actionIntent]);
+  expect(JSON.stringify(receipt)).not.toContain('crt-20260201-0179');
+  expect(calls.find((c) => c.args[0] === 'plan')?.args).toContain(`-invoke=${actionIntent.address}`);
+  await runner.apply(receipt, {});
+  expect(calls.at(-1)?.args).toEqual(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan']);
+});
+test('ordinary plans reject unrequested or deferred action invocations', async () => {
+  for (const extra of [
+    { action_invocations: [actionRow] },
+    { deferred_action_invocations: [{}] },
+    { action_invocations: null },
+  ]) {
+    const { runner } = await fixture({ resource_changes: [], output_changes: {}, ...extra });
+    await expect(runner.plan({})).rejects.toThrow();
+  }
+});
+test('action plans reject resource drift, duplicates, foreign providers, unknown inputs and wrong config', async () => {
+  for (const extra of [
+    { resource_changes: [{ address: 'terraform_data.ce', type: 'terraform_data', change: { actions: ['update'] } }] },
+    { action_invocations: [] },
+    { action_invocations: [actionRow, actionRow] },
+    ...[
+      { provider_name: 'registry.terraform.io/foreign/xcsh' },
+      { config_unknown: { version: true } },
+      { config_sensitive: { version: true } },
+      { config_values: { ...actionConfig, force: true } },
+      { lifecycle_action_trigger: {} },
+      { invoke_action_trigger: { calling_resource_address: 'aws_instance.other' } },
+    ].map((patch) => ({ action_invocations: [{ ...actionRow, ...patch }] })),
+  ]) {
+    const { runner, calls } = await fixture({
+      resource_changes: [],
+      output_changes: {},
+      action_invocations: [actionRow],
+      ...extra,
+    });
+    await expect(runner.planAction(actionIntent, {})).rejects.toThrow();
+    expect(calls.some((c) => c.args[0] === 'apply')).toBe(false);
+  }
+});
+
+test('rechecks action metadata at application and preserves ambiguous invocation for reconciliation', async () => {
+  const overrides = { resource_changes: [], output_changes: {}, action_invocations: [] as unknown[] };
+  const ordinary = await fixture(overrides);
+  const receipt = await ordinary.runner.plan({});
+  overrides.action_invocations = [actionRow];
+  await expect(ordinary.runner.apply(receipt, {})).rejects.toThrow('unrequested');
+  expect(ordinary.calls.some((call) => call.args[0] === 'apply')).toBe(false);
+  let invokes = 0;
+  const action = await fixture({ ...overrides }, {}, undefined, () => {
+    invokes++;
+    throw new Error('lost action response');
+  });
+  const actionReceipt = await action.runner.planAction(actionIntent, {});
+  await expect(action.runner.apply(actionReceipt, {})).rejects.toThrow('lost action response');
+  await expect(action.runner.apply(actionReceipt, {})).rejects.toThrow('reconciliation');
+  expect(invokes).toBe(1);
 });

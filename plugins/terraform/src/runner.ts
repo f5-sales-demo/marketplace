@@ -15,6 +15,7 @@ type Executor = (
 export interface Deployment {
   schemaVersion: 1;
   deploymentId: string;
+  stage?: string;
   engine: 'terraform';
   scope: { cloud: 'aws' | 'azure'; account: string; region: string };
   terraformVersion: string;
@@ -26,6 +27,12 @@ interface Manifest extends Omit<Deployment, 'configuration' | 'providerLock'> {
   configurationSha256: string;
   providerLockSha256: string;
 }
+export interface TerraformActionIntent {
+  address: string;
+  type: string;
+  providerName: string;
+  configValuesSha256: string;
+}
 export interface PlanReceipt {
   schemaVersion: 1;
   deploymentId: string;
@@ -36,6 +43,7 @@ export interface PlanReceipt {
   planSha256: string;
   changes: Array<{ address: string; type: string; actions: string[] }>;
   noChanges: boolean;
+  actionInvocations?: TerraformActionIntent[];
 }
 const cliConfig = 'provider_installation {\n  direct {}\n}\ndisable_checkpoint = true\n';
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -73,6 +81,48 @@ function changeActions(value: unknown, output = false): string[] {
   )
     throw new Error('Terraform change actions are malformed or unsupported');
   return value as string[];
+}
+
+function validateActionIntent(intent: TerraformActionIntent): void {
+  if (
+    !intent ||
+    Object.keys(intent).sort().join(',') !== 'address,configValuesSha256,providerName,type' ||
+    Object.values(intent).some((value) => typeof value !== 'string') ||
+    !/^[a-z][a-z0-9_]*$/.test(intent.type) ||
+    !new RegExp(`^action\\.${intent.type}\\.[a-z][a-z0-9_]*(?:\\["[a-z][a-z0-9_-]*"\\])?$`).test(intent.address) ||
+    !/^[a-z0-9.-]+\/[a-z0-9-]+\/[a-z0-9-]+$/.test(intent.providerName) ||
+    !/^[a-f0-9]{64}$/.test(intent.configValuesSha256)
+  )
+    throw new Error('Explicit action address, provider and configuration digest required');
+}
+function allFalse(value: unknown): boolean {
+  return value === false || (value !== null && typeof value === 'object' && Object.values(value).every(allFalse));
+}
+/** Terraform 1.16 JSON action invocations; never export config_values or sensitivity maps. */
+function inspectActionInvocations(plan: Json, expected?: TerraformActionIntent): TerraformActionIntent[] {
+  const invocations = plan.action_invocations === undefined ? [] : plan.action_invocations;
+  const deferred = plan.deferred_action_invocations === undefined ? [] : plan.deferred_action_invocations;
+  if (
+    !Array.isArray(invocations) ||
+    !Array.isArray(deferred) ||
+    deferred.length ||
+    invocations.length !== (expected ? 1 : 0)
+  )
+    throw new Error('Terraform actions are unrequested, missing, duplicated or deferred');
+  if (!expected) return [];
+  const action = object(invocations[0]);
+  if (
+    action.address !== expected.address ||
+    action.type !== expected.type ||
+    action.provider_name !== expected.providerName ||
+    action.lifecycle_action_trigger !== undefined ||
+    Object.keys(object(action.invoke_action_trigger)).length ||
+    !allFalse(action.config_unknown) ||
+    !allFalse(action.config_sensitive) ||
+    digest(canonical(object(action.config_values))) !== expected.configValuesSha256
+  )
+    throw new Error('Terraform action identity, trigger or configuration differs');
+  return [{ ...expected }];
 }
 
 async function privateDirectory(path: string): Promise<void> {
@@ -204,6 +254,8 @@ export class TerraformRunner {
   async prepare(deployment: Deployment): Promise<void> {
     if (deployment.schemaVersion !== 1 || deployment.engine !== 'terraform' || !safeId.test(deployment.deploymentId))
       throw new Error('Terraform deployment identity or owning engine is unsupported');
+    if (deployment.stage !== undefined && !safeId.test(deployment.stage))
+      throw new Error('Invalid Terraform stage identity');
     if (!/^\d+\.\d+\.\d+$/.test(deployment.terraformVersion) || !deployment.providerLock.trim())
       throw new Error('Exact Terraform version and provider lock are required');
     // Remote backend admission needs the cloud adapter's lock and identity validation.
@@ -211,7 +263,8 @@ export class TerraformRunner {
     if (
       object(configuration.terraform ?? {}).backend ||
       object(configuration.terraform ?? {}).cloud ||
-      deployment.backendIdentity !== `local:${deployment.deploymentId}`
+      deployment.backendIdentity !==
+        `local:${deployment.deploymentId}${deployment.stage ? `:stage:${deployment.stage}` : ''}`
     )
       throw new Error('This runner currently admits isolated local backends only');
     if (!deployment.scope.account || !deployment.scope.region || !['aws', 'azure'].includes(deployment.scope.cloud))
@@ -462,6 +515,23 @@ export class TerraformRunner {
     }
   }
   async plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt> {
+    return this.#plan(env, signal);
+  }
+  /** One explicitly selected action; cloud lifecycle adapters supply ownership and convergence gates. */
+  async planAction(
+    intent: TerraformActionIntent,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<PlanReceipt> {
+    intent = structuredClone(intent);
+    validateActionIntent(intent);
+    return this.#plan(env, signal, intent);
+  }
+  async #plan(
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+    action?: TerraformActionIntent,
+  ): Promise<PlanReceipt> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       await this.#archivePlanAttempt();
@@ -472,7 +542,15 @@ export class TerraformRunner {
       await this.#verifyInputs();
       await this.#run(['validate', '-json'], env, signal);
       await this.#run(
-        ['plan', '-input=false', '-lock=true', '-lock-timeout=60s', '-refresh=true', '-out=saved.tfplan'],
+        [
+          'plan',
+          '-input=false',
+          '-lock=true',
+          '-lock-timeout=60s',
+          '-refresh=true',
+          '-out=saved.tfplan',
+          ...(action ? [`-invoke=${action.address}`] : []),
+        ],
         env,
         signal,
       );
@@ -489,6 +567,7 @@ export class TerraformRunner {
         !Array.isArray(plan.resource_changes ?? [])
       )
         throw new Error('Terraform plan JSON is malformed or unsupported');
+      const actionInvocations = inspectActionInvocations(plan, action);
       const changes: PlanReceipt['changes'] = [];
       for (const value of (plan.resource_changes ?? []) as unknown[]) {
         const resource = object(value);
@@ -504,8 +583,11 @@ export class TerraformRunner {
       const outputs = Object.values(object(plan.output_changes ?? {})).map((output) =>
         changeActions(object(output).actions, true),
       );
-      const noChanges =
+      const resourcesUnchanged =
         changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
+      if (action && !resourcesUnchanged)
+        throw new Error('Terraform action plan contains unrelated resource or output changes');
+      const noChanges = resourcesUnchanged && actionInvocations.length === 0;
       if (!noChanges && !plan.applyable) throw new Error('Terraform plan has changes but cannot be applied'); // codespell:ignore applyable
       const manifest = this.#state().manifest;
       const receipt: PlanReceipt = {
@@ -518,6 +600,7 @@ export class TerraformRunner {
         planSha256: digest(await privateRead(join(this.#state().directory, 'saved.tfplan'))),
         changes,
         noChanges,
+        ...(actionInvocations.length ? { actionInvocations } : {}),
       };
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
       return receipt;
@@ -633,6 +716,14 @@ export class TerraformRunner {
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== this.#state().manifest.terraformVersion)
         throw new Error('Terraform version changed');
+      const expectedActions = receipt.actionInvocations ?? [];
+      if (!Array.isArray(expectedActions) || expectedActions.length > 1)
+        throw new Error('Saved action receipt is malformed');
+      if (expectedActions.length) validateActionIntent(expectedActions[0]);
+      const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
+      inspectActionInvocations(plan, expectedActions[0]);
+      if (receipt.planSha256 !== digest(await privateRead(join(this.#state().directory, 'saved.tfplan'))))
+        throw new Error('Terraform saved plan changed during action inspection');
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });

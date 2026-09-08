@@ -116,3 +116,18 @@ test('current resume retains private stage configuration while enforcing provide
     ),
   ).rejects.toThrow('identity');
 });
+
+test('isolates lifecycle stage workspaces while retaining deployment and engine ownership', async () => {
+  const { service } = await fixture();
+  await service.open(owner, deployment, false);
+  const staged = {
+    ...deployment,
+    stage: 'upgrade-site-one',
+    backendIdentity: `local:${owner.deploymentId}:stage:upgrade-site-one`,
+  };
+  await service.open(owner, staged, false);
+  await service.open(owner, staged, true);
+  await service.open(owner, deployment, true);
+  await expect(service.open(owner, { ...staged, stage: '../foreign' }, false)).rejects.toThrow();
+  await expect(service.open(owner, { ...staged, backendIdentity: deployment.backendIdentity }, true)).rejects.toThrow();
+});
