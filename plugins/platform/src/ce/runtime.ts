@@ -674,6 +674,44 @@ export class CeRuntime {
         });
       }
   }
+  /** Remove only a routing object recorded for this exact owned site. */
+  async deleteRouting(
+    binding: SiteBinding,
+    resource: { kind: 'bgp' | 'external_connector'; name: string; uid: string },
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#binding(binding, true);
+    if (
+      !['bgp', 'external_connector'].includes(resource.kind) ||
+      !safeName.test(resource.name) ||
+      typeof resource.uid !== 'string' ||
+      !resource.uid.trim()
+    )
+      throw new Error('Exact routing kind, name and checkpoint UID required');
+    const path = `/api/config/namespaces/system/${resource.kind}s/${resource.name}`;
+    let existing: Json;
+    try {
+      existing = await this.#request(path, {}, signal);
+    } catch (error) {
+      if (error instanceof CeApiError && error.category === 'not-found') return;
+      throw error;
+    }
+    this.#owned(existing, { ...binding, siteName: resource.name });
+    if (
+      object(existing.system_metadata).uid !== resource.uid ||
+      object(object(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName
+    )
+      throw new Error('Routing checkpoint UID or site ownership differs');
+    await this.observeOwnedSite(binding, signal);
+    await this.#request(path, { method: 'DELETE' }, signal);
+    try {
+      await this.#request(path, {}, signal);
+    } catch (error) {
+      if (error instanceof CeApiError && error.category === 'not-found') return;
+      throw error;
+    }
+    throw new Error('Routing deletion is still converging; resume teardown');
+  }
   async deleteSite(binding: SiteBinding, signal?: AbortSignal): Promise<void> {
     this.#binding(binding, true);
     let site: Json;

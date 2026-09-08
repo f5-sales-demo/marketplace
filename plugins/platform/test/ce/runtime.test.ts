@@ -524,3 +524,66 @@ test('upgrade observations bind both site identities and reject changes during c
       });
   }
 });
+
+test('routing teardown requires the checkpoint UID, site label and owning engine', async () => {
+  const { contract } = await candidate(true);
+  for (const mode of ['valid', 'foreign-uid', 'foreign-site', 'wrong-engine'] as const) {
+    let deletes = 0;
+    const runtime = new CeRuntime(
+      contract,
+      mode === 'wrong-engine' ? 'terraform' : 'native',
+      'https://tenant.test',
+      'test-credential',
+      async (url, init) => {
+        if (init?.method === 'DELETE') {
+          deletes++;
+          return json({});
+        }
+        if (new URL(url).pathname.includes('securemesh_site_v2s'))
+          return json({ metadata: { name: binding.siteName, namespace: 'system', labels } });
+        if (deletes) return json({}, 404);
+        return json({
+          metadata: {
+            name: 'ce-bgp',
+            namespace: 'system',
+            labels: { ...labels, 'xcsh-ce-site': mode === 'foreign-site' ? 'foreign' : binding.siteName },
+          },
+          system_metadata: { uid: mode === 'foreign-uid' ? 'foreign' : 'routing-one' },
+        });
+      },
+    );
+    const action = runtime.deleteRouting(binding, { kind: 'bgp', name: 'ce-bgp', uid: 'routing-one' });
+    if (mode === 'valid') {
+      await action;
+      expect(deletes).toBe(1);
+    } else {
+      await expect(action).rejects.toThrow();
+      expect(deletes).toBe(0);
+    }
+  }
+});
+
+test('routing teardown treats absence as complete and reports a still-present object as pending', async () => {
+  const { contract } = await candidate(true);
+  for (const present of [false, true]) {
+    let deletes = 0;
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+      if (init?.method === 'DELETE') {
+        deletes++;
+        return json({});
+      }
+      if (new URL(url).pathname.includes('securemesh_site_v2s'))
+        return json({ metadata: { name: binding.siteName, namespace: 'system', labels } });
+      return present
+        ? json({
+            metadata: { name: 'ce-gre', namespace: 'system', labels: { ...labels, 'xcsh-ce-site': binding.siteName } },
+            system_metadata: { uid: 'routing-one' },
+          })
+        : json({}, 404);
+    });
+    const action = runtime.deleteRouting(binding, { kind: 'external_connector', name: 'ce-gre', uid: 'routing-one' });
+    if (present) await expect(action).rejects.toThrow('still converging');
+    else await action;
+    expect(deletes).toBe(present ? 1 : 0);
+  }
+});

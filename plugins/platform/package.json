@@ -1,6 +1,6 @@
 {
   "name": "platform",
-  "version": "5.0.14",
+  "version": "5.0.15",
   "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
   "license": "Apache-2.0",
   "main": "src/index.ts",
@@ -9,7 +9,7 @@
   },
   "xcsh": {
     "name": "Platform",
-    "version": "5.0.14",
+    "version": "5.0.15",
     "extensions": [
       "src/index.ts"
     ]
