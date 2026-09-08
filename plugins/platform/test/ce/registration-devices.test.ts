@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test';
-import { correlateRegistrationDevices } from '../../src/ce/registration-devices';
+import {
+  correlateRegistrationDevices,
+  verifyRegisteredInterfaceConfiguration,
+} from '../../src/ce/registration-devices';
 
 const expected = [
   { node: 'ce-one', role: 'slo' as const, mac: '02:00:00:00:00:01' },
@@ -69,4 +72,38 @@ test('rejects partial, foreign, retired, ambiguous and malformed registration in
     expect(() => correlateRegistrationDevices(value, 'site-one', instances, expected)).toThrow();
   }
   expect(() => correlateRegistrationDevices(fixture(), 'site-one', instances, [expected[0], expected[0]])).toThrow();
+});
+
+test('reconciles auto-populated interfaces and rejects wrong roles, devices and addressing', () => {
+  const devices = correlateRegistrationDevices(fixture(), 'site-one', instances, expected);
+  const spec = {
+    aws: {
+      not_managed: {
+        node_list: [
+          {
+            hostname: 'ce-one',
+            interface_list: devices.map((item) => ({
+              ethernet_interface: { mac: item.mac, device: item.device },
+              network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
+              dhcp_client: {},
+              mtu: 0,
+            })),
+          },
+        ],
+      },
+    },
+  };
+  expect(() => verifyRegisteredInterfaceConfiguration(spec, devices)).not.toThrow();
+  const wrongDevice = structuredClone(spec);
+  wrongDevice.aws.not_managed.node_list[0].interface_list[0].ethernet_interface.device = 'guessed';
+  expect(() => verifyRegisteredInterfaceConfiguration(wrongDevice, devices)).toThrow();
+  const wrongRole = structuredClone(spec);
+  wrongRole.aws.not_managed.node_list[0].interface_list[0].network_option = { site_local_inside_network: {} };
+  expect(() => verifyRegisteredInterfaceConfiguration(wrongRole, devices)).toThrow();
+  const missing = structuredClone(spec);
+  missing.aws.not_managed.node_list[0].interface_list.pop();
+  expect(() => verifyRegisteredInterfaceConfiguration(missing, devices)).toThrow();
+  const addressing = structuredClone(spec);
+  Object.assign(addressing.aws.not_managed.node_list[0].interface_list[0], { static_ip: {} });
+  expect(() => verifyRegisteredInterfaceConfiguration(addressing, devices)).toThrow();
 });

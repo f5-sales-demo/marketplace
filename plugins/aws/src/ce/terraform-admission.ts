@@ -23,7 +23,10 @@ interface Admission {
 export async function admitAwsTerraformSites(
   plan: AwsCePlan,
   session: TerraformSession,
-  runtime: Pick<CeRuntime, 'reserveSite' | 'bootstrap' | 'observeRegistrations' | 'approveRegistrations'>,
+  runtime: Pick<
+    CeRuntime,
+    'reserveSite' | 'bootstrap' | 'observeRegistrations' | 'approveRegistrations' | 'observeAwsRegisteredConfiguration'
+  >,
   storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   api: AwsExecApi,
   env: Record<string, string | undefined>,
@@ -130,7 +133,7 @@ export async function admitAwsTerraformSites(
       await save();
     }
     const current = await readOutputs();
-    await discoverAwsTerraformInterfaces(plan, current, api, signal);
+    const discovered = await discoverAwsTerraformInterfaces(plan, current, api, signal);
     const instances = current.ce_instances as Record<string, { id: string }>;
     const expected = Object.fromEntries(
       site.nodeIndexes.map((node) => [`${plan.deploymentName}-${node}`, instances[String(node)]?.id]),
@@ -143,12 +146,26 @@ export async function admitAwsTerraformSites(
       (record) => storage.write(`terraform-registration-${site.name}.json`, record),
       signal,
     );
-    observations.push({ siteName: site.name, registrations });
+    const configuration = await runtime.observeAwsRegisteredConfiguration(
+      binding,
+      expected,
+      site.nodeIndexes.flatMap((node) =>
+        plan.intent.interfaces.map((item) => ({
+          node: `${plan.deploymentName}-${node}`,
+          role: item.role as 'slo' | 'sli',
+          mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+        })),
+      ),
+      signal,
+    );
+    observations.push({ siteName: site.name, registrations, configuration });
+    if (configuration.status !== 'configured')
+      return { status: 'pending-interface-configuration', sites: observations, routing: 'unknown', traffic: 'unknown' };
     if (registrations.status !== 'healthy')
       return { status: 'pending-registration', sites: observations, routing: 'unknown', traffic: 'unknown' };
   }
   return {
-    status: 'registered-awaiting-interface-configuration',
+    status: 'registered',
     sites: observations,
     routing: 'unknown',
     traffic: 'unknown',

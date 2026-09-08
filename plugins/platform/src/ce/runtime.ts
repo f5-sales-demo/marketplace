@@ -1,6 +1,6 @@
 import { bindAwsCloudInit } from './bootstrap';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
-import { correlateRegistrationDevices } from './registration-devices';
+import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import type { VerifiedCeContract } from './verified-contract';
 import type { AwsGreBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
@@ -305,6 +305,32 @@ export class CeRuntime {
     } catch (error) {
       if (signal?.aborted) throw error;
       return { ...base, status: 'unknown' as const, interfaces: [] };
+    }
+  }
+  async observeAwsRegisteredConfiguration(
+    binding: SiteBinding,
+    expectedInstances: Record<string, string>,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ) {
+    const evidence = await this.observeAwsGuestDevices(binding, expectedInstances, expected, signal);
+    if (evidence.status !== 'observed') return { ...evidence, status: 'unknown' as const };
+    try {
+      const configuration = await this.observeSite(binding, signal);
+      this.#owned(configuration, binding);
+      verifyRegisteredInterfaceConfiguration(object(configuration.spec), evidence.interfaces);
+      const uid = object(configuration.system_metadata).uid;
+      if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+      return {
+        ...evidence,
+        configurationSource: this.#sitePath(binding),
+        siteUid: uid,
+        observedAt: new Date().toISOString(),
+        status: 'configured' as const,
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return { ...evidence, status: 'unknown' as const };
     }
   }
   async observeAwsInterfaces(

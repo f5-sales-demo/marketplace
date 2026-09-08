@@ -217,6 +217,22 @@ async function assertGate(
         )
           throw new Error('Observed F5 registration approval has not converged');
       } else if (evidence.status !== 'healthy') throw new Error('Observed F5 registration has not converged');
+      if (action.kind === 'registration-gate') {
+        const configuration = await runtime.observeAwsRegisteredConfiguration(
+          binding,
+          instances,
+          site.nodeIndexes.flatMap((node) =>
+            plan.interfaces.map((item) => ({
+              node: `${plan.deploymentName}-${node}`,
+              role: item.role as 'slo' | 'sli',
+              mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+            })),
+          ),
+          signal,
+        );
+        if (configuration.status !== 'configured')
+          throw new Error('Observed F5 interface configuration has not converged');
+      }
     }
     if (action.kind === 'health-gate') {
       const evidence = await runtime.observeHealth(binding, signal);
@@ -433,31 +449,11 @@ export async function executeAwsCeApply(
           const selected = siteBindings(plan).find(({ site }) => site.nodeIndexes.includes(action.node ?? 0));
           if (!selected) throw new Error('Bootstrap node has no site binding');
           const { site, binding } = selected;
-          const nodes = binding.nodes;
           const hostname = `${plan.deploymentName}-${action.node}`;
-          await runtime.ensureSite(
+          if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
+            throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
+          await runtime.reserveSite(
             binding,
-            {
-              schemaVersion: 2,
-              provider: 'aws',
-              haMode: nodes.length === 3 ? 'three-node' : 'one-node',
-              settings: {},
-              nodes: nodes.map((hostname, index) => ({
-                hostname,
-                interfaces: plan.interfaces.map((item) => {
-                  if (!['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
-                    throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
-                  const mac = checkpoint.resolvedValues[`__ENI_${site.nodeIndexes[index]}_${item.index}_MAC__`];
-                  if (!mac) throw new Error('Provider-assigned ENI MAC identity is unavailable');
-                  return {
-                    name: item.role,
-                    ethernet_interface: { mac },
-                    network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
-                    dhcp_client: {},
-                  };
-                }),
-              })),
-            },
             async (record) => {
               checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
               await saveAwsCheckpoint(ctx.sessionManager, checkpoint);

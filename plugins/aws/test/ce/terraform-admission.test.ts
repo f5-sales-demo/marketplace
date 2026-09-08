@@ -134,6 +134,9 @@ function fixture() {
   let healthy = false;
   const runtime = {
     async reserveSite() {},
+    async observeAwsRegisteredConfiguration() {
+      return { status: 'configured' as const };
+    },
     async bootstrap(_binding: unknown, node: string) {
       bootstrapped.push(node);
       return '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture\n';
@@ -168,9 +171,7 @@ it('admits independent sites cumulatively and waits for registration before the 
   );
   expect([...f.nodes]).toEqual([1]);
   f.healthy();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe(
-    'registered-awaiting-interface-configuration',
-  );
+  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
   expect([...f.nodes]).toEqual([1, 2, 3]);
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
   const checkpoint = (await f.storage.read('terraform-admission.json')) as { bootstrapByNode: Record<string, string> };
@@ -183,9 +184,7 @@ it('resumes after interrupted apply without minting bootstrap again or omitting 
     'interrupted',
   );
   f.healthy();
-  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe(
-    'registered-awaiting-interface-configuration',
-  );
+  expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
   expect([...f.nodes]).toEqual([1, 2, 3]);
 });
@@ -201,4 +200,18 @@ it('rejects update/replacement work during initial admission', async () => {
     'alter or replace',
   );
   expect([...f.nodes]).toEqual([]);
+});
+
+it('does not admit the next site when server-populated interface configuration is unverified', async () => {
+  const f = fixture();
+  f.healthy();
+  const runtime = {
+    ...f.runtime,
+    async observeAwsRegisteredConfiguration() {
+      return { status: 'unknown' as const };
+    },
+  };
+  const result = await admitAwsTerraformSites(f.plan, f.session, runtime, f.storage, f.api, {});
+  expect(result.status).toBe('pending-interface-configuration');
+  expect([...f.nodes]).toEqual([1]);
 });

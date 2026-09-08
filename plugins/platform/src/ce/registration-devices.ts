@@ -79,3 +79,36 @@ export function correlateRegistrationDevices(
     return { ...binding, mac: normalized, device };
   });
 }
+
+/** Reconcile server-populated SMSv2 interfaces without overwriting their configuration. */
+export function verifyRegisteredInterfaceConfiguration(
+  spec: Json,
+  devices: Array<ExpectedCeInterface & { device: string }>,
+): void {
+  const nodes = array(object(object(spec.aws).not_managed).node_list).map(object);
+  const expectedNodes = new Set(devices.map((item) => item.node));
+  if (!devices.length || nodes.length !== expectedNodes.size) throw new Error('Configured node count differs');
+  for (const nodeName of expectedNodes) {
+    const matches = nodes.filter((node) => node.hostname === nodeName);
+    if (matches.length !== 1) throw new Error('Configured node identity differs');
+    const interfaces = array(matches[0].interface_list).map(object);
+    const expected = devices.filter((item) => item.node === nodeName);
+    if (interfaces.length !== expected.length) throw new Error('Configured interface count differs');
+    for (const device of expected) {
+      const matches = interfaces.filter((item) => mac(object(item.ethernet_interface).mac) === device.mac);
+      if (matches.length !== 1) throw new Error('Configured interface MAC differs');
+      const item = matches[0];
+      const network = object(item.network_option);
+      const choice = device.role === 'slo' ? 'site_local_network' : 'site_local_inside_network';
+      if (
+        object(item.ethernet_interface).device !== device.device ||
+        Object.keys(network).length !== 1 ||
+        !Object.hasOwn(network, choice) ||
+        !Object.hasOwn(item, 'dhcp_client') ||
+        Object.hasOwn(item, 'static_ip') ||
+        Object.hasOwn(item, 'no_ipv4_address')
+      )
+        throw new Error('Configured guest device, role or addressing differs');
+    }
+  }
+}
