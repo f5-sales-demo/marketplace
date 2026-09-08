@@ -10,7 +10,7 @@ afterEach(async () => {
   for (const dir of directories.splice(0)) await rm(dir, { recursive: true });
 });
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
-async function fixture(planOverrides: Record<string, unknown> = {}) {
+async function fixture(planOverrides: Record<string, unknown> = {}, outputValues: Record<string, unknown> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
   directories.push(root);
   const calls: Invocation[] = [];
@@ -22,25 +22,27 @@ async function fixture(planOverrides: Record<string, unknown> = {}) {
       stdout:
         request.args[0] === 'version'
           ? JSON.stringify({ terraform_version: '1.14.0' })
-          : request.args[0] === 'show'
-            ? JSON.stringify({
-                format_version: '1.2',
-                terraform_version: '1.14.0',
-                errored: false,
-                complete: true,
-                applyable: true, // codespell:ignore applyable
-                resource_changes: [
-                  {
-                    address: 'terraform_data.ce',
-                    mode: 'managed',
-                    type: 'terraform_data',
-                    change: { actions: ['create'], after: { input: 'SENSITIVE_BOOTSTRAP' } },
-                  },
-                ],
-                output_changes: { token: { actions: ['create'], after: 'SENSITIVE_BOOTSTRAP' } },
-                ...planOverrides,
-              })
-            : '',
+          : request.args[0] === 'output'
+            ? JSON.stringify(outputValues)
+            : request.args[0] === 'show'
+              ? JSON.stringify({
+                  format_version: '1.2',
+                  terraform_version: '1.14.0',
+                  errored: false,
+                  complete: true,
+                  applyable: true, // codespell:ignore applyable
+                  resource_changes: [
+                    {
+                      address: 'terraform_data.ce',
+                      mode: 'managed',
+                      type: 'terraform_data',
+                      change: { actions: ['create'], after: { input: 'SENSITIVE_BOOTSTRAP' } },
+                    },
+                  ],
+                  output_changes: { token: { actions: ['create'], after: 'SENSITIVE_BOOTSTRAP' } },
+                  ...planOverrides,
+                })
+              : '',
     };
   });
   await runner.prepare({
@@ -229,4 +231,23 @@ test('pending or forged configuration transitions cannot authorize execution or 
   await expect(runner.apply(receipt, {})).rejects.toThrow('Resume the interrupted');
   await expect(runner.plan({})).rejects.toThrow('Resume the interrupted');
   await expect(new TerraformRunner(root).resume('ce-test')).rejects.toThrow('transition is malformed');
+});
+
+test('selects only explicitly requested non-sensitive outputs after current apply', async () => {
+  const { runner } = await fixture(
+    {},
+    {
+      ce_interfaces: { sensitive: false, type: ['object', {}], value: { eni: 'eni-12345678' } },
+      bootstrap: { sensitive: true, type: 'string', value: 'secret-bootstrap' },
+    },
+  );
+  const receipt = await runner.plan({});
+  await expect(runner.readOutputs(['ce_interfaces'], {})).rejects.toThrow('applied or converged');
+  await runner.apply(receipt, {});
+  expect(await runner.readOutputs(['ce_interfaces'], {})).toEqual({ ce_interfaces: { eni: 'eni-12345678' } });
+  await expect(runner.readOutputs(['bootstrap'], {})).rejects.toThrow('sensitive');
+  await expect(runner.readOutputs(['missing'], {})).rejects.toThrow();
+  await expect(runner.readOutputs(['ce_interfaces', 'ce_interfaces'], {})).rejects.toThrow('unique');
+  await runner.reviseConfiguration(receipt.configurationSha256, '{}');
+  await expect(runner.readOutputs(['ce_interfaces'], {})).rejects.toThrow('current configuration');
 });

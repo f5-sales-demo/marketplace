@@ -443,6 +443,43 @@ export class TerraformRunner {
       return receipt;
     });
   }
+  /** Internal adapter input only: select declared, non-sensitive outputs after convergence. */
+  async readOutputs(
+    names: string[],
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
+    names = [...names];
+    if (
+      !names.length ||
+      new Set(names).size !== names.length ||
+      names.some((name) => !/^[a-z][a-z0-9_]{0,63}$/.test(name))
+    )
+      throw new Error('Explicit unique Terraform output names are required');
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+      const receipt = object(journal.receipt);
+      if (
+        !(journal.state === 'applied' || (journal.state === 'planned' && receipt.noChanges === true)) ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256
+      )
+        throw new Error('Terraform outputs require an applied or converged current configuration');
+      const version = decode(await this.#run(['version', '-json'], env, signal));
+      if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
+      const outputs = decode(await this.#run(['output', '-json'], env, signal));
+      const selected: Record<string, unknown> = {};
+      for (const name of names) {
+        const output = object(outputs[name]);
+        if (output.sensitive !== false || !Object.hasOwn(output, 'value') || !Object.hasOwn(output, 'type'))
+          throw new Error('Requested Terraform output is unavailable, malformed or sensitive');
+        selected[name] = output.value;
+      }
+      return selected;
+    });
+  }
   async apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();

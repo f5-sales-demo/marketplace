@@ -103,6 +103,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
         });
       interfaceOutputs[`${node}:${item.index}`] = {
         id: ref(`aws_network_interface.${name}.id`),
+        subnet_id: ref(`aws_subnet.${name}.id`),
         mac: ref(`aws_network_interface.${name}.mac_address`),
         private_ip: ref(`aws_network_interface.${name}.private_ip`),
         site_name: siteForNode(intent, node).name,
@@ -165,7 +166,11 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       },
     },
     resource,
-    output: { ce_interfaces: { value: interfaceOutputs }, ce_instances: { value: instanceOutputs } },
+    output: {
+      ce_vpc_id: { value: ref('aws_vpc.ce.id') },
+      ce_interfaces: { value: interfaceOutputs },
+      ce_instances: { value: instanceOutputs },
+    },
   });
 }
 
