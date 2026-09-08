@@ -5,6 +5,13 @@ import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
+import type { VerifiedUpgradeContract } from './upgrade-contract';
+import {
+  parseSiteUpgradeState,
+  parseSoftwareTargets,
+  parseUpgradePrechecks,
+  parseUpgradeProgress,
+} from './upgrade-evidence';
 import type { VerifiedCeContract } from './verified-contract';
 import type { AwsGreBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
@@ -201,6 +208,76 @@ export class CeRuntime {
     const site = await this.observeSite(binding, signal);
     this.#owned(site, binding);
     return site;
+  }
+  /** Read-only, freshly collected version evidence; this does not authorize an upgrade. */
+  async observeUpgrade(
+    binding: SiteBinding,
+    contract: VerifiedUpgradeContract,
+    targetSoftware: string,
+    signal?: AbortSignal,
+  ) {
+    binding = structuredClone(binding);
+    this.#binding(binding);
+    contract.build({ siteName: binding.siteName, kind: 'software', version: targetSoftware });
+    const source = `/api/config/namespaces/system/sites/${binding.siteName}`;
+    const base = {
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      nodes: [...binding.nodes],
+      contractFingerprint: contract.fingerprint,
+      siteContractFingerprint: this.contract.fingerprint,
+      source,
+      startedAt: new Date().toISOString(),
+      targetSoftware,
+    };
+    try {
+      const logical = await this.observeOwnedSite(binding, signal);
+      const siteUid = object(logical.system_metadata).uid;
+      if (typeof siteUid !== 'string' || !siteUid.trim()) throw new CeApiError('malformed');
+      const physical = await this.#request(source, {}, signal);
+      this.#owned(physical, binding);
+      const state = parseSiteUpgradeState(physical, binding);
+      const paths = contract.observationPaths(
+        binding.siteName,
+        { software: state.software.installed, os: state.os.installed },
+        targetSoftware,
+      );
+      const targets = parseSoftwareTargets(await this.#request(paths.targets, {}, signal));
+      const prechecks = parseUpgradePrechecks(await this.#request(paths.precheck, {}, signal));
+      const progress = parseUpgradeProgress(await this.#request(paths.progress, {}, signal), binding.siteName);
+      // Re-read identity and state: a replacement or upgrade during collection invalidates the snapshot.
+      const finalLogical = await this.observeOwnedSite(binding, signal);
+      const finalPhysical = await this.#request(source, {}, signal);
+      this.#owned(finalPhysical, binding);
+      if (
+        object(finalLogical.system_metadata).uid !== siteUid ||
+        JSON.stringify(parseSiteUpgradeState(finalPhysical, binding)) !== JSON.stringify(state)
+      )
+        throw new CeApiError('conflict');
+      return {
+        ...base,
+        status: 'observed' as const,
+        observedAt: new Date().toISOString(),
+        sources: paths,
+        siteUid,
+        ...state,
+        targets,
+        prechecks,
+        progress,
+        targetSoftwareListed: targets.includes(targetSoftware),
+        nodeHealth: 'unknown' as const,
+        routing: 'unknown' as const,
+        traffic: 'unknown' as const,
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return {
+        ...base,
+        status: 'unknown' as const,
+        observedAt: new Date().toISOString(),
+        reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
+      };
+    }
   }
   ingress(contract: VerifiedIngressContract, storage: CeDeploymentStore): CeIngressLifecycle {
     return new CeIngressLifecycle(

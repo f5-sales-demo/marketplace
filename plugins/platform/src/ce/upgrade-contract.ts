@@ -1,3 +1,4 @@
+import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { createWireValidator } from './wire-schema';
 import { buildSiteUpgradeRequest, type SiteUpgradeIntent } from './wire-upgrade';
@@ -47,6 +48,16 @@ export class VerifiedUpgradeContract {
       if (schema.$ref !== `#/components/schemas/${schemaName}`) throw new Error('Upgrade API path or schema differs');
     }
     return new VerifiedUpgradeContract(object(object(api.components).schemas));
+  }
+  observationPaths(siteName: string, current: InitialSiteVersions, targetSoftware: string) {
+    initialSoftwareSettings(current);
+    this.build({ siteName, kind: 'software', version: targetSoftware });
+    return {
+      site: `/api/config/namespaces/system/sites/${siteName}`,
+      targets: `/api/maurice/upgradable_sw_versions?${new URLSearchParams({ current_os_version: current.os, current_sw_version: current.software })}`,
+      precheck: `/api/maurice/namespaces/system/sites/${siteName}/pre_upgrade_check?${new URLSearchParams({ sw_version: targetSoftware })}`,
+      progress: `/api/maurice/namespaces/system/sites/${siteName}/upgrade_status`,
+    };
   }
   build(input: SiteUpgradeIntent) {
     return buildSiteUpgradeRequest(input, input.kind === 'software' ? this.#software : this.#os);
