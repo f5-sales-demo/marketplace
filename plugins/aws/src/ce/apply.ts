@@ -7,6 +7,7 @@ import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
 import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
+import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { scopedAwsApi } from './scoped-exec';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
@@ -358,10 +359,19 @@ export async function executeAwsCeApply(
     observationFingerprint: existing?.observationFingerprint,
     resolvedValues: { ...(existing?.resolvedValues ?? {}) },
     state: 'running',
+    pendingCreate: existing?.pendingCreate,
   };
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
     let launchDirectory: string | undefined;
+    const previousObservationFingerprint = checkpoint.observationFingerprint;
+    const previousOwnedStateFingerprint = checkpoint.ownedStateFingerprint;
+    const previousCaptures = new Map(
+      [...(action.capture ? [action.capture] : []), ...(action.captures ?? [])].map((capture) => [
+        capture.placeholder,
+        checkpoint.resolvedValues[capture.placeholder],
+      ]),
+    );
     try {
       await assertAwsActionOwnership(plan, action, api, checkpoint.resolvedValues);
       const convergenceDeadline = Date.now() + 15 * 60_000;
@@ -466,7 +476,17 @@ export async function executeAwsCeApply(
           checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
         }
         const args = replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues);
-        const result = await api.exec(action.command, args);
+        const result = hasCreateRecovery(action)
+          ? await executeRecoverableCreate(
+              api,
+              plan,
+              action,
+              args,
+              checkpoint,
+              () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+              signal,
+            )
+          : await api.exec(action.command, args);
         if (launchDirectory) {
           delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
           await rm(launchDirectory, { recursive: true, force: true });
@@ -487,9 +507,6 @@ export async function executeAwsCeApply(
           }
         }
       }
-      completed.add(action.id);
-      checkpoint.completedActionIds = [...completed];
-      checkpoint.failedActionId = undefined;
       if (action.mutates) {
         const ids = [
           ...new Set([
@@ -510,8 +527,28 @@ export async function executeAwsCeApply(
           checkpoint.observationFingerprint = fingerprintObservation({ ...current, resources }, ids);
         }
       }
-      await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+      completed.add(action.id);
+      checkpoint.completedActionIds = [...completed];
+      checkpoint.failedActionId = undefined;
+      const pendingCreate = checkpoint.pendingCreate;
+      checkpoint.pendingCreate = undefined;
+      try {
+        await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+      } catch (error) {
+        checkpoint.pendingCreate = pendingCreate;
+        completed.delete(action.id);
+        checkpoint.completedActionIds = [...completed];
+        throw error;
+      }
     } catch (error) {
+      checkpoint.observationFingerprint = previousObservationFingerprint;
+      checkpoint.ownedStateFingerprint = previousOwnedStateFingerprint;
+      if (checkpoint.pendingCreate?.actionId === action.id) {
+        for (const [placeholder, value] of previousCaptures) {
+          if (value === undefined) delete checkpoint.resolvedValues[placeholder];
+          else checkpoint.resolvedValues[placeholder] = value;
+        }
+      }
       if (launchDirectory) await rm(launchDirectory, { recursive: true, force: true });
       delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
       checkpoint.state = 'partial';

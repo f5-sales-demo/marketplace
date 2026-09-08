@@ -1,4 +1,5 @@
 import { canonicalSha256, fingerprintObservation } from './canonical';
+import { prepareRecoverableAction } from './create-recovery';
 import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDraft } from './types';
 import {
   AWS_CE_F5_GUIDE_URL,
@@ -1805,6 +1806,7 @@ export function compileAwsCePlan(
         destructive: false,
       },
     );
+  for (const action of actions) prepareRecoverableAction(action);
   const ownershipInventory = [
     ...brownfieldIds.map((resourceId) => ({ resourceId, owned: false as const, action: 'modify-approved' as const })),
     ...actions.flatMap((action) =>

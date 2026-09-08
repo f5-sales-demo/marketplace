@@ -271,6 +271,7 @@ export interface AwsCePlan extends AwsCePlanDraft {
 }
 
 export interface AwsCeCheckpoint {
+  pendingCreate?: { actionId: string; requestSha256: string };
   authorization?: { planSha256: string; mutations: true; destruction: boolean };
   schemaVersion: typeof AWS_CE_SCHEMA_VERSION;
   engine: 'native' | 'terraform';
