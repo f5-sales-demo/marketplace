@@ -174,7 +174,7 @@ async function assertGate(
   runtime: CeRuntime,
   plan: AwsCePlan,
   checkpoint: AwsCeCheckpoint,
-  persist: () => Promise<unknown>,
+  persist: (evidence?: Record<string, unknown>) => Promise<unknown>,
   api: AwsExecApi,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -251,8 +251,8 @@ async function assertGate(
               mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
             })),
           ),
-          async () => {
-            await persist();
+          async (record) => {
+            await persist(record);
           },
           signal,
         );
@@ -443,7 +443,15 @@ export async function executeAwsCeApply(
             runtime,
             plan,
             checkpoint,
-            () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+            async (evidence) => {
+              if (evidence)
+                await storage.write(`${action.id}-evidence.json`, {
+                  ...evidence,
+                  planId: plan.planId,
+                  planSha256: plan.planSha256,
+                });
+              return saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+            },
             api,
             signal,
           );

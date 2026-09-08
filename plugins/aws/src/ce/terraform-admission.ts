@@ -175,7 +175,12 @@ export async function admitAwsTerraformSites(
             mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
           })),
         ),
-        (record) => storage.write(`terraform-interface-mtu-${site.name}.json`, record),
+        (record) =>
+          storage.write(`terraform-interface-mtu-${site.name}.json`, {
+            ...record,
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+          }),
         signal,
       );
       Object.assign(registrations, await runtime.observeRegistrations(binding, expected, signal));

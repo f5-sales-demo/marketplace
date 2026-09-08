@@ -46,16 +46,8 @@ function fixture() {
     },
   };
   let puts = 0;
-  const contract = {
-    siteReplaceRequest(snapshot: typeof site) {
-      return {
-        metadata: structuredClone(snapshot.metadata),
-        spec: structuredClone(snapshot.spec),
-        resource_version: snapshot.resource_version,
-      };
-    },
-    validateSiteReplace() {},
-  } as unknown as VerifiedCeContract;
+  const receipts: Record<string, unknown>[] = [];
+  const contract = {} as VerifiedCeContract;
   const runtime = new CeRuntime(contract, 'terraform', 'https://tenant.test', 'fixture', async (url, init) => {
     if (String(url).includes('registrations_by_site'))
       return Response.json({
@@ -76,29 +68,38 @@ function fixture() {
       });
     if (init?.method === 'PUT') {
       puts++;
-      const request = JSON.parse(String(init.body));
-      expect(request.resource_version).toBe('one');
-      expect(request.spec.no_network_policy).toEqual({});
-      site.spec = request.spec;
-      site.resource_version = 'two';
-      throw new Error('response lost after successful update');
+      throw new Error('Unexpected post-registration interface mutation');
     }
     return Response.json(site);
   });
   const run = () =>
     runtime.ensureAwsInterfaceMtu(binding, { 'node-one': 'i-1234567890abcdef0' }, expected, async (record) => {
       expect(record.packetMtu).toBe('unknown');
+      receipts.push(record);
     });
-  return { site, runtime, run, puts: () => puts };
+  return { site, runtime, run, receipts, puts: () => puts };
 }
-test('MTU update uses resource version, preserves settings and reconciles an ambiguous response without another PUT', async () => {
+test('registered primary MTU differences produce a bound replacement checkpoint without PUT', async () => {
   const f = fixture();
-  await f.run();
-  await f.run();
-  expect(f.puts()).toBe(1);
-  expect(f.site.spec.aws.not_managed.node_list[0].interface_list[0].mtu).toBe(1500);
+  await expect(f.run()).rejects.toThrow('coupled VM/site replacement');
+  expect(f.puts()).toBe(0);
+  expect(f.site.spec.aws.not_managed.node_list[0].interface_list[0].mtu).toBe(0);
+  expect(f.receipts[0]).toMatchObject({
+    evidenceKind: 'preboot-interface-configuration-required',
+    owner: binding.owner,
+    uid: 'site-uid',
+    instances: { 'node-one': 'i-1234567890abcdef0' },
+    interfaces: [{ ...expected[0], device: 'ens5' }],
+  });
 });
-test('MTU update rejects wrong ownership and missing concurrency evidence before mutation', async () => {
+test('already configured MTU is verified without mutation or replacement', async () => {
+  const f = fixture();
+  f.site.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 1500;
+  await f.run();
+  expect(f.puts()).toBe(0);
+  expect(f.receipts[0].evidenceKind).toBe('configured-mtu');
+});
+test('MTU evidence rejects wrong ownership and missing resource version before replacement checkpoint', async () => {
   const foreign = fixture();
   foreign.site.metadata.labels['xcsh-ce-engine'] = 'native';
   await expect(foreign.run()).rejects.toThrow();

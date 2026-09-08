@@ -361,29 +361,30 @@ export class CeRuntime {
     if (changed) {
       if (typeof before.resource_version !== 'string' || !before.resource_version)
         throw new Error('Site resource version is required for an interface update');
-      const request = this.contract.siteReplaceRequest(before);
-      const desiredNodes = object(object(object(request.spec).aws).not_managed).node_list as Json[];
-      for (const node of desiredNodes)
-        for (const iface of node.interface_list as Json[]) {
-          const desired = matches(node, iface);
-          if (!desired) throw new Error('MTU update interface identity differs');
-          iface.mtu = desired.mtu;
-        }
-      this.contract.validateSiteReplace(request);
-      try {
-        await this.#request(this.#sitePath(binding), { method: 'PUT', body: JSON.stringify(request) }, signal);
-      } catch (error) {
-        if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
-      }
-      const after = await this.observeSite(binding, signal);
-      this.#owned(after, binding);
-      if (object(after.system_metadata).uid !== uid || !subset(after.spec, request.spec))
-        throw new Error('Interface MTU update has not converged or the site changed');
+      await checkpoint({
+        owner: binding.owner,
+        siteName: binding.siteName,
+        uid,
+        contractFingerprint: this.contract.fingerprint,
+        resourceVersion: before.resource_version,
+        instances: { ...instances },
+        interfaces: devices.interfaces.map((device) => ({
+          ...device,
+          mtu: expected.find((item) => item.node === device.node && item.mac.toLowerCase() === device.mac)?.mtu,
+        })),
+        source: this.#sitePath(binding),
+        deviceSource: `/api/register/namespaces/system/registrations_by_site/${binding.siteName}`,
+        evidenceKind: 'preboot-interface-configuration-required',
+        observedAt: new Date().toISOString(),
+        packetMtu: 'unknown',
+      });
+      throw new Error('AWS interface MTU requires coupled VM/site replacement with configuration before registration');
     }
     await checkpoint({
       owner: binding.owner,
       siteName: binding.siteName,
       uid,
+      contractFingerprint: this.contract.fingerprint,
       interfaces: expected,
       source: this.#sitePath(binding),
       evidenceKind: 'configured-mtu',
