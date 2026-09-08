@@ -256,6 +256,7 @@ async function observeRegion(
   nodeCount: 1 | 3,
   egressMode?: AwsCeEgressMode,
   routingProfile?: AwsCeRoutingProfile,
+  ownership?: { deploymentName: string; resourceIds: string[]; planSha256s: string[] },
 ): Promise<AwsCeRegionObservation> {
   const enabled = optInStatus === 'opt-in-not-required' || optInStatus === 'opted-in';
   if (!enabled)
@@ -445,7 +446,53 @@ async function observeRegion(
     );
   if (networkQuotaResults.some((result) => !result.ok)) reasons.push('network-quota-observation-failed');
   const quotaValue = (pattern: RegExp) => networkQuotas.find((item) => pattern.test(item.quotaName))?.value;
-  if (egressMode === 'elastic-ip' && (quotaValue(/elastic ips/i) ?? 0) < nodeCount) reasons.push('elastic-ip-quota');
+  let elasticIpCapacity: AwsCeRegionObservation['elasticIpCapacity'];
+  if (egressMode === 'elastic-ip') {
+    try {
+      const response = await json<{ Addresses?: Array<Record<string, unknown>>; NextToken?: unknown }>(api, [
+        'ec2',
+        'describe-addresses',
+        '--region',
+        region,
+      ]);
+      if (response.NextToken || !Array.isArray(response.Addresses)) throw new Error('Incomplete EIP usage evidence');
+      const ids = new Set<string>();
+      let reusableOwned = 0;
+      for (const address of response.Addresses) {
+        if (
+          typeof address.AllocationId !== 'string' ||
+          !/^eipalloc-[0-9a-f]{8,17}$/.test(address.AllocationId) ||
+          ids.has(address.AllocationId)
+        )
+          throw new Error('Ambiguous EIP identity');
+        ids.add(address.AllocationId);
+        const tags = Array.isArray(address.Tags) ? (address.Tags as Array<{ Key?: string; Value?: string }>) : [];
+        const tag = (key: string) =>
+          tags.filter((item) => item.Key === key).length === 1
+            ? tags.find((item) => item.Key === key)?.Value
+            : undefined;
+        if (
+          ownership?.resourceIds.includes(address.AllocationId) &&
+          tag('xcsh-managed-by') === 'aws-ce' &&
+          tag('xcsh-deployment-id') === ownership.deploymentName &&
+          ownership.planSha256s.includes(tag('xcsh-plan-sha256') ?? '') &&
+          ['native', 'terraform'].includes(tag('xcsh-execution-engine') ?? '')
+        )
+          reusableOwned++;
+      }
+      const limit = quotaValue(/elastic ips/i) ?? 0;
+      elasticIpCapacity = {
+        limit,
+        allocated: ids.size,
+        reusableOwned,
+        available: Math.max(0, limit - ids.size),
+        requiredAdditional: Math.max(0, nodeCount - reusableOwned),
+      };
+      if (elasticIpCapacity.available < elasticIpCapacity.requiredAdditional) reasons.push('elastic-ip-quota');
+    } catch {
+      reasons.push('elastic-ip-usage-observation-failed');
+    }
+  }
   if (routingProfile === 'nlb-ingress' && (quotaValue(/network load balancers.*region/i) ?? 0) < 1)
     reasons.push('nlb-quota');
   return {
@@ -459,6 +506,7 @@ async function observeRegion(
     instanceTypes: observedTypes,
     vcpuQuota,
     networkQuotas,
+    elasticIpCapacity,
     transitGatewaySupported: tgw.exitCode === 0,
     brownfieldProximity: 0,
   };
@@ -644,6 +692,11 @@ export async function discoverAwsCompute(
       input.nodeCount,
       input.egressMode,
       input.routingProfile,
+      {
+        deploymentName: input.deploymentName,
+        resourceIds: input.observedOwnedResourceIds ?? [],
+        planSha256s: input.ownedPlanSha256s ?? [],
+      },
     ),
   );
   regions.sort(

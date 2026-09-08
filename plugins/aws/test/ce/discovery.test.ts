@@ -100,6 +100,8 @@ class FixtureApi implements AwsExecApi {
               { QuotaCode: 'L-NLB', QuotaName: 'Network Load Balancers per Region', Value: 50 },
             ],
           };
+        case 'ec2 describe-addresses':
+          return { Addresses: [] };
         case 'ec2 describe-transit-gateways':
           return { TransitGateways: [] };
         default:
@@ -260,4 +262,56 @@ it('binds ownership tags to the exact resource instead of nested or reordered ta
   expect((await observe())[0].owned).toBe(false);
   raw = { Reservations: [] };
   expect((await observe())[0].exists).toBe(false);
+});
+
+it('checks unused Elastic IP capacity and leaves incomplete usage evidence ineligible', async () => {
+  for (const mode of ['exhausted', 'incomplete', 'available']) {
+    const fixture = new FixtureApi();
+    const observation = await discoverAwsCompute(
+      {
+        accountId: '123456789012',
+        partition: 'aws',
+        deploymentName: 'fixture',
+        requiredEnis: 2,
+        nodeCount: 1,
+        brownfieldResourceIds: [],
+        egressMode: 'elastic-ip',
+        routingProfile: 'direct-eni',
+        f5Capabilities: capabilities,
+      },
+      {
+        exec: async (command, args) => {
+          if (args[0] === 'ec2' && args[1] === 'describe-addresses')
+            return {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify(
+                mode === 'incomplete'
+                  ? { NextToken: 'more', Addresses: [] }
+                  : {
+                      Addresses: Array.from({ length: mode === 'exhausted' ? 20 : 19 }, (_, index) => ({
+                        AllocationId: `eipalloc-${String(index).padStart(8, '0')}`,
+                      })),
+                    },
+              ),
+            };
+          return fixture.exec(command, args);
+        },
+      },
+      fetcher as typeof fetch,
+    );
+    const region = observation.regions.find((item) => item.name === 'us-east-1');
+    if (mode === 'exhausted') {
+      expect(region?.reasons).toContain('elastic-ip-quota');
+      expect(region?.elasticIpCapacity?.available).toBe(0);
+    }
+    if (mode === 'incomplete') {
+      expect(region?.reasons).toContain('elastic-ip-usage-observation-failed');
+      expect(region?.elasticIpCapacity).toBeUndefined();
+    }
+    if (mode === 'available') {
+      expect(region?.elasticIpCapacity?.available).toBe(1);
+      expect(region?.reasons).not.toContain('elastic-ip-quota');
+    }
+  }
 });

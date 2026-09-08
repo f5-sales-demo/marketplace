@@ -132,6 +132,13 @@ export interface AwsCeRegionObservation {
     reasons: string[];
   }>;
   vcpuQuota: number;
+  elasticIpCapacity?: {
+    limit: number;
+    allocated: number;
+    reusableOwned: number;
+    available: number;
+    requiredAdditional: number;
+  };
   networkQuotas: Array<{ serviceCode: string; quotaCode: string; quotaName: string; value: number }>;
   transitGatewaySupported: boolean;
   brownfieldProximity: number;
