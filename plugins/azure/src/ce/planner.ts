@@ -252,7 +252,6 @@ function buildDeployActions(
   zones: string[],
   routingMode: 'udr' | 'route-server',
   imageUrn: string,
-  termsAccepted: boolean,
   routeServerCidr?: string,
   createResourceGroup = true,
 ): AzureCeAction[] {
@@ -261,19 +260,6 @@ function buildDeployActions(
   const tags = tagsArgs(intent.deploymentName, intent.engine ?? 'native');
   const greenfield = intent.nics.some((nic) => nic.subnet.mode === 'greenfield');
 
-  if (!termsAccepted) {
-    actions.push(
-      next({
-        phase: 'terms',
-        kind: 'marketplace-terms-accept',
-        description: `Accept Marketplace terms for ${imageUrn}`,
-        command: 'az',
-        args: ['vm', 'image', 'terms', 'accept', '--urn', imageUrn, '--subscription', intent.subscriptionId],
-        mutates: true,
-        destructive: false,
-      }),
-    );
-  }
   if (greenfield) {
     const addressPrefixes = [
       ...new Set([
@@ -1333,6 +1319,10 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (observation.subscription.cloud !== 'AzureCloud') fail('only AzureCloud is supported');
   if (observation.subscription.id.toLowerCase() !== intent.subscriptionId)
     fail('observation subscription does not match intent');
+  if (['deploy', 'replace-node', 'repair'].includes(intent.operation) && observation.image.termsAccepted !== true)
+    fail(
+      'Initial Marketplace terms acceptance must be completed by a human for this exact image plan; rediscover and replan afterward',
+    );
   if (observation.image.version.toLowerCase() === 'latest') fail('image version latest is forbidden');
   if (!/^\d+\.\d+\.\d+$/.test(observation.image.version)) fail('image version must be an exact Marketplace version');
   const expectedUrn = [
@@ -1473,7 +1463,6 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
         zones,
         routingMode,
         observation.image.urn,
-        observation.image.termsAccepted,
         routeServerCidr,
         !targetGroup?.exists,
       )

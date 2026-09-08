@@ -52,5 +52,10 @@ platform, routing, and traffic-health states independent.
    active diagnostics or teardown, obtain the separate approval required by the shared contract.
 
 For headless execution, use only `XCSH_CE_HEADLESS_MUTATIONS=1`,
-`XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1`, and `XCSH_CE_ALLOW_DESTROY=1` for their respective
+and `XCSH_CE_ALLOW_DESTROY=1` for their respective
 operations. Version-1 and version-2 plans and Azure-named compatibility gates are unsupported.
+
+Initial Azure Marketplace terms acceptance must be completed by a human for the exact
+image offer and plan. Automation may observe acceptance but must not accept initial
+terms. Rediscover and replan after acceptance, as required by the
+[MCN legal approval policy](https://f5-sales-demo.github.io/mcn/en/customer-edge/automation-contract/).

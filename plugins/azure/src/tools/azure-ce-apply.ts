@@ -92,17 +92,6 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
       if (!confirmed) throw new Error('Apply was not approved');
       authorization.apply = true;
     }
-    if (
-      !authorization.terms &&
-      plan.actions.some((action) => action.kind === 'marketplace-terms-accept' && !completed.has(action.id))
-    ) {
-      const terms = await ctx.ui.confirm(
-        'Accept Azure Marketplace terms',
-        `Accept the legal terms for ${plan.image.urn}?`,
-      );
-      if (!terms) throw new Error('Marketplace terms were not approved');
-      authorization.terms = true;
-    }
     if (plan.intent.operation === 'teardown' && !authorization.destroy) {
       const destroy = await ctx.ui.confirm(
         'Tear down Customer Edge',
@@ -115,7 +104,6 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
 
   if (!ctx.hasUI) {
     authorization.apply ||= process.env.XCSH_CE_HEADLESS_MUTATIONS === '1';
-    authorization.terms ||= process.env.XCSH_CE_ACCEPT_MARKETPLACE_TERMS === '1';
     authorization.destroy ||= process.env.XCSH_CE_ALLOW_DESTROY === '1';
   }
 

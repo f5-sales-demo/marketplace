@@ -41,14 +41,8 @@ export function assertApplyAllowed(
   ) {
     throw new Error('Headless teardown requires XCSH_CE_ALLOW_DESTROY=1');
   }
-  if (
-    plan.actions.some((action) => action.kind === 'marketplace-terms-accept') &&
-    !request.hasUI &&
-    request.authorization?.terms !== true &&
-    request.env.XCSH_CE_ACCEPT_MARKETPLACE_TERMS !== '1'
-  ) {
-    throw new Error('Headless Marketplace terms acceptance requires XCSH_CE_ACCEPT_MARKETPLACE_TERMS=1');
-  }
+  if (plan.actions.some((action) => action.kind === 'marketplace-terms-accept'))
+    throw new Error('Initial Marketplace terms acceptance must be completed by a human; rediscover and replan');
 }
 
 export function resolveActionArgs(

@@ -428,9 +428,10 @@ describe('compileAzureCePlan', () => {
     ).toBe(true);
   });
 
-  it('adds Marketplace terms as a separate first action when terms are not accepted', () => {
-    const plan = compileAzureCePlan(intent(), observation({ image: { ...observation().image, termsAccepted: false } }));
-    expect(plan.actions[0].kind).toBe('marketplace-terms-accept');
+  it('requires human Marketplace acceptance before emitting a deploy plan', () => {
+    expect(() =>
+      compileAzureCePlan(intent(), observation({ image: { ...observation().image, termsAccepted: false } })),
+    ).toThrow('completed by a human');
   });
 
   it('never emits deletion for an unmanaged resource during teardown', () => {

@@ -266,8 +266,8 @@ it('does not promote apply authorization into Marketplace terms or teardown auth
       },
     ],
   };
-  expect(() => assertApplyAllowed(termsPlan, request)).toThrow('ACCEPT_MARKETPLACE_TERMS');
+  expect(() => assertApplyAllowed(termsPlan, request)).toThrow('completed by a human');
   expect(() =>
     assertApplyAllowed(termsPlan, { ...request, authorization: { ...request.authorization, terms: true } }),
-  ).not.toThrow();
+  ).toThrow('completed by a human');
 });
