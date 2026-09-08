@@ -11,6 +11,13 @@ for capability evidence, typed canonical site changes, one-use bootstrap
 checkout, and allowlisted status. Legacy Azure VNet Site, AWS VPC/TGW Site,
 Fleet, and shared registration-token workflows are removed.
 
+The internal upgrade gate evaluates fresh runtime observations against a plan's
+logical and physical site identities, contract fingerprints, and effective versions.
+It distinguishes readiness, convergence, version completion, failure, and unknown
+evidence. Create-time version settings remain separate. Version completion alone
+does not establish node, routing, or traffic health; cloud lifecycle adapters must
+verify those before advancing a serial upgrade.
+
 ## Prerequisites
 
 ### Console (Web UI)
