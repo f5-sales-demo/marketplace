@@ -76,7 +76,11 @@ function matches(actual: unknown, expected: unknown): boolean {
 export class CeIngressLifecycle {
   constructor(
     private readonly port: Port,
-    private readonly contract: { readonly fingerprint: string; build: VerifiedIngressContract['build'] },
+    private readonly contract: {
+      readonly fingerprint: string;
+      build: VerifiedIngressContract['build'];
+      projectObserved: VerifiedIngressContract['projectObserved'];
+    },
     private readonly storage: CeDeploymentStore,
   ) {}
   async #locked<T>(operation: () => Promise<T>): Promise<T> {
@@ -160,7 +164,11 @@ export class CeIngressLifecycle {
     }
     const built = this.contract.build({
       ...intent,
-      sites: placements.map((p) => ({ name: p.siteName, insideAddress: p.interface.ipv4!.address })),
+      sites: placements.map((p) => {
+        const insideAddress = p.interface.ipv4?.address;
+        if (!insideAddress) throw new Error('Inside address became unavailable');
+        return { name: p.siteName, insideAddress };
+      }),
     });
     const pool = await this.port.request(
       `/api/config/namespaces/${intent.originPool.namespace}/origin_pools/${intent.originPool.name}`,
@@ -243,7 +251,7 @@ export class CeIngressLifecycle {
       labels['xcsh-ce-ingress-plan'] !== plan.id ||
       Object.entries(this.#labels()).some(([key, value]) => labels[key] !== value) ||
       (expectedUid !== undefined && uid(actual) !== expectedUid) ||
-      !matches(actual.spec, plan.request.spec)
+      !matches(this.contract.projectObserved(actual.spec), this.contract.projectObserved(plan.request.spec))
     )
       throw new Error('Live listener ownership, UID or configuration differs from saved ingress plan');
   }

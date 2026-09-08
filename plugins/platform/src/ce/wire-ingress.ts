@@ -1,4 +1,62 @@
 import { isIP } from 'node:net';
+import { projectReplaceSnapshot } from './wire-replace';
+
+type Json = Record<string, unknown>;
+
+/** Project the v6.1.2 GET shape and remove only the exact observed implicit empty defaults. */
+export function projectInsideHttpListener(spec: unknown, schemas: Json, validate: (spec: unknown) => void): Json {
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new Error('Malformed HTTP listener response');
+  const source = structuredClone(spec) as Json;
+  // The live API emits these unset legacy/GET slots outside the create schema.
+  // Nonempty values remain unsupported and must not silently pass comparison.
+  for (const key of ['api_rate_limit_legacy', 'malicious_user_mitigation'])
+    if (source[key] === null) delete source[key];
+  for (const key of [
+    'downstream_tls_certificate_expiration_timestamps',
+    'waf_exclusion_rules',
+    'dns_info',
+    'internet_vip_info',
+  ])
+    if (Array.isArray(source[key]) && (source[key] as unknown[]).length === 0) delete source[key];
+  if (source.host_name === '') delete source.host_name;
+  const placements = (source.advertise_custom as Json | undefined)?.advertise_where;
+  if (Array.isArray(placements))
+    for (const placement of placements) {
+      const site = (placement as Json)?.site as Json | undefined;
+      if (site?.ipv6 === '') delete site.ipv6;
+    }
+  const result = projectReplaceSnapshot(source, schemas, 'viewshttp_loadbalancerCreateSpecType', [
+    // These three GET-only fields are absent from the create contract.
+    'state',
+    'auto_cert_info',
+    'cert_state',
+  ]);
+  validate(result);
+  const omitEmpty = (value: Json, keys: string[]) => {
+    for (const key of keys) {
+      const item = value[key];
+      if (item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 0) delete value[key];
+    }
+  };
+  omitEmpty(result, [
+    'service_policies_from_namespace',
+    'disable_trust_client_ip_headers',
+    'disable_malicious_user_detection',
+    'default_sensitive_data_policy',
+    'disable_threat_mesh',
+    'disable_malware_protection',
+  ]);
+  if (result.l7_ddos_protection)
+    omitEmpty(result.l7_ddos_protection as Json, [
+      'mitigation_block',
+      'default_rps_threshold',
+      'clientside_action_none',
+      'ddos_policy_none',
+    ]);
+  if (Array.isArray(result.default_route_pools))
+    for (const pool of result.default_route_pools) omitEmpty(pool as Json, ['endpoint_subsets']);
+  return result;
+}
 
 export interface InsideHttpListener {
   name: string;

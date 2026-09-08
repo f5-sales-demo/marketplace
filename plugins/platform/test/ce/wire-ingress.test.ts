@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
-import { buildInsideHttpListener } from '../../src/ce/wire-ingress';
+import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
 import { createWireValidator } from '../../src/ce/wire-schema';
+import observed from '../fixtures/inside-listener-response.json';
 import fixture from '../fixtures/inside-listener-schema.json';
 
 const validate = createWireValidator(fixture.schemas, fixture.provenance.root);
@@ -12,6 +13,26 @@ const input = {
   originPool: { name: 'ce-origin', namespace: 'demo' },
   sites: [1, 2, 3].map((i) => ({ name: `ce-site-${i}`, insideAddress: `10.20.${i}.10` })),
 };
+
+test('projects the current API response without treating runtime state or documented defaults as drift', () => {
+  const projected = projectInsideHttpListener(observed.spec, fixture.schemas, validate);
+  expect(projected).not.toHaveProperty('state');
+  expect(projected).not.toHaveProperty('auto_cert_info');
+  expect(projected).not.toHaveProperty('cert_state');
+  expect(projected).not.toHaveProperty('service_policies_from_namespace');
+  expect(
+    (projected.advertise_custom as typeof observed.spec.advertise_custom).advertise_where[0].site.site,
+  ).not.toHaveProperty('tenant');
+  expect(projected.l7_ddos_protection).toEqual({});
+  for (const spec of [
+    { ...observed.spec, advertise_on_public_default_vip: {} },
+    { ...observed.spec, active_service_policies: {} },
+    { ...observed.spec, unknown_behavior: {} },
+    { ...observed.spec, waf_exclusion_rules: [{}] },
+    { ...observed.spec, internet_vip_info: [{}] },
+  ])
+    expect(() => projectInsideHttpListener(spec, fixture.schemas, validate)).toThrow();
+});
 
 test('maps exact inside placements and an existing origin pool against the published schema', () => {
   const before = structuredClone(input);

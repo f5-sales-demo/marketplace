@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { buildInsideHttpListener, type InsideHttpListener } from './wire-ingress';
+import { buildInsideHttpListener, type InsideHttpListener, projectInsideHttpListener } from './wire-ingress';
 import { createWireValidator } from './wire-schema';
 
 type Json = Record<string, unknown>;
@@ -29,7 +29,9 @@ export class VerifiedIngressContract {
   readonly commit = commit;
   readonly fingerprint = digest;
   readonly #validate: (spec: unknown) => void;
+  readonly #schemas: Json;
   private constructor(schemas: Json) {
+    this.#schemas = schemas;
     this.#validate = createWireValidator(schemas, 'viewshttp_loadbalancerCreateSpecType');
   }
   static async release(fetcher: Fetcher = fetch, signal?: AbortSignal): Promise<VerifiedIngressContract> {
@@ -91,5 +93,8 @@ export class VerifiedIngressContract {
   }
   build(input: InsideHttpListener) {
     return buildInsideHttpListener(input, this.#validate);
+  }
+  projectObserved(spec: unknown): Json {
+    return projectInsideHttpListener(spec, this.#schemas, this.#validate);
   }
 }

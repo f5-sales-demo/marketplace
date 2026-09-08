@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { CeDeploymentStore } from '../../src/ce/deployment-store';
 import { CeIngressLifecycle } from '../../src/ce/ingress-lifecycle';
 import { CeApiError } from '../../src/ce/runtime';
-import { buildInsideHttpListener } from '../../src/ce/wire-ingress';
+import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
 import { createWireValidator } from '../../src/ce/wire-schema';
 import fixture from '../fixtures/inside-listener-schema.json';
 
@@ -15,6 +15,7 @@ afterEach(async () => {
 });
 const validate = createWireValidator(fixture.schemas, fixture.provenance.root);
 const contract = {
+  projectObserved: (spec: unknown) => projectInsideHttpListener(spec, fixture.schemas, validate),
   fingerprint: `sha256:${fixture.provenance.sha256}`,
   build: (input: Parameters<typeof buildInsideHttpListener>[0]) => buildInsideHttpListener(input, validate),
 };
@@ -165,11 +166,13 @@ test('refuses to delete a replacement listener or accept unplanned advertisement
   const f = await setup();
   const plan = await f.lifecycle.planAws(intent, selections);
   await f.lifecycle.apply(plan.id);
-  f.state.listener!.system_metadata = { uid: 'replacement-listener' };
+  const listener = f.state.listener;
+  if (!listener) throw new Error('Expected created listener');
+  listener.system_metadata = { uid: 'replacement-listener' };
   await expect(f.lifecycle.delete(plan.id)).rejects.toThrow();
   expect(f.state.deletes).toBe(0);
-  f.state.listener!.system_metadata = { uid: 'listener-uid' };
-  (f.state.listener!.spec as Record<string, unknown>).advertise_on_public_default_vip = {};
+  listener.system_metadata = { uid: 'listener-uid' };
+  (listener.spec as Record<string, unknown>).advertise_on_public_default_vip = {};
   await expect(f.lifecycle.apply(plan.id)).rejects.toThrow();
 });
 
