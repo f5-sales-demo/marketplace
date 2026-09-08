@@ -433,9 +433,38 @@ export class TerraformRunner {
       this.#busy = false;
     }
   }
+  /** Preserve even an interrupted attempt before Terraform can overwrite its binary plan. */
+  async #archivePlanAttempt(): Promise<void> {
+    const { directory } = this.#state();
+    const files = new Map<string, Buffer>();
+    for (const name of ['saved.tfplan', 'plan-receipt.json']) {
+      try {
+        files.set(name, await privateRead(join(directory, name)));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    if (!files.size) return;
+    for (const name of ['main.tf.json', 'deployment.json', '.terraform.lock.hcl', 'deployment.tfrc'])
+      files.set(name, await privateRead(join(directory, name)));
+    const inventory = JSON.stringify(Object.fromEntries([...files].map(([name, bytes]) => [name, digest(bytes)])));
+    const archive = join(directory, 'plan-history', digest(inventory));
+    await privateDirectory(archive);
+    files.set('inventory.json', Buffer.from(inventory));
+    for (const [name, bytes] of files) {
+      try {
+        await writeFile(join(archive, name), bytes, { mode: 0o600, flag: 'wx' });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        if (digest(await privateRead(join(archive, name))) !== digest(bytes))
+          throw new Error('Terraform plan history differs');
+      }
+    }
+  }
   async plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
+      await this.#archivePlanAttempt();
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== this.#state().manifest.terraformVersion)
         throw new Error('Terraform version changed');

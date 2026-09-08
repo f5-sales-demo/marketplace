@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TerraformCommandError } from '../src/failure';
@@ -212,7 +212,7 @@ test('failed executors expose only fixed categories and discard potentially sens
     ['Error acquiring the state lock', 'state-lock'],
     ['AccessDenied and InsufficientInstanceCapacity', 'unknown'],
     ['unrecognized failure', 'unknown'],
-  ]) {
+  ] as const) {
     await writeFile(
       executable,
       `#!/bin/sh\nprintf 'PRIVATE_BOOTSTRAP'\nprintf '${diagnostic} PRIVATE_BOOTSTRAP' >&2\nexit 1\n`,
@@ -421,4 +421,35 @@ test('resume rejects journaled provider changes even after configuration was rep
     }
     await expect(new TerraformRunner(root).resume('ce-test')).rejects.toThrow('identity');
   }
+});
+
+test('failed refresh retains the prior sensitive plan and receipt in restricted immutable history', async () => {
+  const { root, runner } = await fixture();
+  const receipt = await runner.plan({});
+  await runner.apply(receipt, {});
+  const directory = join(root, 'ce-test');
+  const previousJournal = await readFile(join(directory, 'plan-receipt.json'), 'utf8');
+  const failing = new TerraformRunner(root, async ({ cwd, args }) => {
+    if (args[0] === 'version') return { code: 0, stdout: JSON.stringify({ terraform_version: '1.14.0' }) };
+    if (args[0] === 'plan') {
+      await writeFile(join(cwd, 'saved.tfplan'), 'interrupted-new-plan', { mode: 0o600 });
+      return { code: 1, stdout: '', failureCategory: 'capacity' };
+    }
+    return { code: 0, stdout: '' };
+  });
+  await failing.resume('ce-test');
+  await expect(failing.plan({})).rejects.toThrow();
+  const histories = await readdir(join(directory, 'plan-history'));
+  expect(histories).toHaveLength(1);
+  const archive = join(directory, 'plan-history', histories[0]);
+  expect(await readFile(join(archive, 'saved.tfplan'), 'utf8')).toBe('binary-plan');
+  expect(await readFile(join(archive, 'plan-receipt.json'), 'utf8')).toBe(previousJournal);
+  expect((await lstat(archive)).mode & 0o077).toBe(0);
+  expect((await lstat(join(archive, 'saved.tfplan'))).mode & 0o077).toBe(0);
+  const inventory = JSON.parse(await readFile(join(archive, 'inventory.json'), 'utf8'));
+  expect(inventory['saved.tfplan']).toBe(receipt.planSha256);
+  expect(await readFile(join(directory, 'saved.tfplan'), 'utf8')).toBe('interrupted-new-plan');
+  await expect(failing.plan({})).rejects.toThrow();
+  expect(await readdir(join(directory, 'plan-history'))).toHaveLength(2);
+  expect(await readFile(join(archive, 'saved.tfplan'), 'utf8')).toBe('binary-plan');
 });
