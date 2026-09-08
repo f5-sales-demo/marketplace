@@ -69,6 +69,7 @@ export async function collectAwsNetworkHealth(
         throw new Error('Missing peer evidence');
       const seen = new Set<string>();
       const sessions = [];
+      const transports = [];
       let available = true;
       for (const value of raw.TransitGatewayConnectPeers) {
         const peer = object(value);
@@ -103,6 +104,19 @@ export async function collectAwsNetworkHealth(
           config.BgpConfigurations.length !== 2
         )
           throw new Error('Peer topology differs');
+        if (
+          isIP(String(config.TransitGatewayAddress)) !== 4 ||
+          !Array.isArray(config.InsideCidrBlocks) ||
+          config.InsideCidrBlocks.length !== 1 ||
+          typeof config.InsideCidrBlocks[0] !== 'string'
+        )
+          throw new Error('Missing GRE endpoint facts');
+        transports.push({
+          peerId: id,
+          awsGreAddress: config.TransitGatewayAddress,
+          ceGreAddress: config.PeerAddress,
+          insideCidr: config.InsideCidrBlocks[0],
+        });
         available &&= peer.State === 'available';
         const addresses = new Set<string>();
         for (const item of config.BgpConfigurations) {
@@ -134,6 +148,7 @@ export async function collectAwsNetworkHealth(
         expectedSessions: ids.length * 2,
         establishedSessions: established,
         sessions,
+        transports,
         packetTtlEvidence: 'unknown',
         routes: 'unknown',
         traffic: 'unknown',

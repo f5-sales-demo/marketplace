@@ -1783,6 +1783,14 @@ function compileActions(
         },
       });
     add({
+      phase: 'routing',
+      kind: 'f5-routing-configure',
+      description:
+        'Configure site-bound XC GRE connectors and both BGP endpoints from observed interface and AWS peer identities',
+      mutates: true,
+      destructive: false,
+    });
+    add({
       phase: 'verify',
       kind: 'bgp-gate',
       description: `Verify ${(intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0) * 2} AWS-managed BGP sessions across ${intent.routing.connectPeers?.length ?? intent.routing.insideCidrs?.length ?? 0} Connect peers`,

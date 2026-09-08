@@ -207,6 +207,7 @@ export type AwsCeActionKind =
   | 'tgw-route-create'
   | 'tgw-connect-attachment-create'
   | 'tgw-connect-peer-create'
+  | 'f5-routing-configure'
   | 'registration-approve'
   | 'registration-gate'
   | 'health-gate'

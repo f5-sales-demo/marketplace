@@ -1,4 +1,5 @@
 import { bindAwsCloudInit } from './bootstrap';
+import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
 import type { VerifiedCeContract } from './verified-contract';
 import type { AwsGreBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
@@ -269,6 +270,38 @@ export class CeRuntime {
       owner: binding.owner,
       contractFingerprint: this.contract.fingerprint,
     });
+  }
+  requireAwsRoutingContract(): void {
+    if (!this.contract.awsRoutingAvailable)
+      throw new Error('Pinned AWS routing schemas are required before deployment');
+  }
+  async observeAwsInterfaces(
+    binding: SiteBinding,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+    this.#binding(binding);
+    const observedAt = new Date().toISOString();
+    try {
+      if (binding.owner.provider !== 'aws' || expected.some((item) => !binding.nodes.includes(item.node)))
+        throw new Error('Interface binding differs from site');
+      const configuration = await this.observeSite(binding, signal);
+      this.#owned(configuration, binding);
+      const objects = await this.#request(
+        '/api/config/namespaces/system/network_interfaces?report_fields=get_spec&report_fields=system_metadata',
+        {},
+        signal,
+      );
+      const physical = await this.#request(`/api/config/namespaces/system/sites/${binding.siteName}`, {}, signal);
+      return {
+        status: 'observed',
+        interfaces: correlateCeInterfaces(configuration, objects, physical, expected),
+        observedAt,
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return { status: 'unknown', interfaces: [], observedAt };
+    }
   }
   async ensureAwsRouting(
     binding: SiteBinding,

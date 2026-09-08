@@ -10,6 +10,7 @@ import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { collectAwsNetworkHealth } from './network-health';
+import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import { siteBindings } from './topology';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
@@ -226,6 +227,8 @@ async function assertGate(
       if (evidence.status !== 'healthy') throw new Error('Observed F5 site health has not converged');
     }
   }
+  if (action.kind === 'f5-routing-configure')
+    await configureAwsRouting(runtime, plan, checkpoint, api, persist, signal);
   if (action.kind === 'bgp-gate' || action.kind === 'nlb-gate') {
     const evidence = await collectAwsNetworkHealth(
       action.kind === 'bgp-gate' ? 'bgp' : 'nlb',
@@ -274,6 +277,7 @@ export async function executeAwsCeApply(
     throw new Error('The requested interface configuration needs an explicit supported F5 wire mapping');
   const f5Capabilities = await platform.capabilities(plan.intent.platformContext);
   const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
+  if (plan.routing.profile === 'tgw-connect') runtime.requireAwsRoutingContract();
   const storage = await platform.storage({
     deploymentId: plan.deploymentName,
     engine: plan.engine,

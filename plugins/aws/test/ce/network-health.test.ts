@@ -21,6 +21,8 @@ function fixture() {
       Tags: tags,
       ConnectPeerConfiguration: {
         PeerAddress: `10.0.0.${node}`,
+        TransitGatewayAddress: `100.64.0.${index + 1}`,
+        InsideCidrBlocks: [`169.254.${index}.0/29`],
         Protocol: 'gre',
         BgpConfigurations: [2, 3].map((last) => ({
           TransitGatewayAddress: `169.254.${index}.${last}`,

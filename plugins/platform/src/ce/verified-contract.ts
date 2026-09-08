@@ -116,6 +116,9 @@ export class VerifiedCeContract {
     }
     return new VerifiedCeContract(receipt.commit, expectedReceiptSha256, contract, schemas, networking);
   }
+  get awsRoutingAvailable(): boolean {
+    return this.#routing !== undefined;
+  }
   buildAwsRouting(siteName: string, localAsn: number, remoteAsn: number, bindings: AwsGreBinding[]) {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     return buildAwsRouting(siteName, localAsn, remoteAsn, bindings, this.#routing);
