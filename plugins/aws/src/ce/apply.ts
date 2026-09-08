@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
+import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
 import type { AwsCeToolContext } from './artifacts';
@@ -11,6 +11,7 @@ import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { collectAwsNetworkHealth } from './network-health';
 import { scopedAwsApi } from './scoped-exec';
+import { siteBindings } from './topology';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_SCHEMA_VERSION } from './types';
 
@@ -170,64 +171,60 @@ async function assertGate(
   api: AwsExecApi,
   signal?: AbortSignal,
 ): Promise<void> {
-  const binding: SiteBinding = {
-    owner: {
-      deploymentId: plan.deploymentName,
-      engine: plan.engine,
-      provider: 'aws',
-      account: plan.accountId,
-      region: plan.region,
-    },
-    siteName: plan.siteName,
-    nodes: Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`),
-  };
-  if (action.kind === 'registration-gate' || action.kind === 'registration-approve') {
-    const instances = Object.fromEntries(
-      binding.nodes.map((node, index) => [node, checkpoint.resolvedValues[`__INSTANCE_${index + 1}__`]]),
-    );
-    const evidence =
-      action.kind === 'registration-approve'
-        ? await runtime.approveRegistrations(
-            binding,
-            instances,
-            async (record) => {
-              checkpoint.resolvedValues[`__REGISTRATION_${String(record.node)}__`] = String(record.registration);
-              checkpoint.resolvedValues[`__REGISTRATION_STATE_${String(record.node)}__`] = String(record.state);
-              await persist();
-            },
-            signal,
+  for (const { site, binding } of siteBindings(plan).filter(
+    ({ site }) => !action.node || site.nodeIndexes.includes(action.node),
+  )) {
+    if (action.kind === 'registration-gate' || action.kind === 'registration-approve') {
+      const instances = Object.fromEntries(
+        binding.nodes.map((node, index) => [
+          node,
+          checkpoint.resolvedValues[`__INSTANCE_${site.nodeIndexes[index]}__`],
+        ]),
+      );
+      const evidence =
+        action.kind === 'registration-approve'
+          ? await runtime.approveRegistrations(
+              binding,
+              instances,
+              async (record) => {
+                checkpoint.resolvedValues[`__REGISTRATION_${String(record.node)}__`] = String(record.registration);
+                checkpoint.resolvedValues[`__REGISTRATION_STATE_${String(record.node)}__`] = String(record.state);
+                await persist();
+              },
+              signal,
+            )
+          : await runtime.observeRegistrations(binding, instances, signal);
+      if (['authorization', 'expired', 'malformed', 'ownership-or-response-invalid'].includes(String(evidence.reason)))
+        throw new Error(`F5 registration evidence is unavailable: ${String(evidence.reason)}`);
+      if (action.kind === 'registration-approve') {
+        if (
+          !Array.isArray(evidence.nodes) ||
+          evidence.nodes.some(
+            (node: unknown) =>
+              !node ||
+              typeof node !== 'object' ||
+              !['APPROVED', 'ADMITTED', 'ONLINE', 'UPGRADING', 'MAINTENANCE'].includes(
+                String((node as Record<string, unknown>).state),
+              ),
           )
-        : await runtime.observeRegistrations(binding, instances, signal);
-    if (['authorization', 'expired', 'malformed', 'ownership-or-response-invalid'].includes(String(evidence.reason)))
-      throw new Error(`F5 registration evidence is unavailable: ${String(evidence.reason)}`);
-    if (action.kind === 'registration-approve') {
-      if (
-        !Array.isArray(evidence.nodes) ||
-        evidence.nodes.some(
-          (node: unknown) =>
-            !node ||
-            typeof node !== 'object' ||
-            !['APPROVED', 'ADMITTED', 'ONLINE', 'UPGRADING', 'MAINTENANCE'].includes(
-              String((node as Record<string, unknown>).state),
-            ),
         )
+          throw new Error('Observed F5 registration approval has not converged');
+      } else if (evidence.status !== 'healthy') throw new Error('Observed F5 registration has not converged');
+    }
+    if (action.kind === 'health-gate') {
+      const evidence = await runtime.observeHealth(binding, signal);
+      if (
+        [
+          'authorization',
+          'expired',
+          'malformed',
+          'ownership-or-response-invalid',
+          'provider-health-contract-unavailable',
+        ].includes(String(evidence.reason))
       )
-        throw new Error('Observed F5 registration approval has not converged');
-    } else if (evidence.status !== 'healthy') throw new Error('Observed F5 registration has not converged');
-  }
-  if (action.kind === 'health-gate') {
-    const evidence = await runtime.observeHealth(binding, signal);
-    if (
-      [
-        'authorization',
-        'expired',
-        'malformed',
-        'ownership-or-response-invalid',
-        'provider-health-contract-unavailable',
-      ].includes(String(evidence.reason))
-    )
-      throw new Error(`F5 health evidence is unavailable: ${String(evidence.reason)}`);
-    if (evidence.status !== 'healthy') throw new Error('Observed F5 site health has not converged');
+        throw new Error(`F5 health evidence is unavailable: ${String(evidence.reason)}`);
+      if (evidence.status !== 'healthy') throw new Error('Observed F5 site health has not converged');
+    }
   }
   if (action.kind === 'bgp-gate' || action.kind === 'nlb-gate') {
     const evidence = await collectAwsNetworkHealth(
@@ -423,21 +420,11 @@ export async function executeAwsCeApply(
       }
       if (action.command && action.args) {
         if (action.requiresBootstrap && action.node) {
-          const nodes = Array.from(
-            { length: plan.topology.nodeCount },
-            (_, index) => `${plan.deploymentName}-${index + 1}`,
-          );
-          const binding: SiteBinding = {
-            owner: {
-              deploymentId: plan.deploymentName,
-              engine: plan.engine,
-              provider: 'aws',
-              account: plan.accountId,
-              region: plan.region,
-            },
-            siteName: plan.siteName,
-            nodes,
-          };
+          const selected = siteBindings(plan).find(({ site }) => site.nodeIndexes.includes(action.node ?? 0));
+          if (!selected) throw new Error('Bootstrap node has no site binding');
+          const { site, binding } = selected;
+          const nodes = binding.nodes;
+          const hostname = `${plan.deploymentName}-${action.node}`;
           await runtime.ensureSite(
             binding,
             {
@@ -450,7 +437,7 @@ export async function executeAwsCeApply(
                 interfaces: plan.interfaces.map((item) => {
                   if (!['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp')
                     throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
-                  const mac = checkpoint.resolvedValues[`__ENI_${index + 1}_${item.index}_MAC__`];
+                  const mac = checkpoint.resolvedValues[`__ENI_${site.nodeIndexes[index]}_${item.index}_MAC__`];
                   if (!mac) throw new Error('Provider-assigned ENI MAC identity is unavailable');
                   return {
                     name: item.role,
@@ -461,8 +448,8 @@ export async function executeAwsCeApply(
                 }),
               })),
             },
-            async (site) => {
-              checkpoint.resolvedValues.__F5_SITE_UID__ = String(site.uid);
+            async (record) => {
+              checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
               await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
             },
             signal,
@@ -476,7 +463,7 @@ export async function executeAwsCeApply(
           const tokenName = `${plan.deploymentName.slice(0, 40)}-${action.node}-${plan.planSha256.slice(0, 12)}`;
           const material = await runtime.bootstrap(
             binding,
-            nodes[action.node - 1],
+            hostname,
             tokenName,
             async (secret) => {
               await storage.write(`${tokenName}.json`, secret);
@@ -485,7 +472,7 @@ export async function executeAwsCeApply(
             },
             signal,
           );
-          await writeFile(path, renderAwsCeCloudInit({ nodeName: nodes[action.node - 1], material }), { mode: 0o600 });
+          await writeFile(path, renderAwsCeCloudInit({ nodeName: hostname, material }), { mode: 0o600 });
           checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
         }
         const args = replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues);

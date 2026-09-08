@@ -14,6 +14,7 @@ const mockTypebox = {
     String: (o?: unknown) => ({ type: 'string', ...((o as object) ?? {}) }),
     Boolean: (o?: unknown) => ({ type: 'boolean', ...((o as object) ?? {}) }),
     Number: (o?: unknown) => ({ type: 'number', ...((o as object) ?? {}) }),
+    Integer: (o?: unknown) => ({ type: 'integer', ...((o as object) ?? {}) }),
     Null: () => ({ type: 'null' }),
     Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
     Array: (i: unknown, o?: unknown) => ({ type: 'array', items: i, ...((o as object) ?? {}) }),

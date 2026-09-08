@@ -1,6 +1,8 @@
 import type { PluginInterface } from '../aws/types';
 import { loadAwsDiscovery, loadAwsPlan, saveAwsPlan } from '../ce/artifacts';
+import { canonicalSha256 } from '../ce/canonical';
 import { compileAwsCePlan } from '../ce/planner';
+import { siteTopology } from '../ce/topology';
 import type { AwsCeIntent } from '../ce/types';
 import { AWS_CE_MARKETPLACE_PRODUCT_ID, AWS_CE_SCHEMA_VERSION } from '../ce/types';
 
@@ -61,7 +63,17 @@ export function createAwsCePlanTool(pi: PluginInterface) {
         deploymentName: Type.String(),
         siteName: Type.String(),
         namespace: Type.String(),
-        topology: Type.Object({ nodeCount: Type.Union([Type.Literal(1), Type.Literal(3)]) }),
+        topology: Type.Object({
+          nodeCount: Type.Union([Type.Literal(1), Type.Literal(3)]),
+          sites: Type.Optional(
+            Type.Array(
+              Type.Object({
+                name: Type.String(),
+                nodeIndexes: Type.Array(Type.Integer({ minimum: 1, maximum: 3 }), { minItems: 1, maxItems: 3 }),
+              }),
+            ),
+          ),
+        }),
         vpc: Type.Object({
           mode: Type.Union([Type.Literal('greenfield'), Type.Literal('brownfield')]),
           vpcId: Type.Optional(Type.String()),
@@ -130,7 +142,8 @@ export function createAwsCePlanTool(pi: PluginInterface) {
             original.partition !== params.intent.partition ||
             original.region !== params.intent.region ||
             original.deploymentName !== params.intent.deploymentName ||
-            original.siteName !== params.intent.siteName
+            original.siteName !== params.intent.siteName ||
+            canonicalSha256(siteTopology(original.intent)) !== canonicalSha256(siteTopology(params.intent))
           )
             throw new Error('Original restoration plan scope does not match teardown intent');
           restorationState = original.rollback.resources;

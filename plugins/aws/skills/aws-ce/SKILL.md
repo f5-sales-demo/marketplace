@@ -23,6 +23,14 @@ Report the returned selection and region coverage. Cloud site tags are provision
 missing platform evidence leaves registration and health unknown. A failed collection is unavailable,
 not an empty estate.
 
+## Site topology
+
+Distinguish site count from node count. In schema v2, `topology.sites` assigns each node index
+(starting at 1) to exactly one named site. One site with `[1, 2, 3]` is HA; three sites each with
+one index are independent sites. Each site has one or three nodes. Persist the names and membership
+in the plan; lifecycle work must preserve them. AWS bootstrap, registration and status use these
+site bindings. Terraform execution of the translated topology remains pending.
+
 ## Workflow
 
 1. Use `web_search` to read the dedicated `f5xc-ce-automation-policy/v2` document, the current official

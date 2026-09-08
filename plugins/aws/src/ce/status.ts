@@ -1,8 +1,9 @@
-import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
+import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AwsExecApi } from '../aws/exec';
 import { collectAwsCeInventory } from './inventory';
 import { collectAwsNetworkHealth } from './network-health';
 import { scopedAwsApi } from './scoped-exec';
+import { siteBindings, siteForNode } from './topology';
 import type { AwsCeCheckpoint, AwsCePlan } from './types';
 
 type RuntimeObserver = Pick<CeRuntime, 'observeHealth' | 'observeRegistrations'>;
@@ -17,6 +18,7 @@ export async function collectAwsCeStatus(
   let aws: Record<string, unknown>;
   const expectedInstances: Record<string, string> = {};
   let identitiesVerified = false;
+  const bindings = siteBindings(plan);
   const nodes = Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`);
   try {
     const inventory = await collectAwsCeInventory(
@@ -26,11 +28,19 @@ export async function collectAwsCeStatus(
     );
     const deployed = inventory.nodes.filter((node) => node.deploymentId === plan.deploymentName);
     const conflicts = deployed.some(
-      (node) => node.ownership !== 'managed' || node.engine !== plan.engine || node.siteName !== plan.siteName,
+      (node) =>
+        node.ownership !== 'managed' ||
+        node.engine !== plan.engine ||
+        !bindings.some(({ site }) => site.name === node.siteName),
     );
     for (const [index, hostname] of nodes.entries()) {
       const id = checkpoint?.resolvedValues[`__INSTANCE_${index + 1}__`];
-      if (id && deployed.filter((node) => node.instanceId === id).length === 1) expectedInstances[hostname] = id;
+      if (
+        id &&
+        deployed.filter((node) => node.instanceId === id && node.siteName === siteForNode(plan.intent, index + 1).name)
+          .length === 1
+      )
+        expectedInstances[hostname] = id;
     }
     identitiesVerified =
       !conflicts &&
@@ -51,36 +61,47 @@ export async function collectAwsCeStatus(
     signal?.throwIfAborted();
     aws = { status: 'unknown', reason: 'inventory-unavailable', observedAt };
   }
-  const binding: SiteBinding = {
-    owner: {
-      deploymentId: plan.deploymentName,
-      engine: plan.engine,
-      provider: 'aws',
-      account: plan.accountId,
-      region: plan.region,
-    },
-    siteName: plan.siteName,
-    nodes,
-  };
   const unknown = (reason: string) => ({ status: 'unknown', reason, observedAt });
-  let registration: Record<string, unknown> = unknown('platform-service-unavailable');
-  let health: Record<string, unknown> = unknown('platform-service-unavailable');
-  if (runtime) {
-    try {
-      health = await runtime.observeHealth(binding, signal);
-    } catch {
-      signal?.throwIfAborted();
-      health = unknown('platform-observation-unavailable');
-    }
-    if (identitiesVerified) {
+  const sites: Array<{
+    siteName: string;
+    nodes: string[];
+    registration: Record<string, unknown>;
+    health: Record<string, unknown>;
+  }> = [];
+  for (const { binding } of bindings) {
+    let registration: Record<string, unknown> = unknown('platform-service-unavailable');
+    let health: Record<string, unknown> = unknown('platform-service-unavailable');
+    if (runtime) {
       try {
-        registration = await runtime.observeRegistrations(binding, expectedInstances, signal);
+        health = await runtime.observeHealth(binding, signal);
       } catch {
         signal?.throwIfAborted();
-        registration = unknown('platform-observation-unavailable');
+        health = unknown('platform-observation-unavailable');
       }
-    } else registration = unknown('cloud-instance-identities-unverified');
+      if (identitiesVerified) {
+        try {
+          registration = await runtime.observeRegistrations(
+            binding,
+            Object.fromEntries(binding.nodes.map((node) => [node, expectedInstances[node]])),
+            signal,
+          );
+        } catch {
+          signal?.throwIfAborted();
+          registration = unknown('platform-observation-unavailable');
+        }
+      } else registration = unknown('cloud-instance-identities-unverified');
+    }
+    sites.push({ siteName: binding.siteName, nodes: binding.nodes, registration, health });
   }
+  const aggregate = (field: 'registration' | 'health') => ({
+    status: sites.every((site) => site[field].status === 'healthy')
+      ? 'healthy'
+      : sites.some((site) => site[field].status === 'unknown')
+        ? 'unknown'
+        : 'degraded',
+    observedAt,
+    source: 'per-site-observations',
+  });
   return {
     schemaVersion: 2,
     deploymentId: plan.deploymentName,
@@ -93,7 +114,7 @@ export async function collectAwsCeStatus(
       completedActions: checkpoint?.completedActionIds.length ?? 0,
     },
     aws,
-    f5: { registration, health },
+    f5: { registration: aggregate('registration'), health: aggregate('health'), sites },
     routing:
       plan.routing?.profile === 'tgw-connect' || plan.routing?.profile === 'nlb-ingress'
         ? await collectAwsNetworkHealth(

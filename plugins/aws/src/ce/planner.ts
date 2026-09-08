@@ -1,5 +1,6 @@
 import { canonicalSha256, fingerprintObservation } from './canonical';
 import { prepareRecoverableAction } from './create-recovery';
+import { siteForNode, siteTopology } from './topology';
 import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDraft } from './types';
 import {
   AWS_CE_F5_GUIDE_URL,
@@ -84,6 +85,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   const namespace = name(input.namespace, 'namespace');
   if (input.topology.nodeCount !== 1 && input.topology.nodeCount !== 3)
     fail('topology must contain one or three nodes');
+  const sites = siteTopology(input);
   if (!Array.isArray(input.interfaces) || input.interfaces.length < 1 || input.interfaces.length > 8)
     fail('interfaces must contain between 1 and 8 entries');
   if (input.interfaces.some((item, index) => item.index !== index)) fail('interfaces must be ordered and zero-based');
@@ -228,6 +230,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       ...input.instance,
       diskGiB: upgradeSafeDiskGiB,
     },
+    topology: { nodeCount: input.topology.nodeCount, sites },
     interfaces,
     routing: {
       ...input.routing,
@@ -326,7 +329,7 @@ function validateResearch(observation: AwsCeObservation): void {
 function tags(intent: AwsCeIntent, node?: number, interfaceIndex?: number): string {
   const nodeTag = node === undefined ? '' : `,{Key=xcsh-node-index,Value=${node}}`;
   const interfaceTag = interfaceIndex === undefined ? '' : `,{Key=xcsh-interface-index,Value=${interfaceIndex}}`;
-  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-execution-engine,Value=${intent.engine}},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${intent.siteName}}${nodeTag}${interfaceTag}]`;
+  return `ResourceType=instance,Tags=[{Key=xcsh-managed-by,Value=aws-ce},{Key=xcsh-execution-engine,Value=${intent.engine}},{Key=xcsh-deployment-id,Value=${intent.deploymentName}},{Key=xcsh-plan-sha256,Value=__PLAN_SHA256__},{Key=ves-io-site-name,Value=${node === undefined ? intent.siteName : siteForNode(intent, node).name}}${nodeTag}${interfaceTag}]`;
 }
 
 function tagSpec(intent: AwsCeIntent, resourceType: string, node?: number, interfaceIndex?: number): string {

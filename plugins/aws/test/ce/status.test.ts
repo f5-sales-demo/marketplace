@@ -12,7 +12,7 @@ const plan = {
   siteName: 'site-a',
   engine: 'native',
   topology: { nodeCount: 1 },
-  intent: { awsProfile: 'profile' },
+  intent: { awsProfile: 'profile', siteName: 'site-a', topology: { nodeCount: 1 } },
 } as AwsCePlan;
 const checkpoint = {
   state: 'complete',
@@ -82,4 +82,54 @@ test('status keeps failed collection unknown and rejects caller health before re
   );
   expect(result.isError).toBe(true);
   expect(JSON.stringify(result)).not.toContain('healthyNodes');
+});
+
+test('observes each independent site using only its own cloud instance binding', async () => {
+  const sites = [
+    { name: 'site-a', nodeIndexes: [1] },
+    { name: 'site-b', nodeIndexes: [2] },
+    { name: 'site-c', nodeIndexes: [3] },
+  ];
+  const independent = {
+    ...plan,
+    topology: { nodeCount: 3 },
+    intent: { ...plan.intent, topology: { nodeCount: 3, sites } },
+  } as AwsCePlan;
+  const instances = sites.map((site, index) => ({
+    ...resource,
+    InstanceId: `i-${String(index + 1).repeat(17)}`,
+    Tags: resource.Tags.map((tag) => (tag.Key === 'ves-io-site-name' ? { ...tag, Value: site.name } : tag)),
+  }));
+  const state = {
+    ...checkpoint,
+    resolvedValues: Object.fromEntries(
+      instances.map((instance, index) => [`__INSTANCE_${index + 1}__`, instance.InstanceId]),
+    ),
+  };
+  const api = {
+    exec: async (_command: string, args: string[]) => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify(
+        args[0] === 'sts'
+          ? { Account: plan.accountId }
+          : args[1] === 'describe-instances'
+            ? { Reservations: [{ Instances: instances }] }
+            : { NetworkInterfaces: [] },
+      ),
+    }),
+  };
+  const observed: string[] = [];
+  const result = await collectAwsCeStatus(independent, state, api, {
+    observeHealth: async () => ({ status: 'healthy' }),
+    observeRegistrations: async (binding, ids) => {
+      observed.push(binding.siteName);
+      const index = sites.findIndex((site) => site.name === binding.siteName);
+      expect(ids).toEqual({ [`demo-${index + 1}`]: instances[index].InstanceId });
+      return { status: 'healthy' };
+    },
+  });
+  expect(observed).toEqual(['site-a', 'site-b', 'site-c']);
+  expect(result.f5.sites).toHaveLength(3);
+  expect(result.f5.registration.status).toBe('healthy');
 });

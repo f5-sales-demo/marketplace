@@ -624,3 +624,28 @@ it('removes SLO associations and detaches gateways before deleting owned network
     ),
   ).toThrow('VPC main');
 });
+
+it('persists independent site identity in both engines and each node resource tag', () => {
+  const sites = [
+    { name: 'site-a', nodeIndexes: [1] },
+    { name: 'site-b', nodeIndexes: [2] },
+    { name: 'site-c', nodeIndexes: [3] },
+  ];
+  for (const engine of ['native', 'terraform'] as const) {
+    const plan = compileAwsCePlan(
+      intent({
+        engine,
+        topology: { nodeCount: 3, sites },
+        interfaces: interfaces(3, 2),
+        routing: { profile: 'nlb-ingress', destinationCidrs: [], associations: [], propagations: [] },
+      }),
+      observation(),
+    );
+    expect(plan.intent.topology.sites).toEqual(sites);
+    for (const action of plan.actions.filter(
+      (action) => action.kind === 'instance-run' || action.kind === 'eni-create',
+    )) {
+      expect(action.args?.join(' ')).toContain(`Key=ves-io-site-name,Value=${sites[(action.node ?? 1) - 1].name}`);
+    }
+  }
+});

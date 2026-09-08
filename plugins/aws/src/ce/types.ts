@@ -1,3 +1,4 @@
+import type { AwsCeSiteTopology } from './topology';
 export const AWS_CE_SCHEMA_VERSION = 2 as const;
 export const AWS_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
@@ -54,7 +55,7 @@ export interface AwsCeIntent {
   deploymentName: string;
   siteName: string;
   namespace: string;
-  topology: { nodeCount: 1 | 3 };
+  topology: { nodeCount: 1 | 3; sites?: AwsCeSiteTopology[] };
   vpc: { mode: 'greenfield' | 'brownfield'; vpcId?: string; cidr?: string };
   interfaces: AwsCeInterfaceIntent[];
   egress: { mode: AwsCeEgressMode; resourceId?: string };
