@@ -185,6 +185,16 @@ test('rejects nested sensitivity in projected ownership and reports absent resou
   });
 });
 
+test('authenticates an empty destroy plan before projecting a missing resource', async () => {
+  const { runner } = await fixture({ resource_changes: undefined, output_changes: {} });
+  const receipt = await runner.planDestroy({});
+  expect(receipt.noChanges).toBe(true);
+  expect(await runner.readPlannedResourceFields(receipt, { 'aws_vpc.ce': ['id'] }, {})).toEqual({ 'aws_vpc.ce': null });
+  await expect(
+    runner.readPlannedResourceFields({ ...receipt, planSha256: '0'.repeat(64) }, { 'aws_vpc.ce': ['id'] }, {}),
+  ).rejects.toThrow(/differs/);
+});
+
 test('rejects malformed output changes even when resources change', async () => {
   for (const actions of [undefined, [], ['forget'], ['create', 'delete'], ['no-op,create']]) {
     const { runner } = await fixture({ output_changes: { token: { actions } } });

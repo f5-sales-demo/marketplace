@@ -777,10 +777,11 @@ export class TerraformRunner {
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
       const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
-      if (!Array.isArray(plan.resource_changes)) throw new Error('Terraform plan resource identities unavailable');
+      const changes = plan.resource_changes === undefined ? [] : plan.resource_changes;
+      if (!Array.isArray(changes)) throw new Error('Terraform plan resource identities unavailable');
       const result: Record<string, Record<string, unknown> | null> = {};
       for (const [address, fields] of Object.entries(selections)) {
-        const matches = plan.resource_changes.map(object).filter((resource) => resource.address === address);
+        const matches = changes.map(object).filter((resource) => resource.address === address);
         if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
         if (!matches.length) {
           result[address] = null;
