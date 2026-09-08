@@ -109,6 +109,9 @@ async function assertBrownfieldOwnership(plan: AzureCePlan, action: AzureCeActio
 
 export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
   if (!action.mutates || action.kind === 'marketplace-terms-accept') return;
+  if (!action.resourceId) throw new Error(`Mutating action ${action.id} has no canonical resource ID`);
+  if (!action.resourceId.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
+    throw new Error('Mutation target is outside the selected subscription');
   if (['route-association-update', 'brownfield-restore'].includes(action.kind)) {
     const allowed = plan.ownershipInventory.some(
       (item) => item.action === 'modify-approved' && item.resourceId.toLowerCase() === action.resourceId?.toLowerCase(),
@@ -117,18 +120,6 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
       throw new Error(`Brownfield resource is outside the approved allowlist: ${action.resourceId ?? '<missing>'}`);
     await assertBrownfieldOwnership(plan, action, api);
     return;
-  }
-  if (!action.resourceId) {
-    if (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length === 0) return;
-    if (
-      action.kind === 'vm-start' ||
-      action.kind === 'vm-stop' ||
-      action.kind === 'vm-deallocate' ||
-      action.kind === 'vm-resize' ||
-      action.kind === 'vm-delete'
-    )
-      return;
-    throw new Error(`Mutating action ${action.id} has no canonical resource ID`);
   }
   if (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0) {
     const allowed = plan.ownershipInventory.some(

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { assertActionOwnership, assertApplyAllowed, assertObservationFresh } from '../../src/ce/apply';
 import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
-import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
+import type { AzureCeAction, AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
 const subscriptionId = '11111111-1111-4111-8111-111111111111';
 const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
@@ -78,6 +78,56 @@ const observation: AzureCeObservation = {
 
 describe('Azure CE apply protections', () => {
   const plan = compileAzureCePlan(intent, observation);
+
+  for (const kind of ['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'route-create'] as const) {
+    it(`rejects ${kind} without a canonical target before cloud access`, async () => {
+      const action: AzureCeAction = {
+        id: 'missing-target',
+        phase: 'nodes',
+        kind,
+        description: 'missing target',
+        mutates: true,
+        destructive: true,
+      };
+      let calls = 0;
+      await expect(
+        assertActionOwnership(plan, action, {
+          exec: async () => {
+            calls++;
+            throw new Error('Unexpected cloud access');
+          },
+        }),
+      ).rejects.toThrow(/canonical resource ID/);
+      expect(calls).toBe(0);
+    });
+  }
+
+  it('rejects cross-subscription mutation targets even when ownership tags could match', async () => {
+    const action = { ...plan.actions.find((item) => item.kind === 'vm-create')! };
+    action.resourceId = action.resourceId!.replace(subscriptionId, subscriptionId.replaceAll('1', '3'));
+    let calls = 0;
+    await expect(
+      assertActionOwnership(plan, action, {
+        exec: async () => {
+          calls++;
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({
+              id: action.resourceId,
+              tags: {
+                'xcsh-managed-by': 'azure-ce',
+                'xcsh-deployment-id': plan.deploymentName,
+                'xcsh-execution-engine': plan.engine,
+                'xcsh-plan-sha256': plan.planSha256,
+              },
+            }),
+          };
+        },
+      }),
+    ).rejects.toThrow(/selected subscription/);
+    expect(calls).toBe(0);
+  });
 
   it('rejects changed observations before mutation', () => {
     const changed = structuredClone(observation);
