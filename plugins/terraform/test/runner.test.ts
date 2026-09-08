@@ -533,3 +533,19 @@ test('rechecks action metadata at application and preserves ambiguous invocation
   await expect(action.runner.apply(actionReceipt, {})).rejects.toThrow('reconciliation');
   expect(invokes).toBe(1);
 });
+
+test('destroy plans use refresh and exact saved-plan application and reject non-delete mutations', async () => {
+  const change = { address: 'terraform_data.ce', type: 'terraform_data', change: { actions: ['delete'] } };
+  const { runner, calls } = await fixture({ resource_changes: [change], output_changes: {} });
+  const receipt = await runner.planDestroy({});
+  expect(receipt.operation).toBe('destroy');
+  expect(calls.find((call) => call.args[0] === 'plan')?.args).toContain('-destroy');
+  expect(calls.find((call) => call.args[0] === 'plan')?.args).toContain('-refresh=true');
+  await runner.apply(receipt, {});
+  expect(calls.at(-1)?.args.at(-1)).toBe('saved.tfplan');
+  const invalid = await fixture({
+    resource_changes: [{ ...change, change: { actions: ['delete', 'create'] } }],
+    output_changes: {},
+  });
+  await expect(invalid.runner.planDestroy({})).rejects.toThrow();
+});

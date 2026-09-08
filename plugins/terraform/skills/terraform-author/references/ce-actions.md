@@ -22,3 +22,9 @@ requires a fresh ordinary plan with no resource, output, or action changes.
 
 See [HashiCorp action invocation](https://developer.hashicorp.com/terraform/language/invoke-actions)
 and the [Terraform 1.16.1 action JSON contract](https://github.com/hashicorp/terraform/blob/v1.16.1/internal/command/jsonplan/action_invocations.go).
+
+For teardown, use `planDestroy` after the cloud adapter verifies ownership of every
+resource in the workspace. The runner refreshes state, permits only delete/no-op
+changes, and applies the exact saved binary. Preserve the source configuration and
+receipts for inspection. Verify empty state with a subsequent refresh-enabled destroy
+plan; an ordinary plan against retained source configuration would propose recreation.

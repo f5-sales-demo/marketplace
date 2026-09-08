@@ -19,6 +19,7 @@ export interface TerraformSession {
     signal?: AbortSignal,
   ): Promise<Record<string, unknown>>;
   reviseConfiguration(expectedSha256: string, configuration: string): Promise<string>;
+  planDestroy(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
   planAction(
     intent: TerraformActionIntent,
     env: Record<string, string | undefined>,
@@ -74,6 +75,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();
           return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async planDestroy(env, signal) {
+          await checkOwner();
+          return runner.planDestroy(env, signal);
         },
         async planAction(intent, env, signal) {
           await checkOwner();

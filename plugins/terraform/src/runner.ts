@@ -44,6 +44,7 @@ export interface PlanReceipt {
   changes: Array<{ address: string; type: string; actions: string[] }>;
   noChanges: boolean;
   actionInvocations?: TerraformActionIntent[];
+  operation?: 'destroy';
 }
 const cliConfig = 'provider_installation {\n  direct {}\n}\ndisable_checkpoint = true\n';
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -517,6 +518,10 @@ export class TerraformRunner {
   async plan(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt> {
     return this.#plan(env, signal);
   }
+  /** Cloud adapters must establish ownership of every state resource before teardown. */
+  async planDestroy(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt> {
+    return this.#plan(env, signal, undefined, true);
+  }
   /** One explicitly selected action; cloud lifecycle adapters supply ownership and convergence gates. */
   async planAction(
     intent: TerraformActionIntent,
@@ -531,6 +536,7 @@ export class TerraformRunner {
     env: Record<string, string | undefined>,
     signal?: AbortSignal,
     action?: TerraformActionIntent,
+    destroy = false,
   ): Promise<PlanReceipt> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
@@ -550,6 +556,7 @@ export class TerraformRunner {
           '-refresh=true',
           '-out=saved.tfplan',
           ...(action ? [`-invoke=${action.address}`] : []),
+          ...(destroy ? ['-destroy'] : []),
         ],
         env,
         signal,
@@ -587,6 +594,12 @@ export class TerraformRunner {
         changes.every((change) => change.actions[0] === 'no-op') && outputs.every((actions) => actions[0] === 'no-op');
       if (action && !resourcesUnchanged)
         throw new Error('Terraform action plan contains unrelated resource or output changes');
+      if (
+        destroy &&
+        (changes.some((change) => !['delete', 'no-op'].includes(change.actions.join(','))) ||
+          outputs.some((actions) => !['delete', 'no-op'].includes(actions.join(','))))
+      )
+        throw new Error('Terraform destroy plan contains non-delete changes');
       const noChanges = resourcesUnchanged && actionInvocations.length === 0;
       if (!noChanges && !plan.applyable) throw new Error('Terraform plan has changes but cannot be applied'); // codespell:ignore applyable
       const manifest = this.#state().manifest;
@@ -601,6 +614,7 @@ export class TerraformRunner {
         changes,
         noChanges,
         ...(actionInvocations.length ? { actionInvocations } : {}),
+        ...(destroy ? { operation: 'destroy' as const } : {}),
       };
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
       return receipt;
