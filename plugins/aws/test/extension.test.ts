@@ -81,7 +81,7 @@ describe('AWS Status extension', () => {
     60000,
   );
 
-  it('registers generic and six Customer Edge tools when aws CLI is available', async () => {
+  it('registers generic and Customer Edge lifecycle/inventory tools when aws CLI is available', async () => {
     const tools: Array<{ name: string }> = [];
     const mockPi = baseMockPi({
       registerTool(tool: { name: string }) {
@@ -90,12 +90,13 @@ describe('AWS Status extension', () => {
     });
     await factory(mockPi);
 
-    // If aws CLI is installed, should register all 5; if not, should skip gracefully
+    // Register the complete tool set when the AWS CLI is available.
     if (tools.length > 0) {
       const toolNames = tools.map((t) => t.name).sort();
       expect(toolNames).toEqual([
         'aws_ce_apply',
         'aws_ce_diagnose',
+        'aws_ce_inventory',
         'aws_ce_plan',
         'aws_ce_status',
         'aws_cloud_init_analyze',

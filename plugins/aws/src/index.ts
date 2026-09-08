@@ -37,6 +37,7 @@ export function isAwsCePrompt(prompt: string): boolean {
 
 export const AWS_CE_RESEARCH_GATE = [
   'AWS CUSTOMER EDGE ROUTE: Use the aws:aws-ce workflow for this request.',
+  'For inventory-only requests, use aws_ce_inventory with explicit account, profile and regions. Inventory does not require image selection, Marketplace acceptance, a deployment plan or mutations. Cloud site tags do not establish F5 registration or health.',
   'Before recommendations or aws_ce_plan, use web_search to retrieve the dedicated f5xc-ce-automation-policy/v2 contract, the current official F5 Secure Mesh Site v2 AWS guide, and current AWS Marketplace, EC2, AMI policy, quota, NLB, and Transit Gateway documentation.',
   'Then call aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover in that order. Live discovery must enumerate all regions and pin the exact regional SSM AMI and version.',
   'Require the validated shared-contract identity/digest, provider-source receipts, current Marketplace agreement, platform capability evidence, and discovery artifact. Never use generic aws_exec for CE research, plan before discovery, automate initial legal acceptance, mutate during research, or fall back to a legacy AWS site type.',
@@ -101,11 +102,13 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAwsComputeDiscoverTool } = await import('./tools/aws-compute-discover');
     const { createAwsCePlanTool } = await import('./tools/aws-ce-plan');
     const { createAwsCeApplyTool } = await import('./tools/aws-ce-apply');
+    const { createAwsCeInventoryTool } = await import('./tools/aws-ce-inventory');
     const { createAwsCeStatusTool } = await import('./tools/aws-ce-status');
     const { createAwsCeDiagnoseTool } = await import('./tools/aws-ce-diagnose');
     const { createAwsCloudInitAnalyzeTool } = await import('./tools/aws-cloud-init-analyze');
 
     pi.registerTool(withErrorType(createAwsStsWhoamiTool(pi)));
+    pi.registerTool(withErrorType(createAwsCeInventoryTool(pi)));
     pi.registerTool(withErrorType(createAwsS3LsTool(pi)));
     pi.registerTool(withErrorType(createAwsEc2DescribeInstancesTool(pi)));
     pi.registerTool(withErrorType(createAwsExecTool(pi)));
