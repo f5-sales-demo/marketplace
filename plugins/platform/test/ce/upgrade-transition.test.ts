@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { assessCeUpgradeTransition, type CeUpgradeExpectation } from '../../src/ce/upgrade-transition';
+import {
+  assessCeUpgradeTransition,
+  type CeUpgradeExpectation,
+  stableCeSiteVersions,
+} from '../../src/ce/upgrade-transition';
 
 function fixture(kind: 'software' | 'os' = 'software') {
   const expected: CeUpgradeExpectation = {
@@ -186,4 +190,103 @@ test('historical completion cannot satisfy a new upgrade and failed or offline s
   expect(assessCeUpgradeTransition(expected, observation)).toBe('failed');
   expected.target.version = expected.before.software;
   expect(assessCeUpgradeTransition(expected, observation)).toBe('unknown');
+});
+
+test('stable runtime versions preserve upgraded values independently of the immutable create baseline', () => {
+  for (const engine of ['native', 'terraform'] as const)
+    for (const provider of ['aws', 'azure'] as const) {
+      const { expected, observation } = fixture();
+      expected.binding.owner.engine = observation.owner.engine = engine;
+      expected.binding.owner.provider = observation.owner.provider = provider;
+      observation.software.installed = observation.targetSoftware = observation.progress.version = 'crt-20260201-0179';
+      observation.os.installed = '9.2026.17';
+      observation.targets = []; // A stable installed version need not be offered as a new upgrade.
+      const original = structuredClone(expected.binding);
+      expect(stableCeSiteVersions(expected, observation)).toEqual({ software: 'crt-20260201-0179', os: '9.2026.17' });
+      expect(expected.binding).toEqual(original);
+      expect(observation.nodeHealth).toBe('unknown');
+    }
+});
+
+test('stable version capture rejects identity drift, stale evidence, incomplete upgrades and publisher lag', () => {
+  for (const mutate of [
+    (o: any) => {
+      o.siteUid = 'different';
+    },
+    (o: any) => {
+      o.physicalSiteUid = 'different';
+    },
+    (o: any) => {
+      o.owner.engine = 'native';
+    },
+    (o: any) => {
+      o.nodes = ['different'];
+    },
+    (o: any) => {
+      o.contractFingerprint = `sha256:${'c'.repeat(64)}`;
+    },
+    (o: any) => {
+      o.startedAt = new Date(Date.now() - 61_000).toISOString();
+    },
+    (o: any) => {
+      o.observedAt = 'invalid';
+    },
+    (o: any) => {
+      o.software.phase = 'UPGRADE_IN_PROGRESS';
+    },
+    (o: any) => {
+      o.os.phase = 'UPGRADE_IN_PROGRESS';
+    },
+    (o: any) => {
+      o.os.installed = '__VERSION__';
+    },
+    (o: any) => {
+      o.siteState = 'UPGRADING';
+      o.online = false;
+    },
+    (o: any) => {
+      o.progress.version = 'crt-20260201-0179';
+    },
+    (o: any) => {
+      o.progress.status = 'IN_PROGRESS';
+    },
+    (o: any) => {
+      o.targetSoftware = 'crt-20260201-0179';
+    },
+  ]) {
+    const { expected, observation } = fixture();
+    observation.targetSoftware = observation.software.installed;
+    expect(stableCeSiteVersions(expected, observation)).toEqual(expected.before);
+    mutate(observation);
+    expect(stableCeSiteVersions(expected, observation)).toBeUndefined();
+  }
+});
+
+test('matching malformed version identities cannot become trusted evidence', () => {
+  for (const mutate of [
+    (e: any, o: any) => {
+      e.siteUid = o.siteUid = 12;
+    },
+    (e: any, o: any) => {
+      e.physicalSiteUid = o.physicalSiteUid = ' ';
+    },
+    (e: any, o: any) => {
+      e.binding.nodes = o.nodes = [12];
+    },
+    (e: any, o: any) => {
+      e.binding.owner.account = o.owner.account = undefined;
+    },
+    (e: any, o: any) => {
+      e.binding.owner.engine = o.owner.engine = 'unowned';
+    },
+    (e: any, o: any) => {
+      e.binding.owner.provider = o.owner.provider = 'other';
+    },
+  ]) {
+    const { expected, observation } = fixture();
+    mutate(expected, observation);
+    expect(assessCeUpgradeTransition(expected, observation)).toBe('unknown');
+    observation.targetSoftware = observation.software.installed;
+    expect(stableCeSiteVersions(expected, observation)).toBeUndefined();
+  }
 });

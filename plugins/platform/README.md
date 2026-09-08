@@ -18,6 +18,13 @@ evidence. Create-time version settings remain separate. Version completion alone
 does not establish node, routing, or traffic health; cloud lifecycle adapters must
 verify those before advancing a serial upgrade.
 
+`stableCeSiteVersions` captures completed runtime software and OS versions with the
+same identity and freshness checks. This supports replacement planning without
+changing the original create-time settings, which can retain an older baseline
+after an upgrade. A replacement coordinator must freeze these values into its plan,
+revalidate them before the first destructive boundary, and verify the replacement
+after registration. The version gate alone does not implement that lifecycle.
+
 The verified HTTP ingress contract also maps site-local HTTP origins. It binds
 each outside-network endpoint to an explicit CE site and uses `LOCAL_PREFERRED`
 selection. The API's site-bound `private_ip` variant can carry a public address.
