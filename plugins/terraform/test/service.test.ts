@@ -6,7 +6,7 @@ import { CeDeploymentStore } from '../../platform/src/ce/deployment-store';
 import type { CeOwner } from '../../platform/src/ce/runtime';
 import { type CePlatformService, registerCePlatformService } from '../../platform/src/ce/service';
 import factory from '../src/index';
-import type { Deployment } from '../src/runner';
+import type { Deployment, PlanReceipt } from '../src/runner';
 import { type CeTerraformService, createCeTerraformService, TERRAFORM_SERVICE_CHANNEL } from '../src/service';
 
 const directories: string[] = [];
@@ -61,6 +61,9 @@ test('Terraform revalidates durable ownership before execution', async () => {
   );
   await expect(session.plan({})).rejects.toThrow();
   await expect(session.readConfiguration('0'.repeat(64))).rejects.toThrow();
+  await expect(
+    session.readPlannedResourceFields({} as PlanReceipt, { 'terraform_data.ce': ['id'] }, {}),
+  ).rejects.toThrow();
 });
 test('installed Terraform extension registers an executable service through the supported bus', async () => {
   const { platform } = await fixture();

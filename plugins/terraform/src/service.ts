@@ -7,6 +7,13 @@ export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
   /** Sensitive internal snapshot, bound to the caller's expected revision. */
   readConfiguration(expectedSha256: string): Promise<string>;
+  /** Restricted ownership projection; selected fields must be nonsensitive. */
+  readPlannedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>>;
   readPlannedResourceIds(
     receipt: PlanReceipt,
     addresses: string[],
@@ -60,6 +67,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async readPlannedResourceFields(receipt, selections, env, signal) {
+          await checkOwner();
+          return runner.readPlannedResourceFields(receipt, selections, env, signal);
+        },
         async readPlannedResourceIds(receipt, addresses, env, signal) {
           await checkOwner();
           return runner.readPlannedResourceIds(receipt, addresses, env, signal);

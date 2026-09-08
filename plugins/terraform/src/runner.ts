@@ -720,6 +720,49 @@ export class TerraformRunner {
       addresses.some((address) => !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address))
     )
       throw new Error('Explicit unique root resource addresses are required');
+    const projected = await this.readPlannedResourceFields(
+      receipt,
+      Object.fromEntries(addresses.map((address) => [address, ['id']])),
+      env,
+      signal,
+    );
+    return Object.fromEntries(
+      Object.entries(projected).map(([address, values]) => {
+        if (values === null) return [address, null];
+        if (typeof values.id !== 'string' || !values.id)
+          throw new Error('Terraform resource ID is unavailable or sensitive');
+        return [address, values.id];
+      }),
+    );
+  }
+  /** Private field projection for cloud ownership checks. Never export this as a plan summary. */
+  async readPlannedResourceFields(
+    receipt: PlanReceipt,
+    selections: Record<string, string[]>,
+    env: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, Record<string, unknown> | null>> {
+    if (
+      !selections ||
+      typeof selections !== 'object' ||
+      Array.isArray(selections) ||
+      !Object.keys(selections).length ||
+      Object.entries(selections).some(
+        ([address, fields]) =>
+          !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(address) ||
+          !Array.isArray(fields) ||
+          !fields.length ||
+          new Set(fields).size !== fields.length ||
+          fields.some((field) => typeof field !== 'string' || !/^[a-z][a-z0-9_]*$/.test(field)),
+      )
+    )
+      throw new Error('Explicit root resource addresses and unique top-level fields are required');
+    selections = structuredClone(selections);
+    receipt = structuredClone(receipt);
+    const nonsensitive = (value: unknown): boolean =>
+      value === undefined ||
+      value === false ||
+      (value !== null && typeof value === 'object' && Object.values(value).every(nonsensitive));
     return this.#exclusive(async () => {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
@@ -735,8 +778,8 @@ export class TerraformRunner {
       if (version.terraform_version !== manifest.terraformVersion) throw new Error('Terraform version changed');
       const plan = decode(await this.#run(['show', '-json', 'saved.tfplan'], env, signal));
       if (!Array.isArray(plan.resource_changes)) throw new Error('Terraform plan resource identities unavailable');
-      const result: Record<string, string | null> = {};
-      for (const address of addresses) {
+      const result: Record<string, Record<string, unknown> | null> = {};
+      for (const [address, fields] of Object.entries(selections)) {
         const matches = plan.resource_changes.map(object).filter((resource) => resource.address === address);
         if (matches.length > 1) throw new Error('Terraform resource identity is ambiguous');
         if (!matches.length) {
@@ -749,14 +792,19 @@ export class TerraformRunner {
           continue;
         }
         const before = object(change.before);
-        if (
-          change.before_sensitive === true ||
-          (change.before_sensitive && object(change.before_sensitive).id === true) ||
-          typeof before.id !== 'string' ||
-          !before.id
-        )
-          throw new Error('Terraform resource ID is unavailable or sensitive');
-        result[address] = before.id;
+        const sensitivity =
+          change.before_sensitive === undefined || change.before_sensitive === false
+            ? {}
+            : change.before_sensitive === true
+              ? true
+              : object(change.before_sensitive);
+        const selected: Record<string, unknown> = {};
+        for (const field of fields) {
+          if (!Object.hasOwn(before, field) || sensitivity === true || !nonsensitive(sensitivity[field]))
+            throw new Error('Terraform resource field is unavailable or sensitive');
+          selected[field] = before[field];
+        }
+        result[address] = selected;
       }
       if (receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))))
         throw new Error('Terraform identity inspection saved plan changed');

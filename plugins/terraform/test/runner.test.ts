@@ -126,6 +126,65 @@ test('projects resource IDs privately from the exact saved plan and rejects sens
   );
 });
 
+test('projects only requested nonsensitive teardown identity fields from an exact saved plan', async () => {
+  const resource = {
+    address: 'aws_route.ce',
+    type: 'aws_route',
+    mode: 'managed',
+    change: {
+      actions: ['delete'],
+      before: {
+        id: 'route-fixture',
+        route_table_id: 'rtb-12345678',
+        destination_cidr_block: '10.0.0.0/24',
+        user_data: 'PRIVATE_BOOTSTRAP',
+        tags: { owner: 'ce' },
+      },
+      before_sensitive: { user_data: true, tags: { owner: false } },
+      after: null,
+    },
+  };
+  const { runner } = await fixture({ resource_changes: [resource], output_changes: {} });
+  const receipt = await runner.planDestroy({});
+  expect(
+    await runner.readPlannedResourceFields(receipt, { 'aws_route.ce': ['id', 'route_table_id', 'tags'] }, {}),
+  ).toEqual({
+    'aws_route.ce': { id: 'route-fixture', route_table_id: 'rtb-12345678', tags: { owner: 'ce' } },
+  });
+  expect(JSON.stringify(receipt)).not.toContain('rtb-12345678');
+  for (const field of ['user_data', 'missing'])
+    await expect(runner.readPlannedResourceFields(receipt, { 'aws_route.ce': [field] }, {})).rejects.toThrow(
+      /unavailable or sensitive/,
+    );
+  await expect(
+    runner.readPlannedResourceFields({ ...receipt, planSha256: '0'.repeat(64) }, { 'aws_route.ce': ['id'] }, {}),
+  ).rejects.toThrow(/differs/);
+  await expect(runner.readPlannedResourceFields(receipt, { 'aws_route.ce': ['id', 'id'] }, {})).rejects.toThrow(
+    /fields/,
+  );
+});
+
+test('rejects nested sensitivity in projected ownership and reports absent resources without fabricating fields', async () => {
+  const resource = {
+    address: 'aws_instance.ce',
+    type: 'aws_instance',
+    change: {
+      actions: ['delete'],
+      before: { id: 'i-12345678', tags: { owner: 'private' } },
+      before_sensitive: { tags: { owner: true } },
+      after: null,
+    },
+  };
+  const { runner } = await fixture({ resource_changes: [resource], output_changes: {} });
+  const receipt = await runner.planDestroy({});
+  await expect(runner.readPlannedResourceFields(receipt, { 'aws_instance.ce': ['tags'] }, {})).rejects.toThrow(
+    /sensitive/,
+  );
+  expect(await runner.readPlannedResourceFields(receipt, { 'aws_instance.absent': ['id'] }, {})).toEqual({
+    'aws_instance.absent': null,
+  });
+});
+
 test('rejects malformed output changes even when resources change', async () => {
   for (const actions of [undefined, [], ['forget'], ['create', 'delete'], ['no-op,create']]) {
     const { runner } = await fixture({ output_changes: { token: { actions } } });
