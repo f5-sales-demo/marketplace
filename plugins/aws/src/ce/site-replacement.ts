@@ -7,6 +7,7 @@ import {
 } from '../../../platform/src/ce/replacement-versions';
 import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
 import type { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
+import { stableCeSiteVersions } from '../../../platform/src/ce/upgrade-transition';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256, safeHexEqual } from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
@@ -464,21 +465,29 @@ export async function runAwsSiteReplacement(
       if ((await runtime.observeRegistrations(binding, checkpoint.instances, signal)).status !== 'healthy')
         return { status: 'pending-registration', routing: 'unknown', traffic: 'unknown' };
       if (!checkpoint.siteUid) throw new Error('Replacement logical identity is missing');
-      const effective = await captureCeReplacementVersions(
-        binding,
-        checkpoint.siteUid,
-        plan.versions.identity.siteContractFingerprint,
-        runtime,
-        contract,
-        signal,
-      );
+      const observation = await runtime.observeUpgrade(binding, contract, undefined, signal);
+      if (observation.status !== 'observed')
+        return { status: 'pending-versions', versions: 'unknown', routing: 'unknown', traffic: 'unknown' };
       if (
-        effective.identity.physicalSiteUid === plan.versions.identity.physicalSiteUid ||
-        (checkpoint.physicalSiteUid && checkpoint.physicalSiteUid !== effective.identity.physicalSiteUid) ||
-        canonicalSha256(effective.versions) !== canonicalSha256(plan.versions.versions)
+        observation.physicalSiteUid === plan.versions.identity.physicalSiteUid ||
+        (checkpoint.physicalSiteUid && checkpoint.physicalSiteUid !== observation.physicalSiteUid)
       )
         throw new Error('Replacement physical identity or effective versions differ');
-      checkpoint.physicalSiteUid = effective.identity.physicalSiteUid;
+      const effective = stableCeSiteVersions(
+        {
+          binding,
+          siteUid: checkpoint.siteUid,
+          physicalSiteUid: observation.physicalSiteUid,
+          contractFingerprint: contract.fingerprint,
+          siteContractFingerprint: plan.versions.identity.siteContractFingerprint,
+        },
+        observation,
+      );
+      if (!effective)
+        return { status: 'pending-versions', versions: 'unknown', routing: 'unknown', traffic: 'unknown' };
+      if (canonicalSha256(effective) !== canonicalSha256(plan.versions.versions))
+        throw new Error('Replacement physical identity or effective versions differ');
+      checkpoint.physicalSiteUid = observation.physicalSiteUid;
       await save();
       await driver.finalize?.(plan, checkpoint.instances, signal);
       checkpoint.phase = 'complete';
@@ -488,7 +497,7 @@ export async function runAwsSiteReplacement(
         instances: checkpoint.instances,
         siteUid: checkpoint.siteUid,
         physicalSiteUid: checkpoint.physicalSiteUid,
-        versions: structuredClone(effective.versions),
+        versions: structuredClone(effective),
         routing: 'unknown',
         traffic: 'unknown',
       };

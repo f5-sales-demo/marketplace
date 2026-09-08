@@ -67,7 +67,8 @@ already match. The coordinator persists version admission before shutdown, reche
 on an intact retry, and requires that admission during partial shutdown recovery. Creation
 uses the frozen installed versions without changing the original deployment baseline.
 Registration completion requires a new physical site identity and matching installed versions;
-routing and traffic still require separate verification. Live post-upgrade replacement
+missing or installing version evidence returns `pending-versions` for checkpoint resume.
+Routing and traffic still require separate verification. Live post-upgrade replacement
 acceptance remains pending.
 
 ## AWS operations and diagnostics

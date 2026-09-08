@@ -415,3 +415,35 @@ test('saved shutdown admission cannot outlive its configuration guard', async ()
   await expect(f.run()).rejects.toThrow('configuration admission is missing');
   expect(f.events).toHaveLength(count);
 });
+
+test('registration may precede version publication without completing or repeating replacement', async () => {
+  const f = fixture('terraform');
+  const observe = f.runtime.observeUpgrade;
+  f.runtime.observeUpgrade = async () => {
+    const value = await observe();
+    return value.siteUid === 'old-site' ? value : { ...value, status: 'unknown' };
+  };
+  const pending = await f.run();
+  expect(pending.status).toBe('pending-versions');
+  expect(pending.routing).toBe('unknown');
+  const path = `${f.replacement.planId}.json`;
+  const cp = (await f.storage.read(path)) as Record<string, unknown>;
+  expect(cp.phase).toBe('registration');
+  f.runtime.observeUpgrade = observe;
+  expect((await f.run()).status).toBe('registered-with-configured-interfaces');
+  expect(f.events.filter((event) => event === 'launch')).toHaveLength(1);
+  expect(f.events.filter((event) => event === 'site-create')).toHaveLength(1);
+});
+
+test('published but still installing replacement versions remain pending', async () => {
+  const f = fixture('native');
+  const observe = f.runtime.observeUpgrade;
+  f.runtime.observeUpgrade = async () => {
+    const value = await observe();
+    return value.siteUid === 'old-site' ? value : { ...value, online: false, siteState: 'PROVISIONING' };
+  };
+  expect((await f.run()).status).toBe('pending-versions');
+  f.runtime.observeUpgrade = observe;
+  expect((await f.run()).status).toBe('registered-with-configured-interfaces');
+  expect(f.events.filter((event) => event === 'launch')).toHaveLength(1);
+});
