@@ -161,6 +161,15 @@ test('precheck and target booleans cannot override missing, failed, duplicated o
   expect(assessCeUpgradeTransition(expected, observation)).toBe('unknown');
 });
 
+test('completed progress with a lagging installed-version publisher cannot advance a serial upgrade', () => {
+  // Observed during the Ohio software upgrade: progress completed before the version publisher caught up.
+  const { expected, observation } = fixture();
+  observation.progress = { version: expected.target.version, status: 'COMPLETED' };
+  expect(assessCeUpgradeTransition(expected, observation)).toBe('unknown');
+  observation.software.installed = expected.target.version;
+  expect(assessCeUpgradeTransition(expected, observation)).toBe('versions-complete');
+});
+
 test('historical completion cannot satisfy a new upgrade and failed or offline sites cannot complete', () => {
   const { expected, observation } = fixture();
   observation.software.installed = expected.target.version;
