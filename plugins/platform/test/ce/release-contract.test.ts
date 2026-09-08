@@ -110,7 +110,9 @@ function fixture(options: Options = {}): typeof fetch {
     const name = url.replace('https://fixture.test/assets/', '');
     const bytes = assets.get(name);
     if (!bytes) return new Response(null, { status: 404 });
-    return new Response(options.tamper && name === 'smsv2-contract.json' ? encoder.encode('tampered') : bytes);
+    return new Response(
+      options.tamper && name === 'smsv2-contract.json' ? encoder.encode('tampered') : new Uint8Array(bytes),
+    );
   }) as typeof fetch;
 }
 

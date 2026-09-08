@@ -122,6 +122,7 @@ export async function resolveSmsv2AwsReleaseContract(fetcher: Fetcher = fetch): 
 
   const contract = object(JSON.parse(new TextDecoder().decode(contractBytes)), 'contract');
   const api = object(contract.api, 'contract API');
+  const operations = api.operations;
   const aws = object(object(contract.providers, 'providers').aws, 'AWS provider');
   const capabilities = object(aws.capabilities, 'AWS capabilities');
   const bootstrap = object(aws.bootstrap, 'AWS bootstrap policy');
@@ -155,9 +156,9 @@ export async function resolveSmsv2AwsReleaseContract(fetcher: Fetcher = fetch): 
     bootstrap.reference !== 'session_bound_opaque_one_use' ||
     declaredEvidence.provenance !== 'f5-distributed-cloud-smsv2-system-namespace' ||
     api.namespace !== 'system' ||
-    !Array.isArray(api.operations) ||
-    new Set(api.operations).size !== 4 ||
-    !['create', 'read', 'replace', 'delete'].every((operation) => api.operations?.includes(operation)) ||
+    !Array.isArray(operations) ||
+    new Set(operations).size !== 4 ||
+    !['create', 'read', 'replace', 'delete'].every((operation) => operations.includes(operation)) ||
     capabilities.aws_ce_create !== 'available' ||
     capabilities.runtime_status !== 'unavailable' ||
     capabilities.tgw_connect !== 'unavailable' ||

@@ -97,7 +97,7 @@ describe('f5xc_ce_v2_bootstrap', () => {
       undefined,
       ctx(),
     );
-    expect(result.isError).not.toBe('unavailable');
+    expect(result).not.toHaveProperty('isError', true);
     expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
     expect(result.details.reference).toMatch(/^f5xc-ce:\/\/session-a\//);
   });
@@ -247,7 +247,7 @@ describe('f5xc_ce_v2_status', () => {
   it('returns only allowlisted non-secret evidence', async () => {
     const tool = createF5xcCeV2StatusTool(pi);
     const result = await tool.execute('id', { namespace: 'system', siteName: 'ce-demo' }, undefined, undefined, ctx());
-    expect(result.isError).not.toBe('unavailable');
+    expect(result).not.toHaveProperty('isError', true);
     expect(result.details.capability).toBe('unavailable');
     expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
   });

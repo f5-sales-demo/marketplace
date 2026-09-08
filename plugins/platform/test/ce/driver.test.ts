@@ -28,7 +28,7 @@ describe('SMSv2 AWS CE driver', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), method: init?.method ?? 'GET' });
       return new Response('{}', { status: 200 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const ce = driver();
     const request = { namespace: 'system', siteName: 'ce-demo' };
     await ce.site('create', request);
@@ -46,7 +46,7 @@ describe('SMSv2 AWS CE driver', () => {
   it('rejects non-system AWS CE requests before any tenant request', async () => {
     globalThis.fetch = (async () => {
       throw new Error('tenant request must not occur');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const outsideSystemNamespace = ['not', 'system'].join('-');
     await expect(driver().site('create', { namespace: outsideSystemNamespace, siteName: 'ce-demo' })).rejects.toThrow(
       /namespace system/,
@@ -56,7 +56,7 @@ describe('SMSv2 AWS CE driver', () => {
   it('rejects headless bootstrap and runtime status without a tenant endpoint', async () => {
     globalThis.fetch = (async () => {
       throw new Error('tenant request must not occur');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await expect(
       driver().checkoutBootstrap(
         { namespace: 'system', siteName: 'ce-demo', nodeName: 'ce-1', expiresInSeconds: 60 },
