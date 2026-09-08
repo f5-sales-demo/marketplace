@@ -333,6 +333,64 @@ export class CeRuntime {
       return { ...evidence, status: 'unknown' as const };
     }
   }
+  async ensureAwsInterfaceMtu(
+    binding: SiteBinding,
+    instances: Record<string, string>,
+    expected: Array<ExpectedCeInterface & { mtu: number }>,
+    checkpoint: (record: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#binding(binding, true);
+    if (expected.some((item) => !Number.isInteger(item.mtu) || item.mtu < 576 || item.mtu > 9000))
+      throw new Error('Explicit supported interface MTU is required');
+    const devices = await this.observeAwsGuestDevices(binding, instances, expected, signal);
+    if (devices.status !== 'observed') throw new Error('Guest interface inventory has not converged');
+    const before = await this.observeSite(binding, signal);
+    this.#owned(before, binding);
+    verifyRegisteredInterfaceConfiguration(object(before.spec), devices.interfaces);
+    const uid = object(before.system_metadata).uid;
+    if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+    const nodes = object(object(object(before.spec).aws).not_managed).node_list as Json[];
+    const matches = (node: Json, iface: Json) => {
+      const ethernet = object(iface.ethernet_interface);
+      return expected.find((item) => item.node === node.hostname && item.mac.toLowerCase() === ethernet.mac);
+    };
+    const changed = nodes.some((node) =>
+      (node.interface_list as Json[]).some((iface) => iface.mtu !== matches(node, iface)?.mtu),
+    );
+    if (changed) {
+      if (typeof before.resource_version !== 'string' || !before.resource_version)
+        throw new Error('Site resource version is required for an interface update');
+      const request = this.contract.siteReplaceRequest(before);
+      const desiredNodes = object(object(object(request.spec).aws).not_managed).node_list as Json[];
+      for (const node of desiredNodes)
+        for (const iface of node.interface_list as Json[]) {
+          const desired = matches(node, iface);
+          if (!desired) throw new Error('MTU update interface identity differs');
+          iface.mtu = desired.mtu;
+        }
+      this.contract.validateSiteReplace(request);
+      try {
+        await this.#request(this.#sitePath(binding), { method: 'PUT', body: JSON.stringify(request) }, signal);
+      } catch (error) {
+        if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+      }
+      const after = await this.observeSite(binding, signal);
+      this.#owned(after, binding);
+      if (object(after.system_metadata).uid !== uid || !subset(after.spec, request.spec))
+        throw new Error('Interface MTU update has not converged or the site changed');
+    }
+    await checkpoint({
+      owner: binding.owner,
+      siteName: binding.siteName,
+      uid,
+      interfaces: expected,
+      source: this.#sitePath(binding),
+      evidenceKind: 'configured-mtu',
+      observedAt: new Date().toISOString(),
+      packetMtu: 'unknown',
+    });
+  }
   async observeAwsInterfaces(
     binding: SiteBinding,
     expected: ExpectedCeInterface[],

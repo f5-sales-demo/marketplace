@@ -35,7 +35,10 @@ export interface AwsCeF5Capabilities {
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
 }
 
+export const AWS_CE_DEFAULT_INTERFACE_MTU = 1500 as const;
+
 export interface AwsCeInterfaceIntent {
+  mtu?: number;
   index: number;
   role: 'slo' | 'sli' | 'management' | 'service' | 'workload';
   vrf: string;

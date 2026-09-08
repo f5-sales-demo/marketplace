@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { projectReplaceSnapshot } from './wire-replace';
 import { type AwsGreBinding, buildAwsRouting, routingValidators } from './wire-routing';
 import { createWireValidator } from './wire-schema';
 import { buildWireSite, type WireSiteIntent } from './wire-site';
@@ -132,6 +133,25 @@ export class VerifiedCeContract {
   }
   validateSite(spec: unknown): void {
     this.#validate(spec);
+  }
+  siteReplaceRequest(snapshot: Json): Json {
+    const request = {
+      metadata: projectReplaceSnapshot(snapshot.metadata, this.#schemas, 'schemaObjectReplaceMetaType'),
+      spec: projectReplaceSnapshot(snapshot.spec, this.#schemas, 'viewssecuremesh_site_v2ReplaceSpecType', [
+        'site_state',
+        'site_errors',
+        'operating_system_version',
+        'volterra_software_version',
+        'disable_management_network',
+        'enable_management_network',
+      ]),
+      resource_version: snapshot.resource_version,
+    };
+    this.validateSiteReplace(request);
+    return request;
+  }
+  validateSiteReplace(request: Json): void {
+    createWireValidator(this.#schemas, 'securemesh_site_v2ReplaceRequest')(request);
   }
   provider(name: 'aws' | 'azure'): Json {
     return structuredClone(object(object(this.#contract.providers)[name]));

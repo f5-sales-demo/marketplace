@@ -132,6 +132,7 @@ export function admissionFixture() {
   let healthy = false;
   const runtime = {
     async reserveSite() {},
+    async ensureAwsInterfaceMtu() {},
     async observeAwsRegisteredConfiguration() {
       return { status: 'configured' as const };
     },

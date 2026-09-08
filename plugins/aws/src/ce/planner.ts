@@ -5,6 +5,7 @@ import { siteForNode, siteTopology } from './topology';
 import { observedConnectCidrs } from './transport-routes';
 import type { AwsCeAction, AwsCeIntent, AwsCeObservation, AwsCePlan, AwsCePlanDraft } from './types';
 import {
+  AWS_CE_DEFAULT_INTERFACE_MTU,
   AWS_CE_F5_GUIDE_URL,
   AWS_CE_MARKETPLACE_PRODUCT_ID,
   AWS_CE_MIN_UPGRADE_SAFE_ROOT_VOLUME_GIB,
@@ -107,6 +108,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   const interfaces = input.interfaces.map((item, index) => {
     if (!['slo', 'sli', 'management', 'service', 'workload'].includes(item.role))
       fail(`interface ${index} role is invalid`);
+    const mtu = item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU;
+    if (!Number.isInteger(mtu) || mtu < 1500 || mtu > 9000) fail('interface MTU must be an integer from 1500 to 9000');
     const vrf = name(item.vrf, `interfaces[${index}].vrf`);
     if (item.subnets.length !== input.topology.nodeCount) fail('interfaces must be symmetric across every node');
     const subnets = item.subnets.map((subnet, node) => {
@@ -130,6 +133,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     return {
       index,
       role: item.role,
+      mtu,
       vrf,
       subnets,
       addressing: {

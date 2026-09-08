@@ -15,7 +15,7 @@ import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import { siteBindings } from './topology';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
-import { AWS_CE_SCHEMA_VERSION } from './types';
+import { AWS_CE_DEFAULT_INTERFACE_MTU, AWS_CE_SCHEMA_VERSION } from './types';
 
 export interface AwsCeApplyInput {
   planId: string;
@@ -234,6 +234,24 @@ async function assertGate(
         );
         if (configuration.status !== 'configured')
           throw new Error('Observed F5 interface configuration has not converged');
+        await runtime.ensureAwsInterfaceMtu(
+          binding,
+          instances,
+          site.nodeIndexes.flatMap((node) =>
+            plan.interfaces.map((item) => ({
+              node: `${plan.deploymentName}-${node}`,
+              role: item.role as 'slo' | 'sli',
+              mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+              mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
+            })),
+          ),
+          async () => {
+            await persist();
+          },
+          signal,
+        );
+        if ((await runtime.observeRegistrations(binding, instances, signal)).status !== 'healthy')
+          throw new Error('Observed F5 registration after interface update has not converged');
       }
     }
     if (action.kind === 'health-gate') {

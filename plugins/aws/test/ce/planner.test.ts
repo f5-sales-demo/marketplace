@@ -862,3 +862,18 @@ it('restores forwarding on every observed ENI reused by replacement without targ
     expect(action.args).toContain(action.resourceId);
   }
 });
+
+it('pins the deliberate MTU default and validates an explicit MTU in the immutable intent', () => {
+  const first = compileAwsCePlan(intent(), observation());
+  expect(first.interfaces.every((item) => item.mtu === 1500)).toBe(true);
+  const jumbo = intent();
+  jumbo.interfaces = jumbo.interfaces.map((item) => ({ ...item, mtu: 9000 }));
+  const second = compileAwsCePlan(jumbo, observation());
+  expect(second.interfaces.every((item) => item.mtu === 9000)).toBe(true);
+  expect(second.planSha256).not.toBe(first.planSha256);
+  for (const mtu of [0, 1499, 9001, 1500.5]) {
+    const invalid = intent();
+    invalid.interfaces[0].mtu = mtu;
+    expect(() => compileAwsCePlan(invalid, observation())).toThrow('MTU');
+  }
+});

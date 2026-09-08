@@ -8,7 +8,7 @@ import { renderAwsCeCloudInit } from './cloud-init';
 import { renderAwsTerraformFoundation } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { siteBindings } from './topology';
-import type { AwsCePlan } from './types';
+import { AWS_CE_DEFAULT_INTERFACE_MTU, type AwsCePlan } from './types';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 interface Admission {
@@ -25,7 +25,12 @@ export async function admitAwsTerraformSites(
   session: TerraformSession,
   runtime: Pick<
     CeRuntime,
-    'reserveSite' | 'bootstrap' | 'observeRegistrations' | 'approveRegistrations' | 'observeAwsRegisteredConfiguration'
+    | 'reserveSite'
+    | 'bootstrap'
+    | 'observeRegistrations'
+    | 'approveRegistrations'
+    | 'observeAwsRegisteredConfiguration'
+    | 'ensureAwsInterfaceMtu'
   >,
   storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   api: AwsExecApi,
@@ -158,6 +163,23 @@ export async function admitAwsTerraformSites(
       ),
       signal,
     );
+    if (configuration.status === 'configured' && registrations.status === 'healthy') {
+      await runtime.ensureAwsInterfaceMtu(
+        binding,
+        expected,
+        site.nodeIndexes.flatMap((node) =>
+          plan.intent.interfaces.map((item) => ({
+            node: `${plan.deploymentName}-${node}`,
+            role: item.role as 'slo' | 'sli',
+            mac: discovered.bindings[`__ENI_${node}_${item.index}_MAC__`],
+            mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
+          })),
+        ),
+        (record) => storage.write(`terraform-interface-mtu-${site.name}.json`, record),
+        signal,
+      );
+      Object.assign(registrations, await runtime.observeRegistrations(binding, expected, signal));
+    }
     observations.push({ siteName: site.name, registrations, configuration });
     if (configuration.status !== 'configured')
       return { status: 'pending-interface-configuration', sites: observations, routing: 'unknown', traffic: 'unknown' };
