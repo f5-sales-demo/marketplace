@@ -85,3 +85,33 @@ test('installed Terraform extension registers an executable service through the 
   await service.open(owner, deployment, false);
   await service.open(owner, deployment, true);
 });
+
+test('current resume retains private stage configuration while enforcing provider and owner identity', async () => {
+  const { service } = await fixture();
+  const session = await service.open(owner, deployment, false);
+  const { createHash } = await import('node:crypto');
+  const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+  const next = JSON.stringify({
+    terraform: { required_version: '= 1.16.1' },
+    resource: { terraform_data: { ce: { input: 'private-bootstrap-fixture' } } },
+  });
+  await session.reviseConfiguration(hash(deployment.configuration), next);
+  await expect(service.open(owner, deployment, true)).rejects.toThrow('differs');
+  await service.open(owner, deployment, 'current');
+  await expect(service.open(owner, { ...deployment, providerLock: '# foreign lock' }, 'current')).rejects.toThrow(
+    'differs',
+  );
+  await expect(
+    service.open(
+      owner,
+      {
+        ...deployment,
+        configuration: JSON.stringify({
+          terraform: { required_version: '= 1.16.1' },
+          provider: { aws: { region: 'foreign' } },
+        }),
+      },
+      'current',
+    ),
+  ).rejects.toThrow('identity');
+});

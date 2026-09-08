@@ -14,7 +14,7 @@ export interface TerraformSession {
   apply(receipt: PlanReceipt, env: Record<string, string | undefined>, signal?: AbortSignal): Promise<void>;
 }
 export interface CeTerraformService {
-  open(owner: CeOwner, deployment: Deployment, resume: boolean): Promise<TerraformSession>;
+  open(owner: CeOwner, deployment: Deployment, resume: boolean | 'current'): Promise<TerraformSession>;
 }
 
 /** Cloud adapters translate intent; the runner owns isolated execution and exact saved-plan application. */
@@ -35,7 +35,7 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
       const shared = await platform();
       const store = await shared.storage(owner);
       const runner = new TerraformRunner(store.directory);
-      if (resume) await runner.resume(deployment.deploymentId, deployment);
+      if (resume) await runner.resume(deployment.deploymentId, deployment, resume === 'current' ? 'current' : 'exact');
       else await runner.prepare(deployment);
       const checkOwner = async () => {
         await shared.storage(owner);

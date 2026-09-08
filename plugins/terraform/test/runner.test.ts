@@ -10,7 +10,11 @@ afterEach(async () => {
   for (const dir of directories.splice(0)) await rm(dir, { recursive: true });
 });
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
-async function fixture(planOverrides: Record<string, unknown> = {}, outputValues: Record<string, unknown> = {}) {
+async function fixture(
+  planOverrides: Record<string, unknown> = {},
+  outputValues: Record<string, unknown> = {},
+  configuration = '{"terraform":{"required_version":"= 1.14.0"}}',
+) {
   const root = await mkdtemp(join(tmpdir(), 'ce-tf-test-'));
   directories.push(root);
   const calls: Invocation[] = [];
@@ -51,7 +55,7 @@ async function fixture(planOverrides: Record<string, unknown> = {}, outputValues
     engine: 'terraform',
     scope: { cloud: 'aws', account: 'demo-account', region: 'us-east-1' },
     terraformVersion: '1.14.0',
-    configuration: '{"terraform":{"required_version":"= 1.14.0"}}',
+    configuration,
     providerLock: '# fixture lock',
     backendIdentity: 'local:ce-test',
   });
@@ -179,7 +183,12 @@ test('configuration revision rejects backend changes and interrupted apply', asy
   await writeFile(join(root, 'ce-test', 'plan-receipt.json'), JSON.stringify({ state: 'applying', receipt }), {
     mode: 0o600,
   });
-  await expect(runner.reviseConfiguration(receipt.configurationSha256, '{}')).rejects.toThrow('Reconcile interrupted');
+  await expect(
+    runner.reviseConfiguration(
+      receipt.configurationSha256,
+      '{"terraform":{"required_version":"= 1.14.0"},"output":{"stage":{"value":2}}}',
+    ),
+  ).rejects.toThrow('Reconcile interrupted');
 });
 
 test('resume completes a journaled revision across configuration and manifest replacement boundaries', async () => {
@@ -248,6 +257,64 @@ test('selects only explicitly requested non-sensitive outputs after current appl
   await expect(runner.readOutputs(['bootstrap'], {})).rejects.toThrow('sensitive');
   await expect(runner.readOutputs(['missing'], {})).rejects.toThrow();
   await expect(runner.readOutputs(['ce_interfaces', 'ce_interfaces'], {})).rejects.toThrow('unique');
-  await runner.reviseConfiguration(receipt.configurationSha256, '{}');
+  await runner.reviseConfiguration(
+    receipt.configurationSha256,
+    '{"terraform":{"required_version":"= 1.14.0"},"output":{"stage":{"value":2}}}',
+  );
   await expect(runner.readOutputs(['ce_interfaces'], {})).rejects.toThrow('current configuration');
+});
+
+test('revision cannot change provider scope, aliases, requirements or Terraform settings', async () => {
+  const source = {
+    terraform: {
+      required_version: '= 1.14.0',
+      required_providers: { aws: { source: 'hashicorp/aws', version: '= 6.63.0' } },
+    },
+    provider: { aws: { region: 'ca-west-1', profile: 'approved-profile', allowed_account_ids: ['123456789012'] } },
+  };
+  const configuration = JSON.stringify(source);
+  const { runner } = await fixture({}, {}, configuration);
+  for (const replacement of [
+    { ...source, provider: { aws: { ...source.provider.aws, region: 'us-east-1' } } },
+    { ...source, provider: { aws: { ...source.provider.aws, profile: 'foreign-profile' } } },
+    { ...source, provider: { aws: { ...source.provider.aws, alias: 'foreign' } } },
+    { ...source, provider: {} },
+    { ...source, terraform: { required_version: '= 1.16.1' } },
+    {
+      ...source,
+      terraform: { ...source.terraform, required_providers: { aws: { source: 'other/aws', version: '= 6.63.0' } } },
+    },
+  ])
+    await expect(runner.reviseConfiguration(hash(configuration), JSON.stringify(replacement))).rejects.toThrow(
+      'identity',
+    );
+  const admitted = JSON.stringify({ ...source, resource: { terraform_data: { ce: { input: 'stage-two' } } } });
+  expect(await runner.reviseConfiguration(hash(configuration), admitted)).toBe(hash(admitted));
+});
+
+test('resume rejects journaled provider changes even after configuration was replaced', async () => {
+  for (const replaced of [false, true]) {
+    const { root } = await fixture();
+    const directory = join(root, 'ce-test');
+    const previous = JSON.parse(await readFile(join(directory, 'deployment.json'), 'utf8'));
+    const configuration = '{"terraform":{"required_version":"= 1.14.0"},"provider":{"aws":{"region":"foreign"}}}';
+    const archiveId = '00000000-0000-0000-0000-000000000002';
+    await writeFile(
+      join(directory, 'configuration-transition.json'),
+      JSON.stringify({
+        previous,
+        next: { ...previous, configurationSha256: hash(configuration) },
+        configuration,
+        archiveId,
+      }),
+      { mode: 0o600 },
+    );
+    if (replaced) {
+      const archive = join(directory, 'revisions', archiveId);
+      await mkdir(archive, { recursive: true, mode: 0o700 });
+      await writeFile(join(archive, 'main.tf.json'), await readFile(join(directory, 'main.tf.json')), { mode: 0o600 });
+      await writeFile(join(directory, 'main.tf.json'), configuration, { mode: 0o600 });
+    }
+    await expect(new TerraformRunner(root).resume('ce-test')).rejects.toThrow('identity');
+  }
 });

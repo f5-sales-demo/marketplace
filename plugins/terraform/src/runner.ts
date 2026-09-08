@@ -210,7 +210,7 @@ export class TerraformRunner {
       await this.#verifyInputs();
       const { directory, manifest } = this.#state();
       if (manifest.configurationSha256 !== expectedSha256) throw new Error('Terraform configuration revision is stale');
-      this.#validateRevision(configuration);
+      this.#validateRevision(configuration, (await privateRead(join(directory, 'main.tf.json'))).toString());
       const nextSha256 = digest(configuration);
       if (nextSha256 === expectedSha256) return nextSha256;
       let receipt: Json | undefined;
@@ -232,9 +232,16 @@ export class TerraformRunner {
       return nextSha256;
     });
   }
-  #validateRevision(configuration: string): void {
-    const terraform = object(decode(configuration).terraform ?? {});
+  #validateRevision(configuration: string, previousConfiguration?: string): void {
+    const next = decode(configuration);
+    const terraform = object(next.terraform ?? {});
     if (terraform.backend || terraform.cloud) throw new Error('Terraform configuration revision cannot change backend');
+    if (previousConfiguration !== undefined) {
+      const previous = decode(previousConfiguration);
+      for (const key of ['terraform', 'provider'])
+        if (canonical(previous[key] ?? {}) !== canonical(next[key] ?? {}))
+          throw new Error('Terraform configuration revision cannot change provider or execution identity');
+    }
   }
   async #replacePrivate(path: string, content: string | Uint8Array): Promise<void> {
     const temporary = `${path}.${randomUUID()}.new`;
@@ -288,6 +295,7 @@ export class TerraformRunner {
     if (digest(current) === previous.configurationSha256) await archiveFile('main.tf.json', current);
     if (digest(await privateRead(join(archive, 'main.tf.json'))) !== previous.configurationSha256)
       throw new Error('Previous Terraform configuration archive is missing');
+    this.#validateRevision(transition.configuration, (await privateRead(join(archive, 'main.tf.json'))).toString());
     await archiveFile('deployment.json', Buffer.from(JSON.stringify(previous)));
     for (const name of ['saved.tfplan', 'plan-receipt.json']) {
       try {
@@ -301,7 +309,12 @@ export class TerraformRunner {
     this.#manifest = next;
     await rm(join(directory, 'configuration-transition.json'));
   }
-  async resume(deploymentId: string, expected?: Deployment): Promise<void> {
+  async resume(
+    deploymentId: string,
+    expected?: Deployment,
+    configurationMode: 'exact' | 'current' = 'exact',
+  ): Promise<void> {
+    if (configurationMode === 'current' && !expected) throw new Error('Current configuration resume requires identity');
     if (!safeId.test(deploymentId)) throw new Error('Invalid Terraform deployment identity');
     const directory = join(this.root, deploymentId);
     await privateDirectory(directory);
@@ -316,11 +329,14 @@ export class TerraformRunner {
       const { configuration, providerLock, ...identity } = expected;
       const expectedManifest = {
         ...identity,
-        configurationSha256: digest(configuration),
+        configurationSha256:
+          configurationMode === 'current' ? recoveredManifest.configurationSha256 : digest(configuration),
         providerLockSha256: digest(providerLock),
       };
       if (canonical(recoveredManifest) !== canonical(expectedManifest))
         throw new Error('Terraform deployment differs from the requested identity or configuration');
+      if (configurationMode === 'current')
+        this.#validateRevision((await privateRead(join(directory, 'main.tf.json'))).toString(), configuration);
     }
     this.#directory = directory;
     this.#manifest = recoveredManifest;
