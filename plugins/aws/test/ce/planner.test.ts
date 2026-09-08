@@ -745,3 +745,61 @@ it('rejects every AWS-reserved Connect inside network including .1.0 through .5.
     ).toThrow('reserved');
   }
 });
+
+it('disables forwarding checks on every ENI for single-node and three-node deployments', () => {
+  for (const nodeCount of [1, 3] as const) {
+    const plan = compileAwsCePlan(
+      intent({
+        topology: { nodeCount },
+        interfaces: interfaces(nodeCount, 2),
+        routing: {
+          profile: nodeCount === 1 ? 'direct-eni' : 'nlb-ingress',
+          destinationCidrs: [],
+          associations: [],
+          propagations: [],
+        },
+      }),
+      observation(),
+    );
+    const forwarding = plan.actions.filter((action) => action.kind === 'source-destination-check-disable');
+    expect(forwarding).toHaveLength(nodeCount * 2);
+    const targets = forwarding.map((action) => {
+      expect(action.args).toContain('modify-network-interface-attribute');
+      expect(action.args).not.toContain('modify-instance-attribute');
+      expect(action.args).toContain('Value=false');
+      return action.args?.[(action.args?.indexOf('--network-interface-id') ?? -1) + 1];
+    });
+    expect(targets).toEqual(
+      Array.from({ length: nodeCount }, (_, index) => [`__ENI_${index + 1}_0__`, `__ENI_${index + 1}_1__`]).flat(),
+    );
+  }
+});
+
+it('restores forwarding on every observed ENI reused by replacement without targeting other nodes', () => {
+  const ids = ['i-0123456789abcdef0', 'eni-0123456789abcdef0', 'eni-0123456789abcdef1'];
+  const resources = ids.map((id, index) => ({
+    id,
+    region: 'us-east-1',
+    exists: true,
+    owned: true,
+    tags: {
+      'xcsh-managed-by': 'aws-ce',
+      'xcsh-execution-engine': 'native',
+      'xcsh-deployment-id': 'ce-demo',
+      'xcsh-plan-sha256': ownerPlanSha256,
+      'xcsh-node-index': '1',
+      'xcsh-interface-index': String(index - 1),
+    },
+    state: {},
+  }));
+  const plan = compileAwsCePlan(
+    intent({ operation: 'replace-node', replacementNode: 1 }),
+    observation({ resources, ownershipPlanSha256s: [ownerPlanSha256] }),
+  );
+  const forwarding = plan.actions.filter((action) => action.kind === 'source-destination-check-disable');
+  expect(forwarding.map((action) => action.resourceId)).toEqual(ids.slice(1));
+  for (const action of forwarding) {
+    expect(action.args).toContain('modify-network-interface-attribute');
+    expect(action.args).toContain(action.resourceId);
+  }
+});

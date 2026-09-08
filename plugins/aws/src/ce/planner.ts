@@ -1013,25 +1013,26 @@ function compileActions(
       requiresBootstrap: true,
       capture: { placeholder: `__INSTANCE_${node}_REPLACEMENT__`, path: 'Instances.0.InstanceId' },
     });
-    add({
-      phase: 'nodes',
-      kind: 'source-destination-check-disable',
-      description: `Disable source/destination check for replacement node ${node}`,
-      command: 'aws',
-      args: [
-        'ec2',
-        'modify-instance-attribute',
-        '--instance-id',
-        `__INSTANCE_${node}_REPLACEMENT__`,
-        '--source-dest-check',
-        'Value=false',
-        ...base,
-      ],
-      node,
-      resourceId: `aws://${intent.region}/instance/${intent.deploymentName}-${node}-replacement`,
-      mutates: true,
-      destructive: false,
-    });
+    for (const eni of nodeEnis)
+      add({
+        phase: 'nodes',
+        kind: 'source-destination-check-disable',
+        description: `Disable source/destination check on replacement node ${node} ENI ${eni.id}`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'modify-network-interface-attribute',
+          '--network-interface-id',
+          eni.id,
+          '--source-dest-check',
+          'Value=false',
+          ...base,
+        ],
+        node,
+        resourceId: eni.id,
+        mutates: true,
+        destructive: false,
+      });
     add({
       phase: 'registration',
       kind: 'registration-gate',
@@ -1383,25 +1384,26 @@ function compileActions(
         destructive: false,
         capture: { placeholder: `__EIP_ASSOC_${node}__`, path: 'AssociationId' },
       });
-    add({
-      phase: 'nodes',
-      kind: 'source-destination-check-disable',
-      description: `Disable source/destination check for node ${node}`,
-      command: 'aws',
-      args: [
-        'ec2',
-        'modify-instance-attribute',
-        '--instance-id',
-        `__INSTANCE_${node}__`,
-        '--source-dest-check',
-        'Value=false',
-        ...base,
-      ],
-      node,
-      resourceId: `aws://${intent.region}/instance/${intent.deploymentName}-${node}`,
-      mutates: true,
-      destructive: false,
-    });
+    for (const iface of intent.interfaces)
+      add({
+        phase: 'nodes',
+        kind: 'source-destination-check-disable',
+        description: `Disable source/destination check on node ${node} ${iface.role} ENI`,
+        command: 'aws',
+        args: [
+          'ec2',
+          'modify-network-interface-attribute',
+          '--network-interface-id',
+          `__ENI_${node}_${iface.index}__`,
+          '--source-dest-check',
+          'Value=false',
+          ...base,
+        ],
+        node,
+        resourceId: `aws://${intent.region}/eni/${intent.deploymentName}-${node}-${iface.index}`,
+        mutates: true,
+        destructive: false,
+      });
     add({
       phase: 'registration',
       kind: 'registration-gate',
