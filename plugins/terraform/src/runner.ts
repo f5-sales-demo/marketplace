@@ -555,6 +555,8 @@ export class TerraformRunner {
   ): Promise<PlanReceipt> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();
+      await this.#preserveActionSubmission();
+      if (action) await this.#assertActionUnsubmitted();
       await this.#archivePlanAttempt();
       const version = decode(await this.#run(['version', '-json'], env, signal));
       if (version.terraform_version !== this.#state().manifest.terraformVersion)
@@ -634,6 +636,39 @@ export class TerraformRunner {
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'planned', receipt });
       return receipt;
     });
+  }
+  async #assertActionUnsubmitted(): Promise<void> {
+    try {
+      await privateRead(join(this.#state().directory, 'action-attempt.json'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    throw new Error('This stage already recorded an action submission; observe its outcome instead of replaying it');
+  }
+  async #preserveActionSubmission(): Promise<void> {
+    const directory = this.#state().directory;
+    let journal: Json;
+    try {
+      journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    if (!['applying', 'applied'].includes(String(journal.state))) return;
+    const actions = object(journal.receipt).actionInvocations;
+    if (!Array.isArray(actions) || actions.length === 0) return;
+    try {
+      await privateRead(join(directory, 'action-attempt.json'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      // Older workspaces recorded submission only in the journal that a refresh replaces.
+      await persist(join(directory, 'action-attempt.json'), {
+        schemaVersion: 1,
+        legacyJournalState: journal.state,
+        receipt: journal.receipt,
+      });
+    }
   }
   /** Internal adapter input only: select declared, non-sensitive outputs after convergence. */
   async readOutputs(
@@ -753,6 +788,14 @@ export class TerraformRunner {
       inspectActionInvocations(plan, expectedActions[0]);
       if (receipt.planSha256 !== digest(await privateRead(join(this.#state().directory, 'saved.tfplan'))))
         throw new Error('Terraform saved plan changed during action inspection');
+      if (expectedActions.length) {
+        await this.#assertActionUnsubmitted();
+        await persist(join(this.#state().directory, 'action-attempt.json'), {
+          schemaVersion: 1,
+          submittedAt: new Date().toISOString(),
+          receipt,
+        });
+      }
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'applying', receipt });
       await this.#run(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan'], env, signal);
       await persist(join(this.#state().directory, 'plan-receipt.json'), { state: 'applied', receipt });

@@ -20,6 +20,13 @@ binary and action identity. Retain ambiguous attempts for observation and recove
 do not automatically repeat an upgrade after an interrupted apply. Final convergence
 requires a fresh ordinary plan with no resource, output, or action changes.
 
+Before invoking an action, the runner persists `action-attempt.json`. Its presence
+prevents another action plan or invocation in that stage, including after an ordinary
+refresh replaces the plan journal. Older submitted action journals are preserved in
+this record before replanning. An interrupted submission requires observation of its
+outcome; a new plan does not authorize replay. A distinct, verified upgrade transition
+uses a separate stage.
+
 See [HashiCorp action invocation](https://developer.hashicorp.com/terraform/language/invoke-actions)
 and the [Terraform 1.16.1 action JSON contract](https://github.com/hashicorp/terraform/blob/v1.16.1/internal/command/jsonplan/action_invocations.go).
 

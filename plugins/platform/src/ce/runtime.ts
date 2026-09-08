@@ -213,12 +213,13 @@ export class CeRuntime {
   async observeUpgrade(
     binding: SiteBinding,
     contract: VerifiedUpgradeContract,
-    targetSoftware: string,
+    targetSoftware?: string,
     signal?: AbortSignal,
   ) {
     binding = structuredClone(binding);
     this.#binding(binding);
-    contract.build({ siteName: binding.siteName, kind: 'software', version: targetSoftware });
+    if (targetSoftware !== undefined)
+      contract.build({ siteName: binding.siteName, kind: 'software', version: targetSoftware });
     const source = `/api/config/namespaces/system/sites/${binding.siteName}`;
     const base = {
       owner: structuredClone(binding.owner),
@@ -237,10 +238,12 @@ export class CeRuntime {
       const physical = await this.#request(source, {}, signal);
       this.#owned(physical, binding);
       const state = parseSiteUpgradeState(physical, binding);
+      // OS eligibility must use the installed software, including a preceding software upgrade.
+      const selectedSoftware = targetSoftware ?? state.software.installed;
       const paths = contract.observationPaths(
         binding.siteName,
         { software: state.software.installed, os: state.os.installed },
-        targetSoftware,
+        selectedSoftware,
       );
       const targets = parseSoftwareTargets(await this.#request(paths.targets, {}, signal));
       const prechecks = parseUpgradePrechecks(await this.#request(paths.precheck, {}, signal));
@@ -256,6 +259,7 @@ export class CeRuntime {
         throw new CeApiError('conflict');
       return {
         ...base,
+        targetSoftware: selectedSoftware,
         status: 'observed' as const,
         observedAt: new Date().toISOString(),
         sources: paths,
@@ -264,7 +268,7 @@ export class CeRuntime {
         targets,
         prechecks,
         progress,
-        targetSoftwareListed: targets.includes(targetSoftware),
+        targetSoftwareListed: targets.includes(selectedSoftware),
         nodeHealth: 'unknown' as const,
         routing: 'unknown' as const,
         traffic: 'unknown' as const,

@@ -441,88 +441,93 @@ test('upgrade observation rejects foreign physical ownership before reading elig
 
 test('upgrade observations bind both site identities and reject changes during collection', async () => {
   const { contract } = await candidate();
-  for (const replacement of [false, true]) {
-    let logicalReads = 0;
-    const runtime = new CeRuntime(
-      contract,
-      'terraform',
-      'https://tenant.test',
-      'test-credential',
-      async (url, init) => {
-        expect(init?.method ?? 'GET').toBe('GET');
-        const path = new URL(url).pathname;
-        const metadata = { name: binding.siteName, namespace: 'system', labels };
-        if (path.includes('securemesh_site_v2s'))
-          return json({
-            metadata,
-            system_metadata: { uid: replacement && ++logicalReads > 1 ? 'replaced' : 'logical-one' },
-          });
-        if (path.endsWith('/sites/ce-one'))
-          return json({
-            metadata,
-            system_metadata: { uid: 'physical-one' },
-            spec: { site_state: 'FAILED', main_nodes: [{ name: 'node-one' }] },
-            status: [
-              {
-                metadata: {
-                  uid: 'sw-publisher',
-                  creator_class: 'maurice',
-                  status_id: 'software-version',
-                  publish: 'STATUS_PUBLISH',
-                  vtrp_stale: false,
+  for (const replacement of [false, true])
+    for (const target of ['crt-20260201-0179', undefined]) {
+      let logicalReads = 0;
+      const runtime = new CeRuntime(
+        contract,
+        'terraform',
+        'https://tenant.test',
+        'test-credential',
+        async (url, init) => {
+          expect(init?.method ?? 'GET').toBe('GET');
+          const path = new URL(url).pathname;
+          const metadata = { name: binding.siteName, namespace: 'system', labels };
+          if (path.includes('securemesh_site_v2s'))
+            return json({
+              metadata,
+              system_metadata: { uid: replacement && ++logicalReads > 1 ? 'replaced' : 'logical-one' },
+            });
+          if (path.endsWith('/sites/ce-one'))
+            return json({
+              metadata,
+              system_metadata: { uid: 'physical-one' },
+              spec: { site_state: 'FAILED', main_nodes: [{ name: 'node-one' }] },
+              status: [
+                {
+                  metadata: {
+                    uid: 'sw-publisher',
+                    creator_class: 'maurice',
+                    status_id: 'software-version',
+                    publish: 'STATUS_PUBLISH',
+                    vtrp_stale: false,
+                  },
+                  volterra_software_status: {
+                    last_installed_version: 'crt-20260201-0178',
+                    available_version: 'crt-20260201-0179',
+                    deployment_state: { phase: 'UPGRADE_COMPLETED', result: 'Completed' },
+                  },
                 },
-                volterra_software_status: {
-                  last_installed_version: 'crt-20260201-0178',
-                  available_version: 'crt-20260201-0179',
-                  deployment_state: { phase: 'UPGRADE_COMPLETED', result: 'Completed' },
+                {
+                  metadata: {
+                    uid: 'os-publisher',
+                    creator_class: 'maurice',
+                    status_id: 'operating-system-version',
+                    publish: 'STATUS_PUBLISH',
+                    vtrp_stale: false,
+                  },
+                  operating_system_status: {
+                    available_version: '9.2026.17',
+                    deployment_state: { version: '9.2026.14', phase: 'UPGRADE_COMPLETED', result: 'success' },
+                  },
                 },
+              ],
+            });
+          if (path.endsWith('/targets')) return json({ sw_versions: ['crt-20260201-0179'] });
+          if (path.endsWith('/precheck')) return json({ checklist: [{ item: 'nodes', status: 'CHECKLIST_FAILED' }] });
+          if (path.endsWith('/progress'))
+            return json({
+              upgrade_status: {
+                sw_upgrade_progress: { site: 'ce-one', status: 'COMPLETED', version: 'crt-20260201-0178' },
               },
-              {
-                metadata: {
-                  uid: 'os-publisher',
-                  creator_class: 'maurice',
-                  status_id: 'operating-system-version',
-                  publish: 'STATUS_PUBLISH',
-                  vtrp_stale: false,
-                },
-                operating_system_status: {
-                  available_version: '9.2026.17',
-                  deployment_state: { version: '9.2026.14', phase: 'UPGRADE_COMPLETED', result: 'success' },
-                },
-              },
-            ],
-          });
-        if (path.endsWith('/targets')) return json({ sw_versions: ['crt-20260201-0179'] });
-        if (path.endsWith('/precheck')) return json({ checklist: [{ item: 'nodes', status: 'CHECKLIST_FAILED' }] });
-        if (path.endsWith('/progress'))
-          return json({
-            upgrade_status: {
-              sw_upgrade_progress: { site: 'ce-one', status: 'COMPLETED', version: 'crt-20260201-0178' },
-            },
-          });
-        throw new Error('Unexpected path');
-      },
-    );
-    const upgrade = {
-      fingerprint: 'test-upgrade-contract',
-      build: () => ({}),
-      observationPaths: () => ({ targets: '/api/targets', precheck: '/api/precheck', progress: '/api/progress' }),
-    } as unknown as VerifiedUpgradeContract;
-    const result = await runtime.observeUpgrade(binding, upgrade, 'crt-20260201-0179');
-    if (replacement) expect(result).toMatchObject({ status: 'unknown', reason: 'conflict' });
-    else
-      expect(result).toMatchObject({
-        status: 'observed',
-        siteUid: 'logical-one',
-        physicalSiteUid: 'physical-one',
-        online: false,
-        prechecks: { passing: false },
-        targetSoftwareListed: true,
-        nodeHealth: 'unknown',
-        routing: 'unknown',
-        traffic: 'unknown',
-      });
-  }
+            });
+          throw new Error('Unexpected path');
+        },
+      );
+      const upgrade = {
+        fingerprint: 'test-upgrade-contract',
+        build: () => ({}),
+        observationPaths: (_site: string, _current: unknown, selected: string) => {
+          expect(selected).toBe(target ?? 'crt-20260201-0178');
+          return { targets: '/api/targets', precheck: '/api/precheck', progress: '/api/progress' };
+        },
+      } as unknown as VerifiedUpgradeContract;
+      const result = await runtime.observeUpgrade(binding, upgrade, target);
+      if (replacement) expect(result).toMatchObject({ status: 'unknown', reason: 'conflict' });
+      else
+        expect(result).toMatchObject({
+          status: 'observed',
+          siteUid: 'logical-one',
+          physicalSiteUid: 'physical-one',
+          online: false,
+          prechecks: { passing: false },
+          targetSoftware: target ?? 'crt-20260201-0178',
+          targetSoftwareListed: target !== undefined,
+          nodeHealth: 'unknown',
+          routing: 'unknown',
+          traffic: 'unknown',
+        });
+    }
 });
 
 test('routing teardown requires the checkpoint UID, site label and owning engine', async () => {

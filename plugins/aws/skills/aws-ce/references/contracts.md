@@ -45,6 +45,14 @@ operation. A provisioning-time installation of the target does not prove the exp
 workflow. Upgrade invocation, per-node convergence, traffic continuity and final no-change evidence
 remain required before claiming lifecycle acceptance.
 
+The internal Terraform upgrade adapter collects fresh version evidence and binds one
+software or OS action to the deployment, logical site, physical site, effective versions,
+and verified API contract. It uses an isolated stage and the checksum-verified XC 8.0.0
+provider lock. OS eligibility follows the currently installed software, including a
+preceding software upgrade. This adapter establishes version readiness only; registration,
+routing, traffic, and serial admission must converge before invocation and before moving
+to the next site. Public lifecycle integration and live upgrade acceptance remain pending.
+
 ## AWS operations and diagnostics
 
 - Correlate EC2 status/boot, ENIs, security groups, route tables, NLB targets, TGW attachments,

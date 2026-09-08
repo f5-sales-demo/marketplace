@@ -527,6 +527,7 @@ test('serial action planning binds exactly one invocation and applies only its s
   expect(calls.find((c) => c.args[0] === 'plan')?.args).toContain(`-invoke=${actionIntent.address}`);
   await runner.apply(receipt, {});
   expect(calls.at(-1)?.args).toEqual(['apply', '-input=false', '-lock=true', '-lock-timeout=60s', 'saved.tfplan']);
+  await expect(runner.planAction(actionIntent, {})).rejects.toThrow('already recorded');
 });
 test('ordinary plans reject unrequested or deferred action invocations', async () => {
   for (const extra of [
@@ -571,13 +572,22 @@ test('rechecks action metadata at application and preserves ambiguous invocation
   await expect(ordinary.runner.apply(receipt, {})).rejects.toThrow('unrequested');
   expect(ordinary.calls.some((call) => call.args[0] === 'apply')).toBe(false);
   let invokes = 0;
-  const action = await fixture({ ...overrides }, {}, undefined, () => {
+  const actionOverrides = { ...overrides };
+  const action = await fixture(actionOverrides, {}, undefined, () => {
     invokes++;
     throw new Error('lost action response');
   });
   const actionReceipt = await action.runner.planAction(actionIntent, {});
   await expect(action.runner.apply(actionReceipt, {})).rejects.toThrow('lost action response');
   await expect(action.runner.apply(actionReceipt, {})).rejects.toThrow('reconciliation');
+  await expect(action.runner.planAction(actionIntent, {})).rejects.toThrow('already recorded');
+  // Exercise migration of a pre-ledger interrupted workspace before an ordinary refresh.
+  const ledger = join(action.root, 'ce-test', 'action-attempt.json');
+  await rm(ledger);
+  actionOverrides.action_invocations = [];
+  expect((await action.runner.plan({})).noChanges).toBe(true);
+  expect(JSON.parse(await readFile(ledger, 'utf8')).legacyJournalState).toBe('applying');
+  await expect(action.runner.planAction(actionIntent, {})).rejects.toThrow('already recorded');
   expect(invokes).toBe(1);
 });
 

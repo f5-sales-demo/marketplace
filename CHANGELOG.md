@@ -12,11 +12,11 @@ and this project adheres to
 
 - **`azure`** bumped to v4.3.3
 
-- **`aws`** bumped to v2.0.27
+- **`aws`** bumped to v2.0.28
 
-- **`terraform`** bumped to v2.0.12
+- **`terraform`** bumped to v2.0.13
 
-- **`platform`** bumped to v5.0.17
+- **`platform`** bumped to v5.0.18
 
 - **`azure`** v4.3.1 — preserves all-or-nothing privacy for `azure_ce_inventory` failures while
   returning allowlisted collector-stage and error-category diagnostics for setup, Resource Graph,
