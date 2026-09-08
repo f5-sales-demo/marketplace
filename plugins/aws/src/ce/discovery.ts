@@ -524,7 +524,8 @@ async function observeResource(
   else if (id.startsWith('eni-')) args = ['ec2', 'describe-network-interfaces', '--network-interface-ids', id];
   else if (id.startsWith('sg-')) args = ['ec2', 'describe-security-groups', '--group-ids', id];
   else if (id.startsWith('eipalloc-')) args = ['ec2', 'describe-addresses', '--allocation-ids', id];
-  else if (id.startsWith('eipassoc-')) args = ['ec2', 'describe-addresses', '--association-ids', id];
+  else if (id.startsWith('eipassoc-'))
+    args = ['ec2', 'describe-addresses', '--filters', `Name=association-id,Values=${id}`];
   else if (id.startsWith('nat-')) args = ['ec2', 'describe-nat-gateways', '--nat-gateway-ids', id];
   else if (id.startsWith('vpce-')) args = ['ec2', 'describe-vpc-endpoints', '--vpc-endpoint-ids', id];
   else if (id.startsWith('rtb-')) args = ['ec2', 'describe-route-tables', '--route-table-ids', id];

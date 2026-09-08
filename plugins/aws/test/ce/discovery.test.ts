@@ -344,3 +344,25 @@ it('binds ENI ownership to authoritative TagSet and rejects ambiguous tag repres
   expect((await query())[0].tags['xcsh-execution-engine']).toBe('native');
   await expect(query({ Tags: TagSet })).rejects.toThrow('ambiguous');
 });
+
+it('observes EIP associations through the supported association-id filter', async () => {
+  const id = 'eipassoc-0123456789abcdef0';
+  await observeAwsResources(
+    {
+      async exec(_command, args) {
+        expect(args).toContain('Name=association-id,Values=' + id);
+        expect(args).not.toContain('--association-ids');
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            Addresses: [{ AssociationId: id, AllocationId: 'eipalloc-0123456789abcdef0', Tags: [] }],
+          }),
+        };
+      },
+    },
+    [id],
+    'us-east-1',
+    { deploymentName: 'ce-demo', planSha256s: [] },
+  );
+});
