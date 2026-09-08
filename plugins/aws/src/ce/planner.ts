@@ -1682,6 +1682,8 @@ function compileActions(
           `PeerAsn=${intent.routing.customerAsn}`,
           '--inside-cidr-blocks',
           insideCidrs[node - 1],
+          '--tag-specifications',
+          tagSpec(intent, 'transit-gateway-connect-peer', node),
           ...base,
         ],
         node,

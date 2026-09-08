@@ -1,6 +1,8 @@
 import type { CeRuntime, SiteBinding } from '../../../platform/src/ce/runtime';
 import type { AwsExecApi } from '../aws/exec';
 import { collectAwsCeInventory } from './inventory';
+import { collectAwsNetworkHealth } from './network-health';
+import { scopedAwsApi } from './scoped-exec';
 import type { AwsCeCheckpoint, AwsCePlan } from './types';
 
 type RuntimeObserver = Pick<CeRuntime, 'observeHealth' | 'observeRegistrations'>;
@@ -92,7 +94,16 @@ export async function collectAwsCeStatus(
     },
     aws,
     f5: { registration, health },
-    routing: unknown('routing-collector-pending'),
+    routing:
+      plan.routing?.profile === 'tgw-connect' || plan.routing?.profile === 'nlb-ingress'
+        ? await collectAwsNetworkHealth(
+            plan.routing.profile === 'tgw-connect' ? 'bgp' : 'nlb',
+            plan,
+            checkpoint,
+            scopedAwsApi(api, plan.intent.awsProfile, signal),
+            signal,
+          )
+        : unknown('route-collector-pending'),
     traffic: unknown('traffic-collector-pending'),
   };
 }

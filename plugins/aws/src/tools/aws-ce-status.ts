@@ -37,7 +37,7 @@ export function createAwsCeStatusTool(pi: PluginInterface, makeApi: (cwd: string
           content: [
             {
               type: 'text' as const,
-              text: `AWS CE ${plan.deploymentName}: cloud evidence ${status.aws.status}; registration ${status.f5.registration.status}; site health ${status.f5.health.status}. Routing and traffic evidence remain unknown.`,
+              text: `AWS CE ${plan.deploymentName}: cloud evidence ${status.aws.status}; registration ${status.f5.registration.status}; site health ${status.f5.health.status}. Routing evidence ${status.routing.status}; traffic evidence remains unknown.`,
             },
           ],
           details: { tool: 'aws_ce_status', status },

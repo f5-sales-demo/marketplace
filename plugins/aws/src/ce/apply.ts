@@ -9,6 +9,7 @@ import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from 
 import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
+import { collectAwsNetworkHealth } from './network-health';
 import { scopedAwsApi } from './scoped-exec';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_SCHEMA_VERSION } from './types';
@@ -166,6 +167,7 @@ async function assertGate(
   plan: AwsCePlan,
   checkpoint: AwsCeCheckpoint,
   persist: () => Promise<unknown>,
+  api: AwsExecApi,
   signal?: AbortSignal,
 ): Promise<void> {
   const binding: SiteBinding = {
@@ -227,7 +229,17 @@ async function assertGate(
       throw new Error(`F5 health evidence is unavailable: ${String(evidence.reason)}`);
     if (evidence.status !== 'healthy') throw new Error('Observed F5 site health has not converged');
   }
-  if (['bgp-gate', 'nlb-gate', 'tgw-route-gate', 'traffic-gate'].includes(action.kind))
+  if (action.kind === 'bgp-gate' || action.kind === 'nlb-gate') {
+    const evidence = await collectAwsNetworkHealth(
+      action.kind === 'bgp-gate' ? 'bgp' : 'nlb',
+      plan,
+      checkpoint,
+      api,
+      signal,
+    );
+    if (evidence.status !== 'healthy') throw new Error('Observed AWS network health has not converged');
+  }
+  if (['tgw-route-gate', 'traffic-gate'].includes(action.kind))
     throw new Error(`Collected ${action.kind} evidence is not yet available`);
 }
 
@@ -383,6 +395,7 @@ export async function executeAwsCeApply(
             plan,
             checkpoint,
             () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+            api,
             signal,
           );
           break;
