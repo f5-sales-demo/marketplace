@@ -1,3 +1,5 @@
+# Azure Terraform foundation contract
+
 The Azure Terraform foundation translates a verified schema-v3 Terraform deployment
 plan into network and compute configuration. It uses Terraform 1.16.1, AzureRM 5.4.0,
 and TLS 4.4.0 with the packaged provider lock. The generic Terraform plugin owns
