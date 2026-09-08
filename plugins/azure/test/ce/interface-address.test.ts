@@ -57,3 +57,28 @@ it('rejects stale, foreign, malformed and ambiguous interface identities', async
     resolveInterfaceAddress(api(nic, { ...vm, networkProfile: { networkInterfaces: [] } }), plan, 1, 'slo'),
   ).rejects.toThrow();
 });
+
+it('discovers SLI in slot 2 from resource identity rather than assuming the second cloud NIC', async () => {
+  const ids = [0, 1, 2].map((index) => nicId.replace('nic0', `nic${index}`));
+  const selected = {
+    ...plan,
+    nics: ['slo', 'data', 'sli'].map((role, index) => ({ index, role, subnet: {} })),
+    actions: [
+      ...ids.map((resourceId, index) => ({
+        kind: 'nic-create',
+        node: 1,
+        resourceId,
+        args: ['--name', `ce-1-nic${index}`],
+      })),
+      { kind: 'vm-create', node: 1, resourceId: vmId },
+    ],
+  } as unknown as AzureCePlan;
+  const inside = {
+    ...nic,
+    id: ids[2],
+    ipConfigurations: [{ ...nic.ipConfigurations[0], privateIPAddress: '10.0.2.4' }],
+  };
+  const attached = { ...vm, networkProfile: { networkInterfaces: ids.map((id) => ({ id })) } };
+  expect(await resolveInterfaceAddress(api(inside, attached), selected, 1, 'sli')).toBe('10.0.2.4');
+  await expect(resolveInterfaceAddress(api({ ...inside, id: ids[1] }, attached), selected, 1, 'sli')).rejects.toThrow();
+});

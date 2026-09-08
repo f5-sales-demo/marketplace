@@ -560,3 +560,41 @@ it('treats missing memory or NIC sizing evidence as unavailable', () => {
     expect(() => compileAzureCePlan(intent(), observed)).toThrow('incomplete observed');
   }
 });
+
+for (const engine of ['native', 'terraform'] as const) {
+  it(`${engine} plans the marketplace SLO/data/SLI layout without equating cloud names with XC roles`, () => {
+    const selected = nics(3);
+    selected[0].name = 'mgmt';
+    selected[1].name = 'external';
+    selected[1].role = 'data';
+    selected[2].name = 'internal';
+    selected[2].role = 'sli';
+    const plan = compileAzureCePlan(
+      intent({ engine, nics: selected, routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512 } }),
+      observation(),
+    );
+    expect(plan.nics.map(({ index, name, role }) => ({ index, name, role }))).toEqual([
+      { index: 0, name: 'mgmt', role: 'slo' },
+      { index: 1, name: 'external', role: 'data' },
+      { index: 2, name: 'internal', role: 'sli' },
+    ]);
+    const vm = plan.actions.find((action) => action.kind === 'vm-create');
+    const first = vm?.args?.indexOf('--nics') ?? -1;
+    expect(first).toBeGreaterThan(0);
+    expect(vm?.args?.slice(first + 1, first + 4).map((value) => value.split('/').at(-1))).toEqual([
+      `${plan.intent.deploymentName}-1-nic0`,
+      `${plan.intent.deploymentName}-1-nic1`,
+      `${plan.intent.deploymentName}-1-nic2`,
+    ]);
+    const peer = plan.actions.find((action) => action.kind === 'route-server-peer-create');
+    expect(peer?.args).toContain('__NODE_1_SLO_PRIVATE_IP__');
+    expect(peer?.args).not.toContain('__NODE_1_SLI_PRIVATE_IP__');
+  });
+}
+it('rejects duplicate outside or inside roles before planning resources', () => {
+  for (const duplicate of ['slo', 'sli'] as const) {
+    const selected = nics(3);
+    selected[2].role = duplicate;
+    expect(() => compileAzureCePlan(intent({ nics: selected }), observation())).toThrow('roles must be unique');
+  }
+});

@@ -20,9 +20,15 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 
 ## Azure networking
 
-- Keep the Azure NIC order identical on every VM. NIC 0 is SLO; NIC 1 is SLI when a
-  second NIC exists. Resolve every greenfield or allowlisted brownfield subnet before
-  planning.
+- Keep Azure attachment order identical on every VM, with exactly one SLO in slot 0.
+  The planner accepts SLO/SLI order and the explicit three-NIC SLO/data/SLI order. In the
+  [MCN marketplace layout](https://f5-sales-demo.github.io/mcn/en/customer-edge/interface-model/),
+  cloud labels `mgmt`, `external`, and `internal` correspond to SLO, data, and SLI respectively.
+  A cloud label `mgmt` does not enable the separate XC management network.
+- Keep cloud resource names, attachment indexes, XC roles, and guest device observations
+  distinct. Discover SLI by its planned role and reciprocal VM/NIC resource identities, including
+  slot 2 in the three-NIC layout. Do not construct guest interface names from attachment order.
+  Resolve every greenfield or allowlisted brownfield subnet before planning.
 - Use one Standard public IP per node for `public-ip`. For `nat-gateway`, `firewall`, or
   `proxy`, require the exact existing resource ID. Use firewall or proxy policy when
   strict FQDN egress is required; NSGs cannot express FQDN policy.
@@ -30,9 +36,14 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
   platform-connectivity NSG rules. Surface broad CIDRs and management exposure.
 - For single-node insertion, create explicit UDRs whose next hop is the CE data-plane
   private address.
-- For eligible greenfield HA, use a dedicated `/26` `RouteServerSubnet` without an NSG
-  or UDR, peer each CE node, and verify both Route Server instances, BGP sessions, and
-  learned routes. Reject unsupported same-VNet brownfield insertion.
+- Route Server peering uses the observed SLO address. Explicit Route Server selection supports
+  a single CE as well as the planner's HA topology; Route Server redundancy does not require
+  selecting a three-node XC cluster. Use a dedicated `/26` `RouteServerSubnet` without an NSG
+  or UDR, and separately verify both service addresses, BGP sessions, and learned routes.
+  Reject unsupported same-VNet brownfield insertion.
+- Three-NIC intent validation and role-based discovery have automated tests. Azure Terraform
+  lifecycle execution and fresh Azure native/Terraform acceptance remain pending; AWS receipts
+  do not establish Azure runtime support or parity.
 - Preserve the exact pre-change route-table, subnet association, and etag state for each
   allowlisted brownfield change.
 
@@ -40,8 +51,8 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 
 - Use Azure VM, NIC, provisioning, boot diagnostics, cloud-init, effective-route, NSG,
   Route Server, and Network Watcher evidence together with platform status.
-- Treat VM Run Command and Network Watcher probes as active diagnostics and request
-  their own approval. Return allowlisted states, counts, and digests rather than raw
+- Run VM Run Command and Network Watcher probes within the user's authorized diagnostic scope,
+  preserving that authorization across resume. Return allowlisted states, counts, and digests rather than raw
   guest output, custom data, boot logs, or environment variables.
 - During a three-node resize or replacement, operate one Azure VM at a time and check
   Azure provisioning, CE registration/health, BGP, routes, and traffic

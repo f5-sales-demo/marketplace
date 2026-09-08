@@ -49,7 +49,8 @@ platform, routing, and traffic-health states independent.
 6. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
 7. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
-   active diagnostics or teardown, obtain the separate approval required by the shared contract.
+   active diagnostics or teardown, preserve existing authorization and confirm scope only when
+   the requested action falls outside it.
 
 For headless execution, use only `XCSH_CE_HEADLESS_MUTATIONS=1`,
 and `XCSH_CE_ALLOW_DESTROY=1` for their respective

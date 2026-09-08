@@ -60,7 +60,15 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
   if (!UUID.test(input.subscriptionId)) fail('subscriptionId must be a UUID');
   if (input.nics.length < 1 || input.nics.length > 8) fail('NIC count must be between 1 and 8');
   if (input.nics[0]?.role !== 'slo') fail('NIC 0 must have role slo');
-  if (input.nics.length > 1 && input.nics[1]?.role !== 'sli') fail('NIC 1 must have role sli when present');
+  const marketplaceThreeNic =
+    input.nics.length === 3 && input.nics[1]?.role === 'data' && input.nics[2]?.role === 'sli';
+  if (input.nics.length > 1 && input.nics[1]?.role !== 'sli' && !marketplaceThreeNic)
+    fail('SLI must be NIC 1, or NIC 2 in the explicit SLO/data/SLI marketplace layout');
+  if (
+    input.nics.filter((nic) => nic.role === 'slo').length !== 1 ||
+    input.nics.filter((nic) => nic.role === 'sli').length !== (input.nics.length > 1 ? 1 : 0)
+  )
+    fail('SLO and SLI NIC roles must be unique');
 
   const subnetKeys = new Set<string>();
   const nics = input.nics.map((nic, index) => {
