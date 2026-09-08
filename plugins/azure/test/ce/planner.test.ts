@@ -201,6 +201,10 @@ describe('compileAzureCePlan', () => {
     expect(plan.routing.mode).toBe('route-server');
     expect(plan.actions.filter((action) => action.kind === 'vm-create')).toHaveLength(3);
     expect(plan.actions.filter((action) => action.kind === 'route-server-peer-create')).toHaveLength(3);
+    for (const action of plan.actions.filter((action) => action.kind === 'route-server-peer-create')) {
+      expect(action.args).toContain(`__NODE_${action.node}_SLO_PRIVATE_IP__`);
+      expect(action.args).not.toContain(`__NODE_${action.node}_SLI_PRIVATE_IP__`);
+    }
     const vnet = plan.actions.find((action) => action.kind === 'vnet-create');
     const routeServerSubnet = plan.actions.find((action) => action.description.includes('RouteServerSubnet'));
     expect(vnet?.args).toContain('10.255.0.0/26');

@@ -8,6 +8,7 @@ import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoi
 import { fingerprintObservation, sha256Hex } from '../ce/canonical';
 import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
+import { resolveInterfaceAddress } from '../ce/interface-address';
 import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
@@ -20,36 +21,13 @@ interface ApplyParams {
   f5Evidence?: { healthyNodes?: number[]; bgpEstablished?: boolean; trafficHealthy?: boolean };
 }
 
-async function privateIp(api: AzExecApi, plan: AzureCePlan, node: number, nicIndex: number): Promise<string> {
-  const result = await api.exec('az', [
-    'network',
-    'nic',
-    'show',
-    '--resource-group',
-    plan.intent.resourceGroup,
-    '--name',
-    `${plan.deploymentName}-${node}-nic${nicIndex}`,
-    '--query',
-    'ipConfigurations[0].privateIPAddress',
-    '--output',
-    'tsv',
-    '--subscription',
-    plan.subscription.id,
-  ]);
-  if (result.exitCode !== 0) throw new Error(`Unable to resolve CE node ${node} private IP`);
-  const value = result.stdout.trim();
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(value))
-    throw new Error(`Azure returned an invalid private IP for CE node ${node}`);
-  return value;
-}
-
 async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan): Promise<Record<string, string>> {
   const replacements: Record<string, string> = {};
   for (const arg of args) {
-    const match = /^__NODE_(\d+)_(SLI|DATA)_PRIVATE_IP__$/.exec(arg);
+    const match = /^__NODE_(\d+)_(SLO|SLI|DATA)_PRIVATE_IP__$/.exec(arg);
     if (!match || replacements[arg]) continue;
-    const nicIndex = plan.nics.length > 1 ? 1 : 0;
-    replacements[arg] = await privateIp(api, plan, Number(match[1]), nicIndex);
+    const role = match[2] === 'SLO' || (match[2] === 'DATA' && plan.nics.length === 1) ? 'slo' : 'sli';
+    replacements[arg] = await resolveInterfaceAddress(api, plan, Number(match[1]), role);
   }
   return replacements;
 }

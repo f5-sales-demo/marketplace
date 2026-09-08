@@ -684,7 +684,7 @@ function buildDeployActions(
             '--name',
             `${intent.deploymentName}-${node}`,
             '--peer-ip',
-            `__NODE_${node}_SLI_PRIVATE_IP__`,
+            `__NODE_${node}_SLO_PRIVATE_IP__`,
             '--peer-asn',
             String(intent.routing.peerAsn ?? 65010),
             '--subscription',
