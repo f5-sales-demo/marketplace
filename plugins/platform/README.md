@@ -18,6 +18,12 @@ evidence. Create-time version settings remain separate. Version completion alone
 does not establish node, routing, or traffic health; cloud lifecycle adapters must
 verify those before advancing a serial upgrade.
 
+The verified HTTP ingress contract also maps site-local HTTP origins. It binds
+each outside-network endpoint to an explicit CE site and uses `LOCAL_PREFERRED`
+selection. The API's site-bound `private_ip` variant can carry a public address.
+Cloud adapters must verify site ownership and origin reachability before using
+this mapping; schema validation does not establish traffic health.
+
 ## Prerequisites
 
 ### Console (Web UI)
