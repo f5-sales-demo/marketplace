@@ -528,3 +528,34 @@ it('keeps CE interfaces out of RouteServerSubnet and rejects IPv6 VNet addressin
     expect(() => compileAzureCePlan(input, observation())).toThrow(/dedicated|IPv4/);
   }
 });
+
+it('requires the deployment URN to identify the exact observed Marketplace artifact', () => {
+  for (const urn of [
+    '',
+    'f5-networks:f5xc-customer-edge:f5xc-ce:latest',
+    'other:offer:plan:2026.08.15',
+    'f5-networks:f5xc-customer-edge:f5xc-ce:2026.08.16',
+  ]) {
+    const observed = observation();
+    observed.image.urn = urn;
+    expect(() => compileAzureCePlan(intent(), observed)).toThrow('URN');
+  }
+  for (const version of ['', '*', '2026.08', '2026.08.15 trailing']) {
+    const observed = observation();
+    observed.image.version = version;
+    expect(() => compileAzureCePlan(intent(), observed)).toThrow('exact Marketplace version');
+  }
+});
+
+it('treats missing memory or NIC sizing evidence as unavailable', () => {
+  for (const change of [
+    { memoryGb: Number.NaN },
+    { memoryGb: Number.POSITIVE_INFINITY },
+    { maxNics: Number.NaN },
+    { maxNics: 2.5 },
+  ]) {
+    const observed = observation();
+    for (const region of observed.regions) for (const size of region.vmSizes) Object.assign(size, change);
+    expect(() => compileAzureCePlan(intent(), observed)).toThrow('incomplete observed');
+  }
+});

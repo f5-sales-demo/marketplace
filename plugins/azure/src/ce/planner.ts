@@ -1317,6 +1317,16 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (observation.subscription.id.toLowerCase() !== intent.subscriptionId)
     fail('observation subscription does not match intent');
   if (observation.image.version.toLowerCase() === 'latest') fail('image version latest is forbidden');
+  if (!/^\d+\.\d+\.\d+$/.test(observation.image.version)) fail('image version must be an exact Marketplace version');
+  const expectedUrn = [
+    observation.image.publisher,
+    observation.image.offer,
+    observation.image.plan,
+    observation.image.version,
+  ].join(':');
+  if (observation.image.urn.toLowerCase() !== expectedUrn.toLowerCase())
+    fail('observed image URN does not match its publisher, offer, plan and exact version');
+
   for (const field of ['publisher', 'offer', 'plan'] as const) {
     if (observation.image[field].toLowerCase() !== intent.image[field].toLowerCase())
       fail(`observed image ${field} does not match intent`);
@@ -1331,6 +1341,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (!region?.eligible) fail(`region ${intent.region ?? '<recommended>'} is not eligible`);
   const size = region.vmSizes.find((candidate) => candidate.name.toLowerCase() === intent.vm.size.toLowerCase());
   if (!size || size.restricted) fail(`VM size ${intent.vm.size} is unavailable or restricted in ${region.name}`);
+  if (!Number.isFinite(size.memoryGb) || !Number.isInteger(size.maxNics) || size.maxNics < 1)
+    fail('VM size has incomplete observed memory or NIC capabilities');
   if (size.vCpus < 8 || size.memoryGb < 32)
     fail(`VM size ${intent.vm.size} is below the CE minimum of 8 vCPUs and 32 GB memory`);
   if (size.maxNics < intent.nics.length)
