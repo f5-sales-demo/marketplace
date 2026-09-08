@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { type AwsGreBinding, buildAwsRouting, routingValidators } from './wire-routing';
 import { createWireValidator } from './wire-schema';
 import { buildWireSite, type WireSiteIntent } from './wire-site';
 
@@ -27,15 +28,18 @@ export class VerifiedCeContract {
   readonly #contract: Json;
   readonly #schemas: Json;
   readonly #validate: (spec: unknown) => void;
+  readonly #routing?: ReturnType<typeof routingValidators>;
   private constructor(
     readonly commit: string,
     readonly fingerprint: string,
     contract: Json,
     schemas: Json,
+    networking?: { network: Json; marketplace: Json },
   ) {
     this.#contract = contract;
     this.#schemas = schemas;
     this.#validate = createWireValidator(schemas);
+    if (networking) this.#routing = routingValidators(networking.network, networking.marketplace);
   }
   static async candidate(directory: string, expectedReceiptSha256: string): Promise<VerifiedCeContract> {
     if (!isAbsolute(directory) || !digestPattern.test(expectedReceiptSha256))
@@ -52,13 +56,17 @@ export class VerifiedCeContract {
     )
       throw new Error('Invalid CE candidate provenance');
     const declared = object(receipt.assets);
+    const selectedFiles =
+      Object.hasOwn(declared, 'network.json') || Object.hasOwn(declared, 'marketplace.json')
+        ? [...files, 'network.json', 'marketplace.json']
+        : files;
     if (
-      Object.keys(declared).length !== files.length ||
-      files.some((file) => typeof declared[file] !== 'string' || !digestPattern.test(declared[file] as string))
+      Object.keys(declared).length !== selectedFiles.length ||
+      selectedFiles.some((file) => typeof declared[file] !== 'string' || !digestPattern.test(declared[file] as string))
     )
       throw new Error('CE candidate asset inventory is incomplete');
     const assets: Record<string, Json> = {};
-    for (const file of files) {
+    for (const file of selectedFiles) {
       const bytes = await readFile(join(directory, file));
       if (hash(bytes) !== declared[file]) throw new Error('CE candidate asset checksum mismatch');
       assets[file] = parse(bytes);
@@ -90,7 +98,31 @@ export class VerifiedCeContract {
     )
       throw new Error('Unsupported CE API paths');
     const schemas = object(object(assets['sites.json'].components).schemas);
-    return new VerifiedCeContract(receipt.commit, expectedReceiptSha256, contract, schemas);
+    let networking: { network: Json; marketplace: Json } | undefined;
+    if (assets['network.json'] && assets['marketplace.json']) {
+      for (const [file, kind] of [
+        ['network.json', 'bgp'],
+        ['marketplace.json', 'external_connector'],
+      ] as const) {
+        const path = object(object(assets[file].paths)[`/api/config/namespaces/{metadata.namespace}/${kind}s`]);
+        const schema = object(object(object(object(object(path.post).requestBody).content)['application/json']).schema);
+        if (schema.$ref !== `#/components/schemas/${kind}CreateRequest`)
+          throw new Error('Unsupported routing API request contract');
+      }
+      networking = {
+        network: object(object(assets['network.json'].components).schemas),
+        marketplace: object(object(assets['marketplace.json'].components).schemas),
+      };
+    }
+    return new VerifiedCeContract(receipt.commit, expectedReceiptSha256, contract, schemas, networking);
+  }
+  buildAwsRouting(siteName: string, localAsn: number, remoteAsn: number, bindings: AwsGreBinding[]) {
+    if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
+    return buildAwsRouting(siteName, localAsn, remoteAsn, bindings, this.#routing);
+  }
+  validateRouting(kind: 'external_connector' | 'bgp', spec: Json): void {
+    if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
+    this.#routing(kind, spec);
   }
   buildSite(intent: WireSiteIntent): Json {
     return buildWireSite(intent, this.#schemas);

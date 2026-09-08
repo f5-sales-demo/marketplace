@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
+import routingSchema from '../fixtures/aws-routing-schema.json';
 import contract from '../fixtures/smsv2-contract-v7.json';
 import schema from '../fixtures/smsv2-create-schema.json';
 
@@ -13,7 +14,7 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true });
 });
 const hash = (bytes: string) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-async function candidate() {
+async function candidate(withRouting = false) {
   const dir = await mkdtemp(join(tmpdir(), 'ce-contract-'));
   dirs.push(dir);
   const assets: Record<string, string> = {};
@@ -22,6 +23,25 @@ async function candidate() {
     'sites.json': { components: { schemas: schema.schemas } },
     'smsv2-evidence-receipt.json': { contract_id: contract.contract_id },
   };
+  if (withRouting) {
+    for (const [file, kind] of [
+      ['network', 'bgp'],
+      ['marketplace', 'external_connector'],
+    ] as const) {
+      data[`${file}.json`] = {
+        components: { schemas: routingSchema.schemas[file] },
+        paths: {
+          [`/api/config/namespaces/{metadata.namespace}/${kind}s`]: {
+            post: {
+              requestBody: {
+                content: { 'application/json': { schema: { $ref: `#/components/schemas/${kind}CreateRequest` } } },
+              },
+            },
+          },
+        },
+      };
+    }
+  }
   for (const [file, value] of Object.entries(data)) {
     const bytes = JSON.stringify(value);
     assets[file] = hash(bytes);
@@ -290,4 +310,44 @@ test('registration approval checkpoints before mutation and preserves the server
   expect(records).toHaveLength(2);
   await runtime.approveRegistrations(binding, { 'node-one': 'i-fixture' }, async () => {});
   expect(requests).toHaveLength(1);
+});
+
+test('creates schema-validated routing objects in order and resumes lost responses without duplicate connectors', async () => {
+  const { contract } = await candidate(true);
+  const objects = new Map<string, unknown>();
+  const posts: string[] = [];
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path.includes('securemesh_site_v2s/'))
+      return json({ metadata: { name: binding.siteName, namespace: 'system', labels } });
+    if (init?.method === 'POST') {
+      const body = JSON.parse(String(init.body));
+      posts.push(path);
+      objects.set(`${path}/${body.metadata.name}`, { ...body, system_metadata: { uid: `uid-${posts.length}` } });
+      throw new Error('response lost after durable creation');
+    }
+    return objects.has(path) ? json(objects.get(path)) : json({}, 404);
+  });
+  const interfaces = [
+    {
+      name: 'ce-gre',
+      node: 'node-one',
+      interfaceName: 'eth0',
+      interfaceMtu: 1500,
+      awsGreAddress: '100.64.0.1',
+      ceInsideAddress: '169.254.10.1',
+      awsBgpAddresses: ['169.254.10.2', '169.254.10.3'] as [string, string],
+    },
+  ];
+  await expect(
+    runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {
+      throw new Error('checkpoint interrupted');
+    }),
+  ).rejects.toThrow('checkpoint interrupted');
+  await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {});
+  expect(posts).toEqual(['/api/config/namespaces/system/external_connectors', '/api/config/namespaces/system/bgps']);
+  await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {});
+  expect(posts).toHaveLength(2);
+  const bgp = objects.get('/api/config/namespaces/system/bgps/ce-one-tgw-bgp') as { spec: { peers: unknown[] } };
+  expect(bgp.spec.peers).toHaveLength(2);
 });

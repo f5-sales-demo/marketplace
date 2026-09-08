@@ -1,5 +1,6 @@
 import { bindAwsCloudInit } from './bootstrap';
 import type { VerifiedCeContract } from './verified-contract';
+import type { AwsGreBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
 
 type Json = Record<string, unknown>;
@@ -268,6 +269,75 @@ export class CeRuntime {
       owner: binding.owner,
       contractFingerprint: this.contract.fingerprint,
     });
+  }
+  async ensureAwsRouting(
+    binding: SiteBinding,
+    localAsn: number,
+    remoteAsn: number,
+    interfaces: AwsGreBinding[],
+    checkpoint: (resource: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#binding(binding, true);
+    if (binding.owner.provider !== 'aws' || interfaces.some((item) => !binding.nodes.includes(item.node)))
+      throw new Error('AWS routing interface and site ownership differ');
+    this.#owned(await this.observeSite(binding, signal), binding);
+    const routing = this.contract.buildAwsRouting(binding.siteName, localAsn, remoteAsn, interfaces);
+    for (const [kind, resources] of [
+      ['external_connector', routing.connectors],
+      ['bgp', [routing.bgp]],
+    ] as const)
+      for (const resource of resources) {
+        const path = `/api/config/namespaces/system/${kind}s/${resource.name}`;
+        const observe = () => this.#request(path, {}, signal);
+        let existing: Json | undefined;
+        try {
+          existing = await observe();
+        } catch (error) {
+          if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
+        }
+        if (!existing) {
+          // Revalidate site ownership at each child-object mutation boundary.
+          this.#owned(await this.observeSite(binding, signal), binding);
+          this.contract.validateRouting(kind, resource.spec);
+          try {
+            await this.#request(
+              `/api/config/namespaces/system/${kind}s`,
+              {
+                method: 'POST',
+                body: JSON.stringify({
+                  metadata: {
+                    name: resource.name,
+                    namespace: 'system',
+                    labels: { ...this.#labels(binding), 'xcsh-ce-site': binding.siteName },
+                  },
+                  spec: resource.spec,
+                }),
+              },
+              signal,
+            );
+          } catch (error) {
+            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+          }
+          existing = await observe();
+        }
+        this.#owned(existing, { ...binding, siteName: resource.name });
+        if (
+          object(object(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+          !subset(existing.spec, resource.spec)
+        )
+          throw new Error('Existing routing object differs from site-bound intent; replan required');
+        const uid = object(existing.system_metadata).uid;
+        if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
+        await checkpoint({
+          kind,
+          name: resource.name,
+          siteName: binding.siteName,
+          uid,
+          owner: binding.owner,
+          contractFingerprint: this.contract.fingerprint,
+        });
+      }
   }
   async deleteSite(binding: SiteBinding, signal?: AbortSignal): Promise<void> {
     this.#binding(binding, true);
