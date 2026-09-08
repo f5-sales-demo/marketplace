@@ -786,3 +786,29 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
   await expect(run()).rejects.toThrow('Replacement routing object UID changed');
   expect(puts).toHaveLength(2);
 });
+
+test('bootstrap revocation reconciles lost responses and requires absence before completion', async () => {
+  const { contract } = await candidate();
+  for (const mode of ['deleted', 'lost-response', 'pending', 'foreign', 'forbidden'] as const) {
+    let deletes = 0;
+    const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (_url, init) => {
+      if (init?.method === 'DELETE') {
+        deletes++;
+        return json({}, mode === 'lost-response' ? 503 : mode === 'forbidden' ? 403 : 200);
+      }
+      if (deletes && !['pending', 'forbidden'].includes(mode)) return json({}, 404);
+      return json({
+        metadata: { name: 'ce-token', namespace: 'system', labels: { ...labels, 'xcsh-ce-node': binding.nodes[0] } },
+        spec: { site_name: mode === 'foreign' ? 'other-site' : binding.siteName },
+      });
+    });
+    if (['pending', 'foreign', 'forbidden'].includes(mode)) {
+      await expect(runtime.deleteBootstrapToken(binding, binding.nodes[0], 'ce-token')).rejects.toThrow();
+      expect(deletes).toBe(mode === 'foreign' ? 0 : 1);
+    } else {
+      await runtime.deleteBootstrapToken(binding, binding.nodes[0], 'ce-token');
+      await runtime.deleteBootstrapToken(binding, binding.nodes[0], 'ce-token');
+      expect(deletes).toBe(1);
+    }
+  }
+});

@@ -1128,7 +1128,20 @@ export class CeRuntime {
       !subset(metadata.labels, { ...this.#labels(binding), 'xcsh-ce-node': node })
     )
       throw new Error('Registration token ownership mismatch');
-    await this.#request(path, { method: 'DELETE' }, signal);
+    signal?.throwIfAborted();
+    try {
+      await this.#request(path, { method: 'DELETE' }, signal);
+    } catch (error) {
+      if (!(error instanceof CeApiError) || !['not-found', 'transient', 'deadline'].includes(error.category))
+        throw error;
+    }
+    try {
+      await this.#request(path, {}, signal);
+    } catch (error) {
+      if (error instanceof CeApiError && error.category === 'not-found') return;
+      throw error;
+    }
+    throw new Error('Registration token deletion is still converging; resume revocation');
   }
   async observeHealth(binding: SiteBinding, signal?: AbortSignal): Promise<Json> {
     this.#binding(binding);
