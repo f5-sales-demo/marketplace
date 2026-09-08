@@ -4,6 +4,7 @@ import type { VerifiedIngressContract } from './ingress-contract';
 import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
+import { CeOriginTeardown } from './origin-teardown';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
@@ -283,6 +284,12 @@ export class CeRuntime {
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };
     }
+  }
+  originTeardown(contract: VerifiedIngressContract): CeOriginTeardown {
+    return new CeOriginTeardown(
+      { engine: this.engine, request: (path, init, signal) => this.#request(path, init, signal) },
+      contract.fingerprint,
+    );
   }
   ingress(contract: VerifiedIngressContract, storage: CeDeploymentStore): CeIngressLifecycle {
     return new CeIngressLifecycle(
