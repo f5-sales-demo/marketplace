@@ -5,6 +5,7 @@ import { CeIngressLifecycle } from './ingress-lifecycle';
 import { type InitialSiteVersions, initialSoftwareSettings } from './initial-versions';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
 import { CeOriginTeardown } from './origin-teardown';
+import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
@@ -284,6 +285,39 @@ export class CeRuntime {
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };
     }
+  }
+  drainPlatform(
+    plan: CePlatformDrainPlan,
+    contract: VerifiedIngressContract,
+    storage: CeDeploymentStore,
+    signal?: AbortSignal,
+  ) {
+    const ingress = this.ingress(contract, storage),
+      origins = this.originTeardown(contract);
+    return drainCePlatform(
+      plan,
+      storage,
+      {
+        engine: this.engine,
+        siteContractFingerprint: this.contract.fingerprint,
+        ingressContractFingerprint: contract.fingerprint,
+        observeOwnedSite: (binding, signal) => this.observeOwnedSite(binding, signal),
+        deleteListener: async (listener, signal) => {
+          const saved = (await storage.read(`ingress-plan-${listener.id}.json`)) as {
+            request?: { metadata?: { name?: string; namespace?: string } };
+          };
+          if (
+            saved?.request?.metadata?.name !== listener.name ||
+            saved.request.metadata.namespace !== listener.namespace
+          )
+            throw new Error('Drain listener differs from persisted ingress plan');
+          await ingress.delete(listener.id, signal);
+        },
+        deleteOrigin: (snapshot, listeners, signal) => origins.delete(snapshot, listeners, signal),
+        deleteRouting: (binding, resource, signal) => this.deleteRouting(binding, resource, signal),
+      },
+      signal,
+    );
   }
   originTeardown(contract: VerifiedIngressContract): CeOriginTeardown {
     return new CeOriginTeardown(
