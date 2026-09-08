@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
+import { canonicalSha256 } from '../../src/ce/canonical';
+import { collectAwsFailoverBgpHealth } from '../../src/ce/failover-health';
 import { collectAwsNetworkHealth } from '../../src/ce/network-health';
 import type { AwsCeCheckpoint, AwsCePlan } from '../../src/ce/types';
+import { AWS_CE_SCHEMA_VERSION } from '../../src/ce/types';
 
 const tags = [
   { Key: 'xcsh-managed-by', Value: 'aws-ce' },
@@ -126,4 +129,76 @@ test('mismatched inside CIDRs and out-of-tunnel BGP addresses remain unknown', a
   expect((await collectAwsNetworkHealth('bgp', endpoint.plan, endpoint.checkpoint, endpoint.api)).status).toBe(
     'unknown',
   );
+});
+
+function failoverFixture() {
+  const f = fixture();
+  f.plan.schemaVersion = AWS_CE_SCHEMA_VERSION;
+  f.plan.intent = {
+    ...f.plan.intent,
+    schemaVersion: AWS_CE_SCHEMA_VERSION,
+    engine: f.plan.engine,
+    siteName: f.plan.siteName,
+    topology: { ...f.plan.topology, sites: [1, 2, 3].map((node) => ({ name: `site-${node}`, nodeIndexes: [node] })) },
+  };
+  f.plan.planSha256 = canonicalSha256(f.plan);
+  f.plan.planId = `aws-ce-${f.plan.planSha256.slice(0, 24)}`;
+  Object.assign(f.checkpoint, {
+    schemaVersion: f.plan.schemaVersion,
+    engine: f.plan.engine,
+    planId: f.plan.planId,
+    planSha256: f.plan.planSha256,
+  });
+  return f;
+}
+
+test('failover collects exact selected-node withdrawal and restoration, not merely matching counts', async () => {
+  const f = failoverFixture();
+  const collect = (phase: 'outage' | 'recovered') => collectAwsFailoverBgpHealth(f.plan, f.checkpoint, 1, phase, f.api);
+  expect((await collect('recovered')).acceptance).toBe('passed');
+  expect((await collect('outage')).acceptance).toBe('pending');
+  for (const peer of f.peers.slice(2, 4))
+    for (const session of peer.ConnectPeerConfiguration.BgpConfigurations) session.BgpStatus = 'down';
+  const wrongNode = await collect('outage');
+  expect(wrongNode.expectedEstablishedSessions).toBe(8);
+  expect(wrongNode.acceptance).toBe('pending');
+  for (const [index, peer] of f.peers.entries())
+    for (const session of peer.ConnectPeerConfiguration.BgpConfigurations)
+      session.BgpStatus = index < 2 ? 'down' : 'up';
+  const outage = await collect('outage');
+  expect(outage.acceptance).toBe('passed');
+  expect(outage.selectedSiteName).toBe('site-1');
+  expect(outage.nodeName).toBe('demo-1');
+  expect(outage.planSha256).toBe(f.plan.planSha256);
+  expect((await collect('recovered')).acceptance).toBe('pending');
+  f.peers.pop();
+  expect((await collect('outage')).acceptance).toBe('unknown');
+});
+
+test('failover refuses another engine or stale checkpoint before collecting cloud evidence', async () => {
+  const f = failoverFixture();
+  f.checkpoint.engine = 'terraform';
+  await expect(collectAwsFailoverBgpHealth(f.plan, f.checkpoint, 1, 'outage', f.api)).rejects.toThrow();
+  expect(f.calls).toHaveLength(0);
+  f.checkpoint.engine = f.plan.engine;
+  f.checkpoint.planSha256 = '0'.repeat(64);
+  await expect(collectAwsFailoverBgpHealth(f.plan, f.checkpoint, 1, 'outage', f.api)).rejects.toThrow();
+  expect(f.calls).toHaveLength(0);
+});
+
+test('failover derives six-session profiles and preserves the selected node inside a three-node site', async () => {
+  const f = failoverFixture();
+  f.peers.splice(0, f.peers.length, ...f.peers.filter((_, index) => index % 2 === 0));
+  f.plan.actions = f.plan.actions.filter((_, index) => index % 2 === 0);
+  f.plan.intent.topology.sites = [{ name: 'ha-site', nodeIndexes: [1, 2, 3] }];
+  const { planId: _id, planSha256: _sha, ...draft } = f.plan;
+  f.plan.planSha256 = canonicalSha256(draft);
+  f.plan.planId = `aws-ce-${f.plan.planSha256.slice(0, 24)}`;
+  f.checkpoint.planId = f.plan.planId;
+  f.checkpoint.planSha256 = f.plan.planSha256;
+  for (const session of f.peers[0].ConnectPeerConfiguration.BgpConfigurations) session.BgpStatus = 'down';
+  const health = await collectAwsFailoverBgpHealth(f.plan, f.checkpoint, 1, 'outage', f.api);
+  expect(health.expectedEstablishedSessions).toBe(4);
+  expect(health.selectedSiteName).toBe('ha-site');
+  expect(health.acceptance).toBe('passed');
 });
