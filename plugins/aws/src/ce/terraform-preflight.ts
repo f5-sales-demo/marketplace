@@ -1,7 +1,7 @@
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
-import { canonicalSha256 } from './canonical';
+import { canonicalSha256, resourceConfiguration } from './canonical';
 import { discoverAwsCompute } from './discovery';
 import { scopedAwsApi } from './scoped-exec';
 import type { AwsCeObservation, AwsCePlan } from './types';
@@ -58,7 +58,7 @@ export async function revalidateAwsTerraformPlan(
       requiredEnis: plan.interfaces.length,
       nodeCount: plan.topology.nodeCount,
       instanceTypes: [plan.instance.type],
-      brownfieldResourceIds: [],
+      brownfieldResourceIds: terraformRoutingReferences(plan),
       observedOwnedResourceIds: ids,
       ownedPlanSha256s: [plan.planSha256],
       resourceRegion: plan.region,
@@ -100,4 +100,31 @@ export function assertAwsTerraformPreflight(
     plan.topology.availabilityZones.some((zone) => !types[0].availabilityZones.includes(zone))
   )
     throw new Error('Terraform instance offering no longer supports the planned topology');
+  const references = terraformRoutingReferences(plan);
+  if (references.length) {
+    const select = (observation: AwsCeObservation) =>
+      observation.resources.filter((item) => references.includes(item.id));
+    const before = select(baseline);
+    const after = select(current);
+    if (
+      before.length !== references.length ||
+      after.length !== references.length ||
+      after.some((item) => !item.exists || item.region !== plan.region) ||
+      canonicalSha256(resourceConfiguration(before)) !== canonicalSha256(resourceConfiguration(after))
+    )
+      throw new Error('Terraform routing reference configuration changed');
+  }
+}
+
+function terraformRoutingReferences(plan: AwsCePlan): string[] {
+  const routing = plan.intent.routing;
+  return routing?.profile === 'tgw-connect'
+    ? [
+        ...new Set(
+          [routing.transitGatewayId, ...routing.associations, ...routing.propagations].filter((id): id is string =>
+            Boolean(id),
+          ),
+        ),
+      ]
+    : [];
 }

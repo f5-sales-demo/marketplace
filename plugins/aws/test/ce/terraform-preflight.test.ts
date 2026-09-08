@@ -87,3 +87,34 @@ test('preflight rejects changed identity, agreement, capabilities, source receip
     expect(() => f.check(current)).toThrow();
   }
 });
+
+test('preflight rejects drift and missing evidence for referenced TGW resources', () => {
+  const f = fixture();
+  const plan = {
+    ...f.plan,
+    intent: {
+      ...f.plan.intent,
+      routing: { profile: 'tgw-connect', transitGatewayId: 'tgw-12345678', associations: [], propagations: [] },
+    },
+  } as AwsCePlan;
+  const baseline = {
+    ...f.baseline,
+    resources: [
+      {
+        id: 'tgw-12345678',
+        region: 'ca-west-1',
+        exists: true,
+        owned: false,
+        tags: {},
+        state: { TransitGateways: [{ TransitGatewayId: 'tgw-12345678', Options: { AmazonSideAsn: 64512 } }] },
+      },
+    ],
+  } as unknown as AwsCeObservation;
+  expect(() => assertAwsTerraformPreflight(plan, baseline, structuredClone(baseline))).not.toThrow();
+  expect(() => assertAwsTerraformPreflight(plan, baseline, { ...baseline, resources: [] })).toThrow('reference');
+  const changed = structuredClone(baseline);
+  changed.resources[0].state = {
+    TransitGateways: [{ TransitGatewayId: 'tgw-12345678', Options: { AmazonSideAsn: 65000 } }],
+  };
+  expect(() => assertAwsTerraformPreflight(plan, baseline, changed)).toThrow('reference');
+});
