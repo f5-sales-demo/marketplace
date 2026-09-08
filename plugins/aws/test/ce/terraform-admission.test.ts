@@ -171,6 +171,8 @@ it('admits independent sites cumulatively and waits for registration before the 
   expect((await admitAwsTerraformSites(f.plan, f.session, f.runtime, f.storage, f.api, {})).status).toBe('registered');
   expect([...f.nodes]).toEqual([1, 2, 3]);
   expect(f.bootstrapped).toEqual(['ce-1', 'ce-2', 'ce-3']);
+  const checkpoint = (await f.storage.read('terraform-admission.json')) as { bootstrapByNode: Record<string, string> };
+  expect(checkpoint.bootstrapByNode['1']).toContain('hostname: ce-1');
 });
 it('resumes after interrupted apply without minting bootstrap again or omitting earlier nodes', async () => {
   const f = fixture();

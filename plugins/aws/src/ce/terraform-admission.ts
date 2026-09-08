@@ -4,6 +4,7 @@ import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
+import { renderAwsCeCloudInit } from './cloud-init';
 import { renderAwsTerraformFoundation } from './terraform-foundation';
 import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { siteBindings } from './topology';
@@ -115,13 +116,17 @@ export async function admitAwsTerraformSites(
       for (const node of site.nodeIndexes) {
         if (checkpoint.bootstrapByNode[String(node)]) continue;
         const tokenName = `${plan.deploymentName.slice(0, 40)}-${node}-${plan.planSha256.slice(0, 12)}`;
-        checkpoint.bootstrapByNode[String(node)] = await runtime.bootstrap(
+        const material = await runtime.bootstrap(
           binding,
           `${plan.deploymentName}-${node}`,
           tokenName,
           (secret) => storage.write(`${tokenName}.json`, secret),
           signal,
         );
+        checkpoint.bootstrapByNode[String(node)] = renderAwsCeCloudInit({
+          nodeName: `${plan.deploymentName}-${node}`,
+          material,
+        });
         await save();
       }
       const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode);
