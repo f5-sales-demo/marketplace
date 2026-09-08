@@ -31,7 +31,7 @@ interface DiscoveryEnvelope {
 
 const memoryPlans = new Map<string, PlanEnvelope[]>();
 
-function verifyPlan(plan: AzureCePlan): void {
+export function verifyAzureCePlan(plan: AzureCePlan): void {
   if (plan.schemaVersion !== AZURE_CE_SCHEMA_VERSION || plan.intent.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     throw new Error('Persisted Azure CE plan uses an unsupported schema version');
   if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)
@@ -70,7 +70,7 @@ export async function savePlanArtifact(
   plan: AzureCePlan,
   observation: AzureCeObservation,
 ): Promise<string | undefined> {
-  verifyPlan(plan);
+  verifyAzureCePlan(plan);
   const envelope: PlanEnvelope = { kind: 'azure-ce-plan', plan, observation };
   const sessionPlans = memoryPlans.get(session.getSessionId()) ?? [];
   sessionPlans.push(envelope);
@@ -87,7 +87,7 @@ export async function loadPlanArtifact(
     .get(session.getSessionId())
     ?.find((item) => item.plan.planId === planId && item.plan.planSha256 === planSha256);
   if (memory) {
-    verifyPlan(memory.plan);
+    verifyAzureCePlan(memory.plan);
     return memory;
   }
   const artifactsDir = session.getArtifactsDir();
@@ -103,7 +103,7 @@ export async function loadPlanArtifact(
       const envelope = JSON.parse(await Bun.file(join(artifactsDir, file)).text()) as PlanEnvelope;
       if (envelope.kind !== 'azure-ce-plan') continue;
       if (envelope.plan.planId !== planId || envelope.plan.planSha256 !== planSha256) continue;
-      verifyPlan(envelope.plan);
+      verifyAzureCePlan(envelope.plan);
       return envelope;
     } catch {
       // Ignore unrelated or damaged artifacts; an exact valid plan is still required below.
