@@ -1,4 +1,7 @@
 import { bindAwsCloudInit } from './bootstrap';
+import type { CeDeploymentStore } from './deployment-store';
+import type { VerifiedIngressContract } from './ingress-contract';
+import { CeIngressLifecycle } from './ingress-lifecycle';
 import { correlateCeInterfaces, type ExpectedCeInterface, type ObservedCeInterface } from './interface-evidence';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import type { VerifiedCeContract } from './verified-contract';
@@ -196,6 +199,19 @@ export class CeRuntime {
     const site = await this.observeSite(binding, signal);
     this.#owned(site, binding);
     return site;
+  }
+  ingress(contract: VerifiedIngressContract, storage: CeDeploymentStore): CeIngressLifecycle {
+    return new CeIngressLifecycle(
+      {
+        engine: this.engine,
+        siteFingerprint: this.contract.fingerprint,
+        observeOwnedSite: (binding, signal) => this.observeOwnedSite(binding, signal),
+        observeAwsInterfaces: (binding, expected, signal) => this.observeAwsInterfaces(binding, expected, signal),
+        request: (path, init, signal) => this.#request(path, init, signal),
+      },
+      contract,
+      storage,
+    );
   }
   /** Schema-projected writable configuration, excluding runtime status and resource versions. */
   ownedSiteConfiguration(binding: SiteBinding, site: Json): Json {
