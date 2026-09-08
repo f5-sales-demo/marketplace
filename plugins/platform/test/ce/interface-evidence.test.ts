@@ -72,8 +72,49 @@ test('resolves the authoritative object only through configured MAC, site UID, d
       interfaceName: 'authoritative-interface-object',
       mtu: 1500,
       linkUp: true,
+      ipv4: null,
     },
   ]);
+});
+
+test('collects IPv4 only from the correlated active physical interface', () => {
+  const f = sitePublisherFixture();
+  const link = f.physical.status[0].ver_status.intf_status[0];
+  Object.assign(link, { active_state: 'STATE_ACTIVE', ip: { ipv4: { prefix: '10.20.1.10', plen: 24 } } });
+  expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].ipv4).toEqual({
+    address: '10.20.1.10',
+    prefixLength: 24,
+  });
+  f.physical.status[0].metadata.vtrp_stale = true;
+  expect(() => correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)).toThrow();
+});
+
+test('missing, inactive and malformed physical addresses remain unknown without losing link evidence', () => {
+  for (const ip of [
+    undefined,
+    null,
+    {},
+    [],
+    { ipv4: null },
+    { ipv4: { prefix: '::1', plen: 24 } },
+    { ipv4: { prefix: '10.20.1.10/24', plen: 24 } },
+    { ipv4: { prefix: '10.20.1.10', plen: '24' } },
+    { ipv4: { prefix: '10.20.1.10', plen: -1 } },
+    { ipv4: { prefix: '10.20.1.10', plen: 33 } },
+    { ipv4: { prefix: '10.20.1.10', plen: 24.5 } },
+  ]) {
+    const f = sitePublisherFixture();
+    Object.assign(f.physical.status[0].ver_status.intf_status[0], { active_state: 'STATE_ACTIVE', ip });
+    const result = correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0];
+    expect(result.ipv4).toBeNull();
+    expect(result.linkUp).toBe(true);
+  }
+  const f = sitePublisherFixture();
+  Object.assign(f.physical.status[0].ver_status.intf_status[0], {
+    active_state: 'STATE_INACTIVE',
+    ip: { ipv4: { prefix: '10.20.1.10', plen: 24 } },
+  });
+  expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].ipv4).toBeNull();
 });
 test('rejects stale, down, duplicated, foreign-owner and wrong-MTU evidence', () => {
   for (const mutate of [

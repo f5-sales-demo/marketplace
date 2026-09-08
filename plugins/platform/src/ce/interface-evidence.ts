@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 export interface ExpectedCeInterface {
   node: string;
   role: 'slo' | 'sli';
@@ -8,6 +10,7 @@ export interface ObservedCeInterface extends ExpectedCeInterface {
   interfaceName: string;
   mtu: number;
   linkUp: true;
+  ipv4: { address: string; prefixLength: number } | null;
 }
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => {
@@ -30,6 +33,24 @@ const identity = (value: unknown) => {
 };
 const matchesNode = (expected: string, actual: unknown) =>
   actual === expected || (typeof actual === 'string' && actual.startsWith(`${expected}.`));
+
+function observedIpv4(link: Json): ObservedCeInterface['ipv4'] {
+  if (link.active_state !== 'STATE_ACTIVE') return null;
+  try {
+    const ipv4 = object(object(link.ip).ipv4);
+    if (
+      typeof ipv4.prefix !== 'string' ||
+      isIP(ipv4.prefix) !== 4 ||
+      !Number.isInteger(ipv4.plen) ||
+      Number(ipv4.plen) < 0 ||
+      Number(ipv4.plen) > 32
+    )
+      return null;
+    return { address: ipv4.prefix, prefixLength: Number(ipv4.plen) };
+  } catch {
+    return null;
+  }
+}
 
 /** Join configuration, generated-object ownership and current physical link publication. Names are never constructed. */
 export function correlateCeInterfaces(
@@ -136,6 +157,6 @@ export function correlateCeInterfaces(
       links[0].link_state !== true
     )
       throw new Error('Physical interface link is not verified up');
-    return { ...iface, interfaceName: identity(matches[0].name), linkUp: true };
+    return { ...iface, interfaceName: identity(matches[0].name), linkUp: true, ipv4: observedIpv4(links[0]) };
   });
 }
