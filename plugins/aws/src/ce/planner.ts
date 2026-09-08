@@ -1607,6 +1607,14 @@ function compileActions(
           path: 'TransitGatewayVpcAttachment.TransitGatewayAttachmentId',
         },
       });
+    add({
+      phase: 'routing',
+      kind: 'tgw-attachment-gate',
+      description: 'Wait for scoped VPC transport attachment availability',
+      resourceId: intent.routing.transportAttachmentId ?? '__TGW_TRANSPORT_ATTACHMENT__',
+      mutates: false,
+      destructive: false,
+    });
     for (const routeTableId of intent.routing.associations)
       add({
         phase: 'routing',
@@ -1799,6 +1807,15 @@ function compileActions(
           placeholder: `__TGW_CONNECT_ATTACHMENT_${group}__`,
           path: 'TransitGatewayConnect.TransitGatewayAttachmentId',
         },
+      });
+
+      add({
+        phase: 'routing',
+        kind: 'tgw-attachment-gate',
+        description: `Wait for scoped Connect attachment ${group} availability`,
+        resourceId: `__TGW_CONNECT_ATTACHMENT_${group}__`,
+        mutates: false,
+        destructive: false,
       });
 
       for (const [tables, operation, kind] of [

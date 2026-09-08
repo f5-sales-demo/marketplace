@@ -714,6 +714,17 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(actions).toHaveLength(6);
     const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
     expect(attachments).toHaveLength(2);
+    const attachmentGates = plan.actions.filter((action) => action.kind === 'tgw-attachment-gate');
+    expect(attachmentGates).toHaveLength(3);
+    for (const attachment of attachments) {
+      const gate = attachmentGates.find((action) => action.resourceId === attachment.capture?.placeholder);
+      expect(gate).toBeDefined();
+      expect(plan.actions.findIndex((action) => action === gate)).toBeGreaterThan(plan.actions.indexOf(attachment));
+      for (const peer of actions.filter((action) => action.args?.includes(attachment.capture?.placeholder ?? ''))) {
+        expect(plan.actions.findIndex((action) => action === gate)).toBeLessThan(plan.actions.indexOf(peer));
+      }
+    }
+
     const peerCounts = new Map<string, number>();
     for (const action of actions) {
       const attachment = action.args?.[(action.args?.indexOf('--transit-gateway-attachment-id') ?? -1) + 1] ?? '';

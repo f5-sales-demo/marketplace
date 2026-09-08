@@ -199,6 +199,7 @@ export type AwsCeActionKind =
   | 'nlb-listener-create'
   | 'nlb-register-targets'
   | 'nlb-cross-zone-enable'
+  | 'tgw-attachment-gate'
   | 'tgw-vpc-attachment-create'
   | 'tgw-appliance-mode-enable'
   | 'tgw-route-table-create'

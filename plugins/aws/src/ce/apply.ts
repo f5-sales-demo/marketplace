@@ -5,6 +5,7 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
 import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
+import { assertAttachmentAvailable } from './attachment-gate';
 import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
@@ -173,6 +174,10 @@ async function assertGate(
   api: AwsExecApi,
   signal?: AbortSignal,
 ): Promise<void> {
+  if (action.kind === 'tgw-attachment-gate') {
+    await assertAttachmentAvailable(action, plan, checkpoint, api);
+    return;
+  }
   for (const { site, binding } of siteBindings(plan).filter(
     ({ site }) => !action.node || site.nodeIndexes.includes(action.node),
   )) {
