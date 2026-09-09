@@ -327,6 +327,7 @@ export interface AwsCeCheckpoint {
   planId: string;
   planSha256: string;
   completedActionIds: string[];
+  childPlanSha256s?: string[];
   observationFingerprint?: string;
   ownedStateFingerprint?: string;
   failedActionId?: string;

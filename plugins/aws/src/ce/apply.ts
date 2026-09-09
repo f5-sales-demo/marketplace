@@ -1,8 +1,10 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
+import { captureCeReplacementVersions } from '../../../platform/src/ce/replacement-versions';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
+import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
 import type { AwsExecApi } from '../aws/exec';
 import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
@@ -14,11 +16,13 @@ import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
+import { createNativeAwsSiteReplacementDriver } from './native-site-replacement';
 import { collectAwsNetworkHealth } from './network-health';
 import { ensureAwsPlatformIngress } from './platform-ingress';
 import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import { resetAwsSecurityGroupEgress } from './security-group-defaults';
+import { type AwsSiteReplacementPlan, compileAwsSiteReplacement, runAwsSiteReplacement } from './site-replacement';
 import { siteBindings } from './topology';
 import { collectAwsTrafficProbe } from './traffic-probe';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
@@ -189,8 +193,10 @@ async function assertGate(
   storage: Awaited<ReturnType<CePlatformService['storage']>>,
   ingressContract: VerifiedIngressContract | undefined,
   api: AwsExecApi,
+  fetcher: typeof fetch,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<{ mutated: true; pending: boolean } | undefined> {
+  let replacementMutation = false;
   if (action.kind === 'security-group-egress-reset') {
     await resetAwsSecurityGroupEgress(action, plan, checkpoint, api);
     return;
@@ -203,12 +209,80 @@ async function assertGate(
     ({ site }) => !action.node || site.nodeIndexes.includes(action.node),
   )) {
     if (action.kind === 'registration-gate' || action.kind === 'registration-approve') {
-      const instances = Object.fromEntries(
+      let instances = Object.fromEntries(
         binding.nodes.map((node, index) => [
           node,
           checkpoint.resolvedValues[`__INSTANCE_${site.nodeIndexes[index]}__`],
         ]),
       );
+      const replacementArtifact = `${action.id}-initial-mtu-replacement.json`;
+      let replacement: AwsSiteReplacementPlan | undefined;
+      if (action.kind === 'registration-gate') {
+        try {
+          const saved = (await storage.read(replacementArtifact)) as {
+            sourcePlanSha256?: string;
+            plan?: AwsSiteReplacementPlan;
+          };
+          if (saved.sourcePlanSha256 !== plan.planSha256 || !saved.plan)
+            throw new Error('Initial MTU replacement binding differs');
+          replacement = saved.plan;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+      }
+      const driveReplacement = async (child: AwsSiteReplacementPlan) => {
+        replacementMutation = true;
+        checkpoint.childPlanSha256s = [...new Set([...(checkpoint.childPlanSha256s ?? []), child.planSha256])].sort();
+        await persist();
+        const upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
+        const driver = createNativeAwsSiteReplacementDriver(plan, api, storage);
+        const result = await runAwsSiteReplacement(child, child.planSha256, driver, runtime, storage, upgrade, signal);
+        const childCheckpoint = (await storage.read(`${child.planId}.json`)) as { instances?: Record<string, string> };
+        for (const [nodeOffset, node] of binding.nodes.entries()) {
+          const instance = childCheckpoint.instances?.[node];
+          if (typeof instance === 'string' && /^i-[0-9a-f]{8,17}$/.test(instance))
+            checkpoint.resolvedValues[`__INSTANCE_${site.nodeIndexes[nodeOffset]}__`] = instance;
+        }
+        const scoped = scopedAwsApi(api, plan.intent.awsProfile, signal);
+        for (const node of site.nodeIndexes) {
+          const allocation = checkpoint.resolvedValues[`__EIP_${node}__`];
+          if (!allocation) continue;
+          const response = await scoped.exec('aws', [
+            'ec2',
+            'describe-addresses',
+            '--allocation-ids',
+            allocation,
+            '--region',
+            plan.region,
+            '--output',
+            'json',
+          ]);
+          if (response.exitCode) throw new Error('Replacement EIP observation failed');
+          const addresses = (JSON.parse(response.stdout) as { Addresses?: Array<{ AssociationId?: string }> })
+            .Addresses;
+          const association = addresses?.length === 1 ? addresses[0].AssociationId : undefined;
+          if (!association || !/^eipassoc-[0-9a-f]{8,17}$/.test(association))
+            throw new Error('Replacement EIP association identity is unavailable');
+          checkpoint.resolvedValues[`__EIP_ASSOC_${node}__`] = association;
+        }
+        instances = Object.fromEntries(
+          binding.nodes.map((node, index) => [
+            node,
+            checkpoint.resolvedValues[`__INSTANCE_${site.nodeIndexes[index]}__`],
+          ]),
+        );
+        await persist({
+          evidenceKind: 'automatic-preboot-mtu-replacement',
+          childPlanId: child.planId,
+          childPlanSha256: child.planSha256,
+          status: result.status,
+        });
+        return result.status === 'registered-with-configured-interfaces';
+      };
+      if (replacement) {
+        const complete = await driveReplacement(replacement);
+        if (!complete) return { mutated: true, pending: true };
+      }
       const evidence =
         action.kind === 'registration-approve'
           ? await runtime.approveRegistrations(
@@ -253,22 +327,70 @@ async function assertGate(
         );
         if (configuration.status !== 'configured')
           throw new Error('Observed F5 interface configuration has not converged');
-        await runtime.ensureAwsInterfaceMtu(
-          binding,
-          instances,
-          site.nodeIndexes.flatMap((node) =>
-            plan.interfaces.map((item) => ({
-              node: `${plan.deploymentName}-${node}`,
-              role: item.role as 'slo' | 'sli',
-              mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
-              mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
-            })),
-          ),
-          async (record) => {
-            await persist(record);
-          },
-          signal,
+        const expected = site.nodeIndexes.flatMap((node) =>
+          plan.interfaces.map((item) => ({
+            node: `${plan.deploymentName}-${node}`,
+            role: item.role as 'slo' | 'sli',
+            mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+            mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
+          })),
         );
+        let preparation: Record<string, unknown> | undefined;
+        try {
+          await runtime.ensureAwsInterfaceMtu(
+            binding,
+            instances,
+            expected,
+            async (record) => {
+              preparation = record;
+              await persist(record);
+            },
+            signal,
+          );
+        } catch (error) {
+          if (
+            plan.engine !== 'native' ||
+            !(error instanceof Error) ||
+            !error.message.includes('coupled VM/site replacement') ||
+            !preparation
+          )
+            throw error;
+          const upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
+          const versions = await captureCeReplacementVersions(
+            binding,
+            String(preparation.uid),
+            String(preparation.contractFingerprint),
+            runtime,
+            upgrade,
+            signal,
+          );
+          replacement = compileAwsSiteReplacement(plan, binding.siteName, preparation, {
+            versions,
+            interfaceIds: Object.fromEntries(
+              site.nodeIndexes.flatMap((node) =>
+                plan.interfaces.map((item) => [
+                  `${plan.deploymentName}-${node}/${item.role}`,
+                  checkpoint.resolvedValues[`__ENI_${node}_${item.index}__`],
+                ]),
+              ),
+            ),
+            elasticIpAllocationIds: Object.fromEntries(
+              site.nodeIndexes.map((node) => [
+                `${plan.deploymentName}-${node}`,
+                checkpoint.resolvedValues[`__EIP_${node}__`],
+              ]),
+            ),
+            bootstrapTokenNames: Object.fromEntries(
+              site.nodeIndexes.map((node) => [
+                `${plan.deploymentName}-${node}`,
+                checkpoint.resolvedValues[`__F5_TOKEN_${node}__`],
+              ]),
+            ),
+          });
+          await storage.write(replacementArtifact, { sourcePlanSha256: plan.planSha256, plan: replacement });
+          const complete = await driveReplacement(replacement);
+          if (!complete) return { mutated: true, pending: true };
+        }
         if ((await runtime.observeRegistrations(binding, instances, signal)).status !== 'healthy')
           throw new Error('Observed F5 registration after interface update has not converged');
       }
@@ -326,6 +448,7 @@ async function assertGate(
     await persist(evidence);
     if (evidence.status !== 'healthy') throw new Error('Observed end-to-end AWS traffic has not converged');
   }
+  return replacementMutation ? { mutated: true, pending: false } : undefined;
 }
 
 export async function executeAwsCeApply(
@@ -394,6 +517,7 @@ export async function executeAwsCeApply(
   const ownershipPlanSha256s = [
     ...new Set([
       ...observation.ownershipPlanSha256s,
+      ...(existing?.childPlanSha256s ?? []),
       ...observation.resources
         .filter((resource) => resource.owned)
         .map((resource) => resource.tags['xcsh-plan-sha256'])
@@ -423,11 +547,18 @@ export async function executeAwsCeApply(
     api,
     fetcher,
   );
-  assertAwsObservationFresh(plan, current, existing?.observationFingerprint ?? plan.observationFingerprint, [
-    ...brownfieldIds,
-    ...observedOwnedIds(),
-  ]);
-  if (existing?.ownedStateFingerprint) {
+  const childReplacementActive =
+    Boolean(existing?.childPlanSha256s?.length) &&
+    plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
+  assertAwsObservationFresh(
+    plan,
+    current,
+    childReplacementActive
+      ? plan.observationFingerprint
+      : (existing?.observationFingerprint ?? plan.observationFingerprint),
+    childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
+  );
+  if (existing?.ownedStateFingerprint && !childReplacementActive) {
     const actualOwnedState = fingerprintOwnedResources(
       current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
     );
@@ -458,6 +589,7 @@ export async function executeAwsCeApply(
     planId: plan.planId,
     planSha256: plan.planSha256,
     completedActionIds: [...completed],
+    childPlanSha256s: existing?.childPlanSha256s ? [...existing.childPlanSha256s] : undefined,
     observationFingerprint: existing?.observationFingerprint,
     resolvedValues: { ...(existing?.resolvedValues ?? {}) },
     state: 'running',
@@ -467,6 +599,7 @@ export async function executeAwsCeApply(
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
     let launchDirectory: string | undefined;
+    let gateMutation = false;
     const previousObservationFingerprint = checkpoint.observationFingerprint;
     const previousOwnedStateFingerprint = checkpoint.ownedStateFingerprint;
     const previousCaptures = new Map(
@@ -481,7 +614,7 @@ export async function executeAwsCeApply(
       const convergenceDeadline = Date.now() + 15 * 60_000;
       while (true) {
         try {
-          await assertGate(
+          const gate = await assertGate(
             action,
             runtime,
             plan,
@@ -498,8 +631,11 @@ export async function executeAwsCeApply(
             storage,
             ingressContract,
             api,
+            fetcher,
             signal,
           );
+          gateMutation = gate?.mutated === true;
+          if (gate?.pending) break;
           if (action.kind === 'f5-routing-configure')
             await persistAwsNativeRoutingCheckpoint(plan, checkpoint, storage);
           break;
@@ -608,7 +744,7 @@ export async function executeAwsCeApply(
           }
         }
       }
-      if (action.mutates) {
+      if (action.mutates || gateMutation) {
         const ids = [
           ...new Set([
             ...brownfieldIds,
@@ -628,6 +764,17 @@ export async function executeAwsCeApply(
           checkpoint.observationFingerprint = fingerprintObservation({ ...current, resources }, ids);
         }
       }
+      if (gateMutation) {
+        const saved = (await storage.read(`${action.id}-initial-mtu-replacement.json`)) as {
+          plan?: AwsSiteReplacementPlan;
+        };
+        const child = saved.plan;
+        const childCheckpoint = child
+          ? ((await storage.read(`${child.planId}.json`)) as { phase?: string })
+          : undefined;
+        if (childCheckpoint?.phase !== 'complete')
+          throw new Error('Automatic preboot MTU replacement has not converged');
+      }
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
@@ -645,8 +792,10 @@ export async function executeAwsCeApply(
         throw error;
       }
     } catch (error) {
-      checkpoint.observationFingerprint = previousObservationFingerprint;
-      checkpoint.ownedStateFingerprint = previousOwnedStateFingerprint;
+      if (!gateMutation) {
+        checkpoint.observationFingerprint = previousObservationFingerprint;
+        checkpoint.ownedStateFingerprint = previousOwnedStateFingerprint;
+      }
       if (checkpoint.pendingCreate?.actionId === action.id) {
         for (const [placeholder, value] of previousCaptures) {
           if (value === undefined) delete checkpoint.resolvedValues[placeholder];

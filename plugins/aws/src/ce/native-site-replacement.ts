@@ -39,7 +39,7 @@ export function createNativeAwsSiteReplacementDriver(
   if (source.engine !== 'native') throw new Error('Replacement requires a native source plan');
   const base = structuredClone(source);
   const routingSource = routing ? structuredClone(routing.checkpoint) : undefined;
-  if (base.routing?.profile === 'tgw-connect' && routing?.runtime.engine !== 'native')
+  if (routing && routing.runtime.engine !== 'native')
     throw new Error('Connect replacement requires automatic routing recovery');
   const token = (plan: AwsSiteReplacementPlan, node: string) => canonicalSha256({ replacement: plan.planSha256, node });
   const nodeIndex = (node: string) => {
@@ -69,21 +69,25 @@ export function createNativeAwsSiteReplacementDriver(
     )
       throw new Error('Native replacement ownership or plan integrity differs');
     if (base.routing?.profile === 'tgw-connect') {
-      if (!routing || !routingSource) throw new Error('Replacement routing runtime is unavailable');
-      validateAwsRoutingRebind(base, {
-        siteName: plan.binding.siteName,
-        siteUid: String(plan.preparation.uid),
-        contract: routing.contract,
-        checkpoint: routingSource,
-      });
-      const name = `${plan.planId}-routing-source.json`;
-      const expected = { replacementPlanSha256: plan.planSha256, checkpoint: routingSource };
-      try {
-        if (canonicalSha256(await storage.read(name)) !== canonicalSha256(expected))
-          throw new Error('Replacement routing source changed');
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        await storage.write(name, expected);
+      if (!routing || !routingSource) {
+        if (plan.preparation.evidenceKind !== 'preboot-interface-configuration-required')
+          throw new Error('Replacement routing runtime is unavailable');
+      } else {
+        validateAwsRoutingRebind(base, {
+          siteName: plan.binding.siteName,
+          siteUid: String(plan.preparation.uid),
+          contract: routing.contract,
+          checkpoint: routingSource,
+        });
+        const name = `${plan.planId}-routing-source.json`;
+        const expected = { replacementPlanSha256: plan.planSha256, checkpoint: routingSource };
+        try {
+          if (canonicalSha256(await storage.read(name)) !== canonicalSha256(expected))
+            throw new Error('Replacement routing source changed');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          await storage.write(name, expected);
+        }
       }
     }
     for (const node of plan.binding.nodes) launchArgs(plan, node);
@@ -253,7 +257,10 @@ export function createNativeAwsSiteReplacementDriver(
     async restoreRouting(plan, siteUid, signal) {
       await validate(plan);
       if (base.routing?.profile !== 'tgw-connect') return;
-      if (!routing || !routingSource) throw new Error('Replacement routing runtime is unavailable');
+      if (!routing || !routingSource) {
+        if (plan.preparation.evidenceKind === 'preboot-interface-configuration-required') return;
+        throw new Error('Replacement routing runtime is unavailable');
+      }
       const checkpoint = structuredClone(routingSource);
       const scoped = scopedAwsApi(raw, base.intent.awsProfile, signal);
       await configureAwsRouting(

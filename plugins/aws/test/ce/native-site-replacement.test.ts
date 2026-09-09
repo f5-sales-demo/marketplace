@@ -40,6 +40,7 @@ async function fixture() {
     region: 'us-east-1',
     deploymentName: 'ce',
     intent: { ...draft.intent, engine: 'native' },
+    routing: structuredClone(draft.intent.routing),
     actions: [
       {
         kind: 'instance-run',
@@ -233,6 +234,25 @@ async function fixture() {
     launch: () => driver.launch(plan, { 'ce-1': '#cloud-config\nfixture: private-bootstrap\n' }),
   };
 }
+
+test('preboot Connect replacement can precede routing while later replacement still requires routing recovery', async () => {
+  const f = await fixture();
+  try {
+    await f.driver.assertOwnership(f.plan, 'quiesce');
+    const { planId: _planId, planSha256: _planSha256, ...draft } = f.plan;
+    const changed = {
+      ...draft,
+      preparation: { ...draft.preparation, evidenceKind: 'owned-site-replacement' },
+    };
+    const planSha256 = canonicalSha256(changed);
+    const later = { ...changed, planSha256, planId: `aws-ce-replace-${planSha256.slice(0, 24)}` };
+    f.events.length = 0;
+    await expect(f.driver.assertOwnership(later, 'quiesce')).rejects.toThrow('routing runtime');
+    expect(f.events).toHaveLength(0);
+  } finally {
+    await f.cleanup();
+  }
+});
 
 test('native replacement retains network identity and resumes a completed launch without creating again', async () => {
   const f = await fixture();
