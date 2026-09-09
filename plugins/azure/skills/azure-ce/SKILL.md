@@ -54,15 +54,22 @@ platform, routing, and traffic-health states independent.
    Terraform software/OS action. A native response lost after the persisted mutation boundary is
    reconciled from platform state without replay. Treat version completion separately from node,
    routing, and traffic health.
-7. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
+7. For a planned outage, call `azure_ce_failover` to prepare the exact engine-owned node from a
+   fresh subscription, VM resource, immutable VM UUID, running-state, region, and ownership-tag
+   observation. Apply only when the tool can collect both Route Server sessions, effective routes,
+   and traffic before the outage, during withdrawal, and after recovery. A schema path or caller
+   assertion cannot satisfy these gates. Do not power-cycle a Terraform-owned VM with generic `az`.
+8. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
-8. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
+9. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
    active diagnostics or teardown, preserve existing authorization and confirm scope only when
    the requested action falls outside it.
 
 For headless execution, use `XCSH_CE_HEADLESS_MUTATIONS=1`, and
 `XCSH_CE_ALLOW_DESTROY=1` for teardown. Version-1 and version-2 deployment plans and
-Azure-named compatibility gates are unsupported.
+Azure-named compatibility gates are unsupported. The published v6.1.2 API schema and the held
+`f5xc-smsv2-api/v1@7.0.0` executable contract are separate identities; schema presence alone does
+not authorize create, bootstrap, routing, health, failover, or teardown execution.
 
 Initial Azure Marketplace terms acceptance must be completed by a human for the exact
 image offer and plan. Automation may observe acceptance but must not accept initial

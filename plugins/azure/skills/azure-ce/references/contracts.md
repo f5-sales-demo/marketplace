@@ -56,6 +56,11 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 - Native and Terraform upgrades use the same verified action and fresh version evidence. Native
   execution persists the exact logical site identity before the request and reconciles an
   ambiguous response from platform convergence without replaying the mutation.
+- `azure_ce_failover` preparation binds an exact node to fresh account, resource ID, immutable VM
+  UUID, power state, region, and engine ownership evidence. Failover apply remains unavailable
+  until the executable contract maps SLO BGP and the runtime collects both Route Server sessions,
+  effective routes, and traffic through withdrawal and recovery. Never substitute a generic Azure
+  VM power action for a Terraform-owned deployment.
 - Use Azure VM, NIC, provisioning, boot diagnostics, cloud-init, effective-route, NSG,
   Route Server, and Network Watcher evidence together with platform status.
 - Run VM Run Command and Network Watcher probes within the user's authorized diagnostic scope,
