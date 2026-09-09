@@ -29,6 +29,12 @@ export interface AwsCeApplyInput {
   planSha256: string;
 }
 
+export function observedInstanceTypeNames(observation: AwsCeObservation): string[] {
+  return [
+    ...new Set(observation.regions.flatMap((region) => region.instanceTypes.map((instance) => instance.name))),
+  ].sort();
+}
+
 export function assertAwsObservationFresh(
   plan: AwsCePlan,
   current: AwsCeObservation,
@@ -403,7 +409,9 @@ export async function executeAwsCeApply(
       deploymentName: plan.deploymentName,
       requiredEnis: plan.interfaces.length,
       nodeCount: plan.topology.nodeCount,
-      instanceTypes: [plan.instance.type],
+      // Recollect the same reviewed candidate set. Narrowing this to only the selected
+      // type changes every regional observation and falsely makes an untouched plan stale.
+      instanceTypes: observedInstanceTypeNames(observation),
       brownfieldResourceIds: brownfieldIds,
       observedOwnedResourceIds: observedOwnedIds(),
       ownedPlanSha256s: ownershipPlanSha256s,

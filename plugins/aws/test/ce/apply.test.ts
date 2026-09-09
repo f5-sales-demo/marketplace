@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { assertAwsActionOwnership, assertAwsApplyAllowed, assertAwsObservationFresh } from '../../src/ce/apply';
+import {
+  assertAwsActionOwnership,
+  assertAwsApplyAllowed,
+  assertAwsObservationFresh,
+  observedInstanceTypeNames,
+} from '../../src/ce/apply';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
@@ -142,6 +147,12 @@ describe('AWS CE apply protections', () => {
       assertAwsApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: false, env: {} }),
     ).toThrow(/XCSH_CE_HEADLESS/);
   });
+});
+
+it('preserves the complete reviewed instance-type set for live revalidation', () => {
+  const reviewed = structuredClone(observation);
+  reviewed.regions[0].instanceTypes.push({ ...reviewed.regions[0].instanceTypes[0], name: 'm5.2xlarge' });
+  expect(observedInstanceTypeNames(reviewed)).toEqual(['m5.2xlarge', 'm6i.2xlarge']);
 });
 
 describe('resume authorization', () => {
