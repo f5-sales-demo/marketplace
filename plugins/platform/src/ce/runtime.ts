@@ -762,8 +762,11 @@ export class CeRuntime {
         }
         if (!existing && rebind) throw new Error('Recorded replacement routing object is missing');
         if (!existing) {
-          // Revalidate site ownership at each child-object mutation boundary.
-          this.#owned(await this.observeSite(binding, signal), binding);
+          // Revalidate site ownership and retain its logical UID at each child-object mutation boundary.
+          const site = await this.observeOwnedSite(binding, signal);
+          const siteUid = object(site.system_metadata).uid;
+          if (typeof siteUid !== 'string' || !siteUid.trim())
+            throw new Error('Routing creation requires a logical site UID');
           this.contract.validateRouting(kind, resource.spec);
           try {
             await this.#request(
@@ -774,7 +777,7 @@ export class CeRuntime {
                   metadata: {
                     name: resource.name,
                     namespace: 'system',
-                    labels: { ...this.#labels(binding), 'xcsh-ce-site': binding.siteName },
+                    labels: { ...this.#labels(binding), 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': siteUid },
                   },
                   spec: resource.spec,
                 }),

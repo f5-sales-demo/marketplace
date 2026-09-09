@@ -424,7 +424,10 @@ test('creates schema-validated routing objects in order and resumes lost respons
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
     const path = new URL(String(url)).pathname;
     if (path.includes('securemesh_site_v2s/'))
-      return json({ metadata: { name: binding.siteName, namespace: 'system', labels } });
+      return json({
+        metadata: { name: binding.siteName, namespace: 'system', labels },
+        system_metadata: { uid: 'site-uid' },
+      });
     if (init?.method === 'POST') {
       const body = JSON.parse(String(init.body));
       posts.push(path);
@@ -455,6 +458,11 @@ test('creates schema-validated routing objects in order and resumes lost respons
   expect(posts).toHaveLength(2);
   const bgp = objects.get('/api/config/namespaces/system/bgps/ce-one-tgw-bgp') as { spec: { peers: unknown[] } };
   expect(bgp.spec.peers).toHaveLength(2);
+  expect(
+    [...objects.values()].map(
+      (value) => (value as { metadata: { labels: Record<string, string> } }).metadata.labels['xcsh-ce-site-uid'],
+    ),
+  ).toEqual(['site-uid', 'site-uid']);
 });
 
 test('AWS configured creation rejects missing observed devices before any API request', async () => {
