@@ -16,11 +16,15 @@ function version(rows: unknown[], key: string, statusId: string, installed: stri
   const seen = new Set<string>();
   for (const value of rows) {
     const row = object(value);
-    if (row[key] === undefined || row[key] === null) continue;
-    const metadata = object(row.metadata);
+    if (!row.metadata || typeof row.metadata !== 'object' || Array.isArray(row.metadata)) continue;
+    const metadata = row.metadata as Json;
+    // Physical-site status rows share one generated schema and can therefore
+    // contain empty/default version blocks even when another publisher owns
+    // the row. Select the authoritative publisher identity before inspecting
+    // its version block.
+    if (metadata.status_id !== statusId) continue;
     if (
       metadata.creator_class !== 'maurice' ||
-      metadata.status_id !== statusId ||
       metadata.publish !== 'STATUS_PUBLISH'
     )
       throw new Error('Upgrade status publisher differs');

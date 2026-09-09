@@ -51,6 +51,17 @@ function site() {
 }
 test('selects version publishers and preserves current offline state despite completed deployment phases', () => {
   const raw = site();
+  raw.status.unshift({
+    metadata: {
+      uid: 'node-status-publisher',
+      creator_class: 'ver',
+      status_id: 'node-one_SiteStatusMgr',
+      publish: 'STATUS_PUBLISH',
+      vtrp_stale: false,
+    },
+    volterra_software_status: {},
+    operating_system_status: {},
+  });
   expect(parseSiteUpgradeState(raw, binding).software.installed).toBe('crt-20260201-0178');
   raw.spec.site_state = 'FAILED';
   expect(parseSiteUpgradeState(raw, binding).online).toBe(false);
