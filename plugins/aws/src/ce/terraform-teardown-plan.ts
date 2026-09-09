@@ -4,6 +4,7 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import type { AwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { compileAwsTerraformTeardown } from './terraform-teardown';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
@@ -18,7 +19,7 @@ const safeName = (value: unknown): value is string =>
 /** Assemble a registered deployment's manifest from verified live identity and restricted artifact projections.
  * No health booleans or caller-built object lists are accepted; bootstrap contents never leave storage reads.
  */
-export async function prepareAwsTerraformTeardown(
+export async function collectAwsTeardownMaterial(
   input: AwsCePlan,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
@@ -31,12 +32,8 @@ export async function prepareAwsTerraformTeardown(
   const selected = siteBindings(base),
     bindings = selected.map((row) => row.binding),
     owner = bindings[0].owner;
-  if (
-    base.engine !== 'terraform' ||
-    runtime.engine !== 'terraform' ||
-    canonicalSha256(storage.owner) !== canonicalSha256(owner)
-  )
-    throw new Error('Teardown preparation requires owning Terraform deployment');
+  if (runtime.engine !== base.engine || canonicalSha256(storage.owner) !== canonicalSha256(owner))
+    throw new Error('Teardown preparation requires the owning deployment engine');
   await storage.verify();
   const patterns = selected.flatMap(({ site, binding }) =>
     site.nodeIndexes.flatMap((globalIndex, localIndex) => [
@@ -126,15 +123,31 @@ export async function prepareAwsTerraformTeardown(
     );
   const routing = inventory.resources.filter((row) => row.kind === 'bgps' || row.kind === 'external_connectors');
   if (base.routing.profile === 'tgw-connect') {
-    const checkpoint = object(await storage.read('terraform-routing-checkpoint.json'));
-    if (
-      checkpoint.schemaVersion !== 2 ||
-      checkpoint.engine !== 'terraform' ||
-      checkpoint.planId !== base.planId ||
-      checkpoint.planSha256 !== base.planSha256
-    )
-      throw new Error('Routing checkpoint source differs');
-    const values = object(checkpoint.resolvedValues);
+    const checkpoint = object(await storage.read(`${base.engine}-routing-checkpoint.json`));
+    let values: Record<string, unknown>;
+    if (base.engine === 'terraform') {
+      if (
+        checkpoint.schemaVersion !== 2 ||
+        checkpoint.engine !== 'terraform' ||
+        checkpoint.planId !== base.planId ||
+        checkpoint.planSha256 !== base.planSha256
+      )
+        throw new Error('Routing checkpoint source differs');
+      values = object(checkpoint.resolvedValues);
+    } else {
+      const native = checkpoint as unknown as AwsNativeRoutingCheckpoint;
+      if (
+        native.schemaVersion !== 1 ||
+        native.engine !== 'native' ||
+        native.planId !== base.planId ||
+        native.planSha256 !== base.planSha256 ||
+        native.ownerSha256 !== canonicalSha256(owner) ||
+        !Array.isArray(native.resources) ||
+        native.resources.length !== routing.length
+      )
+        throw new Error('Routing checkpoint source differs');
+      values = Object.fromEntries(native.resources.map((row) => [`__XC_ROUTING_${row.name}__`, row.uid]));
+    }
     if (routing.some((row) => values[`__XC_ROUTING_${row.name}__`] !== row.uid))
       throw new Error('Routing checkpoint UID differs from live inventory');
   }
@@ -193,7 +206,6 @@ export async function prepareAwsTerraformTeardown(
       .map(({ node, name }) => ({ node, name }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   }));
-  const plan = compileAwsTerraformTeardown(base, drain, retirement);
   const after = await observe();
   const identities = (value: typeof inventory) => ({
     sites: [...value.sites].sort((a, b) => a.siteName.localeCompare(b.siteName)),
@@ -208,6 +220,19 @@ export async function prepareAwsTerraformTeardown(
     throw new Error('Teardown source changed during preparation');
   signal?.throwIfAborted();
   await storage.verify();
+  return { drain, retirement };
+}
+
+export async function prepareAwsTerraformTeardown(
+  input: AwsCePlan,
+  runtime: CeRuntime,
+  contract: VerifiedIngressContract,
+  storage: CeDeploymentStore,
+  signal?: AbortSignal,
+) {
+  if (input.engine !== 'terraform') throw new Error('Terraform teardown preparation requires Terraform ownership');
+  const { drain, retirement } = await collectAwsTeardownMaterial(input, runtime, contract, storage, signal);
+  const plan = compileAwsTerraformTeardown(input, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
 }

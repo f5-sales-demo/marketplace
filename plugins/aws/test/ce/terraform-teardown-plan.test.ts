@@ -6,7 +6,7 @@ import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import { canonicalSha256 } from '../../src/ce/canonical';
-import { prepareAwsTerraformTeardown } from '../../src/ce/terraform-teardown-plan';
+import { collectAwsTeardownMaterial, prepareAwsTerraformTeardown } from '../../src/ce/terraform-teardown-plan';
 import { siteBindings } from '../../src/ce/topology';
 import { foundationPlan } from './terraform-fixtures';
 
@@ -14,10 +14,12 @@ const dirs: string[] = [];
 afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true });
 });
-async function fixture(mode = 'valid') {
+async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terraform') {
   const { planId: _id, planSha256: _sha, ...initial } = foundationPlan();
   const draft = {
     ...initial,
+    engine,
+    intent: { ...initial.intent, engine },
     deploymentName: 'ce',
     accountId: '123456789012',
     region: 'us-east-1',
@@ -73,18 +75,33 @@ async function fixture(mode = 'valid') {
       siteUid: `site-${index}`,
     })),
   ]);
-  await storage.write('terraform-routing-checkpoint.json', {
-    schemaVersion: 2,
-    engine: 'terraform',
-    planId: base.planId,
-    planSha256: sha,
-    resolvedValues: Object.fromEntries(
-      routes.map((row) => [`__XC_ROUTING_${row.name}__`, mode === 'wrong-routing' ? 'foreign' : row.uid]),
-    ),
-  });
+  if (engine === 'terraform')
+    await storage.write('terraform-routing-checkpoint.json', {
+      schemaVersion: 2,
+      engine,
+      planId: base.planId,
+      planSha256: sha,
+      resolvedValues: Object.fromEntries(
+        routes.map((row) => [`__XC_ROUTING_${row.name}__`, mode === 'wrong-routing' ? 'foreign' : row.uid]),
+      ),
+    });
+  else
+    await storage.write('native-routing-checkpoint.json', {
+      schemaVersion: 1,
+      engine,
+      planId: base.planId,
+      planSha256: sha,
+      ownerSha256: canonicalSha256(owner),
+      resources: routes.map((row) => ({
+        siteName: row.siteName,
+        kind: row.kind === 'bgps' ? 'bgp' : 'external_connector',
+        name: row.name,
+        uid: mode === 'wrong-routing' ? 'foreign' : row.uid,
+      })),
+    });
   let collections = 0;
   const runtime = {
-    engine: 'terraform',
+    engine,
     contract: { fingerprint: 'site-contract' },
     teardownInventory: async () => {
       collections++;
@@ -147,6 +164,13 @@ test('builds the complete Terraform teardown manifest from live identities and p
   expect(JSON.stringify(plan)).not.toContain('never-export-bootstrap');
   expect(JSON.stringify(plan)).not.toContain('jwt');
   expect(await f.storage.read(`${plan.planId}.json`)).toEqual(plan);
+});
+test('collects the same complete teardown material for a native-owned deployment', async () => {
+  const f = await fixture('valid', 'native');
+  const material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
+  expect(material.retirement).toHaveLength(3);
+  expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(9);
+  expect(JSON.stringify(material)).not.toContain('never-export-bootstrap');
 });
 test('rejects incomplete, changed and uncorrelated teardown inventory before publishing a plan', async () => {
   for (const mode of ['unknown', 'wrong-routing', 'wrong-listener', 'foreign-token', 'drift']) {
