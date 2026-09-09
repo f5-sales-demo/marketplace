@@ -95,6 +95,13 @@ function replaceArgs(args: string[], planSha256: string, values: Record<string, 
   });
 }
 
+/** Preserve resumability for plans persisted before the ELBv2 service prefix fix. */
+export function executableAwsActionArgs(action: AwsCeAction, args: string[]): string[] {
+  return action.kind === 'nlb-cross-zone-enable' && args[0] === 'modify-load-balancer-attributes'
+    ? ['elbv2', ...args]
+    : args;
+}
+
 function valueAtPath(raw: unknown, path: string): string | undefined {
   let value: unknown = raw;
   for (const segment of path.split('.')) {
@@ -703,7 +710,10 @@ export async function executeAwsCeApply(
           await writeFile(path, renderAwsCeCloudInit({ nodeName: hostname, material }), { mode: 0o600 });
           checkpoint.resolvedValues.__BOOTSTRAP_FILE__ = path;
         }
-        const args = replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues);
+        const args = executableAwsActionArgs(
+          action,
+          replaceArgs(action.args, plan.planSha256, checkpoint.resolvedValues),
+        );
         const result =
           action.kind === 'elastic-ip-associate'
             ? await associateAwsCeEip(api, plan, args, signal)

@@ -1657,6 +1657,7 @@ function compileActions(
       description: 'Enable NLB cross-zone load balancing',
       command: 'aws',
       args: [
+        'elbv2',
         'modify-load-balancer-attributes',
         '--load-balancer-arn',
         '__NLB_ARN__',

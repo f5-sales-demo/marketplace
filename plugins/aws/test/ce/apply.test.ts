@@ -3,6 +3,7 @@ import {
   assertAwsActionOwnership,
   assertAwsApplyAllowed,
   assertAwsObservationFresh,
+  executableAwsActionArgs,
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
 import { canonicalSha256 } from '../../src/ce/canonical';
@@ -147,6 +148,22 @@ describe('AWS CE apply protections', () => {
       assertAwsApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: false, env: {} }),
     ).toThrow(/XCSH_CE_HEADLESS/);
   });
+});
+
+it('repairs the missing ELBv2 prefix in an already-persisted cross-zone action', () => {
+  const plan = compileAwsCePlan(intent, observation);
+  const action = plan.actions.find((candidate) => candidate.kind === 'instance-run') as (typeof plan.actions)[number];
+  const legacy = { ...action, kind: 'nlb-cross-zone-enable' as const };
+  expect(executableAwsActionArgs(legacy, ['modify-load-balancer-attributes', '--load-balancer-arn', 'arn'])).toEqual([
+    'elbv2',
+    'modify-load-balancer-attributes',
+    '--load-balancer-arn',
+    'arn',
+  ]);
+  expect(executableAwsActionArgs(legacy, ['elbv2', 'modify-load-balancer-attributes'])).toEqual([
+    'elbv2',
+    'modify-load-balancer-attributes',
+  ]);
 });
 
 it('preserves the complete reviewed instance-type set for live revalidation', () => {
