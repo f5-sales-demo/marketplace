@@ -37,24 +37,30 @@ platform, routing, and traffic-health states independent.
    VM/NIC/zone/quota/policy evidence, and a discovery artifact.
 3. Select the execution engine: default to `native` for new conversational requests;
    preserve an explicit `terraform` request. Plans and checkpoints bind ownership to
-   that engine. Native apply rejects Terraform plans while the Terraform lifecycle
-   adapter is pending. Do not switch engines to bypass this limitation. Schema v2
-   artifacts remain historical and require replanning; engine migration is unsupported.
+   that engine. `azure_ce_apply` routes Terraform plans to the Terraform lifecycle
+   service and rejects caller-provided bootstrap or health claims. Do not switch engines
+   to bypass a capability failure. Schema v2 artifacts require replanning; engine
+   migration is unsupported.
 
 4. Translate the request into `AzureCeIntent` schema v3 and call `azure_ce_plan`. Show the exact
    plan ID/hash, region, image, topology, NIC order, egress/routing/security changes, restoration
    state, billable resources, warnings, and action order before approval.
-5. Plan the platform site with `f5xc_ce_v2_site`; after approval, submit its exact hash. Checkout
-   one opaque bootstrap reference per node immediately before `azure_ce_apply` needs it.
-6. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
+5. Apply the exact approved plan with `azure_ce_apply`. Terraform execution stages the
+   network, reserves the site, retrieves verified site-bound cloud-init internally, admits
+   the complete site, correlates VM/NIC/MAC identities, and approves registration. If the
+   verified contract says Azure headless bootstrap is unavailable, stop before cloud mutation;
+   do not construct custom data or ask the user to relay a token.
+6. After registration, use `azure_ce_upgrade` to prepare or apply an exact serial Terraform
+   software/OS action. Treat version completion separately from node, routing, and traffic health.
+7. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
-7. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
+8. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
    active diagnostics or teardown, preserve existing authorization and confirm scope only when
    the requested action falls outside it.
 
-For headless execution, use only `XCSH_CE_HEADLESS_MUTATIONS=1`,
-and `XCSH_CE_ALLOW_DESTROY=1` for their respective
-operations. Version-1 and version-2 plans and Azure-named compatibility gates are unsupported.
+For headless execution, use `XCSH_CE_HEADLESS_MUTATIONS=1`, and
+`XCSH_CE_ALLOW_DESTROY=1` for teardown. Version-1 and version-2 deployment plans and
+Azure-named compatibility gates are unsupported.
 
 Initial Azure Marketplace terms acceptance must be completed by a human for the exact
 image offer and plan. Automation may observe acceptance but must not accept initial

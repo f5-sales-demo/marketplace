@@ -47,13 +47,16 @@ contract for their acceptance scope and public-tool integration status.
    resources, warnings, and ordered argv actions before approval.
 4. Apply the exact approved AWS plan with `aws_ce_apply`. Native execution uses the shared platform
    service to create the site, issue site-bound bootstrap, correlate and approve registrations, and
-   observe health. Do not supply caller-made bootstrap or health assertions. The Terraform runner
-   service and internal AWS lifecycle adapters exist; complete public lifecycle integration
-   remains pending. Do not substitute native execution for an explicitly selected Terraform engine.
-5. Use `f5xc_ce_v2_status` at registration, health, BGP, NLB/TGW routing, and traffic gates. Resume
+   observe health. Terraform execution uses isolated workspaces and exact saved plans. Do not supply
+   caller-made bootstrap or health assertions, and do not substitute native execution for an
+   explicitly selected Terraform engine.
+5. Use `aws_ce_upgrade` for exact serial Terraform software/OS actions and `aws_ce_teardown` for
+   ownership-safe Terraform retirement. Both retain authorization and resume from durable evidence;
+   version completion and cloud deletion do not establish routing, traffic, or independent absence.
+6. Use `f5xc_ce_v2_status` at registration, health, BGP, NLB/TGW routing, and traffic gates. Resume
    only the same AWS plan ID/hash; rediscover and replan for source, AMI, quota, agreement, route,
    target, attachment, peer, tag, or capability drift.
-6. Finish with `aws_ce_status`, passive `aws_ce_diagnose`, and platform evidence. Keep active
+7. Finish with `aws_ce_status`, passive `aws_ce_diagnose`, and platform evidence. Keep active
    diagnostics and teardown within the user's authorized scope, preserving authorization on resume.
 
 TGW Connect is disabled unless both the current F5 guide and `f5xc_ce_v2_capabilities` prove the
