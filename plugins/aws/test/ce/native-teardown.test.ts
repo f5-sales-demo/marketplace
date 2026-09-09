@@ -120,6 +120,38 @@ test('binds native platform retirement to an exact fresh cloud teardown plan', (
   expect(() => compileAwsNativeTeardown(f.base, f.cloud, missing, f.retirement)).toThrow('routing inventory');
 });
 
+test('allows exact rollback-backed brownfield restoration in the native cloud teardown', () => {
+  const f = fixture();
+  const { planId: _baseId, planSha256: _baseSha, ...baseDraft } = f.base;
+  const rollback = { resources: [{ id: 'tgw-rtb-0123456789abcdef0', before: { Associations: [] } }] };
+  const base = signed({ ...baseDraft, rollback });
+  const { planId: _cloudId, planSha256: _cloudSha, ...cloudDraft } = f.cloud;
+  const cloud = signed({
+    ...cloudDraft,
+    rollback,
+    actions: [
+      {
+        id: 'restore-tgw',
+        phase: 'teardown',
+        kind: 'brownfield-restore',
+        description: 'restore',
+        command: 'aws',
+        args: ['ec2', 'disassociate-transit-gateway-route-table'],
+        resourceId: rollback.resources[0].id,
+        mutates: true,
+        destructive: true,
+      },
+      ...cloudDraft.actions,
+    ],
+  });
+  const drain = { ...f.drain, sourcePlanSha256: base.planSha256 };
+  expect(compileAwsNativeTeardown(base, cloud, drain, f.retirement).cloudPlanSha256).toBe(cloud.planSha256);
+  const unbacked = structuredClone(cloud);
+  unbacked.actions[0].resourceId = 'tgw-rtb-fffffffffffffffff';
+  const { planId: _id, planSha256: _sha, ...unbackedDraft } = unbacked;
+  expect(() => compileAwsNativeTeardown(base, signed(unbackedDraft), drain, f.retirement)).toThrow('differs');
+});
+
 test('resumes native cloud and platform retirement without duplicate mutations', async () => {
   const f = fixture();
   const plan = compileAwsNativeTeardown(f.base, f.cloud, f.drain, f.retirement);
