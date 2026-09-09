@@ -466,9 +466,10 @@ async function assertGate(
             !preparation
           )
             throw error;
-          const upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
+          let upgrade: VerifiedUpgradeContract;
           let versions: CeReplacementVersions;
           try {
+            upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
             versions = await captureCeReplacementVersions(
               binding,
               String(preparation.uid),
@@ -480,10 +481,11 @@ async function assertGate(
           } catch (error) {
             if (
               error instanceof Error &&
-              (error.message.includes('version evidence is unavailable') ||
+              (error.message.includes('contract download failed') ||
+                error.message.includes('version evidence is unavailable') ||
                 error.message.includes('versions are not stable'))
             )
-              throw new Error('Replacement version evidence has not converged');
+              throw new Error('Replacement contract or version evidence has not converged');
             throw error;
           }
           replacement = compileAwsSiteReplacement(plan, binding.siteName, preparation, {
