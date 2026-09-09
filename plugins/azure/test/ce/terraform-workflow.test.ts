@@ -195,3 +195,44 @@ test('rejects unavailable Azure bootstrap before opening Terraform or calling Az
   ).rejects.toThrow('unavailable');
   expect({ opens, cloudCalls }).toEqual({ opens: 0, cloudCalls: 0 });
 });
+
+test('rejects Route Server admission before Terraform, Azure, or bootstrap access', async () => {
+  const selected = structuredClone(intent);
+  selected.engine = 'terraform';
+  selected.routing = { mode: 'route-server', destinationCidrs: [], localAsn: 64512 };
+  const plan = compileAzureCePlan(selected, observation);
+  const binding = azureUpgradeBinding(plan);
+  const path = await mkdtemp(join(tmpdir(), 'azure-tf-routing-gate-'));
+  directories.push(path);
+  const storage = await CeDeploymentStore.open(path, binding.owner);
+  let opens = 0;
+  let cloudCalls = 0;
+  let bootstrapChecks = 0;
+  await expect(
+    runAzureTerraformAdmission(
+      plan,
+      {
+        open: async () => {
+          opens++;
+          return {} as TerraformSession;
+        },
+      },
+      {
+        engine: 'terraform',
+        requireBootstrapContract() {
+          bootstrapChecks++;
+        },
+      } as never,
+      storage,
+      {
+        exec: async () => {
+          cloudCalls++;
+          return { exitCode: 0, stdout: '{}', stderr: '' };
+        },
+      },
+      async () => {},
+      {},
+    ),
+  ).rejects.toThrow(/verified platform SLO BGP mapping/);
+  expect({ opens, cloudCalls, bootstrapChecks }).toEqual({ opens: 0, cloudCalls: 0, bootstrapChecks: 0 });
+});

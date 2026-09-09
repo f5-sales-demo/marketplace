@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { assertActionOwnership, assertApplyAllowed, assertObservationFresh } from '../../src/ce/apply';
+import {
+  assertActionOwnership,
+  assertApplyAllowed,
+  assertAzureCeRoutingExecutable,
+  assertObservationFresh,
+} from '../../src/ce/apply';
 import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeAction } from '../../src/ce/types';
@@ -136,6 +141,24 @@ describe('Azure CE apply protections', () => {
       assertActionOwnership(plan, changed, { exec: async () => ({ stdout: '', stderr: '', exitCode: 1 }) }),
     ).rejects.toThrow(/allowlist/i);
   });
+});
+
+it('rejects incomplete Route Server and unattached greenfield UDR execution before mutation', () => {
+  const routeServer = compileAzureCePlan(
+    {
+      ...intent,
+      engine: 'terraform',
+      routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512 },
+    },
+    observation,
+  );
+  expect(() => assertAzureCeRoutingExecutable(routeServer)).toThrow(/verified platform SLO BGP mapping/);
+
+  const unattached = compileAzureCePlan(
+    { ...intent, engine: 'terraform', routing: { mode: 'udr', destinationCidrs: ['10.30.0.0/16'] } },
+    observation,
+  );
+  expect(() => assertAzureCeRoutingExecutable(unattached)).toThrow(/target subnet association/);
 });
 
 it('preserves explicit Terraform intent and forbids native execution of that plan', () => {

@@ -7,10 +7,12 @@ execution, deployment storage, saved plans, and backend locking.
 
 This stage currently requires AzureCloud, a new resource group, greenfield subnets,
 and public SLO egress. It supports one-node and three-node HA sites, including the
-explicit SLO/data/SLI attachment order. It reserves the planned RouteServerSubnet
-without associating an NSG or route table. Route Server deployment, peering, UDRs,
-registration, and lifecycle orchestration are subsequent stages; the public Azure
-Terraform lifecycle adapter remains incomplete.
+explicit SLO/data/SLI attachment order. It can render the planned RouteServerSubnet
+without associating an NSG or route table. Public execution rejects Route Server
+plans before opening Terraform until the pinned platform contract supplies an
+executable SLO BGP mapping and two-session convergence evidence. It also rejects
+greenfield UDR destinations without explicit `routeChanges` that identify the target
+subnet association, avoiding an unattached route table that would require manual repair.
 
 An empty admission map creates networking only. Compute admission requires retrieved
 platform cloud-init for every node of an HA site. The foundation consumes that
@@ -28,6 +30,8 @@ they can inform platform configuration. Cloud attachment order does not establis
 guest device names. Missing post-attachment observations remain unavailable.
 
 The configuration has passed provider-backed Terraform validation for one-node and
-three-node HA fixtures. This is not Azure live acceptance or proof of final no-change
-convergence. Reference behavior comes from the [MCN CE guide](https://f5-sales-demo.github.io/mcn/en/customer-edge/smsv2/)
+three-node HA foundation fixtures. Registration staging is executable only when the
+pinned contract verifies Azure headless bootstrap. Route Server, routing convergence,
+and Azure live no-change acceptance remain unavailable. Reference behavior comes from
+the [MCN CE guide](https://f5-sales-demo.github.io/mcn/en/customer-edge/smsv2/)
 and the pinned [AzureRM VM contract](https://registry.terraform.io/providers/hashicorp/azurerm/5.4.0/docs/resources/linux_virtual_machine).

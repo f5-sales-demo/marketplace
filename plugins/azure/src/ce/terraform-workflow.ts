@@ -3,6 +3,7 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
+import { assertAzureCeRoutingExecutable } from './apply';
 import { verifyAzureCePlan } from './artifacts';
 import { azureTerraformFoundationDeployment, renderAzureTerraformFoundation } from './terraform-foundation';
 import { discoverAzureTerraformInterfaces } from './terraform-identities';
@@ -42,6 +43,7 @@ export async function runAzureTerraformAdmission(
   verifyAzureCePlan(plan);
   if (plan.engine !== 'terraform' || runtime.engine !== 'terraform')
     throw new Error('Azure Terraform workflow requires Terraform ownership');
+  assertAzureCeRoutingExecutable(plan);
   runtime.requireBootstrapContract('azure');
   const binding = azureUpgradeBinding(plan);
   const initial = renderAzureTerraformFoundation(plan);
