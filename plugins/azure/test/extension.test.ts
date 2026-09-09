@@ -144,6 +144,7 @@ describe('Azure Status extension', () => {
         'az_vm_list',
         'azure_ce_apply',
         'azure_ce_diagnose',
+        'azure_ce_failover',
         'azure_ce_inventory',
         'azure_ce_plan',
         'azure_ce_status',

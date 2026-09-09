@@ -104,6 +104,7 @@ const factory: ExtensionFactory = async (pi) => {
     const { createAzureCeApplyTool } = await import('./tools/azure-ce-apply');
     const { createAzureCeStatusTool } = await import('./tools/azure-ce-status');
     const { createAzureCeUpgradeTool } = await import('./tools/azure-ce-upgrade');
+    const { createAzureCeFailoverTool } = await import('./tools/azure-ce-failover');
     const { createAzureCeDiagnoseTool } = await import('./tools/azure-ce-diagnose');
     const { createAzureCloudInitAnalyzeTool } = await import('./tools/azure-cloud-init-analyze');
 
@@ -121,6 +122,7 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(createAzureCeApplyTool(pi));
     pi.registerTool(createAzureCeStatusTool(pi));
     pi.registerTool(createAzureCeUpgradeTool(pi));
+    pi.registerTool(createAzureCeFailoverTool(pi));
     pi.registerTool(createAzureCeDiagnoseTool(pi));
     pi.registerTool(createAzureCloudInitAnalyzeTool(pi));
   }
