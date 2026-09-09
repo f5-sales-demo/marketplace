@@ -97,6 +97,9 @@ such rather than counting them as unattended acceptance.
 
 ## AWS operations and diagnostics
 
+- Native TGW Connect apply freezes the complete XC connector/BGP UID inventory in the restricted
+  deployment store after routing configuration converges. Teardown and replacement must consume
+  that engine-bound record rather than relying on conversational checkpoint state.
 - Correlate EC2 status/boot, ENIs, security groups, route tables, NLB targets, TGW attachments,
   Connect peers/BGP, and platform registration/health/routing evidence.
 - The native apply route gate collects each planned TGW route-table/attachment association and

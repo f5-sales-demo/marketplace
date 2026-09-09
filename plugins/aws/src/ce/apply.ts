@@ -11,6 +11,7 @@ import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
+import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { collectAwsNetworkHealth } from './network-health';
 import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
@@ -460,6 +461,8 @@ export async function executeAwsCeApply(
             api,
             signal,
           );
+          if (action.kind === 'f5-routing-configure')
+            await persistAwsNativeRoutingCheckpoint(plan, checkpoint, storage);
           break;
         } catch (error) {
           if (
