@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { CeDeploymentStore } from './deployment-store';
 import type { OriginTeardownSnapshot } from './origin-teardown';
-import type { CeOwner, SiteBinding } from './runtime';
+import { CeApiError, type CeOwner, type SiteBinding } from './runtime';
 
 type RoutingResource = { kind: 'bgp' | 'external_connector'; name: string; uid: string };
 export interface CePlatformDrainPlan {
@@ -155,7 +155,15 @@ export async function drainCePlatform(
   };
   // Refuse a replaced site before draining anything; routing removal repeats this check at its own boundary.
   const siteIdentity = async (site: CePlatformDrainPlan['sites'][number]) => {
-    const current = await port.observeOwnedSite(site.binding, signal);
+    let current: Record<string, unknown>;
+    try {
+      current = await port.observeOwnedSite(site.binding, signal);
+    } catch (error) {
+      // A completed outer teardown may have retired the logical site. Each deletion still
+      // performs its own readback; an existing routing object requires owned-site evidence.
+      if (error instanceof CeApiError && error.category === 'not-found') return;
+      throw error;
+    }
     if (!current || (current.system_metadata as Record<string, unknown> | undefined)?.uid !== site.siteUid)
       throw new Error('Site replaced after platform drain planning');
   };

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../src/ce/deployment-store';
 import { type CePlatformDrainPlan, drainCePlatform } from '../../src/ce/platform-drain';
+import { CeApiError } from '../../src/ce/runtime';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -147,4 +148,14 @@ test('platform drain recovers checkpoint write failure and never treats forged p
   changed.sites[0].routing[0].uid = 'another-resource';
   await expect(drainCePlatform(changed, f.store, f.port)).rejects.toThrow('Persisted');
   expect(f.changes).toEqual(['listener']);
+});
+
+test('platform drain can reverify absent objects after sites retire without accepting a replaced site', async () => {
+  const f = await fixture();
+  await drainCePlatform(plan, f.store, f.port);
+  f.port.observeOwnedSite = async () => {
+    throw new CeApiError('not-found');
+  };
+  expect((await drainCePlatform(plan, f.store, f.port)).status).toBe('platform-drained');
+  expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'gre-one']);
 });
