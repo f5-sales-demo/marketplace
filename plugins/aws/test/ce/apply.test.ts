@@ -5,6 +5,7 @@ import {
   assertAwsObservationFresh,
   assertAwsResumeObservationFresh,
   executableAwsActionArgs,
+  isAwsBrownfieldRestoreConverged,
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
 import { canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
@@ -341,6 +342,19 @@ describe('mutation boundary ownership', () => {
       ],
     };
     await expect(assertAwsActionOwnership(plan, action, api)).resolves.toBeUndefined();
+    await expect(isAwsBrownfieldRestoreConverged(plan, action, api)).resolves.toBe(true);
+    const enable = {
+      ...action,
+      args: [
+        'ec2',
+        'enable-transit-gateway-route-table-propagation',
+        '--transit-gateway-route-table-id',
+        routeTableId,
+        '--transit-gateway-attachment-id',
+        attachmentId,
+      ],
+    };
+    await expect(isAwsBrownfieldRestoreConverged(plan, enable, api)).rejects.toThrow('differs');
     await expect(
       assertAwsActionOwnership(
         plan,

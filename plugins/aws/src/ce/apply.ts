@@ -236,6 +236,57 @@ export async function assertAwsActionOwnership(
   }
 }
 
+function flagValue(args: string[], flag: string): string | undefined {
+  const indexes = args.flatMap((value, index) => (value === flag ? [index] : []));
+  if (indexes.length !== 1) return undefined;
+  const value = args[indexes[0] + 1];
+  return value && !value.startsWith('--') ? value : undefined;
+}
+
+export async function isAwsBrownfieldRestoreConverged(
+  plan: AwsCePlan,
+  action: AwsCeAction,
+  api: AwsExecApi,
+): Promise<boolean> {
+  if (action.kind !== 'brownfield-restore' || action.args?.[0] !== 'ec2') return false;
+  const operation = action.args[1];
+  if (
+    ![
+      'associate-transit-gateway-route-table',
+      'disassociate-transit-gateway-route-table',
+      'enable-transit-gateway-route-table-propagation',
+      'disable-transit-gateway-route-table-propagation',
+    ].includes(operation)
+  )
+    return false;
+  const routeTableId = flagValue(action.args, '--transit-gateway-route-table-id');
+  const attachmentId = flagValue(action.args, '--transit-gateway-attachment-id');
+  const source = plan.rollback.resources.find((resource) => resource.id === routeTableId);
+  if (!routeTableId || !source || action.resourceId !== routeTableId || !attachmentId)
+    throw new Error('AWS TGW restoration is not bound to the immutable rollback snapshot');
+  const key = operation.includes('propagation') ? 'Propagations' : 'Associations';
+  const before = Array.isArray(source.before[key]) ? (source.before[key] as Array<Record<string, unknown>>) : [];
+  const expected = before.filter((item) => item.TransitGatewayAttachmentId === attachmentId);
+  if (expected.length > 1) throw new Error('AWS TGW rollback relationship is ambiguous');
+  const desired = operation.startsWith('associate-') || operation.startsWith('enable-');
+  if (desired !== (expected.length === 1)) throw new Error('AWS TGW restoration differs from the rollback snapshot');
+  const [observed] = await observeAwsResources(api, [routeTableId], plan.region, {
+    deploymentName: plan.deploymentName,
+    planSha256s: [plan.planSha256],
+  });
+  if (!observed?.exists) throw new Error('AWS TGW restoration target no longer exists');
+  const current = Array.isArray(observed.state[key])
+    ? (observed.state[key] as Array<Record<string, unknown>>).filter(
+        (item) => item.TransitGatewayAttachmentId === attachmentId,
+      )
+    : [];
+  if (current.length > 1) throw new Error('AWS TGW live relationship is ambiguous');
+  const state = String(current[0]?.State ?? '').toLowerCase();
+  return desired
+    ? current.length === 1 && ['associated', 'enabled'].includes(state)
+    : current.length === 0 || ['disassociated', 'disabled'].includes(state);
+}
+
 async function assertGate(
   action: AwsCeAction,
   runtime: CeRuntime,
@@ -787,7 +838,10 @@ export async function executeAwsCeApply(
                     ownershipPlanSha256s,
                     signal,
                   )
-                : await api.exec(action.command, args);
+                : action.kind === 'brownfield-restore' &&
+                    (await isAwsBrownfieldRestoreConverged(plan, { ...action, args }, api))
+                  ? { exitCode: 0, stdout: '{}', stderr: '' }
+                  : await api.exec(action.command, args);
         if (launchDirectory) {
           delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
           await rm(launchDirectory, { recursive: true, force: true });
