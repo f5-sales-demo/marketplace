@@ -125,6 +125,25 @@ export async function assertAwsActionOwnership(
   resolved: Record<string, string> = {},
 ): Promise<void> {
   if (!action.mutates) return;
+  const rollbackTargets = new Set<string>();
+  if (action.kind === 'brownfield-restore') {
+    const source = plan.rollback.resources.find((resource) => resource.id === action.resourceId);
+    if (!source) throw new Error('AWS brownfield restoration is not backed by the immutable rollback snapshot');
+    const collect = (value: unknown): void => {
+      if (typeof value === 'string') {
+        for (const match of value.matchAll(
+          /arn:(?:aws|aws-us-gov|aws-cn):elasticloadbalancing:[^,\s]+|(?:i|eni|sg|vpc|subnet|rtb|igw|tgw|tgw-rtb|tgw-attach|tgw-connect-peer|eipalloc|eipassoc)-[0-9a-f]{8,21}/g,
+        ))
+          rollbackTargets.add(match[0]);
+      } else if (Array.isArray(value)) {
+        for (const item of value) collect(item);
+      } else if (value && typeof value === 'object') {
+        for (const item of Object.values(value as Record<string, unknown>)) collect(item);
+      }
+    };
+    rollbackTargets.add(source.id);
+    collect(source.before);
+  }
   const ids = new Set<string>();
   if (action.resourceId && !action.resourceId.startsWith('aws://') && !action.resourceId.includes('__'))
     ids.add(action.resourceId);
@@ -168,7 +187,7 @@ export async function assertAwsActionOwnership(
   }
   const known = new Set(Object.values(resolved));
   for (const id of ids)
-    if (!known.has(id) && !plan.ownershipInventory.some((item) => item.resourceId === id))
+    if (!known.has(id) && !rollbackTargets.has(id) && !plan.ownershipInventory.some((item) => item.resourceId === id))
       throw new Error('AWS mutation target is outside the deployment inventory');
   if (!ids.size) return;
   const observed = await observeAwsResources(api, [...ids], plan.region, {
@@ -184,9 +203,11 @@ export async function assertAwsActionOwnership(
   });
   for (const resource of observed) {
     if (!resource.exists) throw new Error('AWS mutation target no longer exists');
-    const brownfield = plan.ownershipInventory.some(
-      (item) => item.resourceId === resource.id && item.action === 'modify-approved' && !item.owned,
-    );
+    const brownfield =
+      rollbackTargets.has(resource.id) ||
+      plan.ownershipInventory.some(
+        (item) => item.resourceId === resource.id && item.action === 'modify-approved' && !item.owned,
+      );
     if (
       !brownfield &&
       (resource.tags['xcsh-managed-by'] !== 'aws-ce' ||

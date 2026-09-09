@@ -282,6 +282,72 @@ describe('mutation boundary ownership', () => {
       assertAwsActionOwnership(plan, { ...action, args: ['ec2', 'stop-instances', '--instance-ids', instanceId] }, api),
     ).rejects.toThrow('outside the deployment inventory');
   });
+
+  it('allows only exact resources captured by a brownfield rollback snapshot', async () => {
+    const plan = compileAwsCePlan(intent, observation);
+    const routeTableId = 'tgw-rtb-0123456789abcdef0';
+    const attachmentId = 'tgw-attach-0123456789abcdef0';
+    plan.rollback.resources = [
+      {
+        id: routeTableId,
+        before: {
+          Associations: [{ TransitGatewayAttachmentId: attachmentId, State: 'associated' }],
+          Propagations: [],
+          TransitGatewayRouteTables: [{ TransitGatewayRouteTableId: routeTableId }],
+        },
+      },
+    ];
+    const api = {
+      exec: async (_command: string, args: string[]) => {
+        const operation = args[1];
+        if (operation === 'get-transit-gateway-route-table-associations')
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({
+              Associations: [{ TransitGatewayAttachmentId: attachmentId, State: 'associated' }],
+            }),
+          };
+        if (operation === 'get-transit-gateway-route-table-propagations')
+          return { exitCode: 0, stderr: '', stdout: JSON.stringify({ TransitGatewayRouteTablePropagations: [] }) };
+        if (operation === 'describe-transit-gateway-route-tables')
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({ TransitGatewayRouteTables: [{ TransitGatewayRouteTableId: routeTableId }] }),
+          };
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            TransitGatewayAttachments: [{ TransitGatewayAttachmentId: attachmentId, State: 'available' }],
+          }),
+        };
+      },
+    };
+    const action = {
+      ...plan.actions[0],
+      kind: 'brownfield-restore' as const,
+      mutates: true,
+      resourceId: routeTableId,
+      args: [
+        'ec2',
+        'associate-transit-gateway-route-table',
+        '--transit-gateway-route-table-id',
+        routeTableId,
+        '--transit-gateway-attachment-id',
+        attachmentId,
+      ],
+    };
+    await expect(assertAwsActionOwnership(plan, action, api)).resolves.toBeUndefined();
+    await expect(
+      assertAwsActionOwnership(
+        plan,
+        { ...action, args: [...action.args.slice(0, -1), 'tgw-attach-fffffffffffffffff'] },
+        api,
+      ),
+    ).rejects.toThrow('outside the deployment inventory');
+  });
 });
 
 it('resume tolerates owned EIP allocation while rejecting quota or eligibility changes', () => {
