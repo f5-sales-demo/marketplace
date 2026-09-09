@@ -312,6 +312,27 @@ export class CeIngressLifecycle {
       return receipt;
     });
   }
+  /** Read-only projection for a deployment teardown manifest; raw specifications stay in private storage. */
+  async teardownReference(id: string) {
+    const plan = await this.#load(id),
+      checkpoint = await this.#checkpoint(id);
+    if (
+      !checkpoint ||
+      !['created', 'deleted'].includes(String(checkpoint.phase)) ||
+      checkpoint.planSha256 !== plan.sha256 ||
+      typeof checkpoint.uid !== 'string' ||
+      !checkpoint.uid
+    )
+      throw new Error('Validated listener checkpoint required for teardown reference');
+    return {
+      id,
+      name: plan.request.metadata.name,
+      namespace: plan.request.metadata.namespace,
+      uid: checkpoint.uid,
+      phase: String(checkpoint.phase),
+      originPool: { ...plan.material.intent.originPool, uid: plan.material.originUid },
+    };
+  }
   async delete(id: string, signal?: AbortSignal): Promise<void> {
     return this.#locked(async () => {
       const plan = await this.#load(id);

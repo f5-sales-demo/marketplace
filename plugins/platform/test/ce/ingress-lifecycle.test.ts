@@ -199,3 +199,25 @@ test('recovers failed durable create and lost delete receipts without repeating 
   await f.lifecycle.delete(plan.id);
   expect(f.state.deletes).toBe(1);
 });
+
+test('teardown references expose validated identities without listener specs or placement evidence', async () => {
+  const f = await setup(),
+    plan = await f.lifecycle.planAws(intent, selections);
+  await expect(f.lifecycle.teardownReference(plan.id)).rejects.toThrow();
+  await f.lifecycle.apply(plan.id);
+  const reference = await f.lifecycle.teardownReference(plan.id);
+  expect(reference).toEqual({
+    id: plan.id,
+    name: intent.name,
+    namespace: intent.namespace,
+    uid: 'listener-uid',
+    phase: 'created',
+    originPool: { ...intent.originPool, uid: 'pool-uid' },
+  });
+  await f.store.write(`ingress-checkpoint-${plan.id}.json`, {
+    phase: 'created',
+    planSha256: 'forged',
+    uid: 'listener-uid',
+  });
+  await expect(f.lifecycle.teardownReference(plan.id)).rejects.toThrow();
+});
