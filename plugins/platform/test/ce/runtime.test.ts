@@ -140,6 +140,55 @@ test('foreign engine and foreign live ownership cannot delete resources', async 
   expect(deletes).toBe(0);
 });
 
+test('native upgrade checkpoints its exact site identity immediately before submission', async () => {
+  const { contract } = await candidate();
+  const upgrade = {
+    fingerprint: `sha256:${'a'.repeat(64)}`,
+    build: () => ({
+      method: 'POST' as const,
+      path: `/api/config/namespaces/system/sites/${binding.siteName}/upgrade_sw`,
+      body: { namespace: 'system', name: binding.siteName, version: 'crt-20260201-0179', force: false },
+    }),
+  } as unknown as VerifiedUpgradeContract;
+  const events: string[] = [];
+  let uid = 'site-uuid';
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (_url, init) => {
+    if (init?.method === 'POST') {
+      events.push('post');
+      return json({});
+    }
+    return json({
+      metadata: { name: binding.siteName, namespace: 'system', labels },
+      system_metadata: { uid },
+    });
+  });
+  const result = await runtime.submitUpgrade(
+    binding,
+    upgrade,
+    { kind: 'software', version: 'crt-20260201-0179' },
+    'site-uuid',
+    async () => {
+      events.push('checkpoint');
+    },
+  );
+  expect(result).toMatchObject({ status: 'submitted', siteUid: 'site-uuid' });
+  expect(events).toEqual(['checkpoint', 'post']);
+
+  uid = 'replacement-uuid';
+  await expect(
+    runtime.submitUpgrade(
+      binding,
+      upgrade,
+      { kind: 'software', version: 'crt-20260201-0179' },
+      'site-uuid',
+      async () => {
+        events.push('unexpected-checkpoint');
+      },
+    ),
+  ).rejects.toThrow('identity changed');
+  expect(events).toEqual(['checkpoint', 'post']);
+});
+
 test('exact site deletion binds the observed UID and reconciles pending or lost delete responses', async () => {
   const { contract } = await candidate();
   for (const mode of [

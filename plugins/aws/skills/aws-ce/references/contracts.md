@@ -55,15 +55,16 @@ operation. A provisioning-time installation of the target does not prove the exp
 workflow. Upgrade invocation, per-node convergence, traffic continuity and final no-change evidence
 remain required before claiming lifecycle acceptance.
 
-The internal Terraform upgrade adapter collects fresh version evidence and binds one
+The native and Terraform upgrade adapters collect fresh version evidence and bind one
 software or OS action to the deployment, logical site, physical site, effective versions,
-and verified API contract. It uses an isolated stage and the checksum-verified XC 8.0.0
-provider lock. OS eligibility follows the currently installed software, including a
-preceding software upgrade. This adapter establishes version readiness only; registration,
-routing, traffic, and serial admission must converge before invocation and before moving
-to the next site. Separate AWS Terraform software and OS upgrade acceptance receipts are
-recorded in [the parity ledger](https://github.com/f5-sales-demo/marketplace/issues/1326).
-Public lifecycle integration and acceptance for the other cloud/engine combinations remain pending.
+and verified API contract. Terraform uses an isolated stage and the checksum-verified XC
+8.0.0 provider lock. Native execution checkpoints the exact site identity immediately before
+submitting the verified API request. A response lost after that boundary is reconciled from
+platform convergence without replay. OS eligibility follows the currently installed software,
+including a preceding software upgrade. Version readiness alone does not establish registration,
+routing, traffic, or serial admission. Separate AWS Terraform software and OS upgrade acceptance
+receipts are recorded in [the parity ledger](https://github.com/f5-sales-demo/marketplace/issues/1326).
+AWS native live upgrade acceptance remains pending.
 
 The internal native and Terraform replacement drivers expose an admission callback before
 shutdown mutation. Fresh owned-resource observations distinguish an intact deployment,

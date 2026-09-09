@@ -4,6 +4,12 @@ import type { CeTerraformService } from '../../../terraform/src/service';
 import type { PluginInterface } from '../aws/types';
 import { type AwsCeToolContext, loadAwsPlan } from '../ce/artifacts';
 import { canonicalSha256, safeHexEqual } from '../ce/canonical';
+import {
+  type AwsNativeUpgrade,
+  prepareAwsNativeUpgrade,
+  runAwsNativeUpgrade,
+  verifyAwsNativeUpgrade,
+} from '../ce/native-upgrade';
 import { awsPlatformService } from '../ce/platform';
 import { awsTerraformService } from '../ce/terraform-apply';
 import {
@@ -39,7 +45,7 @@ export function createAwsCeUpgradeTool(pi: PluginInterface, dependencies: Depend
     name: 'aws_ce_upgrade',
     label: 'Upgrade AWS Customer Edge',
     description:
-      'Prepare or apply an immutable serial software/OS upgrade for an AWS Customer Edge site owned by Terraform. Apply resumes from persisted platform and saved-action evidence without replaying ambiguous actions. Node, routing and traffic health remain separate evidence.',
+      'Prepare or apply an immutable serial software/OS upgrade for a native- or Terraform-owned AWS Customer Edge site. Apply resumes from persisted platform evidence without replaying ambiguous actions. Node, routing and traffic health remain separate evidence.',
     parameters: Type.Object({
       operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
       basePlanId: Type.String(),
@@ -74,36 +80,46 @@ export function createAwsCeUpgradeTool(pi: PluginInterface, dependencies: Depend
         if (Object.keys(params).some((key) => !allowed.includes(key)))
           throw new Error(`AWS CE upgrade ${params.operation} parameters differ`);
         const { plan } = await loadAwsPlan(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
-        if (plan.engine !== 'terraform') throw new Error('AWS CE upgrade currently requires a Terraform-owned plan');
         const platform = await dependencies.platform(pi, signal);
         const owner = {
           deploymentId: plan.deploymentName,
-          engine: 'terraform' as const,
+          engine: plan.engine,
           provider: 'aws' as const,
           account: plan.accountId,
           region: plan.region,
         };
         const storage = await platform.storage(owner);
-        const runtime = await platform.runtime('terraform', plan.intent.platformContext);
+        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {
           if (!params.siteName || !params.kind || !params.version)
             throw new Error('Upgrade preparation requires siteName, kind and version');
-          const upgrade = await prepareAwsTerraformUpgrade(
-            plan,
-            params.siteName,
-            { kind: params.kind, version: params.version },
-            runtime,
-            contract,
-            signal,
-          );
+          const upgrade =
+            plan.engine === 'terraform'
+              ? await prepareAwsTerraformUpgrade(
+                  plan,
+                  params.siteName,
+                  { kind: params.kind, version: params.version },
+                  runtime,
+                  contract,
+                  signal,
+                )
+              : await prepareAwsNativeUpgrade(
+                  plan,
+                  params.siteName,
+                  { kind: params.kind, version: params.version },
+                  runtime,
+                  contract,
+                  signal,
+                );
           const existing = await optional(storage, `${upgrade.planId}.json`);
           if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
           else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
             throw new Error('Persisted AWS CE upgrade plan differs');
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({
-              kind: 'aws-ce-terraform-upgrade',
+              kind: upgrade.kind,
+              engine: upgrade.engine,
               planId: upgrade.planId,
               planSha256: upgrade.planSha256,
               sourcePlanSha256: upgrade.sourcePlanSha256,
@@ -131,8 +147,10 @@ export function createAwsCeUpgradeTool(pi: PluginInterface, dependencies: Depend
         }
         if (!params.upgradePlanId || !params.upgradePlanSha256)
           throw new Error('Upgrade apply requires the exact upgrade plan ID and SHA-256');
-        const upgrade = (await storage.read(`${params.upgradePlanId}.json`)) as AwsTerraformUpgrade;
-        await verifyAwsTerraformUpgrade(plan, upgrade, contract);
+        const upgrade = (await storage.read(`${params.upgradePlanId}.json`)) as AwsTerraformUpgrade | AwsNativeUpgrade;
+        if (plan.engine === 'terraform')
+          await verifyAwsTerraformUpgrade(plan, upgrade as AwsTerraformUpgrade, contract);
+        else verifyAwsNativeUpgrade(plan, upgrade as AwsNativeUpgrade, contract);
         if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
           throw new Error('Persisted AWS CE upgrade plan identity differs');
         const authorizationName = `${upgrade.planId}-authorization.json`;
@@ -142,7 +160,7 @@ export function createAwsCeUpgradeTool(pi: PluginInterface, dependencies: Depend
             !authorization ||
             typeof authorization !== 'object' ||
             (authorization as Record<string, unknown>).schemaVersion !== 1 ||
-            (authorization as Record<string, unknown>).engine !== 'terraform' ||
+            (authorization as Record<string, unknown>).engine !== plan.engine ||
             (authorization as Record<string, unknown>).sourcePlanSha256 !== plan.planSha256 ||
             (authorization as Record<string, unknown>).upgradePlanSha256 !== upgrade.planSha256 ||
             (authorization as Record<string, unknown>).mutations !== true
@@ -159,23 +177,34 @@ export function createAwsCeUpgradeTool(pi: PluginInterface, dependencies: Depend
             throw new Error('AWS CE upgrade was not approved');
           await storage.write(authorizationName, {
             schemaVersion: 1,
-            engine: 'terraform',
+            engine: plan.engine,
             sourcePlanSha256: plan.planSha256,
             upgradePlanSha256: upgrade.planSha256,
             mutations: true,
           });
         }
-        const result = await runAwsTerraformUpgrade(
-          plan,
-          upgrade,
-          params.upgradePlanSha256,
-          runtime,
-          contract,
-          await dependencies.terraform(pi, signal),
-          storage,
-          process.env,
-          signal,
-        );
+        const result =
+          plan.engine === 'terraform'
+            ? await runAwsTerraformUpgrade(
+                plan,
+                upgrade as AwsTerraformUpgrade,
+                params.upgradePlanSha256,
+                runtime,
+                contract,
+                await dependencies.terraform(pi, signal),
+                storage,
+                process.env,
+                signal,
+              )
+            : await runAwsNativeUpgrade(
+                plan,
+                upgrade as AwsNativeUpgrade,
+                params.upgradePlanSha256,
+                runtime,
+                contract,
+                storage,
+                signal,
+              );
         const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-upgrade-checkpoint');
         if (!artifactId) throw new Error('AWS CE upgrade checkpoint artifact persistence failed');
         return {

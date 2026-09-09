@@ -50,9 +50,10 @@ contract for their acceptance scope and public-tool integration status.
    observe health. Terraform execution uses isolated workspaces and exact saved plans. Do not supply
    caller-made bootstrap or health assertions, and do not substitute native execution for an
    explicitly selected Terraform engine.
-5. Use `aws_ce_upgrade` for exact serial Terraform software/OS actions and `aws_ce_teardown` for
-   ownership-safe Terraform retirement. Both retain authorization and resume from durable evidence;
-   version completion and cloud deletion do not establish routing, traffic, or independent absence.
+5. Use `aws_ce_upgrade` for exact serial native or Terraform software/OS actions and
+   `aws_ce_teardown` for ownership-safe Terraform retirement. Both retain authorization and resume
+   from durable evidence; version completion and cloud deletion do not establish routing, traffic,
+   or independent absence.
 6. Use `f5xc_ce_v2_status` at registration, health, BGP, NLB/TGW routing, and traffic gates. Resume
    only the same AWS plan ID/hash; rediscover and replan for source, AMI, quota, agreement, route,
    target, attachment, peer, tag, or capability drift.

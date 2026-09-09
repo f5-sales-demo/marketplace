@@ -19,6 +19,7 @@ import {
 import type { VerifiedCeContract } from './verified-contract';
 import type { AwsGreBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
+import type { SiteUpgradeIntent } from './wire-upgrade';
 
 type Json = Record<string, unknown>;
 type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -286,6 +287,36 @@ export class CeRuntime {
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };
     }
+  }
+
+  /** Submit one verified upgrade after rechecking the exact logical site identity. */
+  async submitUpgrade(
+    binding: SiteBinding,
+    contract: VerifiedUpgradeContract,
+    target: Pick<SiteUpgradeIntent, 'kind' | 'version'>,
+    expectedSiteUid: string,
+    onMutationBoundary: () => Promise<void>,
+    signal?: AbortSignal,
+  ) {
+    binding = structuredClone(binding);
+    this.#binding(binding, true);
+    if (typeof expectedSiteUid !== 'string' || !expectedSiteUid.trim())
+      throw new Error('Exact logical site identity is required for upgrade');
+    const request = contract.build({ siteName: binding.siteName, ...structuredClone(target) });
+    const site = await this.observeOwnedSite(binding, signal);
+    if (object(site.system_metadata).uid !== expectedSiteUid)
+      throw new Error('Upgrade site identity changed before mutation');
+    await onMutationBoundary();
+    await this.#request(request.path, { method: request.method, body: JSON.stringify(request.body) }, signal);
+    return {
+      status: 'submitted' as const,
+      siteName: binding.siteName,
+      siteUid: expectedSiteUid,
+      target: structuredClone(target),
+      contractFingerprint: contract.fingerprint,
+      source: request.path,
+      submittedAt: new Date().toISOString(),
+    };
   }
   teardownInventory(
     bindings: SiteBinding[],
