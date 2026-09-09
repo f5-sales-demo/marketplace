@@ -150,7 +150,26 @@ export async function prepareAwsNativeTeardown(
 ) {
   if (base.engine !== 'native' || cloud.engine !== 'native')
     throw new Error('Native teardown preparation requires native ownership');
-  const { drain, retirement } = await collectAwsTeardownMaterial(base, runtime, contract, storage, signal);
+  const materialName = 'aws-native-teardown-material.json';
+  const persisted =
+    (await optional(storage, materialName)) ?? (await optional(storage, 'aws-native-teardown-source.json'));
+  let material: Pick<AwsNativeTeardownPlan, 'sourcePlanSha256' | 'drain' | 'retirement'>;
+  if (persisted === undefined) {
+    const collected = await collectAwsTeardownMaterial(base, runtime, contract, storage, signal);
+    material = { sourcePlanSha256: base.planSha256, ...collected };
+    await storage.write(materialName, material);
+  } else {
+    const candidate = persisted as Partial<AwsNativeTeardownPlan>;
+    if (candidate.sourcePlanSha256 !== base.planSha256 || !candidate.drain || !Array.isArray(candidate.retirement))
+      throw new Error('Persisted native teardown material differs');
+    material = {
+      sourcePlanSha256: candidate.sourcePlanSha256,
+      drain: candidate.drain,
+      retirement: candidate.retirement,
+    };
+    if ((await optional(storage, materialName)) === undefined) await storage.write(materialName, material);
+  }
+  const { drain, retirement } = material;
   const plan = compileAwsNativeTeardown(base, cloud, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
@@ -205,14 +224,14 @@ export async function coordinateAwsNativeTeardown(
   await validate();
   const release = await acquireProcessLock(join(storage.directory, '.aws-native-teardown-lock'));
   try {
-    const sourceName = 'aws-native-teardown-source.json';
+    const sourceName = `${plan.planId}-source.json`;
     const saved = await optional(storage, sourceName);
     if (saved === undefined) await storage.write(sourceName, plan);
     else if (canonicalSha256(saved) !== canonicalSha256(plan))
       throw new Error('Persisted native teardown source differs');
     const completed: string[] = [];
     const checkpoint = () =>
-      storage.write('aws-native-teardown-progress.json', {
+      storage.write(`${plan.planId}-progress.json`, {
         schemaVersion: 1,
         planSha256: plan.planSha256,
         completed: [...completed],
@@ -274,6 +293,7 @@ export async function coordinateAwsNativeTeardown(
       cloudInventory: 'absent' as const,
       observedAt: new Date().toISOString(),
     };
+    await storage.write(`${plan.planId}-receipt.json`, receipt);
     await storage.write('aws-native-teardown-receipt.json', receipt);
     return receipt;
   } finally {

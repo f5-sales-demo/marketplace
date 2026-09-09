@@ -357,7 +357,7 @@ it('observes EIP associations through the supported association-id filter', asyn
   await observeAwsResources(
     {
       async exec(_command, args) {
-        expect(args).toContain('Name=association-id,Values=' + id);
+        expect(args).toContain(`Name=association-id,Values=${id}`);
         expect(args).not.toContain('--association-ids');
         return {
           exitCode: 0,
@@ -372,6 +372,44 @@ it('observes EIP associations through the supported association-id filter', asyn
     'us-east-1',
     { deploymentName: 'ce-demo', planSha256s: [] },
   );
+});
+
+it('binds an untagged listener to its exact owned load balancer parent', async () => {
+  const digest = 'a'.repeat(64);
+  const listener =
+    'arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/net/ce-demo/0123456789abcdef/0123456789abcdef';
+  const parent = 'arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/net/ce-demo/0123456789abcdef';
+  const tags = Object.entries({
+    'xcsh-managed-by': 'aws-ce',
+    'xcsh-execution-engine': 'native',
+    'xcsh-deployment-id': 'ce-demo',
+    'xcsh-plan-sha256': digest,
+  }).map(([Key, Value]) => ({ Key, Value }));
+  const observed = await observeAwsResources(
+    {
+      async exec(_command, args) {
+        if (args[1] === 'describe-listeners')
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({ Listeners: [{ ListenerArn: listener, LoadBalancerArn: parent }] }),
+          };
+        const selected = args[args.indexOf('--resource-arns') + 1];
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            TagDescriptions: [{ ResourceArn: selected, Tags: selected === parent ? tags : [] }],
+          }),
+        };
+      },
+    },
+    [listener],
+    'us-east-1',
+    { deploymentName: 'ce-demo', planSha256s: [digest] },
+  );
+  expect(observed[0].owned).toBe(true);
+  expect(observed[0].tags['xcsh-plan-sha256']).toBe(digest);
 });
 
 it('keeps the MCN routing recipe distinct from generic deployment or legacy TGW text', () => {

@@ -619,7 +619,36 @@ async function observeResource(
       'json',
     ]);
     if (tagResult.exitCode !== 0) throw new Error(`AWS ELB tag observation failed for ${id}: ${tagResult.stderr}`);
-    raw.TagDescriptions = (JSON.parse(tagResult.stdout) as Record<string, unknown>).TagDescriptions ?? [];
+    let descriptions = (JSON.parse(tagResult.stdout) as Record<string, unknown>).TagDescriptions ?? [];
+    if (/^arn:[^:]+:elasticloadbalancing:.*:listener\//.test(id)) {
+      const direct = Array.isArray(descriptions) ? (descriptions as Array<Record<string, unknown>>) : [];
+      const directTags = direct.find((item) => item.ResourceArn === id)?.Tags;
+      if (!Array.isArray(directTags) || directTags.length === 0) {
+        const listeners = Array.isArray(raw.Listeners) ? (raw.Listeners as Array<Record<string, unknown>>) : [];
+        const parent = listeners.length === 1 ? listeners[0].LoadBalancerArn : undefined;
+        if (typeof parent !== 'string' || !/^arn:[^:]+:elasticloadbalancing:.*:loadbalancer\//.test(parent))
+          throw new Error('AWS listener parent ownership evidence is unavailable');
+        const parentResult = await api.exec('aws', [
+          'elbv2',
+          'describe-tags',
+          '--resource-arns',
+          parent,
+          '--region',
+          region,
+          '--output',
+          'json',
+        ]);
+        if (parentResult.exitCode !== 0)
+          throw new Error(`AWS listener parent tag observation failed for ${id}: ${parentResult.stderr}`);
+        const parents = (JSON.parse(parentResult.stdout) as Record<string, unknown>).TagDescriptions;
+        const rows = Array.isArray(parents) ? (parents as Array<Record<string, unknown>>) : [];
+        const inherited = rows.filter((item) => item.ResourceArn === parent);
+        if (inherited.length !== 1 || !Array.isArray(inherited[0].Tags))
+          throw new Error('AWS listener parent ownership evidence is ambiguous');
+        descriptions = [{ ResourceArn: id, Tags: inherited[0].Tags, OwnershipParentArn: parent }];
+      }
+    }
+    raw.TagDescriptions = descriptions;
   }
   // Bind tags to the requested resource, never to a nested ENI or another response member.
   const matches: Record<string, unknown>[] = [];

@@ -526,8 +526,8 @@ function resourceDeleteArgs(resource: AwsCeObservation['resources'][number], bas
 
 function deletionPriority(id: string): number {
   if (/listener\//.test(id) || id.startsWith('tgw-connect-peer-')) return 10;
-  if (/targetgroup\//.test(id)) return 20;
-  if (/loadbalancer\//.test(id) || id.startsWith('tgw-attach-')) return 30;
+  if (/loadbalancer\//.test(id)) return 20;
+  if (/targetgroup\//.test(id) || id.startsWith('tgw-attach-')) return 30;
   if (id.startsWith('i-')) return 40;
   if (id.startsWith('eipassoc-')) return 50;
   if (id.startsWith('eipalloc-')) return 60;

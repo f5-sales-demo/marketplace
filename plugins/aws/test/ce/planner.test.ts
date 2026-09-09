@@ -387,6 +387,30 @@ describe('compileAwsCePlan', () => {
     );
   });
 
+  it('deletes an owned NLB before its target group during teardown', () => {
+    const prefix = 'arn:aws:elasticloadbalancing:us-east-1:123456789012';
+    const loadBalancer = `${prefix}:loadbalancer/net/ce-demo/0123456789abcdef`;
+    const targetGroup = `${prefix}:targetgroup/ce-demo/0123456789abcdef`;
+    const tags = {
+      'xcsh-managed-by': 'aws-ce',
+      'xcsh-execution-engine': 'native',
+      'xcsh-deployment-id': 'ce-demo',
+      'xcsh-plan-sha256': ownerPlanSha256,
+    };
+    const plan = compileAwsCePlan(
+      intent({ operation: 'teardown' }),
+      observation({
+        ownershipPlanSha256s: [ownerPlanSha256],
+        resources: [
+          { id: targetGroup, region: 'us-east-1', exists: true, owned: true, tags, state: {} },
+          { id: loadBalancer, region: 'us-east-1', exists: true, owned: true, tags, state: {} },
+        ],
+      }),
+    );
+    const deletions = plan.actions.filter((action) => action.kind === 'resource-delete');
+    expect(deletions.map((action) => action.resourceId)).toEqual([loadBalancer, targetGroup]);
+  });
+
   it('release-blocks TGW Connect without both documentation and tenant schema evidence', () => {
     const brownfieldInterfaces = interfaces(3, 2).map((item) => ({
       ...item,
