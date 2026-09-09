@@ -513,6 +513,9 @@ export class CeRuntime {
     this.contract.validateSite(spec);
     await this.#ensureSpec(binding, spec, checkpoint, signal);
   }
+  requireBootstrapContract(provider: 'aws' | 'azure'): void {
+    this.contract.bootstrapQuery(provider);
+  }
   async #ensureSpec(
     binding: SiteBinding,
     spec: Json,
@@ -568,6 +571,15 @@ export class CeRuntime {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
   ) {
+    if (binding.owner.provider !== 'aws') throw new Error('AWS registration inventory requires AWS ownership');
+    return this.observeRegisteredDevices(binding, expectedInstances, expected, signal);
+  }
+  async observeRegisteredDevices(
+    binding: SiteBinding,
+    expectedInstances: Record<string, string>,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ) {
     this.#binding(binding);
     const source = `/api/register/namespaces/system/registrations_by_site/${binding.siteName}`;
     const base = {
@@ -579,14 +591,19 @@ export class CeRuntime {
     };
     try {
       if (
-        binding.owner.provider !== 'aws' ||
         Object.keys(expectedInstances).length !== binding.nodes.length ||
         binding.nodes.some((node) => !Object.hasOwn(expectedInstances, node))
       )
         throw new Error('Registration inventory scope differs');
       this.#owned(await this.observeSite(binding, signal), binding);
       const response = await this.#request(source, {}, signal);
-      const interfaces = correlateRegistrationDevices(response, binding.siteName, expectedInstances, expected);
+      const interfaces = correlateRegistrationDevices(
+        response,
+        binding.siteName,
+        expectedInstances,
+        expected,
+        binding.owner.provider,
+      );
       return { ...base, status: 'observed' as const, interfaces };
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -599,12 +616,21 @@ export class CeRuntime {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
   ) {
-    const evidence = await this.observeAwsGuestDevices(binding, expectedInstances, expected, signal);
+    if (binding.owner.provider !== 'aws') throw new Error('AWS configuration observation requires AWS ownership');
+    return this.observeRegisteredConfiguration(binding, expectedInstances, expected, signal);
+  }
+  async observeRegisteredConfiguration(
+    binding: SiteBinding,
+    expectedInstances: Record<string, string>,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ) {
+    const evidence = await this.observeRegisteredDevices(binding, expectedInstances, expected, signal);
     if (evidence.status !== 'observed') return { ...evidence, status: 'unknown' as const };
     try {
       const configuration = await this.observeSite(binding, signal);
       this.#owned(configuration, binding);
-      verifyRegisteredInterfaceConfiguration(object(configuration.spec), evidence.interfaces);
+      verifyRegisteredInterfaceConfiguration(object(configuration.spec), evidence.interfaces, binding.owner.provider);
       const uid = object(configuration.system_metadata).uid;
       if (typeof uid !== 'string' || !uid) throw new CeApiError('malformed');
       return {
@@ -1053,13 +1079,7 @@ export class CeRuntime {
     this.#binding(binding, true);
     if (!binding.nodes.includes(node) || !safeName.test(tokenName))
       throw new Error('Bootstrap node is not in this site');
-    const policy = object(this.contract.provider(binding.owner.provider).bootstrap);
-    if (
-      binding.owner.provider !== 'aws' ||
-      policy.mode !== 'site_bound_jwt_cloud_init' ||
-      policy.headless_checkout !== 'available'
-    )
-      throw new Error('Cloud bootstrap has not been verified for this provider');
+    const bootstrap = this.contract.bootstrapQuery(binding.owner.provider);
     this.#owned(await this.observeSite(binding, signal), binding);
     const path = `/api/register/namespaces/system/tokens/${tokenName}`;
     let token: Json | undefined;
@@ -1114,9 +1134,9 @@ export class CeRuntime {
     // The checkpoint is restricted secret storage, never a public plan or evidence artifact.
     await persistIssuedToken({ tokenName, siteName: binding.siteName, node, jwt: spec.content });
     const query = new URLSearchParams({
-      provider: 'aws',
+      provider: bootstrap.provider,
       site_name: binding.siteName,
-      enable_management_network: 'false',
+      enable_management_network: String(bootstrap.enableManagementNetwork),
     });
     return bindAwsCloudInit(
       await this.#request(`/api/register/namespaces/system/get-cloud-init-config?${query}`, {}, signal),

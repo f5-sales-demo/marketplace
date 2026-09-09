@@ -23,10 +23,12 @@ export function assertApplyAllowed(
     hasUI: boolean;
     env: Record<string, string | undefined>;
     authorization?: AzureCeCheckpoint['authorization'];
+    executionEngine?: 'native' | 'terraform';
   },
 ): void {
-  if (plan.engine !== 'native')
-    throw new Error('Terraform CE plans require the Terraform lifecycle adapter; native execution is forbidden');
+  const executionEngine = request.executionEngine ?? 'native';
+  if (plan.engine !== executionEngine)
+    throw new Error(`${plan.engine === 'terraform' ? 'Terraform' : 'Native'} CE plan execution engine differs`);
   if (request.planId !== plan.planId) throw new Error('The requested plan ID does not match the persisted plan');
   if (!safeHexEqual(request.planSha256, plan.planSha256))
     throw new Error('The requested plan hash does not match the persisted plan');

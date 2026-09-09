@@ -145,7 +145,16 @@ it('preserves explicit Terraform intent and forbids native execution of that pla
   expect(plan.ownershipTagTemplate['xcsh-execution-engine']).toBe('terraform');
   expect(() =>
     assertApplyAllowed(plan, { planId: plan.planId, planSha256: plan.planSha256, hasUI: true, env: {} }),
-  ).toThrow('native execution is forbidden');
+  ).toThrow('execution engine differs');
+  expect(() =>
+    assertApplyAllowed(plan, {
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      hasUI: true,
+      env: {},
+      executionEngine: 'terraform',
+    }),
+  ).not.toThrow();
 });
 
 it('refuses mutation when live resource ownership belongs to another engine', async () => {

@@ -279,6 +279,25 @@ test('token checkpoint failure resumes through GET without duplicate token issua
   expect(material).toContain(jwt);
   expect(cloudInit).toBe(1);
 });
+test('verified bootstrap capability rejects Azure before any request and admits AWS', async () => {
+  const { contract } = await candidate();
+  let requests = 0;
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
+    requests++;
+    return json({});
+  });
+  expect(() => runtime.requireBootstrapContract('aws')).not.toThrow();
+  expect(() => runtime.requireBootstrapContract('azure')).toThrow('unavailable');
+  await expect(
+    runtime.bootstrap(
+      { ...binding, owner: { ...binding.owner, provider: 'azure' } },
+      'node-one',
+      'node-token',
+      async () => {},
+    ),
+  ).rejects.toThrow('unavailable');
+  expect(requests).toBe(0);
+});
 test('candidate tampering fails before any API request', async () => {
   const { dir, digest } = await candidate();
   await writeFile(join(dir, 'sites.json'), '{}');

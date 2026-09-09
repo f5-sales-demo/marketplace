@@ -1,6 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { CePlatformService } from '../../../platform/src/ce/service';
+import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { assertActionOwnership, assertApplyAllowed, assertObservationFresh, resolveActionArgs } from '../ce/apply';
@@ -10,10 +12,22 @@ import { renderCeCloudInit } from '../ce/cloud-init';
 import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
+import { azurePlatformService, azureTerraformService } from '../ce/platform';
+import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
 import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
+
+interface TerraformDependencies {
+  platform(pi: PluginInterface, signal?: AbortSignal): Promise<CePlatformService>;
+  terraform(pi: PluginInterface, signal?: AbortSignal): Promise<CeTerraformService>;
+}
+
+const terraformDefaults: TerraformDependencies = {
+  platform: azurePlatformService,
+  terraform: azureTerraformService,
+};
 
 interface ApplyParams {
   planId: string;
@@ -181,7 +195,11 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
   return { plan, checkpoint };
 }
 
-export function createAzureCeApplyTool(pi: PluginInterface, makeApi: (cwd: string) => AzExecApi = makeExecApi) {
+export function createAzureCeApplyTool(
+  pi: PluginInterface,
+  makeApi: (cwd: string) => AzExecApi = makeExecApi,
+  terraformDependencies: TerraformDependencies = terraformDefaults,
+) {
   const { Type } = pi.typebox;
   return {
     name: 'azure_ce_apply',
@@ -208,6 +226,29 @@ export function createAzureCeApplyTool(pi: PluginInterface, makeApi: (cwd: strin
       ctx: AzureCeToolContext,
     ) {
       try {
+        const envelope = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
+        if (envelope.plan.engine === 'terraform') {
+          if (params.bootstrapRefs !== undefined || params.f5Evidence !== undefined)
+            throw new Error('Azure Terraform apply accepts no caller-provided bootstrap or health evidence');
+          const platform = await terraformDependencies.platform(pi, signal);
+          const result = await executeAzureCeTerraformApply(
+            params,
+            ctx,
+            withAzureCeExecution(makeApi(ctx.cwd), signal),
+            platform,
+            await terraformDependencies.terraform(pi, signal),
+            signal,
+          );
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Azure CE Terraform plan ${envelope.plan.planId}: ${result.status}. Routing and traffic remain separate collected evidence.`,
+              },
+            ],
+            details: { tool: 'azure_ce_apply', ...result },
+          };
+        }
         const { plan, checkpoint } = await executeApply(params, ctx, withAzureCeExecution(makeApi(ctx.cwd), signal));
         return {
           content: [

@@ -21,6 +21,7 @@ export function correlateRegistrationDevices(
   siteName: string,
   instances: Record<string, string>,
   expected: ExpectedCeInterface[],
+  provider: 'aws' | 'azure' = 'aws',
 ): Array<ExpectedCeInterface & { device: string }> {
   if (
     response.next_page_token ||
@@ -50,7 +51,9 @@ export function correlateRegistrationDevices(
     const infra = object(spec.infra);
     const state = object(object(registration.object).status).current_state;
     if (
-      !/^i-[0-9a-f]{8,17}$/.test(instances[node]) ||
+      !(provider === 'aws'
+        ? /^i-[0-9a-f]{8,17}$/.test(instances[node])
+        : /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(instances[node])) ||
       infra.instance_id !== instances[node] ||
       object(spec.passport).cluster_size !== nodes.length ||
       !['ADMITTED', 'ONLINE'].includes(String(state))
@@ -84,8 +87,9 @@ export function correlateRegistrationDevices(
 export function verifyRegisteredInterfaceConfiguration(
   spec: Json,
   devices: Array<ExpectedCeInterface & { device: string }>,
+  provider: 'aws' | 'azure' = 'aws',
 ): void {
-  const nodes = array(object(object(spec.aws).not_managed).node_list).map(object);
+  const nodes = array(object(object(spec[provider]).not_managed).node_list).map(object);
   const expectedNodes = new Set(devices.map((item) => item.node));
   if (!devices.length || nodes.length !== expectedNodes.size) throw new Error('Configured node count differs');
   for (const nodeName of expectedNodes) {

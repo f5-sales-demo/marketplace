@@ -107,3 +107,28 @@ test('reconciles auto-populated interfaces and rejects wrong roles, devices and 
   Object.assign(addressing.aws.not_managed.node_list[0].interface_list[0], { static_ip: {} });
   expect(() => verifyRegisteredInterfaceConfiguration(addressing, devices)).toThrow();
 });
+
+test('correlates Azure VM UUIDs and verifies Azure provider configuration', () => {
+  const azureInstances = { 'ce-one': '00000000-0000-4000-8000-000000000003' };
+  const response = fixture();
+  response.items[0].get_spec.infra.instance_id = azureInstances['ce-one'];
+  const devices = correlateRegistrationDevices(response, 'site-one', azureInstances, expected, 'azure');
+  const spec = {
+    azure: {
+      not_managed: {
+        node_list: [
+          {
+            hostname: 'ce-one',
+            interface_list: devices.map((item) => ({
+              ethernet_interface: { mac: item.mac, device: item.device },
+              network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
+              dhcp_client: {},
+            })),
+          },
+        ],
+      },
+    },
+  };
+  expect(() => verifyRegisteredInterfaceConfiguration(spec, devices, 'azure')).not.toThrow();
+  expect(() => correlateRegistrationDevices(response, 'site-one', azureInstances, expected, 'aws')).toThrow();
+});

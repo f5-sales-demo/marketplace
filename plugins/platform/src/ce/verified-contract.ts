@@ -172,6 +172,32 @@ export class VerifiedCeContract {
   provider(name: 'aws' | 'azure'): Json {
     return structuredClone(object(object(this.#contract.providers)[name]));
   }
+  bootstrapQuery(name: 'aws' | 'azure'): { provider: 'aws' | 'azure'; enableManagementNetwork: false } {
+    const provider = object(object(this.#contract.providers)[name]);
+    const bootstrap = object(provider.bootstrap);
+    if (
+      bootstrap.mode !== 'site_bound_jwt_cloud_init' ||
+      bootstrap.headless_checkout !== 'available' ||
+      bootstrap.schema_support !== 'available' ||
+      !bootstrap.cloud_init ||
+      typeof bootstrap.cloud_init !== 'object' ||
+      Array.isArray(bootstrap.cloud_init)
+    )
+      throw new Error(`Verified ${name} headless bootstrap capability is unavailable`);
+    const cloudInit = object(bootstrap.cloud_init);
+    const query = object(cloudInit.query_fields);
+    if (
+      cloudInit.method !== 'GET' ||
+      cloudInit.path !== '/api/register/namespaces/system/get-cloud-init-config' ||
+      query.provider !== name ||
+      query.site_name !== 'site_name' ||
+      query.enable_management_network !== false ||
+      cloudInit.response_path !== 'cloud_init_config' ||
+      cloudInit.sensitive !== true
+    )
+      throw new Error(`Verified ${name} bootstrap mapping is unsupported`);
+    return { provider: name, enableManagementNetwork: false };
+  }
   get api(): Json {
     return structuredClone(object(this.#contract.api));
   }
