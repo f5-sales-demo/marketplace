@@ -20,6 +20,7 @@ import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import { resetAwsSecurityGroupEgress } from './security-group-defaults';
 import { siteBindings } from './topology';
+import { collectAwsTrafficProbe } from './traffic-probe';
 import type { AwsCeAction, AwsCeCheckpoint, AwsCeObservation, AwsCePlan } from './types';
 import { AWS_CE_DEFAULT_INTERFACE_MTU, AWS_CE_SCHEMA_VERSION } from './types';
 
@@ -312,7 +313,13 @@ async function assertGate(
     if (evidence.status === 'unknown') throw new Error('AWS TGW route evidence is unavailable');
     if (evidence.status !== 'healthy') throw new Error('Observed AWS TGW routes have not converged');
   }
-  if (action.kind === 'traffic-gate') throw new Error('Collected traffic-gate evidence is not yet available');
+  if (action.kind === 'traffic-gate') {
+    if (plan.intent.ingress?.mode !== 'nlb')
+      throw new Error('Collected traffic-gate evidence is unavailable for this profile');
+    const evidence = await collectAwsTrafficProbe(plan, checkpoint, storage, api, signal);
+    await persist(evidence);
+    if (evidence.status !== 'healthy') throw new Error('Observed end-to-end AWS traffic has not converged');
+  }
 }
 
 export async function executeAwsCeApply(

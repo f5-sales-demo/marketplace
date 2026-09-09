@@ -64,7 +64,23 @@ it('rejects duplicate peer identities, wrong physical roles and collapsed attach
 
 it('binds only scoped Terraform NLB outputs for the explicit ingress intent', () => {
   const f = fixture();
-  f.plan.intent.ingress = { mode: 'nlb', port: 8443, scheme: 'internal' };
+  f.plan.intent.ingress = {
+    mode: 'nlb',
+    port: 8443,
+    scheme: 'internal',
+    listener: {
+      name: 'ce-listener',
+      namespace: 'default',
+      domain: 'ce.example.invalid',
+      originPool: { name: 'ce-origin', namespace: 'default' },
+    },
+    probe: {
+      sourceInstanceId: 'i-0feedface12345678',
+      path: '/healthz',
+      expectedStatus: 200,
+      expectedBodySha256: '4'.repeat(64),
+    },
+  };
   f.plan.intent.partition = 'aws';
   Object.assign(f.plan, {
     partition: 'aws',

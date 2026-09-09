@@ -13,6 +13,7 @@ import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { revalidateAwsTerraformPlan } from './terraform-preflight';
 import { bindTerraformIngress, configureAwsTerraformRouting } from './terraform-routing';
 import { runAwsTerraformAdmission } from './terraform-workflow';
+import { collectAwsTrafficProbe } from './traffic-probe';
 import type { AwsCeCheckpoint } from './types';
 
 export async function executeAwsCeTerraformApply(
@@ -187,15 +188,16 @@ export async function executeAwsCeTerraformApply(
     if (nlb.status !== 'healthy') {
       result = { ...result, status: 'pending-ingress-convergence', ingress, nlb, traffic: 'unknown' };
     } else {
+      const traffic = await collectAwsTrafficProbe(plan, { resolvedValues }, storage, api, signal);
       const refresh = await session.plan(process.env, signal);
       if (!refresh.noChanges) throw new Error('Terraform changed after platform ingress convergence');
       result = {
         ...result,
-        status: 'pending-traffic-acceptance',
+        status: 'accepted',
         ingress,
         nlb,
         terraformNoChanges: true,
-        traffic: 'unknown',
+        traffic,
       };
     }
   }

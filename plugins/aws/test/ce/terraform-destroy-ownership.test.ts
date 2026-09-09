@@ -192,7 +192,23 @@ it('checks computed EIP instance binding and refuses foreign attached volumes', 
 it('binds NLB, listener, target group and admitted IP targets to owned resources', async () => {
   const f = fixture();
   const region = f.plan.intent.region;
-  f.plan.intent.ingress = { mode: 'nlb', port: 8443, scheme: 'internal' };
+  f.plan.intent.ingress = {
+    mode: 'nlb',
+    port: 8443,
+    scheme: 'internal',
+    listener: {
+      name: 'ce-listener',
+      namespace: 'default',
+      domain: 'ce.example.invalid',
+      originPool: { name: 'ce-origin', namespace: 'default' },
+    },
+    probe: {
+      sourceInstanceId: 'i-0feedface12345678',
+      path: '/healthz',
+      expectedStatus: 200,
+      expectedBodySha256: '4'.repeat(64),
+    },
+  };
   const { planId: _id, planSha256: _hash, ...draft } = f.plan;
   f.plan.planSha256 = canonicalSha256(draft);
   f.plan.planId = `aws-ce-${f.plan.planSha256.slice(0, 24)}`;

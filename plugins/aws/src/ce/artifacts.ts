@@ -36,7 +36,10 @@ export function verifyAwsCePlan(plan: AwsCePlan): void {
     (!plan.intent.ingress.listener ||
       typeof plan.intent.ingress.listener.name !== 'string' ||
       typeof plan.intent.ingress.listener.domain !== 'string' ||
-      typeof plan.intent.ingress.listener.originPool?.name !== 'string')
+      typeof plan.intent.ingress.listener.originPool?.name !== 'string' ||
+      !plan.intent.ingress.probe ||
+      typeof plan.intent.ingress.probe.sourceInstanceId !== 'string' ||
+      typeof plan.intent.ingress.probe.expectedBodySha256 !== 'string')
   )
     throw new Error('Persisted AWS CE plan uses the obsolete cloud-only NLB ingress schema');
   const { planId, planSha256, ...draft } = plan;

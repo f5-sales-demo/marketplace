@@ -59,6 +59,12 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
         domain: 'ce.example.invalid',
         originPool: { name: 'ce-origin', namespace: 'default' },
       },
+      probe: {
+        sourceInstanceId: 'i-0feedface12345678',
+        path: '/healthz',
+        expectedStatus: 200,
+        expectedBodySha256: '4'.repeat(64),
+      },
     },
   };
   const planSha256 = canonicalSha256(draft);

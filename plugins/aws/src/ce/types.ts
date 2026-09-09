@@ -38,6 +38,12 @@ export type AwsCeIngress =
         domain: string;
         originPool: { name: string; namespace: string };
       };
+      probe: {
+        sourceInstanceId: string;
+        path: string;
+        expectedStatus: number;
+        expectedBodySha256: string;
+      };
     };
 
 export interface AwsCeF5Capabilities {

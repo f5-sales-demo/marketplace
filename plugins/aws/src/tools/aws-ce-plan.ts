@@ -124,6 +124,12 @@ export function createAwsCePlanTool(pi: PluginInterface) {
                 domain: Type.String(),
                 originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
               }),
+              probe: Type.Object({
+                sourceInstanceId: Type.String(),
+                path: Type.String(),
+                expectedStatus: Type.Integer({ minimum: 100, maximum: 599 }),
+                expectedBodySha256: Type.String(),
+              }),
             }),
           ]),
         ),

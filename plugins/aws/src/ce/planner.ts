@@ -277,7 +277,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     const ingressKeys = Object.keys(input.ingress).sort().join(',');
     if (
       (input.ingress.mode === 'none' && ingressKeys !== 'mode') ||
-      (input.ingress.mode === 'nlb' && ingressKeys !== 'listener,mode,port,scheme')
+      (input.ingress.mode === 'nlb' && ingressKeys !== 'listener,mode,port,probe,scheme')
     )
       fail('Ingress fields differ from the selected mode');
     if (
@@ -297,6 +297,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
     if (input.ingress.mode === 'nlb') {
       const listener = input.ingress.listener;
+      const probe = input.ingress.probe;
       const domain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
       if (
         !listener ||
@@ -313,9 +314,18 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         listener.originPool.namespace !== namespace ||
         typeof listener.domain !== 'string' ||
         listener.domain.length > 253 ||
-        !domain.test(listener.domain)
+        !domain.test(listener.domain) ||
+        !probe ||
+        Object.keys(probe).sort().join(',') !== 'expectedBodySha256,expectedStatus,path,sourceInstanceId' ||
+        !/^i-[0-9a-f]{8,17}$/.test(probe.sourceInstanceId) ||
+        !input.brownfield.resourceIds.includes(probe.sourceInstanceId) ||
+        !/^\/[A-Za-z0-9._~/-]{0,512}$/.test(probe.path) ||
+        !Number.isInteger(probe.expectedStatus) ||
+        probe.expectedStatus < 100 ||
+        probe.expectedStatus > 599 ||
+        !/^[a-f0-9]{64}$/.test(probe.expectedBodySha256)
       )
-        fail('NLB listener requires exact names, a valid domain, and the deployment namespace');
+        fail('NLB ingress requires exact listener and allowlisted traffic-probe identities');
     }
   }
   for (const routeTableId of [...input.routing.associations, ...input.routing.propagations])

@@ -21,6 +21,12 @@ function fixture() {
       domain: 'ce.example.invalid',
       originPool: { name: 'ce-origin', namespace: 'default' },
     },
+    probe: {
+      sourceInstanceId: 'i-0feedface12345678',
+      path: '/healthz',
+      expectedStatus: 200,
+      expectedBodySha256: '4'.repeat(64),
+    },
   };
   const values = new Map<string, unknown>();
   const calls = { plans: 0, applies: 0 };

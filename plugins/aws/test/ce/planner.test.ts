@@ -702,11 +702,23 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       value: 50,
     },
   ];
+  evidence.resources.push({
+    id: 'i-0feedface12345678',
+    region: 'us-east-1',
+    exists: true,
+    owned: false,
+    tags: {},
+    state: { State: { Name: 'running' } },
+  });
   for (const engine of ['native', 'terraform'] as const) {
     const plan = compileAwsCePlan(
       intent({
         engine,
-        brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
+        brownfield: {
+          resourceIds: ['i-0feedface12345678', 'tgw-0123456789abcdef0'],
+          routeTableIds: [],
+          transitGatewayRouteTableIds: [],
+        },
         topology: { nodeCount: 3, sites },
         interfaces: interfaces(3, 2),
         ingress: {
@@ -718,6 +730,12 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
             namespace: 'system',
             domain: 'ce.example.invalid',
             originPool: { name: 'ce-origin', namespace: 'system' },
+          },
+          probe: {
+            sourceInstanceId: 'i-0feedface12345678',
+            path: '/healthz',
+            expectedStatus: 200,
+            expectedBodySha256: '4'.repeat(64),
           },
         },
         routing: {
@@ -822,7 +840,11 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
   const valid = compileAwsCePlan(
     intent({
       engine: 'terraform',
-      brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
+      brownfield: {
+        resourceIds: ['i-0feedface12345678', 'tgw-0123456789abcdef0'],
+        routeTableIds: [],
+        transitGatewayRouteTableIds: [],
+      },
       topology: { nodeCount: 3, sites },
       interfaces: interfaces(3, 2),
       ingress: {
@@ -834,6 +856,12 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
           namespace: 'system',
           domain: 'ce.example.invalid',
           originPool: { name: 'ce-origin', namespace: 'system' },
+        },
+        probe: {
+          sourceInstanceId: 'i-0feedface12345678',
+          path: '/healthz',
+          expectedStatus: 200,
+          expectedBodySha256: '4'.repeat(64),
         },
       },
       routing: {
