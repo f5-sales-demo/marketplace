@@ -21,10 +21,15 @@ function fixture() {
   let state = 'shutting-down';
   let deletes = 0;
   let persists = 0;
+  let successful = false;
   const api = {
     exec: async (_command: string, args: string[]) => {
       if (args[1] === 'terminate-instances') {
         deletes++;
+        if (successful) {
+          state = 'terminated';
+          return { exitCode: 0, stderr: '', stdout: '{}' };
+        }
         throw new Error('response lost');
       }
       return {
@@ -63,6 +68,9 @@ function fixture() {
     terminate: () => {
       state = 'terminated';
     },
+    succeed: () => {
+      successful = true;
+    },
     counts: () => ({ deletes, persists }),
   };
 }
@@ -74,6 +82,19 @@ test('does not replay a deletion while its exact owned target is still convergin
   ).rejects.toThrow('has not converged');
   expect(f.counts()).toEqual({ deletes: 1, persists: 1 });
   f.terminate();
+  expect(
+    (
+      await executeRecoverableDelete(f.api, f.plan, f.action, f.action.args ?? [], f.checkpoint, f.persist, [
+        f.ownerSha,
+      ])
+    ).exitCode,
+  ).toBe(0);
+  expect(f.counts()).toEqual({ deletes: 1, persists: 1 });
+});
+
+test('observes absence before checkpointing a successful deletion', async () => {
+  const f = fixture();
+  f.succeed();
   expect(
     (
       await executeRecoverableDelete(f.api, f.plan, f.action, f.action.args ?? [], f.checkpoint, f.persist, [

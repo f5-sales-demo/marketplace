@@ -76,6 +76,7 @@ export async function executeRecoverableDelete(
       pending.requestSha256 !== requestSha256)
   )
     throw new Error('Pending AWS deletion differs from the immutable request');
+  let submitted = false;
   if (!pending) {
     checkpoint.pendingDelete = { actionId: action.id, resourceId: action.resourceId, requestSha256 };
     try {
@@ -86,28 +87,49 @@ export async function executeRecoverableDelete(
     }
     try {
       const result = await api.exec('aws', args, { signal });
-      if (result.exitCode === 0) return result;
+      if (result.exitCode !== 0) {
+        checkpoint.pendingDelete = undefined;
+        await persist();
+        return result;
+      }
+      submitted = true;
     } catch {
       signal?.throwIfAborted();
     }
   }
-  signal?.throwIfAborted();
-  const observations = await observeAwsResources(api, [action.resourceId], plan.region, {
-    deploymentName: plan.deploymentName,
-    planSha256s: [...new Set(ownershipPlanSha256s)].sort(),
-  });
-  const observation = observations[0];
-  if (!observation) throw new Error('AWS deletion observation is unavailable');
-  if (
-    !observation.exists ||
-    (action.kind === 'resource-delete' &&
-      action.resourceId.startsWith('i-') &&
-      instanceTerminated(observation.state)) ||
-    mutationConverged(action, observation.state)
-  )
-    return { exitCode: 0, stdout: '{}', stderr: '' };
-  if (!observation.owned) throw new Error('AWS deletion target ownership changed during reconciliation');
-  throw new Error('AWS deletion has not converged; resume with the same plan');
+  const deadline = Date.now() + 15 * 60_000;
+  while (true) {
+    signal?.throwIfAborted();
+    const observations = await observeAwsResources(api, [action.resourceId], plan.region, {
+      deploymentName: plan.deploymentName,
+      planSha256s: [...new Set(ownershipPlanSha256s)].sort(),
+    });
+    const observation = observations[0];
+    if (!observation) throw new Error('AWS deletion observation is unavailable');
+    if (
+      !observation.exists ||
+      (action.kind === 'resource-delete' &&
+        action.resourceId.startsWith('i-') &&
+        instanceTerminated(observation.state)) ||
+      mutationConverged(action, observation.state)
+    )
+      return { exitCode: 0, stdout: '{}', stderr: '' };
+    if (!observation.owned) throw new Error('AWS deletion target ownership changed during reconciliation');
+    if (!submitted || Date.now() >= deadline)
+      throw new Error('AWS deletion has not converged; resume with the same plan');
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        clearTimeout(timer);
+        reject(new Error('AWS deletion convergence cancelled'));
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', abort);
+        resolve();
+      }, 10_000);
+      signal?.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted) abort();
+    });
+  }
 }
 
 export async function collectAwsNativeCloudRetirement(
