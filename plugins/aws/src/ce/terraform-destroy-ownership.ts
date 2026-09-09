@@ -2,7 +2,9 @@ import type { PlanReceipt } from '../../../terraform/src/runner';
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
+import { canonicalSha256 } from './canonical';
 import { scopedAwsApi } from './scoped-exec';
+import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import type { AwsCePlan } from './types';
 
 type Json = Record<string, unknown>;
@@ -313,7 +315,27 @@ export async function verifyAwsTerraformDestroyOwnership(
       if (matches.length !== 1) throw new Error('Teardown TGW relationship is absent or ambiguous');
     }
   }
+  const material: Omit<AwsTerraformRetirementInventory, 'sha256'> = {
+    schemaVersion: 1,
+    engine: 'terraform',
+    accountId: intent.accountId,
+    region: intent.region,
+    deploymentId: intent.deploymentName,
+    sourcePlanSha256: plan.planSha256,
+    terraformPlanSha256: receipt.planSha256,
+    resources: [...live.entries()]
+      .map(([id, row]) => ({ type: row.type, id }))
+      .concat([...volumeIds].map((id) => ({ type: 'aws_ebs_volume', id }))),
+    tgwEdges: states
+      .filter((row) => row.type.startsWith('aws_ec2_transit_gateway_route_table_'))
+      .map((row) => ({
+        kind: row.type.endsWith('_association') ? 'association' : 'propagation',
+        tableId: String(row.value.transit_gateway_route_table_id),
+        attachmentId: String(row.value.transit_gateway_attachment_id),
+      })),
+  };
   return {
+    inventory: { ...material, sha256: canonicalSha256(material) },
     source: 'aws-cli-live+terraform-saved-plan',
     observedAt: new Date().toISOString(),
     engine: 'terraform' as const,

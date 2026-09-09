@@ -3,7 +3,9 @@ import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-stor
 import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
+import { canonicalSha256 } from './canonical';
 import { verifyAwsTerraformDestroyOwnership } from './terraform-destroy-ownership';
+import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import type { AwsCePlan } from './types';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -134,6 +136,35 @@ export async function runAwsTerraformCloudTeardown(
     await storage.write('terraform-cloud-teardown-plan.json', receipt);
     await storage.verify();
     const ownership = await verifyAwsTerraformDestroyOwnership(plan, receipt, session, api, env, signal);
+    const originalInventory = await optional<AwsTerraformRetirementInventory>(
+      storage,
+      'terraform-cloud-teardown-inventory.json',
+    );
+    if (originalInventory === undefined) {
+      await storage.write('terraform-cloud-teardown-inventory.json', ownership.inventory);
+    } else {
+      if (!originalInventory) throw new Error('Original cloud retirement inventory is invalid');
+      const { sha256, ...material } = originalInventory;
+      if (
+        canonicalSha256(material) !== sha256 ||
+        originalInventory.schemaVersion !== 1 ||
+        originalInventory.engine !== 'terraform' ||
+        originalInventory.sourcePlanSha256 !== plan.planSha256 ||
+        originalInventory.deploymentId !== owner.deploymentId ||
+        originalInventory.accountId !== owner.account ||
+        originalInventory.region !== owner.region ||
+        !Array.isArray(originalInventory.resources) ||
+        !Array.isArray(originalInventory.tgwEdges) ||
+        ownership.inventory.resources.some(
+          (resource) =>
+            !originalInventory.resources.some((row) => row.type === resource.type && row.id === resource.id),
+        ) ||
+        ownership.inventory.tgwEdges.some(
+          (edge) => !originalInventory.tgwEdges.some((row) => canonicalSha256(row) === canonicalSha256(edge)),
+        )
+      )
+        throw new Error('Original cloud retirement inventory differs');
+    }
     await storage.write('terraform-cloud-teardown-ownership.json', ownership);
     await storage.verify();
     await session.apply(receipt, env, signal);

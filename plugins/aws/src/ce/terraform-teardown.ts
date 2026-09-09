@@ -6,7 +6,9 @@ import type { TerraformSession } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { collectAwsTerraformAbsence } from './terraform-absence';
 import { runAwsTerraformCloudTeardown } from './terraform-cloud-teardown';
+import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -232,7 +234,7 @@ export async function coordinateAwsTerraformTeardown(
   return receipt;
 }
 /** Concrete production binding: F5 operations stay in platform; cloud mutation uses the owning Terraform session. */
-export function runAwsTerraformTeardown(
+export async function runAwsTerraformTeardown(
   base: AwsCePlan,
   plan: AwsTerraformTeardownPlan,
   authorizedPlanSha256: string,
@@ -253,7 +255,7 @@ export function runAwsTerraformTeardown(
     return found.binding;
   };
   if (runtime.engine !== 'terraform') throw new Error('Terraform engine required for teardown');
-  return coordinateAwsTerraformTeardown(
+  const retired = await coordinateAwsTerraformTeardown(
     base,
     plan,
     authorizedPlanSha256,
@@ -275,4 +277,16 @@ export function runAwsTerraformTeardown(
     },
     signal,
   );
+  if (retired.status !== 'resources-retired-awaiting-inventory') return retired;
+  const inventory = (await storage.read('terraform-cloud-teardown-inventory.json')) as AwsTerraformRetirementInventory;
+  const observation = await collectAwsTerraformAbsence(base, inventory, api, signal);
+  await storage.write('aws-terraform-teardown-cloud-absence.json', observation);
+  return {
+    ...retired,
+    status:
+      observation.status === 'absent-or-retired'
+        ? ('ce-retired-supporting-infrastructure-unverified' as const)
+        : ('pending-cloud-inventory' as const),
+    cloudInventory: observation.status,
+  };
 }

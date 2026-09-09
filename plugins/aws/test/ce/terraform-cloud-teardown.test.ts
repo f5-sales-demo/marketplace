@@ -186,3 +186,14 @@ it('checkpoints successful destruction before honoring cancellation and resumes 
   expect(f.deletes()).toBe(1);
   expect(f.revisions()).toBe(1);
 });
+
+it('preserves original resource identities across a lost destroy response', async () => {
+  const f = fixture();
+  f.failAfterDelete();
+  await expect(runAwsTerraformCloudTeardown(f.plan, f.session, f.storage, f.api, {})).rejects.toThrow();
+  const before = f.files.get('terraform-cloud-teardown-inventory.json');
+  expect(before).toMatchObject({ resources: [{ type: 'aws_vpc', id: 'vpc-12345678' }] });
+  await runAwsTerraformCloudTeardown(f.plan, f.session, f.storage, f.api, {});
+  expect(f.files.get('terraform-cloud-teardown-inventory.json')).toEqual(before);
+  expect(f.deletes()).toBe(1);
+});

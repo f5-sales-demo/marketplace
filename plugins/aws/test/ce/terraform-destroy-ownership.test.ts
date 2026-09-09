@@ -238,3 +238,17 @@ it('binds approved TGW table edges to owned attachments and rejects an omitted p
     /absent or ambiguous/,
   );
 });
+
+it('captures exact resources and parent edges for independent post-destroy inventory', async () => {
+  const f = fixture();
+  const proof = await verifyAwsTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {});
+  expect(proof.inventory.resources).toEqual([
+    { type: 'aws_vpc', id: 'vpc-12345678' },
+    { type: 'aws_subnet', id: 'subnet-12345678' },
+    { type: 'aws_route_table', id: 'rtb-12345678' },
+    { type: 'aws_internet_gateway', id: 'igw-12345678' },
+  ]);
+  expect(proof.inventory.tgwEdges).toEqual([]);
+  const { sha256, ...material } = proof.inventory;
+  expect(sha256).toBe(canonicalSha256(material));
+});
