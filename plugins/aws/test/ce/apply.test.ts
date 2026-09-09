@@ -3,6 +3,7 @@ import {
   assertAwsActionOwnership,
   assertAwsApplyAllowed,
   assertAwsObservationFresh,
+  assertAwsResumeObservationFresh,
   executableAwsActionArgs,
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
@@ -348,6 +349,66 @@ describe('mutation boundary ownership', () => {
       ),
     ).rejects.toThrow('outside the deployment inventory');
   });
+});
+
+it('permits expected brownfield convergence after a checkpointed teardown action', () => {
+  const planned = structuredClone(observation);
+  planned.resources = [
+    {
+      id: 'tgw-rtb-0123456789abcdef0',
+      region: 'us-east-1',
+      exists: true,
+      owned: false,
+      tags: {},
+      state: { Associations: [{ State: 'disassociating' }] },
+    },
+  ];
+  const plan = compileAwsCePlan(
+    {
+      ...intent,
+      operation: 'teardown',
+      brownfield: {
+        resourceIds: [],
+        routeTableIds: [],
+        transitGatewayRouteTableIds: ['tgw-rtb-0123456789abcdef0'],
+      },
+    },
+    planned,
+    [{ id: 'tgw-rtb-0123456789abcdef0', before: planned.resources[0].state }],
+  );
+  const current = structuredClone(planned);
+  current.resources[0].state = { Associations: [] };
+  expect(() =>
+    assertAwsResumeObservationFresh(
+      plan,
+      planned,
+      current,
+      fingerprintObservation(planned, ['tgw-rtb-0123456789abcdef0']),
+      ['tgw-rtb-0123456789abcdef0'],
+      1,
+    ),
+  ).not.toThrow();
+  expect(() =>
+    assertAwsResumeObservationFresh(
+      plan,
+      planned,
+      current,
+      fingerprintObservation(planned, ['tgw-rtb-0123456789abcdef0']),
+      ['tgw-rtb-0123456789abcdef0'],
+      0,
+    ),
+  ).toThrow('Stale');
+  current.identity.accountId = '999999999999';
+  expect(() =>
+    assertAwsResumeObservationFresh(
+      plan,
+      planned,
+      current,
+      fingerprintObservation(planned, ['tgw-rtb-0123456789abcdef0']),
+      ['tgw-rtb-0123456789abcdef0'],
+      1,
+    ),
+  ).toThrow('Stale');
 });
 
 it('resume tolerates owned EIP allocation while rejecting quota or eligibility changes', () => {

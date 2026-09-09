@@ -61,6 +61,24 @@ export function assertAwsObservationFresh(
     throw new Error(`Stale AWS CE plan: observations changed (expected ${expected}, current ${actual})`);
 }
 
+export function assertAwsResumeObservationFresh(
+  plan: AwsCePlan,
+  planned: AwsCeObservation,
+  current: AwsCeObservation,
+  expected: string,
+  relevantResourceIds: string[],
+  completedActionCount: number,
+) {
+  if (plan.intent.operation === 'teardown' && completedActionCount > 0) {
+    // Completed restoration/deletion actions deliberately change resource snapshots.
+    // Recheck the immutable account, region, capability, agreement and research inputs;
+    // owned resource continuity is checked separately against the last checkpoint.
+    assertAwsObservationFresh(plan, current, fingerprintObservation(planned, []), []);
+    return;
+  }
+  assertAwsObservationFresh(plan, current, expected, relevantResourceIds);
+}
+
 export function assertAwsApplyAllowed(
   plan: AwsCePlan,
   request: {
@@ -589,13 +607,15 @@ export async function executeAwsCeApply(
   const childReplacementActive =
     Boolean(existing?.childPlanSha256s?.length) &&
     plan.actions.some((action) => action.id === existing?.failedActionId && action.kind === 'registration-gate');
-  assertAwsObservationFresh(
+  assertAwsResumeObservationFresh(
     plan,
+    observation,
     current,
     childReplacementActive
       ? plan.observationFingerprint
       : (existing?.observationFingerprint ?? plan.observationFingerprint),
     childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
+    existing?.completedActionIds.length ?? 0,
   );
   if (existing?.ownedStateFingerprint && !childReplacementActive) {
     if (
