@@ -100,6 +100,11 @@ such rather than counting them as unattended acceptance.
 - Native TGW Connect apply freezes the complete XC connector/BGP UID inventory in the restricted
   deployment store after routing configuration converges. Teardown and replacement must consume
   that engine-bound record rather than relying on conversational checkpoint state.
+- Native teardown binds this platform inventory to a fresh, independently reviewed native cloud
+  teardown plan. Each owned delete intent is durable before mutation; an interrupted response is
+  reconciled from exact scoped AWS state, including EC2's retained `terminated` records, and is not
+  replayed. Brownfield restoration remains rejected until every restoration mutation has an
+  equivalent readback contract.
 - Correlate EC2 status/boot, ENIs, security groups, route tables, NLB targets, TGW attachments,
   Connect peers/BGP, and platform registration/health/routing evidence.
 - The native apply route gate collects each planned TGW route-table/attachment association and

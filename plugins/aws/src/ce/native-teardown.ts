@@ -63,9 +63,9 @@ export function compileAwsNativeTeardown(
     drain.sites.length !== selected.length ||
     retirement.length !== selected.length ||
     !cloud.actions.length ||
-    cloud.actions.some((action) => action.phase !== 'teardown')
+    cloud.actions.some((action) => action.phase !== 'teardown' || action.kind === 'brownfield-restore')
   )
-    throw new Error('Native teardown source, cloud plan, or topology differs');
+    throw new Error('Native teardown source, cloud plan, topology, or restoration support differs');
   const cloudDeletes = cloud.ownershipInventory.filter((row) => row.owned && row.action === 'delete');
   if (
     !cloudDeletes.length ||
