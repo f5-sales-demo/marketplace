@@ -189,6 +189,90 @@ it('checks computed EIP instance binding and refuses foreign attached volumes', 
   await expect(verifyAwsTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow(/foreign/);
 });
 
+it('binds NLB, listener, target group and admitted IP targets to owned resources', async () => {
+  const f = fixture();
+  const region = f.plan.intent.region;
+  f.plan.intent.ingress = { mode: 'nlb', port: 8443, scheme: 'internal' };
+  const { planId: _id, planSha256: _hash, ...draft } = f.plan;
+  f.plan.planSha256 = canonicalSha256(draft);
+  f.plan.planId = `aws-ce-${f.plan.planSha256.slice(0, 24)}`;
+  const tags = f.responses['describe-vpcs'].Vpcs[0].Tags;
+  tags.find((tag: { Key: string }) => tag.Key === 'xcsh-plan-sha256').Value = f.plan.planSha256;
+  const lb = `arn:aws:elasticloadbalancing:${region}:${f.plan.intent.accountId}:loadbalancer/net/ce-nlb/abcdef12`;
+  const group = `arn:aws:elasticloadbalancing:${region}:${f.plan.intent.accountId}:targetgroup/ce/abcdef12`;
+  const listener = `arn:aws:elasticloadbalancing:${region}:${f.plan.intent.accountId}:listener/net/ce-nlb/abcdef12/abcdef12`;
+  Object.assign(f.values, {
+    'aws_network_interface.ce': { id: 'eni-12345678', region },
+    'aws_lb.ce': { id: lb, region },
+    'aws_lb_target_group.ce': { id: group, region },
+    'aws_lb_listener.ce': { id: listener, region },
+    'aws_lb_target_group_attachment.ce': {
+      id: `${group}-10.0.1.10-8443`,
+      region,
+      target_group_arn: group,
+      target_id: '10.0.1.10',
+      port: 8443,
+    },
+  });
+  Object.assign(f.responses, {
+    'describe-network-interfaces': {
+      NetworkInterfaces: [{ NetworkInterfaceId: 'eni-12345678', PrivateIpAddress: '10.0.1.10', TagSet: tags }],
+    },
+    'describe-load-balancers': {
+      LoadBalancers: [{ LoadBalancerArn: lb, VpcId: 'vpc-12345678', Type: 'network', Scheme: 'internal' }],
+    },
+    'describe-target-groups': {
+      TargetGroups: [{ TargetGroupArn: group, VpcId: 'vpc-12345678', Protocol: 'TCP', Port: 8443 }],
+    },
+    'describe-listeners': {
+      Listeners: [
+        {
+          ListenerArn: listener,
+          LoadBalancerArn: lb,
+          Protocol: 'TCP',
+          Port: 8443,
+          DefaultActions: [{ Type: 'forward', TargetGroupArn: group }],
+        },
+      ],
+    },
+    'describe-tags': {
+      TagDescriptions: [lb, group, listener].map((ResourceArn) => ({ ResourceArn, Tags: tags })),
+    },
+    'describe-target-health': {
+      TargetHealthDescriptions: [{ Target: { Id: '10.0.1.10', Port: 8443 }, TargetHealth: { State: 'healthy' } }],
+    },
+  });
+  const exec = f.api.exec;
+  f.api.exec = async (command: string, args: string[]) => {
+    if (args[1] !== 'describe-tags') return exec(command, args);
+    const requested = args.slice(args.indexOf('--resource-arns') + 1, args.indexOf('--region'));
+    return {
+      exitCode: 0,
+      stdout: JSON.stringify({
+        TagDescriptions: requested.map((ResourceArn) => ({ ResourceArn, Tags: tags })),
+      }),
+      stderr: '',
+    };
+  };
+  f.receipt.changes = Object.keys(f.values).map((address) => ({
+    address,
+    type: address.split('.')[0],
+    actions: ['delete'],
+  }));
+  const proof = await verifyAwsTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {});
+  expect(proof.inventory.resources).toEqual(
+    expect.arrayContaining([
+      { type: 'aws_lb', id: lb },
+      { type: 'aws_lb_target_group', id: group },
+      { type: 'aws_lb_listener', id: listener },
+    ]),
+  );
+  f.responses['describe-listeners'].Listeners[0].Port = 443;
+  await expect(verifyAwsTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow(
+    /topology differs/,
+  );
+});
+
 it('binds approved TGW table edges to owned attachments and rejects an omitted propagation', async () => {
   const f = fixture();
   const region = f.plan.intent.region;

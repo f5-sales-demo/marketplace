@@ -689,10 +689,18 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
   evidence.research.sourceReceipts.push({ url: AWS_CE_TGW_GUIDE_URL, normalizedSha256: '3'.repeat(64) });
   evidence.f5Capabilities = {
     ...capabilities,
-    providerNetworkingProfiles: { aws: ['tgw-connect'] },
+    providerNetworkingProfiles: { aws: ['tgw-connect', 'nlb-ingress'] },
     awsSmsv2TgwConnect: { supported: true, schemaVersion: 'f5xc-smsv2-aws-tgw-telemetry/v2' },
   };
   evidence.f5CapabilitiesSha256 = canonicalSha256(evidence.f5Capabilities);
+  evidence.regions[0].networkQuotas = [
+    {
+      serviceCode: 'elasticloadbalancing',
+      quotaCode: 'L-69A177A2',
+      quotaName: 'Network Load Balancers per Region',
+      value: 50,
+    },
+  ];
   for (const engine of ['native', 'terraform'] as const) {
     const plan = compileAwsCePlan(
       intent({
@@ -700,6 +708,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
         brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
         topology: { nodeCount: 3, sites },
         interfaces: interfaces(3, 2),
+        ingress: { mode: 'nlb', port: 8443, scheme: 'internal' },
         routing: {
           profile: 'tgw-connect',
           destinationCidrs: [],
@@ -721,6 +730,13 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(greRoutes[0].args).toContain('172.31.240.0/24');
     const actions = plan.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
     expect(actions).toHaveLength(6);
+    const nlb = plan.actions.find((action) => action.kind === 'nlb-create');
+    expect(nlb?.args).toContain('internal');
+    expect(nlb?.args?.filter((arg) => arg === 'elbv2')).toHaveLength(1);
+    expect(plan.actions.find((action) => action.kind === 'nlb-listener-create')?.args).toContain('8443');
+    expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);
+    expect(plan.actions.some((action) => action.kind === 'nlb-gate')).toBe(true);
+    expect(plan.billableResources).toContainEqual({ type: 'network-load-balancer', count: 1 });
     const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
     expect(attachments).toHaveLength(2);
     const attachmentGates = plan.actions.filter((action) => action.kind === 'tgw-attachment-gate');
@@ -728,9 +744,9 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     for (const attachment of attachments) {
       const gate = attachmentGates.find((action) => action.resourceId === attachment.capture?.placeholder);
       expect(gate).toBeDefined();
-      expect(plan.actions.findIndex((action) => action === gate)).toBeGreaterThan(plan.actions.indexOf(attachment));
+      expect(plan.actions.indexOf(gate)).toBeGreaterThan(plan.actions.indexOf(attachment));
       for (const peer of actions.filter((action) => action.args?.includes(attachment.capture?.placeholder ?? ''))) {
-        expect(plan.actions.findIndex((action) => action === gate)).toBeLessThan(plan.actions.indexOf(peer));
+        expect(plan.actions.indexOf(gate)).toBeLessThan(plan.actions.indexOf(peer));
       }
     }
 

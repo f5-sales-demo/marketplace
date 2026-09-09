@@ -26,6 +26,7 @@ export type AwsCeOperation =
   | 'teardown';
 export type AwsCeEgressMode = 'elastic-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AwsCeRoutingProfile = 'direct-eni' | 'nlb-ingress' | 'tgw-static' | 'tgw-connect';
+export type AwsCeIngress = { mode: 'none' } | { mode: 'nlb'; port: number; scheme: 'internal' };
 
 export interface AwsCeF5Capabilities {
   platformContext?: string;
@@ -84,6 +85,8 @@ export interface AwsCeIntent {
     associations: string[];
     propagations: string[];
   };
+  /** Explicit ingress composes with routing. Omission preserves schema-v2 legacy profile behavior. */
+  ingress?: AwsCeIngress;
   image: { productId: typeof AWS_CE_MARKETPLACE_PRODUCT_ID; amiId: string };
   instance: { type: string; diskGiB: number; instanceProfileArn?: string };
   securityGroups: Array<{

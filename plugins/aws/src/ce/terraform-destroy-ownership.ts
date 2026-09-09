@@ -59,6 +59,26 @@ const tagged: Record<string, [string, string, string, string, string]> = {
     'tgw-connect-peer',
   ],
 };
+const elbTagged: Record<string, [string, string, string, RegExp]> = {
+  aws_lb: [
+    'describe-load-balancers',
+    '--load-balancer-arns',
+    'LoadBalancers',
+    /^arn:[^:]+:elasticloadbalancing:[^:]+:\d{12}:loadbalancer\/net\/[A-Za-z0-9-]+\/[a-f0-9]+$/,
+  ],
+  aws_lb_target_group: [
+    'describe-target-groups',
+    '--target-group-arns',
+    'TargetGroups',
+    /^arn:[^:]+:elasticloadbalancing:[^:]+:\d{12}:targetgroup\/[A-Za-z0-9-]+\/[a-f0-9]+$/,
+  ],
+  aws_lb_listener: [
+    'describe-listeners',
+    '--listener-arns',
+    'Listeners',
+    /^arn:[^:]+:elasticloadbalancing:[^:]+:\d{12}:listener\/net\/[A-Za-z0-9-]+\/[a-f0-9]+\/[a-f0-9]+$/,
+  ],
+};
 const relationships: Record<string, string[]> = {
   aws_route: [
     'route_table_id',
@@ -72,6 +92,7 @@ const relationships: Record<string, string[]> = {
   aws_eip_association: ['allocation_id', 'network_interface_id', 'instance_id'],
   aws_ec2_transit_gateway_route_table_association: ['transit_gateway_attachment_id', 'transit_gateway_route_table_id'],
   aws_ec2_transit_gateway_route_table_propagation: ['transit_gateway_attachment_id', 'transit_gateway_route_table_id'],
+  aws_lb_target_group_attachment: ['target_group_arn', 'target_id', 'port'],
 };
 
 /** Read-only guard for the CE foundation/Connect destroy plan. Re-run at the apply boundary.
@@ -100,7 +121,9 @@ export async function verifyAwsTerraformDestroyOwnership(
       (change) =>
         change.actions.join(',') !== 'delete' ||
         !new RegExp(`^${change.type}\\.[a-z][a-z0-9_]*$`).test(change.address) ||
-        (!Object.hasOwn(tagged, change.type) && !Object.hasOwn(relationships, change.type)),
+        (!Object.hasOwn(tagged, change.type) &&
+          !Object.hasOwn(elbTagged, change.type) &&
+          !Object.hasOwn(relationships, change.type)),
     ) ||
     new Set(receipt.changes.map((change) => change.address)).size !== receipt.changes.length
   )
@@ -181,6 +204,33 @@ export async function verifyAwsTerraformDestroyOwnership(
     for (const item of observed) {
       owned(item, type === 'aws_network_interface' ? 'TagSet' : 'Tags');
       const id = String(item[idKey]);
+      if (live.has(id)) throw new Error('Duplicate teardown resource identity across types');
+      live.set(id, { type, value: item });
+    }
+  }
+  for (const [type, [operation, flag, collection, pattern]] of Object.entries(elbTagged)) {
+    const selected = states.filter((state) => state.type === type);
+    if (!selected.length) continue;
+    const ids = selected.map((state) => String(state.value.id));
+    if (new Set(ids).size !== ids.length || ids.some((id) => !pattern.test(id)))
+      throw new Error('Malformed or duplicate Terraform NLB resource IDs');
+    const response = await run('elbv2', operation, [flag, ...ids]);
+    const observed = rows(response[collection]);
+    const idKey =
+      type === 'aws_lb' ? 'LoadBalancerArn' : type === 'aws_lb_target_group' ? 'TargetGroupArn' : 'ListenerArn';
+    if (
+      observed.length !== ids.length ||
+      new Set(observed.map((item) => item[idKey])).size !== ids.length ||
+      observed.some((item) => !ids.includes(String(item[idKey])))
+    )
+      throw new Error('AWS substituted or omitted Terraform NLB identities');
+    const descriptions = rows((await run('elbv2', 'describe-tags', ['--resource-arns', ...ids])).TagDescriptions);
+    if (descriptions.length !== ids.length) throw new Error('Terraform NLB ownership tags are incomplete');
+    for (const item of observed) {
+      const id = String(item[idKey]);
+      const description = descriptions.filter((row) => row.ResourceArn === id);
+      if (description.length !== 1) throw new Error('Terraform NLB ownership tags are ambiguous');
+      owned(description[0]);
       if (live.has(id)) throw new Error('Duplicate teardown resource identity across types');
       live.set(id, { type, value: item });
     }
@@ -296,6 +346,33 @@ export async function verifyAwsTerraformDestroyOwnership(
         eip.NetworkInterfaceId !== value.network_interface_id
       )
         throw new Error('Teardown EIP association differs');
+    } else if (type === 'aws_lb_target_group_attachment') {
+      const group = parent(value.target_group_arn, ['aws_lb_target_group']);
+      if (
+        typeof value.target_id !== 'string' ||
+        ![...live.values()].some(
+          (row) => row.type === 'aws_network_interface' && row.value.PrivateIpAddress === value.target_id,
+        ) ||
+        !Number.isInteger(value.port) ||
+        value.port !== (intent.ingress?.mode === 'nlb' ? intent.ingress.port : 443)
+      )
+        throw new Error('Teardown NLB target attachment differs');
+      const health = rows(
+        (
+          await run('elbv2', 'describe-target-health', [
+            '--target-group-arn',
+            String(group.TargetGroupArn),
+            '--targets',
+            `Id=${value.target_id},Port=${value.port}`,
+          ])
+        ).TargetHealthDescriptions,
+      );
+      if (
+        health.length !== 1 ||
+        object(health[0].Target).Id !== value.target_id ||
+        object(health[0].Target).Port !== value.port
+      )
+        throw new Error('Teardown NLB target health identity differs');
     } else if (type.startsWith('aws_ec2_transit_gateway_route_table_')) {
       parent(value.transit_gateway_attachment_id, [
         'aws_ec2_transit_gateway_connect',
@@ -314,6 +391,34 @@ export async function verifyAwsTerraformDestroyOwnership(
       );
       if (matches.length !== 1) throw new Error('Teardown TGW relationship is absent or ambiguous');
     }
+  }
+  const loadBalancers = [...live.values()].filter((row) => row.type === 'aws_lb').map((row) => row.value);
+  const targetGroups = [...live.values()].filter((row) => row.type === 'aws_lb_target_group').map((row) => row.value);
+  const listeners = [...live.values()].filter((row) => row.type === 'aws_lb_listener').map((row) => row.value);
+  if (loadBalancers.length || targetGroups.length || listeners.length) {
+    const ingress = intent.ingress?.mode === 'nlb' ? intent.ingress : undefined;
+    if (
+      loadBalancers.length !== 1 ||
+      targetGroups.length !== 1 ||
+      listeners.length !== 1 ||
+      loadBalancers[0].Type !== 'network' ||
+      loadBalancers[0].Scheme !== (ingress ? 'internal' : 'internet-facing') ||
+      parent(loadBalancers[0].VpcId, ['aws_vpc']).VpcId !== loadBalancers[0].VpcId ||
+      targetGroups[0].VpcId !== loadBalancers[0].VpcId ||
+      targetGroups[0].Protocol !== 'TCP' ||
+      targetGroups[0].Port !== (ingress?.port ?? 443) ||
+      listeners[0].LoadBalancerArn !== loadBalancers[0].LoadBalancerArn ||
+      listeners[0].Protocol !== 'TCP' ||
+      listeners[0].Port !== (ingress?.port ?? 443)
+    )
+      throw new Error('Terraform NLB topology differs from the ingress intent');
+    const actions = rows(listeners[0].DefaultActions);
+    if (
+      actions.length !== 1 ||
+      actions[0].Type !== 'forward' ||
+      actions[0].TargetGroupArn !== targetGroups[0].TargetGroupArn
+    )
+      throw new Error('Terraform NLB listener target differs');
   }
   const material: Omit<AwsTerraformRetirementInventory, 'sha256'> = {
     schemaVersion: 1,

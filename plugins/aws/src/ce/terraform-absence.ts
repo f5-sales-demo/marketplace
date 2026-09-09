@@ -1,5 +1,5 @@
 import type { AwsExecApi } from '../aws/exec';
-import { detectAwsError } from '../aws/exec';
+import { AwsNotFoundError, detectAwsError } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
 import { scopedAwsApi } from './scoped-exec';
@@ -74,8 +74,30 @@ const types: Record<string, [string, string, string, string, string]> = {
     'tgw-rtb',
   ],
 };
+const elbTypes: Record<string, [string, string, string, RegExp]> = {
+  aws_lb: [
+    'describe-load-balancers',
+    'LoadBalancers',
+    'LoadBalancerArns',
+    /^arn:[^:]+:elasticloadbalancing:[^:]+:\d{12}:loadbalancer\/net\/[A-Za-z0-9-]+\/[a-f0-9]+$/,
+  ],
+  aws_lb_target_group: [
+    'describe-target-groups',
+    'TargetGroups',
+    'TargetGroupArns',
+    /^arn:[^:]+:elasticloadbalancing:[^:]+:\d{12}:targetgroup\/[A-Za-z0-9-]+\/[a-f0-9]+$/,
+  ],
+  aws_lb_listener: [
+    'describe-listeners',
+    'Listeners',
+    'ListenerArns',
+    /^arn:[^:]+:elasticloadbalancing:[^:]+:\d{12}:listener\/net\/[A-Za-z0-9-]+\/[a-f0-9]+\/[a-f0-9]+$/,
+  ],
+};
 const validId = (type: string, id: unknown) =>
-  Object.hasOwn(types, type) && typeof id === 'string' && new RegExp(`^${types[type][4]}-[a-f0-9]{8,21}$`).test(id);
+  typeof id === 'string' &&
+  ((Object.hasOwn(types, type) && new RegExp(`^${types[type][4]}-[a-f0-9]{8,21}$`).test(id)) ||
+    (Object.hasOwn(elbTypes, type) && elbTypes[type][3].test(id)));
 /** Fresh cloud evidence for captured identities AND unexpected deployment-tagged resources.
  * Absence of a route table, subnet, or allocation proves its owned child route/association cannot remain.
  * Externally referenced TGW table edges are checked separately, including table absence.
@@ -210,6 +232,53 @@ export async function collectAwsTerraformAbsence(
       resources.push({ type, id: tag.ResourceId });
       ids.add(tag.ResourceId);
     }
+    const taggingTokens = new Set<string>();
+    let taggingToken: string | undefined;
+    do {
+      const response = await request('resourcegroupstaggingapi', 'get-resources', {
+        TagFilters: [{ Key: 'xcsh-deployment-id', Values: [inventory.deploymentId] }],
+        ...(taggingToken ? { PaginationToken: taggingToken } : {}),
+      });
+      const mappings = rows(response.ResourceTagMappingList);
+      for (const mapping of mappings) {
+        if (typeof mapping.ResourceARN !== 'string' || !mapping.ResourceARN.includes(':elasticloadbalancing:'))
+          continue;
+        const mappingTags = rows(mapping.Tags);
+        const tag = (key: string) => mappingTags.filter((row) => row.Key === key);
+        if (
+          tag('xcsh-deployment-id').length !== 1 ||
+          tag('xcsh-deployment-id')[0].Value !== inventory.deploymentId ||
+          tag('xcsh-managed-by').length !== 1 ||
+          tag('xcsh-managed-by')[0].Value !== 'aws-ce' ||
+          tag('xcsh-execution-engine').length !== 1 ||
+          tag('xcsh-execution-engine')[0].Value !== 'terraform' ||
+          tag('xcsh-plan-sha256').length !== 1 ||
+          tag('xcsh-plan-sha256')[0].Value !== plan.planSha256
+        )
+          throw new Error('Foreign or ambiguous tagged NLB resource');
+        if (ids.has(mapping.ResourceARN)) continue;
+        const type = Object.keys(elbTypes).find((candidate) => validId(candidate, mapping.ResourceARN));
+        if (!type) throw new Error('Unsupported tagged NLB resource requires absence evidence');
+        resources.push({ type, id: mapping.ResourceARN });
+        ids.add(mapping.ResourceARN);
+      }
+      if (
+        response.PaginationToken === undefined ||
+        response.PaginationToken === null ||
+        response.PaginationToken === ''
+      )
+        taggingToken = undefined;
+      else {
+        if (
+          typeof response.PaginationToken !== 'string' ||
+          taggingTokens.has(response.PaginationToken) ||
+          taggingTokens.size >= 1000
+        )
+          throw new Error('Incomplete tagged NLB pagination');
+        taggingToken = response.PaginationToken;
+        taggingTokens.add(taggingToken);
+      }
+    } while (taggingToken);
     const remaining: string[] = [],
       retainedTerminal: string[] = [];
     for (const [type, [operation, collection, idKey, filter]] of Object.entries(types)) {
@@ -233,6 +302,22 @@ export async function collectAwsTerraformAbsence(
           terminal = row.State === 'deleted';
         }
         (terminal ? retainedTerminal : remaining).push(id);
+      }
+    }
+    for (const [type, [operation, collection, argument]] of Object.entries(elbTypes)) {
+      const selected = resources.filter((row) => row.type === type).map((row) => row.id);
+      for (const id of selected) {
+        try {
+          const response = await request('elbv2', operation, { [argument]: [id] });
+          const found = rows(response[collection]);
+          if (found.length !== 1) throw new Error('Substituted NLB absence resource identity');
+          const key =
+            type === 'aws_lb' ? 'LoadBalancerArn' : type === 'aws_lb_target_group' ? 'TargetGroupArn' : 'ListenerArn';
+          if (found[0][key] !== id) throw new Error('Substituted NLB absence resource identity');
+          remaining.push(id);
+        } catch (error) {
+          if (!(error instanceof AwsNotFoundError)) throw error;
+        }
       }
     }
     for (const edge of inventory.tgwEdges) {

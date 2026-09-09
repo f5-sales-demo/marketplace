@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 import { canonicalSha256 } from '../../src/ce/canonical';
-import { bindTerraformConnectPeers } from '../../src/ce/terraform-routing';
+import { bindTerraformConnectPeers, bindTerraformIngress } from '../../src/ce/terraform-routing';
 import { foundationPlan } from './terraform-fixtures';
 
 function fixture() {
@@ -60,6 +60,32 @@ it('rejects duplicate peer identities, wrong physical roles and collapsed attach
     f.outputs.ce_connect_peers['2'] = { ...f.outputs.ce_connect_peers['2'], ...mutation };
     expect(() => bindTerraformConnectPeers(f.plan, f.outputs, {})).toThrow();
   }
+});
+
+it('binds only scoped Terraform NLB outputs for the explicit ingress intent', () => {
+  const f = fixture();
+  f.plan.intent.ingress = { mode: 'nlb', port: 8443, scheme: 'internal' };
+  f.plan.intent.partition = 'aws';
+  Object.assign(f.plan, {
+    partition: 'aws',
+    accountId: f.plan.intent.accountId,
+    region: f.plan.intent.region,
+  });
+  const prefix = `arn:aws:elasticloadbalancing:${f.plan.region}:${f.plan.accountId}`;
+  const output = {
+    load_balancer_arn: `${prefix}:loadbalancer/net/ce/abcdef12`,
+    target_group_arn: `${prefix}:targetgroup/ce/abcdef12`,
+    listener_arn: `${prefix}:listener/net/ce/abcdef12/abcdef12`,
+    port: 8443,
+    scheme: 'internal',
+  };
+  expect(bindTerraformIngress(f.plan, { ce_ingress: output })).toEqual({
+    __NLB_ARN__: output.load_balancer_arn,
+    __NLB_TARGET_GROUP_ARN__: output.target_group_arn,
+    __NLB_LISTENER_ARN__: output.listener_arn,
+  });
+  expect(() => bindTerraformIngress(f.plan, { ce_ingress: { ...output, port: 443 } })).toThrow();
+  expect(() => bindTerraformIngress(f.plan, { ce_ingress: { ...output, target_group_arn: 'foreign' } })).toThrow();
 });
 
 it('rejects incomplete, duplicated and cross-deployment replacement routing locators before observation', async () => {

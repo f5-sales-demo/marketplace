@@ -360,7 +360,7 @@ export async function collectAwsNetworkHealth(
         typeof target.Id !== 'string' ||
         !expected.includes(target.Id) ||
         seen.has(target.Id) ||
-        target.Port !== 443 ||
+        target.Port !== (plan.intent.ingress?.mode === 'nlb' ? plan.intent.ingress.port : 443) ||
         !['healthy', 'initial', 'unhealthy', 'unused', 'draining', 'unavailable', 'unhealthy.draining'].includes(
           String(health.State),
         )

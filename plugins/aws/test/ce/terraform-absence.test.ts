@@ -45,6 +45,7 @@ function fixture(mode = 'absent') {
               : [],
           ...(mode === 'partial' ? { NextToken: 'repeat' } : {}),
         },
+        'get-resources': { ResourceTagMappingList: [], PaginationToken: '' },
         'describe-vpcs':
           mode === 'malformed'
             ? {}
@@ -98,4 +99,76 @@ test('absence collector rejects forged inventory and cancellation without issuin
   await expect(collectAwsTerraformAbsence(f.plan, { ...f.inventory, resources: [] }, f.api)).rejects.toThrow();
   await expect(collectAwsTerraformAbsence(f.plan, f.inventory, f.api, AbortSignal.abort())).rejects.toThrow();
   expect(f.calls).toEqual([]);
+});
+
+test('absence collector recognizes deleted and retained NLB ARNs separately', async () => {
+  const plan = foundationPlan();
+  const prefix = `arn:aws:elasticloadbalancing:${plan.intent.region}:${plan.intent.accountId}`;
+  const resources = [
+    { type: 'aws_lb', id: `${prefix}:loadbalancer/net/ce/abcdef12` },
+    { type: 'aws_lb_target_group', id: `${prefix}:targetgroup/ce/abcdef12` },
+    { type: 'aws_lb_listener', id: `${prefix}:listener/net/ce/abcdef12/abcdef12` },
+  ];
+  const material = {
+    schemaVersion: 1 as const,
+    engine: 'terraform' as const,
+    accountId: plan.intent.accountId,
+    region: plan.intent.region,
+    deploymentId: plan.intent.deploymentName,
+    sourcePlanSha256: plan.planSha256,
+    terraformPlanSha256: 'a'.repeat(64),
+    resources,
+    tgwEdges: [],
+  };
+  const inventory = { ...material, sha256: canonicalSha256(material) };
+  let retained = false;
+  let unexpected: string | undefined;
+  const api = {
+    async exec(_command: string, args: string[]) {
+      const operation = args[1];
+      if (operation === 'get-caller-identity')
+        return { exitCode: 0, stdout: JSON.stringify({ Account: plan.intent.accountId }), stderr: '' };
+      if (operation === 'describe-tags') return { exitCode: 0, stdout: JSON.stringify({ Tags: [] }), stderr: '' };
+      if (operation === 'get-resources')
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            ResourceTagMappingList: unexpected
+              ? [
+                  {
+                    ResourceARN: unexpected,
+                    Tags: [
+                      { Key: 'xcsh-managed-by', Value: 'aws-ce' },
+                      { Key: 'xcsh-execution-engine', Value: 'terraform' },
+                      { Key: 'xcsh-deployment-id', Value: plan.intent.deploymentName },
+                      { Key: 'xcsh-plan-sha256', Value: plan.planSha256 },
+                    ],
+                  },
+                ]
+              : [],
+            PaginationToken: '',
+          }),
+          stderr: '',
+        };
+      const input = JSON.parse(args[args.indexOf('--cli-input-json') + 1]);
+      const [id] = input.LoadBalancerArns ?? input.TargetGroupArns ?? input.ListenerArns;
+      if (!retained) return { exitCode: 1, stdout: '', stderr: `${operation}NotFound` };
+      const [collection, key] =
+        operation === 'describe-load-balancers'
+          ? ['LoadBalancers', 'LoadBalancerArn']
+          : operation === 'describe-target-groups'
+            ? ['TargetGroups', 'TargetGroupArn']
+            : ['Listeners', 'ListenerArn'];
+      return { exitCode: 0, stdout: JSON.stringify({ [collection]: [{ [key]: id }] }), stderr: '' };
+    },
+  };
+  expect((await collectAwsTerraformAbsence(plan, inventory, api)).status).toBe('absent-or-retired');
+  retained = true;
+  const present = await collectAwsTerraformAbsence(plan, inventory, api);
+  expect(present.status).toBe('pending');
+  expect(present.remaining).toEqual(resources.map((row) => row.id));
+  unexpected = `${prefix}:loadbalancer/net/unexpected/abcdef12`;
+  const expanded = await collectAwsTerraformAbsence(plan, inventory, api);
+  expect(expanded.status).toBe('pending');
+  expect(expanded.remaining).toContain(unexpected);
 });

@@ -1,5 +1,7 @@
 import { expect, it } from 'bun:test';
+import { canonicalSha256 } from '../../src/ce/canonical';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
+import type { AwsCePlan } from '../../src/ce/types';
 import { foundationPlan } from './terraform-fixtures';
 
 const bootstrap = '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-only\n';
@@ -40,4 +42,23 @@ it('rejects partial HA admission, unresolved bootstrap and native or obsolete pl
   expect(() => renderAwsTerraformFoundation(foundationPlan(), { 1: `${bootstrap}__TOKEN__` })).toThrow('resolved');
   expect(() => renderAwsTerraformFoundation({ ...foundationPlan(), engine: 'native' })).toThrow();
   expect(() => renderAwsTerraformFoundation({ ...foundationPlan(), schemaVersion: 1 } as never)).toThrow();
+});
+
+it('composes internal NLB ingress with TGW routing and cumulative admission', () => {
+  const source = foundationPlan();
+  const { planId: _id, planSha256: _sha, ...draft } = source;
+  draft.intent = { ...draft.intent, ingress: { mode: 'nlb', port: 8443, scheme: 'internal' } };
+  const planSha256 = canonicalSha256(draft);
+  const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` } as AwsCePlan;
+  const network = JSON.parse(renderAwsTerraformFoundation(plan));
+  expect(network.resource.aws_lb.ce.internal).toBe(true);
+  expect(network.resource.aws_lb.ce.load_balancer_type).toBe('network');
+  expect(network.resource.aws_lb.ce.enable_cross_zone_load_balancing).toBe(true);
+  expect(network.resource.aws_lb_target_group.ce.port).toBe(8443);
+  expect(network.resource.aws_lb_listener.ce.default_action[0].target_group_arn).toContain('aws_lb_target_group');
+  expect(network.resource.aws_lb_target_group_attachment).toBeUndefined();
+  expect(network.output.ce_ingress.value.scheme).toBe('internal');
+  const admitted = JSON.parse(renderAwsTerraformFoundation(plan, { 1: bootstrap, 2: bootstrap }));
+  expect(Object.keys(admitted.resource.aws_lb_target_group_attachment)).toEqual(['node_1', 'node_2']);
+  expect(admitted.resource.aws_lb_target_group_attachment.node_1.target_id).toContain('node_1_nic_0.private_ip');
 });

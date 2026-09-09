@@ -42,6 +42,9 @@ contract for their acceptance scope and public-tool integration status.
    every region in stable rank order, the exact regional SSM parameter version and AMI, agreement,
    instance/ENI/AZ/quota/policy evidence, and a discovery artifact.
 3. Translate the request into `AwsCeIntent` schema v2 with an explicit `native` or `terraform` engine
+   and model internal NLB ingress separately from the routing profile. This permits an explicit
+   NLB plus TGW Connect composition without treating the load balancer as a route next hop. Require
+   current NLB quota and platform capability evidence for that composition,
    and call `aws_ce_plan`. Native is the conversational default; preserve explicit Terraform intent. Show the plan ID/hash,
    exact AMI, topology/ENI order, egress/routing/security changes, restoration state, billable
    resources, warnings, and ordered argv actions before approval.

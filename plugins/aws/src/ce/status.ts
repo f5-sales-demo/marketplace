@@ -102,6 +102,34 @@ export async function collectAwsCeStatus(
     observedAt,
     source: 'per-site-observations',
   });
+  const networkApi = scopedAwsApi(api, plan.intent.awsProfile, signal);
+  const hasNlb = plan.routing?.profile === 'nlb-ingress' || plan.intent.ingress?.mode === 'nlb';
+  let routing: Record<string, unknown>;
+  if (plan.routing?.profile === 'tgw-connect' && hasNlb) {
+    const [bgp, ingress] = await Promise.all([
+      collectAwsNetworkHealth('bgp', plan, checkpoint, networkApi, signal),
+      collectAwsNetworkHealth('nlb', plan, checkpoint, networkApi, signal),
+    ]);
+    routing = {
+      status:
+        bgp.status === 'healthy' && ingress.status === 'healthy'
+          ? 'healthy'
+          : bgp.status === 'unknown' || ingress.status === 'unknown'
+            ? 'unknown'
+            : 'degraded',
+      source: 'aws-cli-live',
+      bgp,
+      ingress,
+    };
+  } else if (plan.routing?.profile === 'tgw-connect' || hasNlb)
+    routing = await collectAwsNetworkHealth(
+      plan.routing.profile === 'tgw-connect' ? 'bgp' : 'nlb',
+      plan,
+      checkpoint,
+      networkApi,
+      signal,
+    );
+  else routing = unknown('route-collector-pending');
   return {
     schemaVersion: 2,
     deploymentId: plan.deploymentName,
@@ -115,16 +143,7 @@ export async function collectAwsCeStatus(
     },
     aws,
     f5: { registration: aggregate('registration'), health: aggregate('health'), sites },
-    routing:
-      plan.routing?.profile === 'tgw-connect' || plan.routing?.profile === 'nlb-ingress'
-        ? await collectAwsNetworkHealth(
-            plan.routing.profile === 'tgw-connect' ? 'bgp' : 'nlb',
-            plan,
-            checkpoint,
-            scopedAwsApi(api, plan.intent.awsProfile, signal),
-            signal,
-          )
-        : unknown('route-collector-pending'),
+    routing,
     traffic: unknown('traffic-collector-pending'),
   };
 }

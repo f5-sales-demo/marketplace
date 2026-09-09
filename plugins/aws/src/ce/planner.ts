@@ -84,6 +84,13 @@ function connectAttachmentCount(intent: AwsCeIntent): number {
   return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
 }
 
+export function awsCeNlbIngress(
+  intent: AwsCeIntent,
+): { port: number; scheme: 'internal' | 'internet-facing' } | undefined {
+  if (intent.ingress?.mode === 'nlb') return { port: intent.ingress.port, scheme: intent.ingress.scheme };
+  return intent.routing.profile === 'nlb-ingress' ? { port: 443, scheme: 'internet-facing' } : undefined;
+}
+
 function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
   if (input.schemaVersion !== AWS_CE_SCHEMA_VERSION)
     fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
@@ -261,8 +268,30 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('TGW Connect inside CIDRs must be non-overlapping');
   }
   if (input.routing.profile === 'nlb-ingress') {
+    if (input.ingress !== undefined) fail('Legacy NLB routing profile cannot be combined with explicit ingress');
     if (input.topology.nodeCount !== 3) fail('NLB ingress requires a three-node, three-zone topology');
     if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
+      fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
+  }
+  if (input.ingress !== undefined) {
+    const ingressKeys = Object.keys(input.ingress).sort().join(',');
+    if (
+      (input.ingress.mode === 'none' && ingressKeys !== 'mode') ||
+      (input.ingress.mode === 'nlb' && ingressKeys !== 'mode,port,scheme')
+    )
+      fail('Ingress fields differ from the selected mode');
+    if (
+      input.ingress.mode === 'nlb' &&
+      (input.ingress.scheme !== 'internal' ||
+        !Number.isInteger(input.ingress.port) ||
+        input.ingress.port < 1 ||
+        input.ingress.port > 65535)
+    )
+      fail('Explicit NLB ingress requires an internal scheme and a valid TCP port');
+    if (!['none', 'nlb'].includes(input.ingress.mode)) fail('Ingress mode is invalid');
+    if (input.ingress.mode === 'nlb' && input.topology.nodeCount !== 3)
+      fail('NLB ingress requires a three-node, three-zone topology');
+    if (input.ingress.mode === 'nlb' && !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
       fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
   }
   for (const routeTableId of [...input.routing.associations, ...input.routing.propagations])
@@ -286,6 +315,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       associations: [...new Set(input.routing.associations)].sort(),
       propagations: [...new Set(input.routing.propagations)].sort(),
     },
+    ingress: input.ingress === undefined ? undefined : structuredClone(input.ingress),
     securityGroups: [...input.securityGroups]
       .map((group) => ({
         ...group,
@@ -821,7 +851,7 @@ function compileActions(
           mutates: false,
           destructive: false,
         });
-      if (intent.routing.profile === 'nlb-ingress')
+      if (awsCeNlbIngress(intent))
         add({
           phase: 'verify',
           kind: 'nlb-gate',
@@ -869,7 +899,7 @@ function compileActions(
         destructive: false,
       });
     }
-    if (intent.routing.profile === 'nlb-ingress')
+    if (awsCeNlbIngress(intent))
       add({
         phase: 'verify',
         kind: 'nlb-gate',
@@ -1085,7 +1115,7 @@ function compileActions(
         mutates: false,
         destructive: false,
       });
-    if (intent.routing.profile === 'nlb-ingress')
+    if (awsCeNlbIngress(intent))
       add({
         phase: 'verify',
         kind: 'nlb-gate',
@@ -1479,7 +1509,8 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
-  if (intent.routing.profile === 'nlb-ingress') {
+  const nlbIngress = awsCeNlbIngress(intent);
+  if (nlbIngress) {
     const subnetIds = intent.interfaces[0].subnets.map(
       (subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_0__`,
     );
@@ -1495,6 +1526,7 @@ function compileActions(
         `${intent.deploymentName}-nlb`,
         '--type',
         'network',
+        ...(nlbIngress.scheme === 'internal' ? ['--scheme', 'internal'] : []),
         '--subnets',
         ...subnetIds,
         '--tags',
@@ -1523,7 +1555,7 @@ function compileActions(
         '--protocol',
         'TCP',
         '--port',
-        '443',
+        String(nlbIngress.port),
         '--target-type',
         'ip',
         '--vpc-id',
@@ -1576,7 +1608,7 @@ function compileActions(
         '--protocol',
         'TCP',
         '--port',
-        '443',
+        String(nlbIngress.port),
         '--default-actions',
         'Type=forward,TargetGroupArn=__NLB_TARGET_GROUP_ARN__',
         ...base,
@@ -1592,7 +1624,6 @@ function compileActions(
       description: 'Enable NLB cross-zone load balancing',
       command: 'aws',
       args: [
-        'elbv2',
         'modify-load-balancer-attributes',
         '--load-balancer-arn',
         '__NLB_ARN__',
@@ -2007,6 +2038,16 @@ export function compileAwsCePlan(
     !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes(intent.routing.profile)
   )
     fail(`F5 platform does not advertise ${intent.routing.profile} for AWS SMSv2`);
+  if (
+    intent.ingress?.mode === 'nlb' &&
+    !observation.f5Capabilities.providerNetworkingProfiles.aws?.includes('nlb-ingress')
+  )
+    fail('F5 platform does not advertise NLB ingress for AWS SMSv2');
+  if (
+    intent.ingress?.mode === 'nlb' &&
+    !region.networkQuotas.some((quota) => /network load balancers.*region/i.test(quota.quotaName) && quota.value >= 1)
+  )
+    fail('Fresh regional NLB quota evidence is unavailable');
   if (intent.routing.profile.startsWith('tgw-') && !region.transitGatewaySupported)
     fail('Transit Gateway is unavailable in the selected region');
   const observationById = new Map(observation.resources.map((resource) => [resource.id, resource]));
@@ -2064,7 +2105,7 @@ export function compileAwsCePlan(
     { type: 'ec2-instance', count: intent.topology.nodeCount },
     { type: 'gp3-volume', count: intent.topology.nodeCount },
     ...(intent.egress.mode === 'elastic-ip' ? [{ type: 'elastic-ip', count: intent.topology.nodeCount }] : []),
-    ...(intent.routing.profile === 'nlb-ingress' ? [{ type: 'network-load-balancer', count: 1 }] : []),
+    ...(awsCeNlbIngress(intent) ? [{ type: 'network-load-balancer', count: 1 }] : []),
     ...(intent.routing.profile.startsWith('tgw-')
       ? [
           {

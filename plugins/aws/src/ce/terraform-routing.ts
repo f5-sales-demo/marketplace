@@ -76,6 +76,28 @@ export function bindTerraformConnectPeers(
   return values;
 }
 
+export function bindTerraformIngress(plan: AwsCePlan, outputs: Record<string, unknown>): Record<string, string> {
+  if (plan.intent.ingress?.mode !== 'nlb') return {};
+  const ingress = object(outputs.ce_ingress);
+  const prefix = `arn:${plan.intent.partition}:elasticloadbalancing:${plan.region}:${plan.accountId}`;
+  if (
+    typeof ingress.load_balancer_arn !== 'string' ||
+    !ingress.load_balancer_arn.startsWith(`${prefix}:loadbalancer/net/`) ||
+    typeof ingress.target_group_arn !== 'string' ||
+    !ingress.target_group_arn.startsWith(`${prefix}:targetgroup/`) ||
+    typeof ingress.listener_arn !== 'string' ||
+    !ingress.listener_arn.startsWith(`${prefix}:listener/net/`) ||
+    ingress.port !== plan.intent.ingress.port ||
+    ingress.scheme !== plan.intent.ingress.scheme
+  )
+    throw new Error('Terraform NLB output differs from the ingress intent');
+  return {
+    __NLB_ARN__: ingress.load_balancer_arn,
+    __NLB_TARGET_GROUP_ARN__: ingress.target_group_arn,
+    __NLB_LISTENER_ARN__: ingress.listener_arn,
+  };
+}
+
 export async function configureAwsTerraformRouting(
   plan: AwsCePlan,
   session: TerraformSession,
@@ -89,7 +111,7 @@ export async function configureAwsTerraformRouting(
   await storage.verify();
   if (rebind) validateAwsRoutingRebind(plan, rebind);
   const outputs = await session.readOutputs(
-    ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_connect_peers', 'ce_transport_attachment'],
+    ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_connect_peers', 'ce_transport_attachment', 'ce_ingress'],
     env,
     signal,
   );
@@ -106,6 +128,7 @@ export async function configureAwsTerraformRouting(
         Object.entries(rebind?.checkpoint.resolvedValues ?? {}).filter(([key]) => key.startsWith('__XC_ROUTING_')),
       ),
       ...bindTerraformConnectPeers(plan, outputs, discovered.bindings),
+      ...bindTerraformIngress(plan, outputs),
     },
   } as AwsCeCheckpoint;
   const persist = () => storage.write('terraform-routing-checkpoint.json', checkpoint);

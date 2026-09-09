@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { Deployment } from '../../../terraform/src/runner';
 import { verifyAwsCePlan } from './artifacts';
+import { awsCeNlbIngress } from './planner';
 import { siteForNode, siteTopology } from './topology';
 import type { AwsCePlan } from './types';
 
@@ -152,6 +153,40 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       hostname: `${intent.deploymentName}-${node}`,
     };
   }
+  const ingress = awsCeNlbIngress(intent);
+  if (ingress) {
+    add('aws_lb', 'ce', {
+      name: literal(`${intent.deploymentName}-nlb`),
+      internal: ingress.scheme === 'internal',
+      load_balancer_type: 'network',
+      subnets: intent.interfaces[0].subnets.map((_subnet, index) => ref(`aws_subnet.node_${index + 1}_nic_0.id`)),
+      enable_cross_zone_load_balancing: true,
+      tags: tags(),
+    });
+    add('aws_lb_target_group', 'ce', {
+      name: literal(`${intent.deploymentName}-ce`),
+      port: ingress.port,
+      protocol: 'TCP',
+      target_type: 'ip',
+      vpc_id: ref('aws_vpc.ce.id'),
+      health_check: [{ protocol: 'TCP', port: 'traffic-port' }],
+      tags: tags(),
+    });
+    add('aws_lb_listener', 'ce', {
+      load_balancer_arn: ref('aws_lb.ce.arn'),
+      port: ingress.port,
+      protocol: 'TCP',
+      default_action: [{ type: 'forward', target_group_arn: ref('aws_lb_target_group.ce.arn') }],
+      tags: tags(),
+    });
+    for (const node of admitted)
+      add('aws_lb_target_group_attachment', `node_${node}`, {
+        target_group_arn: ref('aws_lb_target_group.ce.arn'),
+        target_id: ref(`aws_network_interface.node_${node}_nic_0.private_ip`),
+        port: ingress.port,
+        depends_on: [`aws_instance.node_${node}`],
+      });
+  }
   return JSON.stringify({
     terraform: {
       required_version: `= ${AWS_CE_TERRAFORM_VERSION}`,
@@ -169,6 +204,20 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       ce_vpc_id: { value: ref('aws_vpc.ce.id') },
       ce_interfaces: { value: interfaceOutputs },
       ce_instances: { value: instanceOutputs },
+      ...(ingress
+        ? {
+            ce_ingress: {
+              value: {
+                load_balancer_arn: ref('aws_lb.ce.arn'),
+                dns_name: ref('aws_lb.ce.dns_name'),
+                target_group_arn: ref('aws_lb_target_group.ce.arn'),
+                listener_arn: ref('aws_lb_listener.ce.arn'),
+                port: ingress.port,
+                scheme: ingress.scheme,
+              },
+            },
+          }
+        : {}),
     },
   });
 }
