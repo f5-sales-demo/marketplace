@@ -116,6 +116,7 @@ it('rejects incomplete, duplicated and cross-deployment replacement routing loca
     resolvedValues: {
       '__XC_ROUTING_ce-gre-1__': 'one',
       '__XC_ROUTING_ce-gre-2__': 'two',
+      '__XC_ROUTING_site-1-tgw-export-policy__': 'policy',
       '__XC_ROUTING_site-1-tgw-bgp__': 'three',
     },
   };

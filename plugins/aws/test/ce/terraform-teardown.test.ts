@@ -42,6 +42,11 @@ function fixture(failAt = '') {
       siteUid: `uid-${index}`,
       routing: [
         { kind: 'bgp' as const, name: `${binding.siteName}-tgw-bgp`, uid: `bgp-${index}` },
+        {
+          kind: 'bgp_routing_policy' as const,
+          name: `${binding.siteName}-tgw-export-policy`,
+          uid: `policy-${index}`,
+        },
         ...[1, 2].map((n) => ({
           kind: 'external_connector' as const,
           name: `ce-gre-${index * 2 + n}`,

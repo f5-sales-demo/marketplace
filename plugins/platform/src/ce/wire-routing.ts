@@ -16,7 +16,7 @@ export function buildAwsRouting(
   localAsn: number,
   remoteAsn: number,
   bindings: AwsGreBinding[],
-  validate: (kind: 'external_connector' | 'bgp', spec: Json) => void,
+  validate: (kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json) => void,
 ) {
   const name = /^[a-z][a-z0-9-]{0,62}$/;
   if (
@@ -90,6 +90,22 @@ export function buildAwsRouting(
     validate('external_connector', spec);
     return { name: binding.name, spec };
   });
+  const exportPolicy = {
+    name: `${siteName.slice(0, 43)}-tgw-export-policy`,
+    spec: {
+      rules: [
+        {
+          match: {
+            ip_prefixes: {
+              prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }],
+            },
+          },
+          action: { deny: {} },
+        },
+      ],
+    },
+  };
+  validate('bgp_routing_policy', exportPolicy.spec);
   const bgpSpec = {
     where: {
       site: { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL_INSIDE', ref: [{ name: siteName, namespace: 'system' }] },
@@ -108,12 +124,22 @@ export function buildAwsRouting(
         },
         passive_mode_disabled: {},
         bfd_disabled: {},
+        routing_policies: {
+          route_policy: [
+            {
+              all_nodes: {},
+              outbound: {},
+              object_refs: [{ name: exportPolicy.name, namespace: 'system' }],
+            },
+          ],
+        },
       })),
     ),
   };
   validate('bgp', bgpSpec);
   return {
     connectors,
+    exportPolicy,
     bgp: { name: `${siteName.slice(0, 55)}-tgw-bgp`, spec: bgpSpec },
     payloadNetwork: 'sli',
     expectedSessions: bindings.length * 2,
@@ -123,9 +149,10 @@ export function buildAwsRouting(
 export function routingValidators(
   network: Json,
   marketplace: Json,
-): (kind: 'external_connector' | 'bgp', spec: Json) => void {
+): (kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json) => void {
   const validators = {
     bgp: createWireValidator(network, 'bgpCreateSpecType'),
+    bgp_routing_policy: createWireValidator(network, 'schemabgp_routing_policyCreateSpecType'),
     external_connector: createWireValidator(marketplace, 'external_connectorCreateSpecType'),
   };
   return (kind, spec) => validators[kind](spec);

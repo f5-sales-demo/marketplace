@@ -83,7 +83,10 @@ export function compileAwsTerraformTeardown(
         kind: 'external_connector',
         name: `${base.deploymentName.slice(0, 24)}-gre-${peers.indexOf(action) + 1}`,
       }));
-    if (expected.length) expected.push({ kind: 'bgp', name: `${site.name.slice(0, 55)}-tgw-bgp` });
+    if (expected.length) {
+      expected.push({ kind: 'bgp_routing_policy', name: `${site.name.slice(0, 43)}-tgw-export-policy` });
+      expected.push({ kind: 'bgp', name: `${site.name.slice(0, 55)}-tgw-bgp` });
+    }
     if (
       !Array.isArray(planned.routing) ||
       planned.routing.length !== expected.length ||

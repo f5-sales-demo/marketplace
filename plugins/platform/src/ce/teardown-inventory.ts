@@ -15,7 +15,7 @@ const ownerLabels = (owner: CeOwner) => ({
   'xcsh-ce-region': owner.region,
 });
 export interface CeTeardownResource {
-  kind: 'tokens' | 'http_loadbalancers' | 'origin_pools' | 'bgps' | 'external_connectors';
+  kind: 'tokens' | 'http_loadbalancers' | 'origin_pools' | 'bgps' | 'bgp_routing_policys' | 'external_connectors';
   name: string;
   namespace: string;
   uid: string;
@@ -133,6 +133,7 @@ export async function collectCeTeardownInventory(
     const collections: Array<{ kind: CeTeardownResource['kind']; namespace: string; prefix: string }> = [
       { kind: 'tokens', namespace: 'system', prefix: 'register' },
       { kind: 'bgps', namespace: 'system', prefix: 'config' },
+      { kind: 'bgp_routing_policys', namespace: 'system', prefix: 'config' },
       { kind: 'external_connectors', namespace: 'system', prefix: 'config' },
       ...namespaces.flatMap((namespace) => [
         { kind: 'http_loadbalancers' as const, namespace, prefix: 'config' },
@@ -172,7 +173,7 @@ export async function collectCeTeardownInventory(
           selected.node = node;
           selected.siteName = nodes.get(node);
         }
-        if (kind === 'bgps' || kind === 'external_connectors') {
+        if (kind === 'bgps' || kind === 'bgp_routing_policys' || kind === 'external_connectors') {
           const siteName = rowLabels['xcsh-ce-site'],
             siteUid = rowLabels['xcsh-ce-site-uid'];
           if (

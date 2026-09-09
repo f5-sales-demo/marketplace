@@ -42,6 +42,7 @@ const plan: CePlatformDrainPlan = {
       siteUid: 'site-uid',
       routing: [
         { kind: 'bgp', name: 'bgp-one', uid: 'bgp-uid' },
+        { kind: 'bgp_routing_policy', name: 'policy-one', uid: 'policy-uid' },
         { kind: 'external_connector', name: 'gre-one', uid: 'gre-uid' },
       ],
     },
@@ -51,7 +52,7 @@ async function fixture(failAt = 0) {
   const root = await mkdtemp(join(tmpdir(), 'ce-drain-'));
   dirs.push(root);
   const store = await CeDeploymentStore.open(root, owner);
-  const remaining = new Set(['listener', 'origin', 'bgp-one', 'gre-one']);
+  const remaining = new Set(['listener', 'origin', 'bgp-one', 'policy-one', 'gre-one']);
   const changes: string[] = [];
   const state = { siteUid: 'site-uid', engine: 'terraform' as 'native' | 'terraform', pendingOrigin: false };
   async function remove(name: string) {
@@ -84,12 +85,12 @@ async function fixture(failAt = 0) {
   return { store, port, state, remaining, changes };
 }
 test('platform drain resumes each lost mutation without duplicates and preserves dependency order', async () => {
-  for (let boundary = 1; boundary <= 4; boundary++) {
+  for (let boundary = 1; boundary <= 5; boundary++) {
     const f = await fixture(boundary);
     await expect(drainCePlatform(plan, f.store, f.port)).rejects.toThrow('lost mutation');
     expect((await drainCePlatform(plan, f.store, f.port)).status).toBe('platform-drained');
     expect((await drainCePlatform(plan, f.store, f.port)).status).toBe('platform-drained');
-    expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'gre-one']);
+    expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'policy-one', 'gre-one']);
     expect(f.remaining.size).toBe(0);
   }
 });
@@ -128,7 +129,7 @@ test('platform drain stops at pending origin and checkpoints before honoring can
 });
 
 test('platform drain recovers checkpoint write failure and never treats forged progress as deletion evidence', async () => {
-  for (let boundary = 1; boundary <= 4; boundary++) {
+  for (let boundary = 1; boundary <= 5; boundary++) {
     const f = await fixture();
     const write = f.store.write.bind(f.store);
     let writes = 0;
@@ -139,7 +140,7 @@ test('platform drain recovers checkpoint write failure and never treats forged p
     await expect(drainCePlatform(plan, f.store, f.port)).rejects.toThrow('checkpoint unavailable');
     await write('platform-drain-progress.json', { completed: ['everything'], status: 'platform-drained' });
     expect((await drainCePlatform(plan, f.store, f.port)).status).toBe('platform-drained');
-    expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'gre-one']);
+    expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'policy-one', 'gre-one']);
   }
   const f = await fixture();
   f.state.pendingOrigin = true;
@@ -157,5 +158,5 @@ test('platform drain can reverify absent objects after sites retire without acce
     throw new CeApiError('not-found');
   };
   expect((await drainCePlatform(plan, f.store, f.port)).status).toBe('platform-drained');
-  expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'gre-one']);
+  expect(f.changes).toEqual(['listener', 'origin', 'bgp-one', 'policy-one', 'gre-one']);
 });

@@ -3,7 +3,7 @@ import type { CeDeploymentStore } from './deployment-store';
 import type { OriginTeardownSnapshot } from './origin-teardown';
 import { CeApiError, type CeOwner, type SiteBinding } from './runtime';
 
-type RoutingResource = { kind: 'bgp' | 'external_connector'; name: string; uid: string };
+type RoutingResource = { kind: 'bgp' | 'bgp_routing_policy' | 'external_connector'; name: string; uid: string };
 export interface CePlatformDrainPlan {
   schemaVersion: 1;
   owner: CeOwner;
@@ -106,7 +106,7 @@ function validate(plan: CePlatformDrainPlan, store: CeDeploymentStore, port: Por
     for (const resource of site.routing) {
       if (
         !resource ||
-        !['bgp', 'external_connector'].includes(resource.kind) ||
+        !['bgp', 'bgp_routing_policy', 'external_connector'].includes(resource.kind) ||
         !name(resource.name) ||
         !text(resource.uid)
       )
@@ -181,8 +181,8 @@ export async function drainCePlatform(
     completed.push(`origin:${origin.origin.namespace}/${origin.origin.name}`);
     await checkpoint();
   }
-  // BGP must disappear before its GRE connector dependencies, regardless of input order.
-  for (const kind of ['bgp', 'external_connector'] as const)
+  // BGP must disappear before its policy and GRE connector dependencies, regardless of input order.
+  for (const kind of ['bgp', 'bgp_routing_policy', 'external_connector'] as const)
     for (const site of plan.sites)
       for (const resource of site.routing.filter((row) => row.kind === kind)) {
         await boundary();

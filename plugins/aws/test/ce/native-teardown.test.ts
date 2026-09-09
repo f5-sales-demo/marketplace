@@ -79,6 +79,11 @@ function fixture() {
       siteUid: `uid-${site.name}`,
       routing: [
         { kind: 'bgp' as const, name: `${site.name}-tgw-bgp`, uid: `bgp-${site.name}` },
+        {
+          kind: 'bgp_routing_policy' as const,
+          name: `${site.name}-tgw-export-policy`,
+          uid: `policy-${site.name}`,
+        },
         ...actions
           .filter((action) => site.nodeIndexes.includes(action.node))
           .map((action) => ({
@@ -103,7 +108,7 @@ test('binds native platform retirement to an exact fresh cloud teardown plan', (
   const plan = compileAwsNativeTeardown(f.base, f.cloud, f.drain, f.retirement);
   expect(plan.cloudPlanId).toBe(f.cloud.planId);
   expect(plan.retirement).toHaveLength(3);
-  expect(plan.drain.sites.flatMap((site) => site.routing)).toHaveLength(9);
+  expect(plan.drain.sites.flatMap((site) => site.routing)).toHaveLength(12);
   expect(() =>
     compileAwsNativeTeardown(f.base, { ...f.cloud, planSha256: '0'.repeat(64) }, f.drain, f.retirement),
   ).toThrow('integrity');

@@ -66,6 +66,14 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
       siteName: binding.siteName,
       siteUid: `site-${index}`,
     },
+    {
+      kind: 'bgp_routing_policys',
+      name: `${binding.siteName}-tgw-export-policy`,
+      namespace: 'system',
+      uid: `policy-${index}`,
+      siteName: binding.siteName,
+      siteUid: `site-${index}`,
+    },
     ...[1, 2].map((n) => ({
       kind: 'external_connectors',
       name: `ce-gre-${index * 2 + n}`,
@@ -94,7 +102,12 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
       ownerSha256: canonicalSha256(owner),
       resources: routes.map((row) => ({
         siteName: row.siteName,
-        kind: row.kind === 'bgps' ? 'bgp' : 'external_connector',
+        kind:
+          row.kind === 'bgps'
+            ? 'bgp'
+            : row.kind === 'bgp_routing_policys'
+              ? 'bgp_routing_policy'
+              : 'external_connector',
         name: row.name,
         uid: mode === 'wrong-routing' ? 'foreign' : row.uid,
       })),
@@ -157,7 +170,7 @@ test('builds the complete Terraform teardown manifest from live identities and p
   const f = await fixture();
   const plan = await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage);
   expect(plan.retirement.length).toBe(3);
-  expect(plan.drain.sites.flatMap((site) => site.routing).length).toBe(9);
+  expect(plan.drain.sites.flatMap((site) => site.routing).length).toBe(12);
   expect(plan.drain.listeners.length).toBe(1);
   expect(plan.drain.origins.length).toBe(1);
   expect(plan.retirement.flatMap((site) => site.tokens).length).toBe(3);
@@ -169,7 +182,7 @@ test('collects the same complete teardown material for a native-owned deployment
   const f = await fixture('valid', 'native');
   const material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
   expect(material.retirement).toHaveLength(3);
-  expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(9);
+  expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(12);
   expect(JSON.stringify(material)).not.toContain('never-export-bootstrap');
 });
 test('rejects incomplete, changed and uncorrelated teardown inventory before publishing a plan', async () => {

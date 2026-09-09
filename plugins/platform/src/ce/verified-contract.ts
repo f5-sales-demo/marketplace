@@ -103,6 +103,7 @@ export class VerifiedCeContract {
     if (assets['network.json'] && assets['marketplace.json']) {
       for (const [file, kind] of [
         ['network.json', 'bgp'],
+        ['network.json', 'bgp_routing_policy'],
         ['marketplace.json', 'external_connector'],
       ] as const) {
         const path = object(object(assets[file].paths)[`/api/config/namespaces/{metadata.namespace}/${kind}s`]);
@@ -124,7 +125,7 @@ export class VerifiedCeContract {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     return buildAwsRouting(siteName, localAsn, remoteAsn, bindings, this.#routing);
   }
-  validateRouting(kind: 'external_connector' | 'bgp', spec: Json): void {
+  validateRouting(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json): void {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     this.#routing(kind, spec);
   }

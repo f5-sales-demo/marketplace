@@ -125,6 +125,7 @@ function fixture() {
     [1, 2, 3].flatMap((node) => [
       [`__XC_ROUTING_ce-gre-${node * 2 - 1}__`, `gre-${node * 2 - 1}`],
       [`__XC_ROUTING_ce-gre-${node * 2}__`, `gre-${node * 2}`],
+      [`__XC_ROUTING_site-${node}-tgw-export-policy__`, `policy-${node}`],
       [`__XC_ROUTING_site-${node}-tgw-bgp__`, `bgp-${node}`],
     ]),
   );
@@ -207,7 +208,7 @@ test('Terraform rebind rediscovers attachments, restores only the selected site 
   expect(f.calls).toHaveLength(1);
   expect(f.calls[0][0].siteName).toBe('site-2');
   expect(f.calls[0][6]?.siteUid).toBe('replacement-site-2');
-  expect(f.calls[0][6]?.resources.map((r) => r.uid)).toEqual(['gre-3', 'gre-4', 'bgp-2']);
+  expect(f.calls[0][6]?.resources.map((r) => r.uid)).toEqual(['gre-3', 'gre-4', 'policy-2', 'bgp-2']);
   expect(f.calls[0][3].map((item) => [item.node, item.interfaceName])).toEqual([
     ['ce-2', 'ens5'],
     ['ce-2', 'ens6'],

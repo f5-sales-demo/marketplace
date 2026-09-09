@@ -25,21 +25,22 @@ async function candidate(withRouting = false) {
     'smsv2-evidence-receipt.json': { contract_id: contract.contract_id },
   };
   if (withRouting) {
-    for (const [file, kind] of [
-      ['network', 'bgp'],
-      ['marketplace', 'external_connector'],
-    ] as const) {
+    for (const file of ['network', 'marketplace'] as const) {
+      const kinds = file === 'network' ? ['bgp', 'bgp_routing_policy'] : ['external_connector'];
       data[`${file}.json`] = {
         components: { schemas: routingSchema.schemas[file] },
-        paths: {
-          [`/api/config/namespaces/{metadata.namespace}/${kind}s`]: {
-            post: {
-              requestBody: {
-                content: { 'application/json': { schema: { $ref: `#/components/schemas/${kind}CreateRequest` } } },
+        paths: Object.fromEntries(
+          kinds.map((kind) => [
+            `/api/config/namespaces/{metadata.namespace}/${kind}s`,
+            {
+              post: {
+                requestBody: {
+                  content: { 'application/json': { schema: { $ref: `#/components/schemas/${kind}CreateRequest` } } },
+                },
               },
             },
-          },
-        },
+          ]),
+        ),
       };
     }
   }
@@ -521,16 +522,20 @@ test('creates schema-validated routing objects in order and resumes lost respons
     }),
   ).rejects.toThrow('checkpoint interrupted');
   await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {});
-  expect(posts).toEqual(['/api/config/namespaces/system/external_connectors', '/api/config/namespaces/system/bgps']);
+  expect(posts).toEqual([
+    '/api/config/namespaces/system/external_connectors',
+    '/api/config/namespaces/system/bgp_routing_policys',
+    '/api/config/namespaces/system/bgps',
+  ]);
   await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {});
-  expect(posts).toHaveLength(2);
+  expect(posts).toHaveLength(3);
   const bgp = objects.get('/api/config/namespaces/system/bgps/ce-one-tgw-bgp') as { spec: { peers: unknown[] } };
   expect(bgp.spec.peers).toHaveLength(2);
   expect(
     [...objects.values()].map(
       (value) => (value as { metadata: { labels: Record<string, string> } }).metadata.labels['xcsh-ce-site-uid'],
     ),
-  ).toEqual(['site-uid', 'site-uid']);
+  ).toEqual(['site-uid', 'site-uid', 'site-uid']);
 });
 
 test('AWS configured creation rejects missing observed devices before any API request', async () => {
@@ -814,14 +819,20 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
   const desired = contract.buildAwsRouting(binding.siteName, 65010, 64512, interfaces);
   const resources = [
     { kind: 'external_connector' as const, name: 'ce-gre', uid: 'connector' },
+    { kind: 'bgp_routing_policy' as const, name: desired.exportPolicy.name, uid: 'policy' },
     { kind: 'bgp' as const, name: desired.bgp.name, uid: 'bgp' },
   ];
-  for (const [index, resource] of resources.entries())
+  for (const resource of resources)
     objects.set(`/api/config/namespaces/system/${resource.kind}s/${resource.name}`, {
       metadata: { name: resource.name, namespace: 'system', labels: { ...labels, 'xcsh-ce-site': binding.siteName } },
       system_metadata: { uid: resource.uid },
       resource_version: '1',
-      spec: index ? desired.bgp.spec : desired.connectors[0].spec,
+      spec:
+        resource.kind === 'bgp'
+          ? desired.bgp.spec
+          : resource.kind === 'bgp_routing_policy'
+            ? desired.exportPolicy.spec
+            : desired.connectors[0].spec,
     });
   const rebind = {
     siteUid,
@@ -851,16 +862,16 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
   expect(puts).toHaveLength(1);
   await run();
   await run();
-  expect(puts).toHaveLength(2);
+  expect(puts).toHaveLength(3);
   siteUid = 'foreign-site';
   await expect(run()).rejects.toThrow('Replacement site UID changed');
-  expect(puts).toHaveLength(2);
+  expect(puts).toHaveLength(3);
   siteUid = rebind.siteUid;
   const connector = objects.get('/api/config/namespaces/system/external_connectors/ce-gre');
   if (!connector) throw new Error('Missing test connector');
   connector.system_metadata.uid = 'foreign';
   await expect(run()).rejects.toThrow('Replacement routing object UID changed');
-  expect(puts).toHaveLength(2);
+  expect(puts).toHaveLength(3);
 });
 
 test('bootstrap revocation reconciles lost responses and requires absence before completion', async () => {

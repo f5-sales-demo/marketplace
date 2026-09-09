@@ -7,6 +7,54 @@
   },
   "schemas": {
     "network": {
+      "schemabgp_routing_policyCreateSpecType": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": { "$ref": "#/components/schemas/bgp_routing_policyBgpRoutePolicy" }
+          }
+        }
+      },
+      "bgp_routing_policyBgpRoutePolicy": {
+        "type": "object",
+        "properties": {
+          "action": { "$ref": "#/components/schemas/bgp_routing_policyBgpRouteAction" },
+          "match": { "$ref": "#/components/schemas/bgp_routing_policyBgpRouteMatch" }
+        }
+      },
+      "bgp_routing_policyBgpRouteMatch": {
+        "type": "object",
+        "properties": {
+          "ip_prefixes": { "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatchList" }
+        }
+      },
+      "bgp_routing_policyBgpRouteAction": {
+        "type": "object",
+        "properties": {
+          "deny": { "$ref": "#/components/schemas/ioschemaEmpty" }
+        }
+      },
+      "bgp_routing_policyBgpPrefixMatchList": {
+        "type": "object",
+        "properties": {
+          "prefixes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": { "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatch" }
+          }
+        }
+      },
+      "bgp_routing_policyBgpPrefixMatch": {
+        "type": "object",
+        "properties": {
+          "equal_or_longer_than": { "$ref": "#/components/schemas/ioschemaEmpty" },
+          "ip_prefixes": { "type": "string", "format": "cidr" }
+        }
+      },
       "bgpCreateSpecType": {
         "type": "object",
         "description": "BGP object is the configuration for peering with external BGP servers.\nIt is created by users in system namespace.",

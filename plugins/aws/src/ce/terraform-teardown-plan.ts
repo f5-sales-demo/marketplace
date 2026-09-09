@@ -121,7 +121,9 @@ export async function collectAwsTeardownMaterial(
     origins.push(
       await originOperations.observe(owner, { name: live.name, namespace: live.namespace, uid: live.uid }, signal),
     );
-  const routing = inventory.resources.filter((row) => row.kind === 'bgps' || row.kind === 'external_connectors');
+  const routing = inventory.resources.filter(
+    (row) => row.kind === 'bgps' || row.kind === 'bgp_routing_policys' || row.kind === 'external_connectors',
+  );
   if (base.routing.profile === 'tgw-connect') {
     const checkpoint = object(await storage.read(`${base.engine}-routing-checkpoint.json`));
     let values: Record<string, unknown>;
@@ -192,7 +194,12 @@ export async function collectAwsTeardownMaterial(
         routing: routing
           .filter((row) => row.siteName === binding.siteName)
           .map((row) => ({
-            kind: row.kind === 'bgps' ? ('bgp' as const) : ('external_connector' as const),
+            kind:
+              row.kind === 'bgps'
+                ? ('bgp' as const)
+                : row.kind === 'bgp_routing_policys'
+                  ? ('bgp_routing_policy' as const)
+                  : ('external_connector' as const),
             name: row.name,
             uid: row.uid,
           })),

@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
@@ -99,6 +100,16 @@ export function createWireValidator(
     removeAdditional: false,
   });
   addFormats(ajv);
+  ajv.addFormat('cidr', {
+    type: 'string',
+    validate: (value: string) => {
+      const [address, length, extra] = value.split('/');
+      const family = isIP(address);
+      if (!family || extra !== undefined || !/^\d+$/.test(length ?? '')) return false;
+      const bits = Number(length);
+      return bits >= 0 && bits <= (family === 4 ? 32 : 128);
+    },
+  });
   const validate = ajv.compile(requestSchema(schemas, root));
   return (spec: unknown) => {
     if (!validate(spec)) {

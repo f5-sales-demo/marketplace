@@ -15,7 +15,25 @@ const bindings = [0, 1].map((index) => ({
 test('builds two GRE connectors and all four BGP endpoints against immutable API request schemas', () => {
   const result = buildAwsRouting('site-a', 65010, 64512, bindings, validate);
   expect(result.connectors).toHaveLength(2);
+  expect(result.exportPolicy).toEqual({
+    name: 'site-a-tgw-export-policy',
+    spec: {
+      rules: [
+        {
+          match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
+          action: { deny: {} },
+        },
+      ],
+    },
+  });
   expect(result.bgp.spec.peers).toHaveLength(4);
+  expect(result.bgp.spec.peers[0].routing_policies.route_policy).toEqual([
+    {
+      all_nodes: {},
+      outbound: {},
+      object_refs: [{ name: 'site-a-tgw-export-policy', namespace: 'system' }],
+    },
+  ]);
   expect(result.connectors[0].spec.gre.gre_parameters.site_local_inside_network).toEqual({});
   expect(result.connectors[0].spec.gre.gre_parameters.tunnel_mtu).toBe(1370);
   expect(result.ebgpMultihopTtlEvidence).toBe('unknown');
@@ -30,4 +48,9 @@ test('rejects duplicate endpoints, invalid interface evidence and invented TTL f
   ).toThrow('inside network');
   const result = buildAwsRouting('site-a', 65010, 64512, bindings, validate);
   expect(() => validate('bgp', { ...result.bgp.spec, ttl: 2 })).toThrow();
+  expect(() =>
+    validate('bgp_routing_policy', {
+      rules: [{ match: { ip_prefixes: { prefixes: [{ ip_prefixes: 'invalid', equal_or_longer_than: {} }] } } }],
+    }),
+  ).toThrow();
 });

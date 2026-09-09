@@ -26,6 +26,19 @@ function fixture(mode = 'valid') {
         if (mode === 'partial') return { items: [], next_page_token: 'more' };
         if (mode === 'camel-partial') return { items: [], nextToken: 'more' };
         if (mode === 'errors') return { items: [], errors: [{}] };
+        if (url.pathname.endsWith('/bgp_routing_policys'))
+          return {
+            items: [
+              {
+                name: 'ce-export-policy',
+                namespace: 'system',
+                uid: 'policy-uid',
+                labels: { ...labels, 'xcsh-ce-site': 'ce-site', 'xcsh-ce-site-uid': 'site-uid' },
+                get_spec: { content: 'never-export-this-policy' },
+              },
+            ],
+            errors: [],
+          };
         if (!url.pathname.endsWith('/http_loadbalancers')) return { items: [], errors: [] };
         const row = {
           name: 'listener',
@@ -68,6 +81,14 @@ test('collects owned list identities and stable logical/physical bindings withou
   expect(receipt.status).toBe('observed');
   if (receipt.status === 'observed') {
     expect(receipt.resources).toEqual([
+      {
+        kind: 'bgp_routing_policys',
+        name: 'ce-export-policy',
+        namespace: 'system',
+        uid: 'policy-uid',
+        siteName: 'ce-site',
+        siteUid: 'site-uid',
+      },
       {
         kind: 'http_loadbalancers',
         name: 'listener',

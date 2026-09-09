@@ -35,6 +35,7 @@ export function validateAwsRoutingRebind(plan: AwsCePlan, rebind: AwsRoutingRebi
     .map((action) => `${plan.deploymentName.slice(0, 24)}-gre-${actions.indexOf(action) + 1}`);
   if (!names.length) throw new Error('Replacement site has no Connect routing inventory');
   names.push(`${rebind.siteName.slice(0, 55)}-tgw-bgp`);
+  names.push(`${rebind.siteName.slice(0, 43)}-tgw-export-policy`);
   const uids = names.map((name) => cp.resolvedValues[`__XC_ROUTING_${name}__`]);
   if (uids.some((uid) => typeof uid !== 'string' || !uid.trim()) || new Set(uids).size !== uids.length)
     throw new Error('Replacement routing UIDs are missing or duplicated');
@@ -108,6 +109,10 @@ export async function configureAwsRouting(
             siteUid: rebind.siteUid,
             resources: [
               ...interfaces.map((item) => ({ kind: 'external_connector' as const, name: item.name })),
+              {
+                kind: 'bgp_routing_policy' as const,
+                name: `${binding.siteName.slice(0, 43)}-tgw-export-policy`,
+              },
               { kind: 'bgp' as const, name: `${binding.siteName.slice(0, 55)}-tgw-bgp` },
             ].map((item) => ({ ...item, uid: rebind.checkpoint.resolvedValues[`__XC_ROUTING_${item.name}__`] ?? '' })),
           }

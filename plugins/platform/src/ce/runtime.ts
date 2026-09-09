@@ -792,7 +792,11 @@ export class CeRuntime {
     this.#owned(await this.observeSite(binding, signal), binding);
     const routing = this.contract.buildAwsRouting(binding.siteName, localAsn, remoteAsn, interfaces);
     if (rebind) {
-      const expected = [...routing.connectors.map((r) => `external_connector/${r.name}`), `bgp/${routing.bgp.name}`];
+      const expected = [
+        ...routing.connectors.map((r) => `external_connector/${r.name}`),
+        `bgp_routing_policy/${routing.exportPolicy.name}`,
+        `bgp/${routing.bgp.name}`,
+      ];
       const recorded = rebind.resources.map((r) => `${r.kind}/${r.name}`);
       if (
         !rebind.siteUid.trim() ||
@@ -806,6 +810,7 @@ export class CeRuntime {
 
     for (const [kind, resources] of [
       ['external_connector', routing.connectors],
+      ['bgp_routing_policy', [routing.exportPolicy]],
       ['bgp', [routing.bgp]],
     ] as const)
       for (const resource of resources) {
@@ -916,12 +921,12 @@ export class CeRuntime {
   /** Remove only a routing object recorded for this exact owned site. */
   async deleteRouting(
     binding: SiteBinding,
-    resource: { kind: 'bgp' | 'external_connector'; name: string; uid: string },
+    resource: { kind: RoutingKind; name: string; uid: string },
     signal?: AbortSignal,
   ): Promise<void> {
     this.#binding(binding, true);
     if (
-      !['bgp', 'external_connector'].includes(resource.kind) ||
+      !['bgp', 'bgp_routing_policy', 'external_connector'].includes(resource.kind) ||
       !safeName.test(resource.name) ||
       typeof resource.uid !== 'string' ||
       !resource.uid.trim()

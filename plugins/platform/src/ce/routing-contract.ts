@@ -3,7 +3,7 @@ import { projectReplaceSnapshot } from './wire-replace';
 import { createWireValidator } from './wire-schema';
 
 type Json = Record<string, unknown>;
-export type RoutingKind = 'bgp' | 'external_connector';
+export type RoutingKind = 'bgp' | 'bgp_routing_policy' | 'external_connector';
 function object(value: unknown): Json {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed routing contract');
   return value as Json;
@@ -20,7 +20,7 @@ export class VerifiedRoutingContract {
   }
   static async release(fetcher: PublishedApiFetcher = fetch, signal?: AbortSignal): Promise<VerifiedRoutingContract> {
     const api = await loadPublishedCeApi(fetcher, signal);
-    for (const kind of ['bgp', 'external_connector']) {
+    for (const kind of ['bgp', 'bgp_routing_policy', 'external_connector']) {
       const path = object(object(api.paths)[`/api/config/namespaces/{metadata.namespace}/${kind}s/{metadata.name}`]);
       const schema = object(object(object(object(object(path.put).requestBody).content)['application/json']).schema);
       if (schema.$ref !== `#/components/schemas/${kind}ReplaceRequest`)
