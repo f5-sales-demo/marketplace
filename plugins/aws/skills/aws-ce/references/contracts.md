@@ -105,6 +105,10 @@ such rather than counting them as unattended acceptance.
   control release, and a refresh-enabled no-change plan with bounded polling. Submitted saved
   plans resume exactly after interruption. BGP success does not establish data-plane traffic or
   origin-control health; collect those as separate acceptance evidence.
+- Native failover binds the selected instance from the completed deployment checkpoint, revalidates
+  its account and ownership tags before state changes, and persists the exact stop/start request
+  before mutation. An ambiguous response converges from live EC2 and BGP state without replaying
+  the request.
 - Native teardown binds this platform inventory to a fresh, independently reviewed native cloud
   teardown plan. Each owned delete intent is durable before mutation; an interrupted response is
   reconciled from exact scoped AWS state, including EC2's retained `terminated` records, and is not

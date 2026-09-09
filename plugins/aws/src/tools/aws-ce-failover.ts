@@ -2,9 +2,16 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import type { PluginInterface } from '../aws/types';
-import { type AwsCeToolContext, loadAwsPlan } from '../ce/artifacts';
+import { type AwsCeToolContext, loadAwsCheckpoint, loadAwsPlan } from '../ce/artifacts';
 import { canonicalSha256 } from '../ce/canonical';
 import { collectAwsFailoverBgpHealth } from '../ce/failover-health';
+import {
+  type AwsNativeFailover,
+  buildAwsNativeFailover,
+  observeAwsNativeFailoverInstance,
+  runAwsNativeFailover,
+  verifyAwsNativeFailover,
+} from '../ce/native-failover';
 import { awsPlatformService } from '../ce/platform';
 import { scopedAwsApi } from '../ce/scoped-exec';
 import { awsTerraformService } from '../ce/terraform-apply';
@@ -24,14 +31,18 @@ interface Dependencies {
   terraform(pi: PluginInterface, signal?: AbortSignal): Promise<CeTerraformService>;
   makeApi(cwd: string): AwsExecApi;
   run: typeof runAwsTerraformFailover;
+  runNative: typeof runAwsNativeFailover;
   collect: typeof collectAwsFailoverBgpHealth;
+  observeNative: typeof observeAwsNativeFailoverInstance;
 }
 const defaults: Dependencies = {
   platform: awsPlatformService,
   terraform: awsTerraformService,
   makeApi: makeExecApi,
   run: runAwsTerraformFailover,
+  runNative: runAwsNativeFailover,
   collect: collectAwsFailoverBgpHealth,
+  observeNative: observeAwsNativeFailoverInstance,
 };
 const object = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed failover identity');
@@ -51,7 +62,7 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
     name: 'aws_ce_failover',
     label: 'Validate AWS Customer Edge Failover',
     description:
-      'Prepare or execute a Terraform-owned planned CE outage. Apply resumes exact saved plans, proves the selected BGP withdrawal and restoration from live AWS evidence, releases the power control, and requires a final no-change plan.',
+      'Prepare or execute an owning-engine planned CE outage. Apply proves the selected BGP withdrawal and restoration from live AWS evidence. Terraform releases its temporary power control and requires a final no-change plan; native execution reconciles ambiguous mutations without replay.',
     parameters: Type.Object({
       operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
       basePlanId: Type.String(),
@@ -82,54 +93,63 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
         if (Object.keys(params).some((key) => !allowed.includes(key)))
           throw new Error(`AWS CE failover ${params.operation} parameters differ`);
         const { plan } = await loadAwsPlan(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
-        if (plan.engine !== 'terraform' || plan.routing.profile !== 'tgw-connect')
-          throw new Error('This failover executor requires a Terraform-owned TGW Connect deployment');
+        if (plan.routing.profile !== 'tgw-connect')
+          throw new Error('This failover executor requires a TGW Connect deployment');
         const platform = await dependencies.platform(pi, signal);
         const owner = {
           deploymentId: plan.deploymentName,
-          engine: 'terraform' as const,
+          engine: plan.engine,
           provider: 'aws' as const,
           account: plan.accountId,
           region: plan.region,
         };
         const storage = await platform.storage(owner);
-        const terraform = await dependencies.terraform(pi, signal);
-        const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
         if (params.operation === 'prepare') {
           if (!Number.isInteger(params.nodeIndex)) throw new Error('Failover preparation requires an exact nodeIndex');
-          const marker = object(await storage.read('terraform-connect-stage.json'));
-          if (
-            marker.schemaVersion !== 1 ||
-            marker.engine !== 'terraform' ||
-            marker.planSha256 !== plan.planSha256 ||
-            marker.stage !== 'applied' ||
-            typeof marker.configurationSha256 !== 'string'
-          )
-            throw new Error('Terraform Connect deployment has not completed');
-          const configuration = await session.readConfiguration(marker.configurationSha256);
-          const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
-          const instances = object(outputs.ce_instances);
-          const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object(value) }));
-          if (
-            identities.length !== plan.intent.topology.nodeCount ||
-            new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
-            identities.some(
-              ({ node, value }) =>
-                !/^i-[0-9a-f]{8,17}$/.test(String(value.id)) ||
-                value.hostname !== `${plan.deploymentName}-${node}` ||
-                value.site_name !== siteForNode(plan.intent, Number(node)).name,
+          let failover: AwsTerraformFailover | AwsNativeFailover;
+          if (plan.engine === 'terraform') {
+            const terraform = await dependencies.terraform(pi, signal);
+            const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+            const marker = object(await storage.read('terraform-connect-stage.json'));
+            if (
+              marker.schemaVersion !== 1 ||
+              marker.engine !== 'terraform' ||
+              marker.planSha256 !== plan.planSha256 ||
+              marker.stage !== 'applied' ||
+              typeof marker.configurationSha256 !== 'string'
             )
-          )
-            throw new Error('Terraform instance output is incomplete');
-          const selected = object(instances[String(params.nodeIndex)]);
-          if (typeof selected.id !== 'string') throw new Error('Selected Terraform instance identity is unavailable');
-          const failover = buildAwsTerraformFailover(
-            plan,
-            params.nodeIndex as number,
-            selected.id,
-            configuration,
-            marker.configurationSha256,
-          );
+              throw new Error('Terraform Connect deployment has not completed');
+            const configuration = await session.readConfiguration(marker.configurationSha256);
+            const outputs = await session.readOutputs(['ce_instances'], process.env, signal);
+            const instances = object(outputs.ce_instances);
+            const identities = Object.entries(instances).map(([node, value]) => ({ node, value: object(value) }));
+            if (
+              identities.length !== plan.intent.topology.nodeCount ||
+              new Set(identities.map(({ value }) => value.id)).size !== identities.length ||
+              identities.some(
+                ({ node, value }) =>
+                  !/^i-[0-9a-f]{8,17}$/.test(String(value.id)) ||
+                  value.hostname !== `${plan.deploymentName}-${node}` ||
+                  value.site_name !== siteForNode(plan.intent, Number(node)).name,
+              )
+            )
+              throw new Error('Terraform instance output is incomplete');
+            const selected = object(instances[String(params.nodeIndex)]);
+            if (typeof selected.id !== 'string') throw new Error('Selected Terraform instance identity is unavailable');
+            failover = buildAwsTerraformFailover(
+              plan,
+              params.nodeIndex as number,
+              selected.id,
+              configuration,
+              marker.configurationSha256,
+            );
+          } else {
+            const checkpoint = await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+            const instanceId = checkpoint?.resolvedValues[`__INSTANCE_${params.nodeIndex}__`];
+            if (checkpoint?.engine !== 'native' || checkpoint.state !== 'complete' || typeof instanceId !== 'string')
+              throw new Error('Completed native deployment identity is unavailable');
+            failover = buildAwsNativeFailover(plan, params.nodeIndex as number, instanceId);
+          }
           const existing = await optional(storage, `${failover.planId}.json`);
           if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
           else if (canonicalSha256(existing) !== canonicalSha256(failover))
@@ -164,8 +184,11 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
         }
         if (!params.failoverPlanId || !params.failoverPlanSha256)
           throw new Error('Failover apply requires the exact failover plan identity');
-        const failover = (await storage.read(`${params.failoverPlanId}.json`)) as AwsTerraformFailover;
-        verifyAwsTerraformFailover(plan, failover);
+        const failover = (await storage.read(`${params.failoverPlanId}.json`)) as
+          | AwsTerraformFailover
+          | AwsNativeFailover;
+        if (plan.engine === 'terraform') verifyAwsTerraformFailover(plan, failover as AwsTerraformFailover);
+        else verifyAwsNativeFailover(plan, failover as AwsNativeFailover);
         if (failover.planId !== params.failoverPlanId || failover.planSha256 !== params.failoverPlanSha256)
           throw new Error('Persisted AWS CE failover plan identity differs');
         const authorizationName = `${failover.planId}-authorization.json`;
@@ -181,7 +204,7 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
             throw new Error('AWS CE failover was not approved');
           await storage.write(authorizationName, {
             schemaVersion: 1,
-            engine: 'terraform',
+            engine: plan.engine,
             sourcePlanSha256: plan.planSha256,
             failoverPlanSha256: failover.planSha256,
             mutations: true,
@@ -190,25 +213,63 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
           canonicalSha256(authorization) !==
           canonicalSha256({
             schemaVersion: 1,
-            engine: 'terraform',
+            engine: plan.engine,
             sourcePlanSha256: plan.planSha256,
             failoverPlanSha256: failover.planSha256,
             mutations: true,
           })
         )
           throw new Error('Persisted AWS CE failover authorization differs');
-        const routing = (await storage.read('terraform-routing-checkpoint.json')) as AwsCeCheckpoint;
         const api = scopedAwsApi(dependencies.makeApi(ctx.cwd), plan.intent.awsProfile, signal);
-        const result = await dependencies.run(
-          plan,
-          failover,
-          params.failoverPlanSha256,
-          session,
-          storage,
-          (phase, currentSignal) => dependencies.collect(plan, routing, failover.nodeIndex, phase, api, currentSignal),
-          process.env,
-          signal,
-        );
+        const routing =
+          plan.engine === 'terraform'
+            ? ((await storage.read('terraform-routing-checkpoint.json')) as AwsCeCheckpoint)
+            : await loadAwsCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
+        if (!routing) throw new Error('AWS CE routing checkpoint is unavailable');
+        const collect = (phase: 'outage' | 'recovered', currentSignal?: AbortSignal) =>
+          dependencies.collect(plan, routing, failover.nodeIndex, phase, api, currentSignal);
+        const result =
+          plan.engine === 'terraform'
+            ? await dependencies.run(
+                plan,
+                failover as AwsTerraformFailover,
+                params.failoverPlanSha256,
+                await (await dependencies.terraform(pi, signal)).open(
+                  owner,
+                  await awsTerraformFoundationDeployment(plan),
+                  'current',
+                ),
+                storage,
+                collect,
+                process.env,
+                signal,
+              )
+            : await dependencies.runNative(
+                plan,
+                failover as AwsNativeFailover,
+                params.failoverPlanSha256,
+                storage,
+                (currentSignal) => dependencies.observeNative(plan, failover as AwsNativeFailover, api, currentSignal),
+                async (phase, currentSignal) => {
+                  const response = await api.exec(
+                    'aws',
+                    [
+                      'ec2',
+                      phase === 'stop' ? 'stop-instances' : 'start-instances',
+                      '--instance-ids',
+                      failover.instanceId,
+                      '--region',
+                      plan.region,
+                      '--output',
+                      'json',
+                    ],
+                    { signal: currentSignal },
+                  );
+                  if (response.exitCode !== 0) throw new Error(`Native failover ${phase} request failed`);
+                },
+                collect,
+                signal,
+              );
         const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-failover-receipt');
         if (!artifactId) throw new Error('AWS CE failover receipt persistence failed');
         return {

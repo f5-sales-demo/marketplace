@@ -1,12 +1,12 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { PluginInterface } from '../../src/aws/types';
-import { type AwsCeToolContext, saveAwsPlan } from '../../src/ce/artifacts';
+import { type AwsCeToolContext, saveAwsCheckpoint, saveAwsPlan } from '../../src/ce/artifacts';
 import { canonicalSha256, sha256Hex } from '../../src/ce/canonical';
 import { renderAwsTerraformConnect } from '../../src/ce/terraform-connect';
 import type { AwsTerraformFailover } from '../../src/ce/terraform-failover';
@@ -117,6 +117,12 @@ test('public failover prepares a private plan and applies it with one durable au
     terraform: async () => terraform,
     makeApi: () => ({ exec: async () => ({ exitCode: 0, stdout: '{}', stderr: '' }) }),
     collect: async () => ({ acceptance: 'passed' }),
+    runNative: async () => {
+      throw new Error('unexpected native failover');
+    },
+    observeNative: async () => {
+      throw new Error('unexpected native observation');
+    },
     async run(_base, failover, authorized) {
       runs++;
       expect(authorized).toBe(failover.planSha256);
@@ -156,4 +162,107 @@ test('public failover prepares a private plan and applies it with one durable au
   expect((await tool.execute('3', input, undefined, undefined, ctx)).isError).toBeUndefined();
   expect(confirms).toBe(1);
   expect(runs).toBe(2);
+});
+
+test('public failover routes native ownership without opening Terraform', async () => {
+  const fixture = connectFixture();
+  const { planId: _id, planSha256: _sha, ...draft } = fixture.plan;
+  draft.engine = 'native';
+  draft.intent = { ...draft.intent, engine: 'native' };
+  Object.assign(draft, {
+    accountId: draft.intent.accountId,
+    region: draft.intent.region,
+    deploymentName: draft.intent.deploymentName,
+    routing: structuredClone(draft.intent.routing),
+  });
+  const planSha256 = canonicalSha256(draft);
+  const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
+  const directory = await mkdtemp(join(tmpdir(), 'aws-ce-native-failover-tool-'));
+  directories.push(directory);
+  const storage = await CeDeploymentStore.open(directory, {
+    deploymentId: plan.deploymentName,
+    engine: 'native',
+    provider: 'aws',
+    account: plan.accountId,
+    region: plan.region,
+  });
+  let artifactCount = 0;
+  const artifacts: string[] = [];
+  const ctx = {
+    cwd: '/tmp',
+    hasUI: false,
+    ui: { confirm: async () => true },
+    sessionManager: {
+      getSessionId: () => 'native-failover-tool-test',
+      getArtifactsDir: () => directory,
+      getArtifactPath: async () => null,
+      async saveArtifact(value: string, type: string) {
+        artifacts.push(value);
+        const id = String(++artifactCount);
+        await writeFile(join(directory, `${id}.${type}.log`), value);
+        return id;
+      },
+    },
+  } satisfies AwsCeToolContext;
+  await saveAwsPlan(ctx.sessionManager, plan, fixture.observation);
+  await saveAwsCheckpoint(ctx.sessionManager, {
+    schemaVersion: 2,
+    engine: 'native',
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    completedActionIds: [],
+    resolvedValues: { __INSTANCE_1__: 'i-0123456789abcdef0' },
+    state: 'complete',
+  });
+  let nativeRuns = 0;
+  const tool = createAwsCeFailoverTool({ typebox } as PluginInterface, {
+    platform: async () => ({ storage: async () => storage }) as unknown as CePlatformService,
+    terraform: async () => {
+      throw new Error('Terraform must not open for native ownership');
+    },
+    makeApi: () => ({ exec: async () => ({ exitCode: 0, stdout: '{}', stderr: '' }) }),
+    collect: async () => ({ acceptance: 'passed' }),
+    run: async () => {
+      throw new Error('Terraform failover must not run for native ownership');
+    },
+    observeNative: async () => 'running',
+    async runNative(_base, failover, authorized) {
+      nativeRuns++;
+      expect(authorized).toBe(failover.planSha256);
+      return {
+        status: 'failover-complete' as const,
+        engine: 'native' as const,
+        planId: failover.planId,
+        planSha256: failover.planSha256,
+        nodeIndex: failover.nodeIndex,
+        observedAt: new Date().toISOString(),
+        traffic: 'unknown' as const,
+        originControl: 'unknown' as const,
+      };
+    },
+  });
+  const prepared = (await tool.execute(
+    '1',
+    { operation: 'prepare', basePlanId: plan.planId, basePlanSha256: plan.planSha256, nodeIndex: 1 },
+    undefined,
+    undefined,
+    ctx,
+  )) as { isError?: boolean; details: { planId: string; planSha256: string } };
+  expect(prepared.isError).toBeUndefined();
+  const applied = await tool.execute(
+    '2',
+    {
+      operation: 'apply',
+      basePlanId: plan.planId,
+      basePlanSha256: plan.planSha256,
+      failoverPlanId: prepared.details.planId,
+      failoverPlanSha256: prepared.details.planSha256,
+    },
+    undefined,
+    undefined,
+    ctx,
+  );
+  expect(applied.isError).toBeUndefined();
+  expect(nativeRuns).toBe(1);
+  expect(artifacts.some((value) => value.includes('aws-ce-native-failover'))).toBe(true);
 });
