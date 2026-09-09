@@ -11,6 +11,7 @@ export interface CeEventBus {
   on(channel: string, handler: (data: unknown) => void): () => void;
 }
 export interface CeCapabilityEvidence {
+  contractIdentity: string;
   smsv2ContractVersion: 'v2';
   supportedProviders: Array<'aws' | 'azure'>;
   bootstrapDrivers: Array<'api'>;
@@ -79,6 +80,7 @@ export function createCePlatformService(env: Record<string, string | undefined> 
       const aws = artifact.provider('aws');
       const capabilities = aws.capabilities as Record<string, unknown>;
       return {
+        contractIdentity: 'f5xc-smsv2-api/v1@7.0.0-local-candidate',
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],

@@ -28,6 +28,7 @@ const pi: PlatformToolApi = { typebox: { Type } };
 function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
   return {
     capabilities: async () => ({
+      contractIdentity: 'f5xc-smsv2-api/v1@7.0.0-test',
       smsv2ContractVersion: 'v2',
       supportedProviders: ['aws', 'azure'],
       bootstrapDrivers: ['console'],
@@ -230,6 +231,7 @@ describe('f5xc_ce_v2_capabilities', () => {
     const result = await tool.execute('id', {}, undefined, undefined, ctx());
     expect(result.isError).not.toBe(true);
     expect(result.details.capabilities).toEqual({
+      contractIdentity: 'f5xc-smsv2-api/v1@7.0.0-test',
       smsv2ContractVersion: 'v2',
       supportedProviders: ['aws', 'azure'],
       bootstrapDrivers: ['console'],

@@ -1,8 +1,8 @@
-import { isAbsolute } from 'node:path';
-import { resolveSmsv2AwsReleaseContract } from './release-contract';
+import { resolveSmsv2PublishedSchemaContract } from './release-contract';
 
 export interface CeV2Capabilities {
-  smsv2ContractVersion: 'v2';
+  contractIdentity: string;
+  smsv2ContractVersion: 'v2' | 'unpublished';
   supportedProviders: Array<'aws' | 'azure'>;
   bootstrapDrivers: Array<'console'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
@@ -68,12 +68,13 @@ export interface CeV2Driver {
 interface CapabilityDocument extends CeV2Capabilities {
   namespace: 'system';
   endpoints: {
-    siteCollection: string;
-    siteItem: string;
-    bootstrapCheckout?: string;
+    siteCreate: string;
+    siteReplace: string;
+    siteRead: string;
+    siteDelete: string;
+    bootstrapSchema: string;
     status: string;
   };
-  consoleFallback?: boolean;
 }
 
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
@@ -82,20 +83,18 @@ const LEGACY_CE_ROUTE = /(?:azure.?vnet|fleet|registration.?token|site.?token|sh
 export class HttpCeV2Driver implements CeV2Driver {
   readonly #base: URL;
   readonly #apiToken: string | undefined;
-  readonly #consoleHelper: string | undefined;
-  readonly #resolveContract: typeof resolveSmsv2AwsReleaseContract;
+  readonly #resolveContract: typeof resolveSmsv2PublishedSchemaContract;
   #document?: CapabilityDocument;
 
   constructor(
     env: Record<string, string | undefined> = process.env,
-    resolveContract: typeof resolveSmsv2AwsReleaseContract = resolveSmsv2AwsReleaseContract,
+    resolveContract: typeof resolveSmsv2PublishedSchemaContract = resolveSmsv2PublishedSchemaContract,
   ) {
     if (!env.F5XC_API_URL) throw new Error('F5XC_API_URL is required');
     this.#base = new URL(env.F5XC_API_URL);
     if (this.#base.protocol !== 'https:' && this.#base.hostname !== 'localhost' && this.#base.hostname !== '127.0.0.1')
       throw new Error('F5XC_API_URL must use HTTPS');
     this.#apiToken = env.F5XC_API_TOKEN;
-    this.#consoleHelper = env.XCSH_F5XC_CE_CONSOLE_HELPER;
     this.#resolveContract = resolveContract;
   }
 
@@ -114,14 +113,21 @@ export class HttpCeV2Driver implements CeV2Driver {
     if (this.#document) return this.#document;
     const release = await this.#resolveContract();
     this.#document = {
-      smsv2ContractVersion: 'v2',
-      supportedProviders: ['aws'],
-      bootstrapDrivers: ['console'],
+      contractIdentity: release.identity,
+      smsv2ContractVersion: 'unpublished',
+      supportedProviders: [],
+      bootstrapDrivers: [],
       providerNetworkingProfiles: {},
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
       namespace: release.namespace,
-      endpoints: { siteCollection: release.collectionPath, siteItem: release.itemPath, status: '' },
-      consoleFallback: true,
+      endpoints: {
+        siteCreate: release.createPath,
+        siteReplace: release.replacePath,
+        siteRead: release.readPath,
+        siteDelete: release.deletePath,
+        bootstrapSchema: release.bootstrapPath,
+        status: '',
+      },
     };
     return this.#document;
   }
@@ -143,11 +149,10 @@ export class HttpCeV2Driver implements CeV2Driver {
   async capabilities(): Promise<CeV2Capabilities> {
     const document = await this.#capabilityDocument();
     return {
+      contractIdentity: document.contractIdentity,
       smsv2ContractVersion: document.smsv2ContractVersion,
       supportedProviders: document.supportedProviders,
-      bootstrapDrivers: document.bootstrapDrivers.filter(
-        (driver) => driver !== 'console' || Boolean(document.consoleFallback && this.#consoleHelper),
-      ),
+      bootstrapDrivers: document.bootstrapDrivers,
       providerNetworkingProfiles: document.providerNetworkingProfiles,
       awsSmsv2TgwConnect: document.awsSmsv2TgwConnect,
     };
@@ -161,56 +166,27 @@ export class HttpCeV2Driver implements CeV2Driver {
     if (request.namespace !== document.namespace)
       throw new Error('Verified SMSv2 AWS CE creation requires namespace system');
     const values = { namespace: request.namespace, site: request.siteName };
-    const collection = this.#endpoint(document.endpoints.siteCollection, values);
-    const item = this.#endpoint(document.endpoints.siteItem, values);
-    if (action === 'read') return this.#request(item);
+    if (action === 'create' || action === 'update')
+      throw new Error(
+        'Published CE API schema support does not establish an executable provider configuration mapping',
+      );
+    if (action === 'read') return this.#request(this.#endpoint(document.endpoints.siteRead, values));
     if (action === 'delete')
-      return this.#request(item, {
+      return this.#request(this.#endpoint(document.endpoints.siteDelete, values), {
         method: 'DELETE',
         headers: request.expectedEtag ? { 'If-Match': request.expectedEtag } : undefined,
       });
-    return this.#request(action === 'create' ? collection : item, {
-      method: action === 'create' ? 'POST' : 'PUT',
-      headers: request.expectedEtag ? { 'If-Match': request.expectedEtag } : undefined,
-      body: JSON.stringify({
-        metadata: { name: request.siteName, namespace: request.namespace },
-        spec: request.config ?? {},
-      }),
-    });
+    throw new Error('Unsupported CE v2 site action');
   }
 
   async checkoutBootstrap(
     request: CeV2SiteRequest & { nodeName: string; expiresInSeconds: number },
     allowConsole: boolean,
   ): Promise<{ token: string; driver: 'console' }> {
-    const document = await this.#capabilityDocument();
-    if (!allowConsole) throw new Error('Headless bootstrap checkout is unavailable until F5 publishes a supported API');
-    if (!document.consoleFallback || !this.#consoleHelper)
-      throw new Error('Tenant has no supported CE v2 bootstrap checkout capability');
-    if (!isAbsolute(this.#consoleHelper)) throw new Error('Console bootstrap helper path must be absolute');
-    const proc = Bun.spawn([this.#consoleHelper], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: process.env });
-    proc.stdin.write(
-      JSON.stringify({
-        action: 'secure-mesh-site-v2-bootstrap',
-        namespace: request.namespace,
-        siteName: request.siteName,
-        nodeName: request.nodeName,
-        expiresInSeconds: request.expiresInSeconds,
-      }),
-    );
-    proc.stdin.end();
-    const stdout = await new Response(proc.stdout).text();
-    await new Response(proc.stderr).text();
-    if ((await proc.exited) !== 0) throw new Error('Authenticated console bootstrap automation failed');
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(stdout) as Record<string, unknown>;
-    } catch {
-      throw new Error('Console bootstrap automation returned an invalid response');
-    }
-    if (typeof parsed.token !== 'string' || !parsed.token)
-      throw new Error('Console bootstrap automation returned no one-use token');
-    return { token: parsed.token, driver: 'console' };
+    void request;
+    void allowConsole;
+    await this.#capabilityDocument();
+    throw new Error('Bootstrap schema support does not establish an executable checkout capability');
   }
 
   async status(_request: CeV2SiteRequest): Promise<Record<string, unknown>> {

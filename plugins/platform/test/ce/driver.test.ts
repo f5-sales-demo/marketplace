@@ -3,14 +3,21 @@ import { HttpCeV2Driver } from '../../src/ce/driver';
 
 const originalFetch = globalThis.fetch;
 const contract = {
-  collectionPath: '/api/config/namespaces/{namespace}/securemesh_site_v2s',
-  itemPath: '/api/config/namespaces/{namespace}/securemesh_site_v2s/{name}',
+  release: 'v6.1.2' as const,
+  identity: 'f5xc-published-api-schema/v6.1.2' as const,
+  createPath: '/api/config/namespaces/{metadata.namespace}/securemesh_site_v2s' as const,
+  replacePath: '/api/config/namespaces/{metadata.namespace}/securemesh_site_v2s/{metadata.name}' as const,
+  readPath: '/api/config/namespaces/{namespace}/securemesh_site_v2s/{name}' as const,
+  deletePath: '/api/config/namespaces/{namespace}/securemesh_site_v2s/{name}' as const,
+  bootstrapPath: '/api/register/namespaces/system/get-cloud-init-config' as const,
   namespace: 'system' as const,
-  operations: ['create', 'read', 'replace', 'delete'] as Array<'create' | 'read' | 'replace' | 'delete'>,
-  capabilities: {
-    awsCeCreate: 'available' as const,
+  schemaSupport: ['create', 'read', 'replace', 'delete', 'cloud-init'] as const,
+  executableCapabilities: {
+    awsCreate: 'unavailable' as const,
+    azureCreate: 'unavailable' as const,
+    headlessBootstrap: 'unavailable' as const,
     runtimeStatus: 'unavailable' as const,
-    tgwConnect: 'unavailable' as const,
+    routing: 'unavailable' as const,
   },
 };
 
@@ -22,8 +29,8 @@ function driver() {
   return new HttpCeV2Driver({ F5XC_API_URL: 'https://tenant.example.test' }, async () => contract);
 }
 
-describe('SMSv2 AWS CE driver', () => {
-  it('uses only the verified typed system-namespace CRUD paths', async () => {
+describe('SMSv2 published-schema driver', () => {
+  it('uses verified read/delete paths and refuses placeholder create/replace serialization', async () => {
     const calls: Array<{ url: string; method: string }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), method: init?.method ?? 'GET' });
@@ -31,14 +38,20 @@ describe('SMSv2 AWS CE driver', () => {
     }) as unknown as typeof fetch;
     const ce = driver();
     const request = { namespace: 'system', siteName: 'ce-demo' };
-    await ce.site('create', request);
+    await expect(ce.capabilities()).resolves.toEqual({
+      contractIdentity: 'f5xc-published-api-schema/v6.1.2',
+      smsv2ContractVersion: 'unpublished',
+      supportedProviders: [],
+      bootstrapDrivers: [],
+      providerNetworkingProfiles: {},
+      awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+    });
+    await expect(ce.site('create', request)).rejects.toThrow(/configuration mapping/);
     await ce.site('read', request);
-    await ce.site('update', request);
+    await expect(ce.site('update', request)).rejects.toThrow(/configuration mapping/);
     await ce.site('delete', request);
     expect(calls).toEqual([
-      { url: 'https://tenant.example.test/api/config/namespaces/system/securemesh_site_v2s', method: 'POST' },
       { url: 'https://tenant.example.test/api/config/namespaces/system/securemesh_site_v2s/ce-demo', method: 'GET' },
-      { url: 'https://tenant.example.test/api/config/namespaces/system/securemesh_site_v2s/ce-demo', method: 'PUT' },
       { url: 'https://tenant.example.test/api/config/namespaces/system/securemesh_site_v2s/ce-demo', method: 'DELETE' },
     ]);
   });
@@ -62,7 +75,7 @@ describe('SMSv2 AWS CE driver', () => {
         { namespace: 'system', siteName: 'ce-demo', nodeName: 'ce-1', expiresInSeconds: 60 },
         false,
       ),
-    ).rejects.toThrow(/Headless bootstrap/);
+    ).rejects.toThrow(/schema support/);
     await expect(driver().status({ namespace: 'system', siteName: 'ce-demo' })).rejects.toThrow(
       /runtime status is unavailable/,
     );
