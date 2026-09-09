@@ -79,5 +79,5 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
   expect(network.output.ce_ingress.value.scheme).toBe('internal');
   const admitted = JSON.parse(renderAwsTerraformFoundation(plan, { 1: bootstrap, 2: bootstrap }));
   expect(Object.keys(admitted.resource.aws_lb_target_group_attachment)).toEqual(['node_1', 'node_2']);
-  expect(admitted.resource.aws_lb_target_group_attachment.node_1.target_id).toContain('node_1_nic_0.private_ip');
+  expect(admitted.resource.aws_lb_target_group_attachment.node_1.target_id).toContain('node_1_nic_1.private_ip');
 });

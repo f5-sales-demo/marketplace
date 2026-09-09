@@ -1579,7 +1579,7 @@ function compileActions(
     add({
       phase: 'routing',
       kind: 'nlb-target-group-create',
-      description: 'Create IP target group for three CE SLO addresses',
+      description: 'Create IP target group for three CE SLI addresses',
       command: 'aws',
       args: [
         'elbv2',
@@ -1612,7 +1612,7 @@ function compileActions(
     add({
       phase: 'routing',
       kind: 'nlb-register-targets',
-      description: 'Register three CE SLO IP targets',
+      description: 'Register three CE SLI IP targets',
       command: 'aws',
       args: [
         'elbv2',
@@ -1620,9 +1620,9 @@ function compileActions(
         '--target-group-arn',
         '__NLB_TARGET_GROUP_ARN__',
         '--targets',
-        'Id=__NODE_1_SLO_IP__',
-        'Id=__NODE_2_SLO_IP__',
-        'Id=__NODE_3_SLO_IP__',
+        'Id=__NODE_1_SLI_IP__',
+        'Id=__NODE_2_SLI_IP__',
+        'Id=__NODE_3_SLI_IP__',
         ...base,
       ],
       resourceId: `aws://${intent.region}/nlb-target-registration/${intent.deploymentName}`,

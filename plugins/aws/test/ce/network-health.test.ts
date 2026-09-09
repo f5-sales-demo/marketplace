@@ -97,7 +97,7 @@ test('NLB health requires exact owned target membership and never establishes tr
   f.checkpoint.resolvedValues.__NLB_TARGET_GROUP_ARN__ = arn;
   const targets = [1, 2, 3].map((node) => {
     const address = `10.0.1.${node}`;
-    f.checkpoint.resolvedValues[`__NODE_${node}_SLO_IP__`] = address;
+    f.checkpoint.resolvedValues[`__NODE_${node}_SLI_IP__`] = address;
     return { Target: { Id: address, Port: 443 }, TargetHealth: { State: 'healthy' } };
   });
   const api = {

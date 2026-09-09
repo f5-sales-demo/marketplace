@@ -344,7 +344,7 @@ export async function collectAwsNetworkHealth(
     if (description.ResourceArn !== arn || !owned(description.Tags, plan)) throw new Error('Foreign target group');
     const expected = Array.from(
       { length: plan.topology.nodeCount },
-      (_, index) => values[`__NODE_${index + 1}_SLO_IP__`],
+      (_, index) => values[`__NODE_${index + 1}_SLI_IP__`],
     );
     if (expected.some((address) => isIP(address ?? '') !== 4) || new Set(expected).size !== expected.length)
       throw new Error('Missing target identities');

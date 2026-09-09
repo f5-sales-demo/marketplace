@@ -763,6 +763,9 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(nlb?.args).toContain('internal');
     expect(nlb?.args?.filter((arg) => arg === 'elbv2')).toHaveLength(1);
     expect(plan.actions.find((action) => action.kind === 'nlb-listener-create')?.args).toContain('8443');
+    expect(plan.actions.find((action) => action.kind === 'nlb-register-targets')?.args).toEqual(
+      expect.arrayContaining(['Id=__NODE_1_SLI_IP__', 'Id=__NODE_2_SLI_IP__', 'Id=__NODE_3_SLI_IP__']),
+    );
     const platformIngress = plan.actions.find((action) => action.kind === 'f5-ingress-configure');
     const nlbGate = plan.actions.find((action) => action.kind === 'nlb-gate');
     expect(plan.actions.indexOf(platformIngress as (typeof plan.actions)[number])).toBeLessThan(

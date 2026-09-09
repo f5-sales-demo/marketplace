@@ -155,6 +155,8 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
   }
   const ingress = awsCeNlbIngress(intent);
   if (ingress) {
+    const inside = intent.interfaces.find((item) => item.role === 'sli');
+    if (!inside) throw new Error('NLB ingress requires an explicit SLI interface');
     add('aws_lb', 'ce', {
       name: literal(`${intent.deploymentName}-nlb`),
       internal: ingress.scheme === 'internal',
@@ -182,7 +184,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     for (const node of admitted)
       add('aws_lb_target_group_attachment', `node_${node}`, {
         target_group_arn: ref('aws_lb_target_group.ce.arn'),
-        target_id: ref(`aws_network_interface.node_${node}_nic_0.private_ip`),
+        target_id: ref(`aws_network_interface.node_${node}_nic_${inside.index}.private_ip`),
         port: ingress.port,
         depends_on: [`aws_instance.node_${node}`],
       });
