@@ -100,6 +100,7 @@ describe('AWS Status extension', () => {
         'aws_ce_inventory',
         'aws_ce_plan',
         'aws_ce_status',
+        'aws_ce_teardown',
         'aws_ce_upgrade',
         'aws_cloud_init_analyze',
         'aws_compute_discover',
