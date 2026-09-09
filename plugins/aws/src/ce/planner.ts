@@ -1769,28 +1769,7 @@ function compileActions(
         destructive: true,
       });
     for (const destination of intent.routing.destinationCidrs) {
-      if (intent.routing.profile === 'tgw-connect')
-        add({
-          phase: 'routing',
-          kind: 'route-create',
-          description: `Route remote payload network ${destination} from the SLO subnet through the TGW`,
-          command: 'aws',
-          args: [
-            'ec2',
-            'create-route',
-            '--route-table-id',
-            '__SLO_ROUTE_TABLE__',
-            '--destination-cidr-block',
-            destination,
-            '--transit-gateway-id',
-            intent.routing.transitGatewayId ?? '',
-            ...base,
-          ],
-          resourceId: `aws://${intent.region}/route-table/${intent.deploymentName}-slo`,
-          mutates: true,
-          destructive: false,
-        });
-      else if (intent.routing.transitGatewayRouteTableId)
+      if (intent.routing.profile !== 'tgw-connect' && intent.routing.transitGatewayRouteTableId)
         add({
           phase: 'routing',
           kind: 'tgw-route-create',
@@ -1845,10 +1824,15 @@ function compileActions(
       }));
     if (intent.vpc.mode === 'greenfield') {
       const transportCidrs = observedConnectCidrs(intent, observation);
-      for (const role of [...new Set(peers.map((peer) => peer.transportInterfaceIndex))].sort()) {
-        const reuseSlo = role === 0 && intent.egress.mode === 'elastic-ip';
+      const sliIndex = intent.interfaces.find((item) => item.role === 'sli')?.index;
+      if (sliIndex === undefined) throw new Error('TGW Connect requires an explicit SLI payload interface');
+      const transportRoles = new Set(peers.map((peer) => peer.transportInterfaceIndex));
+      const routingRoles = [...new Set([...transportRoles, sliIndex])].sort();
+      for (const role of routingRoles) {
+        const interfaceRole = intent.interfaces.find((item) => item.index === role)?.role;
+        const reuseSlo = interfaceRole === 'slo' && intent.egress.mode === 'elastic-ip';
         const table = reuseSlo ? '__SLO_ROUTE_TABLE__' : `__GRE_ROUTE_TABLE_${role}__`;
-        const resourceId = `aws://${intent.region}/route-table/${intent.deploymentName}-${role === 0 ? 'slo' : 'sli'}`;
+        const resourceId = `aws://${intent.region}/route-table/${intent.deploymentName}-${interfaceRole ?? role}`;
         if (!reuseSlo) {
           add({
             phase: 'routing',
@@ -1891,7 +1875,29 @@ function compileActions(
               capture: { placeholder: `__GRE_ROUTE_ASSOCIATION_${node}_${role}__`, path: 'AssociationId' },
             });
         }
-        for (const destination of transportCidrs)
+        if (role === sliIndex)
+          for (const destination of intent.routing.destinationCidrs)
+            add({
+              phase: 'routing',
+              kind: 'route-create',
+              description: `Route remote payload network ${destination} from the SLI subnet through the TGW`,
+              command: 'aws',
+              args: [
+                'ec2',
+                'create-route',
+                '--route-table-id',
+                table,
+                '--destination-cidr-block',
+                destination,
+                '--transit-gateway-id',
+                intent.routing.transitGatewayId ?? '',
+                ...base,
+              ],
+              resourceId,
+              mutates: true,
+              destructive: false,
+            });
+        for (const destination of transportRoles.has(role) ? transportCidrs : [])
           add({
             phase: 'routing',
             kind: 'route-create',

@@ -833,11 +833,25 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     const payloadRoutes = plan.actions.filter(
       (action) =>
         action.kind === 'route-create' &&
-        action.args?.includes('__SLO_ROUTE_TABLE__') &&
+        action.args?.includes('__GRE_ROUTE_TABLE_1__') &&
         action.args.includes('10.253.0.0/16'),
     );
     expect(payloadRoutes).toHaveLength(1);
     expect(payloadRoutes[0].args).toContain('tgw-0123456789abcdef0');
+    expect(payloadRoutes[0].description).toContain('SLI subnet');
+    expect(
+      plan.actions.some(
+        (action) =>
+          action.kind === 'route-create' &&
+          action.args?.includes('__SLO_ROUTE_TABLE__') &&
+          action.args.includes('10.253.0.0/16'),
+      ),
+    ).toBe(false);
+    expect(plan.actions.indexOf(payloadRoutes[0])).toBeGreaterThan(
+      plan.actions.findIndex(
+        (action) => action.kind === 'route-table-create' && action.capture?.placeholder === '__GRE_ROUTE_TABLE_1__',
+      ),
+    );
     expect(plan.actions.some((action) => action.kind === 'tgw-route-create')).toBe(false);
     const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
     expect(attachments).toHaveLength(2);
