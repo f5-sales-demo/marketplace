@@ -524,10 +524,17 @@ function resourceDeleteArgs(resource: AwsCeObservation['resources'][number], bas
   throw new Error(`AWS CE teardown has no safe deletion driver for owned resource ${id}`);
 }
 
-function deletionPriority(id: string): number {
+function deletionPriority(resource: AwsCeObservation['resources'][number]): number {
+  const { id } = resource;
   if (/listener\//.test(id) || id.startsWith('tgw-connect-peer-')) return 10;
   if (/loadbalancer\//.test(id)) return 20;
-  if (/targetgroup\//.test(id) || id.startsWith('tgw-attach-')) return 30;
+  if (/targetgroup\//.test(id)) return 30;
+  if (id.startsWith('tgw-attach-')) {
+    const attachments = Array.isArray(resource.state.TransitGatewayAttachments)
+      ? (resource.state.TransitGatewayAttachments as Array<Record<string, unknown>>)
+      : [];
+    return attachments[0]?.ResourceType === 'connect' ? 30 : 35;
+  }
   if (id.startsWith('i-')) return 40;
   if (id.startsWith('eipassoc-')) return 50;
   if (id.startsWith('eipalloc-')) return 60;
@@ -715,7 +722,7 @@ function compileActions(
     }
     for (const resource of observation.resources
       .filter((item) => item.owned)
-      .sort((a, b) => deletionPriority(a.id) - deletionPriority(b.id) || a.id.localeCompare(b.id))) {
+      .sort((a, b) => deletionPriority(a) - deletionPriority(b) || a.id.localeCompare(b.id))) {
       if (resource.id.startsWith('rtb-')) {
         const tables = resource.state.RouteTables as
           | Array<{ Associations?: Array<{ Main?: boolean; RouteTableAssociationId?: string }> }>

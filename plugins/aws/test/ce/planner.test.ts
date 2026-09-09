@@ -387,10 +387,12 @@ describe('compileAwsCePlan', () => {
     );
   });
 
-  it('deletes an owned NLB before its target group during teardown', () => {
+  it('orders owned ELB and Transit Gateway dependencies during teardown', () => {
     const prefix = 'arn:aws:elasticloadbalancing:us-east-1:123456789012';
     const loadBalancer = `${prefix}:loadbalancer/net/ce-demo/0123456789abcdef`;
     const targetGroup = `${prefix}:targetgroup/ce-demo/0123456789abcdef`;
+    const vpcAttachment = 'tgw-attach-0123456789abcdef0';
+    const connectAttachment = 'tgw-attach-1123456789abcdef0';
     const tags = {
       'xcsh-managed-by': 'aws-ce',
       'xcsh-execution-engine': 'native',
@@ -404,11 +406,34 @@ describe('compileAwsCePlan', () => {
         resources: [
           { id: targetGroup, region: 'us-east-1', exists: true, owned: true, tags, state: {} },
           { id: loadBalancer, region: 'us-east-1', exists: true, owned: true, tags, state: {} },
+          {
+            id: vpcAttachment,
+            region: 'us-east-1',
+            exists: true,
+            owned: true,
+            tags,
+            state: { TransitGatewayAttachments: [{ TransitGatewayAttachmentId: vpcAttachment, ResourceType: 'vpc' }] },
+          },
+          {
+            id: connectAttachment,
+            region: 'us-east-1',
+            exists: true,
+            owned: true,
+            tags,
+            state: {
+              TransitGatewayAttachments: [{ TransitGatewayAttachmentId: connectAttachment, ResourceType: 'connect' }],
+            },
+          },
         ],
       }),
     );
     const deletions = plan.actions.filter((action) => action.kind === 'resource-delete');
-    expect(deletions.map((action) => action.resourceId)).toEqual([loadBalancer, targetGroup]);
+    expect(deletions.map((action) => action.resourceId)).toEqual([
+      loadBalancer,
+      targetGroup,
+      connectAttachment,
+      vpcAttachment,
+    ]);
   });
 
   it('release-blocks TGW Connect without both documentation and tenant schema evidence', () => {
