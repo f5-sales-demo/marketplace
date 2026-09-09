@@ -49,6 +49,9 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 
 ## Azure operations and diagnostics
 
+- Native and Terraform upgrades use the same verified action and fresh version evidence. Native
+  execution persists the exact logical site identity before the request and reconciles an
+  ambiguous response from platform convergence without replaying the mutation.
 - Use Azure VM, NIC, provisioning, boot diagnostics, cloud-init, effective-route, NSG,
   Route Server, and Network Watcher evidence together with platform status.
 - Run VM Run Command and Network Watcher probes within the user's authorized diagnostic scope,

@@ -50,8 +50,10 @@ platform, routing, and traffic-health states independent.
    the complete site, correlates VM/NIC/MAC identities, and approves registration. If the
    verified contract says Azure headless bootstrap is unavailable, stop before cloud mutation;
    do not construct custom data or ask the user to relay a token.
-6. After registration, use `azure_ce_upgrade` to prepare or apply an exact serial Terraform
-   software/OS action. Treat version completion separately from node, routing, and traffic health.
+6. After registration, use `azure_ce_upgrade` to prepare or apply an exact serial native or
+   Terraform software/OS action. A native response lost after the persisted mutation boundary is
+   reconciled from platform state without replay. Treat version completion separately from node,
+   routing, and traffic health.
 7. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
 8. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For

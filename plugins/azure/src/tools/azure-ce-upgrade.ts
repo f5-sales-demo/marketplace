@@ -4,6 +4,12 @@ import type { CeTerraformService } from '../../../terraform/src/service';
 import type { PluginInterface } from '../az/types';
 import { type AzureCeToolContext, loadPlanArtifact } from '../ce/artifacts';
 import { canonicalSha256, safeHexEqual } from '../ce/canonical';
+import {
+  type AzureNativeUpgrade,
+  prepareAzureNativeUpgrade,
+  runAzureNativeUpgrade,
+  verifyAzureNativeUpgrade,
+} from '../ce/native-upgrade';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
 import {
   type AzureTerraformUpgrade,
@@ -39,7 +45,7 @@ export function createAzureCeUpgradeTool(pi: PluginInterface, dependencies: Depe
     name: 'azure_ce_upgrade',
     label: 'Upgrade Azure Customer Edge',
     description:
-      'Prepare or apply an immutable serial software/OS upgrade for an Azure Customer Edge site owned by Terraform. Apply resumes from persisted platform and saved-action evidence without replaying ambiguous actions. Node, routing and traffic health remain separate evidence.',
+      'Prepare or apply an immutable serial software/OS upgrade for a native- or Terraform-owned Azure Customer Edge site. Apply resumes from persisted platform evidence without replaying ambiguous actions. Node, routing and traffic health remain separate evidence.',
     parameters: Type.Object({
       operation: Type.Union([Type.Literal('prepare'), Type.Literal('apply')]),
       basePlanId: Type.String(),
@@ -72,27 +78,36 @@ export function createAzureCeUpgradeTool(pi: PluginInterface, dependencies: Depe
         if (Object.keys(params).some((key) => !allowed.includes(key)))
           throw new Error(`Azure CE upgrade ${params.operation} parameters differ`);
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
-        if (plan.engine !== 'terraform') throw new Error('Azure CE upgrade currently requires a Terraform-owned plan');
         const platform = await dependencies.platform(pi, signal);
         const storage = await platform.storage(azureUpgradeBinding(plan).owner);
-        const runtime = await platform.runtime('terraform', plan.intent.platformContext);
+        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {
           if (!params.kind || !params.version) throw new Error('Upgrade preparation requires kind and version');
-          const upgrade = await prepareAzureTerraformUpgrade(
-            plan,
-            { kind: params.kind, version: params.version },
-            runtime,
-            contract,
-            signal,
-          );
+          const upgrade =
+            plan.engine === 'terraform'
+              ? await prepareAzureTerraformUpgrade(
+                  plan,
+                  { kind: params.kind, version: params.version },
+                  runtime,
+                  contract,
+                  signal,
+                )
+              : await prepareAzureNativeUpgrade(
+                  plan,
+                  { kind: params.kind, version: params.version },
+                  runtime,
+                  contract,
+                  signal,
+                );
           const existing = await optional(storage, `${upgrade.planId}.json`);
           if (existing === undefined) await storage.write(`${upgrade.planId}.json`, upgrade);
           else if (canonicalSha256(existing) !== canonicalSha256(upgrade))
             throw new Error('Persisted Azure CE upgrade plan differs');
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({
-              kind: 'azure-ce-terraform-upgrade',
+              kind: upgrade.kind,
+              engine: upgrade.engine,
               planId: upgrade.planId,
               planSha256: upgrade.planSha256,
               sourcePlanSha256: upgrade.sourcePlanSha256,
@@ -120,8 +135,12 @@ export function createAzureCeUpgradeTool(pi: PluginInterface, dependencies: Depe
         }
         if (!params.upgradePlanId || !params.upgradePlanSha256)
           throw new Error('Upgrade apply requires the exact upgrade plan ID and SHA-256');
-        const upgrade = (await storage.read(`${params.upgradePlanId}.json`)) as AzureTerraformUpgrade;
-        await verifyAzureTerraformUpgrade(plan, upgrade, contract);
+        const upgrade = (await storage.read(`${params.upgradePlanId}.json`)) as
+          | AzureTerraformUpgrade
+          | AzureNativeUpgrade;
+        if (plan.engine === 'terraform')
+          await verifyAzureTerraformUpgrade(plan, upgrade as AzureTerraformUpgrade, contract);
+        else verifyAzureNativeUpgrade(plan, upgrade as AzureNativeUpgrade, contract);
         if (upgrade.planId !== params.upgradePlanId || !safeHexEqual(upgrade.planSha256, params.upgradePlanSha256))
           throw new Error('Persisted Azure CE upgrade plan identity differs');
         const authorizationName = `${upgrade.planId}-authorization.json`;
@@ -131,7 +150,7 @@ export function createAzureCeUpgradeTool(pi: PluginInterface, dependencies: Depe
             !authorization ||
             typeof authorization !== 'object' ||
             (authorization as Record<string, unknown>).schemaVersion !== 2 ||
-            (authorization as Record<string, unknown>).engine !== 'terraform' ||
+            (authorization as Record<string, unknown>).engine !== plan.engine ||
             (authorization as Record<string, unknown>).sourcePlanSha256 !== plan.planSha256 ||
             (authorization as Record<string, unknown>).upgradePlanSha256 !== upgrade.planSha256 ||
             (authorization as Record<string, unknown>).mutations !== true
@@ -148,23 +167,34 @@ export function createAzureCeUpgradeTool(pi: PluginInterface, dependencies: Depe
             throw new Error('Azure CE upgrade was not approved');
           await storage.write(authorizationName, {
             schemaVersion: 2,
-            engine: 'terraform',
+            engine: plan.engine,
             sourcePlanSha256: plan.planSha256,
             upgradePlanSha256: upgrade.planSha256,
             mutations: true,
           });
         }
-        const result = await runAzureTerraformUpgrade(
-          plan,
-          upgrade,
-          params.upgradePlanSha256,
-          runtime,
-          contract,
-          await dependencies.terraform(pi, signal),
-          storage,
-          process.env,
-          signal,
-        );
+        const result =
+          plan.engine === 'terraform'
+            ? await runAzureTerraformUpgrade(
+                plan,
+                upgrade as AzureTerraformUpgrade,
+                params.upgradePlanSha256,
+                runtime,
+                contract,
+                await dependencies.terraform(pi, signal),
+                storage,
+                process.env,
+                signal,
+              )
+            : await runAzureNativeUpgrade(
+                plan,
+                upgrade as AzureNativeUpgrade,
+                params.upgradePlanSha256,
+                runtime,
+                contract,
+                storage,
+                signal,
+              );
         const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'azure-ce-upgrade-checkpoint');
         if (!artifactId) throw new Error('Azure CE upgrade checkpoint artifact persistence failed');
         return {

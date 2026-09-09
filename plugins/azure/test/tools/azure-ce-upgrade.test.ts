@@ -160,3 +160,118 @@ test('public Azure upgrade tool prepares, authorizes and idempotently resumes an
   expect({ applies, confirms }).toEqual({ applies: 1, confirms: 1 });
   expect(artifacts.some((value) => value.includes('providerLock'))).toBe(false);
 });
+
+test('public Azure upgrade tool executes a native upgrade without opening Terraform', async () => {
+  const plan = compileAzureCePlan(intent, observation);
+  const binding = azureUpgradeBinding(plan);
+  const target = 'crt-20260201-0179';
+  const path = await mkdtemp(join(tmpdir(), 'azure-ce-native-upgrade-tool-'));
+  directories.push(path);
+  const storage = await CeDeploymentStore.open(path, binding.owner);
+  let observations = 0;
+  let submissions = 0;
+  let confirms = 0;
+  let terraformCalls = 0;
+  const runtime = {
+    engine: 'native' as const,
+    async observeUpgrade() {
+      observations++;
+      const installed = observations >= 3 ? target : 'crt-20260201-0178';
+      return {
+        owner: binding.owner,
+        nodes: binding.nodes,
+        siteName: binding.siteName,
+        source: `/api/config/namespaces/system/sites/${binding.siteName}`,
+        siteUid: 'logical-azure',
+        physicalSiteUid: 'physical-azure',
+        contractFingerprint: contract.fingerprint,
+        siteContractFingerprint: `sha256:${'b'.repeat(64)}`,
+        status: 'observed' as const,
+        startedAt: new Date(Date.now() - 100).toISOString(),
+        observedAt: new Date().toISOString(),
+        targetSoftware: target,
+        online: true,
+        siteState: 'ONLINE',
+        software: { installed, available: target, phase: 'UPGRADE_COMPLETED', result: 'Completed' },
+        os: { installed: '9.2026.14', available: '9.2026.17', phase: 'UPGRADE_COMPLETED', result: 'success' },
+        targets: [target],
+        targetSoftwareListed: true,
+        prechecks: { checks: [{ name: 'nodes', status: 'CHECKLIST_PASSED' }], passing: true },
+        progress: { status: 'COMPLETED', version: installed },
+        sources: { site: '', targets: '', precheck: '', progress: '' },
+        nodeHealth: 'unknown' as const,
+        routing: 'unknown' as const,
+        traffic: 'unknown' as const,
+      };
+    },
+    async submitUpgrade(
+      _binding: unknown,
+      _contract: unknown,
+      _target: unknown,
+      _siteUid: string,
+      boundary: () => Promise<void>,
+    ) {
+      await boundary();
+      submissions++;
+      return { status: 'submitted' as const } as never;
+    },
+  } as Pick<CeRuntime, 'engine' | 'observeUpgrade' | 'submitUpgrade'>;
+  const platform = {
+    storage: async () => storage,
+    runtime: async () => runtime,
+  } as unknown as CePlatformService;
+  const ctx = {
+    cwd: '/tmp',
+    hasUI: true,
+    ui: {
+      async confirm() {
+        confirms++;
+        return true;
+      },
+    },
+    sessionManager: {
+      getSessionId: () => 'azure-native-upgrade-tool-test',
+      getArtifactsDir: () => null,
+      getArtifactPath: async () => null,
+      saveArtifact: async () => 'native-artifact',
+    },
+  } satisfies AzureCeToolContext;
+  await savePlanArtifact(ctx.sessionManager, plan, observation);
+  const tool = createAzureCeUpgradeTool({ typebox } as PluginInterface, {
+    platform: async () => platform,
+    terraform: async () => {
+      terraformCalls++;
+      throw new Error('Terraform must not open for native upgrades');
+    },
+    contract: async () => contract,
+  });
+  const prepared = (await tool.execute(
+    'native-prepare',
+    {
+      operation: 'prepare',
+      basePlanId: plan.planId,
+      basePlanSha256: plan.planSha256,
+      kind: 'software',
+      version: target,
+    },
+    undefined,
+    undefined,
+    ctx,
+  )) as { details: { planId: string; planSha256: string } };
+  const input = {
+    operation: 'apply' as const,
+    basePlanId: plan.planId,
+    basePlanSha256: plan.planSha256,
+    upgradePlanId: prepared.details.planId,
+    upgradePlanSha256: prepared.details.planSha256,
+  };
+  expect(
+    ((await tool.execute('native-apply', input, undefined, undefined, ctx)) as { details: { status: string } }).details
+      .status,
+  ).toBe('upgrade-complete');
+  expect(
+    ((await tool.execute('native-resume', input, undefined, undefined, ctx)) as { details: { status: string } }).details
+      .status,
+  ).toBe('upgrade-complete');
+  expect({ submissions, confirms, terraformCalls }).toEqual({ submissions: 1, confirms: 1, terraformCalls: 0 });
+});
