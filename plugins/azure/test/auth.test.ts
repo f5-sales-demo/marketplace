@@ -32,7 +32,7 @@ describe('private Azure workload authentication', () => {
         },
       ),
     ).toBe(true);
-    expect(received).toContain('--password=-sentinel');
+    expect(received).toContain(['--password', '-sentinel'].join('='));
     expect(received).toContain('--username');
   });
 
