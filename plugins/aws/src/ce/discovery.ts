@@ -674,11 +674,26 @@ async function observeResource(
       throw new Error('AWS ownership tags are malformed or duplicated');
     tags[Key] = Value;
   }
+  const terminalDeleted = (() => {
+    const rows = id.startsWith('tgw-connect-peer-')
+      ? raw.TransitGatewayConnectPeers
+      : id.startsWith('tgw-attach-')
+        ? raw.TransitGatewayAttachments
+        : undefined;
+    return (
+      Array.isArray(rows) &&
+      rows.length === 1 &&
+      rows[0] !== null &&
+      typeof rows[0] === 'object' &&
+      String((rows[0] as Record<string, unknown>).State ?? '').toLowerCase() === 'deleted'
+    );
+  })();
   return {
     id,
     region,
-    exists: matches.length > 0,
+    exists: matches.length > 0 && !terminalDeleted,
     owned:
+      !terminalDeleted &&
       tags['xcsh-managed-by'] === 'aws-ce' &&
       ['native', 'terraform'].includes(tags['xcsh-execution-engine']) &&
       tags['xcsh-deployment-id'] === deploymentName &&

@@ -374,6 +374,26 @@ it('observes EIP associations through the supported association-id filter', asyn
   );
 });
 
+it('treats retained TGW deletion tombstones as absent', async () => {
+  const id = 'tgw-attach-0123456789abcdef0';
+  const [observed] = await observeAwsResources(
+    {
+      async exec() {
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({ TransitGatewayAttachments: [{ TransitGatewayAttachmentId: id, State: 'deleted' }] }),
+        };
+      },
+    },
+    [id],
+    'us-east-1',
+    { deploymentName: 'ce-demo', planSha256s: [] },
+  );
+  expect(observed.exists).toBe(false);
+  expect(observed.owned).toBe(false);
+});
+
 it('binds an untagged listener to its exact owned load balancer parent', async () => {
   const digest = 'a'.repeat(64);
   const listener =
