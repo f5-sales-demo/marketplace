@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from './deployment-store';
 import type { VerifiedIngressContract } from './ingress-contract';
 import type { ExpectedCeInterface, ObservedCeInterface } from './interface-evidence';
+import { acquireProcessLock } from './process-lock';
 import { CeApiError, type SiteBinding } from './runtime';
 import type { InsideHttpListener } from './wire-ingress';
 
@@ -87,15 +87,11 @@ export class CeIngressLifecycle {
     await this.storage.verify();
     if (this.port.engine !== this.storage.owner.engine) throw new Error('Only the owning engine may mutate ingress');
     const path = join(this.storage.directory, '.ingress-lock');
-    try {
-      await mkdir(path, { mode: 0o700 });
-    } catch {
-      throw new Error('Ingress operation lock is held; reconcile the prior process before recovery');
-    }
+    const release = await acquireProcessLock(path);
     try {
       return await operation();
     } finally {
-      await rm(path, { recursive: true });
+      await release();
     }
   }
   #labels(): Json {

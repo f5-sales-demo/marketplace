@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import { acquireProcessLock } from '../../platform/src/ce/process-lock';
 import { TerraformCommandError, type TerraformFailureCategory, terraformFailureCategories } from './failure';
 
 export interface Invocation {
@@ -492,13 +493,12 @@ export class TerraformRunner {
     if (!this.#directory) throw new Error('Prepare or resume the deployment first');
     this.#busy = true;
     const lock = join(this.#directory, '.runner-lock');
-    let acquired = false;
+    let release: (() => Promise<void>) | undefined;
     try {
-      await mkdir(lock, { mode: 0o700 });
-      acquired = true;
+      release = await acquireProcessLock(lock);
       return await operation();
     } finally {
-      if (acquired) await rm(lock, { recursive: true });
+      if (release) await release();
       this.#busy = false;
     }
   }
