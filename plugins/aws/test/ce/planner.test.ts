@@ -789,7 +789,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
         },
         routing: {
           profile: 'tgw-connect',
-          destinationCidrs: [],
+          destinationCidrs: ['10.253.0.0/16'],
           associations: [],
           propagations: [],
           transitGatewayId: 'tgw-0123456789abcdef0',
@@ -801,7 +801,10 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       evidence,
     );
     const greRoutes = plan.actions.filter(
-      (action) => action.kind === 'route-create' && action.args?.includes('--transit-gateway-id'),
+      (action) =>
+        action.kind === 'route-create' &&
+        action.args?.includes('--transit-gateway-id') &&
+        action.args.includes('172.31.240.0/24'),
     );
     expect(greRoutes).toHaveLength(1);
     expect(greRoutes[0].args).toContain('__SLO_ROUTE_TABLE__');
@@ -827,15 +830,15 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);
     expect(plan.actions.some((action) => action.kind === 'nlb-gate')).toBe(true);
     expect(plan.billableResources).toContainEqual({ type: 'network-load-balancer', count: 1 });
-    expect(() =>
-      compileAwsCePlan(
-        {
-          ...plan.intent,
-          routing: { ...plan.intent.routing, destinationCidrs: ['10.253.0.0/16'] },
-        },
-        evidence,
-      ),
-    ).toThrow('must be learned through BGP');
+    const payloadRoutes = plan.actions.filter(
+      (action) =>
+        action.kind === 'route-create' &&
+        action.args?.includes('__SLO_ROUTE_TABLE__') &&
+        action.args.includes('10.253.0.0/16'),
+    );
+    expect(payloadRoutes).toHaveLength(1);
+    expect(payloadRoutes[0].args).toContain('tgw-0123456789abcdef0');
+    expect(plan.actions.some((action) => action.kind === 'tgw-route-create')).toBe(false);
     const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
     expect(attachments).toHaveLength(2);
     const attachmentGates = plan.actions.filter((action) => action.kind === 'tgw-attachment-gate');
@@ -877,7 +880,10 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       evidence,
     );
     const mixedRoutes = mixed.actions.filter(
-      (action) => action.kind === 'route-create' && action.args?.includes('--transit-gateway-id'),
+      (action) =>
+        action.kind === 'route-create' &&
+        action.args?.includes('--transit-gateway-id') &&
+        action.args.includes('172.31.240.0/24'),
     );
     expect(mixedRoutes).toHaveLength(2);
     expect(mixedRoutes.map((action) => action.args?.[(action.args?.indexOf('--route-table-id') ?? -1) + 1])).toEqual([

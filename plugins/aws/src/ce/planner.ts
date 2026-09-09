@@ -217,8 +217,6 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('Transit Gateway route table is outside the explicit allowlist');
   }
   if (input.routing.profile === 'tgw-connect') {
-    if (input.operation === 'deploy' && destinationCidrs.length)
-      fail('TGW Connect payload routes must be learned through BGP; static destination CIDRs are unsupported');
     const customerAsn = asn(input.routing.customerAsn, 'customerAsn');
     const transitGatewayAsn = asn(input.routing.transitGatewayAsn, 'transitGatewayAsn');
     if (customerAsn === transitGatewayAsn) fail('customer and Transit Gateway ASNs must differ');
@@ -1770,8 +1768,29 @@ function compileActions(
         mutates: true,
         destructive: true,
       });
-    for (const destination of intent.routing.destinationCidrs)
-      if (intent.routing.transitGatewayRouteTableId)
+    for (const destination of intent.routing.destinationCidrs) {
+      if (intent.routing.profile === 'tgw-connect')
+        add({
+          phase: 'routing',
+          kind: 'route-create',
+          description: `Route remote payload network ${destination} from the SLO subnet through the TGW`,
+          command: 'aws',
+          args: [
+            'ec2',
+            'create-route',
+            '--route-table-id',
+            '__SLO_ROUTE_TABLE__',
+            '--destination-cidr-block',
+            destination,
+            '--transit-gateway-id',
+            intent.routing.transitGatewayId ?? '',
+            ...base,
+          ],
+          resourceId: `aws://${intent.region}/route-table/${intent.deploymentName}-slo`,
+          mutates: true,
+          destructive: false,
+        });
+      else if (intent.routing.transitGatewayRouteTableId)
         add({
           phase: 'routing',
           kind: 'tgw-route-create',
@@ -1792,6 +1811,7 @@ function compileActions(
           mutates: true,
           destructive: true,
         });
+    }
     for (const route of intent.routes)
       add({
         phase: 'routing',
