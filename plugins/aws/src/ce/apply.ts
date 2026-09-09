@@ -276,6 +276,11 @@ async function assertGate(
           childPlanId: child.planId,
           childPlanSha256: child.planSha256,
           status: result.status,
+          registrationStatus: 'registration' in result && result.registration ? result.registration.status : undefined,
+          configurationStatus:
+            'configuration' in result && result.configuration ? result.configuration.status : undefined,
+          versions: 'versions' in result ? result.versions : undefined,
+          observedAt: new Date().toISOString(),
         });
         return result.status === 'registered-with-configured-interfaces';
       };
