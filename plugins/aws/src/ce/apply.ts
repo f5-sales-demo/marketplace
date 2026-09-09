@@ -9,6 +9,7 @@ import { assertAttachmentAvailable } from './attachment-gate';
 import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
+import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
 import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
@@ -427,6 +428,7 @@ export async function executeAwsCeApply(
     resolvedValues: { ...(existing?.resolvedValues ?? {}) },
     state: 'running',
     pendingCreate: existing?.pendingCreate,
+    pendingDelete: existing?.pendingDelete,
   };
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
@@ -440,7 +442,8 @@ export async function executeAwsCeApply(
       ]),
     );
     try {
-      await assertAwsActionOwnership(plan, action, api, checkpoint.resolvedValues);
+      if (!(hasDeleteRecovery(action) && checkpoint.pendingDelete?.actionId === action.id))
+        await assertAwsActionOwnership(plan, action, api, checkpoint.resolvedValues);
       const convergenceDeadline = Date.now() + 15 * 60_000;
       while (true) {
         try {
@@ -537,7 +540,18 @@ export async function executeAwsCeApply(
                   () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
                   signal,
                 )
-              : await api.exec(action.command, args);
+              : hasDeleteRecovery(action)
+                ? await executeRecoverableDelete(
+                    api,
+                    plan,
+                    action,
+                    args,
+                    checkpoint,
+                    () => saveAwsCheckpoint(ctx.sessionManager, checkpoint),
+                    ownershipPlanSha256s,
+                    signal,
+                  )
+                : await api.exec(action.command, args);
         if (launchDirectory) {
           delete checkpoint.resolvedValues.__BOOTSTRAP_FILE__;
           await rm(launchDirectory, { recursive: true, force: true });
@@ -582,11 +596,14 @@ export async function executeAwsCeApply(
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
       const pendingCreate = checkpoint.pendingCreate;
+      const pendingDelete = checkpoint.pendingDelete;
       checkpoint.pendingCreate = undefined;
+      checkpoint.pendingDelete = undefined;
       try {
         await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
       } catch (error) {
         checkpoint.pendingCreate = pendingCreate;
+        checkpoint.pendingDelete = pendingDelete;
         completed.delete(action.id);
         checkpoint.completedActionIds = [...completed];
         throw error;
