@@ -8,6 +8,7 @@ import { CeOriginTeardown } from './origin-teardown';
 import { type CePlatformDrainPlan, drainCePlatform } from './platform-drain';
 import { correlateRegistrationDevices, verifyRegisteredInterfaceConfiguration } from './registration-devices';
 import type { RoutingKind, VerifiedRoutingContract } from './routing-contract';
+import { collectCeTeardownInventory } from './teardown-inventory';
 import type { VerifiedUpgradeContract } from './upgrade-contract';
 import {
   parseSiteUpgradeState,
@@ -285,6 +286,21 @@ export class CeRuntime {
         reason: error instanceof CeApiError ? error.category : 'ownership-or-response-invalid',
       };
     }
+  }
+  teardownInventory(
+    bindings: SiteBinding[],
+    namespaces: string[],
+    contract: VerifiedIngressContract,
+    signal?: AbortSignal,
+  ) {
+    for (const binding of bindings) this.#binding(binding);
+    return collectCeTeardownInventory(
+      { request: (path, init, signal) => this.#request(path, init, signal) },
+      bindings,
+      namespaces,
+      { site: this.contract.fingerprint, ingress: contract.fingerprint },
+      signal,
+    );
   }
   drainPlatform(
     plan: CePlatformDrainPlan,
