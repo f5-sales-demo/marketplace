@@ -80,7 +80,6 @@ test('accepts schema-supported advanced choices and rejects identity overrides',
     expect(() => buildWireSite({ ...intent(), settings }, fixture.schemas)).toThrow();
 });
 
-
 test('rejects AWS MAC-only create before wire submission without asserting Azure runtime equivalence', () => {
   const value = intent();
   for (const iface of value.nodes[0].interfaces) delete (iface.ethernet_interface as Record<string, unknown>).device;

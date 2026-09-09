@@ -217,8 +217,8 @@ test('rejects authorization and serial-site conflicts before action planning', a
   await expect(
     runAwsTerraformUpgrade(f.plan, f.upgrade, 'd'.repeat(64), f.runtime, contract, f.terraform, f.storage, {}),
   ).rejects.toThrow('authorization');
-  await f.storage.write('aws-terraform-upgrade-serial.json', {
-    schemaVersion: 1,
+  await f.storage.write('terraform-ce-upgrade-serial.json', {
+    schemaVersion: 2,
     engine: 'terraform',
     status: 'active',
     activePlanId: 'aws-ce-upgrade-other',
@@ -227,6 +227,15 @@ test('rejects authorization and serial-site conflicts before action planning', a
   await expect(
     runAwsTerraformUpgrade(f.plan, f.upgrade, f.upgrade.planSha256, f.runtime, contract, f.terraform, f.storage, {}),
   ).rejects.toThrow('Another site upgrade');
+  expect(f.counts()).toEqual({ applies: 0, opens: 0 });
+});
+
+test('rejects obsolete schema-v1 plans before Terraform mutation', async () => {
+  const f = await setup(['ready']);
+  const obsolete = { ...f.upgrade, schemaVersion: 1 } as unknown as AwsTerraformUpgrade;
+  await expect(
+    runAwsTerraformUpgrade(f.plan, obsolete, obsolete.planSha256, f.runtime, contract, f.terraform, f.storage, {}),
+  ).rejects.toThrow('obsolete');
   expect(f.counts()).toEqual({ applies: 0, opens: 0 });
 });
 

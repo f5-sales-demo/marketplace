@@ -25,7 +25,7 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
   [MCN marketplace layout](https://f5-sales-demo.github.io/mcn/en/customer-edge/interface-model/),
   cloud labels `mgmt`, `external`, and `internal` correspond to SLO, data, and SLI respectively.
   A cloud label `mgmt` does not enable the separate XC management network.
-- Keep cloud resource names, attachment indexes, XC roles, and guest device observations
+- Keep cloud resource names, attachment indices, XC roles, and guest device observations
   distinct. Discover SLI by its planned role and reciprocal VM/NIC resource identities, including
   slot 2 in the three-NIC layout. Do not construct guest interface names from attachment order.
   Resolve every greenfield or allowlisted brownfield subnet before planning.

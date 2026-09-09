@@ -1,4 +1,5 @@
 import type { CePlatformService } from '../../../platform/src/ce/service';
+import type { CeTerraformService } from '../../../terraform/src/service';
 
 /** Type-only dependency; installed plugins communicate through the supported extension bus. */
 export function azurePlatformService(pi: { [key: string]: unknown }, signal?: AbortSignal): Promise<CePlatformService> {
@@ -26,5 +27,35 @@ export function azurePlatformService(pi: { [key: string]: unknown }, signal?: Ab
         resolve(service);
       },
     });
+  });
+}
+
+/** Request the generic Terraform lifecycle service through the supported plugin event bus. */
+export function azureTerraformService(
+  pi: { [key: string]: unknown },
+  signal?: AbortSignal,
+): Promise<CeTerraformService> {
+  const bus = pi.events as { emit?: (channel: string, value: unknown) => void } | undefined;
+  return new Promise((resolve, reject) => {
+    const fail = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', fail);
+      reject(new Error('Terraform CE service unavailable or cancelled'));
+    };
+    const timer = setTimeout(fail, 5000);
+    signal?.addEventListener('abort', fail, { once: true });
+    if (signal?.aborted || typeof bus?.emit !== 'function') return fail();
+    try {
+      bus.emit('xcsh:ce-terraform:v1:service', {
+        version: 1,
+        resolve: (service: CeTerraformService) => {
+          clearTimeout(timer);
+          signal?.removeEventListener('abort', fail);
+          resolve(service);
+        },
+      });
+    } catch {
+      fail();
+    }
   });
 }
