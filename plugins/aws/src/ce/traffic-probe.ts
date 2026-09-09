@@ -88,13 +88,24 @@ export async function collectAwsTrafficProbe(
   const file = 'aws-traffic-probe.json';
   let state = await optional(storage, file);
   if (state) {
+    const attempts = state.attempts;
     if (
       state.schemaVersion !== 1 ||
       state.engine !== plan.engine ||
       state.planSha256 !== plan.planSha256 ||
       state.sourceInstanceId !== probe.sourceInstanceId ||
       !['ready', 'submitted', 'complete'].includes(String(state.phase)) ||
-      (state.phase !== 'ready' && (typeof state.commandId !== 'string' || !COMMAND_ID.test(state.commandId)))
+      (state.phase !== 'ready' && (typeof state.commandId !== 'string' || !COMMAND_ID.test(state.commandId))) ||
+      (attempts !== undefined &&
+        (!Array.isArray(attempts) ||
+          attempts.some(
+            (attempt) =>
+              !attempt ||
+              typeof attempt !== 'object' ||
+              !COMMAND_ID.test(String((attempt as Json).commandId)) ||
+              typeof (attempt as Json).observedAt !== 'string' ||
+              !Number.isFinite(Date.parse(String((attempt as Json).observedAt))),
+          )))
     )
       throw new Error('Traffic probe checkpoint differs from the owning plan');
     if (state.phase === 'complete') {
@@ -180,24 +191,30 @@ export async function collectAwsTrafficProbe(
       await new Promise((resolve) => setTimeout(resolve, 2_000));
       continue;
     }
-    const match = /^(\d{3}) ([a-f0-9]{64})\n?$/.exec(String(invocation.StandardOutputContent));
+    const output = invocation.StandardOutputContent;
+    const errorOutput = invocation.StandardErrorContent;
     if (
       invocation.CommandId !== commandId ||
       invocation.InstanceId !== probe.sourceInstanceId ||
       invocation.DocumentName !== 'AWS-RunShellScript' ||
       invocation.DocumentVersion !== '1' ||
-      typeof invocation.StandardErrorContent !== 'string' ||
-      invocation.StandardErrorContent !== '' ||
-      !match
+      typeof output !== 'string' ||
+      typeof errorOutput !== 'string' ||
+      typeof invocation.Status !== 'string' ||
+      typeof invocation.ResponseCode !== 'number'
     )
       throw new Error('Traffic probe response is malformed');
+    const match = /^(\d{3}) ([a-f0-9]{64})\n?$/.exec(output);
     const evidence = {
-      status: invocation.Status === 'Success' && invocation.ResponseCode === 0 ? 'healthy' : 'degraded',
+      status:
+        invocation.Status === 'Success' && invocation.ResponseCode === 0 && errorOutput === '' && match
+          ? 'healthy'
+          : 'degraded',
       source: 'aws:ssm:get-command-invocation',
       sourceInstanceId: probe.sourceInstanceId,
       commandId,
-      httpStatus: Number(match[1]),
-      bodySha256: match[2],
+      httpStatus: match ? Number(match[1]) : undefined,
+      bodySha256: match?.[2],
       expectedStatus: probe.expectedStatus,
       expectedBodySha256: probe.expectedBodySha256,
       observedAt: new Date().toISOString(),
@@ -206,8 +223,22 @@ export async function collectAwsTrafficProbe(
       evidence.status !== 'healthy' ||
       evidence.httpStatus !== probe.expectedStatus ||
       evidence.bodySha256 !== probe.expectedBodySha256
-    )
-      throw new Error('End-to-end AWS traffic probe failed');
+    ) {
+      const attempts = Array.isArray(state.attempts) ? state.attempts.map(object) : [];
+      if (!attempts.some((attempt) => attempt.commandId === commandId))
+        attempts.push({
+          commandId,
+          status: invocation.Status,
+          responseCode: invocation.ResponseCode,
+          httpStatus: evidence.httpStatus,
+          bodySha256: evidence.bodySha256,
+          stderrPresent: errorOutput.length > 0,
+          observedAt: evidence.observedAt,
+        });
+      state = { ...state, phase: 'ready', commandId: undefined, attempts: attempts.slice(-40) };
+      await storage.write(file, state);
+      throw new Error('Traffic probe has not converged; retry the saved checkpoint');
+    }
     await storage.write(file, { ...state, phase: 'complete', evidence });
     return evidence;
   }

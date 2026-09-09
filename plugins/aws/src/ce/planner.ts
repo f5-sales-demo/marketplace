@@ -217,6 +217,8 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('Transit Gateway route table is outside the explicit allowlist');
   }
   if (input.routing.profile === 'tgw-connect') {
+    if (destinationCidrs.length)
+      fail('TGW Connect payload routes must be learned through BGP; static destination CIDRs are unsupported');
     const customerAsn = asn(input.routing.customerAsn, 'customerAsn');
     const transitGatewayAsn = asn(input.routing.transitGatewayAsn, 'transitGatewayAsn');
     if (customerAsn === transitGatewayAsn) fail('customer and Transit Gateway ASNs must differ');

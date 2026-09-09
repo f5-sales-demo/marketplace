@@ -778,6 +778,15 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);
     expect(plan.actions.some((action) => action.kind === 'nlb-gate')).toBe(true);
     expect(plan.billableResources).toContainEqual({ type: 'network-load-balancer', count: 1 });
+    expect(() =>
+      compileAwsCePlan(
+        {
+          ...plan.intent,
+          routing: { ...plan.intent.routing, destinationCidrs: ['10.253.0.0/16'] },
+        },
+        evidence,
+      ),
+    ).toThrow('must be learned through BGP');
     const attachments = plan.actions.filter((action) => action.kind === 'tgw-connect-attachment-create');
     expect(attachments).toHaveLength(2);
     const attachmentGates = plan.actions.filter((action) => action.kind === 'tgw-attachment-gate');

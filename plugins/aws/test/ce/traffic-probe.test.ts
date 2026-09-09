@@ -115,6 +115,50 @@ test('collects content-bound SSM traffic evidence and resumes without another re
   ).rejects.toThrow('Persisted traffic evidence');
 });
 
+test('checkpoints a failed request and retries without manual state repair', async () => {
+  const f = fixture();
+  let sends = 0;
+  const api = {
+    async exec(command: string, args: string[]) {
+      if (args[0] === 'ssm' && args[1] === 'send-command') {
+        sends++;
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({ Command: { CommandId: `12345678-1234-1234-1234-123456789ab${sends}` } }),
+        };
+      }
+      if (args[0] === 'ssm' && args[1] === 'get-command-invocation') {
+        const failed = sends === 1;
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            CommandId: `12345678-1234-1234-1234-123456789ab${sends}`,
+            InstanceId: f.plan.intent.ingress?.mode === 'nlb' ? f.plan.intent.ingress.probe.sourceInstanceId : '',
+            DocumentName: 'AWS-RunShellScript',
+            DocumentVersion: '1',
+            Status: failed ? 'Failed' : 'Success',
+            ResponseCode: failed ? 1 : 0,
+            StandardOutputContent: failed ? `000 ${'e3b0'.padEnd(64, '0')}\n` : `200 ${'4'.repeat(64)}\n`,
+            StandardErrorContent: failed ? 'connection timed out' : '',
+          }),
+        };
+      }
+      return f.api.exec(command, args);
+    },
+  };
+  await expect(
+    collectAwsTrafficProbe(f.plan, { resolvedValues: { __NLB_ARN__: f.arn } }, f.storage, api),
+  ).rejects.toThrow('has not converged');
+  const pending = f.values.get('aws-traffic-probe.json') as Record<string, unknown>;
+  expect(pending.phase).toBe('ready');
+  expect(JSON.stringify(pending)).not.toContain('connection timed out');
+  const result = await collectAwsTrafficProbe(f.plan, { resolvedValues: { __NLB_ARN__: f.arn } }, f.storage, api);
+  expect(result.status).toBe('healthy');
+  expect(sends).toBe(2);
+});
+
 test('rejects a probe source outside the reviewed inventory before AWS calls', async () => {
   const f = fixture();
   f.plan.ownershipInventory = [];
