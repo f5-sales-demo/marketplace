@@ -100,6 +100,11 @@ such rather than counting them as unattended acceptance.
 - Native TGW Connect apply freezes the complete XC connector/BGP UID inventory in the restricted
   deployment store after routing configuration converges. Teardown and replacement must consume
   that engine-bound record rather than relying on conversational checkpoint state.
+- Terraform failover keeps rendered bootstrap and temporary power controls in restricted storage.
+  One authorized apply performs stop, exact selected-peer withdrawal, restart, full restoration,
+  control release, and a refresh-enabled no-change plan with bounded polling. Submitted saved
+  plans resume exactly after interruption. BGP success does not establish data-plane traffic or
+  origin-control health; collect those as separate acceptance evidence.
 - Native teardown binds this platform inventory to a fresh, independently reviewed native cloud
   teardown plan. Each owned delete intent is durable before mutation; an interrupted response is
   reconciled from exact scoped AWS state, including EC2's retained `terminated` records, and is not

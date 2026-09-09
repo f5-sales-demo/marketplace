@@ -1,12 +1,26 @@
-import { expect, test } from 'bun:test';
+import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { TerraformSession } from '../../../terraform/src/service';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { renderAwsTerraformConnect } from '../../src/ce/terraform-connect';
-import { awsTerraformFailoverStages, validateAwsTerraformFailoverPlan } from '../../src/ce/terraform-failover';
+import {
+  awsTerraformFailoverStages,
+  buildAwsTerraformFailover,
+  runAwsTerraformFailover,
+  validateAwsTerraformFailoverPlan,
+} from '../../src/ce/terraform-failover';
 import { connectFixture } from './terraform-connect-fixture';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const instanceId = 'i-0123456789abcdef0';
+const directories: string[] = [];
+afterEach(async () => {
+  for (const path of directories.splice(0)) await rm(path, { recursive: true });
+});
 function fixture() {
   const f = connectFixture();
   const { planId: _id, planSha256: _sha, ...draft } = f.plan;
@@ -118,4 +132,132 @@ test('admits only the selected power-control action and complete no-op coverage 
       expect(() => validateAwsTerraformFailoverPlan(f.stages[phase], next)).toThrow();
     }
   }
+});
+
+async function executionFixture() {
+  const f = fixture();
+  const failover = buildAwsTerraformFailover(f.plan, 1, instanceId, f.configuration, hash(f.configuration));
+  const directory = await mkdtemp(join(tmpdir(), 'aws-tf-failover-'));
+  directories.push(directory);
+  const owner = {
+    deploymentId: f.plan.deploymentName,
+    engine: 'terraform' as const,
+    provider: 'aws' as const,
+    account: f.plan.accountId,
+    region: f.plan.region,
+  };
+  const storage = await CeDeploymentStore.open(directory, owner);
+  let configuration = f.configuration;
+  let applied = 'release';
+  let failAfterStop = false;
+  const calls: string[] = [];
+  const session = {
+    async reviseConfiguration(expected: string, next: string) {
+      expect(hash(configuration)).toBe(expected);
+      configuration = next;
+      return hash(next);
+    },
+    async plan() {
+      const phase =
+        hash(configuration) === failover.stages.stop.configurationSha256
+          ? 'stop'
+          : hash(configuration) === failover.stages.start.configurationSha256
+            ? 'start'
+            : 'release';
+      const stage = failover.stages[phase];
+      const control =
+        phase === 'release'
+          ? applied === 'release'
+            ? []
+            : [{ address: stage.controlAddress, type: 'aws_ec2_instance_state', actions: ['delete'] }]
+          : [
+              {
+                address: stage.controlAddress,
+                type: 'aws_ec2_instance_state',
+                actions: [phase === 'stop' ? 'create' : 'update'],
+              },
+            ];
+      return {
+        schemaVersion: 1 as const,
+        deploymentId: stage.deploymentId,
+        engine: 'terraform' as const,
+        backendIdentity: `local:${stage.deploymentId}`,
+        configurationSha256: stage.configurationSha256,
+        providerLockSha256: 'a'.repeat(64),
+        planSha256: hash(`${phase}-${applied}`),
+        changes: [
+          ...stage.retainedAddresses.map(({ address, type }) => ({ address, type, actions: ['no-op'] })),
+          ...control,
+        ],
+        noChanges: control.length === 0,
+      };
+    },
+    async apply(receipt: { configurationSha256: string }) {
+      const phase = Object.values(failover.stages).find(
+        (stage) => stage.configurationSha256 === receipt.configurationSha256,
+      )?.phase;
+      if (!phase) throw new Error('Unknown configuration');
+      calls.push(phase);
+      applied = phase;
+      if (phase === 'stop' && failAfterStop) {
+        failAfterStop = false;
+        throw new Error('lost response');
+      }
+    },
+  } as unknown as TerraformSession;
+  return { ...f, failover, storage, session, calls, setFailAfterStop: () => (failAfterStop = true) };
+}
+
+test('executes stop, exact outage, start, restoration, release and a final no-change plan', async () => {
+  const f = await executionFixture();
+  const evidence: string[] = [];
+  const result = await runAwsTerraformFailover(
+    f.plan,
+    f.failover,
+    f.failover.planSha256,
+    f.session,
+    f.storage,
+    async (phase) => {
+      evidence.push(phase);
+      return { acceptance: 'passed' };
+    },
+    {},
+    undefined,
+    { attempts: 1, intervalMs: 0, wait: async () => {} },
+  );
+  expect(result.status).toBe('failover-complete');
+  expect(f.calls).toEqual(['stop', 'start', 'release']);
+  expect(evidence).toEqual(['outage', 'recovered']);
+  expect(result.traffic).toBe('unknown');
+});
+
+test('resumes the exact submitted stop plan after an ambiguous response', async () => {
+  const f = await executionFixture();
+  f.setFailAfterStop();
+  await expect(
+    runAwsTerraformFailover(
+      f.plan,
+      f.failover,
+      f.failover.planSha256,
+      f.session,
+      f.storage,
+      async () => ({ acceptance: 'passed' }),
+      {},
+      undefined,
+      { attempts: 1, intervalMs: 0, wait: async () => {} },
+    ),
+  ).rejects.toThrow('lost response');
+  const result = await runAwsTerraformFailover(
+    f.plan,
+    f.failover,
+    f.failover.planSha256,
+    f.session,
+    f.storage,
+    async () => ({ acceptance: 'passed' }),
+    {},
+    undefined,
+    { attempts: 1, intervalMs: 0, wait: async () => {} },
+  );
+  expect(result.status).toBe('failover-complete');
+  expect(f.calls).toEqual(['stop', 'stop', 'start', 'release']);
 });

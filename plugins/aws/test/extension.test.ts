@@ -97,6 +97,7 @@ describe('AWS Status extension', () => {
       expect(toolNames).toEqual([
         'aws_ce_apply',
         'aws_ce_diagnose',
+        'aws_ce_failover',
         'aws_ce_inventory',
         'aws_ce_plan',
         'aws_ce_status',

@@ -50,7 +50,10 @@ contract for their acceptance scope and public-tool integration status.
    observe health. Terraform execution uses isolated workspaces and exact saved plans. Do not supply
    caller-made bootstrap or health assertions, and do not substitute native execution for an
    explicitly selected Terraform engine.
-5. Use `aws_ce_upgrade` for exact serial native or Terraform software/OS actions. Use
+5. Use `aws_ce_upgrade` for exact serial native or Terraform software/OS actions. For a
+   Terraform-owned TGW Connect deployment, use `aws_ce_failover` to prepare and execute one
+   selected-node outage, exact BGP withdrawal and restoration, power-control release, and final
+   no-change plan. Use
    `aws_ce_teardown` for the owning engine: native teardown consumes a separately reviewed fresh
    `aws_ce_plan` teardown plan bound to the original deployment, while Terraform derives its saved
    destroy plan internally. Both retain authorization and resume from durable evidence; version
