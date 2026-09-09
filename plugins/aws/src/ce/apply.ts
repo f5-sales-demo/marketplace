@@ -9,7 +9,13 @@ import type { AwsExecApi } from '../aws/exec';
 import type { AwsCeToolContext } from './artifacts';
 import { loadAwsCheckpoint, loadAwsPlan, saveAwsCheckpoint } from './artifacts';
 import { assertAttachmentAvailable } from './attachment-gate';
-import { fingerprintObservation, fingerprintOwnedResources, safeHexEqual } from './canonical';
+import {
+  fingerprintObservation,
+  fingerprintOwnedResources,
+  matchesObservationFingerprint,
+  matchesOwnedResourceFingerprint,
+  safeHexEqual,
+} from './canonical';
 import { renderAwsCeCloudInit } from './cloud-init';
 import { executeRecoverableCreate, hasCreateRecovery } from './create-recovery';
 import { executeRecoverableDelete, hasDeleteRecovery } from './delete-recovery';
@@ -51,7 +57,7 @@ export function assertAwsObservationFresh(
   ],
 ) {
   const actual = fingerprintObservation(current, relevantResourceIds);
-  if (!safeHexEqual(expected, actual))
+  if (!matchesObservationFingerprint(expected, current, relevantResourceIds))
     throw new Error(`Stale AWS CE plan: observations changed (expected ${expected}, current ${actual})`);
 }
 
@@ -571,10 +577,12 @@ export async function executeAwsCeApply(
     childReplacementActive ? brownfieldIds : [...brownfieldIds, ...observedOwnedIds()],
   );
   if (existing?.ownedStateFingerprint && !childReplacementActive) {
-    const actualOwnedState = fingerprintOwnedResources(
-      current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
-    );
-    if (!safeHexEqual(existing.ownedStateFingerprint, actualOwnedState))
+    if (
+      !matchesOwnedResourceFingerprint(
+        existing.ownedStateFingerprint,
+        current.resources.filter((resource) => observedOwnedIds().includes(resource.id)),
+      )
+    )
       throw new Error('Stale AWS CE plan: owned resource tags, targets, attachments, peers, or state changed');
   }
   const expectedPrefix = plan.actions.slice(0, existing?.completedActionIds.length ?? 0).map((action) => action.id);

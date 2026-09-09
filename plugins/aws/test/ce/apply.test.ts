@@ -6,7 +6,7 @@ import {
   executableAwsActionArgs,
   observedInstanceTypeNames,
 } from '../../src/ce/apply';
-import { canonicalSha256 } from '../../src/ce/canonical';
+import { canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import type { AwsCeIntent, AwsCeObservation } from '../../src/ce/types';
 import {
@@ -170,6 +170,43 @@ it('preserves the complete reviewed instance-type set for live revalidation', ()
   const reviewed = structuredClone(observation);
   reviewed.regions[0].instanceTypes.push({ ...reviewed.regions[0].instanceTypes[0], name: 'm5.2xlarge' });
   expect(observedInstanceTypeNames(reviewed)).toEqual(['m5.2xlarge', 'm6i.2xlarge']);
+});
+
+it('revalidates a persisted observation across BGP convergence but still rejects peer configuration drift', () => {
+  const peerId = 'tgw-connect-peer-0123456789abcdef0';
+  const down = structuredClone(observation);
+  down.resources = [
+    {
+      id: peerId,
+      region: down.regions[0].name,
+      exists: true,
+      owned: true,
+      tags: { 'xcsh-managed-by': 'aws-ce' },
+      state: {
+        TransitGatewayConnectPeers: [
+          {
+            TransitGatewayConnectPeerId: peerId,
+            ConnectPeerConfiguration: {
+              BgpConfigurations: [{ BgpStatus: 'down', PeerAddress: '169.254.1.1' }],
+            },
+          },
+        ],
+      },
+    },
+  ];
+  const plan = compileAwsCePlan(intent, observation);
+  const expected = fingerprintObservation(down, [peerId]);
+  const up = structuredClone(down);
+  up.resources[0].state = structuredClone(down.resources[0].state);
+  const configuration = (
+    up.resources[0].state.TransitGatewayConnectPeers as Array<{
+      ConnectPeerConfiguration: { BgpConfigurations: Array<{ BgpStatus: string; PeerAddress: string }> };
+    }>
+  )[0].ConnectPeerConfiguration;
+  configuration.BgpConfigurations[0].BgpStatus = 'up';
+  expect(() => assertAwsObservationFresh(plan, up, expected, [peerId])).not.toThrow();
+  configuration.BgpConfigurations[0].PeerAddress = '169.254.1.2';
+  expect(() => assertAwsObservationFresh(plan, up, expected, [peerId])).toThrow('Stale');
 });
 
 describe('resume authorization', () => {

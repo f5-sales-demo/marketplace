@@ -52,6 +52,38 @@ export function fingerprintOwnedResources(resources: AwsCeResourceObservation[])
   return canonicalSha256(resourceConfiguration(resources));
 }
 
+function matchesBgpRuntimeVariants<T>(expected: string, value: T, fingerprint: (candidate: T) => string): boolean {
+  if (safeHexEqual(expected, fingerprint(value))) return true;
+  const candidate = structuredClone(value);
+  const statuses: Array<{ object: Record<string, unknown>; key: string }> = [];
+  const visit = (current: unknown): void => {
+    if (Array.isArray(current)) {
+      for (const item of current) visit(item);
+      return;
+    }
+    if (!current || typeof current !== 'object') return;
+    for (const [key, item] of Object.entries(current)) {
+      if (key === 'BgpStatus') {
+        if (!['up', 'down'].includes(String(item))) return;
+        statuses.push({ object: current as Record<string, unknown>, key });
+      } else visit(item);
+    }
+  };
+  visit(candidate);
+  if (!statuses.length || statuses.length > 16) return false;
+  for (let mask = 0; mask < 2 ** statuses.length; mask++) {
+    statuses.forEach((status, index) => {
+      status.object[status.key] = mask & (2 ** index) ? 'up' : 'down';
+    });
+    if (safeHexEqual(expected, fingerprint(candidate))) return true;
+  }
+  return false;
+}
+
+export function matchesOwnedResourceFingerprint(expected: string, resources: AwsCeResourceObservation[]): boolean {
+  return matchesBgpRuntimeVariants(expected, resources, fingerprintOwnedResources);
+}
+
 export function fingerprintObservation(observation: AwsCeObservation, brownfieldIds: string[]): string {
   const allowlist = new Set(brownfieldIds);
   return canonicalSha256({
@@ -71,6 +103,19 @@ export function fingerprintObservation(observation: AwsCeObservation, brownfield
     f5Capabilities: observation.f5Capabilities,
     f5CapabilitiesSha256: observation.f5CapabilitiesSha256,
   });
+}
+
+export function matchesObservationFingerprint(
+  expected: string,
+  observation: AwsCeObservation,
+  resourceIds: string[],
+): boolean {
+  const allowlist = new Set(resourceIds);
+  const scoped = {
+    ...observation,
+    resources: observation.resources.filter((resource) => allowlist.has(resource.id)),
+  };
+  return matchesBgpRuntimeVariants(expected, scoped, (candidate) => fingerprintObservation(candidate, resourceIds));
 }
 
 export function normalizeResearchDocument(body: string): string {
