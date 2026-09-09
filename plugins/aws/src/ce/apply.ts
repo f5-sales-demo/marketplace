@@ -340,7 +340,14 @@ async function assertGate(
         replacementMutation = true;
         checkpoint.childPlanSha256s = [...new Set([...(checkpoint.childPlanSha256s ?? []), child.planSha256])].sort();
         await persist();
-        const upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
+        let upgrade: VerifiedUpgradeContract;
+        try {
+          upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('contract download failed'))
+            throw new Error('Replacement contract download has not converged');
+          throw error;
+        }
         const driver = createNativeAwsSiteReplacementDriver(plan, api, storage);
         const result = await runAwsSiteReplacement(child, child.planSha256, driver, runtime, storage, upgrade, signal);
         const childCheckpoint = (await storage.read(`${child.planId}.json`)) as { instances?: Record<string, string> };
