@@ -170,6 +170,9 @@ describe('Azure Status extension', () => {
       expect(tool.parameters).toBeDefined();
       expect(typeof tool.execute).toBe('function');
     }
+    const apply = tools.find((tool) => tool.name === 'azure_ce_apply');
+    expect(JSON.stringify(apply?.parameters)).not.toContain('bootstrapRefs');
+    expect(JSON.stringify(apply?.parameters)).not.toContain('f5Evidence');
   });
 
   it('gracefully handles missing registerCommand', async () => {

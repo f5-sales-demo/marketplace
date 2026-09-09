@@ -1,20 +1,15 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
 import { assertActionOwnership, assertApplyAllowed, assertObservationFresh, resolveActionArgs } from '../ce/apply';
 import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoint } from '../ce/artifacts';
-import { fingerprintObservation, sha256Hex } from '../ce/canonical';
-import { renderCeCloudInit } from '../ce/cloud-init';
+import { fingerprintObservation } from '../ce/canonical';
 import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
 import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
-import { consumeBootstrapRef } from '../ce/token-consumer';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
@@ -32,8 +27,6 @@ const terraformDefaults: TerraformDependencies = {
 interface ApplyParams {
   planId: string;
   planSha256: string;
-  bootstrapRefs?: Array<{ node: number; reference: string }>;
-  f5Evidence?: { healthyNodes?: number[]; bgpEstablished?: boolean; trafficHealthy?: boolean };
 }
 
 async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan): Promise<Record<string, string>> {
@@ -49,6 +42,8 @@ async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan
 
 async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: AzExecApi) {
   const { plan, observation } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
+  if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
+    throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
   const existing = await loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
   if (existing) {
     if (existing.engine !== plan.engine) throw new Error('Checkpoint execution engine does not match the plan');
@@ -134,36 +129,17 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
   await saveCheckpoint(ctx.sessionManager, checkpoint);
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
-    let launchDir: string | undefined;
     try {
       await assertActionOwnership(plan, action, api);
-      if (action.kind === 'health-gate' && action.node && !params.f5Evidence?.healthyNodes?.includes(action.node))
-        throw new Error(`F5 health evidence is missing for node ${action.node}`);
-      if (action.kind === 'bgp-gate' && !params.f5Evidence?.bgpEstablished)
-        throw new Error('F5 BGP evidence is not established');
-      if (action.kind === 'traffic-gate' && !params.f5Evidence?.trafficHealthy)
-        throw new Error('End-to-end traffic evidence is not healthy');
+      if (action.kind === 'health-gate') throw new Error('Collected Azure platform health evidence is unavailable');
+      if (action.kind === 'bgp-gate') throw new Error('Collected Azure BGP evidence is unavailable');
+      if (action.kind === 'traffic-gate') throw new Error('Collected Azure traffic evidence is unavailable');
       if (action.command && action.args) {
         const replacements = await replacementsFor(action.args, api, plan);
-        if (action.requiresBootstrap && action.node) {
-          const reference = params.bootstrapRefs?.find((item) => item.node === action.node)?.reference;
-          if (!reference) throw new Error(`A just-in-time bootstrap reference is required for node ${action.node}`);
-          const token = await consumeBootstrapRef(reference, ctx.sessionManager.getSessionId());
-          const sessionRoot = join(
-            tmpdir(),
-            'xcsh-azure-ce-launch',
-            sha256Hex(ctx.sessionManager.getSessionId()).slice(0, 24),
+        if (action.requiresBootstrap)
+          throw new Error(
+            'Verified Azure headless bootstrap material is unavailable; corrected API publication is required',
           );
-          await mkdir(sessionRoot, { recursive: true, mode: 0o700 });
-          launchDir = await mkdtemp(join(sessionRoot, 'node-'));
-          const bootstrapPath = join(launchDir, 'cloud-init.yaml');
-          await writeFile(
-            bootstrapPath,
-            renderCeCloudInit({ siteName: plan.siteName, nodeName: `${plan.deploymentName}-${action.node}`, token }),
-            { mode: 0o600 },
-          );
-          replacements.__BOOTSTRAP_FILE__ = bootstrapPath;
-        }
         const result = await api.exec(action.command, resolveActionArgs(action.args, plan.planSha256, replacements));
         if (result.exitCode !== 0)
           throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
@@ -186,8 +162,6 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
       );
-    } finally {
-      if (launchDir) await rm(launchDir, { recursive: true, force: true });
     }
   }
   checkpoint.state = 'complete';
@@ -209,14 +183,6 @@ export function createAzureCeApplyTool(
     parameters: Type.Object({
       planId: Type.String(),
       planSha256: Type.String(),
-      bootstrapRefs: Type.Optional(Type.Array(Type.Object({ node: Type.Number(), reference: Type.String() }))),
-      f5Evidence: Type.Optional(
-        Type.Object({
-          healthyNodes: Type.Optional(Type.Array(Type.Number())),
-          bgpEstablished: Type.Optional(Type.Boolean()),
-          trafficHealthy: Type.Optional(Type.Boolean()),
-        }),
-      ),
     }),
     async execute(
       _id: string,
@@ -228,8 +194,6 @@ export function createAzureCeApplyTool(
       try {
         const envelope = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
         if (envelope.plan.engine === 'terraform') {
-          if (params.bootstrapRefs !== undefined || params.f5Evidence !== undefined)
-            throw new Error('Azure Terraform apply accepts no caller-provided bootstrap or health evidence');
           const platform = await terraformDependencies.platform(pi, signal);
           const result = await executeAzureCeTerraformApply(
             params,
