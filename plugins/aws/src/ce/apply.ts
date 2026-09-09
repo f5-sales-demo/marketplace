@@ -287,8 +287,13 @@ async function assertGate(
     );
     if (evidence.status !== 'healthy') throw new Error('Observed AWS network health has not converged');
   }
-  if (['tgw-route-gate', 'traffic-gate'].includes(action.kind))
-    throw new Error(`Collected ${action.kind} evidence is not yet available`);
+  if (action.kind === 'tgw-route-gate') {
+    const evidence = await collectAwsNetworkHealth('routes', plan, checkpoint, api, signal);
+    await persist(evidence);
+    if (evidence.status === 'unknown') throw new Error('AWS TGW route evidence is unavailable');
+    if (evidence.status !== 'healthy') throw new Error('Observed AWS TGW routes have not converged');
+  }
+  if (action.kind === 'traffic-gate') throw new Error('Collected traffic-gate evidence is not yet available');
 }
 
 export async function executeAwsCeApply(

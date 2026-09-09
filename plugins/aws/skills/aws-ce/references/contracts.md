@@ -98,6 +98,10 @@ such rather than counting them as unattended acceptance.
 
 - Correlate EC2 status/boot, ENIs, security groups, route tables, NLB targets, TGW attachments,
   Connect peers/BGP, and platform registration/health/routing evidence.
+- The native apply route gate collects each planned TGW route-table/attachment association and
+  propagation plus every exact static destination. It accepts only terminal associated, enabled,
+  and active states from complete AWS responses. End-to-end traffic remains a separate gate until
+  the intent identifies an authoritative probe source, destination, and expected response.
 - Run SSM probes only within the user's authorized diagnostic or acceptance scope. Preserve that
   authorization across resume. Return allowlisted states, counts, and digests; withhold raw
   console output, user data, SSM output, tokens, and environment data.

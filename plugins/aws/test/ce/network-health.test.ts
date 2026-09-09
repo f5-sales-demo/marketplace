@@ -120,6 +120,85 @@ test('NLB health requires exact owned target membership and never establishes tr
   expect((await collectAwsNetworkHealth('nlb', f.plan, f.checkpoint, api)).status).toBe('unknown');
 });
 
+test('TGW route health binds exact associations, propagations and static routes to checkpoint identities', async () => {
+  const f = fixture();
+  const tableId = 'tgw-rtb-0123456789abcdef0';
+  const attachmentId = f.checkpoint.resolvedValues.__TGW_CONNECT_ATTACHMENT__;
+  const destination = '10.30.0.0/16';
+  f.plan.actions.push(
+    {
+      kind: 'tgw-associate',
+      args: [
+        '--transit-gateway-route-table-id',
+        tableId,
+        '--transit-gateway-attachment-id',
+        '__TGW_CONNECT_ATTACHMENT__',
+      ],
+    },
+    {
+      kind: 'tgw-propagate',
+      args: [
+        '--transit-gateway-route-table-id',
+        tableId,
+        '--transit-gateway-attachment-id',
+        '__TGW_CONNECT_ATTACHMENT__',
+      ],
+    },
+    {
+      kind: 'tgw-route-create',
+      args: [
+        '--transit-gateway-route-table-id',
+        tableId,
+        '--destination-cidr-block',
+        destination,
+        '--transit-gateway-attachment-id',
+        '__TGW_CONNECT_ATTACHMENT__',
+      ],
+    },
+  );
+  let propagationState = 'enabled';
+  let additionalRoutes = false;
+  const api = {
+    exec: async (_command: string, args: string[]) => {
+      const operation = args[1];
+      const value =
+        args[0] === 'sts'
+          ? { Account: f.plan.accountId }
+          : operation === 'get-transit-gateway-route-table-associations'
+            ? { Associations: [{ TransitGatewayAttachmentId: attachmentId, State: 'associated' }] }
+            : operation === 'get-transit-gateway-route-table-propagations'
+              ? {
+                  TransitGatewayRouteTablePropagations: [
+                    { TransitGatewayAttachmentId: attachmentId, State: propagationState },
+                  ],
+                }
+              : {
+                  AdditionalRoutesAvailable: additionalRoutes,
+                  Routes: [
+                    {
+                      DestinationCidrBlock: destination,
+                      State: 'active',
+                      Type: 'static',
+                      TransitGatewayAttachments: [{ TransitGatewayAttachmentId: attachmentId }],
+                    },
+                  ],
+                };
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
+    },
+  };
+  const healthy = await collectAwsNetworkHealth('routes', f.plan, f.checkpoint, api);
+  expect(healthy.status).toBe('healthy');
+  expect(healthy.expectedAssociations).toBe(1);
+  expect(healthy.expectedPropagations).toBe(1);
+  expect(healthy.expectedRoutes).toBe(1);
+  expect(healthy.traffic).toBe('unknown');
+  propagationState = 'enabling';
+  expect((await collectAwsNetworkHealth('routes', f.plan, f.checkpoint, api)).status).toBe('degraded');
+  propagationState = 'enabled';
+  additionalRoutes = true;
+  expect((await collectAwsNetworkHealth('routes', f.plan, f.checkpoint, api)).status).toBe('unknown');
+});
+
 test('mismatched inside CIDRs and out-of-tunnel BGP addresses remain unknown', async () => {
   const cidr = fixture();
   cidr.peers[0].ConnectPeerConfiguration.InsideCidrBlocks = ['169.254.99.0/29'];

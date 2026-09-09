@@ -29,7 +29,7 @@ function owned(value: unknown, plan: AwsCePlan): boolean {
   );
 }
 export async function collectAwsNetworkHealth(
-  kind: 'bgp' | 'nlb',
+  kind: 'bgp' | 'nlb' | 'routes',
   plan: AwsCePlan,
   checkpoint: AwsCeCheckpoint | undefined,
   api: AwsExecApi,
@@ -173,6 +173,161 @@ export async function collectAwsNetworkHealth(
         transports,
         packetTtlEvidence: 'unknown',
         routes: 'unknown',
+        traffic: 'unknown',
+      };
+    }
+    if (kind === 'routes') {
+      const expected = (actionKind: string) =>
+        plan.actions
+          .filter((action) => action.kind === actionKind)
+          .map((action) => {
+            const arg = (flag: string) => {
+              const index = action.args?.indexOf(flag) ?? -1;
+              const value = index >= 0 ? action.args?.[index + 1] : undefined;
+              return value?.startsWith('__') ? values[value] : value;
+            };
+            return {
+              tableId: arg('--transit-gateway-route-table-id'),
+              attachmentId: arg('--transit-gateway-attachment-id'),
+              destination: arg('--destination-cidr-block'),
+            };
+          });
+      const associations = expected('tgw-associate');
+      const propagations = expected('tgw-propagate');
+      const routes = expected('tgw-route-create');
+      const pairs = [...associations, ...propagations, ...routes];
+      if (
+        !pairs.length ||
+        pairs.some(
+          ({ tableId, attachmentId }) =>
+            !/^tgw-rtb-[0-9a-f]{8,21}$/.test(tableId ?? '') || !/^tgw-attach-[0-9a-f]{8,21}$/.test(attachmentId ?? ''),
+        ) ||
+        routes.some(
+          ({ destination }) => !destination || (isIP(destination.split('/')[0]) === 0 && destination !== '0.0.0.0/0'),
+        )
+      )
+        throw new Error('Missing planned TGW route identities');
+      const tableIds = [...new Set(pairs.map(({ tableId }) => tableId as string))].sort();
+      const observedAssociations: Array<{ tableId: string; attachmentId: string; state: string }> = [];
+      const observedPropagations: Array<{ tableId: string; attachmentId: string; state: string }> = [];
+      for (const tableId of tableIds) {
+        const associationRows = await read(
+          api,
+          ['ec2', 'get-transit-gateway-route-table-associations', '--transit-gateway-route-table-id', tableId],
+          plan.region,
+        );
+        if (!Array.isArray(associationRows.Associations)) throw new Error('Missing TGW association evidence');
+        for (const item of associationRows.Associations) {
+          const row = object(item);
+          if (
+            typeof row.TransitGatewayAttachmentId !== 'string' ||
+            typeof row.State !== 'string' ||
+            !['associating', 'associated', 'disassociating', 'disassociated'].includes(row.State)
+          )
+            throw new Error('Invalid TGW association evidence');
+          observedAssociations.push({
+            tableId,
+            attachmentId: row.TransitGatewayAttachmentId,
+            state: row.State,
+          });
+        }
+        const propagationRows = await read(
+          api,
+          ['ec2', 'get-transit-gateway-route-table-propagations', '--transit-gateway-route-table-id', tableId],
+          plan.region,
+        );
+        if (!Array.isArray(propagationRows.TransitGatewayRouteTablePropagations))
+          throw new Error('Missing TGW propagation evidence');
+        for (const item of propagationRows.TransitGatewayRouteTablePropagations) {
+          const row = object(item);
+          if (
+            typeof row.TransitGatewayAttachmentId !== 'string' ||
+            typeof row.State !== 'string' ||
+            !['enabling', 'enabled', 'disabling', 'disabled'].includes(row.State)
+          )
+            throw new Error('Invalid TGW propagation evidence');
+          observedPropagations.push({
+            tableId,
+            attachmentId: row.TransitGatewayAttachmentId,
+            state: row.State,
+          });
+        }
+      }
+      const observedRoutes: Array<{
+        tableId: string;
+        destination: string;
+        attachmentId: string;
+        state: string;
+        type: string;
+      }> = [];
+      for (const route of routes) {
+        const raw = await read(
+          api,
+          [
+            'ec2',
+            'search-transit-gateway-routes',
+            '--transit-gateway-route-table-id',
+            route.tableId as string,
+            '--filters',
+            `Name=route-search.exact-match,Values=${route.destination}`,
+          ],
+          plan.region,
+        );
+        if (raw.AdditionalRoutesAvailable !== false || !Array.isArray(raw.Routes) || raw.Routes.length !== 1)
+          throw new Error('Incomplete TGW route evidence');
+        const row = object(raw.Routes[0]);
+        if (!Array.isArray(row.TransitGatewayAttachments) || row.TransitGatewayAttachments.length !== 1)
+          throw new Error('Ambiguous TGW route attachment evidence');
+        const attachment = object(row.TransitGatewayAttachments[0]);
+        if (
+          row.DestinationCidrBlock !== route.destination ||
+          typeof row.State !== 'string' ||
+          typeof row.Type !== 'string' ||
+          attachment.TransitGatewayAttachmentId !== route.attachmentId
+        )
+          throw new Error('TGW route differs from plan');
+        observedRoutes.push({
+          tableId: route.tableId as string,
+          destination: route.destination as string,
+          attachmentId: route.attachmentId as string,
+          state: row.State,
+          type: row.Type,
+        });
+      }
+      const pair = (
+        rows: Array<{ tableId: string; attachmentId: string; state: string }>,
+        tableId?: string,
+        attachmentId?: string,
+      ) => rows.filter((row) => row.tableId === tableId && row.attachmentId === attachmentId);
+      const healthy =
+        associations.every(
+          ({ tableId, attachmentId }) =>
+            pair(observedAssociations, tableId, attachmentId).length === 1 &&
+            pair(observedAssociations, tableId, attachmentId)[0].state === 'associated',
+        ) &&
+        propagations.every(
+          ({ tableId, attachmentId }) =>
+            pair(observedPropagations, tableId, attachmentId).length === 1 &&
+            pair(observedPropagations, tableId, attachmentId)[0].state === 'enabled',
+        ) &&
+        observedRoutes.every((route) => route.state === 'active' && route.type === 'static');
+      return {
+        ...binding,
+        status: healthy ? 'healthy' : 'degraded',
+        expectedAssociations: associations.length,
+        expectedPropagations: propagations.length,
+        expectedRoutes: routes.length,
+        associations: observedAssociations.filter((row) =>
+          associations.some(
+            ({ tableId, attachmentId }) => tableId === row.tableId && attachmentId === row.attachmentId,
+          ),
+        ),
+        propagations: observedPropagations.filter((row) =>
+          propagations.some(
+            ({ tableId, attachmentId }) => tableId === row.tableId && attachmentId === row.attachmentId,
+          ),
+        ),
+        routes: observedRoutes,
         traffic: 'unknown',
       };
     }
