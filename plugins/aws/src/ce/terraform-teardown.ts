@@ -3,9 +3,10 @@ import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-c
 import type { CePlatformDrainPlan } from '../../../platform/src/ce/platform-drain';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { TerraformSession } from '../../../terraform/src/service';
-import type { AwsExecApi } from '../aws/exec';
+import { type AwsExecApi, execAwsJson } from '../aws/exec';
 import { verifyAwsCePlan } from './artifacts';
 import { canonicalSha256 } from './canonical';
+import { scopedAwsApi } from './scoped-exec';
 import { collectAwsTerraformAbsence } from './terraform-absence';
 import { runAwsTerraformCloudTeardown } from './terraform-cloud-teardown';
 import type { AwsTerraformRetirementInventory } from './terraform-retirement-inventory';
@@ -233,6 +234,26 @@ export async function coordinateAwsTerraformTeardown(
   await storage.write('aws-terraform-teardown-receipt.json', receipt);
   return receipt;
 }
+/** Verify live scoped credentials before draining platform resources. */
+export async function verifyAwsTeardownCredentials(base: AwsCePlan, rawApi: AwsExecApi, signal?: AbortSignal) {
+  signal?.throwIfAborted();
+  verifyAwsCePlan(base);
+  if (base.engine !== 'terraform') throw new Error('Terraform engine required for teardown');
+  const api = scopedAwsApi(rawApi, base.intent.awsProfile, signal);
+  const identity = await execAwsJson<unknown>(
+    api,
+    ['sts', 'get-caller-identity', '--region', base.intent.region],
+    signal,
+  );
+  signal?.throwIfAborted();
+  if (
+    !identity ||
+    typeof identity !== 'object' ||
+    Array.isArray(identity) ||
+    (identity as Record<string, unknown>).Account !== base.intent.accountId
+  )
+    throw new Error('AWS teardown credential account is missing or differs');
+}
 /** Concrete production binding: F5 operations stay in platform; cloud mutation uses the owning Terraform session. */
 export async function runAwsTerraformTeardown(
   base: AwsCePlan,
@@ -255,6 +276,7 @@ export async function runAwsTerraformTeardown(
     return found.binding;
   };
   if (runtime.engine !== 'terraform') throw new Error('Terraform engine required for teardown');
+  await verifyAwsTeardownCredentials(base, api, signal);
   const retired = await coordinateAwsTerraformTeardown(
     base,
     plan,
