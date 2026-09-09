@@ -551,6 +551,7 @@ async function assertGate(
       storage,
       ingressContract,
       checkpoint.resolvedValues,
+      api,
       signal,
     );
     if (evidence?.listener !== 'configured') throw new Error('Observed F5 ingress listener has not converged');
@@ -575,6 +576,17 @@ async function assertGate(
   if (action.kind === 'traffic-gate') {
     if (plan.intent.ingress?.mode !== 'nlb')
       throw new Error('Collected traffic-gate evidence is unavailable for this profile');
+    if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
+    const ingress = await ensureAwsPlatformIngress(
+      plan,
+      runtime,
+      storage,
+      ingressContract,
+      checkpoint.resolvedValues,
+      api,
+      signal,
+    );
+    if (ingress?.listener !== 'configured') throw new Error('Observed F5 ingress listener has not converged');
     const evidence = await collectAwsTrafficProbe(plan, checkpoint, storage, api, signal);
     await persist(evidence);
     if (evidence.status !== 'healthy') throw new Error('Observed end-to-end AWS traffic has not converged');

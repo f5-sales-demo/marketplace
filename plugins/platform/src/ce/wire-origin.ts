@@ -1,4 +1,29 @@
 import { isIP } from 'node:net';
+import { projectReplaceSnapshot } from './wire-replace';
+
+type Json = Record<string, unknown>;
+
+/** Project the v6.1.2 GET shape, excluding read-only reference tenancy and exact implicit empty defaults. */
+export function projectSiteLocalHttpOrigin(spec: unknown, schemas: Json, validate: (spec: unknown) => void): Json {
+  const result = projectReplaceSnapshot(spec, schemas, 'viewsorigin_poolCreateSpecType');
+  for (const key of ['advanced_options', 'upstream_conn_pool_reuse_type']) {
+    const value = result[key];
+    if (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)
+      delete result[key];
+  }
+  if (Array.isArray(result.healthcheck) && result.healthcheck.length === 0) delete result.healthcheck;
+  if (Array.isArray(result.origin_servers))
+    for (const server of result.origin_servers) {
+      if (!server || typeof server !== 'object' || Array.isArray(server)) continue;
+      const privateIp = (server as Json).private_ip;
+      if (!privateIp || typeof privateIp !== 'object' || Array.isArray(privateIp)) continue;
+      const snat = (privateIp as Json).snat_pool;
+      if (snat && typeof snat === 'object' && !Array.isArray(snat) && Object.keys(snat).length === 0)
+        delete (privateIp as Json).snat_pool;
+    }
+  validate(result);
+  return result;
+}
 
 export interface SiteLocalHttpOrigin {
   name: string;
@@ -31,10 +56,10 @@ export function buildSiteLocalHttpOrigin(input: SiteLocalHttpOrigin, validate: (
     port: input.port,
     origin_servers: input.siteNames.map((siteName) => ({
       labels: {},
-      // The API's private_ip variant binds an address to a CE; the address may be public.
+      // The routed workload is reached through the CE inside interface selected by site_locator.
       private_ip: {
         ip: input.originAddress,
-        outside_network: {},
+        inside_network: {},
         site_locator: { site: { name: siteName, namespace: 'system' } },
       },
     })),

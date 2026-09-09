@@ -95,7 +95,7 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
     });
   else
     await storage.write('native-routing-checkpoint.json', {
-      schemaVersion: 1,
+      schemaVersion: 2,
       engine,
       planId: base.planId,
       planSha256: sha,
@@ -180,8 +180,19 @@ test('builds the complete Terraform teardown manifest from live identities and p
 });
 test('collects the same complete teardown material for a native-owned deployment', async () => {
   const f = await fixture('valid', 'native');
-  const material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
+  let material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
   expect(material.retirement).toHaveLength(3);
+  expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(12);
+  const checkpoint = (await f.storage.read('native-routing-checkpoint.json')) as {
+    schemaVersion: number;
+    resources: Array<{ kind: string }>;
+  };
+  await f.storage.write('native-routing-checkpoint.json', {
+    ...checkpoint,
+    schemaVersion: 1,
+    resources: checkpoint.resources.filter((row) => row.kind !== 'bgp_routing_policy'),
+  });
+  material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
   expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(12);
   expect(JSON.stringify(material)).not.toContain('never-export-bootstrap');
 });

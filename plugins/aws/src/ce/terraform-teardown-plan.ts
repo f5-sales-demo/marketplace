@@ -138,17 +138,31 @@ export async function collectAwsTeardownMaterial(
       values = object(checkpoint.resolvedValues);
     } else {
       const native = checkpoint as unknown as AwsNativeRoutingCheckpoint;
+      const version = Number(checkpoint.schemaVersion);
+      const legacy = version === 1;
+      const checkpointedRouting = legacy ? routing.filter((row) => row.kind !== 'bgp_routing_policys') : routing;
       if (
-        native.schemaVersion !== 1 ||
+        ![1, 2].includes(version) ||
         native.engine !== 'native' ||
         native.planId !== base.planId ||
         native.planSha256 !== base.planSha256 ||
         native.ownerSha256 !== canonicalSha256(owner) ||
         !Array.isArray(native.resources) ||
-        native.resources.length !== routing.length
+        native.resources.length !== checkpointedRouting.length
       )
         throw new Error('Routing checkpoint source differs');
       values = Object.fromEntries(native.resources.map((row) => [`__XC_ROUTING_${row.name}__`, row.uid]));
+      if (legacy) {
+        const policies = routing.filter((row) => row.kind === 'bgp_routing_policys');
+        const expected = siteBindings(base).map(({ site }) => `${site.name.slice(0, 43)}-tgw-export-policy`);
+        if (
+          policies.length !== expected.length ||
+          policies.some((row) => !expected.includes(row.name)) ||
+          new Set(policies.map((row) => row.name)).size !== expected.length
+        )
+          throw new Error('Legacy routing policy inventory differs');
+        for (const row of policies) values[`__XC_ROUTING_${row.name}__`] = row.uid;
+      }
     }
     if (routing.some((row) => values[`__XC_ROUTING_${row.name}__`] !== row.uid))
       throw new Error('Routing checkpoint UID differs from live inventory');

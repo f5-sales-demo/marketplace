@@ -5,14 +5,14 @@ import { siteBindings } from './topology';
 import type { AwsCeCheckpoint, AwsCePlan } from './types';
 
 export interface AwsNativeRoutingCheckpoint {
-  schemaVersion: 1;
+  schemaVersion: 2;
   engine: 'native';
   planId: string;
   planSha256: string;
   ownerSha256: string;
   resources: Array<{
     siteName: string;
-    kind: 'external_connector' | 'bgp';
+    kind: 'external_connector' | 'bgp_routing_policy' | 'bgp';
     name: string;
     uid: string;
   }>;
@@ -50,7 +50,15 @@ export function compileAwsNativeRoutingCheckpoint(
           name: `${plan.deploymentName.slice(0, 24)}-gre-${actions.indexOf(action) + 1}`,
         }));
       if (!connectors.length) throw new Error('Native routing checkpoint site has no Connect peers');
-      return [...connectors, { siteName: site.name, kind: 'bgp' as const, name: `${site.name.slice(0, 55)}-tgw-bgp` }];
+      return [
+        ...connectors,
+        {
+          siteName: site.name,
+          kind: 'bgp_routing_policy' as const,
+          name: `${site.name.slice(0, 43)}-tgw-export-policy`,
+        },
+        { siteName: site.name, kind: 'bgp' as const, name: `${site.name.slice(0, 55)}-tgw-bgp` },
+      ];
     })
     .map((resource) => {
       const uid = checkpoint.resolvedValues[`__XC_ROUTING_${resource.name}__`];
@@ -60,7 +68,7 @@ export function compileAwsNativeRoutingCheckpoint(
   if (new Set(resources.map((resource) => resource.uid)).size !== resources.length)
     throw new Error('Native routing checkpoint UIDs are duplicated');
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     engine: 'native',
     planId: plan.planId,
     planSha256: plan.planSha256,

@@ -34,7 +34,7 @@ test('builds two GRE connectors and all four BGP endpoints against immutable API
       object_refs: [{ name: 'site-a-tgw-export-policy', namespace: 'system' }],
     },
   ]);
-  expect(result.connectors[0].spec.gre.gre_parameters.site_local_inside_network).toEqual({});
+  expect(result.connectors[0].spec.gre.gre_parameters.site_local_network).toEqual({});
   expect(result.connectors[0].spec.gre.gre_parameters.tunnel_mtu).toBe(1370);
   expect(result.ebgpMultihopTtlEvidence).toBe('unknown');
 });

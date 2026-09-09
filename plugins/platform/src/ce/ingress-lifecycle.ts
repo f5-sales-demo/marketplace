@@ -6,10 +6,11 @@ import type { ExpectedCeInterface, ObservedCeInterface } from './interface-evide
 import { acquireProcessLock } from './process-lock';
 import { CeApiError, type SiteBinding } from './runtime';
 import type { InsideHttpListener } from './wire-ingress';
+import type { SiteLocalHttpOrigin } from './wire-origin';
 
 type Json = Record<string, unknown>;
 type Selection = { binding: SiteBinding; node: string; mac: string };
-type Intent = Omit<InsideHttpListener, 'sites'>;
+type Intent = Omit<InsideHttpListener, 'sites'> & { originAddress: string };
 interface Port {
   readonly engine: 'native' | 'terraform';
   readonly siteFingerprint: string;
@@ -79,7 +80,9 @@ export class CeIngressLifecycle {
     private readonly contract: {
       readonly fingerprint: string;
       build: VerifiedIngressContract['build'];
+      buildOrigin: VerifiedIngressContract['buildOrigin'];
       projectObserved: VerifiedIngressContract['projectObserved'];
+      projectOriginObserved: VerifiedIngressContract['projectOriginObserved'];
     },
     private readonly storage: CeDeploymentStore,
   ) {}
@@ -158,22 +161,22 @@ export class CeIngressLifecycle {
       siteUids.add(uid(after));
       placements.push({ siteName: binding.siteName, siteUid: uid(after), interface: inside[0] });
     }
+    const { originAddress, ...listenerIntent } = intent;
     const built = this.contract.build({
-      ...intent,
+      ...listenerIntent,
       sites: placements.map((p) => {
         const insideAddress = p.interface.ipv4?.address;
         if (!insideAddress) throw new Error('Inside address became unavailable');
         return { name: p.siteName, insideAddress };
       }),
     });
-    const pool = await this.port.request(
-      `/api/config/namespaces/${intent.originPool.namespace}/origin_pools/${intent.originPool.name}`,
-      {},
-      signal,
-    );
-    const metadata = object(pool.metadata);
-    if (metadata.name !== intent.originPool.name || metadata.namespace !== intent.originPool.namespace)
-      throw new Error('Origin pool scope differs from ingress intent');
+    const origin = this.contract.buildOrigin({
+      name: intent.originPool.name,
+      namespace: intent.originPool.namespace,
+      originAddress,
+      port: intent.port,
+      siteNames: placements.map((placement) => placement.siteName),
+    } satisfies SiteLocalHttpOrigin);
     signal.throwIfAborted();
     return {
       owner: this.storage.owner,
@@ -182,7 +185,10 @@ export class CeIngressLifecycle {
       intent: structuredClone(intent),
       selections: structuredClone(selections),
       placements,
-      originUid: uid(pool),
+      originRequest: {
+        metadata: { ...origin.metadata, labels: this.#labels() },
+        spec: origin.spec,
+      },
       request: { metadata: { ...built.metadata, labels: this.#labels() }, spec: built.spec },
     };
   }
@@ -238,6 +244,14 @@ export class CeIngressLifecycle {
       throw error;
     }
   }
+  async #originCheckpoint(id: string): Promise<Json | undefined> {
+    try {
+      return object(await this.storage.read(`ingress-origin-checkpoint-${id}.json`));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw error;
+    }
+  }
   #owned(actual: Json, plan: Awaited<ReturnType<CeIngressLifecycle['planAws']>>, expectedUid?: unknown) {
     const metadata = object(actual.metadata);
     const labels = object(metadata.labels);
@@ -250,6 +264,20 @@ export class CeIngressLifecycle {
       !matches(this.contract.projectObserved(actual.spec), this.contract.projectObserved(plan.request.spec))
     )
       throw new Error('Live listener ownership, UID or configuration differs from saved ingress plan');
+  }
+  #ownedOrigin(actual: Json, plan: Awaited<ReturnType<CeIngressLifecycle['planAws']>>, expectedUid?: unknown) {
+    const metadata = object(actual.metadata);
+    const labels = object(metadata.labels);
+    const expected = plan.material.originRequest;
+    if (
+      metadata.name !== expected.metadata.name ||
+      metadata.namespace !== expected.metadata.namespace ||
+      labels['xcsh-ce-ingress-plan'] !== plan.id ||
+      Object.entries(this.#labels()).some(([key, value]) => labels[key] !== value) ||
+      (expectedUid !== undefined && uid(actual) !== expectedUid) ||
+      !matches(this.contract.projectOriginObserved(actual.spec), this.contract.projectOriginObserved(expected.spec))
+    )
+      throw new Error('Live origin ownership, UID or configuration differs from saved ingress plan');
   }
   async apply(id: string, signal?: AbortSignal) {
     return this.#locked(async () => {
@@ -265,6 +293,53 @@ export class CeIngressLifecycle {
         throw new Error('Ingress checkpoint does not admit application');
       const current = await this.#material(plan.material.intent, plan.material.selections, signal);
       if (!same(current, plan.material)) throw new Error('Ingress identities or addresses changed; replan required');
+      const originCheckpoint = await this.#originCheckpoint(id);
+      if (
+        originCheckpoint &&
+        (originCheckpoint.planSha256 !== plan.sha256 ||
+          !['creating', 'created'].includes(String(originCheckpoint.phase)) ||
+          (originCheckpoint.phase === 'created' && (typeof originCheckpoint.uid !== 'string' || !originCheckpoint.uid)))
+      )
+        throw new Error('Origin checkpoint does not admit application');
+      const originCollection = `/api/config/namespaces/${plan.material.originRequest.metadata.namespace}/origin_pools`;
+      let origin = await this.#read(`${originCollection}/${plan.material.originRequest.metadata.name}`, signal);
+      if (!origin) {
+        if (originCheckpoint?.uid) throw new Error('Checkpointed origin is missing; reconcile before replacement');
+        await this.storage.write(`ingress-origin-checkpoint-${id}.json`, {
+          phase: 'creating',
+          planSha256: plan.sha256,
+        });
+        if (!same(await this.#material(plan.material.intent, plan.material.selections, signal), plan.material))
+          throw new Error('Ingress evidence changed before origin mutation');
+        try {
+          await this.port.request(
+            originCollection,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                ...plan.material.originRequest,
+                metadata: {
+                  ...plan.material.originRequest.metadata,
+                  labels: { ...plan.material.originRequest.metadata.labels, 'xcsh-ce-ingress-plan': id },
+                },
+              }),
+            },
+            signal,
+          );
+        } catch (error) {
+          if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+        }
+        origin = await this.#read(`${originCollection}/${plan.material.originRequest.metadata.name}`, signal);
+        if (!origin) throw new Error('Origin creation is not yet observable; resume the saved plan');
+      }
+      this.#ownedOrigin(origin, plan, originCheckpoint?.uid);
+      const originUid = uid(origin);
+      await this.storage.write(`ingress-origin-checkpoint-${id}.json`, {
+        phase: 'created',
+        planSha256: plan.sha256,
+        uid: originUid,
+        observedAt: new Date().toISOString(),
+      });
       const collection = `/api/config/namespaces/${plan.request.metadata.namespace}/http_loadbalancers`;
       let existing = await this.#read(`${collection}/${plan.request.metadata.name}`, signal);
       if (!existing) {
@@ -311,13 +386,19 @@ export class CeIngressLifecycle {
   /** Read-only projection for a deployment teardown manifest; raw specifications stay in private storage. */
   async teardownReference(id: string) {
     const plan = await this.#load(id),
-      checkpoint = await this.#checkpoint(id);
+      checkpoint = await this.#checkpoint(id),
+      originCheckpoint = await this.#originCheckpoint(id);
     if (
       !checkpoint ||
       !['created', 'deleted'].includes(String(checkpoint.phase)) ||
       checkpoint.planSha256 !== plan.sha256 ||
       typeof checkpoint.uid !== 'string' ||
-      !checkpoint.uid
+      !checkpoint.uid ||
+      !originCheckpoint ||
+      originCheckpoint.phase !== 'created' ||
+      originCheckpoint.planSha256 !== plan.sha256 ||
+      typeof originCheckpoint.uid !== 'string' ||
+      !originCheckpoint.uid
     )
       throw new Error('Validated listener checkpoint required for teardown reference');
     return {
@@ -326,8 +407,62 @@ export class CeIngressLifecycle {
       namespace: plan.request.metadata.namespace,
       uid: checkpoint.uid,
       phase: String(checkpoint.phase),
-      originPool: { ...plan.material.intent.originPool, uid: plan.material.originUid },
+      originPool: { ...plan.material.intent.originPool, uid: originCheckpoint.uid },
     };
+  }
+  /** Retire an incomplete owned ingress plan so its corrected successor can be planned and applied. */
+  async retire(id: string, signal?: AbortSignal): Promise<void> {
+    return this.#locked(async () => {
+      const plan = await this.#load(id);
+      const listenerCheckpoint = await this.#checkpoint(id);
+      const originCheckpoint = await this.#originCheckpoint(id);
+      if (
+        !listenerCheckpoint ||
+        !['created', 'deleted'].includes(String(listenerCheckpoint.phase)) ||
+        listenerCheckpoint.planSha256 !== plan.sha256 ||
+        typeof listenerCheckpoint.uid !== 'string' ||
+        !listenerCheckpoint.uid ||
+        !originCheckpoint ||
+        !['created', 'deleted'].includes(String(originCheckpoint.phase)) ||
+        originCheckpoint.planSha256 !== plan.sha256 ||
+        typeof originCheckpoint.uid !== 'string' ||
+        !originCheckpoint.uid
+      )
+        throw new Error('Validated ingress identities are required for correction');
+      const listenerPath = `/api/config/namespaces/${plan.request.metadata.namespace}/http_loadbalancers/${plan.request.metadata.name}`;
+      const listener = await this.#read(listenerPath, signal);
+      if (listener) {
+        if (listenerCheckpoint.phase === 'deleted') throw new Error('Listener reappeared after correction');
+        this.#owned(listener, plan, listenerCheckpoint.uid);
+        await this.port.request(listenerPath, { method: 'DELETE' }, signal);
+        if (await this.#read(listenerPath, signal)) throw new Error('Listener correction is still converging');
+      }
+      await this.storage.write(`ingress-checkpoint-${id}.json`, {
+        ...listenerCheckpoint,
+        phase: 'deleted',
+        observedAt: new Date().toISOString(),
+      });
+      const originPath =
+        `/api/config/namespaces/${plan.material.originRequest.metadata.namespace}/origin_pools/` +
+        plan.material.originRequest.metadata.name;
+      const origin = await this.#read(originPath, signal);
+      if (origin) {
+        if (originCheckpoint.phase === 'deleted') throw new Error('Origin reappeared after correction');
+        this.#ownedOrigin(origin, plan, originCheckpoint.uid);
+        try {
+          await this.port.request(originPath, { method: 'DELETE' }, signal);
+        } catch (error) {
+          if (!(error instanceof CeApiError && ['not-found', 'transient', 'deadline'].includes(error.category)))
+            throw error;
+        }
+        if (await this.#read(originPath, signal)) throw new Error('Origin correction is still converging');
+      }
+      await this.storage.write(`ingress-origin-checkpoint-${id}.json`, {
+        ...originCheckpoint,
+        phase: 'deleted',
+        observedAt: new Date().toISOString(),
+      });
+    });
   }
   async delete(id: string, signal?: AbortSignal): Promise<void> {
     return this.#locked(async () => {

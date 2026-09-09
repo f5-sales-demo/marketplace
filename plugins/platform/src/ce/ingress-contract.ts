@@ -1,6 +1,6 @@
 import { CE_API_RELEASE, loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { buildInsideHttpListener, type InsideHttpListener, projectInsideHttpListener } from './wire-ingress';
-import { buildSiteLocalHttpOrigin, type SiteLocalHttpOrigin } from './wire-origin';
+import { buildSiteLocalHttpOrigin, projectSiteLocalHttpOrigin, type SiteLocalHttpOrigin } from './wire-origin';
 import { createWireValidator } from './wire-schema';
 
 type Json = Record<string, unknown>;
@@ -46,5 +46,8 @@ export class VerifiedIngressContract {
   }
   projectObserved(spec: unknown): Json {
     return projectInsideHttpListener(spec, this.#schemas, this.#validate);
+  }
+  projectOriginObserved(spec: unknown): Json {
+    return projectSiteLocalHttpOrigin(spec, this.#schemas, this.#validateOrigin);
   }
 }

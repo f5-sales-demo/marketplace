@@ -36,7 +36,10 @@ test('freezes every native XC routing UID against its site and owning deployment
     }),
   );
   const sites = plan.intent.topology.sites ?? [];
-  for (const site of sites) resolvedValues[`__XC_ROUTING_${site.name.slice(0, 55)}-tgw-bgp__`] = `bgp-${site.name}`;
+  for (const site of sites) {
+    resolvedValues[`__XC_ROUTING_${site.name.slice(0, 43)}-tgw-export-policy__`] = `policy-${site.name}`;
+    resolvedValues[`__XC_ROUTING_${site.name.slice(0, 55)}-tgw-bgp__`] = `bgp-${site.name}`;
+  }
   const checkpoint = {
     schemaVersion: 2,
     engine: 'native',
@@ -52,7 +55,7 @@ test('freezes every native XC routing UID against its site and owning deployment
     region: plan.region,
   };
   const frozen = compileAwsNativeRoutingCheckpoint(plan, checkpoint, owner);
-  expect(frozen.resources).toHaveLength(actions.length + sites.length);
+  expect(frozen.resources).toHaveLength(actions.length + sites.length * 2);
   expect(new Set(frozen.resources.map((resource) => resource.uid)).size).toBe(frozen.resources.length);
   expect(frozen.resources.every((resource) => sites.some((site) => site.name === resource.siteName))).toBe(true);
 

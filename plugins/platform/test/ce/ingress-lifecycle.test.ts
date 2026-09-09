@@ -6,18 +6,24 @@ import { CeDeploymentStore } from '../../src/ce/deployment-store';
 import { CeIngressLifecycle } from '../../src/ce/ingress-lifecycle';
 import { CeApiError } from '../../src/ce/runtime';
 import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
+import { buildSiteLocalHttpOrigin, projectSiteLocalHttpOrigin } from '../../src/ce/wire-origin';
 import { createWireValidator } from '../../src/ce/wire-schema';
 import fixture from '../fixtures/inside-listener-schema.json';
+import originFixture from '../fixtures/site-local-origin-schema.json';
 
 const directories: string[] = [];
 afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true });
 });
 const validate = createWireValidator(fixture.schemas, fixture.provenance.root);
+const validateOrigin = createWireValidator(originFixture.schemas, originFixture.provenance.root);
 const contract = {
   projectObserved: (spec: unknown) => projectInsideHttpListener(spec, fixture.schemas, validate),
   fingerprint: `sha256:${fixture.provenance.sha256}`,
   build: (input: Parameters<typeof buildInsideHttpListener>[0]) => buildInsideHttpListener(input, validate),
+  buildOrigin: (input: Parameters<typeof buildSiteLocalHttpOrigin>[0]) =>
+    buildSiteLocalHttpOrigin(input, validateOrigin),
+  projectOriginObserved: (spec: unknown) => projectSiteLocalHttpOrigin(spec, originFixture.schemas, validateOrigin),
 };
 const owner = {
   deploymentId: 'ce-test',
@@ -31,6 +37,7 @@ const intent = {
   namespace: 'demo',
   domain: 'ce.example.invalid',
   port: 80,
+  originAddress: '192.0.2.10',
   originPool: { name: 'ce-origin', namespace: 'demo' },
 };
 const selections = [1, 2, 3].map((i) => ({
@@ -45,7 +52,9 @@ async function setup() {
   const store = await CeDeploymentStore.open(path, owner);
   const state = {
     listener: undefined as Record<string, unknown> | undefined,
+    origin: undefined as Record<string, unknown> | undefined,
     posts: 0,
+    originPosts: 0,
     deletes: 0,
     lost: false,
     address: '10.20.1.10',
@@ -81,8 +90,16 @@ async function setup() {
       };
     },
     async request(path: string, init?: RequestInit) {
-      if (path.includes('/origin_pools/'))
-        return { metadata: intent.originPool, system_metadata: { uid: state.originUid } };
+      if (path.includes('/origin_pools')) {
+        if (init?.method === 'POST') {
+          state.originPosts++;
+          state.origin = { ...JSON.parse(String(init.body)), system_metadata: { uid: state.originUid } };
+          if (state.lost) throw new CeApiError('transient');
+          return {};
+        }
+        if (!state.origin) throw new CeApiError('not-found');
+        return structuredClone(state.origin);
+      }
       if (init?.method === 'POST') {
         state.posts++;
         state.listener = { ...JSON.parse(String(init.body)), system_metadata: { uid: 'listener-uid' } };
@@ -112,21 +129,19 @@ test('persists observed placements and resumes a lost create response without du
   expect(receipt.traffic).toBe('unknown');
   await new CeIngressLifecycle(f.port, contract, f.store).apply(plan.id);
   expect(f.state.posts).toBe(1);
+  expect(f.state.originPosts).toBe(1);
   await f.lifecycle.delete(plan.id);
   await f.lifecycle.delete(plan.id);
   expect(f.state.deletes).toBe(1);
 });
 
-test('fresh address, site, origin or owning-engine drift blocks mutation', async () => {
+test('fresh address, site or owning-engine drift blocks mutation', async () => {
   for (const mutation of [
     (state: Awaited<ReturnType<typeof setup>>['state']) => {
       state.address = '10.20.1.11';
     },
     (state: Awaited<ReturnType<typeof setup>>['state']) => {
       state.siteUid = 'replacement-site';
-    },
-    (state: Awaited<ReturnType<typeof setup>>['state']) => {
-      state.originUid = 'replacement-pool';
     },
     (state: Awaited<ReturnType<typeof setup>>['state']) => {
       state.engine = 'native';
@@ -137,6 +152,7 @@ test('fresh address, site, origin or owning-engine drift blocks mutation', async
     mutation(f.state);
     await expect(f.lifecycle.apply(plan.id)).rejects.toThrow();
     expect(f.state.posts).toBe(0);
+    expect(f.state.originPosts).toBe(0);
   }
 });
 
@@ -181,11 +197,13 @@ test('recovers failed durable create and lost delete receipts without repeating 
   const plan = await f.lifecycle.planAws(intent, selections);
   const write = f.store.write.bind(f.store);
   f.store.write = async (name, value) => {
-    if ((value as Record<string, unknown>).phase === 'created') throw new Error('checkpoint interruption');
+    if (name.startsWith('ingress-checkpoint-') && (value as Record<string, unknown>).phase === 'created')
+      throw new Error('checkpoint interruption');
     return write(name, value);
   };
   await expect(f.lifecycle.apply(plan.id)).rejects.toThrow('checkpoint interruption');
   expect(f.state.posts).toBe(1);
+  expect(f.state.originPosts).toBe(1);
   f.store.write = write;
   await f.lifecycle.apply(plan.id);
   expect(f.state.posts).toBe(1);

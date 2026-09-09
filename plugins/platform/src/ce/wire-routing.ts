@@ -73,7 +73,7 @@ export function buildAwsRouting(
       ce_site_reference: { name: siteName, namespace: 'system' },
       gre: {
         gre_parameters: {
-          site_local_inside_network: {},
+          site_local_network: {},
           tunnel_mtu: Math.min(binding.interfaceMtu - 24, 1370),
           peer_ip_address: { addr: binding.awsGreAddress },
           tunnel_eps: [

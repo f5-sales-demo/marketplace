@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { buildSiteLocalHttpOrigin, type SiteLocalHttpOrigin } from '../../src/ce/wire-origin';
+import {
+  buildSiteLocalHttpOrigin,
+  projectSiteLocalHttpOrigin,
+  type SiteLocalHttpOrigin,
+} from '../../src/ce/wire-origin';
 import { createWireValidator } from '../../src/ce/wire-schema';
 import fixture from '../fixtures/site-local-origin-schema.json';
 
@@ -12,7 +16,7 @@ const input = {
   siteNames: ['site-one', 'site-two', 'site-three'],
 };
 
-test('binds outside-network origin endpoints to exact sites using the published schema', () => {
+test('binds inside-network origin endpoints to exact sites using the published schema', () => {
   const before = structuredClone(input);
   const result = buildSiteLocalHttpOrigin(input, validate);
   expect(input).toEqual(before);
@@ -21,12 +25,13 @@ test('binds outside-network origin endpoints to exact sites using the published 
   expect(result.spec.origin_servers).toEqual(
     input.siteNames.map((name) => ({
       labels: {},
-      private_ip: { ip: '192.0.2.10', outside_network: {}, site_locator: { site: { name, namespace: 'system' } } },
+      private_ip: { ip: '192.0.2.10', inside_network: {}, site_locator: { site: { name, namespace: 'system' } } },
     })),
   );
   expect(result.spec).toHaveProperty('no_tls', {});
   expect(result.evidence).toEqual({ origin: 'unknown', traffic: 'unknown' });
   expect(JSON.stringify(result.spec)).not.toContain('public_ip');
+  expect(JSON.stringify(result.spec)).not.toContain('outside_network');
   input.siteNames[0] = 'different';
   expect(result.spec.origin_servers[0].private_ip.site_locator.site.name).toBe('site-one');
   input.siteNames[0] = 'site-one';
@@ -39,6 +44,26 @@ test('models a single site independently of its node count and accepts a routed 
     ip: '10.20.0.10',
     site_locator: { site: { name: 'ha-site' } },
   });
+});
+
+test('projects server tenancy and exact implicit GET defaults without hiding configuration drift', () => {
+  const expected = buildSiteLocalHttpOrigin(input, validate).spec;
+  const observed = structuredClone(expected) as Record<string, unknown>;
+  if (!Array.isArray(observed.origin_servers)) throw new Error('origin fixture is malformed');
+  for (const value of observed.origin_servers) {
+    const server = value as Record<string, unknown>;
+    const privateIp = server.private_ip as Record<string, unknown>;
+    const locator = privateIp.site_locator as Record<string, unknown>;
+    const site = locator.site as Record<string, unknown>;
+    site.tenant = 'tenant-id';
+    privateIp.snat_pool = {};
+  }
+  observed.healthcheck = [];
+  observed.advanced_options = {};
+  observed.upstream_conn_pool_reuse_type = {};
+  expect(projectSiteLocalHttpOrigin(observed, fixture.schemas, validate)).toEqual(expected);
+  observed.port = 8080;
+  expect(projectSiteLocalHttpOrigin(observed, fixture.schemas, validate)).not.toEqual(expected);
 });
 
 test('rejects unresolved addresses, duplicate sites, invalid ports, arbitrary defaults and mixed network intent', () => {

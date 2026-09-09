@@ -80,7 +80,7 @@ function connectAttachmentCount(intent: AwsCeIntent): number {
   if (intent.routing.profile !== 'tgw-connect') return 0;
   const roles =
     intent.routing.connectPeers?.map((peer) => peer.transportInterfaceIndex) ??
-    (intent.routing.insideCidrs ?? []).map(() => 1);
+    (intent.routing.insideCidrs ?? []).map(() => 0);
   return [0, 1].reduce((count, role) => count + Math.ceil(roles.filter((value) => value === role).length / 4), 0);
 }
 
@@ -237,19 +237,25 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       input.routing.insideCidrs?.map((insideCidr, index) => ({
         node: index + 1,
         insideCidr,
-        transportInterfaceIndex: 1,
+        transportInterfaceIndex: 0,
       }));
     if (!peers?.length || peers.length > 12) fail('TGW Connect requires explicit peers or one inside CIDR per node');
     const counts = new Map<number, number>();
     const endpoints = new Set<string>();
     for (const peer of peers) {
+      const transportRole = input.interfaces.find((item) => item.index === peer.transportInterfaceIndex)?.role;
       if (
         !Number.isInteger(peer.node) ||
         peer.node < 1 ||
         peer.node > input.topology.nodeCount ||
-        ![0, 1].includes(peer.transportInterfaceIndex)
+        !transportRole ||
+        (input.operation === 'deploy' && transportRole !== 'slo')
       )
-        fail('Connect peer must select a real node and SLO or SLI GRE transport');
+        fail(
+          input.operation === 'deploy'
+            ? 'Connect peer must select a real node and a dedicated SLO GRE transport'
+            : 'Connect peer teardown must retain its observed transport interface',
+        );
       counts.set(peer.node, (counts.get(peer.node) ?? 0) + 1);
       if ('transitGatewayAddress' in peer && peer.transitGatewayAddress !== undefined) {
         if (
@@ -1819,7 +1825,7 @@ function compileActions(
       (intent.routing.insideCidrs ?? []).map((insideCidr, index) => ({
         node: index + 1,
         insideCidr,
-        transportInterfaceIndex: 1,
+        transportInterfaceIndex: 0,
         transitGatewayAddress: undefined,
       }));
     if (intent.vpc.mode === 'greenfield') {

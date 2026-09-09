@@ -13,10 +13,10 @@ export function connectFixture() {
     associations: ['tgw-rtb-12345678'],
     propagations: ['tgw-rtb-12345678'],
     connectPeers: [1, 2, 3].flatMap((node) =>
-      [0, 1].map((transportInterfaceIndex) => ({
+      [0, 1].map((peerIndex) => ({
         node,
-        transportInterfaceIndex,
-        insideCidr: `169.254.10.${((node - 1) * 2 + transportInterfaceIndex) * 8}/29`,
+        transportInterfaceIndex: 0,
+        insideCidr: `169.254.10.${((node - 1) * 2 + peerIndex) * 8}/29`,
       })),
     ),
   };

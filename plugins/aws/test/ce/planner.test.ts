@@ -883,36 +883,18 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(plan.actions.find((action) => action.kind === 'bgp-gate')?.description).toContain(
       '12 AWS-managed BGP sessions',
     );
-    const mixed = compileAwsCePlan(
-      {
-        ...plan.intent,
-        routing: {
-          ...plan.intent.routing,
-          connectPeers: peers.map((peer, index) => ({ ...peer, transportInterfaceIndex: index % 2 })),
+    expect(() =>
+      compileAwsCePlan(
+        {
+          ...plan.intent,
+          routing: {
+            ...plan.intent.routing,
+            connectPeers: peers.map((peer, index) => ({ ...peer, transportInterfaceIndex: index % 2 })),
+          },
         },
-      },
-      evidence,
-    );
-    const mixedRoutes = mixed.actions.filter(
-      (action) =>
-        action.kind === 'route-create' &&
-        action.args?.includes('--transit-gateway-id') &&
-        action.args.includes('172.31.240.0/24'),
-    );
-    expect(mixedRoutes).toHaveLength(2);
-    expect(mixedRoutes.map((action) => action.args?.[(action.args?.indexOf('--route-table-id') ?? -1) + 1])).toEqual([
-      '__SLO_ROUTE_TABLE__',
-      '__GRE_ROUTE_TABLE_1__',
-    ]);
-    const sliAssociations = mixed.actions.filter(
-      (action) => action.kind === 'route-table-associate' && action.args?.includes('__GRE_ROUTE_TABLE_1__'),
-    );
-    expect(sliAssociations).toHaveLength(3);
-    expect(sliAssociations.map((action) => action.args?.[(action.args?.indexOf('--subnet-id') ?? -1) + 1])).toEqual([
-      '__SUBNET_1_1__',
-      '__SUBNET_2_1__',
-      '__SUBNET_3_1__',
-    ]);
+        evidence,
+      ),
+    ).toThrow('dedicated SLO GRE transport');
   }
   expect(() =>
     compileAwsCePlan(

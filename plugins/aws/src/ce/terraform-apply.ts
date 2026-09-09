@@ -168,6 +168,7 @@ export async function executeAwsCeTerraformApply(
       storage,
       await VerifiedIngressContract.release(fetcher, signal),
       resolvedValues,
+      scopedAwsApi(api, plan.intent.awsProfile, signal),
       signal,
     );
     const nlb = await collectAwsNetworkHealth(

@@ -1,11 +1,12 @@
 import type { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
 import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
+import { type AwsExecApi, detectAwsError } from '../aws/exec';
 import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
 interface Marker {
-  schemaVersion: 1;
+  schemaVersion: 2;
   engine: 'native' | 'terraform';
   planSha256: string;
   ingressPlanId: string;
@@ -21,6 +22,37 @@ async function optional(storage: Pick<CeDeploymentStore, 'read'>, name: string):
   }
 }
 
+async function originAddress(plan: AwsCePlan, api: AwsExecApi, signal?: AbortSignal): Promise<string> {
+  if (plan.intent.ingress?.mode !== 'nlb') throw new Error('AWS origin discovery requires NLB ingress');
+  const source = plan.intent.ingress.probe.sourceInstanceId;
+  const result = await api.exec(
+    'aws',
+    ['ec2', 'describe-instances', '--instance-ids', source, '--region', plan.region, '--output', 'json'],
+    { signal },
+  );
+  if (result.exitCode !== 0) throw detectAwsError(result.stderr, result.exitCode);
+  const response = JSON.parse(result.stdout) as Record<string, unknown>;
+  const reservations = Array.isArray(response.Reservations) ? response.Reservations : [];
+  const instances = reservations.flatMap((reservation) => {
+    if (!reservation || typeof reservation !== 'object' || Array.isArray(reservation)) return [];
+    const rows = (reservation as Record<string, unknown>).Instances;
+    return Array.isArray(rows) ? rows : [];
+  });
+  const instance = instances[0] as Record<string, unknown> | undefined;
+  const address = instance?.PrivateIpAddress;
+  const state = instance?.State as Record<string, unknown> | undefined;
+  if (
+    instances.length !== 1 ||
+    instance?.InstanceId !== source ||
+    state?.Name !== 'running' ||
+    typeof address !== 'string' ||
+    !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(address) ||
+    address.split('.').some((octet) => Number(octet) > 255)
+  )
+    throw new Error('Fresh AWS origin address evidence is unavailable');
+  return address;
+}
+
 /** Create or resume the exact platform listener after registration and SLI discovery. */
 export async function ensureAwsPlatformIngress(
   plan: AwsCePlan,
@@ -28,6 +60,7 @@ export async function ensureAwsPlatformIngress(
   storage: CeDeploymentStore,
   contract: VerifiedIngressContract,
   resolved: Record<string, string>,
+  api: AwsExecApi,
   signal?: AbortSignal,
 ) {
   if (plan.intent.ingress?.mode !== 'nlb') return undefined;
@@ -45,20 +78,41 @@ export async function ensureAwsPlatformIngress(
   const saved = await optional(storage, 'aws-platform-ingress.json');
   let marker: Marker;
   if (saved !== undefined) {
-    marker = saved as Marker;
+    const candidate = saved as Marker & { schemaVersion: number };
     if (
-      marker.schemaVersion !== 1 ||
-      marker.engine !== plan.engine ||
-      marker.planSha256 !== plan.planSha256 ||
-      marker.contractFingerprint !== contract.fingerprint ||
-      !/^[a-f0-9]{24}$/.test(marker.ingressPlanId)
+      ![1, 2].includes(candidate.schemaVersion) ||
+      candidate.engine !== plan.engine ||
+      candidate.planSha256 !== plan.planSha256 ||
+      candidate.contractFingerprint !== contract.fingerprint ||
+      !/^[a-f0-9]{24}$/.test(candidate.ingressPlanId)
     )
       throw new Error('Platform ingress checkpoint differs from the owning AWS plan');
+    if (candidate.schemaVersion === 1) {
+      await lifecycle.retire(candidate.ingressPlanId, signal);
+      const listener = plan.intent.ingress.listener;
+      const corrected = await lifecycle.planAws(
+        { ...listener, port: plan.intent.ingress.port, originAddress: await originAddress(plan, api, signal) },
+        selections,
+        signal,
+      );
+      marker = {
+        schemaVersion: 2,
+        engine: plan.engine,
+        planSha256: plan.planSha256,
+        ingressPlanId: corrected.id,
+        contractFingerprint: contract.fingerprint,
+      };
+      await storage.write('aws-platform-ingress.json', marker);
+    } else marker = candidate;
   } else {
     const listener = plan.intent.ingress.listener;
-    const ingressPlan = await lifecycle.planAws({ ...listener, port: plan.intent.ingress.port }, selections, signal);
+    const ingressPlan = await lifecycle.planAws(
+      { ...listener, port: plan.intent.ingress.port, originAddress: await originAddress(plan, api, signal) },
+      selections,
+      signal,
+    );
     marker = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       engine: plan.engine,
       planSha256: plan.planSha256,
       ingressPlanId: ingressPlan.id,
