@@ -310,8 +310,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         name(listener.originPool.name, 'ingress.listener.originPool.name') !== listener.originPool.name ||
         name(listener.originPool.namespace, 'ingress.listener.originPool.namespace') !==
           listener.originPool.namespace ||
-        listener.namespace !== namespace ||
-        listener.originPool.namespace !== namespace ||
+        listener.originPool.namespace !== listener.namespace ||
         typeof listener.domain !== 'string' ||
         listener.domain.length > 253 ||
         !domain.test(listener.domain) ||

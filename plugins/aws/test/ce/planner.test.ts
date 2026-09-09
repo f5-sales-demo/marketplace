@@ -727,9 +727,9 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
           scheme: 'internal',
           listener: {
             name: 'ce-listener',
-            namespace: 'system',
+            namespace: 'default',
             domain: 'ce.example.invalid',
-            originPool: { name: 'ce-origin', namespace: 'system' },
+            originPool: { name: 'ce-origin', namespace: 'default' },
           },
           probe: {
             sourceInstanceId: 'i-0feedface12345678',
