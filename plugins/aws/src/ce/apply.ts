@@ -1,7 +1,10 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
-import { captureCeReplacementVersions } from '../../../platform/src/ce/replacement-versions';
+import {
+  type CeReplacementVersions,
+  captureCeReplacementVersions,
+} from '../../../platform/src/ce/replacement-versions';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import { VerifiedUpgradeContract } from '../../../platform/src/ce/upgrade-contract';
@@ -464,14 +467,25 @@ async function assertGate(
           )
             throw error;
           const upgrade = await VerifiedUpgradeContract.release(fetcher, signal);
-          const versions = await captureCeReplacementVersions(
-            binding,
-            String(preparation.uid),
-            String(preparation.contractFingerprint),
-            runtime,
-            upgrade,
-            signal,
-          );
+          let versions: CeReplacementVersions;
+          try {
+            versions = await captureCeReplacementVersions(
+              binding,
+              String(preparation.uid),
+              String(preparation.contractFingerprint),
+              runtime,
+              upgrade,
+              signal,
+            );
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              (error.message.includes('version evidence is unavailable') ||
+                error.message.includes('versions are not stable'))
+            )
+              throw new Error('Replacement version evidence has not converged');
+            throw error;
+          }
           replacement = compileAwsSiteReplacement(plan, binding.siteName, preparation, {
             versions,
             interfaceIds: Object.fromEntries(
