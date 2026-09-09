@@ -123,6 +123,12 @@ test('binds native platform retirement to an exact fresh cloud teardown plan', (
   const missing = structuredClone(f.drain);
   missing.sites[0].routing.pop();
   expect(() => compileAwsNativeTeardown(f.base, f.cloud, missing, f.retirement)).toThrow('routing inventory');
+  const mixed = structuredClone(f.drain);
+  mixed.sites[0].routing = mixed.sites[0].routing.filter((row) => row.kind !== 'bgp_routing_policy');
+  expect(() => compileAwsNativeTeardown(f.base, f.cloud, mixed, f.retirement)).toThrow('export-policy inventory');
+  const legacy = structuredClone(f.drain);
+  for (const site of legacy.sites) site.routing = site.routing.filter((row) => row.kind !== 'bgp_routing_policy');
+  expect(compileAwsNativeTeardown(f.base, f.cloud, legacy, f.retirement).drain.sites).toHaveLength(3);
 });
 
 test('allows exact rollback-backed brownfield restoration in the native cloud teardown', () => {

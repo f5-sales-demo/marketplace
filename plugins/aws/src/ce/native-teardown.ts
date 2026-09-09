@@ -78,6 +78,9 @@ export function compileAwsNativeTeardown(
   )
     throw new Error('Native teardown cloud deletion inventory is incomplete');
   const peers = base.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
+  const exportPolicies = drain.sites.flatMap((row) => row.routing).filter((row) => row.kind === 'bgp_routing_policy');
+  if (exportPolicies.length !== 0 && exportPolicies.length !== selected.length)
+    throw new Error('Native teardown export-policy inventory is incomplete');
   const seen = new Set<string>();
   const unique = (value: string) => {
     if (seen.has(value)) throw new Error('Duplicate native teardown identity');
@@ -103,7 +106,8 @@ export function compileAwsNativeTeardown(
         name: `${base.deploymentName.slice(0, 24)}-gre-${peers.indexOf(action) + 1}`,
       }));
     if (expected.length) {
-      expected.push({ kind: 'bgp_routing_policy', name: `${site.name.slice(0, 43)}-tgw-export-policy` });
+      if (exportPolicies.length)
+        expected.push({ kind: 'bgp_routing_policy', name: `${site.name.slice(0, 43)}-tgw-export-policy` });
       expected.push({ kind: 'bgp', name: `${site.name.slice(0, 55)}-tgw-bgp` });
     }
     if (

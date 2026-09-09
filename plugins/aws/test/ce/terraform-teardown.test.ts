@@ -158,6 +158,12 @@ test('Terraform teardown rejects incomplete topology, missing routing, wrong eng
   const missing = structuredClone(f.drain);
   missing.sites[0].routing.pop();
   expect(() => compileAwsTerraformTeardown(f.base, missing, f.retirement)).toThrow();
+  const mixed = structuredClone(f.drain);
+  mixed.sites[0].routing = mixed.sites[0].routing.filter((row) => row.kind !== 'bgp_routing_policy');
+  expect(() => compileAwsTerraformTeardown(f.base, mixed, f.retirement)).toThrow('export-policy inventory');
+  const legacy = structuredClone(f.drain);
+  for (const site of legacy.sites) site.routing = site.routing.filter((row) => row.kind !== 'bgp_routing_policy');
+  expect(compileAwsTerraformTeardown(f.base, legacy, f.retirement).drain.sites).toHaveLength(3);
   await expect(coordinateAwsTerraformTeardown(f.base, f.plan, 'e'.repeat(64), f.storage, f.driver)).rejects.toThrow();
   await f.storage.write('aws-terraform-teardown-source.json', null);
   await expect(
