@@ -49,6 +49,10 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 
 ## Azure operations and diagnostics
 
+- Terraform Route Server translation creates the dedicated subnet, Standard public IP, Route
+  Server, and one SLO-bound BGP connection per admitted CE. It exports the two computed Route
+  Server service addresses and ASN for the later platform-routing stage; these outputs do not
+  establish session or route health.
 - Native and Terraform upgrades use the same verified action and fresh version evidence. Native
   execution persists the exact logical site identity before the request and reconciles an
   ambiguous response from platform convergence without replaying the mutation.

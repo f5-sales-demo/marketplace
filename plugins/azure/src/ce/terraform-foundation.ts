@@ -85,6 +85,34 @@ export function renderAzureTerraformFoundation(
     address_space: [...new Set(prefixes)].sort(),
     tags: tags(),
   });
+  if (plan.routing.mode === 'route-server') {
+    const routeServerSubnet = subnetRefs.get('RouteServerSubnet');
+    if (
+      !routeServerSubnet ||
+      !Number.isInteger(plan.routing.localAsn) ||
+      (plan.routing.localAsn ?? 0) < 1 ||
+      (plan.routing.localAsn ?? 0) > 65534
+    )
+      throw new Error('Planned Route Server subnet or CE ASN translation is incomplete');
+    add('azurerm_public_ip', 'route_server', {
+      name: literal(`${plan.deploymentName}-rs-pip`),
+      resource_group_name: group,
+      location: plan.region,
+      allocation_method: 'Static',
+      sku: 'Standard',
+      tags: tags(),
+    });
+    add('azurerm_route_server', 'ce', {
+      name: literal(`${plan.deploymentName}-rs`),
+      resource_group_name: group,
+      location: plan.region,
+      sku: 'Standard',
+      public_ip_address_id: ref('azurerm_public_ip.route_server.id'),
+      subnet_id: routeServerSubnet,
+      branch_to_branch_traffic_enabled: false,
+      tags: tags(),
+    });
+  }
   if (plan.securityRules.length) {
     add('azurerm_network_security_group', 'ce', {
       name: literal(`${plan.deploymentName}-nsg`),
@@ -158,6 +186,16 @@ export function renderAzureTerraformFoundation(
       };
     }
     if (!admitted.includes(String(node))) continue;
+    if (plan.routing.mode === 'route-server') {
+      const slo = plan.nics.find((nic) => nic.role === 'slo');
+      if (!slo) throw new Error('Route Server peering requires the explicit SLO interface');
+      add('azurerm_route_server_bgp_connection', `node_${node}`, {
+        name: literal(nodeName),
+        route_server_id: ref('azurerm_route_server.ce.id'),
+        peer_asn: plan.routing.localAsn as number,
+        peer_ip: ref(`azurerm_network_interface.node_${node}_nic_${slo.index}.private_ip_address`),
+      });
+    }
     const bootstrap = bootstrapByNode[String(node)];
     if (
       !bootstrap.startsWith('#cloud-config') ||
@@ -232,6 +270,31 @@ export function renderAzureTerraformFoundation(
       ce_interfaces: { value: interfaceOutputs },
       ce_instances: { value: instanceOutputs },
       ce_vnet_id: { value: ref('azurerm_virtual_network.ce.id') },
+      ...(plan.routing.mode === 'route-server'
+        ? {
+            ce_route_server: {
+              value: {
+                id: ref('azurerm_route_server.ce.id'),
+                asn: ref('azurerm_route_server.ce.virtual_router_asn'),
+                peer_ips: ref('sort(tolist(azurerm_route_server.ce.virtual_router_ips))'),
+              },
+            },
+            ce_route_server_peers: {
+              value: Object.fromEntries(
+                admitted.map((node) => [
+                  node,
+                  {
+                    id: ref(`azurerm_route_server_bgp_connection.node_${node}.id`),
+                    peer_ip: ref(
+                      `azurerm_network_interface.node_${node}_nic_${plan.nics.find((nic) => nic.role === 'slo')?.index}.private_ip_address`,
+                    ),
+                    peer_asn: plan.routing.localAsn as number,
+                  },
+                ]),
+              ),
+            },
+          }
+        : {}),
     },
   });
 }

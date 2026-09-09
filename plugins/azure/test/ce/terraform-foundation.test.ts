@@ -55,12 +55,26 @@ it('admits compute with exact image, ordered NICs, generated SSH key and restric
 it('admits an HA site as all three nodes and reserves its dedicated Route Server subnet', () => {
   const p = plan(true);
   expect(() => renderAzureTerraformFoundation(p, { '1': bootstrap })).toThrow(/HA/);
+  const network = JSON.parse(renderAzureTerraformFoundation(p));
+  expect(network.resource.azurerm_route_server_bgp_connection).toBeUndefined();
+  expect(network.output.ce_route_server_peers.value).toEqual({});
   const config = JSON.parse(renderAzureTerraformFoundation(p, { '1': bootstrap, '2': bootstrap, '3': bootstrap }));
   expect(Object.keys(config.resource.azurerm_linux_virtual_machine)).toHaveLength(3);
   expect(Object.keys(config.resource.azurerm_network_interface)).toHaveLength(9);
   expect(Object.values(config.resource.azurerm_subnet).some((subnet: any) => subnet.name === 'RouteServerSubnet')).toBe(
     true,
   );
+  expect(config.resource.azurerm_route_server.ce.subnet_id).toMatch(/azurerm_subnet/);
+  expect(config.resource.azurerm_route_server.ce.branch_to_branch_traffic_enabled).toBe(false);
+  expect(config.resource.azurerm_public_ip.route_server.sku).toBe('Standard');
+  expect(Object.keys(config.resource.azurerm_route_server_bgp_connection)).toEqual(['node_1', 'node_2', 'node_3']);
+  for (const peer of Object.values(config.resource.azurerm_route_server_bgp_connection) as Array<any>) {
+    expect(peer.peer_asn).toBe(p.routing.localAsn);
+    expect(peer.peer_ip).toContain('_nic_0.private_ip_address');
+    expect(peer.peer_ip).not.toContain('_nic_2.private_ip_address');
+  }
+  expect(config.output.ce_route_server.value.peer_ips).toContain('sort(tolist(');
+  expect(Object.keys(config.output.ce_route_server_peers.value)).toEqual(['1', '2', '3']);
 });
 
 it('rejects tampered plans, foreign node admissions, and unresolved bootstrap before rendering', () => {
