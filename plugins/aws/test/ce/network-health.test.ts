@@ -157,7 +157,7 @@ test('TGW route health binds exact associations, propagations and static routes 
     },
   );
   let propagationState = 'enabled';
-  let additionalRoutes = false;
+  let additionalRoutes: boolean | undefined = false;
   const api = {
     exec: async (_command: string, args: string[]) => {
       const operation = args[1];
@@ -195,6 +195,8 @@ test('TGW route health binds exact associations, propagations and static routes 
   propagationState = 'enabling';
   expect((await collectAwsNetworkHealth('routes', f.plan, f.checkpoint, api)).status).toBe('degraded');
   propagationState = 'enabled';
+  additionalRoutes = undefined;
+  expect((await collectAwsNetworkHealth('routes', f.plan, f.checkpoint, api)).status).toBe('healthy');
   additionalRoutes = true;
   expect((await collectAwsNetworkHealth('routes', f.plan, f.checkpoint, api)).status).toBe('unknown');
 });

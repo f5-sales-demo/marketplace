@@ -273,7 +273,7 @@ export async function collectAwsNetworkHealth(
           ],
           plan.region,
         );
-        if (raw.AdditionalRoutesAvailable !== false || !Array.isArray(raw.Routes) || raw.Routes.length !== 1)
+        if (raw.AdditionalRoutesAvailable === true || !Array.isArray(raw.Routes) || raw.Routes.length !== 1)
           throw new Error('Incomplete TGW route evidence');
         const row = object(raw.Routes[0]);
         if (!Array.isArray(row.TransitGatewayAttachments) || row.TransitGatewayAttachments.length !== 1)
