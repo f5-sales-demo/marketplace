@@ -277,7 +277,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     const ingressKeys = Object.keys(input.ingress).sort().join(',');
     if (
       (input.ingress.mode === 'none' && ingressKeys !== 'mode') ||
-      (input.ingress.mode === 'nlb' && ingressKeys !== 'mode,port,scheme')
+      (input.ingress.mode === 'nlb' && ingressKeys !== 'listener,mode,port,scheme')
     )
       fail('Ingress fields differ from the selected mode');
     if (
@@ -291,8 +291,32 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     if (!['none', 'nlb'].includes(input.ingress.mode)) fail('Ingress mode is invalid');
     if (input.ingress.mode === 'nlb' && input.topology.nodeCount !== 3)
       fail('NLB ingress requires a three-node, three-zone topology');
+    if (input.ingress.mode === 'nlb' && sites.some((site) => site.nodeIndexes.length !== 1))
+      fail('NLB ingress requires three independent one-node sites');
     if (input.ingress.mode === 'nlb' && !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,26}[a-zA-Z0-9])?$/.test(deploymentName))
       fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
+    if (input.ingress.mode === 'nlb') {
+      const listener = input.ingress.listener;
+      const domain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+      if (
+        !listener ||
+        Object.keys(listener).sort().join(',') !== 'domain,name,namespace,originPool' ||
+        Object.keys(listener.originPool ?? {})
+          .sort()
+          .join(',') !== 'name,namespace' ||
+        name(listener.name, 'ingress.listener.name') !== listener.name ||
+        name(listener.namespace, 'ingress.listener.namespace') !== listener.namespace ||
+        name(listener.originPool.name, 'ingress.listener.originPool.name') !== listener.originPool.name ||
+        name(listener.originPool.namespace, 'ingress.listener.originPool.namespace') !==
+          listener.originPool.namespace ||
+        listener.namespace !== namespace ||
+        listener.originPool.namespace !== namespace ||
+        typeof listener.domain !== 'string' ||
+        listener.domain.length > 253 ||
+        !domain.test(listener.domain)
+      )
+        fail('NLB listener requires exact names, a valid domain, and the deployment namespace');
+    }
   }
   for (const routeTableId of [...input.routing.associations, ...input.routing.propagations])
     if (!input.brownfield.transitGatewayRouteTableIds.includes(routeTableId))
@@ -1634,6 +1658,14 @@ function compileActions(
       mutates: true,
       destructive: false,
     });
+    if (intent.ingress?.mode === 'nlb')
+      add({
+        phase: 'routing',
+        kind: 'f5-ingress-configure',
+        description: 'Configure the owned XC inside HTTP listener on observed CE SLI addresses',
+        mutates: true,
+        destructive: false,
+      });
     add({
       phase: 'verify',
       kind: 'nlb-gate',

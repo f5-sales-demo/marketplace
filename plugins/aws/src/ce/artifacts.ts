@@ -31,6 +31,14 @@ export function verifyAwsCePlan(plan: AwsCePlan): void {
     throw new Error('Persisted AWS CE plan uses an unsupported schema version');
   if (!['native', 'terraform'].includes(plan.engine) || plan.intent.engine !== plan.engine)
     throw new Error('Persisted AWS CE engine ownership is invalid');
+  if (
+    plan.intent.ingress?.mode === 'nlb' &&
+    (!plan.intent.ingress.listener ||
+      typeof plan.intent.ingress.listener.name !== 'string' ||
+      typeof plan.intent.ingress.listener.domain !== 'string' ||
+      typeof plan.intent.ingress.listener.originPool?.name !== 'string')
+  )
+    throw new Error('Persisted AWS CE plan uses the obsolete cloud-only NLB ingress schema');
   const { planId, planSha256, ...draft } = plan;
   if (!safeHexEqual(canonicalSha256(draft), planSha256) || planId !== `aws-ce-${planSha256.slice(0, 24)}`)
     throw new Error('Persisted AWS CE plan failed integrity validation');

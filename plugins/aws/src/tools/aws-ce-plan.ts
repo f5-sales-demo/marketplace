@@ -111,6 +111,22 @@ export function createAwsCePlanTool(pi: PluginInterface) {
           associations: stringArray,
           propagations: stringArray,
         }),
+        ingress: Type.Optional(
+          Type.Union([
+            Type.Object({ mode: Type.Literal('none') }),
+            Type.Object({
+              mode: Type.Literal('nlb'),
+              port: Type.Integer({ minimum: 1, maximum: 65535 }),
+              scheme: Type.Literal('internal'),
+              listener: Type.Object({
+                name: Type.String(),
+                namespace: Type.String(),
+                domain: Type.String(),
+                originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
+              }),
+            }),
+          ]),
+        ),
         image: Type.Object({ productId: Type.Literal(AWS_CE_MARKETPLACE_PRODUCT_ID), amiId: Type.String() }),
         instance: Type.Object({
           type: Type.String(),

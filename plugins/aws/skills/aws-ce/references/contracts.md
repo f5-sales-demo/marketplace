@@ -97,12 +97,15 @@ such rather than counting them as unattended acceptance.
 
 ## AWS operations and diagnostics
 
-- Explicit schema-v2 `ingress: {mode: nlb, scheme: internal, port}` composes NLB ingress with
-  `tgw-connect` routing. Both native argv and Terraform translate the same internal listener,
-  target group, cross-zone NLB, and admitted SLO IP targets. Terraform exports scoped ingress
-  identities into the routing checkpoint. Teardown verifies NLB tags, topology, target membership,
-  exact saved-plan deletion, and independent ARN absence. The legacy `nlb-ingress` routing profile
-  remains readable for existing plans but cannot be mixed with the explicit ingress object.
+- Explicit schema-v2 `ingress: {mode: nlb, scheme: internal, port, listener}` composes NLB ingress
+  with `tgw-connect` routing. `listener` supplies the exact name, deployment namespace, domain, and
+  existing origin-pool identity. Both engines discover each SLI from the node/MAC binding, verify
+  the origin UID, and create or resume one ownership-labelled XC inside listener before accepting
+  NLB target health. Terraform also requires healthy BGP, effective TGW routes, and a refresh-enabled
+  no-change plan. Teardown verifies XC and NLB identities, tags, topology, target membership, exact
+  saved-plan deletion, and independent absence. Listener configuration and NLB target health do not
+  establish end-to-end traffic. The legacy `nlb-ingress` routing profile remains readable for
+  existing plans but cannot be mixed with the explicit ingress object.
 - Native TGW Connect apply freezes the complete XC connector/BGP UID inventory in the restricted
   deployment store after routing configuration converges. Teardown and replacement must consume
   that engine-bound record rather than relying on conversational checkpoint state.

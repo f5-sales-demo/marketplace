@@ -1,5 +1,6 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AwsExecApi } from '../aws/exec';
@@ -14,6 +15,7 @@ import { discoverAwsCompute, observeAwsResources } from './discovery';
 import { associateAwsCeEip } from './eip-association';
 import { persistAwsNativeRoutingCheckpoint } from './native-routing-checkpoint';
 import { collectAwsNetworkHealth } from './network-health';
+import { ensureAwsPlatformIngress } from './platform-ingress';
 import { configureAwsRouting } from './routing-apply';
 import { scopedAwsApi } from './scoped-exec';
 import { resetAwsSecurityGroupEgress } from './security-group-defaults';
@@ -177,6 +179,8 @@ async function assertGate(
   plan: AwsCePlan,
   checkpoint: AwsCeCheckpoint,
   persist: (evidence?: Record<string, unknown>) => Promise<unknown>,
+  storage: Awaited<ReturnType<CePlatformService['storage']>>,
+  ingressContract: VerifiedIngressContract | undefined,
   api: AwsExecApi,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -279,6 +283,19 @@ async function assertGate(
   }
   if (action.kind === 'f5-routing-configure')
     await configureAwsRouting(runtime, plan, checkpoint, api, persist, signal);
+  if (action.kind === 'f5-ingress-configure') {
+    if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
+    const evidence = await ensureAwsPlatformIngress(
+      plan,
+      runtime,
+      storage,
+      ingressContract,
+      checkpoint.resolvedValues,
+      signal,
+    );
+    if (evidence?.listener !== 'configured') throw new Error('Observed F5 ingress listener has not converged');
+    await persist(evidence);
+  }
   if (action.kind === 'bgp-gate' || action.kind === 'nlb-gate') {
     const evidence = await collectAwsNetworkHealth(
       action.kind === 'bgp-gate' ? 'bgp' : 'nlb',
@@ -340,6 +357,8 @@ export async function executeAwsCeApply(
     account: plan.accountId,
     region: plan.region,
   });
+  const ingressContract =
+    plan.intent.ingress?.mode === 'nlb' ? await VerifiedIngressContract.release(fetcher, signal) : undefined;
 
   if (existing && existing.engine !== plan.engine)
     throw new Error('Checkpoint execution engine differs from deployment');
@@ -461,6 +480,8 @@ export async function executeAwsCeApply(
                 });
               return saveAwsCheckpoint(ctx.sessionManager, checkpoint);
             },
+            storage,
+            ingressContract,
             api,
             signal,
           );

@@ -47,7 +47,20 @@ it('rejects partial HA admission, unresolved bootstrap and native or obsolete pl
 it('composes internal NLB ingress with TGW routing and cumulative admission', () => {
   const source = foundationPlan();
   const { planId: _id, planSha256: _sha, ...draft } = source;
-  draft.intent = { ...draft.intent, ingress: { mode: 'nlb', port: 8443, scheme: 'internal' } };
+  draft.intent = {
+    ...draft.intent,
+    ingress: {
+      mode: 'nlb',
+      port: 8443,
+      scheme: 'internal',
+      listener: {
+        name: 'ce-listener',
+        namespace: 'default',
+        domain: 'ce.example.invalid',
+        originPool: { name: 'ce-origin', namespace: 'default' },
+      },
+    },
+  };
   const planSha256 = canonicalSha256(draft);
   const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` } as AwsCePlan;
   const network = JSON.parse(renderAwsTerraformFoundation(plan));

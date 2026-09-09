@@ -1,13 +1,19 @@
+import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AwsExecApi } from '../aws/exec';
 import { type AwsCeApplyInput, assertAwsApplyAllowed } from './apply';
 import { type AwsCeToolContext, loadAwsPlan } from './artifacts';
+import { collectAwsNetworkHealth } from './network-health';
+import { ensureAwsPlatformIngress } from './platform-ingress';
+import { scopedAwsApi } from './scoped-exec';
 import { applyAwsTerraformConnectStage } from './terraform-connect-stage';
 import { awsTerraformFoundationDeployment } from './terraform-foundation';
+import { discoverAwsTerraformInterfaces } from './terraform-identities';
 import { revalidateAwsTerraformPlan } from './terraform-preflight';
-import { configureAwsTerraformRouting } from './terraform-routing';
+import { bindTerraformIngress, configureAwsTerraformRouting } from './terraform-routing';
 import { runAwsTerraformAdmission } from './terraform-workflow';
+import type { AwsCeCheckpoint } from './types';
 
 export async function executeAwsCeTerraformApply(
   input: AwsCeApplyInput,
@@ -110,16 +116,87 @@ export async function executeAwsCeTerraformApply(
     await applyAwsTerraformConnectStage(plan, current, session, storage, revalidate, process.env, signal);
     try {
       const bgp = await configureAwsTerraformRouting(plan, session, runtime, storage, api, process.env, signal);
+      if (bgp.status !== 'healthy') throw new Error('Observed AWS BGP sessions have not converged');
+      const routingCheckpoint = (await storage.read('terraform-routing-checkpoint.json')) as AwsCeCheckpoint;
+      const routes = await collectAwsNetworkHealth(
+        'routes',
+        plan,
+        routingCheckpoint,
+        scopedAwsApi(api, plan.intent.awsProfile, signal),
+        signal,
+      );
+      if (routes.status === 'unknown') throw new Error('AWS TGW route evidence is unavailable');
+      if (routes.status !== 'healthy') throw new Error('Observed AWS TGW routes have not converged');
       const refresh = await session.plan(process.env, signal);
+      if (!refresh.noChanges) throw new Error('Terraform changed after routing convergence');
       result = {
         ...result,
         status: 'pending-route-and-traffic-acceptance',
         bgp,
-        terraformNoChanges: refresh.noChanges,
+        routes,
+        terraformNoChanges: true,
       };
     } catch (error) {
       if (signal?.aborted || !(error instanceof Error) || !error.message.includes('has not converged')) throw error;
       result = { ...result, status: 'pending-routing-convergence', reason: error.message };
+    }
+  }
+  const routingReady =
+    plan.routing?.profile === 'tgw-connect'
+      ? result.status === 'pending-route-and-traffic-acceptance'
+      : result.status === 'registered';
+  if (plan.intent.ingress?.mode === 'nlb' && routingReady) {
+    const owner = {
+      deploymentId: plan.deploymentName,
+      engine: 'terraform' as const,
+      provider: 'aws' as const,
+      account: plan.accountId,
+      region: plan.region,
+    };
+    const session = await terraform.open(owner, await awsTerraformFoundationDeployment(plan), 'current');
+    const outputs = await session.readOutputs(
+      ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_ingress'],
+      process.env,
+      signal,
+    );
+    const discovered = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
+    const resolvedValues = { ...discovered.bindings, ...bindTerraformIngress(plan, outputs) };
+    const ingress = await ensureAwsPlatformIngress(
+      plan,
+      runtime,
+      storage,
+      await VerifiedIngressContract.release(fetcher, signal),
+      resolvedValues,
+      signal,
+    );
+    const nlb = await collectAwsNetworkHealth(
+      'nlb',
+      plan,
+      {
+        schemaVersion: plan.schemaVersion,
+        engine: 'terraform',
+        planId: plan.planId,
+        planSha256: plan.planSha256,
+        completedActionIds: [],
+        resolvedValues,
+        state: 'running',
+      } as AwsCeCheckpoint,
+      scopedAwsApi(api, plan.intent.awsProfile, signal),
+      signal,
+    );
+    if (nlb.status !== 'healthy') {
+      result = { ...result, status: 'pending-ingress-convergence', ingress, nlb, traffic: 'unknown' };
+    } else {
+      const refresh = await session.plan(process.env, signal);
+      if (!refresh.noChanges) throw new Error('Terraform changed after platform ingress convergence');
+      result = {
+        ...result,
+        status: 'pending-traffic-acceptance',
+        ingress,
+        nlb,
+        terraformNoChanges: true,
+        traffic: 'unknown',
+      };
     }
   }
   const artifactId = await ctx.sessionManager.saveArtifact(JSON.stringify(result), 'aws-ce-terraform-checkpoint');

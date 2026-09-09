@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { verifyAwsCePlan } from '../../src/ce/artifacts';
 import { canonicalSha256 } from '../../src/ce/canonical';
 import { compileAwsCePlan } from '../../src/ce/planner';
 import { siteBindings } from '../../src/ce/topology';
@@ -708,7 +709,17 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
         brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
         topology: { nodeCount: 3, sites },
         interfaces: interfaces(3, 2),
-        ingress: { mode: 'nlb', port: 8443, scheme: 'internal' },
+        ingress: {
+          mode: 'nlb',
+          port: 8443,
+          scheme: 'internal',
+          listener: {
+            name: 'ce-listener',
+            namespace: 'system',
+            domain: 'ce.example.invalid',
+            originPool: { name: 'ce-origin', namespace: 'system' },
+          },
+        },
         routing: {
           profile: 'tgw-connect',
           destinationCidrs: [],
@@ -734,6 +745,11 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     expect(nlb?.args).toContain('internal');
     expect(nlb?.args?.filter((arg) => arg === 'elbv2')).toHaveLength(1);
     expect(plan.actions.find((action) => action.kind === 'nlb-listener-create')?.args).toContain('8443');
+    const platformIngress = plan.actions.find((action) => action.kind === 'f5-ingress-configure');
+    const nlbGate = plan.actions.find((action) => action.kind === 'nlb-gate');
+    expect(plan.actions.indexOf(platformIngress as (typeof plan.actions)[number])).toBeLessThan(
+      plan.actions.indexOf(nlbGate as (typeof plan.actions)[number]),
+    );
     expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);
     expect(plan.actions.some((action) => action.kind === 'nlb-gate')).toBe(true);
     expect(plan.billableResources).toContainEqual({ type: 'network-load-balancer', count: 1 });
@@ -795,6 +811,50 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       '__SUBNET_3_1__',
     ]);
   }
+  expect(() =>
+    compileAwsCePlan(
+      intent({
+        ingress: { mode: 'nlb', port: 8443, scheme: 'internal' } as never,
+      }),
+      evidence,
+    ),
+  ).toThrow('Ingress fields');
+  const valid = compileAwsCePlan(
+    intent({
+      engine: 'terraform',
+      brownfield: { resourceIds: ['tgw-0123456789abcdef0'], routeTableIds: [], transitGatewayRouteTableIds: [] },
+      topology: { nodeCount: 3, sites },
+      interfaces: interfaces(3, 2),
+      ingress: {
+        mode: 'nlb',
+        port: 8443,
+        scheme: 'internal',
+        listener: {
+          name: 'ce-listener',
+          namespace: 'system',
+          domain: 'ce.example.invalid',
+          originPool: { name: 'ce-origin', namespace: 'system' },
+        },
+      },
+      routing: {
+        profile: 'tgw-connect',
+        destinationCidrs: [],
+        associations: [],
+        propagations: [],
+        transitGatewayId: 'tgw-0123456789abcdef0',
+        customerAsn: 65010,
+        transitGatewayAsn: 64512,
+        connectPeers: peers,
+      },
+    }),
+    evidence,
+  );
+  const obsolete = structuredClone(valid);
+  delete (obsolete.intent.ingress as { listener?: unknown }).listener;
+  const { planId: _id, planSha256: _sha, ...obsoleteDraft } = obsolete;
+  obsolete.planSha256 = canonicalSha256(obsoleteDraft);
+  obsolete.planId = `aws-ce-${obsolete.planSha256.slice(0, 24)}`;
+  expect(() => verifyAwsCePlan(obsolete)).toThrow('obsolete cloud-only');
 });
 
 it('rejects every AWS-reserved Connect inside network including .1.0 through .5.0', () => {

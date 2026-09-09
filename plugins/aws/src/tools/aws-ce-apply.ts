@@ -41,7 +41,7 @@ export function createAwsCeApplyTool(pi: PluginInterface, makeApi: (cwd: string)
             content: [
               {
                 type: 'text' as const,
-                text: `AWS CE Terraform ${selected.plan.deploymentName}: ${result.status}. Routing and traffic acceptance remain unverified.`,
+                text: `AWS CE Terraform ${selected.plan.deploymentName}: ${result.status}. Collected routing and ingress evidence is included; traffic acceptance remains separate.`,
               },
             ],
             details: { tool: 'aws_ce_apply', ...result },

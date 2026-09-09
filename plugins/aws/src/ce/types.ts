@@ -26,7 +26,19 @@ export type AwsCeOperation =
   | 'teardown';
 export type AwsCeEgressMode = 'elastic-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AwsCeRoutingProfile = 'direct-eni' | 'nlb-ingress' | 'tgw-static' | 'tgw-connect';
-export type AwsCeIngress = { mode: 'none' } | { mode: 'nlb'; port: number; scheme: 'internal' };
+export type AwsCeIngress =
+  | { mode: 'none' }
+  | {
+      mode: 'nlb';
+      port: number;
+      scheme: 'internal';
+      listener: {
+        name: string;
+        namespace: string;
+        domain: string;
+        originPool: { name: string; namespace: string };
+      };
+    };
 
 export interface AwsCeF5Capabilities {
   platformContext?: string;
@@ -234,6 +246,7 @@ export type AwsCeActionKind =
   | 'health-gate'
   | 'bgp-gate'
   | 'nlb-gate'
+  | 'f5-ingress-configure'
   | 'tgw-route-gate'
   | 'traffic-gate'
   | 'brownfield-restore'
