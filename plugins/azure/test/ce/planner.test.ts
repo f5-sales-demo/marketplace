@@ -2,7 +2,9 @@ import { describe, expect, it } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const subscriptionId = ['11111111', '1111', '4111', '8111', '111111111111'].join('-');
+const tenantId = ['22222222', '2222', '4222', '8222', '222222222222'].join('-');
+const foreignSubscriptionId = ['33333333', '3333', '4333', '8333', '333333333333'].join('-');
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
 const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
@@ -10,7 +12,7 @@ const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/cust
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
     schemaVersion: 3,
-    subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId: '22222222-2222-4222-8222-222222222222' },
+    subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId },
     image: {
       publisher: 'f5-networks',
       offer: 'f5xc-customer-edge',
@@ -379,7 +381,7 @@ describe('compileAzureCePlan', () => {
         intent({
           brownfield: {
             resourceIds: [
-              '/subscriptions/33333333-3333-4333-8333-333333333333/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet',
+              `/subscriptions/${foreignSubscriptionId}/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet`,
             ],
             routeChanges: [],
           },

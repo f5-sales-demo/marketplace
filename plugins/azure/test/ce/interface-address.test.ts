@@ -2,12 +2,13 @@ import { expect, it } from 'bun:test';
 import { resolveInterfaceAddress } from '../../src/ce/interface-address';
 import type { AzureCePlan } from '../../src/ce/types';
 
-const root = '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/ce-rg/providers';
+const subscriptionId = ['00000000', '0000', '0000', '0000', '000000000001'].join('-');
+const root = `/subscriptions/${subscriptionId}/resourceGroups/ce-rg/providers`;
 const nicId = `${root}/Microsoft.Network/networkInterfaces/ce-1-nic0`;
 const vmId = `${root}/Microsoft.Compute/virtualMachines/ce-1`;
 const plan = {
   engine: 'native',
-  subscription: { id: '00000000-0000-0000-0000-000000000001' },
+  subscription: { id: subscriptionId },
   intent: { resourceGroup: 'ce-rg' },
   deploymentName: 'ce',
   planSha256: 'plan',

@@ -22,8 +22,9 @@ function api(fixtures: Record<string, unknown>, calls: string[] = []): AzExecApi
   return {
     async exec(_command, args) {
       const key = args.filter((arg) => arg !== '--output' && arg !== 'json').join(' ');
-      calls.push(key);
-      const value = fixtures[key];
+      const fixtureKey = key.replaceAll(subscriptionId, '__SUBSCRIPTION__');
+      calls.push(fixtureKey);
+      const value = fixtures[fixtureKey];
       if (value === undefined && key.startsWith('group show '))
         return { stdout: '', stderr: 'ResourceGroupNotFound', exitCode: 1 };
       if (value === undefined && key.startsWith('vm image show ')) return { stdout: '{}', stderr: '', exitCode: 0 };
@@ -33,33 +34,37 @@ function api(fixtures: Record<string, unknown>, calls: string[] = []): AzExecApi
   };
 }
 
-const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const subscriptionId = ['11111111', '1111', '4111', '8111', '111111111111'].join('-');
+const tenantId = ['22222222', '2222', '4222', '8222', '222222222222'].join('-');
+const foreignSubscriptionId = ['33333333', '3333', '4333', '8333', '333333333333'].join('-');
 const baseFixtures: Record<string, unknown> = {
-  'account show --subscription 11111111-1111-4111-8111-111111111111': {
+  'account show --subscription __SUBSCRIPTION__': {
     id: subscriptionId,
-    tenantId: '22222222-2222-4222-8222-222222222222',
+    tenantId: tenantId,
     environmentName: 'AzureCloud',
   },
-  'rest --method get --url https://management.azure.com/subscriptions/11111111-1111-4111-8111-111111111111/locations?api-version=2022-12-01':
+  'rest --method get --url https://management.azure.com/subscriptions/__SUBSCRIPTION__/locations?api-version=2022-12-01':
     {
       value: [
         { name: 'eastus', metadata: { regionType: 'Physical' } },
         { name: 'canadacentral', metadata: { regionType: 'Physical' } },
       ],
     },
-  'vm image list-publishers --location canadacentral --subscription 11111111-1111-4111-8111-111111111111': [
+  'vm image list-publishers --location canadacentral --subscription __SUBSCRIPTION__': [
     { name: 'Canonical' },
     { name: 'f5-networks' },
   ],
-  'vm image list-offers --location canadacentral --publisher f5-networks --subscription 11111111-1111-4111-8111-111111111111':
-    [{ name: 'f5-big-ip-best' }, { name: 'f5xc_customer_edge' }],
-  'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription 11111111-1111-4111-8111-111111111111':
+  'vm image list-offers --location canadacentral --publisher f5-networks --subscription __SUBSCRIPTION__': [
+    { name: 'f5-big-ip-best' },
+    { name: 'f5xc_customer_edge' },
+  ],
+  'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription __SUBSCRIPTION__':
     [
       { name: 'f5-distributed-cloud-customer-edge-internal' },
       { name: 'f5xc-ce-crt-20250701' },
       { name: 'f5xc-ce-crt-20260201' },
     ],
-  'vm image list --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --sku f5xc-ce-crt-20260201 --all --subscription 11111111-1111-4111-8111-111111111111':
+  'vm image list --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --sku f5xc-ce-crt-20260201 --all --subscription __SUBSCRIPTION__':
     [
       {
         publisher: 'f5-networks',
@@ -76,9 +81,9 @@ const baseFixtures: Record<string, unknown> = {
         urn: 'f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1',
       },
     ],
-  'vm image terms show --urn f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1 --subscription 11111111-1111-4111-8111-111111111111':
+  'vm image terms show --urn f5-networks:f5xc_customer_edge:f5xc-ce-crt-20260201:20260201.0178.1 --subscription __SUBSCRIPTION__':
     { accepted: true, plan: 'f5xc-ce-crt-20260201' },
-  'vm image list --publisher f5-networks --offer f5xc-customer-edge --sku f5xc-ce --all --subscription 11111111-1111-4111-8111-111111111111':
+  'vm image list --publisher f5-networks --offer f5xc-customer-edge --sku f5xc-ce --all --subscription __SUBSCRIPTION__':
     [
       {
         publisher: 'f5-networks',
@@ -95,9 +100,11 @@ const baseFixtures: Record<string, unknown> = {
         urn: 'f5-networks:f5xc-customer-edge:f5xc-ce:2026.08.15',
       },
     ],
-  'vm image terms show --urn f5-networks:f5xc-customer-edge:f5xc-ce:2026.08.15 --subscription 11111111-1111-4111-8111-111111111111':
-    { accepted: true, plan: 'f5xc-ce' },
-  'vm list-skus --all --subscription 11111111-1111-4111-8111-111111111111': [
+  'vm image terms show --urn f5-networks:f5xc-customer-edge:f5xc-ce:2026.08.15 --subscription __SUBSCRIPTION__': {
+    accepted: true,
+    plan: 'f5xc-ce',
+  },
+  'vm list-skus --all --subscription __SUBSCRIPTION__': [
     {
       name: 'Standard_D8s_v5',
       resourceType: 'virtualMachines',
@@ -113,15 +120,15 @@ const baseFixtures: Record<string, unknown> = {
       ],
     },
   ],
-  'provider show --namespace Microsoft.Network --subscription 11111111-1111-4111-8111-111111111111': {
+  'provider show --namespace Microsoft.Network --subscription __SUBSCRIPTION__': {
     resourceTypes: [{ resourceType: 'virtualHubs', locations: ['East US', 'Canada Central'] }],
   },
-  'policy state list --subscription 11111111-1111-4111-8111-111111111111': [],
-  'resource list --tag xcsh-deployment-id=ce-demo --subscription 11111111-1111-4111-8111-111111111111': [],
-  'vm list-usage --location canadacentral --subscription 11111111-1111-4111-8111-111111111111': [
+  'policy state list --subscription __SUBSCRIPTION__': [],
+  'resource list --tag xcsh-deployment-id=ce-demo --subscription __SUBSCRIPTION__': [],
+  'vm list-usage --location canadacentral --subscription __SUBSCRIPTION__': [
     { name: { value: 'cores' }, currentValue: 4, limit: 32 },
   ],
-  'vm list-usage --location eastus --subscription 11111111-1111-4111-8111-111111111111': [
+  'vm list-usage --location eastus --subscription __SUBSCRIPTION__': [
     { name: { value: 'cores' }, currentValue: 31, limit: 32 },
   ],
 };
@@ -180,14 +187,12 @@ describe('discoverAzureCompute', () => {
     expect(result.research.sharedContract.normalizedSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.research.sourceReceipts).toHaveLength(4);
     expect(result.research.catalogRegion).toBe('canadacentral');
+    expect(calls).toContain('vm image list-publishers --location canadacentral --subscription __SUBSCRIPTION__');
     expect(calls).toContain(
-      'vm image list-publishers --location canadacentral --subscription 11111111-1111-4111-8111-111111111111',
+      'vm image list-offers --location canadacentral --publisher f5-networks --subscription __SUBSCRIPTION__',
     );
     expect(calls).toContain(
-      'vm image list-offers --location canadacentral --publisher f5-networks --subscription 11111111-1111-4111-8111-111111111111',
-    );
-    expect(calls).toContain(
-      'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription 11111111-1111-4111-8111-111111111111',
+      'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription __SUBSCRIPTION__',
     );
   });
 
@@ -213,7 +218,7 @@ describe('discoverAzureCompute', () => {
 
   it('records terms, policy, NIC, zone, quota, and Route Server restrictions as reasons', async () => {
     const fixtures = structuredClone(baseFixtures);
-    fixtures['policy state list --subscription 11111111-1111-4111-8111-111111111111'] = [
+    fixtures['policy state list --subscription __SUBSCRIPTION__'] = [
       { complianceState: 'NonCompliant', resourceLocation: 'canadacentral', policyDefinitionAction: 'deny' },
     ];
     const result = await discoverAzureCompute(
@@ -234,9 +239,7 @@ describe('discoverAzureCompute', () => {
 
   it('selects a live compatible VM candidate instead of a restricted lower-cost size', async () => {
     const fixtures = structuredClone(baseFixtures);
-    const skus = fixtures['vm list-skus --all --subscription 11111111-1111-4111-8111-111111111111'] as Array<
-      Record<string, unknown>
-    >;
+    const skus = fixtures['vm list-skus --all --subscription __SUBSCRIPTION__'] as Array<Record<string, unknown>>;
     skus[0].restrictions = [{ restrictionInfo: { locations: ['canadacentral'] } }];
     skus.push({
       name: 'Standard_E8s_v5',
@@ -266,7 +269,7 @@ describe('discoverAzureCompute', () => {
 
   it('keeps an otherwise valid HA region eligible when zones require a declared fallback', async () => {
     const fixtures = structuredClone(baseFixtures);
-    const skus = fixtures['vm list-skus --all --subscription 11111111-1111-4111-8111-111111111111'] as Array<{
+    const skus = fixtures['vm list-skus --all --subscription __SUBSCRIPTION__'] as Array<{
       locationInfo: Array<{ zones: string[] }>;
     }>;
     skus[0].locationInfo[1].zones = ['1'];
@@ -289,7 +292,7 @@ describe('discoverAzureCompute', () => {
 
   it('selects the matching regional record when Azure repeats a VM size per location', async () => {
     const fixtures = structuredClone(baseFixtures);
-    fixtures['vm list-skus --all --subscription 11111111-1111-4111-8111-111111111111'] = [
+    fixtures['vm list-skus --all --subscription __SUBSCRIPTION__'] = [
       {
         name: 'Standard_D8s_v5',
         resourceType: 'virtualMachines',
@@ -355,7 +358,7 @@ describe('discoverAzureCompute', () => {
           requiredNics: 2,
           nodeCount: 1,
           brownfieldResourceIds: [
-            '/subscriptions/33333333-3333-4333-8333-333333333333/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet',
+            `/subscriptions/${foreignSubscriptionId}/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet`,
           ],
         },
         api(baseFixtures),
