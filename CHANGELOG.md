@@ -12,11 +12,17 @@ and this project adheres to
 
 - **`azure`** bumped to v4.3.12
 
-- **`aws`** bumped to v2.0.73
+- **`aws`** bumped to v2.0.74
 
 - **`terraform`** bumped to v2.0.15
 
-- **`platform`** bumped to v5.0.28
+- **`platform`** bumped to v5.0.29
+
+- **`aws`** v2.0.74 and **`platform`** v5.0.29 — preserve SLO as the observed TGW Connect
+  transport while selecting SLI for the XC payload and BGP context. Inside listeners now use XC's
+  automatic site-local address binding after validating the exact SLI node and MAC; saved v1 and v2
+  ingress checkpoints migrate automatically to the corrected listener without manual state repair
+  ([#1326](https://github.com/f5-sales-demo/marketplace/issues/1326)).
 
 - **`aws`** v2.0.73 and **`platform`** v5.0.28 — create and checkpoint owned site-local origins
   before inside HTTP listeners, normalize verified server-populated origin fields, recover incomplete

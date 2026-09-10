@@ -117,7 +117,7 @@ test('persists one platform plan and resumes the exact listener without replanni
   expect(first).toEqual(second);
   expect(f.calls).toEqual({ plans: 1, applies: 2, retires: 0 });
   expect(f.values.get('aws-platform-ingress.json')).toEqual({
-    schemaVersion: 2,
+    schemaVersion: 3,
     engine: 'terraform',
     planSha256: f.plan.planSha256,
     ingressPlanId: 'a'.repeat(24),
@@ -125,18 +125,20 @@ test('persists one platform plan and resumes the exact listener without replanni
   });
 });
 
-test('automatically retires an owned v1 ingress marker before applying its corrected successor', async () => {
-  const f = fixture();
-  f.values.set('aws-platform-ingress.json', {
-    schemaVersion: 1,
-    engine: 'terraform',
-    planSha256: f.plan.planSha256,
-    ingressPlanId: 'a'.repeat(24),
-    contractFingerprint: 'sha256:ingress',
-  });
-  await ensureAwsPlatformIngress(f.plan, f.runtime, f.storage, f.contract, f.resolved, f.api);
-  expect(f.calls).toEqual({ plans: 1, applies: 1, retires: 1 });
-  expect((f.values.get('aws-platform-ingress.json') as { schemaVersion: number }).schemaVersion).toBe(2);
+test('automatically retires owned legacy ingress markers before applying their corrected successor', async () => {
+  for (const schemaVersion of [1, 2]) {
+    const f = fixture();
+    f.values.set('aws-platform-ingress.json', {
+      schemaVersion,
+      engine: 'terraform',
+      planSha256: f.plan.planSha256,
+      ingressPlanId: 'a'.repeat(24),
+      contractFingerprint: 'sha256:ingress',
+    });
+    await ensureAwsPlatformIngress(f.plan, f.runtime, f.storage, f.contract, f.resolved, f.api);
+    expect(f.calls).toEqual({ plans: 1, applies: 1, retires: 1 });
+    expect((f.values.get('aws-platform-ingress.json') as { schemaVersion: number }).schemaVersion).toBe(3);
+  }
 });
 
 test('rejects a foreign checkpoint or missing observed SLI MAC before platform mutation', async () => {

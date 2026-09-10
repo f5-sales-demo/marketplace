@@ -29,9 +29,9 @@ records its normalized SHA-256. This reference contains only AWS-specific requir
 - `tgw-static` uses an appliance-mode VPC attachment, explicit TGW route tables, associations,
   propagations, TGW routes, and CE SLI ENI routes.
 - `tgw-connect` uses an appliance-mode transport attachment and explicit `routing.connectPeers`.
-  Each peer binds a node, a non-overlapping `/29` inside CIDR, and an observed transport interface
-  index. The planner supports SLO or SLI transport selection; the payload routing context remains
-  SLI. Keep transport interface identity separate from payload routing context.
+  Each peer binds a node, a non-overlapping `/29` inside CIDR, and an observed SLO transport
+  interface. The external connector payload selector and BGP routing context remain SLI. Keep the
+  transport interface identity separate from the payload routing context.
 - Derive session counts from the peers: two AWS BGP endpoints per peer. Three independent sites
   with two physical interfaces and two peers each require six peers and twelve sessions. Do not
   equate this topology with one three-node HA site. Correlate the actual node, MAC, interface name,
