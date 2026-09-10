@@ -97,8 +97,13 @@ test('origin teardown reports pending, propagates authorization and cancellation
   await expect(api.delete(snapshot, listeners)).rejects.toMatchObject({ category: 'authorization' });
   const deletes = state.deletes;
   await expect(api.delete(snapshot, listeners, AbortSignal.abort())).rejects.toThrow();
-  await expect(api.delete(snapshot, [])).rejects.toThrow();
   await expect(api.delete(snapshot, [{ name: '../escape', namespace: 'default' }])).rejects.toThrow();
   await expect(api.delete({ ...snapshot, contractFingerprint: 'other' }, listeners)).rejects.toThrow();
   expect(state.deletes).toBe(deletes);
+});
+test('origin teardown accepts a complete empty listener inventory', async () => {
+  const { api, state } = fixture();
+  const snapshot = await api.observe(owner, origin);
+  expect((await api.delete(snapshot, [])).status).toBe('deleted');
+  expect(state.deletes).toBe(1);
 });

@@ -131,13 +131,13 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
         })),
         resources: [
           ...(mode === 'no-routing' ? [] : routes),
-          {
+          ...(mode === 'orphan-listener' ? [] : [{
             kind: 'http_loadbalancers',
             name: 'listener',
             namespace: 'default',
             uid: mode === 'drift' && collections > 1 ? 'new-listener' : 'listener-uid',
             ingressPlanId: listenerId,
-          },
+          }]),
           { kind: 'origin_pools', name: 'origin', namespace: 'default', uid: 'origin-uid' },
         ],
       };
@@ -148,7 +148,7 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
         name: 'listener',
         namespace: 'default',
         uid: mode === 'wrong-listener' ? 'foreign' : 'listener-uid',
-        phase: 'created',
+        phase: mode === 'orphan-listener' ? 'deleted' : 'created',
         originPool: { name: 'origin', namespace: 'default', uid: 'origin-uid' },
       }),
     }),
@@ -195,6 +195,12 @@ test('collects the same complete teardown material for a native-owned deployment
   material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
   expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(12);
   expect(JSON.stringify(material)).not.toContain('never-export-bootstrap');
+});
+test('retains a validated deleted listener locator for orphan-origin teardown', async () => {
+  const f = await fixture('orphan-listener');
+  const plan = await prepareAwsTerraformTeardown(f.base, f.runtime, f.contract, f.storage);
+  expect(plan.drain.listeners).toEqual([{ id: 'a'.repeat(24), name: 'listener', namespace: 'default' }]);
+  expect(plan.drain.origins).toHaveLength(1);
 });
 test('accepts an interrupted native deployment with no routing checkpoint only when live routing is absent', async () => {
   const f = await fixture('no-routing', 'native');

@@ -101,6 +101,8 @@ export async function collectAwsTeardownMaterial(
     ingress = runtime.ingress(contract, storage),
     originOperations = runtime.originTeardown(contract);
   const listeners = [];
+  const listenerIds = new Set<string>();
+  const listenerLocators = new Set<string>();
   for (const live of inventory.resources.filter((row) => row.kind === 'http_loadbalancers')) {
     if (!live.ingressPlanId) throw new Error('Live listener has no plan identity');
     const reference = await ingress.teardownReference(live.ingressPlanId);
@@ -122,6 +124,20 @@ export async function collectAwsTeardownMaterial(
     )
       throw new Error('Listener origin UID differs from live inventory');
     listeners.push({ id: reference.id, name: reference.name, namespace: reference.namespace });
+    listenerIds.add(reference.id);
+    listenerLocators.add(`${reference.namespace}/${reference.name}`);
+  }
+  for (const file of before.filter(ingressFile)) {
+    const id = file.slice('ingress-plan-'.length, -'.json'.length);
+    if (listenerIds.has(id)) continue;
+    const reference = await ingress.teardownReference(id);
+    const locator = `${reference.namespace}/${reference.name}`;
+    if (reference.phase !== 'deleted')
+      throw new Error('Checkpointed listener is unexpectedly absent from live inventory');
+    if (listenerLocators.has(locator)) continue;
+    listeners.push({ id: reference.id, name: reference.name, namespace: reference.namespace });
+    listenerIds.add(reference.id);
+    listenerLocators.add(locator);
   }
   const origins = [];
   for (const live of inventory.resources.filter((row) => row.kind === 'origin_pools'))

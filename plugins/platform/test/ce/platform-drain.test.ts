@@ -128,6 +128,15 @@ test('platform drain stops at pending origin and checkpoints before honoring can
   expect((await drainCePlatform(plan, f.store, f.port)).status).toBe('platform-drained');
 });
 
+test('platform drain retires an owned origin after its recorded listener is already absent', async () => {
+  const f = await fixture();
+  f.remaining.delete('listener');
+  const input = structuredClone(plan);
+  input.listeners = [];
+  expect((await drainCePlatform(input, f.store, f.port)).status).toBe('platform-drained');
+  expect(f.changes).toEqual(['origin', 'bgp-one', 'policy-one', 'gre-one']);
+});
+
 test('platform drain recovers checkpoint write failure and never treats forged progress as deletion evidence', async () => {
   for (let boundary = 1; boundary <= 5; boundary++) {
     const f = await fixture();

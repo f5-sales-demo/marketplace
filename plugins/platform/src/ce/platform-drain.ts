@@ -54,8 +54,7 @@ function validate(plan: CePlatformDrainPlan, store: CeDeploymentStore, port: Por
     !list(plan.listeners, 128) ||
     !list(plan.origins, 128) ||
     !list(plan.sites, 32) ||
-    !plan.sites.length ||
-    (plan.origins.length && !plan.listeners.length)
+    !plan.sites.length
   )
     throw new Error('Platform drain plan scope or contract differs');
   const identities = new Set<string>();
