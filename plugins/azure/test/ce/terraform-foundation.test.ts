@@ -52,12 +52,16 @@ it('admits compute with exact image, ordered NICs, generated SSH key and restric
   expect(deployment.backendIdentity).toBe(`local:${p.deploymentName}`);
 });
 
-it('admits an HA site as all three nodes and reserves its dedicated Route Server subnet', () => {
+it('admits an HA site cumulatively and reserves its dedicated Route Server subnet', () => {
   const p = plan(true);
-  expect(() => renderAzureTerraformFoundation(p, { '1': bootstrap })).toThrow(/HA/);
   const network = JSON.parse(renderAzureTerraformFoundation(p));
   expect(network.resource.azurerm_route_server_bgp_connection).toBeUndefined();
   expect(network.output.ce_route_server_peers.value).toEqual({});
+  const first = JSON.parse(renderAzureTerraformFoundation(p, { '1': bootstrap }));
+  expect(Object.keys(first.resource.azurerm_linux_virtual_machine)).toEqual(['node_1']);
+  expect(Object.keys(first.resource.azurerm_network_interface)).toHaveLength(9);
+  expect(Object.keys(first.resource.azurerm_route_server_bgp_connection)).toEqual(['node_1']);
+  expect(Object.keys(first.output.ce_route_server_peers.value)).toEqual(['1']);
   const config = JSON.parse(renderAzureTerraformFoundation(p, { '1': bootstrap, '2': bootstrap, '3': bootstrap }));
   expect(Object.keys(config.resource.azurerm_linux_virtual_machine)).toHaveLength(3);
   expect(Object.keys(config.resource.azurerm_network_interface)).toHaveLength(9);
@@ -80,6 +84,8 @@ it('admits an HA site as all three nodes and reserves its dedicated Route Server
 it('rejects tampered plans, foreign node admissions, and unresolved bootstrap before rendering', () => {
   const p = plan();
   expect(() => renderAzureTerraformFoundation(p, { '2': bootstrap })).toThrow(/admission/);
+  const ha = plan(true);
+  expect(() => renderAzureTerraformFoundation(ha, { '1': bootstrap, '3': bootstrap })).toThrow(/in order/);
   expect(() => renderAzureTerraformFoundation(p, { '1': bootstrap + '__TOKEN__' })).toThrow(/cloud-init/);
   p.region = 'foreign';
   expect(() => renderAzureTerraformFoundation(p)).toThrow(/integrity/);

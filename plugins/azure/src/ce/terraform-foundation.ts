@@ -35,8 +35,8 @@ export function renderAzureTerraformFoundation(
   const admitted = Object.keys(bootstrapByNode);
   if (admitted.some((node) => !/^[1-3]$/.test(node) || Number(node) > plan.topology.nodeCount))
     throw new Error('Invalid Azure Terraform node admission');
-  if (plan.topology.ha && admitted.length !== 0 && admitted.length !== plan.topology.nodeCount)
-    throw new Error('Azure HA nodes must be admitted together');
+  if (admitted.some((node, index) => Number(node) !== index + 1))
+    throw new Error('Azure Terraform nodes must be admitted in order');
   const resource: Record<string, Record<string, Json>> = {};
   const add = (type: string, name: string, value: Json) => {
     resource[type] ??= {};
