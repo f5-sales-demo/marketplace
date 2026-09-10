@@ -496,6 +496,61 @@ describe('compileAzureCePlan', () => {
     );
   });
 
+  it('verifies lifecycle VM state serially and only gates platform health for online nodes', () => {
+    const actionKinds = (operation: 'start' | 'stop' | 'resize', ha: boolean) => {
+      const selected = intent({ operation, topology: { ha } });
+      const ownerPlanSha256 = 'a'.repeat(64);
+      const resources = Array.from({ length: ha ? 3 : 1 }, (_, index) => ({
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-${index + 1}`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': ownerPlanSha256,
+        },
+      }));
+      return compileAzureCePlan(selected, observation({ resources })).actions.map((action) => ({
+        kind: action.kind,
+        node: action.node,
+        expectedPowerState: action.expectedPowerState,
+        expectedOwnerPlanSha256: action.expectedOwnerPlanSha256,
+      }));
+    };
+
+    expect(actionKinds('stop', false)).toEqual([
+      { kind: 'vm-stop', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+      { kind: 'vm-state-gate', node: 1, expectedPowerState: 'deallocated', expectedOwnerPlanSha256: 'a'.repeat(64) },
+    ]);
+    for (const operation of ['start', 'resize'] as const)
+      expect(actionKinds(operation, false)).toEqual([
+        {
+          kind: operation === 'start' ? 'vm-start' : 'vm-resize',
+          node: 1,
+          expectedPowerState: undefined,
+          expectedOwnerPlanSha256: undefined,
+        },
+        { kind: 'vm-state-gate', node: 1, expectedPowerState: 'running', expectedOwnerPlanSha256: 'a'.repeat(64) },
+        { kind: 'health-gate', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+      ]);
+    expect(actionKinds('start', true)).toEqual(
+      [1, 2, 3].flatMap((node) => [
+        { kind: 'vm-start', node, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+        { kind: 'vm-state-gate', node, expectedPowerState: 'running', expectedOwnerPlanSha256: 'a'.repeat(64) },
+        { kind: 'health-gate', node, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+      ]),
+    );
+  });
+
+  it('rejects lifecycle planning without exact observed VM ownership', () => {
+    expect(() => compileAzureCePlan(intent({ operation: 'start' }), observation())).toThrow(
+      /missing exact observed ownership/,
+    );
+  });
+
   it('deletes an owned resource group last after dependency-ordered resources', () => {
     const groupId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo`;
     const vmId = `${groupId}/providers/Microsoft.Compute/virtualMachines/ce-demo-1`;

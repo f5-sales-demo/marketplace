@@ -154,6 +154,7 @@ export type AzureCeActionKind =
   | 'route-server-peer-create'
   | 'resource-delete'
   | 'brownfield-restore'
+  | 'vm-state-gate'
   | 'health-gate'
   | 'bgp-gate'
   | 'traffic-gate';
@@ -170,6 +171,8 @@ export interface AzureCeAction {
   mutates: boolean;
   destructive: boolean;
   requiresBootstrap?: boolean;
+  expectedPowerState?: 'running' | 'deallocated';
+  expectedOwnerPlanSha256?: string;
 }
 
 export interface AzureCePlanDraft {

@@ -167,6 +167,84 @@ export async function withAzureNativeBootstrapFile<T>(
   }
 }
 
+export async function collectAzureNativeVmState(
+  plan: AzureCePlan,
+  action: AzureCeAction,
+  api: AzExecApi,
+  signal?: AbortSignal,
+) {
+  if (
+    action.kind !== 'vm-state-gate' ||
+    !action.node ||
+    !action.expectedPowerState ||
+    !action.expectedOwnerPlanSha256 ||
+    !/^[a-f0-9]{64}$/.test(action.expectedOwnerPlanSha256) ||
+    action.mutates ||
+    action.command ||
+    action.args
+  )
+    throw new Error('Azure VM state gate is malformed');
+  const name = `${plan.deploymentName}-${action.node}`;
+  const vm = plan.actions.filter((candidate) => candidate.kind === 'vm-create' && candidate.node === action.node);
+  const resourceId =
+    vm.length === 1 && vm[0].resourceId
+      ? vm[0].resourceId
+      : `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${name}`;
+  signal?.throwIfAborted();
+  const result = await api.exec(
+    'az',
+    ['vm', 'show', '--ids', resourceId, '--show-details', '--subscription', plan.subscription.id, '--output', 'json'],
+    signal ? { signal } : undefined,
+  );
+  signal?.throwIfAborted();
+  if (result.exitCode !== 0) throw new Error('Azure VM state observation unavailable');
+  let value: {
+    id?: unknown;
+    name?: unknown;
+    location?: unknown;
+    provisioningState?: unknown;
+    powerState?: unknown;
+    tags?: Record<string, unknown>;
+  };
+  try {
+    value = JSON.parse(result.stdout);
+  } catch {
+    throw new Error('Malformed Azure VM state observation');
+  }
+  const powerState =
+    typeof value.powerState === 'string' ? value.powerState.toLowerCase().replace(/^vm\s+/, '') : 'unknown';
+  const tags = value.tags;
+  if (
+    typeof value.id !== 'string' ||
+    value.id.toLowerCase() !== resourceId.toLowerCase() ||
+    value.name !== name ||
+    typeof value.location !== 'string' ||
+    value.location.toLowerCase() !== plan.region.toLowerCase() ||
+    value.provisioningState !== 'Succeeded' ||
+    tags?.['xcsh-managed-by'] !== 'azure-ce' ||
+    tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
+    tags?.['xcsh-execution-engine'] !== plan.engine ||
+    tags?.['xcsh-plan-sha256'] !== action.expectedOwnerPlanSha256
+  )
+    throw new Error('Azure VM state identity or ownership differs');
+  return {
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    engine: plan.engine,
+    subscriptionId: plan.subscription.id,
+    region: plan.region,
+    deploymentId: plan.deploymentName,
+    node: action.node,
+    resourceId,
+    source: 'azure-cli-live' as const,
+    observedAt: new Date().toISOString(),
+    expectedPowerState: action.expectedPowerState,
+    ownerPlanSha256: action.expectedOwnerPlanSha256,
+    powerState,
+    status: powerState === action.expectedPowerState ? ('healthy' as const) : ('degraded' as const),
+  };
+}
+
 async function listAzureNativeVms(plan: AzureCePlan, api: AzExecApi): Promise<unknown[]> {
   const result = await api.exec('az', [
     'vm',

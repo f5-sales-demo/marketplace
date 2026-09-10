@@ -11,6 +11,7 @@ import { resolveInterfaceAddress } from '../ce/interface-address';
 import {
   azureNativeBootstrapForAction,
   collectAzureNativeAdmissionHealth,
+  collectAzureNativeVmState,
   prepareAzureNativeAdmission,
   recordAzureNativeLaunch,
   withAzureNativeBootstrapFile,
@@ -154,6 +155,27 @@ async function executeApply(
     if (completed.has(action.id)) continue;
     try {
       await assertActionOwnership(plan, action, api);
+      if (action.kind === 'vm-state-gate') {
+        const deadline = Date.now() + 15 * 60_000;
+        while (true) {
+          const evidence = await collectAzureNativeVmState(plan, action, api, signal);
+          await storage.write(`${action.id}-evidence.json`, evidence);
+          if (evidence.status === 'healthy') break;
+          if (Date.now() >= deadline) throw new Error('Observed Azure VM power state has not converged');
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal?.reason ?? new Error('Azure VM convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
+        }
+      }
       if (action.kind === 'health-gate') {
         const deadline = Date.now() + 15 * 60_000;
         let evidence: Awaited<ReturnType<typeof collectAzureNativeAdmissionHealth>>;

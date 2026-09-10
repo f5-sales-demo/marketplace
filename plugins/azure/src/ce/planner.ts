@@ -901,6 +901,19 @@ function buildLifecycleActions(
     const [kind, baseArgs] = verbByOperation[intent.operation as keyof typeof verbByOperation];
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
+      const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
+      const observedVm = resourceById(observation, vmId);
+      const expectedOwnerPlanSha256 = observedVm?.tags['xcsh-plan-sha256'];
+      if (
+        !observedVm?.exists ||
+        !observedVm.owned ||
+        observedVm.tags['xcsh-managed-by'] !== 'azure-ce' ||
+        observedVm.tags['xcsh-deployment-id'] !== intent.deploymentName ||
+        observedVm.tags['xcsh-execution-engine'] !== (intent.engine ?? 'native') ||
+        !expectedOwnerPlanSha256 ||
+        !/^[a-f0-9]{64}$/.test(expectedOwnerPlanSha256)
+      )
+        fail(`lifecycle VM ${name} is missing exact observed ownership`);
       actions.push(
         next({
           phase: 'nodes',
@@ -917,22 +930,30 @@ function buildLifecycleActions(
             '--subscription',
             intent.subscriptionId,
           ],
-          resourceId: managedId(
-            intent.subscriptionId,
-            intent.resourceGroup,
-            `Microsoft.Compute/virtualMachines/${name}`,
-          ),
+          resourceId: vmId,
           node,
           mutates: true,
           destructive: intent.operation === 'replace-node',
         }),
       );
-      if (intent.topology.ha)
+      actions.push(
+        next({
+          phase: 'verify',
+          kind: 'vm-state-gate',
+          description: `Verify ${name} is ${intent.operation === 'stop' ? 'deallocated' : 'running'}`,
+          node,
+          mutates: false,
+          destructive: false,
+          expectedPowerState: intent.operation === 'stop' ? 'deallocated' : 'running',
+          expectedOwnerPlanSha256,
+        }),
+      );
+      if (intent.operation !== 'stop')
         actions.push(
           next({
             phase: 'registration',
             kind: 'health-gate',
-            description: `Gate node ${node} before continuing`,
+            description: `Gate online node ${node} before continuing`,
             node,
             mutates: false,
             destructive: false,

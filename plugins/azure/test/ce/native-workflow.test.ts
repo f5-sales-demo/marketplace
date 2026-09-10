@@ -8,6 +8,7 @@ import type { AzExecApi } from '../../src/az/exec';
 import {
   azureNativeBootstrapForAction,
   collectAzureNativeAdmissionHealth,
+  collectAzureNativeVmState,
   prepareAzureNativeAdmission,
   recordAzureNativeLaunch,
   withAzureNativeBootstrapFile,
@@ -19,6 +20,142 @@ import { intent, observation } from './fixtures';
 const directories: string[] = [];
 afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true });
+});
+
+const lifecyclePlan = (operation: 'start' | 'stop') => {
+  const resourceId = `/subscriptions/${intent.subscriptionId}/resourceGroups/${intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${intent.deploymentName}-1`;
+  const ownerPlanSha256 = 'a'.repeat(64);
+  const observed = structuredClone(observation);
+  observed.resources = [
+    {
+      id: resourceId,
+      location: intent.region,
+      exists: true,
+      owned: true,
+      state: {},
+      tags: {
+        'xcsh-managed-by': 'azure-ce',
+        'xcsh-deployment-id': intent.deploymentName,
+        'xcsh-execution-engine': 'native',
+        'xcsh-plan-sha256': ownerPlanSha256,
+      },
+    },
+  ];
+  return { plan: compileAzureCePlan({ ...intent, operation }, observed), resourceId, ownerPlanSha256 };
+};
+
+test('binds native VM power-state evidence to the exact plan, node, and Azure resource', async () => {
+  for (const [operation, expectedPowerState, observedPowerState] of [
+    ['start', 'running', 'VM running'],
+    ['stop', 'deallocated', 'VM deallocated'],
+  ] as const) {
+    const { plan, resourceId, ownerPlanSha256 } = lifecyclePlan(operation);
+    const action = plan.actions.find((candidate) => candidate.kind === 'vm-state-gate');
+    if (!action?.node) throw new Error('fixture VM state gate is unavailable');
+    const api: AzExecApi = {
+      async exec(command, args) {
+        expect(command).toBe('az');
+        expect(args).toEqual([
+          'vm',
+          'show',
+          '--ids',
+          resourceId,
+          '--show-details',
+          '--subscription',
+          plan.subscription.id,
+          '--output',
+          'json',
+        ]);
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            id: resourceId,
+            name: `${plan.deploymentName}-${action.node}`,
+            location: plan.region,
+            provisioningState: 'Succeeded',
+            powerState: observedPowerState,
+            tags: {
+              'xcsh-managed-by': 'azure-ce',
+              'xcsh-deployment-id': plan.deploymentName,
+              'xcsh-execution-engine': plan.engine,
+              'xcsh-plan-sha256': ownerPlanSha256,
+            },
+          }),
+        };
+      },
+    };
+    expect(await collectAzureNativeVmState(plan, action, api)).toMatchObject({
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      node: action.node,
+      resourceId,
+      expectedPowerState,
+      ownerPlanSha256,
+      powerState: expectedPowerState,
+      status: 'healthy',
+      source: 'azure-cli-live',
+    });
+  }
+});
+
+test('keeps nonconverged VM state degraded and rejects foreign or malformed evidence', async () => {
+  const { plan, resourceId, ownerPlanSha256 } = lifecyclePlan('start');
+  const action = plan.actions.find((candidate) => candidate.kind === 'vm-state-gate');
+  if (!action?.node) throw new Error('fixture VM state gate is unavailable');
+  const value = {
+    id: resourceId,
+    name: `${plan.deploymentName}-${action.node}`,
+    location: plan.region,
+    provisioningState: 'Succeeded',
+    powerState: 'VM starting',
+    tags: {
+      'xcsh-managed-by': 'azure-ce',
+      'xcsh-deployment-id': plan.deploymentName,
+      'xcsh-execution-engine': plan.engine,
+      'xcsh-plan-sha256': ownerPlanSha256,
+    },
+  };
+  const api = (body: unknown): AzExecApi => ({
+    async exec() {
+      return { exitCode: 0, stderr: '', stdout: typeof body === 'string' ? body : JSON.stringify(body) };
+    },
+  });
+  expect(await collectAzureNativeVmState(plan, action, api(value))).toMatchObject({
+    powerState: 'starting',
+    status: 'degraded',
+  });
+  await expect(
+    collectAzureNativeVmState(
+      plan,
+      action,
+      api({ ...value, tags: { ...value.tags, 'xcsh-plan-sha256': '0'.repeat(64) } }),
+    ),
+  ).rejects.toThrow(/identity or ownership/);
+  await expect(collectAzureNativeVmState(plan, action, api('{'))).rejects.toThrow(/Malformed/);
+});
+
+test('propagates cancellation before native VM state observation', async () => {
+  const { plan } = lifecyclePlan('stop');
+  const action = plan.actions.find((candidate) => candidate.kind === 'vm-state-gate');
+  if (!action) throw new Error('fixture VM state gate is unavailable');
+  const controller = new AbortController();
+  controller.abort(new Error('cancelled fixture'));
+  let calls = 0;
+  await expect(
+    collectAzureNativeVmState(
+      plan,
+      action,
+      {
+        async exec() {
+          calls++;
+          return { exitCode: 0, stdout: '{}', stderr: '' };
+        },
+      },
+      controller.signal,
+    ),
+  ).rejects.toThrow('cancelled fixture');
+  expect(calls).toBe(0);
 });
 
 test('reconciles reservation, checkpoints bootstrap before launch and reuses it after interruption', async () => {
