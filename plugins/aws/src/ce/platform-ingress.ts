@@ -6,7 +6,7 @@ import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
 interface Marker {
-  schemaVersion: 6;
+  schemaVersion: 7;
   engine: 'native' | 'terraform';
   planSha256: string;
   ingressPlanId: string;
@@ -85,14 +85,14 @@ export async function ensureAwsPlatformIngress(
   if (saved !== undefined) {
     const candidate = saved as Marker & { schemaVersion: number };
     if (
-      ![1, 2, 3, 4, 5, 6].includes(candidate.schemaVersion) ||
+      ![1, 2, 3, 4, 5, 6, 7].includes(candidate.schemaVersion) ||
       candidate.engine !== plan.engine ||
       candidate.planSha256 !== plan.planSha256 ||
       candidate.contractFingerprint !== contract.fingerprint ||
       !/^[a-f0-9]{24}$/.test(candidate.ingressPlanId)
     )
       throw new Error('Platform ingress checkpoint differs from the owning AWS plan');
-    if (candidate.schemaVersion < 6) {
+    if (candidate.schemaVersion < 7) {
       await lifecycle.retire(candidate.ingressPlanId, signal);
       const listener = plan.intent.ingress.listener;
       const corrected = await lifecycle.planAws(
@@ -101,7 +101,7 @@ export async function ensureAwsPlatformIngress(
         signal,
       );
       marker = {
-        schemaVersion: 6,
+        schemaVersion: 7,
         engine: plan.engine,
         planSha256: plan.planSha256,
         ingressPlanId: corrected.id,
@@ -117,7 +117,7 @@ export async function ensureAwsPlatformIngress(
       signal,
     );
     marker = {
-      schemaVersion: 6,
+      schemaVersion: 7,
       engine: plan.engine,
       planSha256: plan.planSha256,
       ingressPlanId: ingressPlan.id,
