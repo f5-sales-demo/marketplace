@@ -106,8 +106,7 @@ export async function observeAzureFailoverVm(
     tags['xcsh-managed-by'] !== 'azure-ce' ||
     tags['xcsh-execution-engine'] !== plan.engine ||
     tags['xcsh-deployment-id'] !== plan.deploymentName ||
-    tags['xcsh-plan-sha256'] !== plan.planSha256 ||
-    tags['xcsh-node-index'] !== String(nodeIndex)
+    tags['xcsh-plan-sha256'] !== plan.planSha256
   )
     throw new Error('Azure failover VM identity, readiness, or ownership differs');
   return {

@@ -95,7 +95,6 @@ test.each(['native', 'terraform'] as const)(
               'xcsh-execution-engine': engine,
               'xcsh-deployment-id': plan.deploymentName,
               'xcsh-plan-sha256': plan.planSha256,
-              'xcsh-node-index': '1',
             },
           }),
         };
@@ -175,7 +174,6 @@ test('Azure failover rejects stale or forged VM ownership evidence', async () =>
               'xcsh-execution-engine': 'native',
               'xcsh-deployment-id': plan.deploymentName,
               'xcsh-plan-sha256': plan.planSha256,
-              'xcsh-node-index': '1',
             },
           }),
         };
