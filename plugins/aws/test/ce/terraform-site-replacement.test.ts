@@ -15,8 +15,8 @@ import { terraformReplacementFixture } from './terraform-replacement-fixtures';
 // biome-ignore lint/suspicious/noExplicitAny: Heterogeneous AWS response fixtures are intentionally mutable for failure injection.
 type Json = Record<string, any>;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-async function fixture(ha = false) {
-  const f = terraformReplacementFixture(ha);
+async function fixture(ha = false, connect = false) {
+  const f = terraformReplacementFixture(ha, connect);
   const root = await mkdtemp(join(tmpdir(), 'tf-ce-replacement-'));
   const store = await CeDeploymentStore.open(root, f.replacement.binding.owner);
   const selected = f.replacement.binding.nodes.map((node) => Number(node.split('-').at(-1)));
@@ -491,10 +491,20 @@ test('source admission with different bootstrap is rejected before shutdown', as
   }
 });
 
-test('Connect replacement rejects missing automatic routing recovery before any Terraform action', async () => {
-  const f = await fixture();
+test('pre-routing Connect replacement proceeds without a routing checkpoint', async () => {
+  const f = await fixture(false, true);
   try {
-    f.base.routing = { profile: 'tgw-connect' };
+    await f.open();
+    expect(f.events).toHaveLength(0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('Connect replacement rejects missing automatic routing recovery after routing was checkpointed', async () => {
+  const f = await fixture(false, true);
+  try {
+    await f.store.write('terraform-routing-checkpoint.json', { schemaVersion: 2 });
     await expect(f.open()).rejects.toThrow('automatic routing recovery');
     expect(f.events).toHaveLength(0);
     await expect(f.store.read(`${f.replacement.planId}-terraform-source.json`)).rejects.toThrow();

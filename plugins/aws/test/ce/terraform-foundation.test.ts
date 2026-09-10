@@ -8,6 +8,14 @@ const bootstrap = '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  co
 it('renders six ENIs before admitting any VM, with authoritative identity outputs and engine tags', () => {
   const config = JSON.parse(renderAwsTerraformFoundation(foundationPlan()));
   expect(Object.keys(config.resource.aws_network_interface)).toHaveLength(6);
+  expect(Object.keys(config.resource.aws_route_table)).toEqual(['slo', 'sli']);
+  expect(Object.keys(config.resource.aws_route_table_association)).toHaveLength(6);
+  expect(config.resource.aws_route_table_association.node_1_nic_0.route_table_id).toBe(
+    `\${aws_route_table.slo.id}`,
+  );
+  expect(config.resource.aws_route_table_association.node_1_nic_1.route_table_id).toBe(
+    `\${aws_route_table.sli.id}`,
+  );
   expect(config.resource.aws_instance).toBeUndefined();
   expect(config.provider.aws).toMatchObject({
     allowed_account_ids: ['123456789012'],

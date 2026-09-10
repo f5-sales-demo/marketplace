@@ -176,7 +176,12 @@ function fixture() {
       return { exitCode: 0, stdout: JSON.stringify(result), stderr: '' };
     },
   };
-  const session = { readOutputs: async () => structuredClone(outputs) } as unknown as TerraformSession;
+  const session = {
+    readOutputs: async (names: string[]) => {
+      expect(names).not.toContain('ce_ingress');
+      return structuredClone(outputs);
+    },
+  } as unknown as TerraformSession;
   const rebind = { siteName: 'site-2', siteUid: 'replacement-site-2', checkpoint, contract: {} } as AwsRoutingRebind;
   const run = () =>
     configureAwsTerraformRouting(plan, session, runtime as CeRuntime, storage, api, {}, undefined, rebind);

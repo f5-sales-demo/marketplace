@@ -5,6 +5,8 @@ import { type Deployment, type PlanReceipt, type TerraformActionIntent, Terrafor
 
 export const TERRAFORM_SERVICE_CHANNEL = 'xcsh:ce-terraform:v1:service';
 export interface TerraformSession {
+  /** Current private configuration identity, used to reconcile an interrupted revision. */
+  readConfigurationSha256?(): Promise<string>;
   /** Sensitive internal snapshot, bound to the caller's expected revision. */
   readConfiguration(expectedSha256: string): Promise<string>;
   /** Restricted ownership projection; selected fields must be nonsensitive. */
@@ -67,6 +69,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         await shared.storage(owner);
       };
       return {
+        async readConfigurationSha256() {
+          await checkOwner();
+          return runner.readConfigurationSha256();
+        },
         async readPlannedResourceFields(receipt, selections, env, signal) {
           await checkOwner();
           return runner.readPlannedResourceFields(receipt, selections, env, signal);

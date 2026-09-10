@@ -60,50 +60,63 @@ export async function createTerraformAwsSiteReplacementDriver(
   await validate(plan);
   let routingCheckpoint: AwsCeCheckpoint | undefined;
   if (base.routing?.profile === 'tgw-connect') {
-    if (!routing || routing.runtime.engine !== base.engine)
-      throw new Error('Connect replacement requires automatic routing recovery');
-    const name = `${plan.planId}-routing-source.json`;
-    let saved: Json;
+    let currentRouting: unknown;
     try {
-      saved = object(await storage.read(name));
+      currentRouting = await storage.read('terraform-routing-checkpoint.json');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      saved = {
-        replacementPlanSha256: plan.planSha256,
-        checkpoint: await storage.read('terraform-routing-checkpoint.json'),
-      };
+    }
+    // Initial interface/MTU replacement is intentionally staged before Connect
+    // routing exists. Once routing has a durable checkpoint, every later
+    // replacement must restore it through the owning Terraform engine.
+    if (currentRouting === undefined) {
+      routingCheckpoint = undefined;
+    } else {
+      if (!routing || routing.runtime.engine !== base.engine)
+        throw new Error('Connect replacement requires automatic routing recovery');
+      const name = `${plan.planId}-routing-source.json`;
+      let saved: Json;
+      try {
+        saved = object(await storage.read(name));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        saved = {
+          replacementPlanSha256: plan.planSha256,
+          checkpoint: currentRouting,
+        };
+        const cp = object(saved.checkpoint);
+        if (
+          cp.schemaVersion !== 2 ||
+          cp.engine !== base.engine ||
+          cp.planId !== base.planId ||
+          cp.planSha256 !== base.planSha256
+        )
+          throw new Error('Replacement routing source differs from deployment');
+        validateAwsRoutingRebind(base, {
+          siteName: plan.binding.siteName,
+          siteUid: String(plan.preparation.uid),
+          contract: routing.contract,
+          checkpoint: cp as unknown as AwsCeCheckpoint,
+        });
+        await storage.write(name, saved);
+      }
       const cp = object(saved.checkpoint);
       if (
+        saved.replacementPlanSha256 !== plan.planSha256 ||
         cp.schemaVersion !== 2 ||
         cp.engine !== base.engine ||
         cp.planId !== base.planId ||
         cp.planSha256 !== base.planSha256
       )
         throw new Error('Replacement routing source differs from deployment');
+      routingCheckpoint = structuredClone(cp) as unknown as AwsCeCheckpoint;
       validateAwsRoutingRebind(base, {
         siteName: plan.binding.siteName,
         siteUid: String(plan.preparation.uid),
         contract: routing.contract,
-        checkpoint: cp as unknown as AwsCeCheckpoint,
+        checkpoint: routingCheckpoint,
       });
-      await storage.write(name, saved);
     }
-    const cp = object(saved.checkpoint);
-    if (
-      saved.replacementPlanSha256 !== plan.planSha256 ||
-      cp.schemaVersion !== 2 ||
-      cp.engine !== base.engine ||
-      cp.planId !== base.planId ||
-      cp.planSha256 !== base.planSha256
-    )
-      throw new Error('Replacement routing source differs from deployment');
-    routingCheckpoint = structuredClone(cp) as unknown as AwsCeCheckpoint;
-    validateAwsRoutingRebind(base, {
-      siteName: plan.binding.siteName,
-      siteUid: String(plan.preparation.uid),
-      contract: routing.contract,
-      checkpoint: routingCheckpoint,
-    });
   }
   const snapshotName = `${plan.planId}-terraform-source.json`;
   let snapshot: Json;

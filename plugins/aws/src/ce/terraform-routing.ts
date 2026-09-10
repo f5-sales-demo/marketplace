@@ -111,7 +111,14 @@ export async function configureAwsTerraformRouting(
   await storage.verify();
   if (rebind) validateAwsRoutingRebind(plan, rebind);
   const outputs = await session.readOutputs(
-    ['ce_vpc_id', 'ce_interfaces', 'ce_instances', 'ce_connect_peers', 'ce_transport_attachment', 'ce_ingress'],
+    [
+      'ce_vpc_id',
+      'ce_interfaces',
+      'ce_instances',
+      'ce_connect_peers',
+      'ce_transport_attachment',
+      ...(plan.intent.ingress?.mode === 'nlb' ? ['ce_ingress'] : []),
+    ],
     env,
     signal,
   );

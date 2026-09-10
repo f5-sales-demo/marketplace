@@ -73,7 +73,7 @@ function observed(binding: SiteBinding, target: string, state: 'ready' | 'conver
   };
 }
 
-async function setup(states: Array<'ready' | 'converging' | 'complete'>) {
+async function setup(states: Array<'ready' | 'converging' | 'complete' | 'unknown'>) {
   const plan = base(),
     binding = siteBindings(plan)[0].binding,
     target = 'crt-20260201-0179';
@@ -99,7 +99,10 @@ async function setup(states: Array<'ready' | 'converging' | 'complete'>) {
   const runtime = {
     engine: 'terraform' as const,
     async observeUpgrade() {
-      return observed(binding, target, states[Math.min(index++, states.length - 1)]);
+      const state = states[Math.min(index++, states.length - 1)];
+      return state === 'unknown'
+        ? ({ ...observed(binding, target, 'ready'), status: 'unknown', reason: 'publisher-lag' } as const)
+        : observed(binding, target, state);
     },
   };
   const receipt = (value: AwsTerraformUpgrade) => ({
@@ -195,6 +198,39 @@ test('resumes an ambiguous action through platform convergence without replaying
       )
     ).status,
   ).toBe('upgrade-converging');
+  expect(
+    (
+      await runAwsTerraformUpgrade(
+        f.plan,
+        f.upgrade,
+        f.upgrade.planSha256,
+        f.runtime,
+        contract,
+        f.terraform,
+        f.storage,
+        {},
+      )
+    ).status,
+  ).toBe('upgrade-complete');
+  expect(f.counts()).toEqual({ applies: 1, opens: 1 });
+});
+
+test('keeps submitted publisher lag retryable without replaying the Terraform action', async () => {
+  const f = await setup(['ready', 'ready', 'unknown', 'complete']);
+  expect(
+    (
+      await runAwsTerraformUpgrade(
+        f.plan,
+        f.upgrade,
+        f.upgrade.planSha256,
+        f.runtime,
+        contract,
+        f.terraform,
+        f.storage,
+        {},
+      )
+    ).status,
+  ).toBe('upgrade-convergence-unknown');
   expect(
     (
       await runAwsTerraformUpgrade(

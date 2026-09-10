@@ -194,7 +194,8 @@ export async function runTerraformCeUpgrade(
       return receipt;
     }
     if (transition === 'failed') throw new Error('Terraform upgrade failed');
-    if (transition === 'unknown') throw new Error('Terraform upgrade evidence is unknown');
+    if (checkpoint.phase === 'ready' && transition === 'unknown')
+      throw new Error('Terraform upgrade evidence is unknown');
     if (checkpoint.phase === 'ready' && transition === 'versions-complete') {
       serial = {
         schemaVersion: 2,
@@ -232,6 +233,12 @@ export async function runTerraformCeUpgrade(
       if (action.planSha256 !== checkpoint.actionPlanSha256) throw new Error('Submitted upgrade action plan differs');
     }
     if (transition !== 'versions-complete') {
+      if (transition === 'unknown')
+        return {
+          status: 'upgrade-convergence-unknown' as const,
+          planId: upgrade.planId,
+          planSha256: upgrade.planSha256,
+        };
       if (!['ready', 'converging'].includes(transition)) throw new Error('Terraform upgrade convergence is unknown');
       return { status: 'upgrade-converging' as const, planId: upgrade.planId, planSha256: upgrade.planSha256 };
     }

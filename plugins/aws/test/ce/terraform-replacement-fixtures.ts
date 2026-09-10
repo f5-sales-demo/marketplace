@@ -11,7 +11,7 @@ import { foundationPlan } from './terraform-fixtures';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const bootstrap = (name: string) =>
   `#cloud-config\nhostname: ${name}\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture\n`;
-export function terraformReplacementFixture(ha = false) {
+export function terraformReplacementFixture(ha = false, connect = false) {
   const { planId: _id, planSha256: _sha, ...draft } = foundationPlan(ha);
   const value = {
     ...draft,
@@ -19,6 +19,7 @@ export function terraformReplacementFixture(ha = false) {
     partition: 'aws' as const,
     accountId: '123456789012',
     region: 'us-east-1',
+    ...(connect ? { routing: { profile: 'tgw-connect' as const } } : {}),
   };
   const digest = canonicalSha256(value);
   const base = { ...value, planId: `aws-ce-${digest.slice(0, 24)}`, planSha256: digest };

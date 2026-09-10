@@ -299,6 +299,13 @@ export class TerraformRunner {
     this.#manifest = manifest;
   }
   /** Internal lifecycle input. May contain bootstrap secrets; never export as a tool summary. */
+  async readConfigurationSha256(): Promise<string> {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      return this.#state().manifest.configurationSha256;
+    });
+  }
+  /** Internal lifecycle input. May contain bootstrap secrets; never export as a tool summary. */
   async readConfiguration(expectedSha256: string): Promise<string> {
     return this.#exclusive(async () => {
       await this.#verifyInputs();

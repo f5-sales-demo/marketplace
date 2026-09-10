@@ -50,7 +50,8 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     tags: tags(),
   });
   add('aws_internet_gateway', 'ce', { vpc_id: ref('aws_vpc.ce.id'), tags: tags() });
-  add('aws_route_table', 'slo', { vpc_id: ref('aws_vpc.ce.id'), tags: tags() });
+  for (const role of new Set(intent.interfaces.map((item) => item.role)))
+    add('aws_route_table', role, { vpc_id: ref('aws_vpc.ce.id'), tags: tags() });
   add('aws_route', 'internet', {
     route_table_id: ref('aws_route_table.slo.id'),
     destination_cidr_block: '0.0.0.0/0',
@@ -100,11 +101,10 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
           : {}),
         tags: tags(node, item.index),
       });
-      if (item.index === 0)
-        add('aws_route_table_association', name, {
-          subnet_id: ref(`aws_subnet.${name}.id`),
-          route_table_id: ref('aws_route_table.slo.id'),
-        });
+      add('aws_route_table_association', name, {
+        subnet_id: ref(`aws_subnet.${name}.id`),
+        route_table_id: ref(`aws_route_table.${item.role}.id`),
+      });
       interfaceOutputs[`${node}:${item.index}`] = {
         id: ref(`aws_network_interface.${name}.id`),
         subnet_id: ref(`aws_subnet.${name}.id`),
