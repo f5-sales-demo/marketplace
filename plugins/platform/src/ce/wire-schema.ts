@@ -137,7 +137,10 @@ function validFormat(format: string, value: string): boolean {
       return false;
     }
   }
-  if (format === 'date-time') return /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(value) && !Number.isNaN(Date.parse(value));
+  if (format === 'date-time')
+    return (
+      /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(value) && !Number.isNaN(Date.parse(value))
+    );
   // Protobuf scalar annotations such as int32, int64, and boolean are not string formats.
   // Unknown formats remain annotations, matching the prior non-strict AJV behavior.
   return true;
@@ -173,7 +176,11 @@ function firstFailure(schemaValue: Json | boolean, value: unknown, document: Jso
     const members = schemaValue[keyword];
     if (!Array.isArray(members)) continue;
     const matches = members.filter((member) => firstFailure(member as Json | boolean, value, document) === null).length;
-    if ((keyword === 'allOf' && matches !== members.length) || (keyword === 'anyOf' && matches === 0) || (keyword === 'oneOf' && matches !== 1))
+    if (
+      (keyword === 'allOf' && matches !== members.length) ||
+      (keyword === 'anyOf' && matches === 0) ||
+      (keyword === 'oneOf' && matches !== 1)
+    )
       return keyword;
   }
   if (schemaValue.not !== undefined && firstFailure(schemaValue.not as Json | boolean, value, document) === null)
@@ -189,8 +196,10 @@ function firstFailure(schemaValue: Json | boolean, value: unknown, document: Jso
   if (typeof value === 'number') {
     if (typeof schemaValue.minimum === 'number' && value < schemaValue.minimum) return 'minimum';
     if (typeof schemaValue.maximum === 'number' && value > schemaValue.maximum) return 'maximum';
-    if (typeof schemaValue.exclusiveMinimum === 'number' && value <= schemaValue.exclusiveMinimum) return 'exclusiveMinimum';
-    if (typeof schemaValue.exclusiveMaximum === 'number' && value >= schemaValue.exclusiveMaximum) return 'exclusiveMaximum';
+    if (typeof schemaValue.exclusiveMinimum === 'number' && value <= schemaValue.exclusiveMinimum)
+      return 'exclusiveMinimum';
+    if (typeof schemaValue.exclusiveMaximum === 'number' && value >= schemaValue.exclusiveMaximum)
+      return 'exclusiveMaximum';
     if (typeof schemaValue.multipleOf === 'number') {
       const quotient = value / schemaValue.multipleOf;
       if (!Number.isFinite(quotient) || Math.abs(quotient - Math.round(quotient)) > 1e-12) return 'multipleOf';
@@ -199,7 +208,10 @@ function firstFailure(schemaValue: Json | boolean, value: unknown, document: Jso
   if (Array.isArray(value)) {
     if (typeof schemaValue.minItems === 'number' && value.length < schemaValue.minItems) return 'minItems';
     if (typeof schemaValue.maxItems === 'number' && value.length > schemaValue.maxItems) return 'maxItems';
-    if (schemaValue.uniqueItems === true && value.some((item, index) => value.slice(0, index).some((seen) => equal(seen, item))))
+    if (
+      schemaValue.uniqueItems === true &&
+      value.some((item, index) => value.slice(0, index).some((seen) => equal(seen, item)))
+    )
       return 'uniqueItems';
     if (schemaValue.items !== undefined)
       for (const item of value) {
@@ -209,11 +221,16 @@ function firstFailure(schemaValue: Json | boolean, value: unknown, document: Jso
   }
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const record = value as Json;
-    if (Array.isArray(schemaValue.required) && schemaValue.required.some((key) => typeof key === 'string' && !Object.hasOwn(record, key)))
+    if (
+      Array.isArray(schemaValue.required) &&
+      schemaValue.required.some((key) => typeof key === 'string' && !Object.hasOwn(record, key))
+    )
       return 'required';
     const entries = Object.entries(record);
-    if (typeof schemaValue.minProperties === 'number' && entries.length < schemaValue.minProperties) return 'minProperties';
-    if (typeof schemaValue.maxProperties === 'number' && entries.length > schemaValue.maxProperties) return 'maxProperties';
+    if (typeof schemaValue.minProperties === 'number' && entries.length < schemaValue.minProperties)
+      return 'minProperties';
+    if (typeof schemaValue.maxProperties === 'number' && entries.length > schemaValue.maxProperties)
+      return 'maxProperties';
     const properties: Json | undefined = schemaValue.properties ? object(schemaValue.properties) : undefined;
     for (const [key, item] of entries) {
       const propertySchema = properties?.[key];

@@ -75,9 +75,21 @@ test('preserves scalar, collection, composition and network format constraints w
   for (const bad of [
     { address: '10.0.0.0/33', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge'], weight: 8, mode: 'native' },
     { address: '10.0.0.0/24', id: 'not-a-uuid', labels: ['edge'], weight: 8, mode: 'native' },
-    { address: '10.0.0.0/24', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge', 'edge'], weight: 8, mode: 'native' },
+    {
+      address: '10.0.0.0/24',
+      id: '123e4567-e89b-42d3-a456-426614174000',
+      labels: ['edge', 'edge'],
+      weight: 8,
+      mode: 'native',
+    },
     { address: '10.0.0.0/24', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge'], weight: 9, mode: 'native' },
-    { address: '10.0.0.0/24', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge'], weight: 8, mode: 'unknown' },
+    {
+      address: '10.0.0.0/24',
+      id: '123e4567-e89b-42d3-a456-426614174000',
+      labels: ['edge'],
+      weight: 8,
+      mode: 'unknown',
+    },
   ])
     expect(() => validate(bad)).toThrow('verified schema');
 });

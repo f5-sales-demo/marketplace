@@ -20,9 +20,7 @@ it('renders six Connect peers in bounded SLO and SLI attachments and preserves a
   expect(config.resource.aws_route.gre_0_0.destination_cidr_block).toBe('172.31.255.0/24');
   expect(config.resource.aws_route.gre_1_0.destination_cidr_block).toBe('172.31.255.0/24');
   expect(config.resource.aws_route.gre_1_0.route_table_id).toBe(`\${aws_route_table.sli.id}`);
-  expect(config.resource.aws_route_table_association.node_1_nic_1.route_table_id).toBe(
-    `\${aws_route_table.sli.id}`,
-  );
+  expect(config.resource.aws_route_table_association.node_1_nic_1.route_table_id).toBe(`\${aws_route_table.sli.id}`);
   expect(Object.keys(config.resource.aws_ec2_transit_gateway_route_table_association)).toHaveLength(3);
   expect(Object.keys(config.output.ce_connect_peers.value)).toHaveLength(6);
 });

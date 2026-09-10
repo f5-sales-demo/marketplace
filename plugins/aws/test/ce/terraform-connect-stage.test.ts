@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import type { TerraformSession } from '../../../terraform/src/service';
-import { applyAwsTerraformConnectStage } from '../../src/ce/terraform-connect-stage';
 import { renderAwsTerraformConnect } from '../../src/ce/terraform-connect';
+import { applyAwsTerraformConnectStage } from '../../src/ce/terraform-connect-stage';
 import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation';
 import { connectFixture } from './terraform-connect-fixture';
 

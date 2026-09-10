@@ -131,13 +131,17 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
         })),
         resources: [
           ...(mode === 'no-routing' ? [] : routes),
-          ...(mode === 'orphan-listener' ? [] : [{
-            kind: 'http_loadbalancers',
-            name: 'listener',
-            namespace: 'default',
-            uid: mode === 'drift' && collections > 1 ? 'new-listener' : 'listener-uid',
-            ingressPlanId: listenerId,
-          }]),
+          ...(mode === 'orphan-listener'
+            ? []
+            : [
+                {
+                  kind: 'http_loadbalancers',
+                  name: 'listener',
+                  namespace: 'default',
+                  uid: mode === 'drift' && collections > 1 ? 'new-listener' : 'listener-uid',
+                  ingressPlanId: listenerId,
+                },
+              ]),
           { kind: 'origin_pools', name: 'origin', namespace: 'default', uid: 'origin-uid' },
         ],
       };

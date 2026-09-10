@@ -128,8 +128,7 @@ export class CeOriginTeardown {
       !Number.isFinite(Date.parse(snapshot.observedAt))
     )
       throw new Error('Origin teardown snapshot is invalid');
-    if (!Array.isArray(listeners) || listeners.length > 128)
-      throw new Error('Recorded listener inventory is required');
+    if (!Array.isArray(listeners) || listeners.length > 128) throw new Error('Recorded listener inventory is required');
     const listenerPaths = listeners.map((listener) => path(listener, 'http_loadbalancers'));
     if (new Set(listenerPaths).size !== listenerPaths.length) throw new Error('Duplicate listener identities');
     const source = path(snapshot.origin, 'origin_pools');

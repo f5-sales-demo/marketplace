@@ -45,7 +45,9 @@ export async function applyAwsTerraformConnectStage(
   const foundation = addresses(renderAwsTerraformFoundation(plan, admission.bootstrapByNode));
   const expected = addresses(configuration);
   const connectFoundationAdds = new Set<string>();
-  for (const interfaceIndex of new Set((plan.intent.routing.connectPeers ?? []).map((peer) => peer.transportInterfaceIndex))) {
+  for (const interfaceIndex of new Set(
+    (plan.intent.routing.connectPeers ?? []).map((peer) => peer.transportInterfaceIndex),
+  )) {
     const role = plan.intent.interfaces.find((item) => item.index === interfaceIndex)?.role;
     if (!role || role === 'slo') continue;
     connectFoundationAdds.add(`aws_route_table.${role}`);
@@ -57,7 +59,8 @@ export async function applyAwsTerraformConnectStage(
     const target = JSON.parse(configuration).resource as Record<string, Record<string, unknown>>;
     return Object.entries(source).every(([type, resources]) =>
       Object.entries(resources).every(
-        ([name, value]) => target[type]?.[name] !== undefined && JSON.stringify(target[type][name]) === JSON.stringify(value),
+        ([name, value]) =>
+          target[type]?.[name] !== undefined && JSON.stringify(target[type][name]) === JSON.stringify(value),
       ),
     );
   };
@@ -116,7 +119,8 @@ export async function applyAwsTerraformConnectStage(
       if (!session.readConfigurationSha256) throw stale;
       const currentSha256 = await session.readConfigurationSha256();
       const current = await session.readConfiguration(currentSha256);
-      if (!isDesiredSubset(current)) throw new Error('Pending Terraform Connect configuration is not owned by this plan');
+      if (!isDesiredSubset(current))
+        throw new Error('Pending Terraform Connect configuration is not owned by this plan');
       await session.reviseConfiguration(currentSha256, configuration);
     }
   } catch (error) {
