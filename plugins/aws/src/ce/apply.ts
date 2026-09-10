@@ -641,6 +641,21 @@ export async function executeAwsCeApply(
 
   if (existing && existing.engine !== plan.engine)
     throw new Error('Checkpoint execution engine differs from deployment');
+  const completedRoutingAction = plan.actions.find((action) => action.kind === 'f5-routing-configure');
+  if (
+    plan.intent.operation === 'deploy' &&
+    existing &&
+    completedRoutingAction &&
+    existing.completedActionIds.includes(completedRoutingAction.id)
+  )
+    await configureAwsRouting(
+      runtime,
+      plan,
+      existing,
+      api,
+      () => saveAwsCheckpoint(ctx.sessionManager, existing),
+      signal,
+    );
   const brownfieldIds = [
     ...new Set([
       ...plan.intent.brownfield.resourceIds,

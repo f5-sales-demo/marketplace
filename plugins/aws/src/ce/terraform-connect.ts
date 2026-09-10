@@ -79,9 +79,10 @@ export function renderAwsTerraformConnect(
   };
   tables(ref('aws_ec2_transit_gateway_vpc_attachment.transport.id'), 'transport');
   for (const role of [...new Set(peers.map((peer) => peer.transportInterfaceIndex))]) {
-    if (intent.interfaces.find((item) => item.index === role)?.role !== 'slo')
-      throw new Error('Terraform GRE transport requires a dedicated SLO interface');
-    const routeTable = 'slo';
+    const interfaceRole = intent.interfaces.find((item) => item.index === role)?.role;
+    if (interfaceRole !== 'slo' && interfaceRole !== 'sli')
+      throw new Error('Terraform GRE transport requires an SLO or SLI interface');
+    const routeTable = interfaceRole;
     for (const [index, cidr] of cidrs.entries())
       add('aws_route', `gre_${role}_${index}`, {
         route_table_id: ref(`aws_route_table.${routeTable}.id`),

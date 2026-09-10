@@ -66,6 +66,14 @@ test('selects version publishers and preserves current offline state despite com
   raw.spec.site_state = 'FAILED';
   expect(parseSiteUpgradeState(raw, binding).online).toBe(false);
 });
+test('uses the completed software deployment version when fresh provisioning has not populated last installed', () => {
+  const raw = site();
+  raw.status[1].volterra_software_status.last_installed_version = '';
+  raw.status[1].volterra_software_status.deployment_state.version = 'crt-20260201-0178';
+  expect(parseSiteUpgradeState(raw, binding).software.installed).toBe('crt-20260201-0178');
+  raw.status[1].volterra_software_status.deployment_state.phase = 'UPGRADE_IN_PROGRESS';
+  expect(() => parseSiteUpgradeState(raw, binding)).toThrow('Missing upgrade evidence');
+});
 test('rejects missing freshness, forged publishers, duplicates, cross-site nodes and conflicting versions', () => {
   const mutations = [
     (raw: any) => {

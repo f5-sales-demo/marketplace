@@ -15,7 +15,7 @@ export function connectFixture() {
     connectPeers: [1, 2, 3].flatMap((node) =>
       [0, 1].map((peerIndex) => ({
         node,
-        transportInterfaceIndex: 0,
+        transportInterfaceIndex: peerIndex,
         insideCidr: `169.254.10.${((node - 1) * 2 + peerIndex) * 8}/29`,
       })),
     ),

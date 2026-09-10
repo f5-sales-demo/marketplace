@@ -778,6 +778,7 @@ export class CeRuntime {
     localAsn: number,
     remoteAsn: number,
     interfaces: AwsGreBinding[],
+    deniedExportPrefixes: string[],
     checkpoint: (resource: Json) => Promise<void>,
     signal?: AbortSignal,
     rebind?: {
@@ -790,7 +791,13 @@ export class CeRuntime {
     if (binding.owner.provider !== 'aws' || interfaces.some((item) => !binding.nodes.includes(item.node)))
       throw new Error('AWS routing interface and site ownership differ');
     this.#owned(await this.observeSite(binding, signal), binding);
-    const routing = this.contract.buildAwsRouting(binding.siteName, localAsn, remoteAsn, interfaces);
+    const routing = this.contract.buildAwsRouting(
+      binding.siteName,
+      localAsn,
+      remoteAsn,
+      interfaces,
+      deniedExportPrefixes,
+    );
     if (rebind) {
       const expected = [
         ...routing.connectors.map((r) => `external_connector/${r.name}`),
@@ -852,6 +859,107 @@ export class CeRuntime {
           existing = await observe();
         }
         this.#owned(existing, { ...binding, siteName: resource.name });
+        if (kind === 'bgp_routing_policy' && !subset(existing.spec, resource.spec)) {
+          const rules = object(existing.spec).rules;
+          const legacy =
+            Array.isArray(rules) &&
+            rules.length === 1 &&
+            JSON.stringify(rules[0]) ===
+              JSON.stringify({
+                match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
+                action: { deny: {} },
+              });
+          const uid = object(existing.system_metadata).uid;
+          const site = await this.observeOwnedSite(binding, signal);
+          const siteUid = object(site.system_metadata).uid;
+          if (!legacy || typeof uid !== 'string' || !uid || typeof siteUid !== 'string' || !siteUid)
+            throw new Error('Existing routing object differs from site-bound intent; replan required');
+          await checkpoint({
+            kind,
+            name: resource.name,
+            siteName: binding.siteName,
+            uid,
+            owner: binding.owner,
+            contractFingerprint: this.contract.fingerprint,
+            phase: 'export-policy-migration-pending',
+          });
+          const request = this.contract.routingReplaceRequest(kind, existing, resource.spec, siteUid);
+          try {
+            await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
+          } catch (error) {
+            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+          }
+          existing = await observe();
+          this.#owned(existing, { ...binding, siteName: resource.name });
+          if (object(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
+            throw new Error('Export-policy migration readback differs');
+        }
+        if (
+          kind === 'bgp' &&
+          Array.isArray(object(existing.spec).peers) &&
+          (object(existing.spec).peers as unknown[]).some(
+            (peer) => peer && typeof peer === 'object' && Object.hasOwn(peer, 'routing_policies'),
+          )
+        ) {
+          const legacy = structuredClone(object(existing.spec));
+          const peers = legacy.peers;
+          const expectedPolicyName = `${binding.siteName.slice(0, 43)}-tgw-export-policy`;
+          const exactLegacyPolicies =
+            Array.isArray(peers) &&
+            peers.length > 0 &&
+            peers.every((peer) => {
+              const policy = object(object(peer).routing_policies).route_policy;
+              if (!Array.isArray(policy) || policy.length !== 1) return false;
+              const row = object(policy[0]);
+              const refs = row.object_refs;
+              if (
+                Object.keys(row).sort().join(',') !== 'all_nodes,object_refs,outbound' ||
+                Object.keys(object(row.all_nodes)).length !== 0 ||
+                Object.keys(object(row.outbound)).length !== 0 ||
+                !Array.isArray(refs) ||
+                refs.length !== 1
+              )
+                return false;
+              const ref = object(refs[0]);
+              return (
+                ref.name === expectedPolicyName &&
+                ref.namespace === 'system' &&
+                Object.keys(ref).every((key) => ['kind', 'name', 'namespace', 'tenant', 'uid'].includes(key))
+              );
+            });
+          if (Array.isArray(peers)) for (const peer of peers) delete object(peer).routing_policies;
+          const uid = object(existing.system_metadata).uid;
+          const site = await this.observeOwnedSite(binding, signal);
+          const siteUid = object(site.system_metadata).uid;
+          if (
+            !exactLegacyPolicies ||
+            !subset(legacy, resource.spec) ||
+            typeof uid !== 'string' ||
+            !uid ||
+            typeof siteUid !== 'string' ||
+            !siteUid
+          )
+            throw new Error('Existing routing object differs from site-bound intent; replan required');
+          await checkpoint({
+            kind,
+            name: resource.name,
+            siteName: binding.siteName,
+            uid,
+            owner: binding.owner,
+            contractFingerprint: this.contract.fingerprint,
+            phase: 'bgp-export-migration-pending',
+          });
+          const request = this.contract.routingReplaceRequest(kind, existing, resource.spec, siteUid);
+          try {
+            await this.#request(path, { method: 'PUT', body: JSON.stringify(request) }, signal);
+          } catch (error) {
+            if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+          }
+          existing = await observe();
+          this.#owned(existing, { ...binding, siteName: resource.name });
+          if (object(existing.system_metadata).uid !== uid || !subset(existing.spec, resource.spec))
+            throw new Error('BGP export migration readback differs');
+        }
         if (
           object(object(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
           !subset(existing.spec, resource.spec)

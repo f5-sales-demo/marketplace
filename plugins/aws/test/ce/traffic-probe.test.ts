@@ -22,10 +22,16 @@ function fixture() {
     mode: 'nlb',
     port: 8443,
     scheme: 'internal',
+    loadBalancer: {
+      vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+      subnetIds: ['subnet-0cccccccccccccccc'],
+      privateAddresses: ['10.9.0.10'],
+    },
     listener: {
       name: 'ce-listener',
       namespace: 'default',
       domain: 'ce.example.invalid',
+      privateAddresses: ['10.0.4.10', '10.0.5.10', '10.0.6.10'],
       originPool: { name: 'ce-origin', namespace: 'default' },
     },
     probe: {

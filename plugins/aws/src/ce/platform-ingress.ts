@@ -6,7 +6,7 @@ import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
 interface Marker {
-  schemaVersion: 3;
+  schemaVersion: 6;
   engine: 'native' | 'terraform';
   planSha256: string;
   ingressPlanId: string;
@@ -67,12 +67,17 @@ export async function ensureAwsPlatformIngress(
   await storage.verify();
   const sli = plan.interfaces.find((item) => item.role === 'sli');
   if (!sli) throw new Error('AWS NLB ingress requires an SLI interface');
-  const selections = siteBindings(plan).map(({ site, binding }) => {
+  const selections = siteBindings(plan).map(({ site, binding }, siteIndex) => {
     if (site.nodeIndexes.length !== 1) throw new Error('AWS NLB ingress requires independent one-node sites');
     const nodeIndex = site.nodeIndexes[0];
     const mac = resolved[`__ENI_${nodeIndex}_${sli.index}_MAC__`];
     if (!mac) throw new Error('Observed SLI MAC identity is unavailable for platform ingress');
-    return { binding, node: `${plan.deploymentName}-${nodeIndex}`, mac };
+    return {
+      binding,
+      node: `${plan.deploymentName}-${nodeIndex}`,
+      mac,
+      insideAddress: plan.intent.ingress.listener.privateAddresses?.[siteIndex],
+    };
   });
   const lifecycle = runtime.ingress(contract, storage);
   const saved = await optional(storage, 'aws-platform-ingress.json');
@@ -80,14 +85,14 @@ export async function ensureAwsPlatformIngress(
   if (saved !== undefined) {
     const candidate = saved as Marker & { schemaVersion: number };
     if (
-      ![1, 2, 3].includes(candidate.schemaVersion) ||
+      ![1, 2, 3, 4, 5, 6].includes(candidate.schemaVersion) ||
       candidate.engine !== plan.engine ||
       candidate.planSha256 !== plan.planSha256 ||
       candidate.contractFingerprint !== contract.fingerprint ||
       !/^[a-f0-9]{24}$/.test(candidate.ingressPlanId)
     )
       throw new Error('Platform ingress checkpoint differs from the owning AWS plan');
-    if (candidate.schemaVersion < 3) {
+    if (candidate.schemaVersion < 6) {
       await lifecycle.retire(candidate.ingressPlanId, signal);
       const listener = plan.intent.ingress.listener;
       const corrected = await lifecycle.planAws(
@@ -96,7 +101,7 @@ export async function ensureAwsPlatformIngress(
         signal,
       );
       marker = {
-        schemaVersion: 3,
+        schemaVersion: 6,
         engine: plan.engine,
         planSha256: plan.planSha256,
         ingressPlanId: corrected.id,
@@ -112,7 +117,7 @@ export async function ensureAwsPlatformIngress(
       signal,
     );
     marker = {
-      schemaVersion: 3,
+      schemaVersion: 6,
       engine: plan.engine,
       planSha256: plan.planSha256,
       ingressPlanId: ingressPlan.id,

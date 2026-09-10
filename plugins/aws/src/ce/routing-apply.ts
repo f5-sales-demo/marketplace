@@ -98,6 +98,7 @@ export async function configureAwsRouting(
       plan.routing.customerAsn ?? 0,
       plan.routing.transitGatewayAsn ?? 0,
       interfaces,
+      plan.routing.destinationCidrs,
       async (resource) => {
         checkpoint.resolvedValues[`__XC_ROUTING_${String(resource.name)}__`] = String(resource.uid);
         await persist();

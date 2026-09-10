@@ -53,10 +53,16 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
       mode: 'nlb',
       port: 8443,
       scheme: 'internal',
+      loadBalancer: {
+        vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+        subnetIds: ['subnet-0cccccccccccccccc'],
+        privateAddresses: ['10.9.0.10'],
+      },
       listener: {
         name: 'ce-listener',
         namespace: 'default',
         domain: 'ce.example.invalid',
+        privateAddresses: ['10.0.4.10', '10.0.5.10', '10.0.6.10'],
         originPool: { name: 'ce-origin', namespace: 'default' },
       },
       probe: {
@@ -72,12 +78,18 @@ it('composes internal NLB ingress with TGW routing and cumulative admission', ()
   const network = JSON.parse(renderAwsTerraformFoundation(plan));
   expect(network.resource.aws_lb.ce.internal).toBe(true);
   expect(network.resource.aws_lb.ce.load_balancer_type).toBe('network');
+  expect(network.resource.aws_lb.ce.subnet_mapping).toEqual([
+    { subnet_id: 'subnet-0cccccccccccccccc', private_ipv4_address: '10.9.0.10' },
+  ]);
   expect(network.resource.aws_lb.ce.enable_cross_zone_load_balancing).toBe(true);
   expect(network.resource.aws_lb_target_group.ce.port).toBe(8443);
+  expect(network.resource.aws_lb_target_group.ce.vpc_id).toBe('vpc-0bbbbbbbbbbbbbbbb');
   expect(network.resource.aws_lb_listener.ce.default_action[0].target_group_arn).toContain('aws_lb_target_group');
   expect(network.resource.aws_lb_target_group_attachment).toBeUndefined();
   expect(network.output.ce_ingress.value.scheme).toBe('internal');
   const admitted = JSON.parse(renderAwsTerraformFoundation(plan, { 1: bootstrap, 2: bootstrap }));
   expect(Object.keys(admitted.resource.aws_lb_target_group_attachment)).toEqual(['node_1', 'node_2']);
-  expect(admitted.resource.aws_lb_target_group_attachment.node_1.target_id).toContain('node_1_nic_1.private_ip');
+  expect(admitted.resource.aws_lb_target_group_attachment.node_1.target_id).toBe('10.0.4.10');
+  expect(admitted.resource.aws_lb_target_group_attachment.node_1.availability_zone).toBe('all');
+  expect(admitted.resource.aws_network_interface.node_1_nic_1.private_ips).toEqual(['10.0.4.10']);
 });

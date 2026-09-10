@@ -16,6 +16,7 @@ export function buildAwsRouting(
   localAsn: number,
   remoteAsn: number,
   bindings: AwsGreBinding[],
+  deniedExportPrefixes: string[],
   validate: (kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json) => void,
 ) {
   const name = /^[a-z][a-z0-9-]{0,62}$/;
@@ -24,7 +25,15 @@ export function buildAwsRouting(
     !bindings.length ||
     bindings.length > 4 ||
     ![localAsn, remoteAsn].every((asn) => Number.isInteger(asn) && asn > 0 && asn < 4294967295) ||
-    localAsn === remoteAsn
+    localAsn === remoteAsn ||
+    !Array.isArray(deniedExportPrefixes) ||
+    deniedExportPrefixes.length < 1 ||
+    deniedExportPrefixes.length > 8 ||
+    new Set(deniedExportPrefixes).size !== deniedExportPrefixes.length ||
+    deniedExportPrefixes.some((prefix) => {
+      const [address, length, extra] = prefix.split('/');
+      return extra !== undefined || isIP(address) !== 4 || !/^\d+$/.test(length ?? '') || Number(length) > 32;
+    })
   )
     throw new Error('Unsupported AWS routing site or peer topology');
   const names = new Set<string>();
@@ -98,7 +107,9 @@ export function buildAwsRouting(
         {
           match: {
             ip_prefixes: {
-              prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }],
+              // Drop only the prefixes learned from the workload side. Local
+              // service VIPs must remain eligible for TGW advertisement.
+              prefixes: deniedExportPrefixes.map((ip_prefixes) => ({ ip_prefixes, equal_or_longer_than: {} })),
             },
           },
           action: { deny: {} },
@@ -125,15 +136,6 @@ export function buildAwsRouting(
         },
         passive_mode_disabled: {},
         bfd_disabled: {},
-        routing_policies: {
-          route_policy: [
-            {
-              all_nodes: {},
-              outbound: {},
-              object_refs: [{ name: exportPolicy.name, namespace: 'system' }],
-            },
-          ],
-        },
       })),
     ),
   };

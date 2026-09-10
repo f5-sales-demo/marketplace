@@ -57,6 +57,32 @@ function cidr(value: string, label: string): string {
   return normalized;
 }
 
+function ipv4Number(value: string): number {
+  if (isIP(value) !== 4) fail('listener service address must be IPv4');
+  return value.split('.').reduce((result, octet) => result * 256 + Number(octet), 0);
+}
+
+function cidrHost(value: string, offset: number): string {
+  const [address, length] = value.split('/');
+  const prefix = Number(length);
+  if (isIP(address) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28)
+    fail('NLB SLI subnet must be an IPv4 /16 through /28');
+  const size = 2 ** (32 - prefix);
+  const network = Math.floor(ipv4Number(address) / size) * size;
+  const result = network + offset;
+  return [24, 16, 8, 0].map((shift) => Math.floor(result / 2 ** shift) % 256).join('.');
+}
+
+function usableSubnetAddress(address: string, subnet: string): boolean {
+  const [base, length] = subnet.split('/');
+  const prefix = Number(length);
+  if (isIP(base) !== 4 || !Number.isInteger(prefix) || prefix < 16 || prefix > 28) return false;
+  const size = 2 ** (32 - prefix);
+  const network = Math.floor(ipv4Number(base) / size) * size;
+  const value = ipv4Number(address);
+  return value >= network + 4 && value < network + size - 1;
+}
+
 function asn(value: number | undefined, label: string): number {
   if (value === undefined || !Number.isInteger(value) || value < 1 || value > 4_294_967_294)
     fail(`${label} must be a valid ASN`);
@@ -249,11 +275,11 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         peer.node < 1 ||
         peer.node > input.topology.nodeCount ||
         !transportRole ||
-        (input.operation === 'deploy' && transportRole !== 'slo')
+        (input.operation === 'deploy' && !['slo', 'sli'].includes(transportRole))
       )
         fail(
           input.operation === 'deploy'
-            ? 'Connect peer must select a real node and a dedicated SLO GRE transport'
+            ? 'Connect peer must select a real node and an SLO or SLI GRE transport interface'
             : 'Connect peer teardown must retain its observed transport interface',
         );
       counts.set(peer.node, (counts.get(peer.node) ?? 0) + 1);
@@ -283,7 +309,9 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     const ingressKeys = Object.keys(input.ingress).sort().join(',');
     if (
       (input.ingress.mode === 'none' && ingressKeys !== 'mode') ||
-      (input.ingress.mode === 'nlb' && ingressKeys !== 'listener,mode,port,probe,scheme')
+      (input.ingress.mode === 'nlb' &&
+        ingressKeys !== 'listener,loadBalancer,mode,port,probe,scheme' &&
+        !(input.operation === 'teardown' && ingressKeys === 'listener,mode,port,probe,scheme'))
     )
       fail('Ingress fields differ from the selected mode');
     if (
@@ -303,11 +331,30 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       fail('NLB ingress deploymentName must form a valid name of at most 28 characters');
     if (input.ingress.mode === 'nlb') {
       const listener = input.ingress.listener;
+      const loadBalancer = input.ingress.loadBalancer;
       const probe = input.ingress.probe;
+      const listenerKeys = Object.keys(listener ?? {})
+        .sort()
+        .join(',');
+      const legacyTeardownListener =
+        input.operation === 'teardown' && listenerKeys === 'domain,name,namespace,originPool';
       const domain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
       if (
         !listener ||
-        Object.keys(listener).sort().join(',') !== 'domain,name,namespace,originPool' ||
+        (input.operation !== 'teardown' &&
+          (!loadBalancer ||
+            Object.keys(loadBalancer).sort().join(',') !== 'privateAddresses,subnetIds,vpcId' ||
+            !/^vpc-[0-9a-f]{8,17}$/.test(loadBalancer.vpcId) ||
+            !input.brownfield.resourceIds.includes(loadBalancer.vpcId) ||
+            !Array.isArray(loadBalancer.subnetIds) ||
+            loadBalancer.subnetIds.length < 1 ||
+            loadBalancer.subnetIds.some(
+              (id) => !/^subnet-[0-9a-f]{8,17}$/.test(id) || !input.brownfield.resourceIds.includes(id),
+            ) ||
+            !Array.isArray(loadBalancer.privateAddresses) ||
+            loadBalancer.privateAddresses.length !== loadBalancer.subnetIds.length ||
+            loadBalancer.privateAddresses.some((address) => isIP(address) !== 4))) ||
+        (listenerKeys !== 'domain,name,namespace,originPool,privateAddresses' && !legacyTeardownListener) ||
         Object.keys(listener.originPool ?? {})
           .sort()
           .join(',') !== 'name,namespace' ||
@@ -317,6 +364,19 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         name(listener.originPool.namespace, 'ingress.listener.originPool.namespace') !==
           listener.originPool.namespace ||
         listener.originPool.namespace !== listener.namespace ||
+        (input.operation !== 'teardown' &&
+          (!Array.isArray(listener.privateAddresses) ||
+            listener.privateAddresses.length !== sites.length ||
+            new Set(listener.privateAddresses).size !== listener.privateAddresses.length ||
+            sites.some((site, index) => {
+              const node = site.nodeIndexes[0];
+              const subnet = input.interfaces.find((item) => item.role === 'sli')?.subnets[node - 1]?.cidr;
+              return (
+                !subnet ||
+                !usableSubnetAddress(listener.privateAddresses?.[index] ?? '', subnet) ||
+                listener.privateAddresses?.[index] === cidrHost(subnet, 5)
+              );
+            }))) ||
         typeof listener.domain !== 'string' ||
         listener.domain.length > 253 ||
         !domain.test(listener.domain) ||
@@ -1389,6 +1449,11 @@ function compileActions(
         });
       }
   const securityGroupIds = intent.securityGroups.map((group) => `__SG_${group.name}__`);
+  const listenerAddressForNode = (node: number) => {
+    if (intent.ingress?.mode !== 'nlb') return undefined;
+    const index = siteTopology(intent).findIndex((site) => site.nodeIndexes.includes(node));
+    return index < 0 ? undefined : intent.ingress.listener.privateAddresses?.[index];
+  };
   for (let node = 1; node <= intent.topology.nodeCount; node++) {
     for (const item of intent.interfaces)
       add({
@@ -1403,6 +1468,13 @@ function compileActions(
           item.subnets[node - 1].subnetId ?? `__SUBNET_${node}_${item.index}__`,
           '--description',
           `${intent.deploymentName} node ${node} ${item.role}`,
+          ...(item.role === 'sli' && listenerAddressForNode(node)
+            ? [
+                '--private-ip-addresses',
+                `PrivateIpAddress=${cidrHost(item.subnets[node - 1].cidr ?? '', 5)},Primary=true`,
+                `PrivateIpAddress=${listenerAddressForNode(node)},Primary=false`,
+              ]
+            : []),
           ...(securityGroupIds.length ? ['--groups', ...securityGroupIds] : []),
           '--tag-specifications',
           tagSpec(intent, 'network-interface', node, item.index),
@@ -1557,9 +1629,10 @@ function compileActions(
       });
   const nlbIngress = awsCeNlbIngress(intent);
   if (nlbIngress) {
-    const subnetIds = intent.interfaces[0].subnets.map(
-      (subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_0__`,
-    );
+    const subnetIds =
+      intent.ingress?.mode === 'nlb'
+        ? intent.ingress.loadBalancer.subnetIds
+        : intent.interfaces[0].subnets.map((subnet, index) => subnet.subnetId ?? `__SUBNET_${index + 1}_0__`);
     add({
       phase: 'routing',
       kind: 'nlb-create',
@@ -1573,8 +1646,15 @@ function compileActions(
         '--type',
         'network',
         ...(nlbIngress.scheme === 'internal' ? ['--scheme', 'internal'] : []),
-        '--subnets',
-        ...subnetIds,
+        ...(intent.ingress?.mode === 'nlb'
+          ? [
+              '--subnet-mappings',
+              ...subnetIds.map(
+                (subnetId, index) =>
+                  `SubnetId=${subnetId},PrivateIPv4Address=${intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.privateAddresses[index] : ''}`,
+              ),
+            ]
+          : ['--subnets', ...subnetIds]),
         '--tags',
         `Key=xcsh-managed-by,Value=aws-ce`,
         `Key=xcsh-execution-engine,Value=${intent.engine}`,
@@ -1605,7 +1685,7 @@ function compileActions(
         '--target-type',
         'ip',
         '--vpc-id',
-        intent.vpc.vpcId ?? '__VPC_ID__',
+        intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.vpcId : (intent.vpc.vpcId ?? '__VPC_ID__'),
         '--health-check-protocol',
         'TCP',
         '--tags',
@@ -1632,9 +1712,9 @@ function compileActions(
         '--target-group-arn',
         '__NLB_TARGET_GROUP_ARN__',
         '--targets',
-        'Id=__NODE_1_SLI_IP__',
-        'Id=__NODE_2_SLI_IP__',
-        'Id=__NODE_3_SLI_IP__',
+        ...(intent.ingress?.mode === 'nlb'
+          ? (intent.ingress.listener.privateAddresses?.map((address) => `Id=${address},AvailabilityZone=all`) ?? [])
+          : ['Id=__NODE_1_SLI_IP__', 'Id=__NODE_2_SLI_IP__', 'Id=__NODE_3_SLI_IP__']),
         ...base,
       ],
       resourceId: `aws://${intent.region}/nlb-target-registration/${intent.deploymentName}`,
@@ -2003,7 +2083,7 @@ function compileActions(
           '--transit-gateway-attachment-id',
           `__TGW_CONNECT_ATTACHMENT_${peerGroups[index]}__`,
           '--peer-address',
-          `__NODE_${peer.node}_${peer.transportInterfaceIndex === 0 ? 'SLO' : 'SLI'}_IP__`,
+          `__NODE_${peer.node}_${intent.interfaces.find((item) => item.index === peer.transportInterfaceIndex)?.role.toUpperCase()}_IP__`,
           ...(peer.transitGatewayAddress ? ['--transit-gateway-address', peer.transitGatewayAddress] : []),
           '--bgp-options',
           `PeerAsn=${intent.routing.customerAsn}`,

@@ -4,7 +4,7 @@ import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation'
 
 import { connectFixture as fixture } from './terraform-connect-fixture';
 
-it('renders six Connect peers in two bounded SLO attachments and preserves admitted compute', () => {
+it('renders six Connect peers in bounded SLO and SLI attachments and preserves admitted compute', () => {
   const f = fixture();
   const foundation = JSON.parse(renderAwsTerraformFoundation(f.plan, f.bootstrap));
   const config = JSON.parse(renderAwsTerraformConnect(f.plan, f.observation, f.bootstrap));
@@ -15,10 +15,11 @@ it('renders six Connect peers in two bounded SLO attachments and preserves admit
     `\${aws_network_interface.node_1_nic_0.private_ip}`,
   );
   expect(config.resource.aws_ec2_transit_gateway_connect_peer.peer_2.peer_address).toBe(
-    `\${aws_network_interface.node_1_nic_0.private_ip}`,
+    `\${aws_network_interface.node_1_nic_1.private_ip}`,
   );
   expect(config.resource.aws_route.gre_0_0.destination_cidr_block).toBe('172.31.255.0/24');
-  expect(config.resource.aws_route.gre_1_0).toBeUndefined();
+  expect(config.resource.aws_route.gre_1_0.destination_cidr_block).toBe('172.31.255.0/24');
+  expect(config.resource.aws_route.gre_1_0.route_table_id).toBe(`\${aws_route_table.sli.id}`);
   expect(Object.keys(config.resource.aws_ec2_transit_gateway_route_table_association)).toHaveLength(3);
   expect(Object.keys(config.output.ce_connect_peers.value)).toHaveLength(6);
 });
@@ -36,5 +37,5 @@ it('limits each Connect attachment to four peers', () => {
     transit_gateway_attachment_id: string;
   }>)
     counts.set(peer.transit_gateway_attachment_id, (counts.get(peer.transit_gateway_attachment_id) ?? 0) + 1);
-  expect([...counts.values()]).toEqual([4, 2]);
+  expect([...counts.values()]).toEqual([3, 3]);
 });

@@ -161,7 +161,7 @@ function fixture() {
     },
     ensureAwsRouting: async (...args) => {
       calls.push(args);
-      for (const resource of args[6]?.resources ?? []) await args[4]({ ...resource, phase: 'rebind-pending' });
+      for (const resource of args[7]?.resources ?? []) await args[5]({ ...resource, phase: 'rebind-pending' });
     },
   } as Pick<CeRuntime, 'engine' | 'observeAwsInterfaces' | 'ensureAwsRouting'>;
   const api = {
@@ -207,8 +207,8 @@ test('Terraform rebind rediscovers attachments, restores only the selected site 
   expect(observed.establishedSessions).toBe(12);
   expect(f.calls).toHaveLength(1);
   expect(f.calls[0][0].siteName).toBe('site-2');
-  expect(f.calls[0][6]?.siteUid).toBe('replacement-site-2');
-  expect(f.calls[0][6]?.resources.map((r) => r.uid)).toEqual(['gre-3', 'gre-4', 'policy-2', 'bgp-2']);
+  expect(f.calls[0][7]?.siteUid).toBe('replacement-site-2');
+  expect(f.calls[0][7]?.resources.map((r) => r.uid)).toEqual(['gre-3', 'gre-4', 'policy-2', 'bgp-2']);
   expect(f.calls[0][3].map((item) => [item.node, item.interfaceName])).toEqual([
     ['ce-2', 'ens5'],
     ['ce-2', 'ens6'],

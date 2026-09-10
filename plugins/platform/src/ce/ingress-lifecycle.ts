@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 import { join } from 'node:path';
 import type { CeDeploymentStore } from './deployment-store';
 import type { VerifiedIngressContract } from './ingress-contract';
@@ -9,7 +10,7 @@ import type { InsideHttpListener } from './wire-ingress';
 import type { SiteLocalHttpOrigin } from './wire-origin';
 
 type Json = Record<string, unknown>;
-type Selection = { binding: SiteBinding; node: string; mac: string };
+type Selection = { binding: SiteBinding; node: string; mac: string; insideAddress?: string };
 type Intent = Omit<InsideHttpListener, 'sites'> & { originAddress: string };
 interface Port {
   readonly engine: 'native' | 'terraform';
@@ -116,6 +117,7 @@ export class CeIngressLifecycle {
     const names = new Set<string>();
     const nodes = new Set<string>();
     const macs = new Set<string>();
+    const addresses = new Set<string>();
     const siteUids = new Set<string>();
     const placements = [];
     for (const selected of selections) {
@@ -128,12 +130,15 @@ export class CeIngressLifecycle {
         macs.has(selected.mac.toLowerCase()) ||
         binding.nodes.length !== 1 ||
         binding.nodes[0] !== selected.node ||
-        !/^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(selected.mac)
+        !/^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(selected.mac) ||
+        (selected.insideAddress !== undefined &&
+          (isIP(selected.insideAddress) !== 4 || addresses.has(selected.insideAddress)))
       )
         throw new Error('Ingress requires distinct owned AWS sites with an observed single-node inside interface');
       names.add(binding.siteName);
       nodes.add(selected.node);
       macs.add(selected.mac.toLowerCase());
+      if (selected.insideAddress) addresses.add(selected.insideAddress);
       const before = await this.port.observeOwnedSite(binding, signal);
       const observation = await this.port.observeAwsInterfaces(
         binding,
@@ -159,13 +164,18 @@ export class CeIngressLifecycle {
       if (uid(before) !== uid(after)) throw new Error('Site replaced during ingress discovery');
       if (siteUids.has(uid(after))) throw new Error('Duplicate physical deployment identity');
       siteUids.add(uid(after));
-      placements.push({ siteName: binding.siteName, siteUid: uid(after), interface: inside[0] });
+      placements.push({
+        siteName: binding.siteName,
+        siteUid: uid(after),
+        interface: inside[0],
+        insideAddress: selected.insideAddress ?? inside[0].ipv4?.address,
+      });
     }
     const { originAddress, ...listenerIntent } = intent;
     const built = this.contract.build({
       ...listenerIntent,
       sites: placements.map((p) => {
-        const insideAddress = p.interface.ipv4?.address;
+        const insideAddress = p.insideAddress;
         if (!insideAddress) throw new Error('Inside address became unavailable');
         return { name: p.siteName, insideAddress };
       }),

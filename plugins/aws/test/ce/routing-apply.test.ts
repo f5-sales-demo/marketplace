@@ -87,9 +87,11 @@ test('configures XC from observed AWS endpoints and authoritative XC interface o
       _local: number,
       _remote: number,
       interfaces: AwsGreBinding[],
+      deniedExportPrefixes: string[],
       checkpoint: (value: unknown) => Promise<void>,
     ) => {
       configured = interfaces;
+      expect(deniedExportPrefixes).toEqual(plan.routing.destinationCidrs);
       await checkpoint({ name: 'demo-gre-1', uid: 'uid-one' });
     },
   };

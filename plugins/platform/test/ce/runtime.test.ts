@@ -517,17 +517,17 @@ test('creates schema-validated routing objects in order and resumes lost respons
     },
   ];
   await expect(
-    runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {
+    runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, ['10.253.0.0/16'], async () => {
       throw new Error('checkpoint interrupted');
     }),
   ).rejects.toThrow('checkpoint interrupted');
-  await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {});
+  await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, ['10.253.0.0/16'], async () => {});
   expect(posts).toEqual([
     '/api/config/namespaces/system/external_connectors',
     '/api/config/namespaces/system/bgp_routing_policys',
     '/api/config/namespaces/system/bgps',
   ]);
-  await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, async () => {});
+  await runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, ['10.253.0.0/16'], async () => {});
   expect(posts).toHaveLength(3);
   const bgp = objects.get('/api/config/namespaces/system/bgps/ce-one-tgw-bgp') as { spec: { peers: unknown[] } };
   expect(bgp.spec.peers).toHaveLength(2);
@@ -816,7 +816,7 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
       awsBgpAddresses: ['169.254.10.2', '169.254.10.3'] as [string, string],
     },
   ];
-  const desired = contract.buildAwsRouting(binding.siteName, 65010, 64512, interfaces);
+  const desired = contract.buildAwsRouting(binding.siteName, 65010, 64512, interfaces, ['10.253.0.0/16']);
   const resources = [
     { kind: 'external_connector' as const, name: 'ce-gre', uid: 'connector' },
     { kind: 'bgp_routing_policy' as const, name: desired.exportPolicy.name, uid: 'policy' },
@@ -847,7 +847,7 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
     } as unknown as import('../../src/ce/routing-contract').VerifiedRoutingContract,
   };
   const run = (checkpoint: (record: Record<string, unknown>) => Promise<void> = async () => {}) =>
-    runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, checkpoint, undefined, rebind);
+    runtime.ensureAwsRouting(binding, 65010, 64512, interfaces, ['10.253.0.0/16'], checkpoint, undefined, rebind);
   await expect(
     run(async () => {
       throw new Error('checkpoint interrupted');

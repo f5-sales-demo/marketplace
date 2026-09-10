@@ -32,10 +32,17 @@ export type AwsCeIngress =
       mode: 'nlb';
       port: number;
       scheme: 'internal';
+      loadBalancer: {
+        vpcId: string;
+        subnetIds: string[];
+        privateAddresses: string[];
+      };
       listener: {
         name: string;
         namespace: string;
         domain: string;
+        /** One secondary SLI service address for each independent site, in site order. */
+        privateAddresses?: string[];
         originPool: { name: string; namespace: string };
       };
       probe: {

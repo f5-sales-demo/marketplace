@@ -16,48 +16,32 @@ const input = {
   siteNames: ['site-one', 'site-two', 'site-three'],
 };
 
-test('binds inside-network origin endpoints to exact sites using the published schema', () => {
+test('maps one routed origin endpoint using the verified distributed MCN contract', () => {
   const before = structuredClone(input);
   const result = buildSiteLocalHttpOrigin(input, validate);
   expect(input).toEqual(before);
   expect(result.metadata).toEqual({ name: 'ce-origin', namespace: 'demo' });
-  expect(result.spec.endpoint_selection).toBe('LOCAL_PREFERRED');
-  expect(result.spec.origin_servers).toEqual(
-    input.siteNames.map((name) => ({
-      labels: {},
-      private_ip: { ip: '192.0.2.10', inside_network: {}, site_locator: { site: { name, namespace: 'system' } } },
-    })),
-  );
+  expect(result.spec.endpoint_selection).toBe('DISTRIBUTED');
+  expect(result.spec.origin_servers).toEqual([{ labels: {}, public_ip: { ip: '192.0.2.10' } }]);
   expect(result.spec).toHaveProperty('no_tls', {});
   expect(result.evidence).toEqual({ origin: 'unknown', traffic: 'unknown' });
-  expect(JSON.stringify(result.spec)).not.toContain('public_ip');
+  expect(JSON.stringify(result.spec)).not.toContain('private_ip');
   expect(JSON.stringify(result.spec)).not.toContain('outside_network');
   input.siteNames[0] = 'different';
-  expect(result.spec.origin_servers[0].private_ip.site_locator.site.name).toBe('site-one');
+  expect(result.spec.origin_servers[0].public_ip.ip).toBe('192.0.2.10');
   input.siteNames[0] = 'site-one';
 });
 
 test('models a single site independently of its node count and accepts a routed private origin address', () => {
   const result = buildSiteLocalHttpOrigin({ ...input, originAddress: '10.20.0.10', siteNames: ['ha-site'] }, validate);
   expect(result.spec.origin_servers).toHaveLength(1);
-  expect(result.spec.origin_servers[0].private_ip).toMatchObject({
-    ip: '10.20.0.10',
-    site_locator: { site: { name: 'ha-site' } },
-  });
+  expect(result.spec.origin_servers[0].public_ip).toEqual({ ip: '10.20.0.10' });
 });
 
 test('projects server tenancy and exact implicit GET defaults without hiding configuration drift', () => {
   const expected = buildSiteLocalHttpOrigin(input, validate).spec;
   const observed = structuredClone(expected) as Record<string, unknown>;
   if (!Array.isArray(observed.origin_servers)) throw new Error('origin fixture is malformed');
-  for (const value of observed.origin_servers) {
-    const server = value as Record<string, unknown>;
-    const privateIp = server.private_ip as Record<string, unknown>;
-    const locator = privateIp.site_locator as Record<string, unknown>;
-    const site = locator.site as Record<string, unknown>;
-    site.tenant = 'tenant-id';
-    privateIp.snat_pool = {};
-  }
   observed.healthcheck = [];
   observed.advanced_options = {};
   observed.upstream_conn_pool_reuse_type = {};

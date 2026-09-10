@@ -68,10 +68,16 @@ it('binds only scoped Terraform NLB outputs for the explicit ingress intent', ()
     mode: 'nlb',
     port: 8443,
     scheme: 'internal',
+    loadBalancer: {
+      vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+      subnetIds: ['subnet-0cccccccccccccccc'],
+      privateAddresses: ['10.9.0.10'],
+    },
     listener: {
       name: 'ce-listener',
       namespace: 'default',
       domain: 'ce.example.invalid',
+      privateAddresses: ['10.0.4.10', '10.0.5.10', '10.0.6.10'],
       originPool: { name: 'ce-origin', namespace: 'default' },
     },
     probe: {
@@ -94,6 +100,11 @@ it('binds only scoped Terraform NLB outputs for the explicit ingress intent', ()
     listener_arn: `${prefix}:listener/net/ce/abcdef12/abcdef12`,
     port: 8443,
     scheme: 'internal',
+    loadBalancer: {
+      vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+      subnetIds: ['subnet-0cccccccccccccccc'],
+      privateAddresses: ['10.9.0.10'],
+    },
   };
   expect(bindTerraformIngress(f.plan, { ce_ingress: output })).toEqual({
     __NLB_ARN__: output.load_balancer_arn,

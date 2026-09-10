@@ -711,7 +711,7 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
   const peers = Array.from({ length: 6 }, (_, index) => ({
     node: Math.floor(index / 2) + 1,
     insideCidr: `169.254.${index + 10}.0/29`,
-    transportInterfaceIndex: 0,
+    transportInterfaceIndex: index % 2,
     transitGatewayAddress: `172.31.240.${index + 10}`,
   }));
   const sites = [1, 2, 3].map((node) => ({ name: `site-${node}`, nodeIndexes: [node] }));
@@ -759,12 +759,35 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     tags: {},
     state: { State: { Name: 'running' } },
   });
+  evidence.resources.push(
+    {
+      id: 'vpc-0bbbbbbbbbbbbbbbb',
+      region: 'us-east-1',
+      exists: true,
+      owned: false,
+      tags: {},
+      state: {},
+    },
+    {
+      id: 'subnet-0cccccccccccccccc',
+      region: 'us-east-1',
+      exists: true,
+      owned: false,
+      tags: {},
+      state: { VpcId: 'vpc-0bbbbbbbbbbbbbbbb' },
+    },
+  );
   for (const engine of ['native', 'terraform'] as const) {
     const plan = compileAwsCePlan(
       intent({
         engine,
         brownfield: {
-          resourceIds: ['i-0feedface12345678', 'tgw-0123456789abcdef0'],
+          resourceIds: [
+            'i-0feedface12345678',
+            'tgw-0123456789abcdef0',
+            'vpc-0bbbbbbbbbbbbbbbb',
+            'subnet-0cccccccccccccccc',
+          ],
           routeTableIds: [],
           transitGatewayRouteTableIds: [],
         },
@@ -774,10 +797,16 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
           mode: 'nlb',
           port: 8443,
           scheme: 'internal',
+          loadBalancer: {
+            vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+            subnetIds: ['subnet-0cccccccccccccccc'],
+            privateAddresses: ['10.9.0.10'],
+          },
           listener: {
             name: 'ce-listener',
             namespace: 'default',
             domain: 'ce.example.invalid',
+            privateAddresses: ['10.1.0.10', '10.1.1.10', '10.1.2.10'],
             originPool: { name: 'ce-origin', namespace: 'default' },
           },
           probe: {
@@ -806,9 +835,12 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
         action.args?.includes('--transit-gateway-id') &&
         action.args.includes('172.31.240.0/24'),
     );
-    expect(greRoutes).toHaveLength(1);
-    expect(greRoutes[0].args).toContain('__SLO_ROUTE_TABLE__');
-    expect(greRoutes[0].args).toContain('172.31.240.0/24');
+    expect(greRoutes).toHaveLength(2);
+    expect(greRoutes.map((action) => action.args?.[action.args.indexOf('--route-table-id') + 1]).sort()).toEqual([
+      '__GRE_ROUTE_TABLE_1__',
+      '__SLO_ROUTE_TABLE__',
+    ]);
+    for (const route of greRoutes) expect(route.args).toContain('172.31.240.0/24');
     const actions = plan.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
     expect(actions).toHaveLength(6);
     const nlb = plan.actions.find((action) => action.kind === 'nlb-create');
@@ -820,8 +852,29 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       'modify-load-balancer-attributes',
     ]);
     expect(plan.actions.find((action) => action.kind === 'nlb-register-targets')?.args).toEqual(
-      expect.arrayContaining(['Id=__NODE_1_SLI_IP__', 'Id=__NODE_2_SLI_IP__', 'Id=__NODE_3_SLI_IP__']),
+      expect.arrayContaining([
+        'Id=10.1.0.10,AvailabilityZone=all',
+        'Id=10.1.1.10,AvailabilityZone=all',
+        'Id=10.1.2.10,AvailabilityZone=all',
+      ]),
     );
+    expect(nlb?.args).toEqual(
+      expect.arrayContaining(['--subnet-mappings', 'SubnetId=subnet-0cccccccccccccccc,PrivateIPv4Address=10.9.0.10']),
+    );
+    expect(plan.actions.find((action) => action.kind === 'nlb-target-group-create')?.args).toEqual(
+      expect.arrayContaining(['--vpc-id', 'vpc-0bbbbbbbbbbbbbbbb']),
+    );
+    const sliEnis = plan.actions.filter(
+      (action) => action.kind === 'eni-create' && action.args?.includes('--private-ip-addresses'),
+    );
+    expect(sliEnis).toHaveLength(3);
+    for (const [index, action] of sliEnis.entries())
+      expect(action.args).toEqual(
+        expect.arrayContaining([
+          `PrivateIpAddress=10.1.${index}.5,Primary=true`,
+          `PrivateIpAddress=10.1.${index}.10,Primary=false`,
+        ]),
+      );
     const platformIngress = plan.actions.find((action) => action.kind === 'f5-ingress-configure');
     const nlbGate = plan.actions.find((action) => action.kind === 'nlb-gate');
     expect(plan.actions.indexOf(platformIngress as (typeof plan.actions)[number])).toBeLessThan(
@@ -871,12 +924,14 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       const attachment = action.args?.[(action.args?.indexOf('--transit-gateway-attachment-id') ?? -1) + 1] ?? '';
       peerCounts.set(attachment, (peerCounts.get(attachment) ?? 0) + 1);
     }
-    expect([...peerCounts.values()].sort()).toEqual([2, 4]);
+    expect([...peerCounts.values()].sort()).toEqual([3, 3]);
     expect(plan.billableResources.find((resource) => resource.type === 'transit-gateway-attachment')?.count).toBe(3);
 
     expect(new Set(actions.map((action) => action.capture?.placeholder)).size).toBe(6);
     for (const [index, action] of actions.entries()) {
-      expect(action.args).toContain(`__NODE_${peers[index].node}_SLO_IP__`);
+      expect(action.args).toContain(
+        `__NODE_${peers[index].node}_${peers[index].transportInterfaceIndex === 0 ? 'SLO' : 'SLI'}_IP__`,
+      );
       expect(action.args).toContain(peers[index].transitGatewayAddress);
       expect(action.args).toContain(peers[index].insideCidr);
     }
@@ -889,12 +944,12 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
           ...plan.intent,
           routing: {
             ...plan.intent.routing,
-            connectPeers: peers.map((peer, index) => ({ ...peer, transportInterfaceIndex: index % 2 })),
+            connectPeers: peers.map((peer) => ({ ...peer, transportInterfaceIndex: 2 })),
           },
         },
         evidence,
       ),
-    ).toThrow('dedicated SLO GRE transport');
+    ).toThrow('SLO or SLI GRE transport interface');
   }
   expect(() =>
     compileAwsCePlan(
@@ -908,7 +963,12 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
     intent({
       engine: 'terraform',
       brownfield: {
-        resourceIds: ['i-0feedface12345678', 'tgw-0123456789abcdef0'],
+        resourceIds: [
+          'i-0feedface12345678',
+          'tgw-0123456789abcdef0',
+          'vpc-0bbbbbbbbbbbbbbbb',
+          'subnet-0cccccccccccccccc',
+        ],
         routeTableIds: [],
         transitGatewayRouteTableIds: [],
       },
@@ -918,10 +978,16 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
         mode: 'nlb',
         port: 8443,
         scheme: 'internal',
+        loadBalancer: {
+          vpcId: 'vpc-0bbbbbbbbbbbbbbbb',
+          subnetIds: ['subnet-0cccccccccccccccc'],
+          privateAddresses: ['10.9.0.10'],
+        },
         listener: {
           name: 'ce-listener',
           namespace: 'system',
           domain: 'ce.example.invalid',
+          privateAddresses: ['10.1.0.10', '10.1.1.10', '10.1.2.10'],
           originPool: { name: 'ce-origin', namespace: 'system' },
         },
         probe: {

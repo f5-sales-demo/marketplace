@@ -106,8 +106,9 @@ export function buildInsideHttpListener(input: InsideHttpListener, validate: (sp
     return {
       site: {
         site: { name: site.name, namespace: 'system' },
-        // Let XC bind its automatic site-local listener address. The observed
-        // SLI address remains identity evidence and the cloud NLB target.
+        // Bind the same observed SLI identity that the owning cloud plan uses
+        // as its NLB target and advertised service route.
+        ip: site.insideAddress,
         network: 'SITE_NETWORK_INSIDE',
       },
       use_default_port: {},

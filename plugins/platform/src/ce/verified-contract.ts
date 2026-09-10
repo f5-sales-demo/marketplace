@@ -30,6 +30,7 @@ export class VerifiedCeContract {
   readonly #schemas: Json;
   readonly #validate: (spec: unknown) => void;
   readonly #routing?: ReturnType<typeof routingValidators>;
+  readonly #routingSchemas?: { network: Json; marketplace: Json };
   private constructor(
     readonly commit: string,
     readonly fingerprint: string,
@@ -40,7 +41,10 @@ export class VerifiedCeContract {
     this.#contract = contract;
     this.#schemas = schemas;
     this.#validate = createWireValidator(schemas);
-    if (networking) this.#routing = routingValidators(networking.network, networking.marketplace);
+    if (networking) {
+      this.#routing = routingValidators(networking.network, networking.marketplace);
+      this.#routingSchemas = networking;
+    }
   }
   static async candidate(directory: string, expectedReceiptSha256: string): Promise<VerifiedCeContract> {
     if (!isAbsolute(directory) || !digestPattern.test(expectedReceiptSha256))
@@ -121,9 +125,35 @@ export class VerifiedCeContract {
   get awsRoutingAvailable(): boolean {
     return this.#routing !== undefined;
   }
-  buildAwsRouting(siteName: string, localAsn: number, remoteAsn: number, bindings: AwsGreBinding[]) {
+  buildAwsRouting(
+    siteName: string,
+    localAsn: number,
+    remoteAsn: number,
+    bindings: AwsGreBinding[],
+    deniedExportPrefixes: string[],
+  ) {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
-    return buildAwsRouting(siteName, localAsn, remoteAsn, bindings, this.#routing);
+    return buildAwsRouting(siteName, localAsn, remoteAsn, bindings, deniedExportPrefixes, this.#routing);
+  }
+  routingReplaceRequest(
+    kind: 'external_connector' | 'bgp_routing_policy' | 'bgp',
+    snapshot: Json,
+    desiredSpec: Json,
+    siteUid: string,
+  ): Json {
+    if (
+      !this.#routingSchemas ||
+      !siteUid.trim() ||
+      typeof snapshot.resource_version !== 'string' ||
+      !snapshot.resource_version
+    )
+      throw new Error('Pinned routing replacement contract and exact identity are required');
+    const schemas = kind === 'external_connector' ? this.#routingSchemas.marketplace : this.#routingSchemas.network;
+    const metadata = projectReplaceSnapshot(snapshot.metadata, schemas, 'schemaObjectReplaceMetaType');
+    metadata.labels = { ...object(metadata.labels), 'xcsh-ce-site-uid': siteUid };
+    const request = { metadata, spec: structuredClone(desiredSpec), resource_version: snapshot.resource_version };
+    createWireValidator(schemas, `${kind}ReplaceRequest`)(request);
+    return request;
   }
   validateRouting(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json): void {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');

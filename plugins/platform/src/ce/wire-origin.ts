@@ -54,18 +54,12 @@ export function buildSiteLocalHttpOrigin(input: SiteLocalHttpOrigin, validate: (
     throw new Error('Explicit HTTP origin and distinct site identities are required');
   const spec = {
     port: input.port,
-    origin_servers: input.siteNames.map((siteName) => ({
-      labels: {},
-      // The routed workload is reached through the CE inside interface selected by site_locator.
-      private_ip: {
-        ip: input.originAddress,
-        inside_network: {},
-        site_locator: { site: { name: siteName, namespace: 'system' } },
-      },
-    })),
+    // XC treats this as a routed IP endpoint; RFC1918 addresses remain valid
+    // when every selected CE imports the workload prefix through its SLI VRF.
+    origin_servers: [{ labels: {}, public_ip: { ip: input.originAddress } }],
     no_tls: {},
     loadbalancer_algorithm: 'ROUND_ROBIN',
-    endpoint_selection: 'LOCAL_PREFERRED',
+    endpoint_selection: 'DISTRIBUTED',
   };
   validate(spec);
   return {

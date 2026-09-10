@@ -95,6 +95,9 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
         subnet_id: ref(`aws_subnet.${name}.id`),
         security_groups: intent.securityGroups.map((_, index) => ref(`aws_security_group.group_${index}.id`)),
         source_dest_check: false,
+        ...(item.role === 'sli' && intent.ingress?.mode === 'nlb'
+          ? { private_ips: [intent.ingress.listener.privateAddresses?.[node - 1]] }
+          : {}),
         tags: tags(node, item.index),
       });
       if (item.index === 0)
@@ -161,7 +164,17 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       name: literal(`${intent.deploymentName}-nlb`),
       internal: ingress.scheme === 'internal',
       load_balancer_type: 'network',
-      subnets: intent.interfaces[0].subnets.map((_subnet, index) => ref(`aws_subnet.node_${index + 1}_nic_0.id`)),
+      ...(intent.ingress?.mode === 'nlb'
+        ? {
+            subnet_mapping: intent.ingress.loadBalancer.subnetIds.map((subnet_id, index) => ({
+              subnet_id,
+              private_ipv4_address:
+                intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.privateAddresses[index] : '',
+            })),
+          }
+        : {
+            subnets: intent.interfaces[0].subnets.map((_subnet, index) => ref(`aws_subnet.node_${index + 1}_nic_0.id`)),
+          }),
       enable_cross_zone_load_balancing: true,
       tags: tags(),
     });
@@ -170,7 +183,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
       port: ingress.port,
       protocol: 'TCP',
       target_type: 'ip',
-      vpc_id: ref('aws_vpc.ce.id'),
+      vpc_id: intent.ingress?.mode === 'nlb' ? intent.ingress.loadBalancer.vpcId : ref('aws_vpc.ce.id'),
       health_check: [{ protocol: 'TCP', port: 'traffic-port' }],
       tags: tags(),
     });
@@ -184,8 +197,12 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     for (const node of admitted)
       add('aws_lb_target_group_attachment', `node_${node}`, {
         target_group_arn: ref('aws_lb_target_group.ce.arn'),
-        target_id: ref(`aws_network_interface.node_${node}_nic_${inside.index}.private_ip`),
+        target_id:
+          intent.ingress?.mode === 'nlb'
+            ? intent.ingress.listener.privateAddresses?.[node - 1]
+            : ref(`aws_network_interface.node_${node}_nic_${inside.index}.private_ip`),
         port: ingress.port,
+        ...(intent.ingress?.mode === 'nlb' ? { availability_zone: 'all' } : {}),
         depends_on: [`aws_instance.node_${node}`],
       });
   }

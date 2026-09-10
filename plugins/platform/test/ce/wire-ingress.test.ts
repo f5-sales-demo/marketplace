@@ -42,11 +42,11 @@ test('maps exact inside placements and an existing origin pool against the publi
   expect(result.spec.http).toEqual({ port: 80 });
   expect(result.spec.advertise_custom.advertise_where).toEqual(
     input.sites.map((site) => ({
-      site: { site: { name: site.name, namespace: 'system' }, network: 'SITE_NETWORK_INSIDE' },
+      site: { site: { name: site.name, namespace: 'system' }, ip: site.insideAddress, network: 'SITE_NETWORK_INSIDE' },
       use_default_port: {},
     })),
   );
-  expect(JSON.stringify(result.spec.advertise_custom)).not.toContain('10.20.');
+  expect(JSON.stringify(result.spec.advertise_custom)).toContain('10.20.');
   expect(result.spec.default_route_pools).toEqual([{ pool: input.originPool, weight: 1, priority: 1 }]);
   expect(result.evidence).toEqual({ listener: 'unknown', routes: 'unknown', traffic: 'unknown' });
 });

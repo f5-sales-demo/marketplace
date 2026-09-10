@@ -13,41 +13,51 @@ const bindings = [0, 1].map((index) => ({
   awsBgpAddresses: [`169.254.${index + 10}.2`, `169.254.${index + 10}.3`] as [string, string],
 }));
 test('builds two GRE connectors and all four BGP endpoints against immutable API request schemas', () => {
-  const result = buildAwsRouting('site-a', 65010, 64512, bindings, validate);
+  const result = buildAwsRouting('site-a', 65010, 64512, bindings, ['10.253.0.0/16'], validate);
   expect(result.connectors).toHaveLength(2);
   expect(result.exportPolicy).toEqual({
     name: 'site-a-tgw-export-policy',
     spec: {
       rules: [
         {
-          match: { ip_prefixes: { prefixes: [{ ip_prefixes: '0.0.0.0/0', equal_or_longer_than: {} }] } },
+          match: { ip_prefixes: { prefixes: [{ ip_prefixes: '10.253.0.0/16', equal_or_longer_than: {} }] } },
           action: { deny: {} },
         },
       ],
     },
   });
   expect(result.bgp.spec.peers).toHaveLength(4);
-  expect(result.bgp.spec.peers[0].routing_policies.route_policy).toEqual([
-    {
-      all_nodes: {},
-      outbound: {},
-      object_refs: [{ name: 'site-a-tgw-export-policy', namespace: 'system' }],
-    },
-  ]);
+  expect(result.bgp.spec.peers[0]).not.toHaveProperty('routing_policies');
   expect(result.connectors[0].spec.gre.gre_parameters.site_local_inside_network).toEqual({});
   expect(result.connectors[0].spec.gre.gre_parameters).not.toHaveProperty('site_local_network');
   expect(result.connectors[0].spec.gre.gre_parameters.tunnel_mtu).toBe(1370);
   expect(result.ebgpMultihopTtlEvidence).toBe('unknown');
 });
 test('rejects duplicate endpoints, invalid interface evidence and invented TTL fields', () => {
-  expect(() => buildAwsRouting('site-a', 65010, 64512, [bindings[0], bindings[0]], validate)).toThrow();
   expect(() =>
-    buildAwsRouting('site-a', 65010, 64512, [{ ...bindings[0], interfaceName: '__UNRESOLVED__' }], validate),
+    buildAwsRouting('site-a', 65010, 64512, [bindings[0], bindings[0]], ['10.253.0.0/16'], validate),
   ).toThrow();
   expect(() =>
-    buildAwsRouting('site-a', 65010, 64512, [{ ...bindings[0], ceInsideAddress: '169.254.99.1' }], validate),
+    buildAwsRouting(
+      'site-a',
+      65010,
+      64512,
+      [{ ...bindings[0], interfaceName: '__UNRESOLVED__' }],
+      ['10.253.0.0/16'],
+      validate,
+    ),
+  ).toThrow();
+  expect(() =>
+    buildAwsRouting(
+      'site-a',
+      65010,
+      64512,
+      [{ ...bindings[0], ceInsideAddress: '169.254.99.1' }],
+      ['10.253.0.0/16'],
+      validate,
+    ),
   ).toThrow('inside network');
-  const result = buildAwsRouting('site-a', 65010, 64512, bindings, validate);
+  const result = buildAwsRouting('site-a', 65010, 64512, bindings, ['10.253.0.0/16'], validate);
   expect(() => validate('bgp', { ...result.bgp.spec, ttl: 2 })).toThrow();
   expect(() =>
     validate('bgp_routing_policy', {
