@@ -7,12 +7,13 @@ import { siteBindings } from './topology';
 import type { AwsCePlan } from './types';
 
 export interface AwsNativeFailover {
-  schemaVersion: 1;
+  schemaVersion: 2;
   engine: 'native';
   kind: 'aws-ce-native-failover';
   sourcePlanSha256: string;
   nodeIndex: number;
   instanceId: string;
+  instancePlanSha256: string;
   planId: string;
   planSha256: string;
 }
@@ -69,7 +70,7 @@ export async function observeAwsNativeFailoverInstance(
     tags.get('xcsh-managed-by') !== 'aws-ce' ||
     tags.get('xcsh-execution-engine') !== 'native' ||
     tags.get('xcsh-deployment-id') !== base.deploymentName ||
-    tags.get('xcsh-plan-sha256') !== base.planSha256 ||
+    tags.get('xcsh-plan-sha256') !== failover.instancePlanSha256 ||
     tags.get('xcsh-node-index') !== String(failover.nodeIndex)
   )
     throw new Error('Native failover instance ownership differs');
@@ -78,7 +79,12 @@ export async function observeAwsNativeFailoverInstance(
   return ['pending', 'stopping'].includes(String(state)) ? 'pending' : 'unknown';
 }
 
-export function buildAwsNativeFailover(base: AwsCePlan, nodeIndex: number, instanceId: string): AwsNativeFailover {
+export function buildAwsNativeFailover(
+  base: AwsCePlan,
+  nodeIndex: number,
+  instanceId: string,
+  instancePlanSha256 = base.planSha256,
+): AwsNativeFailover {
   verifyAwsCePlan(base);
   const selected = siteBindings(base).find(({ site }) => site.nodeIndexes.includes(nodeIndex));
   if (
@@ -86,16 +92,18 @@ export function buildAwsNativeFailover(base: AwsCePlan, nodeIndex: number, insta
     base.routing.profile !== 'tgw-connect' ||
     !selected ||
     !Number.isInteger(nodeIndex) ||
-    !/^i-[0-9a-f]{8,17}$/.test(instanceId)
+    !/^i-[0-9a-f]{8,17}$/.test(instanceId) ||
+    !/^[0-9a-f]{64}$/.test(instancePlanSha256)
   )
     throw new Error('AWS native failover source, node or instance differs');
   const draft = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     engine: 'native' as const,
     kind: 'aws-ce-native-failover' as const,
     sourcePlanSha256: base.planSha256,
     nodeIndex,
     instanceId,
+    instancePlanSha256,
   };
   const planSha256 = canonicalSha256(draft);
   return { ...draft, planId: `aws-ce-failover-${planSha256.slice(0, 24)}`, planSha256 };
@@ -103,11 +111,13 @@ export function buildAwsNativeFailover(base: AwsCePlan, nodeIndex: number, insta
 
 export function verifyAwsNativeFailover(base: AwsCePlan, failover: AwsNativeFailover): void {
   if (
-    failover.schemaVersion !== 1 ||
+    failover.schemaVersion !== 2 ||
     failover.engine !== 'native' ||
     failover.kind !== 'aws-ce-native-failover' ||
     failover.sourcePlanSha256 !== base.planSha256 ||
-    canonicalSha256(buildAwsNativeFailover(base, failover.nodeIndex, failover.instanceId)) !== canonicalSha256(failover)
+    canonicalSha256(
+      buildAwsNativeFailover(base, failover.nodeIndex, failover.instanceId, failover.instancePlanSha256),
+    ) !== canonicalSha256(failover)
   )
     throw new Error('Saved AWS native failover plan changed');
 }

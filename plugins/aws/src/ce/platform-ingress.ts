@@ -64,6 +64,7 @@ export async function ensureAwsPlatformIngress(
   signal?: AbortSignal,
 ) {
   if (plan.intent.ingress?.mode !== 'nlb') return undefined;
+  const ingress = plan.intent.ingress;
   await storage.verify();
   const sli = plan.interfaces.find((item) => item.role === 'sli');
   if (!sli) throw new Error('AWS NLB ingress requires an SLI interface');
@@ -76,7 +77,7 @@ export async function ensureAwsPlatformIngress(
       binding,
       node: `${plan.deploymentName}-${nodeIndex}`,
       mac,
-      insideAddress: plan.intent.ingress.listener.privateAddresses?.[siteIndex],
+      insideAddress: ingress.listener.privateAddresses?.[siteIndex],
     };
   });
   const lifecycle = runtime.ingress(contract, storage);
@@ -94,9 +95,9 @@ export async function ensureAwsPlatformIngress(
       throw new Error('Platform ingress checkpoint differs from the owning AWS plan');
     if (candidate.schemaVersion < 8) {
       await lifecycle.retire(candidate.ingressPlanId, signal);
-      const listener = plan.intent.ingress.listener;
+      const listener = ingress.listener;
       const corrected = await lifecycle.planAws(
-        { ...listener, port: plan.intent.ingress.port, originAddress: await originAddress(plan, api, signal) },
+        { ...listener, port: ingress.port, originAddress: await originAddress(plan, api, signal) },
         selections,
         signal,
       );
@@ -110,9 +111,9 @@ export async function ensureAwsPlatformIngress(
       await storage.write('aws-platform-ingress.json', marker);
     } else marker = candidate;
   } else {
-    const listener = plan.intent.ingress.listener;
+    const listener = ingress.listener;
     const ingressPlan = await lifecycle.planAws(
-      { ...listener, port: plan.intent.ingress.port, originAddress: await originAddress(plan, api, signal) },
+      { ...listener, port: ingress.port, originAddress: await originAddress(plan, api, signal) },
       selections,
       signal,
     );

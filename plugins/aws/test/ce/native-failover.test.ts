@@ -30,7 +30,7 @@ async function fixture() {
   });
   const planSha256 = canonicalSha256(draft);
   const plan = { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` } as AwsCePlan;
-  const failover = buildAwsNativeFailover(plan, 1, 'i-0123456789abcdef0');
+  const failover = buildAwsNativeFailover(plan, 1, 'i-0123456789abcdef0', 'a'.repeat(64));
   const directory = await mkdtemp(join(tmpdir(), 'aws-native-failover-'));
   directories.push(directory);
   const storage = await CeDeploymentStore.open(directory, {
@@ -124,7 +124,7 @@ test('observes only the exact owned native instance in the intended account', as
       { Key: 'xcsh-managed-by', Value: 'aws-ce' },
       { Key: 'xcsh-execution-engine', Value: 'native' },
       { Key: 'xcsh-deployment-id', Value: f.plan.deploymentName },
-      { Key: 'xcsh-plan-sha256', Value: f.plan.planSha256 },
+      { Key: 'xcsh-plan-sha256', Value: f.failover.instancePlanSha256 },
       { Key: 'xcsh-node-index', Value: '1' },
     ],
   };

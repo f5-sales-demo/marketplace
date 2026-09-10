@@ -248,6 +248,7 @@ test('public failover routes native ownership without opening Terraform', async 
     undefined,
     ctx,
   )) as { isError?: boolean; details: { planId: string; planSha256: string } };
+  if (prepared.isError) throw new Error((prepared as unknown as { content: Array<{ text: string }> }).content[0].text);
   expect(prepared.isError).toBeUndefined();
   const applied = await tool.execute(
     '2',

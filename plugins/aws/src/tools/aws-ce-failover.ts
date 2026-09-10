@@ -148,7 +148,33 @@ export function createAwsCeFailoverTool(pi: PluginInterface, dependencies: Depen
             const instanceId = checkpoint?.resolvedValues[`__INSTANCE_${params.nodeIndex}__`];
             if (checkpoint?.engine !== 'native' || checkpoint.state !== 'complete' || typeof instanceId !== 'string')
               throw new Error('Completed native deployment identity is unavailable');
-            failover = buildAwsNativeFailover(plan, params.nodeIndex as number, instanceId);
+            const registration = (plan.actions ?? []).find(
+              (action) => action.kind === 'registration-gate' && action.node === params.nodeIndex,
+            );
+            const replacement = registration
+              ? await optional(storage, `${registration.id}-initial-mtu-replacement.json`)
+              : undefined;
+            let instancePlanSha256 = plan.planSha256;
+            if (replacement !== undefined) {
+              const envelope = object(replacement);
+              const child = object(envelope.plan);
+              const binding = object(child.binding);
+              const { planId, planSha256, ...draft } = child;
+              const expectedSite = siteForNode(plan.intent, params.nodeIndex as number);
+              if (
+                envelope.sourcePlanSha256 !== plan.planSha256 ||
+                typeof planSha256 !== 'string' ||
+                planId !== `aws-ce-replace-${planSha256.slice(0, 24)}` ||
+                canonicalSha256(draft) !== planSha256 ||
+                binding.siteName !== expectedSite.name ||
+                !Array.isArray(binding.nodes) ||
+                !binding.nodes.includes(`${plan.deploymentName}-${params.nodeIndex}`) ||
+                !checkpoint.childPlanSha256s?.includes(planSha256)
+              )
+                throw new Error('Native replacement instance plan identity differs');
+              instancePlanSha256 = planSha256;
+            }
+            failover = buildAwsNativeFailover(plan, params.nodeIndex as number, instanceId, instancePlanSha256);
           }
           const existing = await optional(storage, `${failover.planId}.json`);
           if (existing === undefined) await storage.write(`${failover.planId}.json`, failover);
