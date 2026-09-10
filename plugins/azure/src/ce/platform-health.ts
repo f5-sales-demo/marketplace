@@ -6,6 +6,7 @@ export async function collectAzurePlatformHealth(
   vms: unknown,
   runtime: Pick<CeRuntime, 'observeHealth' | 'observeRegistrations'>,
   signal?: AbortSignal,
+  admittedNodeCount: number = plan.topology.nodeCount,
 ) {
   const base = {
     planId: plan.planId,
@@ -19,7 +20,12 @@ export async function collectAzurePlatformHealth(
     routes: 'unknown',
     traffic: 'unknown',
   };
-  if (!Array.isArray(vms))
+  if (
+    !Array.isArray(vms) ||
+    !Number.isInteger(admittedNodeCount) ||
+    admittedNodeCount < 1 ||
+    admittedNodeCount > plan.topology.nodeCount
+  )
     return {
       ...base,
       status: 'unknown',
@@ -29,7 +35,7 @@ export async function collectAzurePlatformHealth(
     `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/`.toLowerCase();
   const instances: Record<string, string> = {};
   const used = new Set<string>();
-  for (let node = 1; node <= plan.topology.nodeCount; node++) {
+  for (let node = 1; node <= admittedNodeCount; node++) {
     const name = `${plan.deploymentName}-${node}`;
     const matches = vms.filter(
       (vm) => vm && typeof vm.id === 'string' && vm.id.toLowerCase() === scope + name.toLowerCase(),
@@ -48,6 +54,7 @@ export async function collectAzurePlatformHealth(
       vm.tags?.['xcsh-managed-by'] !== 'azure-ce' ||
       vm.tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
       vm.tags?.['xcsh-execution-engine'] !== plan.engine ||
+      vm.tags?.['xcsh-plan-sha256'] !== plan.planSha256 ||
       typeof vm.vmId !== 'string' ||
       !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(vm.vmId) ||
       used.has(vm.vmId.toLowerCase())
@@ -69,12 +76,13 @@ export async function collectAzurePlatformHealth(
       region: plan.region,
     },
     siteName: plan.siteName,
-    nodes: Object.keys(instances),
+    nodes: Array.from({ length: plan.topology.nodeCount }, (_, index) => `${plan.deploymentName}-${index + 1}`),
   };
+  const admittedNodes = Object.keys(instances);
   try {
     const [health, registrations] = await Promise.all([
       runtime.observeHealth(binding, signal),
-      runtime.observeRegistrations(binding, instances, signal),
+      runtime.observeRegistrations(binding, instances, signal, admittedNodes),
     ]);
     const values = [health.status, registrations.status];
     const status = values.every((value) => value === 'healthy')

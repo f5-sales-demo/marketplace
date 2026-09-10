@@ -8,6 +8,13 @@ import { fingerprintObservation } from '../ce/canonical';
 import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
+import {
+  azureNativeBootstrapForAction,
+  collectAzureNativeAdmissionHealth,
+  prepareAzureNativeAdmission,
+  recordAzureNativeLaunch,
+  withAzureNativeBootstrapFile,
+} from '../ce/native-workflow';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
 import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
@@ -40,7 +47,13 @@ async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan
   return replacements;
 }
 
-async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: AzExecApi) {
+async function executeApply(
+  params: ApplyParams,
+  ctx: AzureCeToolContext,
+  api: AzExecApi,
+  platform: CePlatformService,
+  signal?: AbortSignal,
+) {
   const { plan, observation } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
   if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
@@ -116,6 +129,16 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     authorization.destroy ||= process.env.XCSH_CE_ALLOW_DESTROY === '1';
   }
 
+  const runtime = await platform.runtime('native', plan.intent.platformContext);
+  const storage = await platform.storage({
+    deploymentId: plan.deploymentName,
+    engine: 'native',
+    provider: 'azure',
+    account: plan.subscription.id,
+    region: plan.region,
+  });
+  const native = await prepareAzureNativeAdmission(plan, runtime, storage, signal);
+
   const checkpoint: AzureCeCheckpoint = {
     authorization,
     engine: plan.engine,
@@ -131,18 +154,66 @@ async function executeApply(params: ApplyParams, ctx: AzureCeToolContext, api: A
     if (completed.has(action.id)) continue;
     try {
       await assertActionOwnership(plan, action, api);
-      if (action.kind === 'health-gate') throw new Error('Collected Azure platform health evidence is unavailable');
+      if (action.kind === 'health-gate') {
+        const deadline = Date.now() + 15 * 60_000;
+        let evidence: Awaited<ReturnType<typeof collectAzureNativeAdmissionHealth>>;
+        while (true) {
+          evidence = await collectAzureNativeAdmissionHealth(
+            plan,
+            action.node ?? plan.topology.nodeCount,
+            api,
+            runtime,
+            storage,
+            signal,
+          );
+          await storage.write(`${action.id}-evidence.json`, {
+            ...evidence,
+            planId: plan.planId,
+            planSha256: plan.planSha256,
+          });
+          if (evidence.status === 'healthy') break;
+          if (Date.now() >= deadline)
+            throw new Error(
+              evidence.status === 'unknown'
+                ? 'Collected Azure platform health evidence is unavailable'
+                : 'Observed Azure platform health has not converged',
+            );
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal?.reason ?? new Error('Azure health convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
+        }
+      }
       if (action.kind === 'bgp-gate') throw new Error('Collected Azure BGP evidence is unavailable');
       if (action.kind === 'traffic-gate') throw new Error('Collected Azure traffic evidence is unavailable');
       if (action.command && action.args) {
         const replacements = await replacementsFor(action.args, api, plan);
-        if (action.requiresBootstrap)
-          throw new Error(
-            'Verified Azure headless bootstrap material is unavailable; corrected API publication is required',
+        const execute = (bootstrapFile?: string) =>
+          api.exec(
+            action.command as 'az',
+            resolveActionArgs(action.args ?? [], plan.planSha256, {
+              ...replacements,
+              ...(bootstrapFile ? { __BOOTSTRAP_FILE__: bootstrapFile } : {}),
+            }),
           );
-        const result = await api.exec(action.command, resolveActionArgs(action.args, plan.planSha256, replacements));
+        const result = action.requiresBootstrap
+          ? await withAzureNativeBootstrapFile(
+              await azureNativeBootstrapForAction(plan, action, native, runtime, storage, signal),
+              execute,
+            )
+          : await execute();
         if (result.exitCode !== 0)
           throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
+        if (action.kind === 'vm-create' && action.node)
+          await recordAzureNativeLaunch(plan, action.node, native, storage);
       }
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
@@ -213,7 +284,13 @@ export function createAzureCeApplyTool(
             details: { tool: 'azure_ce_apply', ...result },
           };
         }
-        const { plan, checkpoint } = await executeApply(params, ctx, withAzureCeExecution(makeApi(ctx.cwd), signal));
+        const { plan, checkpoint } = await executeApply(
+          params,
+          ctx,
+          withAzureCeExecution(makeApi(ctx.cwd), signal),
+          await terraformDependencies.platform(pi, signal),
+          signal,
+        );
         return {
           content: [
             {

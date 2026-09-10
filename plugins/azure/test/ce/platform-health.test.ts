@@ -4,6 +4,7 @@ import type { AzureCePlan } from '../../src/ce/types';
 
 const plan = {
   planId: 'plan',
+  planSha256: 'a'.repeat(64),
   engine: 'native',
   subscription: { id: 'sub' },
   intent: { resourceGroup: 'rg' },
@@ -21,6 +22,7 @@ const vm = {
     'xcsh-managed-by': 'azure-ce',
     'xcsh-deployment-id': 'ce',
     'xcsh-execution-engine': 'native',
+    'xcsh-plan-sha256': 'a'.repeat(64),
   },
 };
 const runtime = {
@@ -66,6 +68,7 @@ it('does not query platform for missing, malformed, ambiguous or foreign cloud i
     [{ ...vm, vmId: 'missing' }],
     [{ ...vm, id: vm.id.replace('/sub/', '/foreign/') }],
     [{ ...vm, tags: { ...vm.tags, 'xcsh-execution-engine': 'terraform' } }],
+    [{ ...vm, tags: { ...vm.tags, 'xcsh-plan-sha256': 'b'.repeat(64) } }],
   ]) {
     const result = await collectAzurePlatformHealth(plan, vms, forbidden);
     expect(result.status).toBe('unknown');

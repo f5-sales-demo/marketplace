@@ -432,6 +432,34 @@ test('registration health needs exact site/node/instance correlation and complet
   }
 });
 
+test('cumulative HA admission observes only launched nodes while preserving the final cluster size', async () => {
+  const { contract } = await candidate();
+  const haBinding = { ...binding, nodes: ['node-one', 'node-two', 'node-three'] };
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url) =>
+    String(url).includes('securemesh_site_v2s')
+      ? json({ metadata: { name: 'ce-one', namespace: 'system', labels } })
+      : json({
+          items: [
+            {
+              name: 'r-test',
+              get_spec: {
+                passport: { cluster_name: 'ce-one', cluster_size: 3 },
+                infra: { hostname: 'node-one', instance_id: 'i-fixture' },
+              },
+              object: { status: { current_state: 'ONLINE' } },
+            },
+          ],
+        }),
+  );
+  expect(
+    await runtime.observeRegistrations(haBinding, { 'node-one': 'i-fixture' }, undefined, ['node-one']),
+  ).toHaveProperty('status', 'healthy');
+  expect(await runtime.observeRegistrations(haBinding, { 'node-one': 'i-fixture' })).toHaveProperty(
+    'status',
+    'unknown',
+  );
+});
+
 test('registration approval checkpoints before mutation and preserves the server passport', async () => {
   const { contract } = await candidate();
   let state = 'NEW';

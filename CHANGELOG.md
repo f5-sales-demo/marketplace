@@ -10,13 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`azure`** bumped to v4.3.12
+- **`azure`** bumped to v4.3.15
 
 - **`aws`** bumped to v2.0.74
 
 - **`terraform`** bumped to v2.0.15
 
-- **`platform`** bumped to v5.0.29
+- **`platform`** bumped to v5.0.30
 
 - **`aws`** v2.0.74 and **`platform`** v5.0.29 — preserve SLO as the observed TGW Connect
   transport while selecting SLI for the XC payload and BGP context. Inside listeners now use XC's

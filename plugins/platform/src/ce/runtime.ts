@@ -1380,6 +1380,7 @@ export class CeRuntime {
     binding: SiteBinding,
     expectedInstances: Record<string, string>,
     signal?: AbortSignal,
+    admittedNodes: string[] = binding.nodes,
   ): Promise<Json> {
     this.#binding(binding);
     const source = `/api/register/namespaces/system/registrations_by_site/${binding.siteName}`;
@@ -1391,6 +1392,13 @@ export class CeRuntime {
       observedAt: new Date().toISOString(),
     };
     try {
+      if (
+        !Array.isArray(admittedNodes) ||
+        !admittedNodes.length ||
+        admittedNodes.some((node) => !binding.nodes.includes(node) || !expectedInstances[node]) ||
+        new Set(admittedNodes).size !== admittedNodes.length
+      )
+        throw new Error('Registration admission scope differs');
       this.#owned(await this.observeSite(binding, signal), binding);
       const response = await this.#request(source, {}, signal);
       if (
@@ -1400,7 +1408,7 @@ export class CeRuntime {
         response.continue
       )
         return { ...base, status: 'unknown', reason: 'registration-list-incomplete' };
-      const nodes = binding.nodes.map((node) => {
+      const nodes = admittedNodes.map((node) => {
         const matches = (response.items as unknown[]).map(object).filter((item) => {
           const spec = object(item.get_spec);
           const state = object(object(item.object).status).current_state;
@@ -1461,9 +1469,10 @@ export class CeRuntime {
     expectedInstances: Record<string, string>,
     checkpoint: (record: Json) => Promise<void>,
     signal?: AbortSignal,
+    admittedNodes: string[] = binding.nodes,
   ): Promise<Json> {
     this.#binding(binding, true);
-    const observation = await this.observeRegistrations(binding, expectedInstances, signal);
+    const observation = await this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
     if (!Array.isArray(observation.nodes)) return observation;
     for (const value of observation.nodes) {
       const node = object(value);
@@ -1513,6 +1522,6 @@ export class CeRuntime {
       );
       await checkpoint({ ...record, state: 'submitted' });
     }
-    return this.observeRegistrations(binding, expectedInstances, signal);
+    return this.observeRegistrations(binding, expectedInstances, signal, admittedNodes);
   }
 }
