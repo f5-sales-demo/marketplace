@@ -97,6 +97,7 @@ describe('Azure Status extension', () => {
     expect(classifyAzureCePrompt('Explain Azure Customer Edge.')).toBe('deployment');
     expect(AZURE_CE_RESEARCH_GATE).toContain('use web_search');
     expect(AZURE_CE_RESEARCH_GATE).toContain('azure_compute_discover');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('Do not delegate');
     expect(AZURE_CE_RESEARCH_GATE).toContain('Never guess identifiers');
     expect(AZURE_CE_INVENTORY_GATE).toContain('az_account_show, then azure_ce_inventory');
     expect(AZURE_CE_INVENTORY_GATE).toContain('Do not use web_search');

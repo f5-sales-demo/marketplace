@@ -45,6 +45,43 @@ test('rejects missing or external schema references', () => {
     expect(() => createWireValidator({ root: { $ref: ref } }, 'root')).toThrow('reference');
 });
 
+test('preserves scalar, collection, composition and network format constraints without runtime packages', () => {
+  const validate = createWireValidator(
+    {
+      root: {
+        type: 'object',
+        required: ['address', 'id', 'labels', 'weight', 'mode'],
+        properties: {
+          address: { type: 'string', format: 'cidr' },
+          id: { type: 'string', format: 'uuid' },
+          labels: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', pattern: '^[a-z]+$' } },
+          weight: { type: 'integer', minimum: 2, exclusiveMaximum: 10, multipleOf: 2 },
+          mode: { oneOf: [{ const: 'native' }, { const: 'terraform' }] },
+          note: { type: 'string', nullable: true },
+        },
+        additionalProperties: false,
+      },
+    },
+    'root',
+  );
+  validate({
+    address: '10.0.0.0/24',
+    id: '123e4567-e89b-42d3-a456-426614174000',
+    labels: ['edge', 'prod'],
+    weight: 8,
+    mode: 'terraform',
+    note: null,
+  });
+  for (const bad of [
+    { address: '10.0.0.0/33', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge'], weight: 8, mode: 'native' },
+    { address: '10.0.0.0/24', id: 'not-a-uuid', labels: ['edge'], weight: 8, mode: 'native' },
+    { address: '10.0.0.0/24', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge', 'edge'], weight: 8, mode: 'native' },
+    { address: '10.0.0.0/24', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge'], weight: 9, mode: 'native' },
+    { address: '10.0.0.0/24', id: '123e4567-e89b-42d3-a456-426614174000', labels: ['edge'], weight: 8, mode: 'unknown' },
+  ])
+    expect(() => validate(bad)).toThrow('verified schema');
+});
+
 test('validates actual AWS and Azure request schemas while rejecting wire errors', async () => {
   const fixture = await Bun.file(new URL('../fixtures/smsv2-create-schema.json', import.meta.url)).json();
   const validate = createWireValidator(fixture.schemas);

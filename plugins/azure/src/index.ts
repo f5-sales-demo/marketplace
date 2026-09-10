@@ -56,6 +56,7 @@ export function isAzureCePrompt(prompt: string): boolean {
 
 export const AZURE_CE_RESEARCH_GATE = [
   'AZURE CUSTOMER EDGE ROUTE: Use the azure:azure-ce workflow for this request.',
+  'Execute this workflow directly. Do not delegate any research or discovery step to task, agents, or generic helpers; delegated workers cannot satisfy the required Azure tool evidence.',
   'Before any recommendation or azure_ce_plan call, use web_search to retrieve and read the dedicated f5xc-ce-automation-policy/v2 contract from f5-sales-demo.github.io, the current official F5 Secure Mesh Site v2 Azure deployment guide from docs.cloud.f5.com, and Microsoft Marketplace image and subscription-aware VM SKU guidance from learn.microsoft.com.',
   'Then call az_account_show and azure_compute_discover. Omit publisher, offer, plan, version, and vmSize unless the user explicitly pinned them; live discovery must enumerate those values.',
   'Require the validated shared-contract identity and normalized digest, the azure-cli-live provider-source receipts, and the discovery artifact. Never guess identifiers, use generic az_exec for CE research, plan before discovery, or mutate without approval.',

@@ -16,7 +16,7 @@ const input = {
   siteNames: ['site-one', 'site-two', 'site-three'],
 };
 
-test('maps one routed outside-network origin endpoint per site using the verified MCN contract', () => {
+test('maps one routed inside-network origin endpoint per site using the verified MCN contract', () => {
   const before = structuredClone(input);
   const result = buildSiteLocalHttpOrigin(input, validate);
   expect(input).toEqual(before);
@@ -27,7 +27,7 @@ test('maps one routed outside-network origin endpoint per site using the verifie
       labels: {},
       private_ip: {
         ip: '192.0.2.10',
-        outside_network: {},
+        inside_network: {},
         site_locator: { site: { name: siteName, namespace: 'system' } },
       },
     })),
@@ -44,7 +44,7 @@ test('models a single site independently of its node count and accepts a routed 
   expect(result.spec.origin_servers).toHaveLength(1);
   expect(result.spec.origin_servers[0].private_ip).toEqual({
     ip: '10.20.0.10',
-    outside_network: {},
+    inside_network: {},
     site_locator: { site: { name: 'ha-site', namespace: 'system' } },
   });
 });
@@ -76,7 +76,7 @@ test('rejects unresolved addresses, duplicate sites, invalid ports, arbitrary de
     { port: '80' },
     { namespace: '../system' },
     { endpoint_selection: 'DISTRIBUTED' },
-    { inside_network: {} },
+    { outside_network: {} },
   ])
     expect(() =>
       buildSiteLocalHttpOrigin({ ...input, ...patch } as unknown as SiteLocalHttpOrigin, validate),

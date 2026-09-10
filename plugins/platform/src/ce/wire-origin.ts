@@ -54,13 +54,13 @@ export function buildSiteLocalHttpOrigin(input: SiteLocalHttpOrigin, validate: (
     throw new Error('Explicit HTTP origin and distinct site identities are required');
   const spec = {
     port: input.port,
-    // Bind an outside-network endpoint to every selected CE site. The same
-    // routed address is reachable through each site's SLI after BGP converges.
+    // Bind the routed endpoint to every selected CE site's inside network.
+    // TGW routes are installed on the SLI subnets after BGP converges.
     origin_servers: input.siteNames.map((siteName) => ({
       labels: {},
       private_ip: {
         ip: input.originAddress,
-        outside_network: {},
+        inside_network: {},
         site_locator: { site: { name: siteName, namespace: 'system' } },
       },
     })),

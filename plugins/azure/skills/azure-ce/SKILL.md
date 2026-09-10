@@ -14,6 +14,8 @@ Use only Secure Mesh Site v2. Read the
 [Azure provider contract](references/contracts.md) before discovery or planning. The provider-neutral
 contract is fetched and validated by `azure_compute_discover`; do not copy it into prompts or infer
 it from this skill. Never substitute generic `az_exec`, Azure VNet Site, Fleet, or shared-token flows.
+Execute this workflow directly. Do not delegate research or discovery to `task`, agents, or generic
+helpers because their results cannot satisfy the required Azure tool evidence.
 
 ## Existing-state inventory
 
