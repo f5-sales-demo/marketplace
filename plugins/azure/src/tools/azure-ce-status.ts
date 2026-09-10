@@ -5,6 +5,7 @@ import { sha256Hex } from '../ce/canonical';
 import { withAzureCeExecution } from '../ce/execution';
 import { azurePlatformService } from '../ce/platform';
 import { collectAzurePlatformHealth } from '../ce/platform-health';
+import { collectAzureRouteServerHealth } from '../ce/route-server-health';
 import type { AzureCePlan } from '../ce/types';
 import { makeExecApi } from './shared';
 
@@ -35,7 +36,8 @@ function azureSummary(plan: AzureCePlan, resources: unknown, vms: unknown, peers
       item.id.toLowerCase().startsWith(scope) &&
       tags?.['xcsh-managed-by'] === 'azure-ce' &&
       tags?.['xcsh-deployment-id'] === plan.deploymentName &&
-      tags?.['xcsh-execution-engine'] === plan.engine
+      tags?.['xcsh-execution-engine'] === plan.engine &&
+      tags?.['xcsh-plan-sha256'] === plan.planSha256
     );
   };
   return {
@@ -125,6 +127,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
           loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256),
         ]);
         const azure = azureSummary(plan, resources, vms, peers);
+        const routing = await collectAzureRouteServerHealth(plan, api, signal);
         let f5: unknown;
         try {
           const service = await azurePlatformService(pi as unknown as Record<string, unknown>, signal);
@@ -148,6 +151,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
           },
           azure,
           f5,
+          routing,
         };
         return {
           content: [
