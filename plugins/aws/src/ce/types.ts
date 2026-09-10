@@ -68,6 +68,8 @@ export const AWS_CE_DEFAULT_INTERFACE_MTU = 1500 as const;
 
 export interface AwsCeInterfaceIntent {
   mtu?: number;
+  /** Verified guest device identity required to preconfigure a three-node HA site. */
+  guestDevice?: string;
   index: number;
   role: 'slo' | 'sli' | 'management' | 'service' | 'workload';
   vrf: string;
@@ -116,8 +118,8 @@ export interface AwsCeIntent {
   instance: { type: string; diskGiB: number; instanceProfileArn?: string };
   securityGroups: Array<{
     name: string;
-    ingress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[] }>;
-    egress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[] }>;
+    ingress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[]; self?: true }>;
+    egress: Array<{ protocol: string; fromPort?: number; toPort?: number; cidrs: string[]; self?: true }>;
   }>;
   routes: Array<{ routeTableId: string; destinationCidr: string }>;
   brownfield: {

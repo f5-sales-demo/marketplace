@@ -25,10 +25,7 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
   if (keys.some((key) => !/^[1-3]$/.test(key) || Number(key) > intent.topology.nodeCount))
     throw new Error('Invalid Terraform node admission');
   const admitted = keys.map(Number);
-  for (const site of siteTopology(intent)) {
-    const count = site.nodeIndexes.filter((node) => admitted.includes(node)).length;
-    if (count !== 0 && count !== site.nodeIndexes.length) throw new Error('HA site nodes must be admitted together');
-  }
+  const hasHaSite = siteTopology(intent).some((site) => site.nodeIndexes.length === 3);
   const resource: Record<string, Record<string, Json>> = {};
   const add = (type: string, name: string, value: Json) => {
     resource[type] ??= {};
@@ -58,8 +55,8 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
     gateway_id: ref('aws_internet_gateway.ce.id'),
   });
   for (const [index, group] of intent.securityGroups.entries()) {
-    const rules = (direction: 'ingress' | 'egress') =>
-      group[direction].map((rule) => ({
+    const rules = (direction: 'ingress' | 'egress') => {
+      const configured = group[direction].map((rule) => ({
         protocol: rule.protocol,
         from_port: rule.fromPort ?? 0,
         to_port: rule.toPort ?? 0,
@@ -67,9 +64,23 @@ export function renderAwsTerraformFoundation(plan: AwsCePlan, bootstrapByNode: R
         ipv6_cidr_blocks: [],
         prefix_list_ids: [],
         security_groups: [],
-        self: false,
+        self: rule.self ?? false,
         description: '',
       }));
+      if (direction === 'ingress' && hasHaSite && !configured.some((rule) => rule.self))
+        configured.push({
+          protocol: '-1',
+          from_port: 0,
+          to_port: 0,
+          cidr_blocks: [],
+          ipv6_cidr_blocks: [],
+          prefix_list_ids: [],
+          security_groups: [],
+          self: true,
+          description: 'F5 CE HA intra-cluster communication',
+        });
+      return configured;
+    };
     add('aws_security_group', `group_${index}`, {
       name: literal(`${intent.deploymentName}-${group.name}`),
       description: 'Customer Edge deployment security group',

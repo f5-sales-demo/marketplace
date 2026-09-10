@@ -48,6 +48,23 @@ export function observedInstanceTypeNames(observation: AwsCeObservation): string
   ].sort();
 }
 
+const waitUntil = async (notBefore: number, signal?: AbortSignal) => {
+  const remaining = notBefore - Date.now();
+  if (remaining <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const aborted = () => {
+      clearTimeout(timer);
+      reject(signal?.reason ?? new Error('AWS CE HA admission cancelled'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', aborted);
+      resolve();
+    }, remaining);
+    signal?.addEventListener('abort', aborted, { once: true });
+    if (signal?.aborted) aborted();
+  });
+};
+
 export function assertAwsObservationFresh(
   plan: AwsCePlan,
   current: AwsCeObservation,
@@ -831,14 +848,45 @@ export async function executeAwsCeApply(
           const hostname = `${plan.deploymentName}-${action.node}`;
           if (plan.interfaces.some((item) => !['slo', 'sli'].includes(item.role) || item.addressing.mode !== 'dhcp'))
             throw new Error('This interface configuration requires an explicit supported F5 wire mapping');
-          await runtime.reserveSite(
-            binding,
-            async (record) => {
-              checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
-              await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
-            },
-            signal,
-          );
+          const siteCheckpoint = async (record: Record<string, unknown>) => {
+            checkpoint.resolvedValues[`__F5_SITE_${site.nodeIndexes[0]}_UID__`] = String(record.uid);
+            await saveAwsCheckpoint(ctx.sessionManager, checkpoint);
+          };
+          if (site.nodeIndexes.length === 3) {
+            const position = site.nodeIndexes.indexOf(action.node);
+            const previous = site.nodeIndexes[position - 1];
+            if (previous !== undefined) {
+              const launchedAt = checkpoint.resolvedValues[`__HA_LAUNCHED_AT_${previous}__`];
+              if (!launchedAt || Number.isNaN(Date.parse(launchedAt)))
+                throw new Error('Prior HA node launch boundary is unavailable');
+              await waitUntil(Date.parse(launchedAt) + 180_000, signal);
+            }
+            await runtime.ensureSite(
+              binding,
+              {
+                schemaVersion: 2,
+                provider: 'aws',
+                haMode: 'three-node',
+                nodes: site.nodeIndexes.map((node) => ({
+                  hostname: `${plan.deploymentName}-${node}`,
+                  interfaces: plan.interfaces.map((item) => ({
+                    name: item.role,
+                    mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
+                    ethernet_interface: {
+                      device: item.guestDevice,
+                      mac: checkpoint.resolvedValues[`__ENI_${node}_${item.index}_MAC__`],
+                    },
+                    network_option:
+                      item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
+                    dhcp_client: {},
+                  })),
+                })),
+                settings: {},
+              },
+              siteCheckpoint,
+              signal,
+            );
+          } else await runtime.reserveSite(binding, siteCheckpoint, signal);
           const root = storage.directory;
           await mkdir(root, { recursive: true, mode: 0o700 });
           await chmod(root, 0o700);
@@ -910,6 +958,14 @@ export async function executeAwsCeApply(
             if (!value) throw new Error(`AWS action ${action.id} did not return ${capture.path}`);
             checkpoint.resolvedValues[capture.placeholder] = value;
           }
+          if (
+            action.kind === 'instance-run' &&
+            action.node &&
+            siteBindings(plan).some(
+              ({ site }) => site.nodeIndexes.length === 3 && site.nodeIndexes.includes(action.node ?? 0),
+            )
+          )
+            checkpoint.resolvedValues[`__HA_LAUNCHED_AT_${action.node}__`] ??= new Date().toISOString();
         }
       }
       if (action.mutates || gateMutation) {

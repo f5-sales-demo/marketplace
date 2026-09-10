@@ -145,6 +145,10 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
     if (!['slo', 'sli', 'management', 'service', 'workload'].includes(item.role))
       fail(`interface ${index} role is invalid`);
     const mtu = item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU;
+    const guestDevice =
+      item.guestDevice === undefined ? undefined : safeString(item.guestDevice, `interfaces[${index}].guestDevice`);
+    if (guestDevice !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$/.test(guestDevice))
+      fail('interface guest device identity is invalid');
     if (!Number.isInteger(mtu) || mtu < 1500 || mtu > 9000) fail('interface MTU must be an integer from 1500 to 9000');
     const vrf = name(item.vrf, `interfaces[${index}].vrf`);
     if (item.subnets.length !== input.topology.nodeCount) fail('interfaces must be symmetric across every node');
@@ -170,6 +174,7 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       index,
       role: item.role,
       mtu,
+      ...(guestDevice === undefined ? {} : { guestDevice }),
       vrf,
       subnets,
       addressing: {
@@ -180,6 +185,12 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
       },
     };
   });
+  if (
+    sites.some((site) => site.nodeIndexes.length === 3) &&
+    (interfaces.some((item) => !item.guestDevice) ||
+      new Set(interfaces.map((item) => item.guestDevice)).size !== interfaces.length)
+  )
+    fail('Three-node HA requires distinct verified guest device identities for every interface');
   if (input.vpc.mode === 'brownfield' && !/^vpc-[0-9a-f]{8,17}$/.test(input.vpc.vpcId ?? ''))
     fail('brownfield VPC requires an exact VPC ID');
   if (input.vpc.mode === 'brownfield') {
@@ -422,6 +433,11 @@ function normalizeIntent(input: AwsCeIntent): AwsCeIntent {
         ingress: group.ingress.map((rule) => normalizeSecurityGroupRule(rule)),
         egress: group.egress.map((rule) => normalizeSecurityGroupRule(rule)),
       }))
+      .map((group, index) =>
+        index === 0 && sites.some((site) => site.nodeIndexes.length === 3)
+          ? { ...group, ingress: [...group.ingress, { protocol: '-1', cidrs: [], self: true as const }] }
+          : group,
+      )
       .sort((left, right) => left.name.localeCompare(right.name)),
     routes: routes.sort(
       (left, right) =>
@@ -1428,6 +1444,7 @@ function compileActions(
           ...(rule.fromPort === undefined ? {} : { FromPort: rule.fromPort }),
           ...(rule.toPort === undefined ? {} : { ToPort: rule.toPort }),
           IpRanges: [...new Set(rule.cidrs)].sort().map((CidrIp) => ({ CidrIp })),
+          ...(rule.self ? { UserIdGroupPairs: [{ GroupId: `__SG_${group.name}__` }] } : {}),
         };
         add({
           phase: 'network',

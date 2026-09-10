@@ -5,8 +5,8 @@ import { renderAwsTerraformFoundation } from '../../src/ce/terraform-foundation'
 import { foundationPlan } from './terraform-fixtures';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-export function admissionFixture() {
-  const base = foundationPlan();
+export function admissionFixture(ha = false) {
+  const base = foundationPlan(ha);
   const { planId: _id, planSha256: _sha, ...draft } = base;
   const full = {
     ...draft,
@@ -21,6 +21,9 @@ export function admissionFixture() {
   let failApply = false;
   const nodes = new Set<number>();
   const records = new Map<string, unknown>();
+  const siteNameFor = (node: number) =>
+    plan.intent.topology.sites?.find((site: { nodeIndexes: number[] }) => site.nodeIndexes.includes(node))?.name ??
+    `site-${node}`;
   const outputs = () => ({
     ce_vpc_id: 'vpc-12345678',
     ce_interfaces: Object.fromEntries(
@@ -31,7 +34,7 @@ export function admissionFixture() {
             node,
             index,
             role: index ? 'sli' : 'slo',
-            site_name: `site-${node}`,
+            site_name: siteNameFor(node),
             id: `eni-${String(node * 10 + index).padStart(8, '0')}`,
             subnet_id: `subnet-${String(node * 10 + index).padStart(8, '0')}`,
             mac: `00:11:22:33:0${node}:0${index}`,
@@ -43,7 +46,7 @@ export function admissionFixture() {
     ce_instances: Object.fromEntries(
       [...nodes].map((node) => [
         String(node),
-        { id: `i-${String(node).padStart(8, '0')}`, site_name: `site-${node}`, hostname: `ce-${node}` },
+        { id: `i-${String(node).padStart(8, '0')}`, site_name: siteNameFor(node), hostname: `ce-${node}` },
       ]),
     ),
   });
@@ -129,9 +132,13 @@ export function admissionFixture() {
     },
   };
   const bootstrapped: string[] = [];
+  const ensuredSites: unknown[] = [];
   let healthy = false;
   const runtime = {
     async reserveSite() {},
+    async ensureSite(_binding: unknown, intent: unknown) {
+      ensuredSites.push(structuredClone(intent));
+    },
     async ensureAwsInterfaceMtu() {},
     async observeAwsRegisteredConfiguration() {
       return { status: 'configured' as const };
@@ -155,6 +162,7 @@ export function admissionFixture() {
     runtime,
     nodes,
     bootstrapped,
+    ensuredSites,
     healthy: () => {
       healthy = true;
     },

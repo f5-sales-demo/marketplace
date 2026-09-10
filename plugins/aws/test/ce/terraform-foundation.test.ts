@@ -10,12 +10,8 @@ it('renders six ENIs before admitting any VM, with authoritative identity output
   expect(Object.keys(config.resource.aws_network_interface)).toHaveLength(6);
   expect(Object.keys(config.resource.aws_route_table)).toEqual(['slo', 'sli']);
   expect(Object.keys(config.resource.aws_route_table_association)).toHaveLength(6);
-  expect(config.resource.aws_route_table_association.node_1_nic_0.route_table_id).toBe(
-    `\${aws_route_table.slo.id}`,
-  );
-  expect(config.resource.aws_route_table_association.node_1_nic_1.route_table_id).toBe(
-    `\${aws_route_table.sli.id}`,
-  );
+  expect(config.resource.aws_route_table_association.node_1_nic_0.route_table_id).toBe(`\${aws_route_table.slo.id}`);
+  expect(config.resource.aws_route_table_association.node_1_nic_1.route_table_id).toBe(`\${aws_route_table.sli.id}`);
   expect(config.resource.aws_instance).toBeUndefined();
   expect(config.provider.aws).toMatchObject({
     allowed_account_ids: ['123456789012'],
@@ -38,15 +34,21 @@ it('admits independent sites cumulatively and preserves exact bootstrap bytes', 
   expect(first.resource.aws_instance.node_1.source_dest_check).toBeUndefined();
   expect(first.resource.aws_instance.node_1.root_block_device[0].volume_size).toBe(100);
 });
-it('rejects partial HA admission, unresolved bootstrap and native or obsolete plans', () => {
+it('stages HA admission with mandatory intra-cluster communication', () => {
   expect(() => renderAwsTerraformFoundation(foundationPlan(), { '01': bootstrap })).toThrow('admission');
-  expect(() => renderAwsTerraformFoundation(foundationPlan(true), { 1: bootstrap })).toThrow('HA');
+  const first = JSON.parse(renderAwsTerraformFoundation(foundationPlan(true), { 1: bootstrap }));
+  expect(Object.keys(first.resource.aws_instance)).toEqual(['node_1']);
+  expect(first.resource.aws_security_group.group_0.ingress).toContainEqual(
+    expect.objectContaining({ protocol: '-1', cidr_blocks: [], self: true }),
+  );
   expect(
     Object.keys(
       JSON.parse(renderAwsTerraformFoundation(foundationPlan(true), { 1: bootstrap, 2: bootstrap, 3: bootstrap }))
         .resource.aws_instance,
     ),
   ).toHaveLength(3);
+});
+it('rejects unresolved bootstrap and native or obsolete plans', () => {
   expect(() => renderAwsTerraformFoundation(foundationPlan(), { 1: `${bootstrap}__TOKEN__` })).toThrow('resolved');
   expect(() => renderAwsTerraformFoundation({ ...foundationPlan(), engine: 'native' })).toThrow();
   expect(() => renderAwsTerraformFoundation({ ...foundationPlan(), schemaVersion: 1 } as never)).toThrow();

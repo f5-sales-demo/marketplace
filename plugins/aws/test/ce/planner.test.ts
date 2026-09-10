@@ -26,6 +26,7 @@ function interfaces(nodeCount: 1 | 3, count: number): AwsCeIntent['interfaces'] 
   const zones = nodeCount === 1 ? ['us-east-1a'] : ['us-east-1a', 'us-east-1b', 'us-east-1c'];
   return Array.from({ length: count }, (_, index) => ({
     index,
+    guestDevice: `ens${5 + index}`,
     role: index === 0 ? ('slo' as const) : index === 1 ? ('sli' as const) : ('service' as const),
     vrf: `vrf-${index}`,
     subnets: zones.map((availabilityZone, node) => ({ availabilityZone, cidr: `10.${index}.${node}.0/24` })),
@@ -601,11 +602,29 @@ it('captures real MAC identities before launching an HA site and waits until all
   const firstGate = plan.actions.findIndex((action) => action.kind === 'registration-gate');
   expect(plan.actions.slice(0, firstLaunch).filter((action) => action.kind === 'eni-create')).toHaveLength(6);
   expect(plan.actions.slice(0, firstGate).filter((action) => action.kind === 'instance-run')).toHaveLength(3);
+  expect(plan.intent.securityGroups[0].ingress).toContainEqual({ protocol: '-1', cidrs: [], self: true });
+  expect(
+    plan.actions.some(
+      (action) =>
+        action.kind === 'security-group-rule-create' &&
+        action.args?.some((argument) => argument.includes('UserIdGroupPairs')),
+    ),
+  ).toBe(true);
   expect(
     plan.actions
       .filter((action) => action.kind === 'eni-create')
       .every((action) => action.captures?.some((capture) => capture.path === 'NetworkInterface.MacAddress')),
   ).toBe(true);
+  expect(() =>
+    compileAwsCePlan(
+      intent({
+        topology: { nodeCount: 3 },
+        interfaces: interfaces(3, 2).map(({ guestDevice: _device, ...item }) => item),
+        routing: { profile: 'nlb-ingress', destinationCidrs: [], associations: [], propagations: [] },
+      }),
+      observation(),
+    ),
+  ).toThrow('guest device');
 });
 
 it('provides internet routing only to SLO subnets before launching greenfield nodes', () => {

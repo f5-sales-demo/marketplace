@@ -21,6 +21,7 @@ export function foundationPlan(ha = false): AwsCePlan {
     routing: { profile: 'tgw-connect' },
     interfaces: [0, 1].map((index) => ({
       index,
+      guestDevice: index ? 'ens6' : 'ens5',
       role: index ? 'sli' : 'slo',
       addressing: { mode: 'dhcp' },
       subnets: [1, 2, 3].map((node) => ({

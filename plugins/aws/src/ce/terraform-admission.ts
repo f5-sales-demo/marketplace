@@ -16,8 +16,26 @@ interface Admission {
   planSha256: string;
   configurationSha256: string;
   bootstrapByNode: Record<string, string>;
+  launchedAtByNode: Record<string, string>;
   admittedSites: string[];
 }
+
+const waitUntil = async (notBefore: number, signal?: AbortSignal) => {
+  const remaining = notBefore - Date.now();
+  if (remaining <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const aborted = () => {
+      clearTimeout(timer);
+      reject(signal?.reason ?? new Error('Terraform HA admission cancelled'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', aborted);
+      resolve();
+    }, remaining);
+    signal?.addEventListener('abort', aborted, { once: true });
+    if (signal?.aborted) aborted();
+  });
+};
 
 /** Internal stage after foundation apply. Routing/traffic acceptance is deliberately separate. */
 export async function admitAwsTerraformSites(
@@ -26,6 +44,7 @@ export async function admitAwsTerraformSites(
   runtime: Pick<
     CeRuntime,
     | 'reserveSite'
+    | 'ensureSite'
     | 'bootstrap'
     | 'observeRegistrations'
     | 'approveRegistrations'
@@ -36,6 +55,7 @@ export async function admitAwsTerraformSites(
   api: AwsExecApi,
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
+  haSerialDelayMs = 180_000,
 ) {
   verifyAwsCePlan(plan);
   const initial = renderAwsTerraformFoundation(plan);
@@ -51,15 +71,22 @@ export async function admitAwsTerraformSites(
       planSha256: plan.planSha256,
       configurationSha256: hash(initial),
       bootstrapByNode: {},
+      launchedAtByNode: {},
       admittedSites: [],
     };
   }
+  checkpoint.launchedAtByNode ??= {};
   if (
     checkpoint.schemaVersion !== 1 ||
     checkpoint.planSha256 !== plan.planSha256 ||
     !Array.isArray(checkpoint.admittedSites) ||
     !checkpoint.bootstrapByNode ||
-    typeof checkpoint.bootstrapByNode !== 'object'
+    typeof checkpoint.bootstrapByNode !== 'object' ||
+    !checkpoint.launchedAtByNode ||
+    typeof checkpoint.launchedAtByNode !== 'object' ||
+    Object.entries(checkpoint.launchedAtByNode).some(
+      ([node, observedAt]) => !/^[1-3]$/.test(node) || Number.isNaN(Date.parse(observedAt)),
+    )
   )
     throw new Error('Terraform admission checkpoint differs from plan');
   const siteNames = siteBindings(plan).map(({ site }) => site.name);
@@ -95,45 +122,88 @@ export async function admitAwsTerraformSites(
     signal?.throwIfAborted();
     await storage.verify();
     const outputs = await readOutputs();
-    await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
+    const discoveredBeforeLaunch = await discoverAwsTerraformInterfaces(plan, outputs, api, signal);
     if (!checkpoint.admittedSites.includes(site.name)) {
-      await runtime.reserveSite(binding, (record) => storage.write(`terraform-site-${site.name}.json`, record), signal);
-      for (const node of site.nodeIndexes) {
-        if (checkpoint.bootstrapByNode[String(node)]) continue;
-        const tokenName = `${plan.deploymentName.slice(0, 40)}-${node}-${plan.planSha256.slice(0, 12)}`;
-        const material = await runtime.bootstrap(
+      if (site.nodeIndexes.length === 3)
+        await runtime.ensureSite(
           binding,
-          `${plan.deploymentName}-${node}`,
-          tokenName,
-          (secret) => storage.write(`${tokenName}.json`, secret),
+          {
+            schemaVersion: 2,
+            provider: 'aws',
+            haMode: 'three-node',
+            nodes: site.nodeIndexes.map((node) => ({
+              hostname: `${plan.deploymentName}-${node}`,
+              interfaces: plan.intent.interfaces.map((item) => ({
+                name: item.role,
+                mtu: item.mtu ?? AWS_CE_DEFAULT_INTERFACE_MTU,
+                ethernet_interface: {
+                  device: item.guestDevice,
+                  mac: discoveredBeforeLaunch.bindings[`__ENI_${node}_${item.index}_MAC__`],
+                },
+                network_option: item.role === 'slo' ? { site_local_network: {} } : { site_local_inside_network: {} },
+                dhcp_client: {},
+              })),
+            })),
+            settings: {},
+          },
+          (record) => storage.write(`terraform-site-${site.name}.json`, record),
           signal,
         );
-        checkpoint.bootstrapByNode[String(node)] = renderAwsCeCloudInit({
-          nodeName: `${plan.deploymentName}-${node}`,
-          material,
-        });
+      else
+        await runtime.reserveSite(
+          binding,
+          (record) => storage.write(`terraform-site-${site.name}.json`, record),
+          signal,
+        );
+      for (const [position, node] of site.nodeIndexes.entries()) {
+        const previous = site.nodeIndexes[position - 1];
+        if (previous !== undefined && site.nodeIndexes.length === 3) {
+          const launchedAt = checkpoint.launchedAtByNode[String(previous)];
+          if (!launchedAt) throw new Error('Prior HA node launch boundary is unavailable');
+          await waitUntil(Date.parse(launchedAt) + haSerialDelayMs, signal);
+        }
+        if (!checkpoint.bootstrapByNode[String(node)]) {
+          const tokenName = `${plan.deploymentName.slice(0, 40)}-${node}-${plan.planSha256.slice(0, 12)}`;
+          const material = await runtime.bootstrap(
+            binding,
+            `${plan.deploymentName}-${node}`,
+            tokenName,
+            (secret) => storage.write(`${tokenName}.json`, secret),
+            signal,
+          );
+          checkpoint.bootstrapByNode[String(node)] = renderAwsCeCloudInit({
+            nodeName: `${plan.deploymentName}-${node}`,
+            material,
+          });
+          await save();
+        }
+        const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode);
+        const nextHash = hash(configuration);
+        if (checkpoint.configurationSha256 !== nextHash) {
+          try {
+            await session.reviseConfiguration(checkpoint.configurationSha256, configuration);
+          } catch (error) {
+            if (!(error instanceof Error) || !error.message.includes('revision is stale')) throw error;
+            // A prior run may have committed the exact desired revision before checkpointing.
+            await session.reviseConfiguration(nextHash, configuration);
+          }
+          checkpoint.configurationSha256 = nextHash;
+          await save();
+        }
+        const receipt = await session.plan(env, signal);
+        if (
+          receipt.changes.some((change) =>
+            change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)),
+          )
+        )
+          throw new Error(
+            'Terraform admission would alter or replace an existing resource; reconcile the reviewed lifecycle plan',
+          );
+        await storage.write('terraform-admission-plan.json', receipt);
+        if (!receipt.noChanges) await session.apply(receipt, env, signal);
+        checkpoint.launchedAtByNode[String(node)] ??= new Date().toISOString();
         await save();
       }
-      const configuration = renderAwsTerraformFoundation(plan, checkpoint.bootstrapByNode);
-      const nextHash = hash(configuration);
-      try {
-        await session.reviseConfiguration(checkpoint.configurationSha256, configuration);
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes('revision is stale')) throw error;
-        // A prior run may have committed the exact desired revision before checkpointing.
-        await session.reviseConfiguration(nextHash, configuration);
-      }
-      checkpoint.configurationSha256 = nextHash;
-      await save();
-      const receipt = await session.plan(env, signal);
-      if (
-        receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
-      )
-        throw new Error(
-          'Terraform admission would alter or replace an existing resource; reconcile the reviewed lifecycle plan',
-        );
-      await storage.write('terraform-admission-plan.json', receipt);
-      await session.apply(receipt, env, signal);
       checkpoint.admittedSites.push(site.name);
       await save();
     }

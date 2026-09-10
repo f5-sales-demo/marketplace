@@ -19,6 +19,7 @@ export function createAwsCePlanTool(pi: PluginInterface) {
     role: Type.Union(['slo', 'sli', 'management', 'service', 'workload'].map((value) => Type.Literal(value))),
     vrf: Type.String(),
     mtu: Type.Optional(Type.Integer({ minimum: 1500, maximum: 9000 })),
+    guestDevice: Type.Optional(Type.String()),
     subnets: Type.Array(subnet),
     addressing: Type.Object({
       mode: Type.Union([Type.Literal('dhcp'), Type.Literal('static')]),
