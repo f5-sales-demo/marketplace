@@ -877,7 +877,15 @@ it('plans six independent GRE peers and twelve sessions for either engine with e
       );
     const platformIngress = plan.actions.find((action) => action.kind === 'f5-ingress-configure');
     const nlbGate = plan.actions.find((action) => action.kind === 'nlb-gate');
+    const bgpGate = plan.actions.find((action) => action.kind === 'bgp-gate');
+    const routeGate = plan.actions.find((action) => action.kind === 'tgw-route-gate');
     expect(plan.actions.indexOf(platformIngress as (typeof plan.actions)[number])).toBeLessThan(
+      plan.actions.indexOf(nlbGate as (typeof plan.actions)[number]),
+    );
+    expect(plan.actions.indexOf(bgpGate as (typeof plan.actions)[number])).toBeLessThan(
+      plan.actions.indexOf(nlbGate as (typeof plan.actions)[number]),
+    );
+    expect(plan.actions.indexOf(routeGate as (typeof plan.actions)[number])).toBeLessThan(
       plan.actions.indexOf(nlbGate as (typeof plan.actions)[number]),
     );
     expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);

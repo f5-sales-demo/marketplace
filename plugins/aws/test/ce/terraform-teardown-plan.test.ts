@@ -83,7 +83,7 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
       siteUid: `site-${index}`,
     })),
   ]);
-  if (engine === 'terraform')
+  if (mode !== 'no-routing' && engine === 'terraform')
     await storage.write('terraform-routing-checkpoint.json', {
       schemaVersion: 2,
       engine,
@@ -93,7 +93,7 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
         routes.map((row) => [`__XC_ROUTING_${row.name}__`, mode === 'wrong-routing' ? 'foreign' : row.uid]),
       ),
     });
-  else
+  else if (mode !== 'no-routing')
     await storage.write('native-routing-checkpoint.json', {
       schemaVersion: 2,
       engine,
@@ -130,7 +130,7 @@ async function fixture(mode = 'valid', engine: 'native' | 'terraform' = 'terrafo
           physicalSiteUid: `physical-${index}`,
         })),
         resources: [
-          ...routes,
+          ...(mode === 'no-routing' ? [] : routes),
           {
             kind: 'http_loadbalancers',
             name: 'listener',
@@ -195,6 +195,11 @@ test('collects the same complete teardown material for a native-owned deployment
   material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
   expect(material.drain.sites.flatMap((site) => site.routing)).toHaveLength(12);
   expect(JSON.stringify(material)).not.toContain('never-export-bootstrap');
+});
+test('accepts an interrupted native deployment with no routing checkpoint only when live routing is absent', async () => {
+  const f = await fixture('no-routing', 'native');
+  const material = await collectAwsTeardownMaterial(f.base, f.runtime, f.contract, f.storage);
+  expect(material.drain.sites.flatMap((site) => site.routing)).toEqual([]);
 });
 test('rejects incomplete, changed and uncorrelated teardown inventory before publishing a plan', async () => {
   for (const mode of ['unknown', 'wrong-routing', 'wrong-listener', 'foreign-token', 'drift']) {

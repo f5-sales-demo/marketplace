@@ -78,6 +78,7 @@ export function compileAwsNativeTeardown(
   )
     throw new Error('Native teardown cloud deletion inventory is incomplete');
   const peers = base.actions.filter((action) => action.kind === 'tgw-connect-peer-create');
+  const routingAbsent = drain.sites.every((row) => row.routing.length === 0);
   const exportPolicies = drain.sites.flatMap((row) => row.routing).filter((row) => row.kind === 'bgp_routing_policy');
   if (exportPolicies.length !== 0 && exportPolicies.length !== selected.length)
     throw new Error('Native teardown export-policy inventory is incomplete');
@@ -99,12 +100,14 @@ export function compileAwsNativeTeardown(
       throw new Error('Native teardown site identity differs');
     unique(`site:${retired[0].siteUid}`);
     unique(`physical:${retired[0].physicalSiteUid}`);
-    const expected = peers
-      .filter((action) => site.nodeIndexes.includes(action.node ?? 0))
-      .map((action) => ({
-        kind: 'external_connector',
-        name: `${base.deploymentName.slice(0, 24)}-gre-${peers.indexOf(action) + 1}`,
-      }));
+    const expected = routingAbsent
+      ? []
+      : peers
+          .filter((action) => site.nodeIndexes.includes(action.node ?? 0))
+          .map((action) => ({
+            kind: 'external_connector',
+            name: `${base.deploymentName.slice(0, 24)}-gre-${peers.indexOf(action) + 1}`,
+          }));
     if (expected.length) {
       if (exportPolicies.length)
         expected.push({ kind: 'bgp_routing_policy', name: `${site.name.slice(0, 43)}-tgw-export-policy` });

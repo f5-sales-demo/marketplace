@@ -1769,13 +1769,6 @@ function compileActions(
         mutates: true,
         destructive: false,
       });
-    add({
-      phase: 'verify',
-      kind: 'nlb-gate',
-      description: 'Verify NLB targets and health',
-      mutates: false,
-      destructive: false,
-    });
   }
   if (intent.routing.profile === 'tgw-static' || intent.routing.profile === 'tgw-connect') {
     const transitGatewayId = intent.routing.transitGatewayId ?? '';
@@ -2123,6 +2116,14 @@ function compileActions(
       phase: 'verify',
       kind: 'tgw-route-gate',
       description: 'Verify TGW associations, propagations, and routes',
+      mutates: false,
+      destructive: false,
+    });
+  if (nlbIngress)
+    add({
+      phase: 'verify',
+      kind: 'nlb-gate',
+      description: 'Verify NLB targets and health after routing convergence',
       mutates: false,
       destructive: false,
     });
