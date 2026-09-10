@@ -33,7 +33,7 @@ function base() {
   return { ...draft, planSha256, planId: `aws-ce-${planSha256.slice(0, 24)}` };
 }
 
-function observed(binding: SiteBinding, target: string, state: 'ready' | 'converging' | 'complete') {
+function observed(binding: SiteBinding, target: string, state: 'ready' | 'converging' | 'lagging' | 'complete') {
   const installed = state === 'complete' ? target : 'crt-20260201-0178';
   return {
     owner: binding.owner,
@@ -62,7 +62,7 @@ function observed(binding: SiteBinding, target: string, state: 'ready' | 'conver
     prechecks: { checks: [{ name: 'nodes', status: 'CHECKLIST_PASSED' }], passing: true },
     progress: {
       status: state === 'converging' ? 'IN_PROGRESS' : 'COMPLETED',
-      version: state === 'converging' ? target : installed,
+      version: state === 'converging' || state === 'lagging' ? target : installed,
     },
     sources: { site: '', targets: '', precheck: '', progress: '' },
     nodeHealth: 'unknown' as const,
@@ -150,6 +150,17 @@ test('reconciles a lost native response from platform state without replay', asy
   expect(
     (await runAwsNativeUpgrade(f.plan, f.upgrade, f.upgrade.planSha256, f.runtime, contract, f.storage)).status,
   ).toBe('upgrade-converging');
+  expect(
+    (await runAwsNativeUpgrade(f.plan, f.upgrade, f.upgrade.planSha256, f.runtime, contract, f.storage)).status,
+  ).toBe('upgrade-complete');
+  expect(f.submissions()).toBe(1);
+});
+
+test('keeps submitted publisher lag retryable without replaying the upgrade', async () => {
+  const f = await setup(['ready', 'lagging', 'complete']);
+  expect(
+    (await runAwsNativeUpgrade(f.plan, f.upgrade, f.upgrade.planSha256, f.runtime, contract, f.storage)).status,
+  ).toBe('upgrade-convergence-unknown');
   expect(
     (await runAwsNativeUpgrade(f.plan, f.upgrade, f.upgrade.planSha256, f.runtime, contract, f.storage)).status,
   ).toBe('upgrade-complete');

@@ -161,7 +161,15 @@ export async function runNativeCeUpgrade(
       return receipt;
     }
     if (transition === 'failed') throw new Error('Native upgrade failed');
-    if (transition === 'unknown') throw new Error('Native upgrade evidence is unknown');
+    if (transition === 'unknown') {
+      if (checkpoint.phase === 'submitted')
+        return {
+          status: 'upgrade-convergence-unknown' as const,
+          planId: upgrade.planId,
+          planSha256: upgrade.planSha256,
+        };
+      throw new Error('Native upgrade evidence is unknown');
+    }
     if (checkpoint.phase === 'ready' && transition === 'versions-complete') {
       serial = {
         schemaVersion: 1,
@@ -207,6 +215,12 @@ export async function runNativeCeUpgrade(
       transition = assessCeUpgradeTransition(upgrade.expectation, await observe());
     }
     if (transition !== 'versions-complete') {
+      if (transition === 'unknown' && checkpoint.phase === 'submitted')
+        return {
+          status: 'upgrade-convergence-unknown' as const,
+          planId: upgrade.planId,
+          planSha256: upgrade.planSha256,
+        };
       if (!['ready', 'converging'].includes(transition)) throw new Error('Native upgrade convergence is unknown');
       return {
         status:
