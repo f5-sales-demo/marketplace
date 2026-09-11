@@ -17,6 +17,7 @@ import type { AzureCeAction, AzureCePlan } from './types';
 export const AZURE_CE_AZAPI_PROVIDER_VERSION = '2.12.0';
 const AZURE_COMPUTE_API_VERSION = '2024-07-01';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
+const interruptedApplyMessage = 'Reconcile interrupted Terraform apply before revising configuration';
 type LifecycleOperation = 'start' | 'stop' | 'resize';
 
 interface LifecycleCheckpoint {
@@ -271,7 +272,7 @@ export async function runAzureTerraformLifecycle(
         try {
           await opened.session.reviseConfiguration(currentSha256, empty.configuration);
         } catch (error) {
-          if (!(error instanceof Error) || !error.message.includes('interrupted Terraform apply')) throw error;
+          if (!(error instanceof Error) || error.message !== interruptedApplyMessage) throw error;
           const receipt = (await storage.read(`${plan.planId}-node-${node}-mutation-plan.json`)) as PlanReceipt;
           validateReceipt(opened.deployment, receipt, 'mutation', operation);
           await storage.write(`${plan.planId}-node-${node}-vm-state.json`, observed);
