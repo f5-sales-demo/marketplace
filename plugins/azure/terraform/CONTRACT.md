@@ -14,6 +14,14 @@ executable SLO BGP mapping and two-session convergence evidence. It also rejects
 greenfield UDR destinations without explicit `routeChanges` that identify the target
 subnet association, avoiding an unattached route table that would require manual repair.
 
+An optional `workloadFixture` is available only for an initial Terraform Route Server
+deployment that needs a private workload prefix for routing acceptance. It creates an
+isolated subnet, static private NIC, and small Ubuntu HTTP-service VM without a public IP.
+Its CIDR must be exactly one planned Route Server destination and must not overlap a CE
+NIC subnet; the approved fixture is `10.253.0.0/24` with `10.253.0.4:8080`. It is a
+private routing probe, not a substitute for public VIP traffic, ingress, or origin-health
+evidence.
+
 An empty admission map creates networking only. Compute admission requires retrieved
 platform cloud-init for every node of an HA site. The foundation consumes that
 material without generating a replacement bootstrap payload. It pins the observed

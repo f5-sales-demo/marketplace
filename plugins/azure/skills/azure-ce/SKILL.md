@@ -58,6 +58,12 @@ platform, routing, and traffic-health states independent.
    the complete site, correlates VM/NIC/MAC identities, and approves registration. If the
    verified contract says Azure headless bootstrap is unavailable, stop before cloud mutation;
    do not construct custom data or ask the user to relay a token.
+   For a Route Server Terraform acceptance plan that needs a CE-advertised application prefix,
+   use the optional `workloadFixture` only for an initial Terraform Route Server deployment. It
+   creates an isolated private subnet, NIC, and HTTP-service VM with no public IP. Its CIDR must be
+   exactly one advertised destination and must not overlap a CE NIC subnet. The approved fixture is
+   `10.253.0.0/24` at `10.253.0.4:8080`; prove its learned/effective route separately from VIP
+   traffic and never treat the fixture as public ingress.
 6. After registration, use `azure_ce_upgrade` to prepare or apply an exact serial native or
    Terraform software/OS action. A native response lost after the persisted mutation boundary is
    reconciled from platform state without replay. Treat version completion separately from node,
