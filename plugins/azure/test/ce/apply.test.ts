@@ -380,6 +380,53 @@ describe('Azure CE apply protections', () => {
     expect(() => assertObservationFresh(plan, current)).toThrow(/stale/i);
   });
 
+  it('normalizes quota consumed by the exact plan-owned Terraform workload fixture VM', () => {
+    const fixturePlan = compileAzureCePlan(
+      {
+        ...intent,
+        engine: 'terraform',
+        routing: {
+          mode: 'route-server',
+          destinationCidrs: ['10.30.0.0/24'],
+          localAsn: 64512,
+          peerAsn: 64512,
+        },
+        workloadFixture: {
+          subnetName: 'workload',
+          cidr: '10.30.0.0/24',
+          privateIp: '10.30.0.4',
+          port: 8080,
+        },
+      },
+      observation,
+    );
+    const current = structuredClone(observation);
+    current.regions[0].quotaAvailable--;
+    current.resources.push({
+      id: `/subscriptions/${fixturePlan.subscription.id}/resourceGroups/${fixturePlan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${fixturePlan.deploymentName}-workload`,
+      location: fixturePlan.region,
+      exists: true,
+      owned: true,
+      state: { provisioningState: 'Succeeded' },
+      tags: {
+        'xcsh-managed-by': 'azure-ce',
+        'xcsh-deployment-id': fixturePlan.deploymentName,
+        'xcsh-execution-engine': fixturePlan.engine,
+        'xcsh-plan-sha256': fixturePlan.planSha256,
+      },
+    });
+    expect(() => assertObservationFresh(fixturePlan, current)).not.toThrow();
+
+    for (const field of ['xcsh-plan-sha256', 'xcsh-execution-engine', 'xcsh-deployment-id'] as const) {
+      const rejected = structuredClone(current);
+      rejected.resources[0].tags[field] = 'foreign';
+      expect(() => assertObservationFresh(fixturePlan, rejected), field).toThrow(/stale/i);
+    }
+    const rejected = structuredClone(current);
+    rejected.resources[0].id = rejected.resources[0].id.replace('-workload', '-foreign');
+    expect(() => assertObservationFresh(fixturePlan, rejected)).toThrow(/stale/i);
+  });
+
   it('preserves three-node Terraform admission when self-consumption temporarily trips quota eligibility', () => {
     const baseline = structuredClone(observation);
     baseline.regions[0].quotaAvailable = 24;

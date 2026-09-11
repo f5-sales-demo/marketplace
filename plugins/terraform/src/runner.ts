@@ -158,7 +158,12 @@ async function persist(path: string, value: unknown): Promise<void> {
 }
 
 export function terraformExecutor(
-  limits = { timeoutMs: 900_000, maxOutputBytes: 64 * 1024 * 1024, killAfterMs: 5_000 },
+  limits = {
+    timeoutMs: 900_000,
+    applyTimeoutMs: 3_600_000,
+    maxOutputBytes: 64 * 1024 * 1024,
+    killAfterMs: 5_000,
+  },
   retainFailure = false,
 ): Executor {
   return async ({ cwd, args, env, signal }) => {
@@ -181,7 +186,8 @@ export function terraformExecutor(
     const abort = () => stop('Terraform operation cancelled');
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    const timer = setTimeout(() => stop('Terraform operation deadline exceeded'), limits.timeoutMs);
+    const timeoutMs = args[0] === 'apply' ? limits.applyTimeoutMs : limits.timeoutMs;
+    const timer = setTimeout(() => stop('Terraform operation deadline exceeded'), timeoutMs);
     const categories = new Set<TerraformFailureCategory>();
     const collect = async (stream: ReadableStream<Uint8Array>, retain: boolean, classify = false) => {
       const reader = stream.getReader();

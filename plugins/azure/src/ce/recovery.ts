@@ -9,6 +9,7 @@ import type {
   AzureCeStoredCheckpoint,
 } from './types';
 import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from './types';
+import { AZURE_CE_WORKLOAD_FIXTURE_VCPUS } from './workload-fixture';
 
 const CHECKPOINT_STATES = new Set(['running', 'partial', 'complete']);
 const QUOTA_BLOCKERS = new Set([
@@ -158,11 +159,24 @@ export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureC
     }),
   );
   const ownedVmCount = ownedVmNodes.size;
-  if (ownedVmCount > 0) {
+  const workloadVmId = `${vmScope}workload`;
+  const ownedWorkloadVm = normalized.resources.some(
+    (resource) =>
+      plan.engine === 'terraform' &&
+      Boolean(plan.intent.workloadFixture) &&
+      resource.exists &&
+      resource.owned &&
+      resource.id.toLowerCase() === workloadVmId &&
+      resource.tags['xcsh-managed-by'] === 'azure-ce' &&
+      resource.tags['xcsh-deployment-id'] === plan.deploymentName &&
+      resource.tags['xcsh-execution-engine'] === plan.engine &&
+      resource.tags['xcsh-plan-sha256'] === plan.planSha256,
+  );
+  if (ownedVmCount > 0 || ownedWorkloadVm) {
     const region = normalized.regions.find((candidate) => candidate.name.toLowerCase() === plan.region.toLowerCase());
     const size = region?.vmSizes.find((candidate) => candidate.name.toLowerCase() === plan.vm.size.toLowerCase());
     if (region && size && Number.isFinite(size.vCpus) && size.vCpus > 0) {
-      region.quotaAvailable += ownedVmCount * size.vCpus;
+      region.quotaAvailable += ownedVmCount * size.vCpus + (ownedWorkloadVm ? AZURE_CE_WORKLOAD_FIXTURE_VCPUS : 0);
       if (region.quotaAvailable >= size.vCpus * plan.topology.nodeCount) {
         region.reasons = region.reasons.filter((reason) => reason !== 'quota');
         region.eligible = !region.reasons.some((reason) => QUOTA_BLOCKERS.has(reason));

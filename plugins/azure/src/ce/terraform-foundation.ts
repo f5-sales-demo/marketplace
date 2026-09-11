@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { Deployment } from '../../../terraform/src/runner';
 import { verifyAzureCePlan } from './artifacts';
 import type { AzureCePlan } from './types';
+import { AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE } from './workload-fixture';
 
 export const AZURE_CE_TERRAFORM_VERSION = '1.16.1';
 export const AZURE_CE_TERRAFORM_PROVIDER_VERSION = '5.4.0';
@@ -143,7 +144,7 @@ export function renderAzureTerraformFoundation(
       computer_name: literal(`${plan.deploymentName}-workload`),
       resource_group_name: group,
       location: plan.region,
-      size: 'Standard_B1s',
+      size: AZURE_CE_WORKLOAD_FIXTURE_VM_SIZE,
       admin_username: 'xcsh',
       disable_password_authentication: true,
       network_interface_ids: [ref('azurerm_network_interface.workload.id')],
