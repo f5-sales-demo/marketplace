@@ -98,6 +98,31 @@ describe('Azure CE apply protections', () => {
     expect(() => assertObservationFresh(plan, current)).toThrow(/stale/i);
   });
 
+  it('preserves three-node Terraform admission when self-consumption temporarily trips quota eligibility', () => {
+    const baseline = structuredClone(observation);
+    baseline.regions[0].quotaAvailable = 24;
+    baseline.regions[0].reasons = ['fewer-than-three-zones'];
+    const ha = compileAzureCePlan({ ...intent, engine: 'terraform', topology: { ha: true } }, baseline);
+    const current = structuredClone(baseline);
+    current.regions[0].quotaAvailable = 0;
+    current.regions[0].eligible = false;
+    current.regions[0].reasons = ['quota', 'fewer-than-three-zones'];
+    current.resources = [1, 2, 3].map((node) => ({
+      id: `/subscriptions/${ha.subscription.id}/resourceGroups/${ha.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${ha.deploymentName}-${node}`,
+      location: ha.region,
+      exists: true,
+      owned: true,
+      state: { provisioningState: 'Succeeded' },
+      tags: {
+        'xcsh-managed-by': 'azure-ce',
+        'xcsh-deployment-id': ha.deploymentName,
+        'xcsh-execution-engine': ha.engine,
+        'xcsh-plan-sha256': ha.planSha256,
+      },
+    }));
+    expect(() => assertObservationFresh(ha, current)).not.toThrow();
+  });
+
   it('rejects a changed MCN contract digest before mutation', () => {
     const changed = structuredClone(observation);
     changed.research.sharedContract.normalizedSha256 = '4'.repeat(64);
