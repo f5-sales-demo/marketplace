@@ -69,8 +69,11 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
 - During a three-node resize or replacement, operate one Azure VM at a time and check
   Azure provisioning, CE registration/health, BGP, routes, and traffic
   before advancing. Warn that a one-node VM or NIC change is disruptive.
-- During teardown, restore Azure route tables and subnet associations before deleting
-  resources tagged `xcsh-managed-by=azure-ce` for the approved deployment and plan.
+- `azure_ce_teardown` drains owned platform listeners, origins, and routing before cloud mutation,
+  revokes every live or checkpointed enrollment token, and deletes the exact logical site only
+  after cloud retirement. Terraform targets come from the saved destroy plan and must remain
+  inside the original live owned resource group. Native execution currently requires a greenfield
+  teardown plan whose final action deletes that resource group, making group absence authoritative.
 
 ## Authoritative Azure references
 

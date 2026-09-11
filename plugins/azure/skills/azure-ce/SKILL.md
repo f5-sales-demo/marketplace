@@ -63,9 +63,12 @@ platform, routing, and traffic-health states independent.
    assertion cannot satisfy these gates. Do not power-cycle a Terraform-owned VM with generic `az`.
 8. Use `f5xc_ce_v2_status` at registration, health, BGP, routing, and traffic gates. Resume only
    with the same Azure plan ID/hash. Rediscover and replan when source or cloud observations drift.
-9. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. For
-   active diagnostics or teardown, preserve existing authorization and confirm scope only when
-   the requested action falls outside it.
+9. Finish with `azure_ce_status`, passive `azure_ce_diagnose`, and Azure/platform evidence. Use
+   `azure_ce_teardown` with the original deployment plan to prepare and apply a separate immutable
+   retirement plan. Terraform teardown drains platform resources, destroys only state-projected
+   resources inside the live owned resource group, retires tokens and the exact site, then requires
+   final no-change and group-absence evidence. Native teardown additionally requires the reviewed
+   greenfield cloud teardown plan; its authorization is reused without a second prompt.
 
 For headless execution, use `XCSH_CE_HEADLESS_MUTATIONS=1`, and
 `XCSH_CE_ALLOW_DESTROY=1` for teardown. Version-1 and version-2 deployment plans and
