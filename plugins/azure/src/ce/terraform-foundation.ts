@@ -317,3 +317,37 @@ export async function azureTerraformFoundationDeployment(
     backendIdentity: `local:${plan.deploymentName}`,
   };
 }
+
+/** Resume the private foundation workspace without reconstructing its secret-bearing configuration. */
+export async function azureTerraformCurrentDeployment(plan: AzureCePlan): Promise<Deployment> {
+  verifyAzureCePlan(plan);
+  if (plan.engine !== 'terraform') throw new Error('Azure Terraform workspace requires Terraform ownership');
+  const providerLock = await readFile(new URL('../../terraform/provider-lock.hcl', import.meta.url), 'utf8');
+  return {
+    schemaVersion: 1,
+    deploymentId: plan.deploymentName,
+    engine: 'terraform',
+    scope: { cloud: 'azure', account: plan.subscription.id, region: plan.region },
+    terraformVersion: AZURE_CE_TERRAFORM_VERSION,
+    configuration: JSON.stringify({
+      terraform: {
+        required_version: `= ${AZURE_CE_TERRAFORM_VERSION}`,
+        required_providers: {
+          azurerm: { source: 'hashicorp/azurerm', version: `= ${AZURE_CE_TERRAFORM_PROVIDER_VERSION}` },
+          tls: { source: 'hashicorp/tls', version: `= ${AZURE_CE_TLS_PROVIDER_VERSION}` },
+        },
+      },
+      provider: {
+        azurerm: {
+          features: [{}],
+          subscription_id: plan.subscription.id,
+          tenant_id: plan.subscription.tenantId,
+          environment: 'public',
+          resource_provider_registrations: 'none',
+        },
+      },
+    }),
+    providerLock,
+    backendIdentity: `local:${plan.deploymentName}`,
+  };
+}
