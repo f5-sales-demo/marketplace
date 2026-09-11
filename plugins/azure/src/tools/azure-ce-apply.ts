@@ -24,6 +24,7 @@ import {
   upgradeAzureCeCheckpoint,
   validateAzureDeletionTail,
 } from '../ce/recovery';
+import { configureAzureRouteServerRouting } from '../ce/routing-workflow';
 import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../ce/types';
@@ -294,7 +295,48 @@ export async function executeAzureCeNativeApply(
           });
         }
       }
-      if (action.kind === 'bgp-gate') throw new Error('Collected Azure BGP evidence is unavailable');
+      if (action.kind === 'bgp-gate') {
+        const admission = await collectAzureNativeAdmissionHealth(
+          plan,
+          plan.topology.nodeCount,
+          api,
+          runtime,
+          storage,
+          signal,
+        );
+        if (!('configuration' in admission) || admission.configuration.status !== 'configured')
+          throw new Error('Authoritative Azure registered interface configuration is unavailable');
+        const expectedInterfaces = admission.configuration.interfaces.map(({ node, role, mac }) => ({
+          node,
+          role,
+          mac,
+        }));
+        const deadline = Date.now() + 15 * 60_000;
+        while (true) {
+          const evidence = await configureAzureRouteServerRouting(
+            plan,
+            expectedInterfaces,
+            runtime,
+            storage,
+            api,
+            signal,
+          );
+          if (evidence.status === 'healthy') break;
+          if (Date.now() >= deadline) throw new Error('Azure Route Server BGP and learned routes have not converged');
+          await new Promise<void>((resolve, reject) => {
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal?.reason ?? new Error('Azure Route Server convergence cancelled'));
+            };
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', abort);
+              resolve();
+            }, 10_000);
+            signal?.addEventListener('abort', abort, { once: true });
+            if (signal?.aborted) abort();
+          });
+        }
+      }
       if (action.kind === 'traffic-gate') throw new Error('Collected Azure traffic evidence is unavailable');
       if (action.command && action.args) {
         const replacements = await replacementsFor(action.args, api, plan);

@@ -11,6 +11,83 @@ export interface AwsGreBinding {
   ceInsideAddress: string;
   awsBgpAddresses: [string, string];
 }
+export interface AzureSloBinding {
+  node: string;
+  interfaceName: string;
+}
+
+/** Build one site-scoped BGP object from observed SLO objects and both Azure Route Server addresses. */
+export function buildAzureRouting(
+  siteName: string,
+  localAsn: number,
+  remoteAsn: number,
+  bindings: AzureSloBinding[],
+  routeServerAddresses: string[],
+  validate: (kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json) => void,
+) {
+  const name = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+  const interfaceName = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
+  const reserved = new Set([8074, 8075, 12076, 23456, 65515, 65517, 65518, 65519, 65520]);
+  if (
+    !name.test(siteName) ||
+    ![1, 3].includes(bindings.length) ||
+    !Number.isInteger(localAsn) ||
+    localAsn < 1 ||
+    localAsn > 65534 ||
+    reserved.has(localAsn) ||
+    (localAsn >= 64496 && localAsn <= 64511) ||
+    remoteAsn !== 65515 ||
+    routeServerAddresses.length !== 2 ||
+    new Set(routeServerAddresses).size !== 2 ||
+    routeServerAddresses.some((address) => isIP(address) !== 4)
+  )
+    throw new Error('Unsupported Azure Route Server site or peer topology');
+  const nodes = new Set<string>();
+  const interfaces = new Set<string>();
+  for (const binding of bindings) {
+    if (
+      !name.test(binding.node) ||
+      nodes.has(binding.node) ||
+      !interfaceName.test(binding.interfaceName) ||
+      binding.interfaceName.includes('__') ||
+      interfaces.has(binding.interfaceName)
+    )
+      throw new Error('Invalid observed Azure SLO interface binding');
+    nodes.add(binding.node);
+    interfaces.add(binding.interfaceName);
+  }
+  const spec = {
+    where: {
+      site: {
+        network_type: 'VIRTUAL_NETWORK_SITE_LOCAL',
+        ref: [{ name: siteName, namespace: 'system' }],
+        disable_internet_vip: {},
+      },
+    },
+    bgp_parameters: { asn: localAsn, local_address: {} },
+    peers: bindings.flatMap((binding, bindingIndex) =>
+      routeServerAddresses.map((address, addressIndex) => ({
+        metadata: { name: `peer-${bindingIndex + 1}-${addressIndex + 1}` },
+        external: {
+          asn: remoteAsn,
+          address,
+          port: 179,
+          interface: { name: binding.interfaceName, namespace: 'system' },
+          disable_v6: {},
+        },
+        passive_mode_disabled: {},
+        bfd_disabled: {},
+      })),
+    ),
+  };
+  validate('bgp', spec);
+  return {
+    bgp: { name: `${siteName.slice(0, 45)}-route-server-bgp`, spec },
+    expectedSessions: bindings.length * routeServerAddresses.length,
+    payloadNetwork: 'slo' as const,
+  };
+}
+
 export function buildAwsRouting(
   siteName: string,
   localAsn: number,

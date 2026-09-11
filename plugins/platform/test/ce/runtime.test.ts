@@ -15,12 +15,12 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true });
 });
 const hash = (bytes: string) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-async function candidate(withRouting = false) {
+async function candidate(withRouting = false, candidateContract: Record<string, unknown> = contract) {
   const dir = await mkdtemp(join(tmpdir(), 'ce-contract-'));
   dirs.push(dir);
   const assets: Record<string, string> = {};
   const data: Record<string, unknown> = {
-    'smsv2-contract.json': contract,
+    'smsv2-contract.json': candidateContract,
     'sites.json': { components: { schemas: schema.schemas } },
     'smsv2-evidence-receipt.json': { contract_id: contract.contract_id },
   };
@@ -51,8 +51,8 @@ async function candidate(withRouting = false) {
   }
   const manifest = JSON.stringify({
     schema_version: 1,
-    contract_id: contract.contract_id,
-    contract_version: contract.version,
+    contract_id: candidateContract.contract_id,
+    contract_version: candidateContract.version,
     release: { commit: schema.provenance.commit },
     assets: {
       'smsv2-contract.json': assets['smsv2-contract.json'],
@@ -329,7 +329,7 @@ test('token checkpoint failure resumes through GET without duplicate token issua
   expect(material).toContain(jwt);
   expect(cloudInit).toBe(1);
 });
-test('verified bootstrap capability rejects Azure before any request and admits AWS', async () => {
+test('verified API bootstrap capability admits AWS and Azure without making a request', async () => {
   const { contract } = await candidate();
   let requests = 0;
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
@@ -337,16 +337,40 @@ test('verified bootstrap capability rejects Azure before any request and admits 
     return json({});
   });
   expect(() => runtime.requireBootstrapContract('aws')).not.toThrow();
-  expect(() => runtime.requireBootstrapContract('azure')).toThrow('unavailable');
-  await expect(
-    runtime.bootstrap(
-      { ...binding, owner: { ...binding.owner, provider: 'azure' } },
-      'node-one',
-      'node-token',
-      async () => {},
-    ),
-  ).rejects.toThrow('unavailable');
+  expect(() => runtime.requireBootstrapContract('azure')).not.toThrow();
   expect(requests).toBe(0);
+});
+test('Azure routing capability requires both pinned request schemas and runtime observation mappings', async () => {
+  const withoutSchemas = await candidate();
+  expect(() => withoutSchemas.contract.requireRoutingContract('azure')).toThrow('unavailable');
+  const complete = await candidate(true);
+  expect(() => complete.contract.requireRoutingContract('azure')).not.toThrow();
+  let requests = 0;
+  const runtime = new CeRuntime(complete.contract, 'native', 'https://tenant.test', 'test-credential', async () => {
+    requests++;
+    return json({});
+  });
+  expect(() => runtime.requireRoutingContract('azure')).not.toThrow();
+  expect(requests).toBe(0);
+});
+test('Azure routing capability rejects altered configuration, peer, and route mappings', async () => {
+  const variants = [
+    (value: typeof contract) => {
+      value.providers.azure.runtime.configuration.response_mappings.device = 'invented.device';
+    },
+    (value: typeof contract) => {
+      value.providers.azure.runtime.bgp_peers.response_mappings.state = 'invented.state';
+    },
+    (value: typeof contract) => {
+      value.providers.azure.runtime.bgp_routes.response_mappings.imported_routes = 'invented.routes[]';
+    },
+  ];
+  for (const mutate of variants) {
+    const changed = structuredClone(contract);
+    mutate(changed);
+    const { contract: candidateContract } = await candidate(true, changed);
+    expect(() => candidateContract.requireRoutingContract('azure')).toThrow('unavailable');
+  }
 });
 test('candidate tampering fails before any API request', async () => {
   const { dir, digest } = await candidate();
@@ -564,6 +588,125 @@ test('creates schema-validated routing objects in order and resumes lost respons
       (value) => (value as { metadata: { labels: Record<string, string> } }).metadata.labels['xcsh-ce-site-uid'],
     ),
   ).toEqual(['site-uid', 'site-uid', 'site-uid']);
+});
+
+test('creates Azure Route Server BGP from observed SLO objects and reconciles a lost response', async () => {
+  const { contract } = await candidate(true);
+  const azureBinding: SiteBinding = {
+    owner: {
+      deploymentId: 'ce-test',
+      engine: 'native',
+      provider: 'azure',
+      account: 'demo',
+      region: 'eastus',
+    },
+    siteName: 'ce-one',
+    nodes: ['node-one'],
+  };
+  let bgp: unknown;
+  let posts = 0;
+  const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith('/ver/bgp_routes'))
+      return json({
+        ver: [
+          {
+            name: 'node-one.example.test',
+            ri_table: [
+              {
+                routing_instance: 'ves-io-slo-tenant',
+                rt_table: [
+                  {
+                    name: 'inet.0',
+                    imported: [{ subnet: '10.20.0.0/24' }],
+                    exported: [{ subnet: '10.250.0.10/32' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    if (path.endsWith('/ver/bgp_peers'))
+      return json({
+        ver: [
+          {
+            name: 'node-one.example.test',
+            peer: ['10.20.0.4', '10.20.0.5'].map((address) => ({
+              interface_name: 'observed-slo-one',
+              peer_address: { ipv4: { addr: address } },
+              protocol_status: 'Established',
+              received_prefix_count: 2,
+              advertised_prefix_count: 1,
+              up_down_timestamp: '2026-09-10T12:00:00Z',
+            })),
+          },
+        ],
+      });
+    if (path.includes('securemesh_site_v2s/'))
+      return json({
+        metadata: {
+          name: azureBinding.siteName,
+          namespace: 'system',
+          labels: {
+            'xcsh-ce-deployment': 'ce-test',
+            'xcsh-ce-engine': 'native',
+            'xcsh-ce-provider': 'azure',
+            'xcsh-ce-account': 'demo',
+            'xcsh-ce-region': 'eastus',
+          },
+        },
+        system_metadata: { uid: 'azure-site-uid' },
+      });
+    if (init?.method === 'POST') {
+      posts++;
+      bgp = { ...JSON.parse(String(init.body)), system_metadata: { uid: 'azure-bgp-uid' } };
+      throw new Error('response lost after durable creation');
+    }
+    return bgp ? json(bgp) : json({}, 404);
+  });
+  const run = (checkpoint: (record: Record<string, unknown>) => Promise<void> = async () => {}) =>
+    runtime.ensureAzureRouting(
+      azureBinding,
+      65010,
+      65515,
+      [{ node: 'node-one', interfaceName: 'observed-slo-one' }],
+      ['10.20.0.4', '10.20.0.5'],
+      checkpoint,
+    );
+  await expect(
+    run(async () => {
+      throw new Error('checkpoint interrupted');
+    }),
+  ).rejects.toThrow('checkpoint interrupted');
+  await run();
+  await run();
+  expect(posts).toBe(1);
+  expect(bgp).toMatchObject({
+    metadata: {
+      labels: {
+        'xcsh-ce-site': 'ce-one',
+        'xcsh-ce-site-uid': 'azure-site-uid',
+      },
+    },
+    spec: {
+      where: { site: { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', disable_internet_vip: {} } },
+      peers: [
+        { external: { address: '10.20.0.4', interface: { name: 'observed-slo-one', namespace: 'system' } } },
+        { external: { address: '10.20.0.5', interface: { name: 'observed-slo-one', namespace: 'system' } } },
+      ],
+    },
+  });
+  await expect(
+    runtime.observeBgpSessions(azureBinding, [
+      { node: 'node-one', interfaceName: 'observed-slo-one', peerAddress: '10.20.0.4' },
+      { node: 'node-one', interfaceName: 'observed-slo-one', peerAddress: '10.20.0.5' },
+    ]),
+  ).resolves.toMatchObject({ status: 'healthy', establishedSessions: 2, expectedSessions: 2 });
+  await expect(runtime.observeBgpRoutes(azureBinding)).resolves.toMatchObject({
+    status: 'observed',
+    nodes: [{ node: 'node-one', routingInstances: [{ tables: [{ exported: ['10.250.0.10/32'] }] }] }],
+  });
 });
 
 test('AWS configured creation rejects missing observed devices before any API request', async () => {

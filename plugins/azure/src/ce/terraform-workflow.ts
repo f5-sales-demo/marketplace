@@ -5,6 +5,7 @@ import type { CeTerraformService, TerraformSession } from '../../../terraform/sr
 import type { AzExecApi } from '../az/exec';
 import { assertAzureCeRoutingExecutable } from './apply';
 import { verifyAzureCePlan } from './artifacts';
+import { configureAzureRouteServerRouting } from './routing-workflow';
 import { azureTerraformFoundationDeployment, renderAzureTerraformFoundation } from './terraform-foundation';
 import { discoverAzureTerraformInterfaces } from './terraform-identities';
 import { azureUpgradeBinding } from './terraform-upgrade';
@@ -46,11 +47,16 @@ export async function runAzureTerraformAdmission(
     CeRuntime,
     | 'engine'
     | 'requireBootstrapContract'
+    | 'requireRoutingContract'
     | 'reserveSite'
     | 'bootstrap'
     | 'approveRegistrations'
     | 'observeRegistrations'
     | 'observeRegisteredConfiguration'
+    | 'observeAzureInterfaces'
+    | 'ensureAzureRouting'
+    | 'observeBgpSessions'
+    | 'observeBgpRoutes'
   >,
   storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   api: AzExecApi,
@@ -64,6 +70,7 @@ export async function runAzureTerraformAdmission(
     throw new Error('Azure Terraform workflow requires Terraform ownership');
   assertAzureCeRoutingExecutable(plan);
   runtime.requireBootstrapContract('azure');
+  if (plan.routing.mode === 'route-server') runtime.requireRoutingContract('azure');
   const binding = azureUpgradeBinding(plan);
   const initial = renderAzureTerraformFoundation(plan);
   await storage.verify();
@@ -223,6 +230,12 @@ export async function runAzureTerraformAdmission(
   checkpoint.stage =
     configuration.status === 'configured' && current.status === 'healthy' ? 'registered' : 'registration-pending';
   await save();
+  let routing: 'healthy' | 'unknown' = 'unknown';
+  if (plan.routing.mode === 'route-server' && checkpoint.stage === 'registered') {
+    const evidence = await configureAzureRouteServerRouting(plan, expectedInterfaces, runtime, storage, api, signal);
+    if (evidence.status !== 'healthy') throw new Error('Azure Route Server BGP and learned routes have not converged');
+    routing = 'healthy';
+  }
   return {
     planId: plan.planId,
     planSha256: plan.planSha256,
@@ -230,7 +243,7 @@ export async function runAzureTerraformAdmission(
     status: checkpoint.stage === 'registered' ? ('registered' as const) : ('pending-registration' as const),
     registrations: current.status === 'healthy' ? current : registrations,
     configuration,
-    routing: 'unknown' as const,
+    routing,
     traffic: 'unknown' as const,
   };
 }

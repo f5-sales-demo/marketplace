@@ -1,3 +1,5 @@
+import { type ExpectedBgpSession, parseBgpSessions } from './bgp-evidence';
+import { parseBgpRoutes } from './bgp-route-evidence';
 import { bindAwsCloudInit } from './bootstrap';
 import type { CeDeploymentStore } from './deployment-store';
 import type { VerifiedIngressContract } from './ingress-contract';
@@ -17,7 +19,7 @@ import {
   parseUpgradeProgress,
 } from './upgrade-evidence';
 import type { VerifiedCeContract } from './verified-contract';
-import type { AwsGreBinding } from './wire-routing';
+import type { AwsGreBinding, AzureSloBinding } from './wire-routing';
 import type { WireSiteIntent } from './wire-site';
 import type { SiteUpgradeIntent } from './wire-upgrade';
 
@@ -547,6 +549,9 @@ export class CeRuntime {
   requireBootstrapContract(provider: 'aws' | 'azure'): void {
     this.contract.bootstrapQuery(provider);
   }
+  requireRoutingContract(provider: 'aws' | 'azure'): void {
+    this.contract.requireRoutingContract(provider);
+  }
   async #ensureSpec(
     binding: SiteBinding,
     spec: Json,
@@ -659,7 +664,11 @@ export class CeRuntime {
     const evidence = await this.observeRegisteredDevices(binding, expectedInstances, expected, signal);
     if (evidence.status !== 'observed') return { ...evidence, status: 'unknown' as const };
     try {
-      const configuration = await this.observeSite(binding, signal);
+      const configuration = await this.#request(
+        this.contract.configurationPath(binding.owner.provider, binding.siteName),
+        {},
+        signal,
+      );
       this.#owned(configuration, binding);
       verifyRegisteredInterfaceConfiguration(object(configuration.spec), evidence.interfaces, binding.owner.provider);
       const uid = object(configuration.system_metadata).uid;
@@ -750,12 +759,60 @@ export class CeRuntime {
     expected: ExpectedCeInterface[],
     signal?: AbortSignal,
   ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+    if (binding.owner.provider !== 'aws') throw new Error('AWS interface observation requires AWS ownership');
+    return this.observeInterfaces(binding, expected, signal);
+  }
+  async observeAzureInterfaces(
+    binding: SiteBinding,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
+    if (binding.owner.provider !== 'azure') throw new Error('Azure interface observation requires Azure ownership');
+    return this.observeInterfaces(binding, expected, signal);
+  }
+  async observeBgpSessions(binding: SiteBinding, expected: ExpectedBgpSession[], signal?: AbortSignal) {
+    this.#binding(binding);
+    this.#owned(await this.observeSite(binding, signal), binding);
+    const source = this.contract.bgpPeersPath(binding.owner.provider, binding.siteName);
+    const evidence = parseBgpSessions(await this.#request(source, {}, signal), expected);
+    return {
+      ...evidence,
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      source,
+      observedAt: new Date().toISOString(),
+      contractFingerprint: this.contract.fingerprint,
+    };
+  }
+  async observeBgpRoutes(binding: SiteBinding, signal?: AbortSignal) {
+    this.#binding(binding);
+    this.#owned(await this.observeSite(binding, signal), binding);
+    const source = this.contract.bgpRoutesPath(binding.owner.provider, binding.siteName);
+    const evidence = parseBgpRoutes(await this.#request(source, {}, signal), binding.nodes);
+    return {
+      ...evidence,
+      owner: structuredClone(binding.owner),
+      siteName: binding.siteName,
+      source,
+      observedAt: new Date().toISOString(),
+      contractFingerprint: this.contract.fingerprint,
+    };
+  }
+  private async observeInterfaces(
+    binding: SiteBinding,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ): Promise<{ status: 'observed' | 'unknown'; interfaces: ObservedCeInterface[]; observedAt: string }> {
     this.#binding(binding);
     const observedAt = new Date().toISOString();
     try {
-      if (binding.owner.provider !== 'aws' || expected.some((item) => !binding.nodes.includes(item.node)))
+      if (expected.some((item) => !binding.nodes.includes(item.node)))
         throw new Error('Interface binding differs from site');
-      const configuration = await this.observeSite(binding, signal);
+      const configuration = await this.#request(
+        this.contract.configurationPath(binding.owner.provider, binding.siteName),
+        {},
+        signal,
+      );
       this.#owned(configuration, binding);
       const objects = await this.#request(
         '/api/config/namespaces/system/network_interfaces?report_fields=get_spec&report_fields=system_metadata',
@@ -765,7 +822,7 @@ export class CeRuntime {
       const physical = await this.#request(`/api/config/namespaces/system/sites/${binding.siteName}`, {}, signal);
       return {
         status: 'observed',
-        interfaces: correlateCeInterfaces(configuration, objects, physical, expected),
+        interfaces: correlateCeInterfaces(configuration, objects, physical, expected, binding.owner.provider),
         observedAt,
       };
     } catch (error) {
@@ -1025,6 +1082,91 @@ export class CeRuntime {
           contractFingerprint: this.contract.fingerprint,
         });
       }
+  }
+  async ensureAzureRouting(
+    binding: SiteBinding,
+    localAsn: number,
+    remoteAsn: number,
+    interfaces: AzureSloBinding[],
+    routeServerAddresses: string[],
+    checkpoint: (resource: Json) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    this.#binding(binding, true);
+    this.requireRoutingContract('azure');
+    if (
+      binding.owner.provider !== 'azure' ||
+      interfaces.length !== binding.nodes.length ||
+      interfaces.some((item) => !binding.nodes.includes(item.node))
+    )
+      throw new Error('Azure routing interface and site ownership differ');
+    let site = await this.observeOwnedSite(binding, signal);
+    let siteUid = object(site.system_metadata).uid;
+    if (typeof siteUid !== 'string' || !siteUid.trim()) throw new Error('Azure routing requires a logical site UID');
+    const routing = this.contract.buildAzureRouting(
+      binding.siteName,
+      localAsn,
+      remoteAsn,
+      interfaces,
+      routeServerAddresses,
+    );
+    const resource = routing.bgp;
+    const path = `/api/config/namespaces/system/bgps/${resource.name}`;
+    const observe = () => this.#request(path, {}, signal);
+    let existing: Json | undefined;
+    try {
+      existing = await observe();
+    } catch (error) {
+      if (!(error instanceof CeApiError && error.category === 'not-found')) throw error;
+    }
+    if (!existing) {
+      // Revalidate ownership immediately before the mutation. A lost response is
+      // reconciled by the deterministic name, exact site UID, labels and spec.
+      site = await this.observeOwnedSite(binding, signal);
+      siteUid = object(site.system_metadata).uid;
+      if (typeof siteUid !== 'string' || !siteUid.trim()) throw new Error('Azure routing requires a logical site UID');
+      this.contract.validateRouting('bgp', resource.spec);
+      try {
+        await this.#request(
+          '/api/config/namespaces/system/bgps',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              metadata: {
+                name: resource.name,
+                namespace: 'system',
+                labels: { ...this.#labels(binding), 'xcsh-ce-site': binding.siteName, 'xcsh-ce-site-uid': siteUid },
+              },
+              spec: resource.spec,
+            }),
+          },
+          signal,
+        );
+      } catch (error) {
+        if (!(error instanceof CeApiError && ['transient', 'conflict'].includes(error.category))) throw error;
+      }
+      existing = await observe();
+    }
+    this.#owned(existing, { ...binding, siteName: resource.name });
+    if (
+      object(object(existing.metadata).labels)['xcsh-ce-site'] !== binding.siteName ||
+      object(object(existing.metadata).labels)['xcsh-ce-site-uid'] !== siteUid ||
+      !subset(existing.spec, resource.spec)
+    )
+      throw new Error('Existing Azure routing object differs from site-bound intent; replan required');
+    const uid = object(existing.system_metadata).uid;
+    if (typeof uid !== 'string' || !uid.trim()) throw new CeApiError('malformed');
+    await checkpoint({
+      kind: 'bgp',
+      name: resource.name,
+      uid,
+      siteName: binding.siteName,
+      siteUid,
+      owner: binding.owner,
+      expectedSessions: routing.expectedSessions,
+      routeServerAddresses: [...routeServerAddresses],
+      contractFingerprint: this.contract.fingerprint,
+    });
   }
   /** Remove only a routing object recorded for this exact owned site. */
   async deleteRouting(

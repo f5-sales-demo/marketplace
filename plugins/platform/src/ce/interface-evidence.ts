@@ -58,6 +58,7 @@ export function correlateCeInterfaces(
   objects: Json,
   physical: Json,
   expected: ExpectedCeInterface[],
+  provider: 'aws' | 'azure' = 'aws',
 ): ObservedCeInterface[] {
   const metadata = object(configuration.metadata);
   const uid = identity(object(configuration.system_metadata).uid);
@@ -73,26 +74,28 @@ export function correlateCeInterfaces(
   )
     throw new Error('Partial interface discovery');
   const realized = array(objects.items).map(object);
-  const configured = array(object(object(object(configuration.spec).aws).not_managed).node_list).flatMap((item) => {
-    const node = object(item);
-    const hostname = identity(node.hostname);
-    return array(node.interface_list).map((item) => {
-      const iface = object(item);
-      const ethernet = object(iface.ethernet_interface);
-      const network = object(iface.network_option);
-      const slo = Object.hasOwn(network, 'site_local_network');
-      const sli = Object.hasOwn(network, 'site_local_inside_network');
-      if (slo === sli || !Number.isInteger(iface.mtu) || Number(iface.mtu) < 576 || Number(iface.mtu) > 9000)
-        throw new Error('Ambiguous interface role or MTU');
-      return {
-        node: hostname,
-        mac: mac(ethernet.mac),
-        device: identity(ethernet.device),
-        role: slo ? ('slo' as const) : ('sli' as const),
-        mtu: Number(iface.mtu),
-      };
-    });
-  });
+  const configured = array(object(object(object(configuration.spec)[provider]).not_managed).node_list).flatMap(
+    (item) => {
+      const node = object(item);
+      const hostname = identity(node.hostname);
+      return array(node.interface_list).map((item) => {
+        const iface = object(item);
+        const ethernet = object(iface.ethernet_interface);
+        const network = object(iface.network_option);
+        const slo = Object.hasOwn(network, 'site_local_network');
+        const sli = Object.hasOwn(network, 'site_local_inside_network');
+        if (slo === sli || !Number.isInteger(iface.mtu) || Number(iface.mtu) < 576 || Number(iface.mtu) > 9000)
+          throw new Error('Ambiguous interface role or MTU');
+        return {
+          node: hostname,
+          mac: mac(ethernet.mac),
+          device: identity(ethernet.device),
+          role: slo ? ('slo' as const) : ('sli' as const),
+          mtu: Number(iface.mtu),
+        };
+      });
+    },
+  );
   const statuses = array(physical.status).map(object);
   const seen = new Set<string>();
   if (!expected.length) throw new Error('Expected interface bindings required');

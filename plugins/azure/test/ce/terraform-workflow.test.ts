@@ -406,7 +406,7 @@ test('rejects unavailable Azure bootstrap before opening Terraform or calling Az
   expect({ opens, cloudCalls }).toEqual({ opens: 0, cloudCalls: 0 });
 });
 
-test('rejects Route Server admission before Terraform, Azure, or bootstrap access', async () => {
+test('rejects Route Server admission without an expected route before Terraform, Azure, or bootstrap access', async () => {
   const selected = structuredClone(intent);
   selected.engine = 'terraform';
   selected.routing = {
@@ -447,7 +447,7 @@ test('rejects Route Server admission before Terraform, Azure, or bootstrap acces
       async () => {},
       {},
     ),
-  ).rejects.toThrow(/verified platform SLO BGP mapping/);
+  ).rejects.toThrow(/expected learned prefix/);
   expect({ opens, cloudCalls, bootstrapChecks }).toEqual({
     opens: 0,
     cloudCalls: 0,

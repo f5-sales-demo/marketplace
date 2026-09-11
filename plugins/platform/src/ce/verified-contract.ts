@@ -2,7 +2,13 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { projectReplaceSnapshot } from './wire-replace';
-import { type AwsGreBinding, buildAwsRouting, routingValidators } from './wire-routing';
+import {
+  type AwsGreBinding,
+  type AzureSloBinding,
+  buildAwsRouting,
+  buildAzureRouting,
+  routingValidators,
+} from './wire-routing';
 import { createWireValidator } from './wire-schema';
 import { buildWireSite, type WireSiteIntent } from './wire-site';
 
@@ -135,6 +141,16 @@ export class VerifiedCeContract {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     return buildAwsRouting(siteName, localAsn, remoteAsn, bindings, deniedExportPrefixes, this.#routing);
   }
+  buildAzureRouting(
+    siteName: string,
+    localAsn: number,
+    remoteAsn: number,
+    bindings: AzureSloBinding[],
+    routeServerAddresses: string[],
+  ) {
+    if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
+    return buildAzureRouting(siteName, localAsn, remoteAsn, bindings, routeServerAddresses, this.#routing);
+  }
   routingReplaceRequest(
     kind: 'external_connector' | 'bgp_routing_policy' | 'bgp',
     snapshot: Json,
@@ -158,6 +174,104 @@ export class VerifiedCeContract {
   validateRouting(kind: 'external_connector' | 'bgp_routing_policy' | 'bgp', spec: Json): void {
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     this.#routing(kind, spec);
+  }
+  requireRoutingContract(providerName: 'aws' | 'azure'): void {
+    if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
+    this.configurationPath(providerName, 'contract-check');
+    this.bgpPeersPath(providerName, 'contract-check');
+    this.bgpRoutesPath(providerName, 'contract-check');
+  }
+  configurationPath(providerName: 'aws' | 'azure', siteName: string): string {
+    const provider = object(object(this.#contract.providers)[providerName]);
+    const observation = object(object(provider.runtime).configuration);
+    const mappings = object(observation.response_mappings);
+    const normalization = object(observation.normalization);
+    const nullability = object(observation.nullability);
+    const expectedMappings = {
+      interfaces: 'interface_list[]',
+      mac: 'ethernet_interface.mac',
+      mtu: 'mtu',
+      node: 'hostname',
+      nodes: `spec.${providerName}.not_managed.node_list[]`,
+      public_ip: 'public_ip',
+      role: 'network_option',
+      ...(providerName === 'azure' ? { device: 'ethernet_interface.device', provider: 'spec.azure.not_managed' } : {}),
+    };
+    if (
+      observation.method !== 'GET' ||
+      observation.path !== '/api/config/namespaces/{namespace}/securemesh_site_v2s/{site}' ||
+      observation.operation_id !== 'ves.io.schema.views.securemesh_site_v2.API.Get' ||
+      observation.response_schema !== 'securemesh_site_v2GetResponse' ||
+      observation.authority !== 'f5xc' ||
+      observation.semantics !== 'configuration' ||
+      JSON.stringify(Object.entries(mappings).toSorted()) !==
+        JSON.stringify(Object.entries(expectedMappings).toSorted()) ||
+      normalization.node !== 'trim' ||
+      normalization.mac !== 'ieee802_lowercase_colon' ||
+      normalization.role !== 'slo_or_sli' ||
+      nullability.public_ip !== 'nullable' ||
+      nullability.all_identity_fields !== 'non_null' ||
+      JSON.stringify(observation.correlation) !== JSON.stringify(['node', 'normalized_mac'])
+    )
+      throw new Error(`Verified ${providerName} configuration observation mapping is unavailable`);
+    return `/api/config/namespaces/system/securemesh_site_v2s/${siteName}`;
+  }
+  bgpPeersPath(providerName: 'aws' | 'azure', siteName: string): string {
+    const provider = object(object(this.#contract.providers)[providerName]);
+    const runtime = object(provider.runtime);
+    const observation = object(runtime.bgp_peers);
+    const mappings = object(observation.response_mappings);
+    const peerAddress = object(mappings.peer_address);
+    if (
+      observation.method !== 'GET' ||
+      observation.path !== '/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_peers' ||
+      observation.operation_id !== 'ves.io.schema.operate.bgp.CustomPublicAPI.ShowBGPPeers' ||
+      observation.response_schema !== 'bgpBGPPeersResponse' ||
+      observation.authority !== 'f5xc' ||
+      observation.semantics !== 'observational_read_only' ||
+      mappings.nodes !== 'ver[]' ||
+      mappings.node !== 'ver[].name' ||
+      mappings.peers !== 'ver[].peer[]' ||
+      mappings.interface_name !== 'ver[].peer[].interface_name' ||
+      peerAddress.ipv4 !== 'ver[].peer[].peer_address.ipv4.addr' ||
+      peerAddress.ipv6 !== 'ver[].peer[].peer_address.ipv6.addr' ||
+      mappings.state !== 'ver[].peer[].protocol_status' ||
+      mappings.received_prefix_count !== 'ver[].peer[].received_prefix_count' ||
+      mappings.advertised_prefix_count !== 'ver[].peer[].advertised_prefix_count' ||
+      mappings.state_changed_at !== 'ver[].peer[].up_down_timestamp' ||
+      object(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
+      JSON.stringify(observation.correlation) !== JSON.stringify(['canonical_node', 'peer_address'])
+    )
+      throw new Error(`Verified ${providerName} BGP observation mapping is unavailable`);
+    return `/api/operate/namespaces/system/sites/${siteName}/ver/bgp_peers`;
+  }
+  bgpRoutesPath(providerName: 'aws' | 'azure', siteName: string): string {
+    const provider = object(object(this.#contract.providers)[providerName]);
+    const observation = object(object(provider.runtime).bgp_routes);
+    const mappings = object(observation.response_mappings);
+    if (
+      observation.method !== 'GET' ||
+      observation.path !== '/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_routes' ||
+      observation.operation_id !== 'ves.io.schema.operate.bgp.CustomPublicAPI.ShowBGPRoutes' ||
+      observation.response_schema !== 'bgpBGPRoutesResponse' ||
+      observation.authority !== 'f5xc' ||
+      observation.semantics !== 'observational_read_only' ||
+      mappings.nodes !== 'ver[]' ||
+      mappings.node !== 'ver[].name' ||
+      mappings.routing_instances !== 'ver[].ri_table[]' ||
+      mappings.route_tables !== 'ver[].ri_table[].rt_table[]' ||
+      mappings.imported_routes !== 'ver[].ri_table[].rt_table[].imported[]' ||
+      mappings.exported_routes !== 'ver[].ri_table[].rt_table[].exported[]' ||
+      JSON.stringify(mappings.route_prefixes) !==
+        JSON.stringify([
+          'ver[].ri_table[].rt_table[].imported[].subnet',
+          'ver[].ri_table[].rt_table[].exported[].subnet',
+        ]) ||
+      object(observation.normalization).node !== 'configured_hostname_or_fqdn' ||
+      JSON.stringify(observation.correlation) !== JSON.stringify(['canonical_node'])
+    )
+      throw new Error(`Verified ${providerName} BGP route observation mapping is unavailable`);
+    return `/api/operate/namespaces/system/sites/${siteName}/ver/bgp_routes`;
   }
   buildSite(intent: WireSiteIntent): Json {
     return buildWireSite(intent, this.#schemas);

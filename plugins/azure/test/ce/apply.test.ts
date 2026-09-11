@@ -200,7 +200,7 @@ describe('Azure CE apply protections', () => {
   });
 });
 
-it('rejects incomplete Route Server and unattached greenfield UDR execution before mutation', () => {
+it('requires an expected Route Server route exchange and rejects unattached greenfield UDR execution', () => {
   const routeServer = compileAzureCePlan(
     {
       ...intent,
@@ -209,7 +209,16 @@ it('rejects incomplete Route Server and unattached greenfield UDR execution befo
     },
     observation,
   );
-  expect(() => assertAzureCeRoutingExecutable(routeServer)).toThrow(/verified platform SLO BGP mapping/);
+  expect(() => assertAzureCeRoutingExecutable(routeServer)).toThrow(/expected learned prefix/);
+  const executable = compileAzureCePlan(
+    {
+      ...intent,
+      engine: 'terraform',
+      routing: { mode: 'route-server', destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 },
+    },
+    observation,
+  );
+  expect(() => assertAzureCeRoutingExecutable(executable)).not.toThrow();
 
   const unattached = compileAzureCePlan(
     { ...intent, engine: 'terraform', routing: { mode: 'udr', destinationCidrs: ['10.30.0.0/16'] } },

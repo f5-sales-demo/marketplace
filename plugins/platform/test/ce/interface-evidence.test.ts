@@ -77,6 +77,22 @@ test('resolves the authoritative object only through configured MAC, site UID, d
   ]);
 });
 
+test('resolves Azure interfaces from the Azure site branch without constructing object names', () => {
+  const f = fixture();
+  const spec = f.configuration.spec as Record<string, unknown>;
+  spec.azure = spec.aws;
+  delete spec.aws;
+  const result = correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected, 'azure');
+  expect(result[0]).toMatchObject({
+    node: 'node-a',
+    role: 'slo',
+    mac: 'aa:bb:cc:dd:ee:ff',
+    device: 'eth0',
+    interfaceName: 'authoritative-interface-object',
+    linkUp: true,
+  });
+});
+
 test('collects IPv4 only from the correlated active physical interface', () => {
   const f = sitePublisherFixture();
   const link = f.physical.status[0].ver_status.intf_status[0];

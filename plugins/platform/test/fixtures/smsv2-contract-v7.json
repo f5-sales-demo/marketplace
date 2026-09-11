@@ -46,6 +46,25 @@
           "source_repository": "f5-sales-demo/mcn"
         },
         "headless_checkout": "available",
+        "interface_configuration": {
+          "device_identity": "node_and_mac_remain_authoritative",
+          "device_wire_requirement": "nonempty_observed_device_required_when_configuring_interfaces",
+          "discovery_requirement": "observe_guest_devices_before_configured_site_creation",
+          "mac_only_create": "rejected_by_live_api",
+          "primary_interface_settings": "configure_before_registration_immutable_after_registration",
+          "receipt_path": "config/evidence/aws-preboot-interface-api-20260908.json",
+          "receipt_sha256": "b613d9fe858f58a36f3dc4dc7409ea95bafcb0669a70bda5d92cfd32abdb04eb",
+          "replacement_requirement": "couple_vm_and_site_when_initial_discovery_requires_registration",
+          "runtime_acceptance": "observed_single_node_native_preboot_registration",
+          "runtime_evidence": {
+            "fresh_acceptance_required": true,
+            "qualification_receipt_sha256": "582d8a6bdef8068a4b269b5a38c3ab4ae6f878bf279253f5752d9b6c38f1aaf2",
+            "receipt_path": "config/evidence/aws-native-preboot-registration-20260908.json",
+            "receipt_sha256": "5504ec73e6281fd40f1024e30f0bec3313a8ccf6b2eed1eb36fb0af02261d9ba",
+            "source_issue": "f5-sales-demo/api-specs-enriched#1752"
+          },
+          "source_issue": "f5-sales-demo/api-specs-enriched#1750"
+        },
         "material": {
           "issued_path": "/etc/vpm/user_data",
           "placeholder_value": "spec.content",
@@ -355,13 +374,55 @@
     "azure": {
       "availability": "evidence_backed",
       "bootstrap": {
-        "headless_checkout": "unavailable",
-        "reason": "aws_acceptance_does_not_certify_azure_image_bootstrap",
+        "api_verification": {
+          "receipt_path": "config/evidence/azure-bootstrap-api-20260908.json",
+          "receipt_sha256": "ba3975c417a43e9e6a68d02bb51bec76bfe043aa1d1a756b199377be0f450e21",
+          "runtime_acceptance": false,
+          "schema_commit": "5ce68bff35b444e5af967433ad3d14ca96a1ffe0",
+          "scope": "azure_bootstrap_api_only",
+          "source_issue": "f5-sales-demo/api-specs-enriched#1748",
+          "status": "verified_api_only"
+        },
+        "cloud_init": {
+          "method": "GET",
+          "operation_id": "ves.io.schema.token.CustomAPI.GetCloudInitConfig",
+          "operation_role": "issuance",
+          "path": "/api/register/namespaces/system/get-cloud-init-config",
+          "query_fields": { "enable_management_network": false, "provider": "azure", "site_name": "site_name" },
+          "refresh_on_read": false,
+          "response_path": "cloud_init_config",
+          "sensitive": true
+        },
+        "headless_checkout": "available",
+        "image_runtime_acceptance": false,
+        "material": {
+          "issued_path": "/etc/vpm/user_data",
+          "placeholder_value": "spec.content",
+          "preserve_paths": ["/etc/vpm/config.yaml"],
+          "reject_unresolved_placeholders": true,
+          "storage": "restricted_deployment_storage",
+          "token_placeholders": ["{{ .Token }}", "{{ .token }}"]
+        },
+        "mode": "site_bound_jwt_cloud_init",
+        "reason": "azure_api_verified_image_runtime_not_accepted",
+        "reference": "deployment_bound_opaque_one_use",
         "runtime_verification": "awaiting_evidence",
         "schema_support": "available",
+        "sequence": ["site_create", "jwt_issue", "cloud_init_issue"],
         "source_commit": "c1310d030cfc252571bf0e816db21b618697d991",
         "source_path": "docs/en/customer-edge/smsv2/azure-route-server.mdx",
-        "source_repository": "f5-sales-demo/mcn"
+        "source_repository": "f5-sales-demo/mcn",
+        "token": {
+          "accepted_response_types": [1, "JWT"],
+          "credential_response_path": "spec.content",
+          "metadata_fields": { "name": "token_name", "namespace": "system" },
+          "method": "POST",
+          "path": "/api/register/namespaces/system/tokens",
+          "request_fields": { "spec.site_name": "site_name", "spec.type": 1 },
+          "site_binding_required": true,
+          "site_response_path": "spec.site_name",
+          "type_response_path": "spec.type"
+        }
       },
       "change_risk": {
         "adding_or_removing_interfaces_disruptive": true,
@@ -425,6 +486,76 @@
           "vrf": null
         }
       ],
+      "runtime": {
+        "bgp_peers": {
+          "authority": "f5xc",
+          "correlation": ["canonical_node", "peer_address"],
+          "method": "GET",
+          "normalization": { "node": "configured_hostname_or_fqdn" },
+          "operation_id": "ves.io.schema.operate.bgp.CustomPublicAPI.ShowBGPPeers",
+          "path": "/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_peers",
+          "response_mappings": {
+            "advertised_prefix_count": "ver[].peer[].advertised_prefix_count",
+            "interface_name": "ver[].peer[].interface_name",
+            "node": "ver[].name",
+            "nodes": "ver[]",
+            "peer_address": {
+              "ipv4": "ver[].peer[].peer_address.ipv4.addr",
+              "ipv6": "ver[].peer[].peer_address.ipv6.addr"
+            },
+            "peers": "ver[].peer[]",
+            "received_prefix_count": "ver[].peer[].received_prefix_count",
+            "state": "ver[].peer[].protocol_status",
+            "state_changed_at": "ver[].peer[].up_down_timestamp"
+          },
+          "response_schema": "bgpBGPPeersResponse",
+          "semantics": "observational_read_only"
+        },
+        "bgp_routes": {
+          "authority": "f5xc",
+          "correlation": ["canonical_node"],
+          "method": "GET",
+          "normalization": { "node": "configured_hostname_or_fqdn" },
+          "operation_id": "ves.io.schema.operate.bgp.CustomPublicAPI.ShowBGPRoutes",
+          "path": "/api/operate/namespaces/{namespace}/sites/{site}/ver/bgp_routes",
+          "response_mappings": {
+            "exported_routes": "ver[].ri_table[].rt_table[].exported[]",
+            "imported_routes": "ver[].ri_table[].rt_table[].imported[]",
+            "node": "ver[].name",
+            "nodes": "ver[]",
+            "route_prefixes": [
+              "ver[].ri_table[].rt_table[].imported[].subnet",
+              "ver[].ri_table[].rt_table[].exported[].subnet"
+            ],
+            "route_tables": "ver[].ri_table[].rt_table[]",
+            "routing_instances": "ver[].ri_table[]"
+          },
+          "response_schema": "bgpBGPRoutesResponse",
+          "semantics": "observational_read_only"
+        },
+        "configuration": {
+          "authority": "f5xc",
+          "correlation": ["node", "normalized_mac"],
+          "method": "GET",
+          "normalization": { "mac": "ieee802_lowercase_colon", "node": "trim", "role": "slo_or_sli" },
+          "nullability": { "all_identity_fields": "non_null", "public_ip": "nullable" },
+          "operation_id": "ves.io.schema.views.securemesh_site_v2.API.Get",
+          "path": "/api/config/namespaces/{namespace}/securemesh_site_v2s/{site}",
+          "response_mappings": {
+            "device": "ethernet_interface.device",
+            "interfaces": "interface_list[]",
+            "mac": "ethernet_interface.mac",
+            "mtu": "mtu",
+            "node": "hostname",
+            "nodes": "spec.azure.not_managed.node_list[]",
+            "provider": "spec.azure.not_managed",
+            "public_ip": "public_ip",
+            "role": "network_option"
+          },
+          "response_schema": "securemesh_site_v2GetResponse",
+          "semantics": "configuration"
+        }
+      },
       "runtime_evidence": {
         "guest_interface_names": "observational_only",
         "minimum_mapping_confidence": "authoritative",

@@ -41,6 +41,53 @@ function routeRoles(value: unknown): Array<{ role: string; routes: Json[] }> {
   return roles.sort((a, b) => a.role.localeCompare(b.role));
 }
 
+/** Resolve the exact owned Route Server and its two service addresses before platform routing mutation. */
+export async function discoverAzureRouteServerIdentity(plan: AzureCePlan, api: AzExecApi, signal?: AbortSignal) {
+  verifyAzureCePlan(plan);
+  if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
+  const serverAction = plan.actions.filter((action) => action.kind === 'route-server-create');
+  if (serverAction.length !== 1 || !serverAction[0].resourceId)
+    throw new Error('Planned Route Server identity is unavailable');
+  const server = object(
+    await read(
+      api,
+      plan,
+      [
+        'network',
+        'routeserver',
+        'show',
+        '--resource-group',
+        plan.intent.resourceGroup,
+        '--name',
+        `${plan.deploymentName}-rs`,
+      ],
+      signal,
+    ),
+  );
+  const tags = object(server.tags);
+  const routerIps = server.virtualRouterIps;
+  if (
+    lower(server.id) !== lower(serverAction[0].resourceId) ||
+    lower(server.location) !== lower(plan.region) ||
+    server.provisioningState !== 'Succeeded' ||
+    server.virtualRouterAsn !== 65515 ||
+    !Array.isArray(routerIps) ||
+    routerIps.length !== 2 ||
+    new Set(routerIps).size !== 2 ||
+    routerIps.some((ip) => typeof ip !== 'string' || isIP(ip) !== 4) ||
+    tags['xcsh-managed-by'] !== 'azure-ce' ||
+    tags['xcsh-deployment-id'] !== plan.deploymentName ||
+    tags['xcsh-execution-engine'] !== plan.engine ||
+    tags['xcsh-plan-sha256'] !== plan.planSha256
+  )
+    throw new Error('Azure Route Server identity or service addresses differ');
+  return {
+    routeServerId: serverAction[0].resourceId,
+    asn: 65515 as const,
+    serviceAddresses: (routerIps as string[]).toSorted(),
+  };
+}
+
 /** Azure control-plane route exchange. Per-session establishment still requires platform BGP evidence. */
 export async function collectAzureRouteServerHealth(plan: AzureCePlan, api: AzExecApi, signal?: AbortSignal) {
   verifyAzureCePlan(plan);
@@ -60,42 +107,7 @@ export async function collectAzureRouteServerHealth(plan: AzureCePlan, api: AzEx
   };
   if (plan.routing.mode !== 'route-server') return { ...base, status: 'not-applicable' as const };
   try {
-    const serverAction = plan.actions.filter((action) => action.kind === 'route-server-create');
-    if (serverAction.length !== 1 || !serverAction[0].resourceId)
-      throw new Error('Planned Route Server identity is unavailable');
-    const server = object(
-      await read(
-        api,
-        plan,
-        [
-          'network',
-          'routeserver',
-          'show',
-          '--resource-group',
-          plan.intent.resourceGroup,
-          '--name',
-          `${plan.deploymentName}-rs`,
-        ],
-        signal,
-      ),
-    );
-    const tags = object(server.tags);
-    const routerIps = server.virtualRouterIps;
-    if (
-      lower(server.id) !== lower(serverAction[0].resourceId) ||
-      lower(server.location) !== lower(plan.region) ||
-      server.provisioningState !== 'Succeeded' ||
-      server.virtualRouterAsn !== 65515 ||
-      !Array.isArray(routerIps) ||
-      routerIps.length !== 2 ||
-      new Set(routerIps).size !== 2 ||
-      routerIps.some((ip) => typeof ip !== 'string' || isIP(ip) !== 4) ||
-      tags['xcsh-managed-by'] !== 'azure-ce' ||
-      tags['xcsh-deployment-id'] !== plan.deploymentName ||
-      tags['xcsh-execution-engine'] !== plan.engine ||
-      tags['xcsh-plan-sha256'] !== plan.planSha256
-    )
-      throw new Error('Azure Route Server identity or service addresses differ');
+    const identity = await discoverAzureRouteServerIdentity(plan, api, signal);
 
     const peers = [];
     for (let node = 1; node <= plan.topology.nodeCount; node++) {
@@ -140,8 +152,8 @@ export async function collectAzureRouteServerHealth(plan: AzureCePlan, api: AzEx
       ...base,
       status: plan.routing.destinationCidrs.length ? ('healthy' as const) : ('unknown' as const),
       reason: plan.routing.destinationCidrs.length ? undefined : 'expected-learned-prefixes-unavailable',
-      routeServerId: serverAction[0].resourceId,
-      serviceAddresses: [...routerIps].sort(),
+      routeServerId: identity.routeServerId,
+      serviceAddresses: identity.serviceAddresses,
       peers,
       routeExchange: plan.routing.destinationCidrs.length ? ('healthy' as const) : ('unknown' as const),
     };

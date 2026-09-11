@@ -89,7 +89,7 @@ const waitUntil = async (notBefore: number, signal?: AbortSignal) => {
 
 export async function prepareAzureNativeAdmission(
   plan: AzureCePlan,
-  runtime: Pick<CeRuntime, 'engine' | 'requireBootstrapContract' | 'reserveSite'>,
+  runtime: Pick<CeRuntime, 'engine' | 'requireBootstrapContract' | 'requireRoutingContract' | 'reserveSite'>,
   storage: Pick<CeDeploymentStore, 'read' | 'write' | 'verify'>,
   signal?: AbortSignal,
 ) {
@@ -98,6 +98,7 @@ export async function prepareAzureNativeAdmission(
   if (plan.intent.operation === 'replace-node')
     throw new Error('Azure node replacement requires coupled VM and site replacement evidence before deletion');
   if (plan.actions.some((action) => action.requiresBootstrap)) runtime.requireBootstrapContract('azure');
+  if (plan.routing.mode === 'route-server') runtime.requireRoutingContract('azure');
   await storage.verify();
   const checkpoint = await readCheckpoint(plan, storage);
   if (plan.intent.operation === 'deploy') {

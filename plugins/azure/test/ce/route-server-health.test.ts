@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { AzExecApi } from '../../src/az/exec';
 import { compileAzureCePlan } from '../../src/ce/planner';
-import { collectAzureRouteServerHealth } from '../../src/ce/route-server-health';
+import { collectAzureRouteServerHealth, discoverAzureRouteServerIdentity } from '../../src/ce/route-server-health';
 import { intent, observation } from './fixtures';
 
 function fixture(destinationCidrs = ['10.250.0.10/32']) {
@@ -94,6 +94,11 @@ function fixture(destinationCidrs = ['10.250.0.10/32']) {
 
 test('binds both Route Server service-role route exchanges to the authoritative SLO address', async () => {
   const { plan, api } = fixture();
+  expect(await discoverAzureRouteServerIdentity(plan, api)).toEqual({
+    routeServerId: plan.actions.find((action) => action.kind === 'route-server-create')?.resourceId,
+    asn: 65515,
+    serviceAddresses: ['10.255.0.4', '10.255.0.5'],
+  });
   expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({
     status: 'healthy',
     routeExchange: 'healthy',

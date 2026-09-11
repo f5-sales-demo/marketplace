@@ -52,11 +52,13 @@ export function assertApplyAllowed(
 /** Refuse plans whose routing cannot yet converge without operator repair. */
 export function assertAzureCeRoutingExecutable(plan: AzureCePlan): void {
   if (plan.intent.operation !== 'deploy') return;
-  if (plan.routing.mode === 'route-server')
-    throw new Error(
-      'Azure Route Server execution requires a verified platform SLO BGP mapping and collected two-session convergence',
-    );
-  if (plan.routing.destinationCidrs.length > 0 && plan.intent.brownfield.routeChanges.length === 0)
+  if (plan.routing.mode === 'route-server' && plan.routing.destinationCidrs.length === 0)
+    throw new Error('Azure Route Server execution requires at least one expected learned prefix');
+  if (
+    plan.routing.mode === 'udr' &&
+    plan.routing.destinationCidrs.length > 0 &&
+    plan.intent.brownfield.routeChanges.length === 0
+  )
     throw new Error(
       'Azure UDR destinations require explicit routeChanges with the target subnet association; an unattached route table is not executable',
     );
