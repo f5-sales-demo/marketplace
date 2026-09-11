@@ -48,8 +48,8 @@ that provides a non-placeholder value:
 
 1. **Check `.env` file** — look for `.env` in the repository root. If
    it exists, parse all `KEY=VALUE` pairs.
-2. **Check shell environment** — run `env | grep F5XC_` to find any
-   values already exported in the current session.
+2. **Check shell environment** — run `compgen -e | grep '^XCSH_'` to
+   identify exported variable names without printing credential values.
 3. **Identify missing values** — compare resolved values against the
    required/optional table in `DEMO_READINESS_MATRIX.md`. A value is
    "missing" if it is absent, empty, or still set to a placeholder
@@ -110,7 +110,7 @@ interpret raw HTTP codes or response fields yourself.
 - **T2: Platform Prerequisites** — Product enablement, DNS, platform
   state. FAIL blocks execution.
 - **T3: Origin / Service Health** — Origin reachability. WARN only.
-  If `F5XC_ORIGIN_IP` is an RFC 5737 TEST-NET address
+  If `XCSH_ORIGIN_IP` is an RFC 5737 TEST-NET address
   (`192.0.2.0/24`, `198.51.100.0/24`, or `203.0.113.0/24`), skip T3
   entirely — these IPs are documentation placeholders and are not
   routable.

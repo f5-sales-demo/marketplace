@@ -52,7 +52,7 @@ this mapping; schema validation does not establish traffic health.
 
 ### API (REST)
 
-- **F5XC_API_TOKEN** environment variable set with a valid
+- **XCSH_API_TOKEN** environment variable set with a valid
   API token, or P12 certificate file available
 - **VPN connection** if required by tenant network policy
 
@@ -60,13 +60,13 @@ this mapping; schema validation does not establish traffic health.
 
 | Variable | Domain | Required | Purpose |
 | -------- | ------ | -------- | ------- |
-| `F5XC_API_URL` | Both | No (has default) | Tenant base URL |
-| `F5XC_USERNAME` | Console | Full MFA only | Azure AD email address |
-| `F5XC_CONSOLE_PASSWORD` | Console | Full MFA only | Azure AD password |
-| `F5XC_API_TOKEN` | API | Yes (unless P12) | API token for REST calls |
-| `F5XC_P12_FILE` | API | No (alternative) | Path to P12 certificate |
-| `F5XC_P12_PASSWORD` | API | With P12_FILE | P12 certificate password |
-| `F5XC_NAMESPACE` | Both | No | Default namespace |
+| `XCSH_API_URL` | Both | No (has default) | Tenant base URL |
+| `XCSH_USERNAME` | Console | Full MFA only | Azure AD email address |
+| `XCSH_CONSOLE_PASSWORD` | Console | Full MFA only | Azure AD password |
+| `XCSH_API_TOKEN` | API | Yes (unless P12) | API token for REST calls |
+| `XCSH_P12_FILE` | API | No (alternative) | Path to P12 certificate |
+| `XCSH_P12_PASSWORD` | API | With P12_FILE | P12 certificate password |
+| `XCSH_NAMESPACE` | Both | No | Default namespace |
 | `XCSH_F5XC_CE_CONSOLE_HELPER` | CE v2 | Console fallback | Absolute authenticated helper path |
 
 ## Skills
@@ -123,8 +123,8 @@ When no cached session exists:
 
 1. Navigate to login page
 2. Click "Sign in with Azure"
-3. Enter username (from `F5XC_USERNAME`)
-4. Enter password (from `F5XC_CONSOLE_PASSWORD`)
+3. Enter username (from `XCSH_USERNAME`)
+4. Enter password (from `XCSH_CONSOLE_PASSWORD`)
 5. DUO verified push — plugin reads the 3-digit code from
    screen and relays it to the user to enter in Duo Mobile
 6. "Stay signed in?" — plugin clicks Yes for future caching
@@ -134,13 +134,13 @@ When no cached session exists:
 
 ### API Token (recommended)
 
-Set `F5XC_API_TOKEN` and run `/check-api-token` to verify.
+Set `XCSH_API_TOKEN` and run `/check-api-token` to verify.
 Tokens are created in the console at System > Tenant
 Management > API Credentials.
 
 ### P12 Certificate
 
-Set `F5XC_P12_FILE` and `F5XC_P12_PASSWORD` for mutual TLS
+Set `XCSH_P12_FILE` and `XCSH_P12_PASSWORD` for mutual TLS
 authentication without a token header.
 
 ## Usage Examples
@@ -171,4 +171,4 @@ authentication without a token header.
 - Long-lived credentials are never logged, persisted, or echoed; one-use CE
   bootstrap material exists only in the protected temporary handoff described above
 - Session cookies are managed by the browser, not the plugin
-- API tokens use `$F5XC_API_TOKEN` placeholders in output
+- API tokens use `$XCSH_API_TOKEN` placeholders in output

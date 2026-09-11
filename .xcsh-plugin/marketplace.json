@@ -28,7 +28,7 @@
     {
       "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.10",
+      "version": "1.0.11",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -113,7 +113,7 @@
     {
       "name": "platform",
       "description": "F5 Distributed Cloud automation with provider-neutral Secure Mesh Site v2 capabilities, typed configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
-      "version": "5.0.33",
+      "version": "5.0.34",
       "author": {
         "name": "f5-sales-demo"
       },

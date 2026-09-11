@@ -50,7 +50,7 @@ Agent(
   User parameters: <any specifics the user provided>
 
   Use the resource profile for exact endpoints and payload construction.
-  Environment: F5XC_API_URL, F5XC_API_TOKEN, F5XC_NAMESPACE"
+  Environment: XCSH_API_URL, XCSH_API_TOKEN, XCSH_NAMESPACE"
 )
 ```
 
@@ -80,7 +80,7 @@ Agent(
   User parameters: <specifics>
 
   Create resources in dependency order. Pass resource names between steps.
-  Environment: F5XC_API_URL, F5XC_API_TOKEN, F5XC_NAMESPACE"
+  Environment: XCSH_API_URL, XCSH_API_TOKEN, XCSH_NAMESPACE"
 )
 ```
 

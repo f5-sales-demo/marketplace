@@ -47,8 +47,8 @@ async function context(
       throw new Error('F5 context has no supported API credential');
     return { url: parsed.apiUrl, credential: parsed.apiToken };
   }
-  const url = env.XCSH_API_URL ?? env.F5XC_API_URL;
-  const credential = env.XCSH_API_TOKEN ?? env.F5XC_API_TOKEN;
+  const url = env.XCSH_API_URL;
+  const credential = env.XCSH_API_TOKEN;
   if (!url || !credential) throw new Error('Select an F5 context or provide its scoped API environment');
   return { url, credential };
 }
@@ -73,8 +73,8 @@ export function createCePlatformService(env: Record<string, string | undefined> 
       );
     },
     async capabilities(contextName) {
-      const artifact = await contract();
       const credentials = await context(env, contextName);
+      const artifact = await contract();
       const origin = new URL(credentials.url).origin;
       if (!origin.startsWith('https://')) throw new Error('F5 context must use HTTPS');
       const aws = artifact.provider('aws');
@@ -102,8 +102,8 @@ export function createCePlatformService(env: Record<string, string | undefined> 
       };
     },
     async runtime(engine, contextName) {
-      const artifact = await contract();
       const credentials = await context(env, contextName);
+      const artifact = await contract();
       return new CeRuntime(artifact, engine, credentials.url, credentials.credential);
     },
   };

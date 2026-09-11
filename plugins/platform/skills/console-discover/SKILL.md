@@ -27,8 +27,8 @@ YAML files matching the `f5-sales-demo/console` catalog schemas.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `F5XC_API_URL` | No | Auto-detected from browser URL | Tenant URL |
-| `F5XC_NAMESPACE` | No | — | Default namespace for route patterns |
+| `XCSH_API_URL` | No | Auto-detected from browser URL | Tenant URL |
+| `XCSH_NAMESPACE` | No | — | Default namespace for route patterns |
 
 ## Discovery Procedure
 

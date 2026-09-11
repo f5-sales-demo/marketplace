@@ -26,10 +26,14 @@ afterEach(() => {
 });
 
 function driver() {
-  return new HttpCeV2Driver({ F5XC_API_URL: 'https://tenant.example.test' }, async () => contract);
+  return new HttpCeV2Driver({ XCSH_API_URL: 'https://tenant.example.test' }, async () => contract);
 }
 
 describe('SMSv2 published-schema driver', () => {
+  it('requires the canonical XCSH environment namespace', () => {
+    expect(() => new HttpCeV2Driver({}, async () => contract)).toThrow('XCSH_API_URL is required');
+  });
+
   it('uses verified read/delete paths and refuses placeholder create/replace serialization', async () => {
     const calls: Array<{ url: string; method: string }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -28,9 +28,9 @@ multiple auth providers automatically detected at runtime:
 
 | Variable | Required | Default | Purpose |
 | ---------- | ---------- | --------- | --------- |
-| `F5XC_API_URL` | No | `https://<tenant>.console.ves.volterra.io` | Tenant URL |
-| `F5XC_USERNAME` | Yes (for MFA/native) | — | Email address |
-| `F5XC_CONSOLE_PASSWORD` | Yes (for MFA/native) | — | Password |
+| `XCSH_API_URL` | No | `https://<tenant>.console.ves.volterra.io` | Tenant URL |
+| `XCSH_USERNAME` | Yes (for MFA/native) | — | Email address |
+| `XCSH_CONSOLE_PASSWORD` | Yes (for MFA/native) | — | Password |
 
 ## Prerequisites
 
@@ -42,10 +42,10 @@ multiple auth providers automatically detected at runtime:
 
 ### Step 1: Read configuration
 
-Read the tenant URL from `F5XC_API_URL`. If not set, default to
+Read the tenant URL from `XCSH_API_URL`. If not set, default to
 `https://<tenant>.console.ves.volterra.io`.
 
-Derive the login URL: `${F5XC_API_URL}/web/login`
+Derive the login URL: `${XCSH_API_URL}/web/login`
 
 ### Step 2: Navigate and detect current state
 
@@ -57,7 +57,7 @@ Use `take_snapshot` on the current browser page.
 - **Login page visible** — proceed to Step 3
 - **Other page** — navigate to the login URL, then proceed
 
-Note: `${F5XC_API_URL}/web/login` redirects to an auth host.
+Note: `${XCSH_API_URL}/web/login` redirects to an auth host.
 Different tenants use different login hosts and auth methods.
 The plugin auto-detects the auth type from the login page
 content — no manual configuration is needed.
@@ -90,8 +90,8 @@ credentials directly without an SSO provider selection.
 ```text
 take_snapshot()
 fill_form(elements=[
-  {uid: <email-input>, value: "${F5XC_USERNAME}"},
-  {uid: <password-input>, value: "${F5XC_CONSOLE_PASSWORD}"}
+  {uid: <email-input>, value: "${XCSH_USERNAME}"},
+  {uid: <password-input>, value: "${XCSH_CONSOLE_PASSWORD}"}
 ])
 click(uid=<sign-in-button>)   # Text: "Sign In"
 ```
@@ -110,7 +110,7 @@ If "Invalid" credentials text appears, report error and stop.
 **Post-login redirect quirk**: After native login, the browser
 may redirect to `chrome://new-tab-page/` instead of the
 console. The session cookie IS valid — navigate directly to
-`${F5XC_API_URL}/web/home` to recover.
+`${XCSH_API_URL}/web/home` to recover.
 
 **SPA load failure**: If the console returns
 `ERR_INSUFFICIENT_RESOURCES`, retry with a hard reload
@@ -144,7 +144,7 @@ Determine the path:
 - **URL contains `/web/home`** → cached session succeeded.
   Jump to **Verification**.
 - **"Pick an account" visible** → click the account matching
-  `F5XC_USERNAME`, then monitor for auto-completion or MFA.
+  `XCSH_USERNAME`, then monitor for auto-completion or MFA.
 - **Email/username input visible** → full MFA flow. Continue.
 
 ### B3: Username entry (Full MFA)
@@ -153,7 +153,7 @@ Azure AD uses a two-screen login. First screen: email.
 
 ```text
 take_snapshot()
-fill(uid=<email-input>, value="${F5XC_USERNAME}")
+fill(uid=<email-input>, value="${XCSH_USERNAME}")
 click(uid=<next-button>)
 wait_for(text=["Enter password", "Password"], timeout=10000)
 ```
@@ -162,7 +162,7 @@ wait_for(text=["Enter password", "Password"], timeout=10000)
 
 ```text
 take_snapshot()
-fill(uid=<password-input>, value="${F5XC_CONSOLE_PASSWORD}")
+fill(uid=<password-input>, value="${XCSH_CONSOLE_PASSWORD}")
 click(uid=<signin-button>)
 wait_for(text=["Verification Required", "Approve sign-in",
                "Stay signed in", "web/home"], timeout=10000)
@@ -234,8 +234,8 @@ Report structured result:
 
 ```markdown
 ## Console Authentication: SUCCESS
-- Tenant: ${F5XC_API_URL}
-- User: ${F5XC_USERNAME}
+- Tenant: ${XCSH_API_URL}
+- User: ${XCSH_USERNAME}
 - Mode: Native Login | Azure SSO Cached | Azure SSO Full MFA
 - Page: Home
 ```
@@ -256,6 +256,6 @@ Report structured result:
 
 - Credentials are read from environment variables only
 - Passwords are never logged, stored in files, or echoed
-- The `F5XC_CONSOLE_PASSWORD` value is passed directly to the
+- The `XCSH_CONSOLE_PASSWORD` value is passed directly to the
   browser `fill` tool and is not retained after use
 - Session cookies are managed by the browser, not the plugin
