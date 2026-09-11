@@ -174,6 +174,7 @@ export type AzureCeActionKind =
   | 'route-association-update'
   | 'route-server-create'
   | 'route-server-peer-create'
+  | 'route-server-peer-update'
   | 'f5-ingress-configure'
   | 'resource-delete'
   | 'brownfield-restore'

@@ -224,6 +224,105 @@ test('keeps partial roles, wrong next hops, and foreign ownership unknown', asyn
   });
 });
 
+test('revalidates immutable retained Route Server ownership and updated SLO route exchange', async () => {
+  const owner = 'a'.repeat(64);
+  const selectedIntent = {
+    ...intent,
+    operation: 'update-network' as const,
+    routing: { mode: 'route-server' as const, destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 },
+  };
+  const groupId = `/subscriptions/${selectedIntent.subscriptionId}/resourceGroups/${selectedIntent.resourceGroup}`;
+  const tags = {
+    'xcsh-managed-by': 'azure-ce',
+    'xcsh-deployment-id': selectedIntent.deploymentName,
+    'xcsh-execution-engine': 'native',
+    'xcsh-plan-sha256': owner,
+  };
+  const vmId = `${groupId}/providers/Microsoft.Compute/virtualMachines/${selectedIntent.deploymentName}-1`;
+  const nicId = `${groupId}/providers/Microsoft.Network/networkInterfaces/${selectedIntent.deploymentName}-1-nic0`;
+  const routeServerId = `${groupId}/providers/Microsoft.Network/virtualHubs/${selectedIntent.deploymentName}-rs`;
+  const plan = compileAzureCePlan(selectedIntent, {
+    ...structuredClone(observation),
+    resources: [
+      { id: vmId, location: selectedIntent.region, exists: true, owned: true, tags, state: {} },
+      { id: nicId, location: selectedIntent.region, exists: true, owned: true, tags, state: {} },
+      { id: routeServerId, location: selectedIntent.region, exists: true, owned: true, tags, state: {} },
+    ],
+  });
+  const peer = plan.actions.find((action) => action.kind === 'route-server-peer-update');
+  if (!peer?.resourceId) throw new Error('network-update Route Server peer is absent');
+  let peerId = peer.resourceId;
+  let peerIp = '10.20.0.4';
+  let ownerTags = tags;
+  let learned: unknown = {
+    RouteServiceRole_IN_0: [{ network: '10.250.0.10/32', nextHop: peerIp }],
+    RouteServiceRole_IN_1: [{ network: '10.250.0.10/32', nextHop: peerIp }],
+  };
+  const api: AzExecApi = {
+    async exec(_command, args) {
+      const value =
+        args[0] === 'vm'
+          ? {
+              id: vmId,
+              provisioningState: 'Succeeded',
+              tags,
+              networkProfile: { networkInterfaces: [{ id: nicId }] },
+            }
+          : args[0] === 'network' && args[1] === 'nic'
+            ? {
+                id: nicId,
+                provisioningState: 'Succeeded',
+                tags,
+                virtualMachine: { id: vmId },
+                macAddress: '00-11-22-33-44-55',
+                ipConfigurations: [
+                  {
+                    primary: true,
+                    privateIPAddressVersion: 'IPv4',
+                    privateIPAddress: '10.20.0.4',
+                    subnet: { id: plan.nics[0].subnet.resourceId },
+                  },
+                ],
+              }
+            : args.includes('list-learned-routes')
+              ? learned
+              : args.includes('peering')
+                ? {
+                    id: peerId,
+                    name: `${plan.deploymentName}-1`,
+                    provisioningState: 'Succeeded',
+                    peerAsn: plan.routing.localAsn,
+                    peerIp,
+                  }
+                : {
+                    id: routeServerId,
+                    location: plan.region,
+                    provisioningState: 'Succeeded',
+                    virtualRouterAsn: 65515,
+                    virtualRouterIps: ['10.255.0.4', '10.255.0.5'],
+                    tags: ownerTags,
+                  };
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
+    },
+  };
+  expect(await discoverAzureRouteServerIdentity(plan, api)).toMatchObject({ routeServerId });
+  expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({ status: 'healthy', routeExchange: 'healthy' });
+
+  peerIp = '10.20.0.9';
+  expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({ status: 'unknown' });
+  peerIp = '10.20.0.4';
+  peerId = `${routeServerId}/bgpConnections/substituted`;
+  expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({ status: 'unknown' });
+  peerId = peer.resourceId;
+  ownerTags = { ...tags, 'xcsh-plan-sha256': 'b'.repeat(64) };
+  expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({ status: 'unknown' });
+  ownerTags = tags;
+  learned = {
+    RouteServiceRole_IN_0: [{ network: '10.250.0.10/32', nextHop: '10.20.0.9' }],
+    RouteServiceRole_IN_1: [{ network: '10.250.0.10/32', nextHop: '10.20.0.9' }],
+  };
+  expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({ status: 'unknown' });
+});
 test('does not claim health without an expected learned prefix', async () => {
   const { plan, api } = fixture([]);
   expect(await collectAzureRouteServerHealth(plan, api)).toMatchObject({

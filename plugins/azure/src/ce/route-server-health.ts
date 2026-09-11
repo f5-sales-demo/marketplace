@@ -10,6 +10,11 @@ const object = (value: unknown): Json => {
   return value as Json;
 };
 const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
+const routeServerIdFor = (plan: AzureCePlan) =>
+  `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs`;
+const peerIdFor = (plan: AzureCePlan, node: number) =>
+  `${routeServerIdFor(plan)}/bgpConnections/${plan.deploymentName}-${node}`;
+const isPlanSha256 = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 export interface AzureRouteServerOwnership {
   routeServerId: string;
@@ -25,7 +30,7 @@ export async function captureAzureRouteServerOwnership(
 ): Promise<AzureRouteServerOwnership> {
   verifyAzureCePlan(plan);
   if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
-  const routeServerId = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs`;
+  const routeServerId = routeServerIdFor(plan);
   const server = object(
     await read(
       api,
@@ -131,10 +136,33 @@ export async function discoverAzureRouteServerIdentity(
   verifyAzureCePlan(plan);
   if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
   const serverAction = plan.actions.filter((action) => action.kind === 'route-server-create');
-  if ((!retained && (serverAction.length !== 1 || !serverAction[0].resourceId)) || (retained && serverAction.length))
+  const peerUpdates = plan.actions.filter((action) => action.kind === 'route-server-peer-update');
+  const isNetworkUpdate = !retained && plan.intent.operation === 'update-network';
+  if (
+    (isNetworkUpdate && serverAction.length !== 0) ||
+    (!isNetworkUpdate && !retained && (serverAction.length !== 1 || !serverAction[0].resourceId)) ||
+    (retained && serverAction.length)
+  )
     throw new Error('Planned Route Server identity is unavailable');
-  const routeServerId = retained?.routeServerId ?? (serverAction[0]?.resourceId as string);
-  const ownerPlanSha256 = retained?.ownerPlanSha256 ?? plan.planSha256;
+  const updateOwnerHashes = isNetworkUpdate ? peerUpdates.map((action) => action.expectedOwnerPlanSha256) : [];
+  if (
+    isNetworkUpdate &&
+    (peerUpdates.length !== plan.topology.nodeCount ||
+      new Set(peerUpdates.map((action) => action.node)).size !== plan.topology.nodeCount ||
+      peerUpdates.some(
+        (action) =>
+          !action.node ||
+          action.node < 1 ||
+          action.node > plan.topology.nodeCount ||
+          action.resourceId !== peerIdFor(plan, action.node) ||
+          !isPlanSha256(action.expectedOwnerPlanSha256),
+      ) ||
+      new Set(updateOwnerHashes).size !== 1)
+  )
+    throw new Error('Planned retained Route Server identity is unavailable');
+  const routeServerId =
+    retained?.routeServerId ?? (isNetworkUpdate ? routeServerIdFor(plan) : (serverAction[0]?.resourceId as string));
+  const ownerPlanSha256 = retained?.ownerPlanSha256 ?? (isNetworkUpdate ? updateOwnerHashes[0] : plan.planSha256);
   const server = object(
     await read(
       api,
@@ -203,14 +231,26 @@ export async function collectAzureRouteServerHealth(
 
     const peers = [];
     for (let node = 1; node <= plan.topology.nodeCount; node++) {
-      const action = plan.actions.filter(
-        (candidate) => candidate.kind === 'route-server-peer-create' && candidate.node === node,
-      );
-      if ((!retained && (action.length !== 1 || !action[0].resourceId)) || (retained && action.length))
+      const peerKind =
+        plan.intent.operation === 'update-network' && !retained
+          ? 'route-server-peer-update'
+          : 'route-server-peer-create';
+      const action = plan.actions.filter((candidate) => candidate.kind === peerKind && candidate.node === node);
+      if (
+        (!retained && (action.length !== 1 || !action[0].resourceId)) ||
+        (retained && action.length) ||
+        (peerKind === 'route-server-peer-update' && action[0]?.resourceId !== peerIdFor(plan, node))
+      )
         throw new Error('Planned Route Server peer is unavailable');
       const peerId = retained?.peerIds[String(node)] ?? action[0]?.resourceId;
       if (!peerId) throw new Error('Planned Route Server peer is unavailable');
-      const peerIp = await resolveInterfaceAddress(api, plan, node, 'slo');
+      const peerIp = await resolveInterfaceAddress(
+        api,
+        plan,
+        node,
+        'slo',
+        retained?.ownerPlanSha256 ?? action[0]?.expectedOwnerPlanSha256 ?? plan.planSha256,
+      );
       const name = `${plan.deploymentName}-${node}`;
       const common = [
         '--resource-group',

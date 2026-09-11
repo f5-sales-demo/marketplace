@@ -7,16 +7,21 @@ export async function resolveInterfaceAddress(
   plan: AzureCePlan,
   node: number,
   role: 'slo' | 'sli',
+  ownerPlanSha256 = plan.planSha256,
 ): Promise<string> {
   const interfaces = plan.nics.filter((nic) => nic.role === role);
   if (interfaces.length !== 1) throw new Error('CE interface role is missing or ambiguous');
   const iface = interfaces[0];
-  const nics = plan.actions.filter((action) => action.kind === 'nic-create' && action.node === node);
+  const nics = plan.actions.filter(
+    (action) => (action.kind === 'nic-create' || action.kind === 'nic-update') && action.node === node,
+  );
   const nic = nics.find((action) => {
-    const nameIndex = action.args?.indexOf('--name') ?? -1;
+    const nameIndex = action.args?.indexOf(action.kind === 'nic-update' ? '--nic-name' : '--name') ?? -1;
     return nameIndex >= 0 && action.args?.[nameIndex + 1]?.endsWith(`-nic${iface.index}`);
   });
-  const vms = plan.actions.filter((action) => action.kind === 'vm-create' && action.node === node);
+  const vms = plan.actions.filter(
+    (action) => (action.kind === 'vm-create' || action.kind === 'vm-start') && action.node === node,
+  );
   if (!nic?.resourceId || vms.length !== 1 || !vms[0].resourceId)
     throw new Error('Planned NIC and VM identities are unavailable');
   const vmId = vms[0].resourceId;
@@ -66,7 +71,7 @@ export async function resolveInterfaceAddress(
       value.tags?.['xcsh-execution-engine'] !== plan.engine ||
       value.tags?.['xcsh-managed-by'] !== 'azure-ce' ||
       value.tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
-      value.tags?.['xcsh-plan-sha256'] !== plan.planSha256
+      value.tags?.['xcsh-plan-sha256'] !== ownerPlanSha256
     )
       throw new Error('CE interface ownership does not match');
     return value;

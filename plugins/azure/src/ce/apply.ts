@@ -90,6 +90,7 @@ const CREATE_KINDS = new Set([
   'route-server-peer-create',
 ]);
 const OWNED_MUTATION_KINDS = new Set(['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'nic-update']);
+const PARENT_OWNED_MUTATION_KINDS = new Set(['route-server-peer-update']);
 
 function creationOwnershipParent(resourceId: string): string | undefined {
   for (const pattern of [
@@ -163,7 +164,12 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
     await assertBrownfieldOwnership(plan, action, api);
     return;
   }
-  if (!CREATE_KINDS.has(action.kind) && action.kind !== 'resource-delete' && !OWNED_MUTATION_KINDS.has(action.kind))
+  if (
+    !CREATE_KINDS.has(action.kind) &&
+    action.kind !== 'resource-delete' &&
+    !OWNED_MUTATION_KINDS.has(action.kind) &&
+    !PARENT_OWNED_MUTATION_KINDS.has(action.kind)
+  )
     return;
   const isGroup = !action.resourceId.toLowerCase().includes('/providers/');
   const args = isGroup
@@ -187,7 +193,10 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
   if (!observedId || observedId !== action.resourceId.toLowerCase())
     throw new Error(`Azure substituted a different resource ID for ${action.resourceId}`);
   let tags = (raw.tags as Record<string, string> | undefined) ?? {};
-  const parentId = CREATE_KINDS.has(action.kind) ? creationOwnershipParent(action.resourceId) : undefined;
+  const parentId =
+    CREATE_KINDS.has(action.kind) || PARENT_OWNED_MUTATION_KINDS.has(action.kind)
+      ? creationOwnershipParent(action.resourceId)
+      : undefined;
   if (parentId) {
     const parentResult = await api.exec('az', [
       'resource',

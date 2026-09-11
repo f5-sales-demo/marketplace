@@ -629,7 +629,7 @@ describe('compileAzureCePlan', () => {
     );
   });
 
-  it('does not promise Route Server convergence for the incomplete update-network workflow', () => {
+  it('rebinds each retained Route Server peer and proves convergence after a Route Server network update', () => {
     const selected = intent({
       operation: 'update-network',
       routing: { mode: 'route-server', destinationCidrs: ['10.30.0.0/16'], localAsn: 64512 },
@@ -662,9 +662,29 @@ describe('compileAzureCePlan', () => {
           'xcsh-plan-sha256': owner,
         },
       })),
+      {
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/virtualHubs/${selected.deploymentName}-rs`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': owner,
+        },
+      },
     ];
     const plan = compileAzureCePlan(selected, observation({ resources }));
-    expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(false);
+    const peerUpdates = plan.actions.filter((action) => action.kind === 'route-server-peer-update');
+    expect(peerUpdates).toHaveLength(1);
+    expect(peerUpdates[0]).toMatchObject({
+      resourceId: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/virtualHubs/${selected.deploymentName}-rs/bgpConnections/${selected.deploymentName}-1`,
+      expectedOwnerPlanSha256: owner,
+    });
+    expect(peerUpdates[0].args).toContain('__NODE_1_SLO_PRIVATE_IP__');
+    expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);
   });
 
   it('deletes an owned resource group last after dependency-ordered resources', () => {

@@ -519,6 +519,119 @@ describe('Azure CE native mutation recovery', () => {
     expect(result.checkpoint.state).toBe('complete');
     expect(events).toEqual(['probe', 'save:1:none']);
   });
+  it('reconciles a completed Route Server peer update without replaying its mutation', async () => {
+    const owner = 'a'.repeat(64);
+    const selected = {
+      ...intent,
+      operation: 'update-network' as const,
+      routing: { mode: 'route-server' as const, destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 },
+    };
+    const groupId = `/subscriptions/${selected.subscriptionId}/resourceGroups/${selected.resourceGroup}`;
+    const vmId = `${groupId}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-1`;
+    const nicId = `${groupId}/providers/Microsoft.Network/networkInterfaces/${selected.deploymentName}-1-nic0`;
+    const routeServerId = `${groupId}/providers/Microsoft.Network/virtualHubs/${selected.deploymentName}-rs`;
+    const tags = {
+      'xcsh-managed-by': 'azure-ce',
+      'xcsh-execution-engine': 'native',
+      'xcsh-deployment-id': selected.deploymentName,
+      'xcsh-plan-sha256': owner,
+    };
+    const owned = {
+      ...structuredClone(observation),
+      resources: [
+        { id: vmId, location: selected.region, exists: true, owned: true, tags, state: {} },
+        { id: nicId, location: selected.region, exists: true, owned: true, tags, state: {} },
+        { id: routeServerId, location: selected.region, exists: true, owned: true, tags, state: {} },
+      ],
+    };
+    const compiled = compileAzureCePlan(selected, owned);
+    const nic = compiled.actions.find((action) => action.kind === 'nic-update');
+    const vm = compiled.actions.find((action) => action.kind === 'vm-start');
+    const peer = compiled.actions.find((action) => action.kind === 'route-server-peer-update');
+    if (!nic || !vm || !peer?.resourceId) throw new Error('network-update recovery fixture is incomplete');
+    const { planId: _planId, planSha256: _planSha256, ...draft } = structuredClone(compiled);
+    draft.actions = [nic, vm, peer];
+    const planSha256 = canonicalSha256(draft);
+    const plan: AzureCePlan = { ...draft, planId: `azure-ce-${planSha256.slice(0, 24)}`, planSha256 };
+    const directory = await mkdtemp(join(tmpdir(), 'azure-ce-apply-peer-recovery-'));
+    directories.push(directory);
+    const events: string[] = [];
+    const sessionManager = await session(directory, events);
+    await savePlanArtifact(sessionManager, plan, owned);
+    await saveCheckpoint(sessionManager, plan, {
+      schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+      engine: 'native',
+      authorization: { apply: true, terms: false, destroy: false },
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      completedActionIds: [nic.id, vm.id],
+      pendingAction: buildAzureNativePendingAction(plan, peer),
+      observationFingerprint: fingerprintCheckpointObservation(owned),
+      observationSnapshot: owned,
+      state: 'running',
+    });
+    events.length = 0;
+    const result = await executeAzureCeNativeApply(
+      { planId: plan.planId, planSha256: plan.planSha256 },
+      { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
+      {
+        async exec(_command, args) {
+          if (args.includes('update')) throw new Error(`unexpected replay: ${args.join(' ')}`);
+          if (args[0] === 'network' && args[1] === 'nic')
+            return {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify({
+                id: nicId,
+                provisioningState: 'Succeeded',
+                tags,
+                virtualMachine: { id: vmId },
+                macAddress: '00-11-22-33-44-55',
+                ipConfigurations: [
+                  {
+                    primary: true,
+                    privateIPAddressVersion: 'IPv4',
+                    privateIPAddress: '10.20.0.4',
+                    subnet: { id: plan.nics[0].subnet.resourceId },
+                  },
+                ],
+              }),
+            };
+          if (args[0] === 'vm')
+            return {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify({
+                id: vmId,
+                provisioningState: 'Succeeded',
+                tags,
+                networkProfile: { networkInterfaces: [{ id: nicId }] },
+              }),
+            };
+          if (args[0] === 'resource' && args[3] === peer.resourceId)
+            return {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify({
+                id: peer.resourceId,
+                properties: { provisioningState: 'Succeeded', peerIp: '10.20.0.4', peerAsn: 64512 },
+              }),
+            };
+          if (args[0] === 'resource' && args[3] === routeServerId)
+            return { exitCode: 0, stderr: '', stdout: JSON.stringify({ id: routeServerId, tags }) };
+          throw new Error(`unexpected command: ${args.join(' ')}`);
+        },
+      },
+      async () => {
+        events.push('platform');
+        throw new Error('platform must not initialize');
+      },
+      undefined,
+      { observe: async () => structuredClone(owned) },
+    );
+    expect(result.checkpoint.state).toBe('complete');
+    expect(events).toEqual(['save:3:none']);
+  });
 });
 
 it('checkpoints native platform ingress before collecting content-bound traffic evidence', async () => {

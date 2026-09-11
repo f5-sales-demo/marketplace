@@ -61,13 +61,18 @@ interface NativeApplyDependencies {
   collectTraffic?: typeof collectAzureTrafficProbe;
 }
 
-async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan): Promise<Record<string, string>> {
+async function replacementsFor(
+  args: string[],
+  api: AzExecApi,
+  plan: AzureCePlan,
+  ownerPlanSha256 = plan.planSha256,
+): Promise<Record<string, string>> {
   const replacements: Record<string, string> = {};
   for (const arg of args) {
     const match = /^__NODE_(\d+)_(SLO|SLI|DATA)_PRIVATE_IP__$/.exec(arg);
     if (!match || replacements[arg]) continue;
     const role = match[2] === 'SLO' || (match[2] === 'DATA' && plan.nics.length === 1) ? 'slo' : 'sli';
-    replacements[arg] = await resolveInterfaceAddress(api, plan, Number(match[1]), role);
+    replacements[arg] = await resolveInterfaceAddress(api, plan, Number(match[1]), role, ownerPlanSha256);
   }
   return replacements;
 }
@@ -185,7 +190,7 @@ export async function executeAzureCeNativeApply(
     const action = plan.actions[existing.completedActionIds.length];
     if (!action) throw new Error('Pending Azure native mutation has no next immutable action');
     validateAzureNativePendingAction(plan, existing.completedActionIds, existing.pendingAction);
-    const replacements = await replacementsFor(action.args ?? [], api, plan);
+    const replacements = await replacementsFor(action.args ?? [], api, plan, action.expectedOwnerPlanSha256);
     const resolvedAction = {
       ...action,
       args: resolveActionArgs(action.args ?? [], plan.planSha256, replacements),
@@ -424,7 +429,7 @@ export async function executeAzureCeNativeApply(
         if (evidence.status !== 'healthy') throw new Error('Observed end-to-end Azure traffic has not converged');
       }
       if (action.command && action.args) {
-        const replacements = await replacementsFor(action.args, api, plan);
+        const replacements = await replacementsFor(action.args, api, plan, action.expectedOwnerPlanSha256);
         const execute = (bootstrapFile?: string) =>
           api.exec(
             action.command as 'az',

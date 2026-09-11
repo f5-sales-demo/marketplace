@@ -1163,6 +1163,13 @@ function buildLifecycleActions(
     return actions;
   }
   if (intent.operation === 'update-network') {
+    const routeServerId = managedId(
+      intent.subscriptionId,
+      intent.resourceGroup,
+      `Microsoft.Network/virtualHubs/${intent.deploymentName}-rs`,
+    );
+    const expectedRouteServerOwnerPlanSha256 =
+      intent.routing.mode === 'route-server' ? ownedPlanSha256(routeServerId, 'retained Route Server') : undefined;
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
       const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
@@ -1267,6 +1274,39 @@ function buildLifecycleActions(
           destructive: false,
         }),
       );
+      if (intent.routing.mode === 'route-server') {
+        actions.push(
+          next({
+            phase: 'routing',
+            kind: 'route-server-peer-update',
+            description: `Update Route Server peer ${name} to the observed SLO address`,
+            command: 'az',
+            args: [
+              'network',
+              'routeserver',
+              'peering',
+              'update',
+              '--resource-group',
+              intent.resourceGroup,
+              '--routeserver',
+              `${intent.deploymentName}-rs`,
+              '--name',
+              name,
+              '--peer-ip',
+              `__NODE_${node}_SLO_PRIVATE_IP__`,
+              '--peer-asn',
+              String(intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010),
+              '--subscription',
+              intent.subscriptionId,
+            ],
+            resourceId: `${routeServerId}/bgpConnections/${name}`,
+            node,
+            mutates: true,
+            destructive: false,
+            expectedOwnerPlanSha256: expectedRouteServerOwnerPlanSha256,
+          }),
+        );
+      }
       if (intent.ingress?.mode === 'platform-http')
         actions.push(
           next({
@@ -1279,6 +1319,16 @@ function buildLifecycleActions(
           }),
         );
     }
+    if (intent.routing.mode === 'route-server')
+      actions.push(
+        next({
+          phase: 'routing',
+          kind: 'bgp-gate',
+          description: 'Verify Route Server convergence after all retained peer updates',
+          mutates: false,
+          destructive: false,
+        }),
+      );
     return actions;
   }
   if (intent.operation === 'teardown') {

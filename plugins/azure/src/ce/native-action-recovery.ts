@@ -25,6 +25,7 @@ const RECOVERABLE_KINDS = new Set([
   'route-association-update',
   'route-server-create',
   'route-server-peer-create',
+  'route-server-peer-update',
   'brownfield-restore',
 ]);
 
@@ -279,7 +280,7 @@ function childPostcondition(action: AzureCeAction, value: Json): boolean {
       action.kind,
     );
   }
-  if (action.kind === 'route-server-peer-create') {
+  if (action.kind === 'route-server-peer-create' || action.kind === 'route-server-peer-update') {
     return requirePostcondition(
       lower(properties.peerIp) === lower(option(args, '--peer-ip')) &&
         Number(properties.peerAsn) === Number(option(args, '--peer-asn')),
