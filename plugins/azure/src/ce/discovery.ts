@@ -35,10 +35,31 @@ const OFFICIAL_SOURCES = [
 ] as const;
 
 export function normalizeResearchDocument(body: string): string {
-  const normalized = body
+  let source = body
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
-    .normalize('NFC')
+    .normalize('NFC');
+  if (/<html(?:\s|>)/i.test(source)) {
+    const open = /<main\b[^>]*>/i.exec(source);
+    const close = open ? source.toLowerCase().indexOf('</main>', open.index + open[0].length) : -1;
+    if (!open || close < 0) throw new Error('Official HTML research document has no complete main content');
+    source = source
+      .slice(open.index + open[0].length, close)
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(script|style|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+      .replace(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>/gi, (_tag, _quote, href: string) => `\nlink:${href}\n`)
+      .replace(/<img\b[^>]*>/gi, (tag) => {
+        const source = /\bsrc\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2] ?? '';
+        const alt = /\balt\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2] ?? '';
+        return `\nimage:${source}:${alt}\n`;
+      })
+      .replace(/<[^>]+>/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+  const normalized = source
     .split('\n')
     .map((line) => line.replace(/[\t ]+$/g, ''))
     .join('\n')

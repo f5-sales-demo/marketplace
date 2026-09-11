@@ -4,6 +4,7 @@ import { fingerprintDeploymentObservation } from '../../src/ce/canonical';
 import {
   type AzureComputeDiscoveryInput,
   discoverAzureCompute as discoverAzureComputeWithOfficialResearch,
+  normalizeResearchDocument,
 } from '../../src/ce/discovery';
 
 const officialFetch = (async (input: RequestInfo | URL) => {
@@ -135,6 +136,21 @@ const baseFixtures: Record<string, unknown> = {
 };
 
 describe('discoverAzureCompute', () => {
+  it('fingerprints complete HTML main content without binding to changing site chrome', () => {
+    const document = (shell: string, article: string, link = '/azure/reference') =>
+      `<!doctype html><html><head>${shell}</head><body><header>${shell}</header><main class="${shell}"><section class="${shell}"><a href="${link}">${article}</a></section></main><footer>${shell}</footer></body></html>`;
+    const baseline = normalizeResearchDocument(document('deployment-a', 'official Azure guidance'));
+    expect(normalizeResearchDocument(document('deployment-b', 'official Azure guidance'))).toBe(baseline);
+    expect(normalizeResearchDocument(document('deployment-b', 'changed Azure guidance'))).not.toBe(baseline);
+    expect(normalizeResearchDocument(document('deployment-b', 'official Azure guidance', '/azure/changed'))).not.toBe(
+      baseline,
+    );
+    expect(normalizeResearchDocument('plain contract\r\nversion: v2\r\n')).toBe('plain contract\nversion: v2\n');
+    expect(() => normalizeResearchDocument('<html><body>missing article boundary</body></html>')).toThrow(
+      /main content/,
+    );
+  });
+
   it('fails closed when current official guidance cannot be retrieved', async () => {
     const unavailable = (async () => new Response('unavailable', { status: 503 })) as typeof fetch;
     const calls: string[] = [];
