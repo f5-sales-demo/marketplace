@@ -89,7 +89,10 @@ it('renders an isolated private workload fixture for the exact Route Server adve
   input.workloadFixture = { subnetName: 'workload', cidr: '10.253.0.0/24', privateIp: '10.253.0.4', port: 8080 };
   const observed = structuredClone(observation);
   observed.regions[0].quotaAvailable = 24;
-  const config = JSON.parse(renderAzureTerraformFoundation(compileAzureCePlan(input, observed)));
+  const fixturePlan = compileAzureCePlan(input, observed);
+  expect(fixturePlan.billableResources).toContainEqual({ type: 'virtual-machine', count: 2 });
+  expect(fixturePlan.billableResources).toContainEqual({ type: 'managed-disk', count: 2 });
+  const config = JSON.parse(renderAzureTerraformFoundation(fixturePlan));
   const fixtureSubnet = config.resource.azurerm_subnet.workload;
   const fixtureNic = config.resource.azurerm_network_interface.workload;
   const fixtureVm = config.resource.azurerm_linux_virtual_machine.workload;

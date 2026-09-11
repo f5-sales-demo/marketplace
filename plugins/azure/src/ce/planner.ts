@@ -1747,9 +1747,10 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     if (ownershipInventory.some((item) => item.resourceId.toLowerCase() === resource.id.toLowerCase())) continue;
     ownershipInventory.push({ resourceId: resource.id, owned: true, action: 'reference' });
   }
+  const workloadFixtureCount = intent.workloadFixture ? 1 : 0;
   const billableResources = [
-    { type: 'virtual-machine', count: nodeCount },
-    { type: 'managed-disk', count: nodeCount },
+    { type: 'virtual-machine', count: nodeCount + workloadFixtureCount },
+    { type: 'managed-disk', count: nodeCount + workloadFixtureCount },
     ...(intent.egress.mode === 'public-ip' ? [{ type: 'standard-public-ip', count: nodeCount }] : []),
     ...(routingMode === 'route-server'
       ? [
