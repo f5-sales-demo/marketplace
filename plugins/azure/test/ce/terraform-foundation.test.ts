@@ -1,6 +1,10 @@
 import { expect, it } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
-import { azureTerraformFoundationDeployment, renderAzureTerraformFoundation } from '../../src/ce/terraform-foundation';
+import {
+  azureTerraformCurrentDeployment,
+  azureTerraformFoundationDeployment,
+  renderAzureTerraformFoundation,
+} from '../../src/ce/terraform-foundation';
 import { intent, observation } from './fixtures';
 
 function plan(ha = false, termsAccepted = true) {
@@ -53,6 +57,14 @@ it('admits compute with exact image, ordered NICs, generated SSH key and restric
   expect(deployment.providerLock).toContain('registry.terraform.io/hashicorp/tls');
   expect(deployment.providerLock).toContain('registry.terraform.io/azure/azapi');
   expect(deployment.backendIdentity).toBe(`local:${p.deploymentName}`);
+});
+
+it('preserves the exact provider identity when reopening the current private workspace', async () => {
+  const p = plan();
+  const rendered = JSON.parse(renderAzureTerraformFoundation(p));
+  const current = JSON.parse((await azureTerraformCurrentDeployment(p)).configuration);
+  expect(current.provider).toEqual(rendered.provider);
+  expect(current.azapi).toBeUndefined();
 });
 
 it('signs only the exact discovered Marketplace plan during an unaccepted initial Terraform deploy', () => {
