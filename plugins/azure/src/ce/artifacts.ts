@@ -1,7 +1,8 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalSha256, safeHexEqual } from './canonical';
-import type { AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
+import { validateAzureCeCheckpoint } from './recovery';
+import type { AzureCeCheckpoint, AzureCeObservation, AzureCePlan, AzureCeStoredCheckpoint } from './types';
 import { AZURE_CE_SCHEMA_VERSION } from './types';
 
 export interface SessionManagerLike {
@@ -114,16 +115,22 @@ export async function loadPlanArtifact(
 
 export async function saveCheckpoint(
   session: SessionManagerLike,
+  plan: AzureCePlan,
   checkpoint: AzureCeCheckpoint,
 ): Promise<string | undefined> {
-  return session.saveArtifact(JSON.stringify({ kind: 'azure-ce-checkpoint', checkpoint }), 'azure-ce-checkpoint');
+  validateAzureCeCheckpoint(checkpoint, plan);
+  const artifactId = await session.saveArtifact(
+    JSON.stringify({ kind: 'azure-ce-checkpoint', checkpoint }),
+    'azure-ce-checkpoint',
+  );
+  if (!artifactId) throw new Error('Azure CE checkpoint persistence failed');
+  return artifactId;
 }
 
 export async function loadCheckpoint(
   session: SessionManagerLike,
-  planId: string,
-  planSha256: string,
-): Promise<AzureCeCheckpoint | undefined> {
+  plan: AzureCePlan,
+): Promise<AzureCeStoredCheckpoint | undefined> {
   const artifactsDir = session.getArtifactsDir();
   if (!artifactsDir) return undefined;
   let files: string[];
@@ -136,21 +143,22 @@ export async function loadCheckpoint(
     return undefined;
   }
   for (const file of files) {
+    let envelope: unknown;
     try {
-      const envelope = JSON.parse(await Bun.file(join(artifactsDir, file)).text()) as {
-        kind: string;
-        checkpoint: AzureCeCheckpoint;
-      };
-      if (
-        envelope.kind === 'azure-ce-checkpoint' &&
-        envelope.checkpoint.schemaVersion === AZURE_CE_SCHEMA_VERSION &&
-        envelope.checkpoint.planId === planId &&
-        envelope.checkpoint.planSha256 === planSha256
-      )
-        return envelope.checkpoint;
+      envelope = JSON.parse(await Bun.file(join(artifactsDir, file)).text()) as unknown;
     } catch {
-      // Continue to an older valid checkpoint.
+      continue;
     }
+    if (!envelope || typeof envelope !== 'object') continue;
+    const record = envelope as Record<string, unknown>;
+    const checkpoint = record.checkpoint;
+    if (!checkpoint || typeof checkpoint !== 'object') continue;
+    const identity = checkpoint as Record<string, unknown>;
+    if (identity.planId !== plan.planId && identity.planSha256 !== plan.planSha256) continue;
+    if (record.kind !== 'azure-ce-checkpoint') {
+      throw new Error('Persisted Azure CE checkpoint envelope is malformed');
+    }
+    return validateAzureCeCheckpoint(checkpoint, plan);
   }
   return undefined;
 }

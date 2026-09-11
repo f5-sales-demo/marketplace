@@ -2,14 +2,9 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
-import {
-  assertActionOwnership,
-  assertApplyAllowed,
-  assertObservationFresh,
-  fingerprintCurrentObservation,
-  resolveActionArgs,
-} from '../ce/apply';
+import { assertActionOwnership, assertApplyAllowed, assertObservationFresh, resolveActionArgs } from '../ce/apply';
 import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoint } from '../ce/artifacts';
+import { safeHexEqual } from '../ce/canonical';
 import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
@@ -22,9 +17,16 @@ import {
   withAzureNativeBootstrapFile,
 } from '../ce/native-workflow';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
+import {
+  collectAzureAbsentDeletionTail,
+  fingerprintCheckpointObservation,
+  reconcileAzureNativeDeletionPrefix,
+  upgradeAzureCeCheckpoint,
+  validateAzureDeletionTail,
+} from '../ce/recovery';
 import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
-import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
+import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
 
 interface TerraformDependencies {
@@ -42,6 +44,10 @@ interface ApplyParams {
   planSha256: string;
 }
 
+interface NativeApplyDependencies {
+  observe?: () => ReturnType<typeof discoverAzureCompute>;
+}
+
 async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan): Promise<Record<string, string>> {
   const replacements: Record<string, string> = {};
   for (const arg of args) {
@@ -57,21 +63,14 @@ export async function executeAzureCeNativeApply(
   params: ApplyParams,
   ctx: AzureCeToolContext,
   api: AzExecApi,
-  platform: CePlatformService,
+  platformFactory: () => Promise<CePlatformService>,
   signal?: AbortSignal,
+  dependencies: NativeApplyDependencies = {},
 ) {
   const { plan, observation } = await loadPlanArtifact(ctx.sessionManager, params.planId, params.planSha256);
   if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
-  const existing = await loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256);
-  if (existing) {
-    if (existing.engine !== plan.engine) throw new Error('Checkpoint execution engine does not match the plan');
-    const expectedPrefix = plan.actions.slice(0, existing.completedActionIds.length).map((action) => action.id);
-    if (JSON.stringify(existing.completedActionIds) !== JSON.stringify(expectedPrefix))
-      throw new Error('Persisted checkpoint is not an ordered prefix of the immutable plan');
-    if (existing.observationFingerprint && !/^[a-f0-9]{64}$/.test(existing.observationFingerprint))
-      throw new Error('Persisted checkpoint has an invalid observation fingerprint');
-  }
+  let existing = await loadCheckpoint(ctx.sessionManager, plan);
   assertApplyAllowed(plan, {
     planId: params.planId,
     planSha256: params.planSha256,
@@ -79,32 +78,104 @@ export async function executeAzureCeNativeApply(
     env: process.env,
     authorization: existing?.authorization,
   });
-  const completed = new Set(existing?.completedActionIds ?? []);
-  const observe = () =>
-    discoverAzureCompute(
-      {
-        subscriptionId: plan.subscription.id,
-        publisher: plan.image.publisher,
-        offer: plan.image.offer,
-        plan: plan.image.plan,
-        version: plan.image.version,
-        vmSize: plan.vm.size,
-        requiredNics: plan.nics.length,
-        nodeCount: plan.topology.nodeCount,
-        requireRouteServer: plan.routing.mode === 'route-server',
-        brownfieldResourceIds: plan.intent.brownfield.resourceIds,
-        deploymentName: plan.deploymentName,
-        resourceGroup: plan.intent.resourceGroup,
-      },
-      api,
-    );
+  const observe =
+    dependencies.observe ??
+    (() =>
+      discoverAzureCompute(
+        {
+          subscriptionId: plan.subscription.id,
+          publisher: plan.image.publisher,
+          offer: plan.image.offer,
+          plan: plan.image.plan,
+          version: plan.image.version,
+          vmSize: plan.vm.size,
+          requiredNics: plan.nics.length,
+          nodeCount: plan.topology.nodeCount,
+          requireRouteServer: plan.routing.mode === 'route-server',
+          brownfieldResourceIds: plan.intent.brownfield.resourceIds,
+          deploymentName: plan.deploymentName,
+          resourceGroup: plan.intent.resourceGroup,
+        },
+        api,
+      ));
+  const remainingActions = plan.actions.slice(existing?.completedActionIds.length ?? 0);
+  const hasImmutableDeleteTail =
+    remainingActions.length > 0 && remainingActions.every((action) => action.kind === 'resource-delete');
+  if (existing && plan.intent.operation === 'teardown' && hasImmutableDeleteTail) {
+    validateAzureDeletionTail(plan, existing.completedActionIds);
+  }
   const current = await observe();
+  const currentFingerprint = fingerprintCheckpointObservation(current);
+  const existingSnapshot =
+    existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.observationSnapshot : undefined;
   if (
-    !existing?.observationFingerprint &&
-    completed.has(plan.actions.find((action) => action.kind === 'marketplace-terms-accept')?.id ?? '')
-  )
-    current.image.termsAccepted = observation.image.termsAccepted;
-  assertObservationFresh(plan, current, existing?.observationFingerprint);
+    plan.intent.operation === 'teardown' &&
+    hasImmutableDeleteTail &&
+    !existingSnapshot &&
+    (!existing || existing.completedActionIds.length === 0)
+  ) {
+    reconcileAzureNativeDeletionPrefix(plan, existing?.completedActionIds ?? [], observation, current, []);
+  }
+  const mayRecoverDeletion = existingSnapshot !== undefined;
+  if (existing?.schemaVersion === AZURE_CE_SCHEMA_VERSION) {
+    if (existing.completedActionIds.length === 0) assertObservationFresh(plan, current);
+    if (
+      plan.intent.operation === 'teardown' &&
+      hasImmutableDeleteTail &&
+      (await collectAzureAbsentDeletionTail(plan, existing.completedActionIds, api, signal)).length > 0
+    ) {
+      throw new Error('Stale incomplete legacy Azure teardown checkpoint cannot be recovered safely');
+    }
+    existing = upgradeAzureCeCheckpoint(plan, existing, current);
+    await saveCheckpoint(ctx.sessionManager, plan, existing);
+  }
+  if (
+    mayRecoverDeletion &&
+    existing?.observationSnapshot &&
+    plan.intent.operation === 'teardown' &&
+    existing.state !== 'complete'
+  ) {
+    const priorFingerprint = existing.observationFingerprint;
+    if (!priorFingerprint) throw new Error('Azure teardown checkpoint has no observation fingerprint');
+    const previousCompletedCount = existing.completedActionIds.length;
+    const completedActionIds = reconcileAzureNativeDeletionPrefix(
+      plan,
+      existing.completedActionIds,
+      existing.observationSnapshot,
+      current,
+      await collectAzureAbsentDeletionTail(plan, existing.completedActionIds, api, signal),
+    );
+    const recoveredActions = completedActionIds.length > previousCompletedCount;
+    if (recoveredActions || !safeHexEqual(priorFingerprint, currentFingerprint)) {
+      const newlyRecovered = new Set(completedActionIds.slice(previousCompletedCount));
+      existing = {
+        ...existing,
+        completedActionIds,
+        failedActionId:
+          existing.failedActionId && newlyRecovered.has(existing.failedActionId) ? undefined : existing.failedActionId,
+        observationFingerprint: currentFingerprint,
+        observationSnapshot: structuredClone(current),
+        state: recoveredActions
+          ? completedActionIds.length === plan.actions.length
+            ? 'complete'
+            : existing.failedActionId && !newlyRecovered.has(existing.failedActionId)
+              ? 'partial'
+              : 'running'
+          : existing.state,
+      };
+      await saveCheckpoint(ctx.sessionManager, plan, existing);
+      if (existing.state === 'complete') return { plan, checkpoint: existing };
+    }
+  }
+  if (existing?.observationFingerprint) {
+    if (!safeHexEqual(existing.observationFingerprint, currentFingerprint)) {
+      throw new Error('Stale Azure CE checkpoint: observations changed outside an allowed recovery boundary');
+    }
+  } else {
+    assertObservationFresh(plan, current);
+  }
+  if (existing?.state === 'complete') return { plan, checkpoint: existing };
+  const completed = new Set(existing?.completedActionIds ?? []);
 
   const authorization = {
     apply: existing?.authorization?.apply === true,
@@ -135,6 +206,19 @@ export async function executeAzureCeNativeApply(
     authorization.destroy ||= process.env.XCSH_CE_ALLOW_DESTROY === '1';
   }
 
+  const checkpoint: AzureCeCheckpoint = {
+    authorization,
+    engine: plan.engine,
+    schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    completedActionIds: [...completed],
+    observationFingerprint: existing?.observationFingerprint ?? currentFingerprint,
+    observationSnapshot: structuredClone(current),
+    state: 'running',
+  };
+  await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+  const platform = await platformFactory();
   const runtime = await platform.runtime('native', plan.intent.platformContext);
   const storage = await platform.storage({
     deploymentId: plan.deploymentName,
@@ -144,20 +228,10 @@ export async function executeAzureCeNativeApply(
     region: plan.region,
   });
   const native = await prepareAzureNativeAdmission(plan, runtime, storage, signal);
-
-  const checkpoint: AzureCeCheckpoint = {
-    authorization,
-    engine: plan.engine,
-    schemaVersion: AZURE_CE_SCHEMA_VERSION,
-    planId: plan.planId,
-    planSha256: plan.planSha256,
-    completedActionIds: [...completed],
-    observationFingerprint: existing?.observationFingerprint,
-    state: 'running',
-  };
-  await saveCheckpoint(ctx.sessionManager, checkpoint);
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
+    const preActionFingerprint = checkpoint.observationFingerprint;
+    const preActionSnapshot = checkpoint.observationSnapshot;
     try {
       let postMutationObservation: Awaited<ReturnType<typeof observe>> | undefined;
       await assertActionOwnership(plan, action, api);
@@ -269,29 +343,32 @@ export async function executeAzureCeNativeApply(
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
+      checkpoint.state = completed.size === plan.actions.length ? 'complete' : 'running';
       const changesFingerprint =
         action.kind === 'marketplace-terms-accept' ||
         action.kind === 'route-association-update' ||
         action.kind === 'brownfield-restore' ||
         action.kind === 'resource-delete' ||
         (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);
-      if (changesFingerprint)
-        checkpoint.observationFingerprint = fingerprintCurrentObservation(
-          plan,
-          postMutationObservation ?? (await observe()),
-        );
-      await saveCheckpoint(ctx.sessionManager, checkpoint);
+      if (changesFingerprint) {
+        const checkpointObservation = postMutationObservation ?? (await observe());
+        checkpoint.observationFingerprint = fingerprintCheckpointObservation(checkpointObservation);
+        checkpoint.observationSnapshot = structuredClone(checkpointObservation);
+      }
+      await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
     } catch (error) {
+      completed.delete(action.id);
+      checkpoint.completedActionIds = [...completed];
+      checkpoint.observationFingerprint = preActionFingerprint;
+      checkpoint.observationSnapshot = preActionSnapshot;
       checkpoint.state = 'partial';
       checkpoint.failedActionId = action.id;
-      await saveCheckpoint(ctx.sessionManager, checkpoint);
+      await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. Resume with the same plan ID and SHA-256; ${completed.size}/${plan.actions.length} actions are checkpointed.`,
       );
     }
   }
-  checkpoint.state = 'complete';
-  await saveCheckpoint(ctx.sessionManager, checkpoint);
   return { plan, checkpoint };
 }
 
@@ -343,7 +420,7 @@ export function createAzureCeApplyTool(
           params,
           ctx,
           withAzureCeExecution(makeApi(ctx.cwd), signal),
-          await terraformDependencies.platform(pi, signal),
+          () => terraformDependencies.platform(pi, signal),
           signal,
         );
         return {

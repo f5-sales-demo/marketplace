@@ -20,7 +20,7 @@ import {
   runAzureTerraformTeardown,
 } from '../ce/terraform-teardown';
 import { azureUpgradeBinding } from '../ce/terraform-upgrade';
-import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
+import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION } from '../ce/types';
 import { executeAzureCeNativeApply } from './azure-ce-apply';
 import { makeExecApi } from './shared';
 
@@ -225,9 +225,9 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
                     native.cloudPlanId,
                     native.cloudPlanSha256,
                   );
-                  if (!(await loadCheckpoint(ctx.sessionManager, cloud.planId, cloud.planSha256)))
-                    await saveCheckpoint(ctx.sessionManager, {
-                      schemaVersion: AZURE_CE_SCHEMA_VERSION,
+                  if (!(await loadCheckpoint(ctx.sessionManager, cloud)))
+                    await saveCheckpoint(ctx.sessionManager, cloud, {
+                      schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
                       engine: 'native',
                       authorization: { apply: true, terms: false, destroy: true },
                       planId: cloud.planId,
@@ -240,7 +240,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
                     { planId: cloud.planId, planSha256: cloud.planSha256 },
                     ctx,
                     api,
-                    platform,
+                    async () => platform,
                     signal,
                   );
                   if (applied.checkpoint.state !== 'complete')

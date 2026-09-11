@@ -4,10 +4,10 @@ import {
   assertApplyAllowed,
   assertAzureCeRoutingExecutable,
   assertObservationFresh,
-  fingerprintCurrentObservation,
 } from '../../src/ce/apply';
 import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
+import { fingerprintCurrentObservation } from '../../src/ce/recovery';
 import type { AzureCeAction } from '../../src/ce/types';
 import { intent, observation, sharedContractUrl, subscriptionId } from './fixtures';
 
@@ -38,8 +38,12 @@ describe('Azure CE apply protections', () => {
   }
 
   it('rejects cross-subscription mutation targets even when ownership tags could match', async () => {
-    const action = { ...plan.actions.find((item) => item.kind === 'vm-create')! };
-    action.resourceId = action.resourceId!.replace(subscriptionId, subscriptionId.replaceAll('1', '3'));
+    const selected = plan.actions.find((item) => item.kind === 'vm-create');
+    if (!selected?.resourceId) throw new Error('fixture has no VM create action');
+    const action = {
+      ...selected,
+      resourceId: selected.resourceId.replace(subscriptionId, subscriptionId.replaceAll('1', '3')),
+    };
     let calls = 0;
     await expect(
       assertActionOwnership(plan, action, {

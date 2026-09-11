@@ -1,4 +1,5 @@
 export const AZURE_CE_SCHEMA_VERSION = 3 as const;
+export const AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 
@@ -226,11 +227,26 @@ export interface AzureCePlan extends AzureCePlanDraft {
 export interface AzureCeCheckpoint {
   authorization?: { apply: boolean; terms: boolean; destroy: boolean };
   engine: 'native' | 'terraform';
+  schemaVersion: typeof AZURE_CE_CHECKPOINT_SCHEMA_VERSION;
+  planId: string;
+  planSha256: string;
+  completedActionIds: string[];
+  failedActionId?: string;
+  observationFingerprint?: string;
+  observationSnapshot?: AzureCeObservation;
+  state: 'running' | 'partial' | 'complete';
+}
+
+export interface AzureCeLegacyCheckpoint {
+  authorization?: AzureCeCheckpoint['authorization'];
+  engine: AzureCeCheckpoint['engine'];
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   planId: string;
   planSha256: string;
   completedActionIds: string[];
   failedActionId?: string;
   observationFingerprint?: string;
-  state: 'running' | 'partial' | 'complete';
+  state: AzureCeCheckpoint['state'];
 }
+
+export type AzureCeStoredCheckpoint = AzureCeCheckpoint | AzureCeLegacyCheckpoint;

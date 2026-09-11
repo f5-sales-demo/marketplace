@@ -133,7 +133,7 @@ export function createAzureCeStatusTool(pi: PluginInterface, makeApi: (cwd: stri
                 plan.subscription.id,
               ])
             : Promise.resolve([]),
-          loadCheckpoint(ctx.sessionManager, plan.planId, plan.planSha256),
+          loadCheckpoint(ctx.sessionManager, plan),
         ]);
         const azure = azureSummary(plan, resources, vms, peers);
         const routing = await collectAzureRouteServerHealth(plan, api, signal);
