@@ -28,6 +28,8 @@ export interface TerraformSession {
     signal?: AbortSignal,
   ): Promise<Record<string, unknown>>;
   reviseConfiguration(expectedSha256: string, configuration: string): Promise<string>;
+  /** Resolve an interrupted apply only after the cloud adapter persists exact outcome evidence. */
+  reconcileApplyFromEvidence(receipt: PlanReceipt, evidenceSha256: string): Promise<void>;
   planDestroy(env: Record<string, string | undefined>, signal?: AbortSignal): Promise<PlanReceipt>;
   planAction(
     intent: TerraformActionIntent,
@@ -92,6 +94,10 @@ export function createCeTerraformService(platform: () => Promise<CePlatformServi
         async reviseConfiguration(expectedSha256, configuration) {
           await checkOwner();
           return runner.reviseConfiguration(expectedSha256, configuration);
+        },
+        async reconcileApplyFromEvidence(receipt, evidenceSha256) {
+          await checkOwner();
+          return runner.reconcileApplyFromEvidence(receipt, evidenceSha256);
         },
         async planDestroy(env, signal) {
           await checkOwner();

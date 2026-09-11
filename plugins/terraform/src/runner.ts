@@ -316,6 +316,30 @@ export class TerraformRunner {
       return configuration.toString();
     });
   }
+  /** The cloud adapter has independently proved the exact isolated action outcome. */
+  async reconcileApplyFromEvidence(receipt: PlanReceipt, evidenceSha256: string): Promise<void> {
+    return this.#exclusive(async () => {
+      await this.#verifyInputs();
+      const { directory, manifest } = this.#state();
+      const journal = decode((await privateRead(join(directory, 'plan-receipt.json'))).toString());
+      if (
+        !['applying', 'applied'].includes(String(journal.state)) ||
+        canonical(receipt) !== canonical(journal.receipt) ||
+        receipt.engine !== 'terraform' ||
+        receipt.deploymentId !== manifest.deploymentId ||
+        receipt.backendIdentity !== manifest.backendIdentity ||
+        receipt.configurationSha256 !== manifest.configurationSha256 ||
+        receipt.providerLockSha256 !== manifest.providerLockSha256 ||
+        receipt.planSha256 !== digest(await privateRead(join(directory, 'saved.tfplan'))) ||
+        !/^[a-f0-9]{64}$/.test(evidenceSha256)
+      )
+        throw new Error('Terraform interrupted apply evidence differs from the exact saved plan');
+      await this.#replacePrivate(
+        join(directory, 'plan-receipt.json'),
+        JSON.stringify({ state: 'applied', receipt, reconciledEvidenceSha256: evidenceSha256 }),
+      );
+    });
+  }
   /** Advance desired configuration without changing cloud ownership, providers or backend. */
   async reviseConfiguration(expectedSha256: string, configuration: string): Promise<string> {
     return this.#exclusive(async () => {

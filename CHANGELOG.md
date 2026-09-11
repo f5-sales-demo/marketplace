@@ -10,11 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`azure`** bumped to v4.3.21
+- **`azure`** bumped to v4.3.22
 
 - **`aws`** bumped to v2.0.74
 
-- **`terraform`** bumped to v2.0.15
+- **`terraform`** bumped to v2.0.16
 
 - **`platform`** bumped to v5.0.30
 

@@ -946,6 +946,7 @@ function buildLifecycleActions(
           destructive: false,
           expectedPowerState: intent.operation === 'stop' ? 'deallocated' : 'running',
           expectedOwnerPlanSha256,
+          expectedVmSize: intent.operation === 'resize' ? intent.vm.size : undefined,
         }),
       );
       if (intent.operation !== 'stop')

@@ -204,6 +204,7 @@ export async function collectAzureNativeVmState(
     location?: unknown;
     provisioningState?: unknown;
     powerState?: unknown;
+    hardwareProfile?: { vmSize?: unknown };
     tags?: Record<string, unknown>;
   };
   try {
@@ -240,12 +241,18 @@ export async function collectAzureNativeVmState(
     observedAt: new Date().toISOString(),
     expectedPowerState: action.expectedPowerState,
     ownerPlanSha256: action.expectedOwnerPlanSha256,
+    expectedVmSize: action.expectedVmSize,
+    vmSize: typeof value.hardwareProfile?.vmSize === 'string' ? value.hardwareProfile.vmSize : 'unknown',
     powerState,
-    status: powerState === action.expectedPowerState ? ('healthy' as const) : ('degraded' as const),
+    status:
+      powerState === action.expectedPowerState &&
+      (action.expectedVmSize === undefined || value.hardwareProfile?.vmSize === action.expectedVmSize)
+        ? ('healthy' as const)
+        : ('degraded' as const),
   };
 }
 
-async function listAzureNativeVms(plan: AzureCePlan, api: AzExecApi): Promise<unknown[]> {
+export async function listAzureNativeVms(plan: AzureCePlan, api: AzExecApi): Promise<unknown[]> {
   const result = await api.exec('az', [
     'vm',
     'list',

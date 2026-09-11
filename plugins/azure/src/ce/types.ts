@@ -173,6 +173,7 @@ export interface AzureCeAction {
   requiresBootstrap?: boolean;
   expectedPowerState?: 'running' | 'deallocated';
   expectedOwnerPlanSha256?: string;
+  expectedVmSize?: string;
 }
 
 export interface AzureCePlanDraft {

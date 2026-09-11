@@ -242,7 +242,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration with official-source research, live F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, and diagnostics",
-      "version": "4.3.21",
+      "version": "4.3.22",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -402,7 +402,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.0.15",
+      "version": "2.0.16",
       "author": {
         "name": "f5-sales-demo"
       },

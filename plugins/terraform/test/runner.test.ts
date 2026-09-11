@@ -414,6 +414,27 @@ test('configuration revision rejects backend changes and interrupted apply', asy
   ).rejects.toThrow('Reconcile interrupted');
 });
 
+test('reconciles a lost apply response only from exact saved-plan and cloud-evidence digests', async () => {
+  const evidence = hash('persisted-cloud-evidence');
+  const configuration = '{"terraform":{"required_version":"= 1.14.0"}}';
+  const next =
+    '{"terraform":{"required_version":"= 1.14.0"},"resource":{"terraform_data":{"ce":{"input":"released"}}}}';
+  const { root, runner } = await fixture({}, {}, configuration, () => {
+    throw new Error('apply response lost');
+  });
+  const receipt = await runner.plan({});
+  await expect(runner.apply(receipt, {})).rejects.toThrow('apply response lost');
+  await expect(runner.reconcileApplyFromEvidence({ ...receipt, planSha256: hash('forged') }, evidence)).rejects.toThrow(
+    /exact saved plan/,
+  );
+  await expect(runner.reconcileApplyFromEvidence(receipt, 'not-a-digest')).rejects.toThrow(/exact saved plan/);
+  await runner.reconcileApplyFromEvidence(receipt, evidence);
+  const journal = await readFile(join(root, 'ce-test', 'plan-receipt.json'), 'utf8');
+  expect(journal).toContain(evidence);
+  expect(journal).not.toContain('persisted-cloud-evidence');
+  expect(await runner.reviseConfiguration(hash(configuration), next)).toBe(hash(next));
+});
+
 test('resume completes a journaled revision across configuration and manifest replacement boundaries', async () => {
   for (const boundary of ['journal', 'configuration', 'manifest']) {
     const { root, runner } = await fixture();
