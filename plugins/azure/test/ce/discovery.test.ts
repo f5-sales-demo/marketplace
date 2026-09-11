@@ -159,6 +159,11 @@ describe('discoverAzureCompute', () => {
     const result = await discoverAzureCompute(
       {
         subscriptionId,
+        publisher: '',
+        offer: '',
+        plan: '',
+        version: '',
+        vmSize: '',
         deploymentName: 'ce-demo',
         resourceGroup: 'rg-ce-demo',
         requiredNics: 8,

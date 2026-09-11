@@ -531,9 +531,15 @@ export class CeRuntime {
     binding: SiteBinding,
     checkpoint: (site: Json) => Promise<void>,
     signal?: AbortSignal,
+    advertisedRoutes: string[] = [],
   ): Promise<void> {
     this.#binding(binding, true);
     if (![1, 3].includes(binding.nodes.length)) throw new Error('A site reservation needs one or three intended nodes');
+    if (
+      !Array.isArray(advertisedRoutes) ||
+      advertisedRoutes.some((route) => !/^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/.test(route))
+    )
+      throw new Error('Site reservation has invalid advertised route');
     const spec = {
       ...(binding.initialVersions ? { software_settings: initialSoftwareSettings(binding.initialVersions) } : {}),
       [binding.owner.provider]: { not_managed: {} },
@@ -543,6 +549,17 @@ export class CeRuntime {
       no_network_policy: {},
       no_forward_proxy: {},
       logs_streaming_disabled: {},
+      ...(advertisedRoutes.length
+        ? {
+            static_routes: {
+              static_routes: advertisedRoutes.map((ip_prefixes) => ({
+                ip_prefixes: [ip_prefixes],
+                default_gateway: {},
+                attrs: ['ROUTE_ATTR_ADVERTISE', 'ROUTE_ATTR_INSTALL_FORWARDING'],
+              })),
+            },
+          }
+        : {}),
     };
     this.contract.validateSite(spec);
     await this.#ensureSpec(binding, spec, checkpoint, signal);

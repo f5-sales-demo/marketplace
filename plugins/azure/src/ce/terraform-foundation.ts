@@ -78,6 +78,7 @@ export function renderAzureTerraformFoundation(
     });
   }
   const group = ref('azurerm_resource_group.ce.name');
+  const fixture = plan.intent.workloadFixture;
   const subnets = plan.actions.filter((action) => action.kind === 'subnet-create');
   const subnetRefs = new Map<string, string>();
   const prefixes: string[] = [];
@@ -97,6 +98,19 @@ export function renderAzureTerraformFoundation(
     subnetRefs.set(name, ref(`azurerm_subnet.${key}.id`));
     prefixes.push(cidr);
   }
+  if (fixture) {
+    if (subnetRefs.has(fixture.subnetName) || prefixes.includes(fixture.cidr))
+      throw new Error('Azure Terraform workload fixture overlaps a CE subnet');
+    const key = 'workload';
+    add('azurerm_subnet', key, {
+      name: literal(fixture.subnetName),
+      resource_group_name: group,
+      virtual_network_name: ref('azurerm_virtual_network.ce.name'),
+      address_prefixes: [fixture.cidr],
+    });
+    subnetRefs.set(fixture.subnetName, ref(`azurerm_subnet.${key}.id`));
+    prefixes.push(fixture.cidr);
+  }
   if (plan.nics.some((nic) => !subnetRefs.has(nic.subnet.name ?? '')))
     throw new Error('Planned Azure NIC subnet is unavailable');
   add('azurerm_virtual_network', 'ce', {
@@ -106,6 +120,47 @@ export function renderAzureTerraformFoundation(
     address_space: [...new Set(prefixes)].sort(),
     tags: tags(),
   });
+  if (fixture) {
+    add('tls_private_key', 'workload', { algorithm: 'RSA', rsa_bits: 4096 });
+    add('azurerm_network_interface', 'workload', {
+      name: literal(`${plan.deploymentName}-workload-nic`),
+      resource_group_name: group,
+      location: plan.region,
+      ip_forwarding_enabled: false,
+      ip_configuration: [
+        {
+          name: 'primary',
+          primary: true,
+          subnet_id: subnetRefs.get(fixture.subnetName),
+          private_ip_address_allocation: 'Static',
+          private_ip_address: fixture.privateIp,
+        },
+      ],
+      tags: { ...tags(), 'xcsh-workload-fixture': 'route-server' },
+    });
+    add('azurerm_linux_virtual_machine', 'workload', {
+      name: literal(`${plan.deploymentName}-workload`),
+      computer_name: literal(`${plan.deploymentName}-workload`),
+      resource_group_name: group,
+      location: plan.region,
+      size: 'Standard_B1s',
+      admin_username: 'xcsh',
+      disable_password_authentication: true,
+      network_interface_ids: [ref('azurerm_network_interface.workload.id')],
+      admin_ssh_key: [{ username: 'xcsh', public_key: ref('tls_private_key.workload.public_key_openssh') }],
+      source_image_reference: {
+        publisher: 'Canonical',
+        offer: '0001-com-ubuntu-server-jammy',
+        sku: '22_04-lts',
+        version: 'latest',
+      },
+      os_disk: [{ caching: 'ReadWrite', storage_account_type: 'Standard_LRS', disk_size_gb: 30 }],
+      custom_data: Buffer.from(
+        `#cloud-config\nruncmd:\n  - [ sh, -c, "mkdir -p /srv/xcsh && printf route-server-fixture > /srv/xcsh/index.html && nohup python3 -m http.server ${fixture.port} --directory /srv/xcsh >/var/log/xcsh-workload.log 2>&1 &" ]\n`,
+      ).toString('base64'),
+      tags: { ...tags(), 'xcsh-workload-fixture': 'route-server' },
+    });
+  }
   if (plan.routing.mode === 'route-server') {
     const routeServerSubnet = subnetRefs.get('RouteServerSubnet');
     if (

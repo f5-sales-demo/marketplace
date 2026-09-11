@@ -69,6 +69,14 @@ export interface AzureCeBrownfieldRouteChange {
   destinationCidr: string;
 }
 
+/** Explicit, private workload used to prove a Route Server learned prefix. */
+export interface AzureCeWorkloadFixture {
+  subnetName: string;
+  cidr: string;
+  privateIp: string;
+  port: number;
+}
+
 export interface AzureCeIntent {
   platformContext?: string;
   engine?: 'native' | 'terraform';
@@ -89,6 +97,7 @@ export interface AzureCeIntent {
   image: { publisher: string; offer: string; plan: string };
   vm: { size: string; zones?: string[] };
   brownfield: { resourceIds: string[]; routeChanges: AzureCeBrownfieldRouteChange[] };
+  workloadFixture?: AzureCeWorkloadFixture;
   replacementNode?: number;
 }
 

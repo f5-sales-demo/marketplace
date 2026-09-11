@@ -113,6 +113,33 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
   }
 
   let ingress = input.ingress === undefined ? undefined : structuredClone(input.ingress);
+  const workloadFixture = input.workloadFixture === undefined ? undefined : structuredClone(input.workloadFixture);
+  if (workloadFixture) {
+    if (
+      input.engine !== 'terraform' ||
+      input.operation !== 'deploy' ||
+      input.routing.mode !== 'route-server' ||
+      !validateName('workload fixture subnet', workloadFixture.subnetName) ||
+      !validateCidr('workload fixture CIDR', workloadFixture.cidr) ||
+      !usableIpv4Address(workloadFixture.privateIp, workloadFixture.cidr) ||
+      !Number.isInteger(workloadFixture.port) ||
+      workloadFixture.port < 1 ||
+      workloadFixture.port > 65535 ||
+      subnetKeys.has(workloadFixture.cidr.toLowerCase()) ||
+      nics.some(
+        (nic) =>
+          nic.subnet.mode === 'greenfield' &&
+          nic.subnet.cidr !== undefined &&
+          overlappingIpv4Cidrs(workloadFixture.cidr, nic.subnet.cidr),
+      ) ||
+      !input.routing.destinationCidrs.includes(workloadFixture.cidr)
+    )
+      fail(
+        'workload fixture requires a Terraform Route Server deploy, unique usable subnet/IP, and matching destination CIDR',
+      );
+    workloadFixture.subnetName = validateName('workload fixture subnet', workloadFixture.subnetName);
+    workloadFixture.cidr = validateCidr('workload fixture CIDR', workloadFixture.cidr);
+  }
   if (ingress?.mode === 'none') {
     if (Object.keys(ingress).join(',') !== 'mode') fail('disabled ingress contains unsupported fields');
   } else if (ingress?.mode === 'platform-http') {
@@ -204,6 +231,7 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
       destinationCidrs: input.routing.destinationCidrs.map((cidr) => validateCidr('routing destination', cidr)).sort(),
     },
     ingress,
+    workloadFixture,
     securityRules: [...input.securityRules].sort((a, b) => a.name.localeCompare(b.name)),
     brownfield: {
       resourceIds: [...new Set(input.brownfield.resourceIds.map((id) => id.toLowerCase()))].sort(),
@@ -278,6 +306,12 @@ function usableIpv4Address(address: string, cidr: string): boolean {
   return value > range[0] + 3 && value < range[1];
 }
 
+function overlappingIpv4Cidrs(left: string, right: string): boolean {
+  const leftRange = ipv4Range(left);
+  const rightRange = ipv4Range(right);
+  return Boolean(leftRange && rightRange && leftRange[0] <= rightRange[1] && rightRange[0] <= leftRange[1]);
+}
+
 function validateRouteServerIntent(intent: AzureCeIntent): void {
   // peerAsn is the CE ASN as seen by Azure's peering API, not Route Server's 65515.
   const local = intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010;
@@ -294,9 +328,12 @@ function validateRouteServerIntent(intent: AzureCeIntent): void {
 }
 
 function routeServerSubnetCidr(intent: AzureCeIntent): string {
-  const occupied = intent.nics
-    .flatMap((nic) => (nic.subnet.cidr ? [ipv4Range(nic.subnet.cidr)] : []))
-    .filter((range): range is [number, number] => Boolean(range));
+  const occupied = [
+    ...intent.nics
+      .flatMap((nic) => (nic.subnet.cidr ? [ipv4Range(nic.subnet.cidr)] : []))
+      .filter((range): range is [number, number] => Boolean(range)),
+    ...(intent.workloadFixture ? [ipv4Range(intent.workloadFixture.cidr)] : []),
+  ].filter((range): range is [number, number] => Boolean(range));
   const base = 10 * 256 * 256 * 256 + 255 * 256 * 256;
   for (let offset = 0; offset < 65_536; offset += 64) {
     const candidate: [number, number] = [base + offset, base + offset + 63];

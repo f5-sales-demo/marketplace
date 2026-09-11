@@ -138,7 +138,12 @@ export async function runAzureTerraformAdmission(
     if (!receipt.noChanges) await session.apply(receipt, env, signal);
     await storage.verify();
     await revalidate();
-    await runtime.reserveSite(binding, (record) => storage.write('terraform-site.json', record), signal);
+    await runtime.reserveSite(
+      binding,
+      (record) => storage.write('terraform-site.json', record),
+      signal,
+      plan.intent.workloadFixture ? [plan.intent.workloadFixture.cidr] : [],
+    );
     for (let node = 1; node <= plan.topology.nodeCount; node++) {
       signal?.throwIfAborted();
       await storage.verify();

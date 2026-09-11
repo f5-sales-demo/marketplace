@@ -115,6 +115,14 @@ export function createAzureCePlanTool(pi: PluginInterface) {
             }),
           ),
         }),
+        workloadFixture: Type.Optional(
+          Type.Object({
+            subnetName: Type.String(),
+            cidr: Type.String(),
+            privateIp: Type.String(),
+            port: Type.Integer({ minimum: 1, maximum: 65535 }),
+          }),
+        ),
         replacementNode: Type.Optional(Type.Number()),
       }),
     }),

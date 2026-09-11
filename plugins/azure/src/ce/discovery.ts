@@ -441,6 +441,15 @@ export async function discoverAzureCompute(
   api: AzExecApi,
   fetcher: typeof fetch = fetch,
 ): Promise<AzureCeObservation> {
+  input = {
+    ...input,
+    publisher: input.publisher || undefined,
+    offer: input.offer || undefined,
+    plan: input.plan || undefined,
+    version: input.version || undefined,
+    vmSize: input.vmSize || undefined,
+  };
+
   validateInput(input);
   const subscriptionId = input.subscriptionId.toLowerCase();
   const research = await verifyOfficialSources(fetcher);

@@ -167,7 +167,12 @@ export async function prepareAzureNativeAdmission(
   await storage.verify();
   const checkpoint = await readCheckpoint(plan, storage);
   if (plan.intent.operation === 'deploy') {
-    await runtime.reserveSite(azureUpgradeBinding(plan), (record) => storage.write('native-site.json', record), signal);
+    await runtime.reserveSite(
+      azureUpgradeBinding(plan),
+      (record) => storage.write('native-site.json', record),
+      signal,
+      plan.intent.workloadFixture ? [plan.intent.workloadFixture.cidr] : [],
+    );
     checkpoint.siteReserved = true;
     await storage.write(checkpointName(plan), checkpoint);
   }

@@ -82,6 +82,27 @@ it('signs only the exact discovered Marketplace plan during an unaccepted initia
   expect(JSON.parse(renderAzureTerraformFoundation(plan())).resource.azapi_resource_action).toBeUndefined();
 });
 
+it('renders an isolated private workload fixture for the exact Route Server advertised prefix', () => {
+  const input = structuredClone(intent);
+  input.engine = 'terraform';
+  input.routing = { mode: 'route-server', destinationCidrs: ['10.253.0.0/24'], localAsn: 64512 };
+  input.workloadFixture = { subnetName: 'workload', cidr: '10.253.0.0/24', privateIp: '10.253.0.4', port: 8080 };
+  const observed = structuredClone(observation);
+  observed.regions[0].quotaAvailable = 24;
+  const config = JSON.parse(renderAzureTerraformFoundation(compileAzureCePlan(input, observed)));
+  const fixtureSubnet = config.resource.azurerm_subnet.workload;
+  const fixtureNic = config.resource.azurerm_network_interface.workload;
+  const fixtureVm = config.resource.azurerm_linux_virtual_machine.workload;
+  expect(fixtureSubnet.address_prefixes).toEqual(['10.253.0.0/24']);
+  expect(fixtureNic.ip_configuration[0]).toMatchObject({
+    private_ip_address_allocation: 'Static',
+    private_ip_address: '10.253.0.4',
+  });
+  expect(fixtureNic.public_ip_address_id).toBeUndefined();
+  expect(fixtureVm.network_interface_ids).toEqual([`\${azurerm_network_interface.workload.id}`]);
+  expect(Buffer.from(fixtureVm.custom_data, 'base64').toString()).toContain('http.server 8080');
+});
+
 it('admits an HA site cumulatively and reserves its dedicated Route Server subnet', () => {
   const p = plan(true);
   const network = JSON.parse(renderAzureTerraformFoundation(p));
