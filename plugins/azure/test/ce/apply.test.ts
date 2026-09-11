@@ -29,6 +29,21 @@ describe('Azure CE apply protections', () => {
     expect(() => reconcileAzureTerraformMarketplaceTermsAcceptance(terraformPlan, accepted)).toThrow(
       /Stale Azure CE plan/,
     );
+    for (const changed of [
+      { subscription: { ...observation.subscription, id: '00000000-0000-4000-8000-000000000002' } },
+      { image: { ...observation.image, version: '2.0.0' } },
+      {
+        research: {
+          ...observation.research,
+          sharedContract: { ...observation.research.sharedContract, normalizedSha256: '4'.repeat(64) },
+        },
+      },
+    ]) {
+      const drifted = { ...structuredClone(observation), ...changed };
+      expect(() => reconcileAzureTerraformMarketplaceTermsAcceptance(terraformPlan, drifted)).toThrow(
+        /Stale Azure CE plan/,
+      );
+    }
   });
 
   for (const kind of ['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'route-create'] as const) {

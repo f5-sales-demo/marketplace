@@ -69,6 +69,16 @@ it('signs only the exact discovered Marketplace plan during an unaccepted initia
   expect(config.resource.azurerm_linux_virtual_machine.node_1.depends_on).toContain(
     'azapi_resource_action.marketplace_terms',
   );
+  const ha = JSON.parse(
+    renderAzureTerraformFoundation(plan(true, false), { '1': bootstrap, '2': bootstrap, '3': bootstrap }),
+  );
+  expect(
+    Object.values(ha.resource.azurerm_linux_virtual_machine as Record<string, { depends_on?: string[] }>),
+  ).toHaveLength(3);
+  for (const vm of Object.values(
+    ha.resource.azurerm_linux_virtual_machine as Record<string, { depends_on?: string[] }>,
+  ))
+    expect(vm.depends_on).toContain('azapi_resource_action.marketplace_terms');
   expect(JSON.parse(renderAzureTerraformFoundation(plan())).resource.azapi_resource_action).toBeUndefined();
 });
 
