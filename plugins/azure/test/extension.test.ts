@@ -149,6 +149,7 @@ describe('Azure Status extension', () => {
         'azure_ce_inventory',
         'azure_ce_plan',
         'azure_ce_status',
+        'azure_ce_teardown',
         'azure_ce_upgrade',
         'azure_cloud_init_analyze',
         'azure_compute_discover',
