@@ -2,12 +2,71 @@ import type { AzExecApi } from '../az/exec';
 import { fingerprintObservation, safeHexEqual } from './canonical';
 import type { AzureCeAction, AzureCeCheckpoint, AzureCeObservation, AzureCePlan } from './types';
 
+const QUOTA_BLOCKERS = new Set([
+  'image-unavailable',
+  'image-observation-failed',
+  'vm-size-unavailable',
+  'sku-restricted',
+  'nic-limit',
+  'ce-minimum-size',
+  'no-compatible-vm-size',
+  'quota-observation-failed',
+  'quota',
+  'policy-deny',
+  'route-server-unavailable',
+]);
+
+/** Remove only the capacity consumed by VMs created by this exact immutable deploy plan. */
+export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureCeObservation): string {
+  if (plan.intent.operation !== 'deploy') return fingerprintObservation(current, plan.intent.brownfield.resourceIds);
+  const normalized = structuredClone(current);
+  const vmScope =
+    `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${plan.deploymentName}-`.toLowerCase();
+  const ownedVmCount = normalized.resources.filter((resource) => {
+    const suffix = resource.id.toLowerCase().slice(vmScope.length);
+    return (
+      resource.exists &&
+      resource.owned &&
+      resource.id.toLowerCase().startsWith(vmScope) &&
+      /^\d+$/.test(suffix) &&
+      Number(suffix) >= 1 &&
+      Number(suffix) <= plan.topology.nodeCount &&
+      resource.tags['xcsh-managed-by'] === 'azure-ce' &&
+      resource.tags['xcsh-deployment-id'] === plan.deploymentName &&
+      resource.tags['xcsh-execution-engine'] === plan.engine &&
+      resource.tags['xcsh-plan-sha256'] === plan.planSha256
+    );
+  }).length;
+  if (ownedVmCount > 0) {
+    const region = normalized.regions.find((candidate) => candidate.name === plan.region);
+    const size = region?.vmSizes.find((candidate) => candidate.name === plan.vm.size);
+    if (region && size && Number.isFinite(size.vCpus) && size.vCpus > 0) {
+      region.quotaAvailable += ownedVmCount * size.vCpus;
+      if (region.quotaAvailable >= size.vCpus * plan.topology.nodeCount) {
+        region.reasons = region.reasons.filter((reason) => reason !== 'quota');
+        region.eligible = !region.reasons.some((reason) => QUOTA_BLOCKERS.has(reason));
+      }
+      normalized.regions.sort(
+        (left, right) =>
+          Number(right.eligible) - Number(left.eligible) ||
+          (right.proximity ?? 0) - (left.proximity ?? 0) ||
+          left.reasons.length - right.reasons.length ||
+          left.name.localeCompare(right.name),
+      );
+      normalized.regions.forEach((candidate, index) => {
+        candidate.rank = index + 1;
+      });
+    }
+  }
+  return fingerprintObservation(normalized, plan.intent.brownfield.resourceIds);
+}
+
 export function assertObservationFresh(
   plan: AzureCePlan,
   current: AzureCeObservation,
   expectedFingerprint = plan.observationFingerprint,
 ): void {
-  const fingerprint = fingerprintObservation(current, plan.intent.brownfield.resourceIds);
+  const fingerprint = fingerprintCurrentObservation(plan, current);
   if (!safeHexEqual(expectedFingerprint, fingerprint)) {
     throw new Error(
       `Stale Azure CE plan: observations changed (expected ${expectedFingerprint}, current ${fingerprint})`,

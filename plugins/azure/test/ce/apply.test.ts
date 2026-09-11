@@ -4,6 +4,7 @@ import {
   assertApplyAllowed,
   assertAzureCeRoutingExecutable,
   assertObservationFresh,
+  fingerprintCurrentObservation,
 } from '../../src/ce/apply';
 import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
@@ -68,6 +69,33 @@ describe('Azure CE apply protections', () => {
     changed.image.version = '1.0.1';
     changed.image.urn = 'f5-networks:f5xc-customer-edge:f5xc-ce:1.0.1';
     expect(() => assertObservationFresh(plan, changed)).toThrow(/stale/i);
+  });
+
+  it('normalizes only quota consumed by exact VMs created by the immutable deploy plan', () => {
+    const current = structuredClone(observation);
+    current.regions[0].quotaAvailable -= 8;
+    const vmId = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${plan.deploymentName}-1`;
+    current.resources.push({
+      id: vmId,
+      location: plan.region,
+      exists: true,
+      owned: true,
+      state: { provisioningState: 'Succeeded' },
+      tags: {
+        'xcsh-managed-by': 'azure-ce',
+        'xcsh-deployment-id': plan.deploymentName,
+        'xcsh-execution-engine': plan.engine,
+        'xcsh-plan-sha256': plan.planSha256,
+      },
+    });
+    expect(fingerprintCurrentObservation(plan, current)).toBe(plan.observationFingerprint);
+    expect(() => assertObservationFresh(plan, current)).not.toThrow();
+
+    current.resources[0].tags['xcsh-plan-sha256'] = '0'.repeat(64);
+    expect(() => assertObservationFresh(plan, current)).toThrow(/stale/i);
+    current.resources[0].tags['xcsh-plan-sha256'] = plan.planSha256;
+    current.regions[0].quotaAvailable--;
+    expect(() => assertObservationFresh(plan, current)).toThrow(/stale/i);
   });
 
   it('rejects a changed MCN contract digest before mutation', () => {

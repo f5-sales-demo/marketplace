@@ -2,9 +2,14 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
-import { assertActionOwnership, assertApplyAllowed, assertObservationFresh, resolveActionArgs } from '../ce/apply';
+import {
+  assertActionOwnership,
+  assertApplyAllowed,
+  assertObservationFresh,
+  fingerprintCurrentObservation,
+  resolveActionArgs,
+} from '../ce/apply';
 import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoint } from '../ce/artifacts';
-import { fingerprintObservation } from '../ce/canonical';
 import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
@@ -245,8 +250,7 @@ async function executeApply(
         action.kind === 'route-association-update' ||
         action.kind === 'brownfield-restore' ||
         (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);
-      if (changesFingerprint)
-        checkpoint.observationFingerprint = fingerprintObservation(await observe(), plan.intent.brownfield.resourceIds);
+      if (changesFingerprint) checkpoint.observationFingerprint = fingerprintCurrentObservation(plan, await observe());
       await saveCheckpoint(ctx.sessionManager, checkpoint);
     } catch (error) {
       checkpoint.state = 'partial';
