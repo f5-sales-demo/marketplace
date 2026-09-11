@@ -242,7 +242,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration with official-source research, live F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, and diagnostics",
-      "version": "4.3.33",
+      "version": "4.3.34",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -267,7 +267,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration with current-source F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, NLB/TGW networking, and diagnostics",
-      "version": "2.0.74",
+      "version": "2.0.75",
       "author": {
         "name": "f5-sales-demo"
       },

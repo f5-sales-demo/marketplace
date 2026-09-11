@@ -20,12 +20,14 @@ material without generating a replacement bootstrap payload. It pins the observe
 Marketplace image version and plan, uses a 100 GB managed OS disk, enables NIC IP
 forwarding, disables accelerated networking, and generates per-node RSA SSH keys
 with password authentication disabled. These are explicit foundation defaults.
-For an initial Terraform deployment only, an unaccepted exact observed F5 XC Marketplace plan
-is signed by the pinned AzAPI apply-only action before any VM can be admitted. The action uses the
-immutable subscription, publisher, offer, and plan from discovery; it never accepts caller-supplied
-or generic offers. Terraform destroy removes only this action's state and never cancels the
-subscription-level Marketplace agreement. Native deployment, Terraform replacement, and repair
-remain fail-closed when terms are unaccepted.
+For an initial Terraform deployment only, the same idempotent `terraform apply` signs an
+unaccepted exact observed F5 XC Marketplace plan through the pinned AzAPI apply-only action before
+any VM can be admitted. The action uses the immutable subscription, publisher, offer, and plan from
+discovery; it never accepts caller-supplied or generic offers. No human acceptance, Azure CLI
+command, separate authorization, manual state action, import, taint, rediscovery, or replan is
+needed for that exact transition. Terraform destroy removes only this action's state and never
+cancels the subscription-level Marketplace agreement. Native deployment, Terraform replacement,
+and repair remain fail-closed when terms are unaccepted.
 
 Rendered configuration, binary plans, and state are sensitive deployment artifacts.
 Generated private keys remain in Terraform state and are not exported as outputs.
@@ -36,7 +38,9 @@ guest device names. Missing post-attachment observations remain unavailable.
 
 The configuration has passed provider-backed Terraform validation for one-node and
 three-node HA foundation fixtures. Registration staging is executable only when the
-pinned contract verifies Azure headless bootstrap. Route Server, routing convergence,
-and Azure live no-change acceptance remain unavailable. Reference behavior comes from
+pinned contract verifies Azure headless bootstrap. Route Server and routing execution require
+the pinned contract to supply an executable SLO BGP mapping and observed two-session convergence;
+the implementation and automated coverage do not establish Azure live acceptance. Azure live
+no-change acceptance remains unproven. Reference behavior comes from
 the [MCN CE guide](https://f5-sales-demo.github.io/mcn/en/customer-edge/smsv2/)
 and the pinned [AzureRM VM contract](https://registry.terraform.io/providers/hashicorp/azurerm/5.4.0/docs/resources/linux_virtual_machine).

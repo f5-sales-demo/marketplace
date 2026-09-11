@@ -62,9 +62,10 @@ and verified API contract. Terraform uses an isolated stage and the checksum-ver
 submitting the verified API request. A response lost after that boundary is reconciled from
 platform convergence without replay. OS eligibility follows the currently installed software,
 including a preceding software upgrade. Version readiness alone does not establish registration,
-routing, traffic, or serial admission. Separate AWS Terraform software and OS upgrade acceptance
+routing, traffic, or serial admission. Separate native and Terraform software and OS upgrade
 receipts are recorded in [the parity ledger](https://github.com/f5-sales-demo/marketplace/issues/1326).
-AWS native live upgrade acceptance remains pending.
+Those receipts prove the recorded upgrade scenarios only; they do not substitute for the remaining
+AWS-native final teardown/supporting-infrastructure evidence or any Azure live acceptance.
 
 The internal native and Terraform replacement drivers expose an admission callback before
 shutdown mutation. Fresh owned-resource observations distinguish an intact deployment,
