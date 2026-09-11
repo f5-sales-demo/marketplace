@@ -65,6 +65,28 @@ export function createAzureCePlanTool(pi: PluginInterface) {
             Type.Number({ description: 'CE ASN passed to Azure peering; must equal localAsn when both are supplied.' }),
           ),
         }),
+        ingress: Type.Optional(
+          Type.Union([
+            Type.Object({ mode: Type.Literal('none') }),
+            Type.Object({
+              mode: Type.Literal('platform-http'),
+              port: Type.Integer({ minimum: 1, maximum: 65535 }),
+              listener: Type.Object({
+                name: Type.String(),
+                namespace: Type.String(),
+                domain: Type.String(),
+                privateAddress: Type.String(),
+                originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
+              }),
+              probe: Type.Object({
+                sourceVmResourceId: Type.String(),
+                path: Type.String(),
+                expectedStatus: Type.Integer({ minimum: 100, maximum: 599 }),
+                expectedBodySha256: Type.String(),
+              }),
+            }),
+          ]),
+        ),
         securityRules: Type.Array(
           Type.Object({
             name: Type.String(),

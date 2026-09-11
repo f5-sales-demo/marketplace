@@ -91,6 +91,18 @@ const CREATE_KINDS = new Set([
 ]);
 const OWNED_MUTATION_KINDS = new Set(['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'nic-update']);
 
+function creationOwnershipParent(resourceId: string): string | undefined {
+  for (const pattern of [
+    /^(.*\/providers\/microsoft\.network\/virtualnetworks\/[^/]+)\/subnets\/[^/]+$/i,
+    /^(.*\/providers\/microsoft\.network\/networksecuritygroups\/[^/]+)\/securityrules\/[^/]+$/i,
+    /^(.*\/providers\/microsoft\.network\/routetables\/[^/]+)\/routes\/[^/]+$/i,
+    /^(.*\/providers\/microsoft\.network\/virtualhubs\/[^/]+)\/bgpconnections\/[^/]+$/i,
+  ]) {
+    const match = pattern.exec(resourceId);
+    if (match) return match[1];
+  }
+}
+
 async function assertBrownfieldOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
   const id = action.resourceId ?? '';
   if (!id.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
@@ -128,6 +140,9 @@ async function assertBrownfieldOwnership(plan: AzureCePlan, action: AzureCeActio
 
 export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAction, api: AzExecApi): Promise<void> {
   if (!action.mutates || action.kind === 'marketplace-terms-accept') return;
+  // Platform ingress is scoped and revalidated by CeDeploymentStore and CeIngressLifecycle,
+  // not by an Azure resource ID.
+  if (action.kind === 'f5-ingress-configure') return;
   if (!action.resourceId) throw new Error(`Mutating action ${action.id} has no canonical resource ID`);
   if (!action.resourceId.toLowerCase().startsWith(`/subscriptions/${plan.subscription.id}/`.toLowerCase()))
     throw new Error('Mutation target is outside the selected subscription');
@@ -171,11 +186,36 @@ export async function assertActionOwnership(plan: AzureCePlan, action: AzureCeAc
   const observedId = String(raw.id ?? '').toLowerCase();
   if (!observedId || observedId !== action.resourceId.toLowerCase())
     throw new Error(`Azure substituted a different resource ID for ${action.resourceId}`);
-  const tags = (raw.tags as Record<string, string> | undefined) ?? {};
+  let tags = (raw.tags as Record<string, string> | undefined) ?? {};
+  const parentId = CREATE_KINDS.has(action.kind) ? creationOwnershipParent(action.resourceId) : undefined;
+  if (parentId) {
+    const parentResult = await api.exec('az', [
+      'resource',
+      'show',
+      '--ids',
+      parentId,
+      '--subscription',
+      plan.subscription.id,
+      '--output',
+      'json',
+    ]);
+    if (parentResult.exitCode !== 0) throw new Error(`Unable to verify ownership for ${parentId}`);
+    try {
+      const parent = JSON.parse(parentResult.stdout) as Record<string, unknown>;
+      if (String(parent.id ?? '').toLowerCase() !== parentId.toLowerCase())
+        throw new Error(`Azure substituted a different resource ID for ${parentId}`);
+      tags = (parent.tags as Record<string, string> | undefined) ?? {};
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error(`Ownership response was invalid for ${parentId}`);
+      throw error;
+    }
+  }
   const owned = tags['xcsh-managed-by'] === 'azure-ce' && tags['xcsh-deployment-id'] === plan.deploymentName;
   if (owned && tags['xcsh-execution-engine'] !== plan.engine)
     throw new Error('Azure resource belongs to another or unknown execution engine');
   if (!owned) throw new Error(`Refusing to mutate unmanaged resource ${action.resourceId}`);
+  if (action.expectedOwnerPlanSha256 && tags['xcsh-plan-sha256'] !== action.expectedOwnerPlanSha256)
+    throw new Error(`Azure resource belongs to a different immutable owner plan: ${action.resourceId}`);
   if (CREATE_KINDS.has(action.kind) && tags['xcsh-plan-sha256'] !== plan.planSha256)
     throw new Error(`Existing resource belongs to a different Azure CE plan: ${action.resourceId}`);
 }

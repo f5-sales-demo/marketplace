@@ -84,7 +84,10 @@ export function createCePlatformService(env: Record<string, string | undefined> 
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],
-        providerNetworkingProfiles: { aws: ['direct-eni', 'nlb-ingress', 'tgw-static', 'tgw-connect'] },
+        providerNetworkingProfiles: {
+          aws: ['direct-eni', 'nlb-ingress', 'tgw-static', 'tgw-connect'],
+          azure: ['direct-nic', 'load-balancer-ingress', 'route-server-bgp'],
+        },
         awsSmsv2TgwConnect: {
           supported: capabilities.tgw_connect === 'available',
           schemaVersion: 'f5xc-smsv2-aws-tgw-telemetry/v2',

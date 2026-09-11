@@ -9,7 +9,7 @@ import type { Deployment, PlanReceipt } from '../../../terraform/src/runner';
 import type { CeTerraformService, TerraformSession } from '../../../terraform/src/service';
 import type { AzExecApi } from '../../src/az/exec';
 import { compileAzureCePlan } from '../../src/ce/planner';
-import { readAzureTerraformAuthorization } from '../../src/ce/terraform-apply';
+import { acceptAzureTerraformLifecycleTraffic, readAzureTerraformAuthorization } from '../../src/ce/terraform-apply';
 import { azureTerraformLifecycleDeployment, runAzureTerraformLifecycle } from '../../src/ce/terraform-lifecycle';
 import { azureUpgradeBinding } from '../../src/ce/terraform-upgrade';
 import type { AzureCeIntent } from '../../src/ce/types';
@@ -373,3 +373,96 @@ test('scopes Terraform authorization per immutable lifecycle plan and safely rea
     readAzureTerraformAuthorization({ read: async () => ({ ...approved, engine: 'native' }) }, planSha256),
   ).rejects.toThrow(/checkpoint differs/);
 });
+
+test.each(['start', 'resize'] as const)(
+  'requires %s ingress and content-bound traffic before a final refresh no-change plan',
+  async (operation) => {
+    const sourceVmResourceId =
+      `/subscriptions/${intent.subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+    const selected = structuredClone(intent);
+    selected.engine = 'terraform';
+    selected.operation = operation;
+    selected.routing = { mode: 'udr', destinationCidrs: [] };
+    selected.nics = ['slo', 'data', 'sli'].map((role, index) => ({
+      name: ['mgmt', 'external', 'internal'][index],
+      role: role as 'slo' | 'data' | 'sli',
+      subnet: { mode: 'greenfield', name: `nic${index}`, cidr: `10.20.${index}.0/24` },
+    }));
+    selected.ingress = {
+      mode: 'platform-http',
+      port: 8080,
+      listener: {
+        name: 'ce-listener',
+        namespace: 'system',
+        domain: 'ce.example.invalid',
+        privateAddress: '10.20.2.10',
+        originPool: { name: 'ce-origin', namespace: 'system' },
+      },
+      probe: { sourceVmResourceId, path: '/healthz', expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },
+    };
+    selected.brownfield.resourceIds = [sourceVmResourceId];
+    if (operation === 'resize') selected.vm.size = 'Standard_D16s_v5';
+    const observed = structuredClone(observation);
+    observed.regions[0].quotaAvailable = 96;
+    observed.regions[0].vmSizes.push({
+      name: 'Standard_D16s_v5',
+      maxNics: 8,
+      vCpus: 16,
+      memoryGb: 64,
+      zones: ['1'],
+      restricted: false,
+    });
+    observed.resources = [
+      {
+        id: `/subscriptions/${selected.subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-1`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: { provisioningState: 'Succeeded' },
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'terraform',
+          'xcsh-plan-sha256': 'a'.repeat(64),
+        },
+      },
+      { id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} },
+    ];
+    const plan = compileAzureCePlan(selected, observed);
+    const root = await mkdtemp(join(tmpdir(), `azure-terraform-${operation}-traffic-`));
+    directories.push(root);
+    const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(plan).owner);
+    const events: string[] = [];
+    const terraform = {
+      async open() {
+        return {
+          async plan() {
+            events.push('final-plan');
+            return { noChanges: true, changes: [] };
+          },
+        } as unknown as TerraformSession;
+      },
+    } as CeTerraformService;
+    const result = await acceptAzureTerraformLifecycleTraffic(
+      plan,
+      terraform,
+      {} as CeRuntime,
+      storage,
+      {} as AzExecApi,
+      {} as never,
+      undefined,
+      {
+        ensureIngress: async () => {
+          events.push('ingress');
+          return { listener: 'configured' } as never;
+        },
+        collectTraffic: async () => {
+          events.push('traffic');
+          return { status: 'healthy' } as never;
+        },
+      },
+    );
+    expect(result).toMatchObject({ traffic: { status: 'healthy' }, terraformNoChanges: true });
+    expect(events).toEqual(['ingress', 'traffic', 'final-plan']);
+  },
+);

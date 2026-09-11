@@ -381,6 +381,7 @@ export class CeRuntime {
         siteFingerprint: this.contract.fingerprint,
         observeOwnedSite: (binding, signal) => this.observeOwnedSite(binding, signal),
         observeAwsInterfaces: (binding, expected, signal) => this.observeAwsInterfaces(binding, expected, signal),
+        observeAzureInterfaces: (binding, expected, signal) => this.observeAzureInterfaces(binding, expected, signal),
         request: (path, init, signal) => this.#request(path, init, signal),
       },
       contract,
@@ -785,10 +786,21 @@ export class CeRuntime {
     };
   }
   async observeBgpRoutes(binding: SiteBinding, signal?: AbortSignal) {
+    return this.observeBgpRoutesForNodes(binding, binding.nodes, signal);
+  }
+  async observeBgpRoutesForNodes(binding: SiteBinding, expectedNodes: string[], signal?: AbortSignal) {
     this.#binding(binding);
+    if (
+      !Array.isArray(expectedNodes) ||
+      expectedNodes.length < 1 ||
+      expectedNodes.length > binding.nodes.length ||
+      new Set(expectedNodes).size !== expectedNodes.length ||
+      expectedNodes.some((node) => !binding.nodes.includes(node))
+    )
+      throw new Error('BGP route observation nodes differ from the owned site');
     this.#owned(await this.observeSite(binding, signal), binding);
     const source = this.contract.bgpRoutesPath(binding.owner.provider, binding.siteName);
-    const evidence = parseBgpRoutes(await this.#request(source, {}, signal), binding.nodes);
+    const evidence = parseBgpRoutes(await this.#request(source, {}, signal), expectedNodes);
     return {
       ...evidence,
       owner: structuredClone(binding.owner),
@@ -1163,6 +1175,9 @@ export class CeRuntime {
       siteName: binding.siteName,
       siteUid,
       owner: binding.owner,
+      localAsn,
+      remoteAsn,
+      interfaces: interfaces.map(({ node, interfaceName }) => ({ node, interfaceName })),
       expectedSessions: routing.expectedSessions,
       routeServerAddresses: [...routeServerAddresses],
       contractFingerprint: this.contract.fingerprint,

@@ -25,6 +25,15 @@ interface Port {
     interfaces: ObservedCeInterface[];
     observedAt: string;
   }>;
+  observeAzureInterfaces(
+    binding: SiteBinding,
+    expected: ExpectedCeInterface[],
+    signal?: AbortSignal,
+  ): Promise<{
+    status: 'observed' | 'unknown';
+    interfaces: ObservedCeInterface[];
+    observedAt: string;
+  }>;
   request(path: string, init?: RequestInit, signal?: AbortSignal): Promise<Json>;
 }
 function object(value: unknown): Json {
@@ -108,7 +117,7 @@ export class CeIngressLifecycle {
       'xcsh-ce-region': owner.region,
     };
   }
-  async #material(intent: Intent, selections: Selection[], signal?: AbortSignal) {
+  async #material(provider: 'aws' | 'azure', intent: Intent, selections: Selection[], signal?: AbortSignal) {
     const deadline = AbortSignal.timeout(60_000);
     signal = signal ? AbortSignal.any([signal, deadline]) : deadline;
     signal.throwIfAborted();
@@ -124,27 +133,26 @@ export class CeIngressLifecycle {
       const { binding } = selected;
       if (
         !same(binding.owner, this.storage.owner) ||
-        binding.owner.provider !== 'aws' ||
+        binding.owner.provider !== provider ||
         names.has(binding.siteName) ||
         nodes.has(selected.node) ||
         macs.has(selected.mac.toLowerCase()) ||
-        binding.nodes.length !== 1 ||
-        binding.nodes[0] !== selected.node ||
+        (provider === 'aws'
+          ? binding.nodes.length !== 1 || binding.nodes[0] !== selected.node
+          : ![1, 3].includes(binding.nodes.length) || !binding.nodes.includes(selected.node)) ||
         !/^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(selected.mac) ||
         (selected.insideAddress !== undefined &&
           (isIP(selected.insideAddress) !== 4 || addresses.has(selected.insideAddress)))
       )
-        throw new Error('Ingress requires distinct owned AWS sites with an observed single-node inside interface');
+        throw new Error(`Ingress requires distinct owned ${provider} sites with an observed inside interface`);
       names.add(binding.siteName);
       nodes.add(selected.node);
       macs.add(selected.mac.toLowerCase());
       if (selected.insideAddress) addresses.add(selected.insideAddress);
       const before = await this.port.observeOwnedSite(binding, signal);
-      const observation = await this.port.observeAwsInterfaces(
-        binding,
-        [{ node: selected.node, role: 'sli', mac: selected.mac }],
-        signal,
-      );
+      const observation = await (provider === 'aws'
+        ? this.port.observeAwsInterfaces(binding, [{ node: selected.node, role: 'sli', mac: selected.mac }], signal)
+        : this.port.observeAzureInterfaces(binding, [{ node: selected.node, role: 'sli', mac: selected.mac }], signal));
       const observedAt = Date.parse(observation.observedAt);
       const inside = observation.interfaces;
       if (
@@ -203,8 +211,14 @@ export class CeIngressLifecycle {
     };
   }
   async planAws(intent: Intent, selections: Selection[], signal?: AbortSignal) {
+    return this.#plan('aws', intent, selections, signal);
+  }
+  async planAzure(intent: Intent, selections: Selection[], signal?: AbortSignal) {
+    return this.#plan('azure', intent, selections, signal);
+  }
+  async #plan(provider: 'aws' | 'azure', intent: Intent, selections: Selection[], signal?: AbortSignal) {
     return this.#locked(async () => {
-      const material = await this.#material(intent, selections, signal);
+      const material = await this.#material(provider, intent, selections, signal);
       const draft = {
         schemaVersion: 1 as const,
         kind: 'ce-inside-http-ingress' as const,
@@ -237,6 +251,15 @@ export class CeIngressLifecycle {
     )
       throw new Error('Obsolete, forged or foreign ingress plan');
     return plan;
+  }
+  /** Recollect Azure placement identity without mutating platform resources. */
+  async matchesAzure(id: string, intent: Intent, selections: Selection[], signal?: AbortSignal): Promise<boolean> {
+    return this.#locked(async () => {
+      const plan = await this.#load(id);
+      if (plan.material.owner.provider !== 'azure') throw new Error('Ingress plan is not Azure-owned');
+      const current = await this.#material('azure', intent, selections, signal);
+      return same(current, plan.material);
+    });
   }
   async #read(path: string, signal?: AbortSignal) {
     try {
@@ -301,7 +324,12 @@ export class CeIngressLifecycle {
             (checkpoint.phase === 'created' && (typeof checkpoint.uid !== 'string' || !checkpoint.uid))))
       )
         throw new Error('Ingress checkpoint does not admit application');
-      const current = await this.#material(plan.material.intent, plan.material.selections, signal);
+      const current = await this.#material(
+        plan.material.owner.provider,
+        plan.material.intent,
+        plan.material.selections,
+        signal,
+      );
       if (!same(current, plan.material)) throw new Error('Ingress identities or addresses changed; replan required');
       const originCheckpoint = await this.#originCheckpoint(id);
       if (
@@ -319,7 +347,12 @@ export class CeIngressLifecycle {
           phase: 'creating',
           planSha256: plan.sha256,
         });
-        if (!same(await this.#material(plan.material.intent, plan.material.selections, signal), plan.material))
+        if (
+          !same(
+            await this.#material(plan.material.owner.provider, plan.material.intent, plan.material.selections, signal),
+            plan.material,
+          )
+        )
           throw new Error('Ingress evidence changed before origin mutation');
         try {
           await this.port.request(
@@ -356,7 +389,12 @@ export class CeIngressLifecycle {
         if (checkpoint?.uid) throw new Error('Checkpointed listener is missing; reconcile before replacement');
         await this.storage.write(`ingress-checkpoint-${id}.json`, { phase: 'creating', planSha256: plan.sha256 });
         // Recollect after the durable write and immediately before the mutation boundary.
-        if (!same(await this.#material(plan.material.intent, plan.material.selections, signal), plan.material))
+        if (
+          !same(
+            await this.#material(plan.material.owner.provider, plan.material.intent, plan.material.selections, signal),
+            plan.material,
+          )
+        )
           throw new Error('Ingress evidence changed before mutation');
         try {
           await this.port.request(

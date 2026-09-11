@@ -39,6 +39,24 @@ test('collects exact per-node imported and exported BGP prefixes without inventi
   });
 });
 
+test('accepts the two remaining node route tables during failover', () => {
+  const value = {
+    ver: ['node-two', 'node-three'].map((name) => ({
+      name,
+      ri_table: [
+        {
+          routing_instance: 'ves-io-slo-tenant',
+          rt_table: [{ name: 'inet.0', imported: [], exported: [] }],
+        },
+      ],
+    })),
+  };
+  expect(parseBgpRoutes(value, ['node-two', 'node-three'])).toMatchObject({
+    status: 'observed',
+    nodes: [{ node: 'node-two' }, { node: 'node-three' }],
+  });
+});
+
 test('rejects partial, substituted, duplicate, and malformed BGP route inventories', () => {
   const variants = [
     { ...response(), next_page_token: 'more' },

@@ -7,6 +7,7 @@ export async function collectAzurePlatformHealth(
   runtime: Pick<CeRuntime, 'observeHealth' | 'observeRegistrations'>,
   signal?: AbortSignal,
   admittedNodeCount: number = plan.topology.nodeCount,
+  expectedOwnerPlanSha256ByNode?: Record<string, string>,
 ) {
   const base = {
     planId: plan.planId,
@@ -37,15 +38,26 @@ export async function collectAzurePlatformHealth(
   const used = new Set<string>();
   for (let node = 1; node <= admittedNodeCount; node++) {
     const name = `${plan.deploymentName}-${node}`;
-    const ownerGates = (plan.actions ?? []).filter(
-      (action) => action.kind === 'vm-state-gate' && action.node === node && action.expectedOwnerPlanSha256,
-    );
+    const ownerGates = [
+      ...new Set(
+        (plan.actions ?? [])
+          .filter(
+            (action) =>
+              action.node === node &&
+              action.kind.startsWith('vm-') &&
+              (!action.resourceId || action.resourceId.toLowerCase() === scope + name.toLowerCase()) &&
+              action.expectedOwnerPlanSha256,
+          )
+          .map((action) => action.expectedOwnerPlanSha256 as string),
+      ),
+    ];
     const expectedOwnerPlanSha256 =
-      ownerGates.length === 0
+      expectedOwnerPlanSha256ByNode?.[name] ??
+      (ownerGates.length === 0
         ? plan.planSha256
-        : ownerGates.length === 1 && /^[a-f0-9]{64}$/.test(ownerGates[0].expectedOwnerPlanSha256 ?? '')
-          ? ownerGates[0].expectedOwnerPlanSha256
-          : undefined;
+        : ownerGates.length === 1 && /^[a-f0-9]{64}$/.test(ownerGates[0])
+          ? ownerGates[0]
+          : undefined);
     const matches = vms.filter(
       (vm) => vm && typeof vm.id === 'string' && vm.id.toLowerCase() === scope + name.toLowerCase(),
     );

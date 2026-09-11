@@ -37,6 +37,32 @@ test('binds every established BGP session to an exact node, SLO object and Route
   });
 });
 
+test('accepts the exact four remaining sessions during a three-node failover', () => {
+  const remaining = ['node-two', 'node-three'].flatMap((node) =>
+    ['10.20.0.4', '10.20.0.5'].map((peerAddress) => ({ node, interfaceName: `slo-${node}`, peerAddress })),
+  );
+  const value = {
+    ver: ['node-two', 'node-three'].map((node) => ({
+      name: node,
+      peer: remaining
+        .filter((session) => session.node === node)
+        .map((session) => ({
+          interface_name: session.interfaceName,
+          peer_address: { ipv4: { addr: session.peerAddress } },
+          protocol_status: 'Established',
+          received_prefix_count: 2,
+          advertised_prefix_count: 1,
+          up_down_timestamp: '2026-09-10T12:00:00Z',
+        })),
+    })),
+  };
+  expect(parseBgpSessions(value, remaining)).toMatchObject({
+    status: 'healthy',
+    establishedSessions: 4,
+    expectedSessions: 4,
+  });
+});
+
 test('reports an exact down session as degraded without weakening its identity', () => {
   const value = response();
   value.ver[0].peer[1].protocol_status = 'Active';

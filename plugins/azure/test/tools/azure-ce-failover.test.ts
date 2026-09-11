@@ -27,10 +27,34 @@ const typebox = {
 } as unknown as PluginInterface['typebox'];
 
 function routeServerPlan(engine: 'native' | 'terraform') {
-  return compileAzureCePlan(
-    { ...intent, engine, routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512 } },
-    observation,
-  );
+  const sourceVmResourceId =
+    `/subscriptions/${intent.subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+  const selected = structuredClone(intent);
+  selected.engine = engine;
+  selected.topology.ha = true;
+  selected.routing = { mode: 'route-server', destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 };
+  selected.nics = ['slo', 'data', 'sli'].map((role, index) => ({
+    name: ['mgmt', 'external', 'internal'][index],
+    role: role as 'slo' | 'data' | 'sli',
+    subnet: { mode: 'greenfield', name: `nic${index}`, cidr: `10.20.${index}.0/24` },
+  }));
+  selected.ingress = {
+    mode: 'platform-http',
+    port: 8080,
+    listener: {
+      name: 'ce-listener',
+      namespace: 'system',
+      domain: 'ce.example.invalid',
+      privateAddress: '10.20.2.10',
+      originPool: { name: 'ce-origin', namespace: 'system' },
+    },
+    probe: { sourceVmResourceId, path: '/healthz', expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },
+  };
+  selected.brownfield.resourceIds = [sourceVmResourceId];
+  const observed = structuredClone(observation);
+  observed.regions[0].quotaAvailable = 24;
+  observed.resources = [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }];
+  return compileAzureCePlan(selected, observed);
 }
 
 function context(id: string): AzureCeToolContext & { artifacts: string[] } {
@@ -104,6 +128,7 @@ test.each(['native', 'terraform'] as const)(
     await savePlanArtifact(ctx.sessionManager, plan, observation);
     const tool = createAzureCeFailoverTool({ typebox } as PluginInterface, {
       platform: async () => platform,
+      terraform: async () => ({}) as never,
       makeApi: () => api,
     });
     const prepared = (await tool.execute(
@@ -133,7 +158,7 @@ test.each(['native', 'terraform'] as const)(
       ctx,
     )) as { isError?: boolean; content: Array<{ text: string }> };
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('verified platform SLO BGP mapping');
+    expect(result.content[0].text).toContain('platform-routing.json');
     expect(commands).toHaveLength(2);
   },
 );
@@ -147,6 +172,7 @@ test('Azure failover rejects stale or forged VM ownership evidence', async () =>
   await savePlanArtifact(ctx.sessionManager, plan, observation);
   const tool = createAzureCeFailoverTool({ typebox } as PluginInterface, {
     platform: async () => ({ storage: async () => storage }) as unknown as CePlatformService,
+    terraform: async () => ({}) as never,
     makeApi: () => ({
       async exec(_command: string, args: string[]) {
         if (args[0] === 'account')

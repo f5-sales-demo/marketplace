@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from '../../src/ce/deployment-store';
 import { CeIngressLifecycle } from '../../src/ce/ingress-lifecycle';
-import { CeApiError } from '../../src/ce/runtime';
+import { CeApiError, type CeOwner, type SiteBinding } from '../../src/ce/runtime';
 import { buildInsideHttpListener, projectInsideHttpListener } from '../../src/ce/wire-ingress';
 import { buildSiteLocalHttpOrigin, projectSiteLocalHttpOrigin } from '../../src/ce/wire-origin';
 import { createWireValidator } from '../../src/ce/wire-schema';
@@ -46,10 +46,10 @@ const selections = [1, 2, 3].map((i) => ({
   mac: `02:00:00:00:00:0${i}`,
 }));
 
-async function setup() {
+async function setup(storeOwner: CeOwner = owner) {
   const path = await mkdtemp(join(tmpdir(), 'ce-ingress-'));
   directories.push(path);
-  const store = await CeDeploymentStore.open(path, owner);
+  const store = await CeDeploymentStore.open(path, storeOwner);
   const state = {
     listener: undefined as Record<string, unknown> | undefined,
     origin: undefined as Record<string, unknown> | undefined,
@@ -67,27 +67,14 @@ async function setup() {
       return state.engine;
     },
     siteFingerprint: 'site-contract',
-    async observeOwnedSite(binding: (typeof selections)[number]['binding']) {
+    async observeOwnedSite(binding: SiteBinding) {
       return { system_metadata: { uid: `${state.siteUid}-${binding.siteName}` } };
     },
-    async observeAwsInterfaces(binding: (typeof selections)[number]['binding']) {
-      const i = Number(binding.siteName.slice(-1));
-      return {
-        status: 'observed' as const,
-        observedAt: new Date().toISOString(),
-        interfaces: [
-          {
-            node: `node-${i}`,
-            role: 'sli' as const,
-            mac: `02:00:00:00:00:0${i}`,
-            device: 'ens6',
-            interfaceName: `interface-${i}`,
-            mtu: 1500,
-            linkUp: true as const,
-            ipv4: { address: i === 1 ? state.address : `10.20.${i}.10`, prefixLength: 24 },
-          },
-        ],
-      };
+    async observeAwsInterfaces(binding: SiteBinding) {
+      return observeInterfaces(binding);
+    },
+    async observeAzureInterfaces(binding: SiteBinding) {
+      return observeInterfaces(binding);
     },
     async request(path: string, init?: RequestInit) {
       if (path.includes('/origin_pools')) {
@@ -115,6 +102,25 @@ async function setup() {
       return structuredClone(state.listener);
     },
   };
+  function observeInterfaces(binding: SiteBinding) {
+    const i = Number(binding.siteName.slice(-1));
+    return {
+      status: 'observed' as const,
+      observedAt: new Date().toISOString(),
+      interfaces: [
+        {
+          node: `node-${i}`,
+          role: 'sli' as const,
+          mac: `02:00:00:00:00:0${i}`,
+          device: 'ens6',
+          interfaceName: `interface-${i}`,
+          mtu: 1500,
+          linkUp: true as const,
+          ipv4: { address: i === 1 ? state.address : `10.20.${i}.10`, prefixLength: 24 },
+        },
+      ],
+    };
+  }
   return { store, state, lifecycle: new CeIngressLifecycle(port, contract, store), port };
 }
 
@@ -133,6 +139,31 @@ test('persists observed placements and resumes a lost create response without du
   await f.lifecycle.delete(plan.id);
   await f.lifecycle.delete(plan.id);
   expect(f.state.deletes).toBe(1);
+});
+
+test('plans Azure ingress for one selected node of an owned three-node site', async () => {
+  const azureOwner: CeOwner = {
+    deploymentId: 'ce-test',
+    engine: 'terraform',
+    provider: 'azure',
+    account: 'demo',
+    region: 'us-east-1',
+  };
+  const f = await setup(azureOwner);
+  const selected = [
+    {
+      binding: { owner: azureOwner, siteName: 'ce-site-1', nodes: ['node-1', 'node-2', 'node-3'] },
+      node: 'node-1',
+      mac: '02:00:00:00:00:01',
+      insideAddress: '10.20.1.20',
+    },
+  ];
+  const plan = await f.lifecycle.planAzure(intent, selected);
+  expect(plan.material.placements).toHaveLength(1);
+  expect(plan.request.spec.advertise_custom.advertise_where[0].site.ip).toBe('10.20.1.20');
+  await f.lifecycle.apply(plan.id);
+  expect(f.state.posts).toBe(1);
+  await expect(f.lifecycle.planAws(intent, selected)).rejects.toThrow(/owned aws/i);
 });
 
 test('fresh address, site or owning-engine drift blocks mutation', async () => {

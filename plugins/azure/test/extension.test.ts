@@ -14,6 +14,7 @@ const mockTypebox = {
     String: (o?: unknown) => ({ type: 'string', ...((o as object) ?? {}) }),
     Boolean: (o?: unknown) => ({ type: 'boolean', ...((o as object) ?? {}) }),
     Number: (o?: unknown) => ({ type: 'number', ...((o as object) ?? {}) }),
+    Integer: (o?: unknown) => ({ type: 'integer', ...((o as object) ?? {}) }),
     Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
     Array: (i: unknown, o?: unknown) => ({ type: 'array', items: i, ...((o as object) ?? {}) }),
     Union: (s: unknown[]) => ({ union: s }),
@@ -174,9 +175,12 @@ describe('Azure Status extension', () => {
       expect(typeof tool.execute).toBe('function');
     }
     const apply = tools.find((tool) => tool.name === 'azure_ce_apply');
+    const plan = tools.find((tool) => tool.name === 'azure_ce_plan');
     if (apply) {
       expect(JSON.stringify(apply.parameters)).not.toContain('bootstrapRefs');
       expect(JSON.stringify(apply.parameters)).not.toContain('f5Evidence');
+      expect(JSON.stringify(plan?.parameters)).toContain('platform-http');
+      expect(JSON.stringify(plan?.parameters)).toContain('sourceVmResourceId');
     } else {
       expect(tools).toHaveLength(0);
     }

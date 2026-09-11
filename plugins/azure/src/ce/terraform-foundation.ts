@@ -21,9 +21,13 @@ export function renderAzureTerraformFoundation(
   verifyAzureCePlan(plan);
   if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
     throw new Error('Azure Terraform foundation requires a Terraform deployment plan');
+  const allowedTrafficSource =
+    plan.intent.ingress?.mode === 'platform-http'
+      ? plan.intent.ingress.probe.sourceVmResourceId.toLowerCase()
+      : undefined;
   if (
     plan.nics.some((nic) => nic.subnet.mode !== 'greenfield') ||
-    plan.intent.brownfield.resourceIds.length ||
+    plan.intent.brownfield.resourceIds.some((id) => id.toLowerCase() !== allowedTrafficSource) ||
     plan.egress.mode !== 'public-ip'
   )
     throw new Error('Azure Terraform foundation requires greenfield networking and public-ip egress');

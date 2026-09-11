@@ -3,7 +3,11 @@ import type { ExpectedCeInterface } from '../../../platform/src/ce/interface-evi
 import type { CeRuntime } from '../../../platform/src/ce/runtime';
 import type { AzExecApi } from '../az/exec';
 import { verifyAzureCePlan } from './artifacts';
-import { collectAzureRouteServerHealth, discoverAzureRouteServerIdentity } from './route-server-health';
+import {
+  type AzureRouteServerOwnership,
+  collectAzureRouteServerHealth,
+  discoverAzureRouteServerIdentity,
+} from './route-server-health';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import type { AzureCePlan } from './types';
 
@@ -15,6 +19,7 @@ export async function configureAzureRouteServerRouting(
   storage: Pick<CeDeploymentStore, 'write' | 'verify'>,
   api: AzExecApi,
   signal?: AbortSignal,
+  retained?: AzureRouteServerOwnership,
 ) {
   verifyAzureCePlan(plan);
   if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
@@ -28,7 +33,7 @@ export async function configureAzureRouteServerRouting(
     binding.nodes.some((node) => slo.filter((item) => item.node === node).length !== 1)
   )
     throw new Error('Exactly one authoritative SLO interface per Azure CE node is required');
-  const routeServer = await discoverAzureRouteServerIdentity(plan, api, signal);
+  const routeServer = await discoverAzureRouteServerIdentity(plan, api, signal, retained);
   const interfaces = slo.map(({ node, interfaceName }) => ({ node, interfaceName }));
   await runtime.ensureAzureRouting(
     binding,
@@ -44,7 +49,7 @@ export async function configureAzureRouteServerRouting(
   );
   const sessions = await runtime.observeBgpSessions(binding, expectedSessions, signal);
   const effectiveRoutes = await runtime.observeBgpRoutes(binding, signal);
-  const cloud = await collectAzureRouteServerHealth(plan, api, signal);
+  const cloud = await collectAzureRouteServerHealth(plan, api, signal, retained);
   const routeExchange = cloud.status === 'healthy' ? ('healthy' as const) : ('unknown' as const);
   const evidence = {
     planId: plan.planId,

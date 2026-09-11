@@ -24,7 +24,7 @@ const cidr = (value: unknown): value is string => {
 /** Parse a complete BGP route inventory without inferring convergence semantics. */
 export function parseBgpRoutes(response: unknown, expectedNodes: string[]) {
   if (
-    ![1, 3].includes(expectedNodes.length) ||
+    ![1, 2, 3].includes(expectedNodes.length) ||
     new Set(expectedNodes).size !== expectedNodes.length ||
     expectedNodes.some((node) => !/^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(node))
   )

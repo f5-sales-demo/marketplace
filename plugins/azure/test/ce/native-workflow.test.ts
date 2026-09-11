@@ -10,6 +10,7 @@ import {
   collectAzureNativeAdmissionHealth,
   collectAzureNativeVmState,
   prepareAzureNativeAdmission,
+  prepareAzureNativeReplacement,
   recordAzureNativeLaunch,
   withAzureNativeBootstrapFile,
 } from '../../src/ce/native-workflow';
@@ -200,28 +201,162 @@ test('reconciles reservation, checkpoints bootstrap before launch and reuses it 
   await expect(access(temporaryPath)).rejects.toThrow();
 });
 
-test('rejects replacement before any platform or cloud mutation', async () => {
-  const plan = compileAzureCePlan({ ...intent, operation: 'replace-node', replacementNode: 1 }, observation);
+test('persists coupled VM and logical-site replacement evidence before deletion', async () => {
+  const observed = structuredClone(observation);
+  observed.resources = [
+    {
+      id: `/subscriptions/${intent.subscriptionId}/resourceGroups/${intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${intent.deploymentName}-1`,
+      location: intent.region,
+      exists: true,
+      owned: true,
+      state: {},
+      tags: {
+        'xcsh-managed-by': 'azure-ce',
+        'xcsh-deployment-id': intent.deploymentName,
+        'xcsh-execution-engine': 'native',
+        'xcsh-plan-sha256': 'a'.repeat(64),
+      },
+    },
+  ];
+  const plan = compileAzureCePlan(
+    {
+      ...intent,
+      operation: 'replace-node',
+      replacementNode: 1,
+      routing: { mode: 'route-server', destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 },
+    },
+    observed,
+  );
   const root = await mkdtemp(join(tmpdir(), 'azure-native-replacement-'));
   directories.push(root);
   const storage = await CeDeploymentStore.open(root, azureUpgradeBinding(plan).owner);
-  let calls = 0;
-  await expect(
-    prepareAzureNativeAdmission(
-      plan,
-      {
-        engine: 'native',
-        requireBootstrapContract() {
-          calls++;
-        },
-        async reserveSite() {
-          calls++;
-        },
+  const site = {
+    metadata: { name: plan.siteName, namespace: 'system' },
+    system_metadata: { uid: 'site-uid' },
+    spec: { azure: { not_managed: {} } },
+  };
+  const runtime = {
+    engine: 'native' as const,
+    requireBootstrapContract() {},
+    requireRoutingContract() {},
+    async reserveSite() {
+      throw new Error('replacement must not reserve a new site');
+    },
+    async observeOwnedSite() {
+      return site;
+    },
+    ownedSiteConfiguration() {
+      return { metadata: site.metadata, spec: site.spec };
+    },
+    async approveRegistrations() {
+      return { status: 'healthy' };
+    },
+    async observeHealth() {
+      return { status: 'healthy' };
+    },
+    async observeRegistrations() {
+      return { status: 'healthy' };
+    },
+    async observeRegisteredConfiguration() {
+      return { status: 'configured' };
+    },
+  };
+  const checkpoint = await prepareAzureNativeAdmission(plan, runtime, storage);
+  let vmId = '00000000-0000-4000-8000-000000000001';
+  let replaced = false;
+  const api: AzExecApi = {
+    async exec(_command, args) {
+      if (args.slice(0, 2).join(' ') === 'vm list')
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify([
+            {
+              id: observed.resources[0].id,
+              name: `${plan.deploymentName}-1`,
+              location: plan.region,
+              provisioningState: 'Succeeded',
+              vmId,
+              tags: {
+                ...observed.resources[0].tags,
+                'xcsh-plan-sha256': replaced ? plan.planSha256 : 'a'.repeat(64),
+              },
+            },
+          ]),
+        };
+      if (args.slice(0, 2).join(' ') === 'network routeserver') {
+        const routeServerId = `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs`;
+        const peerName = `${plan.deploymentName}-1`;
+        return args.includes('peering')
+          ? {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify({
+                id: `${routeServerId}/bgpConnections/${peerName}`.toUpperCase(),
+                name: peerName,
+                provisioningState: 'Succeeded',
+                peerAsn: plan.routing.localAsn,
+              }),
+            }
+          : {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify({
+                id: routeServerId.toUpperCase(),
+                location: plan.region,
+                provisioningState: 'Succeeded',
+                virtualRouterAsn: 65515,
+                tags: {
+                  'xcsh-managed-by': 'azure-ce',
+                  'xcsh-execution-engine': 'native',
+                  'xcsh-deployment-id': plan.deploymentName,
+                  'xcsh-plan-sha256': 'b'.repeat(64),
+                },
+              }),
+            };
+      }
+      if (args.slice(0, 3).join(' ') === 'network nic show') {
+        const name = args[args.indexOf('--name') + 1];
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            id: `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${name}`,
+            macAddress: '00-11-22-33-44-55',
+            provisioningState: 'Succeeded',
+            virtualMachine: { id: observed.resources[0].id },
+            tags: observed.resources[0].tags,
+          }),
+        };
+      }
+      throw new Error(`unexpected Azure command: ${args.join(' ')}`);
+    },
+  };
+  await prepareAzureNativeReplacement(plan, checkpoint, api, runtime, storage);
+  expect(checkpoint.replacement).toMatchObject({
+    node: 1,
+    siteUid: 'site-uid',
+    status: 'prepared',
+    oldVmIds: { 'ce-demo-1': '00000000-0000-4000-8000-000000000001' },
+    ownerPlanSha256ByNode: { 'ce-demo-1': 'a'.repeat(64) },
+    routeServer: {
+      ownerPlanSha256: 'b'.repeat(64),
+      peerIds: {
+        '1': `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs/bgpConnections/${plan.deploymentName}-1`,
       },
-      storage,
-    ),
-  ).rejects.toThrow(/coupled VM and site replacement/);
-  expect(calls).toBe(0);
+    },
+  });
+  replaced = true;
+  vmId = '00000000-0000-4000-8000-000000000101';
+  expect(await collectAzureNativeAdmissionHealth(plan, 1, api, runtime, storage, undefined, checkpoint)).toMatchObject({
+    status: 'healthy',
+    configuration: { status: 'configured' },
+  });
+  expect(checkpoint.replacement).toMatchObject({ status: 'registered', newVmId: vmId });
+  vmId = '00000000-0000-4000-8000-000000000201';
+  await expect(
+    collectAzureNativeAdmissionHealth(plan, 1, api, runtime, storage, undefined, checkpoint),
+  ).rejects.toThrow(/identities did not change exactly once/);
 });
 
 test('approves and observes cumulative HA registrations against Azure VM UUIDs', async () => {

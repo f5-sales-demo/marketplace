@@ -177,6 +177,84 @@ describe('compileAzureCePlan', () => {
     expect(plan.topology.nodeCount).toBe(1);
     expect(plan.routing.mode).toBe('udr');
     expect(plan.actions.some((action) => action.kind === 'route-create')).toBe(true);
+    expect(plan.actions.some((action) => action.kind === 'traffic-gate')).toBe(false);
+  });
+
+  it('plans reviewed platform HTTP ingress and content-bound traffic only for an allowlisted source VM', () => {
+    const sourceVmResourceId =
+      `/subscriptions/${subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+    const selected = intent({
+      ingress: {
+        mode: 'platform-http',
+        port: 8080,
+        listener: {
+          name: 'ce-listener',
+          namespace: 'system',
+          domain: 'ce.example.invalid',
+          privateAddress: '10.20.1.10',
+          originPool: { name: 'ce-origin', namespace: 'system' },
+        },
+        probe: {
+          sourceVmResourceId: sourceVmResourceId.toUpperCase(),
+          path: '/healthz',
+          expectedStatus: 200,
+          expectedBodySha256: '4'.repeat(64),
+        },
+      },
+      brownfield: { resourceIds: [sourceVmResourceId], routeChanges: [] },
+    });
+    const plan = compileAzureCePlan(
+      selected,
+      observation({
+        resources: [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }],
+      }),
+    );
+    expect(plan.intent.ingress?.mode).toBe('platform-http');
+    if (plan.intent.ingress?.mode !== 'platform-http') throw new Error('missing ingress');
+    expect(plan.intent.ingress.probe.sourceVmResourceId).toBe(sourceVmResourceId);
+    expect(plan.ownershipInventory).toContainEqual({
+      resourceId: sourceVmResourceId,
+      owned: false,
+      action: 'modify-approved',
+    });
+    expect(plan.actions.slice(-2).map((action) => action.kind)).toEqual(['f5-ingress-configure', 'traffic-gate']);
+  });
+
+  it('rejects malformed, unallowlisted, or reserved platform HTTP ingress identities', () => {
+    const sourceVmResourceId =
+      `/subscriptions/${subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+    const selected = intent({
+      ingress: {
+        mode: 'platform-http',
+        port: 8080,
+        listener: {
+          name: 'ce-listener',
+          namespace: 'system',
+          domain: 'ce.example.invalid',
+          privateAddress: '10.20.1.10',
+          originPool: { name: 'ce-origin', namespace: 'system' },
+        },
+        probe: {
+          sourceVmResourceId,
+          path: '/healthz',
+          expectedStatus: 200,
+          expectedBodySha256: '4'.repeat(64),
+        },
+      },
+    });
+    expect(() => compileAzureCePlan(selected, observation())).toThrow(/brownfield.resourceIds/i);
+
+    selected.brownfield.resourceIds = [sourceVmResourceId];
+    if (selected.ingress?.mode !== 'platform-http') throw new Error('missing ingress');
+    selected.ingress.listener.privateAddress = '10.20.1.3';
+    expect(() =>
+      compileAzureCePlan(
+        selected,
+        observation({
+          resources: [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }],
+        }),
+      ),
+    ).toThrow(/SLI service address/i);
   });
 
   for (const count of [1, 2, 4, 8]) {
@@ -522,7 +600,7 @@ describe('compileAzureCePlan', () => {
     };
 
     expect(actionKinds('stop', false)).toEqual([
-      { kind: 'vm-stop', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+      { kind: 'vm-stop', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: 'a'.repeat(64) },
       { kind: 'vm-state-gate', node: 1, expectedPowerState: 'deallocated', expectedOwnerPlanSha256: 'a'.repeat(64) },
     ]);
     for (const operation of ['start', 'resize'] as const)
@@ -531,14 +609,14 @@ describe('compileAzureCePlan', () => {
           kind: operation === 'start' ? 'vm-start' : 'vm-resize',
           node: 1,
           expectedPowerState: undefined,
-          expectedOwnerPlanSha256: undefined,
+          expectedOwnerPlanSha256: 'a'.repeat(64),
         },
         { kind: 'vm-state-gate', node: 1, expectedPowerState: 'running', expectedOwnerPlanSha256: 'a'.repeat(64) },
         { kind: 'health-gate', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
       ]);
     expect(actionKinds('start', true)).toEqual(
       [1, 2, 3].flatMap((node) => [
-        { kind: 'vm-start', node, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+        { kind: 'vm-start', node, expectedPowerState: undefined, expectedOwnerPlanSha256: 'a'.repeat(64) },
         { kind: 'vm-state-gate', node, expectedPowerState: 'running', expectedOwnerPlanSha256: 'a'.repeat(64) },
         { kind: 'health-gate', node, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
       ]),
@@ -549,6 +627,44 @@ describe('compileAzureCePlan', () => {
     expect(() => compileAzureCePlan(intent({ operation: 'start' }), observation())).toThrow(
       /missing exact observed ownership/,
     );
+  });
+
+  it('does not promise Route Server convergence for the incomplete update-network workflow', () => {
+    const selected = intent({
+      operation: 'update-network',
+      routing: { mode: 'route-server', destinationCidrs: ['10.30.0.0/16'], localAsn: 64512 },
+    });
+    const owner = 'a'.repeat(64);
+    const resources: AzureCeObservation['resources'] = [
+      {
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-1`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': owner,
+        },
+      },
+      ...selected.nics.map((_nic, index) => ({
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${selected.deploymentName}-1-nic${index}`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': owner,
+        },
+      })),
+    ];
+    const plan = compileAzureCePlan(selected, observation({ resources }));
+    expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(false);
   });
 
   it('deletes an owned resource group last after dependency-ordered resources', () => {

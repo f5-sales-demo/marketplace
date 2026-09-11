@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test';
 import type { AzExecApi } from '../../src/az/exec';
 import { compileAzureCePlan } from '../../src/ce/planner';
-import { collectAzureRouteServerHealth, discoverAzureRouteServerIdentity } from '../../src/ce/route-server-health';
+import {
+  captureAzureRouteServerOwnership,
+  collectAzureRouteServerHealth,
+  discoverAzureRouteServerIdentity,
+} from '../../src/ce/route-server-health';
 import { intent, observation } from './fixtures';
 
 function fixture(destinationCidrs = ['10.250.0.10/32']) {
@@ -33,6 +37,7 @@ function fixture(destinationCidrs = ['10.250.0.10/32']) {
     RouteServiceRole_IN_1: destinationCidrs.map((network) => ({ network, nextHop: peerIp })),
   };
   let routeServerTags: Record<string, string> = tags;
+  let peerId = peer.resourceId as string;
   const api: AzExecApi = {
     async exec(_command, args) {
       let value: unknown;
@@ -62,7 +67,7 @@ function fixture(destinationCidrs = ['10.250.0.10/32']) {
       else if (args.includes('list-learned-routes')) value = learned;
       else if (args.includes('peering'))
         value = {
-          id: peer.resourceId,
+          id: peerId,
           name: `${plan.deploymentName}-1`,
           provisioningState: 'Succeeded',
           peerAsn: plan.routing.localAsn,
@@ -89,8 +94,82 @@ function fixture(destinationCidrs = ['10.250.0.10/32']) {
     setRouteServerTags(value: Record<string, string>) {
       routeServerTags = value;
     },
+    setPeerId(value: string) {
+      peerId = value;
+    },
   };
 }
+
+test('captures exact retained Route Server ownership and peer IDs case-insensitively', async () => {
+  const selected = fixture();
+  const serverId = selected.plan.actions.find((action) => action.kind === 'route-server-create')?.resourceId;
+  const peerId = selected.plan.actions.find((action) => action.kind === 'route-server-peer-create')?.resourceId;
+  if (!serverId || !peerId) throw new Error('Route Server fixture is incomplete');
+  selected.setPeerId(peerId.toUpperCase());
+  expect(await captureAzureRouteServerOwnership(selected.plan, selected.api)).toEqual({
+    routeServerId: serverId,
+    ownerPlanSha256: selected.plan.planSha256,
+    peerIds: { '1': peerId },
+  });
+  selected.setPeerId(`${serverId}/bgpConnections/substituted`);
+  await expect(captureAzureRouteServerOwnership(selected.plan, selected.api)).rejects.toThrow(/peer identity/);
+});
+
+test('captures all three retained Terraform Route Server peer IDs before HA replacement', async () => {
+  const observed = structuredClone(observation);
+  observed.regions[0].quotaAvailable = 24;
+  const plan = compileAzureCePlan(
+    {
+      ...intent,
+      engine: 'terraform',
+      topology: { ha: true },
+      routing: { mode: 'route-server', destinationCidrs: ['10.250.0.10/32'], localAsn: 64512 },
+    },
+    observed,
+  );
+  const server = plan.actions.find((action) => action.kind === 'route-server-create');
+  const peers = plan.actions.filter((action) => action.kind === 'route-server-peer-create');
+  if (!server?.resourceId || peers.length !== 3) throw new Error('HA Route Server fixture is incomplete');
+  const api: AzExecApi = {
+    async exec(_command, args) {
+      if (args.includes('peering')) {
+        const name = args[args.indexOf('--name') + 1];
+        const peer = peers.find((action) => action.resourceId?.endsWith(`/bgpConnections/${name}`));
+        return {
+          exitCode: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            id: peer?.resourceId?.toUpperCase(),
+            name,
+            provisioningState: 'Succeeded',
+            peerAsn: plan.routing.localAsn,
+          }),
+        };
+      }
+      return {
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify({
+          id: server.resourceId.toUpperCase(),
+          location: plan.region,
+          provisioningState: 'Succeeded',
+          virtualRouterAsn: 65515,
+          tags: {
+            'xcsh-managed-by': 'azure-ce',
+            'xcsh-execution-engine': 'terraform',
+            'xcsh-deployment-id': plan.deploymentName,
+            'xcsh-plan-sha256': 'a'.repeat(64),
+          },
+        }),
+      };
+    },
+  };
+  expect(await captureAzureRouteServerOwnership(plan, api)).toEqual({
+    routeServerId: server.resourceId,
+    ownerPlanSha256: 'a'.repeat(64),
+    peerIds: Object.fromEntries(peers.map((peer) => [String(peer.node), peer.resourceId])),
+  });
+});
 
 test('binds both Route Server service-role route exchanges to the authoritative SLO address', async () => {
   const { plan, api } = fixture();

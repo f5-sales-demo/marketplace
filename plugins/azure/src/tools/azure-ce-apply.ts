@@ -1,3 +1,4 @@
+import { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
@@ -9,14 +10,21 @@ import { discoverAzureCompute } from '../ce/discovery';
 import { withAzureCeExecution } from '../ce/execution';
 import { resolveInterfaceAddress } from '../ce/interface-address';
 import {
+  azureNativePendingActionConverged,
+  buildAzureNativePendingAction,
+  validateAzureNativePendingAction,
+} from '../ce/native-action-recovery';
+import {
   azureNativeBootstrapForAction,
   collectAzureNativeAdmissionHealth,
   collectAzureNativeVmState,
   prepareAzureNativeAdmission,
+  prepareAzureNativeReplacement,
   recordAzureNativeLaunch,
   withAzureNativeBootstrapFile,
 } from '../ce/native-workflow';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
+import { ensureAzurePlatformIngress } from '../ce/platform-ingress';
 import {
   collectAzureAbsentDeletionTail,
   fingerprintCheckpointObservation,
@@ -26,6 +34,7 @@ import {
 } from '../ce/recovery';
 import { configureAzureRouteServerRouting } from '../ce/routing-workflow';
 import { executeAzureCeTerraformApply } from '../ce/terraform-apply';
+import { collectAzureTrafficProbe } from '../ce/traffic-probe';
 import type { AzureCeCheckpoint, AzureCePlan } from '../ce/types';
 import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../ce/types';
 import { makeExecApi } from './shared';
@@ -47,6 +56,9 @@ interface ApplyParams {
 
 interface NativeApplyDependencies {
   observe?: () => ReturnType<typeof discoverAzureCompute>;
+  ingressContract?: () => Promise<VerifiedIngressContract>;
+  ensureIngress?: typeof ensureAzurePlatformIngress;
+  collectTraffic?: typeof collectAzureTrafficProbe;
 }
 
 async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan): Promise<Record<string, string>> {
@@ -72,6 +84,7 @@ export async function executeAzureCeNativeApply(
   if (Object.keys(params).some((key) => !['planId', 'planSha256'].includes(key)))
     throw new Error('Azure apply accepts only the persisted plan identity; caller evidence is unsupported');
   let existing = await loadCheckpoint(ctx.sessionManager, plan);
+  let recoveredNativeLaunchNode: number | undefined;
   assertApplyAllowed(plan, {
     planId: params.planId,
     planSha256: params.planSha256,
@@ -105,8 +118,8 @@ export async function executeAzureCeNativeApply(
   if (existing && plan.intent.operation === 'teardown' && hasImmutableDeleteTail) {
     validateAzureDeletionTail(plan, existing.completedActionIds);
   }
-  const current = await observe();
-  const currentFingerprint = fingerprintCheckpointObservation(current);
+  let current = await observe();
+  let currentFingerprint = fingerprintCheckpointObservation(current);
   const existingSnapshot =
     existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.observationSnapshot : undefined;
   if (
@@ -168,6 +181,32 @@ export async function executeAzureCeNativeApply(
       if (existing.state === 'complete') return { plan, checkpoint: existing };
     }
   }
+  if (existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION && existing.pendingAction) {
+    const action = plan.actions[existing.completedActionIds.length];
+    if (!action) throw new Error('Pending Azure native mutation has no next immutable action');
+    validateAzureNativePendingAction(plan, existing.completedActionIds, existing.pendingAction);
+    const replacements = await replacementsFor(action.args ?? [], api, plan);
+    const resolvedAction = {
+      ...action,
+      args: resolveActionArgs(action.args ?? [], plan.planSha256, replacements),
+    };
+    if (await azureNativePendingActionConverged(plan, resolvedAction, api, signal)) {
+      if (action.kind === 'vm-create') recoveredNativeLaunchNode = action.node;
+      current = await observe();
+      currentFingerprint = fingerprintCheckpointObservation(current);
+      existing = {
+        ...existing,
+        completedActionIds: [...existing.completedActionIds, action.id],
+        failedActionId: existing.failedActionId === action.id ? undefined : existing.failedActionId,
+        pendingAction: undefined,
+        observationFingerprint: currentFingerprint,
+        observationSnapshot: structuredClone(current),
+        state: existing.completedActionIds.length + 1 === plan.actions.length ? 'complete' : 'running',
+      };
+      await saveCheckpoint(ctx.sessionManager, plan, existing);
+      if (existing.state === 'complete') return { plan, checkpoint: existing };
+    }
+  }
   if (existing?.observationFingerprint) {
     if (!safeHexEqual(existing.observationFingerprint, currentFingerprint)) {
       throw new Error('Stale Azure CE checkpoint: observations changed outside an allowed recovery boundary');
@@ -216,6 +255,7 @@ export async function executeAzureCeNativeApply(
     completedActionIds: [...completed],
     observationFingerprint: existing?.observationFingerprint ?? currentFingerprint,
     observationSnapshot: structuredClone(current),
+    pendingAction: existing?.schemaVersion === AZURE_CE_CHECKPOINT_SCHEMA_VERSION ? existing.pendingAction : undefined,
     state: 'running',
   };
   await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
@@ -228,7 +268,14 @@ export async function executeAzureCeNativeApply(
     account: plan.subscription.id,
     region: plan.region,
   });
+  const ingressContract =
+    plan.intent.ingress?.mode === 'platform-http'
+      ? await (dependencies.ingressContract?.() ?? VerifiedIngressContract.release(undefined, signal))
+      : undefined;
   const native = await prepareAzureNativeAdmission(plan, runtime, storage, signal);
+  if (recoveredNativeLaunchNode) await recordAzureNativeLaunch(plan, recoveredNativeLaunchNode, native, storage);
+  if (plan.intent.operation === 'replace-node')
+    await prepareAzureNativeReplacement(plan, native, api, runtime, storage, signal);
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
     const preActionFingerprint = checkpoint.observationFingerprint;
@@ -263,11 +310,14 @@ export async function executeAzureCeNativeApply(
         while (true) {
           evidence = await collectAzureNativeAdmissionHealth(
             plan,
-            action.node ?? plan.topology.nodeCount,
+            plan.intent.operation === 'replace-node'
+              ? plan.topology.nodeCount
+              : (action.node ?? plan.topology.nodeCount),
             api,
             runtime,
             storage,
             signal,
+            native,
           );
           await storage.write(`${action.id}-evidence.json`, {
             ...evidence,
@@ -303,6 +353,7 @@ export async function executeAzureCeNativeApply(
           runtime,
           storage,
           signal,
+          native,
         );
         if (!('configuration' in admission) || admission.configuration.status !== 'configured')
           throw new Error('Authoritative Azure registered interface configuration is unavailable');
@@ -320,6 +371,7 @@ export async function executeAzureCeNativeApply(
             storage,
             api,
             signal,
+            native.replacement?.routeServer,
           );
           if (evidence.status === 'healthy') break;
           if (Date.now() >= deadline) throw new Error('Azure Route Server BGP and learned routes have not converged');
@@ -337,7 +389,40 @@ export async function executeAzureCeNativeApply(
           });
         }
       }
-      if (action.kind === 'traffic-gate') throw new Error('Collected Azure traffic evidence is unavailable');
+      if (action.kind === 'f5-ingress-configure') {
+        if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
+        const evidence = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
+          plan,
+          runtime,
+          storage,
+          ingressContract,
+          api,
+          signal,
+        );
+        if (evidence?.listener !== 'configured') throw new Error('Observed Azure platform ingress has not converged');
+        await storage.write(`${action.id}-evidence.json`, evidence);
+      }
+      if (action.kind === 'traffic-gate') {
+        if (!ingressContract) throw new Error('Verified ingress contract is unavailable');
+        const ingress = await (dependencies.ensureIngress ?? ensureAzurePlatformIngress)(
+          plan,
+          runtime,
+          storage,
+          ingressContract,
+          api,
+          signal,
+        );
+        if (ingress?.listener !== 'configured') throw new Error('Observed Azure platform ingress has not converged');
+        const evidence = await (dependencies.collectTraffic ?? collectAzureTrafficProbe)(
+          plan,
+          storage,
+          api,
+          signal,
+          `${plan.planId}-${action.id}-traffic-probe`,
+        );
+        await storage.write(`${action.id}-evidence.json`, evidence);
+        if (evidence.status !== 'healthy') throw new Error('Observed end-to-end Azure traffic has not converged');
+      }
       if (action.command && action.args) {
         const replacements = await replacementsFor(action.args, api, plan);
         const execute = (bootstrapFile?: string) =>
@@ -348,14 +433,43 @@ export async function executeAzureCeNativeApply(
               ...(bootstrapFile ? { __BOOTSTRAP_FILE__: bootstrapFile } : {}),
             }),
           );
-        const result = action.requiresBootstrap
-          ? await withAzureNativeBootstrapFile(
-              await azureNativeBootstrapForAction(plan, action, native, runtime, storage, signal),
-              execute,
-            )
-          : await execute();
+        const bootstrap = action.requiresBootstrap
+          ? await azureNativeBootstrapForAction(plan, action, native, runtime, storage, signal)
+          : undefined;
+        if (action.mutates && action.kind !== 'resource-delete') {
+          const pending = buildAzureNativePendingAction(plan, action);
+          if (checkpoint.pendingAction) {
+            validateAzureNativePendingAction(plan, checkpoint.completedActionIds, checkpoint.pendingAction);
+          } else {
+            checkpoint.pendingAction = pending;
+            await saveCheckpoint(ctx.sessionManager, plan, checkpoint);
+          }
+        }
+        const result = bootstrap ? await withAzureNativeBootstrapFile(bootstrap, execute) : await execute();
         if (result.exitCode !== 0)
           throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
+        if (checkpoint.pendingAction) {
+          const deadline = Date.now() + 15 * 60_000;
+          const resolvedAction = {
+            ...action,
+            args: resolveActionArgs(action.args, plan.planSha256, replacements),
+          };
+          while (!(await azureNativePendingActionConverged(plan, resolvedAction, api, signal))) {
+            if (Date.now() >= deadline) throw new Error('Azure native mutation postcondition has not converged');
+            await new Promise<void>((resolve, reject) => {
+              const abort = () => {
+                clearTimeout(timer);
+                reject(signal?.reason ?? new Error('Azure native mutation convergence cancelled'));
+              };
+              const timer = setTimeout(() => {
+                signal?.removeEventListener('abort', abort);
+                resolve();
+              }, 10_000);
+              signal?.addEventListener('abort', abort, { once: true });
+              if (signal?.aborted) abort();
+            });
+          }
+        }
         if (action.kind === 'resource-delete' && action.resourceId) {
           const deadline = Date.now() + 15 * 60_000;
           while (true) {
@@ -385,13 +499,9 @@ export async function executeAzureCeNativeApply(
       completed.add(action.id);
       checkpoint.completedActionIds = [...completed];
       checkpoint.failedActionId = undefined;
+      checkpoint.pendingAction = undefined;
       checkpoint.state = completed.size === plan.actions.length ? 'complete' : 'running';
-      const changesFingerprint =
-        action.kind === 'marketplace-terms-accept' ||
-        action.kind === 'route-association-update' ||
-        action.kind === 'brownfield-restore' ||
-        action.kind === 'resource-delete' ||
-        (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);
+      const changesFingerprint = action.mutates;
       if (changesFingerprint) {
         const checkpointObservation = postMutationObservation ?? (await observe());
         checkpoint.observationFingerprint = fingerprintCheckpointObservation(checkpointObservation);

@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CeDeploymentStore } from '../../../platform/src/ce/deployment-store';
+import type { VerifiedIngressContract } from '../../../platform/src/ce/ingress-contract';
 import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { AzExecApi } from '../../src/az/exec';
 import { type SessionManagerLike, saveCheckpoint, savePlanArtifact } from '../../src/ce/artifacts';
+import { canonicalSha256 } from '../../src/ce/canonical';
+import { buildAzureNativePendingAction } from '../../src/ce/native-action-recovery';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { fingerprintCheckpointObservation } from '../../src/ce/recovery';
-import type { AzureCeObservation } from '../../src/ce/types';
+import type { AzureCeObservation, AzureCePlan } from '../../src/ce/types';
 import { AZURE_CE_CHECKPOINT_SCHEMA_VERSION, AZURE_CE_SCHEMA_VERSION } from '../../src/ce/types';
 import { executeAzureCeNativeApply } from '../../src/tools/azure-ce-apply';
 import { intent, observation } from '../ce/fixtures';
@@ -16,6 +20,35 @@ const directories: string[] = [];
 afterEach(async () => {
   for (const directory of directories.splice(0)) await rm(directory, { recursive: true });
 });
+
+function withOnlyAction(plan: AzureCePlan, actionIndex: number): AzureCePlan {
+  const { planId: _planId, planSha256: _planSha256, ...draft } = structuredClone(plan);
+  draft.actions = [draft.actions[actionIndex]];
+  const planSha256 = canonicalSha256(draft);
+  return { ...draft, planId: `azure-ce-${planSha256.slice(0, 24)}`, planSha256 };
+}
+
+async function session(directory: string, events: string[]): Promise<SessionManagerLike> {
+  let sequence = 0;
+  return {
+    getSessionId: () => directory,
+    getArtifactsDir: () => directory,
+    getArtifactPath: async () => null,
+    async saveArtifact(content, toolType) {
+      sequence++;
+      if (toolType === 'azure-ce-checkpoint') {
+        const parsed = JSON.parse(content) as {
+          checkpoint: { completedActionIds: string[]; pendingAction?: { actionId: string } };
+        };
+        events.push(
+          `save:${parsed.checkpoint.completedActionIds.length}:${parsed.checkpoint.pendingAction?.actionId ?? 'none'}`,
+        );
+      }
+      await writeFile(join(directory, `${String(sequence).padStart(3, '0')}.${toolType}.log`), content);
+      return String(sequence);
+    },
+  };
+}
 
 async function fixture(resourceKinds: Array<'vm' | 'vnet'>, missing: Array<'vm' | 'vnet'> = ['vm']) {
   const directory = await mkdtemp(join(tmpdir(), 'azure-ce-apply-recovery-'));
@@ -228,4 +261,383 @@ describe('Azure CE native apply deletion recovery', () => {
     expect(f.events).not.toContain('platform');
     expect(f.events.some((event) => event.startsWith('mutate:'))).toBe(false);
   });
+});
+
+describe('Azure CE native mutation recovery', () => {
+  it('persists immutable mutation intent before create and verifies its postcondition before completion', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'azure-ce-apply-create-order-'));
+    directories.push(directory);
+    const events: string[] = [];
+    const sessionManager = await session(directory, events);
+    const compiled = compileAzureCePlan(intent, observation);
+    const index = compiled.actions.findIndex((action) => action.kind === 'resource-group-create');
+    if (index < 0) throw new Error('fixture has no resource-group create action');
+    const plan = withOnlyAction(compiled, index);
+    const action = plan.actions[0];
+    let current = structuredClone(observation);
+    await savePlanArtifact(sessionManager, plan, observation);
+    await saveCheckpoint(sessionManager, plan, {
+      schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+      engine: 'native',
+      authorization: { apply: true, terms: false, destroy: false },
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      completedActionIds: [],
+      state: 'running',
+    });
+    events.length = 0;
+    let groupShowCalls = 0;
+    const result = await executeAzureCeNativeApply(
+      { planId: plan.planId, planSha256: plan.planSha256 },
+      { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
+      {
+        async exec(_command, args) {
+          if (args[0] === 'group' && args[1] === 'show') {
+            groupShowCalls++;
+            events.push(groupShowCalls === 1 ? 'ownership' : 'postcondition');
+            if (groupShowCalls === 1) return { exitCode: 1, stdout: '', stderr: '(ResourceGroupNotFound) absent' };
+            return {
+              exitCode: 0,
+              stderr: '',
+              stdout: JSON.stringify({
+                id: action.resourceId,
+                location: plan.region,
+                tags: current.resources[0].tags,
+                properties: { provisioningState: 'Succeeded' },
+              }),
+            };
+          }
+          if (args[0] === 'group' && args[1] === 'create') {
+            events.push('mutation');
+            current = structuredClone(current);
+            current.resources = [
+              {
+                id: action.resourceId as string,
+                location: plan.region,
+                exists: true,
+                owned: true,
+                tags: {
+                  'xcsh-managed-by': 'azure-ce',
+                  'xcsh-execution-engine': 'native',
+                  'xcsh-deployment-id': plan.deploymentName,
+                  'xcsh-plan-sha256': plan.planSha256,
+                },
+                state: { provisioningState: 'Succeeded' },
+              },
+            ];
+            return { exitCode: 0, stdout: '{}', stderr: '' };
+          }
+          throw new Error(`unexpected Azure call: ${args.join(' ')}`);
+        },
+      },
+      async () =>
+        ({
+          runtime: async () => ({
+            engine: 'native',
+            requireBootstrapContract() {},
+            async reserveSite() {
+              events.push('reserve-site');
+            },
+          }),
+          storage: async () => ({
+            async read() {
+              const error = new Error('missing') as NodeJS.ErrnoException;
+              error.code = 'ENOENT';
+              throw error;
+            },
+            async write() {},
+            async verify() {},
+          }),
+        }) as unknown as CePlatformService,
+      undefined,
+      { observe: async () => structuredClone(current) },
+    );
+    expect(result.checkpoint.state).toBe('complete');
+    const pendingSave = events.indexOf(`save:0:${action.id}`);
+    expect(pendingSave).toBeGreaterThan(events.indexOf('ownership'));
+    expect(events.indexOf('mutation')).toBeGreaterThan(pendingSave);
+    expect(events.indexOf('postcondition')).toBeGreaterThan(events.indexOf('mutation'));
+    expect(events.indexOf('save:1:none')).toBeGreaterThan(events.indexOf('postcondition'));
+  });
+
+  it('reconciles an exact completed create before platform initialization without replay', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'azure-ce-apply-create-recovery-'));
+    directories.push(directory);
+    const events: string[] = [];
+    const sessionManager = await session(directory, events);
+    const compiled = compileAzureCePlan(intent, observation);
+    const index = compiled.actions.findIndex((action) => action.kind === 'resource-group-create');
+    if (index < 0) throw new Error('fixture has no resource-group create action');
+    const plan = withOnlyAction(compiled, index);
+    const action = plan.actions[0];
+    const current = structuredClone(observation);
+    current.resources = [
+      {
+        id: action.resourceId as string,
+        location: plan.region,
+        exists: true,
+        owned: true,
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-execution-engine': 'native',
+          'xcsh-deployment-id': plan.deploymentName,
+          'xcsh-plan-sha256': plan.planSha256,
+        },
+        state: { provisioningState: 'Succeeded' },
+      },
+    ];
+    await savePlanArtifact(sessionManager, plan, observation);
+    await saveCheckpoint(sessionManager, plan, {
+      schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+      engine: 'native',
+      authorization: { apply: true, terms: false, destroy: false },
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      completedActionIds: [],
+      failedActionId: action.id,
+      pendingAction: buildAzureNativePendingAction(plan, action),
+      observationFingerprint: fingerprintCheckpointObservation(observation),
+      observationSnapshot: observation,
+      state: 'partial',
+    });
+    events.length = 0;
+    const result = await executeAzureCeNativeApply(
+      { planId: plan.planId, planSha256: plan.planSha256 },
+      { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
+      {
+        async exec(_command, args) {
+          if (args[0] !== 'group' || args[1] !== 'show') throw new Error(`unexpected replay: ${args.join(' ')}`);
+          events.push('probe');
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({
+              id: action.resourceId,
+              location: plan.region,
+              tags: current.resources[0].tags,
+              properties: { provisioningState: 'Succeeded' },
+            }),
+          };
+        },
+      },
+      async () => {
+        events.push('platform');
+        throw new Error('platform must not initialize');
+      },
+      undefined,
+      { observe: async () => structuredClone(current) },
+    );
+    expect(result.checkpoint.state).toBe('complete');
+    expect(result.checkpoint.pendingAction).toBeUndefined();
+    expect(events[0]).toBe('probe');
+    expect(events[1]).toBe('save:1:none');
+    expect(events).not.toContain('platform');
+  });
+
+  it('reconciles an exact VM lifecycle postcondition and rejects a forged pending request', async () => {
+    const owned = structuredClone(observation);
+    const originalOwnerPlan = '9'.repeat(64);
+    const vmId = `/subscriptions/${intent.subscriptionId}/resourceGroups/${intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${intent.deploymentName}-1`;
+    owned.resources = [
+      {
+        id: vmId,
+        location: 'eastus',
+        exists: true,
+        owned: true,
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-execution-engine': 'native',
+          'xcsh-deployment-id': intent.deploymentName,
+          'xcsh-plan-sha256': originalOwnerPlan,
+        },
+        state: { provisioningState: 'Succeeded' },
+      },
+    ];
+    const compiled = compileAzureCePlan({ ...intent, operation: 'start' }, owned);
+    const plan = withOnlyAction(compiled, 0);
+    const action = plan.actions[0];
+    const pending = buildAzureNativePendingAction(plan, action);
+    const directory = await mkdtemp(join(tmpdir(), 'azure-ce-apply-lifecycle-recovery-'));
+    directories.push(directory);
+    const events: string[] = [];
+    const sessionManager = await session(directory, events);
+    await savePlanArtifact(sessionManager, plan, owned);
+    await expect(
+      saveCheckpoint(sessionManager, plan, {
+        schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+        engine: 'native',
+        authorization: { apply: true, terms: false, destroy: false },
+        planId: plan.planId,
+        planSha256: plan.planSha256,
+        completedActionIds: [],
+        pendingAction: { ...pending, requestSha256: '0'.repeat(64) },
+        observationFingerprint: fingerprintCheckpointObservation(owned),
+        observationSnapshot: owned,
+        state: 'running',
+      }),
+    ).rejects.toThrow(/differs from the immutable request/);
+    await saveCheckpoint(sessionManager, plan, {
+      schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+      engine: 'native',
+      authorization: { apply: true, terms: false, destroy: false },
+      planId: plan.planId,
+      planSha256: plan.planSha256,
+      completedActionIds: [],
+      pendingAction: pending,
+      observationFingerprint: fingerprintCheckpointObservation(owned),
+      observationSnapshot: owned,
+      state: 'running',
+    });
+    events.length = 0;
+    const result = await executeAzureCeNativeApply(
+      { planId: plan.planId, planSha256: plan.planSha256 },
+      { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
+      {
+        async exec(_command, args) {
+          if (args[0] !== 'vm' || args[1] !== 'show') throw new Error(`unexpected replay: ${args.join(' ')}`);
+          events.push('probe');
+          return {
+            exitCode: 0,
+            stderr: '',
+            stdout: JSON.stringify({
+              id: vmId,
+              location: plan.region,
+              provisioningState: 'Succeeded',
+              powerState: 'VM running',
+              tags: owned.resources[0].tags,
+            }),
+          };
+        },
+      },
+      async () => {
+        events.push('platform');
+        throw new Error('platform must not initialize');
+      },
+      undefined,
+      { observe: async () => structuredClone(owned) },
+    );
+    expect(result.checkpoint.state).toBe('complete');
+    expect(events).toEqual(['probe', 'save:1:none']);
+  });
+});
+
+it('checkpoints native platform ingress before collecting content-bound traffic evidence', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'azure-ce-apply-ingress-'));
+  directories.push(directory);
+  const sourceVmResourceId =
+    `/subscriptions/${intent.subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+  const selected = structuredClone(intent);
+  selected.nics = [
+    { name: 'slo', role: 'slo', subnet: { mode: 'greenfield', cidr: '10.20.0.0/24', name: 'slo' } },
+    { name: 'sli', role: 'sli', subnet: { mode: 'greenfield', cidr: '10.20.1.0/24', name: 'sli' } },
+  ];
+  selected.ingress = {
+    mode: 'platform-http',
+    port: 8080,
+    listener: {
+      name: 'ce-listener',
+      namespace: 'system',
+      domain: 'ce.example.invalid',
+      privateAddress: '10.20.1.10',
+      originPool: { name: 'ce-origin', namespace: 'system' },
+    },
+    probe: {
+      sourceVmResourceId,
+      path: '/healthz',
+      expectedStatus: 200,
+      expectedBodySha256: '4'.repeat(64),
+    },
+  };
+  selected.brownfield.resourceIds = [sourceVmResourceId];
+  const observed = structuredClone(observation);
+  observed.resources = [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }];
+  const plan = compileAzureCePlan(selected, observed);
+  const ingressAction = plan.actions.find((action) => action.kind === 'f5-ingress-configure');
+  const trafficAction = plan.actions.find((action) => action.kind === 'traffic-gate');
+  if (!ingressAction || !trafficAction) throw new Error('ingress fixture actions are missing');
+  const events: string[] = [];
+  let sequence = 0;
+  const sessionManager: SessionManagerLike = {
+    getSessionId: () => directory,
+    getArtifactsDir: () => directory,
+    getArtifactPath: async () => null,
+    async saveArtifact(content, toolType) {
+      sequence++;
+      if (toolType === 'azure-ce-checkpoint') {
+        const value = JSON.parse(content) as { checkpoint: { completedActionIds: string[] } };
+        events.push(`save:${value.checkpoint.completedActionIds.at(-1) ?? 'seed'}`);
+      }
+      await writeFile(join(directory, `${String(sequence).padStart(3, '0')}.${toolType}.log`), content);
+      return String(sequence);
+    },
+  };
+  await savePlanArtifact(sessionManager, plan, observed);
+  await saveCheckpoint(sessionManager, plan, {
+    schemaVersion: AZURE_CE_CHECKPOINT_SCHEMA_VERSION,
+    engine: 'native',
+    authorization: { apply: true, terms: false, destroy: false },
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    completedActionIds: plan.actions.slice(0, -2).map((action) => action.id),
+    observationFingerprint: fingerprintCheckpointObservation(observed),
+    observationSnapshot: observed,
+    state: 'running',
+  });
+  events.length = 0;
+  const store = await CeDeploymentStore.open(directory, {
+    deploymentId: plan.deploymentName,
+    engine: 'native',
+    provider: 'azure',
+    account: plan.subscription.id,
+    region: plan.region,
+  });
+  const runtime = {
+    engine: 'native',
+    requireBootstrapContract() {},
+    async reserveSite(_binding: unknown, checkpoint: (value: unknown) => Promise<void>) {
+      await checkpoint({ reserved: true });
+    },
+  };
+  const platform = async () =>
+    ({ runtime: async () => runtime, storage: async () => store }) as unknown as CePlatformService;
+  const result = await executeAzureCeNativeApply(
+    { planId: plan.planId, planSha256: plan.planSha256 },
+    { cwd: '/tmp', hasUI: false, ui: { confirm: async () => false }, sessionManager },
+    {
+      async exec() {
+        throw new Error('unexpected Azure call');
+      },
+    },
+    platform,
+    undefined,
+    {
+      observe: async () => structuredClone(observed),
+      ingressContract: async () => ({ fingerprint: 'sha256:ingress' }) as VerifiedIngressContract,
+      ensureIngress: async () => {
+        events.push('ingress');
+        return {
+          ingressPlanId: 'a'.repeat(24),
+          contractFingerprint: 'sha256:ingress',
+          uid: 'listener-uid',
+          listener: 'configured',
+          routes: 'unknown',
+          traffic: 'unknown',
+          observedAt: new Date().toISOString(),
+        };
+      },
+      collectTraffic: async () => {
+        events.push('traffic');
+        return { status: 'healthy' };
+      },
+    },
+  );
+  expect(result.checkpoint.state).toBe('complete');
+  expect(events[0]).toBe(`save:${plan.actions.at(-3)?.id}`);
+  expect(events.slice(1)).toEqual([
+    'ingress',
+    `save:${ingressAction.id}`,
+    'ingress',
+    'traffic',
+    `save:${trafficAction.id}`,
+  ]);
 });

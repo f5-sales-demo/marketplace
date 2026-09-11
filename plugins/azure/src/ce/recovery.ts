@@ -1,5 +1,6 @@
 import type { AzExecApi } from '../az/exec';
 import { canonicalSha256, fingerprintObservation, safeHexEqual } from './canonical';
+import { validateAzureNativePendingAction } from './native-action-recovery';
 import type {
   AzureCeCheckpoint,
   AzureCeLegacyCheckpoint,
@@ -30,12 +31,15 @@ const CHECKPOINT_KEYS = new Set([
   'planId',
   'planSha256',
   'completedActionIds',
+  'pendingAction',
   'failedActionId',
   'observationFingerprint',
   'observationSnapshot',
   'state',
 ]);
-const LEGACY_CHECKPOINT_KEYS = new Set([...CHECKPOINT_KEYS].filter((key) => key !== 'observationSnapshot'));
+const LEGACY_CHECKPOINT_KEYS = new Set(
+  [...CHECKPOINT_KEYS].filter((key) => key !== 'observationSnapshot' && key !== 'pendingAction'),
+);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -245,6 +249,12 @@ function assertCheckpointProgress(
     throw new Error('Persisted Azure CE checkpoint state is inconsistent with its action prefix');
   }
   assertAuthorizationShape(checkpoint.authorization);
+  if (checkpoint.pendingAction !== undefined) {
+    if (checkpoint.state === 'complete')
+      throw new Error('Completed Azure CE checkpoint cannot retain a pending mutation');
+    if (plan.engine !== 'native') throw new Error('Terraform Azure CE checkpoint cannot retain a native mutation');
+    validateAzureNativePendingAction(plan, completedActionIds, checkpoint.pendingAction);
+  }
 }
 
 export function validateAzureCeCheckpoint(value: unknown, plan: AzureCePlan): AzureCeStoredCheckpoint {

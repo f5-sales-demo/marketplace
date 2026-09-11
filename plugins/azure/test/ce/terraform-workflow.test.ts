@@ -454,3 +454,163 @@ test('rejects Route Server admission without an expected route before Terraform,
     bootstrapChecks: 0,
   });
 });
+
+test('accepts platform ingress and traffic before the final refresh no-change plan', async () => {
+  const sourceVmResourceId =
+    `/subscriptions/${intent.subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+  const selected = structuredClone(intent);
+  selected.engine = 'terraform';
+  selected.routing = { mode: 'udr', destinationCidrs: [] };
+  selected.nics = ['slo', 'data', 'sli'].map((role, index) => ({
+    name: ['mgmt', 'external', 'internal'][index],
+    role: role as 'slo' | 'data' | 'sli',
+    subnet: { mode: 'greenfield', name: `nic${index}`, cidr: `10.20.${index}.0/24` },
+  }));
+  selected.ingress = {
+    mode: 'platform-http',
+    port: 8080,
+    listener: {
+      name: 'ce-listener',
+      namespace: 'system',
+      domain: 'ce.example.invalid',
+      privateAddress: '10.20.2.10',
+      originPool: { name: 'ce-origin', namespace: 'system' },
+    },
+    probe: { sourceVmResourceId, path: '/healthz', expectedStatus: 200, expectedBodySha256: '4'.repeat(64) },
+  };
+  selected.brownfield.resourceIds = [sourceVmResourceId];
+  const observed = structuredClone(observation);
+  observed.resources = [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }];
+  const plan = compileAzureCePlan(selected, observed);
+  const binding = azureUpgradeBinding(plan);
+  const vm = plan.actions.find((action) => action.kind === 'vm-create');
+  if (!vm?.resourceId) throw new Error('fixture VM identity is missing');
+  const tags = {
+    'xcsh-managed-by': 'azure-ce',
+    'xcsh-execution-engine': 'terraform',
+    'xcsh-deployment-id': plan.deploymentName,
+    'xcsh-plan-sha256': plan.planSha256,
+  };
+  const ce_interfaces: Record<string, unknown> = {};
+  const live: Record<string, unknown> = {};
+  const attachments: Array<{ id: string }> = [];
+  for (const nic of plan.nics) {
+    const action = plan.actions.find(
+      (item) => item.kind === 'nic-create' && item.node === 1 && item.resourceId?.endsWith(`-nic${nic.index}`),
+    );
+    const subnet = plan.actions.find(
+      (item) => item.kind === 'subnet-create' && item.resourceId?.endsWith(`/subnets/${nic.subnet.name}`),
+    );
+    if (!action?.resourceId || !subnet?.resourceId) throw new Error('fixture NIC identity is missing');
+    attachments.push({ id: action.resourceId });
+    ce_interfaces[`1:${nic.index}`] = {
+      id: action.resourceId,
+      subnet_id: subnet.resourceId,
+      site_name: plan.siteName,
+      node: 1,
+      index: nic.index,
+      role: nic.role,
+    };
+    live[action.resourceId] = {
+      id: action.resourceId,
+      location: plan.region,
+      tags,
+      provisioningState: 'Succeeded',
+      virtualMachine: { id: vm.resourceId },
+      macAddress: `00-11-22-33-44-0${nic.index}`,
+      ipConfigurations: [
+        {
+          primary: true,
+          privateIPAddressVersion: 'IPv4',
+          privateIPAddress: `10.20.${nic.index}.4`,
+          subnet: { id: subnet.resourceId },
+        },
+      ],
+    };
+  }
+  live[vm.resourceId] = {
+    id: vm.resourceId,
+    vmId: '00000000-0000-4000-8000-000000000003',
+    location: plan.region,
+    tags,
+    provisioningState: 'Succeeded',
+    networkProfile: { networkInterfaces: attachments },
+  };
+  const api: AzExecApi = {
+    async exec(_command, args) {
+      const value =
+        args[0] === 'account'
+          ? {
+              id: plan.subscription.id,
+              tenantId: plan.subscription.tenantId,
+              environmentName: plan.subscription.cloud,
+              state: 'Enabled',
+            }
+          : live[args[args.indexOf('--ids') + 1]];
+      return { exitCode: 0, stderr: '', stdout: JSON.stringify(value) };
+    },
+  };
+  const path = await mkdtemp(join(tmpdir(), 'azure-tf-ingress-order-'));
+  directories.push(path);
+  const storage = await CeDeploymentStore.open(path, binding.owner);
+  await storage.write('terraform-workflow.json', {
+    schemaVersion: 1,
+    engine: 'terraform',
+    planSha256: plan.planSha256,
+    configurationSha256: 'a'.repeat(64),
+    bootstrapByNode: { '1': '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n' },
+    launchedAtByNode: { '1': '2026-09-10T12:00:00Z' },
+    stage: 'registered',
+  });
+  const events: string[] = [];
+  const session = {
+    async readOutputs() {
+      return {
+        ce_instances: {
+          '1': {
+            id: vm.resourceId,
+            vm_id: '00000000-0000-4000-8000-000000000003',
+            site_name: plan.siteName,
+            hostname: `${plan.deploymentName}-1`,
+          },
+        },
+        ce_interfaces,
+      };
+    },
+    async plan() {
+      events.push('final-plan');
+      return { noChanges: true, changes: [] };
+    },
+  } as unknown as TerraformSession;
+  const healthy = { status: 'healthy', nodes: [{ node: binding.nodes[0], status: 'healthy' }] };
+  const runtime = {
+    engine: 'terraform' as const,
+    requireBootstrapContract() {},
+    async approveRegistrations() {
+      return healthy;
+    },
+    async observeRegistrations() {
+      return healthy;
+    },
+    async observeRegisteredConfiguration() {
+      return { status: 'configured' };
+    },
+  } as never;
+  const result = await runAzureTerraformAdmission(
+    plan,
+    { open: async () => session } as unknown as CeTerraformService,
+    runtime,
+    storage,
+    api,
+    async () => {},
+    {},
+    undefined,
+    0,
+    async () => {
+      events.push('ingress-traffic');
+      return { ingress: { listener: 'configured' }, traffic: { status: 'healthy' } };
+    },
+  );
+  expect(result).toMatchObject({ status: 'accepted', traffic: { status: 'healthy' }, terraformNoChanges: true });
+  expect(events).toEqual(['ingress-traffic', 'final-plan']);
+});

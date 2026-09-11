@@ -8,6 +8,7 @@ import {
 import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { fingerprintCurrentObservation } from '../../src/ce/recovery';
+import { assertAzureTerraformApplyOperation } from '../../src/ce/terraform-apply';
 import type { AzureCeAction } from '../../src/ce/types';
 import { intent, observation, sharedContractUrl, subscriptionId } from './fixtures';
 
@@ -244,6 +245,49 @@ it('preserves explicit Terraform intent and forbids native execution of that pla
       executionEngine: 'terraform',
     }),
   ).not.toThrow();
+});
+
+it('fails closed instead of routing unsupported Terraform operations through initial admission', () => {
+  for (const operation of ['reconcile', 'repair', 'update-network', 'teardown'] as const) {
+    const selected = structuredClone(intent);
+    selected.engine = 'terraform';
+    selected.operation = operation;
+    if (operation === 'teardown') selected.image = { ...selected.image };
+    const observed = structuredClone(observation);
+    if (operation === 'update-network') {
+      const owner = 'a'.repeat(64);
+      observed.resources = [
+        {
+          id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-1`,
+          location: selected.region,
+          exists: true,
+          owned: true,
+          state: {},
+          tags: {
+            'xcsh-managed-by': 'azure-ce',
+            'xcsh-deployment-id': selected.deploymentName,
+            'xcsh-execution-engine': 'terraform',
+            'xcsh-plan-sha256': owner,
+          },
+        },
+        ...selected.nics.map((_nic, index) => ({
+          id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${selected.deploymentName}-1-nic${index}`,
+          location: selected.region,
+          exists: true,
+          owned: true,
+          state: {},
+          tags: {
+            'xcsh-managed-by': 'azure-ce',
+            'xcsh-deployment-id': selected.deploymentName,
+            'xcsh-execution-engine': 'terraform',
+            'xcsh-plan-sha256': owner,
+          },
+        })),
+      ];
+    }
+    const lifecycle = compileAzureCePlan(selected, observed);
+    expect(() => assertAzureTerraformApplyOperation(lifecycle)).toThrow(/not executable through Azure CE apply/);
+  }
 });
 
 it('refuses mutation when live resource ownership belongs to another engine', async () => {

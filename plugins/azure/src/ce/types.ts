@@ -17,6 +17,26 @@ export type AzureCeOperation =
 export type AzureCeEgressMode = 'public-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AzureCeRoutingMode = 'auto' | 'udr' | 'route-server';
 
+export type AzureCeIngress =
+  | { mode: 'none' }
+  | {
+      mode: 'platform-http';
+      port: number;
+      listener: {
+        name: string;
+        namespace: string;
+        domain: string;
+        privateAddress: string;
+        originPool: { name: string; namespace: string };
+      };
+      probe: {
+        sourceVmResourceId: string;
+        path: string;
+        expectedStatus: number;
+        expectedBodySha256: string;
+      };
+    };
+
 export interface AzureCeSubnetIntent {
   mode: 'greenfield' | 'brownfield';
   name?: string;
@@ -64,6 +84,7 @@ export interface AzureCeIntent {
   nics: AzureCeNicIntent[];
   egress: { mode: AzureCeEgressMode; resourceId?: string };
   routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
+  ingress?: AzureCeIngress;
   securityRules: AzureCeSecurityRuleIntent[];
   image: { publisher: string; offer: string; plan: string };
   vm: { size: string; zones?: string[] };
@@ -153,6 +174,7 @@ export type AzureCeActionKind =
   | 'route-association-update'
   | 'route-server-create'
   | 'route-server-peer-create'
+  | 'f5-ingress-configure'
   | 'resource-delete'
   | 'brownfield-restore'
   | 'vm-state-gate'
@@ -231,6 +253,12 @@ export interface AzureCeCheckpoint {
   planId: string;
   planSha256: string;
   completedActionIds: string[];
+  pendingAction?: {
+    actionId: string;
+    kind: AzureCeActionKind;
+    resourceId: string;
+    requestSha256: string;
+  };
   failedActionId?: string;
   observationFingerprint?: string;
   observationSnapshot?: AzureCeObservation;

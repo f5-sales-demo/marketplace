@@ -64,6 +64,7 @@ export async function runAzureTerraformAdmission(
   env: Record<string, string | undefined>,
   signal?: AbortSignal,
   haSerialDelayMs = 180_000,
+  acceptIngress?: (session: TerraformSession) => Promise<{ ingress: unknown; traffic: { status: 'healthy' } }>,
 ) {
   verifyAzureCePlan(plan);
   if (plan.engine !== 'terraform' || runtime.engine !== 'terraform')
@@ -236,14 +237,33 @@ export async function runAzureTerraformAdmission(
     if (evidence.status !== 'healthy') throw new Error('Azure Route Server BGP and learned routes have not converged');
     routing = 'healthy';
   }
+  let traffic: 'unknown' | { status: 'healthy' } = 'unknown';
+  let terraformNoChanges: true | undefined;
+  if (
+    plan.intent.ingress?.mode === 'platform-http' &&
+    checkpoint.stage === 'registered' &&
+    (plan.routing.mode !== 'route-server' || routing === 'healthy')
+  ) {
+    if (!acceptIngress) throw new Error('Azure Terraform ingress acceptance driver is unavailable');
+    traffic = (await acceptIngress(session)).traffic;
+    const refresh = await session.plan(env, signal);
+    if (!refresh.noChanges) throw new Error('Terraform changed after Azure platform ingress convergence');
+    terraformNoChanges = true;
+  }
   return {
     planId: plan.planId,
     planSha256: plan.planSha256,
     engine: 'terraform' as const,
-    status: checkpoint.stage === 'registered' ? ('registered' as const) : ('pending-registration' as const),
+    status:
+      checkpoint.stage !== 'registered'
+        ? ('pending-registration' as const)
+        : plan.intent.ingress?.mode === 'platform-http'
+          ? ('accepted' as const)
+          : ('registered' as const),
     registrations: current.status === 'healthy' ? current : registrations,
     configuration,
     routing,
-    traffic: 'unknown' as const,
+    traffic,
+    ...(terraformNoChanges ? { terraformNoChanges } : {}),
   };
 }

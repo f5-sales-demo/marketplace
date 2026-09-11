@@ -665,7 +665,12 @@ test('creates Azure Route Server BGP from observed SLO objects and reconciles a 
     }
     return bgp ? json(bgp) : json({}, 404);
   });
-  const run = (checkpoint: (record: Record<string, unknown>) => Promise<void> = async () => {}) =>
+  let saved: Record<string, unknown> | undefined;
+  const run = (
+    checkpoint: (record: Record<string, unknown>) => Promise<void> = async (record) => {
+      saved = record;
+    },
+  ) =>
     runtime.ensureAzureRouting(
       azureBinding,
       65010,
@@ -682,6 +687,13 @@ test('creates Azure Route Server BGP from observed SLO objects and reconciles a 
   await run();
   await run();
   expect(posts).toBe(1);
+  expect(saved).toMatchObject({
+    localAsn: 65010,
+    remoteAsn: 65515,
+    interfaces: [{ node: 'node-one', interfaceName: 'observed-slo-one' }],
+    expectedSessions: 2,
+    routeServerAddresses: ['10.20.0.4', '10.20.0.5'],
+  });
   expect(bgp).toMatchObject({
     metadata: {
       labels: {

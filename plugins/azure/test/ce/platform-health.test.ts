@@ -29,7 +29,7 @@ const runtime = {
   async observeHealth(binding: unknown) {
     expect(binding).toMatchObject({
       siteName: 'ce-site',
-      owner: { provider: 'azure', engine: 'native', account: 'sub' },
+      owner: { provider: 'azure', engine: 'native', account: plan.subscription.id },
       nodes: ['ce-1'],
     });
     return { status: 'healthy' };
@@ -71,6 +71,18 @@ it('accepts only the original owner-plan hash frozen by a lifecycle gate', async
       )
     ).status,
   ).toBe('unknown');
+});
+it('uses the unique immutable owner hash from a network lifecycle mutation', async () => {
+  const lifecycle = {
+    ...plan,
+    planSha256: 'c'.repeat(64),
+    actions: [
+      { kind: 'vm-deallocate', node: 1, expectedOwnerPlanSha256: 'a'.repeat(64) },
+      { kind: 'vm-start', node: 1, expectedOwnerPlanSha256: 'a'.repeat(64) },
+      { kind: 'health-gate', node: 1 },
+    ],
+  } as AzureCePlan;
+  expect(await collectAzurePlatformHealth(lifecycle, [vm], runtime)).toMatchObject({ status: 'healthy' });
 });
 it('does not query platform for missing, malformed, ambiguous or foreign cloud identities', async () => {
   const forbidden = {
