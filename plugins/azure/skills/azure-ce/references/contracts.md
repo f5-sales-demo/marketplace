@@ -44,8 +44,8 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
   selecting a three-node XC cluster. Use a dedicated `/26` `RouteServerSubnet` without an NSG
   or UDR, and separately verify both service addresses, BGP sessions, and learned routes.
   Reject unsupported same-VNet brownfield insertion.
-- Three-NIC intent validation and role-based discovery have automated tests. Azure Terraform
-  lifecycle execution and fresh Azure native/Terraform acceptance remain pending; AWS receipts
+- Three-NIC intent validation, role-based discovery, and Azure Terraform lifecycle execution have
+  automated coverage. Fresh Azure native and Terraform acceptance remains pending; AWS receipts
   do not establish Azure runtime support or parity.
 - Preserve the exact pre-change route-table, subnet association, and etag state for each
   allowlisted brownfield change.
