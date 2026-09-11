@@ -1,5 +1,5 @@
 import type { AzExecApi } from '../az/exec';
-import { canonicalSha256, fingerprintObservation, safeHexEqual } from './canonical';
+import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation, safeHexEqual } from './canonical';
 import { validateAzureNativePendingAction } from './native-action-recovery';
 import type {
   AzureCeCheckpoint,
@@ -139,25 +139,28 @@ export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureC
   const normalized = structuredClone(current);
   const vmScope =
     `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${plan.deploymentName}-`.toLowerCase();
-  const ownedVmCount = normalized.resources.filter((resource) => {
-    const resourceId = resource.id.toLowerCase();
-    const suffix = resourceId.slice(vmScope.length);
-    return (
-      resource.exists &&
-      resource.owned &&
-      resourceId.startsWith(vmScope) &&
-      /^\d+$/.test(suffix) &&
-      Number(suffix) >= 1 &&
-      Number(suffix) <= plan.topology.nodeCount &&
-      resource.tags['xcsh-managed-by'] === 'azure-ce' &&
-      resource.tags['xcsh-deployment-id'] === plan.deploymentName &&
-      resource.tags['xcsh-execution-engine'] === plan.engine &&
-      resource.tags['xcsh-plan-sha256'] === plan.planSha256
-    );
-  }).length;
+  const ownedVmNodes = new Set(
+    normalized.resources.flatMap((resource) => {
+      const resourceId = resource.id.toLowerCase();
+      const suffix = resourceId.slice(vmScope.length);
+      return resource.exists &&
+        resource.owned &&
+        resourceId.startsWith(vmScope) &&
+        /^\d+$/.test(suffix) &&
+        Number(suffix) >= 1 &&
+        Number(suffix) <= plan.topology.nodeCount &&
+        resource.tags['xcsh-managed-by'] === 'azure-ce' &&
+        resource.tags['xcsh-deployment-id'] === plan.deploymentName &&
+        resource.tags['xcsh-execution-engine'] === plan.engine &&
+        resource.tags['xcsh-plan-sha256'] === plan.planSha256
+        ? [Number(suffix)]
+        : [];
+    }),
+  );
+  const ownedVmCount = ownedVmNodes.size;
   if (ownedVmCount > 0) {
-    const region = normalized.regions.find((candidate) => candidate.name === plan.region);
-    const size = region?.vmSizes.find((candidate) => candidate.name === plan.vm.size);
+    const region = normalized.regions.find((candidate) => candidate.name.toLowerCase() === plan.region.toLowerCase());
+    const size = region?.vmSizes.find((candidate) => candidate.name.toLowerCase() === plan.vm.size.toLowerCase());
     if (region && size && Number.isFinite(size.vCpus) && size.vCpus > 0) {
       region.quotaAvailable += ownedVmCount * size.vCpus;
       if (region.quotaAvailable >= size.vCpus * plan.topology.nodeCount) {
@@ -176,7 +179,7 @@ export function fingerprintCurrentObservation(plan: AzureCePlan, current: AzureC
       });
     }
   }
-  return fingerprintObservation(normalized, plan.intent.brownfield.resourceIds);
+  return fingerprintDeploymentObservation(normalized, plan.intent.brownfield.resourceIds, plan.region, plan.vm.size);
 }
 
 export function fingerprintCheckpointObservation(observation: AzureCeObservation): string {

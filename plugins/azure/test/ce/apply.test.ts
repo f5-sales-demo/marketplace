@@ -5,7 +5,7 @@ import {
   assertAzureCeRoutingExecutable,
   assertObservationFresh,
 } from '../../src/ce/apply';
-import { fingerprintObservation } from '../../src/ce/canonical';
+import { canonicalSha256, fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { fingerprintCurrentObservation } from '../../src/ce/recovery';
 import {
@@ -17,6 +17,233 @@ import { intent, observation, sharedContractUrl, subscriptionId } from './fixtur
 
 describe('Azure CE apply protections', () => {
   const plan = compileAzureCePlan(intent, observation);
+
+  it('ignores unselected catalog drift and canonicalizes selected set-like observations', () => {
+    const baseline = structuredClone(observation);
+    baseline.regions[0].rank = 7;
+    baseline.regions[0].reasons = ['advisory-two', 'advisory-one'];
+    baseline.regions[0].zones = ['3', '1', '2'];
+    baseline.regions[0].vmSizes[0].zones = ['2', '3', '1'];
+    baseline.regions[0].vmSizes.push({
+      name: 'Standard_E8s_v5',
+      maxNics: 4,
+      vCpus: 8,
+      memoryGb: 64,
+      zones: ['1'],
+      restricted: false,
+    });
+    baseline.regions.push({
+      name: 'eastus',
+      rank: 1,
+      eligible: false,
+      reasons: ['quota'],
+      zones: ['1'],
+      routeServerSupported: false,
+      quotaAvailable: 0,
+      policyAllowed: true,
+      vmSizes: [],
+    });
+    const selected = compileAzureCePlan(intent, baseline);
+    const current = structuredClone(baseline);
+    current.regions.reverse();
+    current.research.commands.reverse();
+    current.research.officialSources.reverse();
+    current.research.sourceReceipts.reverse();
+    const selectedRegion = current.regions.find((region) => region.name === 'canadacentral');
+    const unselectedRegion = current.regions.find((region) => region.name === 'eastus');
+    if (!selectedRegion || !unselectedRegion) throw new Error('catalog fixture is incomplete');
+    selectedRegion.rank = 99;
+    selectedRegion.proximity = 123;
+    selectedRegion.reasons.reverse();
+    selectedRegion.zones.reverse();
+    selectedRegion.vmSizes.reverse();
+    const alternateSize = selectedRegion.vmSizes.find((size) => size.name === 'Standard_E8s_v5');
+    const selectedSize = selectedRegion.vmSizes.find((size) => size.name === 'Standard_D8s_v5');
+    if (!alternateSize || !selectedSize) throw new Error('VM catalog fixture is incomplete');
+    alternateSize.memoryGb = 128;
+    selectedSize.zones.reverse();
+    Object.assign(unselectedRegion, {
+      ...unselectedRegion,
+      rank: 42,
+      reasons: ['policy-deny'],
+      quotaAvailable: 999,
+      vmSizes: [{ name: 'alternate', maxNics: 1, vCpus: 1, memoryGb: 1, zones: [], restricted: true }],
+    });
+    expect(() => assertObservationFresh(selected, current)).not.toThrow();
+  });
+
+  it('rejects drift in every selected deployment identity and safety field', () => {
+    const mutations: Array<[string, (value: typeof observation) => void]> = [
+      [
+        'subscription',
+        (value) => {
+          value.subscription.id = '00000000-0000-4000-8000-000000000002';
+        },
+      ],
+      [
+        'tenant',
+        (value) => {
+          value.subscription.tenantId = value.subscription.tenantId.replaceAll('2', '3');
+        },
+      ],
+      [
+        'cloud',
+        (value) => {
+          value.subscription.cloud = 'AzureUSGovernment';
+        },
+      ],
+      [
+        'publisher',
+        (value) => {
+          value.image.publisher = 'foreign-publisher';
+        },
+      ],
+      [
+        'offer',
+        (value) => {
+          value.image.offer = 'foreign-offer';
+        },
+      ],
+      [
+        'plan',
+        (value) => {
+          value.image.plan = 'foreign-plan';
+        },
+      ],
+      [
+        'version',
+        (value) => {
+          value.image.version = '1.0.1';
+        },
+      ],
+      [
+        'URN',
+        (value) => {
+          value.image.urn = `${value.image.urn}-changed`;
+        },
+      ],
+      [
+        'terms',
+        (value) => {
+          value.image.termsAccepted = false;
+        },
+      ],
+      [
+        'source receipt',
+        (value) => {
+          value.research.sourceReceipts[0].normalizedSha256 = '4'.repeat(64);
+        },
+      ],
+      [
+        'shared contract',
+        (value) => {
+          value.research.sharedContract.normalizedSha256 = '4'.repeat(64);
+        },
+      ],
+      [
+        'region name',
+        (value) => {
+          value.regions[0].name = 'eastus';
+        },
+      ],
+      [
+        'region eligibility',
+        (value) => {
+          value.regions[0].eligible = false;
+        },
+      ],
+      [
+        'region reasons',
+        (value) => {
+          value.regions[0].reasons.push('quota');
+        },
+      ],
+      [
+        'region zones',
+        (value) => {
+          value.regions[0].zones.push('2');
+        },
+      ],
+      [
+        'Route Server support',
+        (value) => {
+          value.regions[0].routeServerSupported = false;
+        },
+      ],
+      [
+        'quota',
+        (value) => {
+          value.regions[0].quotaAvailable++;
+        },
+      ],
+      [
+        'policy',
+        (value) => {
+          value.regions[0].policyAllowed = false;
+        },
+      ],
+      [
+        'VM name',
+        (value) => {
+          value.regions[0].vmSizes[0].name = 'Standard_E8s_v5';
+        },
+      ],
+      [
+        'VM NIC limit',
+        (value) => {
+          value.regions[0].vmSizes[0].maxNics++;
+        },
+      ],
+      [
+        'VM vCPU',
+        (value) => {
+          value.regions[0].vmSizes[0].vCpus++;
+        },
+      ],
+      [
+        'VM memory',
+        (value) => {
+          value.regions[0].vmSizes[0].memoryGb++;
+        },
+      ],
+      [
+        'VM restriction',
+        (value) => {
+          value.regions[0].vmSizes[0].restricted = true;
+        },
+      ],
+      [
+        'VM zones',
+        (value) => {
+          value.regions[0].vmSizes[0].zones.push('2');
+        },
+      ],
+    ];
+    for (const [field, mutate] of mutations) {
+      const current = structuredClone(observation);
+      mutate(current);
+      expect(() => assertObservationFresh(plan, current), field).toThrow();
+    }
+  });
+
+  it('binds and canonically sorts every approved brownfield resource observation', () => {
+    const firstId = `/subscriptions/${subscriptionId}/resourceGroups/network/providers/Microsoft.Network/routeTables/first`;
+    const secondId = `/subscriptions/${subscriptionId}/resourceGroups/network/providers/Microsoft.Network/routeTables/second`;
+    const baseline = structuredClone(observation);
+    baseline.resources = [
+      { id: secondId, exists: true, owned: false, tags: { owner: 'network' }, state: { routes: [] } },
+      { id: firstId, exists: true, owned: false, tags: {}, state: { routes: [] } },
+    ];
+    const brownfieldPlan = compileAzureCePlan(
+      { ...intent, brownfield: { resourceIds: [firstId, secondId], routeChanges: [] } },
+      baseline,
+    );
+    const reordered = structuredClone(baseline);
+    reordered.resources.reverse();
+    expect(() => assertObservationFresh(brownfieldPlan, reordered)).not.toThrow();
+    reordered.resources[0].state = { routes: [{ name: 'drift' }] };
+    expect(() => assertObservationFresh(brownfieldPlan, reordered)).toThrow(/stale/i);
+  });
 
   it('rebinds only the exact initial Terraform Marketplace acceptance observation', () => {
     const terraformPlan = compileAzureCePlan(
@@ -127,9 +354,28 @@ describe('Azure CE apply protections', () => {
     expect(fingerprintCurrentObservation(plan, current)).toBe(plan.observationFingerprint);
     expect(() => assertObservationFresh(plan, current)).not.toThrow();
 
-    current.resources[0].tags['xcsh-plan-sha256'] = '0'.repeat(64);
-    expect(() => assertObservationFresh(plan, current)).toThrow(/stale/i);
-    current.resources[0].tags['xcsh-plan-sha256'] = plan.planSha256;
+    for (const mutate of [
+      (value: typeof current) => {
+        value.resources[0].tags['xcsh-plan-sha256'] = '0'.repeat(64);
+      },
+      (value: typeof current) => {
+        value.resources[0].tags['xcsh-execution-engine'] = 'terraform';
+      },
+      (value: typeof current) => {
+        value.resources[0].tags['xcsh-deployment-id'] = 'foreign';
+      },
+      (value: typeof current) => {
+        value.resources[0].owned = false;
+      },
+      (value: typeof current) => {
+        value.resources[0].id = `${vmId.slice(0, -1)}2`;
+      },
+    ]) {
+      const rejected = structuredClone(current);
+      mutate(rejected);
+      expect(() => assertObservationFresh(plan, rejected)).toThrow(/stale/i);
+    }
+
     current.regions[0].quotaAvailable--;
     expect(() => assertObservationFresh(plan, current)).toThrow(/stale/i);
   });
@@ -169,13 +415,41 @@ describe('Azure CE apply protections', () => {
     expect(() => assertObservationFresh(plan, changed)).toThrow(/stale/i);
   });
 
-  it('accepts an exact post-action checkpoint fingerprint and rejects later drift', () => {
+  it('accepts an exact post-transition deployment fingerprint and rejects later drift', () => {
     const current = structuredClone(observation);
     current.image.termsAccepted = false;
-    const expected = fingerprintObservation(current, []);
+    const expected = fingerprintCurrentObservation(plan, current);
     expect(() => assertObservationFresh(plan, current, expected)).not.toThrow();
     current.regions[0].quotaAvailable = 9;
     expect(() => assertObservationFresh(plan, current, expected)).toThrow(/stale/i);
+  });
+
+  it('rejects obsolete full-catalog deploy fingerprints and preserves strict non-deploy fingerprints', () => {
+    const oldPlan = structuredClone(plan);
+    oldPlan.observationFingerprint = fingerprintObservation(observation, []);
+    const { planId: _planId, planSha256: _planSha256, ...oldDraft } = oldPlan;
+    oldPlan.planSha256 = canonicalSha256(oldDraft);
+    oldPlan.planId = `azure-ce-${oldPlan.planSha256.slice(0, 24)}`;
+    expect(() => assertObservationFresh(oldPlan, observation)).toThrow(/stale/i);
+
+    const lifecycleObservation = structuredClone(observation);
+    lifecycleObservation.regions.push({
+      name: 'eastus',
+      rank: 2,
+      eligible: false,
+      reasons: ['quota'],
+      zones: [],
+      routeServerSupported: true,
+      quotaAvailable: 0,
+      policyAllowed: true,
+      vmSizes: [],
+    });
+    for (const operation of ['reconcile', 'teardown'] as const) {
+      const lifecycle = compileAzureCePlan({ ...intent, operation }, lifecycleObservation);
+      const current = structuredClone(lifecycleObservation);
+      current.regions[1].rank++;
+      expect(() => assertObservationFresh(lifecycle, current), operation).toThrow(/stale/i);
+    }
   });
 
   it('requires exact plan identity', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { AzExecApi } from '../../src/az/exec';
+import { fingerprintDeploymentObservation } from '../../src/ce/canonical';
 import {
   type AzureComputeDiscoveryInput,
   discoverAzureCompute as discoverAzureComputeWithOfficialResearch,
@@ -198,6 +199,52 @@ describe('discoverAzureCompute', () => {
     );
     expect(calls).toContain(
       'vm image list-skus --location canadacentral --publisher f5-networks --offer f5xc_customer_edge --subscription __SUBSCRIPTION__',
+    );
+  });
+
+  it('fingerprints full unhinted discovery like exact-image and exact-VM rediscovery', async () => {
+    const fixtures = structuredClone(baseFixtures);
+    const skus = fixtures['vm list-skus --all --subscription __SUBSCRIPTION__'] as Array<Record<string, unknown>>;
+    skus.push({
+      name: 'Standard_E8s_v5',
+      resourceType: 'virtualMachines',
+      restrictions: [],
+      capabilities: [
+        { name: 'MaxNetworkInterfaces', value: '8' },
+        { name: 'vCPUs', value: '8' },
+        { name: 'MemoryGB', value: '64' },
+      ],
+      locationInfo: [
+        { location: 'eastus', zones: ['1', '2', '3'] },
+        { location: 'canadacentral', zones: ['1', '2', '3'] },
+      ],
+    });
+    const common = {
+      subscriptionId,
+      deploymentName: 'ce-demo',
+      resourceGroup: 'rg-ce-demo',
+      requiredNics: 8,
+      nodeCount: 3 as const,
+      brownfieldResourceIds: [],
+    };
+    const unhinted = await discoverAzureCompute(common, api(fixtures));
+    const exact = await discoverAzureCompute(
+      {
+        ...common,
+        publisher: unhinted.image.publisher,
+        offer: unhinted.image.offer,
+        plan: unhinted.image.plan,
+        version: unhinted.image.version,
+        vmSize: 'Standard_D8s_v5',
+      },
+      api(fixtures),
+    );
+
+    expect(unhinted.regions.flatMap((region) => region.vmSizes).length).toBeGreaterThan(
+      exact.regions.flatMap((region) => region.vmSizes).length,
+    );
+    expect(fingerprintDeploymentObservation(unhinted, [], 'canadacentral', 'Standard_D8s_v5')).toBe(
+      fingerprintDeploymentObservation(exact, [], 'canadacentral', 'Standard_D8s_v5'),
     );
   });
 

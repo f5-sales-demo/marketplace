@@ -1,5 +1,5 @@
 import { isIP } from 'node:net';
-import { canonicalSha256, fingerprintObservation } from './canonical';
+import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation } from './canonical';
 import type {
   AzureCeAction,
   AzureCeIntent,
@@ -1783,7 +1783,10 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     billableResources,
     actions,
     rollback: { brownfieldRoutes: rollbackRoutes },
-    observationFingerprint: fingerprintObservation(observation, intent.brownfield.resourceIds),
+    observationFingerprint:
+      intent.operation === 'deploy'
+        ? fingerprintDeploymentObservation(observation, intent.brownfield.resourceIds, region.name, size.name)
+        : fingerprintObservation(observation, intent.brownfield.resourceIds),
     ownershipInventory,
     ownershipTagTemplate: {
       'xcsh-managed-by': 'azure-ce',
