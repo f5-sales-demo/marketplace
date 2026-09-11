@@ -202,6 +202,31 @@ describe('discoverAzureCompute', () => {
     );
   });
 
+  it('selects the exact regional cores quota independently of Azure CLI result ordering', async () => {
+    const lowPriority = { name: { value: 'lowPriorityCores' }, currentValue: 0, limit: 350 };
+    const cores = { name: { value: 'cores' }, currentValue: 4, limit: 32 };
+    for (const usages of [
+      [lowPriority, cores],
+      [cores, lowPriority],
+    ]) {
+      const fixtures = structuredClone(baseFixtures);
+      fixtures['vm list-usage --location canadacentral --subscription __SUBSCRIPTION__'] = usages;
+      const result = await discoverAzureCompute(
+        {
+          subscriptionId,
+          deploymentName: 'ce-demo',
+          resourceGroup: 'rg-ce-demo',
+          vmSize: 'Standard_D8s_v5',
+          requiredNics: 8,
+          nodeCount: 1,
+          brownfieldResourceIds: [],
+        },
+        api(fixtures),
+      );
+      expect(result.regions.find((region) => region.name === 'canadacentral')?.quotaAvailable).toBe(28);
+    }
+  });
+
   it('fingerprints full unhinted discovery like exact-image and exact-VM rediscovery', async () => {
     const fixtures = structuredClone(baseFixtures);
     const skus = fixtures['vm list-skus --all --subscription __SUBSCRIPTION__'] as Array<Record<string, unknown>>;

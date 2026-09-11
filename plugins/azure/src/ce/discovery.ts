@@ -138,12 +138,12 @@ async function quotaAvailable(api: AzExecApi, region: string, subscriptionId: st
   if (result.exitCode !== 0) return undefined;
   try {
     const usages = JSON.parse(result.stdout) as Array<Record<string, unknown>>;
-    const cores = usages.find((usage) =>
-      String((usage.name as Record<string, unknown> | undefined)?.value ?? '')
-        .toLowerCase()
-        .includes('cores'),
+    const cores = usages.find(
+      (usage) => String((usage.name as Record<string, unknown> | undefined)?.value ?? '').toLowerCase() === 'cores',
     );
-    return Math.max(0, Number(cores?.limit ?? 0) - Number(cores?.currentValue ?? 0));
+    const limit = Number(cores?.limit);
+    const current = Number(cores?.currentValue);
+    return Number.isFinite(limit) && Number.isFinite(current) ? Math.max(0, limit - current) : undefined;
   } catch {
     return undefined;
   }
