@@ -378,7 +378,7 @@ it('reuses persisted apply authorization for the same immutable plan without req
   ).toThrow('HEADLESS');
 });
 
-it('does not promote apply authorization into Marketplace terms or teardown authorization', () => {
+it('does not promote apply authorization into an ad hoc Marketplace terms action or teardown authorization', () => {
   const plan = compileAzureCePlan(intent, observation);
   const request = {
     planId: plan.planId,
@@ -403,8 +403,8 @@ it('does not promote apply authorization into Marketplace terms or teardown auth
       },
     ],
   };
-  expect(() => assertApplyAllowed(termsPlan, request)).toThrow('completed by a human');
+  expect(() => assertApplyAllowed(termsPlan, request)).toThrow('exact initial Terraform foundation action');
   expect(() =>
     assertApplyAllowed(termsPlan, { ...request, authorization: { ...request.authorization, terms: true } }),
-  ).toThrow('completed by a human');
+  ).toThrow('exact initial Terraform foundation action');
 });

@@ -45,7 +45,7 @@ export function assertApplyAllowed(
     throw new Error('Headless teardown requires XCSH_CE_ALLOW_DESTROY=1');
   }
   if (plan.actions.some((action) => action.kind === 'marketplace-terms-accept'))
-    throw new Error('Initial Marketplace terms acceptance must be completed by a human; rediscover and replan');
+    throw new Error('Marketplace terms must be signed only by the exact initial Terraform foundation action');
   assertAzureCeRoutingExecutable(plan);
 }
 

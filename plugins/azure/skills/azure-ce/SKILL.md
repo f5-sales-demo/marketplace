@@ -47,7 +47,13 @@ platform, routing, and traffic-health states independent.
 4. Translate the request into `AzureCeIntent` schema v3 and call `azure_ce_plan`. Show the exact
    plan ID/hash, region, image, topology, NIC order, egress/routing/security changes, restoration
    state, billable resources, warnings, and action order before approval.
-5. Apply the exact approved plan with `azure_ce_apply`. Terraform execution stages the
+5. For Terraform, the single normal `terraform apply` signs unaccepted terms for only the exact
+   discovered F5 XC subscription, publisher, offer, and plan through its pinned apply-only action
+   before VM admission. It needs no separate terms authorization, human acceptance, CLI command,
+   manual state action, import, taint, rediscovery, or replan. Do not use `az vm image terms
+   accept`, accept caller-supplied or arbitrary offers, suppress an acceptance failure, or treat
+   this as authorization for native, replacement, or repair work. Apply the exact plan with
+   `azure_ce_apply`; Terraform execution stages the
    network, reserves the site, retrieves verified site-bound cloud-init internally, admits
    the complete site, correlates VM/NIC/MAC identities, and approves registration. If the
    verified contract says Azure headless bootstrap is unavailable, stop before cloud mutation;
@@ -76,7 +82,9 @@ Azure-named compatibility gates are unsupported. The published v6.1.2 API schema
 `f5xc-smsv2-api/v1@7.0.0` executable contract are separate identities; schema presence alone does
 not authorize create, bootstrap, routing, health, failover, or teardown execution.
 
-Initial Azure Marketplace terms acceptance must be completed by a human for the exact
-image offer and plan. Automation may observe acceptance but must not accept initial
-terms. Rediscover and replan after acceptance, as required by the
-[MCN legal approval policy](https://f5-sales-demo.github.io/mcn/en/customer-edge/automation-contract/).
+Marketplace terms remain a live discovery requirement. For an initial Terraform deployment, the
+same idempotent `terraform apply` signs only the exact observed F5 XC agreement and then
+revalidates that transition without a human, separate authorization, CLI step, manual state
+intervention, import, taint, rediscovery, or replan. Its teardown removes only the action state
+and never cancels a subscription agreement. Native deployments and Terraform replacement or
+repair require observed accepted terms and must fail closed otherwise.
