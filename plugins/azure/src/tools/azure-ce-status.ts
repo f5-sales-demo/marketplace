@@ -23,10 +23,18 @@ async function commandJson(api: AzExecApi, args: string[]): Promise<unknown> {
   }
 }
 
-function azureSummary(plan: AzureCePlan, resources: unknown, vms: unknown, peers: unknown) {
+export function azureSummary(plan: AzureCePlan, resources: unknown, vms: unknown, peers: unknown) {
   const resourceItems = Array.isArray(resources) ? (resources as Array<Record<string, unknown>>) : [];
   const vmItems = Array.isArray(vms) ? (vms as Array<Record<string, unknown>>) : [];
   const peerItems = Array.isArray(peers) ? (peers as Array<Record<string, unknown>>) : [];
+  const ownerPlanSha256s = new Set([
+    plan.planSha256,
+    ...plan.actions.flatMap((action) =>
+      action.expectedOwnerPlanSha256 && /^[a-f0-9]{64}$/.test(action.expectedOwnerPlanSha256)
+        ? [action.expectedOwnerPlanSha256]
+        : [],
+    ),
+  ]);
   const owned = (item: Record<string, unknown>) => {
     if (!item || typeof item !== 'object') return false;
     const tags = item.tags as Record<string, unknown> | undefined;
@@ -37,7 +45,8 @@ function azureSummary(plan: AzureCePlan, resources: unknown, vms: unknown, peers
       tags?.['xcsh-managed-by'] === 'azure-ce' &&
       tags?.['xcsh-deployment-id'] === plan.deploymentName &&
       tags?.['xcsh-execution-engine'] === plan.engine &&
-      tags?.['xcsh-plan-sha256'] === plan.planSha256
+      typeof tags?.['xcsh-plan-sha256'] === 'string' &&
+      ownerPlanSha256s.has(tags['xcsh-plan-sha256'])
     );
   };
   return {

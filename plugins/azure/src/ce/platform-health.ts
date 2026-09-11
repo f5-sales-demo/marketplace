@@ -37,6 +37,15 @@ export async function collectAzurePlatformHealth(
   const used = new Set<string>();
   for (let node = 1; node <= admittedNodeCount; node++) {
     const name = `${plan.deploymentName}-${node}`;
+    const ownerGates = (plan.actions ?? []).filter(
+      (action) => action.kind === 'vm-state-gate' && action.node === node && action.expectedOwnerPlanSha256,
+    );
+    const expectedOwnerPlanSha256 =
+      ownerGates.length === 0
+        ? plan.planSha256
+        : ownerGates.length === 1 && /^[a-f0-9]{64}$/.test(ownerGates[0].expectedOwnerPlanSha256 ?? '')
+          ? ownerGates[0].expectedOwnerPlanSha256
+          : undefined;
     const matches = vms.filter(
       (vm) => vm && typeof vm.id === 'string' && vm.id.toLowerCase() === scope + name.toLowerCase(),
     );
@@ -54,7 +63,8 @@ export async function collectAzurePlatformHealth(
       vm.tags?.['xcsh-managed-by'] !== 'azure-ce' ||
       vm.tags?.['xcsh-deployment-id'] !== plan.deploymentName ||
       vm.tags?.['xcsh-execution-engine'] !== plan.engine ||
-      vm.tags?.['xcsh-plan-sha256'] !== plan.planSha256 ||
+      !expectedOwnerPlanSha256 ||
+      vm.tags?.['xcsh-plan-sha256'] !== expectedOwnerPlanSha256 ||
       typeof vm.vmId !== 'string' ||
       !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(vm.vmId) ||
       used.has(vm.vmId.toLowerCase())

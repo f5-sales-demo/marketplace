@@ -49,6 +49,29 @@ it('binds platform observations to Azure VM UUIDs without claiming routing or no
     traffic: 'unknown',
   });
 });
+it('accepts only the original owner-plan hash frozen by a lifecycle gate', async () => {
+  const lifecycle = {
+    ...plan,
+    planSha256: 'c'.repeat(64),
+    actions: [
+      {
+        kind: 'vm-state-gate',
+        node: 1,
+        expectedOwnerPlanSha256: 'a'.repeat(64),
+      },
+    ],
+  } as AzureCePlan;
+  expect(await collectAzurePlatformHealth(lifecycle, [vm], runtime)).toMatchObject({ status: 'healthy' });
+  expect(
+    (
+      await collectAzurePlatformHealth(
+        lifecycle,
+        [{ ...vm, tags: { ...vm.tags, 'xcsh-plan-sha256': 'b'.repeat(64) } }],
+        runtime,
+      )
+    ).status,
+  ).toBe('unknown');
+});
 it('does not query platform for missing, malformed, ambiguous or foreign cloud identities', async () => {
   const forbidden = {
     observeHealth: async () => {
