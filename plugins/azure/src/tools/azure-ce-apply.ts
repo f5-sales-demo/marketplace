@@ -53,7 +53,7 @@ async function replacementsFor(args: string[], api: AzExecApi, plan: AzureCePlan
   return replacements;
 }
 
-async function executeApply(
+export async function executeAzureCeNativeApply(
   params: ApplyParams,
   ctx: AzureCeToolContext,
   api: AzExecApi,
@@ -159,6 +159,7 @@ async function executeApply(
   for (const action of plan.actions) {
     if (completed.has(action.id)) continue;
     try {
+      let postMutationObservation: Awaited<ReturnType<typeof observe>> | undefined;
       await assertActionOwnership(plan, action, api);
       if (action.kind === 'vm-state-gate') {
         const deadline = Date.now() + 15 * 60_000;
@@ -239,6 +240,29 @@ async function executeApply(
           : await execute();
         if (result.exitCode !== 0)
           throw new Error(`Azure action ${action.id} failed with exit code ${result.exitCode}`);
+        if (action.kind === 'resource-delete' && action.resourceId) {
+          const deadline = Date.now() + 15 * 60_000;
+          while (true) {
+            postMutationObservation = await observe();
+            const resource = postMutationObservation.resources.find(
+              (candidate) => candidate.id.toLowerCase() === action.resourceId?.toLowerCase(),
+            );
+            if (!resource?.exists) break;
+            if (Date.now() >= deadline) throw new Error('Azure resource deletion has not converged');
+            await new Promise<void>((resolve, reject) => {
+              const abort = () => {
+                clearTimeout(timer);
+                reject(signal?.reason ?? new Error('Azure deletion convergence cancelled'));
+              };
+              const timer = setTimeout(() => {
+                signal?.removeEventListener('abort', abort);
+                resolve();
+              }, 10_000);
+              signal?.addEventListener('abort', abort, { once: true });
+              if (signal?.aborted) abort();
+            });
+          }
+        }
         if (action.kind === 'vm-create' && action.node)
           await recordAzureNativeLaunch(plan, action.node, native, storage);
       }
@@ -249,8 +273,13 @@ async function executeApply(
         action.kind === 'marketplace-terms-accept' ||
         action.kind === 'route-association-update' ||
         action.kind === 'brownfield-restore' ||
+        action.kind === 'resource-delete' ||
         (action.kind === 'route-create' && plan.intent.brownfield.routeChanges.length > 0);
-      if (changesFingerprint) checkpoint.observationFingerprint = fingerprintCurrentObservation(plan, await observe());
+      if (changesFingerprint)
+        checkpoint.observationFingerprint = fingerprintCurrentObservation(
+          plan,
+          postMutationObservation ?? (await observe()),
+        );
       await saveCheckpoint(ctx.sessionManager, checkpoint);
     } catch (error) {
       checkpoint.state = 'partial';
@@ -310,7 +339,7 @@ export function createAzureCeApplyTool(
             details: { tool: 'azure_ce_apply', ...result },
           };
         }
-        const { plan, checkpoint } = await executeApply(
+        const { plan, checkpoint } = await executeAzureCeNativeApply(
           params,
           ctx,
           withAzureCeExecution(makeApi(ctx.cwd), signal),

@@ -3,8 +3,15 @@ import type { CePlatformService } from '../../../platform/src/ce/service';
 import type { CeTerraformService } from '../../../terraform/src/service';
 import type { AzExecApi } from '../az/exec';
 import type { PluginInterface } from '../az/types';
-import { type AzureCeToolContext, loadPlanArtifact } from '../ce/artifacts';
+import { type AzureCeToolContext, loadCheckpoint, loadPlanArtifact, saveCheckpoint } from '../ce/artifacts';
 import { safeHexEqual } from '../ce/canonical';
+import { withAzureCeExecution } from '../ce/execution';
+import {
+  type AzureNativeTeardownPlan,
+  observeAzureNativeGroupAbsence,
+  prepareAzureNativeTeardown,
+  runAzureNativeTeardown,
+} from '../ce/native-teardown';
 import { azurePlatformService, azureTerraformService } from '../ce/platform';
 import { azureTerraformCurrentDeployment } from '../ce/terraform-foundation';
 import {
@@ -13,6 +20,8 @@ import {
   runAzureTerraformTeardown,
 } from '../ce/terraform-teardown';
 import { azureUpgradeBinding } from '../ce/terraform-upgrade';
+import { AZURE_CE_SCHEMA_VERSION } from '../ce/types';
+import { executeAzureCeNativeApply } from './azure-ce-apply';
 import { makeExecApi } from './shared';
 
 interface Dependencies {
@@ -21,6 +30,9 @@ interface Dependencies {
   contract(signal?: AbortSignal): Promise<VerifiedIngressContract>;
   prepare: typeof prepareAzureTerraformTeardown;
   run: typeof runAzureTerraformTeardown;
+  prepareNative: typeof prepareAzureNativeTeardown;
+  runNative: typeof runAzureNativeTeardown;
+  applyNative: typeof executeAzureCeNativeApply;
   makeApi(cwd: string): AzExecApi;
 }
 const defaults: Dependencies = {
@@ -29,6 +41,9 @@ const defaults: Dependencies = {
   contract: (signal) => VerifiedIngressContract.release(fetch, signal),
   prepare: prepareAzureTerraformTeardown,
   run: runAzureTerraformTeardown,
+  prepareNative: prepareAzureNativeTeardown,
+  runNative: runAzureNativeTeardown,
+  applyNative: executeAzureCeNativeApply,
   makeApi: makeExecApi,
 };
 const optional = async (storage: Awaited<ReturnType<CePlatformService['storage']>>, name: string) => {
@@ -52,6 +67,8 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
       basePlanSha256: Type.String(),
       teardownPlanId: Type.Optional(Type.String()),
       teardownPlanSha256: Type.Optional(Type.String()),
+      cloudPlanId: Type.Optional(Type.String()),
+      cloudPlanSha256: Type.Optional(Type.String()),
     }),
     async execute(
       _id: string,
@@ -61,6 +78,8 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
         basePlanSha256: string;
         teardownPlanId?: string;
         teardownPlanSha256?: string;
+        cloudPlanId?: string;
+        cloudPlanSha256?: string;
       },
       signal: AbortSignal | undefined,
       _update: unknown,
@@ -69,19 +88,30 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
       try {
         const allowed =
           params.operation === 'prepare'
-            ? ['basePlanId', 'basePlanSha256', 'operation']
+            ? ['basePlanId', 'basePlanSha256', 'cloudPlanId', 'cloudPlanSha256', 'operation']
             : ['basePlanId', 'basePlanSha256', 'operation', 'teardownPlanId', 'teardownPlanSha256'];
         if (Object.keys(params).some((key) => !allowed.includes(key)))
           throw new Error(`Azure CE teardown ${params.operation} parameters differ`);
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
-        if (plan.engine !== 'terraform' || plan.intent.operation !== 'deploy')
-          throw new Error('Azure CE teardown currently requires the original Terraform deployment plan');
+        if (plan.intent.operation !== 'deploy')
+          throw new Error('Azure CE teardown requires the original deployment plan');
         const platform = await dependencies.platform(pi, signal);
         const storage = await platform.storage(azureUpgradeBinding(plan).owner);
-        const runtime = await platform.runtime('terraform', plan.intent.platformContext);
+        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const contract = await dependencies.contract(signal);
         if (params.operation === 'prepare') {
-          const teardown = await dependencies.prepare(plan, runtime, contract, storage, signal);
+          const cloud =
+            plan.engine === 'native' && params.cloudPlanId && params.cloudPlanSha256
+              ? (await loadPlanArtifact(ctx.sessionManager, params.cloudPlanId, params.cloudPlanSha256)).plan
+              : undefined;
+          if (plan.engine === 'native' && !cloud)
+            throw new Error('Native Azure teardown requires the exact reviewed cloud teardown plan');
+          if (plan.engine === 'terraform' && (params.cloudPlanId || params.cloudPlanSha256))
+            throw new Error('Terraform Azure teardown does not accept a separate cloud plan');
+          const teardown =
+            plan.engine === 'terraform'
+              ? await dependencies.prepare(plan, runtime, contract, storage, signal)
+              : await dependencies.prepareNative(plan, cloud as never, runtime, contract, storage, signal);
           const artifactId = await ctx.sessionManager.saveArtifact(
             JSON.stringify({
               kind: teardown.kind,
@@ -115,7 +145,9 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
         }
         if (!params.teardownPlanId || !params.teardownPlanSha256)
           throw new Error('Azure CE teardown apply requires the exact teardown plan identity');
-        const teardown = (await storage.read(`${params.teardownPlanId}.json`)) as AzureTerraformTeardownPlan;
+        const teardown = (await storage.read(`${params.teardownPlanId}.json`)) as
+          | AzureTerraformTeardownPlan
+          | AzureNativeTeardownPlan;
         if (
           teardown.planId !== params.teardownPlanId ||
           !safeHexEqual(teardown.planSha256, params.teardownPlanSha256) ||
@@ -138,7 +170,7 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
           }
           await storage.write(authorizationName, {
             schemaVersion: 1,
-            engine: 'terraform',
+            engine: plan.engine,
             sourcePlanSha256: plan.planSha256,
             teardownPlanSha256: teardown.planSha256,
             mutations: true,
@@ -147,30 +179,76 @@ export function createAzureCeTeardownTool(pi: PluginInterface, dependencies: Dep
           !authorization ||
           typeof authorization !== 'object' ||
           (authorization as Record<string, unknown>).schemaVersion !== 1 ||
-          (authorization as Record<string, unknown>).engine !== 'terraform' ||
+          (authorization as Record<string, unknown>).engine !== plan.engine ||
           (authorization as Record<string, unknown>).sourcePlanSha256 !== plan.planSha256 ||
           (authorization as Record<string, unknown>).teardownPlanSha256 !== teardown.planSha256 ||
           (authorization as Record<string, unknown>).mutations !== true
         ) {
           throw new Error('Persisted Azure CE teardown authorization differs');
         }
-        const session = await (await dependencies.terraform(pi, signal)).open(
-          azureUpgradeBinding(plan).owner,
-          await azureTerraformCurrentDeployment(plan),
-          'current',
-        );
-        const result = await dependencies.run(
-          plan,
-          teardown,
-          params.teardownPlanSha256,
-          runtime,
-          contract,
-          session,
-          storage,
-          dependencies.makeApi(ctx.cwd),
-          process.env,
-          signal,
-        );
+        const result =
+          plan.engine === 'terraform'
+            ? await dependencies.run(
+                plan,
+                teardown as AzureTerraformTeardownPlan,
+                params.teardownPlanSha256,
+                runtime,
+                contract,
+                await (await dependencies.terraform(pi, signal)).open(
+                  azureUpgradeBinding(plan).owner,
+                  await azureTerraformCurrentDeployment(plan),
+                  'current',
+                ),
+                storage,
+                dependencies.makeApi(ctx.cwd),
+                process.env,
+                signal,
+              )
+            : await dependencies.runNative(
+                plan,
+                (
+                  await loadPlanArtifact(
+                    ctx.sessionManager,
+                    (teardown as AzureNativeTeardownPlan).cloudPlanId,
+                    (teardown as AzureNativeTeardownPlan).cloudPlanSha256,
+                  )
+                ).plan,
+                teardown as AzureNativeTeardownPlan,
+                params.teardownPlanSha256,
+                runtime,
+                contract,
+                storage,
+                async (signal) => {
+                  const native = teardown as AzureNativeTeardownPlan;
+                  const { plan: cloud } = await loadPlanArtifact(
+                    ctx.sessionManager,
+                    native.cloudPlanId,
+                    native.cloudPlanSha256,
+                  );
+                  if (!(await loadCheckpoint(ctx.sessionManager, cloud.planId, cloud.planSha256)))
+                    await saveCheckpoint(ctx.sessionManager, {
+                      schemaVersion: AZURE_CE_SCHEMA_VERSION,
+                      engine: 'native',
+                      authorization: { apply: true, terms: false, destroy: true },
+                      planId: cloud.planId,
+                      planSha256: cloud.planSha256,
+                      completedActionIds: [],
+                      state: 'running',
+                    });
+                  const api = withAzureCeExecution(dependencies.makeApi(ctx.cwd), signal);
+                  const applied = await dependencies.applyNative(
+                    { planId: cloud.planId, planSha256: cloud.planSha256 },
+                    ctx,
+                    api,
+                    platform,
+                    signal,
+                  );
+                  if (applied.checkpoint.state !== 'complete')
+                    throw new Error('Azure native cloud teardown remains partial');
+                  return observeAzureNativeGroupAbsence(plan, api, signal);
+                },
+                signal,
+              );
         const artifactId = await ctx.sessionManager.saveArtifact(
           JSON.stringify(result),
           'azure-ce-teardown-checkpoint',

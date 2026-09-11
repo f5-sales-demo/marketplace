@@ -19,7 +19,7 @@ const object = (value: unknown): Json => {
 };
 const safeName = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
-interface Retirement {
+export interface AzureTeardownRetirement {
   siteName: string;
   siteUid: string;
   physicalSiteUid: string;
@@ -31,12 +31,16 @@ export interface AzureTerraformTeardownPlan {
   engine: 'terraform';
   sourcePlanSha256: string;
   drain: CePlatformDrainPlan;
-  retirement: Retirement[];
+  retirement: AzureTeardownRetirement[];
   planId: string;
   planSha256: string;
 }
 
-export function compileAzureTerraformTeardown(base: AzureCePlan, drain: CePlatformDrainPlan, retirement: Retirement[]) {
+export function compileAzureTerraformTeardown(
+  base: AzureCePlan,
+  drain: CePlatformDrainPlan,
+  retirement: AzureTeardownRetirement[],
+) {
   verifyAzureCePlan(base);
   const binding = azureUpgradeBinding(base);
   if (
@@ -72,21 +76,17 @@ export function compileAzureTerraformTeardown(base: AzureCePlan, drain: CePlatfo
 }
 
 /** Collect platform and enrollment identities twice so teardown never trusts caller-built inventories. */
-export async function prepareAzureTerraformTeardown(
+export async function collectAzureTeardownMaterial(
   base: AzureCePlan,
   runtime: CeRuntime,
   contract: VerifiedIngressContract,
   storage: CeDeploymentStore,
   signal?: AbortSignal,
-): Promise<AzureTerraformTeardownPlan> {
+): Promise<{ drain: CePlatformDrainPlan; retirement: AzureTeardownRetirement[] }> {
   verifyAzureCePlan(base);
   const binding = azureUpgradeBinding(base);
-  if (
-    base.engine !== 'terraform' ||
-    runtime.engine !== 'terraform' ||
-    canonicalSha256(storage.owner) !== canonicalSha256(binding.owner)
-  )
-    throw new Error('Azure Terraform teardown preparation requires Terraform ownership');
+  if (runtime.engine !== base.engine || canonicalSha256(storage.owner) !== canonicalSha256(binding.owner))
+    throw new Error('Azure teardown preparation requires the owning execution engine');
   await storage.verify();
   const entries = await readdir(storage.directory, { withFileTypes: true });
   const ingressFiles = entries.filter((entry) => /^ingress-plan-[a-f0-9]{24}\.json$/.test(entry.name));
@@ -199,6 +199,18 @@ export async function prepareAzureTerraformTeardown(
     canonicalSha256({ sites: after.sites, resources: after.resources })
   )
     throw new Error('Azure teardown source changed during preparation');
+  return { drain, retirement };
+}
+
+export async function prepareAzureTerraformTeardown(
+  base: AzureCePlan,
+  runtime: CeRuntime,
+  contract: VerifiedIngressContract,
+  storage: CeDeploymentStore,
+  signal?: AbortSignal,
+): Promise<AzureTerraformTeardownPlan> {
+  if (base.engine !== 'terraform') throw new Error('Azure Terraform teardown requires Terraform ownership');
+  const { drain, retirement } = await collectAzureTeardownMaterial(base, runtime, contract, storage, signal);
   const plan = compileAzureTerraformTeardown(base, drain, retirement);
   await storage.write(`${plan.planId}.json`, plan);
   return plan;
