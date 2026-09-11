@@ -1519,9 +1519,13 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (observation.subscription.cloud !== 'AzureCloud') fail('only AzureCloud is supported');
   if (observation.subscription.id.toLowerCase() !== intent.subscriptionId)
     fail('observation subscription does not match intent');
-  if (['deploy', 'replace-node', 'repair'].includes(intent.operation) && observation.image.termsAccepted !== true)
+  if (
+    ['deploy', 'replace-node', 'repair'].includes(intent.operation) &&
+    observation.image.termsAccepted !== true &&
+    !(intent.engine === 'terraform' && intent.operation === 'deploy')
+  )
     fail(
-      'Initial Marketplace terms acceptance must be completed by a human for this exact image plan; rediscover and replan afterward',
+      'Marketplace terms are unaccepted for this exact image plan; only an initial Terraform deployment can accept them during apply',
     );
   if (observation.image.version.toLowerCase() === 'latest') fail('image version latest is forbidden');
   if (!/^\d+\.\d+\.\d+$/.test(observation.image.version)) fail('image version must be an exact Marketplace version');

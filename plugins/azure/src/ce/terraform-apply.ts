@@ -6,14 +6,34 @@ import { assertApplyAllowed, assertObservationFresh } from './apply';
 import { type AzureCeToolContext, loadPlanArtifact } from './artifacts';
 import { discoverAzureCompute } from './discovery';
 import { ensureAzurePlatformIngress } from './platform-ingress';
+import { fingerprintCurrentObservation } from './recovery';
 import { azureTerraformLifecycleDeployment, runAzureTerraformLifecycle } from './terraform-lifecycle';
 import { runAzureTerraformReplacement } from './terraform-replacement';
 import { azureUpgradeBinding } from './terraform-upgrade';
 import { runAzureTerraformAdmission } from './terraform-workflow';
 import { collectAzureTrafficProbe } from './traffic-probe';
+import type { AzureCeObservation, AzureCePlan } from './types';
 
 interface AzureTerraformApplyDependencies {
   ingressContract?: () => Promise<VerifiedIngressContract>;
+}
+
+/** Accept only the observed subscription-level agreement transition caused by the exact initial Terraform deploy. */
+export function reconcileAzureTerraformMarketplaceTermsAcceptance(
+  plan: AzureCePlan,
+  current: AzureCeObservation,
+): string {
+  if (
+    plan.engine !== 'terraform' ||
+    plan.intent.operation !== 'deploy' ||
+    plan.image.termsAccepted ||
+    current.image.termsAccepted !== true
+  )
+    throw new Error('Stale Azure CE plan: Marketplace terms changed outside the initial Terraform deployment contract');
+  const beforeAcceptance = structuredClone(current);
+  beforeAcceptance.image.termsAccepted = false;
+  assertObservationFresh(plan, beforeAcceptance);
+  return fingerprintCurrentObservation(plan, current);
 }
 
 /** Keep unsupported lifecycle intents from falling through to the deployment-only admission workflow. */
@@ -120,11 +140,6 @@ export async function executeAzureCeTerraformApply(
     authorization: authorized ? { apply: true, terms: false, destroy: false } : undefined,
     executionEngine: 'terraform',
   });
-  const runtime = await platform.runtime('terraform', plan.intent.platformContext);
-  const ingressContract =
-    plan.intent.ingress?.mode === 'platform-http'
-      ? await (dependencies.ingressContract?.() ?? VerifiedIngressContract.release(undefined, signal))
-      : undefined;
   const observe = () =>
     discoverAzureCompute(
       {
@@ -143,7 +158,29 @@ export async function executeAzureCeTerraformApply(
       },
       api,
     );
-  const revalidate = async () => assertObservationFresh(plan, await observe());
+  let acceptedTermsFingerprint: string | undefined;
+  const revalidate = async () => {
+    const current = await observe();
+    if (acceptedTermsFingerprint) return assertObservationFresh(plan, current, acceptedTermsFingerprint);
+    if (current.image.termsAccepted === true && plan.image.termsAccepted === false) {
+      acceptedTermsFingerprint = reconcileAzureTerraformMarketplaceTermsAcceptance(plan, current);
+      await storage.write('terraform-marketplace-terms-observation.json', {
+        schemaVersion: 1,
+        engine: 'terraform',
+        planSha256: plan.planSha256,
+        observationFingerprint: acceptedTermsFingerprint,
+        image: {
+          publisher: current.image.publisher,
+          offer: current.image.offer,
+          plan: current.image.plan,
+          version: current.image.version,
+          termsAccepted: true,
+        },
+      });
+      return;
+    }
+    assertObservationFresh(plan, current);
+  };
   await revalidate();
   if (
     !authorized &&
@@ -157,6 +194,11 @@ export async function executeAzureCeTerraformApply(
     planSha256: plan.planSha256,
     mutations: true,
   });
+  const runtime = await platform.runtime('terraform', plan.intent.platformContext);
+  const ingressContract =
+    plan.intent.ingress?.mode === 'platform-http'
+      ? await (dependencies.ingressContract?.() ?? VerifiedIngressContract.release(undefined, signal))
+      : undefined;
   const acceptIngress = ingressContract
     ? async () => {
         const ingress = await ensureAzurePlatformIngress(plan, runtime, storage, ingressContract, api, signal);

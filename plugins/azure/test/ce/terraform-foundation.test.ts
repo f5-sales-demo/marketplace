@@ -3,7 +3,7 @@ import { compileAzureCePlan } from '../../src/ce/planner';
 import { azureTerraformFoundationDeployment, renderAzureTerraformFoundation } from '../../src/ce/terraform-foundation';
 import { intent, observation } from './fixtures';
 
-function plan(ha = false) {
+function plan(ha = false, termsAccepted = true) {
   const input = structuredClone(intent);
   input.engine = 'terraform';
   input.topology.ha = ha;
@@ -14,6 +14,7 @@ function plan(ha = false) {
   }));
   const observed = structuredClone(observation);
   observed.regions[0].quotaAvailable = 24;
+  observed.image.termsAccepted = termsAccepted;
   return compileAzureCePlan(input, observed);
 }
 const bootstrap = '#cloud-config\nwrite_files:\n- path: /etc/vpm/user_data\n  content: fixture-material\n';
@@ -28,6 +29,7 @@ it('renders stable Azure network staging without starting VMs or generating boot
   expect(config.provider.azurerm.subscription_id).toBe(p.subscription.id);
   expect(config.provider.azurerm.tenant_id).toBe(p.subscription.tenantId);
   expect(config.provider.azurerm.resource_provider_registrations).toBe('none');
+  expect(config.provider.azapi.subscription_id).toBe(p.subscription.id);
   expect(config.resource.azurerm_network_interface.node_1_nic_0.ip_forwarding_enabled).toBe(true);
   expect(config.output.ce_instances.value).toEqual({});
 });
@@ -49,7 +51,25 @@ it('admits compute with exact image, ordered NICs, generated SSH key and restric
   expect(JSON.stringify(config.output)).not.toMatch(/custom_data|private_key|fixture-material/);
   expect(deployment.providerLock).toContain('registry.terraform.io/hashicorp/azurerm');
   expect(deployment.providerLock).toContain('registry.terraform.io/hashicorp/tls');
+  expect(deployment.providerLock).toContain('registry.terraform.io/azure/azapi');
   expect(deployment.backendIdentity).toBe(`local:${p.deploymentName}`);
+});
+
+it('signs only the exact discovered Marketplace plan during an unaccepted initial Terraform deploy', () => {
+  const p = plan(false, false);
+  const config = JSON.parse(renderAzureTerraformFoundation(p, { '1': bootstrap }));
+  const terms = config.resource.azapi_resource_action.marketplace_terms;
+  expect(terms).toEqual({
+    type: 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01',
+    resource_id: `/subscriptions/${p.subscription.id}/providers/Microsoft.MarketplaceOrdering/agreements/${p.image.publisher}/offers/${p.image.offer}/plans/${p.image.plan}`,
+    action: 'sign',
+    method: 'POST',
+    when: 'apply',
+  });
+  expect(config.resource.azurerm_linux_virtual_machine.node_1.depends_on).toContain(
+    'azapi_resource_action.marketplace_terms',
+  );
+  expect(JSON.parse(renderAzureTerraformFoundation(plan())).resource.azapi_resource_action).toBeUndefined();
 });
 
 it('admits an HA site cumulatively and reserves its dedicated Route Server subnet', () => {
@@ -65,14 +85,18 @@ it('admits an HA site cumulatively and reserves its dedicated Route Server subne
   const config = JSON.parse(renderAzureTerraformFoundation(p, { '1': bootstrap, '2': bootstrap, '3': bootstrap }));
   expect(Object.keys(config.resource.azurerm_linux_virtual_machine)).toHaveLength(3);
   expect(Object.keys(config.resource.azurerm_network_interface)).toHaveLength(9);
-  expect(Object.values(config.resource.azurerm_subnet).some((subnet: any) => subnet.name === 'RouteServerSubnet')).toBe(
-    true,
-  );
+  expect(
+    Object.values(config.resource.azurerm_subnet as Record<string, { name?: string }>).some(
+      (subnet) => subnet.name === 'RouteServerSubnet',
+    ),
+  ).toBe(true);
   expect(config.resource.azurerm_route_server.ce.subnet_id).toMatch(/azurerm_subnet/);
   expect(config.resource.azurerm_route_server.ce.branch_to_branch_traffic_enabled).toBe(false);
   expect(config.resource.azurerm_public_ip.route_server.sku).toBe('Standard');
   expect(Object.keys(config.resource.azurerm_route_server_bgp_connection)).toEqual(['node_1', 'node_2', 'node_3']);
-  for (const peer of Object.values(config.resource.azurerm_route_server_bgp_connection) as Array<any>) {
+  for (const peer of Object.values(
+    config.resource.azurerm_route_server_bgp_connection as Record<string, { peer_asn?: unknown; peer_ip?: string }>,
+  )) {
     expect(peer.peer_asn).toBe(p.routing.localAsn);
     expect(peer.peer_ip).toContain('_nic_0.private_ip_address');
     expect(peer.peer_ip).not.toContain('_nic_2.private_ip_address');
@@ -86,7 +110,7 @@ it('rejects tampered plans, foreign node admissions, and unresolved bootstrap be
   expect(() => renderAzureTerraformFoundation(p, { '2': bootstrap })).toThrow(/admission/);
   const ha = plan(true);
   expect(() => renderAzureTerraformFoundation(ha, { '1': bootstrap, '3': bootstrap })).toThrow(/in order/);
-  expect(() => renderAzureTerraformFoundation(p, { '1': bootstrap + '__TOKEN__' })).toThrow(/cloud-init/);
+  expect(() => renderAzureTerraformFoundation(p, { '1': `${bootstrap}__TOKEN__` })).toThrow(/cloud-init/);
   p.region = 'foreign';
   expect(() => renderAzureTerraformFoundation(p)).toThrow(/integrity/);
   expect(() => renderAzureTerraformFoundation(compileAzureCePlan(intent, observation))).toThrow(/Terraform/);

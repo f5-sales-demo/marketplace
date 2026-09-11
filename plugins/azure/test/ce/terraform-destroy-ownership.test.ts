@@ -100,6 +100,26 @@ test('binds every Azure destroy target to the live owned greenfield resource gro
   });
 });
 
+test('permits only the exact apply-only Marketplace acceptance action during Terraform state teardown', async () => {
+  const f = fixture();
+  const address = 'azapi_resource_action.marketplace_terms';
+  f.receipt.changes.unshift({ address, type: 'azapi_resource_action', actions: ['delete'] });
+  f.fields[address] = {
+    resource_id: `/subscriptions/${f.plan.subscription.id}/providers/Microsoft.MarketplaceOrdering/agreements/${f.plan.image.publisher}/offers/${f.plan.image.offer}/plans/${f.plan.image.plan}`,
+    type: 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01',
+    action: 'sign',
+    method: 'POST',
+    when: 'apply',
+  };
+  await expect(verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).resolves.toMatchObject({
+    resourceCount: 4,
+  });
+  f.fields[address].action = 'cancel';
+  await expect(verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow(
+    /Marketplace agreement action differs/,
+  );
+});
+
 test('rejects foreign groups, cross-scope resources, unsupported types and non-destroy plans', async () => {
   const foreign = fixture();
   const foreignApi: AzExecApi = {

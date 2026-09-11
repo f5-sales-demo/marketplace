@@ -540,10 +540,22 @@ describe('compileAzureCePlan', () => {
     ).toBe(true);
   });
 
-  it('requires human Marketplace acceptance before emitting a deploy plan', () => {
+  it('allows only initial Terraform deployment to accept an unaccepted exact Marketplace plan', () => {
     expect(() =>
       compileAzureCePlan(intent(), observation({ image: { ...observation().image, termsAccepted: false } })),
-    ).toThrow('completed by a human');
+    ).toThrow('only an initial Terraform deployment');
+    expect(() =>
+      compileAzureCePlan(
+        intent({ engine: 'terraform' }),
+        observation({ image: { ...observation().image, termsAccepted: false } }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      compileAzureCePlan(
+        intent({ engine: 'terraform', operation: 'replace-node', replacementNode: 1 }),
+        observation({ image: { ...observation().image, termsAccepted: false } }),
+      ),
+    ).toThrow('only an initial Terraform deployment');
   });
 
   it('never emits deletion for an unmanaged resource during teardown', () => {

@@ -18,6 +18,8 @@ const cloudTypes = new Set([
   'azurerm_virtual_network',
 ]);
 const localTypes = new Set(['tls_private_key']);
+const marketplaceTermsAddress = 'azapi_resource_action.marketplace_terms';
+const marketplaceTermsType = 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01';
 const object = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed Azure Terraform teardown identity');
@@ -121,7 +123,9 @@ export async function verifyAzureTerraformDestroyOwnership(
       (change) =>
         change.actions.join(',') !== 'delete' ||
         !new RegExp(`^${change.type}\\.[a-z][a-z0-9_]*$`).test(change.address) ||
-        (!cloudTypes.has(change.type) && !localTypes.has(change.type)),
+        (!cloudTypes.has(change.type) &&
+          !localTypes.has(change.type) &&
+          !(change.type === 'azapi_resource_action' && change.address === marketplaceTermsAddress)),
     ) ||
     new Set(receipt.changes.map((change) => change.address)).size !== receipt.changes.length
   )
@@ -130,7 +134,12 @@ export async function verifyAzureTerraformDestroyOwnership(
   if (boundary.status !== 'owned') throw new Error('Azure Terraform teardown resource group is absent');
   const groupId = boundary.resourceGroupId;
   const selections = receipt.changes.length
-    ? Object.fromEntries(receipt.changes.map((change) => [change.address, ['id']]))
+    ? Object.fromEntries(
+        receipt.changes.map((change) => [
+          change.address,
+          change.type === 'azapi_resource_action' ? ['resource_id', 'type', 'action', 'method', 'when'] : ['id'],
+        ]),
+      )
     : { 'azurerm_resource_group.ce': ['id'] };
   const fields = await session.readPlannedResourceFields(receipt, selections, env, signal);
   if (!receipt.changes.length) {
@@ -141,6 +150,27 @@ export async function verifyAzureTerraformDestroyOwnership(
   if (Object.keys(fields).length !== receipt.changes.length)
     throw new Error('Incomplete Azure Terraform teardown identity projection');
   for (const change of receipt.changes) {
+    if (change.type === 'azapi_resource_action') {
+      const terms = object(fields[change.address]);
+      const expectedResourceId = [
+        `/subscriptions/${plan.subscription.id}`,
+        'providers/Microsoft.MarketplaceOrdering',
+        `agreements/${plan.image.publisher}`,
+        `offers/${plan.image.offer}`,
+        `plans/${plan.image.plan}`,
+      ].join('/');
+      if (
+        lower(terms.resource_id) !== lower(expectedResourceId) ||
+        terms.type !== marketplaceTermsType ||
+        terms.action !== 'sign' ||
+        terms.method !== 'POST' ||
+        terms.when !== 'apply'
+      )
+        throw new Error(
+          'Azure Terraform destroy Marketplace agreement action differs from the exact apply-only contract',
+        );
+      continue;
+    }
     const id = object(fields[change.address]).id;
     if (typeof id !== 'string' || !id) throw new Error('Azure Terraform teardown resource ID is unavailable');
     if (localTypes.has(change.type)) continue;

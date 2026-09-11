@@ -6,6 +6,7 @@ import type { AzureCePlan } from './types';
 export const AZURE_CE_TERRAFORM_VERSION = '1.16.1';
 export const AZURE_CE_TERRAFORM_PROVIDER_VERSION = '5.4.0';
 export const AZURE_CE_TLS_PROVIDER_VERSION = '4.4.0';
+export const AZURE_CE_AZAPI_PROVIDER_VERSION = '2.12.0';
 type Json = Record<string, unknown>;
 const ref = (address: string) => `\${${address}}`;
 const literal = (value: string) => value.replaceAll('${', '$${').replaceAll('%{', '%%{');
@@ -33,7 +34,6 @@ export function renderAzureTerraformFoundation(
     throw new Error('Azure Terraform foundation requires greenfield networking and public-ip egress');
   if (plan.subscription.cloud !== 'AzureCloud')
     throw new Error('Azure Terraform foundation cloud environment requires explicit translation');
-  if (!plan.image.termsAccepted) throw new Error('Azure Marketplace terms remain unaccepted');
   if (!plan.actions.some((action) => action.kind === 'resource-group-create'))
     throw new Error('Azure Terraform foundation requires a newly planned resource group');
   const admitted = Object.keys(bootstrapByNode);
@@ -60,6 +60,23 @@ export function renderAzureTerraformFoundation(
     location: plan.region,
     tags: tags(),
   });
+  const marketplaceTermsRequired = !plan.image.termsAccepted;
+  if (marketplaceTermsRequired) {
+    const resourceId = [
+      `/subscriptions/${plan.subscription.id}`,
+      'providers/Microsoft.MarketplaceOrdering',
+      `agreements/${plan.image.publisher}`,
+      `offers/${plan.image.offer}`,
+      `plans/${plan.image.plan}`,
+    ].join('/');
+    add('azapi_resource_action', 'marketplace_terms', {
+      type: 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01',
+      resource_id: literal(resourceId),
+      action: 'sign',
+      method: 'POST',
+      when: 'apply',
+    });
+  }
   const group = ref('azurerm_resource_group.ce.name');
   const subnets = plan.actions.filter((action) => action.kind === 'subnet-create');
   const subnetRefs = new Map<string, string>();
@@ -234,16 +251,20 @@ export function renderAzureTerraformFoundation(
       boot_diagnostics: [{}],
       custom_data: Buffer.from(bootstrap).toString('base64'),
       tags: tags(node),
-      ...(plan.securityRules.length
-        ? {
-            depends_on: [
-              ...plan.nics.map(
-                (nic) => `azurerm_network_interface_security_group_association.node_${node}_nic_${nic.index}`,
-              ),
-              ...plan.securityRules.map((_, index) => `azurerm_network_security_rule.rule_${index}`),
-            ],
-          }
-        : {}),
+      ...(() => {
+        const dependsOn = [
+          ...(marketplaceTermsRequired ? ['azapi_resource_action.marketplace_terms'] : []),
+          ...(plan.securityRules.length
+            ? [
+                ...plan.nics.map(
+                  (nic) => `azurerm_network_interface_security_group_association.node_${node}_nic_${nic.index}`,
+                ),
+                ...plan.securityRules.map((_, index) => `azurerm_network_security_rule.rule_${index}`),
+              ]
+            : []),
+        ];
+        return dependsOn.length ? { depends_on: dependsOn } : {};
+      })(),
     });
     instanceOutputs[String(node)] = {
       id: ref(`azurerm_linux_virtual_machine.node_${node}.id`),
@@ -258,6 +279,7 @@ export function renderAzureTerraformFoundation(
       required_providers: {
         azurerm: { source: 'hashicorp/azurerm', version: `= ${AZURE_CE_TERRAFORM_PROVIDER_VERSION}` },
         tls: { source: 'hashicorp/tls', version: `= ${AZURE_CE_TLS_PROVIDER_VERSION}` },
+        azapi: { source: 'Azure/azapi', version: `= ${AZURE_CE_AZAPI_PROVIDER_VERSION}` },
       },
     },
     provider: {
@@ -268,6 +290,7 @@ export function renderAzureTerraformFoundation(
         environment: 'public',
         resource_provider_registrations: 'none',
       },
+      azapi: { subscription_id: plan.subscription.id, tenant_id: plan.subscription.tenantId },
     },
     resource,
     output: {
@@ -339,6 +362,7 @@ export async function azureTerraformCurrentDeployment(plan: AzureCePlan): Promis
         required_providers: {
           azurerm: { source: 'hashicorp/azurerm', version: `= ${AZURE_CE_TERRAFORM_PROVIDER_VERSION}` },
           tls: { source: 'hashicorp/tls', version: `= ${AZURE_CE_TLS_PROVIDER_VERSION}` },
+          azapi: { source: 'Azure/azapi', version: `= ${AZURE_CE_AZAPI_PROVIDER_VERSION}` },
         },
       },
       provider: {
@@ -350,6 +374,7 @@ export async function azureTerraformCurrentDeployment(plan: AzureCePlan): Promis
           resource_provider_registrations: 'none',
         },
       },
+      azapi: { subscription_id: plan.subscription.id, tenant_id: plan.subscription.tenantId },
     }),
     providerLock,
     backendIdentity: `local:${plan.deploymentName}`,

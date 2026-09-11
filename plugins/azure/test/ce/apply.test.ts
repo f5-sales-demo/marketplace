@@ -8,12 +8,28 @@ import {
 import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import { fingerprintCurrentObservation } from '../../src/ce/recovery';
-import { assertAzureTerraformApplyOperation } from '../../src/ce/terraform-apply';
+import {
+  assertAzureTerraformApplyOperation,
+  reconcileAzureTerraformMarketplaceTermsAcceptance,
+} from '../../src/ce/terraform-apply';
 import type { AzureCeAction } from '../../src/ce/types';
 import { intent, observation, sharedContractUrl, subscriptionId } from './fixtures';
 
 describe('Azure CE apply protections', () => {
   const plan = compileAzureCePlan(intent, observation);
+
+  it('rebinds only the exact initial Terraform Marketplace acceptance observation', () => {
+    const terraformPlan = compileAzureCePlan(
+      { ...intent, engine: 'terraform' },
+      { ...observation, image: { ...observation.image, termsAccepted: false } },
+    );
+    const accepted = structuredClone(observation);
+    expect(reconcileAzureTerraformMarketplaceTermsAcceptance(terraformPlan, accepted)).toMatch(/^[a-f0-9]{64}$/);
+    accepted.image.offer = 'foreign-offer';
+    expect(() => reconcileAzureTerraformMarketplaceTermsAcceptance(terraformPlan, accepted)).toThrow(
+      /Stale Azure CE plan/,
+    );
+  });
 
   for (const kind of ['vm-start', 'vm-stop', 'vm-deallocate', 'vm-resize', 'vm-delete', 'route-create'] as const) {
     it(`rejects ${kind} without a canonical target before cloud access`, async () => {
