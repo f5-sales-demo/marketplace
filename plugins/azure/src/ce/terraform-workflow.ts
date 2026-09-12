@@ -257,6 +257,7 @@ export async function runAzureTerraformAdmission(
     signal,
   );
   const current = await runtime.observeRegistrations(binding, expectedInstances as Record<string, string>, signal);
+  await storage.write('terraform-registration-observation.json', current);
   checkpoint.stage =
     configuration.status === 'configured' && current.status === 'healthy' ? 'registered' : 'registration-pending';
   await save();
