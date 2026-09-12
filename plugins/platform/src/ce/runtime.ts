@@ -551,12 +551,16 @@ export class CeRuntime {
       logs_streaming_disabled: {},
       ...(advertisedRoutes.length
         ? {
-            static_routes: {
-              static_routes: advertisedRoutes.map((ip_prefixes) => ({
-                ip_prefixes: [ip_prefixes],
-                default_gateway: {},
-                attrs: ['ROUTE_ATTR_ADVERTISE', 'ROUTE_ATTR_INSTALL_FORWARDING'],
-              })),
+            local_vrf: {
+              slo_config: {
+                static_routes: {
+                  static_routes: advertisedRoutes.map((ip_prefixes) => ({
+                    ip_prefixes: [ip_prefixes],
+                    default_gateway: {},
+                    attrs: ['ROUTE_ATTR_ADVERTISE', 'ROUTE_ATTR_INSTALL_FORWARDING'],
+                  })),
+                },
+              },
             },
           }
         : {}),

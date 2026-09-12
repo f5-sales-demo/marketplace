@@ -768,6 +768,49 @@ test('pins the initial software and OS before bootstrap for either owning engine
   }
 });
 
+test('reserves an Azure Route Server prefix through the schema-valid SLO local VRF', async () => {
+  const { contract } = await candidate();
+  const azure: SiteBinding = {
+    ...binding,
+    owner: {
+      ...binding.owner,
+      engine: 'terraform',
+      provider: 'azure',
+      account: 'demo-subscription',
+      region: 'australiacentral',
+    },
+  };
+  let site: unknown;
+  const runtime = new CeRuntime(contract, 'terraform', 'https://tenant.test', 'test-credential', async (_url, init) => {
+    if (init?.method === 'POST') {
+      site = { ...JSON.parse(String(init.body)), system_metadata: { uid: 'azure-site-uid' } };
+      return json({});
+    }
+    return site ? json(site) : json({}, 404);
+  });
+
+  await runtime.reserveSite(azure, async () => {}, undefined, ['10.253.0.0/24']);
+
+  expect(site).toMatchObject({
+    spec: {
+      local_vrf: {
+        slo_config: {
+          static_routes: {
+            static_routes: [
+              {
+                ip_prefixes: ['10.253.0.0/24'],
+                default_gateway: {},
+                attrs: ['ROUTE_ATTR_ADVERTISE', 'ROUTE_ATTR_INSTALL_FORWARDING'],
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
+  expect(site).not.toHaveProperty('spec.static_routes');
+});
+
 test('rejects unresolved initial version pairs before contacting the API', async () => {
   const { contract } = await candidate();
   let calls = 0;
