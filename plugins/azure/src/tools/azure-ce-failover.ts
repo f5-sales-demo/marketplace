@@ -76,6 +76,8 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
           throw new Error(`Azure CE failover ${params.operation} parameters differ`);
         const { plan } = await loadPlanArtifact(ctx.sessionManager, params.basePlanId, params.basePlanSha256);
         const platform = await dependencies.platform(pi, signal);
+        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
+        if (plan.routing.mode === 'route-server') runtime.requireRoutingContract('azure');
         const storage = await platform.storage(azureFailoverOwner(plan));
         const api = withAzureCeExecution(dependencies.makeApi(ctx.cwd), signal);
         if (params.operation === 'prepare') {
@@ -149,7 +151,6 @@ export function createAzureCeFailoverTool(pi: PluginInterface, dependencies: Dep
           await storage.write(authorizationName, expectedAuthorization);
         } else if (canonicalSha256(authorization) !== canonicalSha256(expectedAuthorization))
           throw new Error('Persisted Azure CE failover authorization differs');
-        const runtime = await platform.runtime(plan.engine, plan.intent.platformContext);
         const observe = (currentSignal?: AbortSignal) =>
           observeAzureFailoverVmState(plan, failover, api, currentSignal);
         const collect = (phase: 'baseline' | 'outage' | 'recovered', currentSignal?: AbortSignal) =>

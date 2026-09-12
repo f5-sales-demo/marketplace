@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 type Json = Record<string, unknown>;
 export type PublishedApiFetcher = (url: string, init?: RequestInit) => Promise<Response>;
 const repository = 'f5-sales-demo/api-specs-enriched';
-const tag = 'v6.1.2';
-const commit = 'a5fa987f876db955666bd94fefed35f283bb5364';
-const digest = 'sha256:66f3c819e6c1cdc96dadcee513cf0b5af74b70b5d603d28f70578e6f206cfef7';
+const tag = 'v7.0.1';
+const commit = '2513fe498149c98fb737ff2ab207704b8a86fec6';
+const digest = 'sha256:48863c0a2e6c6a6fde050f4f8f5a6966b02872851fa1acb7830f26ef2e143cd9';
 const assetUrl = `https://github.com/${repository}/releases/download/${tag}/openapi.json`;
 function object(value: unknown): Json {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed CE API contract');
@@ -54,7 +54,7 @@ export async function loadPublishedCeApi(fetcher: PublishedApiFetcher = fetch, s
     typeof release.body === 'string' ? [...release.body.matchAll(/^<!-- publication-receipt:(.+) -->$/gm)] : [];
   if (matches.length !== 1) throw new Error('CE API publication receipt is missing or ambiguous');
   const receipt = parse(Buffer.from(matches[0][1]));
-  if (receipt.commit !== commit || receipt.version !== '6.1.2' || object(receipt.assets)['openapi.json'] !== digest)
+  if (receipt.commit !== commit || receipt.version !== '7.0.1' || object(receipt.assets)['openapi.json'] !== digest)
     throw new Error('CE API publication receipt differs from the pinned contract');
   const assets = Array.isArray(release.assets)
     ? release.assets.map(object).filter((asset) => asset.name === 'openapi.json')

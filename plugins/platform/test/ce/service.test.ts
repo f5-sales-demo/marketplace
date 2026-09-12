@@ -13,14 +13,19 @@ describe('CE platform service environment', () => {
     );
   });
 
-  it('recognizes the XCSH environment namespace before loading the pinned contract', async () => {
-    const service = createCePlatformService({
-      XCSH_API_URL: 'https://tenant.example.test',
-      XCSH_API_TOKEN: 'test-token',
-    });
-
-    await expect(service.runtime('native')).rejects.toThrow(
-      'Corrected CE contract publication is pending; local acceptance requires a pinned candidate',
+  it('uses the published contract loader without a local contract environment', async () => {
+    const service = createCePlatformService(
+      {
+        XCSH_API_URL: 'https://tenant.example.test',
+        XCSH_API_TOKEN: 'test-token',
+        LEGACY_LOCAL_CONTRACT_DIR: '/must-not-be-read',
+        LEGACY_LOCAL_CONTRACT_SHA256: 'sha256:must-not-be-read',
+      },
+      async () => {
+        throw new Error('published release loader called');
+      },
     );
+
+    await expect(service.runtime('native')).rejects.toThrow('published release loader called');
   });
 });

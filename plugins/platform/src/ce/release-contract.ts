@@ -2,8 +2,8 @@ import { loadPublishedCeApi } from './verified-api-release';
 
 type Json = Record<string, unknown>;
 export interface Smsv2PublishedSchemaContract {
-  release: 'v6.1.2';
-  identity: 'f5xc-published-api-schema/v6.1.2';
+  release: 'v7.0.1';
+  identity: 'f5xc-published-api-schema/v7.0.1';
   namespace: 'system';
   createPath: '/api/config/namespaces/{metadata.namespace}/securemesh_site_v2s';
   replacePath: '/api/config/namespaces/{metadata.namespace}/securemesh_site_v2s/{metadata.name}';
@@ -88,8 +88,8 @@ export async function resolveSmsv2PublishedSchemaContract(
   )
     throw new Error('Published CE API schema request/response mapping is unsupported');
   return {
-    release: 'v6.1.2',
-    identity: 'f5xc-published-api-schema/v6.1.2',
+    release: 'v7.0.1',
+    identity: 'f5xc-published-api-schema/v7.0.1',
     namespace: 'system',
     createPath,
     replacePath,

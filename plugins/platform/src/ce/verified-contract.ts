@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { projectReplaceSnapshot } from './wire-replace';
 import {
   type AwsGreBinding,
@@ -16,6 +17,18 @@ type Json = Record<string, unknown>;
 const hash = (bytes: Uint8Array) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 const commitPattern = /^[0-9a-f]{40}$/;
 const digestPattern = /^sha256:[0-9a-f]{64}$/;
+export interface AzureRouteServerEbgpMultihopCapability {
+  availability: 'unavailable';
+  enforcement: 'reject_before_mutation';
+  reason: 'no_schema_valid_ebgp_multihop_request_control';
+  source: {
+    repository: 'f5-sales-demo/api-specs-enriched';
+    commit: string;
+    asset_path: 'docs/specifications/api/network.json';
+    asset_sha256: string;
+    schema_paths: string[];
+  };
+}
 function object(value: unknown): Json {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid verified CE contract');
   return value as Json;
@@ -28,10 +41,16 @@ function parse(bytes: Uint8Array): Json {
   }
 }
 const files = ['smsv2-contract.json', 'smsv2-contract-manifest.json', 'smsv2-evidence-receipt.json', 'sites.json'];
+const publishedAssets = Object.freeze({
+  'smsv2-contract.json': 'sha256:3602ecd09b744449f1bf036c42e10e8be7133f6073e5d1553edb49e46cd2429c',
+  'smsv2-contract-manifest.json': 'sha256:75899912ef4c0d243caca5b466d2e8a467d541e7721c8abefd19c890d88d9a07',
+  'smsv2-evidence-receipt.json': 'sha256:4e90ee602aa6b00c78f7034691b36ef3d439d5f6ee12bf321c29dca6b0d53a8c',
+});
+const publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v7.0.1';
 
 /** Candidate admission is for local acceptance only. It does not assert public release or live parity. */
 export class VerifiedCeContract {
-  readonly publication = 'local-candidate' as const;
+  readonly publication: 'local-candidate' | 'published-release';
   readonly #contract: Json;
   readonly #schemas: Json;
   readonly #validate: (spec: unknown) => void;
@@ -43,7 +62,9 @@ export class VerifiedCeContract {
     contract: Json,
     schemas: Json,
     networking?: { network: Json; marketplace: Json },
+    publication: 'local-candidate' | 'published-release' = 'local-candidate',
   ) {
+    this.publication = publication;
     this.#contract = contract;
     this.#schemas = schemas;
     this.#validate = createWireValidator(schemas);
@@ -128,6 +149,42 @@ export class VerifiedCeContract {
     }
     return new VerifiedCeContract(receipt.commit, expectedReceiptSha256, contract, schemas, networking);
   }
+  static async published(fetcher: PublishedApiFetcher = fetch, signal?: AbortSignal): Promise<VerifiedCeContract> {
+    const api = await loadPublishedCeApi(fetcher, signal);
+    const read = async (name: keyof typeof publishedAssets): Promise<Json> => {
+      const response = await fetcher(`${publishedBase}/${name}`, { signal });
+      if (!response.ok) throw new Error('Published SMSv2 contract asset download failed');
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (hash(bytes) !== publishedAssets[name]) throw new Error('Published SMSv2 contract asset checksum mismatch');
+      return parse(bytes);
+    };
+    const [contract, manifest, evidence] = await Promise.all([
+      read('smsv2-contract.json'),
+      read('smsv2-contract-manifest.json'),
+      read('smsv2-evidence-receipt.json'),
+    ]);
+    const release = object(manifest.release);
+    const bindings = object(manifest.assets);
+    if (
+      manifest.schema_version !== 1 ||
+      release.commit !== '2513fe498149c98fb737ff2ab207704b8a86fec6' ||
+      contract.contract_id !== 'f5xc-smsv2-api/v1' ||
+      contract.version !== '7.0.0' ||
+      evidence.contract_id !== contract.contract_id ||
+      bindings['smsv2-contract.json'] !== publishedAssets['smsv2-contract.json'] ||
+      bindings['smsv2-evidence-receipt.json'] !== publishedAssets['smsv2-evidence-receipt.json']
+    )
+      throw new Error('Published SMSv2 contract binding is invalid');
+    const schemas = object(object(api.components).schemas);
+    return new VerifiedCeContract(
+      '2513fe498149c98fb737ff2ab207704b8a86fec6',
+      publishedAssets['smsv2-contract-manifest.json'],
+      contract,
+      schemas,
+      { network: schemas, marketplace: schemas },
+      'published-release',
+    );
+  }
   get awsRoutingAvailable(): boolean {
     return this.#routing !== undefined;
   }
@@ -176,10 +233,47 @@ export class VerifiedCeContract {
     this.#routing(kind, spec);
   }
   requireRoutingContract(providerName: 'aws' | 'azure'): void {
+    if (providerName === 'azure') this.requireAzureRouteServerEbgpMultihop();
     if (!this.#routing) throw new Error('Pinned CE routing schemas are unavailable');
     this.configurationPath(providerName, 'contract-check');
     this.bgpPeersPath(providerName, 'contract-check');
     this.bgpRoutesPath(providerName, 'contract-check');
+  }
+  azureRouteServerEbgpMultihop(): AzureRouteServerEbgpMultihopCapability {
+    const azure = object(object(this.#contract.providers).azure);
+    const capability = object(azure.route_server_ebgp_multihop);
+    const source = object(capability.source);
+    const schemaPaths = source.schema_paths;
+    if (
+      capability.availability !== 'unavailable' ||
+      capability.enforcement !== 'reject_before_mutation' ||
+      capability.reason !== 'no_schema_valid_ebgp_multihop_request_control' ||
+      source.repository !== 'f5-sales-demo/api-specs-enriched' ||
+      typeof source.commit !== 'string' ||
+      !commitPattern.test(source.commit) ||
+      source.asset_path !== 'docs/specifications/api/network.json' ||
+      typeof source.asset_sha256 !== 'string' ||
+      !digestPattern.test(source.asset_sha256) ||
+      !Array.isArray(schemaPaths) ||
+      !schemaPaths.every((path) => typeof path === 'string')
+    )
+      throw new Error('Azure Route Server eBGP multihop capability contract is unavailable');
+    return {
+      availability: 'unavailable',
+      enforcement: 'reject_before_mutation',
+      reason: 'no_schema_valid_ebgp_multihop_request_control',
+      source: {
+        repository: 'f5-sales-demo/api-specs-enriched',
+        commit: source.commit,
+        asset_path: 'docs/specifications/api/network.json',
+        asset_sha256: source.asset_sha256,
+        schema_paths: [...schemaPaths],
+      },
+    };
+  }
+  requireAzureRouteServerEbgpMultihop(): never {
+    const capability = this.azureRouteServerEbgpMultihop();
+    throw new Error(`Azure Route Server eBGP multihop is ${capability.availability}: ${capability.reason}`);
   }
   configurationPath(providerName: 'aws' | 'azure', siteName: string): string {
     const provider = object(object(this.#contract.providers)[providerName]);

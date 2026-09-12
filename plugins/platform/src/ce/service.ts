@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CeDeploymentStore } from './deployment-store';
 import { type CeOwner, CeRuntime } from './runtime';
-import { VerifiedCeContract } from './verified-contract';
+import { type AzureRouteServerEbgpMultihopCapability, VerifiedCeContract } from './verified-contract';
 
 export const CE_SERVICE_CHANNEL = 'xcsh:ce-platform:v2:service';
 export interface CeEventBus {
@@ -17,6 +17,7 @@ export interface CeCapabilityEvidence {
   bootstrapDrivers: Array<'api'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
+  azureRouteServerEbgpMultihop: AzureRouteServerEbgpMultihopCapability;
   source: 'verified-api-contract';
   contractFingerprint: string;
   contractCommit: string;
@@ -30,6 +31,7 @@ export interface CePlatformService {
   capabilities(contextName?: string): Promise<CeCapabilityEvidence>;
   runtime(engine: 'native' | 'terraform', contextName?: string): Promise<CeRuntime>;
 }
+export type PublishedCeContractLoader = () => Promise<VerifiedCeContract>;
 async function context(
   env: Record<string, string | undefined>,
   contextName?: string,
@@ -52,16 +54,13 @@ async function context(
   if (!url || !credential) throw new Error('Select an F5 context or provide its scoped API environment');
   return { url, credential };
 }
-export function createCePlatformService(env: Record<string, string | undefined> = process.env): CePlatformService {
+export function createCePlatformService(
+  env: Record<string, string | undefined> = process.env,
+  loadPublishedContract: PublishedCeContractLoader = () => VerifiedCeContract.published(),
+): CePlatformService {
   let loaded: Promise<VerifiedCeContract> | undefined;
   const contract = () => {
-    if (!loaded) {
-      const directory = env.XCSH_CE_CONTRACT_CANDIDATE_DIR;
-      const digest = env.XCSH_CE_CONTRACT_CANDIDATE_SHA256;
-      if (!directory || !digest)
-        throw new Error('Corrected CE contract publication is pending; local acceptance requires a pinned candidate');
-      loaded = VerifiedCeContract.candidate(directory, digest);
-    }
+    if (!loaded) loaded = loadPublishedContract();
     return loaded;
   };
   return {
@@ -79,8 +78,9 @@ export function createCePlatformService(env: Record<string, string | undefined> 
       if (!origin.startsWith('https://')) throw new Error('F5 context must use HTTPS');
       const aws = artifact.provider('aws');
       const capabilities = aws.capabilities as Record<string, unknown>;
+      const azureRouteServerEbgpMultihop = artifact.azureRouteServerEbgpMultihop();
       return {
-        contractIdentity: 'f5xc-smsv2-api/v1@7.0.0-local-candidate',
+        contractIdentity: 'f5xc-smsv2-api/v1@7.0.0',
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],
@@ -92,6 +92,7 @@ export function createCePlatformService(env: Record<string, string | undefined> 
           supported: capabilities.tgw_connect === 'available',
           schemaVersion: 'f5xc-smsv2-aws-tgw-telemetry/v2',
         },
+        azureRouteServerEbgpMultihop,
         source: 'verified-api-contract',
         contractFingerprint: artifact.fingerprint,
         contractCommit: artifact.commit,

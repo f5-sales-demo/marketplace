@@ -340,17 +340,18 @@ test('verified API bootstrap capability admits AWS and Azure without making a re
   expect(() => runtime.requireBootstrapContract('azure')).not.toThrow();
   expect(requests).toBe(0);
 });
-test('Azure routing capability requires both pinned request schemas and runtime observation mappings', async () => {
+test('Azure Route Server multihop rejects before any runtime request', async () => {
   const withoutSchemas = await candidate();
-  expect(() => withoutSchemas.contract.requireRoutingContract('azure')).toThrow('unavailable');
+  expect(() => withoutSchemas.contract.requireRoutingContract('azure')).toThrow(
+    'no_schema_valid_ebgp_multihop_request_control',
+  );
   const complete = await candidate(true);
-  expect(() => complete.contract.requireRoutingContract('azure')).not.toThrow();
   let requests = 0;
   const runtime = new CeRuntime(complete.contract, 'native', 'https://tenant.test', 'test-credential', async () => {
     requests++;
     return json({});
   });
-  expect(() => runtime.requireRoutingContract('azure')).not.toThrow();
+  expect(() => runtime.requireRoutingContract('azure')).toThrow('no_schema_valid_ebgp_multihop_request_control');
   expect(requests).toBe(0);
 });
 test('Azure routing capability rejects altered configuration, peer, and route mappings', async () => {
@@ -590,7 +591,7 @@ test('creates schema-validated routing objects in order and resumes lost respons
   ).toEqual(['site-uid', 'site-uid', 'site-uid']);
 });
 
-test('creates Azure Route Server BGP from observed SLO objects and reconciles a lost response', async () => {
+test('Azure Route Server BGP rejects before any F5 request while multihop is unavailable', async () => {
   const { contract } = await candidate(true);
   const azureBinding: SiteBinding = {
     owner: {
@@ -679,46 +680,10 @@ test('creates Azure Route Server BGP from observed SLO objects and reconciles a 
       ['10.20.0.4', '10.20.0.5'],
       checkpoint,
     );
-  await expect(
-    run(async () => {
-      throw new Error('checkpoint interrupted');
-    }),
-  ).rejects.toThrow('checkpoint interrupted');
-  await run();
-  await run();
-  expect(posts).toBe(1);
-  expect(saved).toMatchObject({
-    localAsn: 65010,
-    remoteAsn: 65515,
-    interfaces: [{ node: 'node-one', interfaceName: 'observed-slo-one' }],
-    expectedSessions: 2,
-    routeServerAddresses: ['10.20.0.4', '10.20.0.5'],
-  });
-  expect(bgp).toMatchObject({
-    metadata: {
-      labels: {
-        'xcsh-ce-site': 'ce-one',
-        'xcsh-ce-site-uid': 'azure-site-uid',
-      },
-    },
-    spec: {
-      where: { site: { network_type: 'VIRTUAL_NETWORK_SITE_LOCAL', disable_internet_vip: {} } },
-      peers: [
-        { external: { address: '10.20.0.4', interface: { name: 'observed-slo-one', namespace: 'system' } } },
-        { external: { address: '10.20.0.5', interface: { name: 'observed-slo-one', namespace: 'system' } } },
-      ],
-    },
-  });
-  await expect(
-    runtime.observeBgpSessions(azureBinding, [
-      { node: 'node-one', interfaceName: 'observed-slo-one', peerAddress: '10.20.0.4' },
-      { node: 'node-one', interfaceName: 'observed-slo-one', peerAddress: '10.20.0.5' },
-    ]),
-  ).resolves.toMatchObject({ status: 'healthy', establishedSessions: 2, expectedSessions: 2 });
-  await expect(runtime.observeBgpRoutes(azureBinding)).resolves.toMatchObject({
-    status: 'observed',
-    nodes: [{ node: 'node-one', routingInstances: [{ tables: [{ exported: ['10.250.0.10/32'] }] }] }],
-  });
+  await expect(run()).rejects.toThrow('no_schema_valid_ebgp_multihop_request_control');
+  expect(posts).toBe(0);
+  expect(bgp).toBeUndefined();
+  expect(saved).toBeUndefined();
 });
 
 test('AWS configured creation rejects missing observed devices before any API request', async () => {

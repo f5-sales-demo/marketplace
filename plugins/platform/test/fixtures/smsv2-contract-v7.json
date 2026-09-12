@@ -373,6 +373,22 @@
     },
     "azure": {
       "availability": "evidence_backed",
+      "route_server_ebgp_multihop": {
+        "availability": "unavailable",
+        "enforcement": "reject_before_mutation",
+        "reason": "no_schema_valid_ebgp_multihop_request_control",
+        "source": {
+          "repository": "f5-sales-demo/api-specs-enriched",
+          "commit": "322c202ed49c8cfcd5015a524f3195bbd2a8f2bc",
+          "asset_path": "docs/specifications/api/network.json",
+          "asset_sha256": "sha256:a7398d85475409c93750a04ccdec7c0b1a7ae12bc362ebfbc76866275904762a",
+          "schema_paths": [
+            "components.schemas.bgpPeer",
+            "components.schemas.bgpPeerExternal",
+            "components.schemas.bgpBgpParameters"
+          ]
+        }
+      },
       "bootstrap": {
         "api_verification": {
           "receipt_path": "config/evidence/azure-bootstrap-api-20260908.json",
