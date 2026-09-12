@@ -93,6 +93,13 @@ test('resolves Azure interfaces from the Azure site branch without constructing 
   });
 });
 
+test('accepts the platform default MTU sentinel when configuration and realized evidence agree', () => {
+  const f = fixture();
+  f.configuration.spec.aws.not_managed.node_list[0].interface_list[0].mtu = 0;
+  f.objects.items[0].get_spec.ethernet_interface.mtu = 0;
+  expect(correlateCeInterfaces(f.configuration, f.objects, f.physical, f.expected)[0].mtu).toBe(0);
+});
+
 test('collects IPv4 only from the correlated active physical interface', () => {
   const f = sitePublisherFixture();
   const link = f.physical.status[0].ver_status.intf_status[0];

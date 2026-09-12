@@ -84,7 +84,11 @@ export function correlateCeInterfaces(
         const network = object(iface.network_option);
         const slo = Object.hasOwn(network, 'site_local_network');
         const sli = Object.hasOwn(network, 'site_local_inside_network');
-        if (slo === sli || !Number.isInteger(iface.mtu) || Number(iface.mtu) < 576 || Number(iface.mtu) > 9000)
+        if (
+          slo === sli ||
+          !Number.isInteger(iface.mtu) ||
+          (Number(iface.mtu) !== 0 && (Number(iface.mtu) < 576 || Number(iface.mtu) > 9000))
+        )
           throw new Error('Ambiguous interface role or MTU');
         return {
           node: hostname,
