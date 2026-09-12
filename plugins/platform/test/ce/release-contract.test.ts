@@ -50,10 +50,10 @@ const fixture = () => ({
 });
 
 describe('published SMSv2 schema resolver', () => {
-  it('separates immutable v6.1.2 schema support from unavailable executable capabilities', async () => {
+  it('separates immutable v7.0.1 schema support from unavailable executable capabilities', async () => {
     await expect(resolveSmsv2PublishedSchemaContract(async () => fixture())).resolves.toEqual({
-      release: 'v6.1.2',
-      identity: 'f5xc-published-api-schema/v6.1.2',
+      release: 'v7.0.1',
+      identity: 'f5xc-published-api-schema/v7.0.1',
       namespace: 'system',
       createPath: '/api/config/namespaces/{metadata.namespace}/securemesh_site_v2s',
       replacePath: '/api/config/namespaces/{metadata.namespace}/securemesh_site_v2s/{metadata.name}',
