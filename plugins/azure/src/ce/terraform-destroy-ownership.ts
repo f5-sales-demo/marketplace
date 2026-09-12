@@ -19,7 +19,7 @@ const cloudTypes = new Set([
 ]);
 const localTypes = new Set(['tls_private_key']);
 const marketplaceTermsAddress = 'azapi_resource_action.marketplace_terms';
-const marketplaceTermsType = 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01';
+const marketplaceTermsType = 'Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01';
 const object = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Malformed Azure Terraform teardown identity');
@@ -137,7 +137,7 @@ export async function verifyAzureTerraformDestroyOwnership(
     ? Object.fromEntries(
         receipt.changes.map((change) => [
           change.address,
-          change.type === 'azapi_resource_action' ? ['resource_id', 'type', 'action', 'method', 'when'] : ['id'],
+          change.type === 'azapi_resource_action' ? ['resource_id', 'type', 'method', 'when'] : ['id'],
         ]),
       )
     : { 'azurerm_resource_group.ce': ['id'] };
@@ -155,15 +155,16 @@ export async function verifyAzureTerraformDestroyOwnership(
       const expectedResourceId = [
         `/subscriptions/${plan.subscription.id}`,
         'providers/Microsoft.MarketplaceOrdering',
-        `agreements/${plan.image.publisher}`,
+        'offerTypes/virtualmachine',
+        `publishers/${plan.image.publisher}`,
         `offers/${plan.image.offer}`,
         `plans/${plan.image.plan}`,
+        'agreements/current',
       ].join('/');
       if (
         lower(terms.resource_id) !== lower(expectedResourceId) ||
         terms.type !== marketplaceTermsType ||
-        terms.action !== 'sign' ||
-        terms.method !== 'POST' ||
+        terms.method !== 'PUT' ||
         terms.when !== 'apply'
       )
         throw new Error(

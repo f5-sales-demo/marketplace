@@ -43,9 +43,14 @@ export function renderAzureTerraformFoundation(
   if (admitted.some((node, index) => Number(node) !== index + 1))
     throw new Error('Azure Terraform nodes must be admitted in order');
   const resource: Record<string, Record<string, Json>> = {};
+  const data: Record<string, Record<string, Json>> = {};
   const add = (type: string, name: string, value: Json) => {
     resource[type] ??= {};
     resource[type][name] = value;
+  };
+  const addData = (type: string, name: string, value: Json) => {
+    data[type] ??= {};
+    data[type][name] = value;
   };
   const tags = (node?: number, index?: number) => ({
     'xcsh-managed-by': 'azure-ce',
@@ -56,28 +61,60 @@ export function renderAzureTerraformFoundation(
     ...(node ? { 'xcsh-node-index': String(node) } : {}),
     ...(index !== undefined ? { 'xcsh-interface-index': String(index) } : {}),
   });
-  add('azurerm_resource_group', 'ce', {
-    name: literal(plan.intent.resourceGroup),
-    location: plan.region,
-    tags: tags(),
-  });
   const marketplaceTermsRequired = !plan.image.termsAccepted;
   if (marketplaceTermsRequired) {
     const resourceId = [
       `/subscriptions/${plan.subscription.id}`,
       'providers/Microsoft.MarketplaceOrdering',
-      `agreements/${plan.image.publisher}`,
+      'offerTypes/virtualmachine',
+      `publishers/${plan.image.publisher}`,
       `offers/${plan.image.offer}`,
       `plans/${plan.image.plan}`,
+      'agreements/current',
     ].join('/');
-    add('azapi_resource_action', 'marketplace_terms', {
-      type: 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01',
+    const type = 'Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01';
+    const properties = 'data.azapi_resource.marketplace_terms.output.properties';
+    const property = (name: string) => `try(${properties}.${name}, "")`;
+    addData('azapi_resource', 'marketplace_terms', {
+      type,
       resource_id: literal(resourceId),
-      action: 'sign',
-      method: 'POST',
+      response_export_values: ['properties'],
+    });
+    add('azapi_resource_action', 'marketplace_terms', {
+      type,
+      resource_id: literal(resourceId),
+      method: 'PUT',
       when: 'apply',
+      body: ref(
+        `merge(data.azapi_resource.marketplace_terms.output, { properties = merge(${properties}, { accepted = true }) })`,
+      ),
+      lifecycle: {
+        precondition: [
+          {
+            condition: ref(
+              [
+                `try(${properties}.accepted, null) == false`,
+                `lower(${property('publisher')}) == lower(${JSON.stringify(plan.image.publisher)})`,
+                `lower(${property('product')}) == lower(${JSON.stringify(plan.image.offer)})`,
+                `lower(${property('plan')}) == lower(${JSON.stringify(plan.image.plan)})`,
+                `length(${property('licenseTextLink')}) > 0`,
+                `length(${property('marketplaceTermsLink')}) > 0`,
+                `length(${property('privacyPolicyLink')}) > 0`,
+                `length(${property('signature')}) > 0`,
+              ].join(' && '),
+            ),
+            error_message: 'Live Azure Marketplace agreement differs from the immutable unaccepted plan',
+          },
+        ],
+      },
     });
   }
+  add('azurerm_resource_group', 'ce', {
+    name: literal(plan.intent.resourceGroup),
+    location: plan.region,
+    tags: tags(),
+    ...(marketplaceTermsRequired ? { depends_on: ['azapi_resource_action.marketplace_terms'] } : {}),
+  });
   const group = ref('azurerm_resource_group.ce.name');
   const fixture = plan.intent.workloadFixture;
   const subnets = plan.actions.filter((action) => action.kind === 'subnet-create');
@@ -348,6 +385,7 @@ export function renderAzureTerraformFoundation(
       },
       azapi: { subscription_id: plan.subscription.id, tenant_id: plan.subscription.tenantId },
     },
+    ...(Object.keys(data).length ? { data } : {}),
     resource,
     output: {
       ce_interfaces: { value: interfaceOutputs },

@@ -12,7 +12,7 @@ and this project adheres to
 
 - **`sales-engineer`** bumped to v1.0.11
 
-- **`azure`** bumped to v4.3.40
+- **`azure`** bumped to v4.3.41
 
 - **`aws`** bumped to v2.0.75
 

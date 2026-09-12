@@ -11,10 +11,11 @@ and records its normalized SHA-256. This reference adds only Azure-specific requ
   list-publishers`, `list-offers`, `list-skus`, and `list`. User-supplied values are
   constraints and must still be observed live. Reject `latest`.
 - Validate Marketplace terms for the authenticated subscription. For an initial Terraform
-  deployment of the exact live-discovered F5 XC image only, Terraform signs the corresponding
-  Marketplace agreement during apply before VM admission. Never use a CLI shell-out, mask a
-  failure, accept a caller-supplied offer, or cancel the subscription-level agreement on teardown.
-  Native deploys and Terraform replace/repair remain fail-closed until terms are accepted.
+  deployment of the exact live-discovered F5 XC image only, Terraform reads the current agreement
+  and idempotently writes `accepted=true` during apply before creating the foundation. Never use a
+  CLI shell-out, mask a failure, accept a caller-supplied offer, or cancel the subscription-level
+  agreement on teardown. Native deploys and Terraform replace/repair remain fail-closed until terms
+  are accepted.
 - Enumerate subscription-aware VM SKU restrictions, NIC limits, zones, regional vCPU
   quota, Azure Policy denies, and image availability. Require at least 8 vCPUs, 32 GB
   memory, an 80 GB OS disk, and support for every requested NIC.

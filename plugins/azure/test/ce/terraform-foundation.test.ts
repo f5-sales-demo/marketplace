@@ -67,17 +67,46 @@ it('preserves the exact provider identity when reopening the current private wor
   expect(current.azapi).toBeUndefined();
 });
 
-it('signs only the exact discovered Marketplace plan during an unaccepted initial Terraform deploy', () => {
+it('accepts only the exact discovered Marketplace plan through the idempotent current agreement API', () => {
   const p = plan(false, false);
   const config = JSON.parse(renderAzureTerraformFoundation(p, { '1': bootstrap }));
-  const terms = config.resource.azapi_resource_action.marketplace_terms;
-  expect(terms).toEqual({
-    type: 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01',
-    resource_id: `/subscriptions/${p.subscription.id}/providers/Microsoft.MarketplaceOrdering/agreements/${p.image.publisher}/offers/${p.image.offer}/plans/${p.image.plan}`,
-    action: 'sign',
-    method: 'POST',
-    when: 'apply',
+  const resourceId = `/subscriptions/${p.subscription.id}/providers/Microsoft.MarketplaceOrdering/offerTypes/virtualmachine/publishers/${p.image.publisher}/offers/${p.image.offer}/plans/${p.image.plan}/agreements/current`;
+  const agreementType = 'Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01';
+  expect(config.data.azapi_resource.marketplace_terms).toEqual({
+    type: agreementType,
+    resource_id: resourceId,
+    response_export_values: ['properties'],
   });
+  const terms = config.resource.azapi_resource_action.marketplace_terms;
+  const acceptanceBody =
+    '$' +
+    '{merge(data.azapi_resource.marketplace_terms.output, { properties = merge(data.azapi_resource.marketplace_terms.output.properties, { accepted = true }) })}';
+  expect(terms).toMatchObject({
+    type: agreementType,
+    resource_id: resourceId,
+    method: 'PUT',
+    when: 'apply',
+    body: acceptanceBody,
+  });
+  expect(terms.action).toBeUndefined();
+  const precondition = terms.lifecycle.precondition[0];
+  expect(precondition.error_message).toBe(
+    'Live Azure Marketplace agreement differs from the immutable unaccepted plan',
+  );
+  for (const field of [
+    'accepted',
+    'publisher',
+    'product',
+    'plan',
+    'licenseTextLink',
+    'marketplaceTermsLink',
+    'privacyPolicyLink',
+    'signature',
+  ])
+    expect(precondition.condition).toContain(`.${field}`);
+  for (const value of [p.image.publisher, p.image.offer, p.image.plan])
+    expect(precondition.condition).toContain(JSON.stringify(value));
+  expect(config.resource.azurerm_resource_group.ce.depends_on).toEqual(['azapi_resource_action.marketplace_terms']);
   expect(config.resource.azurerm_linux_virtual_machine.node_1.depends_on).toContain(
     'azapi_resource_action.marketplace_terms',
   );
@@ -91,7 +120,10 @@ it('signs only the exact discovered Marketplace plan during an unaccepted initia
     ha.resource.azurerm_linux_virtual_machine as Record<string, { depends_on?: string[] }>,
   ))
     expect(vm.depends_on).toContain('azapi_resource_action.marketplace_terms');
-  expect(JSON.parse(renderAzureTerraformFoundation(plan())).resource.azapi_resource_action).toBeUndefined();
+  const accepted = JSON.parse(renderAzureTerraformFoundation(plan()));
+  expect(accepted.data).toBeUndefined();
+  expect(accepted.resource.azapi_resource_action).toBeUndefined();
+  expect(accepted.resource.azurerm_resource_group.ce.depends_on).toBeUndefined();
 });
 
 it('renders an isolated private workload fixture for the exact Route Server advertised prefix', () => {

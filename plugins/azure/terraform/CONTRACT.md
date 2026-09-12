@@ -28,13 +28,15 @@ material without generating a replacement bootstrap payload. It pins the observe
 Marketplace image version and plan, uses a 100 GB managed OS disk, enables NIC IP
 forwarding, disables accelerated networking, and generates per-node RSA SSH keys
 with password authentication disabled. These are explicit foundation defaults.
-For an initial Terraform deployment only, the same idempotent `terraform apply` signs an
-unaccepted exact observed F5 XC Marketplace plan through the pinned AzAPI apply-only action before
-any VM can be admitted. The action uses the immutable subscription, publisher, offer, and plan from
-discovery; it never accepts caller-supplied or generic offers. No human acceptance, Azure CLI
-command, separate authorization, manual state action, import, taint, rediscovery, or replan is
-needed for that exact transition. Terraform destroy removes only this action's state and never
-cancels the subscription-level Marketplace agreement. Native deployment, Terraform replacement,
+For an initial Terraform deployment only, the same idempotent `terraform apply` reads the current
+agreement and writes `accepted=true` through the pinned Marketplace Ordering 2021-01-01 API before
+any foundation resource can be created. The apply-only PUT uses the immutable subscription,
+publisher, offer, and plan from discovery; it never accepts caller-supplied or generic offers. No
+human acceptance, Azure CLI command, separate authorization, manual state action, import, taint,
+rediscovery, or replan is needed for that exact transition. Terraform destroy removes only this
+action's state and never
+cancels the subscription-level Marketplace agreement. A repeated PUT after an interrupted apply is
+safe and requires no import. Native deployment, Terraform replacement,
 and repair remain fail-closed when terms are unaccepted.
 
 Rendered configuration, binary plans, and state are sensitive deployment artifacts.

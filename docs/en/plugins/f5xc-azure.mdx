@@ -71,8 +71,9 @@ Azure intent, observations, and plans are unsupported.
 Set `XCSH_CE_HEADLESS_MUTATIONS=1` and supply the exact plan hash for headless
 CE orchestration. An initial exact Terraform deployment needs no Marketplace
 environment flag, CLI command, console action, or other manual intervention:
-its generated configuration signs only the live-discovered F5 XC Marketplace
-agreement as part of the same `terraform apply` that admits the VMs. Destructive
+its generated configuration reads and idempotently accepts only the live-discovered
+F5 XC Marketplace agreement before creating any foundation resource in the same
+`terraform apply` that admits the VMs. Destructive
 operations also require `XCSH_CE_ALLOW_DESTROY=1`. Azure-named compatibility
 environment variables are not supported.
 

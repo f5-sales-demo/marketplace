@@ -105,19 +105,27 @@ test('permits only the exact apply-only Marketplace acceptance action during Ter
   const address = 'azapi_resource_action.marketplace_terms';
   f.receipt.changes.unshift({ address, type: 'azapi_resource_action', actions: ['delete'] });
   f.fields[address] = {
-    resource_id: `/subscriptions/${f.plan.subscription.id}/providers/Microsoft.MarketplaceOrdering/agreements/${f.plan.image.publisher}/offers/${f.plan.image.offer}/plans/${f.plan.image.plan}`,
-    type: 'Microsoft.MarketplaceOrdering/agreements/offers/plans@2015-06-01',
-    action: 'sign',
-    method: 'POST',
+    resource_id: `/subscriptions/${f.plan.subscription.id}/providers/Microsoft.MarketplaceOrdering/offerTypes/virtualmachine/publishers/${f.plan.image.publisher}/offers/${f.plan.image.offer}/plans/${f.plan.image.plan}/agreements/current`,
+    type: 'Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2021-01-01',
+    method: 'PUT',
     when: 'apply',
   };
   await expect(verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).resolves.toMatchObject({
     resourceCount: 4,
   });
-  f.fields[address].action = 'cancel';
-  await expect(verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow(
-    /Marketplace agreement action differs/,
-  );
+  for (const [field, value] of [
+    ['resource_id', `${f.fields[address].resource_id}-foreign`],
+    ['type', 'Microsoft.MarketplaceOrdering/agreements@2021-01-01'],
+    ['method', 'DELETE'],
+    ['when', 'destroy'],
+  ] as const) {
+    const original = f.fields[address][field];
+    f.fields[address][field] = value;
+    await expect(verifyAzureTerraformDestroyOwnership(f.plan, f.receipt, f.session, f.api, {})).rejects.toThrow(
+      /Marketplace agreement action differs/,
+    );
+    f.fields[address][field] = original;
+  }
 });
 
 test('rejects foreign groups, cross-scope resources, unsupported types and non-destroy plans', async () => {
