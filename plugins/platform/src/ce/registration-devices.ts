@@ -67,7 +67,7 @@ export function correlateRegistrationDevices(
   return expected.map((binding) => {
     const normalized = mac(binding.mac);
     const role = `${binding.node}/${binding.role}`;
-    if (!['slo', 'sli'].includes(binding.role) || seenMacs.has(normalized) || seenRoles.has(role))
+    if (!['slo', 'data', 'sli'].includes(binding.role) || seenMacs.has(normalized) || seenRoles.has(role))
       throw new Error('Duplicate or unsupported expected interface');
     seenMacs.add(normalized);
     seenRoles.add(role);

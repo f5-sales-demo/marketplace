@@ -132,3 +132,37 @@ test('correlates Azure VM UUIDs and verifies Azure provider configuration', () =
   expect(() => verifyRegisteredInterfaceConfiguration(spec, devices, 'azure')).not.toThrow();
   expect(() => correlateRegistrationDevices(response, 'site-one', azureInstances, expected, 'aws')).toThrow();
 });
+
+test('accepts the ordered Azure SLO, data, and SLI NIC configuration', () => {
+  const azureInstances = { 'ce-one': '00000000-0000-4000-8000-000000000003' };
+  const azureExpected = [
+    { node: 'ce-one', role: 'slo' as const, mac: '02:00:00:00:00:01' },
+    { node: 'ce-one', role: 'data' as const, mac: '02:00:00:00:00:02' },
+    { node: 'ce-one', role: 'sli' as const, mac: '02:00:00:00:00:03' },
+  ];
+  const response = fixture();
+  response.items[0].get_spec.infra.instance_id = azureInstances['ce-one'];
+  response.items[0].get_spec.infra.hw_info.network = [
+    { name: 'eth2', mac_address: azureExpected[2].mac },
+    { name: 'eth0', mac_address: azureExpected[0].mac },
+    { name: 'eth1', mac_address: azureExpected[1].mac },
+  ];
+  const devices = correlateRegistrationDevices(response, 'site-one', azureInstances, azureExpected, 'azure');
+  const spec = {
+    azure: {
+      not_managed: {
+        node_list: [
+          {
+            hostname: 'ce-one',
+            interface_list: devices.map((item) => ({
+              ethernet_interface: { mac: item.mac, device: item.device },
+              network_option: { [item.role === 'slo' ? 'site_local_network' : 'site_local_inside_network']: {} },
+              dhcp_client: {},
+            })),
+          },
+        ],
+      },
+    },
+  };
+  expect(() => verifyRegisteredInterfaceConfiguration(spec, devices, 'azure')).not.toThrow();
+});

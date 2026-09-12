@@ -2,7 +2,7 @@ import { isIP } from 'node:net';
 
 export interface ExpectedCeInterface {
   node: string;
-  role: 'slo' | 'sli';
+  role: 'slo' | 'data' | 'sli';
   mac: string;
 }
 export interface ObservedCeInterface extends ExpectedCeInterface {
@@ -90,7 +90,7 @@ export function correlateCeInterfaces(
           node: hostname,
           mac: mac(ethernet.mac),
           device: identity(ethernet.device),
-          role: slo ? ('slo' as const) : ('sli' as const),
+          outside: slo,
           mtu: Number(iface.mtu),
         };
       });
@@ -105,9 +105,10 @@ export function correlateCeInterfaces(
     if (seen.has(key)) throw new Error('Duplicate expected interface identity');
     seen.add(key);
     const candidates = configured.filter((item) => item.node === binding.node && item.mac === normalized);
-    if (candidates.length !== 1 || candidates[0].role !== binding.role)
+    if (candidates.length !== 1 || candidates[0].outside !== (binding.role === 'slo'))
       throw new Error('Configured MAC binding differs');
-    const iface = candidates[0];
+    const { outside: _outside, ...configuredInterface } = candidates[0];
+    const iface = { ...configuredInterface, role: binding.role };
     const matches = realized.filter((item) => {
       const owner = object(item.owner_view ?? {});
       if (

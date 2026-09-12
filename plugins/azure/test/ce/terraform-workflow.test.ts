@@ -141,7 +141,14 @@ test('applies foundation and admission exactly once and resumes from collected A
     async observeRegistrations() {
       return healthy;
     },
-    async observeRegisteredConfiguration() {
+    async observeRegisteredConfiguration(
+      _binding: unknown,
+      _instances: unknown,
+      interfaces: Array<{ node: string; role: string }>,
+    ) {
+      expect(interfaces.map((item) => `${item.node}/${item.role}`)).toEqual(
+        binding.nodes.flatMap((node) => plan.nics.map((nic) => `${node}/${nic.role}`)),
+      );
       return { status: 'configured' };
     },
   } as unknown as Pick<
@@ -338,7 +345,14 @@ test('resumes interrupted three-node Azure HA admission through durable serial b
     async observeRegistrations() {
       return healthy;
     },
-    async observeRegisteredConfiguration() {
+    async observeRegisteredConfiguration(
+      _binding: unknown,
+      _instances: unknown,
+      interfaces: Array<{ node: string; role: string }>,
+    ) {
+      expect(interfaces.map((item) => `${item.node}/${item.role}`)).toEqual(
+        binding.nodes.flatMap((node) => [`${node}/slo`, `${node}/data`, `${node}/sli`]),
+      );
       return { status: 'configured' };
     },
   } as unknown as Pick<

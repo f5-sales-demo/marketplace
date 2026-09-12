@@ -490,9 +490,9 @@ export async function collectAzureNativeAdmissionHealth(
     : undefined;
   const health = await collectAzurePlatformHealth(plan, vms, runtime, signal, admittedNodeCount, replacementOwners);
   if (admittedNodeCount !== plan.topology.nodeCount) return health;
-  const expectedInterfaces: Array<{ node: string; role: 'slo' | 'sli'; mac: string }> = [];
+  const expectedInterfaces: Array<{ node: string; role: 'slo' | 'data' | 'sli'; mac: string }> = [];
   for (const node of admittedNodes)
-    for (const nic of plan.nics.filter((item) => item.role === 'slo' || item.role === 'sli')) {
+    for (const nic of plan.nics.filter((item) => item.role === 'slo' || item.role === 'data' || item.role === 'sli')) {
       const name = `${node}-nic${nic.index}`;
       const result = await api.exec('az', [
         'network',
@@ -551,7 +551,7 @@ export async function collectAzureNativeAdmissionHealth(
         !/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(rawMac)
       )
         throw new Error('Azure NIC ownership or MAC binding is unavailable');
-      expectedInterfaces.push({ node, role: nic.role as 'slo' | 'sli', mac: rawMac });
+      expectedInterfaces.push({ node, role: nic.role as 'slo' | 'data' | 'sli', mac: rawMac });
     }
   const configuration = await runtime.observeRegisteredConfiguration(binding, instances, expectedInterfaces, signal);
   if (replacement && health.status === 'healthy' && configuration.status === 'configured') {

@@ -242,8 +242,12 @@ export async function runAzureTerraformAdmission(
   if (Object.values(expectedInstances).some((id) => !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id ?? '')))
     throw new Error('Azure Terraform admitted VM identities are unavailable');
   const expectedInterfaces = discovered.interfaces
-    .filter((item) => item.role === 'slo' || item.role === 'sli')
-    .map((item) => ({ node: `${plan.deploymentName}-${item.node}`, role: item.role as 'slo' | 'sli', mac: item.mac }));
+    .filter((item) => item.role === 'slo' || item.role === 'data' || item.role === 'sli')
+    .map((item) => ({
+      node: `${plan.deploymentName}-${item.node}`,
+      role: item.role as 'slo' | 'data' | 'sli',
+      mac: item.mac,
+    }));
   const registrations = await runtime.approveRegistrations(
     binding,
     expectedInstances as Record<string, string>,

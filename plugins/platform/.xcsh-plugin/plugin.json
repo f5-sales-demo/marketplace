@@ -1,7 +1,7 @@
 {
   "name": "platform",
   "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-  "version": "5.0.34",
+  "version": "5.0.35",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
   "license": "Apache-2.0",
   "author": {

@@ -330,7 +330,7 @@ async function currentCloudEvidence(
   const rows = await listVms(plan, api, signal);
   const selected = selectedNode(plan);
   const currentVmIds: Record<string, string> = {};
-  const expectedInterfaces: Array<{ node: string; role: 'slo' | 'sli'; mac: string }> = [];
+  const expectedInterfaces: Array<{ node: string; role: 'slo' | 'data' | 'sli'; mac: string }> = [];
   for (let node = 1; node <= plan.topology.nodeCount; node++) {
     const name = `${plan.deploymentName}-${node}`;
     const resourceId = vmResourceId(plan, node);
@@ -404,7 +404,7 @@ async function currentCloudEvidence(
         lower(object(config.subnet).id) !== lower(expected.subnetId)
       )
         throw new Error('Azure Terraform retained NIC identity, attachment, or address changed');
-      if (nic.role === 'slo' || nic.role === 'sli')
+      if (nic.role === 'slo' || nic.role === 'data' || nic.role === 'sli')
         expectedInterfaces.push({ node: name, role: nic.role, mac: expected.mac });
     }
   }
