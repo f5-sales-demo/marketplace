@@ -180,6 +180,7 @@ test('applies foundation and admission exactly once and resumes from collected A
   expect(checkpoint.stage).toBe('registered');
   expect(JSON.stringify(checkpoint)).toContain('/etc/vpm/user_data');
   expect(await storage.read('terraform-registration-observation.json')).toEqual(healthy);
+  expect(await storage.read('terraform-registration-configuration.json')).toEqual({ status: 'configured' });
 });
 
 test('resumes interrupted three-node Azure HA admission through durable serial boundaries', async () => {

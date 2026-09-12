@@ -256,6 +256,7 @@ export async function runAzureTerraformAdmission(
     expectedInterfaces,
     signal,
   );
+  await storage.write('terraform-registration-configuration.json', configuration);
   const current = await runtime.observeRegistrations(binding, expectedInstances as Record<string, string>, signal);
   await storage.write('terraform-registration-observation.json', current);
   checkpoint.stage =
