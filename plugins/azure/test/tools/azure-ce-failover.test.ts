@@ -89,7 +89,10 @@ test.each(['native', 'terraform'] as const)(
     const root = await mkdtemp(join(tmpdir(), 'azure-ce-failover-tool-'));
     directories.push(root);
     const storage = await CeDeploymentStore.open(root, azureFailoverOwner(plan));
-    const platform = { storage: async () => storage } as unknown as CePlatformService;
+    const platform = {
+      storage: async () => storage,
+      runtime: async () => ({ requireRoutingContract() {} }),
+    } as unknown as CePlatformService;
     const commands: string[][] = [];
     const api = {
       async exec(_command: string, args: string[]) {
@@ -171,7 +174,11 @@ test('Azure failover rejects stale or forged VM ownership evidence', async () =>
   const ctx = context('azure-failover-forged');
   await savePlanArtifact(ctx.sessionManager, plan, observation);
   const tool = createAzureCeFailoverTool({ typebox } as PluginInterface, {
-    platform: async () => ({ storage: async () => storage }) as unknown as CePlatformService,
+    platform: async () =>
+      ({
+        storage: async () => storage,
+        runtime: async () => ({ requireRoutingContract() {} }),
+      }) as unknown as CePlatformService,
     terraform: async () => ({}) as never,
     makeApi: () => ({
       async exec(_command: string, args: string[]) {
