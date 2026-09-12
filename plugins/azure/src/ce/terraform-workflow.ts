@@ -126,6 +126,20 @@ export async function runAzureTerraformAdmission(
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       session = await terraform.open(binding.owner, deployment, 'current');
     }
+    const reviseConfiguration = async (configuration: string) => {
+      const nextHash = hash(configuration);
+      if (checkpoint.configurationSha256 === nextHash) return;
+      try {
+        await session.reviseConfiguration(checkpoint.configurationSha256, configuration);
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes('revision is stale')) throw error;
+        // A prior run may have committed the exact desired revision before checkpointing.
+        await session.reviseConfiguration(nextHash, configuration);
+      }
+      checkpoint.configurationSha256 = nextHash;
+      await save();
+    };
+    await reviseConfiguration(renderAzureTerraformFoundation(plan, checkpoint.bootstrapByNode));
     await revalidate();
     const receipt = await session.plan(env, signal);
     if (

@@ -93,6 +93,12 @@ it('accepts only the exact discovered Marketplace plan through the idempotent cu
   expect(precondition.error_message).toBe(
     'Live Azure Marketplace agreement differs from the immutable unaccepted plan',
   );
+  expect(precondition.condition).toContain(
+    'try(data.azapi_resource.marketplace_terms.output.properties.accepted, null) == false',
+  );
+  expect(precondition.condition).toContain(
+    'try(data.azapi_resource.marketplace_terms.output.properties.accepted, null) == true',
+  );
   for (const field of [
     'accepted',
     'publisher',

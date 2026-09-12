@@ -93,7 +93,7 @@ export function renderAzureTerraformFoundation(
           {
             condition: ref(
               [
-                `try(${properties}.accepted, null) == false`,
+                `(try(${properties}.accepted, null) == false || try(${properties}.accepted, null) == true)`,
                 `lower(${property('publisher')}) == lower(${JSON.stringify(plan.image.publisher)})`,
                 `lower(${property('product')}) == lower(${JSON.stringify(plan.image.offer)})`,
                 `lower(${property('plan')}) == lower(${JSON.stringify(plan.image.plan)})`,
