@@ -208,7 +208,11 @@ export async function runAzureTerraformAdmission(
       const admission = await session.plan(env, signal);
       if (
         admission.changes.some((change) =>
-          change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)),
+          change.actions.some(
+            (action) =>
+              !['create', 'read', 'no-op'].includes(action) &&
+              !(change.address === 'azapi_resource_action.marketplace_terms' && action === 'update'),
+          ),
         )
       )
         throw new Error('Azure Terraform admission would alter or replace an existing resource');
