@@ -143,7 +143,13 @@ export async function runAzureTerraformAdmission(
     await revalidate();
     const receipt = await session.plan(env, signal);
     if (
-      receipt.changes.some((change) => change.actions.some((action) => !['create', 'read', 'no-op'].includes(action)))
+      receipt.changes.some((change) =>
+        change.actions.some(
+          (action) =>
+            !['create', 'read', 'no-op'].includes(action) &&
+            !(change.address === 'azapi_resource_action.marketplace_terms' && action === 'update'),
+        ),
+      )
     )
       throw new Error('Azure Terraform foundation would mutate existing resources');
     await storage.write('terraform-foundation-plan.json', receipt);
