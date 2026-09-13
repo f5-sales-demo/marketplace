@@ -27,7 +27,7 @@ export function createF5xcCeV2CapabilitiesTool(
           content: [
             {
               type: 'text' as const,
-              text: `Secure Mesh Site v2 ${capabilities.smsv2ContractVersion}; providers: ${capabilities.supportedProviders.join(', ')}; AWS TGW Connect: ${capabilities.awsSmsv2TgwConnect.supported ? capabilities.awsSmsv2TgwConnect.schemaVersion : 'unsupported'}.`,
+              text: `${capabilities.contractIdentity}; SMSv2 executable contract: ${capabilities.smsv2ContractVersion}; providers: ${capabilities.supportedProviders.join(', ') || 'none'}; AWS TGW Connect: ${capabilities.awsSmsv2TgwConnect.supported ? capabilities.awsSmsv2TgwConnect.schemaVersion : 'unsupported'}.`,
             },
           ],
           details: { tool: 'f5xc_ce_v2_capabilities', capabilities },

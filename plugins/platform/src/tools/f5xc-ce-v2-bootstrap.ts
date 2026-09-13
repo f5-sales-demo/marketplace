@@ -14,7 +14,7 @@ export function createF5xcCeV2BootstrapTool(
     name: 'f5xc_ce_v2_bootstrap',
     label: 'Checkout CE v2 Bootstrap',
     description:
-      'Obtain a one-use Secure Mesh Site v2 bootstrap token through the approved interactive console flow, returning only a session-bound opaque reference.',
+      'Obtain a one-use Secure Mesh Site v2 bootstrap token only through an advertised executable checkout contract, returning a session-bound opaque reference.',
     parameters: Type.Object({
       namespace: Type.String(),
       siteName: Type.String(),
@@ -36,10 +36,10 @@ export function createF5xcCeV2BootstrapTool(
           throw new PublicCeError('Headless bootstrap checkout is unavailable until F5 publishes a supported API');
         const driver = makeDriver();
         const capabilities = await driver.capabilities();
-        if (!capabilities.bootstrapDrivers.includes('console'))
-          throw new PublicCeError('Console-only bootstrap is unavailable in the verified SMSv2 release');
         if (capabilities.bootstrapDrivers.length === 0)
-          throw new PublicCeError('Tenant exposes no supported Secure Mesh Site v2 bootstrap checkout capability');
+          throw new PublicCeError('Published schema support does not establish a bootstrap checkout capability');
+        if (!capabilities.bootstrapDrivers.includes('console'))
+          throw new PublicCeError('Console bootstrap is unavailable in the executable SMSv2 contract');
         if (
           ctx.hasUI &&
           !(await ctx.ui.confirm(

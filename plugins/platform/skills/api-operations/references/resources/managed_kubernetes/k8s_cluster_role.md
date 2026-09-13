@@ -18,8 +18,8 @@ Domain: `managed_kubernetes`. Tier: Advanced. Logs: no. Metrics: no.
 
 ```bash
 curl -s -X POST \
-  -H "Authorization: APIToken $F5XC_API_TOKEN" \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$F5XC_API_URL/api/config/namespaces/{ns}/k8s_cluster_roles" \
+  "$XCSH_API_URL/api/config/namespaces/{ns}/k8s_cluster_roles" \
   -d @payload.json | jq .
 ```

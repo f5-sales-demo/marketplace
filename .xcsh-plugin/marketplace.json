@@ -28,7 +28,7 @@
     {
       "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.10",
+      "version": "1.0.11",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -113,7 +113,7 @@
     {
       "name": "platform",
       "description": "F5 Distributed Cloud automation with provider-neutral Secure Mesh Site v2 capabilities, typed configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
-      "version": "5.0.0",
+      "version": "5.0.36",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -242,7 +242,7 @@
     {
       "name": "azure",
       "description": "Azure CLI integration with official-source research, live F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, and diagnostics",
-      "version": "4.3.1",
+      "version": "4.3.42",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -267,7 +267,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration with current-source F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, NLB/TGW networking, and diagnostics",
-      "version": "2.0.0",
+      "version": "2.0.75",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -402,7 +402,7 @@
     {
       "name": "terraform",
       "description": "Senior DevOps Infrastructure-as-Code plugin providing HashiCorp Registry proactive version checks, HCL authoring, testing frameworks, and troubleshooting playbooks.",
-      "version": "2.0.0",
+      "version": "2.0.16",
       "author": {
         "name": "f5-sales-demo"
       },

@@ -10,6 +10,29 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`sales-engineer`** bumped to v1.0.11
+
+- **`azure`** bumped to v4.3.42
+
+- **`aws`** bumped to v2.0.75
+
+- **`terraform`** bumped to v2.0.16
+
+- **`platform`** bumped to v5.0.36
+
+- **`aws`** v2.0.74 and **`platform`** v5.0.29 — preserve SLO as the observed TGW Connect
+  transport while selecting SLI for the XC payload and BGP context. Inside listeners now use XC's
+  automatic site-local address binding after validating the exact SLI node and MAC; saved v1 and v2
+  ingress checkpoints migrate automatically to the corrected listener without manual state repair
+  ([#1326](https://github.com/f5-sales-demo/marketplace/issues/1326)).
+
+- **`aws`** v2.0.73 and **`platform`** v5.0.28 — create and checkpoint owned site-local origins
+  before inside HTTP listeners, normalize verified server-populated origin fields, recover incomplete
+  ingress plans without manual state repair, and enforce SLO-only GRE transport so SLI remains the
+  payload and NLB listener context. Native routing checkpoints now include owned export policies,
+  with identity-safe teardown compatibility for earlier checkpoints
+  ([#1326](https://github.com/f5-sales-demo/marketplace/issues/1326)).
+
 - **`azure`** v4.3.1 — preserves all-or-nothing privacy for `azure_ce_inventory` failures while
   returning allowlisted collector-stage and error-category diagnostics for setup, Resource Graph,
   VM runtime, Activity Log, envelope serialization, and artifact persistence boundaries. Caller

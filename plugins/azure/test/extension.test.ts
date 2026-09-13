@@ -14,6 +14,7 @@ const mockTypebox = {
     String: (o?: unknown) => ({ type: 'string', ...((o as object) ?? {}) }),
     Boolean: (o?: unknown) => ({ type: 'boolean', ...((o as object) ?? {}) }),
     Number: (o?: unknown) => ({ type: 'number', ...((o as object) ?? {}) }),
+    Integer: (o?: unknown) => ({ type: 'integer', ...((o as object) ?? {}) }),
     Optional: (s: unknown) => ({ optional: true, ...((s as object) ?? {}) }),
     Array: (i: unknown, o?: unknown) => ({ type: 'array', items: i, ...((o as object) ?? {}) }),
     Union: (s: unknown[]) => ({ union: s }),
@@ -97,7 +98,11 @@ describe('Azure Status extension', () => {
     expect(classifyAzureCePrompt('Explain Azure Customer Edge.')).toBe('deployment');
     expect(AZURE_CE_RESEARCH_GATE).toContain('use web_search');
     expect(AZURE_CE_RESEARCH_GATE).toContain('azure_compute_discover');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('Do not delegate');
     expect(AZURE_CE_RESEARCH_GATE).toContain('Never guess identifiers');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('one idempotent terraform apply');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('no human acceptance');
+    expect(AZURE_CE_RESEARCH_GATE).toContain('current agreement GET plus idempotent PUT');
     expect(AZURE_CE_INVENTORY_GATE).toContain('az_account_show, then azure_ce_inventory');
     expect(AZURE_CE_INVENTORY_GATE).toContain('Do not use web_search');
     expect(AZURE_CE_INVENTORY_GATE).toContain('never an ownership claim');
@@ -144,9 +149,12 @@ describe('Azure Status extension', () => {
         'az_vm_list',
         'azure_ce_apply',
         'azure_ce_diagnose',
+        'azure_ce_failover',
         'azure_ce_inventory',
         'azure_ce_plan',
         'azure_ce_status',
+        'azure_ce_teardown',
+        'azure_ce_upgrade',
         'azure_cloud_init_analyze',
         'azure_compute_discover',
       ]);
@@ -168,6 +176,16 @@ describe('Azure Status extension', () => {
       expect(tool.description).toBeDefined();
       expect(tool.parameters).toBeDefined();
       expect(typeof tool.execute).toBe('function');
+    }
+    const apply = tools.find((tool) => tool.name === 'azure_ce_apply');
+    const plan = tools.find((tool) => tool.name === 'azure_ce_plan');
+    if (apply) {
+      expect(JSON.stringify(apply.parameters)).not.toContain('bootstrapRefs');
+      expect(JSON.stringify(apply.parameters)).not.toContain('f5Evidence');
+      expect(JSON.stringify(plan?.parameters)).toContain('platform-http');
+      expect(JSON.stringify(plan?.parameters)).toContain('sourceVmResourceId');
+    } else {
+      expect(tools).toHaveLength(0);
     }
   });
 

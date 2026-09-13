@@ -19,7 +19,15 @@ import {
  * for a reason that has nothing to do with the code. Clear them around every case; the ones
  * that exercise a credential path set what they need themselves.
  */
-const CREDENTIAL_VARS = ['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID'];
+const CREDENTIAL_VARS = [
+  'AZURE_CLIENT_ID',
+  'AZURE_CLIENT_SECRET',
+  'AZURE_TENANT_ID',
+  'AZURE_FEDERATED_TOKEN_FILE',
+  'AZURE_CLIENT_CERTIFICATE_PATH',
+  'AZURE_USE_MANAGED_IDENTITY',
+  'AZURE_SUBSCRIPTION_ID',
+];
 let savedCredentials: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -85,12 +93,31 @@ describe('buildAuthStep', () => {
     expect(options[0].available).toBe(true);
   });
 
-  it('includes all 3 auth methods', () => {
-    expect(buildAuthStep().map((o) => o.key)).toEqual(['web', 'device_code', 'service_principal']);
+  it('includes interactive and workload auth methods', () => {
+    expect(buildAuthStep().map((o) => o.key)).toEqual([
+      'web',
+      'device_code',
+      'managed_identity',
+      'workload_federation',
+      'certificate',
+      'service_principal',
+    ]);
   });
 });
 
 describe('buildVerifyCommand', () => {
+  it('verifies an explicit subscription without changing CLI defaults', () => {
+    process.env.AZURE_SUBSCRIPTION_ID = 'requested-subscription';
+    expect(buildVerifyCommand()).toEqual([
+      'az',
+      'account',
+      'show',
+      '--subscription',
+      'requested-subscription',
+      '--output',
+      'json',
+    ]);
+  });
   it('returns exact az account show command', () => {
     expect(buildVerifyCommand()).toEqual(['az', 'account', 'show', '--output', 'json']);
   });
@@ -378,10 +405,16 @@ describe('runSetupWizard — service principal auth', () => {
       });
       const { ctx, notifications } = buildMockCtx();
 
-      await runSetupWizard(pi, ctx, azInstalled);
+      await runSetupWizard(pi, ctx, {
+        ...azInstalled,
+        loginWithCredential: async (key) => {
+          expect(key).toBe('service_principal');
+          return true;
+        },
+      });
 
       const spCall = calls.find((c) => c.args.includes('--service-principal'));
-      expect(spCall).toBeDefined();
+      expect(spCall).toBeUndefined();
       expect(notifications.find((n) => n.message.includes('service principal'))).toBeDefined();
     }
   });
@@ -397,7 +430,7 @@ describe('runSetupWizard — service principal auth', () => {
       });
       const { ctx, notifications } = buildMockCtx();
 
-      await runSetupWizard(pi, ctx, azInstalled);
+      await runSetupWizard(pi, ctx, { ...azInstalled, loginWithCredential: async () => false });
 
       expect(notifications.find((n) => n.message.includes('Authentication failed'))?.type).toBe('error');
     }

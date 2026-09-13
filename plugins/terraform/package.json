@@ -1,0 +1,24 @@
+{
+  "name": "@f5-sales-demo/xcsh-terraform",
+  "version": "2.0.16",
+  "description": "Isolated Terraform lifecycle execution with immutable saved plans and deployment ownership",
+  "license": "Apache-2.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "xcsh": {
+    "name": "Terraform",
+    "version": "2.0.16",
+    "extensions": [
+      "src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@f5-sales-demo/xcsh": "^20.2.7"
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.52",
+    "bun-types": "^1.3.14"
+  }
+}

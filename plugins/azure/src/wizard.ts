@@ -1,3 +1,4 @@
+import { credentialAuthMethods, loginWithCredential } from './auth';
 import { RESOURCE_GRAPH_REQUIRED_FLAGS } from './az/resource-graph';
 import { detectPlatform, type PlatformInfo } from './platform';
 
@@ -105,19 +106,22 @@ export function buildAuthStep(): Array<{
     available: true,
   });
 
-  const hasServicePrincipal =
-    !!process.env.AZURE_CLIENT_ID && !!process.env.AZURE_CLIENT_SECRET && !!process.env.AZURE_TENANT_ID;
-  options.push({
-    label: `Service Principal${hasServicePrincipal ? ' (detected)' : ''}`,
-    key: 'service_principal',
-    available: hasServicePrincipal,
-  });
+  for (const method of credentialAuthMethods()) {
+    options.push({ ...method, label: `${method.label}${method.available ? ' (detected)' : ''}` });
+  }
 
   return options;
 }
 
 export function buildVerifyCommand(): string[] {
-  return ['az', 'account', 'show', '--output', 'json'];
+  return [
+    'az',
+    'account',
+    'show',
+    ...(process.env.AZURE_SUBSCRIPTION_ID ? ['--subscription', process.env.AZURE_SUBSCRIPTION_ID] : []),
+    '--output',
+    'json',
+  ];
 }
 
 export function azIsInstalled(): boolean {
@@ -145,6 +149,7 @@ export async function runSetupWizard(
   },
   options?: {
     checkCliInstalled?: () => boolean;
+    loginWithCredential?: typeof loginWithCredential;
     /**
      * Injected by tests. The real one reads `process.platform` and shells out to `which`,
      * which made every install assertion below depend on the machine running it — they
@@ -228,35 +233,12 @@ export async function runSetupWizard(
   const authOptions = buildAuthStep();
   const envDetected = authOptions.filter((o) => o.available && o.key !== 'web' && o.key !== 'device_code');
 
-  if (envDetected.length > 0 && envDetected[0].key === 'service_principal') {
-    ctx.ui.notify('Using service principal (credentials detected in environment)', 'info');
-    const { mkdtempSync, openSync, writeSync, closeSync, unlinkSync, rmSync } = await import('node:fs');
-    const { tmpdir } = await import('node:os');
-    const { join } = await import('node:path');
-    const secret = process.env.AZURE_CLIENT_SECRET || '';
-    const tmpDir = mkdtempSync(join(tmpdir(), 'xcsh-az-'));
-    const tmpFile = join(tmpDir, 'sp-secret.txt');
-    const fd = openSync(tmpFile, 'w', 0o600);
-    writeSync(fd, secret);
-    closeSync(fd);
-    try {
-      const authResult = await pi.exec('az', [
-        'login',
-        '--service-principal',
-        '--username',
-        process.env.AZURE_CLIENT_ID || '',
-        '--password',
-        `@${tmpFile}`,
-        '--tenant',
-        process.env.AZURE_TENANT_ID || '',
-      ]);
-      if (authResult.code !== 0) {
-        ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
-        return;
-      }
-    } finally {
-      unlinkSync(tmpFile);
-      rmSync(tmpDir, { recursive: true });
+  if (envDetected.length > 0) {
+    ctx.ui.notify(`Using ${envDetected[0].label}`, 'info');
+    const authenticated = await (options?.loginWithCredential ?? loginWithCredential)(envDetected[0].key);
+    if (!authenticated) {
+      ctx.ui.notify('Authentication failed. Check the selected credential, tenant and Azure cloud.', 'error');
+      return;
     }
   } else {
     // No env credentials — default to browser login
@@ -264,7 +246,7 @@ export async function runSetupWizard(
     const authCmd = buildAuthCommand('web');
     const authResult = await pi.exec(authCmd[0], authCmd.slice(1));
     if (authResult.code !== 0) {
-      ctx.ui.notify(`Authentication failed: ${authResult.stderr || authResult.stdout}`, 'error');
+      ctx.ui.notify('Authentication failed. Check the Azure login session.', 'error');
       return;
     }
   }

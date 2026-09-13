@@ -1,0 +1,378 @@
+import { isIP } from 'node:net';
+import type { AzExecApi } from '../az/exec';
+import { verifyAzureCePlan } from './artifacts';
+import { resolveInterfaceAddress } from './interface-address';
+import type { AzureCePlan } from './types';
+
+type Json = Record<string, unknown>;
+const object = (value: unknown): Json => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Malformed Route Server evidence');
+  return value as Json;
+};
+const lower = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
+const routeServerIdFor = (plan: AzureCePlan) =>
+  `/subscriptions/${plan.subscription.id}/resourceGroups/${plan.intent.resourceGroup}/providers/Microsoft.Network/virtualHubs/${plan.deploymentName}-rs`;
+const peerIdFor = (plan: AzureCePlan, node: number) =>
+  `${routeServerIdFor(plan)}/bgpConnections/${plan.deploymentName}-${node}`;
+const isPlanSha256 = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+
+export interface AzureRouteServerOwnership {
+  routeServerId: string;
+  ownerPlanSha256: string;
+  peerIds: Record<string, string>;
+}
+
+/** Freeze the exact existing Route Server owner and peer identities before a retained-resource workflow mutates. */
+export async function captureAzureRouteServerOwnership(
+  plan: AzureCePlan,
+  api: AzExecApi,
+  signal?: AbortSignal,
+): Promise<AzureRouteServerOwnership> {
+  verifyAzureCePlan(plan);
+  if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
+  const routeServerId = routeServerIdFor(plan);
+  const server = object(
+    await read(
+      api,
+      plan,
+      [
+        'network',
+        'routeserver',
+        'show',
+        '--resource-group',
+        plan.intent.resourceGroup,
+        '--name',
+        `${plan.deploymentName}-rs`,
+      ],
+      signal,
+    ),
+  );
+  const tags = object(server.tags);
+  const ownerPlanSha256 = tags['xcsh-plan-sha256'];
+  if (
+    lower(server.id) !== lower(routeServerId) ||
+    lower(server.location) !== lower(plan.region) ||
+    server.provisioningState !== 'Succeeded' ||
+    server.virtualRouterAsn !== 65515 ||
+    tags['xcsh-managed-by'] !== 'azure-ce' ||
+    tags['xcsh-execution-engine'] !== plan.engine ||
+    tags['xcsh-deployment-id'] !== plan.deploymentName ||
+    typeof ownerPlanSha256 !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(ownerPlanSha256)
+  )
+    throw new Error('Azure retained Route Server ownership is unavailable');
+  const peerIds: Record<string, string> = {};
+  for (let node = 1; node <= plan.topology.nodeCount; node++) {
+    const name = `${plan.deploymentName}-${node}`;
+    const expectedId = `${routeServerId}/bgpConnections/${name}`;
+    const peer = object(
+      await read(
+        api,
+        plan,
+        [
+          'network',
+          'routeserver',
+          'peering',
+          'show',
+          '--resource-group',
+          plan.intent.resourceGroup,
+          '--routeserver',
+          `${plan.deploymentName}-rs`,
+          '--name',
+          name,
+        ],
+        signal,
+      ),
+    );
+    if (
+      lower(peer.id) !== lower(expectedId) ||
+      peer.name !== name ||
+      peer.provisioningState !== 'Succeeded' ||
+      peer.peerAsn !== plan.routing.localAsn
+    )
+      throw new Error('Azure retained Route Server peer identity is unavailable');
+    peerIds[String(node)] = expectedId;
+  }
+  return { routeServerId, ownerPlanSha256, peerIds };
+}
+
+async function read(api: AzExecApi, plan: AzureCePlan, args: string[], signal?: AbortSignal): Promise<unknown> {
+  signal?.throwIfAborted();
+  const result = await api.exec(
+    'az',
+    [...args, '--subscription', plan.subscription.id, '--output', 'json'],
+    signal ? { signal } : undefined,
+  );
+  signal?.throwIfAborted();
+  if (result.exitCode !== 0) throw new Error('Azure Route Server observation unavailable');
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new Error('Malformed Azure Route Server observation');
+  }
+}
+
+function routeRoles(value: unknown): Array<{ role: string; routes: Json[] }> {
+  const response = object(value);
+  if (response.nextLink || response.nextPageToken || response.error) throw new Error('Incomplete Route Server routes');
+  const roles = Object.entries(response)
+    .filter(([name]) => /^RouteServiceRole_IN_[01]$/.test(name))
+    .map(([role, routes]) => {
+      if (!Array.isArray(routes)) throw new Error('Malformed Route Server role routes');
+      return { role, routes: routes.map(object) };
+    });
+  if (roles.length !== 2 || new Set(roles.map((entry) => entry.role)).size !== 2)
+    throw new Error('Both Route Server service-role observations are required');
+  return roles.sort((a, b) => a.role.localeCompare(b.role));
+}
+
+/** Resolve the exact owned Route Server and its two service addresses before platform routing mutation. */
+export async function discoverAzureRouteServerIdentity(
+  plan: AzureCePlan,
+  api: AzExecApi,
+  signal?: AbortSignal,
+  retained?: AzureRouteServerOwnership,
+) {
+  verifyAzureCePlan(plan);
+  if (plan.routing.mode !== 'route-server') throw new Error('Azure Route Server routing is not selected');
+  const serverAction = plan.actions.filter((action) => action.kind === 'route-server-create');
+  const peerUpdates = plan.actions.filter((action) => action.kind === 'route-server-peer-update');
+  const isNetworkUpdate = !retained && plan.intent.operation === 'update-network';
+  if (
+    (isNetworkUpdate && serverAction.length !== 0) ||
+    (!isNetworkUpdate && !retained && (serverAction.length !== 1 || !serverAction[0].resourceId)) ||
+    (retained && serverAction.length)
+  )
+    throw new Error('Planned Route Server identity is unavailable');
+  const updateOwnerHashes = isNetworkUpdate ? peerUpdates.map((action) => action.expectedOwnerPlanSha256) : [];
+  if (
+    isNetworkUpdate &&
+    (peerUpdates.length !== plan.topology.nodeCount ||
+      new Set(peerUpdates.map((action) => action.node)).size !== plan.topology.nodeCount ||
+      peerUpdates.some(
+        (action) =>
+          !action.node ||
+          action.node < 1 ||
+          action.node > plan.topology.nodeCount ||
+          action.resourceId !== peerIdFor(plan, action.node) ||
+          !isPlanSha256(action.expectedOwnerPlanSha256),
+      ) ||
+      new Set(updateOwnerHashes).size !== 1)
+  )
+    throw new Error('Planned retained Route Server identity is unavailable');
+  const routeServerId =
+    retained?.routeServerId ?? (isNetworkUpdate ? routeServerIdFor(plan) : (serverAction[0]?.resourceId as string));
+  const ownerPlanSha256 = retained?.ownerPlanSha256 ?? (isNetworkUpdate ? updateOwnerHashes[0] : plan.planSha256);
+  const server = object(
+    await read(
+      api,
+      plan,
+      [
+        'network',
+        'routeserver',
+        'show',
+        '--resource-group',
+        plan.intent.resourceGroup,
+        '--name',
+        `${plan.deploymentName}-rs`,
+      ],
+      signal,
+    ),
+  );
+  const tags = object(server.tags);
+  const routerIps = server.virtualRouterIps;
+  if (
+    lower(server.id) !== lower(routeServerId) ||
+    lower(server.location) !== lower(plan.region) ||
+    server.provisioningState !== 'Succeeded' ||
+    server.virtualRouterAsn !== 65515 ||
+    !Array.isArray(routerIps) ||
+    routerIps.length !== 2 ||
+    new Set(routerIps).size !== 2 ||
+    routerIps.some((ip) => typeof ip !== 'string' || isIP(ip) !== 4) ||
+    tags['xcsh-managed-by'] !== 'azure-ce' ||
+    tags['xcsh-deployment-id'] !== plan.deploymentName ||
+    tags['xcsh-execution-engine'] !== plan.engine ||
+    tags['xcsh-plan-sha256'] !== ownerPlanSha256
+  )
+    throw new Error('Azure Route Server identity or service addresses differ');
+  return {
+    routeServerId,
+    asn: 65515 as const,
+    serviceAddresses: (routerIps as string[]).toSorted(),
+  };
+}
+
+/** Azure control-plane route exchange. Per-session establishment still requires platform BGP evidence. */
+export async function collectAzureRouteServerHealth(
+  plan: AzureCePlan,
+  api: AzExecApi,
+  signal?: AbortSignal,
+  retained?: AzureRouteServerOwnership,
+) {
+  verifyAzureCePlan(plan);
+  const base = {
+    planId: plan.planId,
+    planSha256: plan.planSha256,
+    engine: plan.engine,
+    subscriptionId: plan.subscription.id,
+    region: plan.region,
+    siteName: plan.siteName,
+    source: 'azure-cli-live' as const,
+    observedAt: new Date().toISOString(),
+    sessions: 'unknown' as const,
+    sessionReason: 'platform-bgp-session-evidence-required' as const,
+    effectiveRoutes: 'unknown' as const,
+    traffic: 'unknown' as const,
+  };
+  if (plan.routing.mode !== 'route-server') return { ...base, status: 'not-applicable' as const };
+  try {
+    const identity = await discoverAzureRouteServerIdentity(plan, api, signal, retained);
+
+    const peers = [];
+    for (let node = 1; node <= plan.topology.nodeCount; node++) {
+      const peerKind =
+        plan.intent.operation === 'update-network' && !retained
+          ? 'route-server-peer-update'
+          : 'route-server-peer-create';
+      const action = plan.actions.filter((candidate) => candidate.kind === peerKind && candidate.node === node);
+      if (
+        (!retained && (action.length !== 1 || !action[0].resourceId)) ||
+        (retained && action.length) ||
+        (peerKind === 'route-server-peer-update' && action[0]?.resourceId !== peerIdFor(plan, node))
+      )
+        throw new Error('Planned Route Server peer is unavailable');
+      const peerId = retained?.peerIds[String(node)] ?? action[0]?.resourceId;
+      if (!peerId) throw new Error('Planned Route Server peer is unavailable');
+      const peerIp = await resolveInterfaceAddress(
+        api,
+        plan,
+        node,
+        'slo',
+        retained?.ownerPlanSha256 ?? action[0]?.expectedOwnerPlanSha256 ?? plan.planSha256,
+      );
+      const name = `${plan.deploymentName}-${node}`;
+      const common = [
+        '--resource-group',
+        plan.intent.resourceGroup,
+        '--routeserver',
+        `${plan.deploymentName}-rs`,
+        '--name',
+        name,
+      ];
+      const peer = object(await read(api, plan, ['network', 'routeserver', 'peering', 'show', ...common], signal));
+      if (
+        lower(peer.id) !== lower(peerId) ||
+        peer.name !== name ||
+        peer.provisioningState !== 'Succeeded' ||
+        peer.peerAsn !== plan.routing.localAsn ||
+        peer.peerIp !== peerIp
+      )
+        throw new Error('Azure Route Server peer identity or SLO binding differs');
+      const learned = routeRoles(
+        await read(api, plan, ['network', 'routeserver', 'peering', 'list-learned-routes', ...common], signal),
+      );
+      const expected = plan.routing.destinationCidrs;
+      const roles = learned.map(({ role, routes }) => {
+        const matching = expected.map((prefix) => {
+          const matches = routes.filter((route) => route.network === prefix && route.nextHop === peerIp);
+          if (matches.length !== 1) throw new Error('Expected Route Server route exchange has not converged');
+          return prefix;
+        });
+        return { role, learnedRouteCount: routes.length, matchedPrefixes: matching };
+      });
+      peers.push({ node, name, peerIp, peerAsn: peer.peerAsn, provisioningState: peer.provisioningState, roles });
+    }
+    return {
+      ...base,
+      status: plan.routing.destinationCidrs.length ? ('healthy' as const) : ('unknown' as const),
+      reason: plan.routing.destinationCidrs.length ? undefined : 'expected-learned-prefixes-unavailable',
+      routeServerId: identity.routeServerId,
+      serviceAddresses: identity.serviceAddresses,
+      peers,
+      routeExchange: plan.routing.destinationCidrs.length ? ('healthy' as const) : ('unknown' as const),
+    };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return { ...base, status: 'unknown' as const, reason: 'route-server-evidence-unavailable' as const };
+  }
+}
+
+/** Prove exact Route Server withdrawal/restoration for one node without accepting session-count claims. */
+export async function collectAzureRouteServerFailoverHealth(
+  plan: AzureCePlan,
+  nodeIndex: number,
+  phase: 'outage' | 'recovered',
+  api: AzExecApi,
+  signal?: AbortSignal,
+) {
+  verifyAzureCePlan(plan);
+  if (
+    plan.routing.mode !== 'route-server' ||
+    !plan.topology.ha ||
+    plan.topology.nodeCount !== 3 ||
+    !Number.isInteger(nodeIndex) ||
+    nodeIndex < 1 ||
+    nodeIndex > 3 ||
+    !['outage', 'recovered'].includes(phase) ||
+    plan.routing.destinationCidrs.length < 1
+  )
+    throw new Error('Azure Route Server failover scope is incomplete');
+  const identity = await discoverAzureRouteServerIdentity(plan, api, signal);
+  const peers = [];
+  for (let node = 1; node <= plan.topology.nodeCount; node++) {
+    const action = plan.actions.filter(
+      (candidate) => candidate.kind === 'route-server-peer-create' && candidate.node === node,
+    );
+    if (action.length !== 1 || !action[0].resourceId) throw new Error('Planned Route Server peer is unavailable');
+    const peerIp = await resolveInterfaceAddress(api, plan, node, 'slo');
+    const name = `${plan.deploymentName}-${node}`;
+    const common = [
+      '--resource-group',
+      plan.intent.resourceGroup,
+      '--routeserver',
+      `${plan.deploymentName}-rs`,
+      '--name',
+      name,
+    ];
+    const peer = object(await read(api, plan, ['network', 'routeserver', 'peering', 'show', ...common], signal));
+    if (
+      lower(peer.id) !== lower(action[0].resourceId) ||
+      peer.name !== name ||
+      peer.provisioningState !== 'Succeeded' ||
+      peer.peerAsn !== plan.routing.localAsn ||
+      peer.peerIp !== peerIp
+    )
+      throw new Error('Azure Route Server peer identity or SLO binding differs');
+    const learned = routeRoles(
+      await read(api, plan, ['network', 'routeserver', 'peering', 'list-learned-routes', ...common], signal),
+    );
+    const shouldWithdraw = phase === 'outage' && node === nodeIndex;
+    const roles = learned.map(({ role, routes }) => {
+      const matchedPrefixes = plan.routing.destinationCidrs.filter((prefix) =>
+        routes.some((route) => route.network === prefix && route.nextHop === peerIp),
+      );
+      if (
+        (shouldWithdraw && matchedPrefixes.length !== 0) ||
+        (!shouldWithdraw &&
+          (matchedPrefixes.length !== plan.routing.destinationCidrs.length ||
+            plan.routing.destinationCidrs.some(
+              (prefix) => routes.filter((route) => route.network === prefix && route.nextHop === peerIp).length !== 1,
+            )))
+      )
+        throw new Error('Azure Route Server failover route exchange has not converged');
+      return { role, learnedRouteCount: routes.length, matchedPrefixes };
+    });
+    peers.push({ node, name, peerIp, peerAsn: peer.peerAsn, provisioningState: peer.provisioningState, roles });
+  }
+  return {
+    status: 'healthy' as const,
+    phase,
+    selectedNode: nodeIndex,
+    expectedEstablishedSessions: phase === 'outage' ? 4 : 6,
+    routeServerId: identity.routeServerId,
+    serviceAddresses: identity.serviceAddresses,
+    peers,
+    observedAt: new Date().toISOString(),
+  };
+}

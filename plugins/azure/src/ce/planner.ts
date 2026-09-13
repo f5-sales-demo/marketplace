@@ -1,4 +1,5 @@
-import { canonicalSha256, fingerprintObservation } from './canonical';
+import { isIP } from 'node:net';
+import { canonicalSha256, fingerprintDeploymentObservation, fingerprintObservation } from './canonical';
 import type {
   AzureCeAction,
   AzureCeIntent,
@@ -12,8 +13,9 @@ import { AZURE_CE_SCHEMA_VERSION, AZURE_CE_SHARED_CONTRACT_URL } from './types';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const RESOURCE_ID = /^\/subscriptions\/([^/]+)\/resourceGroups\/([^/]+)(?:\/providers\/([^/]+)\/(.+))?$/i;
-const CIDR = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]+)\/\d{1,3}$/;
 const PORT = /^(?:\*|\d{1,5}(?:-\d{1,5})?)$/;
+const F5_NAME = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 function fail(message: string): never {
   throw new Error(`Azure CE plan validation failed: ${message}`);
@@ -40,7 +42,16 @@ function validateName(label: string, value: string): string {
 
 function validateCidr(label: string, value: string): string {
   const normalized = validateSafeString(label, value);
-  if (!CIDR.test(normalized)) fail(`${label} is not a CIDR`);
+  const [address, prefix, extra] = normalized.split('/');
+  const family = isIP(address);
+  if (
+    !family ||
+    address.includes('%') ||
+    extra !== undefined ||
+    !/^(?:0|[1-9]\d{0,2})$/.test(prefix ?? '') ||
+    Number(prefix) > (family === 4 ? 32 : 128)
+  )
+    fail(`${label} is not a CIDR`);
   return normalized;
 }
 
@@ -55,10 +66,20 @@ function validateResourceId(id: string, subscriptionId: string): void {
 function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
   if (input.schemaVersion !== AZURE_CE_SCHEMA_VERSION)
     fail(`unsupported intent schema version ${String(input.schemaVersion)}`);
+  if (input.engine !== undefined && !['native', 'terraform'].includes(input.engine))
+    fail('unsupported execution engine');
   if (!UUID.test(input.subscriptionId)) fail('subscriptionId must be a UUID');
   if (input.nics.length < 1 || input.nics.length > 8) fail('NIC count must be between 1 and 8');
   if (input.nics[0]?.role !== 'slo') fail('NIC 0 must have role slo');
-  if (input.nics.length > 1 && input.nics[1]?.role !== 'sli') fail('NIC 1 must have role sli when present');
+  const marketplaceThreeNic =
+    input.nics.length === 3 && input.nics[1]?.role === 'data' && input.nics[2]?.role === 'sli';
+  if (input.nics.length > 1 && input.nics[1]?.role !== 'sli' && !marketplaceThreeNic)
+    fail('SLI must be NIC 1, or NIC 2 in the explicit SLO/data/SLI marketplace layout');
+  if (
+    input.nics.filter((nic) => nic.role === 'slo').length !== 1 ||
+    input.nics.filter((nic) => nic.role === 'sli').length !== (input.nics.length > 1 ? 1 : 0)
+  )
+    fail('SLO and SLI NIC roles must be unique');
 
   const subnetKeys = new Set<string>();
   const nics = input.nics.map((nic, index) => {
@@ -91,6 +112,84 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
       fail('route subnet must be listed in brownfield.resourceIds');
   }
 
+  let ingress = input.ingress === undefined ? undefined : structuredClone(input.ingress);
+  const workloadFixture = input.workloadFixture === undefined ? undefined : structuredClone(input.workloadFixture);
+  if (workloadFixture) {
+    if (
+      input.engine !== 'terraform' ||
+      input.operation !== 'deploy' ||
+      input.routing.mode !== 'route-server' ||
+      !validateName('workload fixture subnet', workloadFixture.subnetName) ||
+      !validateCidr('workload fixture CIDR', workloadFixture.cidr) ||
+      !usableIpv4Address(workloadFixture.privateIp, workloadFixture.cidr) ||
+      !Number.isInteger(workloadFixture.port) ||
+      workloadFixture.port < 1 ||
+      workloadFixture.port > 65535 ||
+      subnetKeys.has(workloadFixture.cidr.toLowerCase()) ||
+      nics.some(
+        (nic) =>
+          nic.subnet.mode === 'greenfield' &&
+          nic.subnet.cidr !== undefined &&
+          overlappingIpv4Cidrs(workloadFixture.cidr, nic.subnet.cidr),
+      ) ||
+      !input.routing.destinationCidrs.includes(workloadFixture.cidr)
+    )
+      fail(
+        'workload fixture requires a Terraform Route Server deploy, unique usable subnet/IP, and matching destination CIDR',
+      );
+    workloadFixture.subnetName = validateName('workload fixture subnet', workloadFixture.subnetName);
+    workloadFixture.cidr = validateCidr('workload fixture CIDR', workloadFixture.cidr);
+  }
+  if (ingress?.mode === 'none') {
+    if (Object.keys(ingress).join(',') !== 'mode') fail('disabled ingress contains unsupported fields');
+  } else if (ingress?.mode === 'platform-http') {
+    const listener = ingress.listener;
+    const probe = ingress.probe;
+    const sli = nics.find((nic) => nic.role === 'sli');
+    if (
+      Object.keys(ingress).sort().join(',') !== 'listener,mode,port,probe' ||
+      !listener ||
+      Object.keys(listener).sort().join(',') !== 'domain,name,namespace,originPool,privateAddress' ||
+      !listener.originPool ||
+      Object.keys(listener.originPool).sort().join(',') !== 'name,namespace' ||
+      !probe ||
+      Object.keys(probe).sort().join(',') !== 'expectedBodySha256,expectedStatus,path,sourceVmResourceId' ||
+      !F5_NAME.test(listener.name) ||
+      !F5_NAME.test(listener.namespace) ||
+      !F5_NAME.test(listener.originPool.name) ||
+      listener.originPool.namespace !== listener.namespace ||
+      listener.namespace !== input.namespace ||
+      listener.domain.length > 253 ||
+      !DOMAIN.test(listener.domain) ||
+      !Number.isInteger(ingress.port) ||
+      ingress.port < 1 ||
+      ingress.port > 65535 ||
+      !sli ||
+      sli.subnet.mode !== 'greenfield' ||
+      !sli.subnet.cidr ||
+      !usableIpv4Address(listener.privateAddress, sli.subnet.cidr) ||
+      !/^\/[A-Za-z0-9._~/-]{0,512}$/.test(probe.path) ||
+      !Number.isInteger(probe.expectedStatus) ||
+      probe.expectedStatus < 100 ||
+      probe.expectedStatus > 599 ||
+      !/^[a-f0-9]{64}$/.test(probe.expectedBodySha256)
+    )
+      fail('platform HTTP ingress requires exact listener, SLI service address, and traffic-probe identities');
+    validateResourceId(probe.sourceVmResourceId, input.subscriptionId);
+    const source = probe.sourceVmResourceId.toLowerCase();
+    if (
+      !/^\/subscriptions\/[^/]+\/resourcegroups\/[^/]+\/providers\/microsoft\.compute\/virtualmachines\/[a-z0-9][a-z0-9._-]{0,63}$/i.test(
+        source,
+      )
+    )
+      fail('traffic probe source must be an exact virtual machine resource ID');
+    if (!input.brownfield.resourceIds.some((id) => id.toLowerCase() === source))
+      fail('traffic probe source VM must be listed in brownfield.resourceIds');
+    ingress = { ...ingress, probe: { ...probe, sourceVmResourceId: source } };
+  } else if (ingress !== undefined) {
+    fail('unsupported ingress mode');
+  }
+
   for (const rule of input.securityRules) {
     validateName('security rule name', rule.name);
     for (const cidr of [...rule.sourceCidrs, ...rule.destinationCidrs])
@@ -119,6 +218,7 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
 
   return {
     ...input,
+    engine: input.engine ?? 'native',
     subscriptionId: input.subscriptionId.toLowerCase(),
     deploymentName: validateName('deploymentName', input.deploymentName),
     siteName: validateName('siteName', input.siteName),
@@ -130,6 +230,8 @@ function normalizeIntent(input: AzureCeIntent): AzureCeIntent {
       ...input.routing,
       destinationCidrs: input.routing.destinationCidrs.map((cidr) => validateCidr('routing destination', cidr)).sort(),
     },
+    ingress,
+    workloadFixture,
     securityRules: [...input.securityRules].sort((a, b) => a.name.localeCompare(b.name)),
     brownfield: {
       resourceIds: [...new Set(input.brownfield.resourceIds.map((id) => id.toLowerCase()))].sort(),
@@ -154,8 +256,13 @@ function actionFactory() {
   });
 }
 
-function tagsArgs(deploymentName: string): string[] {
-  return ['xcsh-managed-by=azure-ce', `xcsh-deployment-id=${deploymentName}`, 'xcsh-plan-sha256=__PLAN_SHA256__'];
+function tagsArgs(deploymentName: string, engine: string): string[] {
+  return [
+    `xcsh-execution-engine=${engine}`,
+    'xcsh-managed-by=azure-ce',
+    `xcsh-deployment-id=${deploymentName}`,
+    'xcsh-plan-sha256=__PLAN_SHA256__',
+  ];
 }
 
 function groupId(subscriptionId: string, resourceGroup: string): string {
@@ -189,10 +296,44 @@ function ipv4Range(cidr: string): [number, number] | undefined {
   return [start, start + size - 1];
 }
 
+function usableIpv4Address(address: string, cidr: string): boolean {
+  if (isIP(address) !== 4) return false;
+  const range = ipv4Range(cidr);
+  if (!range) return false;
+  const octets = address.split('.').map(Number);
+  const value = (((octets[0] * 256 + octets[1]) * 256 + octets[2]) * 256 + octets[3]) >>> 0;
+  // Azure reserves the first four and final address of each IPv4 subnet.
+  return value > range[0] + 3 && value < range[1];
+}
+
+function overlappingIpv4Cidrs(left: string, right: string): boolean {
+  const leftRange = ipv4Range(left);
+  const rightRange = ipv4Range(right);
+  return Boolean(leftRange && rightRange && leftRange[0] <= rightRange[1] && rightRange[0] <= leftRange[1]);
+}
+
+function validateRouteServerIntent(intent: AzureCeIntent): void {
+  // peerAsn is the CE ASN as seen by Azure's peering API, not Route Server's 65515.
+  const local = intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010;
+  const peer = intent.routing.peerAsn ?? local;
+  if (local !== peer) fail('Route Server peering ASN must match the CE local ASN');
+  const reserved = new Set([8074, 8075, 12076, 23456, 65515, 65517, 65518, 65519, 65520]);
+  if (local > 65534 || reserved.has(local) || (local >= 64496 && local <= 64511))
+    fail('Route Server requires an unreserved 16-bit CE ASN');
+  for (const nic of intent.nics) {
+    if (nic.subnet.name?.toLowerCase() === 'routeserversubnet')
+      fail('RouteServerSubnet is dedicated to Route Server and cannot host a CE NIC');
+    if (!nic.subnet.cidr || !ipv4Range(nic.subnet.cidr)) fail('Route Server requires IPv4 CE VNet subnets');
+  }
+}
+
 function routeServerSubnetCidr(intent: AzureCeIntent): string {
-  const occupied = intent.nics
-    .flatMap((nic) => (nic.subnet.cidr ? [ipv4Range(nic.subnet.cidr)] : []))
-    .filter((range): range is [number, number] => Boolean(range));
+  const occupied = [
+    ...intent.nics
+      .flatMap((nic) => (nic.subnet.cidr ? [ipv4Range(nic.subnet.cidr)] : []))
+      .filter((range): range is [number, number] => Boolean(range)),
+    ...(intent.workloadFixture ? [ipv4Range(intent.workloadFixture.cidr)] : []),
+  ].filter((range): range is [number, number] => Boolean(range));
   const base = 10 * 256 * 256 * 256 + 255 * 256 * 256;
   for (let offset = 0; offset < 65_536; offset += 64) {
     const candidate: [number, number] = [base + offset, base + offset + 63];
@@ -229,28 +370,14 @@ function buildDeployActions(
   zones: string[],
   routingMode: 'udr' | 'route-server',
   imageUrn: string,
-  termsAccepted: boolean,
   routeServerCidr?: string,
   createResourceGroup = true,
 ): AzureCeAction[] {
   const next = actionFactory();
   const actions: AzureCeAction[] = [];
-  const tags = tagsArgs(intent.deploymentName);
+  const tags = tagsArgs(intent.deploymentName, intent.engine ?? 'native');
   const greenfield = intent.nics.some((nic) => nic.subnet.mode === 'greenfield');
 
-  if (!termsAccepted) {
-    actions.push(
-      next({
-        phase: 'terms',
-        kind: 'marketplace-terms-accept',
-        description: `Accept Marketplace terms for ${imageUrn}`,
-        command: 'az',
-        args: ['vm', 'image', 'terms', 'accept', '--urn', imageUrn, '--subscription', intent.subscriptionId],
-        mutates: true,
-        destructive: false,
-      }),
-    );
-  }
   if (greenfield) {
     const addressPrefixes = [
       ...new Set([
@@ -684,9 +811,9 @@ function buildDeployActions(
             '--name',
             `${intent.deploymentName}-${node}`,
             '--peer-ip',
-            `__NODE_${node}_SLI_PRIVATE_IP__`,
+            `__NODE_${node}_SLO_PRIVATE_IP__`,
             '--peer-asn',
-            String(intent.routing.peerAsn ?? 65010),
+            String(intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010),
             '--subscription',
             intent.subscriptionId,
           ],
@@ -842,15 +969,24 @@ function buildDeployActions(
       }
     }
   }
-  actions.push(
-    next({
-      phase: 'verify',
-      kind: 'traffic-gate',
-      description: 'Verify end-to-end traffic, routes, and CE health',
-      mutates: false,
-      destructive: false,
-    }),
-  );
+  if (intent.ingress?.mode === 'platform-http') {
+    actions.push(
+      next({
+        phase: 'routing',
+        kind: 'f5-ingress-configure',
+        description: 'Configure the reviewed platform HTTP listener and site-local origin',
+        mutates: true,
+        destructive: false,
+      }),
+      next({
+        phase: 'verify',
+        kind: 'traffic-gate',
+        description: 'Verify content-bound end-to-end traffic through the platform listener',
+        mutates: false,
+        destructive: false,
+      }),
+    );
+  }
   return actions;
 }
 
@@ -866,6 +1002,21 @@ function buildLifecycleActions(
     intent.operation === 'replace-node' && intent.replacementNode
       ? [intent.replacementNode]
       : Array.from({ length: nodeCount }, (_, index) => index + 1);
+  const ownedPlanSha256 = (resourceId: string, label: string): string => {
+    const resource = resourceById(observation, resourceId);
+    const digest = resource?.tags['xcsh-plan-sha256'];
+    if (
+      !resource?.exists ||
+      !resource.owned ||
+      resource.tags['xcsh-managed-by'] !== 'azure-ce' ||
+      resource.tags['xcsh-deployment-id'] !== intent.deploymentName ||
+      resource.tags['xcsh-execution-engine'] !== (intent.engine ?? 'native') ||
+      !digest ||
+      !/^[a-f0-9]{64}$/.test(digest)
+    )
+      fail(`${label} is missing exact observed ownership`);
+    return digest;
+  };
   const verbByOperation = {
     start: ['vm-start', ['vm', 'start']] as const,
     stop: ['vm-stop', ['vm', 'deallocate']] as const,
@@ -875,6 +1026,8 @@ function buildLifecycleActions(
     const [kind, baseArgs] = verbByOperation[intent.operation as keyof typeof verbByOperation];
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
+      const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
+      const expectedOwnerPlanSha256 = ownedPlanSha256(vmId, `lifecycle VM ${name}`);
       actions.push(
         next({
           phase: 'nodes',
@@ -891,27 +1044,49 @@ function buildLifecycleActions(
             '--subscription',
             intent.subscriptionId,
           ],
-          resourceId: managedId(
-            intent.subscriptionId,
-            intent.resourceGroup,
-            `Microsoft.Compute/virtualMachines/${name}`,
-          ),
+          resourceId: vmId,
           node,
           mutates: true,
           destructive: intent.operation === 'replace-node',
+          expectedOwnerPlanSha256,
         }),
       );
-      if (intent.topology.ha)
+      actions.push(
+        next({
+          phase: 'verify',
+          kind: 'vm-state-gate',
+          description: `Verify ${name} is ${intent.operation === 'stop' ? 'deallocated' : 'running'}`,
+          node,
+          mutates: false,
+          destructive: false,
+          expectedPowerState: intent.operation === 'stop' ? 'deallocated' : 'running',
+          expectedOwnerPlanSha256,
+          expectedVmSize: intent.operation === 'resize' ? intent.vm.size : undefined,
+        }),
+      );
+      if (intent.operation !== 'stop') {
         actions.push(
           next({
             phase: 'registration',
             kind: 'health-gate',
-            description: `Gate node ${node} before continuing`,
+            description: `Gate online node ${node} before continuing`,
             node,
             mutates: false,
             destructive: false,
           }),
         );
+        if (intent.ingress?.mode === 'platform-http')
+          actions.push(
+            next({
+              phase: 'verify',
+              kind: 'traffic-gate',
+              description: `Gate traffic after ${intent.operation} of node ${node}`,
+              node,
+              mutates: false,
+              destructive: false,
+            }),
+          );
+      }
     }
     return actions;
   }
@@ -921,6 +1096,7 @@ function buildLifecycleActions(
     const node = intent.replacementNode;
     const name = `${intent.deploymentName}-${node}`;
     const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
+    const expectedOwnerPlanSha256 = ownedPlanSha256(vmId, `replacement VM ${name}`);
     actions.push(
       next({
         phase: 'nodes',
@@ -942,6 +1118,7 @@ function buildLifecycleActions(
         node,
         mutates: true,
         destructive: true,
+        expectedOwnerPlanSha256,
       }),
     );
     const nicArgs = ['--nics', ...intent.nics.map((_nic, index) => `${name}-nic${index}`)];
@@ -979,7 +1156,7 @@ function buildLifecycleActions(
           '--subscription',
           intent.subscriptionId,
           '--tags',
-          ...tagsArgs(intent.deploymentName),
+          ...tagsArgs(intent.deploymentName, intent.engine ?? 'native'),
         ],
         resourceId: vmId,
         node,
@@ -998,22 +1175,42 @@ function buildLifecycleActions(
         destructive: false,
       }),
     );
-    actions.push(
-      next({
-        phase: 'verify',
-        kind: 'traffic-gate',
-        description: `Verify traffic after replacing node ${node}`,
-        node,
-        mutates: false,
-        destructive: false,
-      }),
-    );
+    if (intent.routing.mode === 'route-server')
+      actions.push(
+        next({
+          phase: 'routing',
+          kind: 'bgp-gate',
+          description: `Verify Route Server sessions and routes after replacing node ${node}`,
+          node,
+          mutates: false,
+          destructive: false,
+        }),
+      );
+    if (intent.ingress?.mode === 'platform-http')
+      actions.push(
+        next({
+          phase: 'verify',
+          kind: 'traffic-gate',
+          description: `Verify traffic after replacing node ${node}`,
+          node,
+          mutates: false,
+          destructive: false,
+        }),
+      );
     return actions;
   }
   if (intent.operation === 'update-network') {
+    const routeServerId = managedId(
+      intent.subscriptionId,
+      intent.resourceGroup,
+      `Microsoft.Network/virtualHubs/${intent.deploymentName}-rs`,
+    );
+    const expectedRouteServerOwnerPlanSha256 =
+      intent.routing.mode === 'route-server' ? ownedPlanSha256(routeServerId, 'retained Route Server') : undefined;
     for (const node of nodes) {
       const name = `${intent.deploymentName}-${node}`;
       const vmId = managedId(intent.subscriptionId, intent.resourceGroup, `Microsoft.Compute/virtualMachines/${name}`);
+      const expectedVmOwnerPlanSha256 = ownedPlanSha256(vmId, `network-update VM ${name}`);
       actions.push(
         next({
           phase: 'nodes',
@@ -1034,6 +1231,7 @@ function buildLifecycleActions(
           node,
           mutates: true,
           destructive: false,
+          expectedOwnerPlanSha256: expectedVmOwnerPlanSha256,
         }),
       );
       for (const [index, nic] of intent.nics.entries()) {
@@ -1044,6 +1242,12 @@ function buildLifecycleActions(
             intent.resourceGroup,
             `Microsoft.Network/virtualNetworks/${intent.deploymentName}-vnet/subnets/${nic.subnet.name ?? ''}`,
           );
+        const nicId = managedId(
+          intent.subscriptionId,
+          intent.resourceGroup,
+          `Microsoft.Network/networkInterfaces/${name}-nic${index}`,
+        );
+        const expectedNicOwnerPlanSha256 = ownedPlanSha256(nicId, `network-update NIC ${name}-nic${index}`);
         actions.push(
           next({
             phase: 'nodes',
@@ -1066,14 +1270,11 @@ function buildLifecycleActions(
               '--subscription',
               intent.subscriptionId,
             ],
-            resourceId: managedId(
-              intent.subscriptionId,
-              intent.resourceGroup,
-              `Microsoft.Network/networkInterfaces/${name}-nic${index}`,
-            ),
+            resourceId: nicId,
             node,
             mutates: true,
             destructive: false,
+            expectedOwnerPlanSha256: expectedNicOwnerPlanSha256,
           }),
         );
       }
@@ -1097,6 +1298,7 @@ function buildLifecycleActions(
           node,
           mutates: true,
           destructive: false,
+          expectedOwnerPlanSha256: expectedVmOwnerPlanSha256,
         }),
       );
       actions.push(
@@ -1109,17 +1311,61 @@ function buildLifecycleActions(
           destructive: false,
         }),
       );
+      if (intent.routing.mode === 'route-server') {
+        actions.push(
+          next({
+            phase: 'routing',
+            kind: 'route-server-peer-update',
+            description: `Update Route Server peer ${name} to the observed SLO address`,
+            command: 'az',
+            args: [
+              'network',
+              'routeserver',
+              'peering',
+              'update',
+              '--resource-group',
+              intent.resourceGroup,
+              '--routeserver',
+              `${intent.deploymentName}-rs`,
+              '--name',
+              name,
+              '--peer-ip',
+              `__NODE_${node}_SLO_PRIVATE_IP__`,
+              '--peer-asn',
+              String(intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010),
+              '--subscription',
+              intent.subscriptionId,
+            ],
+            resourceId: `${routeServerId}/bgpConnections/${name}`,
+            node,
+            mutates: true,
+            destructive: false,
+            expectedOwnerPlanSha256: expectedRouteServerOwnerPlanSha256,
+          }),
+        );
+      }
+      if (intent.ingress?.mode === 'platform-http')
+        actions.push(
+          next({
+            phase: 'verify',
+            kind: 'traffic-gate',
+            description: `Gate traffic before updating another node`,
+            node,
+            mutates: false,
+            destructive: false,
+          }),
+        );
+    }
+    if (intent.routing.mode === 'route-server')
       actions.push(
         next({
-          phase: 'verify',
-          kind: 'traffic-gate',
-          description: `Gate traffic before updating another node`,
-          node,
+          phase: 'routing',
+          kind: 'bgp-gate',
+          description: 'Verify Route Server convergence after all retained peer updates',
           mutates: false,
           destructive: false,
         }),
       );
-    }
     return actions;
   }
   if (intent.operation === 'teardown') {
@@ -1259,6 +1505,15 @@ function buildLifecycleActions(
 export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObservation): AzureCePlan {
   const intent = normalizeIntent(input);
   if (observation.schemaVersion !== AZURE_CE_SCHEMA_VERSION) fail('unsupported observation schema');
+  for (const resource of observation.resources) {
+    if (
+      resource.owned &&
+      resource.tags['xcsh-deployment-id'] === intent.deploymentName &&
+      resource.tags['xcsh-execution-engine'] !== intent.engine
+    )
+      fail('deployment resources belong to another or unknown execution engine');
+  }
+
   const requiredResearchCommands = [
     'az vm image list-publishers',
     'az vm image list-offers',
@@ -1279,8 +1534,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     fail('official Microsoft research source is required');
   if (
     observation.research.sharedContract?.url !== AZURE_CE_SHARED_CONTRACT_URL ||
-    observation.research.sharedContract.contractId !== 'f5xc-ce-automation' ||
-    observation.research.sharedContract.contractVersion !== 'v1' ||
+    observation.research.sharedContract.contractId !== 'f5xc-ce-automation-policy' ||
+    observation.research.sharedContract.contractVersion !== 'v2' ||
     !/^[a-f0-9]{64}$/.test(observation.research.sharedContract.normalizedSha256)
   )
     fail('valid live shared Customer Edge automation contract receipt is required');
@@ -1301,7 +1556,25 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (observation.subscription.cloud !== 'AzureCloud') fail('only AzureCloud is supported');
   if (observation.subscription.id.toLowerCase() !== intent.subscriptionId)
     fail('observation subscription does not match intent');
+  if (
+    ['deploy', 'replace-node', 'repair'].includes(intent.operation) &&
+    observation.image.termsAccepted !== true &&
+    !(intent.engine === 'terraform' && intent.operation === 'deploy')
+  )
+    fail(
+      'Marketplace terms are unaccepted for this exact image plan; only an initial Terraform deployment can accept them during apply',
+    );
   if (observation.image.version.toLowerCase() === 'latest') fail('image version latest is forbidden');
+  if (!/^\d+\.\d+\.\d+$/.test(observation.image.version)) fail('image version must be an exact Marketplace version');
+  const expectedUrn = [
+    observation.image.publisher,
+    observation.image.offer,
+    observation.image.plan,
+    observation.image.version,
+  ].join(':');
+  if (observation.image.urn.toLowerCase() !== expectedUrn.toLowerCase())
+    fail('observed image URN does not match its publisher, offer, plan and exact version');
+
   for (const field of ['publisher', 'offer', 'plan'] as const) {
     if (observation.image[field].toLowerCase() !== intent.image[field].toLowerCase())
       fail(`observed image ${field} does not match intent`);
@@ -1316,6 +1589,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
   if (!region?.eligible) fail(`region ${intent.region ?? '<recommended>'} is not eligible`);
   const size = region.vmSizes.find((candidate) => candidate.name.toLowerCase() === intent.vm.size.toLowerCase());
   if (!size || size.restricted) fail(`VM size ${intent.vm.size} is unavailable or restricted in ${region.name}`);
+  if (!Number.isFinite(size.memoryGb) || !Number.isInteger(size.maxNics) || size.maxNics < 1)
+    fail('VM size has incomplete observed memory or NIC capabilities');
   if (size.vCpus < 8 || size.memoryGb < 32)
     fail(`VM size ${intent.vm.size} is below the CE minimum of 8 vCPUs and 32 GB memory`);
   if (size.maxNics < intent.nics.length)
@@ -1368,7 +1643,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
         ? 'route-server'
         : 'udr'
       : intent.routing.mode;
-  if (routingMode === 'route-server' && !intent.topology.ha) fail('Route Server routing requires three-node HA');
+  if (routingMode === 'route-server') validateRouteServerIntent(intent);
   if (routingMode === 'route-server' && !allGreenfield)
     fail('same-VNet brownfield Route Server insertion is unsupported; use explicitly approved UDR associations');
   if (routingMode === 'route-server' && !region.routeServerSupported)
@@ -1411,13 +1686,16 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     (resourceId) => ({
       resourceId,
       owned: false,
-      action: intent.brownfield.routeChanges.some(
-        (change) =>
-          change.routeTableId.toLowerCase() === resourceId.toLowerCase() ||
-          change.subnetId.toLowerCase() === resourceId.toLowerCase(),
-      )
-        ? ('modify-approved' as const)
-        : ('reference' as const),
+      action:
+        (intent.ingress?.mode === 'platform-http' &&
+          intent.ingress.probe.sourceVmResourceId.toLowerCase() === resourceId.toLowerCase()) ||
+        intent.brownfield.routeChanges.some(
+          (change) =>
+            change.routeTableId.toLowerCase() === resourceId.toLowerCase() ||
+            change.subnetId.toLowerCase() === resourceId.toLowerCase(),
+        )
+          ? ('modify-approved' as const)
+          : ('reference' as const),
     }),
   );
 
@@ -1429,7 +1707,6 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
         zones,
         routingMode,
         observation.image.urn,
-        observation.image.termsAccepted,
         routeServerCidr,
         !targetGroup?.exists,
       )
@@ -1470,9 +1747,10 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     if (ownershipInventory.some((item) => item.resourceId.toLowerCase() === resource.id.toLowerCase())) continue;
     ownershipInventory.push({ resourceId: resource.id, owned: true, action: 'reference' });
   }
+  const workloadFixtureCount = intent.workloadFixture ? 1 : 0;
   const billableResources = [
-    { type: 'virtual-machine', count: nodeCount },
-    { type: 'managed-disk', count: nodeCount },
+    { type: 'virtual-machine', count: nodeCount + workloadFixtureCount },
+    { type: 'managed-disk', count: nodeCount + workloadFixtureCount },
     ...(intent.egress.mode === 'public-ip' ? [{ type: 'standard-public-ip', count: nodeCount }] : []),
     ...(routingMode === 'route-server'
       ? [
@@ -1482,6 +1760,7 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
       : []),
   ];
   const draft: AzureCePlanDraft = {
+    engine: intent.engine ?? 'native',
     schemaVersion: AZURE_CE_SCHEMA_VERSION,
     intent,
     subscription: observation.subscription,
@@ -1495,8 +1774,8 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     routing: {
       mode: routingMode,
       destinationCidrs: intent.routing.destinationCidrs,
-      localAsn: intent.routing.localAsn ?? 65010,
-      peerAsn: intent.routing.peerAsn ?? 65010,
+      localAsn: intent.routing.localAsn ?? intent.routing.peerAsn ?? 65010,
+      peerAsn: intent.routing.peerAsn ?? intent.routing.localAsn ?? 65010,
     },
     securityRules: intent.securityRules,
     image: observation.image,
@@ -1505,10 +1784,14 @@ export function compileAzureCePlan(input: AzureCeIntent, observation: AzureCeObs
     billableResources,
     actions,
     rollback: { brownfieldRoutes: rollbackRoutes },
-    observationFingerprint: fingerprintObservation(observation, intent.brownfield.resourceIds),
+    observationFingerprint:
+      intent.operation === 'deploy'
+        ? fingerprintDeploymentObservation(observation, intent.brownfield.resourceIds, region.name, size.name)
+        : fingerprintObservation(observation, intent.brownfield.resourceIds),
     ownershipInventory,
     ownershipTagTemplate: {
       'xcsh-managed-by': 'azure-ce',
+      'xcsh-execution-engine': intent.engine ?? 'native',
       'xcsh-deployment-id': intent.deploymentName,
       'xcsh-plan-sha256': '__PLAN_SHA256__',
     },

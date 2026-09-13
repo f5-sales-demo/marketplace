@@ -2,15 +2,17 @@ import { describe, expect, it } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const subscriptionId = ['11111111', '1111', '4111', '8111', '111111111111'].join('-');
+const tenantId = ['22222222', '2222', '4222', '8222', '222222222222'].join('-');
+const foreignSubscriptionId = ['33333333', '3333', '4333', '8333', '333333333333'].join('-');
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
 const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
 
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
-    schemaVersion: 2,
-    subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId: '22222222-2222-4222-8222-222222222222' },
+    schemaVersion: 3,
+    subscription: { id: subscriptionId, cloud: 'AzureCloud', tenantId },
     image: {
       publisher: 'f5-networks',
       offer: 'f5xc-customer-edge',
@@ -55,8 +57,8 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
       ],
       sharedContract: {
         url: sharedContractUrl,
-        contractId: 'f5xc-ce-automation',
-        contractVersion: 'v1',
+        contractId: 'f5xc-ce-automation-policy',
+        contractVersion: 'v2',
         normalizedSha256: '3'.repeat(64),
       },
     },
@@ -66,7 +68,7 @@ function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObserv
 
 function intent(overrides: Partial<AzureCeIntent> = {}): AzureCeIntent {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     operation: 'deploy',
     subscriptionId,
     deploymentName: 'ce-demo',
@@ -107,6 +109,38 @@ function nics(count: number): AzureCeIntent['nics'] {
 }
 
 describe('compileAzureCePlan', () => {
+  for (const engine of ['native', 'terraform'] as const) {
+    for (const cidr of ['999.20.0.0/24', '10.20.0.0/33', '10.20.0.0/999', 'abcd/64', '2001:::1/64', '2001:db8::/129']) {
+      it(`rejects invalid addressing ${cidr} before producing a ${engine} plan`, () => {
+        const invalidSubnet = intent({ engine });
+        invalidSubnet.nics[0].subnet.cidr = cidr;
+        expect(() => compileAzureCePlan(invalidSubnet, observation())).toThrow(/CIDR/i);
+        const invalidRoute = intent({ engine });
+        invalidRoute.routing.destinationCidrs = [cidr];
+        expect(() => compileAzureCePlan(invalidRoute, observation())).toThrow(/CIDR/i);
+        const invalidRule = intent({ engine });
+        invalidRule.securityRules = [
+          {
+            name: 'application',
+            purpose: 'application-vip',
+            direction: 'Inbound',
+            protocol: 'Tcp',
+            sourceCidrs: [cidr],
+            destinationCidrs: ['10.20.1.0/24'],
+            destinationPorts: ['80'],
+          },
+        ];
+        expect(() => compileAzureCePlan(invalidRule, observation())).toThrow(/CIDR/i);
+      });
+    }
+    it(`preserves valid IPv4 and IPv6 route prefixes in a ${engine} plan`, () => {
+      const valid = intent({ engine });
+      valid.routing.destinationCidrs = ['0.0.0.0/0', '10.30.0.1/32', '::/0', '2001:db8::/64', '2001:db8::1/128'];
+      const plan = compileAzureCePlan(valid, observation());
+      expect(plan.routing.destinationCidrs).toEqual([...valid.routing.destinationCidrs].sort());
+    });
+  }
+
   it('is byte-identical for identical normalized intent and observations', () => {
     const first = compileAzureCePlan(intent(), observation());
     const second = compileAzureCePlan(intent(), observation());
@@ -134,7 +168,7 @@ describe('compileAzureCePlan', () => {
       compileAzureCePlan({ ...intent(), schemaVersion: 1 } as unknown as AzureCeIntent, observation()),
     ).toThrow(/schema version 1/i);
     const invalid = observation();
-    invalid.research.sharedContract.contractVersion = 'v2' as 'v1';
+    invalid.research.sharedContract.contractVersion = 'v1' as 'v2';
     expect(() => compileAzureCePlan(intent(), invalid)).toThrow(/shared.*contract/i);
   });
 
@@ -143,6 +177,84 @@ describe('compileAzureCePlan', () => {
     expect(plan.topology.nodeCount).toBe(1);
     expect(plan.routing.mode).toBe('udr');
     expect(plan.actions.some((action) => action.kind === 'route-create')).toBe(true);
+    expect(plan.actions.some((action) => action.kind === 'traffic-gate')).toBe(false);
+  });
+
+  it('plans reviewed platform HTTP ingress and content-bound traffic only for an allowlisted source VM', () => {
+    const sourceVmResourceId =
+      `/subscriptions/${subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+    const selected = intent({
+      ingress: {
+        mode: 'platform-http',
+        port: 8080,
+        listener: {
+          name: 'ce-listener',
+          namespace: 'system',
+          domain: 'ce.example.invalid',
+          privateAddress: '10.20.1.10',
+          originPool: { name: 'ce-origin', namespace: 'system' },
+        },
+        probe: {
+          sourceVmResourceId: sourceVmResourceId.toUpperCase(),
+          path: '/healthz',
+          expectedStatus: 200,
+          expectedBodySha256: '4'.repeat(64),
+        },
+      },
+      brownfield: { resourceIds: [sourceVmResourceId], routeChanges: [] },
+    });
+    const plan = compileAzureCePlan(
+      selected,
+      observation({
+        resources: [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }],
+      }),
+    );
+    expect(plan.intent.ingress?.mode).toBe('platform-http');
+    if (plan.intent.ingress?.mode !== 'platform-http') throw new Error('missing ingress');
+    expect(plan.intent.ingress.probe.sourceVmResourceId).toBe(sourceVmResourceId);
+    expect(plan.ownershipInventory).toContainEqual({
+      resourceId: sourceVmResourceId,
+      owned: false,
+      action: 'modify-approved',
+    });
+    expect(plan.actions.slice(-2).map((action) => action.kind)).toEqual(['f5-ingress-configure', 'traffic-gate']);
+  });
+
+  it('rejects malformed, unallowlisted, or reserved platform HTTP ingress identities', () => {
+    const sourceVmResourceId =
+      `/subscriptions/${subscriptionId}/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/probe`.toLowerCase();
+    const selected = intent({
+      ingress: {
+        mode: 'platform-http',
+        port: 8080,
+        listener: {
+          name: 'ce-listener',
+          namespace: 'system',
+          domain: 'ce.example.invalid',
+          privateAddress: '10.20.1.10',
+          originPool: { name: 'ce-origin', namespace: 'system' },
+        },
+        probe: {
+          sourceVmResourceId,
+          path: '/healthz',
+          expectedStatus: 200,
+          expectedBodySha256: '4'.repeat(64),
+        },
+      },
+    });
+    expect(() => compileAzureCePlan(selected, observation())).toThrow(/brownfield.resourceIds/i);
+
+    selected.brownfield.resourceIds = [sourceVmResourceId];
+    if (selected.ingress?.mode !== 'platform-http') throw new Error('missing ingress');
+    selected.ingress.listener.privateAddress = '10.20.1.3';
+    expect(() =>
+      compileAzureCePlan(
+        selected,
+        observation({
+          resources: [{ id: sourceVmResourceId, exists: true, owned: false, tags: {}, state: {} }],
+        }),
+      ),
+    ).toThrow(/SLI service address/i);
   });
 
   for (const count of [1, 2, 4, 8]) {
@@ -201,6 +313,10 @@ describe('compileAzureCePlan', () => {
     expect(plan.routing.mode).toBe('route-server');
     expect(plan.actions.filter((action) => action.kind === 'vm-create')).toHaveLength(3);
     expect(plan.actions.filter((action) => action.kind === 'route-server-peer-create')).toHaveLength(3);
+    for (const action of plan.actions.filter((action) => action.kind === 'route-server-peer-create')) {
+      expect(action.args).toContain(`__NODE_${action.node}_SLO_PRIVATE_IP__`);
+      expect(action.args).not.toContain(`__NODE_${action.node}_SLI_PRIVATE_IP__`);
+    }
     const vnet = plan.actions.find((action) => action.kind === 'vnet-create');
     const routeServerSubnet = plan.actions.find((action) => action.description.includes('RouteServerSubnet'));
     expect(vnet?.args).toContain('10.255.0.0/26');
@@ -343,7 +459,7 @@ describe('compileAzureCePlan', () => {
         intent({
           brownfield: {
             resourceIds: [
-              '/subscriptions/33333333-3333-4333-8333-333333333333/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet',
+              `/subscriptions/${foreignSubscriptionId}/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet`,
             ],
             routeChanges: [],
           },
@@ -424,9 +540,22 @@ describe('compileAzureCePlan', () => {
     ).toBe(true);
   });
 
-  it('adds Marketplace terms as a separate first action when terms are not accepted', () => {
-    const plan = compileAzureCePlan(intent(), observation({ image: { ...observation().image, termsAccepted: false } }));
-    expect(plan.actions[0].kind).toBe('marketplace-terms-accept');
+  it('allows only initial Terraform deployment to accept an unaccepted exact Marketplace plan', () => {
+    expect(() =>
+      compileAzureCePlan(intent(), observation({ image: { ...observation().image, termsAccepted: false } })),
+    ).toThrow('only an initial Terraform deployment');
+    expect(() =>
+      compileAzureCePlan(
+        intent({ engine: 'terraform' }),
+        observation({ image: { ...observation().image, termsAccepted: false } }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      compileAzureCePlan(
+        intent({ engine: 'terraform', operation: 'replace-node', replacementNode: 1 }),
+        observation({ image: { ...observation().image, termsAccepted: false } }),
+      ),
+    ).toThrow('only an initial Terraform deployment');
   });
 
   it('never emits deletion for an unmanaged resource during teardown', () => {
@@ -441,7 +570,7 @@ describe('compileAzureCePlan', () => {
             id: ownedId,
             exists: true,
             owned: true,
-            tags: { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'ce-demo' },
+            tags: { 'xcsh-managed-by': 'azure-ce', 'xcsh-execution-engine': 'native', 'xcsh-deployment-id': 'ce-demo' },
             state: {},
           },
         ],
@@ -457,11 +586,124 @@ describe('compileAzureCePlan', () => {
     );
   });
 
+  it('verifies lifecycle VM state serially and only gates platform health for online nodes', () => {
+    const actionKinds = (operation: 'start' | 'stop' | 'resize', ha: boolean) => {
+      const selected = intent({ operation, topology: { ha } });
+      const ownerPlanSha256 = 'a'.repeat(64);
+      const resources = Array.from({ length: ha ? 3 : 1 }, (_, index) => ({
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-${index + 1}`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': ownerPlanSha256,
+        },
+      }));
+      return compileAzureCePlan(selected, observation({ resources })).actions.map((action) => ({
+        kind: action.kind,
+        node: action.node,
+        expectedPowerState: action.expectedPowerState,
+        expectedOwnerPlanSha256: action.expectedOwnerPlanSha256,
+      }));
+    };
+
+    expect(actionKinds('stop', false)).toEqual([
+      { kind: 'vm-stop', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: 'a'.repeat(64) },
+      { kind: 'vm-state-gate', node: 1, expectedPowerState: 'deallocated', expectedOwnerPlanSha256: 'a'.repeat(64) },
+    ]);
+    for (const operation of ['start', 'resize'] as const)
+      expect(actionKinds(operation, false)).toEqual([
+        {
+          kind: operation === 'start' ? 'vm-start' : 'vm-resize',
+          node: 1,
+          expectedPowerState: undefined,
+          expectedOwnerPlanSha256: 'a'.repeat(64),
+        },
+        { kind: 'vm-state-gate', node: 1, expectedPowerState: 'running', expectedOwnerPlanSha256: 'a'.repeat(64) },
+        { kind: 'health-gate', node: 1, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+      ]);
+    expect(actionKinds('start', true)).toEqual(
+      [1, 2, 3].flatMap((node) => [
+        { kind: 'vm-start', node, expectedPowerState: undefined, expectedOwnerPlanSha256: 'a'.repeat(64) },
+        { kind: 'vm-state-gate', node, expectedPowerState: 'running', expectedOwnerPlanSha256: 'a'.repeat(64) },
+        { kind: 'health-gate', node, expectedPowerState: undefined, expectedOwnerPlanSha256: undefined },
+      ]),
+    );
+  });
+
+  it('rejects lifecycle planning without exact observed VM ownership', () => {
+    expect(() => compileAzureCePlan(intent({ operation: 'start' }), observation())).toThrow(
+      /missing exact observed ownership/,
+    );
+  });
+
+  it('rebinds each retained Route Server peer and proves convergence after a Route Server network update', () => {
+    const selected = intent({
+      operation: 'update-network',
+      routing: { mode: 'route-server', destinationCidrs: ['10.30.0.0/16'], localAsn: 64512 },
+    });
+    const owner = 'a'.repeat(64);
+    const resources: AzureCeObservation['resources'] = [
+      {
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Compute/virtualMachines/${selected.deploymentName}-1`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': owner,
+        },
+      },
+      ...selected.nics.map((_nic, index) => ({
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${selected.deploymentName}-1-nic${index}`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': owner,
+        },
+      })),
+      {
+        id: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/virtualHubs/${selected.deploymentName}-rs`,
+        location: selected.region,
+        exists: true,
+        owned: true,
+        state: {},
+        tags: {
+          'xcsh-managed-by': 'azure-ce',
+          'xcsh-deployment-id': selected.deploymentName,
+          'xcsh-execution-engine': 'native',
+          'xcsh-plan-sha256': owner,
+        },
+      },
+    ];
+    const plan = compileAzureCePlan(selected, observation({ resources }));
+    const peerUpdates = plan.actions.filter((action) => action.kind === 'route-server-peer-update');
+    expect(peerUpdates).toHaveLength(1);
+    expect(peerUpdates[0]).toMatchObject({
+      resourceId: `/subscriptions/${subscriptionId}/resourceGroups/${selected.resourceGroup}/providers/Microsoft.Network/virtualHubs/${selected.deploymentName}-rs/bgpConnections/${selected.deploymentName}-1`,
+      expectedOwnerPlanSha256: owner,
+    });
+    expect(peerUpdates[0].args).toContain('__NODE_1_SLO_PRIVATE_IP__');
+    expect(plan.actions.some((action) => action.kind === 'bgp-gate')).toBe(true);
+  });
+
   it('deletes an owned resource group last after dependency-ordered resources', () => {
     const groupId = `/subscriptions/${subscriptionId}/resourceGroups/rg-ce-demo`;
     const vmId = `${groupId}/providers/Microsoft.Compute/virtualMachines/ce-demo-1`;
     const vnetId = `${groupId}/providers/Microsoft.Network/virtualNetworks/ce-demo-vnet`;
-    const tags = { 'xcsh-managed-by': 'azure-ce', 'xcsh-deployment-id': 'ce-demo' };
+    const tags = { 'xcsh-managed-by': 'azure-ce', 'xcsh-execution-engine': 'native', 'xcsh-deployment-id': 'ce-demo' };
     const plan = compileAzureCePlan(
       intent({ operation: 'teardown' }),
       observation({
@@ -480,4 +722,116 @@ describe('compileAzureCePlan', () => {
     ]);
     expect(deletes.at(-1)?.args?.slice(0, 2)).toEqual(['group', 'delete']);
   });
+});
+
+it('supports explicitly selected Route Server with a single CE and one consistent local ASN', () => {
+  const plan = compileAzureCePlan(
+    intent({ topology: { ha: false }, routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512 } }),
+    observation(),
+  );
+  expect(plan.topology.nodeCount).toBe(1);
+  expect(plan.routing.localAsn).toBe(64512);
+  expect(plan.routing.peerAsn).toBe(64512);
+  const peers = plan.actions.filter((action) => action.kind === 'route-server-peer-create');
+  expect(peers).toHaveLength(1);
+  expect(peers[0].args).toContain('64512');
+});
+
+it('rejects Azure-reserved, IANA-reserved, 32-bit and conflicting Route Server CE ASNs', () => {
+  for (const asn of [
+    8074, 8075, 12076, 23456, 64496, 64511, 65515, 65517, 65518, 65519, 65520, 65535, 65536, 4200000000,
+  ]) {
+    expect(() =>
+      compileAzureCePlan(
+        intent({ routing: { mode: 'route-server', destinationCidrs: [], localAsn: asn } }),
+        observation(),
+      ),
+    ).toThrow('16-bit');
+  }
+  expect(() =>
+    compileAzureCePlan(
+      intent({ routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512, peerAsn: 65010 } }),
+      observation(),
+    ),
+  ).toThrow('must match');
+});
+
+it('keeps CE interfaces out of RouteServerSubnet and rejects IPv6 VNet addressing for Route Server', () => {
+  for (const subnet of [
+    { name: 'RouteServerSubnet', cidr: '10.0.0.0/24' },
+    { name: 'outside', cidr: '2001:db8::/64' },
+  ]) {
+    const input = intent({ routing: { mode: 'route-server', destinationCidrs: [] } });
+    Object.assign(input.nics[0].subnet, subnet);
+    expect(() => compileAzureCePlan(input, observation())).toThrow(/dedicated|IPv4/);
+  }
+});
+
+it('requires the deployment URN to identify the exact observed Marketplace artifact', () => {
+  for (const urn of [
+    '',
+    'f5-networks:f5xc-customer-edge:f5xc-ce:latest',
+    'other:offer:plan:2026.08.15',
+    'f5-networks:f5xc-customer-edge:f5xc-ce:2026.08.16',
+  ]) {
+    const observed = observation();
+    observed.image.urn = urn;
+    expect(() => compileAzureCePlan(intent(), observed)).toThrow('URN');
+  }
+  for (const version of ['', '*', '2026.08', '2026.08.15 trailing']) {
+    const observed = observation();
+    observed.image.version = version;
+    expect(() => compileAzureCePlan(intent(), observed)).toThrow('exact Marketplace version');
+  }
+});
+
+it('treats missing memory or NIC sizing evidence as unavailable', () => {
+  for (const change of [
+    { memoryGb: Number.NaN },
+    { memoryGb: Number.POSITIVE_INFINITY },
+    { maxNics: Number.NaN },
+    { maxNics: 2.5 },
+  ]) {
+    const observed = observation();
+    for (const region of observed.regions) for (const size of region.vmSizes) Object.assign(size, change);
+    expect(() => compileAzureCePlan(intent(), observed)).toThrow('incomplete observed');
+  }
+});
+
+for (const engine of ['native', 'terraform'] as const) {
+  it(`${engine} plans the marketplace SLO/data/SLI layout without equating cloud names with XC roles`, () => {
+    const selected = nics(3);
+    selected[0].name = 'mgmt';
+    selected[1].name = 'external';
+    selected[1].role = 'data';
+    selected[2].name = 'internal';
+    selected[2].role = 'sli';
+    const plan = compileAzureCePlan(
+      intent({ engine, nics: selected, routing: { mode: 'route-server', destinationCidrs: [], localAsn: 64512 } }),
+      observation(),
+    );
+    expect(plan.nics.map(({ index, name, role }) => ({ index, name, role }))).toEqual([
+      { index: 0, name: 'mgmt', role: 'slo' },
+      { index: 1, name: 'external', role: 'data' },
+      { index: 2, name: 'internal', role: 'sli' },
+    ]);
+    const vm = plan.actions.find((action) => action.kind === 'vm-create');
+    const first = vm?.args?.indexOf('--nics') ?? -1;
+    expect(first).toBeGreaterThan(0);
+    expect(vm?.args?.slice(first + 1, first + 4).map((value) => value.split('/').at(-1))).toEqual([
+      `${plan.intent.deploymentName}-1-nic0`,
+      `${plan.intent.deploymentName}-1-nic1`,
+      `${plan.intent.deploymentName}-1-nic2`,
+    ]);
+    const peer = plan.actions.find((action) => action.kind === 'route-server-peer-create');
+    expect(peer?.args).toContain('__NODE_1_SLO_PRIVATE_IP__');
+    expect(peer?.args).not.toContain('__NODE_1_SLI_PRIVATE_IP__');
+  });
+}
+it('rejects duplicate outside or inside roles before planning resources', () => {
+  for (const duplicate of ['slo', 'sli'] as const) {
+    const selected = nics(3);
+    selected[2].role = duplicate;
+    expect(() => compileAzureCePlan(intent({ nics: selected }), observation())).toThrow('roles must be unique');
+  }
 });

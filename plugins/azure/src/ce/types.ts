@@ -1,4 +1,5 @@
-export const AZURE_CE_SCHEMA_VERSION = 2 as const;
+export const AZURE_CE_SCHEMA_VERSION = 3 as const;
+export const AZURE_CE_CHECKPOINT_SCHEMA_VERSION = 4 as const;
 export const AZURE_CE_SHARED_CONTRACT_URL =
   'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 
@@ -15,6 +16,26 @@ export type AzureCeOperation =
 
 export type AzureCeEgressMode = 'public-ip' | 'nat-gateway' | 'firewall' | 'proxy';
 export type AzureCeRoutingMode = 'auto' | 'udr' | 'route-server';
+
+export type AzureCeIngress =
+  | { mode: 'none' }
+  | {
+      mode: 'platform-http';
+      port: number;
+      listener: {
+        name: string;
+        namespace: string;
+        domain: string;
+        privateAddress: string;
+        originPool: { name: string; namespace: string };
+      };
+      probe: {
+        sourceVmResourceId: string;
+        path: string;
+        expectedStatus: number;
+        expectedBodySha256: string;
+      };
+    };
 
 export interface AzureCeSubnetIntent {
   mode: 'greenfield' | 'brownfield';
@@ -48,7 +69,17 @@ export interface AzureCeBrownfieldRouteChange {
   destinationCidr: string;
 }
 
+/** Explicit, private workload used to prove a Route Server learned prefix. */
+export interface AzureCeWorkloadFixture {
+  subnetName: string;
+  cidr: string;
+  privateIp: string;
+  port: number;
+}
+
 export interface AzureCeIntent {
+  platformContext?: string;
+  engine?: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   operation: AzureCeOperation;
   subscriptionId: string;
@@ -61,10 +92,12 @@ export interface AzureCeIntent {
   nics: AzureCeNicIntent[];
   egress: { mode: AzureCeEgressMode; resourceId?: string };
   routing: { mode: AzureCeRoutingMode; destinationCidrs: string[]; localAsn?: number; peerAsn?: number };
+  ingress?: AzureCeIngress;
   securityRules: AzureCeSecurityRuleIntent[];
   image: { publisher: string; offer: string; plan: string };
   vm: { size: string; zones?: string[] };
   brownfield: { resourceIds: string[]; routeChanges: AzureCeBrownfieldRouteChange[] };
+  workloadFixture?: AzureCeWorkloadFixture;
   replacementNode?: number;
 }
 
@@ -122,8 +155,8 @@ export interface AzureCeObservation {
     sourceReceipts: Array<{ url: string; normalizedSha256: string }>;
     sharedContract: {
       url: typeof AZURE_CE_SHARED_CONTRACT_URL;
-      contractId: 'f5xc-ce-automation';
-      contractVersion: 'v1';
+      contractId: 'f5xc-ce-automation-policy';
+      contractVersion: 'v2';
       normalizedSha256: string;
     };
   };
@@ -150,8 +183,11 @@ export type AzureCeActionKind =
   | 'route-association-update'
   | 'route-server-create'
   | 'route-server-peer-create'
+  | 'route-server-peer-update'
+  | 'f5-ingress-configure'
   | 'resource-delete'
   | 'brownfield-restore'
+  | 'vm-state-gate'
   | 'health-gate'
   | 'bgp-gate'
   | 'traffic-gate';
@@ -168,9 +204,13 @@ export interface AzureCeAction {
   mutates: boolean;
   destructive: boolean;
   requiresBootstrap?: boolean;
+  expectedPowerState?: 'running' | 'deallocated';
+  expectedOwnerPlanSha256?: string;
+  expectedVmSize?: string;
 }
 
 export interface AzureCePlanDraft {
+  engine: 'native' | 'terraform';
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   intent: AzureCeIntent;
   subscription: AzureCeObservation['subscription'];
@@ -205,6 +245,7 @@ export interface AzureCePlanDraft {
   }>;
   ownershipTagTemplate: {
     'xcsh-managed-by': 'azure-ce';
+    'xcsh-execution-engine': 'native' | 'terraform';
     'xcsh-deployment-id': string;
     'xcsh-plan-sha256': '__PLAN_SHA256__';
   };
@@ -216,11 +257,34 @@ export interface AzureCePlan extends AzureCePlanDraft {
 }
 
 export interface AzureCeCheckpoint {
+  authorization?: { apply: boolean; terms: boolean; destroy: boolean };
+  engine: 'native' | 'terraform';
+  schemaVersion: typeof AZURE_CE_CHECKPOINT_SCHEMA_VERSION;
+  planId: string;
+  planSha256: string;
+  completedActionIds: string[];
+  pendingAction?: {
+    actionId: string;
+    kind: AzureCeActionKind;
+    resourceId: string;
+    requestSha256: string;
+  };
+  failedActionId?: string;
+  observationFingerprint?: string;
+  observationSnapshot?: AzureCeObservation;
+  state: 'running' | 'partial' | 'complete';
+}
+
+export interface AzureCeLegacyCheckpoint {
+  authorization?: AzureCeCheckpoint['authorization'];
+  engine: AzureCeCheckpoint['engine'];
   schemaVersion: typeof AZURE_CE_SCHEMA_VERSION;
   planId: string;
   planSha256: string;
   completedActionIds: string[];
   failedActionId?: string;
   observationFingerprint?: string;
-  state: 'running' | 'partial' | 'complete';
+  state: AzureCeCheckpoint['state'];
 }
+
+export type AzureCeStoredCheckpoint = AzureCeCheckpoint | AzureCeLegacyCheckpoint;

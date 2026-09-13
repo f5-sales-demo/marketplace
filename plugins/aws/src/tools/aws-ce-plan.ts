@@ -1,6 +1,8 @@
 import type { PluginInterface } from '../aws/types';
 import { loadAwsDiscovery, loadAwsPlan, saveAwsPlan } from '../ce/artifacts';
+import { canonicalSha256 } from '../ce/canonical';
 import { compileAwsCePlan } from '../ce/planner';
+import { siteTopology } from '../ce/topology';
 import type { AwsCeIntent } from '../ce/types';
 import { AWS_CE_MARKETPLACE_PRODUCT_ID, AWS_CE_SCHEMA_VERSION } from '../ce/types';
 
@@ -16,6 +18,8 @@ export function createAwsCePlanTool(pi: PluginInterface) {
     index: Type.Number(),
     role: Type.Union(['slo', 'sli', 'management', 'service', 'workload'].map((value) => Type.Literal(value))),
     vrf: Type.String(),
+    mtu: Type.Optional(Type.Integer({ minimum: 1500, maximum: 9000 })),
+    guestDevice: Type.Optional(Type.String()),
     subnets: Type.Array(subnet),
     addressing: Type.Object({
       mode: Type.Union([Type.Literal('dhcp'), Type.Literal('static')]),
@@ -39,6 +43,9 @@ export function createAwsCePlanTool(pi: PluginInterface) {
       restorationPlanSha256: Type.Optional(Type.String()),
       intent: Type.Object({
         schemaVersion: Type.Literal(AWS_CE_SCHEMA_VERSION),
+        engine: Type.Optional(Type.Union([Type.Literal('native'), Type.Literal('terraform')])),
+        awsProfile: Type.Optional(Type.String()),
+        platformContext: Type.Optional(Type.String()),
         operation: Type.Union(
           [
             'deploy',
@@ -58,7 +65,18 @@ export function createAwsCePlanTool(pi: PluginInterface) {
         deploymentName: Type.String(),
         siteName: Type.String(),
         namespace: Type.String(),
-        topology: Type.Object({ nodeCount: Type.Union([Type.Literal(1), Type.Literal(3)]) }),
+        initialVersions: Type.Optional(Type.Object({ software: Type.String(), os: Type.String() })),
+        topology: Type.Object({
+          nodeCount: Type.Union([Type.Literal(1), Type.Literal(3)]),
+          sites: Type.Optional(
+            Type.Array(
+              Type.Object({
+                name: Type.String(),
+                nodeIndexes: Type.Array(Type.Integer({ minimum: 1, maximum: 3 }), { minItems: 1, maxItems: 3 }),
+              }),
+            ),
+          ),
+        }),
         vpc: Type.Object({
           mode: Type.Union([Type.Literal('greenfield'), Type.Literal('brownfield')]),
           vpcId: Type.Optional(Type.String()),
@@ -80,9 +98,42 @@ export function createAwsCePlanTool(pi: PluginInterface) {
           customerAsn: Type.Optional(Type.Number()),
           transitGatewayAsn: Type.Optional(Type.Number()),
           insideCidrs: Type.Optional(stringArray),
+          connectPeers: Type.Optional(
+            Type.Array(
+              Type.Object({
+                node: Type.Integer({ minimum: 1, maximum: 3 }),
+                insideCidr: Type.String(),
+                transportInterfaceIndex: Type.Union([Type.Literal(0), Type.Literal(1)]),
+                transitGatewayAddress: Type.Optional(Type.String()),
+              }),
+              { minItems: 1, maxItems: 12 },
+            ),
+          ),
           associations: stringArray,
           propagations: stringArray,
         }),
+        ingress: Type.Optional(
+          Type.Union([
+            Type.Object({ mode: Type.Literal('none') }),
+            Type.Object({
+              mode: Type.Literal('nlb'),
+              port: Type.Integer({ minimum: 1, maximum: 65535 }),
+              scheme: Type.Literal('internal'),
+              listener: Type.Object({
+                name: Type.String(),
+                namespace: Type.String(),
+                domain: Type.String(),
+                originPool: Type.Object({ name: Type.String(), namespace: Type.String() }),
+              }),
+              probe: Type.Object({
+                sourceInstanceId: Type.String(),
+                path: Type.String(),
+                expectedStatus: Type.Integer({ minimum: 100, maximum: 599 }),
+                expectedBodySha256: Type.String(),
+              }),
+            }),
+          ]),
+        ),
         image: Type.Object({ productId: Type.Literal(AWS_CE_MARKETPLACE_PRODUCT_ID), amiId: Type.String() }),
         instance: Type.Object({
           type: Type.String(),
@@ -127,7 +178,8 @@ export function createAwsCePlanTool(pi: PluginInterface) {
             original.partition !== params.intent.partition ||
             original.region !== params.intent.region ||
             original.deploymentName !== params.intent.deploymentName ||
-            original.siteName !== params.intent.siteName
+            original.siteName !== params.intent.siteName ||
+            canonicalSha256(siteTopology(original.intent)) !== canonicalSha256(siteTopology(params.intent))
           )
             throw new Error('Original restoration plan scope does not match teardown intent');
           restorationState = original.rollback.resources;

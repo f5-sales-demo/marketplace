@@ -1,0 +1,4415 @@
+{
+  "provenance": {
+    "repository": "f5-sales-demo/api-specs-enriched",
+    "commit": "5ce68bff35b444e5af967433ad3d14ca96a1ffe0",
+    "networkSha256": "a7398d85475409c93750a04ccdec7c0b1a7ae12bc362ebfbc76866275904762a",
+    "marketplaceSha256": "254eae70dea7677b9c384e56c10594db94929a51f487dd79bbcd2e1bed3c5987"
+  },
+  "schemas": {
+    "network": {
+      "schemabgp_routing_policyCreateSpecType": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": { "$ref": "#/components/schemas/bgp_routing_policyBgpRoutePolicy" }
+          }
+        }
+      },
+      "bgp_routing_policyBgpRoutePolicy": {
+        "type": "object",
+        "properties": {
+          "action": { "$ref": "#/components/schemas/bgp_routing_policyBgpRouteAction" },
+          "match": { "$ref": "#/components/schemas/bgp_routing_policyBgpRouteMatch" }
+        }
+      },
+      "bgp_routing_policyBgpRouteMatch": {
+        "type": "object",
+        "properties": {
+          "ip_prefixes": { "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatchList" }
+        }
+      },
+      "bgp_routing_policyBgpRouteAction": {
+        "type": "object",
+        "properties": {
+          "deny": { "$ref": "#/components/schemas/ioschemaEmpty" }
+        }
+      },
+      "bgp_routing_policyBgpPrefixMatchList": {
+        "type": "object",
+        "properties": {
+          "prefixes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": { "$ref": "#/components/schemas/bgp_routing_policyBgpPrefixMatch" }
+          }
+        }
+      },
+      "bgp_routing_policyBgpPrefixMatch": {
+        "type": "object",
+        "properties": {
+          "equal_or_longer_than": { "$ref": "#/components/schemas/ioschemaEmpty" },
+          "ip_prefixes": { "type": "string", "format": "cidr" }
+        }
+      },
+      "bgpCreateSpecType": {
+        "type": "object",
+        "description": "BGP object is the configuration for peering with external BGP servers.\nIt is created by users in system namespace.",
+        "title": "Create bgp",
+        "x-displayname": "Create BGP.",
+        "x-ves-proto-message": "ves.io.schema.bgp.CreateSpecType",
+        "properties": {
+          "bgp_parameters": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpBgpParameters"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for bgp parameters.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "peers": {
+            "type": "array",
+            "description": "List of peers.",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/bgpPeer"
+            },
+            "x-displayname": "Peers",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "8",
+              "ves.io.schema.rules.repeated.unique_metadata_name": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "8",
+              "ves.io.schema.rules.repeated.unique_metadata_name": "true"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "maxItems": 8,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "where": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaSiteVirtualSiteRefSelector"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-references": [
+              {
+                "resource_kind": "site",
+                "field_path": "where",
+                "gated_by": null,
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          }
+        },
+        "x-f5xc-description-short": "BGP object is the configuration for peering with external BGP servers. It is created by users in system namespace.",
+        "x-f5xc-description-medium": "BGP object is the configuration for peering with external BGP servers. It is created by users in system namespace.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpCreateSpecType",
+          "required_fields": ["peers"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"peers\": [\n    {}\n  ]\n}",
+          "example_yaml": "peers:\n- {}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "schemaSiteVirtualSiteRefSelector": {
+        "type": "object",
+        "description": "VirtualSiteSiteRefSelector defines a union of reference to site or reference to virtual_site\nIt used to refer site or a group of sites indicated by virtual site.",
+        "title": "SiteVirtualSiteRefSelector",
+        "x-displayname": "Site or Virtual Site Reference.",
+        "x-ves-oneof-field-ref_or_selector": "[\"site\",\"virtual_site\"]",
+        "x-ves-proto-message": "ves.io.schema.SiteVirtualSiteRefSelector",
+        "properties": {
+          "site": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaSiteRefType__ves_io_schema_bgp"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["virtual_site"],
+            "x-f5xc-references": [
+              {
+                "resource_kind": "site",
+                "field_path": "site",
+                "gated_by": {
+                  "choice": "ref_or_selector"
+                },
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "virtual_site": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaVSiteRefType__ves_io_schema_bgp"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["site"],
+            "x-f5xc-references": [
+              {
+                "resource_kind": "virtual_site",
+                "field_path": "virtual_site",
+                "gated_by": {
+                  "choice": "ref_or_selector"
+                },
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          }
+        },
+        "x-f5xc-description-short": "VirtualSiteSiteRefSelector defines a union of reference to site or reference to virtual_site It used to refer site or a group of sites indicated...",
+        "x-f5xc-description-medium": "VirtualSiteSiteRefSelector defines a union of reference to site or reference to virtual_site It used to refer site or a group of sites indicated by virtual site.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaSiteVirtualSiteRefSelector",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "Sites are platform-level infrastructure"
+          },
+          "classification": {
+            "category": "infrastructure",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "schemaVSiteRefType__ves_io_schema_bgp": {
+        "type": "object",
+        "description": "A reference to virtual_site object.",
+        "title": "VSiteRefType",
+        "x-displayname": "Virtual Site.",
+        "x-ves-oneof-field-internet_vip_choice": "[\"disable_internet_vip\",\"enable_internet_vip\"]",
+        "x-ves-proto-message": "ves.io.schema.VSiteRefType",
+        "properties": {
+          "disable_internet_vip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["enable_internet_vip"]
+          },
+          "enable_internet_vip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["disable_internet_vip"]
+          },
+          "network_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaVirtualNetworkType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "ref": {
+            "type": "array",
+            "description": "A virtual_site direct reference.",
+            "title": "ref",
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/ioschemaObjectRefType"
+            },
+            "x-displayname": "Reference",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "maxItems": 1,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaVSiteRefType",
+          "required_fields": ["ref"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"ref\": [\n    {}\n  ]\n}",
+          "example_yaml": "ref:\n- {}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "ioschemaObjectRefType": {
+        "type": "object",
+        "description": "This type establishes a 'direct reference' from one object(the referrer) to another(the referred).\nSuch a reference is in form of tenant/namespace/name for public API and Uid for private API\nThis type of reference is called direct because the relation is explicit and concrete (as opposed\nto selector reference which builds a group based on labels of selectee objects)",
+        "title": "ObjectRefType",
+        "x-displayname": "Object reference.",
+        "x-ves-proto-message": "ves.io.schema.ObjectRefType",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen kind will hold the referred object's kind (e.g. \"route\")",
+            "title": "kind",
+            "x-displayname": "Kind",
+            "x-ves-example": "Virtual_site.",
+            "x-f5xc-example": "virtual_site",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\")",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\").",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "minLength": 12,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "name": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Contactus-route.",
+            "x-f5xc-example": "contactus-route",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 6,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+            "title": "namespace",
+            "x-displayname": "Namespace",
+            "x-ves-example": "Ns1",
+            "x-f5xc-example": "ns1",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+            "maxLength": 63,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 1,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "tenant": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+            "title": "tenant",
+            "x-displayname": "Tenant",
+            "x-ves-example": "Example-corp.",
+            "x-f5xc-example": "example-corp",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "x-field-mutability": "read-only",
+            "minLength": 12,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "uid": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen uid will hold the referred object's(e.g. Route's) uid.",
+            "title": "uid",
+            "x-displayname": "UID",
+            "x-ves-example": "00000000-0000-4000-8000-0df41b679859.",
+            "x-f5xc-example": "00000000-0000-4000-8000-0df41b679859",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "x-field-mutability": "read-only",
+            "minLength": 36,
+            "format": "uuid",
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          }
+        },
+        "x-f5xc-description-short": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred).",
+        "x-f5xc-description-medium": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name for public API and Uid for private API This type of reference is called direct because the relation is explicit and concrete (as opposed to selector...",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for ioschemaObjectRefType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaVirtualNetworkType": {
+        "type": "string",
+        "description": "Different types of virtual networks understood by the system\n\nVirtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public (outside) network.\nThis is an insecure network and is connected to public internet via NAT Gateways/firwalls\nVirtual-network of this type is local to every site. Two virtual networks of this type on different\nsites are neither related nor connected.\n\nConstraints:\nThere can be atmost one virtual network of this type in a given site.\nThis network type is supported on CE sites. This network is created automatically and present on all sites\nVirtual-network of type VIRTUAL_NETWORK_SITE_LOCAL_INSIDE is a private network inside site.\nIt is a secure network and is not connected to public network.\nVirtual-network of this type is local to every site. Two virtual networks of this type on different\nsites are neither related nor connected.\n\nConstraints:\nThere can be atmost one virtual network of this type in a given site.\nThis network type is supported on CE sites. This network is created during provisioning of site\nUser defined per-site virtual network. Scope of this virtual network is limited to the site.\nThis is not yet supported\nVirtual-network of type VIRTUAL_NETWORK_PUBLIC directly connects to the public internet.\nVirtual-network of this type is local to every site. Two virtual networks of this type on different sites are neither related nor connected.\n\nConstraints:\nThere can be atmost one virtual network of this type in a given site.\nThis network type is supported on RE sites only\nIt is an internally created by the system. They must not be created by user\nVirtual Networks with global scope across different sites in F5XC domain.\nAn example global virtual-network called \"AIN Network\" is created for every tenant.\nFor F5 Distributed Cloud fabric\n\nConstraints:\nIt is currently only supported as internally created by the system.\nVK8s service network for a given tenant. Used to advertise a virtual host only to vk8s pods for that tenant\nConstraints:\nIt is an internally created by the system. Must not be created by user\nVER internal network for the site. It can only be used for virtual hosts with SMA_PROXY type proxy\nConstraints:\nIt is an internally created by the system. Must not be created by user\nVirtual-network of type VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE represents both\nVIRTUAL_NETWORK_SITE_LOCAL and VIRTUAL_NETWORK_SITE_LOCAL_INSIDE\n\nConstraints:\nThis network type is only meaningful in an advertise policy\nWhen virtual-network of type VIRTUAL_NETWORK_IP_AUTO is selected for\nan endpoint, VER will try to determine the network based on the provided\nIP address\n\nConstraints:\nThis network type is only meaningful in an endpoint\n\nVoltADN Private Network is used on F5 Distributed Cloud RE(s) to connect to customer private networks\nThis network is created by opening a support ticket\n\nThis network is per site srv6 network\nVER IP Fabric network for the site.\nThis Virtual network type is used for exposing virtual host on IP Fabric network on the VER site or\nfor endpoint in IP Fabric network\nConstraints:\nIt is an internally created by the system. Must not be created by user\nNetwork internally created for a segment\nConstraints:\nIt is an internally created by the system. Must not be created by user\nVirtual-network of type VIRTUAL_NETWORK_MANAGEMENT is used for management purposes.",
+        "title": "VirtualNetworkType",
+        "enum": [
+          "VIRTUAL_NETWORK_SITE_LOCAL",
+          "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE",
+          "VIRTUAL_NETWORK_PER_SITE",
+          "VIRTUAL_NETWORK_PUBLIC",
+          "VIRTUAL_NETWORK_GLOBAL",
+          "VIRTUAL_NETWORK_SITE_SERVICE",
+          "VIRTUAL_NETWORK_VER_INTERNAL",
+          "VIRTUAL_NETWORK_SITE_LOCAL_INSIDE_OUTSIDE",
+          "VIRTUAL_NETWORK_IP_AUTO",
+          "VIRTUAL_NETWORK_VOLTADN_PRIVATE_NETWORK",
+          "VIRTUAL_NETWORK_SRV6_NETWORK",
+          "VIRTUAL_NETWORK_IP_FABRIC",
+          "VIRTUAL_NETWORK_SEGMENT",
+          "VIRTUAL_NETWORK_MANAGEMENT"
+        ],
+        "default": "VIRTUAL_NETWORK_SITE_LOCAL",
+        "x-displayname": "Virtual Network Type.",
+        "x-ves-proto-enum": "ves.io.schema.VirtualNetworkType",
+        "x-f5xc-description-short": "Different types of virtual networks understood by the system Virtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public...",
+        "x-f5xc-description-medium": "Different types of virtual networks understood by the system Virtual-network of type VIRTUAL_NETWORK_SITE_LOCAL provides connectivity to public (outside) network. This is an insecure network and is connected to public internet via NAT Gateways/firwalls Virtual-network of this type is local to...",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaVirtualNetworkType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "\"VIRTUAL_NETWORK_SITE_LOCAL\"",
+          "example_yaml": "VIRTUAL_NETWORK_SITE_LOCAL\n..."
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": true
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "Virtual network is platform-level infrastructure"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "ioschemaEmpty": {
+        "type": "object",
+        "description": "This can be used for messages where no values are needed.",
+        "title": "Empty",
+        "x-displayname": "Empty",
+        "x-ves-proto-message": "ves.io.schema.Empty",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for ioschemaEmpty",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaSiteRefType__ves_io_schema_bgp": {
+        "type": "object",
+        "description": "This specifies a direct reference to a site configuration object.",
+        "title": "SiteRefType",
+        "x-displayname": "Site Reference.",
+        "x-ves-oneof-field-internet_vip_choice": "[\"disable_internet_vip\",\"enable_internet_vip\"]",
+        "x-ves-proto-message": "ves.io.schema.SiteRefType",
+        "properties": {
+          "disable_internet_vip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["enable_internet_vip"]
+          },
+          "enable_internet_vip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["disable_internet_vip"]
+          },
+          "network_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaVirtualNetworkType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "ref": {
+            "type": "array",
+            "description": "A site direct reference.",
+            "title": "ref",
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/ioschemaObjectRefType"
+            },
+            "x-displayname": "Reference",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "maxItems": 1,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Specifies a direct reference to a site configuration object.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaSiteRefType",
+          "required_fields": ["ref"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"ref\": [\n    {}\n  ]\n}",
+          "example_yaml": "ref:\n- {}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "Sites are platform-level infrastructure"
+          },
+          "classification": {
+            "category": "infrastructure",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpPeer": {
+        "type": "object",
+        "description": "BGP Peer parameters.",
+        "title": "Peer",
+        "x-displayname": "BGP Peer",
+        "x-ves-displayorder": "1,2,5",
+        "x-ves-oneof-field-bfd_choice": "[\"bfd_disabled\",\"bfd_enabled\"]",
+        "x-ves-oneof-field-enable_choice": "[\"disable\",\"routing_policies\"]",
+        "x-ves-oneof-field-passive_choice": "[\"passive_mode_disabled\",\"passive_mode_enabled\"]",
+        "x-ves-oneof-field-type_choice": "[\"external\"]",
+        "x-ves-proto-message": "ves.io.schema.bgp.Peer",
+        "properties": {
+          "bfd_disabled": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["bfd_enabled"]
+          },
+          "bfd_enabled": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpBFD"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["bfd_disabled"]
+          },
+          "disable": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["routing_policies"]
+          },
+          "external": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpPeerExternal"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "label": {
+            "type": "string",
+            "description": "Specify whether this peer should be.",
+            "title": "label",
+            "x-displayname": "Label",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "labeling",
+              "maxLength": 1024,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_.-]+$",
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaMessageMetaType"
+              }
+            ],
+            "x-f5xc-example": "{\"key\": \"value\"}",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "passive_mode_disabled": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["passive_mode_enabled"]
+          },
+          "passive_mode_enabled": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["passive_mode_disabled"]
+          },
+          "routing_policies": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpBgpRoutePolicies"
+              }
+            ],
+            "x-f5xc-example": "{\"key\": \"value\"}",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["disable"]
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpPeer",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpBgpRoutePolicies": {
+        "type": "object",
+        "description": "List of rules which can be applied on all or particular nodes.",
+        "title": "BGP Routing policies",
+        "x-displayname": "BGP Routing Policy.",
+        "x-ves-proto-message": "ves.io.schema.bgp.BgpRoutePolicies",
+        "properties": {
+          "route_policy": {
+            "type": "array",
+            "description": "Route policy to be applied.",
+            "title": "route_policy",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/bgpBgpRoutePolicy"
+            },
+            "x-displayname": "BGP Routing policy.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.repeated.max_items": "4"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.repeated.max_items": "4"
+            },
+            "x-f5xc-description-short": "Policy configuration for this feature.",
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "maxItems": 4,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "List of rules which can be applied on all or particular nodes.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpBgpRoutePolicies",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpBgpRoutePolicy": {
+        "type": "object",
+        "description": "List of filter rules which can be applied on all or particular nodes.",
+        "title": "BGP Route policy",
+        "x-displayname": "BGP Routing Policy.",
+        "x-ves-displayorder": "7,4,1",
+        "x-ves-oneof-field-direction": "[\"inbound\",\"outbound\"]",
+        "x-ves-oneof-field-node_choice": "[\"all_nodes\",\"node_name\"]",
+        "x-ves-proto-message": "ves.io.schema.bgp.BgpRoutePolicy",
+        "properties": {
+          "all_nodes": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["node_name"]
+          },
+          "inbound": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["outbound"]
+          },
+          "node_name": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpNodes"
+              }
+            ],
+            "x-f5xc-example": "example-resource",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["all_nodes"]
+          },
+          "object_refs": {
+            "type": "array",
+            "description": "Select route policy to apply.",
+            "title": "Policy to apply",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/ioschemaObjectRefType"
+            },
+            "x-displayname": "BGP routing policy.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1",
+              "ves.io.schema.rules.repeated.min_items": "1"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1",
+              "ves.io.schema.rules.repeated.min_items": "1"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "minItems": 1,
+              "maxItems": 1,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "outbound": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["inbound"]
+          }
+        },
+        "x-f5xc-description-short": "List of filter rules which can be applied on all or particular nodes.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpBgpRoutePolicy",
+          "required_fields": ["object_refs"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"object_refs\": [\n    {}\n  ]\n}",
+          "example_yaml": "object_refs:\n- {}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpNodes": {
+        "type": "object",
+        "description": "List of nodes on which BGP routing policy has to be applied.",
+        "title": "Nodes",
+        "x-displayname": "Nodes",
+        "x-ves-proto-message": "ves.io.schema.bgp.Nodes",
+        "properties": {
+          "node": {
+            "type": "array",
+            "description": "Select BGP Session on which policy will be applied.",
+            "title": "Node",
+            "items": {
+              "type": "string"
+            },
+            "x-displayname": "Node of choice.",
+            "x-f5xc-description-short": "Select BGP Session on which policy will be applied.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "List of nodes on which BGP routing policy has to be applied.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpNodes",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "schemaMessageMetaType": {
+        "type": "object",
+        "description": "MessageMetaType is metadata (common attributes) of a message that only certain messages\nhave. This information is propagated to the metadata of a child object that gets created\nfrom the containing message during view processing.\nThe information in this type can be specified by user during create and replace APIs.",
+        "title": "MessageMetaType",
+        "x-displayname": "Message Metadata.",
+        "x-ves-proto-message": "ves.io.schema.MessageMetaType",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Human readable description.",
+            "title": "description",
+            "maxLength": 256,
+            "x-displayname": "Description.",
+            "x-ves-example": "Virtual Host for Example Corp website.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_len": "256"
+            },
+            "x-f5xc-example": "Virtual Host for Example Corp website",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_len": "256"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 256,
+              "minLength": 0,
+              "characterSet": {
+                "description": "Free text with UTF-8 support"
+              },
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 21,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "name": {
+            "type": "string",
+            "description": "This is the name of the message.\nThe value of name has to follow DNS-1035 format.",
+            "title": "name",
+            "minLength": 1,
+            "x-displayname": "Name",
+            "x-ves-example": "Example-corp-web.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.min_len": "1",
+              "ves.io.schema.rules.string.ves_object_name": "true"
+            },
+            "x-f5xc-example": "example-corp-web",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.min_len": "1",
+              "ves.io.schema.rules.string.ves_object_name": "true"
+            },
+            "x-f5xc-description-short": "Name of the message. The value of name has to follow DNS-1035 format.",
+            "maxLength": 63,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "minLength": 1,
+              "maxLength": 63,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter, may contain lowercase alphanumeric and hyphens, must end with alphanumeric",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            },
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          }
+        },
+        "x-f5xc-description-short": "MessageMetaType is metadata (common attributes) of a message that only certain messages have.",
+        "x-f5xc-description-medium": "MessageMetaType is metadata (common attributes) of a message that only certain messages have. This information is propagated to the metadata of a child object that gets created from the containing message during view processing. The information in this type can be specified by user during create...",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaMessageMetaType",
+          "required_fields": ["name"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"name\": \"example-corp-web\"\n}",
+          "example_yaml": "name: example-corp-web"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "bgpPeerExternal": {
+        "type": "object",
+        "description": "External BGP Peer parameters.",
+        "title": "PeerExternal",
+        "x-displayname": "External BGP Peer.",
+        "x-ves-displayorder": "1,2,29,10,11,12,20,25",
+        "x-ves-oneof-field-address_choice": "[\"address\",\"default_gateway\",\"disable\",\"external_connector\",\"from_site\",\"subnet_begin_offset\",\"subnet_end_offset\"]",
+        "x-ves-oneof-field-address_choice_v6": "[\"address_ipv6\",\"default_gateway_v6\",\"disable_v6\",\"from_site_v6\",\"subnet_begin_offset_v6\",\"subnet_end_offset_v6\"]",
+        "x-ves-oneof-field-auth_choice": "[\"md5_auth_key\",\"no_authentication\"]",
+        "x-ves-oneof-field-interface_choice": "[\"interface\",\"interface_list\"]",
+        "x-ves-proto-message": "ves.io.schema.bgp.PeerExternal",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Exclusive with [default_gateway disable external_connector from_site subnet_begin_offset subnet_end_offset]\nSpecify IPv4 peer address.",
+            "title": "address",
+            "x-displayname": "Peer Address.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.ipv4": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.ipv4": "true"
+            },
+            "x-f5xc-description-short": "Exclusive with [default_gateway disable external_connector from_site subnet_begin_offset subnet_end_offset] Specify IPv4 peer address.",
+            "x-f5xc-description-medium": "Exclusive with [default_gateway disable external_connector from_site subnet_begin_offset subnet_end_offset] Specify IPv4 peer address.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 1024,
+              "format": "ipv4",
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "default_gateway",
+              "disable",
+              "external_connector",
+              "from_site",
+              "subnet_begin_offset",
+              "subnet_end_offset"
+            ]
+          },
+          "address_ipv6": {
+            "type": "string",
+            "description": "Exclusive with [default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6 subnet_end_offset_v6]\nSpecify peer IPv6 address.",
+            "title": "address_ipv6",
+            "x-displayname": "Peer IPv6 Address.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.ipv6": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.ipv6": "true"
+            },
+            "x-f5xc-description-short": "Exclusive with [default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6 subnet_end_offset_v6] Specify peer IPv6 address.",
+            "x-f5xc-description-medium": "Exclusive with [default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6 subnet_end_offset_v6] Specify peer IPv6 address.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 1024,
+              "format": "ipv6",
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "default_gateway_v6",
+              "disable_v6",
+              "from_site_v6",
+              "subnet_begin_offset_v6",
+              "subnet_end_offset_v6"
+            ]
+          },
+          "asn": {
+            "type": "integer",
+            "description": "Autonomous System Number for BGP peer.",
+            "title": "ASN",
+            "format": "int64",
+            "x-displayname": "ASN",
+            "x-ves-example": "64512",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "1"
+            },
+            "x-f5xc-example": "64512",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "1"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 1,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "default_gateway": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for default gateway.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address",
+              "disable",
+              "external_connector",
+              "from_site",
+              "subnet_begin_offset",
+              "subnet_end_offset"
+            ]
+          },
+          "default_gateway_v6": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for default gateway v6.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address_ipv6",
+              "disable_v6",
+              "from_site_v6",
+              "subnet_begin_offset_v6",
+              "subnet_end_offset_v6"
+            ]
+          },
+          "disable": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address",
+              "default_gateway",
+              "external_connector",
+              "from_site",
+              "subnet_begin_offset",
+              "subnet_end_offset"
+            ]
+          },
+          "disable_v6": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address_ipv6",
+              "default_gateway_v6",
+              "from_site_v6",
+              "subnet_begin_offset_v6",
+              "subnet_end_offset_v6"
+            ]
+          },
+          "external_connector": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for external connector.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address",
+              "default_gateway",
+              "disable",
+              "from_site",
+              "subnet_begin_offset",
+              "subnet_end_offset"
+            ]
+          },
+          "family_inet": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpFamilyInet"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for family inet.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "from_site": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address",
+              "default_gateway",
+              "disable",
+              "external_connector",
+              "subnet_begin_offset",
+              "subnet_end_offset"
+            ]
+          },
+          "from_site_v6": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address_ipv6",
+              "default_gateway_v6",
+              "disable_v6",
+              "subnet_begin_offset_v6",
+              "subnet_end_offset_v6"
+            ]
+          },
+          "interface": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaviewsObjectRefType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["interface_list"],
+            "x-f5xc-references": [
+              {
+                "resource_kind": "network_interface",
+                "field_path": "interface",
+                "gated_by": {
+                  "choice": "interface_choice"
+                },
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "interface_list": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpInterfaceList"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["interface"]
+          },
+          "md5_auth_key": {
+            "type": "string",
+            "description": "Exclusive with [no_authentication]\nMD5 key for protecting BGP Sessions (RFC 2385)",
+            "title": "md5_auth_key",
+            "x-displayname": "MD5 Authentication Key.",
+            "x-f5xc-description-short": "Exclusive with [no_authentication] MD5 key for protecting BGP Sessions (RFC 2385).",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["no_authentication"]
+          },
+          "no_authentication": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for no authentication.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["md5_auth_key"]
+          },
+          "port": {
+            "type": "integer",
+            "description": "Peer TCP port number.",
+            "title": "Peer Port",
+            "format": "int64",
+            "x-displayname": "Peer Port",
+            "x-ves-example": "179",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "1",
+              "ves.io.schema.rules.uint32.lte": "65535"
+            },
+            "x-f5xc-example": "179",
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "1",
+              "ves.io.schema.rules.uint32.lte": "65535"
+            },
+            "minimum": 1,
+            "maximum": 65535,
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 1,
+              "maximum": 65535,
+              "multipleOf": 1,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "subnet_begin_offset": {
+            "type": "integer",
+            "description": "Exclusive with [address default_gateway disable external_connector from_site subnet_end_offset]\nCalculate peer address using offset from the beginning of the subnet.",
+            "title": "subnet_begin_offset",
+            "format": "int64",
+            "x-displayname": "Offset From Beginning Of Subnet.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-f5xc-description-short": "Exclusive with [address default_gateway disable external_connector from_site subnet_end_offset] Calculate peer address using offset from the...",
+            "x-f5xc-description-medium": "Exclusive with [address default_gateway disable external_connector from_site subnet_end_offset] Calculate peer address using offset from the beginning of the subnet.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 0,
+              "maximum": 32,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address",
+              "default_gateway",
+              "disable",
+              "external_connector",
+              "from_site",
+              "subnet_end_offset"
+            ]
+          },
+          "subnet_begin_offset_v6": {
+            "type": "integer",
+            "description": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_end_offset_v6]\nCalculate peer address using offset from the beginning of the subnet.",
+            "title": "subnet_begin_offset_v6",
+            "format": "int64",
+            "x-displayname": "Offset From Beginning Of Subnet.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-f5xc-description-short": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_end_offset_v6] Calculate peer address using offset from the...",
+            "x-f5xc-description-medium": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_end_offset_v6] Calculate peer address using offset from the beginning of the subnet.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 0,
+              "maximum": 32,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address_ipv6",
+              "default_gateway_v6",
+              "disable_v6",
+              "from_site_v6",
+              "subnet_end_offset_v6"
+            ]
+          },
+          "subnet_end_offset": {
+            "type": "integer",
+            "description": "Exclusive with [address default_gateway disable external_connector from_site subnet_begin_offset]\nCalculate peer address using offset from the end of the subnet.",
+            "title": "subnet_end_offset",
+            "format": "int64",
+            "x-displayname": "Offset From End Of Subnet.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-f5xc-description-short": "Exclusive with [address default_gateway disable external_connector from_site subnet_begin_offset] Calculate peer address using offset from the end...",
+            "x-f5xc-description-medium": "Exclusive with [address default_gateway disable external_connector from_site subnet_begin_offset] Calculate peer address using offset from the end of the subnet.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 0,
+              "maximum": 32,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address",
+              "default_gateway",
+              "disable",
+              "external_connector",
+              "from_site",
+              "subnet_begin_offset"
+            ]
+          },
+          "subnet_end_offset_v6": {
+            "type": "integer",
+            "description": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6]\nCalculate peer address using offset from the end of the subnet.",
+            "title": "subnet_end_offset_v6",
+            "format": "int64",
+            "x-displayname": "Offset From End Of Subnet.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "0",
+              "ves.io.schema.rules.uint32.lte": "32"
+            },
+            "x-f5xc-description-short": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6] Calculate peer address using offset from the end...",
+            "x-f5xc-description-medium": "Exclusive with [address_ipv6 default_gateway_v6 disable_v6 from_site_v6 subnet_begin_offset_v6] Calculate peer address using offset from the end of the subnet.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 0,
+              "maximum": 32,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": [
+              "address_ipv6",
+              "default_gateway_v6",
+              "disable_v6",
+              "from_site_v6",
+              "subnet_begin_offset_v6"
+            ]
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpPeerExternal",
+          "required_fields": ["asn", "port"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"asn\": 1,\n  \"port\": 1\n}",
+          "example_yaml": "asn: 1\nport: 1"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpInterfaceList": {
+        "type": "object",
+        "description": "List of network interfaces.",
+        "title": "InterfaceList",
+        "x-displayname": "Interface List.",
+        "x-ves-proto-message": "ves.io.schema.bgp.InterfaceList",
+        "properties": {
+          "interfaces": {
+            "type": "array",
+            "description": "List of network interfaces.",
+            "title": "interface_list",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/schemaviewsObjectRefType"
+            },
+            "x-displayname": "Interface List.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "16",
+              "ves.io.schema.rules.repeated.min_items": "1",
+              "ves.io.schema.rules.repeated.unique": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "16",
+              "ves.io.schema.rules.repeated.min_items": "1",
+              "ves.io.schema.rules.repeated.unique": "true"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpInterfaceList",
+          "required_fields": ["interfaces"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"interfaces\": [\n    {\n      \"name\": \"contacts-route\"\n    }\n  ]\n}",
+          "example_yaml": "interfaces:\n- name: contacts-route"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "schemaviewsObjectRefType": {
+        "type": "object",
+        "description": "This type establishes a direct reference from one object(the referrer) to another(the referred).\nSuch a reference is in form of tenant/namespace/name.",
+        "title": "ObjectRefType",
+        "x-displayname": "Object reference.",
+        "x-ves-proto-message": "ves.io.schema.views.ObjectRefType",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
+            "title": "name",
+            "minLength": 1,
+            "maxLength": 128,
+            "x-displayname": "Name",
+            "x-ves-example": "Contacts-route.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.max_bytes": "128",
+              "ves.io.schema.rules.string.min_bytes": "1"
+            },
+            "x-f5xc-example": "contacts-route",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.max_bytes": "128",
+              "ves.io.schema.rules.string.min_bytes": "1"
+            },
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "minLength": 1,
+              "maxLength": 128,
+              "byteLength": {
+                "max": 128,
+                "min": 1
+              },
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "namespace": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+            "title": "namespace",
+            "maxLength": 63,
+            "x-displayname": "Namespace",
+            "x-ves-example": "Ns1",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-example": "ns1",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true,
+              "byteLength": {
+                "max": 64
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 1,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "tenant": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+            "title": "tenant",
+            "maxLength": 64,
+            "x-displayname": "Tenant",
+            "x-ves-example": "Example-corp.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-example": "example-corp",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 64,
+              "byteLength": {
+                "max": 64
+              },
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "x-field-mutability": "read-only",
+            "minLength": 12,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          }
+        },
+        "x-f5xc-description-short": "Type establishes a direct reference from one object(the referrer) to another(the referred).",
+        "x-f5xc-description-medium": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaviewsObjectRefType",
+          "required_fields": ["name"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"name\": \"contacts-route\"\n}",
+          "example_yaml": "name: contacts-route"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "bgpFamilyInet": {
+        "type": "object",
+        "description": "Parameters for inet family.",
+        "title": "FamilyInet",
+        "x-displayname": "BGP Family Inet.",
+        "x-ves-oneof-field-enable_choice": "[\"disable\",\"enable\"]",
+        "x-ves-proto-message": "ves.io.schema.bgp.FamilyInet",
+        "properties": {
+          "disable": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["enable"]
+          },
+          "enable": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/bgpUnicastIPv4"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["disable"]
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpFamilyInet",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpUnicastIPv4": {
+        "type": "object",
+        "description": "IPv4 Unicast.",
+        "title": "UnicastIPv4",
+        "x-displayname": "Unicast IPv4.",
+        "x-ves-proto-message": "ves.io.schema.bgp.UnicastIPv4",
+        "properties": {
+          "aggregation": {
+            "type": "array",
+            "description": "BGP aggregation prefixes are shared among all peers, aggregation configured under any peer will take effect on all peers. Aggregation in BGP occurs only when more specific routes exist in the routing table and applies to outbound advertisements.",
+            "title": "aggregation",
+            "items": {
+              "$ref": "#/components/schemas/bgpAggregationIPv4"
+            },
+            "x-displayname": "Aggregation.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.repeated.unique": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.repeated.unique": "true"
+            },
+            "x-f5xc-description-short": "BGP aggregation prefixes are shared among all peers, aggregation configured under any peer will take effect on all peers.",
+            "x-f5xc-description-medium": "BGP aggregation prefixes are shared among all peers, aggregation configured under any peer will take effect on all peers. Aggregation in BGP occurs only when more specific routes exist in the routing table and applies to outbound advertisements.",
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "uniqueItems": true,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpUnicastIPv4",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpAggregationIPv4": {
+        "type": "object",
+        "description": "Aggregation in BGP occurs only when more specific routes exist in the routing table and applies to outbound advertisements.",
+        "title": "AggregationIPv4",
+        "x-displayname": "Aggregation.",
+        "x-ves-proto-message": "ves.io.schema.bgp.AggregationIPv4",
+        "properties": {
+          "ip_prefix": {
+            "type": "string",
+            "description": "Specify IPv4 subnet for aggregation.",
+            "title": "ip_prefix",
+            "x-displayname": "IP Prefix",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.ipv4_prefix": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.ipv4_prefix": "true"
+            },
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "options": {
+            "type": "array",
+            "description": "Configuration parameter for options",
+            "title": "options",
+            "items": {
+              "$ref": "#/components/schemas/bgpAggregationOption"
+            },
+            "x-displayname": "Aggregation OPTIONS.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.repeated.unique": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.repeated.unique": "true"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "uniqueItems": true,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Aggregation in BGP occurs only when more specific routes exist in the routing table and applies to outbound advertisements.",
+        "x-f5xc-description-medium": "Aggregation in BGP occurs only when more specific routes exist in the routing table and applies to outbound advertisements.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpAggregationIPv4",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpAggregationOption": {
+        "type": "object",
+        "description": "Aggregation OPTIONS for BGP routes.",
+        "title": "AggregationOption",
+        "x-displayname": "Aggregation OPTIONS.",
+        "x-ves-oneof-field-aggregation_choice": "[\"summary_only\"]",
+        "x-ves-proto-message": "ves.io.schema.bgp.AggregationOption",
+        "properties": {
+          "summary_only": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for summary only.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpAggregationOption",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpBFD": {
+        "type": "object",
+        "description": "BFD parameters.",
+        "title": "BFD",
+        "x-displayname": "BFD",
+        "x-ves-proto-message": "ves.io.schema.bgp.BFD",
+        "properties": {
+          "multiplier": {
+            "type": "integer",
+            "description": "Specify Number of missed packets to bring session down\"",
+            "title": "Multiplier",
+            "format": "int64",
+            "x-displayname": "Multiplier.",
+            "x-ves-example": "3",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "2",
+              "ves.io.schema.rules.uint32.lte": "255"
+            },
+            "x-f5xc-example": "3",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "2",
+              "ves.io.schema.rules.uint32.lte": "255"
+            },
+            "x-f5xc-description-short": "Specify Number of missed packets to bring session down\".",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 2,
+              "maximum": 255,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "receive_interval_milliseconds": {
+            "type": "integer",
+            "description": "BFD receive interval timer, in milliseconds.",
+            "title": "Receive Interval in milliseconds",
+            "format": "int64",
+            "x-displayname": "Minimum Receive Interval.",
+            "x-ves-example": "3000",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "300",
+              "ves.io.schema.rules.uint32.lte": "60000"
+            },
+            "x-f5xc-example": "3000",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "300",
+              "ves.io.schema.rules.uint32.lte": "60000"
+            },
+            "x-f5xc-description-short": "BFD receive interval timer, in milliseconds.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 300,
+              "maximum": 60000,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "transmit_interval_milliseconds": {
+            "type": "integer",
+            "description": "BFD transmit interval timer, in milliseconds.",
+            "title": "Transmit Interval in milliseconds",
+            "format": "int64",
+            "x-displayname": "Transmit Interval.",
+            "x-ves-example": "3000",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "300",
+              "ves.io.schema.rules.uint32.lte": "60000"
+            },
+            "x-f5xc-example": "3000",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "300",
+              "ves.io.schema.rules.uint32.lte": "60000"
+            },
+            "x-f5xc-description-short": "BFD transmit interval timer, in milliseconds.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 300,
+              "maximum": 60000,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpBFD",
+          "required_fields": ["multiplier", "receive_interval_milliseconds", "transmit_interval_milliseconds"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"multiplier\": 2,\n  \"receive_interval_milliseconds\": 300,\n  \"transmit_interval_milliseconds\": 300\n}",
+          "example_yaml": "multiplier: 2\nreceive_interval_milliseconds: 300\ntransmit_interval_milliseconds: 300"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      },
+      "bgpBgpParameters": {
+        "type": "object",
+        "description": "BGP parameters for the local site.",
+        "title": "BGP Parameters",
+        "x-displayname": "BGP Parameters.",
+        "x-ves-displayorder": "1,5",
+        "x-ves-oneof-field-router_id_choice": "[\"from_site\",\"ip_address\",\"local_address\"]",
+        "x-ves-proto-message": "ves.io.schema.bgp.BgpParameters",
+        "properties": {
+          "asn": {
+            "type": "integer",
+            "description": "Autonomous System Number.",
+            "title": "ASN",
+            "format": "int64",
+            "x-displayname": "ASN",
+            "x-ves-example": "64512",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "1"
+            },
+            "x-f5xc-example": "64512",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "1"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 1,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "from_site": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["ip_address", "local_address"]
+          },
+          "ip_address": {
+            "type": "string",
+            "description": "Exclusive with [from_site local_address]\nUse the configured IPv4 Address as Router ID.",
+            "title": "ip_address",
+            "x-displayname": "IP Address.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.ipv4": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.ipv4": "true"
+            },
+            "x-f5xc-example": "192.0.2.1",
+            "x-f5xc-description-short": "Exclusive with [from_site local_address] Use the configured IPv4 Address as Router ID.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 1024,
+              "minLength": 7,
+              "pattern": "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$",
+              "format": "ipv4",
+              "formatDescription": "IPv4 dotted-decimal notation (e.g., 192.168.1.1)",
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["from_site", "local_address"]
+          },
+          "local_address": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["from_site", "ip_address"]
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for bgpBgpParameters",
+          "required_fields": ["asn"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"asn\": 1\n}",
+          "example_yaml": "asn: 1"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "BGP configuration is platform-level routing"
+          },
+          "classification": {
+            "category": "networking",
+            "multi_tenant_pattern": "none"
+          }
+        }
+      }
+    },
+    "marketplace": {
+      "external_connectorCreateSpecType": {
+        "type": "object",
+        "description": "Shape of the external_connector configuration specification.",
+        "title": "CreateSpecType",
+        "x-displayname": "Create external_connector configuration.",
+        "x-ves-displayorder": "1,2",
+        "x-ves-oneof-field-connection_type": "[\"gre\",\"ipsec\"]",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.CreateSpecType",
+        "properties": {
+          "ce_site_reference": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaviewsObjectRefType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-references": [
+              {
+                "resource_kind": "site",
+                "field_path": "ce_site_reference",
+                "gated_by": null,
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "gre": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/external_connectorConnectionTypeGRE"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["ipsec"]
+          },
+          "ipsec": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/external_connectorConnectionTypeIPSec"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["gre"]
+          }
+        },
+        "x-f5xc-description-short": "Shape of the external_connector configuration specification.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorCreateSpecType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorConnectionTypeIPSec": {
+        "type": "object",
+        "description": "External Connector with IPsec tunnel.",
+        "title": "IPSec",
+        "x-displayname": "IPsec",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.ConnectionTypeIPSec",
+        "properties": {
+          "ike_parameters": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/external_connectorIkeParameters"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for ike parameters.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "ipsec_tunnel_parameters": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/external_connectorTunnelParameters"
+              }
+            ],
+            "x-f5xc-example": "{\"key\": \"value\"}",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorConnectionTypeIPSec",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorTunnelParameters": {
+        "type": "object",
+        "description": "In this section, we will configure the tunnel parameters, source, destination, IP addresses, and segment.",
+        "title": "TunnelParameters",
+        "x-displayname": "Configure IPsec Tunnel Parameters.",
+        "x-ves-oneof-field-tunnel_source_vn": "[\"segment\",\"site_local_inside_network\",\"site_local_network\"]",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.TunnelParameters",
+        "properties": {
+          "peer_ip_address": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaIpv4AddressType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "psk": {
+            "type": "string",
+            "description": "The IKE pre-shared key (PSK) is required to ensure the IKE peers can authenticate one another within IKE phase 1 negotiation.",
+            "title": "Pre-Shared Key",
+            "x-displayname": "Pre-Shared Key.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-f5xc-description-short": "The IKE pre-shared key (PSK) is required to ensure the IKE peers can authenticate one another within IKE phase 1 negotiation.",
+            "x-f5xc-description-medium": "The IKE pre-shared key (PSK) is required to ensure the IKE peers can authenticate one another within IKE phase 1 negotiation.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "segment": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaSegmentRefType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["site_local_inside_network", "site_local_network"],
+            "x-f5xc-references": [
+              {
+                "resource_kind": "segment",
+                "field_path": "segment",
+                "gated_by": {
+                  "choice": "tunnel_source_vn"
+                },
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "site_local_inside_network": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["segment", "site_local_network"]
+          },
+          "site_local_network": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["segment", "site_local_inside_network"]
+          },
+          "tunnel_eps": {
+            "type": "array",
+            "description": "Configure tunnel parameters, local and remote IP addresses.",
+            "title": "Tunnel Endpoint",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/external_connectorTunnelEndpoint"
+            },
+            "x-displayname": "Tunnel Endpoint.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "4",
+              "ves.io.schema.rules.repeated.min_items": "1"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "4",
+              "ves.io.schema.rules.repeated.min_items": "1"
+            },
+            "x-f5xc-description-short": "Configure tunnel parameters, local and remote IP addresses.",
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "minItems": 1,
+              "maxItems": 4,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "tunnel_mtu": {
+            "type": "integer",
+            "description": "The tunnel MTU defines the maximum size of the packet that can be sent through the tunnel without needing to be fragmented.",
+            "title": "MTU",
+            "format": "int64",
+            "x-displayname": "MTU",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "512",
+              "ves.io.schema.rules.uint32.lte": "1370"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.uint32.gte": "512",
+              "ves.io.schema.rules.uint32.lte": "1370"
+            },
+            "x-f5xc-description-short": "The tunnel MTU defines the maximum size of the packet that can be sent through the tunnel without needing to be fragmented.",
+            "x-f5xc-description-medium": "The tunnel MTU defines the maximum size of the packet that can be sent through the tunnel without needing to be fragmented.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 512,
+              "maximum": 1370,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "In this section, we will configure the tunnel parameters, source, destination, IP addresses, and segment.",
+        "x-f5xc-description-medium": "In this section, we will configure the tunnel parameters, source, destination, IP addresses, and segment.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorTunnelParameters",
+          "required_fields": ["psk", "tunnel_eps", "tunnel_mtu"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"psk\": \"value\",\n  \"tunnel_eps\": [\n    {\n      \"interface\": \"value\",\n      \"local_tunnel_ip\": \"192.0.2.0/24\",\n      \"node\": \"value\",\n      \"remote_tunnel_ip\": \"192.0.2.0/24\"\n    }\n  ],\n  \"tunnel_mtu\": 512\n}",
+          "example_yaml": "psk: value\ntunnel_eps:\n- interface: value\n  local_tunnel_ip: 192.0.2.0/24\n  node: value\n  remote_tunnel_ip: 192.0.2.0/24\ntunnel_mtu: 512"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorTunnelEndpoint": {
+        "type": "object",
+        "description": "Configure tunnel endpoints, local and remote IP addresses.",
+        "title": "Tunnel Endpoint",
+        "x-displayname": "Tunnel Endpoint.",
+        "x-ves-displayorder": "1,2,5,6",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.TunnelEndpoint",
+        "properties": {
+          "interface": {
+            "type": "string",
+            "description": "For the chosen node, specify the interface that will be the tunnel source.",
+            "title": "Interface",
+            "x-displayname": "Interface",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-f5xc-description-short": "For the chosen node, specify the interface that will be the tunnel source.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "local_tunnel_ip": {
+            "type": "string",
+            "description": "For a particular tunnel on a node, specify the local tunnel IP Address i.e. The IP address of the tunnel on the CE node itself and a subnet prefix length.",
+            "title": "Local Tunnel IP Address",
+            "x-displayname": "Local Tunnel IP Address/Prefix Length.",
+            "x-ves-example": "192.0.2.0/24.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.ipv4_prefix": "true"
+            },
+            "x-f5xc-example": "192.0.2.0/24",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.ipv4_prefix": "true"
+            },
+            "x-f5xc-description-short": "For a particular tunnel on a node, specify the local tunnel IP Address i.e.",
+            "x-f5xc-description-medium": "For a particular tunnel on a node, specify the local tunnel IP Address i.e. The IP address of the tunnel on the CE node itself and a subnet prefix length.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "node": {
+            "type": "string",
+            "description": "A CE site is composed of multiple nodes. Choose a node that will be part of this external connection.",
+            "title": "Node",
+            "x-displayname": "Node",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true"
+            },
+            "x-f5xc-description-short": "CE site is composed of multiple nodes. Choose a node that will be part of this external connection.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "remote_tunnel_ip": {
+            "type": "string",
+            "description": "For a particular tunnel on a node, specify the remote tunnel IP Address i.e. The IP address of the tunnel on the remote gateway and a subnet prefix length.",
+            "title": "Remote Tunnel IP Address",
+            "x-displayname": "Remote Tunnel IP Address/Prefix Length.",
+            "x-ves-example": "192.0.2.0/24.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.ipv4_prefix": "true"
+            },
+            "x-f5xc-example": "192.0.2.0/24",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.ipv4_prefix": "true"
+            },
+            "x-f5xc-description-short": "For a particular tunnel on a node, specify the remote tunnel IP Address i.e.",
+            "x-f5xc-description-medium": "For a particular tunnel on a node, specify the remote tunnel IP Address i.e. The IP address of the tunnel on the remote gateway and a subnet prefix length.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "Configure tunnel endpoints, local and remote IP addresses.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorTunnelEndpoint",
+          "required_fields": ["interface", "local_tunnel_ip", "node", "remote_tunnel_ip"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"interface\": \"value\",\n  \"local_tunnel_ip\": \"192.0.2.0/24\",\n  \"node\": \"value\",\n  \"remote_tunnel_ip\": \"192.0.2.0/24\"\n}",
+          "example_yaml": "interface: value\nlocal_tunnel_ip: 192.0.2.0/24\nnode: value\nremote_tunnel_ip: 192.0.2.0/24"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "ioschemaEmpty": {
+        "type": "object",
+        "description": "This can be used for messages where no values are needed.",
+        "title": "Empty",
+        "x-displayname": "Empty",
+        "x-ves-proto-message": "ves.io.schema.Empty",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for ioschemaEmpty",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["custom", "default", "shared"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaSegmentRefType": {
+        "type": "object",
+        "description": "Reference to Segment Object.",
+        "title": "SegmentRefType",
+        "x-displayname": "Segment Reference Type.",
+        "x-ves-proto-message": "ves.io.schema.SegmentRefType",
+        "properties": {
+          "refs": {
+            "type": "array",
+            "description": "Reference to Segment Object.",
+            "title": "Segment",
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/ioschemaObjectRefType"
+            },
+            "x-displayname": "Segment",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "1"
+            },
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "maxItems": 1,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaSegmentRefType",
+          "required_fields": ["refs"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"refs\": [\n    {}\n  ]\n}",
+          "example_yaml": "refs:\n- {}"
+        },
+        "x-f5xc-cli-domain": "network_security",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": true
+          },
+          "recommendation": {
+            "primary": "system",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "ioschemaObjectRefType": {
+        "type": "object",
+        "description": "This type establishes a 'direct reference' from one object(the referrer) to another(the referred).\nSuch a reference is in form of tenant/namespace/name for public API and Uid for private API\nThis type of reference is called direct because the relation is explicit and concrete (as opposed\nto selector reference which builds a group based on labels of selectee objects)",
+        "title": "ObjectRefType",
+        "x-displayname": "Object reference.",
+        "x-ves-proto-message": "ves.io.schema.ObjectRefType",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen kind will hold the referred object's kind (e.g. \"route\")",
+            "title": "kind",
+            "x-displayname": "Kind",
+            "x-ves-example": "Virtual_site.",
+            "x-f5xc-example": "virtual_site",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\")",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then kind will hold the referred object's kind (e.g. \"route\").",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "minLength": 12,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "name": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
+            "title": "name",
+            "x-displayname": "Name",
+            "x-ves-example": "Contactus-route.",
+            "x-f5xc-example": "contactus-route",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 6,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+            "title": "namespace",
+            "x-displayname": "Namespace",
+            "x-ves-example": "Ns1",
+            "x-f5xc-example": "ns1",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+            "maxLength": 63,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "naming",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 1,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "tenant": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+            "title": "tenant",
+            "x-displayname": "Tenant",
+            "x-ves-example": "Example-corp.",
+            "x-f5xc-example": "example-corp",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "x-field-mutability": "read-only",
+            "minLength": 12,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          },
+          "uid": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen uid will hold the referred object's(e.g. Route's) uid.",
+            "title": "uid",
+            "x-displayname": "UID",
+            "x-ves-example": "00000000-0000-4000-8000-0df41b679859.",
+            "x-f5xc-example": "00000000-0000-4000-8000-0df41b679859",
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then uid will hold the referred object's(e.g. Route's) uid.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "x-field-mutability": "read-only",
+            "minLength": 36,
+            "format": "uuid",
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          }
+        },
+        "x-f5xc-description-short": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred).",
+        "x-f5xc-description-medium": "Type establishes a 'direct reference' from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name for public API and Uid for private API This type of reference is called direct because the relation is explicit and concrete (as opposed to selector...",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for ioschemaObjectRefType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["custom", "default", "shared"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaIpv4AddressType": {
+        "type": "object",
+        "description": "IPv4 Address in dot-decimal notation.",
+        "title": "IPv4 Address",
+        "x-displayname": "IPv4 Address.",
+        "x-ves-proto-message": "ves.io.schema.Ipv4AddressType",
+        "properties": {
+          "addr": {
+            "type": "string",
+            "description": "IPv4 Address in string form with dot-decimal notation.",
+            "title": "IPv4 Address",
+            "x-displayname": "IPv4 Address.",
+            "x-ves-example": "192.0.2.198.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.ipv4": "true"
+            },
+            "x-f5xc-example": "192.0.2.198",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.ipv4": "true"
+            },
+            "x-f5xc-description-short": "IPv4 Address in string form with dot-decimal notation.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 1024,
+              "format": "ipv4",
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaIpv4AddressType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["custom", "default", "shared"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorIkeParameters": {
+        "type": "object",
+        "description": "IKE configuration parameters required for IPsec Connection type.",
+        "title": "IKE Parameters",
+        "x-displayname": "IKE Parameters.",
+        "x-ves-oneof-field-dpd_choice": "[\"dpd_disabled\",\"dpd_keep_alive_timer\"]",
+        "x-ves-oneof-field-local_ike_id": "[\"use_default_local_ike_id\"]",
+        "x-ves-oneof-field-mode_choice": "[\"initiator\",\"responder\"]",
+        "x-ves-oneof-field-remote_ike_id": "[\"rm_hostname\",\"rm_ip_address\",\"use_default_remote_ike_id\"]",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.IkeParameters",
+        "properties": {
+          "dpd_disabled": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["dpd_keep_alive_timer"]
+          },
+          "dpd_keep_alive_timer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/external_connectorDpdKeepAliveTimer"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for dpd keep alive timer.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["dpd_disabled"]
+          },
+          "ike_phase1_profile": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaviewsObjectRefType"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for ike phase1 profile.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-references": [
+              {
+                "resource_kind": null,
+                "field_path": "ike_phase1_profile",
+                "gated_by": null,
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "ike_phase2_profile": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaviewsObjectRefType"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for ike phase2 profile.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-references": [
+              {
+                "resource_kind": null,
+                "field_path": "ike_phase2_profile",
+                "gated_by": null,
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "initiator": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["responder"]
+          },
+          "responder": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["initiator"]
+          },
+          "rm_hostname": {
+            "type": "string",
+            "description": "Exclusive with [rm_ip_address use_default_remote_ike_id]\nConfigure an hostname Remote IKE ID.",
+            "title": "Hostname",
+            "x-displayname": "Hostname",
+            "x-f5xc-example": "example-resource",
+            "x-f5xc-description-short": "Exclusive with [rm_ip_address use_default_remote_ike_id] Configure an hostname Remote IKE ID.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "general",
+              "maxLength": 1024,
+              "metadata": {
+                "source": "inferred",
+                "confidence": 0.85,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["rm_ip_address", "use_default_remote_ike_id"]
+          },
+          "rm_ip_address": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaIpAddressType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["rm_hostname", "use_default_remote_ike_id"]
+          },
+          "use_default_local_ike_id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-field-mutability": "read-only"
+          },
+          "use_default_remote_ike_id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-field-mutability": "read-only",
+            "x-f5xc-conflicts-with": ["rm_hostname", "rm_ip_address"]
+          }
+        },
+        "x-f5xc-description-short": "IKE configuration parameters required for IPsec Connection type.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorIkeParameters",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaIpAddressType": {
+        "type": "object",
+        "description": "IP Address used to specify an IPv4 or IPv6 address.",
+        "title": "IP Address",
+        "x-displayname": "IP Address.",
+        "x-ves-displayorder": "3",
+        "x-ves-oneof-field-ver": "[\"ipv4\",\"ipv6\"]",
+        "x-ves-proto-message": "ves.io.schema.IpAddressType",
+        "properties": {
+          "ipv4": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaIpv4AddressType"
+              }
+            ],
+            "x-f5xc-example": "192.0.2.1",
+            "x-f5xc-description-short": "IPv4 address in dotted decimal notation (e.g., 192.0.2.1).",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["ipv6"]
+          },
+          "ipv6": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaIpv6AddressType"
+              }
+            ],
+            "x-f5xc-example": "2001:db8::1",
+            "x-f5xc-description-short": "IPv6 address in colon-separated hexadecimal format.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["ipv4"]
+          }
+        },
+        "x-f5xc-description-short": "IP Address used to specify an IPv4 or IPv6 address.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaIpAddressType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["custom", "default", "shared"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaIpv6AddressType": {
+        "type": "object",
+        "description": "IPv6 Address specified as hexadecimal numbers separated by ':'",
+        "title": "IPv6 Address",
+        "x-displayname": "IPv6 Address.",
+        "x-ves-proto-message": "ves.io.schema.Ipv6AddressType",
+        "properties": {
+          "addr": {
+            "type": "string",
+            "description": "IPv6 Address in form of string. IPv6 address must be specified as hexadecimal numbers separated by ':'\nThe address can be compacted by suppressing zeros\ne.g. '2001:db8:0:0:0:0:2:1' becomes '2001:db8::2:1' or '2001:db8:0:0:0:2:0:0' becomes '2001:db8::2::'",
+            "title": "IPv6 Address",
+            "x-displayname": "IPv6 Address.",
+            "x-ves-example": "2001:db8:0:0:0:0:2:1.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.ipv6": "true"
+            },
+            "x-f5xc-example": "2001:db8:0:0:0:0:2:1",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.ipv6": "true"
+            },
+            "x-f5xc-description-medium": "IPv6 Address in form of string. IPv6 address must be specified as hexadecimal numbers separated by ':' The address can be compacted by suppressing zeros e.g. '2001:db8:0:0:0:0:2:1' becomes '2001:db8::2:1' or '2001:db8:0:0:0:2:0:0' becomes '2001:db8::2::'.",
+            "maxLength": 1024,
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 1024,
+              "format": "ipv6",
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "IPv6 Address specified as hexadecimal numbers separated by ':'.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaIpv6AddressType",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["custom", "default", "shared"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "schemaviewsObjectRefType": {
+        "type": "object",
+        "description": "This type establishes a direct reference from one object(the referrer) to another(the referred).\nSuch a reference is in form of tenant/namespace/name.",
+        "title": "ObjectRefType",
+        "x-displayname": "Object reference.",
+        "x-ves-proto-message": "ves.io.schema.views.ObjectRefType",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen name will hold the referred object's(e.g. Route's) name.",
+            "title": "name",
+            "minLength": 1,
+            "maxLength": 128,
+            "x-displayname": "Name",
+            "x-ves-example": "Contacts-route.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.max_bytes": "128",
+              "ves.io.schema.rules.string.min_bytes": "1"
+            },
+            "x-f5xc-example": "contacts-route",
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.string.max_bytes": "128",
+              "ves.io.schema.rules.string.min_bytes": "1"
+            },
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then name will hold the referred object's(e.g. Route's) name.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "minLength": 1,
+              "maxLength": 128,
+              "byteLength": {
+                "max": 128,
+                "min": 1
+              },
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "namespace": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen namespace will hold the referred object's(e.g. Route's) namespace.",
+            "title": "namespace",
+            "maxLength": 63,
+            "x-displayname": "Namespace",
+            "x-ves-example": "Ns1",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-example": "ns1",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then namespace will hold the referred object's(e.g. Route's) namespace.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+              "characterSet": {
+                "allowed": "[a-z0-9-]",
+                "restricted": "[^a-z0-9-]",
+                "required": "[a-z0-9]",
+                "description": "Lowercase letter start, alphanumeric with hyphens, alphanumeric end"
+              },
+              "format": "dns-label",
+              "formatDescription": "DNS-1035 label: must start with a lowercase letter",
+              "validation": {
+                "rfc": "RFC 1035",
+                "standard": "DNS-1035 label (alpha-first)"
+              },
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true,
+              "byteLength": {
+                "max": 64
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "minLength": 1,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00",
+            "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "tenant": {
+            "type": "string",
+            "description": "When a configuration object(e.g. Virtual_host) refers to another(e.g route)\nthen tenant will hold the referred object's(e.g. Route's) tenant.",
+            "title": "tenant",
+            "maxLength": 64,
+            "x-displayname": "Tenant",
+            "x-ves-example": "Example-corp.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-example": "example-corp",
+            "x-validation-rules": {
+              "ves.io.schema.rules.string.max_bytes": "64"
+            },
+            "x-f5xc-description-short": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g.",
+            "x-f5xc-description-medium": "When a configuration object(e.g. Virtual_host) refers to another(e.g route) then tenant will hold the referred object's(e.g. Route's) tenant.",
+            "x-f5xc-constraints": {
+              "constraintType": "string",
+              "category": "discovery",
+              "maxLength": 64,
+              "byteLength": {
+                "max": 64
+              },
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "readOnly": true,
+            "x-field-mutability": "read-only",
+            "minLength": 12,
+            "x-reconciled-from-discovery": true,
+            "x-reconciled-at": "2026-09-03T15:40:08+00:00"
+          }
+        },
+        "x-f5xc-description-short": "Type establishes a direct reference from one object(the referrer) to another(the referred).",
+        "x-f5xc-description-medium": "Type establishes a direct reference from one object(the referrer) to another(the referred). Such a reference is in form of tenant/namespace/name.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for schemaviewsObjectRefType",
+          "required_fields": ["name"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"name\": \"contacts-route\"\n}",
+          "example_yaml": "name: contacts-route"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["custom", "default", "shared"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorDpdKeepAliveTimer": {
+        "type": "object",
+        "title": "Keepalive Timer",
+        "x-displayname": "Keepalive Timer.",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.DpdKeepAliveTimer",
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "description": "Operation timeout duration",
+            "title": "Keepalive Timer",
+            "format": "int64",
+            "x-displayname": "Keepalive Timer.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "1",
+              "ves.io.schema.rules.uint32.lte": "5"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "1",
+              "ves.io.schema.rules.uint32.lte": "5"
+            },
+            "x-f5xc-example": "30s",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 1,
+              "maximum": 5,
+              "multipleOf": 1,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              },
+              "deterministic": true
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorDpdKeepAliveTimer",
+          "required_fields": ["timeout"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"timeout\": 1\n}",
+          "example_yaml": "timeout: 1"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorConnectionTypeGRE": {
+        "type": "object",
+        "description": "External Connector with GRE tunnel.",
+        "title": "GRE",
+        "x-displayname": "GRE",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.ConnectionTypeGRE",
+        "properties": {
+          "gre_parameters": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/external_connectorGRETunnelParameters"
+              }
+            ],
+            "x-f5xc-description-short": "Configuration parameter for gre parameters.",
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorConnectionTypeGRE",
+          "required_fields": [],
+          "mutually_exclusive_groups": [],
+          "example_json": "{}",
+          "example_yaml": "{}"
+        },
+        "x-f5xc-cli-domain": "other",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      },
+      "external_connectorGRETunnelParameters": {
+        "type": "object",
+        "description": "GRE configuration parameters required for GRE Connection type.",
+        "title": "GRE Tunnel Parameters",
+        "x-displayname": "GRE Tunnel Parameters.",
+        "x-ves-oneof-field-tunnel_source_vn": "[\"segment\",\"site_local_inside_network\",\"site_local_network\"]",
+        "x-ves-proto-message": "ves.io.schema.views.external_connector.GRETunnelParameters",
+        "properties": {
+          "peer_ip_address": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaIpv4AddressType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            }
+          },
+          "segment": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/schemaSegmentRefType"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["site_local_inside_network", "site_local_network"],
+            "x-f5xc-references": [
+              {
+                "resource_kind": "segment",
+                "field_path": "segment",
+                "gated_by": {
+                  "choice": "tunnel_source_vn"
+                },
+                "required": false,
+                "cardinality": "single"
+              }
+            ]
+          },
+          "site_local_inside_network": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["segment", "site_local_network"]
+          },
+          "site_local_network": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ioschemaEmpty"
+              }
+            ],
+            "x-f5xc-required-for": {
+              "minimum_config": false,
+              "create": false,
+              "update": false,
+              "read": false
+            },
+            "x-f5xc-conflicts-with": ["segment", "site_local_inside_network"]
+          },
+          "tunnel_eps": {
+            "type": "array",
+            "description": "Configure tunnel parameters, source, destination, IP addresses.",
+            "title": "Tunnel Endpoint",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/external_connectorTunnelEndpoint"
+            },
+            "x-displayname": "Tunnel Endpoint.",
+            "x-ves-required": "true",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "4",
+              "ves.io.schema.rules.repeated.min_items": "1"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.message.required": "true",
+              "ves.io.schema.rules.repeated.max_items": "4",
+              "ves.io.schema.rules.repeated.min_items": "1"
+            },
+            "x-f5xc-description-short": "Configure tunnel parameters, source, destination, IP addresses.",
+            "x-f5xc-constraints": {
+              "constraintType": "array",
+              "category": "discovery",
+              "minItems": 1,
+              "maxItems": 4,
+              "deterministic": true,
+              "metadata": {
+                "source": "discovery",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          },
+          "tunnel_mtu": {
+            "type": "integer",
+            "description": "Configure MTU for the GRE tunnel interface.",
+            "title": "Tunnel MTU",
+            "format": "int64",
+            "x-displayname": "Tunnel MTU.",
+            "x-ves-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "512",
+              "ves.io.schema.rules.uint32.lte": "1370"
+            },
+            "x-validation-rules": {
+              "ves.io.schema.rules.uint32.gte": "512",
+              "ves.io.schema.rules.uint32.lte": "1370"
+            },
+            "x-f5xc-description-short": "Configure MTU for the GRE tunnel interface.",
+            "x-f5xc-constraints": {
+              "constraintType": "number",
+              "category": "discovery",
+              "minimum": 512,
+              "maximum": 1370,
+              "deterministic": true,
+              "metadata": {
+                "source": "api-probed",
+                "confidence": 0.99,
+                "validatedAt": "2026-09-03T15:40:08+00:00"
+              }
+            },
+            "x-f5xc-required-for": {
+              "minimum_config": true,
+              "create": true,
+              "update": false,
+              "read": false
+            }
+          }
+        },
+        "x-f5xc-description-short": "GRE configuration parameters required for GRE Connection type.",
+        "x-f5xc-minimum-configuration": {
+          "description": "Minimum configuration for external_connectorGRETunnelParameters",
+          "required_fields": ["tunnel_eps", "tunnel_mtu"],
+          "mutually_exclusive_groups": [],
+          "example_json": "{\n  \"tunnel_eps\": [\n    {\n      \"interface\": \"value\",\n      \"local_tunnel_ip\": \"192.0.2.0/24\",\n      \"node\": \"value\",\n      \"remote_tunnel_ip\": \"192.0.2.0/24\"\n    }\n  ],\n  \"tunnel_mtu\": 512\n}",
+          "example_yaml": "tunnel_eps:\n- interface: value\n  local_tunnel_ip: 192.0.2.0/24\n  node: value\n  remote_tunnel_ip: 192.0.2.0/24\ntunnel_mtu: 512"
+        },
+        "x-f5xc-cli-domain": "network",
+        "x-f5xc-namespace-profile": {
+          "constraint": {
+            "allowed": ["system"],
+            "enforced": false
+          },
+          "recommendation": {
+            "primary": "custom",
+            "alternatives": [],
+            "rationale": "Standard tenant resource"
+          },
+          "classification": {
+            "category": "application",
+            "multi_tenant_pattern": "per-tenant"
+          }
+        }
+      }
+    }
+  }
+}
