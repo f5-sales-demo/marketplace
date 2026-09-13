@@ -302,9 +302,7 @@ test('verified API bootstrap capability admits AWS and Azure without making a re
 });
 test('Azure Route Server multihop rejects before any runtime request', async () => {
   const withoutSchemas = fixture();
-  expect(() => withoutSchemas.requireRoutingContract('azure')).toThrow(
-    'no_schema_valid_ebgp_multihop_request_control',
-  );
+  expect(() => withoutSchemas.requireRoutingContract('azure')).toThrow('no_schema_valid_ebgp_multihop_request_control');
   const complete = fixture(true);
   let requests = 0;
   const runtime = new CeRuntime(complete, 'native', 'https://tenant.test', 'test-credential', async () => {
