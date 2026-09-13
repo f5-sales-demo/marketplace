@@ -1,8 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
-import { createHash } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { expect, test } from 'bun:test';
 import { CeRuntime, type SiteBinding } from '../../src/ce/runtime';
 import type { VerifiedUpgradeContract } from '../../src/ce/upgrade-contract';
 import { VerifiedCeContract } from '../../src/ce/verified-contract';
@@ -10,66 +6,30 @@ import routingSchema from '../fixtures/aws-routing-schema.json';
 import contract from '../fixtures/smsv2-contract-v7.json';
 import schema from '../fixtures/smsv2-create-schema.json';
 
-const dirs: string[] = [];
-afterEach(async () => {
-  for (const dir of dirs.splice(0)) await rm(dir, { recursive: true });
-});
-const hash = (bytes: string) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-async function candidate(withRouting = false, candidateContract: Record<string, unknown> = contract) {
-  const dir = await mkdtemp(join(tmpdir(), 'ce-contract-'));
-  dirs.push(dir);
-  const assets: Record<string, string> = {};
-  const data: Record<string, unknown> = {
-    'smsv2-contract.json': candidateContract,
-    'sites.json': { components: { schemas: schema.schemas } },
-    'smsv2-evidence-receipt.json': { contract_id: contract.contract_id },
-  };
-  if (withRouting) {
-    for (const file of ['network', 'marketplace'] as const) {
-      const kinds = file === 'network' ? ['bgp', 'bgp_routing_policy'] : ['external_connector'];
-      data[`${file}.json`] = {
-        components: { schemas: routingSchema.schemas[file] },
-        paths: Object.fromEntries(
-          kinds.map((kind) => [
-            `/api/config/namespaces/{metadata.namespace}/${kind}s`,
-            {
-              post: {
-                requestBody: {
-                  content: { 'application/json': { schema: { $ref: `#/components/schemas/${kind}CreateRequest` } } },
-                },
-              },
-            },
-          ]),
-        ),
-      };
-    }
-  }
-  for (const [file, value] of Object.entries(data)) {
-    const bytes = JSON.stringify(value);
-    assets[file] = hash(bytes);
-    await writeFile(join(dir, file), bytes);
-  }
-  const manifest = JSON.stringify({
-    schema_version: 1,
-    contract_id: candidateContract.contract_id,
-    contract_version: candidateContract.version,
-    release: { commit: schema.provenance.commit },
-    assets: {
-      'smsv2-contract.json': assets['smsv2-contract.json'],
-      'smsv2-evidence-receipt.json': assets['smsv2-evidence-receipt.json'],
-    },
-  });
-  assets['smsv2-contract-manifest.json'] = hash(manifest);
-  await writeFile(join(dir, 'smsv2-contract-manifest.json'), manifest);
-  const receipt = JSON.stringify({
-    kind: 'local-candidate',
-    publication: 'held',
-    repository: 'f5-sales-demo/api-specs-enriched',
-    commit: schema.provenance.commit,
-    assets,
-  });
-  await writeFile(join(dir, 'candidate-receipt.json'), receipt);
-  return { contract: await VerifiedCeContract.candidate(dir, hash(receipt)), dir, digest: hash(receipt) };
+type ContractFixtureConstructor = new (
+  commit: string,
+  fingerprint: string,
+  contract: Record<string, unknown>,
+  schemas: Record<string, unknown>,
+  networking: { network: Record<string, unknown>; marketplace: Record<string, unknown> } | undefined,
+  publication: 'published-release',
+) => VerifiedCeContract;
+
+function fixture(withRouting = false, fixtureContract: Record<string, unknown> = contract): VerifiedCeContract {
+  const Constructor = VerifiedCeContract as unknown as ContractFixtureConstructor;
+  return new Constructor(
+    schema.provenance.commit,
+    `sha256:${'f'.repeat(64)}`,
+    fixtureContract,
+    schema.schemas,
+    withRouting
+      ? {
+          network: routingSchema.schemas.network,
+          marketplace: routingSchema.schemas.marketplace,
+        }
+      : undefined,
+    'published-release',
+  );
 }
 const binding: SiteBinding = {
   owner: { deploymentId: 'ce-test', engine: 'native', provider: 'aws', account: 'demo', region: 'us-east-1' },
@@ -105,7 +65,7 @@ const labels = {
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 
 test('reconciles an ambiguous create and checkpoints the durable site UID without duplicate creation', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let site: unknown;
   let posts = 0;
   const checkpoints: unknown[] = [];
@@ -128,7 +88,7 @@ test('reconciles an ambiguous create and checkpoints the durable site UID withou
   expect(checkpoints[0]).toHaveProperty('uid', 'site-uuid');
 });
 test('foreign engine and foreign live ownership cannot delete resources', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let deletes = 0;
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (_url, init) => {
     if (init?.method === 'DELETE') deletes++;
@@ -142,7 +102,7 @@ test('foreign engine and foreign live ownership cannot delete resources', async 
 });
 
 test('native upgrade checkpoints its exact site identity immediately before submission', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   const upgrade = {
     fingerprint: `sha256:${'a'.repeat(64)}`,
     build: () => ({
@@ -191,7 +151,7 @@ test('native upgrade checkpoints its exact site identity immediately before subm
 });
 
 test('exact site deletion binds the observed UID and reconciles pending or lost delete responses', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   for (const mode of [
     'deleted',
     'pending',
@@ -234,7 +194,7 @@ test('exact site deletion binds the observed UID and reconciles pending or lost 
 });
 
 test('site deletion acceptance requires logical and physical absence plus complete inactive registration evidence', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   for (const mode of [
     'deleted',
     'physical-present',
@@ -294,7 +254,7 @@ test('site deletion acceptance requires logical and physical absence plus comple
   }
 });
 test('token checkpoint failure resumes through GET without duplicate token issuance', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let token: unknown;
   let posts = 0;
   let cloudInit = 0;
@@ -330,7 +290,7 @@ test('token checkpoint failure resumes through GET without duplicate token issua
   expect(cloudInit).toBe(1);
 });
 test('verified API bootstrap capability admits AWS and Azure without making a request', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let requests = 0;
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
     requests++;
@@ -341,13 +301,13 @@ test('verified API bootstrap capability admits AWS and Azure without making a re
   expect(requests).toBe(0);
 });
 test('Azure Route Server multihop rejects before any runtime request', async () => {
-  const withoutSchemas = await candidate();
-  expect(() => withoutSchemas.contract.requireRoutingContract('azure')).toThrow(
+  const withoutSchemas = fixture();
+  expect(() => withoutSchemas.requireRoutingContract('azure')).toThrow(
     'no_schema_valid_ebgp_multihop_request_control',
   );
-  const complete = await candidate(true);
+  const complete = fixture(true);
   let requests = 0;
-  const runtime = new CeRuntime(complete.contract, 'native', 'https://tenant.test', 'test-credential', async () => {
+  const runtime = new CeRuntime(complete, 'native', 'https://tenant.test', 'test-credential', async () => {
     requests++;
     return json({});
   });
@@ -369,17 +329,12 @@ test('Azure routing capability rejects altered configuration, peer, and route ma
   for (const mutate of variants) {
     const changed = structuredClone(contract);
     mutate(changed);
-    const { contract: candidateContract } = await candidate(true, changed);
+    const candidateContract = fixture(true, changed);
     expect(() => candidateContract.requireRoutingContract('azure')).toThrow('unavailable');
   }
 });
-test('candidate tampering fails before any API request', async () => {
-  const { dir, digest } = await candidate();
-  await writeFile(join(dir, 'sites.json'), '{}');
-  await expect(VerifiedCeContract.candidate(dir, digest)).rejects.toThrow('checksum');
-});
 test('HTTP errors and malformed responses never expose server bodies', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   for (const [status, category] of [
     [401, 'expired'],
     [403, 'authorization'],
@@ -402,7 +357,7 @@ test('HTTP errors and malformed responses never expose server bodies', async () 
 });
 
 test('site-global health never fabricates per-node HA health or accepts foreign identities', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let response: unknown = { hostname: 'node-one.example', state: 'PROVISIONED' };
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url) =>
     String(url).includes('securemesh_site_v2s')
@@ -426,7 +381,7 @@ test('site-global health never fabricates per-node HA health or accepts foreign 
   }
 });
 test('registration health needs exact site/node/instance correlation and complete observations', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   const item = {
     name: 'r-test',
     get_spec: {
@@ -458,7 +413,7 @@ test('registration health needs exact site/node/instance correlation and complet
 });
 
 test('cumulative HA admission observes only launched nodes while preserving the final cluster size', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   const haBinding = { ...binding, nodes: ['node-one', 'node-two', 'node-three'] };
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url) =>
     String(url).includes('securemesh_site_v2s')
@@ -486,7 +441,7 @@ test('cumulative HA admission observes only launched nodes while preserving the 
 });
 
 test('registration approval checkpoints before mutation and preserves the server passport', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let state = 'NEW';
   const requests: Array<Record<string, unknown>> = [];
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
@@ -540,7 +495,7 @@ test('registration approval checkpoints before mutation and preserves the server
 });
 
 test('creates schema-validated routing objects in order and resumes lost responses without duplicate connectors', async () => {
-  const { contract } = await candidate(true);
+  const contract = fixture(true);
   const objects = new Map<string, unknown>();
   const posts: string[] = [];
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
@@ -592,7 +547,7 @@ test('creates schema-validated routing objects in order and resumes lost respons
 });
 
 test('Azure Route Server BGP rejects before any F5 request while multihop is unavailable', async () => {
-  const { contract } = await candidate(true);
+  const contract = fixture(true);
   const azureBinding: SiteBinding = {
     owner: {
       deploymentId: 'ce-test',
@@ -687,7 +642,7 @@ test('Azure Route Server BGP rejects before any F5 request while multihop is una
 });
 
 test('AWS configured creation rejects missing observed devices before any API request', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let requests = 0;
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
     requests++;
@@ -700,7 +655,7 @@ test('AWS configured creation rejects missing observed devices before any API re
 });
 
 test('pins the initial software and OS before bootstrap for either owning engine and rejects changed baselines', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   for (const engine of ['native', 'terraform'] as const) {
     const selected: SiteBinding = {
       ...binding,
@@ -734,7 +689,7 @@ test('pins the initial software and OS before bootstrap for either owning engine
 });
 
 test('reserves an Azure Route Server prefix through the schema-valid SLO local VRF', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   const azure: SiteBinding = {
     ...binding,
     owner: {
@@ -777,7 +732,7 @@ test('reserves an Azure Route Server prefix through the schema-valid SLO local V
 });
 
 test('rejects unresolved initial version pairs before contacting the API', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   let calls = 0;
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async () => {
     calls++;
@@ -790,7 +745,7 @@ test('rejects unresolved initial version pairs before contacting the API', async
 });
 
 test('upgrade observation rejects foreign physical ownership before reading eligibility', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   const paths: string[] = [];
   const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url) => {
     const path = new URL(url).pathname;
@@ -816,7 +771,7 @@ test('upgrade observation rejects foreign physical ownership before reading elig
 });
 
 test('upgrade observations bind both site identities and reject changes during collection', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   for (const replacement of [false, true])
     for (const target of ['crt-20260201-0179', undefined]) {
       let logicalReads = 0;
@@ -907,7 +862,7 @@ test('upgrade observations bind both site identities and reject changes during c
 });
 
 test('routing teardown requires the checkpoint UID, site label and owning engine', async () => {
-  const { contract } = await candidate(true);
+  const contract = fixture(true);
   for (const mode of ['valid', 'foreign-uid', 'foreign-site', 'wrong-engine'] as const) {
     let deletes = 0;
     const runtime = new CeRuntime(
@@ -945,7 +900,7 @@ test('routing teardown requires the checkpoint UID, site label and owning engine
 });
 
 test('routing teardown treats absence as complete and reports a still-present object as pending', async () => {
-  const { contract } = await candidate(true);
+  const contract = fixture(true);
   for (const present of [false, true]) {
     let deletes = 0;
     const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (url, init) => {
@@ -970,7 +925,7 @@ test('routing teardown treats absence as complete and reports a still-present ob
 });
 
 test('replacement routing rebind resumes lost PUT responses and checkpoint interruptions without repeat updates', async () => {
-  const { contract } = await candidate(true);
+  const contract = fixture(true);
   type RoutingObject = {
     metadata: { name: string; namespace: string; labels: Record<string, string> };
     system_metadata: { uid: string };
@@ -1066,7 +1021,7 @@ test('replacement routing rebind resumes lost PUT responses and checkpoint inter
 });
 
 test('bootstrap revocation reconciles lost responses and requires absence before completion', async () => {
-  const { contract } = await candidate();
+  const contract = fixture();
   for (const mode of ['deleted', 'lost-response', 'pending', 'foreign', 'forbidden'] as const) {
     let deletes = 0;
     const runtime = new CeRuntime(contract, 'native', 'https://tenant.test', 'test-credential', async (_url, init) => {

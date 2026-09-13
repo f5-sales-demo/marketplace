@@ -1,6 +1,4 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
 import { loadPublishedCeApi, type PublishedApiFetcher } from './verified-api-release';
 import { projectReplaceSnapshot } from './wire-replace';
 import {
@@ -40,7 +38,6 @@ function parse(bytes: Uint8Array): Json {
     throw new Error('Malformed CE contract artifact');
   }
 }
-const files = ['smsv2-contract.json', 'smsv2-contract-manifest.json', 'smsv2-evidence-receipt.json', 'sites.json'];
 const publishedAssets = Object.freeze({
   'smsv2-contract.json': 'sha256:3602ecd09b744449f1bf036c42e10e8be7133f6073e5d1553edb49e46cd2429c',
   'smsv2-contract-manifest.json': 'sha256:75899912ef4c0d243caca5b466d2e8a467d541e7721c8abefd19c890d88d9a07',
@@ -48,9 +45,8 @@ const publishedAssets = Object.freeze({
 });
 const publishedBase = 'https://github.com/f5-sales-demo/api-specs-enriched/releases/download/v7.0.1';
 
-/** Candidate admission is for local acceptance only. It does not assert public release or live parity. */
 export class VerifiedCeContract {
-  readonly publication: 'local-candidate' | 'published-release';
+  readonly publication: 'published-release';
   readonly #contract: Json;
   readonly #schemas: Json;
   readonly #validate: (spec: unknown) => void;
@@ -62,7 +58,7 @@ export class VerifiedCeContract {
     contract: Json,
     schemas: Json,
     networking?: { network: Json; marketplace: Json },
-    publication: 'local-candidate' | 'published-release' = 'local-candidate',
+    publication: 'published-release',
   ) {
     this.publication = publication;
     this.#contract = contract;
@@ -72,82 +68,6 @@ export class VerifiedCeContract {
       this.#routing = routingValidators(networking.network, networking.marketplace);
       this.#routingSchemas = networking;
     }
-  }
-  static async candidate(directory: string, expectedReceiptSha256: string): Promise<VerifiedCeContract> {
-    if (!isAbsolute(directory) || !digestPattern.test(expectedReceiptSha256))
-      throw new Error('Candidate path and pinned receipt digest required');
-    const receiptBytes = await readFile(join(directory, 'candidate-receipt.json'));
-    if (hash(receiptBytes) !== expectedReceiptSha256) throw new Error('CE candidate receipt checksum mismatch');
-    const receipt = parse(receiptBytes);
-    if (
-      receipt.kind !== 'local-candidate' ||
-      receipt.repository !== 'f5-sales-demo/api-specs-enriched' ||
-      receipt.publication !== 'held' ||
-      typeof receipt.commit !== 'string' ||
-      !commitPattern.test(receipt.commit)
-    )
-      throw new Error('Invalid CE candidate provenance');
-    const declared = object(receipt.assets);
-    const selectedFiles =
-      Object.hasOwn(declared, 'network.json') || Object.hasOwn(declared, 'marketplace.json')
-        ? [...files, 'network.json', 'marketplace.json']
-        : files;
-    if (
-      Object.keys(declared).length !== selectedFiles.length ||
-      selectedFiles.some((file) => typeof declared[file] !== 'string' || !digestPattern.test(declared[file] as string))
-    )
-      throw new Error('CE candidate asset inventory is incomplete');
-    const assets: Record<string, Json> = {};
-    for (const file of selectedFiles) {
-      const bytes = await readFile(join(directory, file));
-      if (hash(bytes) !== declared[file]) throw new Error('CE candidate asset checksum mismatch');
-      assets[file] = parse(bytes);
-    }
-    const manifest = assets['smsv2-contract-manifest.json'];
-    const contract = assets['smsv2-contract.json'];
-    const evidence = assets['smsv2-evidence-receipt.json'];
-    if (
-      manifest.schema_version !== 1 ||
-      object(manifest.release).commit !== receipt.commit ||
-      contract.contract_id !== 'f5xc-smsv2-api/v1' ||
-      contract.version !== '7.0.0' ||
-      manifest.contract_id !== contract.contract_id ||
-      manifest.contract_version !== contract.version ||
-      evidence.contract_id !== contract.contract_id
-    )
-      throw new Error('CE candidate contract identity mismatch');
-    const bindings = object(manifest.assets);
-    if (
-      bindings['smsv2-contract.json'] !== declared['smsv2-contract.json'] ||
-      bindings['smsv2-evidence-receipt.json'] !== declared['smsv2-evidence-receipt.json']
-    )
-      throw new Error('CE candidate manifest checksum mismatch');
-    const api = object(contract.api);
-    if (
-      api.namespace !== 'system' ||
-      api.collection_path !== '/api/config/namespaces/{namespace}/securemesh_site_v2s' ||
-      api.item_path !== '/api/config/namespaces/{namespace}/securemesh_site_v2s/{name}'
-    )
-      throw new Error('Unsupported CE API paths');
-    const schemas = object(object(assets['sites.json'].components).schemas);
-    let networking: { network: Json; marketplace: Json } | undefined;
-    if (assets['network.json'] && assets['marketplace.json']) {
-      for (const [file, kind] of [
-        ['network.json', 'bgp'],
-        ['network.json', 'bgp_routing_policy'],
-        ['marketplace.json', 'external_connector'],
-      ] as const) {
-        const path = object(object(assets[file].paths)[`/api/config/namespaces/{metadata.namespace}/${kind}s`]);
-        const schema = object(object(object(object(object(path.post).requestBody).content)['application/json']).schema);
-        if (schema.$ref !== `#/components/schemas/${kind}CreateRequest`)
-          throw new Error('Unsupported routing API request contract');
-      }
-      networking = {
-        network: object(object(assets['network.json'].components).schemas),
-        marketplace: object(object(assets['marketplace.json'].components).schemas),
-      };
-    }
-    return new VerifiedCeContract(receipt.commit, expectedReceiptSha256, contract, schemas, networking);
   }
   static async published(fetcher: PublishedApiFetcher = fetch, signal?: AbortSignal): Promise<VerifiedCeContract> {
     const api = await loadPublishedCeApi(fetcher, signal);
