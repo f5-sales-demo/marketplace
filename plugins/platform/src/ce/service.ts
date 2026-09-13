@@ -21,7 +21,7 @@ export interface CeCapabilityEvidence {
   source: 'verified-api-contract';
   contractFingerprint: string;
   contractCommit: string;
-  publication: 'local-candidate';
+  publication: 'published-release';
   tenantOrigin: string;
   platformContext?: string;
   liveAcceptance: 'not-established';
@@ -80,7 +80,7 @@ export function createCePlatformService(
       const capabilities = aws.capabilities as Record<string, unknown>;
       const azureRouteServerEbgpMultihop = artifact.azureRouteServerEbgpMultihop();
       return {
-        contractIdentity: 'f5xc-smsv2-api/v1@7.0.0',
+        contractIdentity: 'f5xc-smsv2-api/v1@7.0.1',
         smsv2ContractVersion: 'v2',
         supportedProviders: ['aws', 'azure'],
         bootstrapDrivers: ['api'],
