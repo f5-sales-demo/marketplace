@@ -93,7 +93,7 @@ printf '{"version":"20.2.7"}\n' >"$AWS_NODE_MODULES/@f5-sales-demo/pi-utils/pack
 printf '{"version":"0.115.0"}\n' >"$AWS_NODE_MODULES/@anthropic-ai/sdk/package.json"
 printf '{"version":"1.3.0"}\n' >"$AWS_NODE_MODULES/@agentclientprotocol/sdk/package.json"
 printf '{"version":"2.15.0"}\n' >"$AWS_NODE_MODULES/@google/genai/package.json"
-printf '{"version":"1.3.14"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
+printf '{"version":"1.4.2"}\n' >"$AWS_NODE_MODULES/bun-types/package.json"
 if REPO_ROOT="$MISSING_TYPEBOX" bash "$CHECK" >/dev/null 2>&1; then
   fail "a physical installation missing TypeBox must fail"
 else
@@ -136,7 +136,7 @@ printf '{"version":"0.115.0"}\n' >node_modules/@anthropic-ai/sdk/package.json
 printf '{"version":"1.3.0"}\n' >node_modules/@agentclientprotocol/sdk/package.json
 printf '{"version":"2.15.0"}\n' >node_modules/@google/genai/package.json
 printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
-printf '{"version":"1.3.14"}\n' >node_modules/bun-types/package.json
+printf '{"version":"1.4.2"}\n' >node_modules/bun-types/package.json
 EOF
 chmod +x "$BAD_INSTALL/test-bin/bun"
 if ! PATH="$BAD_INSTALL/test-bin:$PATH" RUNNER_TEST_MARKER="$BAD_INSTALL/suite-ran" \

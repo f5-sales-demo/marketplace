@@ -16,10 +16,10 @@ fail() {
   exit 1
 }
 
-if grep -Fq 'bun_version=1.3.14' "$INSTALLER"; then
-  pass "plugin CI uses current Bun 1.3.14"
+if grep -Fq 'bun_version=1.4.2' "$INSTALLER"; then
+  pass "plugin CI uses current Bun 1.4.2"
 else
-  fail "plugin CI must use current Bun 1.3.14"
+  fail "plugin CI must use current Bun 1.4.2"
 fi
 
 if grep -Fq 'run: ./scripts/install-ci-bun.sh' "$WORKFLOW" &&
@@ -31,7 +31,9 @@ fi
 
 if [ -x "$INSTALLER" ] &&
   grep -Fq 'RUNNER_TEMP' "$INSTALLER" &&
-  grep -Fq '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f' \
+  grep -Fq '36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913' \
+    "$INSTALLER" &&
+  grep -Fq '54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7' \
     "$INSTALLER"; then
   pass "Bun installer binds the verified artifact to runner temp"
 else
@@ -80,7 +82,7 @@ new_fixture() {
 }
 
 INSTALL_FAILURE=$(new_fixture install-failure)
-printf '{"lockfileVersion":1}\n' >"$INSTALL_FAILURE/plugins/demo/bun.lock"
+printf '{"lockfileVersion":2}\n' >"$INSTALL_FAILURE/plugins/demo/bun.lock"
 if PATH="$INSTALL_FAILURE/bin:$INSTALL_FAILURE/tools" \
   TEST_STATE="$INSTALL_FAILURE/state" INSTALL_EXIT=9 \
   bash "$INSTALL_FAILURE/scripts/run-plugin-tests.sh" >/dev/null 2>&1; then
