@@ -24,6 +24,26 @@ const Type = {
   Unknown: () => ({}),
 };
 const pi: PlatformToolApi = { typebox: { Type } };
+const kvmImagePrerequisite = {
+  id: 'maurice_config_cardinality_exactly_one' as const,
+  resource: 'maurice_config' as const,
+  cardinality: { exactly: 1 as const },
+  enforcement: 'server' as const,
+  availability: 'external_tenant_prerequisite' as const,
+  reason: 'The tenant must contain exactly one maurice_config object before image issuance.',
+  source: {
+    kind: 'runtime_api_error' as const,
+    operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl' as const,
+    immutable: true as const,
+  },
+  publication: {
+    repository: 'f5-sales-demo/api-specs-enriched' as const,
+    tag: 'v7.0.3' as const,
+    commit: '55151d9bda8ea8f04c595e76ee6b05aee96d7fc7' as const,
+    asset: 'openapi.json' as const,
+    sha256: `sha256:${'a'.repeat(64)}`,
+  },
+};
 
 function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
   return {
@@ -36,6 +56,7 @@ function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
         azure: ['direct-nic', 'route-server-bgp'],
       },
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+      kvmImagePrerequisite,
     }),
     site: async (_action, request) => ({
       metadata: { name: request.siteName, namespace: request.namespace },
@@ -218,7 +239,7 @@ describe('f5xc_ce_v2_site', () => {
       undefined,
       ctx(),
     );
-    expect(result.isError).not.toBe(true);
+    expect(result).not.toHaveProperty('isError', true);
     expect(JSON.stringify(result)).not.toContain('fixture-secret-value');
     expect(JSON.stringify(result)).not.toContain('also-secret');
   });
@@ -238,7 +259,9 @@ describe('f5xc_ce_v2_capabilities', () => {
         azure: ['direct-nic', 'route-server-bgp'],
       },
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+      kvmImagePrerequisite,
     });
+    expect(result.content[0].text).toContain('KVM image prerequisite: external_tenant_prerequisite');
     expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
   });
 });
@@ -247,7 +270,7 @@ describe('f5xc_ce_v2_status', () => {
   it('returns only allowlisted non-secret evidence', async () => {
     const tool = createF5xcCeV2StatusTool(pi);
     const result = await tool.execute('id', { namespace: 'system', siteName: 'ce-demo' }, undefined, undefined, ctx());
-    expect(result.isError).not.toBe('unavailable');
+    expect(result).not.toHaveProperty('isError', 'unavailable');
     expect(result.details.capability).toBe('unavailable');
     expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
   });

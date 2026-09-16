@@ -1,0 +1,4 @@
+interface:
+  display_name: "KVM SMSv2 Lifecycle"
+  short_description: "Safely operate the Terraform-owned KVM SMSv2 showcase"
+  default_prompt: "Use $kvm-smsv2 to preflight, plan, operate, verify traffic, recover drift, destroy, or rebuild the KVM Secure Mesh Site v2 showcase using exact saved plans and zero-mutation prerequisite gates."

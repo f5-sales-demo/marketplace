@@ -22,7 +22,7 @@ new_repo() {
   cat >"$root/plugins/asm-migration/package.json" <<'JSON'
 {"name":"asm-migration","version":"2.0.8","xcsh":{"version":"2.0.8"},"devDependencies":{"fast-xml-parser":"5.11.0"}}
 JSON
-  printf '{"lockfileVersion":1}\n' >"$root/plugins/asm-migration/bun.lock"
+  printf '{"lockfileVersion":2}\n' >"$root/plugins/asm-migration/bun.lock"
   printf '{"name":"asm-migration","version":"2.0.8"}\n' >"$root/plugins/asm-migration/.xcsh-plugin/plugin.json"
   printf '{"plugins":[{"name":"asm-migration","version":"2.0.8"}]}\n' >"$root/.xcsh-plugin/marketplace.json"
   printf '# Changelog\n\n## [Unreleased]\n\n## [1.0.0]\n' >"$root/CHANGELOG.md"

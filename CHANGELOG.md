@@ -10,6 +10,20 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** bumped to v1.3.13
+
+- **`gitlab`** bumped to v1.2.7
+
+- **`github`** bumped to v2.0.4
+
+- **`gcloud`** bumped to v1.2.8
+
+- **`azure`** bumped to v4.3.2
+
+- **`platform`** bumped to v5.0.1
+
+- **`aws`** bumped to v2.0.1
+
 - **`azure`** v4.3.1 — preserves all-or-nothing privacy for `azure_ce_inventory` failures while
   returning allowlisted collector-stage and error-category diagnostics for setup, Resource Graph,
   VM runtime, Activity Log, envelope serialization, and artifact persistence boundaries. Caller
@@ -45,7 +59,7 @@ and this project adheres to
   when the user explicitly requests public endpoints. No legacy alias is provided
   ([#1306](https://github.com/f5-sales-demo/marketplace/issues/1306)).
 
-- **`asm-migration`** bumped to v2.0.9
+- **`asm-migration`** bumped to v2.0.10
 
 - **`asm-migration`** v2.0.5 — updates the development-only `bun-types`
   dependency to v1.4.0.

@@ -1,5 +1,5 @@
 import { isAbsolute } from 'node:path';
-import { resolveSmsv2AwsReleaseContract } from './release-contract';
+import { resolveSmsv2ReleaseContract, type Smsv2KvmImagePrerequisite } from './release-contract';
 
 export interface CeV2Capabilities {
   smsv2ContractVersion: 'v2';
@@ -7,6 +7,7 @@ export interface CeV2Capabilities {
   bootstrapDrivers: Array<'console'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
+  kvmImagePrerequisite: Smsv2KvmImagePrerequisite;
 }
 
 export interface CeV2InterfaceAddressing {
@@ -83,12 +84,12 @@ export class HttpCeV2Driver implements CeV2Driver {
   readonly #base: URL;
   readonly #apiToken: string | undefined;
   readonly #consoleHelper: string | undefined;
-  readonly #resolveContract: typeof resolveSmsv2AwsReleaseContract;
+  readonly #resolveContract: typeof resolveSmsv2ReleaseContract;
   #document?: CapabilityDocument;
 
   constructor(
     env: Record<string, string | undefined> = process.env,
-    resolveContract: typeof resolveSmsv2AwsReleaseContract = resolveSmsv2AwsReleaseContract,
+    resolveContract: typeof resolveSmsv2ReleaseContract = resolveSmsv2ReleaseContract,
   ) {
     if (!env.F5XC_API_URL) throw new Error('F5XC_API_URL is required');
     this.#base = new URL(env.F5XC_API_URL);
@@ -119,6 +120,7 @@ export class HttpCeV2Driver implements CeV2Driver {
       bootstrapDrivers: ['console'],
       providerNetworkingProfiles: {},
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
+      kvmImagePrerequisite: release.kvmImagePrerequisite,
       namespace: release.namespace,
       endpoints: { siteCollection: release.collectionPath, siteItem: release.itemPath, status: '' },
       consoleFallback: true,
@@ -150,6 +152,7 @@ export class HttpCeV2Driver implements CeV2Driver {
       ),
       providerNetworkingProfiles: document.providerNetworkingProfiles,
       awsSmsv2TgwConnect: document.awsSmsv2TgwConnect,
+      kvmImagePrerequisite: document.kvmImagePrerequisite,
     };
   }
 
