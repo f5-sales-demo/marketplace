@@ -292,7 +292,7 @@
     {
       "name": "kvm",
       "description": "Deterministic F5 Secure Mesh Site v2 lifecycle for KVM, libvirt, Terraform-owned FRR routing, health, traffic, drift recovery, destroy, and rebuild",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "f5-sales-demo"
       },
