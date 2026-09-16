@@ -1,7 +1,7 @@
 {
   "name": "kvm",
   "description": "Deterministic F5 Distributed Cloud Secure Mesh Site v2 lifecycle for KVM, libvirt, and Terraform-owned FRR routing",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
   "license": "Apache-2.0",
   "author": {
