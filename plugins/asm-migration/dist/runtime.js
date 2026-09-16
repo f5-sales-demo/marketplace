@@ -22,13 +22,15 @@ var __toESM = (mod, isNodeMode, target) => {
       return cached;
   }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  for (let key of __getOwnPropNames(mod))
-    if (!__hasOwnProp.call(to, key))
-      __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
-        enumerable: true
-      });
+  const to = isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+  if (mod && typeof mod === "object" || typeof mod === "function") {
+    for (let key of __getOwnPropNames(mod))
+      if (!__hasOwnProp.call(to, key))
+        __defProp(to, key, {
+          get: __accessProp.bind(mod, key),
+          enumerable: true
+        });
+  }
   if (canCache)
     cache.set(mod, to);
   return to;
@@ -36,7 +38,7 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 
 // node_modules/ajv/dist/compile/codegen/code.js
-var require_code = __commonJS((exports) => {
+var require_code = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.regexpCode = exports.getEsmExportName = exports.getProperty = exports.safeStringify = exports.stringify = exports.strConcat = exports.addCodeArg = exports.str = exports._ = exports.nil = exports._Code = exports.Name = exports.IDENTIFIER = exports._CodeOrName = undefined;
 
@@ -190,7 +192,7 @@ var require_code = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/codegen/scope.js
-var require_scope = __commonJS((exports) => {
+var require_scope = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.ValueScope = exports.ValueScopeName = exports.Scope = exports.varKinds = exports.UsedValueState = undefined;
   var code_1 = require_code();
@@ -202,9 +204,9 @@ var require_scope = __commonJS((exports) => {
     }
   }
   var UsedValueState;
-  (function(UsedValueState2) {
-    UsedValueState2[UsedValueState2["Started"] = 0] = "Started";
-    UsedValueState2[UsedValueState2["Completed"] = 1] = "Completed";
+  (function(UsedValueState) {
+    UsedValueState[UsedValueState["Started"] = 0] = "Started";
+    UsedValueState[UsedValueState["Completed"] = 1] = "Completed";
   })(UsedValueState || (exports.UsedValueState = UsedValueState = {}));
   exports.varKinds = {
     const: new code_1.Name("const"),
@@ -336,7 +338,7 @@ var require_scope = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/codegen/index.js
-var require_codegen = __commonJS((exports) => {
+var require_codegen = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.or = exports.and = exports.not = exports.CodeGen = exports.operators = exports.varKinds = exports.ValueScopeName = exports.ValueScope = exports.Scope = exports.Name = exports.regexpCode = exports.stringify = exports.getProperty = exports.nil = exports.strConcat = exports.str = exports._ = undefined;
   var code_1 = require_code();
@@ -1046,7 +1048,7 @@ var require_codegen = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/util.js
-var require_util = __commonJS((exports) => {
+var require_util = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.checkStrictMode = exports.getErrorPath = exports.Type = exports.useFunc = exports.setEvaluated = exports.evaluatedPropsToName = exports.mergeEvaluated = exports.eachItem = exports.unescapeJsonPointer = exports.escapeJsonPointer = exports.escapeFragment = exports.unescapeFragment = exports.schemaRefOrVal = exports.schemaHasRulesButRef = exports.schemaHasRules = exports.checkUnknownRules = exports.alwaysValidSchema = exports.toHash = undefined;
   var codegen_1 = require_codegen();
@@ -1186,9 +1188,9 @@ var require_util = __commonJS((exports) => {
   }
   exports.useFunc = useFunc;
   var Type;
-  (function(Type2) {
-    Type2[Type2["Num"] = 0] = "Num";
-    Type2[Type2["Str"] = 1] = "Str";
+  (function(Type) {
+    Type[Type["Num"] = 0] = "Num";
+    Type[Type["Str"] = 1] = "Str";
   })(Type || (exports.Type = Type = {}));
   function getErrorPath(dataProp, dataPropType, jsPropertySyntax) {
     if (dataProp instanceof codegen_1.Name) {
@@ -1210,7 +1212,7 @@ var require_util = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/names.js
-var require_names = __commonJS((exports) => {
+var require_names = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var names = {
@@ -1235,7 +1237,7 @@ var require_names = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/errors.js
-var require_errors = __commonJS((exports) => {
+var require_errors = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.extendErrors = exports.resetErrorsCount = exports.reportExtraError = exports.reportError = exports.keyword$DataError = exports.keywordError = undefined;
   var codegen_1 = require_codegen();
@@ -1353,7 +1355,7 @@ var require_errors = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/boolSchema.js
-var require_boolSchema = __commonJS((exports) => {
+var require_boolSchema = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.boolOrEmptySchema = exports.topBoolOrEmptySchema = undefined;
   var errors_1 = require_errors();
@@ -1401,7 +1403,7 @@ var require_boolSchema = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/rules.js
-var require_rules = __commonJS((exports) => {
+var require_rules = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getRules = exports.isJSONType = undefined;
   var _jsonTypes = ["string", "number", "integer", "boolean", "null", "object", "array"];
@@ -1429,7 +1431,7 @@ var require_rules = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/applicability.js
-var require_applicability = __commonJS((exports) => {
+var require_applicability = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.shouldUseRule = exports.shouldUseGroup = exports.schemaHasRulesForType = undefined;
   function schemaHasRulesForType({ schema, self }, type) {
@@ -1449,7 +1451,7 @@ var require_applicability = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/dataType.js
-var require_dataType = __commonJS((exports) => {
+var require_dataType = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.reportTypeError = exports.checkDataTypes = exports.checkDataType = exports.coerceAndCheckDataType = exports.getJSONTypes = exports.getSchemaTypes = exports.DataType = undefined;
   var rules_1 = require_rules();
@@ -1458,9 +1460,9 @@ var require_dataType = __commonJS((exports) => {
   var codegen_1 = require_codegen();
   var util_1 = require_util();
   var DataType;
-  (function(DataType2) {
-    DataType2[DataType2["Correct"] = 0] = "Correct";
-    DataType2[DataType2["Wrong"] = 1] = "Wrong";
+  (function(DataType) {
+    DataType[DataType["Correct"] = 0] = "Correct";
+    DataType[DataType["Wrong"] = 1] = "Wrong";
   })(DataType || (exports.DataType = DataType = {}));
   function getSchemaTypes(schema) {
     const types = getJSONTypes(schema.type);
@@ -1630,7 +1632,7 @@ var require_dataType = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/defaults.js
-var require_defaults = __commonJS((exports) => {
+var require_defaults = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.assignDefaults = undefined;
   var codegen_1 = require_codegen();
@@ -1664,7 +1666,7 @@ var require_defaults = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/code.js
-var require_code2 = __commonJS((exports) => {
+var require_code2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateUnion = exports.validateArray = exports.usePattern = exports.callValidateCode = exports.schemaProperties = exports.allSchemaProperties = exports.noPropertyInData = exports.propertyInData = exports.isOwnProperty = exports.hasPropFunc = exports.reportMissingProp = exports.checkMissingProp = exports.checkReportMissingProp = undefined;
   var codegen_1 = require_codegen();
@@ -1793,7 +1795,7 @@ var require_code2 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/keyword.js
-var require_keyword = __commonJS((exports) => {
+var require_keyword = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateKeywordUsage = exports.validSchemaType = exports.funcKeywordCode = exports.macroKeywordCode = undefined;
   var codegen_1 = require_codegen();
@@ -1856,8 +1858,8 @@ var require_keyword = __commonJS((exports) => {
       gen.assign(valid, (0, codegen_1._)`${_await}${(0, code_1.callValidateCode)(cxt, validateRef, passCxt, passSchema)}`, def.modifying);
     }
     function reportErrs(errors) {
-      var _a2;
-      gen.if((0, codegen_1.not)((_a2 = def.valid) !== null && _a2 !== undefined ? _a2 : valid), errors);
+      var _a;
+      gen.if((0, codegen_1.not)((_a = def.valid) !== null && _a !== undefined ? _a : valid), errors);
     }
   }
   exports.funcKeywordCode = funcKeywordCode;
@@ -1908,7 +1910,7 @@ var require_keyword = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/subschema.js
-var require_subschema = __commonJS((exports) => {
+var require_subschema = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.extendSubschemaMode = exports.extendSubschemaData = exports.getSubschema = undefined;
   var codegen_1 = require_codegen();
@@ -1988,7 +1990,7 @@ var require_subschema = __commonJS((exports) => {
 });
 
 // node_modules/fast-deep-equal/index.js
-var require_fast_deep_equal = __commonJS((exports, module) => {
+var require_fast_deep_equal = __commonJS(function(exports, module) {
   module.exports = function equal(a, b) {
     if (a === b)
       return true;
@@ -2030,7 +2032,7 @@ var require_fast_deep_equal = __commonJS((exports, module) => {
 });
 
 // node_modules/json-schema-traverse/index.js
-var require_json_schema_traverse = __commonJS((exports, module) => {
+var require_json_schema_traverse = __commonJS(function(exports, module) {
   var traverse = module.exports = function(schema, opts, cb) {
     if (typeof opts == "function") {
       cb = opts;
@@ -2113,7 +2115,7 @@ var require_json_schema_traverse = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/compile/resolve.js
-var require_resolve = __commonJS((exports) => {
+var require_resolve = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getSchemaRefs = exports.resolveUrl = exports.normalizeId = exports._getFullPath = exports.getFullPath = exports.inlineRef = undefined;
   var util_1 = require_util();
@@ -2266,7 +2268,7 @@ var require_resolve = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/validate/index.js
-var require_validate = __commonJS((exports) => {
+var require_validate = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.getData = exports.KeywordCxt = exports.validateFunctionCode = undefined;
   var boolSchema_1 = require_boolSchema();
@@ -2771,7 +2773,7 @@ var require_validate = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/runtime/validation_error.js
-var require_validation_error = __commonJS((exports) => {
+var require_validation_error = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
 
   class ValidationError extends Error {
@@ -2785,7 +2787,7 @@ var require_validation_error = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/ref_error.js
-var require_ref_error = __commonJS((exports) => {
+var require_ref_error = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var resolve_1 = require_resolve();
 
@@ -2800,7 +2802,7 @@ var require_ref_error = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/compile/index.js
-var require_compile = __commonJS((exports) => {
+var require_compile = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.resolveSchema = exports.getCompilingSchema = exports.resolveRef = exports.compileSchema = exports.SchemaEnv = undefined;
   var codegen_1 = require_codegen();
@@ -3021,7 +3023,7 @@ var require_compile = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/refs/data.json
-var require_data = __commonJS((exports, module) => {
+var require_data = __commonJS(function(exports, module) {
   module.exports = {
     $id: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#",
     description: "Meta-schema for $data reference (JSON AnySchema extension proposal)",
@@ -3038,7 +3040,7 @@ var require_data = __commonJS((exports, module) => {
 });
 
 // node_modules/fast-uri/lib/utils.js
-var require_utils = __commonJS((exports, module) => {
+var require_utils = __commonJS(function(exports, module) {
   var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
   var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
   var isHexPair = RegExp.prototype.test.bind(/^[\da-f]{2}$/iu);
@@ -3550,7 +3552,7 @@ var require_utils = __commonJS((exports, module) => {
 });
 
 // node_modules/fast-uri/lib/schemes.js
-var require_schemes = __commonJS((exports, module) => {
+var require_schemes = __commonJS(function(exports, module) {
   var { isUUID } = require_utils();
   var URN_REG = /^([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-./:;=@]|%[\da-f]{2})+)$/iu;
   var supportedSchemeNames = [
@@ -3725,7 +3727,7 @@ var require_schemes = __commonJS((exports, module) => {
 });
 
 // node_modules/fast-uri/index.js
-var require_fast_uri = __commonJS((exports, module) => {
+var require_fast_uri = __commonJS(function(exports, module) {
   var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, serializePathEncoding, normalizeQueryFragmentEncoding, encodeQuery, encodeFragment, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
   var { SCHEMES, getSchemeHandler } = require_schemes();
   var VALID_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*$/u;
@@ -4121,7 +4123,7 @@ var require_fast_uri = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/runtime/uri.js
-var require_uri = __commonJS((exports) => {
+var require_uri = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var uri = require_fast_uri();
   uri.code = 'require("ajv/dist/runtime/uri").default';
@@ -4129,7 +4131,7 @@ var require_uri = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/core.js
-var require_core = __commonJS((exports) => {
+var require_core = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = undefined;
   var validate_1 = require_validate();
@@ -4722,7 +4724,7 @@ var require_core = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/core/id.js
-var require_id = __commonJS((exports) => {
+var require_id = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var def = {
     keyword: "id",
@@ -4734,7 +4736,7 @@ var require_id = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/core/ref.js
-var require_ref = __commonJS((exports) => {
+var require_ref = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.callRef = exports.getValidate = undefined;
   var ref_error_1 = require_ref_error();
@@ -4853,7 +4855,7 @@ var require_ref = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/core/index.js
-var require_core2 = __commonJS((exports) => {
+var require_core2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var id_1 = require_id();
   var ref_1 = require_ref();
@@ -4871,7 +4873,7 @@ var require_core2 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitNumber.js
-var require_limitNumber = __commonJS((exports) => {
+var require_limitNumber = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var ops = codegen_1.operators;
@@ -4900,7 +4902,7 @@ var require_limitNumber = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/multipleOf.js
-var require_multipleOf = __commonJS((exports) => {
+var require_multipleOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var error = {
@@ -4925,7 +4927,7 @@ var require_multipleOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/runtime/ucs2length.js
-var require_ucs2length = __commonJS((exports) => {
+var require_ucs2length = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   function ucs2length(str) {
     const len = str.length;
@@ -4948,7 +4950,7 @@ var require_ucs2length = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitLength.js
-var require_limitLength = __commonJS((exports) => {
+var require_limitLength = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -4977,7 +4979,7 @@ var require_limitLength = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/pattern.js
-var require_pattern = __commonJS((exports) => {
+var require_pattern = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var util_1 = require_util();
@@ -5011,7 +5013,7 @@ var require_pattern = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitProperties.js
-var require_limitProperties = __commonJS((exports) => {
+var require_limitProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var error = {
@@ -5037,7 +5039,7 @@ var require_limitProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/required.js
-var require_required = __commonJS((exports) => {
+var require_required = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var codegen_1 = require_codegen();
@@ -5116,7 +5118,7 @@ var require_required = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitItems.js
-var require_limitItems = __commonJS((exports) => {
+var require_limitItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var error = {
@@ -5142,7 +5144,7 @@ var require_limitItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/runtime/equal.js
-var require_equal = __commonJS((exports) => {
+var require_equal = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var equal = require_fast_deep_equal();
   equal.code = 'require("ajv/dist/runtime/equal").default';
@@ -5150,7 +5152,7 @@ var require_equal = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
-var require_uniqueItems = __commonJS((exports) => {
+var require_uniqueItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dataType_1 = require_dataType();
   var codegen_1 = require_codegen();
@@ -5214,7 +5216,7 @@ var require_uniqueItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/const.js
-var require_const = __commonJS((exports) => {
+var require_const = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -5240,7 +5242,7 @@ var require_const = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/enum.js
-var require_enum = __commonJS((exports) => {
+var require_enum = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -5286,7 +5288,7 @@ var require_enum = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/index.js
-var require_validation = __commonJS((exports) => {
+var require_validation = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var limitNumber_1 = require_limitNumber();
   var multipleOf_1 = require_multipleOf();
@@ -5316,7 +5318,7 @@ var require_validation = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
-var require_additionalItems = __commonJS((exports) => {
+var require_additionalItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateAdditionalItems = undefined;
   var codegen_1 = require_codegen();
@@ -5366,7 +5368,7 @@ var require_additionalItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/items.js
-var require_items = __commonJS((exports) => {
+var require_items = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateTuple = undefined;
   var codegen_1 = require_codegen();
@@ -5420,7 +5422,7 @@ var require_items = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
-var require_prefixItems = __commonJS((exports) => {
+var require_prefixItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var items_1 = require_items();
   var def = {
@@ -5434,7 +5436,7 @@ var require_prefixItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/items2020.js
-var require_items2020 = __commonJS((exports) => {
+var require_items2020 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -5466,7 +5468,7 @@ var require_items2020 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/contains.js
-var require_contains = __commonJS((exports) => {
+var require_contains = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -5557,7 +5559,7 @@ var require_contains = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/dependencies.js
-var require_dependencies = __commonJS((exports) => {
+var require_dependencies = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.validateSchemaDeps = exports.validatePropertyDeps = exports.error = undefined;
   var codegen_1 = require_codegen();
@@ -5642,7 +5644,7 @@ var require_dependencies = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
-var require_propertyNames = __commonJS((exports) => {
+var require_propertyNames = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -5682,7 +5684,7 @@ var require_propertyNames = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
-var require_additionalProperties = __commonJS((exports) => {
+var require_additionalProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var codegen_1 = require_codegen();
@@ -5785,7 +5787,7 @@ var require_additionalProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/properties.js
-var require_properties = __commonJS((exports) => {
+var require_properties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var validate_1 = require_validate();
   var code_1 = require_code2();
@@ -5840,7 +5842,7 @@ var require_properties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
-var require_patternProperties = __commonJS((exports) => {
+var require_patternProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var codegen_1 = require_codegen();
@@ -5911,7 +5913,7 @@ var require_patternProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/not.js
-var require_not = __commonJS((exports) => {
+var require_not = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -5939,7 +5941,7 @@ var require_not = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/anyOf.js
-var require_anyOf = __commonJS((exports) => {
+var require_anyOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var code_1 = require_code2();
   var def = {
@@ -5953,7 +5955,7 @@ var require_anyOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/oneOf.js
-var require_oneOf = __commonJS((exports) => {
+var require_oneOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -6008,7 +6010,7 @@ var require_oneOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/allOf.js
-var require_allOf = __commonJS((exports) => {
+var require_allOf = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -6032,7 +6034,7 @@ var require_allOf = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/if.js
-var require_if = __commonJS((exports) => {
+var require_if = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -6098,7 +6100,7 @@ var require_if = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/thenElse.js
-var require_thenElse = __commonJS((exports) => {
+var require_thenElse = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -6113,7 +6115,7 @@ var require_thenElse = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/index.js
-var require_applicator = __commonJS((exports) => {
+var require_applicator = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var additionalItems_1 = require_additionalItems();
   var prefixItems_1 = require_prefixItems();
@@ -6156,7 +6158,7 @@ var require_applicator = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/dynamic/dynamicAnchor.js
-var require_dynamicAnchor = __commonJS((exports) => {
+var require_dynamicAnchor = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.dynamicAnchor = undefined;
   var codegen_1 = require_codegen();
@@ -6188,7 +6190,7 @@ var require_dynamicAnchor = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/dynamic/dynamicRef.js
-var require_dynamicRef = __commonJS((exports) => {
+var require_dynamicRef = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.dynamicRef = undefined;
   var codegen_1 = require_codegen();
@@ -6231,7 +6233,7 @@ var require_dynamicRef = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/dynamic/recursiveAnchor.js
-var require_recursiveAnchor = __commonJS((exports) => {
+var require_recursiveAnchor = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dynamicAnchor_1 = require_dynamicAnchor();
   var util_1 = require_util();
@@ -6249,7 +6251,7 @@ var require_recursiveAnchor = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/dynamic/recursiveRef.js
-var require_recursiveRef = __commonJS((exports) => {
+var require_recursiveRef = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dynamicRef_1 = require_dynamicRef();
   var def = {
@@ -6261,7 +6263,7 @@ var require_recursiveRef = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/dynamic/index.js
-var require_dynamic = __commonJS((exports) => {
+var require_dynamic = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dynamicAnchor_1 = require_dynamicAnchor();
   var dynamicRef_1 = require_dynamicRef();
@@ -6272,7 +6274,7 @@ var require_dynamic = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/dependentRequired.js
-var require_dependentRequired = __commonJS((exports) => {
+var require_dependentRequired = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dependencies_1 = require_dependencies();
   var def = {
@@ -6286,7 +6288,7 @@ var require_dependentRequired = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/applicator/dependentSchemas.js
-var require_dependentSchemas = __commonJS((exports) => {
+var require_dependentSchemas = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dependencies_1 = require_dependencies();
   var def = {
@@ -6299,7 +6301,7 @@ var require_dependentSchemas = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/validation/limitContains.js
-var require_limitContains = __commonJS((exports) => {
+var require_limitContains = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var util_1 = require_util();
   var def = {
@@ -6316,7 +6318,7 @@ var require_limitContains = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/next.js
-var require_next = __commonJS((exports) => {
+var require_next = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dependentRequired_1 = require_dependentRequired();
   var dependentSchemas_1 = require_dependentSchemas();
@@ -6326,7 +6328,7 @@ var require_next = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedProperties.js
-var require_unevaluatedProperties = __commonJS((exports) => {
+var require_unevaluatedProperties = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -6389,7 +6391,7 @@ var require_unevaluatedProperties = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedItems.js
-var require_unevaluatedItems = __commonJS((exports) => {
+var require_unevaluatedItems = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var util_1 = require_util();
@@ -6430,7 +6432,7 @@ var require_unevaluatedItems = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/unevaluated/index.js
-var require_unevaluated = __commonJS((exports) => {
+var require_unevaluated = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var unevaluatedProperties_1 = require_unevaluatedProperties();
   var unevaluatedItems_1 = require_unevaluatedItems();
@@ -6439,7 +6441,7 @@ var require_unevaluated = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/format/format.js
-var require_format = __commonJS((exports) => {
+var require_format = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var error = {
@@ -6526,7 +6528,7 @@ var require_format = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/format/index.js
-var require_format2 = __commonJS((exports) => {
+var require_format2 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var format_1 = require_format();
   var format = [format_1.default];
@@ -6534,7 +6536,7 @@ var require_format2 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/metadata.js
-var require_metadata = __commonJS((exports) => {
+var require_metadata = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.contentVocabulary = exports.metadataVocabulary = undefined;
   exports.metadataVocabulary = [
@@ -6554,7 +6556,7 @@ var require_metadata = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/draft2020.js
-var require_draft2020 = __commonJS((exports) => {
+var require_draft2020 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var core_1 = require_core2();
   var validation_1 = require_validation();
@@ -6579,18 +6581,18 @@ var require_draft2020 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/discriminator/types.js
-var require_types = __commonJS((exports) => {
+var require_types = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.DiscrError = undefined;
   var DiscrError;
-  (function(DiscrError2) {
-    DiscrError2["Tag"] = "tag";
-    DiscrError2["Mapping"] = "mapping";
+  (function(DiscrError) {
+    DiscrError["Tag"] = "tag";
+    DiscrError["Mapping"] = "mapping";
   })(DiscrError || (exports.DiscrError = DiscrError = {}));
 });
 
 // node_modules/ajv/dist/vocabularies/discriminator/index.js
-var require_discriminator = __commonJS((exports) => {
+var require_discriminator = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var codegen_1 = require_codegen();
   var types_1 = require_types();
@@ -6692,7 +6694,7 @@ var require_discriminator = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/schema.json
-var require_schema = __commonJS((exports, module) => {
+var require_schema = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/schema",
@@ -6750,7 +6752,7 @@ var require_schema = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/applicator.json
-var require_applicator2 = __commonJS((exports, module) => {
+var require_applicator2 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/applicator",
@@ -6801,7 +6803,7 @@ var require_applicator2 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/unevaluated.json
-var require_unevaluated2 = __commonJS((exports, module) => {
+var require_unevaluated2 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/unevaluated",
@@ -6819,7 +6821,7 @@ var require_unevaluated2 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/content.json
-var require_content = __commonJS((exports, module) => {
+var require_content = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/content",
@@ -6838,7 +6840,7 @@ var require_content = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/core.json
-var require_core3 = __commonJS((exports, module) => {
+var require_core3 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/core",
@@ -6892,7 +6894,7 @@ var require_core3 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/format-annotation.json
-var require_format_annotation = __commonJS((exports, module) => {
+var require_format_annotation = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/format-annotation",
@@ -6909,7 +6911,7 @@ var require_format_annotation = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/meta-data.json
-var require_meta_data = __commonJS((exports, module) => {
+var require_meta_data = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/meta-data",
@@ -6948,7 +6950,7 @@ var require_meta_data = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/meta/validation.json
-var require_validation2 = __commonJS((exports, module) => {
+var require_validation2 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: "https://json-schema.org/draft/2020-12/meta/validation",
@@ -7041,7 +7043,7 @@ var require_validation2 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-2020-12/index.js
-var require_json_schema_2020_12 = __commonJS((exports) => {
+var require_json_schema_2020_12 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var metaSchema = require_schema();
   var applicator = require_applicator2();
@@ -7072,7 +7074,7 @@ var require_json_schema_2020_12 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/2020.js
-var require_2020 = __commonJS((exports, module) => {
+var require__2020 = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv2020 = undefined;
   var core_1 = require_core();
@@ -7147,7 +7149,7 @@ var require_2020 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv-formats/dist/formats.js
-var require_formats = __commonJS((exports) => {
+var require_formats = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.formatNames = exports.fastFormats = exports.fullFormats = undefined;
   function fmtDef(validate, compare) {
@@ -7324,7 +7326,7 @@ var require_formats = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/vocabularies/draft7.js
-var require_draft7 = __commonJS((exports) => {
+var require_draft7 = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var core_1 = require_core2();
   var validation_1 = require_validation();
@@ -7343,7 +7345,7 @@ var require_draft7 = __commonJS((exports) => {
 });
 
 // node_modules/ajv/dist/refs/json-schema-draft-07.json
-var require_json_schema_draft_07 = __commonJS((exports, module) => {
+var require_json_schema_draft_07 = __commonJS(function(exports, module) {
   module.exports = {
     $schema: "http://json-schema.org/draft-07/schema#",
     $id: "http://json-schema.org/draft-07/schema#",
@@ -7498,7 +7500,7 @@ var require_json_schema_draft_07 = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv/dist/ajv.js
-var require_ajv = __commonJS((exports, module) => {
+var require_ajv = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv = undefined;
   var core_1 = require_core();
@@ -7566,7 +7568,7 @@ var require_ajv = __commonJS((exports, module) => {
 });
 
 // node_modules/ajv-formats/dist/limit.js
-var require_limit = __commonJS((exports) => {
+var require_limit = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   exports.formatLimitDefinition = undefined;
   var ajv_1 = require_ajv();
@@ -7635,7 +7637,7 @@ var require_limit = __commonJS((exports) => {
 });
 
 // node_modules/ajv-formats/dist/index.js
-var require_dist = __commonJS((exports, module) => {
+var require_dist = __commonJS(function(exports, module) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var formats_1 = require_formats();
   var limit_1 = require_limit();
@@ -7674,7 +7676,7 @@ var require_dist = __commonJS((exports, module) => {
 });
 
 // node_modules/ipaddr.js/lib/ipaddr.js
-var require_ipaddr = __commonJS((exports, module) => {
+var require_ipaddr = __commonJS(function(exports, module) {
   (function(root) {
     const ipv4Part = "(0?\\d+|0x[a-f0-9]+)";
     const ipv4Regexes = {
@@ -7684,7 +7686,7 @@ var require_ipaddr = __commonJS((exports, module) => {
       longValue: new RegExp(`^${ipv4Part}$`, "i")
     };
     const octalRegex = new RegExp(`^0[0-7]+$`, "i");
-    const hexRegex2 = new RegExp(`^0x[a-f0-9]+$`, "i");
+    const hexRegex = new RegExp(`^0x[a-f0-9]+$`, "i");
     const zoneIndex = "%[0-9a-z]{1,}";
     const ipv6Part = "(?:[0-9a-f]+::?)+";
     const ipv6Regexes = {
@@ -7762,7 +7764,7 @@ var require_ipaddr = __commonJS((exports, module) => {
       return true;
     }
     function parseIntAuto(string) {
-      if (hexRegex2.test(string)) {
+      if (hexRegex.test(string)) {
         return parseInt(string, 16);
       }
       if (string[0] === "0" && !isNaN(parseInt(string[1], 10))) {
@@ -8470,8 +8472,8 @@ import {
 import { isAbsolute, parse as parse2, resolve as resolve2 } from "path";
 
 // src/contract.ts
-var import__2020 = __toESM(require_2020(), 1);
-var import_ajv_formats = __toESM(require_dist(), 1);
+var import__2020 = __toESM(require__2020());
+var import_ajv_formats = __toESM(require_dist());
 // contracts/f5xc-create-v1.json
 var f5xc_create_v1_default = {
   components: {
@@ -18342,7 +18344,7 @@ function enriched(value, schema, parts, index, kind, issues) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const record = value;
     if (Object.keys(properties).length) {
-      for (const key of Object.keys(record).filter((key2) => !(key2 in properties)).sort())
+      for (const key of Object.keys(record).filter((key) => !(key in properties)).sort())
         addIssue(issues, index, kind, [...parts, key], "field is absent from the create schema");
     } else if (explicitMap === false) {
       for (const key of Object.keys(record).sort())
@@ -19576,7 +19578,7 @@ class EntityDecoder {
     if (str.indexOf("&") === -1)
       return str;
     const original = str;
-    const chunks2 = [];
+    const chunks = [];
     const len = str.length;
     let last = 0;
     let i = 0;
@@ -19628,8 +19630,8 @@ class EntityDecoder {
         continue;
       }
       if (i > last)
-        chunks2.push(str.slice(last, i));
-      chunks2.push(replacement);
+        chunks.push(str.slice(last, i));
+      chunks.push(replacement);
       last = j + 1;
       i = last;
       if (checkLimits && this._tierCounts(tier)) {
@@ -19651,8 +19653,8 @@ class EntityDecoder {
       }
     }
     if (last < len)
-      chunks2.push(str.slice(last));
-    const result = chunks2.length === 0 ? str : chunks2.join("");
+      chunks.push(str.slice(last));
+    const result = chunks.length === 0 ? str : chunks.join("");
     return this._postCheck(result, original);
   }
   _tierCounts(tier) {
@@ -20084,11 +20086,11 @@ class DocTypeReader {
       i += 2;
     else if (xmlData[i] === "(") {
       i++;
-      const startIndex2 = i;
+      const startIndex = i;
       while (i < xmlData.length && xmlData[i] !== ")") {
         i++;
       }
-      contentModel = xmlData.substring(startIndex2, i);
+      contentModel = xmlData.substring(startIndex, i);
       if (xmlData[i] !== ")") {
         throw new Error("Unterminated content model");
       }
@@ -20130,11 +20132,11 @@ class DocTypeReader {
       i++;
       let allowedNotations = [];
       while (i < xmlData.length && xmlData[i] !== ")") {
-        const startIndex2 = i;
+        const startIndex = i;
         while (i < xmlData.length && xmlData[i] !== "|" && xmlData[i] !== ")") {
           i++;
         }
-        let notation = xmlData.substring(startIndex2, i);
+        let notation = xmlData.substring(startIndex, i);
         notation = notation.trim();
         if (!validateEntityName2(notation, { xmlVersion: this.xmlVersion })) {
           throw new Error(`Invalid notation name: "${notation}"`);
@@ -20151,11 +20153,11 @@ class DocTypeReader {
       i++;
       attributeType += " (" + allowedNotations.join("|") + ")";
     } else {
-      const startIndex2 = i;
+      const startIndex = i;
       while (i < xmlData.length && !/\s/.test(xmlData[i])) {
         i++;
       }
-      attributeType += xmlData.substring(startIndex2, i);
+      attributeType += xmlData.substring(startIndex, i);
       const validTypes = ["CDATA", "ID", "IDREF", "IDREFS", "ENTITY", "ENTITIES", "NMTOKEN", "NMTOKENS"];
       if (!this.suppressValidationErr && !validTypes.includes(attributeType.toUpperCase())) {
         throw new Error(`Invalid attribute type: "${attributeType}"`);
@@ -20344,9 +20346,9 @@ function anynum(str) {
         const low = str.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
-          const d2 = HIGH_MAP.get(cp);
-          if (d2 !== undefined) {
-            chars.push(String.fromCharCode(d2 + 48));
+          const d = HIGH_MAP.get(cp);
+          if (d !== undefined) {
+            chars.push(String.fromCharCode(d + 48));
             i++;
             continue;
           }
@@ -20682,12 +20684,12 @@ class ExpressionSet {
       return this;
     this._patterns.add(expression.pattern);
     if (expression.hasDeepWildcard()) {
-      const lastSeg2 = expression.segments[expression.segments.length - 1];
-      if (lastSeg2 && lastSeg2.type !== "deep-wildcard" && lastSeg2.tag !== "*") {
-        const tag2 = lastSeg2.tag;
-        if (!this._deepByTerminalTag.has(tag2))
-          this._deepByTerminalTag.set(tag2, []);
-        this._deepByTerminalTag.get(tag2).push(expression);
+      const lastSeg = expression.segments[expression.segments.length - 1];
+      if (lastSeg && lastSeg.type !== "deep-wildcard" && lastSeg.tag !== "*") {
+        const tag = lastSeg.tag;
+        if (!this._deepByTerminalTag.has(tag))
+          this._deepByTerminalTag.set(tag, []);
+        this._deepByTerminalTag.get(tag).push(expression);
       } else {
         this._deepWildcards.push(expression);
       }
@@ -22122,11 +22124,11 @@ var parseXml = function(xmlData) {
           } else if (options.unpairedTagsSet.has(tagName)) {
             i = result.closeIndex;
           } else {
-            const result2 = this.readStopNodeData(xmlData, rawTagName, closeIndex + 1);
-            if (!result2)
+            const result = this.readStopNodeData(xmlData, rawTagName, closeIndex + 1);
+            if (!result)
               throw new Error(`Unexpected end of ${rawTagName}`);
-            i = result2.i;
-            tagContent = result2.tagContent;
+            i = result.i;
+            tagContent = result.tagContent;
           }
           const childNode = new XmlNode(tagName);
           if (prefixedAttrs) {
@@ -22554,7 +22556,7 @@ var XMLValidator = {
 };
 
 // src/parser.ts
-var import_ipaddr = __toESM(require_ipaddr(), 1);
+var import_ipaddr = __toESM(require_ipaddr());
 var MAX_XML_BYTES = 128 * 1024 * 1024;
 var array = (value) => value === undefined ? [] : Array.isArray(value) ? value : [value];
 var object = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -22778,7 +22780,7 @@ function parseAsmXml(payload, sourcePath = "policy.xml") {
   const blocking = object(root.blocking);
   const urls = array(object(root.urls).url).map((value) => {
     const item = object(value);
-    const methodValues2 = [...array(item.method), ...array(object(item.methods).method)].map((method) => {
+    const methodValues = [...array(item.method), ...array(object(item.methods).method)].map((method) => {
       const node = object(method);
       return String(node["@_name"] ?? node["#text"] ?? method).trim().toUpperCase();
     }).filter(Boolean);
@@ -22786,7 +22788,7 @@ function parseAsmXml(payload, sourcePath = "policy.xml") {
       name: name(item, "/"),
       allowed: truth(text(item, "is_allowed"), true),
       checkSignatures: truth(text(item, "check_attack_signatures", text(item, "check_signatures", "true")), true),
-      methods: uniqueSorted(methodValues2)
+      methods: uniqueSorted(methodValues)
     };
   });
   const methodValues = [...array(object(root.http_methods).http_method), ...array(object(root.methods).method)].map((value) => name(object(value)).toUpperCase().replace("UPDATE", "PATCH")).filter((value) => value !== "*");
@@ -22920,9 +22922,9 @@ function env() {
   apiUrl.pathname = apiUrl.pathname.replace(/\/$/, "");
   return { apiUrl, token, username, namespace };
 }
-function resourcePath(environment, collection, name2) {
+function resourcePath(environment, collection, name) {
   const base = environment.apiUrl;
-  const suffix = `/api/config/namespaces/${encodeURIComponent(environment.namespace)}/${collection}${name2 ? `/${encodeURIComponent(name2)}` : ""}`;
+  const suffix = `/api/config/namespaces/${encodeURIComponent(environment.namespace)}/${collection}${name ? `/${encodeURIComponent(name)}` : ""}`;
   const url = new URL(`${base.pathname.replace(/\/$/, "")}${suffix}`, base.origin);
   if (url.origin !== base.origin)
     throw new MigrationError("deployment", "refusing an API origin change");
@@ -23094,13 +23096,13 @@ function loadArtifacts(directory, receiptPath, environment) {
     throw new MigrationError("receipt", "receipt must reside outside the conversion artifact directory");
   const hashes = {};
   const parsed = {};
-  for (const name2 of MANAGED_OUTPUT_FILES) {
-    const path = resolve(root, name2);
+  for (const name of MANAGED_OUTPUT_FILES) {
+    const path = resolve(root, name);
     if (!existsSync(path) || lstatSync(path).isSymbolicLink())
-      throw new MigrationError("artifact", `required artifact is missing or unsafe: ${name2}`);
+      throw new MigrationError("artifact", `required artifact is missing or unsafe: ${name}`);
     const bytes = readFileSync(path);
-    hashes[name2] = hash(bytes);
-    parsed[name2] = JSON.parse(bytes.toString("utf8"));
+    hashes[name] = hash(bytes);
+    parsed[name] = JSON.parse(bytes.toString("utf8"));
   }
   const pack = parsed["config-pack.json"];
   const report = parsed["report.json"];
@@ -23120,14 +23122,14 @@ function loadArtifacts(directory, receiptPath, environment) {
     throw new MigrationError("namespace", "artifact namespace must equal XCSH_NAMESPACE");
   return { pack, hashes };
 }
-async function makePlan(request2, environment, path) {
-  if (!request2.artifactDirectory)
+async function makePlan(request, environment, path) {
+  if (!request.artifactDirectory)
     throw new MigrationError("validation", "artifactDirectory is required for plan");
-  const artifacts = loadArtifacts(resolve(request2.cwd, request2.artifactDirectory), path, environment);
+  const artifacts = loadArtifacts(resolve(request.cwd, request.artifactDirectory), path, environment);
   const sorted = [...artifacts.pack.resources].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || a.metadata.name.localeCompare(b.metadata.name));
   const resources = [];
   for (const resource of sorted)
-    resources.push(await classify(environment, resource, request2.signal));
+    resources.push(await classify(environment, resource, request.signal));
   const contract = contractIdentity();
   const digest = planDigest(artifacts.hashes, contract, environment.namespace, resources);
   return {
@@ -23181,25 +23183,25 @@ async function rollback(environment, completed, receipt, signal) {
   }
   receipt.rollback.status = failures.length ? "remediation_required" : "complete";
 }
-async function deploy(request2) {
-  abort(request2.signal);
+async function deploy(request) {
+  abort(request.signal);
   const environment = env();
-  const path = receiptFile(request2.receiptPath, request2.cwd);
-  if (request2.action === "plan") {
+  const path = receiptFile(request.receiptPath, request.cwd);
+  if (request.action === "plan") {
     if (existsSync(path))
       throw new MigrationError("receipt", "plan requires a new receipt path");
-    const receipt2 = await makePlan(request2, environment, path);
-    writeReceipt(path, receipt2);
+    const receipt = await makePlan(request, environment, path);
+    writeReceipt(path, receipt);
     return {
       action: "plan",
-      planDigest: receipt2.plan_digest,
-      outcomes: receipt2.resources.map((r) => ({
+      planDigest: receipt.plan_digest,
+      outcomes: receipt.resources.map((r) => ({
         kind: r.kind,
         name: r.name,
         operation: r.operation,
         status: "planned"
       })),
-      rollback: receipt2.rollback
+      rollback: receipt.rollback
     };
   }
   if (!existsSync(path))
@@ -23207,23 +23209,23 @@ async function deploy(request2) {
   const receipt = readReceipt(path);
   if (receipt.namespace !== environment.namespace)
     throw new MigrationError("namespace", "receipt namespace must equal XCSH_NAMESPACE");
-  if (request2.action === "apply") {
-    if (!request2.planDigest || request2.planDigest !== receipt.plan_digest)
+  if (request.action === "apply") {
+    if (!request.planDigest || request.planDigest !== receipt.plan_digest)
       throw new MigrationError("confirmation", "planDigest must exactly match the receipt");
-    if (request2.confirmation !== `APPLY ${receipt.plan_digest}`)
+    if (request.confirmation !== `APPLY ${receipt.plan_digest}`)
       throw new MigrationError("confirmation", "exact APPLY confirmation is required");
     const reclassified = [];
     for (const item of receipt.resources)
-      reclassified.push(await classify(environment, item.desired, request2.signal));
+      reclassified.push(await classify(environment, item.desired, request.signal));
     if (planDigest(receipt.artifact_hashes, receipt.contract, receipt.namespace, reclassified) !== receipt.plan_digest)
       throw new MigrationError("stale_plan", "live state changed after planning; create a new plan");
     const completed = [];
     try {
       for (const item of receipt.resources) {
         if (item.operation === "create")
-          await mutate(environment, "POST", item, item.desired, request2.signal);
+          await mutate(environment, "POST", item, item.desired, request.signal);
         else if (item.operation === "update")
-          await mutate(environment, "PUT", item, item.desired, request2.signal);
+          await mutate(environment, "PUT", item, item.desired, request.signal);
         receipt.outcomes.push({
           kind: item.kind,
           name: item.name,
@@ -23235,14 +23237,14 @@ async function deploy(request2) {
         writeReceipt(path, receipt);
       }
     } catch (error) {
-      await rollback(environment, completed, receipt, request2.signal);
+      await rollback(environment, completed, receipt, request.signal);
       writeReceipt(path, receipt);
       throw error;
     }
-  } else if (request2.action === "verify") {
+  } else if (request.action === "verify") {
     receipt.outcomes = [];
     for (const item of receipt.resources) {
-      const live = await get(environment, item, request2.signal);
+      const live = await get(environment, item, request.signal);
       const ok = Boolean(live && creator(live.raw) === environment.username && subset(item.desired, live.resource));
       receipt.outcomes.push({
         kind: item.kind,
@@ -23255,11 +23257,11 @@ async function deploy(request2) {
     if (receipt.outcomes.some((item) => item.status === "drift"))
       throw new MigrationError("verification", "live resources differ from the deployment plan");
   } else {
-    if (request2.confirmation !== `CLEANUP ${receipt.plan_digest}`)
+    if (request.confirmation !== `CLEANUP ${receipt.plan_digest}`)
       throw new MigrationError("confirmation", "exact CLEANUP confirmation is required");
     receipt.outcomes = [];
     for (const item of [...receipt.resources].reverse()) {
-      const live = await get(environment, item, request2.signal);
+      const live = await get(environment, item, request.signal);
       if (item.operation === "create") {
         if (!live) {
           receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "already_absent" });
@@ -23267,7 +23269,7 @@ async function deploy(request2) {
         }
         if (creator(live.raw) !== environment.username || !subset(item.desired, live.resource))
           throw new MigrationError("ownership", `cleanup drift for ${item.kind}/${item.name}`);
-        await mutate(environment, "DELETE", item, undefined, request2.signal);
+        await mutate(environment, "DELETE", item, undefined, request.signal);
         receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "deleted" });
       } else if (item.operation === "update" && item.before) {
         if (!live || creator(live.raw) !== environment.username)
@@ -23278,7 +23280,7 @@ async function deploy(request2) {
         }
         if (!subset(item.desired, live.resource))
           throw new MigrationError("ownership", `cleanup drift for ${item.kind}/${item.name}`);
-        await mutate(environment, "PUT", { ...item, desired: item.before }, item.before, request2.signal);
+        await mutate(environment, "PUT", { ...item, desired: item.before }, item.before, request.signal);
         receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "restored" });
       } else
         receipt.outcomes.push({ kind: item.kind, name: item.name, operation: "cleanup", status: "unchanged" });
@@ -23286,7 +23288,7 @@ async function deploy(request2) {
     }
   }
   return {
-    action: request2.action,
+    action: request.action,
     planDigest: receipt.plan_digest,
     outcomes: receipt.outcomes,
     rollback: receipt.rollback
@@ -23330,17 +23332,17 @@ function parseJson(payload) {
     throw new MigrationError("validation", "input is not valid UTF-8 JSON");
   }
 }
-async function validateInput(request2) {
-  abort2(request2.signal);
-  const inputPath = absolute(request2.cwd, request2.inputPath);
-  const payload = await read(inputPath, request2.inputType === "asm-policy" ? MAX_XML_BYTES : undefined);
-  abort2(request2.signal);
-  if (request2.inputType === "asm-policy") {
+async function validateInput(request) {
+  abort2(request.signal);
+  const inputPath = absolute(request.cwd, request.inputPath);
+  const payload = await read(inputPath, request.inputType === "asm-policy" ? MAX_XML_BYTES : undefined);
+  abort2(request.signal);
+  if (request.inputType === "asm-policy") {
     const policy = parseAsmXml(payload, inputPath);
-    abort2(request2.signal);
+    abort2(request.signal);
     return {
       valid: true,
-      inputType: request2.inputType,
+      inputType: request.inputType,
       policy: {
         sourceName: policy.sourceName,
         enforcementMode: policy.enforcementMode,
@@ -23349,8 +23351,8 @@ async function validateInput(request2) {
     };
   }
   const contract = validateConfigPack(parseJson(payload));
-  abort2(request2.signal);
-  return { valid: contract.valid, inputType: request2.inputType, contract };
+  abort2(request.signal);
+  return { valid: contract.valid, inputType: request.inputType, contract };
 }
 function assertNoSymlinkDirectory(path) {
   const root = parse2(path).root;
@@ -23392,7 +23394,7 @@ function renderDirectory(result, output, overwrite) {
     throw new MigrationError("contract", "refusing to render a config pack that violates the pinned contract");
   assertNoSymlinkDirectory(output);
   mkdirSync(output, { recursive: true, mode: 448 });
-  const existing = MANAGED_OUTPUT_FILES2.filter((name2) => existsSync2(resolve2(output, name2)));
+  const existing = MANAGED_OUTPUT_FILES2.filter((name) => existsSync2(resolve2(output, name)));
   if (existing.length && !overwrite)
     throw new MigrationError("output", `managed output already exists: ${existing.join(", ")}`);
   const documents = {
@@ -23408,12 +23410,12 @@ function renderDirectory(result, output, overwrite) {
     }
   };
   const token = randomBytes2(12).toString("hex");
-  const staged = MANAGED_OUTPUT_FILES2.map((name2) => [name2, resolve2(output, `.${name2}.${token}.tmp`)]);
+  const staged = MANAGED_OUTPUT_FILES2.map((name) => [name, resolve2(output, `.${name}.${token}.tmp`)]);
   try {
-    for (const [name2, path] of staged)
-      syncWrite(path, jsonBytes(documents[name2]));
-    for (const [name2, path] of staged)
-      renameSync2(path, resolve2(output, name2));
+    for (const [name, path] of staged)
+      syncWrite(path, jsonBytes(documents[name]));
+    for (const [name, path] of staged)
+      renameSync2(path, resolve2(output, name));
     const directory = openSync2(output, "r");
     try {
       fsyncSync2(directory);
@@ -23428,29 +23430,29 @@ function renderDirectory(result, output, overwrite) {
     throw new MigrationError("output", "managed output files could not be written");
   }
 }
-async function convertInput(request2) {
-  abort2(request2.signal);
-  const policyPath = absolute(request2.cwd, request2.policyPath);
-  const signaturesPath = absolute(request2.cwd, request2.signaturesPath);
-  const outputDirectory = resolveOutputDirectory(request2.cwd, request2.outputDirectory);
+async function convertInput(request) {
+  abort2(request.signal);
+  const policyPath = absolute(request.cwd, request.policyPath);
+  const signaturesPath = absolute(request.cwd, request.signaturesPath);
+  const outputDirectory = resolveOutputDirectory(request.cwd, request.outputDirectory);
   const policyPayload = await read(policyPath, MAX_XML_BYTES);
-  abort2(request2.signal);
+  abort2(request.signal);
   const signaturePayload = await read(signaturesPath);
-  abort2(request2.signal);
+  abort2(request.signal);
   const policy = parseAsmXml(policyPayload, policyPath);
-  abort2(request2.signal);
+  abort2(request.signal);
   const signatures = parseSignatureDatabase(signaturePayload);
-  abort2(request2.signal);
+  abort2(request.signal);
   const result = convert(policy, {
-    namespace: request2.namespace,
-    targetName: request2.targetName,
-    allowPartial: request2.allowPartial ?? false,
+    namespace: request.namespace,
+    targetName: request.targetName,
+    allowPartial: request.allowPartial ?? false,
     signatures
   });
   result.inputHashes = { policy: sha256(policyPayload), signatures: sha256(signaturePayload) };
-  abort2(request2.signal);
-  renderDirectory(result, outputDirectory, request2.overwrite ?? false);
-  abort2(request2.signal);
+  abort2(request.signal);
+  renderDirectory(result, outputDirectory, request.overwrite ?? false);
+  abort2(request.signal);
   return {
     complete: result.report.complete,
     resourceCounts: result.report.resource_counts,
@@ -23461,22 +23463,22 @@ async function convertInput(request2) {
   };
 }
 export {
-  validateInput,
-  validateConfigPack,
-  uniqueRuleNames,
-  resolveOutputDirectory,
-  renderDirectory,
-  regexesOutsideRange,
-  regexForRange,
-  parseSignatureDatabase,
-  parseAsmXml,
-  mergeConfigPacks,
-  jsonBytes,
-  dnsLabel,
-  deploy,
-  convertInput,
-  convert,
-  contractIdentity,
+  MANAGED_OUTPUT_FILES2 as MANAGED_OUTPUT_FILES,
   MigrationError,
-  MANAGED_OUTPUT_FILES2 as MANAGED_OUTPUT_FILES
+  contractIdentity,
+  convert,
+  convertInput,
+  deploy,
+  dnsLabel,
+  jsonBytes,
+  mergeConfigPacks,
+  parseAsmXml,
+  parseSignatureDatabase,
+  regexForRange,
+  regexesOutsideRange,
+  renderDirectory,
+  resolveOutputDirectory,
+  uniqueRuleNames,
+  validateConfigPack,
+  validateInput
 };

@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Ensure committed text lockfiles stay readable by the Bun release installed in CI.
 #
-# Bun 1.3.x supports lockfile version 1.  Bun 1.4 writes version 2, which makes
-# frozen installs fail before a plugin test can run.  Keep the format contract
-# explicit: CI intentionally pins Bun 1.3.14 in install-ci-bun.sh.
+# Bun 1.4.x reads lockfile versions 1 and 2, and writes version 2.  Keep the
+# format contract explicit: CI intentionally pins Bun 1.4.2 in
+# install-ci-bun.sh.  Reject a future format until its parser support has been
+# explicitly verified and the pinned runtime updated.
 set -euo pipefail
 
 repo_root="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-expected_bun_version="1.3.14"
-supported_lockfile_version="1"
+expected_bun_version="1.4.2"
+supported_lockfile_versions="1 2"
 
 if ! command -v bun >/dev/null 2>&1; then
   echo "FATAL: bun is required to check CI lockfile compatibility" >&2
@@ -24,10 +25,10 @@ fi
 failed=0
 while IFS= read -r -d '' lockfile; do
   actual_lockfile_version="$(sed -n 's/^[[:space:]]*"lockfileVersion"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$lockfile" | head -n 1)"
-  if [[ "$actual_lockfile_version" != "$supported_lockfile_version" ]]; then
-    printf 'FATAL: %s uses lockfileVersion %s; CI Bun %s supports version %s\n' \
+  if [[ " $supported_lockfile_versions " != *" ${actual_lockfile_version:-missing} "* ]]; then
+    printf 'FATAL: %s uses lockfileVersion %s; CI Bun %s supports versions %s\n' \
       "${lockfile#"$repo_root"/}" "${actual_lockfile_version:-missing}" \
-      "$expected_bun_version" "$supported_lockfile_version" >&2
+      "$expected_bun_version" "$supported_lockfile_versions" >&2
     failed=1
   fi
 done < <(find "$repo_root/plugins" -name bun.lock -type f -print0 | LC_ALL=C sort -z)
