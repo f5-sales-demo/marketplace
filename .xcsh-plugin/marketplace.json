@@ -113,7 +113,7 @@
     {
       "name": "platform",
       "description": "F5 Distributed Cloud automation with provider-neutral Secure Mesh Site v2 capabilities, typed configuration, one-use bootstrap checkout, status evidence, console access, and spec-aware REST operations.",
-      "version": "5.0.0",
+      "version": "5.0.1",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -267,7 +267,7 @@
     {
       "name": "aws",
       "description": "AWS CLI integration with current-source F5 Customer Edge discovery, immutable plans, approved apply/resume, lifecycle, status, NLB/TGW networking, and diagnostics",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -286,6 +286,31 @@
           "detectCmd": "aws --version",
           "authDetectCmd": "aws sts get-caller-identity --output json",
           "authLoginCmd": "aws sso login"
+        }
+      ]
+    },
+    {
+      "name": "kvm",
+      "description": "Deterministic F5 Secure Mesh Site v2 lifecycle for KVM, libvirt, Terraform-owned FRR routing, health, traffic, drift recovery, destroy, and rebuild",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/kvm",
+      "category": "development",
+      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "frr", "terraform"],
+      "tags": ["kvm", "libvirt", "f5xc", "customer-edge", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": true,
+      "prerequisites": [
+        {
+          "tool": "terraform",
+          "installCmd": "brew install terraform",
+          "detectCmd": "terraform version",
+          "authDetectCmd": "virsh --connect qemu:///system uri",
+          "authLoginCmd": "virsh --connect qemu:///system uri"
         }
       ]
     },

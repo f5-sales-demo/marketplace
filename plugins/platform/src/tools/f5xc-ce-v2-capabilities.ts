@@ -12,7 +12,7 @@ export function createF5xcCeV2CapabilitiesTool(
     name: 'f5xc_ce_v2_capabilities',
     label: 'F5 CE v2 Capabilities',
     description:
-      'Return non-secret Secure Mesh Site v2 contract, provider, bootstrap-driver, networking-profile, and AWS TGW Connect schema evidence.',
+      'Return non-secret Secure Mesh Site v2 contract, provider, bootstrap-driver, networking-profile, AWS TGW Connect, and KVM image prerequisite evidence.',
     parameters: Type.Object({}),
     async execute(
       _id: string,
@@ -27,7 +27,7 @@ export function createF5xcCeV2CapabilitiesTool(
           content: [
             {
               type: 'text' as const,
-              text: `Secure Mesh Site v2 ${capabilities.smsv2ContractVersion}; providers: ${capabilities.supportedProviders.join(', ')}; AWS TGW Connect: ${capabilities.awsSmsv2TgwConnect.supported ? capabilities.awsSmsv2TgwConnect.schemaVersion : 'unsupported'}.`,
+              text: `Secure Mesh Site v2 ${capabilities.smsv2ContractVersion}; providers: ${capabilities.supportedProviders.join(', ')}; AWS TGW Connect: ${capabilities.awsSmsv2TgwConnect.supported ? capabilities.awsSmsv2TgwConnect.schemaVersion : 'unsupported'}; KVM image prerequisite: ${capabilities.kvmImagePrerequisite.availability} (${capabilities.kvmImagePrerequisite.id}).`,
             },
           ],
           details: { tool: 'f5xc_ce_v2_capabilities', capabilities },

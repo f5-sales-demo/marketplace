@@ -1,16 +1,16 @@
 {
-  "name": "@f5-sales-demo/xcsh-aws",
-  "version": "2.0.1",
-  "description": "AWS CLI tools and deterministic F5 Secure Mesh Site v2 Customer Edge administration for xcsh",
+  "name": "@f5-sales-demo/xcsh-kvm",
+  "version": "1.0.0",
+  "description": "Deterministic KVM and libvirt lifecycle tools for F5 Secure Mesh Site v2",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test",
-    "test:watch": "bun test --watch",
-    "eval:ce-prompt": "bash scripts/evals/run-ce-prompt-eval.sh"
+    "typecheck": "tsc --noEmit",
+    "eval:smsv2-prompt": "bash scripts/evals/run-smsv2-prompt-eval.sh"
   },
   "xcsh": {
-    "name": "AWS",
-    "version": "2.0.1",
+    "name": "KVM SMSv2",
+    "version": "1.0.0",
     "extensions": [
       "src/index.ts"
     ]

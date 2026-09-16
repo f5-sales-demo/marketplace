@@ -1,9 +1,9 @@
-export type CeProvider = 'aws' | 'azure';
+export type CeProvider = 'aws' | 'azure' | 'kvm';
 
 export interface PromptScenario {
   id: string;
   provider?: CeProvider;
-  workflow?: 'deployment' | 'inventory';
+  workflow?: 'deployment' | 'inventory' | 'blocked';
   prompt: string;
   requiredTools: string[];
   forbiddenTools: string[];
@@ -41,10 +41,6 @@ export function parseTrace(jsonl: string): TraceEvent[] {
 
 export function evaluateTrace(scenario: PromptScenario, jsonl: string): TraceEvaluation {
   const provider = scenario.provider ?? 'azure';
-  const discoveryTool = provider === 'aws' ? 'aws_compute_discover' : 'azure_compute_discover';
-  const identityTools = provider === 'aws' ? ['aws_sts_whoami', 'f5xc_ce_v2_capabilities'] : ['az_account_show'];
-  const planTool = provider === 'aws' ? 'aws_ce_plan' : 'azure_ce_plan';
-  const genericTool = provider === 'aws' ? 'aws_exec' : 'az_exec';
   const events = parseTrace(jsonl);
   const starts = events.filter((event) => event.type === 'tool_execution_start' && event.toolName);
   const tools = starts.map((event) => String(event.toolName));
@@ -53,6 +49,45 @@ export function evaluateTrace(scenario: PromptScenario, jsonl: string): TraceEva
     if (!tools.includes(required)) errors.push(`missing required tool: ${required}`);
   for (const forbidden of scenario.forbiddenTools)
     if (tools.includes(forbidden)) errors.push(`forbidden tool invoked: ${forbidden}`);
+
+  if (provider === 'kvm') {
+    for (const genericTool of ['aws_exec', 'az_exec'])
+      if (tools.includes(genericTool)) errors.push(`${genericTool} is forbidden for KVM SMSv2`);
+    const capabilityIndex = tools.indexOf('f5xc_ce_v2_capabilities');
+    const preflightIndex = tools.indexOf('kvm_smsv2_preflight');
+    if (capabilityIndex >= 0 && preflightIndex >= 0 && capabilityIndex >= preflightIndex)
+      errors.push('f5xc_ce_v2_capabilities must complete before kvm_smsv2_preflight');
+    for (const tool of ['kvm_smsv2_plan', 'kvm_smsv2_apply', 'kvm_smsv2_status', 'kvm_smsv2_drift']) {
+      const index = tools.indexOf(tool);
+      if (index >= 0 && (preflightIndex < 0 || index <= preflightIndex))
+        errors.push(`${tool} was invoked before kvm_smsv2_preflight`);
+    }
+    const planIndex = tools.indexOf('kvm_smsv2_plan');
+    const applyIndex = tools.indexOf('kvm_smsv2_apply');
+    if (applyIndex >= 0 && (planIndex < 0 || applyIndex <= planIndex))
+      errors.push('kvm_smsv2_apply was invoked before kvm_smsv2_plan');
+    const preflightResult = events.find(
+      (event) => event.type === 'tool_execution_end' && event.toolName === 'kvm_smsv2_preflight',
+    );
+    if (!preflightResult) errors.push('missing kvm_smsv2_preflight result');
+    if (scenario.workflow === 'blocked') {
+      if (!preflightResult?.result?.isError) errors.push('blocked workflow did not reject at KVM preflight');
+      const text = (preflightResult?.result?.content ?? []).map((item) => item.text ?? '').join('\n');
+      if (!text.includes('maurice_config_cardinality_exactly_one'))
+        errors.push('blocked workflow lacks the authoritative KVM prerequisite ID');
+      for (const tool of tools.slice(preflightIndex + 1))
+        if (tool === 'kvm_smsv2_apply' || tool === 'f5xc_ce_v2_site')
+          errors.push(`mutation-capable tool invoked after rejected KVM preflight: ${tool}`);
+    } else if (preflightResult?.result?.isError) {
+      errors.push('kvm_smsv2_preflight returned an error');
+    }
+    return { pass: errors.length === 0, tools, errors };
+  }
+
+  const discoveryTool = provider === 'aws' ? 'aws_compute_discover' : 'azure_compute_discover';
+  const identityTools = provider === 'aws' ? ['aws_sts_whoami', 'f5xc_ce_v2_capabilities'] : ['az_account_show'];
+  const planTool = provider === 'aws' ? 'aws_ce_plan' : 'azure_ce_plan';
+  const genericTool = provider === 'aws' ? 'aws_exec' : 'az_exec';
   if (tools.includes(genericTool)) errors.push(`generic ${genericTool} is forbidden for Customer Edge research`);
 
   const inventoryWorkflow = scenario.workflow === 'inventory' || scenario.requiredTools.includes('azure_ce_inventory');

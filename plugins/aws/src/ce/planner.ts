@@ -1649,9 +1649,7 @@ export function compileAwsCePlan(
     { type: 'gp3-volume', count: intent.topology.nodeCount },
     ...(intent.egress.mode === 'elastic-ip' ? [{ type: 'elastic-ip', count: intent.topology.nodeCount }] : []),
     ...(intent.routing.profile === 'nlb-ingress' ? [{ type: 'network-load-balancer', count: 1 }] : []),
-    ...(intent.routing.profile.startsWith('tgw-')
-      ? [{ type: 'transit-gateway-attachment', count: intent.routing.profile === 'tgw-connect' ? 2 : 1 }]
-      : []),
+    ...(intent.routing.profile.startsWith('tgw-') ? [{ type: 'transit-gateway-attachment', count: 1 }] : []),
   ];
   const draft: AwsCePlanDraft = {
     schemaVersion: AWS_CE_SCHEMA_VERSION,
