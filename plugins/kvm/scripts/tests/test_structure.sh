@@ -3,21 +3,22 @@
 test_kvm_plugin_manifest() {
   jq -e '
     .name == "kvm" and
-    .version == "1.0.0" and
+    .version == (input | .version) and
     (.description | contains("Secure Mesh Site v2")) and
     .author.name == "f5-sales-demo"
-  ' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json" >/dev/null
+  ' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json" "$PLUGIN_ROOT/package.json" >/dev/null
 }
 
 test_kvm_marketplace_entry() {
   jq -e '
     [.plugins[] | select(
       .name == "kvm" and
-      .version == "1.0.0" and
+      .version == $version and
       .source == "./plugins/kvm" and
       .recommended == true
     )] | length == 1
-  ' "$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json" >/dev/null
+  ' --arg version "$(jq -r .version "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" \
+    "$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json" >/dev/null
 }
 
 test_kvm_required_surfaces() {
