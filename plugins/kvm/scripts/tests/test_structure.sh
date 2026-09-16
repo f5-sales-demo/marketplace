@@ -10,15 +10,27 @@ test_kvm_plugin_manifest() {
 }
 
 test_kvm_marketplace_entry() {
+  local marketplace_manifest="$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json"
+  if [ -f "$marketplace_manifest" ]; then
+    jq -e '
+      [.plugins[] | select(
+        .name == "kvm" and
+        .version == $version and
+        .source == "./plugins/kvm" and
+        .recommended == true
+      )] | length == 1
+    ' --arg version "$(jq -r .version "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" \
+      "$marketplace_manifest" >/dev/null
+    return
+  fi
+
+  # Marketplace cache installations contain only the plugin payload. Validate the
+  # plugin's release identity directly instead of assuming the source-tree parent
+  # marketplace manifest exists.
   jq -e '
-    [.plugins[] | select(
-      .name == "kvm" and
-      .version == $version and
-      .source == "./plugins/kvm" and
-      .recommended == true
-    )] | length == 1
-  ' --arg version "$(jq -r .version "$PLUGIN_ROOT/.xcsh-plugin/plugin.json")" \
-    "$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json" >/dev/null
+    .name == "kvm" and
+    (.version | type == "string" and test("^[0-9]+[.][0-9]+[.][0-9]+$"))
+  ' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json" >/dev/null
 }
 
 test_kvm_required_surfaces() {
