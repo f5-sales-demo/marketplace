@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`kvm`** bumped to v1.0.1
+- **`kvm`** bumped to v1.0.2
 
 - **`salesforce`** bumped to v1.3.13
 

@@ -33,3 +33,22 @@ test_kvm_prompt_eval_runs_from_installed_cache() {
   grep -Fx -- "$plugin/benchmarks/verify-smsv2-prompt-trace.ts" "$state/bun-args" >/dev/null || return 1
   rm -rf "$work"
 }
+
+test_kvm_marketplace_entry_runs_from_installed_cache() {
+  local work cache plugin test_structure
+  work=$(mktemp -d)
+  cache="$work/cache"
+  plugin="$cache/plugins/f5-sales-demo-marketplace___kvm___test"
+  test_structure="$PLUGIN_ROOT/scripts/tests/test_structure.sh"
+  mkdir -p "$plugin/.xcsh-plugin"
+  cp "$PLUGIN_ROOT/.xcsh-plugin/plugin.json" "$plugin/.xcsh-plugin/"
+  cp "$PLUGIN_ROOT/package.json" "$plugin/"
+
+  env PLUGIN_ROOT="$plugin" MARKETPLACE_ROOT="$cache" \
+    bash -c 'source "$1"; test_kvm_marketplace_entry' bash \
+    "$test_structure" || {
+    rm -rf "$work"
+    return 1
+  }
+  rm -rf "$work"
+}
