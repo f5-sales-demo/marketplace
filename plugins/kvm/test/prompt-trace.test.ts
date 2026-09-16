@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { evaluateTrace, type PromptScenario } from '../../../benchmarks/verify-ce-prompt-trace';
+import { evaluateTrace, type PromptScenario } from '../src/prompt-trace';
 
 function event(type: string, toolName: string, result?: Record<string, unknown>): string {
   return JSON.stringify({ type, toolName, ...(result ? { result } : {}) });

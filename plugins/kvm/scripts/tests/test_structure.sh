@@ -27,7 +27,9 @@ test_kvm_required_surfaces() {
     bun.lock \
     tsconfig.json \
     src/index.ts \
+    src/prompt-trace.ts \
     scripts/evals/run-smsv2-prompt-eval.sh \
+    benchmarks/verify-smsv2-prompt-trace.ts \
     skills/kvm-smsv2/SKILL.md \
     skills/kvm-smsv2/agents/openai.yaml \
     benchmarks/smsv2-prompt-scenarios.json; do
@@ -39,7 +41,7 @@ test_kvm_required_surfaces() {
 }
 
 test_kvm_prompt_eval_runner() {
-  grep -q 'benchmarks/verify-ce-prompt-trace.ts' "$PLUGIN_ROOT/scripts/evals/run-smsv2-prompt-eval.sh" &&
+  grep -q 'benchmarks/verify-smsv2-prompt-trace.ts' "$PLUGIN_ROOT/scripts/evals/run-smsv2-prompt-eval.sh" &&
     grep -q -- '--thinking low' "$PLUGIN_ROOT/scripts/evals/run-smsv2-prompt-eval.sh" &&
     ! grep -q -- '--thinking minimal' "$PLUGIN_ROOT/scripts/evals/run-smsv2-prompt-eval.sh" &&
     jq -e '.scripts["eval:smsv2-prompt"] == "bash scripts/evals/run-smsv2-prompt-eval.sh"' \

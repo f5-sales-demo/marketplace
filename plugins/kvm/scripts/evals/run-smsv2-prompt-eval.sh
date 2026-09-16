@@ -10,10 +10,24 @@ trace_file=$(mktemp "${TMPDIR:-/tmp}/kvm-smsv2-prompt-trace.XXXXXX.jsonl")
 trap 'rm -f "$trace_file"' EXIT
 
 prompt=$(jq -er --arg id "$scenario_id" '.scenarios[] | select(.id == $id) | .prompt' "$scenario_file")
+platform_dir="$marketplace_dir/plugins/platform"
+if [ ! -f "$platform_dir/.xcsh-plugin/plugin.json" ]; then
+  platform_dir=$(xcsh plugin list --json | jq -er '
+    .marketplace[]
+    | select(.id == "platform@f5-sales-demo-marketplace")
+    | .entries
+    | max_by(.installedAt)
+    | .installPath
+  ')
+fi
+[ -f "$platform_dir/.xcsh-plugin/plugin.json" ] || {
+  echo "Installed Platform plugin is required for KVM prompt evaluation" >&2
+  exit 2
+}
 args=(
   --thinking low
   --mode json
-  --plugin-dir "$marketplace_dir/plugins/platform"
+  --plugin-dir "$platform_dir"
   --plugin-dir "$plugin_dir"
   --no-session
   -p "$prompt"
@@ -23,5 +37,5 @@ if [ -n "$model" ]; then
 fi
 
 xcsh "${args[@]}" >"$trace_file"
-bun "$marketplace_dir/benchmarks/verify-ce-prompt-trace.ts" \
+bun "$plugin_dir/benchmarks/verify-smsv2-prompt-trace.ts" \
   "$scenario_file" "$scenario_id" "$trace_file"
