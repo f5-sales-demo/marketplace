@@ -117,6 +117,10 @@ describe('AWS Status extension', () => {
     expect(AWS_CE_RESEARCH_GATE).toContain('aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover');
     expect(AWS_CE_RESEARCH_GATE).toContain('release-blocked');
     expect(AWS_CE_RESEARCH_GATE).toContain('Never use generic aws_exec');
+    expect(AWS_CE_RESEARCH_GATE).toContain('terraform-provider-xcsh v9.2.6');
+    expect(AWS_CE_RESEARCH_GATE).toContain('failed delete retains Terraform state');
+    expect(AWS_CE_RESEARCH_GATE).toContain('Terraform import blocks');
+    expect(AWS_CE_RESEARCH_GATE).toContain('deployment_generation');
   });
 
   it('each registered tool has required fields', async () => {

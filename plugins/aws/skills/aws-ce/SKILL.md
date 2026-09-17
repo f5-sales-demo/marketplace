@@ -39,6 +39,18 @@ TGW Connect is disabled unless both the current F5 guide and `f5xc_ce_v2_capabil
 supported SMSv2 GRE/BGP schema. Missing evidence is a release blocker, never permission to use a
 legacy site type.
 
+## Terraform lost-state lifecycle
+
+For the MCN Terraform showcase, require `terraform-provider-xcsh` `v9.2.6` and its immutable API
+contract. A failed delete retains Terraform state: do not conceal it by changing names, using direct
+cloud or F5 deletion, editing state, tainting, or invoking `terraform import` interactively.
+
+Recover a verified, project-owned lost generation only with the dedicated recovery root: inspect the
+exact ownership manifest, review an import-only saved plan backed by configuration-driven Terraform
+import blocks, apply it, then review and apply the ownership-verified destroy plan. The recovery
+state must end empty. Every created AWS and XC identity requires an immutable
+`deployment_generation`; reject absent, invalid, or already-live generations before any mutation.
+
 For headless execution use only `XCSH_CE_HEADLESS_MUTATIONS=1` and
 `XCSH_CE_ALLOW_DESTROY=1` for their respective operations. AWS Marketplace initial legal
 acceptance is console-only and always requires rediscovery and replanning.
