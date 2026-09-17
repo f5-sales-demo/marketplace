@@ -1,4 +1,5 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
+import type { UserProfile } from './context/salesforce-context';
 import type { SfToolDetails } from './tools/shared';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
@@ -31,7 +32,34 @@ export function withErrorType<T extends { name?: string; execute: (...args: neve
   };
 }
 
-const factory: ExtensionFactory = async (pi) => {
+type CanonicalExtensionAPI = Parameters<ExtensionFactory>[0] & {
+  personProfile: {
+    get(): Promise<{ facts: UserProfile }>;
+    registerCollector(collector: {
+      id: string;
+      name: string;
+      available(signal?: AbortSignal): Promise<boolean>;
+      collect(signal?: AbortSignal): Promise<{
+        facts: UserProfile;
+        observations: Array<{
+          field: keyof UserProfile;
+          value: unknown;
+          source: string;
+          kind: 'observed' | 'inferred';
+          observedAt: string;
+        }>;
+      }>;
+    }): void;
+    unregisterCollector(id: string): boolean;
+  };
+};
+
+const factory = async (pi: CanonicalExtensionAPI) => {
+  if (!pi.personProfile || typeof pi.personProfile.get !== 'function') {
+    throw new Error('Salesforce plugin requires the xcsh personProfile API');
+  }
+  const { configurePersonProfile } = await import('./context/salesforce-context');
+  configurePersonProfile(async () => (await pi.personProfile.get()).facts);
   pi.setLabel('Salesforce');
 
   // Always register setup command (even without sf CLI)
@@ -56,65 +84,36 @@ const factory: ExtensionFactory = async (pi) => {
 
   // Only register tools when sf CLI is present
   if (sfAvailable) {
-    // Inject loadProfile dependency
-    const { setLoadProfile } = await import('./context/salesforce-context');
-    if (pi.pi?.loadProfile) {
-      setLoadProfile(pi.pi.loadProfile);
-    }
-
     // Register profile collector for person-data sync
-    if (typeof pi.registerProfileCollector === 'function') {
-      pi.registerProfileCollector({
-        id: 'salesforce',
-        name: 'Salesforce',
-        authoritativeFields: ['manager', 'partner', 'territories'],
-        async available() {
-          const { loadSalesforceContext, getLoadProfile } = await import('./context/salesforce-context');
-          const ctx = await loadSalesforceContext();
-          if (ctx) return true;
-          const loader = getLoadProfile();
-          if (loader) {
-            const profile = await loader();
-            return !!profile.identifiers?.salesforceId;
-          }
-          const os = await import('node:os');
-          const path = await import('node:path');
-          try {
-            const profile = await Bun.file(path.join(os.homedir(), '.xcsh', 'user-profile.json')).json();
-            return !!profile?.identifiers?.salesforceId;
-          } catch {
-            return false;
-          }
-        },
-        async collect() {
-          const {
-            loadSalesforceContext,
-            salesforceContextIsStale,
-            seedSalesforceContext,
-            getLoadProfile,
-            setLoadProfile,
-          } = await import('./context/salesforce-context');
-          if (!getLoadProfile()) {
-            const os = await import('node:os');
-            const path = await import('node:path');
-            setLoadProfile(async () => {
-              try {
-                return await Bun.file(path.join(os.homedir(), '.xcsh', 'user-profile.json')).json();
-              } catch {
-                return {};
-              }
-            });
-          }
-          const { mapSalesforceToProfile } = await import('./context/profile-mapper');
-          let ctx = await loadSalesforceContext();
-          if (!ctx || salesforceContextIsStale(ctx)) {
-            ctx = await seedSalesforceContext();
-          }
-          if (!ctx) return {};
-          return mapSalesforceToProfile(ctx);
-        },
-      });
-    }
+    pi.personProfile.registerCollector({
+      id: 'salesforce',
+      name: 'Salesforce',
+      async available() {
+        const { loadSalesforceContext, readPersonFacts } = await import('./context/salesforce-context');
+        const ctx = await loadSalesforceContext();
+        if (ctx) return true;
+        return !!(await readPersonFacts()).identifiers?.salesforceId;
+      },
+      async collect() {
+        const { loadSalesforceContext, salesforceContextIsStale, seedSalesforceContext } = await import(
+          './context/salesforce-context'
+        );
+        const { mapSalesforceToProfile } = await import('./context/profile-mapper');
+        let ctx = await loadSalesforceContext();
+        if (!ctx || salesforceContextIsStale(ctx)) {
+          ctx = await seedSalesforceContext();
+        }
+        const observedAt = new Date().toISOString();
+        const observations = Object.entries(ctx ? mapSalesforceToProfile(ctx) : {}).map(([field, value]) => ({
+          field: field as keyof UserProfile,
+          value,
+          source: 'salesforce',
+          kind: 'observed' as const,
+          observedAt,
+        }));
+        return { facts: {}, observations };
+      },
+    });
 
     // Register tools
     const { createSfSetupTool } = await import('./tools/sf-setup');

@@ -1,25 +1,24 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   buildSalesforceHint,
-  getLoadProfile,
+  configurePersonProfile,
+  readPersonFacts,
   type SalesforceContext,
   salesforceContextIsStale,
-  setLoadProfile,
 } from '../../src/context/salesforce-context';
 
-describe('setLoadProfile / getLoadProfile', () => {
+describe('canonical person profile access', () => {
   beforeEach(() => {
-    setLoadProfile(null);
+    configurePersonProfile();
   });
 
-  it('returns null when no profile loader is set', () => {
-    expect(getLoadProfile()).toBeNull();
+  it('fails clearly when the host API is unavailable', async () => {
+    await expect(readPersonFacts()).rejects.toThrow('requires the xcsh personProfile API');
   });
 
-  it('stores and retrieves a profile loader', () => {
-    const loader = async () => ({ givenName: 'Test' });
-    setLoadProfile(loader);
-    expect(getLoadProfile()).toBe(loader);
+  it('reads facts through the configured canonical API', async () => {
+    configurePersonProfile(async () => ({ givenName: 'Synthetic' }));
+    expect(await readPersonFacts()).toEqual({ givenName: 'Synthetic' });
   });
 });
 

@@ -20,6 +20,11 @@ interface MockPi {
   logger: { debug: (...args: unknown[]) => void };
   typebox: typeof import('@sinclair/typebox');
   pi: Record<string, unknown>;
+  personProfile: {
+    get: () => Promise<{ facts: Record<string, unknown> }>;
+    registerCollector: (collector: { id: string }) => void;
+    unregisterCollector: (id: string) => boolean;
+  };
   registerTool: (tool: ToolDef) => void;
   on: (event: string, handler: (...args: unknown[]) => Promise<unknown>) => void;
 }
@@ -38,6 +43,11 @@ async function buildMockPi(overrides?: Partial<MockPi>): Promise<{
     logger: { debug() {} },
     typebox: await import('@sinclair/typebox'),
     pi: {},
+    personProfile: {
+      get: async () => ({ facts: {} }),
+      registerCollector() {},
+      unregisterCollector: () => true,
+    },
     registerTool(tool: ToolDef) {
       tools.push(tool);
     },
@@ -74,6 +84,12 @@ describe('ExtensionFactory — no CLI required', () => {
 
   it('exports a default function (ExtensionFactory)', () => {
     expect(typeof factory).toBe('function');
+  });
+
+  it('fails clearly when the canonical personProfile API is absent', async () => {
+    const { pi } = await buildMockPi();
+    delete (pi as Partial<MockPi>).personProfile;
+    await expect(factory(pi)).rejects.toThrow('requires the xcsh personProfile API');
   });
 
   it('session_start hook returns immediately and does not throw', async () => {
@@ -115,7 +131,11 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
 
   it('factory executes without throwing when sf is available', async () => {
     const { pi, tools, events } = await buildMockPi({
-      pi: { loadProfile: async () => ({ givenName: 'Test' }) },
+      personProfile: {
+        get: async () => ({ facts: { givenName: 'Test' } }),
+        registerCollector() {},
+        unregisterCollector: () => true,
+      },
     });
 
     await factory(pi);
@@ -185,7 +205,11 @@ describe.skipIf(!SF_INSTALLED)('ExtensionFactory integration — requires the sf
 
   it('sf_setup status action returns org list', async () => {
     const { pi, tools } = await buildMockPi({
-      pi: { loadProfile: async () => ({ givenName: 'Test', familyName: 'User' }) },
+      personProfile: {
+        get: async () => ({ facts: { givenName: 'Test', familyName: 'User' } }),
+        registerCollector() {},
+        unregisterCollector: () => true,
+      },
     });
     await factory(pi);
 
