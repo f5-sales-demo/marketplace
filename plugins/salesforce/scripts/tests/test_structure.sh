@@ -264,15 +264,24 @@ test_T1_14_tool_factories_exist() {
   fi
 }
 
-# T1.15 — salesforce-context.ts exists and exports setLoadProfile
+# T1.15 — salesforce-context.ts uses only the canonical person profile bridge
 test_T1_15_salesforce_context_exists() {
   local ctx="$PLUGIN_ROOT/src/context/salesforce-context.ts"
+  local source_dir="$PLUGIN_ROOT/src"
   if [[ ! -f "$ctx" ]]; then
     echo "FAIL: salesforce-context.ts missing"
     return 1
   fi
-  if ! grep -q "setLoadProfile" "$ctx"; then
-    echo "FAIL: salesforce-context.ts should export setLoadProfile"
+  if ! grep -q "configurePersonProfile" "$ctx"; then
+    echo "FAIL: salesforce-context.ts should export configurePersonProfile"
+    return 1
+  fi
+  if grep -R -Eq "setLoadProfile|getLoadProfile|pi\\.pi\\.loadProfile|loadProfile" "$source_dir"; then
+    echo "FAIL: Salesforce source contains a legacy profile loader"
+    return 1
+  fi
+  if grep -R -Eq "person-profile\\.json|computer-profile\\.json" "$source_dir"; then
+    echo "FAIL: Salesforce source reads a profile store directly"
     return 1
   fi
 }
