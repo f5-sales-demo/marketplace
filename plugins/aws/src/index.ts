@@ -41,6 +41,8 @@ export const AWS_CE_RESEARCH_GATE = [
   'Then call aws_sts_whoami, f5xc_ce_v2_capabilities, and aws_compute_discover in that order. Live discovery must enumerate all regions and pin the exact regional SSM AMI and version.',
   'Require the validated shared-contract identity/digest, provider-source receipts, current Marketplace agreement, platform capability evidence, and discovery artifact. Never use generic aws_exec for CE research, plan before discovery, automate initial legal acceptance, mutate during research, or fall back to a legacy AWS site type.',
   'Treat TGW Connect as release-blocked unless both current F5 documentation and f5xc_ce_v2_capabilities advertise an explicit supported SMSv2 GRE/BGP schema.',
+  'For the MCN Terraform SMSv2 lifecycle, require terraform-provider-xcsh v9.2.6 and its immutable API contract before planning. A failed delete retains Terraform state; never hide it with a new name, direct deletion, state editing, taint, or Terraform import CLI.',
+  'Recover a verified owned lost-state generation only through the dedicated Terraform recovery root with configuration-driven Terraform import blocks, an import-only saved plan, then an ownership-verified destroy plan. Require deployment_generation on every AWS and XC identity; reject an absent, invalid, or already-live generation before mutation.',
 ].join('\n');
 
 /**
