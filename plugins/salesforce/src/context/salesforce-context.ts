@@ -5,22 +5,18 @@ import type { SfFieldDescription, SfSObjectDescription } from '../sf/describe';
 import { normalizeDescribe } from '../sf/describe';
 
 // ---------------------------------------------------------------------------
-// Dependency injection for loadProfile (from xcsh user-profile module)
+// Canonical xcsh person profile access supplied by the extension API.
 // ---------------------------------------------------------------------------
 
-let _loadProfile: (() => Promise<UserProfile>) | null = null;
+let personProfileGet: (() => Promise<UserProfile>) | undefined;
 
-export function setLoadProfile(fn: () => Promise<UserProfile>): void {
-  _loadProfile = fn;
+export function configurePersonProfile(get?: () => Promise<UserProfile>): void {
+  personProfileGet = get;
 }
 
-export function getLoadProfile(): (() => Promise<UserProfile>) | null {
-  return _loadProfile;
-}
-
-async function loadProfileSafe(): Promise<UserProfile> {
-  if (_loadProfile) return _loadProfile();
-  return {};
+export async function readPersonFacts(): Promise<UserProfile> {
+  if (!personProfileGet) throw new Error('Salesforce plugin requires the xcsh personProfile API');
+  return personProfileGet();
 }
 
 // ---------------------------------------------------------------------------
@@ -613,7 +609,7 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
   ]);
   if (!orgInfo) return null;
 
-  const profile = await loadProfileSafe();
+  const profile = await readPersonFacts();
   const userId = profile.identifiers?.salesforceId;
   if (!userId) return null;
 
@@ -876,9 +872,7 @@ export function renderSalesforceContextMarkdown(
     needsConfirmation.push(
       `- **Partner:** Discovered "${ctx.discoveredPartner.name}" (${ctx.discoveredPartner.role}) from opportunity co-membership.`,
     );
-    needsConfirmation.push(
-      `  To confirm: add \`"partner": { "name": "${ctx.discoveredPartner.name}", "role": "${ctx.discoveredPartner.role}" }\` to \`~/.xcsh/user-profile.json\``,
-    );
+    needsConfirmation.push('  To confirm: tell xcsh who your partner is so it can update the private person profile.');
   }
   if (!profileHasTerritories && ctx.territories?.length) {
     const examples = ctx.territories
@@ -888,17 +882,15 @@ export function renderSalesforceContextMarkdown(
     needsConfirmation.push(
       `- **Territories:** ${ctx.territories.length} discovered from pipeline. Primary ones are unknown.`,
     );
-    needsConfirmation.push(`  To confirm: add \`"territories": [${examples}]\` to \`~/.xcsh/user-profile.json\``);
+    needsConfirmation.push(`  To confirm: tell xcsh your primary territories (for example ${examples}).`);
   }
   if (!profile?.role) {
-    needsConfirmation.push(
-      `- **Role:** Not set. Add \`"role": "SE"\` (or AE/CSM/SA/etc.) to \`~/.xcsh/user-profile.json\``,
-    );
+    needsConfirmation.push('- **Role:** Not set. Tell xcsh your role (for example SE, AE, CSM, or SA).');
   }
   if (needsConfirmation.length > 0) {
     sections.push('\n## Setup: Identity Facts');
     sections.push(
-      '\nThe following are unknown. Set them in `~/.xcsh/user-profile.json` to get accurate partner-scoped pipeline reports.\n',
+      '\nThe following are unknown. Confirm them with xcsh to get accurate partner-scoped pipeline reports.\n',
     );
     for (const line of needsConfirmation) {
       sections.push(line);

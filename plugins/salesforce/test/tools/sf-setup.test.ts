@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
-import { setLoadProfile } from '../../src/context/salesforce-context';
+import { configurePersonProfile } from '../../src/context/salesforce-context';
 import { createSfSetupTool } from '../../src/tools/sf-setup';
 
 // Validation tests must never reach a real CLI: whether one is installed, and how long it
@@ -29,7 +29,7 @@ describe('createSfSetupTool', () => {
 
 describe('sf_setup execute — validation', () => {
   beforeEach(() => {
-    setLoadProfile(async () => ({ givenName: 'Test', familyName: 'User', email: 'test@example.com' }));
+    configurePersonProfile(async () => ({ givenName: 'Test', familyName: 'User', email: 'test@example.com' }));
   });
 
   it('set_default rejects missing org param', async () => {

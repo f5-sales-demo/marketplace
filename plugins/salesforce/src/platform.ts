@@ -1,5 +1,4 @@
 import * as os from 'node:os';
-import * as path from 'node:path';
 
 export type PackageManager = 'brew' | 'npm' | 'apt' | 'winget' | 'scoop';
 
@@ -34,38 +33,14 @@ export async function detectPackageManagers(): Promise<PackageManager[]> {
   return managers;
 }
 
-async function detectCorporateManagement(): Promise<{
-  isManaged: boolean;
-  mdmVendor?: string;
-  organizationName?: string;
-}> {
-  try {
-    const profilePath = path.join(os.homedir(), '.xcsh', 'computer-profile.json');
-    const file = Bun.file(profilePath);
-    if (!(await file.exists())) return { isManaged: false };
-    const profile = await file.json();
-    const mgmt = profile.management;
-    if (!mgmt?.isManaged) return { isManaged: false };
-    return {
-      isManaged: true,
-      mdmVendor: mgmt.mdmVendor,
-      organizationName: mgmt.organizationName,
-    };
-  } catch {
-    return { isManaged: false };
-  }
-}
-
 export async function detectPlatform(): Promise<PlatformInfo> {
-  const [packageManagers, corporate] = await Promise.all([detectPackageManagers(), detectCorporateManagement()]);
+  const packageManagers = await detectPackageManagers();
 
   return {
     os: process.platform as PlatformInfo['os'],
     arch: os.arch(),
     packageManagers,
-    isCorporateManaged: corporate.isManaged,
-    mdmVendor: corporate.mdmVendor,
-    organizationName: corporate.organizationName,
+    isCorporateManaged: false,
   };
 }
 

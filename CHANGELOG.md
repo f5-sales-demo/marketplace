@@ -12,7 +12,9 @@ and this project adheres to
 
 - **`kvm`** bumped to v1.0.2
 
-- **`salesforce`** bumped to v1.3.13
+- **`salesforce`** v1.4.0 — requires xcsh v21.31.0 and uses the canonical person profile API
+  for profile reads and collector registration. Legacy loader and direct-file fallbacks are removed
+  ([#1336](https://github.com/f5-sales-demo/marketplace/issues/1336)).
 
 - **`gitlab`** bumped to v1.2.7
 

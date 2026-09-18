@@ -1,3 +1,4 @@
+import { readPersonFacts } from './context/salesforce-context';
 import { detectPlatform, getAuthOptions, getInstallOptions, type PlatformInfo } from './platform';
 
 export function buildInstallStep(platform: PlatformInfo) {
@@ -99,10 +100,7 @@ async function discoverInstanceUrls(): Promise<string[]> {
 
 async function discoverUserEmail(): Promise<string | undefined> {
   try {
-    const os = await import('node:os');
-    const path = await import('node:path');
-    const profilePath = path.join(os.homedir(), '.xcsh', 'user-profile.json');
-    const data = JSON.parse(await Bun.file(profilePath).text());
+    const data = await readPersonFacts();
     if (data.email?.includes('@')) return data.email;
   } catch {
     // no profile

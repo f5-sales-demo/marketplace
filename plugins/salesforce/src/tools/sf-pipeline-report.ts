@@ -1,4 +1,4 @@
-import { getLoadProfile, loadSalesforceContext } from '../context/salesforce-context';
+import { loadSalesforceContext, readPersonFacts } from '../context/salesforce-context';
 import { generatePipelineReport, type SfQueryFn } from '../pipeline-report/generator';
 import { renderPipelineReport } from '../pipeline-report/renderer';
 import type { PipelineReportData, PipelineReportOptions } from '../pipeline-report/types';
@@ -101,10 +101,7 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
         };
       }
 
-      const loadProfile = getLoadProfile();
-      // Only `identifiers.salesforceId` is read below; an absent profile is an empty
-      // object rather than a throw, so the report still renders unattributed.
-      const profile: { identifiers?: { salesforceId?: string } } = loadProfile ? await loadProfile() : {};
+      const profile = await readPersonFacts();
       const sfContext = await loadSalesforceContext();
 
       const userId = profile.identifiers?.salesforceId;

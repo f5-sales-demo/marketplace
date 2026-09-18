@@ -130,11 +130,23 @@ mkdir -p \
   node_modules/@google/genai \
   node_modules/@sinclair/typebox \
   node_modules/bun-types
-printf '{"version":"20.2.7"}\n' >node_modules/@f5-sales-demo/xcsh/package.json
-printf '{"version":"20.2.7"}\n' >node_modules/@f5-sales-demo/pi-utils/package.json
-printf '{"version":"0.115.0"}\n' >node_modules/@anthropic-ai/sdk/package.json
-printf '{"version":"1.3.0"}\n' >node_modules/@agentclientprotocol/sdk/package.json
-printf '{"version":"2.15.0"}\n' >node_modules/@google/genai/package.json
+xcsh_version="20.2.7"
+pi_utils_version="20.2.7"
+anthropic_version="0.115.0"
+acp_version="1.3.0"
+google_genai_version="2.15.0"
+if [ "${PWD##*/}" = "salesforce" ]; then
+  xcsh_version="21.31.0"
+  pi_utils_version="21.31.0"
+  anthropic_version="0.123.0"
+  acp_version="1.4.0"
+  google_genai_version="2.21.0"
+fi
+printf '{"version":"%s"}\n' "$xcsh_version" >node_modules/@f5-sales-demo/xcsh/package.json
+printf '{"version":"%s"}\n' "$pi_utils_version" >node_modules/@f5-sales-demo/pi-utils/package.json
+printf '{"version":"%s"}\n' "$anthropic_version" >node_modules/@anthropic-ai/sdk/package.json
+printf '{"version":"%s"}\n' "$acp_version" >node_modules/@agentclientprotocol/sdk/package.json
+printf '{"version":"%s"}\n' "$google_genai_version" >node_modules/@google/genai/package.json
 printf '{"version":"0.34.52"}\n' >node_modules/@sinclair/typebox/package.json
 printf '{"version":"1.4.2"}\n' >node_modules/bun-types/package.json
 EOF

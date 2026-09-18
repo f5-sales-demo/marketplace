@@ -13,9 +13,13 @@ if [ "$#" -ne 0 ]; then
 fi
 
 EXPECTED_XCSH="20.2.7"
+EXPECTED_SALESFORCE_XCSH="21.31.0"
 EXPECTED_ANTHROPIC="0.115.0"
+EXPECTED_SALESFORCE_ANTHROPIC="0.123.0"
 EXPECTED_ACP="1.3.0"
+EXPECTED_SALESFORCE_ACP="1.4.0"
 EXPECTED_GOOGLE_GENAI="2.15.0"
+EXPECTED_SALESFORCE_GOOGLE_GENAI="2.21.0"
 EXPECTED_TYPEBOX_RANGE="^0.34.52"
 EXPECTED_BUN_TYPES_RANGE="^1.4.2"
 EXPECTED_TYPEBOX="0.34.52"
@@ -94,35 +98,47 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     continue
   fi
 
+  expected_xcsh="$EXPECTED_XCSH"
+  expected_pi_utils="$EXPECTED_XCSH"
+  expected_anthropic="$EXPECTED_ANTHROPIC"
+  expected_acp="$EXPECTED_ACP"
+  expected_google_genai="$EXPECTED_GOOGLE_GENAI"
+  if [ "$plugin" = "salesforce" ]; then
+    expected_xcsh="$EXPECTED_SALESFORCE_XCSH"
+    expected_pi_utils="$EXPECTED_SALESFORCE_XCSH"
+    expected_anthropic="$EXPECTED_SALESFORCE_ANTHROPIC"
+    expected_acp="$EXPECTED_SALESFORCE_ACP"
+    expected_google_genai="$EXPECTED_SALESFORCE_GOOGLE_GENAI"
+  fi
   require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/xcsh"]' \
-    "^$EXPECTED_XCSH" "$plugin xcsh peer range"
+    "^$expected_xcsh" "$plugin xcsh peer range"
   require_json_value "$package_json" '.devDependencies["@sinclair/typebox"]' \
     "$EXPECTED_TYPEBOX_RANGE" "$plugin TypeBox development range"
   require_json_value "$package_json" '.devDependencies["bun-types"]' \
     "$EXPECTED_BUN_TYPES_RANGE" "$plugin Bun types development range"
   if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" >/dev/null 2>&1; then
     require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/pi-utils"]' \
-      "^$EXPECTED_XCSH" "$plugin pi-utils peer range"
+      "^$expected_pi_utils" "$plugin pi-utils peer range"
   fi
 
-  require_lock_version "$lock" '@f5-sales-demo/xcsh' "$EXPECTED_XCSH"
-  require_lock_version "$lock" '@f5-sales-demo/pi-utils' "$EXPECTED_XCSH"
-  require_lock_version "$lock" '@anthropic-ai/sdk' "$EXPECTED_ANTHROPIC"
-  require_lock_version "$lock" '@agentclientprotocol/sdk' "$EXPECTED_ACP"
-  require_lock_version "$lock" '@google/genai' "$EXPECTED_GOOGLE_GENAI"
+  require_lock_version "$lock" '@f5-sales-demo/xcsh' "$expected_xcsh"
+  require_lock_version "$lock" '@f5-sales-demo/pi-utils' "$expected_pi_utils"
+  require_lock_version "$lock" '@anthropic-ai/sdk' "$expected_anthropic"
+  require_lock_version "$lock" '@agentclientprotocol/sdk' "$expected_acp"
+  require_lock_version "$lock" '@google/genai' "$expected_google_genai"
 
   node_modules="$REPO_ROOT/plugins/$plugin/node_modules"
   if [ -d "$node_modules" ]; then
     require_installed_json_value "$node_modules/@f5-sales-demo/xcsh/package.json" '.version' \
-      "$EXPECTED_XCSH" "$plugin installed xcsh version"
+      "$expected_xcsh" "$plugin installed xcsh version"
     require_installed_json_value "$node_modules/@f5-sales-demo/pi-utils/package.json" '.version' \
-      "$EXPECTED_XCSH" "$plugin installed pi-utils version"
+      "$expected_pi_utils" "$plugin installed pi-utils version"
     require_installed_json_value "$node_modules/@anthropic-ai/sdk/package.json" '.version' \
-      "$EXPECTED_ANTHROPIC" "$plugin installed Anthropic SDK version"
+      "$expected_anthropic" "$plugin installed Anthropic SDK version"
     require_installed_json_value "$node_modules/@agentclientprotocol/sdk/package.json" '.version' \
-      "$EXPECTED_ACP" "$plugin installed ACP SDK version"
+      "$expected_acp" "$plugin installed ACP SDK version"
     require_installed_json_value "$node_modules/@google/genai/package.json" '.version' \
-      "$EXPECTED_GOOGLE_GENAI" "$plugin installed Google GenAI version"
+      "$expected_google_genai" "$plugin installed Google GenAI version"
     require_installed_json_value "$node_modules/@sinclair/typebox/package.json" '.version' \
       "$EXPECTED_TYPEBOX" "$plugin installed TypeBox version"
     require_installed_json_value "$node_modules/bun-types/package.json" '.version' \

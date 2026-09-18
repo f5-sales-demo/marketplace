@@ -1,4 +1,4 @@
-import { getLoadProfile } from '../context/salesforce-context';
+import { readPersonFacts } from '../context/salesforce-context';
 import sfSetupDescription from '../prompts/sf-setup.md' with { type: 'text' };
 import { execSfJson, execSfRaw, type SfExecApi } from '../sf/exec';
 import { formatOrgTable } from '../sf/formatters';
@@ -55,13 +55,10 @@ export function createSfSetupTool(pi: PluginHost, makeApi: (cwd: string) => SfEx
             const allOrgs = collectAllOrgs(orgResult.result as Record<string, unknown[]>);
             let output = formatOrgTable(allOrgs);
 
-            const loadProfile = getLoadProfile();
-            if (loadProfile) {
-              const userProfile = await loadProfile();
-              if (userProfile.givenName || userProfile.familyName) {
-                const name = [userProfile.givenName, userProfile.familyName].filter(Boolean).join(' ');
-                output += `\n\nUser profile: **${name}** (${userProfile.email ?? 'no email'})`;
-              }
+            const userProfile = await readPersonFacts();
+            if (userProfile.givenName || userProfile.familyName) {
+              const name = [userProfile.givenName, userProfile.familyName].filter(Boolean).join(' ');
+              output += `\n\nUser profile: **${name}** (${userProfile.email ?? 'no email'})`;
             }
 
             return textResult(output, { ...base, orgs: allOrgs });
