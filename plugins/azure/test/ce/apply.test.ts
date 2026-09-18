@@ -4,7 +4,7 @@ import { fingerprintObservation } from '../../src/ce/canonical';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const subscriptionId = '00000000-0000-4000-8000-000000000001';
 const sharedContractUrl =
   'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 const intent: AzureCeIntent = {
