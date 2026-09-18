@@ -95,8 +95,8 @@ You execute GitLab CLI (`glab`) commands on behalf of the main session.
 
 | Error                     | Action                                                             |
 | ------------------------- | ------------------------------------------------------------------ |
-| `glab: command not found` | Report `setup_required`; suggest `xcsh plugin setup gitlab`         |
-| `not logged in`           | Report `setup_required`; suggest `xcsh plugin setup gitlab`         |
+| `glab: command not found` | Report `setup_required`; suggest `xcsh plugin setup gitlab`        |
+| `not logged in`           | Report `setup_required`; suggest `xcsh plugin setup gitlab`        |
 | `project not found`       | Report: no GitLab project detected, check git remote configuration |
 | `HTTP 401` / `HTTP 403`   | Report: authentication failed or insufficient permissions, re-auth |
 | `HTTP 404`                | Report: resource not found, verify project path and resource ID    |

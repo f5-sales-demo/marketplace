@@ -112,6 +112,9 @@ mkdir -p "$BAD_INSTALL/test-bin"
 cat >"$BAD_INSTALL/test-bin/bun" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [ "${1:-}" = "test" ]; then
+  exit 0
+fi
 [ "${PUPPETEER_SKIP_DOWNLOAD:-}" = "1" ]
 [ "${1:-}" = "install" ]
 case " $* " in

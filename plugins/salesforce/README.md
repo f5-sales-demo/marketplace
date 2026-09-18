@@ -161,10 +161,10 @@ give me a full account overview for ACCOUNT NAME including contacts, open opport
 
 ## Commands
 
-| Command                 | Purpose                          |
-| ----------------------- | -------------------------------- |
+| Command                        | Purpose                                                   |
+| ------------------------------ | --------------------------------------------------------- |
 | `xcsh plugin setup salesforce` | Review and run Salesforce installation and authentication |
-| `/salesforce:sf-status` | Check org connection status      |
+| `/salesforce:sf-status`        | Check org connection status                               |
 
 ## CLI Agent
 
