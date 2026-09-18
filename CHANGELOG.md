@@ -22,11 +22,15 @@ and this project adheres to
 
 - **`gcloud`** bumped to v1.2.8
 
-- **`azure`** bumped to v4.3.2
+- **`azure`** v4.3.3 — reads the provider-neutral Customer Edge automation contract from the
+  renamed Multi-Cloud Networking Pages endpoint
+  ([#1342](https://github.com/f5-sales-demo/marketplace/issues/1342)).
 
 - **`platform`** bumped to v5.0.1
 
-- **`aws`** bumped to v2.0.1
+- **`aws`** v2.0.2 — reads the provider-neutral Customer Edge automation contract from the
+  renamed Multi-Cloud Networking Pages endpoint
+  ([#1342](https://github.com/f5-sales-demo/marketplace/issues/1342)).
 
 - **`azure`** v4.3.1 — preserves all-or-nothing privacy for `azure_ce_inventory` failures while
   returning allowlisted collector-stage and error-category diagnostics for setup, Resource Graph,
