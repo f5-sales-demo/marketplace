@@ -35,7 +35,7 @@ export function detectGhError(
   const lower = raw.toLowerCase();
 
   if (lower.includes('gh auth login') || lower.includes('not logged into any github hosts')) {
-    return new GhAuthError('GitHub CLI is not authenticated. Run `gh auth login`.');
+    return new GhAuthError('GitHub CLI is not authenticated. Run: xcsh plugin setup github');
   }
   if (
     lower.includes('api rate limit exceeded') ||

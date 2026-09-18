@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-kvm",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Deterministic KVM and libvirt lifecycle tools for F5 Secure Mesh Site v2",
   "main": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "KVM SMSv2",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "extensions": [
       "src/index.ts"
     ]

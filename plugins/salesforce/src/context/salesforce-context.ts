@@ -1,5 +1,3 @@
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { $ } from 'bun';
 import type { SfFieldDescription, SfSObjectDescription } from '../sf/describe';
 import { normalizeDescribe } from '../sf/describe';
@@ -9,9 +7,14 @@ import { normalizeDescribe } from '../sf/describe';
 // ---------------------------------------------------------------------------
 
 let personProfileGet: (() => Promise<UserProfile>) | undefined;
+let salesforceContextGet: (() => Promise<SalesforceContext | null>) | undefined;
 
 export function configurePersonProfile(get?: () => Promise<UserProfile>): void {
   personProfileGet = get;
+}
+
+export function configureSalesforceContext(get?: () => Promise<SalesforceContext | null>): void {
+  salesforceContextGet = get;
 }
 
 export async function readPersonFacts(): Promise<UserProfile> {
@@ -45,13 +48,6 @@ function $which(cmd: string): boolean {
   } catch {
     return false;
   }
-}
-
-function isEnoent(err: unknown): boolean {
-  if (err && typeof err === 'object' && 'code' in err) {
-    return (err as { code: string }).code === 'ENOENT';
-  }
-  return false;
 }
 
 const logger = {
@@ -100,6 +96,7 @@ export interface SalesforceContext {
   // Identity
   userId: string;
   username: string;
+  userType?: string;
   instanceUrl: string;
   orgAlias?: string;
 
@@ -204,7 +201,6 @@ export interface SalesforceHint {
 // Constants
 // ---------------------------------------------------------------------------
 
-const SF_CONTEXT_PATH = path.join(os.homedir(), '.xcsh', 'salesforce-context.json');
 const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 // ---------------------------------------------------------------------------
@@ -212,18 +208,7 @@ const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 // ---------------------------------------------------------------------------
 
 export async function loadSalesforceContext(): Promise<SalesforceContext | null> {
-  try {
-    return (await Bun.file(SF_CONTEXT_PATH).json()) as SalesforceContext;
-  } catch (err: unknown) {
-    if (isEnoent(err)) return null;
-    logger.warn('Failed to load salesforce context', { error: err });
-    return null;
-  }
-}
-
-export async function saveSalesforceContext(ctx: SalesforceContext): Promise<void> {
-  ctx.collectedAt = new Date().toISOString();
-  await Bun.write(SF_CONTEXT_PATH, JSON.stringify(ctx, null, 2));
+  return salesforceContextGet ? salesforceContextGet() : null;
 }
 
 export function salesforceContextIsStale(ctx: SalesforceContext): boolean {
@@ -610,7 +595,9 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
   if (!orgInfo) return null;
 
   const profile = await readPersonFacts();
-  const userId = profile.identifiers?.salesforceId;
+  const escapedUsername = orgInfo.username.replace(/'/g, "\\'");
+  const currentUser = await runSfQuery(`SELECT Id, UserType FROM User WHERE Username = '${escapedUsername}' LIMIT 1`);
+  const userId = profile.identifiers?.salesforceId ?? String(currentUser[0]?.Id ?? '');
   if (!userId) return null;
 
   const results = await Promise.all([
@@ -628,6 +615,7 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
   const merged: SalesforceContext = {
     userId,
     username: orgInfo.username,
+    userType: typeof currentUser[0]?.UserType === 'string' ? currentUser[0].UserType : undefined,
     instanceUrl: orgInfo.instanceUrl,
     orgAlias: orgInfo.alias || undefined,
     opportunityFields: described?.fields.map((f) => f.name),
@@ -642,11 +630,7 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
 }
 
 export async function seedSalesforceContext(): Promise<SalesforceContext | null> {
-  const ctx = await discoverSalesforceContext();
-  if (ctx) {
-    await saveSalesforceContext(ctx);
-  }
-  return ctx;
+  return discoverSalesforceContext();
 }
 
 // ---------------------------------------------------------------------------

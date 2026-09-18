@@ -1,19 +1,28 @@
 import type { PluginInterface } from './aws/types';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
-import type { runSetupWizard } from './wizard';
+
+interface IntegrationSnapshot<T> {
+  state: 'ready' | 'setup_required' | 'unavailable' | 'degraded' | 'rate_limited' | 'error';
+  value?: T;
+}
+
+interface AwsIdentity {
+  Account: string;
+  Arn: string;
+  UserId?: string;
+  profile?: string;
+  region?: string;
+}
 
 interface AwsExtensionApi extends PluginInterface {
   exec(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }>;
   setLabel(label: string): void;
-  registerCommand?(
-    name: string,
-    command: {
-      description: string;
-      handler(args: string, ctx: Parameters<typeof runSetupWizard>[1]): Promise<void>;
-    },
-  ): void;
   registerTool?(tool: unknown): void;
-  registerServiceStatus?(status: unknown): void;
+  integrations: {
+    register<T>(definition: unknown): {
+      get(signal?: AbortSignal): Promise<IntegrationSnapshot<T>>;
+    };
+  };
   on?(event: string, handler: unknown): void;
   logger: { debug(message: string): void };
 }
@@ -23,6 +32,23 @@ type ExtensionFactory = (pi: AwsExtensionApi) => void | Promise<void>;
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
+export function retryAfterMsFromHeaders(text: string, now = Date.now()): number | undefined {
+  const retryAfter = text.match(/(?:^|\r?\n)retry-after:\s*([^\r\n]+)/i)?.[1]?.trim();
+  if (retryAfter && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000;
+  if (retryAfter) {
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.max(0, retryAt - now);
+  }
+  const reset = text.match(/(?:^|\r?\n)x-ratelimit-reset:\s*(\d+)/i)?.[1];
+  return reset ? Math.max(0, Number(reset) * 1000 - now) : undefined;
+}
+
+export function awsInstallArgv(platform = process.platform): string[] {
+  if (platform === 'darwin') return ['brew', 'install', 'awscli'];
+  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Amazon.AWSCLI'];
+  return ['sudo', 'apt-get', 'install', '--yes', 'awscli'];
 }
 
 export function isAwsCePrompt(prompt: string): boolean {
@@ -71,16 +97,65 @@ export function withErrorType<T extends { name: string; execute: (...args: never
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('AWS');
 
-  // Always register setup command (even without aws CLI)
-  if (typeof pi.registerCommand === 'function') {
-    pi.registerCommand('aws:setup', {
-      description: 'Install and configure AWS CLI',
-      async handler(_args, ctx) {
-        const { runSetupWizard } = await import('./wizard');
-        await runSetupWizard(pi, ctx);
-      },
-    });
-  }
+  const integration = pi.integrations.register<AwsIdentity>({
+    id: 'aws',
+    name: 'AWS',
+    plugin: 'aws',
+    kind: 'network',
+    setup: {
+      pluginDependencies: ['platform'],
+      requiredEnvironment: [],
+      profileFields: ['accounts'],
+      steps: [
+        {
+          kind: 'install',
+          argv: awsInstallArgv(),
+          timeoutMs: 300_000,
+        },
+        { kind: 'login', argv: ['aws', 'sso', 'login'], timeoutMs: 300_000 },
+      ],
+      verification: [{ argv: ['aws', 'sts', 'get-caller-identity', '--output', 'json'], timeoutMs: 30_000 }],
+    },
+    async probe() {
+      const checker = process.platform === 'win32' ? 'where' : 'which';
+      if (Bun.spawnSync([checker, 'aws']).exitCode !== 0) return { state: 'setup_required', reason: 'cli_missing' };
+      const result = Bun.spawnSync(['aws', 'sts', 'get-caller-identity', '--output', 'json']);
+      if (result.exitCode !== 0) {
+        const rawError = new TextDecoder().decode(result.stderr);
+        const error = rawError.toLowerCase();
+        if (/rate limit|rate exceeded|too many requests|throttl|429/.test(error))
+          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+        if (error.includes('expired') || error.includes('sso token'))
+          return { state: 'setup_required', reason: 'expired' };
+        if (error.includes('denied') || error.includes('unauthorized'))
+          return { state: 'unavailable', reason: 'permission_denied' };
+        if (error.includes('connect') || error.includes('network')) return { state: 'unavailable', reason: 'network' };
+        return { state: 'setup_required', reason: 'not_authenticated' };
+      }
+      try {
+        const value = JSON.parse(new TextDecoder().decode(result.stdout)) as AwsIdentity;
+        value.profile = process.env.AWS_PROFILE;
+        value.region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+        if (!value.Account || !value.Arn) return { state: 'error', reason: 'invalid_response' };
+        return { state: 'ready', value };
+      } catch {
+        return { state: 'error', reason: 'invalid_response' };
+      }
+    },
+    profile(value: AwsIdentity) {
+      const principalType = value.Arn?.includes(':user/')
+        ? 'user'
+        : value.Arn?.includes(':role/') || value.Arn?.includes(':assumed-role/')
+          ? 'role'
+          : 'unknown';
+      return {
+        facts: {
+          accounts: [{ provider: 'aws', identifier: value.Arn, principalType, accountId: value.Account }],
+        },
+        observations: [],
+      };
+    },
+  });
 
   // Check if aws CLI is available
   let awsAvailable = false;
@@ -118,55 +193,16 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(withErrorType(createAwsCloudInitAnalyzeTool(pi)));
   }
 
-  // Always register service status (shows unavailable when CLI missing)
-  if (typeof pi.registerServiceStatus === 'function') {
-    pi.registerServiceStatus({
-      name: 'AWS',
-      async check() {
-        try {
-          const whichChecker = process.platform === 'win32' ? 'where' : 'which';
-          const whichResult = Bun.spawnSync([whichChecker, 'aws']);
-          if (whichResult.exitCode !== 0) {
-            return { state: 'unavailable', hint: 'run: /aws:setup' };
-          }
-          const result = Bun.spawnSync(['aws', 'sts', 'get-caller-identity', '--output', 'json']);
-          if (result.exitCode === 0) return { state: 'connected' };
-          const stderr = new TextDecoder().decode(result.stderr).toLowerCase();
-          if (stderr.includes('sso token') || stderr.includes('expired'))
-            return {
-              state: 'unauthenticated',
-              hint: 'SSO expired, run: /aws:setup',
-            };
-          if (stderr.includes('could not find profile') || stderr.includes('profile'))
-            return {
-              state: 'unauthenticated',
-              hint: 'profile not found, run: /aws:setup',
-            };
-          if (stderr.includes('could not connect') || stderr.includes('network'))
-            return { state: 'unavailable', hint: 'network error' };
-          return { state: 'unauthenticated', hint: 'run: /aws:setup' };
-        } catch {
-          return { state: 'unavailable', hint: 'aws CLI check failed' };
-        }
-      },
-      fix: {
-        prompt: 'AWS SSO session expired',
-        command: ['aws', 'sso', 'login'],
-      },
-    });
-  }
-
   // Context injection: provide AWS identity to agents
   if (awsAvailable && typeof pi.on === 'function') {
-    pi.on('before_agent_start', async (event: { prompt?: string }, ctx: { cwd: string }) => {
+    pi.on('before_agent_start', async (event: { prompt?: string }, _ctx: { cwd: string }) => {
       const ceRequest = isAwsCePrompt(String(event?.prompt ?? ''));
       try {
-        const cwd = ctx?.cwd || process.cwd();
-        const result = Bun.spawnSync(['aws', 'sts', 'get-caller-identity', '--output', 'json'], { cwd });
-        if (result.exitCode !== 0) return;
-        const identity = JSON.parse(new TextDecoder().decode(result.stdout));
-        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || '';
-        const profile = process.env.AWS_PROFILE || '';
+        const snapshot = await integration.get();
+        if (snapshot.state !== 'ready' || !snapshot.value) return;
+        const identity = snapshot.value;
+        const region = identity.region || '';
+        const profile = identity.profile || '';
         const lines = [
           identity.Account ? `Account: ${sanitizeHintField(identity.Account)}` : '',
           identity.Arn ? `Identity: ${sanitizeHintField(identity.Arn)}` : '',

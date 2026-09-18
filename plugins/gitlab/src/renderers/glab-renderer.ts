@@ -47,8 +47,6 @@ export function renderPlainSummary(
     if (details.query) parts.push(`search: "${details.query}"`);
   } else if (details.tool === 'glab_issue_view' && details.issue) {
     parts.push(`GitLab: #${details.issue.iid} ${details.issue.title}`);
-  } else if (details.tool === 'glab_setup') {
-    parts.push(`GitLab Setup: ${args?.action ?? 'complete'}`);
   }
 
   return parts.length > 0 ? `${parts.join(' ')}\n\n${text}` : text;

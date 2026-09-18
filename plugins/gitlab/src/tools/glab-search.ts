@@ -42,7 +42,7 @@ export function createGlabSearchTool(pi: PluginHost, makeApi: (cwd: string) => G
       const api = makeApi(ctx.cwd);
       const project = await resolveProject(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
       if (!project) {
-        return textResult('No GitLab project configured. Run glab_setup to set one up.');
+        return textResult('No GitLab project configured. Run: xcsh plugin setup gitlab');
       }
 
       const limit = Math.min(params.limit ?? 20, 100);

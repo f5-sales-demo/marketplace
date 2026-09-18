@@ -48,7 +48,7 @@ The existing slash command remains status-only:
 ```
 
 Location and general Internet questions route through skills from ordinary
-language; version 1.5.3 adds no new slash command.
+language; version 1.6.0 adds on-demand lifecycle readiness without a background network probe.
 
 ## Investigation model
 

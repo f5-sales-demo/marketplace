@@ -1,7 +1,7 @@
 {
   "name": "github",
   "description": "Poweruser GitHub & Git Operations plugin combining direct native CLI mastery (git and gh) with complete Git SOPs workflow governance (issue-driven development, feature branching, PR lifecycle, CI polling, auto-merge, and post-merge teardown)",
-  "version": "2.0.4",
+  "version": "2.1.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -20,5 +20,29 @@
     "xcsh-extension"
   ],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5-sales-demo/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace",
+  "marketplace": {
+    "order": 16,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/github",
+      "category": "development",
+      "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
+      "tags": ["github", "development", "cli", "workflow", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": true
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["github", "github_email"],
+    "requirements": ["GitHub CLI", "An authenticated GitHub account"],
+    "setupRequired": true,
+    "collectedData": ["accounts", "email"],
+    "pluginDependencies": []
+  }
 }

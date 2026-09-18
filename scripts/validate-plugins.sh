@@ -28,6 +28,7 @@ if [[ ! -f "$MARKETPLACE" ]]; then
 fi
 
 info "Validating $MARKETPLACE"
+bash "$REPO_ROOT/tests/test-lifecycle-contract.sh"
 
 # ── 2. marketplace.json required top-level fields ────────────
 for field in .name .metadata.description .owner.name .plugins; do

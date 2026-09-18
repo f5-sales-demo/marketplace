@@ -1,10 +1,33 @@
 {
   "name": "brand",
   "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
+  },
+  "marketplace": {
+    "order": 3,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/brand",
+      "category": "productivity",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand",
+      "license": "Apache-2.0",
+      "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
+      "tags": ["brand", "design", "visual-identity", "f5xc"],
+      "repository": "https://github.com/f5-sales-demo/marketplace"
+    }
+  },
+  "lifecycle": {
+    "mode": "content",
+    "integrations": [],
+    "requirements": ["Brand guidance content only"],
+    "setupRequired": false,
+    "collectedData": [],
+    "pluginDependencies": []
   }
 }

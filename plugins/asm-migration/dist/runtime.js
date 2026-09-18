@@ -22968,9 +22968,10 @@ function subset(expected, actual) {
 }
 function receiptFile(path, cwd) {
   const target = resolve(cwd, path);
-  const root = parse(target).root;
+  const inspectedTarget = process.platform === "darwin" && (target.startsWith("/tmp/") || target.startsWith("/var/")) ? `/private${target}` : target;
+  const root = parse(inspectedTarget).root;
   let cursor = root;
-  for (const part of target.slice(root.length).split(sep2).filter(Boolean)) {
+  for (const part of inspectedTarget.slice(root.length).split(sep2).filter(Boolean)) {
     cursor = resolve(cursor, part);
     if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink())
       throw new MigrationError("receipt", "receipt path must not contain symlinked components");
@@ -23355,16 +23356,17 @@ async function validateInput(request) {
   return { valid: contract.valid, inputType: request.inputType, contract };
 }
 function assertNoSymlinkDirectory(path) {
-  const root = parse2(path).root;
+  const inspectedPath = process.platform === "darwin" && (path.startsWith("/tmp/") || path.startsWith("/var/")) ? `/private${path}` : path;
+  const root = parse2(inspectedPath).root;
   let cursor = root;
-  for (const part of path.slice(root.length).split("/").filter(Boolean)) {
+  for (const part of inspectedPath.slice(root.length).split("/").filter(Boolean)) {
     cursor = resolve2(cursor, part);
     if (!existsSync2(cursor))
       continue;
     const stat = lstatSync2(cursor);
     if (stat.isSymbolicLink())
       throw new MigrationError("output", "output directory must not contain symlinked path components");
-    if (cursor === path && !stat.isDirectory())
+    if (cursor === inspectedPath && !stat.isDirectory())
       throw new MigrationError("output", "output path is not a directory");
   }
 }

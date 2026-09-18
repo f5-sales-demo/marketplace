@@ -1,10 +1,34 @@
 {
   "name": "gcloud",
   "description": "Google Cloud CLI integration — container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
-  "version": "1.2.8",
+  "version": "1.3.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
+  },
+  "marketplace": {
+    "order": 14,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/gcloud",
+      "category": "development",
+      "keywords": ["gcloud", "google", "cloud"],
+      "tags": ["gcloud", "google", "cloud", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": true
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["gcloud"],
+    "requirements": ["Google Cloud CLI", "An authenticated Google Cloud account"],
+    "setupRequired": true,
+    "collectedData": ["accounts"],
+    "pluginDependencies": []
   }
 }

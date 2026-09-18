@@ -1,10 +1,33 @@
 {
   "name": "devcontainer",
   "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
-  "version": "1.1.12",
+  "version": "1.2.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
+  },
+  "marketplace": {
+    "order": 5,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/devcontainer",
+      "category": "productivity",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
+      "license": "Apache-2.0",
+      "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
+      "tags": ["devcontainer", "tools", "catalog", "f5xc"],
+      "repository": "https://github.com/f5-sales-demo/marketplace"
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["devcontainer"],
+    "requirements": ["A supported development container runtime"],
+    "setupRequired": false,
+    "collectedData": [],
+    "pluginDependencies": []
   }
 }

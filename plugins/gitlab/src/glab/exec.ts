@@ -22,7 +22,7 @@ export class GlabExecError extends Error {
 
 export class GlabAuthError extends GlabExecError {
   constructor(message: string, code = 1) {
-    super(`GitLab auth error: ${message}. Run glab_setup with action "login".`, code);
+    super(`GitLab auth error: ${message}. Run: xcsh plugin setup gitlab`, code);
     this.name = 'GlabAuthError';
   }
 }

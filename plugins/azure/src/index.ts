@@ -1,18 +1,25 @@
 import type { PluginInterface } from './az/types';
-import type { runSetupWizard } from './wizard';
+
+interface IntegrationSnapshot<T> {
+  state: 'ready' | 'setup_required' | 'unavailable' | 'degraded' | 'rate_limited' | 'error';
+  value?: T;
+}
+
+interface AzureAccount {
+  id: string;
+  name?: string;
+  tenantId?: string;
+  environmentName?: string;
+  user: { name: string; type?: string };
+}
 
 interface AzureExtensionApi extends PluginInterface {
   exec(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }>;
   setLabel(label: string): void;
-  registerCommand?(
-    name: string,
-    command: {
-      description: string;
-      handler(args: string, ctx: Parameters<typeof runSetupWizard>[1]): Promise<void>;
-    },
-  ): void;
   registerTool?(tool: unknown): void;
-  registerServiceStatus?(status: unknown): void;
+  integrations: {
+    register<T>(definition: unknown): { get(signal?: AbortSignal): Promise<IntegrationSnapshot<T>> };
+  };
   on?(event: string, handler: unknown): void;
   logger: { debug(message: string): void };
 }
@@ -22,6 +29,23 @@ type ExtensionFactory = (pi: AzureExtensionApi) => void | Promise<void>;
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
+export function retryAfterMsFromHeaders(text: string, now = Date.now()): number | undefined {
+  const retryAfter = text.match(/(?:^|\r?\n)retry-after:\s*([^\r\n]+)/i)?.[1]?.trim();
+  if (retryAfter && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000;
+  if (retryAfter) {
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.max(0, retryAt - now);
+  }
+  const reset = text.match(/(?:^|\r?\n)x-ratelimit-reset:\s*(\d+)/i)?.[1];
+  return reset ? Math.max(0, Number(reset) * 1000 - now) : undefined;
+}
+
+export function azureInstallArgv(platform = process.platform): string[] {
+  if (platform === 'darwin') return ['brew', 'install', 'azure-cli'];
+  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Microsoft.AzureCLI'];
+  return ['sudo', 'apt-get', 'install', '--yes', 'azure-cli'];
 }
 
 export type AzureCePromptIntent = 'none' | 'deployment' | 'inventory';
@@ -71,15 +95,76 @@ export const AZURE_CE_INVENTORY_GATE = [
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('Azure');
 
-  if (typeof pi.registerCommand === 'function') {
-    pi.registerCommand('azure:setup', {
-      description: 'Install and configure Azure CLI and optional extensions',
-      async handler(_args: string, ctx: Parameters<typeof runSetupWizard>[1]) {
-        const { runSetupWizard } = await import('./wizard');
-        await runSetupWizard(pi, ctx);
-      },
-    });
-  }
+  const integration = pi.integrations.register<AzureAccount>({
+    id: 'azure',
+    name: 'Azure',
+    plugin: 'azure',
+    kind: 'network',
+    setup: {
+      pluginDependencies: ['platform'],
+      requiredEnvironment: [],
+      profileFields: ['accounts'],
+      steps: [
+        {
+          kind: 'install',
+          argv: azureInstallArgv(),
+          timeoutMs: 300_000,
+        },
+        {
+          kind: 'install',
+          argv: ['az', 'extension', 'add', '--name', 'resource-graph', '--upgrade'],
+          timeoutMs: 120_000,
+        },
+        {
+          kind: 'login',
+          argv: ['az', 'login', '--use-device-code'],
+          timeoutMs: 300_000,
+        },
+      ],
+      verification: [{ argv: ['az', 'account', 'show', '--output', 'json'], timeoutMs: 30_000 }],
+    },
+    async probe() {
+      const checker = process.platform === 'win32' ? 'where' : 'which';
+      if (Bun.spawnSync([checker, 'az']).exitCode !== 0) return { state: 'setup_required', reason: 'cli_missing' };
+      const result = Bun.spawnSync(['az', 'account', 'show', '--output', 'json']);
+      if (result.exitCode !== 0) {
+        const rawError = new TextDecoder().decode(result.stderr);
+        const error = rawError.toLowerCase();
+        if (/rate limit|too many requests|throttl|429/.test(error))
+          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+        if (error.includes('expired')) return { state: 'setup_required', reason: 'expired' };
+        if (error.includes('denied') || error.includes('forbidden'))
+          return { state: 'unavailable', reason: 'permission_denied' };
+        if (error.includes('connect') || error.includes('network')) return { state: 'unavailable', reason: 'network' };
+        return { state: 'setup_required', reason: 'not_authenticated' };
+      }
+      try {
+        const value = JSON.parse(new TextDecoder().decode(result.stdout)) as AzureAccount;
+        if (!value.id || !value.user?.name) return { state: 'error', reason: 'invalid_response' };
+        return { state: 'ready', value };
+      } catch {
+        return { state: 'error', reason: 'invalid_response' };
+      }
+    },
+    profile(value: AzureAccount) {
+      const principalType = value.user?.type?.toLowerCase() === 'user' ? 'user' : 'service';
+      return {
+        facts: {
+          accounts: [
+            {
+              provider: 'azure',
+              identifier: value.user.name,
+              principalType,
+              accountId: value.id,
+              tenantId: value.tenantId,
+              username: value.user.name,
+            },
+          ],
+        },
+        observations: [],
+      };
+    },
+  });
 
   let azAvailable = false;
   try {
@@ -123,40 +208,15 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(createAzureCloudInitAnalyzeTool(pi));
   }
 
-  if (typeof pi.registerServiceStatus === 'function') {
-    pi.registerServiceStatus({
-      name: 'Azure',
-      async check() {
-        try {
-          const whichChecker = process.platform === 'win32' ? 'where' : 'which';
-          const whichResult = Bun.spawnSync([whichChecker, 'az']);
-          if (whichResult.exitCode !== 0) {
-            return { state: 'unavailable', hint: 'run: /azure:setup' };
-          }
-          const result = Bun.spawnSync(['az', 'account', 'show', '--output', 'json']);
-          if (result.exitCode === 0) return { state: 'connected' };
-          return { state: 'unauthenticated', hint: 'run: /azure:setup' };
-        } catch {
-          return { state: 'unavailable', hint: 'az CLI check failed' };
-        }
-      },
-      fix: {
-        prompt: 'Azure session expired',
-        command: ['az', 'login', '--use-device-code'],
-      },
-    });
-  }
-
   if (typeof pi.on === 'function') {
-    pi.on('before_agent_start', async (event: { prompt?: string }, ctx: { cwd: string }) => {
+    pi.on('before_agent_start', async (event: { prompt?: string }, _ctx: { cwd: string }) => {
       const ceIntent = classifyAzureCePrompt(String(event?.prompt ?? ''));
       const accountLines: string[] = [];
       try {
         if (!azAvailable) throw new Error('az CLI unavailable');
-        const cwd = ctx?.cwd || process.cwd();
-        const result = Bun.spawnSync(['az', 'account', 'show', '--output', 'json'], { cwd });
-        if (result.exitCode === 0) {
-          const account = JSON.parse(new TextDecoder().decode(result.stdout));
+        const snapshot = await integration.get();
+        if (snapshot.state === 'ready' && snapshot.value) {
+          const account = snapshot.value;
           accountLines.push(
             ...[
               account.name ? `Subscription: ${sanitizeHintField(account.name)} (${sanitizeHintField(account.id)})` : '',

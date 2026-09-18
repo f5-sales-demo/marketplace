@@ -1,10 +1,50 @@
 {
   "name": "cloudstatus",
   "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
+  },
+  "marketplace": {
+    "order": 10,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/cloudstatus",
+      "category": "productivity",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
+      "license": "Apache-2.0",
+      "keywords": [
+        "status",
+        "monitoring",
+        "incidents",
+        "maintenance",
+        "statuspage",
+        "operational-intelligence",
+        "network-intelligence",
+        "bgp",
+        "rdap",
+        "rpki",
+        "routing",
+        "location",
+        "peeringdb",
+        "facilities",
+        "f5xc",
+        "atlassian"
+      ],
+      "tags": ["status", "network-intelligence", "routing", "peering", "f5xc"],
+      "repository": "https://github.com/f5-sales-demo/marketplace"
+    }
+  },
+  "lifecycle": {
+    "mode": "on_demand",
+    "integrations": ["cloudstatus"],
+    "requirements": ["Network access when a cloud-status command is invoked"],
+    "setupRequired": false,
+    "collectedData": [],
+    "pluginDependencies": []
   }
 }

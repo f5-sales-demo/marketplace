@@ -162,6 +162,9 @@ if [ "$INSTALLED_FAILURES" -ne 0 ] && $REPAIR; then
   }
   echo "Repairing installed plugin dependencies from frozen lockfiles..." >&2
   for plugin in "${RUNTIME_PLUGINS[@]}"; do
+    # Bun's forced frozen install may retain stale package links from a restored
+    # node_modules cache. Rebuild the generated graph so repair is deterministic.
+    rm -rf "$REPO_ROOT/plugins/$plugin/node_modules"
     (
       cd "$REPO_ROOT/plugins/$plugin"
       PUPPETEER_SKIP_DOWNLOAD=1 bun install --force --frozen-lockfile

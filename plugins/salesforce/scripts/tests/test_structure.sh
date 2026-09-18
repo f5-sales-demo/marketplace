@@ -72,8 +72,6 @@ test_expected_files_exist() {
     "skills/salesforce-index/SKILL.md"
     "skills/salesforce-auth/SKILL.md"
     "agents/cli-operator.md"
-    "commands/sf-login.md"
-    "commands/sf-status.md"
   )
   for f in "${files[@]}"; do
     [ -f "$PLUGIN_ROOT/$f" ] || {
@@ -149,42 +147,18 @@ test_agent_tools() {
 # T1.8 — command files have description in frontmatter
 test_command_frontmatter() {
   for cmd in sf-login sf-status; do
-    local file="$PLUGIN_ROOT/commands/${cmd}.md"
-    local desc
-    desc=$(frontmatter_value "$file" "description")
-    [ -n "$desc" ] || {
-      echo "$cmd: missing description"
+    [ ! -e "$PLUGIN_ROOT/commands/${cmd}.md" ] || {
+      echo "legacy provider command remains: $cmd"
       return 1
     }
   done
-
-  local hint
-  hint=$(frontmatter_value "$PLUGIN_ROOT/commands/sf-login.md" "argument-hint")
-  [ -n "$hint" ] || {
-    echo "sf-login: missing argument-hint"
-    return 1
-  }
 }
 
 # T1.9 — hooks.json is valid JSON with correct structure
 test_hooks_json_structure() {
   local hj="$PLUGIN_ROOT/hooks/hooks.json"
-  jq -e '.' "$hj" >/dev/null || {
-    echo "hooks.json is not valid JSON"
-    return 1
-  }
-
-  local hook_type
-  hook_type=$(jq -r '.hooks.SessionStart[0].hooks[0].type' "$hj")
-  [ "$hook_type" = "command" ] || {
-    echo "hook type=$hook_type, expected command"
-    return 1
-  }
-
-  local timeout
-  timeout=$(jq -r '.hooks.SessionStart[0].hooks[0].timeout' "$hj")
-  [[ "$timeout" =~ ^[0-9]+$ ]] || {
-    echo "timeout is not a number: $timeout"
+  jq -e '.hooks | type == "object" and .SessionStart == null' "$hj" >/dev/null || {
+    echo "hooks.json must contain an object with no legacy SessionStart probe"
     return 1
   }
 }
@@ -192,12 +166,12 @@ test_hooks_json_structure() {
 # T1.10 — hook command is syntactically valid shell
 test_hook_command_syntax() {
   local hj="$PLUGIN_ROOT/hooks/hooks.json"
-  local cmd
-  cmd=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$hj")
-  bash -n <<<"$cmd" || {
-    echo "hook command has syntax error"
-    return 1
-  }
+  while IFS= read -r cmd; do
+    bash -n <<<"$cmd" || {
+      echo "hook command has syntax error"
+      return 1
+    }
+  done < <(jq -r '.hooks[][]?.hooks[]? | select(.type == "command") | .command' "$hj")
 }
 
 # T1.11 — package.json declares xcsh extensions entry point
@@ -232,19 +206,19 @@ test_T1_12_src_index_exports_default_factory() {
   fi
 }
 
-# T1.13 — extension registers at least 4 tools
+# T1.13 — extension registers the expected tool factories
 test_T1_13_extension_registers_tools() {
   local entry="$PLUGIN_ROOT/src/index.ts"
   if [[ ! -f "$entry" ]]; then
     echo "SKIP: no src/index.ts"
     return 0
   fi
-  local count
-  count=$(grep -c "registerTool" "$entry")
-  if [[ "$count" -lt 4 ]]; then
-    echo "FAIL: src/index.ts should register at least 4 tools, found $count"
-    return 1
-  fi
+  for factory in createSfQueryTool createSfDescribeTool createSfOrgDisplayTool createSfPipelineReportTool createSfHelpTool createSfExecTool; do
+    grep -q "$factory(pi)" "$entry" || {
+      echo "FAIL: src/index.ts does not register $factory"
+      return 1
+    }
+  done
 }
 
 # T1.14 — all expected tool factory files exist
@@ -255,7 +229,7 @@ test_T1_14_tool_factories_exist() {
     return 0
   fi
   local missing=()
-  for f in sf-setup.ts sf-query.ts sf-org-display.ts sf-pipeline-report.ts shared.ts; do
+  for f in sf-query.ts sf-org-display.ts sf-pipeline-report.ts shared.ts; do
     [[ -f "$tools_dir/$f" ]] || missing+=("$f")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
@@ -289,16 +263,8 @@ test_T1_15_salesforce_context_exists() {
 # T1.16 — hooks.json references /salesforce:setup, not brew
 test_T1_16_hook_references_setup_command() {
   local hook="$PLUGIN_ROOT/hooks/hooks.json"
-  if [[ ! -f "$hook" ]]; then
-    echo "FAIL: hooks.json missing"
-    return 1
-  fi
-  if ! grep -q "salesforce:setup" "$hook"; then
-    echo "FAIL: hooks.json should reference /salesforce:setup"
-    return 1
-  fi
-  if grep -q "brew install" "$hook"; then
-    echo "FAIL: hooks.json should not hardcode brew (cross-platform)"
+  if grep -Eq 'salesforce:setup|brew install|apt(-get)? install' "$hook"; then
+    echo "FAIL: hooks.json contains legacy setup or installer commands"
     return 1
   fi
 }

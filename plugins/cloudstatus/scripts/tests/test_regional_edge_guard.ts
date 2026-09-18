@@ -18,6 +18,7 @@ function guard() {
   let toolResult: ToolResultHandler | undefined;
   let sessionStart: SessionStartHandler | undefined;
   regionalEdgeGuard({
+    integrations: { register() {} },
     on(event: string, handler: ToolCallHandler | ToolResultHandler | SessionStartHandler) {
       if (event === 'tool_call') toolCall = handler as ToolCallHandler;
       if (event === 'tool_result') toolResult = handler as ToolResultHandler;

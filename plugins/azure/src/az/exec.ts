@@ -31,10 +31,10 @@ export class AzNotFoundError extends Error {
 export function detectAzError(stderr: string, _exitCode: number): Error {
   const lower = stderr.toLowerCase();
   if (lower.includes('az login') || lower.includes('no subscription found')) {
-    return new AzAuthError(stderr);
+    return new AzAuthError(`${stderr.trim()}\nRun: xcsh plugin setup azure`);
   }
   if (lower.includes('aadsts') || lower.includes('token has expired') || lower.includes('not yet valid')) {
-    return new AzSessionExpiredError(stderr);
+    return new AzSessionExpiredError(`${stderr.trim()}\nRun: xcsh plugin setup azure`);
   }
   return new AzExecError(stderr);
 }

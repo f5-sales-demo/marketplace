@@ -22,5 +22,5 @@ Spawn the `github:github-ops` agent with the following instructions:
    - Rate limit remaining/total and reset time
    - Current repo name and default branch (if in a git repo)
    - Current branch and uncommitted changes count
-7. If not authenticated, suggest using `/github:gh-login`
-8. If gh CLI is not installed, suggest using `/github:setup`
+7. If not authenticated, report `setup_required` and suggest `xcsh plugin setup github`
+8. If gh CLI is not installed, report `setup_required` and suggest `xcsh plugin setup github`

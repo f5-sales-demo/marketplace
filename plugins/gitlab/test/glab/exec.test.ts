@@ -36,7 +36,7 @@ describe('detectGlabError', () => {
   it('preserves the decorated auth message text', () => {
     const e = detectGlabError('token expired', '', 1);
     expect(e.message).toContain('GitLab auth error');
-    expect(e.message).toContain('glab_setup');
+    expect(e.message).toContain('xcsh plugin setup gitlab');
   });
   it('preserves the decorated not-found message text', () => {
     const e = detectGlabError('404 not found', '', 1);

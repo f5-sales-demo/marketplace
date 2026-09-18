@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Type } from '@sinclair/typebox';
+import { configurePersonProfile, configureSalesforceContext } from '../../src/context/salesforce-context';
 import { createSfPipelineReportTool } from '../../src/tools/sf-pipeline-report';
 
 // Validation tests must never reach a real CLI: whether one is installed, and how long it
@@ -9,6 +10,16 @@ const stubExec = () => ({
 });
 
 const mockPi = { typebox: { Type }, logger: { debug() {} } };
+
+beforeEach(() => {
+  configurePersonProfile(async () => ({}));
+  configureSalesforceContext(async () => null);
+});
+
+afterEach(() => {
+  configurePersonProfile();
+  configureSalesforceContext();
+});
 
 describe('createSfPipelineReportTool', () => {
   it('returns a tool definition with correct name and label', () => {

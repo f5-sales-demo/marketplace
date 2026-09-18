@@ -32,4 +32,4 @@ For advanced field selection, add `--query` with a JMESPath expression, e.g.
 ## Related Commands
 
 - `aws configure list` — Show the resolved credential/config sources
-- `aws sso login --profile NAME` — Refresh an expired SSO session
+- `xcsh plugin setup aws` — Run the reviewed human-only setup flow for missing or expired authentication
