@@ -73,7 +73,7 @@ class Query:
 
 def _utc_now() -> str:
     return (
-        dt.datetime.now(dt.timezone.utc)
+        dt.datetime.now(dt.UTC)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -157,7 +157,7 @@ def _retry_delay(value: str | None, attempt: int) -> float:
         except ValueError:
             try:
                 parsed = email.utils.parsedate_to_datetime(value)
-                now = dt.datetime.now(parsed.tzinfo or dt.timezone.utc)
+                now = dt.datetime.now(parsed.tzinfo or dt.UTC)
                 return min(MAX_RETRY_AFTER, max(0.0, (parsed - now).total_seconds()))
             except (TypeError, ValueError, OverflowError):
                 pass
