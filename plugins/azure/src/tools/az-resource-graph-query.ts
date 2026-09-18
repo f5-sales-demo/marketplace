@@ -112,7 +112,7 @@ export function createAzResourceGraphQueryTool(pi: PluginInterface, makeApi: (cw
         options,
       );
       if (extension.exitCode !== 0) {
-        return errorResult('Azure Resource Graph is not installed. Run /azure:setup to install it.', {
+        return errorResult('Azure Resource Graph is not installed. Run: xcsh plugin setup azure', {
           tool: 'az_resource_graph_query',
           outcome: 'setup_required',
         });
@@ -124,10 +124,13 @@ export function createAzResourceGraphQueryTool(pi: PluginInterface, makeApi: (cw
         if (extensionInfo.name !== 'resource-graph' || !extensionInfo.version)
           throw new Error('invalid extension identity');
       } catch {
-        return errorResult('The installed Resource Graph extension could not be identified. Run /azure:setup.', {
-          tool: 'az_resource_graph_query',
-          outcome: 'unsupported_extension',
-        });
+        return errorResult(
+          'The installed Resource Graph extension could not be identified. Run: xcsh plugin setup azure',
+          {
+            tool: 'az_resource_graph_query',
+            outcome: 'unsupported_extension',
+          },
+        );
       }
       const help = await api.exec('az', ['graph', 'query', '--help'], options);
       const missingFlags = RESOURCE_GRAPH_REQUIRED_FLAGS.filter(
@@ -135,7 +138,7 @@ export function createAzResourceGraphQueryTool(pi: PluginInterface, makeApi: (cw
       );
       if (help.exitCode !== 0 || missingFlags.length > 0) {
         return errorResult(
-          'The installed Resource Graph extension lacks required query capabilities. Run /azure:setup.',
+          'The installed Resource Graph extension lacks required query capabilities. Run: xcsh plugin setup azure',
           {
             tool: 'az_resource_graph_query',
             outcome: 'unsupported_extension',

@@ -25,7 +25,7 @@ export interface ToolContext {
 /**
  * The host object passed to an extension factory.
  *
- * `registerCommand`, `registerServiceStatus` and `on` are optional because `index.ts`
+ * `registerCommand` and `on` are optional because `index.ts`
  * feature-detects them with `typeof pi.x === 'function'` before use — an older host may not
  * provide them, and the type should not pretend otherwise.
  */
@@ -49,7 +49,6 @@ export interface PluginHost {
   /** Register a slash command. Feature-detected in `index.ts`. */
   registerCommand?: (name: string, definition: unknown) => void;
   /** Register a status line entry. Feature-detected in `index.ts`. */
-  registerServiceStatus?: (status: unknown) => void;
   /** Subscribe to a host lifecycle event. Feature-detected in `index.ts`. */
   on?: (event: string, handler: (event: unknown, ctx: ToolContext) => unknown) => void;
 }

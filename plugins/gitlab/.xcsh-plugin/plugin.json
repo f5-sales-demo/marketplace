@@ -1,12 +1,36 @@
 {
   "name": "gitlab",
-  "description": "GitLab CLI integration — native xcsh tools (glab_setup, glab_issue_list, glab_issue_view, glab_search), welcome screen status, and issue management via glab CLI",
-  "version": "1.2.7",
+  "description": "GitLab CLI integration with shared lifecycle readiness, profile discovery, and issue management tools",
+  "version": "1.3.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
   },
   "keywords": ["gitlab", "glab", "issues", "git", "xcsh-extension"],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5-sales-demo/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace",
+  "marketplace": {
+    "order": 15,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/gitlab",
+      "category": "development",
+      "keywords": ["gitlab", "glab", "issues", "git"],
+      "tags": ["gitlab", "development", "cli", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gitlab",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": true
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["gitlab"],
+    "requirements": ["GitLab CLI", "An authenticated GitLab account"],
+    "setupRequired": true,
+    "collectedData": ["accounts"],
+    "pluginDependencies": []
+  }
 }

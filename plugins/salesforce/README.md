@@ -21,7 +21,7 @@ skills for Salesforce development.
 /salesforce:sf-status
 
 # Authenticate to an org
-/salesforce:sf-login my-org
+xcsh plugin setup salesforce
 ```
 
 ## xcsh Extension
@@ -35,7 +35,6 @@ detected in the environment.
 
 | Tool | Purpose |
 | --- | --- |
-| `sf_setup` | Verify Salesforce CLI installation and org connectivity |
 | `sf_query` | Execute SOQL queries against authenticated orgs |
 | `sf_describe` | Look up an object's real field and relationship names |
 | `sf_org_display` | Display org details (alias, username, instance URL, status) |
@@ -88,52 +87,17 @@ conversation.
 
 ## Authentication
 
-### Workstation (browser available)
-
-Find your Salesforce domain from your browser URL
-(`https://example-corp.lightning.force.com` means your domain is
-`example-corp.my.salesforce.com`), then run:
-
-```bash
-sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
-```
-
-### Container / headless (no browser)
-
-Export the SFDX auth URL from an authenticated workstation:
-
-```bash
-sf org display --verbose --target-org my-org
-```
-
-Copy the `Sfdx Auth Url` value, then in the container:
-
-```bash
-echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
-```
-
-### All authentication methods
-
-| Method       | Best For                      | Command                     |
-| ------------ | ----------------------------- | --------------------------- |
-| Web Login    | Workstations with browser/SSO | `sf org login web`          |
-| SFDX URL     | Containers, CI/CD             | `sf org login sfdx-url`     |
-| JWT Bearer   | Automated pipelines           | `sf org login jwt`          |
-| Access Token | Environment variable auth     | `sf org login access-token` |
-
-**Note:** Device flow (`sf org login device`) is blocked since August
-2025.
+Run `xcsh plugin setup salesforce` from an interactive terminal. xcsh
+shows the immutable installer, login, dependency, environment-name,
+profile-collection, and verification plan before asking for confirmation.
+The plugin never performs authentication from a model-callable tool.
 
 ## Environment Variables
 
-| Variable              | Purpose                            |
-| --------------------- | ---------------------------------- |
-| `SF_ACCESS_TOKEN`     | Bearer token for access-token auth |
-| `SFDX_AUTH_URL`       | Force auth URL for sfdx-url auth   |
-| `SF_ORG_INSTANCE_URL` | Org instance URL                   |
-| `SF_JWT_KEY_FILE`     | Path to JWT private key            |
-| `SF_CLIENT_ID`        | Connected App consumer key         |
-| `SF_USERNAME`         | Salesforce username for JWT        |
+| Variable        | Purpose                                  |
+| --------------- | ---------------------------------------- |
+| `SF_TARGET_ORG` | Existing Salesforce target-org selection |
+| `SFDX_AUTH_URL` | Provider-managed authentication input    |
 
 ## Usage Examples
 
@@ -199,7 +163,7 @@ give me a full account overview for ACCOUNT NAME including contacts, open opport
 
 | Command                 | Purpose                          |
 | ----------------------- | -------------------------------- |
-| `/salesforce:sf-login`  | Authenticate to a Salesforce org |
+| `xcsh plugin setup salesforce` | Review and run Salesforce installation and authentication |
 | `/salesforce:sf-status` | Check org connection status      |
 
 ## CLI Agent

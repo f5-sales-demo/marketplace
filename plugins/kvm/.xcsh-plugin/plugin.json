@@ -1,10 +1,40 @@
 {
   "name": "kvm",
   "description": "Deterministic F5 Distributed Cloud Secure Mesh Site v2 lifecycle for KVM, libvirt, and Terraform-owned FRR routing",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
+  },
+  "marketplace": {
+    "order": 13,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/kvm",
+      "category": "development",
+      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "frr", "terraform"],
+      "tags": ["kvm", "libvirt", "f5xc", "customer-edge", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": true
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["kvm"],
+    "requirements": [
+      "Terraform CLI",
+      "libvirt and qemu system access",
+      "Docker CLI",
+      "curl",
+      "F5 Distributed Cloud Platform integration"
+    ],
+    "setupRequired": true,
+    "collectedData": [],
+    "pluginDependencies": ["platform", "aws", "terraform"]
   }
 }

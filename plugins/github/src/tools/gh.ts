@@ -297,10 +297,12 @@ const GH_SEARCH_FIELDS = [
 ];
 const SEARCH_LIMIT_DEFAULT = 10;
 const SEARCH_LIMIT_MAX = 50;
-const RUN_WATCH_INTERVAL_DEFAULT = 3;
-const RUN_WATCH_GRACE_DEFAULT = 5;
+const RUN_WATCH_INTERVAL_DEFAULT = 30;
+const RUN_WATCH_INTERVAL_MAX = 120;
+const RUN_WATCH_TIMEOUT_MS = 30 * 60 * 1000;
 const RUN_WATCH_TAIL_DEFAULT = 15;
 const RUN_WATCH_TAIL_MAX = 200;
+const RUN_WATCH_HTTP_CACHE = '1s';
 const REVIEW_COMMENTS_PAGE_SIZE = 100;
 const RUN_JOBS_PAGE_SIZE = 100;
 const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
@@ -452,6 +454,21 @@ export interface GhToolDetails {
   conclusion?: string;
   failedJobs?: string[];
   watch?: GhRunWatchViewDetails;
+}
+
+const activeRunWatches = new Map<string, Promise<AgentToolResult<GhToolDetails>>>();
+
+function shareRunWatch(
+  key: string,
+  start: () => Promise<AgentToolResult<GhToolDetails>>,
+): Promise<AgentToolResult<GhToolDetails>> {
+  const existing = activeRunWatches.get(key);
+  if (existing) return existing;
+  const current = start().finally(() => {
+    if (activeRunWatches.get(key) === current) activeRunWatches.delete(key);
+  });
+  activeRunWatches.set(key, current);
+  return current;
 }
 
 export interface GhRunWatchJobDetails {
@@ -1224,12 +1241,11 @@ async function resolveGitHubRepo(
     return runRepo;
   }
 
-  const resolved = await git.github.text(
-    cwd,
-    ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'],
-    signal,
-  );
-  return requireNonEmpty(resolved, 'repo');
+  const repoRoot = await git.repo.root(cwd, signal);
+  if (!repoRoot) throw new ToolError('current directory is not a Git repository');
+  const remoteUrl = await git.remote.url(repoRoot, 'origin', signal);
+  const match = remoteUrl?.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/i);
+  return requireNonEmpty(match?.[1], 'repo');
 }
 
 async function resolveGitHubBranchHead(
@@ -1238,13 +1254,10 @@ async function resolveGitHubBranchHead(
   branch: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const response = await git.github.json<GhBranchApiResponse>(
-    cwd,
-    ['api', '--method', 'GET', `/repos/${repo}/branches/${encodeURIComponent(branch)}`],
-    signal,
-    { repoProvided: true },
-  );
-  return requireNonEmpty(response.commit?.sha, `head SHA for branch ${branch}`);
+  void repo;
+  const local = await git.ref.resolve(cwd, branch, signal);
+  const remote = local ?? (await git.ref.resolve(cwd, `refs/remotes/origin/${branch}`, signal));
+  return requireNonEmpty(remote ?? undefined, `head SHA for branch ${branch}`);
 }
 
 async function fetchRunsForCommit(
@@ -1260,6 +1273,8 @@ async function fetchRunsForCommit(
       'api',
       '--method',
       'GET',
+      '--cache',
+      RUN_WATCH_HTTP_CACHE,
       `/repos/${repo}/actions/runs`,
       '-F',
       `head_sha=${headSha}`,
@@ -1271,14 +1286,18 @@ async function fetchRunsForCommit(
     { repoProvided: true },
   );
 
-  return Promise.all(
-    (response.workflow_runs ?? [])
-      .filter((run): run is GhActionsRunApi & { id: number } => typeof run.id === 'number')
-      .map(async (run) => {
-        const jobs = await fetchRunJobs(cwd, repo, run.id, signal);
-        return normalizeRunSnapshot(run, jobs);
-      }),
-  );
+  return (response.workflow_runs ?? [])
+    .filter((run): run is GhActionsRunApi & { id: number } => typeof run.id === 'number')
+    .map((run) => normalizeRunSnapshot(run, []));
+}
+
+async function hydrateRunJobs(
+  cwd: string,
+  repo: string,
+  runs: GhRunSnapshot[],
+  signal?: AbortSignal,
+): Promise<GhRunSnapshot[]> {
+  return Promise.all(runs.map(async (run) => ({ ...run, jobs: await fetchRunJobs(cwd, repo, run.id, signal) })));
 }
 
 async function fetchRunJobs(
@@ -1372,14 +1391,13 @@ async function fetchRunSnapshot(
   runId: number,
   signal?: AbortSignal,
 ): Promise<GhRunSnapshot> {
-  const [run, jobs] = await Promise.all([
-    git.github.json<GhActionsRunApi>(cwd, ['api', '--method', 'GET', `/repos/${repo}/actions/runs/${runId}`], signal, {
-      repoProvided: true,
-    }),
-    fetchRunJobs(cwd, repo, runId, signal),
-  ]);
-
-  return normalizeRunSnapshot(run, jobs);
+  const run = await git.github.json<GhActionsRunApi>(
+    cwd,
+    ['api', '--method', 'GET', '--cache', RUN_WATCH_HTTP_CACHE, `/repos/${repo}/actions/runs/${runId}`],
+    signal,
+    { repoProvided: true },
+  );
+  return normalizeRunSnapshot(run, []);
 }
 
 async function fetchFailedJobLogs(
@@ -2063,110 +2081,149 @@ export class GhRunWatchTool implements AgentTool<typeof ghRunWatchSchema, GhTool
       const branchInput = normalizeOptionalString(params.branch);
       const runReference = parseRunReference(params.run);
       const repo = await resolveGitHubRepo(this.session.cwd, undefined, runReference.repo, signal);
-      const intervalSeconds = RUN_WATCH_INTERVAL_DEFAULT;
-      const graceSeconds = RUN_WATCH_GRACE_DEFAULT;
+      let intervalSeconds = RUN_WATCH_INTERVAL_DEFAULT;
       const tail = resolveTailLimit(params.tail);
+      const startedAt = Date.now();
       if (runReference.runId !== undefined) {
         const runId = runReference.runId;
-        let pollCount = 0;
+        return shareRunWatch(`run:${repo}:${runId}`, async () => {
+          let pollCount = 0;
 
-        while (true) {
-          throwIfAborted(signal);
-          pollCount += 1;
+          while (true) {
+            throwIfAborted(signal);
+            pollCount += 1;
 
-          let run = await fetchRunSnapshot(this.session.cwd, repo, runId, signal);
-          const details = buildRunWatchDetails(repo, run, {
-            state: 'watching',
-            pollCount,
-          });
-          onUpdate?.({
-            content: [{ type: 'text', text: formatRunWatchSnapshot(repo, run, pollCount) }],
-            details,
-          });
+            let run = await fetchRunSnapshot(this.session.cwd, repo, runId, signal);
+            if (run.status === 'completed') run = (await hydrateRunJobs(this.session.cwd, repo, [run], signal))[0];
+            const details = buildRunWatchDetails(repo, run, {
+              state: 'watching',
+              pollCount,
+            });
+            onUpdate?.({
+              content: [{ type: 'text', text: formatRunWatchSnapshot(repo, run, pollCount) }],
+              details,
+            });
 
-          const failedJobs = run.jobs.filter(isFailedJob);
-          const runCompleted = run.status === 'completed';
+            const failedJobs = run.jobs.filter(isFailedJob);
+            const runCompleted = run.status === 'completed';
 
-          if (failedJobs.length > 0) {
-            if (!runCompleted && graceSeconds > 0) {
-              const note = `Failure detected. Waiting ${graceSeconds}s to capture concurrent failures before fetching logs.`;
-              onUpdate?.({
-                content: [
-                  {
-                    type: 'text',
-                    text: formatRunWatchSnapshot(repo, run, pollCount, note),
-                  },
-                ],
-                details: buildRunWatchDetails(repo, run, {
-                  state: 'watching',
-                  pollCount,
-                  note,
-                }),
+            if (failedJobs.length > 0) {
+              const failedJobLogs = await fetchFailedJobLogs(
+                this.session.cwd,
+                repo,
+                run.jobs.filter(isFailedJob).map((job) => ({ run, job })),
+                tail,
+                signal,
+              );
+              const finalDetails = buildRunWatchDetails(repo, run, {
+                state: 'completed',
+                failedJobLogs,
               });
-              await abortableSleep(graceSeconds * 1000, signal);
-              run = await fetchRunSnapshot(this.session.cwd, repo, runId, signal);
+              const artifactId = await saveArtifactText(
+                this.session,
+                this.name,
+                formatRunWatchResult(repo, run, failedJobLogs, tail, { mode: 'full' }),
+              );
+              return buildTextResult(
+                formatRunWatchResult(repo, run, failedJobLogs, tail),
+                run.url,
+                { ...finalDetails, artifactId },
+                { artifactId, artifactLabel: 'Full failed-job logs' },
+              );
             }
 
-            const failedJobLogs = await fetchFailedJobLogs(
-              this.session.cwd,
-              repo,
-              run.jobs.filter(isFailedJob).map((job) => ({ run, job })),
-              tail,
-              signal,
-            );
-            const finalDetails = buildRunWatchDetails(repo, run, {
-              state: 'completed',
-              failedJobLogs,
-            });
-            const artifactId = await saveArtifactText(
-              this.session,
-              this.name,
-              formatRunWatchResult(repo, run, failedJobLogs, tail, { mode: 'full' }),
-            );
-            return buildTextResult(
-              formatRunWatchResult(repo, run, failedJobLogs, tail),
-              run.url,
-              { ...finalDetails, artifactId },
-              { artifactId, artifactLabel: 'Full failed-job logs' },
-            );
-          }
+            if (runCompleted) {
+              const finalDetails = buildRunWatchDetails(repo, run, {
+                state: 'completed',
+              });
+              return buildTextResult(formatRunWatchResult(repo, run, [], tail), run.url, finalDetails);
+            }
 
-          if (runCompleted) {
-            const finalDetails = buildRunWatchDetails(repo, run, {
-              state: 'completed',
-            });
-            return buildTextResult(formatRunWatchResult(repo, run, [], tail), run.url, finalDetails);
-          }
+            if (Date.now() - startedAt >= RUN_WATCH_TIMEOUT_MS) {
+              const note = `Still pending after 30 minutes. Resume with gh_run_watch run=${run.id}.`;
+              return buildTextResult(formatRunWatchSnapshot(repo, run, pollCount, note), run.url, {
+                ...details,
+                watch: details.watch ? { ...details.watch, note } : undefined,
+              });
+            }
 
-          await abortableSleep(intervalSeconds * 1000, signal);
-        }
+            await abortableSleep(intervalSeconds * 1000, signal);
+            intervalSeconds = Math.min(RUN_WATCH_INTERVAL_MAX, Math.ceil(intervalSeconds * 1.5));
+          }
+        });
       }
 
       const branch = branchInput ?? (await requireCurrentGitBranch(this.session.cwd, signal));
       const headSha = branchInput
         ? await resolveGitHubBranchHead(this.session.cwd, repo, branch, signal)
         : await requireCurrentGitHead(this.session.cwd, signal);
-      let pollCount = 0;
-      let settledSuccessSignature: string | undefined;
+      return shareRunWatch(`commit:${repo}:${headSha}`, async () => {
+        let pollCount = 0;
+        let settledSuccessSignature: string | undefined;
 
-      while (true) {
-        throwIfAborted(signal);
-        pollCount += 1;
+        while (true) {
+          throwIfAborted(signal);
+          pollCount += 1;
 
-        let runs = await fetchRunsForCommit(this.session.cwd, repo, headSha, branch, signal);
-        const details = buildCommitRunWatchDetails(repo, headSha, branch, runs, {
-          state: 'watching',
-          pollCount,
-        });
-        onUpdate?.({
-          content: [{ type: 'text', text: formatCommitRunWatchSnapshot(repo, headSha, branch, runs, pollCount) }],
-          details,
-        });
+          let runs = await fetchRunsForCommit(this.session.cwd, repo, headSha, branch, signal);
+          const details = buildCommitRunWatchDetails(repo, headSha, branch, runs, {
+            state: 'watching',
+            pollCount,
+          });
+          onUpdate?.({
+            content: [{ type: 'text', text: formatCommitRunWatchSnapshot(repo, headSha, branch, runs, pollCount) }],
+            details,
+          });
 
-        const outcome = getRunCollectionOutcome(runs);
-        if (outcome === 'failure') {
-          if (graceSeconds > 0) {
-            const note = `Failure detected. Waiting ${graceSeconds}s to capture concurrent failures before fetching logs.`;
+          const outcome = getRunCollectionOutcome(runs);
+          if (outcome === 'failure') {
+            if (!runs.every((run) => run.status === 'completed')) {
+              await abortableSleep(intervalSeconds * 1000, signal);
+              intervalSeconds = Math.min(RUN_WATCH_INTERVAL_MAX, Math.ceil(intervalSeconds * 1.5));
+              continue;
+            }
+
+            runs = await hydrateRunJobs(this.session.cwd, repo, runs, signal);
+            const failedJobLogs = await fetchFailedJobLogs(
+              this.session.cwd,
+              repo,
+              runs.flatMap((run) => run.jobs.filter(isFailedJob).map((job) => ({ run, job }))),
+              tail,
+              signal,
+            );
+            const finalDetails = buildCommitRunWatchDetails(repo, headSha, branch, runs, {
+              state: 'completed',
+              failedJobLogs,
+            });
+            const artifactId = await saveArtifactText(
+              this.session,
+              this.name,
+              formatCommitRunWatchResult(repo, headSha, branch, runs, failedJobLogs, tail, { mode: 'full' }),
+            );
+            return buildTextResult(
+              formatCommitRunWatchResult(repo, headSha, branch, runs, failedJobLogs, tail),
+              undefined,
+              { ...finalDetails, artifactId },
+              { artifactId, artifactLabel: 'Full failed-job logs' },
+            );
+          }
+
+          if (outcome === 'success') {
+            const signature = getRunCollectionSignature(runs);
+            if (signature === settledSuccessSignature) {
+              runs = await hydrateRunJobs(this.session.cwd, repo, runs, signal);
+              const finalDetails = buildCommitRunWatchDetails(repo, headSha, branch, runs, {
+                state: 'completed',
+              });
+              return buildTextResult(
+                formatCommitRunWatchResult(repo, headSha, branch, runs, [], tail),
+                undefined,
+                finalDetails,
+              );
+            }
+
+            settledSuccessSignature = signature;
+            const note = `All known workflow runs completed successfully. Waiting ${intervalSeconds}s to ensure no additional runs appear for this commit.`;
             onUpdate?.({
               content: [
                 {
@@ -2180,69 +2237,27 @@ export class GhRunWatchTool implements AgentTool<typeof ghRunWatchSchema, GhTool
                 note,
               }),
             });
-            await abortableSleep(graceSeconds * 1000, signal);
-            runs = await fetchRunsForCommit(this.session.cwd, repo, headSha, branch, signal);
+            await abortableSleep(intervalSeconds * 1000, signal);
+            intervalSeconds = Math.min(RUN_WATCH_INTERVAL_MAX, Math.ceil(intervalSeconds * 1.5));
+            continue;
           }
 
-          const failedJobLogs = await fetchFailedJobLogs(
-            this.session.cwd,
-            repo,
-            runs.flatMap((run) => run.jobs.filter(isFailedJob).map((job) => ({ run, job }))),
-            tail,
-            signal,
-          );
-          const finalDetails = buildCommitRunWatchDetails(repo, headSha, branch, runs, {
-            state: 'completed',
-            failedJobLogs,
-          });
-          const artifactId = await saveArtifactText(
-            this.session,
-            this.name,
-            formatCommitRunWatchResult(repo, headSha, branch, runs, failedJobLogs, tail, { mode: 'full' }),
-          );
-          return buildTextResult(
-            formatCommitRunWatchResult(repo, headSha, branch, runs, failedJobLogs, tail),
-            undefined,
-            { ...finalDetails, artifactId },
-            { artifactId, artifactLabel: 'Full failed-job logs' },
-          );
-        }
-
-        if (outcome === 'success') {
-          const signature = getRunCollectionSignature(runs);
-          if (signature === settledSuccessSignature) {
-            const finalDetails = buildCommitRunWatchDetails(repo, headSha, branch, runs, {
-              state: 'completed',
-            });
+          settledSuccessSignature = undefined;
+          if (Date.now() - startedAt >= RUN_WATCH_TIMEOUT_MS) {
+            const note = `Still pending after 30 minutes. Resume with gh_run_watch for commit ${headSha}.`;
             return buildTextResult(
-              formatCommitRunWatchResult(repo, headSha, branch, runs, [], tail),
+              formatCommitRunWatchSnapshot(repo, headSha, branch, runs, pollCount, note),
               undefined,
-              finalDetails,
+              {
+                ...details,
+                watch: details.watch ? { ...details.watch, note } : undefined,
+              },
             );
           }
-
-          settledSuccessSignature = signature;
-          const note = `All known workflow runs completed successfully. Waiting ${intervalSeconds}s to ensure no additional runs appear for this commit.`;
-          onUpdate?.({
-            content: [
-              {
-                type: 'text',
-                text: formatCommitRunWatchSnapshot(repo, headSha, branch, runs, pollCount, note),
-              },
-            ],
-            details: buildCommitRunWatchDetails(repo, headSha, branch, runs, {
-              state: 'watching',
-              pollCount,
-              note,
-            }),
-          });
           await abortableSleep(intervalSeconds * 1000, signal);
-          continue;
+          intervalSeconds = Math.min(RUN_WATCH_INTERVAL_MAX, Math.ceil(intervalSeconds * 1.5));
         }
-
-        settledSuccessSignature = undefined;
-        await abortableSleep(intervalSeconds * 1000, signal);
-      }
+      });
     });
   }
 }

@@ -48,26 +48,18 @@ test_agent_sanitization_regex() {
   }
 }
 
-# T1.14 — auth skill uses --sfdx-url-stdin (not file-based)
+# T1.14 — the generic setup login keeps interactive input off argv
 test_auth_uses_stdin_pipe() {
-  local skill="$PLUGIN_ROOT/skills/salesforce-auth/SKILL.md"
-  local count
-  count=$(grep -c 'sfdx-url-stdin' "$skill")
-  [ "$count" -ge 2 ] || {
-    echo "expected >=2 references to --sfdx-url-stdin, found $count"
+  grep -q "stdin: 'inherit'" "$PLUGIN_ROOT/src/index.ts" || {
+    echo "Salesforce login step must inherit stdin"
     return 1
   }
 }
 
-# T1.15 — device flow documented as blocked
+# T1.15 — unsupported device login is absent from the setup plan
 test_device_flow_blocked() {
-  local skill="$PLUGIN_ROOT/skills/salesforce-auth/SKILL.md"
-  grep -qi 'blocked' "$skill" || {
-    echo "device flow not documented as blocked"
+  if grep -q "'login', 'device'" "$PLUGIN_ROOT/src/index.ts"; then
+    echo "unsupported Salesforce device login remains in the setup plan"
     return 1
-  }
-  grep -qi 'device' "$skill" || {
-    echo "no mention of device flow"
-    return 1
-  }
+  fi
 }

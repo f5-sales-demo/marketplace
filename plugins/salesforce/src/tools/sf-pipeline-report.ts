@@ -110,7 +110,7 @@ export function createSfPipelineReportTool(pi: PluginHost, makeApi: (cwd: string
           content: [
             {
               type: 'text' as const,
-              text: "No Salesforce user ID found. Run sf_setup with action 'status' first, then read `xcsh://user` to confirm your salesforceId is set.",
+              text: 'No Salesforce user ID found. Run: xcsh plugin setup salesforce, then read `xcsh://user` to confirm your salesforceId is set.',
             },
           ],
           isError: true,

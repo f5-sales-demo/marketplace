@@ -75,8 +75,6 @@ test_expected_files_exist() {
     "skills/azure-ce/agents/openai.yaml"
     "skills/azure-ce/references/contracts.md"
     "agents/cli-operator.md"
-    "commands/az-login.md"
-    "commands/az-status.md"
   )
   for f in "${files[@]}"; do
     [ -f "$PLUGIN_ROOT/$f" ] || {
@@ -152,11 +150,8 @@ test_agent_tools() {
 # T1.8 — command files have description in frontmatter
 test_command_frontmatter() {
   for cmd in az-login az-status; do
-    local file="$PLUGIN_ROOT/commands/${cmd}.md"
-    local desc
-    desc=$(frontmatter_value "$file" "description")
-    [ -n "$desc" ] || {
-      echo "$cmd: missing description"
+    [ ! -e "$PLUGIN_ROOT/commands/${cmd}.md" ] || {
+      echo "legacy provider command remains: $cmd"
       return 1
     }
   done
@@ -165,22 +160,8 @@ test_command_frontmatter() {
 # T1.9 — hooks.json is valid JSON with correct structure
 test_hooks_json_structure() {
   local hj="$PLUGIN_ROOT/hooks/hooks.json"
-  jq -e '.' "$hj" >/dev/null || {
-    echo "hooks.json is not valid JSON"
-    return 1
-  }
-
-  local hook_type
-  hook_type=$(jq -r '.hooks.SessionStart[0].hooks[0].type' "$hj")
-  [ "$hook_type" = "command" ] || {
-    echo "hook type=$hook_type, expected command"
-    return 1
-  }
-
-  local timeout
-  timeout=$(jq -r '.hooks.SessionStart[0].hooks[0].timeout' "$hj")
-  [[ "$timeout" =~ ^[0-9]+$ ]] || {
-    echo "timeout is not a number: $timeout"
+  jq -e '.hooks | type == "object" and .SessionStart == null' "$hj" >/dev/null || {
+    echo "hooks.json must contain an object with no legacy SessionStart probe"
     return 1
   }
 }
@@ -188,12 +169,12 @@ test_hooks_json_structure() {
 # T1.10 — hook command is syntactically valid shell
 test_hook_command_syntax() {
   local hj="$PLUGIN_ROOT/hooks/hooks.json"
-  local cmd
-  cmd=$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$hj")
-  bash -n <<<"$cmd" || {
-    echo "hook command has syntax error"
-    return 1
-  }
+  while IFS= read -r cmd; do
+    bash -n <<<"$cmd" || {
+      echo "hook command has syntax error"
+      return 1
+    }
+  done < <(jq -r '.hooks[][]?.hooks[]? | select(.type == "command") | .command' "$hj")
 }
 
 # T1.11 — package.json declares xcsh extensions entry point
@@ -279,16 +260,8 @@ test_T1_16_azure_ce_contract() {
 # T1.15 — hooks.json references /azure:setup, not brew
 test_T1_15_hook_references_setup_command() {
   local hook="$PLUGIN_ROOT/hooks/hooks.json"
-  if [[ ! -f "$hook" ]]; then
-    echo "FAIL: hooks.json missing"
-    return 1
-  fi
-  if ! grep -q "azure:setup" "$hook"; then
-    echo "FAIL: hooks.json should reference /azure:setup"
-    return 1
-  fi
-  if grep -q "brew install" "$hook"; then
-    echo "FAIL: hooks.json should not hardcode brew (cross-platform)"
+  if grep -Eq 'azure:setup|brew install|apt(-get)? install' "$hook"; then
+    echo "FAIL: hooks.json contains legacy setup or installer commands"
     return 1
   fi
 }

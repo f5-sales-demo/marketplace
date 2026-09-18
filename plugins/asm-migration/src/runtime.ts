@@ -79,15 +79,18 @@ export async function validateInput(request: ValidateRequest): Promise<ValidateR
 }
 
 function assertNoSymlinkDirectory(path: string): void {
-  const root = parse(path).root;
+  const inspectedPath =
+    process.platform === 'darwin' && (path.startsWith('/tmp/') || path.startsWith('/var/')) ? `/private${path}` : path;
+  const root = parse(inspectedPath).root;
   let cursor = root;
-  for (const part of path.slice(root.length).split('/').filter(Boolean)) {
+  for (const part of inspectedPath.slice(root.length).split('/').filter(Boolean)) {
     cursor = resolve(cursor, part);
     if (!existsSync(cursor)) continue;
     const stat = lstatSync(cursor);
     if (stat.isSymbolicLink())
       throw new MigrationError('output', 'output directory must not contain symlinked path components');
-    if (cursor === path && !stat.isDirectory()) throw new MigrationError('output', 'output path is not a directory');
+    if (cursor === inspectedPath && !stat.isDirectory())
+      throw new MigrationError('output', 'output path is not a directory');
   }
 }
 

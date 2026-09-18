@@ -15,6 +15,7 @@ interface ExtensionApi {
   typebox: { Type: TypeFactory };
   setLabel(label: string): void;
   registerTool(tool: unknown): void;
+  integrations: { register<T>(definition: unknown): unknown };
   on?(
     event: 'before_agent_start' | 'before_provider_request' | 'agent_end',
     handler: (event: {
@@ -78,6 +79,25 @@ function errorResult(tool: string, error: unknown) {
 
 const factory = async (pi: ExtensionApi) => {
   pi.setLabel('ASM Migration');
+  pi.integrations.register({
+    id: 'asm_migration',
+    name: 'ASM Migration',
+    plugin: 'asm-migration',
+    kind: 'local',
+    dependencies: ['platform'],
+    setup: {
+      pluginDependencies: ['platform'],
+      requiredEnvironment: [],
+      profileFields: [],
+      steps: [],
+      verification: [{ argv: ['bun', '--version'], timeoutMs: 30_000 }],
+    },
+    async probe() {
+      return Bun.spawnSync(['bun', '--version']).exitCode === 0
+        ? { state: 'ready' }
+        : { state: 'setup_required', reason: 'dependency_missing' };
+    },
+  });
   // Extension factories are session-scoped, and xcsh serializes turns within a session.
   let asmTurnActive = false;
   pi.on?.('before_agent_start', async (event) => {

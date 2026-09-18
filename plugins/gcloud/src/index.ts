@@ -1,9 +1,41 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
+interface GcloudContext {
+  account: string;
+  project?: string;
+  region?: string;
+  zone?: string;
+}
+
+interface GcloudIntegrationApi {
+  integrations: {
+    register<T>(definition: unknown): {
+      get(signal?: AbortSignal): Promise<{ state: string; value?: T }>;
+    };
+  };
+}
+
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
+}
+
+export function retryAfterMsFromHeaders(text: string, now = Date.now()): number | undefined {
+  const retryAfter = text.match(/(?:^|\r?\n)retry-after:\s*([^\r\n]+)/i)?.[1]?.trim();
+  if (retryAfter && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000;
+  if (retryAfter) {
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.max(0, retryAt - now);
+  }
+  const reset = text.match(/(?:^|\r?\n)x-ratelimit-reset:\s*(\d+)/i)?.[1];
+  return reset ? Math.max(0, Number(reset) * 1000 - now) : undefined;
+}
+
+export function gcloudInstallArgv(platform = process.platform): string[] {
+  if (platform === 'darwin') return ['brew', 'install', '--cask', 'google-cloud-sdk'];
+  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'Google.CloudSDK'];
+  return ['sudo', 'apt-get', 'install', '--yes', 'google-cloud-cli'];
 }
 
 /**
@@ -33,17 +65,80 @@ export function withErrorType<T extends { name: string; execute: (...args: never
 
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GCloud');
-
-  // Always register setup command (even without gcloud CLI)
-  if (typeof pi.registerCommand === 'function') {
-    pi.registerCommand('gcloud:setup', {
-      description: 'Install and configure Google Cloud CLI',
-      async handler(_args, ctx) {
-        const { runSetupWizard } = await import('./wizard');
-        await runSetupWizard(pi, ctx);
-      },
-    });
-  }
+  const integration = (pi as typeof pi & GcloudIntegrationApi).integrations.register<GcloudContext>({
+    id: 'gcloud',
+    name: 'Google Cloud',
+    plugin: 'gcloud',
+    kind: 'network',
+    setup: {
+      pluginDependencies: [],
+      requiredEnvironment: [],
+      profileFields: ['accounts'],
+      steps: [
+        {
+          kind: 'install',
+          argv: gcloudInstallArgv(),
+          timeoutMs: 300_000,
+        },
+        { kind: 'login', argv: ['gcloud', 'auth', 'login'], timeoutMs: 300_000 },
+      ],
+      verification: [
+        { argv: ['gcloud', 'auth', 'list', '--filter=status:ACTIVE', '--format=json'], timeoutMs: 30_000 },
+      ],
+    },
+    async probe() {
+      const checker = process.platform === 'win32' ? 'where' : 'which';
+      if (Bun.spawnSync([checker, 'gcloud']).exitCode !== 0) return { state: 'setup_required', reason: 'cli_missing' };
+      const auth = Bun.spawnSync(['gcloud', 'auth', 'list', '--filter=status:ACTIVE', '--format=json']);
+      if (auth.exitCode !== 0) {
+        const rawError = new TextDecoder().decode(auth.stderr);
+        if (/rate limit|too many requests|resource_exhausted|429/i.test(rawError))
+          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+        return { state: 'setup_required', reason: 'not_authenticated' };
+      }
+      try {
+        const accounts = JSON.parse(new TextDecoder().decode(auth.stdout)) as Array<{ account?: string }>;
+        const account = accounts[0]?.account;
+        if (!account) return { state: 'setup_required', reason: 'not_authenticated' };
+        const configResult = Bun.spawnSync(['gcloud', 'config', 'list', '--format=json']);
+        if (configResult.exitCode !== 0) {
+          const rawError = new TextDecoder().decode(configResult.stderr);
+          if (/rate limit|too many requests|resource_exhausted|429/i.test(rawError))
+            return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+          return { state: 'degraded', reason: 'invalid_response' };
+        }
+        const config = JSON.parse(new TextDecoder().decode(configResult.stdout));
+        return {
+          state: 'ready',
+          value: {
+            account,
+            project: config.core?.project,
+            region: config.compute?.region,
+            zone: config.compute?.zone,
+          },
+        };
+      } catch {
+        return { state: 'error', reason: 'invalid_response' };
+      }
+    },
+    profile(value: GcloudContext) {
+      const principalType = value.account.endsWith('.gserviceaccount.com') ? 'service' : 'user';
+      return {
+        facts: {
+          accounts: [
+            {
+              provider: 'gcloud',
+              identifier: value.account,
+              principalType,
+              accountId: value.project,
+              username: value.account,
+            },
+          ],
+        },
+        observations: [],
+      };
+    },
+  });
 
   // Check if gcloud CLI is available
   let gcloudAvailable = false;
@@ -71,53 +166,18 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(withErrorType(createGcloudHelpTool(pi)));
   }
 
-  // Always register service status (shows unavailable when CLI missing)
-  if (typeof pi.registerServiceStatus === 'function') {
-    pi.registerServiceStatus({
-      name: 'GCloud',
-      async check() {
-        try {
-          const whichChecker = process.platform === 'win32' ? 'where' : 'which';
-          const whichResult = Bun.spawnSync([whichChecker, 'gcloud']);
-          if (whichResult.exitCode !== 0) {
-            return { state: 'unavailable', hint: 'run: /gcloud:setup' };
-          }
-          const result = Bun.spawnSync(['gcloud', 'auth', 'print-access-token', '--quiet']);
-          if (result.exitCode === 0) return { state: 'connected' };
-          const stderr = new TextDecoder().decode(result.stderr).toLowerCase();
-          if (stderr.includes('expired') || stderr.includes('token'))
-            return {
-              state: 'unauthenticated',
-              hint: 'token expired, run: /gcloud:setup',
-            };
-          return {
-            state: 'unauthenticated',
-            hint: 'run: /gcloud:setup',
-          };
-        } catch {
-          return { state: 'unavailable', hint: 'gcloud CLI check failed' };
-        }
-      },
-      fix: {
-        prompt: 'Google Cloud token expired',
-        command: ['gcloud', 'auth', 'login'],
-      },
-    });
-  }
-
   // Before agent start: inject gcloud config context
   if (gcloudAvailable && typeof pi.on === 'function') {
-    pi.on('before_agent_start', async (_event: unknown, ctx: { cwd: string }) => {
+    pi.on('before_agent_start', async () => {
       try {
-        const cwd = ctx?.cwd || process.cwd();
-        const result = Bun.spawnSync(['gcloud', 'config', 'list', '--format=json'], { cwd });
-        if (result.exitCode !== 0) return;
-        const config = JSON.parse(new TextDecoder().decode(result.stdout));
+        const snapshot = await integration.get();
+        if (snapshot.state !== 'ready' || !snapshot.value) return;
+        const config = snapshot.value;
         const lines = [
-          config.core?.project ? `Project: ${sanitizeHintField(config.core.project)}` : '',
-          config.core?.account ? `Account: ${sanitizeHintField(config.core.account)}` : '',
-          config.compute?.region ? `Region: ${sanitizeHintField(config.compute.region)}` : '',
-          config.compute?.zone ? `Zone: ${sanitizeHintField(config.compute.zone)}` : '',
+          config.project ? `Project: ${sanitizeHintField(config.project)}` : '',
+          config.account ? `Account: ${sanitizeHintField(config.account)}` : '',
+          config.region ? `Region: ${sanitizeHintField(config.region)}` : '',
+          config.zone ? `Zone: ${sanitizeHintField(config.zone)}` : '',
         ]
           .filter(Boolean)
           .join('\n');

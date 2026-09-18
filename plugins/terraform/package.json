@@ -1,0 +1,13 @@
+{
+  "name": "terraform",
+  "version": "2.1.0",
+  "description": "Terraform infrastructure-as-code integration for xcsh",
+  "license": "Apache-2.0",
+  "xcsh": {
+    "name": "Terraform",
+    "version": "2.1.0",
+    "extensions": [
+      "extensions/integration.ts"
+    ]
+  }
+}

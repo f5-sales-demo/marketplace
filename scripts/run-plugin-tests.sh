@@ -36,6 +36,11 @@ if ! bash scripts/check-plugin-runtime-dependencies.sh --repair; then
   exit 1
 fi
 
+bun test tests/integration-lifecycle.test.ts || {
+  echo "FATAL: marketplace integration lifecycle tests failed" >&2
+  exit 1
+}
+
 # The gate never calls a real cloud CLI.
 #
 # The runner ships aws, az, gcloud and gh, so the integration cases — the ones deliberately

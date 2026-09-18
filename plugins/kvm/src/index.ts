@@ -4,7 +4,7 @@ interface KvmExtensionApi {
   typebox: { Type: Record<string, (...args: unknown[]) => unknown> };
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
-  registerServiceStatus?(status: unknown): void;
+  integrations: { register<T>(definition: unknown): unknown };
   on?(event: string, handler: unknown): void;
   logger: { debug(message: string): void };
 }
@@ -28,25 +28,52 @@ export const KVM_SMSV2_GATE = [
 
 const factory = async (pi: KvmExtensionApi) => {
   pi.setLabel('KVM SMSv2');
+  pi.integrations.register({
+    id: 'kvm',
+    name: 'KVM SMSv2',
+    plugin: 'kvm',
+    kind: 'local',
+    dependencies: ['platform', 'aws', 'terraform'],
+    setup: {
+      pluginDependencies: ['platform', 'aws', 'terraform'],
+      requiredEnvironment: [],
+      profileFields: [],
+      steps:
+        process.platform === 'linux'
+          ? [
+              {
+                kind: 'install',
+                argv: ['sudo', 'apt-get', 'install', '--yes', 'libvirt-clients', 'docker.io', 'curl'],
+                timeoutMs: 300_000,
+              },
+            ]
+          : [],
+      verification: [
+        { argv: ['terraform', 'version'], timeoutMs: 30_000 },
+        { argv: ['virsh', '--connect', 'qemu:///system', 'uri'], timeoutMs: 30_000 },
+        { argv: ['docker', 'version'], timeoutMs: 30_000 },
+        { argv: ['curl', '--version'], timeoutMs: 30_000 },
+      ],
+    },
+    async probe() {
+      if (process.platform !== 'linux') return { state: 'unavailable', reason: 'dependency_missing' };
+      for (const argv of [
+        ['terraform', 'version'],
+        ['virsh', '--connect', 'qemu:///system', 'uri'],
+        ['docker', 'version'],
+        ['curl', '--version'],
+      ]) {
+        if (Bun.spawnSync(argv).exitCode !== 0) return { state: 'setup_required', reason: 'dependency_missing' };
+      }
+      return { state: 'ready' };
+    },
+  });
   if (typeof pi.registerTool === 'function') for (const tool of createKvmSmsv2Tools(pi)) pi.registerTool(tool);
 
   if (typeof pi.on === 'function') {
     pi.on('before_agent_start', async (event: { prompt?: string }) => {
       if (!isKvmSmsv2Prompt(String(event?.prompt ?? ''))) return;
       return { message: { customType: 'kvm_smsv2_gate', content: KVM_SMSV2_GATE, display: false } };
-    });
-  }
-
-  if (typeof pi.registerServiceStatus === 'function') {
-    pi.registerServiceStatus({
-      name: 'KVM SMSv2',
-      async check() {
-        const terraform = Bun.spawnSync(['terraform', 'version']);
-        const virsh = Bun.spawnSync(['virsh', '--connect', 'qemu:///system', 'uri']);
-        if (terraform.exitCode !== 0 || virsh.exitCode !== 0)
-          return { state: 'unavailable', hint: 'Install Terraform and configure qemu:///system access.' };
-        return { state: 'connected' };
-      },
     });
   }
 };

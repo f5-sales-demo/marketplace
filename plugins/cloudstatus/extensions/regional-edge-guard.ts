@@ -138,6 +138,20 @@ function failedResult(reason: string) {
  * containing Regional Edge language, so ordinary network-intelligence work is unaffected.
  */
 export default function regionalEdgeGuard(pi: ExtensionAPI): void {
+  (
+    pi as ExtensionAPI & {
+      integrations: { register<T>(definition: unknown): unknown };
+    }
+  ).integrations.register({
+    id: 'cloudstatus',
+    name: 'Cloudstatus',
+    plugin: 'cloudstatus',
+    kind: 'on_demand',
+    async probe() {
+      // Deliberately performs no network or location discovery. Commands probe only when invoked.
+      return { state: 'ready' };
+    },
+  });
   let state = freshState();
 
   pi.on('session_start', () => {

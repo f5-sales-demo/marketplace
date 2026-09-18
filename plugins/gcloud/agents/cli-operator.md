@@ -95,9 +95,9 @@ session.
 
 | Error                                         | Action                                                          |
 | --------------------------------------------- | --------------------------------------------------------------- |
-| `gcloud: command not found`                   | Report: gcloud CLI not installed, suggest `/gcloud:setup`       |
-| `You do not currently have an active account` | Report: not authenticated, suggest `/gcloud:gcloud-login`       |
+| `gcloud: command not found`                   | Report `setup_required`; suggest `xcsh plugin setup gcloud`     |
+| `You do not currently have an active account` | Report `setup_required`; suggest `xcsh plugin setup gcloud`     |
 | `PERMISSION_DENIED`                           | Report: check IAM permissions for the active service account    |
 | `NOT_FOUND`                                   | Report: check that the project/resource exists                  |
-| `token expired`                               | Report: re-authenticate with `/gcloud:gcloud-login`             |
+| `token expired`                               | Report `setup_required`; suggest `xcsh plugin setup gcloud`     |
 | `could not find project`                      | Report: check `CLOUDSDK_CORE_PROJECT` or set project explicitly |
