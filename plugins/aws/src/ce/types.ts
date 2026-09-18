@@ -1,6 +1,6 @@
 export const AWS_CE_SCHEMA_VERSION = 1 as const;
 export const AWS_CE_SHARED_CONTRACT_URL =
-  'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt' as const;
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt' as const;
 export const AWS_CE_F5_GUIDE_URL =
   'https://docs.cloud.f5.com/docs-v2/multi-cloud-network-connect/how-to/site-management/deploy-sms-aws-clickops' as const;
 export const AWS_CE_MARKETPLACE_PRODUCT_ID = 'prod-wrwzhcymymama' as const;

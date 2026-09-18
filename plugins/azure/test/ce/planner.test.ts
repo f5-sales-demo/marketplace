@@ -2,10 +2,11 @@ import { describe, expect, it } from 'bun:test';
 import { compileAzureCePlan } from '../../src/ce/planner';
 import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 
-const subscriptionId = '11111111-1111-4111-8111-111111111111';
+const subscriptionId = '00000000-0000-4000-8000-000000000001';
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
-const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
+const sharedContractUrl =
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
@@ -343,7 +344,7 @@ describe('compileAzureCePlan', () => {
         intent({
           brownfield: {
             resourceIds: [
-              '/subscriptions/33333333-3333-4333-8333-333333333333/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet',
+              '/subscriptions/00000000-0000-4000-8000-000000000002/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet',
             ],
             routeChanges: [],
           },
