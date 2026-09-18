@@ -5,7 +5,8 @@ import type { AzureCeIntent, AzureCeObservation } from '../../src/ce/types';
 const subscriptionId = '11111111-1111-4111-8111-111111111111';
 const f5Source = 'https://docs.cloud.f5.com/example';
 const microsoftSource = 'https://learn.microsoft.com/example';
-const sharedContractUrl = 'https://f5-sales-demo.github.io/mcn/_llms-txt/en/customer-edge/automation-contract.txt';
+const sharedContractUrl =
+  'https://f5-sales-demo.github.io/multi-cloud-networking/_llms-txt/en/customer-edge/automation-contract.txt';
 
 function observation(overrides: Partial<AzureCeObservation> = {}): AzureCeObservation {
   return {
