@@ -45,6 +45,17 @@ else
   pass "a broad xcsh peer range fails"
 fi
 
+BAD_RUNTIME_IMPORT="$WORK/bad-runtime-import"
+copy_runtime_state "$BAD_RUNTIME_IMPORT"
+mkdir -p "$BAD_RUNTIME_IMPORT/plugins/github/src"
+printf '%s\n' "const typebox = await import('@sinclair/typebox');" \
+  >"$BAD_RUNTIME_IMPORT/plugins/github/src/runtime.ts"
+if REPO_ROOT="$BAD_RUNTIME_IMPORT" bash "$CHECK" >/dev/null 2>&1; then
+  fail "a plugin runtime import of a development-only package must fail"
+else
+  pass "a plugin runtime import of a development-only package fails"
+fi
+
 BAD_LOCK="$WORK/bad-lock"
 copy_runtime_state "$BAD_LOCK"
 sed 's/@anthropic-ai\/sdk@0\.115\.0/@anthropic-ai\/sdk@0.78.0/' \

@@ -1,42 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-// Import typebox using a file:// URL resolved from this module's location.
-// The compiled xcsh binary can't resolve bare @sinclair/typebox specifiers,
-// but can resolve absolute file paths via dynamic import.
-import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const tbPath = path.resolve(__dirname, '..', '..', 'node_modules', '@sinclair', 'typebox', 'src', 'index.ts');
-const tbPathJs = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  'node_modules',
-  '@sinclair',
-  'typebox',
-  'build',
-  'cjs',
-  'index.js',
-);
-let Type: typeof import('@sinclair/typebox').Type;
-try {
-  const tb = await import('@sinclair/typebox');
-  Type = tb.Type;
-} catch {
-  // Fallback: import from local node_modules via absolute path
-  try {
-    const tb = await import(tbPathJs);
-    Type = tb.Type;
-  } catch {
-    const tb = await import(tbPath);
-    Type = tb.Type;
-  }
-}
-type Static<T> = T extends { static: infer S } ? S : never;
-
-export function setTypebox(tb: { Type: typeof Type }): void {
-  Type = tb.Type;
-}
+type Typebox = typeof import('@sinclair/typebox').Type;
+type ObjectSchema = ReturnType<Typebox['Object']>;
 
 import { detectGhError, type GhErrorType } from '../gh/exec';
 import {
@@ -145,7 +111,9 @@ type AgentToolUpdateCallback<TDetails = unknown> = (update: {
 interface AgentToolContext {
   cwd: string;
   hasUI?: boolean;
-  ui?: { confirm(title: string, message: string, dialogOptions?: unknown): Promise<boolean> };
+  ui?: {
+    confirm(title: string, message: string, dialogOptions?: unknown): Promise<boolean>;
+  };
 }
 
 /** Minimal AgentTool interface matching xcsh's pi-agent-core contract. */
@@ -309,133 +277,249 @@ const HELP_PATH_PATTERN = /^[a-z][a-z -]*$/;
 const PR_URL_PATTERN = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)(?:\/.*)?$/;
 const RUN_URL_PATTERN = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)(?:\/.*)?$/;
 
-const ghRepoViewSchema = Type.Object({
-  repo: Type.Optional(
-    Type.String({
-      description: 'Repository in OWNER/REPO format. Defaults to the current GitHub repository context.',
-    }),
-  ),
-  branch: Type.Optional(Type.String({ description: 'Branch name to inspect instead of the default branch.' })),
-});
+let ghRepoViewSchema: ObjectSchema;
+let ghIssueViewSchema: ObjectSchema;
+let ghPrViewSchema: ObjectSchema;
+let ghPrDiffSchema: ObjectSchema;
+let ghPrCheckoutSchema: ObjectSchema;
+let ghPrPushSchema: ObjectSchema;
+let ghSearchIssuesSchema: ObjectSchema;
+let ghSearchPrsSchema: ObjectSchema;
+let ghRunWatchSchema: ObjectSchema;
+let ghHelpSchema: ObjectSchema;
+let ghExecSchema: ObjectSchema;
 
-const ghIssueViewSchema = Type.Object({
-  issue: Type.String({ description: 'Issue number or full GitHub issue URL.' }),
-  repo: Type.Optional(
-    Type.String({ description: 'Repository in OWNER/REPO format. Omit when passing a full issue URL.' }),
-  ),
-  comments: Type.Optional(Type.Boolean({ description: 'Include issue comments (default: true).' })),
-});
+export function setTypebox({ Type }: { Type: Typebox }): void {
+  ghRepoViewSchema = Type.Object({
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format. Defaults to the current GitHub repository context.',
+      }),
+    ),
+    branch: Type.Optional(
+      Type.String({
+        description: 'Branch name to inspect instead of the default branch.',
+      }),
+    ),
+  });
 
-const ghPrViewSchema = Type.Object({
-  pr: Type.Optional(
-    Type.String({
-      description:
-        'Pull request number, full GitHub pull request URL, or branch name. Defaults to the current branch PR.',
+  ghIssueViewSchema = Type.Object({
+    issue: Type.String({
+      description: 'Issue number or full GitHub issue URL.',
     }),
-  ),
-  repo: Type.Optional(
-    Type.String({ description: 'Repository in OWNER/REPO format. Omit when passing a full pull request URL.' }),
-  ),
-  comments: Type.Optional(Type.Boolean({ description: 'Include pull request comments (default: true).' })),
-});
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format. Omit when passing a full issue URL.',
+      }),
+    ),
+    comments: Type.Optional(Type.Boolean({ description: 'Include issue comments (default: true).' })),
+  });
 
-const ghPrDiffSchema = Type.Object({
-  pr: Type.Optional(
-    Type.String({
-      description:
-        'Pull request number, full GitHub pull request URL, or branch name. Defaults to the current branch PR.',
-    }),
-  ),
-  repo: Type.Optional(
-    Type.String({ description: 'Repository in OWNER/REPO format. Omit when passing a full pull request URL.' }),
-  ),
-  nameOnly: Type.Optional(
-    Type.Boolean({ description: 'Return only changed file names instead of unified diff output.' }),
-  ),
-  exclude: Type.Optional(
-    Type.Array(Type.String({ description: 'Glob pattern for files to exclude from the diff.' }), {
-      description: 'File globs to exclude from the diff output.',
-    }),
-  ),
-});
+  ghPrViewSchema = Type.Object({
+    pr: Type.Optional(
+      Type.String({
+        description:
+          'Pull request number, full GitHub pull request URL, or branch name. Defaults to the current branch PR.',
+      }),
+    ),
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format. Omit when passing a full pull request URL.',
+      }),
+    ),
+    comments: Type.Optional(
+      Type.Boolean({
+        description: 'Include pull request comments (default: true).',
+      }),
+    ),
+  });
 
-const ghPrCheckoutSchema = Type.Object({
-  pr: Type.Optional(
-    Type.String({
-      description:
-        'Pull request number, full GitHub pull request URL, or branch name. Defaults to the current branch PR.',
-    }),
-  ),
-  repo: Type.Optional(
-    Type.String({ description: 'Repository in OWNER/REPO format. Omit when passing a full pull request URL.' }),
-  ),
-  branch: Type.Optional(Type.String({ description: 'Local branch name to create or reuse (default: pr-<number>).' })),
-  worktree: Type.Optional(
-    Type.String({ description: 'Worktree path to create. Defaults to <repo>/.worktrees/<branch>.' }),
-  ),
-  force: Type.Optional(
-    Type.Boolean({
-      description: 'Reset an existing local branch to the PR head when it is not already checked out elsewhere.',
-    }),
-  ),
-});
+  ghPrDiffSchema = Type.Object({
+    pr: Type.Optional(
+      Type.String({
+        description:
+          'Pull request number, full GitHub pull request URL, or branch name. Defaults to the current branch PR.',
+      }),
+    ),
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format. Omit when passing a full pull request URL.',
+      }),
+    ),
+    nameOnly: Type.Optional(
+      Type.Boolean({
+        description: 'Return only changed file names instead of unified diff output.',
+      }),
+    ),
+    exclude: Type.Optional(
+      Type.Array(
+        Type.String({
+          description: 'Glob pattern for files to exclude from the diff.',
+        }),
+        {
+          description: 'File globs to exclude from the diff output.',
+        },
+      ),
+    ),
+  });
 
-const ghPrPushSchema = Type.Object({
-  branch: Type.Optional(
-    Type.String({
-      description: 'Local branch name to push. Defaults to the current checked-out git branch.',
+  ghPrCheckoutSchema = Type.Object({
+    pr: Type.Optional(
+      Type.String({
+        description:
+          'Pull request number, full GitHub pull request URL, or branch name. Defaults to the current branch PR.',
+      }),
+    ),
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format. Omit when passing a full pull request URL.',
+      }),
+    ),
+    branch: Type.Optional(
+      Type.String({
+        description: 'Local branch name to create or reuse (default: pr-<number>).',
+      }),
+    ),
+    worktree: Type.Optional(
+      Type.String({
+        description: 'Worktree path to create. Defaults to <repo>/.worktrees/<branch>.',
+      }),
+    ),
+    force: Type.Optional(
+      Type.Boolean({
+        description: 'Reset an existing local branch to the PR head when it is not already checked out elsewhere.',
+      }),
+    ),
+  });
+
+  ghPrPushSchema = Type.Object({
+    branch: Type.Optional(
+      Type.String({
+        description: 'Local branch name to push. Defaults to the current checked-out git branch.',
+      }),
+    ),
+    forceWithLease: Type.Optional(
+      Type.Boolean({
+        description: 'Use --force-with-lease when pushing the PR branch.',
+      }),
+    ),
+  });
+
+  ghSearchIssuesSchema = Type.Object({
+    query: Type.String({
+      description: 'GitHub issue search query. Supports GitHub search syntax.',
     }),
-  ),
-  forceWithLease: Type.Optional(Type.Boolean({ description: 'Use --force-with-lease when pushing the PR branch.' })),
-});
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format to scope the search.',
+      }),
+    ),
+    limit: Type.Optional(
+      Type.Number({
+        description: 'Maximum results to return (default: 10, max: 50).',
+      }),
+    ),
+  });
 
-const ghSearchIssuesSchema = Type.Object({
-  query: Type.String({ description: 'GitHub issue search query. Supports GitHub search syntax.' }),
-  repo: Type.Optional(Type.String({ description: 'Repository in OWNER/REPO format to scope the search.' })),
-  limit: Type.Optional(Type.Number({ description: 'Maximum results to return (default: 10, max: 50).' })),
-});
-
-const ghSearchPrsSchema = Type.Object({
-  query: Type.String({ description: 'GitHub pull request search query. Supports GitHub search syntax.' }),
-  repo: Type.Optional(Type.String({ description: 'Repository in OWNER/REPO format to scope the search.' })),
-  limit: Type.Optional(Type.Number({ description: 'Maximum results to return (default: 10, max: 50).' })),
-});
-
-const ghRunWatchSchema = Type.Object({
-  run: Type.Optional(
-    Type.String({
-      description:
-        'GitHub Actions run ID or full run URL. Omitting this watches the workflow runs for the current HEAD commit on the selected branch.',
+  ghSearchPrsSchema = Type.Object({
+    query: Type.String({
+      description: 'GitHub pull request search query. Supports GitHub search syntax.',
     }),
-  ),
-  branch: Type.Optional(
-    Type.String({
-      description: 'Branch to inspect when omitting `run`. Defaults to the current checked-out git branch.',
-    }),
-  ),
-  tail: Type.Optional(
-    Type.Number({ description: 'Number of log lines to include per failed job (default: 15, max: 200).' }),
-  ),
-});
+    repo: Type.Optional(
+      Type.String({
+        description: 'Repository in OWNER/REPO format to scope the search.',
+      }),
+    ),
+    limit: Type.Optional(
+      Type.Number({
+        description: 'Maximum results to return (default: 10, max: 50).',
+      }),
+    ),
+  });
 
-const ghHelpSchema = Type.Object({
-  command_path: Type.Optional(
-    Type.String({
-      description: 'Command path without the "gh" prefix, e.g. "pr view" or "run". Empty for top-level help.',
-    }),
-  ),
-});
+  ghRunWatchSchema = Type.Object({
+    run: Type.Optional(
+      Type.String({
+        description:
+          'GitHub Actions run ID or full run URL. Omitting this watches the workflow runs for the current HEAD commit on the selected branch.',
+      }),
+    ),
+    branch: Type.Optional(
+      Type.String({
+        description: 'Branch to inspect when omitting `run`. Defaults to the current checked-out git branch.',
+      }),
+    ),
+    tail: Type.Optional(
+      Type.Number({
+        description: 'Number of log lines to include per failed job (default: 15, max: 200).',
+      }),
+    ),
+  });
 
-export type GhRepoViewInput = Static<typeof ghRepoViewSchema>;
-export type GhIssueViewInput = Static<typeof ghIssueViewSchema>;
-export type GhPrViewInput = Static<typeof ghPrViewSchema>;
-type GhPrDiffInput = Static<typeof ghPrDiffSchema>;
-type GhPrCheckoutInput = Static<typeof ghPrCheckoutSchema>;
-type GhPrPushInput = Static<typeof ghPrPushSchema>;
-type GhSearchIssuesInput = Static<typeof ghSearchIssuesSchema>;
-type GhSearchPrsInput = Static<typeof ghSearchPrsSchema>;
-type GhRunWatchInput = Static<typeof ghRunWatchSchema>;
-type GhHelpInput = Static<typeof ghHelpSchema>;
+  ghHelpSchema = Type.Object({
+    command_path: Type.Optional(
+      Type.String({
+        description: 'Command path without the "gh" prefix, e.g. "pr view" or "run". Empty for top-level help.',
+      }),
+    ),
+  });
+
+  ghExecSchema = Type.Object({
+    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "gh")' }), {
+      description: 'gh subcommand and flags as an array, e.g. ["pr", "list", "--json", "number,title"]',
+    }),
+  });
+}
+
+export interface GhRepoViewInput {
+  repo?: string;
+  branch?: string;
+}
+export interface GhIssueViewInput {
+  issue: string;
+  repo?: string;
+  comments?: boolean;
+}
+export interface GhPrViewInput {
+  pr?: string;
+  repo?: string;
+  comments?: boolean;
+}
+interface GhPrDiffInput {
+  pr?: string;
+  repo?: string;
+  nameOnly?: boolean;
+  exclude?: string[];
+}
+interface GhPrCheckoutInput {
+  pr?: string;
+  repo?: string;
+  branch?: string;
+  worktree?: string;
+  force?: boolean;
+}
+interface GhPrPushInput {
+  branch?: string;
+  forceWithLease?: boolean;
+}
+interface GhSearchIssuesInput {
+  query: string;
+  repo?: string;
+  limit?: number;
+}
+interface GhSearchPrsInput {
+  query: string;
+  repo?: string;
+  limit?: number;
+}
+interface GhRunWatchInput {
+  run?: string;
+  branch?: string;
+  tail?: number;
+}
+interface GhHelpInput {
+  command_path?: string;
+}
 
 export interface GhToolDetails {
   errorType?: GhErrorType;
@@ -636,12 +720,6 @@ export interface GhPrReviewComment {
   path?: string;
   side?: string;
   url?: string;
-}
-
-interface GhBranchApiResponse {
-  commit?: {
-    sha?: string | null;
-  } | null;
 }
 
 interface GhSearchRepository {
@@ -1007,7 +1085,10 @@ function parseRunReference(value: string | undefined): GhRunReference {
   };
 }
 
-function parsePullRequestUrl(value: string | undefined): { repo?: string; prNumber?: number } {
+function parsePullRequestUrl(value: string | undefined): {
+  repo?: string;
+  prNumber?: number;
+} {
   const normalized = normalizeOptionalString(value);
   if (!normalized) {
     return {};
@@ -1297,7 +1378,12 @@ async function hydrateRunJobs(
   runs: GhRunSnapshot[],
   signal?: AbortSignal,
 ): Promise<GhRunSnapshot[]> {
-  return Promise.all(runs.map(async (run) => ({ ...run, jobs: await fetchRunJobs(cwd, repo, run.id, signal) })));
+  return Promise.all(
+    runs.map(async (run) => ({
+      ...run,
+      jobs: await fetchRunJobs(cwd, repo, run.id, signal),
+    })),
+  );
 }
 
 async function fetchRunJobs(
@@ -1621,7 +1707,9 @@ export class GhPrDiffTool implements AgentTool<typeof ghPrDiffSchema, GhToolDeta
       });
       const title = params.nameOnly ? '# Pull Request Files' : '# Pull Request Diff';
       const body = output.length > 0 ? output : params.nameOnly ? 'No changed files.' : 'No diff output.';
-      return buildTextResult(`${title}\n\n${body}`, undefined, { tool: 'gh_pr_diff' });
+      return buildTextResult(`${title}\n\n${body}`, undefined, {
+        tool: 'gh_pr_diff',
+      });
     });
   }
 }
@@ -1760,7 +1848,9 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
       if (!existingWorktree) {
         await ensureGitWorktreePathAvailable(finalWorktreePath, existingWorktrees);
         await fs.mkdir(path.dirname(finalWorktreePath), { recursive: true });
-        await git.worktree.add(repoRoot, finalWorktreePath, localBranch, { signal });
+        await git.worktree.add(repoRoot, finalWorktreePath, localBranch, {
+          signal,
+        });
       }
       const resolvedWorktreePath = await fs.realpath(finalWorktreePath);
 
@@ -1984,7 +2074,12 @@ export class GhHelpTool implements AgentTool<typeof ghHelpSchema, GhToolDetails>
       const parts = commandPath.length > 0 ? commandPath.split(' ').filter(Boolean) : [];
       if (parts.some((p) => p.startsWith('-'))) {
         return {
-          content: [{ type: 'text', text: 'Error: command path parts must not start with "-".' }],
+          content: [
+            {
+              type: 'text',
+              text: 'Error: command path parts must not start with "-".',
+            },
+          ],
           isError: true,
           details: { tool: 'gh_help' },
         };
@@ -2002,11 +2097,7 @@ export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
   readonly name = 'gh_exec';
   readonly label = 'GitHub CLI Execute';
   readonly description = prompt.render(ghExecDescription);
-  readonly parameters = Type.Object({
-    args: Type.Array(Type.String({ description: 'Individual argument (do NOT include "gh")' }), {
-      description: 'gh subcommand and flags as an array, e.g. ["pr", "list", "--json", "number,title"]',
-    }),
-  });
+  readonly parameters = ghExecSchema;
 
   constructor(private readonly session: ToolSession) {}
 
@@ -2045,7 +2136,9 @@ export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
     return untilAborted(signal, async () => {
       const result = await git.github.run(this.session.cwd, args, signal);
       if (result.exitCode !== 0) {
-        throw detectGhError(result.stderr, result.stdout, result.exitCode, { args });
+        throw detectGhError(result.stderr, result.stdout, result.exitCode, {
+          args,
+        });
       }
       let out = result.stdout || result.stderr;
       if (out.length > GH_EXEC_MAX_OUTPUT) {
@@ -2100,7 +2193,12 @@ export class GhRunWatchTool implements AgentTool<typeof ghRunWatchSchema, GhTool
               pollCount,
             });
             onUpdate?.({
-              content: [{ type: 'text', text: formatRunWatchSnapshot(repo, run, pollCount) }],
+              content: [
+                {
+                  type: 'text',
+                  text: formatRunWatchSnapshot(repo, run, pollCount),
+                },
+              ],
               details,
             });
 
@@ -2122,7 +2220,9 @@ export class GhRunWatchTool implements AgentTool<typeof ghRunWatchSchema, GhTool
               const artifactId = await saveArtifactText(
                 this.session,
                 this.name,
-                formatRunWatchResult(repo, run, failedJobLogs, tail, { mode: 'full' }),
+                formatRunWatchResult(repo, run, failedJobLogs, tail, {
+                  mode: 'full',
+                }),
               );
               return buildTextResult(
                 formatRunWatchResult(repo, run, failedJobLogs, tail),
@@ -2171,7 +2271,12 @@ export class GhRunWatchTool implements AgentTool<typeof ghRunWatchSchema, GhTool
             pollCount,
           });
           onUpdate?.({
-            content: [{ type: 'text', text: formatCommitRunWatchSnapshot(repo, headSha, branch, runs, pollCount) }],
+            content: [
+              {
+                type: 'text',
+                text: formatCommitRunWatchSnapshot(repo, headSha, branch, runs, pollCount),
+              },
+            ],
             details,
           });
 

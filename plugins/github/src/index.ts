@@ -201,9 +201,20 @@ const factory: ExtensionFactory = async (pi) => {
     for (const ToolClass of toolClasses) {
       const instance = ToolClass.createIf(sessionProxy);
       if (!instance) continue;
+      type ToolInstance = NonNullable<typeof instance>;
 
       // Wrap the execute to inject cwd from the context argument
-      const originalExecute = instance.execute.bind(instance);
+      // The heterogeneous tool-class tuple produces an intersection of every
+      // input type at this dynamic registration boundary. Erase only that
+      // boundary after each class has already type-checked its own execute
+      // implementation and schema.
+      const originalExecute = instance.execute.bind(instance) as (
+        toolCallId: string,
+        params: Record<string, unknown>,
+        signal: AbortSignal | undefined,
+        onUpdate: unknown,
+        ctx: { cwd: string },
+      ) => ReturnType<ToolInstance['execute']>;
 
       pi.registerTool({
         name: instance.name,

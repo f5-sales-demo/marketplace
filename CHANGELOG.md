@@ -18,7 +18,9 @@ and this project adheres to
 
 - **`gitlab`** bumped to v1.2.7
 
-- **`github`** bumped to v2.0.4
+- **`github`** v2.1.1 — loads tool schemas exclusively from xcsh's host-provided TypeBox API, so
+  clean marketplace-cache installs no longer depend on an absent plugin-local `node_modules` tree
+  ([#1349](https://github.com/f5-sales-demo/marketplace/issues/1349)).
 
 - **`gcloud`** bumped to v1.2.8
 
