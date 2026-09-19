@@ -98,6 +98,16 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     continue
   fi
 
+  runtime_source="$REPO_ROOT/plugins/$plugin/src"
+  if [ -d "$runtime_source" ]; then
+    runtime_typebox_imports=$(LC_ALL=C grep -R -n -E --include='*.ts' \
+      "from ['\"]@sinclair/typebox['\"]|^import ['\"]@sinclair/typebox['\"]|await import\\(['\"]@sinclair/typebox['\"]\\)" \
+      "$runtime_source" || true)
+    if [ -n "$runtime_typebox_imports" ]; then
+      fail_static "$plugin runtime source imports development-only @sinclair/typebox; use the xcsh host-provided pi.typebox API"
+    fi
+  fi
+
   expected_xcsh="$EXPECTED_XCSH"
   expected_pi_utils="$EXPECTED_XCSH"
   expected_anthropic="$EXPECTED_ANTHROPIC"
