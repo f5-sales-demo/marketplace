@@ -35,7 +35,7 @@ export function createGlabIssueViewTool(pi: PluginHost, makeApi: (cwd: string) =
       const api = makeApi(ctx.cwd);
       const project = await resolveProject(params.project, ctx.cwd, (cmd, args) => api.exec(cmd, args));
       if (!project) {
-        return textResult('No GitLab project configured. Run glab_setup to set one up.');
+        return textResult('No GitLab project configured. Run: xcsh plugin setup gitlab');
       }
 
       const issueId = String(params.issue);

@@ -8,6 +8,7 @@ import factory from '../src/index';
 test('registers both native tools and returns structured results', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
+    integrations: { register() {} },
     typebox: { Type },
     setLabel(label: string) {
       expect(label).toBe('ASM Migration');
@@ -62,6 +63,7 @@ test('registers both native tools and returns structured results', async () => {
 test('returns stable categories without stack traces or input contents', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
+    integrations: { register() {} },
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {
@@ -84,6 +86,7 @@ test('returns stable categories without stack traces or input contents', async (
 test('reports every config-pack issue with contract paths', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
+    integrations: { register() {} },
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {
@@ -120,6 +123,7 @@ test('reports every config-pack issue with contract paths', async () => {
 test('returns stable macOS guidance for symlinked output', async () => {
   const tools: Array<{ name: string; execute: (...args: any[]) => Promise<any> }> = [];
   await factory({
+    integrations: { register() {} },
     typebox: { Type },
     setLabel() {},
     registerTool(tool: unknown) {
@@ -157,6 +161,7 @@ test('returns stable macOS guidance for symlinked output', async () => {
 test('isolates ASM provider requests to native tools without session-global state', async () => {
   const handlers = new Map<string, (event: Record<string, unknown>) => unknown>();
   await factory({
+    integrations: { register() {} },
     typebox: { Type },
     setLabel() {},
     registerTool() {},

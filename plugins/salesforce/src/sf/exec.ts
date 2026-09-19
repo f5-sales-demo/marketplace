@@ -4,30 +4,28 @@ export type { SfRawResult } from './types';
 
 export class SfNotFoundError extends Error {
   constructor() {
-    super('Salesforce CLI (sf) is not installed. Install with: brew install sf');
+    super('Salesforce CLI (sf) is not installed. Run: xcsh plugin setup salesforce');
     this.name = 'SfNotFoundError';
   }
 }
 
 export class SfAuthError extends Error {
   constructor() {
-    super('No authenticated Salesforce orgs found. Run: sf org login web --set-default --alias SFDC');
+    super('No authenticated Salesforce orgs found. Run: xcsh plugin setup salesforce');
     this.name = 'SfAuthError';
   }
 }
 
 export class SfSessionExpiredError extends Error {
   constructor() {
-    super('Salesforce session expired. Re-authenticate with: sf org login web --set-default --alias SFDC');
+    super('Salesforce session expired. Run: xcsh plugin setup salesforce');
     this.name = 'SfSessionExpiredError';
   }
 }
 
 export class SfNoDefaultOrgError extends Error {
   constructor() {
-    super(
-      "Authenticated orgs exist but no default is set. Run sf_setup with action 'set_default' to choose a default org.",
-    );
+    super('Authenticated orgs exist but no default is set. Run: xcsh plugin setup salesforce');
     this.name = 'SfNoDefaultOrgError';
   }
 }

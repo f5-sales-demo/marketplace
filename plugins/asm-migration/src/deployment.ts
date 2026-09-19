@@ -163,9 +163,13 @@ function subset(expected: unknown, actual: unknown): boolean {
 }
 function receiptFile(path: string, cwd: string): string {
   const target = resolve(cwd, path);
-  const root = parse(target).root;
+  const inspectedTarget =
+    process.platform === 'darwin' && (target.startsWith('/tmp/') || target.startsWith('/var/'))
+      ? `/private${target}`
+      : target;
+  const root = parse(inspectedTarget).root;
   let cursor = root;
-  for (const part of target.slice(root.length).split(sep).filter(Boolean)) {
+  for (const part of inspectedTarget.slice(root.length).split(sep).filter(Boolean)) {
     cursor = resolve(cursor, part);
     if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink())
       throw new MigrationError('receipt', 'receipt path must not contain symlinked components');

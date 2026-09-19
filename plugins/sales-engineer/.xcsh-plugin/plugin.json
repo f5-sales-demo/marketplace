@@ -1,10 +1,33 @@
 {
   "name": "sales-engineer",
   "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer",
   "license": "Apache-2.0",
   "author": {
     "name": "f5-sales-demo"
+  },
+  "marketplace": {
+    "order": 1,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/sales-engineer",
+      "category": "productivity",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer",
+      "license": "Apache-2.0",
+      "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
+      "tags": ["demo", "sales", "persona", "f5xc"],
+      "repository": "https://github.com/f5-sales-demo/marketplace"
+    }
+  },
+  "lifecycle": {
+    "mode": "content",
+    "integrations": [],
+    "requirements": ["Sales engineering content only"],
+    "setupRequired": false,
+    "collectedData": [],
+    "pluginDependencies": []
   }
 }

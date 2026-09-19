@@ -60,7 +60,7 @@ export function detectGcloudError(stderr: string, exitCode: number): GcloudExecE
     lower.includes('does not have any valid credentials') ||
     lower.includes('no active account')
   ) {
-    return new GcloudAuthError(stderr, exitCode);
+    return new GcloudAuthError(`${stderr.trim()}\nRun: xcsh plugin setup gcloud`, exitCode);
   }
 
   if (
@@ -69,7 +69,7 @@ export function detectGcloudError(stderr: string, exitCode: number): GcloudExecE
     lower.includes('invalid_grant') ||
     lower.includes('token has been expired or revoked')
   ) {
-    return new GcloudSessionExpiredError(stderr, exitCode);
+    return new GcloudSessionExpiredError(`${stderr.trim()}\nRun: xcsh plugin setup gcloud`, exitCode);
   }
 
   if (

@@ -1,7 +1,7 @@
 {
   "name": "asm-migration",
   "description": "Deterministic BIG-IP ASM conversion and guarded F5 Distributed Cloud deployment",
-  "version": "2.0.10",
+  "version": "2.1.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -9,5 +9,29 @@
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration",
   "keywords": ["asm", "waf", "migration", "f5xc", "xcsh-extension"],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5-sales-demo/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace",
+  "marketplace": {
+    "order": 18,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/asm-migration",
+      "category": "security",
+      "keywords": ["asm", "waf", "migration", "f5xc", "xcsh-extension"],
+      "tags": ["asm", "waf", "security", "migration", "f5xc"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": false
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["asm_migration"],
+    "requirements": ["ASM migration runtime dependencies", "F5 Distributed Cloud Platform integration"],
+    "setupRequired": true,
+    "collectedData": [],
+    "pluginDependencies": ["platform"]
+  }
 }

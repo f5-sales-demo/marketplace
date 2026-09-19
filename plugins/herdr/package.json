@@ -1,0 +1,13 @@
+{
+  "name": "herdr",
+  "version": "1.1.0",
+  "description": "Herdr terminal multiplexer integration for xcsh",
+  "license": "Apache-2.0",
+  "xcsh": {
+    "name": "Herdr",
+    "version": "1.1.0",
+    "extensions": [
+      "extensions/integration.ts"
+    ]
+  }
+}

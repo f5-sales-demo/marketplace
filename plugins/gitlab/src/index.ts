@@ -1,21 +1,44 @@
 import type { ExtensionFactory } from '@f5-sales-demo/xcsh';
 import { detectErrorType, errorResult, renderError } from './tools/shared';
 
+interface GitLabUser {
+  id: number;
+  username: string;
+  bot?: boolean;
+}
+
+interface IntegrationApi {
+  integrations: {
+    register<T>(definition: unknown): { get(signal?: AbortSignal): Promise<{ state: string; value?: T }> };
+  };
+}
+
 function sanitizeHintField(value: unknown, maxLen = 200): string {
   if (typeof value !== 'string') return '';
   return value.replace(/[^\x20-\x7E]/g, '').slice(0, maxLen);
 }
 
-/**
- * Wrap a factory tool so any error that still propagates out of its execute()
- * is converted into a structured error result carrying details.errorType.
- *
- * The per-tool handlers already catch GlabAuthError and return a friendly
- * textResult (a normal, non-error result); those never reach this wrapper.
- * A cancellation (thrown by execGlab as `Error('Command was cancelled')`) is
- * re-thrown so the agent loop can distinguish user cancellation from a genuine
- * tool failure.
- */
+export function retryAfterMsFromHeaders(text: string, now = Date.now()): number | undefined {
+  const retryAfter = text.match(/(?:^|\r?\n)retry-after:\s*([^\r\n]+)/i)?.[1]?.trim();
+  if (retryAfter && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000;
+  if (retryAfter) {
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.max(0, retryAt - now);
+  }
+  const reset = text.match(/(?:^|\r?\n)x-ratelimit-reset:\s*(\d+)/i)?.[1];
+  return reset ? Math.max(0, Number(reset) * 1000 - now) : undefined;
+}
+
+export function gitlabInstallArgv(platform = process.platform): string[] {
+  if (platform === 'darwin') return ['brew', 'install', 'glab'];
+  if (platform === 'win32') return ['winget', 'install', '--exact', '--id', 'GitLab.glab'];
+  return ['sudo', 'apt-get', 'install', '--yes', 'glab'];
+}
+
+export function gitLabProjectFromRemote(remote: string): string | undefined {
+  return remote.trim().match(/gitlab\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/i)?.[1];
+}
+
 export function withErrorType<T extends { execute: (...args: never[]) => Promise<unknown> }>(tool: T): T {
   const originalExecute = tool.execute.bind(tool) as (...args: unknown[]) => Promise<unknown>;
   return {
@@ -33,37 +56,82 @@ export function withErrorType<T extends { execute: (...args: never[]) => Promise
 
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GitLab');
+  (pi as typeof pi & IntegrationApi).integrations.register<GitLabUser>({
+    id: 'gitlab',
+    name: 'GitLab',
+    plugin: 'gitlab',
+    kind: 'network',
+    setup: {
+      pluginDependencies: [],
+      requiredEnvironment: [],
+      profileFields: ['accounts'],
+      steps: [
+        {
+          kind: 'install',
+          argv: gitlabInstallArgv(),
+          timeoutMs: 300_000,
+        },
+        {
+          kind: 'login',
+          argv: ['glab', 'auth', 'login', '--hostname', 'gitlab.com', '--git-protocol', 'https', '--web'],
+          timeoutMs: 300_000,
+          stdin: 'inherit',
+        },
+      ],
+      verification: [{ argv: ['glab', 'api', 'user'], timeoutMs: 30_000 }],
+    },
+    async probe() {
+      const checker = process.platform === 'win32' ? 'where' : 'which';
+      if (Bun.spawnSync([checker, 'glab']).exitCode !== 0) return { state: 'setup_required', reason: 'cli_missing' };
+      const result = Bun.spawnSync(['glab', 'api', 'user']);
+      if (result.exitCode !== 0) {
+        const rawError = new TextDecoder().decode(result.stderr);
+        const error = rawError.toLowerCase();
+        if (error.includes('rate limit') || error.includes('429'))
+          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+        if (error.includes('expired')) return { state: 'setup_required', reason: 'expired' };
+        if (error.includes('403') || error.includes('forbidden'))
+          return { state: 'unavailable', reason: 'permission_denied' };
+        if (error.includes('connect') || error.includes('network')) return { state: 'unavailable', reason: 'network' };
+        return { state: 'setup_required', reason: 'not_authenticated' };
+      }
+      try {
+        const value = JSON.parse(new TextDecoder().decode(result.stdout)) as GitLabUser;
+        if (!Number.isInteger(value.id) || !value.username) return { state: 'error', reason: 'invalid_response' };
+        return { state: 'ready', value };
+      } catch {
+        return { state: 'error', reason: 'invalid_response' };
+      }
+    },
+    profile(value: GitLabUser) {
+      return {
+        facts: {
+          accounts: [
+            {
+              provider: 'gitlab',
+              identifier: String(value.id),
+              principalType: value.bot ? 'service' : 'user',
+              username: value.username,
+            },
+          ],
+        },
+        observations: [],
+      };
+    },
+  });
 
-  // Always register setup command (even without glab CLI)
-  if (typeof pi.registerCommand === 'function') {
-    pi.registerCommand('gitlab:setup', {
-      description: 'Install and configure GitLab CLI',
-      async handler(_args, ctx) {
-        const { runSetupWizard } = await import('./wizard');
-        await runSetupWizard(pi, ctx);
-      },
-    });
-  }
-
-  // Check if glab CLI is available
   let glabAvailable = false;
   try {
     const checker = process.platform === 'win32' ? 'where' : 'which';
     glabAvailable = Bun.spawnSync([checker, 'glab']).exitCode === 0;
-  } catch {
-    // glab not available
-  }
+  } catch {}
 
-  // Only register tools when glab CLI is present
   if (glabAvailable) {
-    const { createGlabSetupTool } = await import('./tools/glab-setup');
     const { createGlabIssueListTool } = await import('./tools/glab-issue-list');
     const { createGlabIssueViewTool } = await import('./tools/glab-issue-view');
     const { createGlabSearchTool } = await import('./tools/glab-search');
     const { createGlabHelpTool } = await import('./tools/glab-help');
     const { createGlabExecTool } = await import('./tools/glab-exec');
-
-    pi.registerTool(withErrorType(createGlabSetupTool(pi)));
     pi.registerTool(withErrorType(createGlabIssueListTool(pi)));
     pi.registerTool(withErrorType(createGlabIssueViewTool(pi)));
     pi.registerTool(withErrorType(createGlabSearchTool(pi)));
@@ -71,111 +139,32 @@ const factory: ExtensionFactory = async (pi) => {
     pi.registerTool(withErrorType(createGlabExecTool(pi)));
   }
 
-  // Always register service status (shows unavailable when CLI missing)
-  if (typeof pi.registerServiceStatus === 'function') {
-    pi.registerServiceStatus({
-      name: 'GitLab',
-      async check() {
-        try {
-          const whichChecker = process.platform === 'win32' ? 'where' : 'which';
-          const whichResult = Bun.spawnSync([whichChecker, 'glab']);
-          if (whichResult.exitCode !== 0) {
-            return { state: 'unavailable', hint: 'run: /gitlab:setup' };
-          }
-
-          // Step 1: Check authentication
-          const authResult = Bun.spawnSync(['glab', 'auth', 'status']);
-          if (authResult.exitCode !== 0) {
-            return { state: 'unauthenticated', hint: 'run: /gitlab:setup' };
-          }
-
-          // Step 2: Parse auth output for user info
-          const authOutput = authResult.stderr.toString();
-          const match = authOutput.match(/Logged in to ([\w.-]+) as (\S+)/);
-          const user = match?.[2];
-
-          // Step 3: Suppress glab update nag (idempotent)
-          Bun.spawnSync(['glab', 'config', 'set', 'check_update', 'false']);
-
-          // Step 4: Try to detect project from git remote
-          const repoResult = Bun.spawnSync(['glab', 'repo', 'view', '--output', 'json']);
-          if (repoResult.exitCode === 0) {
-            try {
-              const repo = JSON.parse(repoResult.stdout.toString());
-              if (repo.path_with_namespace) {
-                // Step 5: Verify project access
-                const encoded = encodeURIComponent(repo.path_with_namespace);
-                const accessResult = Bun.spawnSync(['glab', 'api', `projects/${encoded}`]);
-                if (accessResult.exitCode === 0) {
-                  return { state: 'connected' };
-                }
-                return {
-                  state: 'unauthenticated',
-                  hint: `project ${repo.path_with_namespace} inaccessible${user ? ` for @${user}` : ''}`,
-                };
-              }
-            } catch {
-              // JSON parse failed — fall through
-            }
-          }
-
-          // Authenticated but no project detected — still connected
-          return { state: 'connected' };
-        } catch {
-          return { state: 'unavailable', hint: 'glab CLI check failed' };
-        }
-      },
-      fix: {
-        prompt: 'GitLab not authenticated',
-        command: ['glab', 'auth', 'login', '--hostname', 'gitlab.com', '--git-protocol', 'https', '--web'],
-      },
-    });
-  }
-
-  // Before agent start: inject GitLab project context
   if (glabAvailable && typeof pi.on === 'function') {
     pi.on('before_agent_start', async (_event: unknown, ctx: { cwd: string }) => {
       try {
         const cwd = ctx?.cwd || process.cwd();
-        const result = Bun.spawnSync(['glab', 'repo', 'view', '--output', 'json'], { cwd });
-        if (result.exitCode !== 0) return;
-        const repo = JSON.parse(new TextDecoder().decode(result.stdout));
+        const remoteResult = Bun.spawnSync(['git', 'config', '--get', 'remote.origin.url'], { cwd });
+        if (remoteResult.exitCode !== 0) return;
+        const project = gitLabProjectFromRemote(new TextDecoder().decode(remoteResult.stdout));
+        if (!project) return;
         const branchResult = Bun.spawnSync(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
         const branch = branchResult.exitCode === 0 ? new TextDecoder().decode(branchResult.stdout).trim() : '';
         const lines = [
-          repo.path_with_namespace ? `Project: ${sanitizeHintField(repo.path_with_namespace)}` : '',
+          `Project: ${sanitizeHintField(project)}`,
           branch ? `Branch: ${sanitizeHintField(branch)}` : '',
-          repo.web_url ? `URL: ${sanitizeHintField(repo.web_url)}` : '',
+          `URL: https://gitlab.com/${sanitizeHintField(project)}`,
         ]
           .filter(Boolean)
           .join('\n');
-        if (!lines) return;
-        return {
-          message: { customType: 'gitlab_hint', content: lines, display: false },
-        };
+        return { message: { customType: 'gitlab_hint', content: lines, display: false } };
       } catch {
         return;
       }
     });
   }
 
-  // Session start: notify if CLI missing; probe auth in the background (non-blocking).
-  // The auth check is diagnostic-only (debug log) — never block the TUI paint for it.
-  pi.on('session_start', (_event: unknown, _ctx: { cwd: string }) => {
-    if (!glabAvailable) {
-      pi.logger.debug('GitLab: glab CLI not found');
-      return;
-    }
-    void (async () => {
-      try {
-        const proc = Bun.spawn(['glab', 'auth', 'status'], { stdout: 'ignore', stderr: 'ignore' });
-        if ((await proc.exited) !== 0) {
-          pi.logger.debug('GitLab: not authenticated (non-fatal)');
-        }
-      } catch {
-        pi.logger.debug('GitLab: welcome check failed (non-fatal)');
-      }
-    })();
+  pi.on('session_start', () => {
+    if (!glabAvailable) pi.logger.debug('GitLab: glab CLI not found');
   });
 };
 

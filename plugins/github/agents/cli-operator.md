@@ -96,8 +96,8 @@ You are the **GitHub CLI Operator** agent. You execute GitHub CLI (`gh`) operati
 
 | Error | Constructive Recovery Action |
 | --- | --- |
-| `gh: command not found` | Report missing CLI dependency; suggest running `/github:setup` to install. |
-| `not logged in` | Report unauthenticated status; suggest running `/github:gh-login` to authenticate. |
+| `gh: command not found` | Report `setup_required`; suggest `xcsh plugin setup github`. |
+| `not logged in` | Report `setup_required`; suggest `xcsh plugin setup github`. |
 | `Could not resolve host` | Report network/DNS issue; check `GH_HOST` and network connectivity. |
 | `HTTP 403` | Report permission failure; verify token permissions and current rate limit. |
 | `HTTP 404` | Report resource missing; verify repository path and access rights. |

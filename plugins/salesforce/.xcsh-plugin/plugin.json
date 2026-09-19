@@ -1,7 +1,7 @@
 {
   "name": "salesforce",
-  "description": "Salesforce pipeline intelligence — native xcsh tools (sf_setup, sf_query, sf_org_display, sf_pipeline_report), container-adapted authentication, context discovery, and pipeline reporting",
-  "version": "1.4.0",
+  "description": "Salesforce pipeline intelligence with shared lifecycle setup, account discovery, context, and reporting tools",
+  "version": "1.5.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -9,5 +9,42 @@
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce",
   "keywords": ["salesforce", "sf", "soql", "pipeline", "xcsh-extension"],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5-sales-demo/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace",
+  "marketplace": {
+    "order": 9,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/salesforce",
+      "category": "development",
+      "keywords": [
+        "salesforce",
+        "sf",
+        "apex",
+        "lwc",
+        "soql",
+        "metadata",
+        "deploy",
+        "testing",
+        "sfdx",
+        "agentforce",
+        "pipeline",
+        "xcsh"
+      ],
+      "tags": ["salesforce", "development", "cli", "crm", "xcsh-extension"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce",
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "recommended": true
+    }
+  },
+  "lifecycle": {
+    "mode": "integrated",
+    "integrations": ["salesforce"],
+    "requirements": ["Salesforce CLI", "An authenticated default Salesforce org"],
+    "setupRequired": true,
+    "collectedData": ["accounts", "identifiers", "business_profile"],
+    "pluginDependencies": []
+  }
 }

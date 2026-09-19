@@ -66,7 +66,7 @@ export function detectAwsError(stderr: string, exitCode: number): AwsExecError {
     lower.includes('could not be found') ||
     lower.includes('no credentials')
   ) {
-    return new AwsAuthError(stderr, exitCode);
+    return new AwsAuthError(`${stderr.trim()}\nRun: xcsh plugin setup aws`, exitCode);
   }
 
   if (
@@ -76,7 +76,7 @@ export function detectAwsError(stderr: string, exitCode: number): AwsExecError {
     lower.includes('sso token') ||
     (lower.includes('sso') && lower.includes('expired'))
   ) {
-    return new AwsSessionExpiredError(stderr, exitCode);
+    return new AwsSessionExpiredError(`${stderr.trim()}\nRun: xcsh plugin setup aws`, exitCode);
   }
 
   if (

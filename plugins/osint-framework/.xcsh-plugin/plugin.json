@@ -1,7 +1,7 @@
 {
   "name": "osint-framework",
   "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -23,5 +23,28 @@
     "metadata"
   ],
   "license": "Apache-2.0",
-  "repository": "https://github.com/f5-sales-demo/marketplace"
+  "repository": "https://github.com/f5-sales-demo/marketplace",
+  "marketplace": {
+    "order": 7,
+    "catalog": {
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "source": "./plugins/osint-framework",
+      "category": "security",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework",
+      "license": "Apache-2.0",
+      "keywords": ["osint", "reconnaissance", "intelligence", "investigation", "security"],
+      "tags": ["osint", "recon", "security", "intelligence"],
+      "repository": "https://github.com/f5-sales-demo/marketplace"
+    }
+  },
+  "lifecycle": {
+    "mode": "content",
+    "integrations": [],
+    "requirements": ["OSINT framework content only"],
+    "setupRequired": false,
+    "collectedData": [],
+    "pluginDependencies": []
+  }
 }
