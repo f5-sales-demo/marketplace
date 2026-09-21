@@ -1,6 +1,7 @@
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
-  tools?: { register<_T>(definition: unknown): unknown };
+  typebox: { Type: { Object(shape: Record<string, unknown>): unknown; String(): unknown } };
+  registerTool(definition: unknown): void;
 }
 export type Action = 'status' | 'leave' | 'stop-share' | 'audio' | 'video' | 'share' | 'awareness' | 'join';
 const actions: readonly Action[] = ['status', 'leave', 'stop-share', 'audio', 'video', 'share', 'awareness'];
@@ -68,13 +69,15 @@ export default function zoomIntegration(pi: ExtensionApi) {
         : { state: 'setup_required', reason: 'zoom_missing' };
     },
   });
-  pi.tools?.register({
+  pi.registerTool({
     name: 'zoom_meeting',
+    label: 'Zoom meeting',
     description: 'Join or control Zoom through verified public xorgctl JSON.',
-    inputSchema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
-    async execute(input: { command: string }) {
+    parameters: pi.typebox.Type.Object({ command: pi.typebox.Type.String() }),
+    async execute(_toolCallId: string, input: { command: string }) {
       const parsed = parseZoomCommand(input.command);
-      return call(parsed.action, parsed.args);
+      const details = call(parsed.action, parsed.args);
+      return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
     },
   });
 }

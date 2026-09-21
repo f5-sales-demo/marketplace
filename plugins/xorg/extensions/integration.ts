@@ -1,6 +1,7 @@
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
-  tools?: { register<_T>(definition: unknown): unknown };
+  typebox: { Type: { Object(shape: Record<string, unknown>): unknown; String(): unknown } };
+  registerTool(definition: unknown): void;
 }
 const VERSION = '0.3.0';
 const invoke = (args: string[]) => Bun.spawnSync(['xorgctl', '--json', ...args]);
@@ -25,22 +26,24 @@ export default function xorgIntegration(pi: ExtensionApi) {
         : { state: 'degraded', reason: 'version_mismatch' };
     },
   });
-  pi.tools?.register({
+  pi.registerTool({
     name: 'xorg_desktop',
+    label: 'Xorg desktop',
     description: 'Observe or act on Ubuntu Xorg through xorgctl JSON.',
-    inputSchema: {
-      type: 'object',
-      properties: { command: { type: 'string' }, action: { type: 'string' }, params: { type: 'object' } },
-      required: ['command'],
-    },
-    async execute(input: { command: string; action?: string; params?: Record<string, unknown> }) {
+    parameters: pi.typebox.Type.Object({
+      command: pi.typebox.Type.String(),
+      action: pi.typebox.Type.String(),
+      params: pi.typebox.Type.Object({}),
+    }),
+    async execute(_toolCallId: string, input: { command: string; action?: string; params?: Record<string, unknown> }) {
       const r = invoke([
         input.command,
         ...(input.action ? [input.action] : []),
         '--params',
         JSON.stringify(input.params ?? {}),
       ]);
-      return { exitCode: r.exitCode, output: new TextDecoder().decode(r.stdout) };
+      const details = { exitCode: r.exitCode, output: new TextDecoder().decode(r.stdout) };
+      return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
     },
   });
 }

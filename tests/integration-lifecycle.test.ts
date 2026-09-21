@@ -15,10 +15,18 @@ type Definition = {
   probe(): Promise<{ state: string; reason?: string; retryAfterMs?: number; value?: unknown }>;
   profile?(value: unknown): { facts: Record<string, unknown>; observations: unknown[] };
 };
+type ToolDefinition = {
+  name: string;
+  label: string;
+  parameters: unknown;
+  execute: (...args: unknown[]) => Promise<unknown>;
+};
+type Definitions = Definition[] & { tools: ToolDefinition[] };
 
-async function definitionsFor(plugin: string): Promise<Definition[]> {
+async function definitionsFor(plugin: string): Promise<Definitions> {
   const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({ exitCode: 1 } as ReturnType<typeof Bun.spawnSync>);
   const definitions: Definition[] = [];
+  const tools: ToolDefinition[] = [];
   const handlers: Record<string, unknown[]> = {};
   const typeFactory = new Proxy({}, { get: () => () => ({}) });
   const pi = {
@@ -33,12 +41,13 @@ async function definitionsFor(plugin: string): Promise<Definition[]> {
         return { get: async () => ({ state: 'setup_required' }) };
       },
     },
-    tools: { register() {} },
     registerFlag() {},
     getFlag() {
       return false;
     },
-    registerTool() {},
+    registerTool(definition: ToolDefinition) {
+      tools.push(definition);
+    },
     on(event: string, handler: unknown) {
       const eventHandlers = handlers[event] ?? [];
       eventHandlers.push(handler);
@@ -58,7 +67,7 @@ async function definitionsFor(plugin: string): Promise<Definition[]> {
   const module = await import(`../plugins/${plugin}/${entrypoint}`);
   await module.default(pi);
   spawn.mockRestore();
-  return definitions;
+  return Object.assign(definitions, { tools });
 }
 
 describe('provider integration lifecycle', () => {
@@ -159,6 +168,11 @@ describe('provider integration lifecycle', () => {
     ] as const) {
       expect((await definitionsFor(plugin)).map((definition) => definition.id)).toEqual(ids);
     }
+  });
+
+  it('registers callable Xorg and Zoom tools through the xcsh extension API', async () => {
+    expect((await definitionsFor('xorg')).tools.map((tool) => tool.name)).toEqual(['xorg_desktop']);
+    expect((await definitionsFor('zoom')).tools.map((tool) => tool.name)).toEqual(['zoom_meeting']);
   });
 
   it('declares immutable argv arrays and environment names without values', async () => {
