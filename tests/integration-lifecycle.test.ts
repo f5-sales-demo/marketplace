@@ -202,30 +202,51 @@ describe('provider integration lifecycle', () => {
               ? [
                   ...(!sharing ? [{ id: 42, pid: 7, title: 'Meeting' }] : []),
                   { id: 84, pid: 8, title: 'xcsh Zoom AV UAT - Google Chrome' },
-                  ...(pickerOpen ? [{ id: 126, pid: 7, title: 'Select a window or an application that you want to share' }] : []),
+                  ...(pickerOpen
+                    ? [{ id: 126, pid: 7, title: 'Select a window or an application that you want to share' }]
+                    : []),
                 ]
               : [],
         };
       } else if (operation === 'inspect' && action === 'accessibility') {
         result = {
-          items: session !== 'console'
-            ? []
-            : sharing
-            ? [{ name: 'Stop Share', role: 'push button', pid: 7, box: [900, 20, 100, 40] }]
-            : pickerOpen
-              ? [
-                  { name: 'Select a window or an application that you want to share', role: 'frame', pid: 7, box: [400, 200, 1000, 700] },
-                  { name: 'xcsh Zoom AV UAT - Google Chrome', role: 'filler', pid: 7, box: [460, 520, 720, 160], selected: targetSelected },
-                  { name: 'Share sound', role: 'check box', pid: 7, box: [1200, 580, 110, 28], checked: soundChecked },
-                  { name: 'Share', role: 'push button', pid: 7, box: [870, 830, 164, 32] },
-                ]
-              : [{ name: 'Share', role: 'push button', pid: 7, box: [1050, 900, 80, 50] }],
+          items:
+            session !== 'console'
+              ? []
+              : sharing
+                ? [{ name: 'Stop Share', role: 'push button', pid: 7, box: [900, 20, 100, 40] }]
+                : pickerOpen
+                  ? [
+                      {
+                        name: 'Select a window or an application that you want to share',
+                        role: 'frame',
+                        pid: 7,
+                        box: [400, 200, 1000, 700],
+                      },
+                      {
+                        name: 'xcsh Zoom AV UAT - Google Chrome',
+                        role: 'filler',
+                        pid: 7,
+                        box: [460, 520, 720, 160],
+                        selected: targetSelected,
+                      },
+                      {
+                        name: 'Share sound',
+                        role: 'check box',
+                        pid: 7,
+                        box: [1200, 580, 110, 28],
+                        checked: soundChecked,
+                      },
+                      { name: 'Share', role: 'push button', pid: 7, box: [870, 830, 164, 32] },
+                    ]
+                  : [{ name: 'Share', role: 'push button', pid: 7, box: [1050, 900, 80, 50] }],
         };
       } else if (operation === 'input' && action === 'batch') {
         const steps = params.steps as Array<Record<string, unknown>>;
         inputSteps.push(...steps);
         for (const step of steps) {
-          if (step.action === 'chord' && JSON.stringify(step.keys) === JSON.stringify(['Alt_L', 's'])) pickerOpen = true;
+          if (step.action === 'chord' && JSON.stringify(step.keys) === JSON.stringify(['Alt_L', 's']))
+            pickerOpen = true;
           if (step.action !== 'click') continue;
           const x = Number(step.x);
           const y = Number(step.y);
@@ -456,9 +477,7 @@ describe('provider integration lifecycle', () => {
     expect(worker).toMatch(/item\.get\((["'])pid\1\) in visible_pids/);
     expect(worker).toMatch(/item\.get\((["'])showing\1\) is True/);
     expect(worker).toMatch(/item\.get\((["'])visible\1\) is True/);
-    expect(worker).toMatch(
-      /["']session_pid_filter["']:\s*sorted\(visible_pids\)/,
-    );
+    expect(worker).toMatch(/["']session_pid_filter["']:\s*sorted\(visible_pids\)/);
   });
   it('declares native installer argv for macOS, Linux, and Windows', async () => {
     for (const [plugin, exportName, expectedWindowsId] of [

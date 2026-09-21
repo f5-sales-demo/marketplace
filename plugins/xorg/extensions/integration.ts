@@ -44,12 +44,7 @@ export default function xorgIntegration(pi: ExtensionApi) {
       if (r.exitCode !== 0 || !text.includes(VERSION)) {
         return { state: 'degraded', reason: 'version_mismatch' };
       }
-      const setup = invoke(undefined, [
-        'setup',
-        'status',
-        '--params',
-        JSON.stringify({ expected_version: VERSION }),
-      ]);
+      const setup = invoke(undefined, ['setup', 'status', '--params', JSON.stringify({ expected_version: VERSION })]);
       if (setup.exitCode !== 0) return { state: 'degraded', reason: 'setup_probe_failed' };
       try {
         const envelope = JSON.parse(new TextDecoder().decode(setup.stdout)) as {
