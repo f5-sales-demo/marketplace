@@ -88,7 +88,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_worker_version", side_effect=worker_version),
             ):
                 self.assertEqual(
-                    setup._session_worker_checks(),
+                    setup.session_worker_checks(),
                     {
                         "console": {"ready": True, "version": VERSION},
                         "desktop": {"ready": False, "version": "1.0.3"},

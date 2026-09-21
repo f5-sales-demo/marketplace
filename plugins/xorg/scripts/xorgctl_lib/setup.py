@@ -129,7 +129,7 @@ def _configured_session_names() -> list[str]:
         return []
 
 
-def _session_worker_checks() -> dict[str, dict[str, object]]:
+def session_worker_checks() -> dict[str, dict[str, object]]:
     checks: dict[str, dict[str, object]] = {}
     for name in _configured_session_names():
         if not _service_active(_session_service(name)):
@@ -159,7 +159,7 @@ def status(expected_version: str) -> dict[str, object]:
         if command_checks["fc-match"]
         else None
     )
-    session_workers = _session_worker_checks()
+    session_workers = session_worker_checks()
     console_worker = session_workers.get("console", {"ready": False, "version": None})
     font_ready = bool(
         font and font.returncode == 0 and "JetBrainsMono Nerd Font" in font.stdout
