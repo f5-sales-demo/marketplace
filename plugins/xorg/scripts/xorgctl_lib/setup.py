@@ -8,8 +8,9 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import time
 
-from .common import VERSION, Fault
+from .common import ROOT, VERSION, Fault, rpc
 
 UBUNTU_ID = "ubuntu"
 UBUNTU_VERSION = "24.04"
@@ -108,6 +109,14 @@ def _session_service(name: str) -> str:
     return f"xorgctl-session@{name}.service"
 
 
+def _worker_version(name: str) -> str | None:
+    try:
+        value = rpc(name, "status", {}).get("version")
+        return str(value) if value is not None else None
+    except (Fault, OSError, EOFError):
+        return None
+
+
 def status(expected_version: str) -> dict[str, object]:
     platform = _platform()
     command_checks = {
@@ -124,6 +133,7 @@ def status(expected_version: str) -> dict[str, object]:
         and camera_label.read_text().strip() == "xcsh Camera"
     )
     font = _command(["fc-match", "-f", "%{family[0]}", "JetBrainsMono Nerd Font"])
+    worker_version = _worker_version("console")
     checks: dict[str, object] = {
         "platform": platform == {"id": UBUNTU_ID, "version_id": UBUNTU_VERSION},
         "version": expected_version == VERSION,
@@ -141,6 +151,7 @@ def status(expected_version: str) -> dict[str, object]:
             "console": _service_active(_session_service("console")),
             "camera": _service_active("xcsh-camera.service"),
         },
+        "worker": {"ready": worker_version == VERSION, "version": worker_version},
     }
     missing: list[str] = []
     if not checks["platform"]:
@@ -160,6 +171,8 @@ def status(expected_version: str) -> dict[str, object]:
     missing.extend(
         f"service:{name}" for name, ready in checks["services"].items() if not ready
     )  # type: ignore[union-attr]
+    if worker_version != VERSION:
+        missing.append("worker_version")
     return {
         "state": "ready" if not missing else "degraded",
         "version": VERSION,
@@ -177,6 +190,19 @@ def _install_launcher(interpreter: pathlib.Path) -> None:
     temporary = destination.with_suffix(".tmp")
     temporary.write_text(f'#!/bin/sh\nexec {interpreter} {source} "$@"\n')
     temporary.chmod(0o755)
+    temporary.replace(destination)
+
+
+def _install_session_service() -> None:
+    destination = pathlib.Path.home() / ".config/systemd/user/xorgctl-session@.service"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(
+        "[Unit]\nDescription=xorgctl session %i\nAfter=graphical-session.target\n\n"
+        "[Service]\nType=simple\nExecStart=%h/.local/bin/xorgctl _service %i\n"
+        "Restart=on-failure\nRestartSec=2\n\n[Install]\nWantedBy=default.target\n"
+    )
+    temporary.chmod(0o644)
     temporary.replace(destination)
 
 
@@ -212,6 +238,22 @@ def apply(expected_version: str) -> dict[str, object]:
         [str(venv / "bin/pip"), "install", *PINNED_PYTHON], check=True, timeout=300
     )
     _install_launcher(venv / "bin/python")
+    _install_session_service()
+    if not (ROOT / "console/session.json").is_file():
+        from .sessions import manage as manage_session
+
+        manage_session("console", "attach", {})
+    _command(["systemctl", "--user", "daemon-reload"], check=True)
+    _command(
+        ["systemctl", "--user", "enable", "--now", _session_service("console")],
+        check=True,
+    )
+    _command(
+        ["systemctl", "--user", "restart", _session_service("console")], check=True
+    )
+    deadline = time.monotonic() + 15
+    while _worker_version("console") != VERSION and time.monotonic() < deadline:
+        time.sleep(0.1)
     # Device and user services are deliberately reconciled by their dedicated
     # installer package. Setup reports degraded until they are active; it never
     # substitutes physical camera or audio devices.

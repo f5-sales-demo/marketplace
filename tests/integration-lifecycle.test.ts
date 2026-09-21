@@ -555,11 +555,16 @@ describe('provider integration lifecycle', () => {
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
       ok: boolean;
-      result: { state: string; platform: { id: string; version_id: string }; checks: Record<string, unknown> };
+      result: {
+        state: string;
+        platform: { id: string; version_id: string };
+        checks: { worker: { ready: boolean; version: string | null } } & Record<string, unknown>;
+      };
     };
     expect(payload.ok).toBe(true);
     expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
     expect(['ready', 'degraded']).toContain(payload.result.state);
+    expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');
   });
 
