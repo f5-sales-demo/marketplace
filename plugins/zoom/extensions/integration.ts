@@ -525,10 +525,25 @@ const controlStopShare = (session: string) => {
   if (previous !== 'on') {
     return { exitCode: 1, code: 'semantic_state_unavailable', control: 'stop-share', previous, verified: false };
   }
-  const controls = meetingAccessibility(session).items.filter(
+  let controls = meetingAccessibility(session).items.filter(
     (item) =>
       item.role === 'push button' && ['stop share', 'stop sharing'].includes((item.name ?? '').trim().toLowerCase()),
   );
+  if (controls.length !== 1) {
+    const returnToMeeting = exactItem(meetingAccessibility(session).items, 'Return to meeting', 'push button');
+    if (returnToMeeting && clickAccessible(session, returnToMeeting)) {
+      const returnDeadline = Date.now() + 5_000;
+      while (Date.now() < returnDeadline) {
+        controls = meetingAccessibility(session).items.filter(
+          (item) =>
+            item.role === 'push button' &&
+            ['stop share', 'stop sharing'].includes((item.name ?? '').trim().toLowerCase()),
+        );
+        if (controls.length === 1) break;
+        Bun.sleepSync(100);
+      }
+    }
+  }
   if (controls.length === 1) {
     if (!clickAccessible(session, controls[0])) {
       return { exitCode: 1, code: 'stop_share_input_failed', control: 'stop-share', previous, verified: false };
@@ -881,7 +896,8 @@ export const createZoomCommandHandler =
       const parsed = parseZoomCommand(args);
       const result = execute(parsed.action, parsed.args);
       const exitCode = typeof result.exitCode === 'number' ? result.exitCode : 1;
-      ctx.ui.notify(JSON.stringify(result, null, 2), exitCode === 0 ? 'info' : 'error');
+      const { evidence: _evidence, ...visibleResult } = result;
+      ctx.ui.notify(JSON.stringify(visibleResult, null, 2), exitCode === 0 ? 'info' : 'error');
     } catch (error) {
       ctx.ui.notify(error instanceof Error ? error.message : String(error), 'error');
     }
