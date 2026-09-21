@@ -175,6 +175,15 @@ describe('provider integration lifecycle', () => {
     expect((await definitionsFor('zoom')).tools.map((tool) => tool.name)).toEqual(['zoom_meeting']);
   });
 
+  it('declares Xorg and Zoom extension entrypoints where xcsh loads them', async () => {
+    for (const plugin of ['xorg', 'zoom']) {
+      const manifest = JSON.parse(
+        await readFile(join(import.meta.dir, '..', 'plugins', plugin, '.xcsh-plugin', 'plugin.json'), 'utf8'),
+      ) as { extensions?: string[] };
+      expect(manifest.extensions).toEqual(['extensions/integration.ts']);
+    }
+  });
+
   it('declares immutable argv arrays and environment names without values', async () => {
     for (const plugin of ['aws', 'azure', 'gcloud', 'github', 'gitlab', 'salesforce']) {
       const definitions = await definitionsFor(plugin);

@@ -546,10 +546,10 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Xorg",
-        "version": "1.0.0",
-        "extensions": ["extensions/integration.ts"]
+        "version": "1.0.0"
       },
       "source": "./plugins/xorg",
       "category": "development",
@@ -574,10 +574,10 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Zoom",
-        "version": "1.0.0",
-        "extensions": ["extensions/integration.ts"]
+        "version": "1.0.0"
       },
       "source": "./plugins/zoom",
       "category": "productivity",

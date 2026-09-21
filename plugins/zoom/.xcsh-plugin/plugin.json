@@ -25,5 +25,6 @@
     "collectedData": [],
     "pluginDependencies": ["xorg"]
   },
-  "xcsh": { "name": "Zoom", "version": "1.0.0", "extensions": ["extensions/integration.ts"] }
+  "extensions": ["extensions/integration.ts"],
+  "xcsh": { "name": "Zoom", "version": "1.0.0" }
 }

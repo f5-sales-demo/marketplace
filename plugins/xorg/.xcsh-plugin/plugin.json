@@ -25,5 +25,6 @@
     "collectedData": [],
     "pluginDependencies": []
   },
-  "xcsh": { "name": "Xorg", "version": "1.0.0", "extensions": ["extensions/integration.ts"] }
+  "extensions": ["extensions/integration.ts"],
+  "xcsh": { "name": "Xorg", "version": "1.0.0" }
 }
