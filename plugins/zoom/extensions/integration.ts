@@ -1,6 +1,8 @@
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
-  typebox: { Type: { Object(shape: Record<string, unknown>): unknown; String(): unknown } };
+  typebox: {
+    Type: { Object(shape: Record<string, unknown>): unknown; String(): unknown; Optional(schema: unknown): unknown };
+  };
   registerTool(definition: unknown): void;
 }
 export type Action = 'status' | 'leave' | 'stop-share' | 'audio' | 'video' | 'share' | 'awareness' | 'join';
@@ -17,6 +19,20 @@ export function parseZoomCommand(value: string): { action: Action; args: string[
   if (!words.length) throw new Error('meeting ID or Zoom action is required');
   const [first, ...rest] = words;
   return actions.includes(first as Action) ? { action: first as Action, args: rest } : { action: 'join', args: words };
+}
+export function parseZoomToolInput(input: {
+  command?: string;
+  action?: string;
+  invitation_url?: string;
+  url?: string;
+  meeting_id?: string;
+}): { action: Action; args: string[] } {
+  const invitation = input.invitation_url ?? input.url;
+  if (invitation) return { action: 'join', args: [invitation] };
+  if (input.meeting_id) return { action: 'join', args: [input.meeting_id] };
+  if (input.command) return parseZoomCommand(input.command);
+  if (input.action && actions.includes(input.action as Action)) return { action: input.action as Action, args: [] };
+  throw new Error('command, invitation_url, url, or meeting_id is required');
 }
 const publicXorgCall = (command: string, action: string | undefined, params: Record<string, unknown>) => {
   const result = Bun.spawnSync([
@@ -73,9 +89,18 @@ export default function zoomIntegration(pi: ExtensionApi) {
     name: 'zoom_meeting',
     label: 'Zoom meeting',
     description: 'Join or control Zoom through verified public xorgctl JSON.',
-    parameters: pi.typebox.Type.Object({ command: pi.typebox.Type.String() }),
-    async execute(_toolCallId: string, input: { command: string }) {
-      const parsed = parseZoomCommand(input.command);
+    parameters: pi.typebox.Type.Object({
+      command: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+      action: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+      invitation_url: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+      url: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+      meeting_id: pi.typebox.Type.Optional(pi.typebox.Type.String()),
+    }),
+    async execute(
+      _toolCallId: string,
+      input: { command?: string; action?: string; invitation_url?: string; url?: string; meeting_id?: string },
+    ) {
+      const parsed = parseZoomToolInput(input);
       const details = call(parsed.action, parsed.args);
       return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
     },
