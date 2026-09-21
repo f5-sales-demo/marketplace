@@ -1,6 +1,6 @@
 {
   "name": "zoom",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Verified Zoom Workplace control through public xorgctl JSON",
   "license": "Apache-2.0",
   "author": {
@@ -32,6 +32,6 @@
   "extensions": ["extensions/integration.ts"],
   "xcsh": {
     "name": "Zoom",
-    "version": "1.0.3"
+    "version": "1.0.5"
   }
 }

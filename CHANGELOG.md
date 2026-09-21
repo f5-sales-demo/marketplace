@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.0.5 — requires an eight-second, complete speech result from Xorg so
+  receiver verification cannot pass on clipped audio (#1354).
+
+- **`xorg`** v1.0.2 — measures synthesized WAV duration in memory, rejects a
+  clipping playback bound, and speaks one concise token without retaining media (#1354).
+
 - **`zoom`** v1.0.4 — selects and verifies the xcsh virtual microphone, session
   speaker, and Original Sound for Musicians before bounded audio stimuli (#1354).
 

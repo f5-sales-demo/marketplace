@@ -765,16 +765,27 @@ const controlStimulus = (session: string, requested = 'tones') => {
   const token = kind === 'speech' ? 'XCSH-UAT' : undefined;
   const response = publicXorgCall(DEFAULT_SESSION, 'audio', 'stimulus', {
     kind,
-    seconds: kind === 'speech' ? 6 : 2.4,
+    seconds: kind === 'speech' ? 8 : 2.4,
     ...(token ? { token } : {}),
   });
   if (response.exitCode) return { ...response, code: 'stimulus_delivery_failed', control: 'stimulus', verified: false };
   try {
     const envelope = JSON.parse(response.output) as {
-      result?: { stimulus?: string; sink?: string; retention?: string; token_sha256?: string | null };
+      result?: {
+        stimulus?: string;
+        sink?: string;
+        retention?: string;
+        token_sha256?: string | null;
+        complete?: boolean;
+      };
     };
     const result = envelope.result;
-    if (result?.stimulus !== kind || result.sink !== 'xcsh_microphone' || result.retention !== 'none') {
+    if (
+      result?.stimulus !== kind ||
+      result.sink !== 'xcsh_microphone' ||
+      result.retention !== 'none' ||
+      (kind === 'speech' && result.complete !== true)
+    ) {
       return { exitCode: 1, code: 'stimulus_verification_failed', control: 'stimulus', verified: false };
     }
     return {
@@ -790,6 +801,7 @@ const controlStimulus = (session: string, requested = 'tones') => {
       original_sound: audio.original_sound,
       token: token ?? null,
       token_sha256: result.token_sha256 ?? null,
+      complete: result.complete ?? null,
       changed: true,
       verified: true,
       receiver_verification: 'required',

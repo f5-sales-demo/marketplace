@@ -97,6 +97,25 @@ for i in $(seq 0 $((PLUGIN_COUNT - 1))); do
     if [[ "$MKT_VER" != "$PLG_VER" ]]; then
       error "Version mismatch for '$PLUGIN_NAME': marketplace.json='$MKT_VER' vs plugin.json='$PLG_VER'"
     fi
+    MKT_XCSH_VER=$(jq -r ".plugins[$i].xcsh.version // empty" "$MARKETPLACE")
+    PLG_XCSH_VER=$(jq -r ".xcsh.version // empty" "$PLUGIN_JSON")
+    if [[ -n "$MKT_XCSH_VER" && "$MKT_XCSH_VER" != "$MKT_VER" ]]; then
+      error "Embedded xcsh version mismatch for '$PLUGIN_NAME' in marketplace.json: '$MKT_XCSH_VER' vs '$MKT_VER'"
+    fi
+    if [[ -n "$PLG_XCSH_VER" && "$PLG_XCSH_VER" != "$PLG_VER" ]]; then
+      error "Embedded xcsh version mismatch for '$PLUGIN_NAME' in plugin.json: '$PLG_XCSH_VER' vs '$PLG_VER'"
+    fi
+    PACKAGE_JSON="$PLUGIN_DIR/package.json"
+    if [[ -f "$PACKAGE_JSON" ]]; then
+      PACKAGE_VER=$(jq -r ".version // empty" "$PACKAGE_JSON")
+      PACKAGE_XCSH_VER=$(jq -r ".xcsh.version // empty" "$PACKAGE_JSON")
+      if [[ -n "$PACKAGE_VER" && "$PACKAGE_VER" != "$PLG_VER" ]]; then
+        error "Version mismatch for '$PLUGIN_NAME': package.json='$PACKAGE_VER' vs plugin.json='$PLG_VER'"
+      fi
+      if [[ -n "$PACKAGE_XCSH_VER" && "$PACKAGE_XCSH_VER" != "$PLG_VER" ]]; then
+        error "Embedded xcsh version mismatch for '$PLUGIN_NAME' in package.json: '$PACKAGE_XCSH_VER' vs '$PLG_VER'"
+      fi
+    fi
 
     # ── 7. SKILL.md frontmatter validation ─────────────────────
     SKILL_COUNT=0

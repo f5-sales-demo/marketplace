@@ -582,6 +582,69 @@ describe('provider integration lifecycle', () => {
       spawn.mockRestore();
     }
   });
+  it('requires a complete bounded speech result from Xorg', () => {
+    let requestedSeconds = 0;
+    let complete = true;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = { windows: session === 'console' ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items:
+            session === 'console'
+              ? [
+                  { name: 'Mute', role: 'push button', pid: 7 },
+                  { name: 'Participants', role: 'push button', pid: 7 },
+                  { name: 'Share', role: 'push button', pid: 7 },
+                  { name: 'Select a microphone', role: 'menu item', pid: 7 },
+                  { name: 'xcsh Microphone', role: 'check box', checked: true, pid: 7 },
+                  { name: 'Select a speaker', role: 'menu item', pid: 7 },
+                  { name: 'xorgctl_desktop', role: 'check box', checked: true, pid: 7 },
+                  { name: 'Original sound for musicians', role: 'check box', checked: true, pid: 7 },
+                ]
+              : [],
+        };
+      } else if (operation === 'audio' && action === 'stimulus') {
+        requestedSeconds = Number(params.seconds);
+        result = {
+          stimulus: 'speech',
+          sink: 'xcsh_microphone',
+          retention: 'none',
+          token_sha256: 'digest',
+          complete,
+        };
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('stimulus', ['speech'])).toMatchObject({
+        exitCode: 0,
+        kind: 'speech',
+        complete: true,
+        verified: true,
+      });
+      expect(requestedSeconds).toBe(8);
+      complete = false;
+      expect(call('stimulus', ['speech'])).toMatchObject({
+        exitCode: 1,
+        code: 'stimulus_verification_failed',
+        verified: false,
+      });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
   it('enables and verifies Original Sound for Musicians before sending a stimulus', () => {
     let originalSound = false;
     let stimulusCalls = 0;
@@ -1000,13 +1063,13 @@ describe('provider integration lifecycle', () => {
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: ['xorgctl', 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.1' })],
+        argv: ['xorgctl', 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.2' })],
         timeoutMs: 300000,
       },
     ]);
     expect(definition.setup?.verification).toEqual([
       {
-        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.1' })],
+        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.2' })],
         timeoutMs: 30000,
       },
     ]);
@@ -1019,7 +1082,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.0.1' }),
+      JSON.stringify({ expected_version: '1.0.2' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
