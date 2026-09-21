@@ -1,7 +1,12 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { call, canonicalMeetingId, parseZoomCommand } from '../plugins/zoom/extensions/integration';
+import {
+  call,
+  canonicalMeetingId,
+  invitationToZoomMtg,
+  parseZoomCommand,
+} from '../plugins/zoom/extensions/integration';
 
 type Definition = {
   id: string;
@@ -91,6 +96,9 @@ describe('provider integration lifecycle', () => {
     expect(canonicalMeetingId('123 456-789')).toBe('123456789');
     expect(() => canonicalMeetingId('1234')).toThrow('9 to 16');
     expect(parseZoomCommand('123 456 789').action).toBe('join');
+    expect(invitationToZoomMtg('https://f5.zoom.us/j/123456789?pwd=secret')).toBe(
+      'zoommtg://f5.zoom.us/join?action=join&confno=123456789&pwd=secret',
+    );
     const source = await readFile(
       join(import.meta.dir, '..', 'plugins', 'zoom', 'extensions', 'integration.ts'),
       'utf8',
@@ -102,7 +110,7 @@ describe('provider integration lifecycle', () => {
       stderr: new Uint8Array(),
     } as ReturnType<typeof Bun.spawnSync>);
     try {
-      expect(call('join', ['https://zoom.us/j/123?pwd=secret']).output).toBe('joined');
+      expect(call('join', ['https://zoom.us/j/123456789?pwd=secret']).output).toBe('joined');
       expect(spawn).toHaveBeenCalledWith([
         'xorgctl',
         '--session',
@@ -111,7 +119,9 @@ describe('provider integration lifecycle', () => {
         'app',
         'launch',
         '--params',
-        JSON.stringify({ argv: ['zoom', '--url', 'https://zoom.us/j/123?pwd=secret'] }),
+        JSON.stringify({
+          argv: ['zoom', 'zoommtg://zoom.us/join?action=join&confno=123456789&pwd=secret'],
+        }),
       ]);
     } finally {
       spawn.mockRestore();

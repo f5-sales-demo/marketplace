@@ -15,6 +15,16 @@ export const canonicalMeetingId = (value: string) => {
   if (id.length < 9 || id.length > 16) throw new Error('meeting ID must contain 9 to 16 digits');
   return id;
 };
+export const invitationToZoomMtg = (value: string) => {
+  const invitation = new URL(value);
+  const meeting = invitation.pathname.match(/^\/j\/(\d[\d-]*)/);
+  if (!meeting) throw new Error('invitation URL must contain a Zoom /j/<meeting-id> path');
+  const query = new URLSearchParams({ action: 'join', confno: canonicalMeetingId(meeting[1]) });
+  for (const [key, item] of invitation.searchParams) {
+    if (key !== 'action' && key !== 'confno') query.append(key, item);
+  }
+  return `zoommtg://${invitation.host}/join?${query.toString()}`;
+};
 export function parseZoomCommand(value: string): { action: Action; args: string[] } {
   const words = value.trim().split(/\s+/).filter(Boolean);
   if (!words.length) throw new Error('meeting ID or Zoom action is required');
@@ -56,8 +66,10 @@ const publicXorgCall = (command: string, action: string | undefined, params: Rec
 export const call = (action: Action, args: string[]) => {
   if (action === 'join') {
     const target = args.join(' ');
-    const joinTarget = isInvitation(target) ? target : `zoommtg://zoom.us/join?confno=${canonicalMeetingId(target)}`;
-    return publicXorgCall('app', 'launch', { argv: ['zoom', '--url', joinTarget] });
+    const joinTarget = isInvitation(target)
+      ? invitationToZoomMtg(target)
+      : `zoommtg://zoom.us/join?action=join&confno=${canonicalMeetingId(target)}`;
+    return publicXorgCall('app', 'launch', { argv: ['zoom', joinTarget] });
   }
   if (action === 'status' || action === 'awareness') return publicXorgCall('inspect', 'accessibility', {});
   const shortcuts: Record<string, string> = {
