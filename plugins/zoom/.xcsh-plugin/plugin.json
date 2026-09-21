@@ -1,6 +1,6 @@
 {
   "name": "zoom",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Verified Zoom Workplace control through public xorgctl JSON",
   "license": "Apache-2.0",
   "author": {

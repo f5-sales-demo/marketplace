@@ -548,6 +548,11 @@ describe('provider integration lifecycle', () => {
                   { name: 'Participants', role: 'push button', pid: 7 },
                   { name: 'Share', role: 'push button', pid: 7 },
                   { name: 'Original Sound for Musicians: On', role: 'push button', pid: 7 },
+                  { name: 'Select a microphone', role: 'menu item', pid: 7 },
+                  { name: 'xcsh Microphone', role: 'check box', checked: true, pid: 7 },
+                  { name: 'Select a speaker', role: 'menu item', pid: 7 },
+                  { name: 'xorgctl_desktop', role: 'check box', checked: true, pid: 7 },
+                  { name: 'Original sound for musicians', role: 'check box', checked: true, pid: 7 },
                 ]
               : [],
         };
@@ -604,12 +609,23 @@ describe('provider integration lifecycle', () => {
                     pid: 7,
                     box: [20, 20, 240, 30],
                   },
+                  { name: 'Select a microphone', role: 'menu item', pid: 7 },
+                  { name: 'xcsh Microphone', role: 'check box', checked: true, pid: 7 },
+                  { name: 'Select a speaker', role: 'menu item', pid: 7 },
+                  { name: 'xorgctl_desktop', role: 'check box', checked: true, pid: 7 },
+                  {
+                    name: 'Original sound for musicians',
+                    role: 'check box',
+                    checked: originalSound,
+                    pid: 7,
+                    box: [300, 240, 300, 30],
+                  },
                 ]
               : [],
         };
       } else if (operation === 'input' && action === 'batch') {
         for (const step of params.steps as Array<Record<string, unknown>>) {
-          if (step.action === 'click' && Number(step.x) === 140 && Number(step.y) === 35) originalSound = true;
+          if (step.action === 'click' && Number(step.x) === 450 && Number(step.y) === 255) originalSound = true;
         }
       } else if (operation === 'audio' && action === 'stimulus') {
         stimulusCalls += 1;
@@ -631,6 +647,192 @@ describe('provider integration lifecycle', () => {
       expect(stimulusCalls).toBe(1);
     } finally {
       spawn.mockRestore();
+    }
+  });
+  it('selects and verifies the virtual microphone, virtual speaker, and musician mode before a stimulus', () => {
+    let menuOpen = false;
+    let microphone = false;
+    let speaker = false;
+    let originalSound = false;
+    let stimulusCalls = 0;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = { windows: session === 'console' ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items:
+            session === 'console'
+              ? [
+                  { name: 'Mute', role: 'push button', pid: 7 },
+                  { name: 'Participants', role: 'push button', pid: 7 },
+                  { name: 'Share', role: 'push button', pid: 7 },
+                  {
+                    name: `Original Sound for Musicians: ${originalSound ? 'On' : 'Off'}`,
+                    role: 'push button',
+                    pid: 7,
+                    box: [20, 20, 240, 30],
+                  },
+                  { name: 'Audio Settings', role: 'push button', pid: 7, box: [300, 20, 20, 30] },
+                  ...(menuOpen
+                    ? [
+                        { name: 'Select a microphone', role: 'menu item', pid: 7, box: [300, 60, 300, 30] },
+                        {
+                          name: 'Built-in Audio Analog Stereo',
+                          role: 'check box',
+                          checked: !microphone,
+                          pid: 7,
+                          box: [300, 90, 300, 30],
+                        },
+                        {
+                          name: 'xcsh Microphone',
+                          role: 'check box',
+                          checked: microphone,
+                          pid: 7,
+                          box: [300, 120, 300, 30],
+                        },
+                        { name: 'Select a speaker', role: 'menu item', pid: 7, box: [300, 150, 300, 30] },
+                        {
+                          name: 'Built-in Audio Digital Stereo (IEC958)',
+                          role: 'check box',
+                          checked: !speaker,
+                          pid: 7,
+                          box: [300, 180, 300, 30],
+                        },
+                        {
+                          name: 'xorgctl_desktop',
+                          role: 'check box',
+                          checked: speaker,
+                          pid: 7,
+                          box: [300, 210, 300, 30],
+                        },
+                        {
+                          name: 'Original sound for musicians',
+                          role: 'check box',
+                          checked: originalSound,
+                          pid: 7,
+                          box: [300, 240, 300, 30],
+                        },
+                      ]
+                    : []),
+                ]
+              : [],
+        };
+      } else if (operation === 'input' && action === 'batch') {
+        for (const step of params.steps as Array<Record<string, unknown>>) {
+          if (step.action !== 'click') continue;
+          const y = Number(step.y);
+          if (y === 35 && Number(step.x) === 310) menuOpen = true;
+          if (y === 135) microphone = true;
+          if (y === 225) speaker = true;
+          if (y === 255) originalSound = true;
+        }
+      } else if (operation === 'audio' && action === 'stimulus') {
+        stimulusCalls += 1;
+        result = { stimulus: 'tones', sink: 'xcsh_microphone', retention: 'none', token_sha256: null };
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('stimulus', ['tones'])).toMatchObject({
+        exitCode: 0,
+        microphone: 'xcsh Microphone',
+        speaker: 'xorgctl_desktop',
+        original_sound: 'on',
+        verified: true,
+      });
+      expect({ menuOpen, microphone, speaker, originalSound, stimulusCalls }).toEqual({
+        menuOpen: true,
+        microphone: true,
+        speaker: true,
+        originalSound: true,
+        stimulusCalls: 1,
+      });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+  it('rejects physical audio fallback when either required virtual device is unavailable', () => {
+    for (const missing of ['microphone', 'speaker'] as const) {
+      let menuOpen = false;
+      let stimulusCalls = 0;
+      const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+        const command = [...argv] as string[];
+        const session = command[command.indexOf('--session') + 1];
+        const operation = command[command.indexOf('--json') + 1];
+        const action = command[command.indexOf('--json') + 2];
+        const paramsIndex = command.indexOf('--params');
+        const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+        let result: Record<string, unknown> = {};
+        if (operation === 'window' && action === 'list') {
+          result = { windows: session === 'console' ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+        } else if (operation === 'inspect' && action === 'accessibility') {
+          result = {
+            items:
+              session === 'console'
+                ? [
+                    { name: 'Mute', role: 'push button', pid: 7 },
+                    { name: 'Participants', role: 'push button', pid: 7 },
+                    { name: 'Share', role: 'push button', pid: 7 },
+                    { name: 'Original Sound for Musicians: On', role: 'push button', pid: 7 },
+                    { name: 'Audio Settings', role: 'push button', pid: 7, box: [300, 20, 20, 30] },
+                    ...(menuOpen
+                      ? [
+                          { name: 'Select a microphone', role: 'menu item', pid: 7 },
+                          ...(missing === 'microphone'
+                            ? []
+                            : [{ name: 'xcsh Microphone', role: 'check box', checked: true, pid: 7 }]),
+                          { name: 'Built-in Audio Analog Stereo', role: 'check box', checked: true, pid: 7 },
+                          { name: 'Select a speaker', role: 'menu item', pid: 7 },
+                          ...(missing === 'speaker'
+                            ? []
+                            : [{ name: 'xorgctl_desktop', role: 'check box', checked: true, pid: 7 }]),
+                          {
+                            name: 'Built-in Audio Digital Stereo (IEC958)',
+                            role: 'check box',
+                            checked: true,
+                            pid: 7,
+                          },
+                          { name: 'Original sound for musicians', role: 'check box', checked: true, pid: 7 },
+                        ]
+                      : []),
+                  ]
+                : [],
+          };
+        } else if (operation === 'input' && action === 'batch') {
+          for (const step of params.steps as Array<Record<string, unknown>>) {
+            if (step.action === 'click' && Number(step.y) === 35 && Number(step.x) === 310) menuOpen = true;
+          }
+        } else if (operation === 'audio' && action === 'stimulus') {
+          stimulusCalls += 1;
+          result = { stimulus: 'tones', sink: 'xcsh_microphone', retention: 'none', token_sha256: null };
+        }
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ result })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
+      });
+      try {
+        expect(call('stimulus', ['tones'])).toMatchObject({
+          exitCode: 1,
+          code: `virtual_${missing}_unavailable`,
+          verified: false,
+        });
+        expect(stimulusCalls).toBe(0);
+      } finally {
+        spawn.mockRestore();
+      }
     }
   });
   it('leaves through the semantic confirmation and verifies meeting exit', () => {

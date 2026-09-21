@@ -13,7 +13,10 @@ calls. Use `/zoom
 `/zoom audio muted|unmuted`, `/zoom video on|off`, `/zoom share browser|desktop`,
 `/zoom reaction thumbs-up|clap|heart|laugh|wow|celebrate`, or `/zoom awareness
 [seconds]`. Use `/zoom stimulus tones|speech` for a bounded, non-retained
-virtual-microphone test. Numeric IDs are canonicalized. Full invitation
+virtual-microphone test. Before a stimulus, the controller opens Zoom's semantic
+Audio Settings menu and verifies `xcsh Microphone`, `xorgctl_desktop`, and
+Original Sound for Musicians; it fails closed instead of selecting a physical
+device. Numeric IDs are canonicalized. Full invitation
 URLs are the expected invitation mechanism and are passed directly to Zoom
 unchanged. Numeric joins never consult a keyring: if a passcode is required,
 return `passcode_required` and use the full invitation URL. Verify each state
