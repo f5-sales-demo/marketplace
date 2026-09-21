@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.5 — restarts every active configured session worker during
+  reviewed setup and reports per-session runtime readiness, preventing stale
+  workers from masking incomplete audio stimulus results.
+
 - **`xorg`** v1.0.4 — keeps manifest, extension, and `xorgctl` runtime versions
   synchronized so reviewed setup can bootstrap every published upgrade.
 

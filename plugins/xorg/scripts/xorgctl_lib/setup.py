@@ -120,6 +120,25 @@ def _worker_version(name: str) -> str | None:
         return None
 
 
+def _configured_session_names() -> list[str]:
+    try:
+        return sorted(
+            path.parent.name for path in ROOT.glob("*/session.json") if path.is_file()
+        )
+    except OSError:
+        return []
+
+
+def session_worker_checks() -> dict[str, dict[str, object]]:
+    checks: dict[str, dict[str, object]] = {}
+    for name in _configured_session_names():
+        if not _service_active(_session_service(name)):
+            continue
+        version = _worker_version(name)
+        checks[name] = {"ready": version == VERSION, "version": version}
+    return checks
+
+
 def status(expected_version: str) -> dict[str, object]:
     platform = _platform()
     command_checks = {
@@ -140,7 +159,8 @@ def status(expected_version: str) -> dict[str, object]:
         if command_checks["fc-match"]
         else None
     )
-    worker_version = _worker_version("console")
+    session_workers = session_worker_checks()
+    console_worker = session_workers.get("console", {"ready": False, "version": None})
     font_ready = bool(
         font and font.returncode == 0 and "JetBrainsMono Nerd Font" in font.stdout
     )
@@ -160,7 +180,8 @@ def status(expected_version: str) -> dict[str, object]:
         },
         "fonts": {"ready": font_ready},
         "services": service_checks,
-        "worker": {"ready": worker_version == VERSION, "version": worker_version},
+        "worker": console_worker,
+        "session_workers": session_workers,
     }
     missing: list[str] = []
     if not checks["platform"]:
@@ -180,8 +201,11 @@ def status(expected_version: str) -> dict[str, object]:
     missing.extend(
         f"service:{name}" for name, ready in service_checks.items() if not ready
     )
-    if worker_version != VERSION:
-        missing.append("worker_version")
+    missing.extend(
+        f"worker_version:{name}"
+        for name, check in session_workers.items()
+        if not check["ready"]
+    )
     return {
         "state": "ready" if not missing else "degraded",
         "version": VERSION,
@@ -255,11 +279,18 @@ def apply(expected_version: str) -> dict[str, object]:
         ["systemctl", "--user", "enable", "--now", _session_service("console")],
         check=True,
     )
-    _command(
-        ["systemctl", "--user", "restart", _session_service("console")], check=True
-    )
+    active_sessions = [
+        name
+        for name in _configured_session_names()
+        if _service_active(_session_service(name))
+    ]
+    for name in active_sessions:
+        _command(["systemctl", "--user", "restart", _session_service(name)], check=True)
     deadline = time.monotonic() + 15
-    while _worker_version("console") != VERSION and time.monotonic() < deadline:
+    while (
+        any(_worker_version(name) != VERSION for name in active_sessions)
+        and time.monotonic() < deadline
+    ):
         time.sleep(0.1)
     # Device and user services are deliberately reconciled by their dedicated
     # installer package. Setup reports degraded until they are active; it never
