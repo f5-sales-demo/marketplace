@@ -196,7 +196,13 @@ describe('provider integration lifecycle', () => {
     const notices: Array<{ message: string; level?: string }> = [];
     const handler = createZoomCommandHandler((action, args) => {
       calls.push({ action, args });
-      return { exitCode: 0, control: action, changed: false, verified: true };
+      return {
+        exitCode: 0,
+        control: action,
+        changed: false,
+        verified: true,
+        evidence: { accessibility: { items: [{ name: 'large internal tree' }] } },
+      };
     });
 
     await handler('stop-share', {
@@ -206,6 +212,7 @@ describe('provider integration lifecycle', () => {
     expect(calls).toEqual([{ action: 'stop-share', args: [] }]);
     expect(notices).toHaveLength(1);
     expect(JSON.parse(notices[0].message)).toMatchObject({ control: 'stop-share', verified: true });
+    expect(notices[0].message).not.toContain('large internal tree');
     expect(notices[0].level).toBe('info');
   });
   it('shares the named browser window with sound through verified generic Xorg primitives', () => {
@@ -378,6 +385,7 @@ describe('provider integration lifecycle', () => {
     process.env.XCSH_ZOOM_STATE_DIR = stateDirectory;
     let sharing = false;
     let informationOpen = false;
+    let returnedToMeeting = false;
     const focused: number[] = [];
     let stopShortcuts = 0;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
@@ -398,6 +406,7 @@ describe('provider integration lifecycle', () => {
                   ...(sharing
                     ? [
                         { id: 20, pid: 200, title: 'Zoom Workplace - Free account' },
+                        ...(returnedToMeeting ? [{ id: 23, pid: 200, title: 'Meeting' }] : []),
                         { id: 21, pid: 200, title: 'annotate_toolbar' },
                         { id: 22, pid: 200, title: 'zoom_linux_float_video_window' },
                       ]
@@ -412,7 +421,13 @@ describe('provider integration lifecycle', () => {
               : [
                   { name: 'Join a meeting, link', role: 'push button', pid: 100 },
                   ...(sharing
-                    ? [{ name: 'Return to meeting', role: 'push button', pid: 200 }]
+                    ? returnedToMeeting
+                      ? [
+                          { name: 'Unmute', role: 'push button', pid: 200 },
+                          { name: 'Participants', role: 'push button', pid: 200 },
+                          { name: 'Stop Share', role: 'push button', pid: 200, box: [900, 20, 100, 40] },
+                        ]
+                      : [{ name: 'Return to meeting', role: 'push button', pid: 200, box: [800, 300, 100, 60] }]
                     : informationOpen
                       ? [{ name: 'Meeting ID: 123 456 789', role: 'label', pid: 200 }]
                       : [
@@ -426,11 +441,12 @@ describe('provider integration lifecycle', () => {
         focused.push(Number(params.window));
       } else if (operation === 'input' && action === 'batch') {
         for (const step of params.steps as Array<Record<string, unknown>>) {
-          if (step.action === 'click') informationOpen = true;
+          if (step.action === 'click' && Number(step.x) === 850 && Number(step.y) === 330) returnedToMeeting = true;
+          else if (step.action === 'click' && Number(step.x) === 950 && Number(step.y) === 40) sharing = false;
+          else if (step.action === 'click') informationOpen = true;
           if (step.action === 'key' && step.key === 'Escape') informationOpen = false;
           if (step.action === 'chord' && JSON.stringify(step.keys) === JSON.stringify(['Alt_L', 's'])) {
             stopShortcuts += 1;
-            sharing = false;
           }
         }
       }
@@ -451,8 +467,8 @@ describe('provider integration lifecycle', () => {
         changed: true,
         verified: true,
       });
-      expect(focused).toContain(20);
-      expect(stopShortcuts).toBe(1);
+      expect(returnedToMeeting).toBe(true);
+      expect(stopShortcuts).toBe(0);
     } finally {
       spawn.mockRestore();
       if (previousStateDirectory === undefined) delete process.env.XCSH_ZOOM_STATE_DIR;

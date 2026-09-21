@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.0.3 — restores the active Meeting window before stopping a share when
+  Zoom exposes only its home window, and keeps direct `/zoom` output concise (#1354).
+
 - **`zoom`** v1.0.2 — makes `/zoom` a direct deterministic command, scopes awareness to
   the active meeting process, retries bounded accessibility snapshots, isolates share overlays,
   verifies musician mode for virtual audio, and stops sharing after the Meeting window unmaps
