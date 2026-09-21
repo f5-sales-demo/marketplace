@@ -5,12 +5,14 @@ import base64
 import ctypes
 import hashlib
 import importlib.metadata
+import io
 import json
 import math
 import os
 import pathlib
 import struct
 import time
+import wave
 
 from .common import Fault, save
 
@@ -379,8 +381,7 @@ def media(w, m, p):
                 msg = "speech stimulus requires a generated token"
                 raise Fault(msg)
             # Piper produces WAV on stdout; feeding it directly to ffmpeg keeps
-            # generated speech and PCM out of the filesystem. A concise repeat
-            # gives the receiver two chances inside the bounded UAT window.
+            # generated speech and PCM out of the filesystem.
             digits = {
                 "0": "zero",
                 "1": "one",
@@ -403,7 +404,7 @@ def media(w, m, p):
             if not engine["ready"]:
                 msg = "validated Piper speech runtime is unavailable"
                 raise Fault(msg)
-            phrase = f"Token. {spoken}. Again. {spoken}. End token.\n".encode()
+            phrase = f"{spoken}.\n".encode()
             wav = w.command(
                 [
                     str(engine["piper"]),
@@ -419,6 +420,17 @@ def media(w, m, p):
                 input_data=phrase,
                 timeout=30,
             )
+            try:
+                with wave.open(io.BytesIO(wav), "rb") as stream:
+                    rate = stream.getframerate()
+                    speech_seconds = stream.getnframes() / rate
+            except (EOFError, wave.Error, ZeroDivisionError) as error:
+                msg = "speech engine returned invalid WAV"
+                raise Fault(msg) from error
+            delay_seconds = 0.6
+            if seconds < speech_seconds + delay_seconds:
+                msg = "speech stimulus duration is too short for generated token"
+                raise Fault(msg)
             w.command(
                 [
                     "ffmpeg",
@@ -443,7 +455,9 @@ def media(w, m, p):
             return {
                 "stimulus": kind,
                 "seconds": seconds,
+                "speech_seconds": speech_seconds,
                 "sink": sink,
+                "complete": True,
                 "token_sha256": __import__("hashlib")
                 .sha256(token.encode())
                 .hexdigest(),

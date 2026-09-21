@@ -28,10 +28,13 @@ new_repo() {
   git -C "$dir" config user.email bump@test
   git -C "$dir" config user.name "Bump Test"
   cat >"$dir/.xcsh-plugin/marketplace.json" <<'JSON'
-{ "plugins": [{ "name": "demo", "version": "1.0.0" }] }
+{ "plugins": [{ "name": "demo", "version": "1.0.0", "xcsh": { "version": "1.0.0" } }] }
 JSON
   cat >"$dir/plugins/demo/.xcsh-plugin/plugin.json" <<'JSON'
-{ "name": "demo", "version": "1.0.0" }
+{ "name": "demo", "version": "1.0.0", "xcsh": { "version": "1.0.0" } }
+JSON
+  cat >"$dir/plugins/demo/package.json" <<'JSON'
+{ "name": "demo", "version": "1.0.0", "xcsh": { "version": "1.0.0" } }
 JSON
   cat >"$dir/CHANGELOG.md" <<'MD'
 # Changelog
@@ -82,6 +85,29 @@ bump "$repo"
 check "one bump -> one entry" \
   "- **\`demo\`** bumped to v1.0.1" \
   "$(release_lines "$repo")"
+versions=$(
+  python3 - "$repo" <<'PY'
+import json
+import sys
+
+root = sys.argv[1]
+paths = [
+    root + '/.xcsh-plugin/marketplace.json',
+    root + '/plugins/demo/.xcsh-plugin/plugin.json',
+    root + '/plugins/demo/package.json',
+]
+values = []
+for path in paths:
+    payload = json.load(open(path))
+    if path.endswith('marketplace.json'):
+        payload = payload['plugins'][0]
+    values.extend([payload['version'], payload['xcsh']['version']])
+print(' '.join(values))
+PY
+)
+check "one bump synchronizes every public and embedded version" \
+  "1.0.1 1.0.1 1.0.1 1.0.1 1.0.1 1.0.1" \
+  "$versions"
 
 # ── Repeated bumps converge rather than accumulate ──────────
 repo=$(new_repo repeated)

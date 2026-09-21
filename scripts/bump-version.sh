@@ -109,14 +109,14 @@ for name in "${PLUGINS[@]}"; do
 
   # Update marketplace.json
   jq --arg n "$name" --arg v "$NEW_VER" \
-    '(.plugins[] | select(.name == $n)).version = $v' \
+    '(.plugins[] | select(.name == $n)) |= (.version = $v | if .xcsh then .xcsh.version = $v else . end)' \
     "$MARKETPLACE" >"$MARKETPLACE.tmp" && command mv "$MARKETPLACE.tmp" "$MARKETPLACE"
 
   # Update plugin.json
   PLUGIN_JSON="$REPO_ROOT/plugins/$name/.xcsh-plugin/plugin.json"
   [[ -f "$PLUGIN_JSON" ]] || die "plugin.json not found at $PLUGIN_JSON"
 
-  jq --arg v "$NEW_VER" '.version = $v' \
+  jq --arg v "$NEW_VER" '.version = $v | (if .xcsh then .xcsh.version = $v else . end)' \
     "$PLUGIN_JSON" >"$PLUGIN_JSON.tmp" && command mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
   JSON_FILES+=("$PLUGIN_JSON")
 
