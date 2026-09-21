@@ -1,0 +1,13 @@
+{
+  "name": "zoom",
+  "version": "1.0.1",
+  "description": "Verified Zoom Workplace control through public xorgctl JSON",
+  "license": "Apache-2.0",
+  "xcsh": {
+    "name": "Zoom",
+    "version": "1.0.1",
+    "extensions": [
+      "extensions/integration.ts"
+    ]
+  }
+}

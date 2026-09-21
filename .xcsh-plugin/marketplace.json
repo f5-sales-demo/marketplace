@@ -537,6 +537,62 @@
         "collectedData": [],
         "pluginDependencies": []
       }
+    },
+    {
+      "name": "xorg",
+      "version": "1.0.1",
+      "description": "Ubuntu 24.04 Xorg desktop automation substrate",
+      "license": "Apache-2.0",
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "extensions": ["extensions/integration.ts"],
+      "xcsh": {
+        "name": "Xorg",
+        "version": "1.0.1"
+      },
+      "source": "./plugins/xorg",
+      "category": "development",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/xorg",
+      "keywords": ["xorg", "at-spi", "xtest", "pipewire"],
+      "tags": ["linux", "desktop", "automation"],
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "lifecycle": {
+        "mode": "integrated",
+        "integrations": ["xorg"],
+        "requirements": ["Ubuntu 24.04 with Xorg"],
+        "setupRequired": true,
+        "collectedData": [],
+        "pluginDependencies": []
+      }
+    },
+    {
+      "name": "zoom",
+      "version": "1.0.1",
+      "description": "Verified Zoom Workplace control through public xorgctl JSON",
+      "license": "Apache-2.0",
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "extensions": ["extensions/integration.ts"],
+      "xcsh": {
+        "name": "Zoom",
+        "version": "1.0.1"
+      },
+      "source": "./plugins/zoom",
+      "category": "productivity",
+      "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom",
+      "keywords": ["zoom", "meeting", "accessibility", "virtual-camera"],
+      "tags": ["zoom", "meeting", "automation"],
+      "repository": "https://github.com/f5-sales-demo/marketplace",
+      "lifecycle": {
+        "mode": "integrated",
+        "integrations": ["zoom"],
+        "requirements": ["Ubuntu 24.04", "Zoom Workplace", "Xorg plugin"],
+        "setupRequired": true,
+        "collectedData": [],
+        "pluginDependencies": ["xorg"]
+      }
     }
   ]
 }

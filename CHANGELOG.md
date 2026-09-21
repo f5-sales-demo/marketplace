@@ -10,6 +10,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.0.1 — adds verified invitation-link joins, idempotent meeting identity,
+  semantic audio/video/hand/reaction/share controls, virtual audio stimuli, and persistent
+  AT-SPI/EWMH awareness while keeping all Zoom behavior outside the Xorg substrate (#1352).
+
+- **`xorg`** v1.0.1 — provides the generic Ubuntu 24.04 JSON/process substrate,
+  deterministic setup readiness, bounded AT-SPI observation, virtual media, browser sharing,
+  screenshots, recording, VNC, GPU probes, cancellation, and supervised recovery (#1352).
+
 - **`kvm`** bumped to v1.0.2
 
 - **`salesforce`** v1.4.0 — requires xcsh v21.31.0 and uses the canonical person profile API

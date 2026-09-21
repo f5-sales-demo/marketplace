@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""Exact-argv local/SSH Xorg computer control. Run --help for the command contract."""
+# pylint: disable=import-outside-toplevel,no-name-in-module,too-many-branches,too-many-statements
+# pylint: disable=import-outside-toplevel,no-name-in-module,too-many-branches,too-many-statements
+
+import argparse
+import base64
+import json
+import os
+import pathlib
+import platform
+import subprocess
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from xorgctl_lib.common import VERSION, Fault, rpc, session_dir
+
+
+def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "_supervise":
+        from xorgctl_lib.sessions import supervise
+
+        supervise(sys.argv[2])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "_service":
+        from xorgctl_lib.sessions import service
+
+        service(sys.argv[2])
+        return
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog='Examples: xorgctl --session lab session create; xorgctl --session lab screenshot --output screen.png; xorgctl input batch --params \'{"steps":[{"action":"click","x":100,"y":200}]}\'',
+    )
+    parser.add_argument("--version", action="version", version=VERSION)
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("XORGCTL_HOST", "local"),
+    )
+    parser.add_argument(
+        "--session", default=os.environ.get("XORGCTL_SESSION", "console")
+    )
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "command",
+        choices=[
+            "session",
+            "setup",
+            "environment",
+            "screenshot",
+            "input",
+            "clipboard",
+            "window",
+            "app",
+            "display",
+            "inspect",
+            "browser",
+            "gpu",
+            "audio",
+            "record",
+            "control",
+            "view",
+            "artifact",
+            "capabilities",
+        ],
+    )
+    parser.add_argument("action", nargs="?")
+    parser.add_argument(
+        "--params",
+        default="{}",
+        help="JSON object of command arguments; see CLI reference",
+    )
+    parser.add_argument("--input", help="local binary payload file, or - for stdin")
+    parser.add_argument(
+        "--output", help="local binary artifact destination, or - for stdout"
+    )
+    for key in (
+        "geometry",
+        "display",
+        "auth",
+        "text",
+        "mime",
+        "selection",
+        "renderer",
+        "api",
+        "codec",
+        "url",
+        "profile",
+        "selector",
+        "service",
+        "username",
+        "target",
+        "kind",
+        "value",
+        "source",
+        "device",
+        "password-file",
+        "token",
+    ):
+        parser.add_argument("--" + key)
+    for key in (
+        "window",
+        "x",
+        "y",
+        "width",
+        "height",
+        "workspace",
+        "pid",
+        "port",
+        "fps",
+        "seconds",
+        "stream",
+        "monitor",
+    ):
+        parser.add_argument("--" + key, type=int)
+    parser.add_argument("--immediate", action="store_true")
+    parser.add_argument("--no-cursor", action="store_true")
+    a = parser.parse_args()
+    params = json.loads(a.params)
+    if not isinstance(params, dict):
+        msg = "--params must be a JSON object"
+        raise Fault(msg)
+    for key in (
+        "geometry",
+        "display",
+        "auth",
+        "text",
+        "mime",
+        "selection",
+        "renderer",
+        "api",
+        "codec",
+        "url",
+        "profile",
+        "selector",
+        "service",
+        "username",
+        "target",
+        "kind",
+        "value",
+        "source",
+        "device",
+        "password_file",
+        "token",
+        "window",
+        "x",
+        "y",
+        "width",
+        "height",
+        "workspace",
+        "pid",
+        "port",
+        "fps",
+        "seconds",
+        "stream",
+        "monitor",
+    ):
+        if getattr(a, key) is not None:
+            params[key] = getattr(a, key)
+    if a.immediate:
+        params["immediate"] = True
+    if a.no_cursor:
+        params["cursor"] = False
+    payload = None
+    if a.input:
+        payload = (
+            sys.stdin.buffer.read()
+            if a.input == "-"
+            else pathlib.Path(a.input).read_bytes()
+        )
+    if a.command == "clipboard" and a.action in ("mac-snapshot", "mac-restore"):
+        if platform.system() != "Darwin":
+            msg = "Mac pasteboard commands must execute on macOS"
+            raise Fault(msg)
+        from xorgctl_lib.mac_clipboard import helper
+
+        result = helper(
+            "snapshot" if a.action == "mac-snapshot" else "restore", payload
+        )
+        if a.output and a.output != "-":
+            pathlib.Path(a.output).write_bytes(result)
+            pathlib.Path(a.output).chmod(0o600)
+        else:
+            sys.stdout.buffer.write(result)
+        return
+    if a.command == "clipboard" and a.action == "sync":
+        from xorgctl_lib.mac_clipboard import sync
+
+        result = sync(
+            pathlib.Path(__file__).resolve(),
+            a.host,
+            a.session,
+            params.get("direction", "to-linux"),
+        )
+        sys.stdout.write(json.dumps({"ok": True, "result": result}) + "\n")
+        return
+    if a.host != "local":
+        helper = (
+            pathlib.Path.home() / ".codex/skills/cross-host-cli/scripts/safe-ssh-exec"
+        )
+        if not helper.is_file():
+            msg = "cross-host-cli must be installed for SSH transport"
+            raise Fault(msg)
+        argv = [str(helper), "--host", a.host]
+        if payload is not None:
+            argv += ["--stdin"]
+        argv += [
+            "--",
+            os.environ.get("XORGCTL_REMOTE_EXECUTABLE", "xorgctl"),
+            "--host",
+            "local",
+            "--session",
+            a.session,
+            "--json",
+            a.command,
+        ]
+        if a.action:
+            argv.append(a.action)
+        argv += ["--params", json.dumps(params, ensure_ascii=False)]
+        if payload is not None:
+            argv += ["--input", "-"]
+        if a.output:
+            argv += ["--output", "-"]
+        p = subprocess.run(argv, input=payload, capture_output=True, check=False)
+        sys.stderr.buffer.write(p.stderr)
+        if p.returncode:
+            sys.stdout.buffer.write(p.stdout)
+            raise SystemExit(p.returncode)
+        if a.output:
+            if a.output == "-":
+                sys.stdout.buffer.write(p.stdout)
+            else:
+                dst = pathlib.Path(a.output)
+                dst.write_bytes(p.stdout)
+                dst.chmod(0o600)
+                sys.stdout.write(
+                    json.dumps({"ok": True, "output": str(dst), "bytes": len(p.stdout)})
+                    + "\n"
+                )
+        else:
+            sys.stdout.buffer.write(p.stdout)
+        return
+    if a.command == "setup":
+        from xorgctl_lib.setup import manage as manage_setup
+
+        result = manage_setup(a.action or "status", params)
+    elif a.command == "session":
+        from xorgctl_lib.sessions import manage
+
+        result = manage(a.session, a.action or "status", params)
+    elif a.command == "artifact":
+        artifact = params.get("name", a.action)
+        if (
+            not artifact
+            or pathlib.Path(artifact).name != artifact
+            or artifact in (".", "..")
+        ):
+            msg = "artifact requires a basename"
+            raise Fault(msg)
+        path = session_dir(a.session) / "artifacts" / artifact
+        data = path.read_bytes()
+        if a.output and a.output != "-":
+            pathlib.Path(a.output).write_bytes(data)
+            pathlib.Path(a.output).chmod(0o600)
+        else:
+            sys.stdout.buffer.write(data)
+        return
+    elif a.command == "capabilities":
+        result = {
+            "version": VERSION,
+            "session": rpc(a.session, "status", {}),
+            "contract": {
+                "clipboard": "Qt PRIMARY and CLIPBOARD arbitrary multi-format bundles",
+                "input": "XTEST; keycodes/keysyms; animation; bounded held-input lease",
+                "screenshots": "Qt root image plus XFixes cursor",
+                "browser": "Chrome CDP semantic observation with estimated frame offsets",
+                "audio": "PulseAudio-compatible PipeWire API",
+                "accessibility": "bounded AT-SPI event observation and declarative application profiles",
+                "gpu": "must prove rendering per application; gpu probe alone is not visible rendering acceptance",
+            },
+            "limitations": [
+                "Xvfb RandR modes are server-limited; unsupported layout changes fail explicitly",
+                "Browser screen offsets require screenshot verification",
+                "Temporary paste completion uses a settling interval; target acceptance must be verified",
+            ],
+        }
+    else:
+        if payload is not None:
+            if a.command == "input":
+                params.update(json.loads(payload))
+            else:
+                params["data"] = base64.b64encode(payload).decode()
+        method = (
+            a.command
+            if a.command == "screenshot"
+            else a.command + "." + (a.action or "info")
+        )
+        result = rpc(a.session, method, params)
+    if a.output:
+        if not isinstance(result, dict) or "artifact" not in result:
+            msg = "this command did not produce an artifact"
+            raise Fault(msg)
+        data = (session_dir(a.session) / "artifacts" / result["artifact"]).read_bytes()
+        if a.output == "-":
+            sys.stdout.buffer.write(data)
+        else:
+            pathlib.Path(a.output).write_bytes(data)
+            pathlib.Path(a.output).chmod(0o600)
+        sys.stderr.write(json.dumps({"ok": True, "result": result}) + "\n")
+    else:
+        sys.stdout.write(
+            json.dumps(
+                {"ok": True, "result": result},
+                ensure_ascii=False,
+                indent=None if a.json else 2,
+            )
+            + "\n"
+        )
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Fault, ValueError, KeyError, OSError, EOFError) as exc:
+        sys.stderr.write(json.dumps({"ok": False, "error": str(exc)}) + "\n")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.stderr.write(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "interrupted; disconnect cancels active operation",
+                }
+            )
+            + "\n"
+        )
+        sys.exit(130)

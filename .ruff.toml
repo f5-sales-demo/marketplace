@@ -34,6 +34,24 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
+# The Xorg controller is a dynamic boundary around GI, Qt, Xlib, subprocesses,
+# and JSON payloads. Runtime schemas and contract tests validate these values;
+# static annotation/docstring rules and generic subprocess heuristics do not.
+"plugins/xorg/scripts/**" = [
+    "ANN",
+    "D",
+    "PLC0415",
+    "PLR0911",
+    "PLR2004",
+    "PERF401",
+    "S108",
+    "S110",
+    "S311",
+    "S603",
+    "S607",
+    "TRY301",
+]
+"plugins/xorg/scripts/xorgctl_lib/common.py" = ["N818"]
 "tests/**" = [
     "S101",
     "SLF001",
