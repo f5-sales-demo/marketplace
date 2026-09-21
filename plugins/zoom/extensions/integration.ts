@@ -14,7 +14,15 @@ interface ExtensionApi {
     };
   };
   registerTool(definition: unknown): void;
+  registerCommand(
+    name: string,
+    options: {
+      description?: string;
+      handler: (args: string, ctx: ZoomCommandContext) => Promise<void>;
+    },
+  ): void;
 }
+type ZoomCommandContext = { ui: { notify(message: string, level?: 'info' | 'warning' | 'error'): void } };
 export type Action =
   | 'status'
   | 'leave'
@@ -39,7 +47,15 @@ type AccessibilityItem = {
 };
 type WindowItem = { id?: number; pid?: number; title?: string };
 type MeetingIdentity = { version: 1; session: string; meeting_id: string; zoom_pid: number };
+const meetingWindow = (windows: WindowItem[]) =>
+  windows.find((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim()));
 const zoomProcessId = (windows: WindowItem[]) =>
+  meetingWindow(windows)?.pid ??
+  windows.find(
+    (window) =>
+      typeof window.pid === 'number' &&
+      /^(annotate_toolbar|zoom_linux_float_video_window|zoom meeting controls)$/i.test((window.title ?? '').trim()),
+  )?.pid ??
   windows.find((window) => typeof window.pid === 'number' && /zoom|meeting/i.test(window.title ?? ''))?.pid;
 const meetingIdentityDirectory = () =>
   process.env.XCSH_ZOOM_STATE_DIR ??
@@ -60,7 +76,7 @@ const rememberMeetingIdentity = (session: string, meetingId: string, windows: Wi
   renameSync(temporary, path);
   chmodSync(path, 0o600);
 };
-const recalledMeetingIdentity = (session: string, windows: WindowItem[]) => {
+const recalledMeetingState = (session: string, windows: WindowItem[]): MeetingIdentity | undefined => {
   try {
     const state = JSON.parse(readFileSync(meetingIdentityPath(session), 'utf8')) as Partial<MeetingIdentity>;
     const currentPids = new Set(windows.map((window) => window.pid).filter((pid): pid is number => pid !== undefined));
@@ -72,7 +88,7 @@ const recalledMeetingIdentity = (session: string, windows: WindowItem[]) => {
       typeof state.zoom_pid === 'number' &&
       currentPids.has(state.zoom_pid)
     ) {
-      return state.meeting_id;
+      return state as MeetingIdentity;
     }
   } catch {
     // Missing, stale, or malformed state is never promoted to meeting evidence.
@@ -80,6 +96,8 @@ const recalledMeetingIdentity = (session: string, windows: WindowItem[]) => {
   forgetMeetingIdentity(session);
   return undefined;
 };
+const recalledMeetingIdentity = (session: string, windows: WindowItem[]) =>
+  recalledMeetingState(session, windows)?.meeting_id;
 export const deriveMeetingId = (items: AccessibilityItem[]) => {
   for (const item of items) {
     const match = (item.name ?? '').match(/meeting id\s*[:#]?\s*([0-9][0-9\s-]{7,24})/i);
@@ -89,37 +107,44 @@ export const deriveMeetingId = (items: AccessibilityItem[]) => {
   }
   return undefined;
 };
-export function deriveAwareness(items: AccessibilityItem[], windows: WindowItem[]) {
-  const labels = items.map((item) => (item.name ?? '').trim().toLowerCase()).filter(Boolean);
+export function deriveAwareness(items: AccessibilityItem[], windows: WindowItem[], activePid?: number) {
+  const scopedItems = activePid === undefined ? items : items.filter((item) => item.pid === activePid);
+  const scopedWindows = activePid === undefined ? windows : windows.filter((window) => window.pid === activePid);
+  const labels = scopedItems.map((item) => (item.name ?? '').trim().toLowerCase()).filter(Boolean);
   const has = (...needles: string[]) => needles.some((needle) => labels.some((label) => label.includes(needle)));
   const hasExact = (...needles: string[]) => needles.some((needle) => labels.includes(needle));
-  const hasMeetingWindow = windows.some((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim()));
-  const meeting = has('you are screen sharing', 'stop share', 'stop sharing')
-    ? 'sharing'
-    : has('waiting room', 'host will let you in', 'please wait for the host')
-      ? 'waiting_room'
-      : has('join with video', 'video preview', 'preview your video')
-        ? 'prejoin'
-        : hasMeetingWindow || (has('participants', 'reactions') && has('mute', 'unmute'))
-          ? 'in_meeting'
-          : has('join a meeting', 'sign into a different account')
-            ? 'signed_out'
-            : has('new meeting', 'schedule', 'share screen')
-              ? 'home'
-              : 'unknown';
+  const hasMeetingWindow = scopedWindows.some((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim()));
+  const hasSharingOverlay = scopedWindows.some((window) =>
+    /^(annotate_toolbar|zoom_linux_float_video_window|zoom meeting controls)$/i.test((window.title ?? '').trim()),
+  );
+  const meeting =
+    hasSharingOverlay || has('you are screen sharing', 'stop share', 'stop sharing')
+      ? 'sharing'
+      : has('waiting room', 'host will let you in', 'please wait for the host')
+        ? 'waiting_room'
+        : has('join with video', 'video preview', 'preview your video')
+          ? 'prejoin'
+          : hasMeetingWindow || (has('participants', 'reactions') && has('mute', 'unmute'))
+            ? 'in_meeting'
+            : has('join a meeting', 'sign into a different account')
+              ? 'signed_out'
+              : has('new meeting', 'schedule', 'share screen')
+                ? 'home'
+                : 'unknown';
   return {
     version: 1,
     meeting,
-    meeting_id: deriveMeetingId(items) ?? 'unknown',
+    meeting_id: deriveMeetingId(scopedItems) ?? 'unknown',
     audio: hasExact('unmute') ? 'muted' : hasExact('mute') ? 'unmuted' : 'unknown',
     video: hasExact('start video') ? 'off' : hasExact('stop video') ? 'on' : 'unknown',
-    share: hasExact('stop share', 'stop sharing')
-      ? 'on'
-      : meeting === 'in_meeting' && hasExact('share', 'share screen')
-        ? 'off'
-        : 'unknown',
+    share:
+      meeting === 'sharing' || hasExact('stop share', 'stop sharing')
+        ? 'on'
+        : meeting === 'in_meeting' && hasExact('share', 'share screen')
+          ? 'off'
+          : 'unknown',
     hand: hasExact('lower hand') ? 'raised' : hasExact('raise hand') ? 'lowered' : 'unknown',
-    zoom_windows: windows.filter((window) => /zoom|meeting/i.test(window.title ?? '')),
+    zoom_windows: scopedWindows.filter((window) => /zoom|meeting|annotate_toolbar/i.test(window.title ?? '')),
     source: ['AT-SPI', 'EWMH'],
   };
 }
@@ -220,18 +245,38 @@ export const discoverZoomSession = (windowsBySession: Record<string, WindowItem[
 const sessionInventory = () =>
   Object.fromEntries(CANDIDATE_SESSIONS.map((session) => [session, sessionWindows(session)]));
 const sessionAccessibility = (session: string): AccessibilityItem[] => {
-  const response = publicXorgCall(session, 'inspect', 'accessibility', {});
-  if (response.exitCode) return [];
-  try {
-    const envelope = JSON.parse(response.output) as { result?: { items?: AccessibilityItem[] } };
-    return envelope.result?.items ?? [];
-  } catch {
-    return [];
+  const deadline = Date.now() + 22_000;
+  for (let attempt = 0; attempt < 2 && Date.now() < deadline; attempt += 1) {
+    const response = publicXorgCall(session, 'inspect', 'accessibility', {});
+    if (!response.exitCode) {
+      try {
+        const envelope = JSON.parse(response.output) as { result?: { items?: AccessibilityItem[] } };
+        return envelope.result?.items ?? [];
+      } catch {
+        // A malformed observation is transient at the controller boundary.
+      }
+    }
+    if (attempt === 0 && Date.now() < deadline) Bun.sleepSync(100);
   }
+  return [];
+};
+const activeMeetingPid = (session: string, windows: WindowItem[], items: AccessibilityItem[]) => {
+  const exact = meetingWindow(windows)?.pid;
+  if (exact !== undefined) return exact;
+  const retained = recalledMeetingState(session, windows)?.zoom_pid;
+  if (retained !== undefined) return retained;
+  return items.find((item) => /^(stop share|stop sharing|return to meeting)$/i.test((item.name ?? '').trim()))?.pid;
+};
+const meetingAccessibility = (session: string, windows = sessionWindows(session)) => {
+  const items = sessionAccessibility(session);
+  const pid = activeMeetingPid(session, windows, items);
+  return { items: pid === undefined ? items : items.filter((item) => item.pid === pid), pid };
 };
 const discoverActiveMeetingSessionByAwareness = (windowsBySession: Record<string, WindowItem[]>) =>
   CANDIDATE_SESSIONS.find((session) => {
-    const state = deriveAwareness(sessionAccessibility(session), windowsBySession[session] ?? []).meeting;
+    const windows = windowsBySession[session] ?? [];
+    const { items, pid } = meetingAccessibility(session, windows);
+    const state = deriveAwareness(items, windows, pid).meeting;
     return state === 'in_meeting' || state === 'sharing' || state === 'waiting_room' || state === 'prejoin';
   });
 const clickAccessible = (session: string, item: AccessibilityItem) => {
@@ -248,7 +293,7 @@ const clickAccessible = (session: string, item: AccessibilityItem) => {
   return response.exitCode === 0;
 };
 const readMeetingId = (session: string, windows = sessionWindows(session)) => {
-  let items = sessionAccessibility(session);
+  let items = meetingAccessibility(session, windows).items;
   const current = deriveMeetingId(items);
   if (current) {
     rememberMeetingIdentity(session, current, windows);
@@ -258,7 +303,7 @@ const readMeetingId = (session: string, windows = sessionWindows(session)) => {
     (item) => item.role === 'push button' && (item.name ?? '').trim().toLowerCase() === 'meeting information',
   );
   if (!information || !clickAccessible(session, information)) return recalledMeetingIdentity(session, windows);
-  items = sessionAccessibility(session);
+  items = meetingAccessibility(session, sessionWindows(session)).items;
   const meetingId = deriveMeetingId(items);
   publicXorgCall(session, 'input', 'batch', {
     allow_focus_change: true,
@@ -301,15 +346,19 @@ const verifiedMeetingResult = (session: string, requestedMeetingId: string, chan
     requested_meeting_id: requestedMeetingId,
   };
 };
-const observeAwareness = (session: string) => deriveAwareness(sessionAccessibility(session), sessionWindows(session));
+const observeAwareness = (session: string) => {
+  const windows = sessionWindows(session);
+  const { items, pid } = meetingAccessibility(session, windows);
+  return deriveAwareness(items, windows, pid);
+};
 const observeHandState = (session: string) => {
   const initial = observeAwareness(session).hand;
   if (initial !== 'unknown') return initial;
-  const react = sessionAccessibility(session).find(
+  const react = meetingAccessibility(session).items.find(
     (item) => item.role === 'push button' && (item.name ?? '').trim().toLowerCase() === 'react',
   );
   if (!react || !clickAccessible(session, react)) return 'unknown';
-  const state = deriveAwareness(sessionAccessibility(session), sessionWindows(session)).hand;
+  const state = observeAwareness(session).hand;
   publicXorgCall(session, 'input', 'batch', {
     allow_focus_change: true,
     steps: [{ action: 'key', key: 'Escape' }],
@@ -343,6 +392,16 @@ const clickShareTarget = (session: string, item: AccessibilityItem) => {
     ],
   });
   return response.exitCode === 0;
+};
+const isShareOverlay = (window: WindowItem) =>
+  /^(annotate_toolbar|zoom_linux_float_video_window|zoom meeting controls)$/i.test((window.title ?? '').trim());
+const isolateShareOverlays = (session: string) => {
+  const overlays = sessionWindows(session).filter((window) => window.id !== undefined && isShareOverlay(window));
+  for (const overlay of overlays) {
+    const moved = publicXorgCall(session, 'window', 'workspace', { window: overlay.id, workspace: 1 });
+    if (moved.exitCode) return false;
+  }
+  return true;
 };
 const controlShare = (session: string, requested = 'browser') => {
   const aliases: Record<string, 'browser_window' | 'entire_desktop'> = {
@@ -410,7 +469,7 @@ const controlShare = (session: string, requested = 'browser') => {
   const pickerFocused = publicXorgCall(session, 'window', 'focus', { window: picker.id });
   if (pickerFocused.exitCode)
     return { ...pickerFocused, code: 'share_picker_focus_failed', control: 'share', target, verified: false };
-  let items = sessionAccessibility(session);
+  let items = meetingAccessibility(session).items;
   const chooser = exactItem(items, 'Select a window or an application that you want to share', 'frame');
   if (!chooser)
     return { exitCode: 1, code: 'share_picker_semantics_unavailable', control: 'share', target, verified: false };
@@ -419,7 +478,7 @@ const controlShare = (session: string, requested = 'browser') => {
   if (!targetItem || !clickShareTarget(session, targetItem)) {
     return { exitCode: 1, code: 'share_target_unavailable', control: 'share', target, verified: false };
   }
-  items = sessionAccessibility(session);
+  items = meetingAccessibility(session).items;
   let sound = exactItem(items, 'Share sound', 'check box', chooser);
   if (!sound)
     return { exitCode: 1, code: 'shared_sound_control_unavailable', control: 'share', target, verified: false };
@@ -427,7 +486,7 @@ const controlShare = (session: string, requested = 'browser') => {
     if (!clickAccessible(session, sound)) {
       return { exitCode: 1, code: 'shared_sound_input_failed', control: 'share', target, verified: false };
     }
-    items = sessionAccessibility(session);
+    items = meetingAccessibility(session).items;
     sound = exactItem(items, 'Share sound', 'check box', chooser);
   }
   if (sound?.checked !== true) {
@@ -440,6 +499,9 @@ const controlShare = (session: string, requested = 'browser') => {
   const deadline = Date.now() + 8_000;
   while (Date.now() < deadline) {
     if (observeAwareness(session).share === 'on') {
+      if (!isolateShareOverlays(session)) {
+        return { exitCode: 1, code: 'share_overlay_isolation_failed', control: 'share', target, verified: false };
+      }
       return {
         exitCode: 0,
         control: 'share',
@@ -463,12 +525,41 @@ const controlStopShare = (session: string) => {
   if (previous !== 'on') {
     return { exitCode: 1, code: 'semantic_state_unavailable', control: 'stop-share', previous, verified: false };
   }
-  const controls = sessionAccessibility(session).filter(
+  const controls = meetingAccessibility(session).items.filter(
     (item) =>
       item.role === 'push button' && ['stop share', 'stop sharing'].includes((item.name ?? '').trim().toLowerCase()),
   );
-  if (controls.length !== 1 || !clickAccessible(session, controls[0])) {
-    return { exitCode: 1, code: 'stop_share_control_unavailable', control: 'stop-share', previous, verified: false };
+  if (controls.length === 1) {
+    if (!clickAccessible(session, controls[0])) {
+      return { exitCode: 1, code: 'stop_share_input_failed', control: 'stop-share', previous, verified: false };
+    }
+  } else {
+    const windows = sessionWindows(session);
+    const pid = activeMeetingPid(session, windows, meetingAccessibility(session, windows).items);
+    const target = windows.find(
+      (window) =>
+        window.id !== undefined &&
+        window.pid === pid &&
+        !isShareOverlay(window) &&
+        /zoom|meeting/i.test((window.title ?? '').trim()),
+    );
+    if (!target?.id) {
+      return { exitCode: 1, code: 'stop_share_control_unavailable', control: 'stop-share', previous, verified: false };
+    }
+    const focused = publicXorgCall(session, 'window', 'focus', { window: target.id });
+    if (focused.exitCode) {
+      return { ...focused, code: 'stop_share_focus_failed', control: 'stop-share', previous, verified: false };
+    }
+    const stopped = publicXorgCall(session, 'input', 'batch', {
+      window: target.id,
+      steps: [
+        { action: 'chord', keys: ['Alt_L', 's'] },
+        { action: 'wait', seconds: 0.5 },
+      ],
+    });
+    if (stopped.exitCode) {
+      return { ...stopped, code: 'stop_share_input_failed', control: 'stop-share', previous, verified: false };
+    }
   }
   const deadline = Date.now() + 8_000;
   while (Date.now() < deadline) {
@@ -509,7 +600,7 @@ const controlReaction = (session: string, requested: string) => {
     const focused = publicXorgCall(session, 'window', 'focus', { window: meeting.id });
     if (focused.exitCode) return { ...focused, code: 'meeting_focus_failed', control: 'reaction', verified: false };
   }
-  let items = sessionAccessibility(session);
+  let items = meetingAccessibility(session).items;
   const react = exactItem(items, 'React', 'push button');
   if (!react || !clickAccessible(session, react)) {
     return { exitCode: 1, code: 'reaction_menu_unavailable', control: 'reaction', requested, verified: false };
@@ -517,7 +608,7 @@ const controlReaction = (session: string, requested: string) => {
   let reaction: AccessibilityItem | undefined;
   const menuDeadline = Date.now() + 3_000;
   while (Date.now() < menuDeadline) {
-    items = sessionAccessibility(session);
+    items = meetingAccessibility(session).items;
     reaction = exactItem(items, selected.label, 'push button');
     if (reaction) break;
     Bun.sleepSync(100);
@@ -525,7 +616,7 @@ const controlReaction = (session: string, requested: string) => {
   if (!reaction || !clickAccessible(session, reaction)) {
     return { exitCode: 1, code: 'reaction_control_unavailable', control: 'reaction', requested, verified: false };
   }
-  const afterItems = sessionAccessibility(session);
+  const afterItems = meetingAccessibility(session).items;
   const after = deriveAwareness(afterItems, sessionWindows(session));
   const menuDismissed = !exactItem(afterItems, selected.label, 'push button');
   const meetingActive = after.meeting === 'in_meeting' || after.meeting === 'sharing';
@@ -548,6 +639,33 @@ const controlReaction = (session: string, requested: string) => {
     receiver_verification: 'required',
   };
 };
+const originalSoundControl = (items: AccessibilityItem[]) =>
+  items.find(
+    (item) => item.role === 'push button' && /^original sound for musicians(?::|\s|$)/i.test((item.name ?? '').trim()),
+  );
+const originalSoundEnabled = (item: AccessibilityItem | undefined) =>
+  item !== undefined && /(?:^|[:\s])on$/i.test((item.name ?? '').trim());
+const ensureOriginalSound = (session: string) => {
+  let control = originalSoundControl(meetingAccessibility(session).items);
+  if (!control) {
+    return { exitCode: 1, code: 'original_sound_control_unavailable', original_sound: 'unknown', verified: false };
+  }
+  if (originalSoundEnabled(control)) {
+    return { exitCode: 0, original_sound: 'on', changed: false, verified: true };
+  }
+  if (!clickAccessible(session, control)) {
+    return { exitCode: 1, code: 'original_sound_input_failed', original_sound: 'off', verified: false };
+  }
+  const deadline = Date.now() + 8_000;
+  while (Date.now() < deadline) {
+    control = originalSoundControl(meetingAccessibility(session).items);
+    if (originalSoundEnabled(control)) {
+      return { exitCode: 0, original_sound: 'on', changed: true, verified: true };
+    }
+    Bun.sleepSync(100);
+  }
+  return { exitCode: 1, code: 'original_sound_verification_timeout', original_sound: 'unknown', verified: false };
+};
 const controlStimulus = (session: string, requested = 'tones') => {
   const kind = requested.toLowerCase();
   if (kind !== 'tones' && kind !== 'speech') {
@@ -560,6 +678,8 @@ const controlStimulus = (session: string, requested = 'tones') => {
   if (awareness.audio !== 'unmuted') {
     return { exitCode: 1, code: 'microphone_muted', control: 'stimulus', verified: false };
   }
+  const originalSound = ensureOriginalSound(session);
+  if (originalSound.exitCode) return { ...originalSound, control: 'stimulus' };
   const token = kind === 'speech' ? 'XCSH-UAT' : undefined;
   const response = publicXorgCall(DEFAULT_SESSION, 'audio', 'stimulus', {
     kind,
@@ -583,6 +703,7 @@ const controlStimulus = (session: string, requested = 'tones') => {
       kind,
       sink: result.sink,
       retention: result.retention,
+      original_sound: 'on',
       token: token ?? null,
       token_sha256: result.token_sha256 ?? null,
       changed: true,
@@ -609,14 +730,14 @@ const controlLeave = (session: string) => {
   if (!meeting?.id) return { exitCode: 1, code: 'meeting_window_unavailable', control: 'leave', verified: false };
   const focused = publicXorgCall(session, 'window', 'focus', { window: meeting.id });
   if (focused.exitCode) return { ...focused, code: 'meeting_focus_failed', control: 'leave', verified: false };
-  const leave = exactItem(sessionAccessibility(session), 'Leave', 'push button');
+  const leave = exactItem(meetingAccessibility(session).items, 'Leave', 'push button');
   if (!leave || !clickAccessible(session, leave)) {
     return { exitCode: 1, code: 'leave_control_unavailable', control: 'leave', verified: false };
   }
   let confirmation: AccessibilityItem | undefined;
   const confirmationDeadline = Date.now() + 3_000;
   while (Date.now() < confirmationDeadline) {
-    confirmation = exactItem(sessionAccessibility(session), 'Leave meeting', 'push button');
+    confirmation = exactItem(meetingAccessibility(session).items, 'Leave meeting', 'push button');
     if (confirmation) break;
     Bun.sleepSync(100);
   }
@@ -626,7 +747,8 @@ const controlLeave = (session: string) => {
   const deadline = Date.now() + 8_000;
   while (Date.now() < deadline) {
     const windows = sessionWindows(session);
-    const awareness = deriveAwareness(sessionAccessibility(session), windows);
+    const { items, pid } = meetingAccessibility(session, windows);
+    const awareness = deriveAwareness(items, windows, pid);
     const meetingWindow = windows.some((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim()));
     if (!meetingWindow && (awareness.meeting === 'home' || awareness.meeting === 'signed_out')) {
       forgetMeetingIdentity(session);
@@ -713,21 +835,19 @@ export const call = (action: Action, args: string[]) => {
     return { exitCode: 1, code: 'join_timeout', session, changed: false, verified: false };
   }
   if (action === 'status' || action === 'awareness') {
-    const accessibility = publicXorgCall(session, 'inspect', 'accessibility', {});
     const windowList = publicXorgCall(session, 'window', 'list', {});
-    if (accessibility.exitCode || windowList.exitCode) return { accessibility, windowList };
+    if (windowList.exitCode) return { windowList };
     try {
-      const accessibilityEnvelope = JSON.parse(accessibility.output) as { result?: { items?: AccessibilityItem[] } };
       const windowEnvelope = JSON.parse(windowList.output) as { result?: { windows?: WindowItem[] } };
-      const awareness = deriveAwareness(
-        accessibilityEnvelope.result?.items ?? [],
-        windowEnvelope.result?.windows ?? [],
-      );
+      const windows = windowEnvelope.result?.windows ?? [];
+      const allItems = sessionAccessibility(session);
+      const pid = activeMeetingPid(session, windows, allItems);
+      const awareness = deriveAwareness(allItems, windows, pid);
       if (
         awareness.meeting_id === 'unknown' &&
         (awareness.meeting === 'in_meeting' || awareness.meeting === 'sharing')
       ) {
-        awareness.meeting_id = readMeetingId(session, windowEnvelope.result?.windows ?? []) ?? 'unknown';
+        awareness.meeting_id = readMeetingId(session, windows) ?? 'unknown';
       }
       if (awareness.hand === 'unknown' && (awareness.meeting === 'in_meeting' || awareness.meeting === 'sharing')) {
         awareness.hand = observeHandState(session);
@@ -737,10 +857,10 @@ export const call = (action: Action, args: string[]) => {
         exitCode: 0,
         session,
         awareness,
-        evidence: { accessibility: accessibilityEnvelope.result, windows: windowEnvelope.result },
+        evidence: { accessibility: { items: allItems }, windows: windowEnvelope.result },
       };
     } catch {
-      return { exitCode: 1, error: 'invalid_xorg_observation', accessibility, windowList };
+      return { exitCode: 1, error: 'invalid_xorg_observation', windowList };
     }
   }
   if (action === 'audio' || action === 'video' || action === 'hand') {
@@ -754,6 +874,18 @@ export const call = (action: Action, args: string[]) => {
   const shortcuts: Record<string, string> = {};
   return publicXorgCall(session, 'input', 'batch', { steps: [{ action: 'key', key: shortcuts[action] }] });
 };
+export const createZoomCommandHandler =
+  (execute: (action: Action, args: string[]) => Record<string, unknown> = call) =>
+  async (args: string, ctx: ZoomCommandContext) => {
+    try {
+      const parsed = parseZoomCommand(args);
+      const result = execute(parsed.action, parsed.args);
+      const exitCode = typeof result.exitCode === 'number' ? result.exitCode : 1;
+      ctx.ui.notify(JSON.stringify(result, null, 2), exitCode === 0 ? 'info' : 'error');
+    } catch (error) {
+      ctx.ui.notify(error instanceof Error ? error.message : String(error), 'error');
+    }
+  };
 export default function zoomIntegration(pi: ExtensionApi) {
   pi.integrations.register({
     id: 'zoom',
@@ -792,5 +924,9 @@ export default function zoomIntegration(pi: ExtensionApi) {
       const details = call(parsed.action, parsed.args);
       return { content: [{ type: 'text', text: JSON.stringify(details) }], details };
     },
+  });
+  pi.registerCommand('zoom', {
+    description: 'Join or control Zoom Workplace deterministically',
+    handler: createZoomCommandHandler(),
   });
 }
