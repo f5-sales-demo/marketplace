@@ -654,32 +654,99 @@ const controlReaction = (session: string, requested: string) => {
     receiver_verification: 'required',
   };
 };
-const originalSoundControl = (items: AccessibilityItem[]) =>
-  items.find(
-    (item) => item.role === 'push button' && /^original sound for musicians(?::|\s|$)/i.test((item.name ?? '').trim()),
-  );
-const originalSoundEnabled = (item: AccessibilityItem | undefined) =>
-  item !== undefined && /(?:^|[:\s])on$/i.test((item.name ?? '').trim());
-const ensureOriginalSound = (session: string) => {
-  let control = originalSoundControl(meetingAccessibility(session).items);
-  if (!control) {
-    return { exitCode: 1, code: 'original_sound_control_unavailable', original_sound: 'unknown', verified: false };
-  }
-  if (originalSoundEnabled(control)) {
-    return { exitCode: 0, original_sound: 'on', changed: false, verified: true };
-  }
-  if (!clickAccessible(session, control)) {
-    return { exitCode: 1, code: 'original_sound_input_failed', original_sound: 'off', verified: false };
-  }
-  const deadline = Date.now() + 8_000;
+const audioMenuOpen = (items: AccessibilityItem[]) =>
+  exactItem(items, 'Select a microphone', 'menu item') !== undefined &&
+  exactItem(items, 'Select a speaker', 'menu item') !== undefined;
+const openAudioMenu = (session: string) => {
+  let items = meetingAccessibility(session).items;
+  if (audioMenuOpen(items)) return { items, changed: false };
+  const settings = exactItem(items, 'Audio Settings', 'push button');
+  if (!settings || !clickAccessible(session, settings)) return undefined;
+  const deadline = Date.now() + 3_000;
   while (Date.now() < deadline) {
-    control = originalSoundControl(meetingAccessibility(session).items);
-    if (originalSoundEnabled(control)) {
-      return { exitCode: 0, original_sound: 'on', changed: true, verified: true };
-    }
+    items = meetingAccessibility(session).items;
+    if (audioMenuOpen(items)) return { items, changed: true };
     Bun.sleepSync(100);
   }
-  return { exitCode: 1, code: 'original_sound_verification_timeout', original_sound: 'unknown', verified: false };
+  return undefined;
+};
+const closeAudioMenu = (session: string) => {
+  publicXorgCall(session, 'input', 'batch', {
+    allow_focus_change: true,
+    steps: [{ action: 'key', key: 'Escape' }],
+  });
+};
+const selectAudioOption = (
+  session: string,
+  name: string,
+  unavailableCode: string,
+  inputCode: string,
+  verificationCode: string,
+) => {
+  let menu = openAudioMenu(session);
+  if (!menu) return { exitCode: 1, code: 'audio_settings_unavailable', changed: false, verified: false };
+  let option = exactItem(menu.items, name, 'check box');
+  if (!option) return { exitCode: 1, code: unavailableCode, changed: menu.changed, verified: false };
+  if (option.checked === true) return { exitCode: 0, changed: menu.changed, verified: true };
+  if (!clickAccessible(session, option)) {
+    return { exitCode: 1, code: inputCode, changed: menu.changed, verified: false };
+  }
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    menu = openAudioMenu(session);
+    option = menu && exactItem(menu.items, name, 'check box');
+    if (option?.checked === true) return { exitCode: 0, changed: true, verified: true };
+    Bun.sleepSync(100);
+  }
+  return { exitCode: 1, code: verificationCode, changed: true, verified: false };
+};
+const ensureVirtualAudio = (session: string) => {
+  const microphone = selectAudioOption(
+    session,
+    'xcsh Microphone',
+    'virtual_microphone_unavailable',
+    'virtual_microphone_input_failed',
+    'virtual_microphone_verification_timeout',
+  );
+  if (microphone.exitCode) {
+    closeAudioMenu(session);
+    return { ...microphone, microphone: 'unknown', speaker: 'unknown', original_sound: 'unknown' };
+  }
+  const speaker = selectAudioOption(
+    session,
+    'xorgctl_desktop',
+    'virtual_speaker_unavailable',
+    'virtual_speaker_input_failed',
+    'virtual_speaker_verification_timeout',
+  );
+  if (speaker.exitCode) {
+    closeAudioMenu(session);
+    return { ...speaker, microphone: 'xcsh Microphone', speaker: 'unknown', original_sound: 'unknown' };
+  }
+  const originalSound = selectAudioOption(
+    session,
+    'Original sound for musicians',
+    'original_sound_control_unavailable',
+    'original_sound_input_failed',
+    'original_sound_verification_timeout',
+  );
+  closeAudioMenu(session);
+  if (originalSound.exitCode) {
+    return {
+      ...originalSound,
+      microphone: 'xcsh Microphone',
+      speaker: 'xorgctl_desktop',
+      original_sound: 'unknown',
+    };
+  }
+  return {
+    exitCode: 0,
+    microphone: 'xcsh Microphone',
+    speaker: 'xorgctl_desktop',
+    original_sound: 'on',
+    changed: microphone.changed || speaker.changed || originalSound.changed,
+    verified: true,
+  };
 };
 const controlStimulus = (session: string, requested = 'tones') => {
   const kind = requested.toLowerCase();
@@ -693,8 +760,8 @@ const controlStimulus = (session: string, requested = 'tones') => {
   if (awareness.audio !== 'unmuted') {
     return { exitCode: 1, code: 'microphone_muted', control: 'stimulus', verified: false };
   }
-  const originalSound = ensureOriginalSound(session);
-  if (originalSound.exitCode) return { ...originalSound, control: 'stimulus' };
+  const audio = ensureVirtualAudio(session);
+  if (audio.exitCode) return { ...audio, control: 'stimulus' };
   const token = kind === 'speech' ? 'XCSH-UAT' : undefined;
   const response = publicXorgCall(DEFAULT_SESSION, 'audio', 'stimulus', {
     kind,
@@ -718,7 +785,9 @@ const controlStimulus = (session: string, requested = 'tones') => {
       kind,
       sink: result.sink,
       retention: result.retention,
-      original_sound: 'on',
+      microphone: audio.microphone,
+      speaker: audio.speaker,
+      original_sound: audio.original_sound,
       token: token ?? null,
       token_sha256: result.token_sha256 ?? null,
       changed: true,

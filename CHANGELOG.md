@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.0.4 — selects and verifies the xcsh virtual microphone, session
+  speaker, and Original Sound for Musicians before bounded audio stimuli (#1354).
+
 - **`zoom`** v1.0.3 — restores the active Meeting window before stopping a share when
   Zoom exposes only its home window, and keeps direct `/zoom` output concise (#1354).
 
