@@ -1,0 +1,10 @@
+interface ExtensionApi { integrations: { register<T>(definition: unknown): unknown }; tools?: { register<T>(definition: unknown): unknown } }
+type Action = "status" | "leave" | "stop-share" | "audio" | "video" | "share" | "awareness" | "join";
+const redact = (s: string) => s.replace(/https:\/\/[^\s]+/g, "[redacted-invitation]");
+export const canonicalMeetingId = (value: string) => /^\d[\d\s-]*$/.test(value) ? value.replace(/[^\d]/g, "") : value;
+export function parseZoomCommand(value: string): { action: Action; args: string[] } { const words = value.trim().split(/\s+/).filter(Boolean); if (!words.length) throw new Error("meeting ID or Zoom action is required"); const [first, ...rest] = words; const actions = ["status","leave","stop-share","audio","video","share","awareness"]; return { action: actions.includes(first) ? first as Action : "join", args: actions.includes(first) ? rest : words }; }
+const call = (action: Action, params: Record<string, unknown>) => { const r = Bun.spawnSync(["xorgctl","--json","app","act","--params",JSON.stringify({ profile: "zoom", action, ...params })]); return { exitCode: r.exitCode, output: redact(new TextDecoder().decode(r.stdout)) }; };
+export default function zoomIntegration(pi: ExtensionApi) {
+  pi.integrations.register({ id: "zoom", name: "Zoom Workplace", plugin: "zoom", kind: "local", setup: { pluginDependencies: ["xorg"], requiredEnvironment: [], profileFields: [], steps: [{ kind: "install", argv: ["zoom","--version"], timeoutMs: 30000 }], verification: [{ argv: ["xorgctl","--version"], timeoutMs: 30000 }] }, async probe() { return Bun.spawnSync(["zoom","--version"]).exitCode === 0 ? { state: "ready" } : { state: "setup_required", reason: "zoom_missing" }; } });
+  pi.tools?.register({ name: "zoom_meeting", description: "Join or control Zoom through verified xorgctl JSON.", inputSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] }, async execute(input: { command: string }) { const parsed = parseZoomCommand(input.command); return call(parsed.action, { args: parsed.args.map(canonicalMeetingId) }); } });
+}

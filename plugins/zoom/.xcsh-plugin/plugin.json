@@ -1,0 +1,7 @@
+{
+  "name": "zoom", "version": "1.0.0", "description": "Verified Zoom Workplace control through public xorgctl JSON", "license": "Apache-2.0",
+  "author": { "name": "f5-sales-demo" },
+  "marketplace": { "order": 91, "catalog": { "author": { "name": "f5-sales-demo" }, "source": "./plugins/zoom", "category": "productivity", "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom", "license": "Apache-2.0", "keywords": ["zoom","meeting","accessibility","virtual-camera"], "tags": ["zoom","meeting","automation"], "repository": "https://github.com/f5-sales-demo/marketplace" } },
+  "lifecycle": { "mode": "integrated", "integrations": ["zoom"], "requirements": ["Ubuntu 24.04", "Zoom Workplace", "Xorg plugin"], "setupRequired": true, "collectedData": [], "pluginDependencies": ["xorg"] },
+  "xcsh": { "name": "Zoom", "version": "1.0.0", "extensions": ["extensions/integration.ts"] }
+}
