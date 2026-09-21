@@ -1060,21 +1060,21 @@ describe('provider integration lifecycle', () => {
 
   it('exposes an Ubuntu-only Xorg setup contract without IPv6 readiness gates', async () => {
     const [definition] = await definitionsFor('xorg');
+    const script = join(import.meta.dir, '..', 'plugins', 'xorg', 'scripts', 'xorgctl');
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: ['xorgctl', 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.2' })],
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.3' })],
         timeoutMs: 300000,
       },
     ]);
     expect(definition.setup?.verification).toEqual([
       {
-        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.2' })],
+        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.3' })],
         timeoutMs: 30000,
       },
     ]);
 
-    const script = join(import.meta.dir, '..', 'plugins', 'xorg', 'scripts', 'xorgctl');
     const probe = Bun.spawnSync([
       'python3',
       script,
@@ -1082,7 +1082,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.0.2' }),
+      JSON.stringify({ expected_version: '1.0.3' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
