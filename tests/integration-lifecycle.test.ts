@@ -1,14 +1,28 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   call,
   canonicalMeetingId,
   deriveAwareness,
+  deriveMeetingId,
   discoverActiveMeetingSession,
+  discoverZoomSession,
   invitationToZoomMtg,
   parseZoomCommand,
+  parseZoomToolInput,
 } from '../plugins/zoom/extensions/integration';
+
+const originalZoomStateDirectory = process.env.XCSH_ZOOM_STATE_DIR;
+const zoomStateDirectory = mkdtempSync(join(tmpdir(), 'xcsh-zoom-test-state-'));
+process.env.XCSH_ZOOM_STATE_DIR = zoomStateDirectory;
+afterAll(() => {
+  if (originalZoomStateDirectory === undefined) delete process.env.XCSH_ZOOM_STATE_DIR;
+  else process.env.XCSH_ZOOM_STATE_DIR = originalZoomStateDirectory;
+  rmSync(zoomStateDirectory, { recursive: true, force: true });
+});
 
 type Definition = {
   id: string;
@@ -98,6 +112,7 @@ describe('provider integration lifecycle', () => {
     expect(canonicalMeetingId('123 456-789')).toBe('123456789');
     expect(() => canonicalMeetingId('1234')).toThrow('9 to 16');
     expect(parseZoomCommand('123 456 789').action).toBe('join');
+    expect(parseZoomCommand('share browser')).toEqual({ action: 'share', args: ['browser'] });
     expect(invitationToZoomMtg('https://f5.zoom.us/j/123456789?pwd=secret')).toBe(
       'zoommtg://f5.zoom.us/join?action=join&confno=123456789&pwd=secret',
     );
@@ -106,14 +121,37 @@ describe('provider integration lifecycle', () => {
       'utf8',
     );
     expect(source).not.toContain('app", "act');
-    const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
-      exitCode: 0,
-      stdout: new TextEncoder().encode('joined'),
-      stderr: new Uint8Array(),
-    } as ReturnType<typeof Bun.spawnSync>);
+    expect(source).not.toContain("key: 'ALT+");
+    expect(source).toContain("{ action: 'chord', keys: ['Alt_L', key] }");
+    expect(source).toContain("publicXorgCall(session, 'window', 'focus'");
+    expect(source).toContain("item.name ?? '').trim().toLowerCase() === 'react'");
+    let launched = false;
+    const calls: string[][] = [];
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      calls.push(command);
+      const operation = command[command.indexOf('--json') + 1];
+      if (operation === 'app') launched = true;
+      const result =
+        operation === 'window'
+          ? { windows: launched ? [{ title: 'Meeting', pid: 42 }] : [] }
+          : operation === 'inspect'
+            ? { items: [{ name: 'Meeting ID 123 456 789', pid: 42 }] }
+            : {};
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
     try {
-      expect(call('join', ['https://zoom.us/j/123456789?pwd=secret']).output).toBe('joined');
-      expect(spawn).toHaveBeenLastCalledWith([
+      expect(call('join', ['https://zoom.us/j/123456789?pwd=secret'])).toMatchObject({
+        state: 'in_meeting',
+        changed: true,
+        verified: true,
+        meeting_identity: '123456789',
+      });
+      expect(calls).toContainEqual([
         'xorgctl',
         '--session',
         'desktop',
@@ -125,6 +163,267 @@ describe('provider integration lifecycle', () => {
           argv: ['zoom', 'zoommtg://zoom.us/join?action=join&confno=123456789&pwd=secret'],
         }),
       ]);
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+  it('normalizes empty optional Zoom tool fields without inventing a join', () => {
+    expect(parseZoomToolInput({ action: 'awareness', invitation_url: '', meeting_id: '' })).toEqual({
+      action: 'awareness',
+      args: [],
+    });
+    expect(() => parseZoomToolInput({ action: 'join', invitation_url: '', meeting_id: '' })).toThrow(
+      'join requires invitation_url or meeting_id',
+    );
+    expect(() => parseZoomToolInput({ action: 'inspect' })).toThrow('unsupported Zoom action');
+    expect(() =>
+      parseZoomToolInput({ action: 'join', invitation_url: 'https://zoom.us/j/123456789', meeting_id: '123456789' }),
+    ).toThrow('either invitation_url or meeting_id');
+    expect(parseZoomToolInput({ action: 'audio', state: ' muted ' })).toEqual({ action: 'audio', args: ['muted'] });
+  });
+  it('shares the named browser window with sound through verified generic Xorg primitives', () => {
+    let pickerOpen = false;
+    let targetSelected = false;
+    let soundChecked = false;
+    let sharing = false;
+    const inputSteps: Array<Record<string, unknown>> = [];
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = {
+          windows:
+            session === 'console'
+              ? [
+                  ...(!sharing ? [{ id: 42, pid: 7, title: 'Meeting' }] : []),
+                  { id: 84, pid: 8, title: 'xcsh Zoom AV UAT - Google Chrome' },
+                  ...(pickerOpen ? [{ id: 126, pid: 7, title: 'Select a window or an application that you want to share' }] : []),
+                ]
+              : [],
+        };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items: session !== 'console'
+            ? []
+            : sharing
+            ? [{ name: 'Stop Share', role: 'push button', pid: 7, box: [900, 20, 100, 40] }]
+            : pickerOpen
+              ? [
+                  { name: 'Select a window or an application that you want to share', role: 'frame', pid: 7, box: [400, 200, 1000, 700] },
+                  { name: 'xcsh Zoom AV UAT - Google Chrome', role: 'filler', pid: 7, box: [460, 520, 720, 160], selected: targetSelected },
+                  { name: 'Share sound', role: 'check box', pid: 7, box: [1200, 580, 110, 28], checked: soundChecked },
+                  { name: 'Share', role: 'push button', pid: 7, box: [870, 830, 164, 32] },
+                ]
+              : [{ name: 'Share', role: 'push button', pid: 7, box: [1050, 900, 80, 50] }],
+        };
+      } else if (operation === 'input' && action === 'batch') {
+        const steps = params.steps as Array<Record<string, unknown>>;
+        inputSteps.push(...steps);
+        for (const step of steps) {
+          if (step.action === 'chord' && JSON.stringify(step.keys) === JSON.stringify(['Alt_L', 's'])) pickerOpen = true;
+          if (step.action !== 'click') continue;
+          const x = Number(step.x);
+          const y = Number(step.y);
+          if (x === 580 && y === 600) targetSelected = true;
+          if (x === 1255 && y === 594) soundChecked = true;
+          if (x === 952 && y === 846 && targetSelected && soundChecked) {
+            pickerOpen = false;
+            sharing = true;
+          }
+          if (x === 950 && y === 40 && sharing) sharing = false;
+        }
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('share', ['browser'])).toMatchObject({
+        exitCode: 0,
+        control: 'share',
+        target: 'browser_window',
+        shared_sound: 'on',
+        changed: true,
+        verified: true,
+      });
+      expect(inputSteps).toContainEqual({ action: 'chord', keys: ['Alt_L', 's'] });
+      expect(inputSteps.some((step) => step.action === 'key' && String(step.key).includes('+'))).toBe(false);
+      expect(call('stop-share', [])).toMatchObject({
+        exitCode: 0,
+        control: 'stop-share',
+        previous: 'on',
+        current: 'off',
+        changed: true,
+        verified: true,
+      });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+  it('sends a named reaction through the semantic Zoom reaction menu', () => {
+    let menuOpen = false;
+    let reacted = false;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = { windows: session === 'console' ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items:
+            session === 'console'
+              ? [
+                  { name: 'Unmute', role: 'push button', pid: 7, box: [20, 900, 80, 50] },
+                  { name: 'Participants', role: 'push button', pid: 7, box: [200, 900, 100, 50] },
+                  { name: 'React', role: 'push button', pid: 7, box: [980, 900, 80, 50] },
+                  ...(menuOpen ? [{ name: 'Thumbs up', role: 'push button', pid: 7, box: [917, 728, 36, 36] }] : []),
+                ]
+              : [],
+        };
+      } else if (operation === 'input' && action === 'batch') {
+        for (const step of params.steps as Array<Record<string, unknown>>) {
+          if (step.action !== 'click') continue;
+          if (Number(step.x) === 1020 && Number(step.y) === 925) menuOpen = true;
+          if (Number(step.x) === 935 && Number(step.y) === 746) {
+            menuOpen = false;
+            reacted = true;
+          }
+        }
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('reaction', ['thumbs-up'])).toMatchObject({
+        exitCode: 0,
+        control: 'reaction',
+        reaction: 'thumbs_up',
+        changed: true,
+        verified: true,
+      });
+      expect(reacted).toBe(true);
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+  it('routes bounded stimuli only through the verified virtual microphone sink', () => {
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = { windows: session === 'console' ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items:
+            session === 'console'
+              ? [
+                  { name: 'Mute', role: 'push button', pid: 7 },
+                  { name: 'Participants', role: 'push button', pid: 7 },
+                  { name: 'Share', role: 'push button', pid: 7 },
+                ]
+              : [],
+        };
+      } else if (operation === 'audio' && action === 'stimulus') {
+        result = { stimulus: 'tones', sink: 'xcsh_microphone', retention: 'none', token_sha256: null };
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('stimulus', ['tones'])).toMatchObject({
+        exitCode: 0,
+        control: 'stimulus',
+        kind: 'tones',
+        session: 'console',
+        media_session: 'desktop',
+        sink: 'xcsh_microphone',
+        retention: 'none',
+        changed: true,
+        verified: true,
+      });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+  it('leaves through the semantic confirmation and verifies meeting exit', () => {
+    let confirmation = false;
+    let left = false;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = {
+          windows:
+            session === 'console'
+              ? left
+                ? [{ id: 41, pid: 7, title: 'Zoom Workplace - Free account' }]
+                : [{ id: 42, pid: 7, title: 'Meeting' }]
+              : [],
+        };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items:
+            session !== 'console'
+              ? []
+              : left
+                ? [{ name: 'New meeting', role: 'push button', pid: 7 }]
+                : confirmation
+                  ? [{ name: 'Leave meeting', role: 'push button', pid: 7, box: [1314, 837, 220, 32] }]
+                  : [
+                      { name: 'Participants', role: 'push button', pid: 7 },
+                      { name: 'Unmute', role: 'push button', pid: 7 },
+                      { name: 'Leave', role: 'push button', pid: 7, box: [1464, 901, 78, 53] },
+                    ],
+        };
+      } else if (operation === 'input' && action === 'batch') {
+        for (const step of params.steps as Array<Record<string, unknown>>) {
+          if (step.action !== 'click') continue;
+          if (Number(step.x) === 1503 && Number(step.y) === 928) confirmation = true;
+          if (Number(step.x) === 1424 && Number(step.y) === 853) left = true;
+        }
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('leave', [])).toMatchObject({
+        exitCode: 0,
+        control: 'leave',
+        previous: 'in_meeting',
+        current: 'left',
+        changed: true,
+        verified: true,
+      });
+      expect(left).toBe(true);
     } finally {
       spawn.mockRestore();
     }
@@ -152,8 +451,14 @@ describe('provider integration lifecycle', () => {
     const dump = await readFile(join(root, 'atspi_dump.py'), 'utf8');
     const worker = await readFile(join(root, 'worker.py'), 'utf8');
     expect(dump).toContain('node.get_process_id()');
-    expect(worker).toContain("item.get('pid') in visible_pids");
-    expect(worker).toContain("'session_pid_filter':sorted(visible_pids)");
+    expect(dump).toContain('Atspi.StateType.CHECKED');
+    expect(dump).toContain('Atspi.StateType.SELECTED');
+    expect(worker).toMatch(/item\.get\((["'])pid\1\) in visible_pids/);
+    expect(worker).toMatch(/item\.get\((["'])showing\1\) is True/);
+    expect(worker).toMatch(/item\.get\((["'])visible\1\) is True/);
+    expect(worker).toMatch(
+      /["']session_pid_filter["']:\s*sorted\(visible_pids\)/,
+    );
   });
   it('declares native installer argv for macOS, Linux, and Windows', async () => {
     for (const [plugin, exportName, expectedWindowsId] of [
@@ -221,6 +526,43 @@ describe('provider integration lifecycle', () => {
     });
   });
 
+  it('exposes an Ubuntu-only Xorg setup contract without IPv6 readiness gates', async () => {
+    const [definition] = await definitionsFor('xorg');
+    expect(definition.setup?.steps).toEqual([
+      {
+        kind: 'install',
+        argv: ['xorgctl', 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.1' })],
+        timeoutMs: 300000,
+      },
+    ]);
+    expect(definition.setup?.verification).toEqual([
+      {
+        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.1' })],
+        timeoutMs: 30000,
+      },
+    ]);
+
+    const script = join(import.meta.dir, '..', 'plugins', 'xorg', 'scripts', 'xorgctl');
+    const probe = Bun.spawnSync([
+      'python3',
+      script,
+      '--json',
+      'setup',
+      'status',
+      '--params',
+      JSON.stringify({ expected_version: '1.0.1' }),
+    ]);
+    expect(probe.exitCode).toBe(0);
+    const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
+      ok: boolean;
+      result: { state: string; platform: { id: string; version_id: string }; checks: Record<string, unknown> };
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
+    expect(['ready', 'degraded']).toContain(payload.result.state);
+    expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');
+  });
+
   it('pins Zoom controls to the owned desktop UAT session', async () => {
     const source = await readFile(
       join(import.meta.dir, '..', 'plugins', 'zoom', 'extensions', 'integration.ts'),
@@ -231,6 +573,8 @@ describe('provider integration lifecycle', () => {
   });
 
   it('derives normalized meeting awareness without guessing missing states', () => {
+    expect(deriveMeetingId([{ name: 'Meeting ID123 4567 8901' }])).toBe('12345678901');
+    expect(deriveMeetingId([{ name: 'Meeting information' }])).toBeUndefined();
     expect(
       deriveAwareness(
         [
@@ -242,7 +586,14 @@ describe('provider integration lifecycle', () => {
         ],
         [{ id: 7, pid: 42, title: 'Zoom Meeting' }],
       ),
-    ).toMatchObject({ meeting: 'in_meeting', audio: 'muted', video: 'off', share: 'off', hand: 'raised' });
+    ).toMatchObject({
+      meeting: 'in_meeting',
+      meeting_id: 'unknown',
+      audio: 'muted',
+      video: 'off',
+      share: 'off',
+      hand: 'raised',
+    });
     expect(deriveAwareness([], []).meeting).toBe('unknown');
     expect(
       discoverActiveMeetingSession({
@@ -250,6 +601,210 @@ describe('provider integration lifecycle', () => {
         desktop: [{ title: 'Zoom Workplace', pid: 84 }],
       }),
     ).toBe('console');
+    expect(
+      discoverZoomSession({
+        console: [{ title: 'Zoom Workplace - Free account', pid: 42 }],
+        desktop: [{ title: 'Zoom Workplace', pid: 84 }],
+      }),
+    ).toBe('console');
+  });
+  it('resolves the active meeting identity for status from Zoom meeting information', () => {
+    let informationOpen = false;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = { windows: session === 'console' ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items: informationOpen
+            ? [{ name: 'Meeting ID: 123 4567 8901', role: 'label', pid: 7 }]
+            : [
+                { name: 'Mute', role: 'push button', pid: 7 },
+                { name: 'Stop Video', role: 'push button', pid: 7 },
+                { name: 'Share', role: 'push button', pid: 7 },
+                { name: 'Meeting information', role: 'push button', pid: 7, box: [1, 1, 20, 20] },
+              ],
+        };
+      } else if (operation === 'input' && action === 'batch') {
+        informationOpen = true;
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('status', [])).toMatchObject({
+        exitCode: 0,
+        session: 'console',
+        awareness: { meeting: 'in_meeting', meeting_id: '12345678901' },
+      });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+  it('retains verified meeting identity while Zoom replaces the meeting window during sharing', () => {
+    const stateDirectory = mkdtempSync(join(tmpdir(), 'xcsh-zoom-state-'));
+    const previousStateDirectory = process.env.XCSH_ZOOM_STATE_DIR;
+    process.env.XCSH_ZOOM_STATE_DIR = stateDirectory;
+    let sharing = false;
+    let informationOpen = false;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') {
+        result = {
+          windows:
+            session !== 'console'
+              ? []
+              : sharing
+                ? [{ id: 43, pid: 7, title: 'zoom_linux_float_video_window' }]
+                : [{ id: 42, pid: 7, title: 'Meeting' }],
+        };
+      } else if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items:
+            session !== 'console'
+              ? []
+              : sharing
+                ? [{ name: 'Stop Share', role: 'push button', pid: 7, box: [900, 20, 100, 40] }]
+                : informationOpen
+                  ? [{ name: 'Meeting ID: 123 4567 8901', role: 'label', pid: 7 }]
+                  : [
+                      { name: 'Mute', role: 'push button', pid: 7 },
+                      { name: 'Meeting information', role: 'push button', pid: 7, box: [1, 1, 20, 20] },
+                    ],
+        };
+      } else if (operation === 'input' && action === 'batch') {
+        for (const step of params.steps as Array<Record<string, unknown>>) {
+          if (step.action === 'click') informationOpen = true;
+          if (step.action === 'key' && step.key === 'Escape') informationOpen = false;
+        }
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('status', [])).toMatchObject({
+        awareness: { meeting: 'in_meeting', meeting_id: '12345678901' },
+      });
+      sharing = true;
+      expect(call('status', [])).toMatchObject({
+        awareness: { meeting: 'sharing', meeting_id: '12345678901' },
+      });
+    } finally {
+      spawn.mockRestore();
+      if (previousStateDirectory === undefined) delete process.env.XCSH_ZOOM_STATE_DIR;
+      else process.env.XCSH_ZOOM_STATE_DIR = previousStateDirectory;
+      rmSync(stateDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('returns unchanged only when the active meeting identity matches', () => {
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      if (operation === 'window') {
+        const windows = session === 'console' ? [{ title: 'Meeting', pid: 42 }] : [];
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ result: { windows } })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(
+          JSON.stringify({ result: { items: [{ name: 'Meeting ID123 4567 8901', pid: 42 }] } }),
+        ),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('join', ['https://zoom.example.com/j/12345678901?pwd=secret'])).toMatchObject({
+        exitCode: 0,
+        session: 'console',
+        changed: false,
+        verified: true,
+        meeting_identity: '12345678901',
+      });
+      expect(call('join', ['123456789'])).toMatchObject({
+        exitCode: 1,
+        code: 'active_meeting_conflict',
+        changed: false,
+        verified: true,
+      });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
+  it('reuses an existing Zoom client without treating its home window as an active meeting', () => {
+    let launched = false;
+    const calls: string[][] = [];
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      calls.push(command);
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      if (operation === 'window') {
+        const windows =
+          session === 'console'
+            ? launched
+              ? [{ title: 'Meeting', pid: 42 }]
+              : [{ title: 'Zoom Workplace - Free account', pid: 42 }]
+            : [];
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ result: { windows } })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      if (operation === 'app') launched = true;
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(
+          JSON.stringify({ result: { items: [{ name: 'Meeting ID123 4567 8901', pid: 42 }] } }),
+        ),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(call('join', ['https://zoom.example.com/j/12345678901?pwd=secret'])).toMatchObject({
+        exitCode: 0,
+        state: 'in_meeting',
+        changed: true,
+        verified: true,
+      });
+      expect(calls).toContainEqual([
+        'xorgctl',
+        '--session',
+        'console',
+        '--json',
+        'app',
+        'launch',
+        '--params',
+        JSON.stringify({
+          argv: ['zoom', 'zoommtg://zoom.example.com/join?action=join&confno=12345678901&pwd=secret'],
+        }),
+      ]);
+    } finally {
+      spawn.mockRestore();
+    }
   });
 
   it('declares Xorg and Zoom extension entrypoints where xcsh loads them', async () => {

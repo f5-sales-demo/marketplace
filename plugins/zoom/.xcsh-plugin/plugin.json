@@ -1,13 +1,17 @@
 {
   "name": "zoom",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Verified Zoom Workplace control through public xorgctl JSON",
   "license": "Apache-2.0",
-  "author": { "name": "f5-sales-demo" },
+  "author": {
+    "name": "f5-sales-demo"
+  },
   "marketplace": {
     "order": 91,
     "catalog": {
-      "author": { "name": "f5-sales-demo" },
+      "author": {
+        "name": "f5-sales-demo"
+      },
       "source": "./plugins/zoom",
       "category": "productivity",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom",
@@ -26,5 +30,8 @@
     "pluginDependencies": ["xorg"]
   },
   "extensions": ["extensions/integration.ts"],
-  "xcsh": { "name": "Zoom", "version": "1.0.0" }
+  "xcsh": {
+    "name": "Zoom",
+    "version": "1.0.1"
+  }
 }

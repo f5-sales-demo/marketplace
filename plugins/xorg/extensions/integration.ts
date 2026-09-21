@@ -11,7 +11,7 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '0.3.0';
+const VERSION = '1.0.1';
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync(['xorgctl', ...(session ? ['--session', session] : []), '--json', ...args]);
 export default function xorgIntegration(pi: ExtensionApi) {
@@ -24,22 +24,50 @@ export default function xorgIntegration(pi: ExtensionApi) {
       pluginDependencies: [],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [{ kind: 'install', argv: ['xorgctl', 'setup', 'apply', '--version', VERSION], timeoutMs: 300000 }],
-      verification: [{ argv: ['xorgctl', '--version'], timeoutMs: 30000 }],
+      steps: [
+        {
+          kind: 'install',
+          argv: ['xorgctl', 'setup', 'apply', '--params', JSON.stringify({ expected_version: VERSION })],
+          timeoutMs: 300000,
+        },
+      ],
+      verification: [
+        {
+          argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: VERSION })],
+          timeoutMs: 30000,
+        },
+      ],
     },
     async probe() {
       const r = invoke(undefined, ['capabilities']);
       const text = new TextDecoder().decode(r.stdout);
-      return r.exitCode === 0 && text.includes(VERSION)
-        ? { state: 'ready' }
-        : { state: 'degraded', reason: 'version_mismatch' };
+      if (r.exitCode !== 0 || !text.includes(VERSION)) {
+        return { state: 'degraded', reason: 'version_mismatch' };
+      }
+      const setup = invoke(undefined, [
+        'setup',
+        'status',
+        '--params',
+        JSON.stringify({ expected_version: VERSION }),
+      ]);
+      if (setup.exitCode !== 0) return { state: 'degraded', reason: 'setup_probe_failed' };
+      try {
+        const envelope = JSON.parse(new TextDecoder().decode(setup.stdout)) as {
+          result?: { state?: string; missing?: string[] };
+        };
+        return envelope.result?.state === 'ready'
+          ? { state: 'ready', value: envelope.result }
+          : { state: 'degraded', reason: 'setup_incomplete', value: envelope.result };
+      } catch {
+        return { state: 'degraded', reason: 'setup_probe_invalid' };
+      }
     },
   });
   pi.registerTool({
     name: 'xorg_desktop',
     label: 'Xorg desktop',
     description:
-      'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Supported discovery: window/list, window/get with params {window:<id>}, inspect/accessibility, screenshot/screenshot, and input/batch.',
+      'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Setup readiness is setup/status with params {expected_version:"1.0.1"}. Supported discovery includes window/list, inspect/accessibility, screenshot/screenshot, and input/batch.',
     parameters: pi.typebox.Type.Object({
       session: pi.typebox.Type.Optional(pi.typebox.Type.String()),
       command: pi.typebox.Type.String(),
