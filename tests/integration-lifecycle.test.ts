@@ -1,6 +1,7 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { canonicalMeetingId, call, parseZoomCommand, redact } from '../plugins/zoom/extensions/integration';
 
 type Definition = {
   id: string;
@@ -61,6 +62,15 @@ async function definitionsFor(plugin: string): Promise<Definition[]> {
 }
 
 describe('provider integration lifecycle', () => {
+	it('keeps the Zoom controller on documented generic xorgctl calls', async () => {
+		expect(canonicalMeetingId('123 456-789')).toBe('123456789');
+		expect(() => canonicalMeetingId('1234')).toThrow('9 to 16');
+		expect(parseZoomCommand('123 456 789').action).toBe('join');
+		expect(redact('join https://zoom.us/j/123?pwd=secret')).toBe('join [redacted-invitation]');
+		const source = await readFile(join(import.meta.dir, '..', 'plugins', 'zoom', 'extensions', 'integration.ts'), 'utf8');
+		expect(source).not.toContain('app", "act');
+		expect(call('join', ['https://zoom.us/j/123?pwd=secret']).output).not.toContain('secret');
+	});
 	it('keeps Zoom-specific implementation out of the Xorg substrate', async () => {
 		const root = join(import.meta.dir, '..', 'plugins', 'xorg');
 		const visit = async (directory: string): Promise<string[]> => {
