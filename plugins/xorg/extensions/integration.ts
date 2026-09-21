@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
   typebox: {
@@ -11,7 +13,8 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
+const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync(['xorgctl', ...(session ? ['--session', session] : []), '--json', ...args]);
 export default function xorgIntegration(pi: ExtensionApi) {
@@ -27,7 +30,7 @@ export default function xorgIntegration(pi: ExtensionApi) {
       steps: [
         {
           kind: 'install',
-          argv: ['xorgctl', 'setup', 'apply', '--params', JSON.stringify({ expected_version: VERSION })],
+          argv: [BUNDLED_XORGCTL, 'setup', 'apply', '--params', JSON.stringify({ expected_version: VERSION })],
           timeoutMs: 300000,
         },
       ],
@@ -62,7 +65,7 @@ export default function xorgIntegration(pi: ExtensionApi) {
     name: 'xorg_desktop',
     label: 'Xorg desktop',
     description:
-      'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Setup readiness is setup/status with params {expected_version:"1.0.2"}. Supported discovery includes window/list, inspect/accessibility, screenshot/screenshot, and input/batch.',
+      'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Setup readiness is setup/status with params {expected_version:"1.0.3"}. Supported discovery includes window/list, inspect/accessibility, screenshot/screenshot, and input/batch.',
     parameters: pi.typebox.Type.Object({
       session: pi.typebox.Type.Optional(pi.typebox.Type.String()),
       command: pi.typebox.Type.String(),

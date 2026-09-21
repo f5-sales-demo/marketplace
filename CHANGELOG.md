@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.3 — runs setup from the newly installed plugin payload so an
+  older `xorgctl` can bootstrap the replacement instead of rejecting its version.
+
 - **`zoom`** v1.0.5 — requires an eight-second, complete speech result from Xorg so
   receiver verification cannot pass on clipped audio (#1354).
 
