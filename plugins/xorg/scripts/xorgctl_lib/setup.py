@@ -100,6 +100,8 @@ def _command(
 
 
 def _service_active(name: str) -> bool:
+    if shutil.which("systemctl") is None:
+        return False
     return (
         _command(["systemctl", "--user", "is-active", "--quiet", name]).returncode == 0
     )
@@ -132,7 +134,11 @@ def status(expected_version: str) -> dict[str, object]:
         and camera_label.is_file()
         and camera_label.read_text().strip() == "xcsh Camera"
     )
-    font = _command(["fc-match", "-f", "%{family[0]}", "JetBrainsMono Nerd Font"])
+    font = (
+        _command(["fc-match", "-f", "%{family[0]}", "JetBrainsMono Nerd Font"])
+        if command_checks["fc-match"]
+        else None
+    )
     worker_version = _worker_version("console")
     checks: dict[str, object] = {
         "platform": platform == {"id": UBUNTU_ID, "version_id": UBUNTU_VERSION},
@@ -145,7 +151,11 @@ def status(expected_version: str) -> dict[str, object]:
             "label": "xcsh Camera",
         },
         "fonts": {
-            "ready": font.returncode == 0 and "JetBrainsMono Nerd Font" in font.stdout
+            "ready": bool(
+                font
+                and font.returncode == 0
+                and "JetBrainsMono Nerd Font" in font.stdout
+            )
         },
         "services": {
             "console": _service_active(_session_service("console")),
