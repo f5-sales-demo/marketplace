@@ -4,7 +4,6 @@ interface ExtensionApi {
 }
 export type Action = 'status' | 'leave' | 'stop-share' | 'audio' | 'video' | 'share' | 'awareness' | 'join';
 const actions: readonly Action[] = ['status', 'leave', 'stop-share', 'audio', 'video', 'share', 'awareness'];
-export const redact = (value: string) => value.replace(/https:\/\/[^\s"']+/g, '[redacted-invitation]');
 export const isInvitation = (value: string) => /^https:\/\/[^\s]+$/i.test(value);
 export const canonicalMeetingId = (value: string) => {
   if (!/^\d[\d\s-]*$/.test(value)) throw new Error('meeting ID must contain digits, spaces, or hyphens only');
@@ -29,18 +28,16 @@ const publicXorgCall = (command: string, action: string | undefined, params: Rec
   ]);
   return {
     exitCode: result.exitCode,
-    output: redact(new TextDecoder().decode(result.stdout)),
-    error: redact(new TextDecoder().decode(result.stderr)),
+    output: new TextDecoder().decode(result.stdout),
+    error: new TextDecoder().decode(result.stderr),
   };
 };
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
   if (action === 'join') {
     const target = args.join(' ');
-    if (isInvitation(target))
-      return { exitCode: 1, output: JSON.stringify({ ok: false, error: 'invitation_url_requires_stdin' }), error: '' };
-    const meetingId = canonicalMeetingId(target);
-    return publicXorgCall('app', 'launch', { argv: ['zoom', '--url', `zoommtg://zoom.us/join?confno=${meetingId}`] });
+    const joinTarget = isInvitation(target) ? target : `zoommtg://zoom.us/join?confno=${canonicalMeetingId(target)}`;
+    return publicXorgCall('app', 'launch', { argv: ['zoom', '--url', joinTarget] });
   }
   if (action === 'status' || action === 'awareness') return publicXorgCall('inspect', 'accessibility', {});
   const shortcuts: Record<string, string> = {
