@@ -1,10 +1,19 @@
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
-  typebox: { Type: { Object(shape: Record<string, unknown>): unknown; String(): unknown } };
+  typebox: {
+    Type: {
+      Object(shape: Record<string, unknown>): unknown;
+      String(): unknown;
+      Optional(schema: unknown): unknown;
+      Unknown(): unknown;
+      Record(key: unknown, value: unknown): unknown;
+    };
+  };
   registerTool(definition: unknown): void;
 }
 const VERSION = '0.3.0';
-const invoke = (args: string[]) => Bun.spawnSync(['xorgctl', '--json', ...args]);
+const invoke = (session: string | undefined, args: string[]) =>
+  Bun.spawnSync(['xorgctl', ...(session ? ['--session', session] : []), '--json', ...args]);
 export default function xorgIntegration(pi: ExtensionApi) {
   pi.integrations.register({
     id: 'xorg',
@@ -19,7 +28,7 @@ export default function xorgIntegration(pi: ExtensionApi) {
       verification: [{ argv: ['xorgctl', '--version'], timeoutMs: 30000 }],
     },
     async probe() {
-      const r = invoke(['capabilities']);
+      const r = invoke(undefined, ['capabilities']);
       const text = new TextDecoder().decode(r.stdout);
       return r.exitCode === 0 && text.includes(VERSION)
         ? { state: 'ready' }
@@ -29,14 +38,19 @@ export default function xorgIntegration(pi: ExtensionApi) {
   pi.registerTool({
     name: 'xorg_desktop',
     label: 'Xorg desktop',
-    description: 'Observe or act on Ubuntu Xorg through xorgctl JSON.',
+    description:
+      'Observe or act on a named Ubuntu Xorg session through xorgctl JSON. Always set session explicitly for UAT. Supported discovery: window/list, window/get with params {window:<id>}, inspect/accessibility, screenshot/screenshot, and input/batch.',
     parameters: pi.typebox.Type.Object({
+      session: pi.typebox.Type.Optional(pi.typebox.Type.String()),
       command: pi.typebox.Type.String(),
       action: pi.typebox.Type.String(),
-      params: pi.typebox.Type.Object({}),
+      params: pi.typebox.Type.Record(pi.typebox.Type.String(), pi.typebox.Type.Unknown()),
     }),
-    async execute(_toolCallId: string, input: { command: string; action?: string; params?: Record<string, unknown> }) {
-      const r = invoke([
+    async execute(
+      _toolCallId: string,
+      input: { session?: string; command: string; action?: string; params?: Record<string, unknown> },
+    ) {
+      const r = invoke(input.session, [
         input.command,
         ...(input.action ? [input.action] : []),
         '--params',

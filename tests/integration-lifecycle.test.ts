@@ -28,7 +28,23 @@ async function definitionsFor(plugin: string): Promise<Definitions> {
   const definitions: Definition[] = [];
   const tools: ToolDefinition[] = [];
   const handlers: Record<string, unknown[]> = {};
-  const typeFactory = new Proxy({}, { get: () => () => ({}) });
+  const typeFactory = new Proxy(
+    {
+      Object(shape: Record<string, unknown>) {
+        return { type: 'object', properties: shape };
+      },
+      String() {
+        return { type: 'string' };
+      },
+      Unknown() {
+        return {};
+      },
+      Record(_key: unknown, value: unknown) {
+        return { type: 'object', additionalProperties: value };
+      },
+    },
+    { get: (target, property) => Reflect.get(target, property) ?? (() => ({})) },
+  );
   const pi = {
     setLabel() {},
     logger: { debug() {} },
@@ -89,6 +105,8 @@ describe('provider integration lifecycle', () => {
       expect(call('join', ['https://zoom.us/j/123?pwd=secret']).output).toBe('joined');
       expect(spawn).toHaveBeenCalledWith([
         'xorgctl',
+        '--session',
+        'desktop',
         '--json',
         'app',
         'launch',
@@ -173,6 +191,22 @@ describe('provider integration lifecycle', () => {
   it('registers callable Xorg and Zoom tools through the xcsh extension API', async () => {
     expect((await definitionsFor('xorg')).tools.map((tool) => tool.name)).toEqual(['xorg_desktop']);
     expect((await definitionsFor('zoom')).tools.map((tool) => tool.name)).toEqual(['zoom_meeting']);
+  });
+
+  it('preserves arbitrary documented xorgctl parameters for tool calls', async () => {
+    const [tool] = (await definitionsFor('xorg')).tools;
+    expect(tool.parameters).toMatchObject({
+      properties: { params: { type: 'object', additionalProperties: {} } },
+    });
+  });
+
+  it('pins Zoom controls to the owned desktop UAT session', async () => {
+    const source = await readFile(
+      join(import.meta.dir, '..', 'plugins', 'zoom', 'extensions', 'integration.ts'),
+      'utf8',
+    );
+    expect(source).toContain("const UAT_SESSION = 'desktop'");
+    expect(source).toContain("'--session',");
   });
 
   it('declares Xorg and Zoom extension entrypoints where xcsh loads them', async () => {

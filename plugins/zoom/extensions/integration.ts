@@ -6,6 +6,7 @@ interface ExtensionApi {
   registerTool(definition: unknown): void;
 }
 export type Action = 'status' | 'leave' | 'stop-share' | 'audio' | 'video' | 'share' | 'awareness' | 'join';
+const UAT_SESSION = 'desktop';
 const actions: readonly Action[] = ['status', 'leave', 'stop-share', 'audio', 'video', 'share', 'awareness'];
 export const isInvitation = (value: string) => /^https:\/\/[^\s]+$/i.test(value);
 export const canonicalMeetingId = (value: string) => {
@@ -37,6 +38,8 @@ export function parseZoomToolInput(input: {
 const publicXorgCall = (command: string, action: string | undefined, params: Record<string, unknown>) => {
   const result = Bun.spawnSync([
     'xorgctl',
+    '--session',
+    UAT_SESSION,
     '--json',
     command,
     ...(action ? [action] : []),
@@ -88,7 +91,8 @@ export default function zoomIntegration(pi: ExtensionApi) {
   pi.registerTool({
     name: 'zoom_meeting',
     label: 'Zoom meeting',
-    description: 'Join or control Zoom through verified public xorgctl JSON.',
+    description:
+      'Deterministic Zoom controller for the owned desktop UAT session. Progression: preflight virtual media, join invitation, inspect/accessibility plus EWMH verification, then one semantic control at a time. Uses only public xorgctl JSON and never uses physical media.',
     parameters: pi.typebox.Type.Object({
       command: pi.typebox.Type.Optional(pi.typebox.Type.String()),
       action: pi.typebox.Type.Optional(pi.typebox.Type.String()),
