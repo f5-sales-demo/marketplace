@@ -79,7 +79,11 @@ class Worker:
         if m=='inspect.ocr': return observe.ocr(self,p)
         if m=='inspect.accessibility':
             raw=self.command(['/usr/bin/python3',str(pathlib.Path(__file__).with_name('atspi_dump.py'))],timeout=10)
-            return {'source':'AT-SPI','coordinate_space':'X11 display pixels','items':json.loads(raw),'limitation':'Only applications exposing AT-SPI on this session bus are visible.'}
+            visible_pids={window['pid'] for window in observe.windows() if window['pid']>0}
+            items=[item for item in json.loads(raw) if item.get('pid') in visible_pids]
+            return {'source':'AT-SPI','coordinate_space':'X11 display pixels','items':items,
+                    'session_pid_filter':sorted(visible_pids),
+                    'limitation':'Only AT-SPI applications with an EWMH window PID on the selected Xorg session are visible.'}
         if m=='input.batch': return self.input.execute(p)
         if m=='input.pointer': return self.input.pointer()
         if m=='input.release': self.input.release(); return self.input.pointer()

@@ -13,17 +13,23 @@ except Exception as exc:
 desktop = Atspi.get_desktop(0)
 items = []
 
-def walk(node, depth=0):
+def walk(node, depth=0, inherited_pid=None):
     if depth > 8 or len(items) >= 2000: return
     try:
         name = node.get_name() or ""; role = node.get_role_name() or "unknown"
+        pid = inherited_pid
+        try:
+            candidate = int(node.get_process_id())
+            if candidate > 0: pid = candidate
+        except Exception: pass
         item = {"name": name, "role": role, "source": "AT-SPI"}
+        if pid is not None: item["pid"] = pid
         try:
             component = node.get_component_iface(); rect = component.get_extents(Atspi.CoordType.SCREEN)
             item["box"] = [rect.x, rect.y, rect.width, rect.height]
         except Exception: pass
         if name or role not in {"unknown", "invalid"}: items.append(item)
-        for i in range(node.get_child_count()): walk(node.get_child_at_index(i), depth+1)
+        for i in range(node.get_child_count()): walk(node.get_child_at_index(i), depth+1, pid)
     except Exception: return
 
 # First access can activate the session accessibility registry. Allow applications

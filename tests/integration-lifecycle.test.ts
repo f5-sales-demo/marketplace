@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
   call,
   canonicalMeetingId,
+  deriveAwareness,
   invitationToZoomMtg,
   parseZoomCommand,
 } from '../plugins/zoom/extensions/integration';
@@ -144,6 +145,15 @@ describe('provider integration lifecycle', () => {
       expect((await readFile(file, 'utf8')).toLowerCase()).not.toContain('zoom');
     }
   });
+
+  it('scopes AT-SPI observations to PIDs visible in the selected Xorg session', async () => {
+    const root = join(import.meta.dir, '..', 'plugins', 'xorg', 'scripts', 'xorgctl_lib');
+    const dump = await readFile(join(root, 'atspi_dump.py'), 'utf8');
+    const worker = await readFile(join(root, 'worker.py'), 'utf8');
+    expect(dump).toContain('node.get_process_id()');
+    expect(worker).toContain("item.get('pid') in visible_pids");
+    expect(worker).toContain("'session_pid_filter':sorted(visible_pids)");
+  });
   it('declares native installer argv for macOS, Linux, and Windows', async () => {
     for (const [plugin, exportName, expectedWindowsId] of [
       ['aws', 'awsInstallArgv', 'Amazon.AWSCLI'],
@@ -217,6 +227,22 @@ describe('provider integration lifecycle', () => {
     );
     expect(source).toContain("const UAT_SESSION = 'desktop'");
     expect(source).toContain("'--session',");
+  });
+
+  it('derives normalized meeting awareness without guessing missing states', () => {
+    expect(
+      deriveAwareness(
+        [
+          { name: 'Participants' },
+          { name: 'Unmute' },
+          { name: 'Start Video' },
+          { name: 'Share Screen' },
+          { name: 'Lower Hand' },
+        ],
+        [{ id: 7, pid: 42, title: 'Zoom Meeting' }],
+      ),
+    ).toMatchObject({ meeting: 'in_meeting', audio: 'muted', video: 'off', share: 'off', hand: 'raised' });
+    expect(deriveAwareness([], []).meeting).toBe('unknown');
   });
 
   it('declares Xorg and Zoom extension entrypoints where xcsh loads them', async () => {

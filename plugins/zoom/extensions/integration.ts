@@ -7,6 +7,39 @@ interface ExtensionApi {
 }
 export type Action = 'status' | 'leave' | 'stop-share' | 'audio' | 'video' | 'share' | 'awareness' | 'join';
 const UAT_SESSION = 'desktop';
+type AccessibilityItem = { name?: string; role?: string; pid?: number };
+type WindowItem = { id?: number; pid?: number; title?: string };
+export function deriveAwareness(items: AccessibilityItem[], windows: WindowItem[]) {
+  const labels = items.map((item) => (item.name ?? '').trim().toLowerCase()).filter(Boolean);
+  const has = (...needles: string[]) => needles.some((needle) => labels.some((label) => label.includes(needle)));
+  const meeting = has('you are screen sharing', 'stop share', 'stop sharing')
+    ? 'sharing'
+    : has('waiting room', 'host will let you in', 'please wait for the host')
+      ? 'waiting_room'
+      : has('join with video', 'video preview', 'preview your video')
+        ? 'prejoin'
+        : has('participants', 'reactions') && has('mute', 'unmute')
+          ? 'in_meeting'
+          : has('join a meeting', 'sign into a different account')
+            ? 'signed_out'
+            : has('new meeting', 'schedule', 'share screen')
+              ? 'home'
+              : 'unknown';
+  return {
+    version: 1,
+    meeting,
+    audio: has('unmute') ? 'muted' : has('mute') ? 'unmuted' : 'unknown',
+    video: has('start video') ? 'off' : has('stop video') ? 'on' : 'unknown',
+    share: has('stop share', 'stop sharing')
+      ? 'on'
+      : meeting === 'in_meeting' && has('share screen')
+        ? 'off'
+        : 'unknown',
+    hand: has('lower hand') ? 'raised' : has('raise hand') ? 'lowered' : 'unknown',
+    zoom_windows: windows.filter((window) => /zoom|meeting/i.test(window.title ?? '')),
+    source: ['AT-SPI', 'EWMH'],
+  };
+}
 const actions: readonly Action[] = ['status', 'leave', 'stop-share', 'audio', 'video', 'share', 'awareness'];
 export const isInvitation = (value: string) => /^https:\/\/[^\s]+$/i.test(value);
 export const canonicalMeetingId = (value: string) => {
@@ -71,7 +104,22 @@ export const call = (action: Action, args: string[]) => {
       : `zoommtg://zoom.us/join?action=join&confno=${canonicalMeetingId(target)}`;
     return publicXorgCall('app', 'launch', { argv: ['zoom', joinTarget] });
   }
-  if (action === 'status' || action === 'awareness') return publicXorgCall('inspect', 'accessibility', {});
+  if (action === 'status' || action === 'awareness') {
+    const accessibility = publicXorgCall('inspect', 'accessibility', {});
+    const windowList = publicXorgCall('window', 'list', {});
+    if (accessibility.exitCode || windowList.exitCode) return { accessibility, windowList };
+    try {
+      const accessibilityEnvelope = JSON.parse(accessibility.output) as { result?: { items?: AccessibilityItem[] } };
+      const windowEnvelope = JSON.parse(windowList.output) as { result?: { windows?: WindowItem[] } };
+      return {
+        exitCode: 0,
+        awareness: deriveAwareness(accessibilityEnvelope.result?.items ?? [], windowEnvelope.result?.windows ?? []),
+        evidence: { accessibility: accessibilityEnvelope.result, windows: windowEnvelope.result },
+      };
+    } catch {
+      return { exitCode: 1, error: 'invalid_xorg_observation', accessibility, windowList };
+    }
+  }
   const shortcuts: Record<string, string> = {
     leave: 'ALT+Q',
     'stop-share': 'ALT+SHIFT+S',
