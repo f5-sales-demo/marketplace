@@ -76,7 +76,7 @@ def gpu(w, action, p):
                         -15000:
                     ],
                 }
-            except Exception as e:  # noqa: BLE001 - each optional probe is isolated.
+            except Exception as e:  # Each optional probe is isolated.
                 result[name] = {"available": False, "error": str(e)}
         result["isolated_rendering_verified"] = False
         return result

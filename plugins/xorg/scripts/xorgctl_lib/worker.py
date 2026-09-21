@@ -189,7 +189,7 @@ class Worker:
                 raise Fault(msg)
             result = self.dispatch(method, p)
             send_packet(peer, {"ok": True, "result": result})
-        except Exception as e:  # noqa: BLE001 - RPC errors belong in the JSON envelope.
+        except Exception as e:  # RPC errors belong in the JSON envelope.
             with contextlib.suppress(OSError):
                 send_packet(peer, {"ok": False, "error": str(e)})
         finally:
@@ -644,7 +644,7 @@ def serve(c) -> None:
                         peer.close()
                     else:
                         bridge.request.emit((peer, req))
-                except Exception as e:  # noqa: BLE001 - keep the request loop alive.
+                except Exception as e:  # Keep the request loop alive.
                     try:
                         send_packet(peer, {"ok": False, "error": str(e)})
                         peer.close()
@@ -666,7 +666,7 @@ def serve(c) -> None:
         if not worker.active:
             try:
                 worker.environment.tick()
-            except Exception:  # noqa: BLE001 - retry transient supervisor failures.
+            except Exception:  # Retry transient supervisor failures.
                 # A transient supervisor probe must never tear down its X server
                 # and every supervised application. Log and retry next tick.
                 traceback.print_exc()

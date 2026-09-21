@@ -11,6 +11,7 @@ import sys
 import time
 
 from .common import ROOT, VERSION, Fault, rpc
+from .sessions import manage as manage_session
 
 UBUNTU_ID = "ubuntu"
 UBUNTU_VERSION = "24.04"
@@ -140,6 +141,13 @@ def status(expected_version: str) -> dict[str, object]:
         else None
     )
     worker_version = _worker_version("console")
+    font_ready = bool(
+        font and font.returncode == 0 and "JetBrainsMono Nerd Font" in font.stdout
+    )
+    service_checks = {
+        "console": _service_active(_session_service("console")),
+        "camera": _service_active("xcsh-camera.service"),
+    }
     checks: dict[str, object] = {
         "platform": platform == {"id": UBUNTU_ID, "version_id": UBUNTU_VERSION},
         "version": expected_version == VERSION,
@@ -150,17 +158,8 @@ def status(expected_version: str) -> dict[str, object]:
             "device": "/dev/video10",
             "label": "xcsh Camera",
         },
-        "fonts": {
-            "ready": bool(
-                font
-                and font.returncode == 0
-                and "JetBrainsMono Nerd Font" in font.stdout
-            )
-        },
-        "services": {
-            "console": _service_active(_session_service("console")),
-            "camera": _service_active("xcsh-camera.service"),
-        },
+        "fonts": {"ready": font_ready},
+        "services": service_checks,
         "worker": {"ready": worker_version == VERSION, "version": worker_version},
     }
     missing: list[str] = []
@@ -176,11 +175,11 @@ def status(expected_version: str) -> dict[str, object]:
     )
     if not camera_ready:
         missing.append("virtual_camera")
-    if not checks["fonts"]["ready"]:  # type: ignore[index]
+    if not font_ready:
         missing.append("fonts")
     missing.extend(
-        f"service:{name}" for name, ready in checks["services"].items() if not ready
-    )  # type: ignore[union-attr]
+        f"service:{name}" for name, ready in service_checks.items() if not ready
+    )
     if worker_version != VERSION:
         missing.append("worker_version")
     return {
@@ -250,8 +249,6 @@ def apply(expected_version: str) -> dict[str, object]:
     _install_launcher(venv / "bin/python")
     _install_session_service()
     if not (ROOT / "console/session.json").is_file():
-        from .sessions import manage as manage_session
-
         manage_session("console", "attach", {})
     _command(["systemctl", "--user", "daemon-reload"], check=True)
     _command(
