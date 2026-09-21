@@ -5,6 +5,7 @@ import {
   call,
   canonicalMeetingId,
   deriveAwareness,
+  discoverActiveMeetingSession,
   invitationToZoomMtg,
   parseZoomCommand,
 } from '../plugins/zoom/extensions/integration';
@@ -112,7 +113,7 @@ describe('provider integration lifecycle', () => {
     } as ReturnType<typeof Bun.spawnSync>);
     try {
       expect(call('join', ['https://zoom.us/j/123456789?pwd=secret']).output).toBe('joined');
-      expect(spawn).toHaveBeenCalledWith([
+      expect(spawn).toHaveBeenLastCalledWith([
         'xorgctl',
         '--session',
         'desktop',
@@ -225,7 +226,7 @@ describe('provider integration lifecycle', () => {
       join(import.meta.dir, '..', 'plugins', 'zoom', 'extensions', 'integration.ts'),
       'utf8',
     );
-    expect(source).toContain("const UAT_SESSION = 'desktop'");
+    expect(source).toContain("const DEFAULT_SESSION = 'desktop'");
     expect(source).toContain("'--session',");
   });
 
@@ -243,6 +244,12 @@ describe('provider integration lifecycle', () => {
       ),
     ).toMatchObject({ meeting: 'in_meeting', audio: 'muted', video: 'off', share: 'off', hand: 'raised' });
     expect(deriveAwareness([], []).meeting).toBe('unknown');
+    expect(
+      discoverActiveMeetingSession({
+        console: [{ title: 'Meeting', pid: 42 }],
+        desktop: [{ title: 'Zoom Workplace', pid: 84 }],
+      }),
+    ).toBe('console');
   });
 
   it('declares Xorg and Zoom extension entrypoints where xcsh loads them', async () => {

@@ -6,19 +6,21 @@ interface ExtensionApi {
   registerTool(definition: unknown): void;
 }
 export type Action = 'status' | 'leave' | 'stop-share' | 'audio' | 'video' | 'share' | 'awareness' | 'join';
-const UAT_SESSION = 'desktop';
+const DEFAULT_SESSION = 'desktop';
+const CANDIDATE_SESSIONS = ['console', DEFAULT_SESSION] as const;
 type AccessibilityItem = { name?: string; role?: string; pid?: number };
 type WindowItem = { id?: number; pid?: number; title?: string };
 export function deriveAwareness(items: AccessibilityItem[], windows: WindowItem[]) {
   const labels = items.map((item) => (item.name ?? '').trim().toLowerCase()).filter(Boolean);
   const has = (...needles: string[]) => needles.some((needle) => labels.some((label) => label.includes(needle)));
+  const hasMeetingWindow = windows.some((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim()));
   const meeting = has('you are screen sharing', 'stop share', 'stop sharing')
     ? 'sharing'
     : has('waiting room', 'host will let you in', 'please wait for the host')
       ? 'waiting_room'
       : has('join with video', 'video preview', 'preview your video')
         ? 'prejoin'
-        : has('participants', 'reactions') && has('mute', 'unmute')
+        : hasMeetingWindow || (has('participants', 'reactions') && has('mute', 'unmute'))
           ? 'in_meeting'
           : has('join a meeting', 'sign into a different account')
             ? 'signed_out'
@@ -78,11 +80,16 @@ export function parseZoomToolInput(input: {
   if (input.action && actions.includes(input.action as Action)) return { action: input.action as Action, args: [] };
   throw new Error('command, invitation_url, url, or meeting_id is required');
 }
-const publicXorgCall = (command: string, action: string | undefined, params: Record<string, unknown>) => {
+const publicXorgCall = (
+  session: string,
+  command: string,
+  action: string | undefined,
+  params: Record<string, unknown>,
+) => {
   const result = Bun.spawnSync([
     'xorgctl',
     '--session',
-    UAT_SESSION,
+    session,
     '--json',
     command,
     ...(action ? [action] : []),
@@ -95,24 +102,57 @@ const publicXorgCall = (command: string, action: string | undefined, params: Rec
     error: new TextDecoder().decode(result.stderr),
   };
 };
+const sessionWindows = (session: string): WindowItem[] => {
+  const response = publicXorgCall(session, 'window', 'list', {});
+  if (response.exitCode) return [];
+  try {
+    const envelope = JSON.parse(response.output) as { result?: { windows?: WindowItem[] } };
+    return envelope.result?.windows ?? [];
+  } catch {
+    return [];
+  }
+};
+export const discoverActiveMeetingSession = (windowsBySession: Record<string, WindowItem[]>) =>
+  CANDIDATE_SESSIONS.find((session) =>
+    (windowsBySession[session] ?? []).some((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim())),
+  );
+const resolveSession = () => {
+  const windowsBySession = Object.fromEntries(CANDIDATE_SESSIONS.map((session) => [session, sessionWindows(session)]));
+  return discoverActiveMeetingSession(windowsBySession) ?? DEFAULT_SESSION;
+};
 /** Zoom owns semantics; Xorg receives only its documented generic JSON calls. */
 export const call = (action: Action, args: string[]) => {
+  const session = resolveSession();
   if (action === 'join') {
     const target = args.join(' ');
+    if (session !== DEFAULT_SESSION) {
+      return {
+        exitCode: 0,
+        state: 'in_meeting',
+        session,
+        changed: false,
+        verified: true,
+        meeting_identity: 'unknown',
+        requested_meeting_id_suffix: isInvitation(target)
+          ? canonicalMeetingId(new URL(target).pathname.split('/').filter(Boolean).at(-1) ?? '').slice(-4)
+          : canonicalMeetingId(target).slice(-4),
+      };
+    }
     const joinTarget = isInvitation(target)
       ? invitationToZoomMtg(target)
       : `zoommtg://zoom.us/join?action=join&confno=${canonicalMeetingId(target)}`;
-    return publicXorgCall('app', 'launch', { argv: ['zoom', joinTarget] });
+    return publicXorgCall(session, 'app', 'launch', { argv: ['zoom', joinTarget] });
   }
   if (action === 'status' || action === 'awareness') {
-    const accessibility = publicXorgCall('inspect', 'accessibility', {});
-    const windowList = publicXorgCall('window', 'list', {});
+    const accessibility = publicXorgCall(session, 'inspect', 'accessibility', {});
+    const windowList = publicXorgCall(session, 'window', 'list', {});
     if (accessibility.exitCode || windowList.exitCode) return { accessibility, windowList };
     try {
       const accessibilityEnvelope = JSON.parse(accessibility.output) as { result?: { items?: AccessibilityItem[] } };
       const windowEnvelope = JSON.parse(windowList.output) as { result?: { windows?: WindowItem[] } };
       return {
         exitCode: 0,
+        session,
         awareness: deriveAwareness(accessibilityEnvelope.result?.items ?? [], windowEnvelope.result?.windows ?? []),
         evidence: { accessibility: accessibilityEnvelope.result, windows: windowEnvelope.result },
       };
@@ -127,7 +167,7 @@ export const call = (action: Action, args: string[]) => {
     video: 'ALT+V',
     share: 'ALT+SHIFT+S',
   };
-  return publicXorgCall('input', 'batch', { steps: [{ action: 'key', key: shortcuts[action] }] });
+  return publicXorgCall(session, 'input', 'batch', { steps: [{ action: 'key', key: shortcuts[action] }] });
 };
 export default function zoomIntegration(pi: ExtensionApi) {
   pi.integrations.register({
@@ -152,7 +192,7 @@ export default function zoomIntegration(pi: ExtensionApi) {
     name: 'zoom_meeting',
     label: 'Zoom meeting',
     description:
-      'Deterministic Zoom controller for the owned desktop UAT session. Progression: preflight virtual media, join invitation, inspect/accessibility plus EWMH verification, then one semantic control at a time. Uses only public xorgctl JSON and never uses physical media.',
+      'Deterministic Zoom controller that discovers an existing active meeting session before acting. Progression: preflight virtual media, join invitation, session-scoped inspect/accessibility plus EWMH verification, then one semantic control at a time. Uses only public xorgctl JSON and never uses physical media.',
     parameters: pi.typebox.Type.Object({
       command: pi.typebox.Type.Optional(pi.typebox.Type.String()),
       action: pi.typebox.Type.Optional(pi.typebox.Type.String()),
