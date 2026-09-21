@@ -568,7 +568,7 @@
     },
     {
       "name": "zoom",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Verified Zoom Workplace control through public xorgctl JSON",
       "license": "Apache-2.0",
       "author": {
@@ -577,7 +577,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Zoom",
-        "version": "1.0.1"
+        "version": "1.0.2"
       },
       "source": "./plugins/zoom",
       "category": "productivity",

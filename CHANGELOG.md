@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.0.2 — makes `/zoom` a direct deterministic command, scopes awareness to
+  the active meeting process, retries bounded accessibility snapshots, isolates share overlays,
+  verifies musician mode for virtual audio, and stops sharing after the Meeting window unmaps
+  ([#1354](https://github.com/f5-sales-demo/marketplace/issues/1354)).
+
 - **`zoom`** v1.0.1 — adds verified invitation-link joins, idempotent meeting identity,
   semantic audio/video/hand/reaction/share controls, virtual audio stimuli, and persistent
   AT-SPI/EWMH awareness while keeping all Zoom behavior outside the Xorg substrate (#1352).
