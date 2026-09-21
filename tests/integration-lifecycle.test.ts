@@ -1,4 +1,6 @@
 import { describe, expect, it, spyOn } from 'bun:test';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 type Definition = {
   id: string;
@@ -30,6 +32,7 @@ async function definitionsFor(plugin: string): Promise<Definition[]> {
         return { get: async () => ({ state: 'setup_required' }) };
       },
     },
+    tools: { register() {} },
     registerFlag() {},
     getFlag() {
       return false;
@@ -48,6 +51,8 @@ async function definitionsFor(plugin: string): Promise<Definition[]> {
       firecrawl: 'extensions/integration.ts',
       herdr: 'extensions/integration.ts',
       terraform: 'extensions/integration.ts',
+      xorg: 'extensions/integration.ts',
+      zoom: 'extensions/integration.ts',
     }[plugin] ?? 'src/index.ts';
   const module = await import(`../plugins/${plugin}/${entrypoint}`);
   await module.default(pi);
@@ -56,6 +61,17 @@ async function definitionsFor(plugin: string): Promise<Definition[]> {
 }
 
 describe('provider integration lifecycle', () => {
+	it('keeps Zoom-specific implementation out of the Xorg substrate', async () => {
+		const root = join(import.meta.dir, '..', 'plugins', 'xorg');
+		const visit = async (directory: string): Promise<string[]> => {
+			const entries = await readdir(directory, { withFileTypes: true });
+			return (await Promise.all(entries.map(async entry => entry.isDirectory() ? visit(join(directory, entry.name)) : [join(directory, entry.name)]))).flat();
+		};
+		for (const file of await visit(root)) {
+			if (!file.endsWith('.py') && !file.endsWith('.ts')) continue;
+			expect((await readFile(file, 'utf8')).toLowerCase()).not.toContain('zoom');
+		}
+	});
   it('declares native installer argv for macOS, Linux, and Windows', async () => {
     for (const [plugin, exportName, expectedWindowsId] of [
       ['aws', 'awsInstallArgv', 'Amazon.AWSCLI'],
@@ -103,6 +119,8 @@ describe('provider integration lifecycle', () => {
       ['platform', ['platform']],
       ['salesforce', ['salesforce']],
       ['terraform', ['terraform']],
+      ['xorg', ['xorg']],
+      ['zoom', ['zoom']],
     ] as const) {
       expect((await definitionsFor(plugin)).map((definition) => definition.id)).toEqual(ids);
     }

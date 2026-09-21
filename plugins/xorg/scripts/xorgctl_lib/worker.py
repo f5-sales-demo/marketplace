@@ -150,9 +150,6 @@ class Worker:
             if action=='status': return self.environment.status()
             if action=='restart': return self.environment.restart()
             raise Fault('unknown environment operation')
-        if m.startswith('zoom.'):
-            from .zoom import zoom
-            return zoom(self,m.split('.',1)[1],p)
         if m=='display.info': return {'geometry':self.input.geometry(),'randr':self.command(['xrandr','--current']).decode(),'monitors':self.command(['xrandr','--listmonitors']).decode()}
         if m=='display.configure': return self.configure_display(p,persist=bool(p.get('persist')))
         if m.startswith('gpu.'):
@@ -204,9 +201,9 @@ class Worker:
     def view(self,action,p):
         if action=='start':
             if not self.c['owned']:
-                return {'display':self.c['env']['DISPLAY'],'port':5900,'existing_console':True,'loopback':True,'tunnel':'ssh -N -L 5900:127.0.0.1:5900 r.mordasiewicz@f5.com','authentication':'existing Zoom console password'}
+                return {'display':self.c['env']['DISPLAY'],'port':5900,'existing_console':True,'loopback':True,'tunnel':'ssh -N -L 5900:127.0.0.1:5900 r.mordasiewicz@f5.com','authentication':'existing console password'}
             if self.vnc and self.vnc.poll() is None: return {'port':self.vnc_port,'loopback':True}
-            passwd=pathlib.Path(p.get('password_file',pathlib.Path.home()/'.local/state/zoom-console-vnc/passwd'))
+            passwd=pathlib.Path(p.get('password_file',pathlib.Path.home()/'.local/state/xorg-console-vnc/passwd'))
             if not passwd.is_file(): raise Fault('provide an existing VNC password_file; no unauthenticated listener is started')
             port=int(p.get('port',5909))
             self.vnc=self.spawn(['x11vnc','-display',self.c['env']['DISPLAY'],'-auth',self.c['env']['XAUTHORITY'],'-localhost','-rfbport',str(port),'-rfbauth',str(passwd),'-forever','-shared','-norepeat','-clear_keys','-skip_dups','-xkb']); self.vnc_port=port
