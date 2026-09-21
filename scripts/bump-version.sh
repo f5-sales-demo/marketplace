@@ -143,6 +143,20 @@ for name in "${PLUGINS[@]}"; do
     JSON_FILES+=("$nested")
   done < <(find "$REPO_ROOT/plugins/$name" -mindepth 2 -maxdepth 2 -name package.json -not -path '*/node_modules/*' 2>/dev/null)
 
+  # Keep runtime version constants synchronized when a plugin exposes them. The
+  # installed Xorg setup bootstrap validates these values before replacing the
+  # launcher, so manifest-only bumps would otherwise make upgrades impossible.
+  TS_VERSION="$REPO_ROOT/plugins/$name/extensions/integration.ts"
+  if [[ -f "$TS_VERSION" ]] && grep -qE "^const VERSION = '[0-9]+\\.[0-9]+\\.[0-9]+';$" "$TS_VERSION"; then
+    sed -E "s/^const VERSION = '[0-9]+\\.[0-9]+\\.[0-9]+';$/const VERSION = '$NEW_VER';/" \
+      "$TS_VERSION" >"$TS_VERSION.tmp" && command mv "$TS_VERSION.tmp" "$TS_VERSION"
+  fi
+  PY_VERSION="$REPO_ROOT/plugins/$name/scripts/xorgctl_lib/common.py"
+  if [[ -f "$PY_VERSION" ]] && grep -qE '^VERSION = "[0-9]+\.[0-9]+\.[0-9]+"$' "$PY_VERSION"; then
+    sed -E "s/^VERSION = \"[0-9]+\\.[0-9]+\\.[0-9]+\"$/VERSION = \"$NEW_VER\"/" \
+      "$PY_VERSION" >"$PY_VERSION.tmp" && command mv "$PY_VERSION.tmp" "$PY_VERSION"
+  fi
+
   echo "  $name: $OLD_VER → $NEW_VER"
   # Backtick the plugin name (it is a literal identifier) so the CHANGELOG entry does not
   # trip the Lint Code Base textlint terminology rule for names like azure/github/gitlab

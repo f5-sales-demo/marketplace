@@ -23,7 +23,8 @@ trap cleanup EXIT
 # A minimal repository with one plugin at 1.0.0 and an empty [Unreleased] section.
 new_repo() {
   local dir="${WORK}/$1"
-  mkdir -p "$dir/.xcsh-plugin" "$dir/plugins/demo/.xcsh-plugin"
+  mkdir -p "$dir/.xcsh-plugin" "$dir/plugins/demo/.xcsh-plugin" \
+    "$dir/plugins/demo/extensions" "$dir/plugins/demo/scripts/xorgctl_lib"
   git -C "$dir" init -q -b main 2>/dev/null
   git -C "$dir" config user.email bump@test
   git -C "$dir" config user.name "Bump Test"
@@ -36,6 +37,12 @@ JSON
   cat >"$dir/plugins/demo/package.json" <<'JSON'
 { "name": "demo", "version": "1.0.0", "xcsh": { "version": "1.0.0" } }
 JSON
+  cat >"$dir/plugins/demo/extensions/integration.ts" <<'TS'
+const VERSION = '1.0.0';
+TS
+  cat >"$dir/plugins/demo/scripts/xorgctl_lib/common.py" <<'PY'
+VERSION = "1.0.0"
+PY
   cat >"$dir/CHANGELOG.md" <<'MD'
 # Changelog
 
@@ -102,11 +109,18 @@ for path in paths:
     if path.endswith('marketplace.json'):
         payload = payload['plugins'][0]
     values.extend([payload['version'], payload['xcsh']['version']])
+sources = [
+    root + '/plugins/demo/extensions/integration.ts',
+    root + '/plugins/demo/scripts/xorgctl_lib/common.py',
+]
+for path in sources:
+    line = next(line for line in open(path) if line.startswith(('const VERSION = ', 'VERSION = ')))
+    values.append(line.split('=', 1)[1].strip().strip("';\""))
 print(' '.join(values))
 PY
 )
 check "one bump synchronizes every public and embedded version" \
-  "1.0.1 1.0.1 1.0.1 1.0.1 1.0.1 1.0.1" \
+  "1.0.1 1.0.1 1.0.1 1.0.1 1.0.1 1.0.1 1.0.1 1.0.1" \
   "$versions"
 
 # ── Repeated bumps converge rather than accumulate ──────────

@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.4 — keeps manifest, extension, and `xorgctl` runtime versions
+  synchronized so reviewed setup can bootstrap every published upgrade.
+
 - **`xorg`** v1.0.3 — runs setup from the newly installed plugin payload so an
   older `xorgctl` can bootstrap the replacement instead of rejecting its version.
 
