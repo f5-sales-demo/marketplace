@@ -13,6 +13,98 @@ from xorgctl_lib.common import VERSION  # noqa: E402
 
 
 class SetupTests(unittest.TestCase):
+    def test_headless_host_creates_owned_console_instead_of_attaching(self):
+        with patch.object(setup.pathlib.Path, "is_file", return_value=False):
+            self.assertEqual(
+                setup._console_plan(),
+                ("create", {"geometry": "1920x1080"}, "headless_xvfb"),
+            )
+
+    def test_accessible_console_is_reused(self):
+        completed = subprocess.CompletedProcess(["xdpyinfo"], 0, "", "")
+        with (
+            patch.object(setup.pathlib.Path, "is_file", return_value=True),
+            patch.object(setup, "_command", return_value=completed),
+        ):
+            action, params, mode = setup._console_plan()
+        self.assertEqual(action, "attach")
+        self.assertEqual(params["display"], ":0")
+        self.assertEqual(mode, "attached_xorg")
+
+    def test_inaccessible_console_falls_back_to_owned_xvfb(self):
+        completed = subprocess.CompletedProcess(["xdpyinfo"], 1, "", "denied")
+        with (
+            patch.object(setup.pathlib.Path, "is_file", return_value=True),
+            patch.object(setup, "_command", return_value=completed),
+        ):
+            self.assertEqual(
+                setup._console_plan(),
+                ("create", {"geometry": "1920x1080"}, "headless_xvfb"),
+            )
+
+    def test_command_failure_is_normalized_without_environment_details(self):
+        with patch.object(setup.subprocess, "run", side_effect=FileNotFoundError("secret/path/tool")):
+            with self.assertRaisesRegex(setup.Fault, "command not found: missing-tool"):
+                setup._command(["missing-tool"], check=True)
+
+    def test_status_exposes_dependency_service_device_session_and_gpu_results(self):
+        session = {"owned": True, "audio_sink": "xorgctl_console", "audio_source": "xcsh_microphone_input"}
+        with (
+            patch.object(setup, "_platform", return_value={"id": "ubuntu", "version_id": "24.04"}),
+            patch.object(setup, "_dependency_checks", return_value={"commands": {}, "python_modules": {}, "ready": True}),
+            patch.object(setup, "_font_status", return_value={"ready": True, "version": setup.NERD_FONTS_VERSION}),
+            patch.object(setup, "_camera_status", return_value={"ready": True, "device": "/dev/video10", "label": "xcsh Camera"}),
+            patch.object(setup, "_audio_status", return_value={"ready": True, "sink": "xorgctl_console", "source": "xcsh Microphone"}),
+            patch.object(setup, "_gpu_status", return_value={"detected": False, "required": False, "ready": True, "renderer": "native"}),
+            patch.object(setup, "_service_active", return_value=True),
+            patch.object(setup, "_worker_version", return_value=VERSION),
+            patch.object(setup, "_session_config", return_value=session),
+            patch.object(setup, "session_worker_checks", return_value={"console": {"ready": True, "version": VERSION}}),
+        ):
+            result = setup.status(VERSION)
+        self.assertEqual(result["state"], "ready")
+        self.assertEqual(result["session_mode"], "headless_xvfb")
+        self.assertTrue(result["dependencies"]["ready"])
+        self.assertTrue(result["virtual_devices"]["audio"]["ready"])
+        self.assertFalse(result["gpu_renderer"]["required"])
+
+    def test_apply_provisions_all_dependencies_before_creating_headless_console(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "state"
+            home = pathlib.Path(directory) / "home"
+            calls = []
+            with (
+                patch.object(setup, "ROOT", root),
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(setup, "_platform", return_value={"id": "ubuntu", "version_id": "24.04"}),
+                patch.object(setup, "_install_packages", side_effect=lambda: calls.append("packages")),
+                patch.object(setup, "_install_python", return_value=home / "venv/bin/python"),
+                patch.object(setup, "_install_fonts", side_effect=lambda: calls.append("fonts")),
+                patch.object(setup, "_install_virtualgl", side_effect=lambda: calls.append("virtualgl")),
+                patch.object(setup, "_install_launcher"),
+                patch.object(setup, "_install_services", side_effect=lambda: calls.append("services")),
+                patch.object(setup, "_console_plan", return_value=("create", {"geometry": "1920x1080"}, "headless_xvfb")),
+                patch.object(setup, "manage_session", side_effect=lambda name, action, params: calls.append((name, action, params))),
+                patch.object(setup, "_command", return_value=subprocess.CompletedProcess([], 0, "", "")),
+                patch.object(setup, "_worker_version", return_value=VERSION),
+                patch.object(setup, "_ensure_virtual_media", side_effect=lambda: calls.append("virtual_media")),
+                patch.object(setup, "status", return_value={"state": "ready", "session_mode": "headless_xvfb"}),
+            ):
+                result = setup.apply(VERSION)
+        self.assertEqual(result["state"], "ready")
+        self.assertEqual(
+            calls[:5],
+            ["packages", "fonts", "virtualgl", "services", ("console", "create", {"geometry": "1920x1080"})],
+        )
+        self.assertIn("virtual_media", calls)
+
+    def test_cpu_only_host_does_not_require_virtualgl(self):
+        with patch.object(setup.shutil, "which", return_value=None):
+            self.assertEqual(
+                setup._gpu_status(),
+                {"detected": False, "required": False, "ready": True, "renderer": "native"},
+            )
+
     def test_apply_restarts_every_active_configured_session_worker(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory) / "state"
@@ -46,8 +138,13 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_command", side_effect=command),
                 patch.object(setup, "_service_active", side_effect=service_active),
                 patch.object(setup, "_worker_version", return_value=VERSION),
+                patch.object(setup, "_install_packages"),
+                patch.object(setup, "_install_python", return_value=home / "venv/bin/python"),
+                patch.object(setup, "_install_fonts"),
+                patch.object(setup, "_install_virtualgl"),
                 patch.object(setup, "_install_launcher"),
-                patch.object(setup, "_install_session_service"),
+                patch.object(setup, "_install_services"),
+                patch.object(setup, "_ensure_virtual_media"),
                 patch.object(setup, "status", return_value={"state": "ready"}),
             ):
                 setup.apply(VERSION)
