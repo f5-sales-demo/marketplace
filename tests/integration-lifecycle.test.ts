@@ -1058,19 +1058,31 @@ describe('provider integration lifecycle', () => {
     });
   });
 
+  it('keeps the Xorg setup plan within the xcsh integration timeout contract', async () => {
+    const [definition] = await definitionsFor('xorg');
+    for (const step of definition.setup?.steps ?? []) {
+      expect(step.timeoutMs).toBeGreaterThanOrEqual(1000);
+      expect(step.timeoutMs).toBeLessThanOrEqual(900000);
+    }
+    for (const step of definition.setup?.verification ?? []) {
+      expect(step.timeoutMs).toBeGreaterThanOrEqual(1000);
+      expect(step.timeoutMs).toBeLessThanOrEqual(120000);
+    }
+  });
+
   it('exposes an Ubuntu-only Xorg setup contract without IPv6 readiness gates', async () => {
     const [definition] = await definitionsFor('xorg');
     const script = join(import.meta.dir, '..', 'plugins', 'xorg', 'scripts', 'xorgctl');
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.6' })],
-        timeoutMs: 1200000,
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.7' })],
+        timeoutMs: 900000,
       },
     ]);
     expect(definition.setup?.verification).toEqual([
       {
-        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.6' })],
+        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.7' })],
         timeoutMs: 30000,
       },
     ]);
@@ -1082,7 +1094,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.0.6' }),
+      JSON.stringify({ expected_version: '1.0.7' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
@@ -1095,7 +1107,7 @@ describe('provider integration lifecycle', () => {
     };
     expect(payload.ok).toBe(true);
     expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
-    expect(payload.result.version).toBe('1.0.6');
+    expect(payload.result.version).toBe('1.0.7');
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');

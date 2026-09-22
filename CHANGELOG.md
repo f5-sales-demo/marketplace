@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.7 — keeps the reviewed prerequisite installer within xcsh's
+  supported integration timeout contract so published clean-host setup can load and run (#1364).
+
 - **`xorg`** v1.0.6 — makes reviewed setup self-contained on clean Ubuntu 24.04:
   provisions an owned Xvfb desktop when no accessible console exists, installs and
   verifies packages, fonts, accessibility, Piper assets, PipeWire virtual audio,

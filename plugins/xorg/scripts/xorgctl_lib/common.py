@@ -9,7 +9,7 @@ import socket
 import struct
 import subprocess
 
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 ROOT = pathlib.Path(
     os.environ.get("XORGCTL_STATE", pathlib.Path.home() / ".local/state/xorgctl")
 )
