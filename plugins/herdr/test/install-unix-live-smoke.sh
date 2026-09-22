@@ -7,9 +7,9 @@ export HOME="$root/home"
 mkdir -p "$HOME"
 
 installer=$(cd "$(dirname "$0")/../scripts" && pwd)/install-unix.sh
-sh "$installer" apply 1.1.1
-sh "$installer" verify 1.1.1
-second=$(sh "$installer" apply 1.1.1)
+sh "$installer" apply 1.1.2
+sh "$installer" verify 1.1.2
+second=$(sh "$installer" apply 1.1.2)
 grep -F 'already installed' <<<"$second"
 
 receipt="$HOME/.local/state/xcsh/herdr/setup-receipt.json"

@@ -34,7 +34,7 @@ function fixture(checksum = '') {
 }
 
 function run(f: ReturnType<typeof fixture>, extra: Record<string, string> = {}) {
-  return Bun.spawnSync(['sh', installer, 'apply', '1.1.1'], {
+  return Bun.spawnSync(['sh', installer, 'apply', '1.1.2'], {
     env: {
       ...process.env,
       HOME: f.home,
@@ -62,7 +62,7 @@ describe('Unix Herdr setup', () => {
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
     expect(receipt).toMatchObject({
       schema_version: 1,
-      plugin_version: '1.1.1',
+      plugin_version: '1.1.2',
       herdr_version: '0.18.0',
       protocol: 26,
       target: 'linux-x86_64',

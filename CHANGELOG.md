@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`herdr`** v1.1.2 distinguishes the downloaded Windows archive checksum
+  from the installed executable checksum and makes the native Windows
+  idempotence smoke observe PowerShell's information stream (#1371).
+
 - **`cloudstatus`** v1.6.2 — runs the Regional Edge collector on Python 3.9 and
   later, resolves multiple live region scopes, keeps map output below xcsh's
   result limit, scopes its guard to one request, and atomically hydrates the map
