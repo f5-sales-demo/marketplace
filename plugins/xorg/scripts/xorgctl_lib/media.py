@@ -57,6 +57,12 @@ def speech_engine():
     }
 
 
+def reconcile_persistent_audio(worker) -> None:
+    """Recreate plugin-owned endpoints after a session service restart."""
+    if worker.c.get("virtual_audio") is True:
+        media(worker, "audio.create", {})
+
+
 def gpu(w, action, p):
     if action == "info":
         result: dict[str, object] = {}

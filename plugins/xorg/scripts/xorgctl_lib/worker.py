@@ -65,10 +65,9 @@ class Worker:
         self.environment = Environment(self)
         if c.get("display_configuration"):
             self.configure_display(c["display_configuration"], persist=False)
-        if c.get("virtual_audio") is True:
-            from .media import media
+        from .media import reconcile_persistent_audio
 
-            media(self, "audio.create", {})
+        reconcile_persistent_audio(self)
 
     def check(self) -> None:
         if self.cancel.is_set() or self.paused:

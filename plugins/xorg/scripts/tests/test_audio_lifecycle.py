@@ -9,10 +9,7 @@ from unittest.mock import patch
 SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
-from xorgctl_lib import (
-    media as media_module,
-    worker as worker_module,
-)
+from xorgctl_lib import media as media_module
 
 
 class FakeAudioWorker:
@@ -96,9 +93,7 @@ class AudioLifecycleTests(unittest.TestCase):
             worker.next_module = 10
             media_module.media(worker, "audio.create", {})
 
-        matches = [
-            item for item in worker.sinks if item["name"] == "xorgctl_console"
-        ]
+        matches = [item for item in worker.sinks if item["name"] == "xorgctl_console"]
         self.assertEqual(
             matches,
             [
@@ -111,19 +106,12 @@ class AudioLifecycleTests(unittest.TestCase):
         )
 
     def test_worker_recreates_configured_virtual_audio_after_service_restart(self):
-        config = {"name": "console", "env": {}, "virtual_audio": True}
         with tempfile.TemporaryDirectory() as directory:
-            folder = pathlib.Path(directory)
-            with (
-                patch.object(worker_module, "private", side_effect=lambda path: path),
-                patch.object(worker_module, "session_dir", return_value=folder),
-                patch.object(worker_module, "Clipboard"),
-                patch.object(worker_module, "Input"),
-                patch("xorgctl_lib.environment.Environment"),
-                patch("xorgctl_lib.media.media") as create_audio,
-            ):
-                created = worker_module.Worker(config, object())
-        create_audio.assert_called_once_with(created, "audio.create", {})
+            worker = FakeAudioWorker(pathlib.Path(directory))
+            worker.c["virtual_audio"] = True
+            with patch.object(media_module, "media") as create_audio:
+                media_module.reconcile_persistent_audio(worker)
+        create_audio.assert_called_once_with(worker, "audio.create", {})
 
 
 if __name__ == "__main__":
