@@ -13,7 +13,7 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.0.6';
+const VERSION = '1.0.7';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync(['xorgctl', ...(session ? ['--session', session] : []), '--json', ...args]);
@@ -31,7 +31,7 @@ export default function xorgIntegration(pi: ExtensionApi) {
         {
           kind: 'install',
           argv: [BUNDLED_XORGCTL, 'setup', 'apply', '--params', JSON.stringify({ expected_version: VERSION })],
-          timeoutMs: 1200000,
+          timeoutMs: 900000,
         },
       ],
       verification: [
