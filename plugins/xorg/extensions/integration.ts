@@ -13,7 +13,7 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.0.8';
+const VERSION = '1.0.9';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
   Bun.spawnSync(['xorgctl', ...(session ? ['--session', session] : []), '--json', ...args]);
