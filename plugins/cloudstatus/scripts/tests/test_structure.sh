@@ -30,11 +30,15 @@ test_plugin_metadata_is_consistent() {
     echo "package version is $package_version"
     return 1
   }
+  [ "$(jq -r '.xcsh.version' "$package_json")" = "$plugin_version" ] || {
+    echo "xcsh package version does not match plugin version"
+    return 1
+  }
   [ "$marketplace_version" = "$plugin_version" ] || {
     echo "marketplace version is $marketplace_version"
     return 1
   }
-  jq -e '.peerDependencies["@f5-sales-demo/xcsh"] == ">=20.19.0"' "$package_json" >/dev/null
+  jq -e '.peerDependencies["@f5-sales-demo/xcsh"] == ">=21.38.1"' "$package_json" >/dev/null
 }
 
 test_expected_runtime_files_exist() {
@@ -50,7 +54,7 @@ test_expected_runtime_files_exist() {
     "skills/network-intelligence/references/source-ladder.md"
     "skills/network-intelligence/references/query-playbook.md"
     "skills/network-intelligence/scripts/network_lookup.py"
-    "extensions/regional-edge-guard.ts"
+    "extensions/regional-edge-advisories.ts"
     "benchmarks/location-prompt-scenarios.json"
     "benchmarks/verify-location-prompt-trace.py"
     "scripts/evals/run-location-prompt-eval.sh"
@@ -78,8 +82,8 @@ test_location_prompt_scenarios_cover_required_intents() {
   ' "$scenarios" >/dev/null
 }
 
-test_cloudstatus_declares_the_regional_edge_guard_extension() {
-  jq -e '.xcsh.extensions == ["extensions/regional-edge-guard.ts"]' "$PLUGIN_ROOT/package.json" >/dev/null
+test_cloudstatus_declares_the_regional_edge_advisory_extension() {
+  jq -e '.xcsh.extensions == ["extensions/regional-edge-advisories.ts"]' "$PLUGIN_ROOT/package.json" >/dev/null
 }
 
 test_skill_frontmatter_has_only_name_and_description() {

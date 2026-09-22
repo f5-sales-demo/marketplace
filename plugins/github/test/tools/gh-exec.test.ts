@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { GhExecTool } from '../../src/tools/gh';
-import { findMutation, hasControlChars } from '../../src/tools/gh-exec-guard';
 import * as git from '../../src/utils/git';
+import { hasControlChars } from '../../src/utils/git';
 
 const NUL = String.fromCharCode(0);
 const TAB = String.fromCharCode(9);
@@ -11,111 +11,6 @@ describe('hasControlChars', () => {
     expect(hasControlChars(`a${NUL}b`)).toBe(true);
     expect(hasControlChars(`a${TAB}b`)).toBe(false);
     expect(hasControlChars("pr list --jq '.[].title'")).toBe(false);
-  });
-});
-
-describe('findMutation allowlist', () => {
-  it('allows recognized read-only commands', () => {
-    expect(findMutation(['pr', 'list']).blocked).toBe(false);
-    expect(findMutation(['repo', 'view', '--json', 'nameWithOwner']).blocked).toBe(false);
-    expect(findMutation(['api', 'repos/o/r/pulls']).blocked).toBe(false);
-    expect(findMutation(['pr', 'checks']).blocked).toBe(false);
-    expect(findMutation(['run', 'watch', '5']).blocked).toBe(false);
-    expect(findMutation(['auth', 'status']).blocked).toBe(false);
-    expect(findMutation(['search', 'prs', 'cli']).blocked).toBe(false);
-    expect(findMutation(['status']).blocked).toBe(false);
-  });
-
-  it('blocks writes and unrecognized commands (fail-safe)', () => {
-    expect(findMutation(['pr', 'merge', '123']).blocked).toBe(true);
-    expect(findMutation(['issue', 'create', '--title', 'x']).blocked).toBe(true);
-    expect(findMutation(['repo', 'delete', 'o/r']).blocked).toBe(true);
-    expect(findMutation(['workflow', 'run', 'ci.yml']).blocked).toBe(true);
-    expect(findMutation(['extension', 'install', 'x/y']).blocked).toBe(true);
-    expect(findMutation(['secret', 'set', 'N', '--body', 'v']).blocked).toBe(true);
-    expect(findMutation(['auth', 'login']).blocked).toBe(true);
-    expect(findMutation(['label', 'create', 'list']).blocked).toBe(true);
-  });
-
-  it('blocks gh api attached-shorthand bypasses', () => {
-    expect(findMutation(['api', '-XPOST', 'repos/o/r/issues']).blocked).toBe(true);
-    expect(findMutation(['api', '-XDELETE', 'repos/o/r']).blocked).toBe(true);
-    expect(findMutation(['api', 'x', '-fbody=spam']).blocked).toBe(true);
-    expect(findMutation(['api', '--method=PUT', 'x']).blocked).toBe(true);
-  });
-
-  it('blocks gh api attached-equals -X and --input body bypasses', () => {
-    expect(findMutation(['api', '-X=POST', 'repos/o/r/issues']).blocked).toBe(true);
-    expect(findMutation(['api', '-X=DELETE', 'repos/o/r']).blocked).toBe(true);
-    expect(findMutation(['api', '-X=patch', 'x']).blocked).toBe(true);
-    expect(findMutation(['api', 'repos/o/r', '--input', 'body.json']).blocked).toBe(true);
-    expect(findMutation(['api', '--input=body.json', 'x']).blocked).toBe(true);
-    expect(findMutation(['api', 'graphql', '--input', 'mut.json']).blocked).toBe(true);
-  });
-
-  it('allows gh api GET requests', () => {
-    expect(findMutation(['api', '-XGET', 'repos/o/r']).blocked).toBe(false);
-    expect(findMutation(['api', '--method', 'GET', 'x', '-f', 'a=b']).blocked).toBe(false);
-    expect(findMutation(['api', '-X=GET', 'user']).blocked).toBe(false);
-    expect(findMutation(['api', 'repos/o/r']).blocked).toBe(false);
-  });
-
-  it('does not false-positive on read args that contain a verb word', () => {
-    expect(findMutation(['pr', 'view', 'merge']).blocked).toBe(false);
-  });
-
-  it('blocks the flag-value-shift bypass (cobra consumes the token after a value flag)', () => {
-    // `--title`'s value `list` is consumed by gh; real verb `create` is a mutation.
-    expect(findMutation(['issue', '--title', 'list', 'create']).blocked).toBe(true);
-  });
-
-  it('blocks gh api short-flag-cluster mutations (pflag clustering bypass)', () => {
-    // -iF = -i (include) + -F (raw-field, value from next arg) → body → POST.
-    expect(findMutation(['api', 'repos/o/r/issues', '-iF', 'field=y']).blocked).toBe(true);
-    // -iX = -i + -X (method, value from next arg).
-    expect(findMutation(['api', 'x', '-iX', 'POST']).blocked).toBe(true);
-  });
-
-  it('does not misread a value-flag value as -X/method (jq/header/template consume their value)', () => {
-    // `--jq`/`-q`/`-H` take the FOLLOWING token as their value; a value that looks like
-    // `-Xhack`/`-XGET` is data, not a method flag. The `-f` body still makes gh POST, so
-    // the forged method must not downgrade it to an allowed read.
-    expect(findMutation(['api', '-f', 'title=x', '/repos/o/r/issues', '--jq', '-Xhack']).blocked).toBe(true);
-    expect(findMutation(['api', '-f', 'a=b', '--jq', '-XGET']).blocked).toBe(true);
-    expect(findMutation(['api', '-f', 'a=b', '-q', '-XGET']).blocked).toBe(true);
-    expect(findMutation(['api', '-f', 'a=b', '-H', '-XGET']).blocked).toBe(true);
-    // A genuine jq read with a normal expression is still an allowed GET.
-    expect(findMutation(['api', 'repos/o/r', '--jq', '.name']).blocked).toBe(false);
-  });
-
-  it('blocks the boolean-short-cluster verb-shift bypass (pflag: -xy... does not consume next arg)', () => {
-    // A single-dash cluster of length >= 3 is all in-token flags; pflag does NOT read
-    // its value from the following arg, so the real write verb stays a positional and
-    // must not be dropped. `gh release -dp create view` dispatches `release create`.
-    expect(findMutation(['release', '-dp', 'create', 'view']).blocked).toBe(true);
-    expect(findMutation(['pr', '-dm', 'merge', 'view']).blocked).toBe(true);
-    // A genuine long flag without `=` (or a lone 2-char short) still consumes its value,
-    // so these reads whose verb follows a real value flag remain allowed.
-    expect(findMutation(['issue', 'list', '--label', 'create']).blocked).toBe(false);
-    expect(findMutation(['-R', 'o/r', 'pr', 'list']).blocked).toBe(false);
-  });
-
-  it('still allows legit reads whose flag values look like verbs', () => {
-    // `create` is the --search term, not the verb; verb is still `list`.
-    expect(findMutation(['issue', 'list', '--search', 'create']).blocked).toBe(false);
-    // Global value-flag before the group; verb is still `list`.
-    expect(findMutation(['-R', 'o/r', 'issue', 'list']).blocked).toBe(false);
-  });
-
-  it('blocks the -fX=GET body-field bypass (pflag stops at the first value-taking short)', () => {
-    // `-fX=GET` is --field with value `X=GET` (a body field named X) → gh POSTs;
-    // the trailing X must NOT be parsed as a method that downgrades it to GET.
-    expect(findMutation(['api', 'x', '-fX=GET']).blocked).toBe(true);
-    expect(findMutation(['api', 'x', '-FX=GET']).blocked).toBe(true);
-    expect(findMutation(['api', 'x', '-f', '-fX=GET']).blocked).toBe(true);
-    expect(findMutation(['api', 'repos/o/r/issues', '-fX=GET', '-ftitle=pwned']).blocked).toBe(true);
-    // A real method-only read (no body) still resolves to GET and is allowed.
-    expect(findMutation(['api', 'repos/o/r', '-X', 'GET']).blocked).toBe(false);
   });
 });
 
@@ -135,10 +30,12 @@ describe('gh_exec execute', () => {
     expect(r.isError).toBe(true);
     expect(r.content[0].text.toLowerCase()).toContain('control character');
   });
-  it('blocks a mutating verb before spawning', async () => {
+  it('passes mutating commands through as validated argv', async () => {
+    const run = spyOn(git.github, 'run').mockResolvedValue({ stdout: 'merged', stderr: '', exitCode: 0 });
     const r = await tool.execute('id', { args: ['pr', 'merge', '1'] }, undefined, undefined, { cwd: '/tmp' } as never);
-    expect(r.isError).toBe(true);
-    expect(r.content[0].text.toLowerCase()).toContain('read-only');
+    expect(r.isError).not.toBe(true);
+    expect(r.content[0].text).toBe('merged');
+    expect(run).toHaveBeenCalledWith('/tmp', ['pr', 'merge', '1'], undefined);
   });
 
   it('returns stderr when a successful command produces no stdout', async () => {

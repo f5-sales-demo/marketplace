@@ -1,29 +1,13 @@
 #!/usr/bin/env bash
-# Test runner for f5xc-github-ops shell libs.
-# Runs every test_*.sh in this directory; each file contains
-# bash functions named test_* that exit non-zero on failure.
-#
-# Usage: ./run-tests.sh [filter-substring]
-#
-# Test authoring note: each test function runs under `set -euo pipefail`.
-# When exercising stubbed non-2xx paths, capture output with explicit
-# failure suppression to avoid premature exits:
-#   out=$(gh api -i /endpoint 2>&1) || true
 
 set -euo pipefail
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-STUBS="$HERE/stubs"
 PLUGIN_ROOT="$(cd -- "$HERE/../.." && pwd -P)"
 MARKETPLACE_ROOT="$(cd -- "$PLUGIN_ROOT/../.." && pwd -P)"
-LIB="$PLUGIN_ROOT/scripts/libs"
+export PLUGIN_ROOT MARKETPLACE_ROOT
 
-export PATH="$STUBS:$PATH"
-export GITHUB_OPS_LIB="$LIB"
-export MARKETPLACE_ROOT="$MARKETPLACE_ROOT"
-export PLUGIN_ROOT
 filter="${1:-}"
-
 fail=0
 pass=0
 
@@ -36,18 +20,14 @@ for file in "$HERE"/test_*.sh; do
   new_fns=$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after") | grep '^test_' || true)
   for fn in $new_fns; do
     [ -n "$filter" ] && [[ "$fn" != *"$filter"* ]] && continue
-    tmp="$(mktemp -d)"
-    export GITHUB_OPS_HOME="$tmp"
-    mkdir -p "$tmp/cache" "$tmp/state" "$tmp/lib"
-    if ("$fn") >"$tmp/out" 2>&1; then
+    if out=$("$fn" 2>&1); then
       pass=$((pass + 1))
       printf '  PASS  %s\n' "$fn"
     else
       fail=$((fail + 1))
       printf '  FAIL  %s\n' "$fn"
-      sed 's/^/    /' "$tmp/out"
+      printf '%s\n' "$out" | sed 's/^/    /'
     fi
-    rm -rf "$tmp"
   done
 done
 

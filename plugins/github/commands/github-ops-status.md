@@ -1,26 +1,13 @@
 ---
-description: >-
-  Check GitHub CLI authentication, rate limits, and repository state
+description: Inspect GitHub authentication and the current repository lifecycle state
 ---
 
 # GitHub operations status
 
-Delegate to the `github:github-ops` agent to check GitHub operations readiness.
+Use `github_workflow` with `action: "status"` when a pull request is known. For authentication or
+rate-limit details not covered by the typed status result, use `gh_exec` with argv arrays such as
+`["auth", "status"]` or `["api", "rate_limit", "--jq", ".rate"]`.
 
-## Delegation
-
-Spawn the `github:github-ops` agent with the following instructions:
-
-1. Verify gh CLI is installed: `gh --version`
-2. Check authentication: `gh auth status`
-3. Check rate limits: `gh api rate_limit --jq '.rate | "remaining: \(.remaining)/\(.limit), resets: \(.reset | todate)"'`
-4. If in a git repository, get repo info: `gh repo view --json nameWithOwner,defaultBranchRef,url`
-5. Check current branch and worktree state: `git branch --show-current` and `git status --short | head -5`
-6. Report:
-   - gh CLI version
-   - Authentication status (user, hostname, token type)
-   - Rate limit remaining/total and reset time
-   - Current repo name and default branch (if in a git repo)
-   - Current branch and uncommitted changes count
-7. If not authenticated, report `setup_required` and suggest `xcsh plugin setup github`
-8. If gh CLI is not installed, report `setup_required` and suggest `xcsh plugin setup github`
+Return repository identity, branch or pull request identity, base and head SHAs, check state, retry
+timing, performed operations, and all advisories. Do not begin preparation, publication, repair, or
+cleanup unless the user requested that stage.

@@ -281,7 +281,7 @@
     {
       "name": "cloudstatus",
       "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-      "version": "1.6.2",
+      "version": "1.7.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
       "license": "Apache-2.0",
       "author": {
@@ -446,8 +446,8 @@
     },
     {
       "name": "github",
-      "description": "Poweruser GitHub & Git Operations plugin combining direct native CLI mastery (git and gh) with complete Git SOPs workflow governance (issue-driven development, feature branching, PR lifecycle, CI polling, auto-merge, and post-merge teardown)",
-      "version": "2.1.1",
+      "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
+      "version": "3.0.0",
       "author": {
         "name": "f5-sales-demo"
       },

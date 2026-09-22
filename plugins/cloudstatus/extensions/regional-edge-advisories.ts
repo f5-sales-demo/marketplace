@@ -5,13 +5,8 @@ const LOCATION_SKILL = /cloudstatus(?:[:/])location\b/i;
 const REGIONAL_EDGE = /\bregional\s+edges?\b/i;
 const COLLECTOR =
   /^\s*python3\s+skill:\/\/cloudstatus:network-intelligence\/scripts\/network_lookup\.py\s+(locations\s+--format\s+map-v1|location)\s+"\$CLOUDSTATUS_QUERY"\s*$/;
-const RENDER_PLACEHOLDER = [
-  {
-    label: 'Cloudstatus evidence hydration',
-    longitude: 0,
-    latitude: 0,
-  },
-] as const;
+const COLLECTOR_INTENT = /cloudstatus:network-intelligence\/scripts\/network_lookup\.py\s+locations?\b/;
+const CAPABILITIES = ['read', 'task', 'web_search', 'bash', 'render_map'] as const;
 
 type WorkflowState = {
   active: boolean;
@@ -27,8 +22,29 @@ type WorkflowState = {
   renderToolCallId: string | undefined;
 };
 
-function freshState(): WorkflowState {
-  return { active: false, skillRead: false, collector: undefined, renderToolCallId: undefined };
+interface Advisory {
+  code: string;
+  message: string;
+  severity?: 'info' | 'warning';
+}
+
+interface AdvisoryApi {
+  advisories: {
+    register(registration: {
+      id: string;
+      capabilities: readonly string[];
+      match(event: {
+        toolCallId: string;
+        toolName: string;
+        input: Record<string, unknown>;
+      }): Advisory | readonly Advisory[] | undefined;
+    }): () => void;
+    unregister(id: string): boolean;
+  };
+}
+
+function freshState(active = false): WorkflowState {
+  return { active, skillRead: false, collector: undefined, renderToolCallId: undefined };
 }
 
 function inputText(input: Record<string, unknown>): string {
@@ -39,8 +55,8 @@ function inputText(input: Record<string, unknown>): string {
   }
 }
 
-function blocked(reason: string) {
-  return { block: true, reason: `Cloudstatus Regional Edge guard: ${reason}` };
+function warning(code: string, message: string): Advisory {
+  return { code, message, severity: 'warning' };
 }
 
 function decodeStrictBase64(value: unknown): Buffer | undefined {
@@ -71,18 +87,15 @@ function pngDimensions(png: Buffer): [number, number] | undefined {
     const type = png.subarray(offset + 4, offset + 8);
     const dataEnd = offset + 8 + length;
     const crcEnd = dataEnd + 4;
-    if (crcEnd > png.length || png.readUInt32BE(dataEnd) !== crc32(png.subarray(offset + 4, dataEnd))) {
-      return undefined;
-    }
+    if (crcEnd > png.length || png.readUInt32BE(dataEnd) !== crc32(png.subarray(offset + 4, dataEnd))) return undefined;
     if (!dimensions) {
       if (!type.equals(Buffer.from('IHDR')) || length !== 13) return undefined;
       const width = png.readUInt32BE(offset + 8);
       const height = png.readUInt32BE(offset + 12);
       if (width <= 0 || height <= 0) return undefined;
       dimensions = [width, height];
-    } else if (type.equals(Buffer.from('IHDR'))) {
-      return undefined;
-    } else if (type.equals(Buffer.from('IDAT'))) {
+    } else if (type.equals(Buffer.from('IHDR'))) return undefined;
+    else if (type.equals(Buffer.from('IDAT'))) {
       if (sawIend) return undefined;
       sawIdat = true;
     } else if (type.equals(Buffer.from('IEND'))) {
@@ -96,7 +109,7 @@ function pngDimensions(png: Buffer): [number, number] | undefined {
 
 function invalidMapResult(event: {
   content: Array<{ type: string; mimeType?: string; data?: string }>;
-  details: unknown;
+  details?: unknown;
   isError: boolean;
 }): string | undefined {
   if (event.isError) return 'render_map returned an error';
@@ -106,7 +119,6 @@ function invalidMapResult(event: {
   const png = decodeStrictBase64(images[0].data);
   const dimensions = png ? pngDimensions(png) : undefined;
   if (!png || !dimensions) return 'render_map returned malformed PNG media';
-  const [width, height] = dimensions;
   if (!event.details || typeof event.details !== 'object') return 'render_map omitted canonical media details';
   const details = event.details as Record<string, unknown>;
   const descriptor = details.descriptor;
@@ -117,6 +129,7 @@ function invalidMapResult(event: {
   const original = media.original as Record<string, unknown> | undefined;
   const provenance = media.provenance as Record<string, unknown> | undefined;
   const metadata = media.metadata as Record<string, unknown> | undefined;
+  const [width, height] = dimensions;
   const digest = createHash('sha256').update(png).digest('hex');
   if (
     media.version !== 1 ||
@@ -134,13 +147,6 @@ function invalidMapResult(event: {
     return 'render_map returned malformed canonical media metadata';
   }
   return undefined;
-}
-
-function failedResult(reason: string) {
-  return {
-    isError: true,
-    content: [{ type: 'text' as const, text: `Cloudstatus Regional Edge guard: ${reason}` }],
-  };
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -164,16 +170,6 @@ function validMapLocation(value: unknown): boolean {
     latitude >= -90 &&
     latitude <= 90 &&
     Array.isArray(location.sources)
-  );
-}
-
-function isRenderPlaceholder(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length !== 1) return false;
-  const placeholder = record(value[0]);
-  return (
-    placeholder?.label === RENDER_PLACEHOLDER[0].label &&
-    placeholder.longitude === RENDER_PLACEHOLDER[0].longitude &&
-    placeholder.latitude === RENDER_PLACEHOLDER[0].latitude
   );
 }
 
@@ -219,16 +215,11 @@ function collectorResult(
   return {};
 }
 
-/**
- * Enforce the Regional Edge registry-only workflow at the tool boundary.
- *
- * This deliberately activates only for the location skill or an attempted task/search
- * containing Regional Edge language, so ordinary network-intelligence work is unaffected.
- */
-export default function regionalEdgeGuard(pi: ExtensionAPI): void {
+/** Register non-blocking, request-scoped Regional Edge recommendations. */
+export default function regionalEdgeAdvisories(pi: ExtensionAPI): void {
   (
     pi as ExtensionAPI & {
-      integrations: { register<_T>(definition: unknown): unknown };
+      integrations: { register(definition: unknown): unknown };
     }
   ).integrations.register({
     id: 'cloudstatus',
@@ -236,79 +227,130 @@ export default function regionalEdgeGuard(pi: ExtensionAPI): void {
     plugin: 'cloudstatus',
     kind: 'on_demand',
     async probe() {
-      // Deliberately performs no network or location discovery. Commands probe only when invoked.
       return { state: 'ready' };
     },
   });
+
   let state = freshState();
-
-  pi.on('session_start', () => {
-    state = freshState();
-  });
-
-  // A submitted top-level prompt starts a new request. Turns and internal
-  // continuation loops within that request retain the same guard state.
-  pi.on('before_agent_start', () => {
-    state = freshState();
-  });
-
-  pi.on('tool_call', (event) => {
-    const text = inputText(event.input);
-    if (event.toolName === 'read' && LOCATION_SKILL.test(text)) {
-      state.active = true;
-      state.skillRead = true;
-      return undefined;
-    }
-
-    if ((event.toolName === 'task' || event.toolName === 'web_search') && REGIONAL_EDGE.test(text)) {
-      state.active = true;
-      return blocked('use cloudstatus:location and its direct registry collector; do not delegate or search');
-    }
-
-    if (!state.active) return undefined;
-
-    if (event.toolName === 'task' || event.toolName === 'web_search' || event.toolName === 'display_media') {
-      return blocked('this workflow does not permit delegation, web search, or display media');
-    }
-
-    if (event.toolName === 'bash') {
-      const command = String(event.input.command ?? '');
-      const match = command.match(COLLECTOR);
-      if (!state.skillRead) return blocked('read cloudstatus:location before invoking the registry collector');
-      if (!match) return blocked('only the direct network_lookup.py registry collector is allowed');
-      if (state.collector) return blocked('the registry collector may run exactly once per request');
-      if (event.input.async === true) return blocked('the registry collector must run in the foreground');
-      state.collector = {
-        kind: match[1].startsWith('locations') ? 'map' : 'factual',
-        toolCallId: event.toolCallId,
-        status: 'pending',
-      };
-      return undefined;
-    }
-
-    if (event.toolName === 'render_map') {
-      if (state.collector?.kind !== 'map')
-        return blocked('render_map requires a successful locations --format map-v1 collector result');
-      if (state.collector.status !== 'succeeded')
-        return blocked('render_map requires the successful registry collector result');
-      if (state.renderToolCallId) return blocked('render_map may run exactly once per request');
-      if (!isRenderPlaceholder(event.input.locations)) {
-        return blocked('render_map must use the Cloudstatus evidence hydration placeholder');
+  const api = pi as ExtensionAPI & AdvisoryApi;
+  api.advisories.register({
+    id: 'cloudstatus.regional-edge',
+    capabilities: CAPABILITIES,
+    match(event) {
+      const text = inputText(event.input);
+      if (event.toolName === 'read' && LOCATION_SKILL.test(text)) {
+        state.active = true;
+        state.skillRead = true;
+        return undefined;
       }
-      if (!state.collector.mapLocations?.length) {
-        return blocked('the registry collector returned no coordinate-complete locations to render');
-      }
-      // xcsh passes this same arguments object from the pre-call hook into the
-      // renderer. Hydrate it here so the model never reconstructs evidence.
-      event.input.locations = state.collector.mapLocations;
-      state.renderToolCallId = event.toolCallId;
-    }
 
-    return undefined;
+      if ((event.toolName === 'task' || event.toolName === 'web_search') && REGIONAL_EDGE.test(text)) {
+        state.active = true;
+        return warning(
+          'cloudstatus.registry_source_recommended',
+          'Use cloudstatus:location and its direct registry collector for authoritative Regional Edge evidence.',
+        );
+      }
+
+      if (event.toolName === 'bash') {
+        const command = String(event.input.command ?? '');
+        if (!COLLECTOR_INTENT.test(command)) return undefined;
+        state.active = true;
+        const findings: Advisory[] = [];
+        const match = command.match(COLLECTOR);
+        if (!state.skillRead) {
+          findings.push(
+            warning(
+              'cloudstatus.skill_read_recommended',
+              'Read cloudstatus:location before invoking the registry collector.',
+            ),
+          );
+        }
+        if (!match) {
+          findings.push(
+            warning(
+              'cloudstatus.registry_collector_recommended',
+              'Use the direct network_lookup.py location collector with the documented argv.',
+            ),
+          );
+          return findings;
+        }
+        if (state.collector) {
+          findings.push(
+            warning(
+              'cloudstatus.single_collection_recommended',
+              'Reuse the first registry collection for this request instead of collecting again.',
+            ),
+          );
+        }
+        if (event.input.async === true) {
+          findings.push(
+            warning(
+              'cloudstatus.foreground_collection_recommended',
+              'Run the registry collector in the foreground so its result can be correlated with this request.',
+            ),
+          );
+        }
+        if (!state.collector) {
+          state.collector = {
+            kind: match[1].startsWith('locations') ? 'map' : 'factual',
+            toolCallId: event.toolCallId,
+            status: 'pending',
+          };
+        }
+        return findings.length ? findings : undefined;
+      }
+
+      if (event.toolName === 'render_map' && state.active) {
+        const findings: Advisory[] = [];
+        if (state.collector?.kind !== 'map' || state.collector.status !== 'succeeded') {
+          findings.push(
+            warning(
+              'cloudstatus.map_collector_recommended',
+              'Render Regional Edge maps after one successful locations --format map-v1 registry collection.',
+            ),
+          );
+        }
+        if (
+          state.collector?.status === 'succeeded' &&
+          JSON.stringify(event.input.locations) !== JSON.stringify(state.collector.mapLocations)
+        ) {
+          findings.push(
+            warning(
+              'cloudstatus.registry_evidence_recommended',
+              'Pass the collector map_locations array to render_map unchanged.',
+            ),
+          );
+        }
+        if (state.renderToolCallId) {
+          findings.push(
+            warning('cloudstatus.single_render_recommended', 'Reuse the first Regional Edge map for this request.'),
+          );
+        }
+        state.renderToolCallId ??= event.toolCallId;
+        findings.push(
+          warning(
+            'cloudstatus.map_integrity',
+            'Preserve the canonical single-PNG xcsh.media/v1 result and its registry provenance.',
+          ),
+        );
+        return findings;
+      }
+      return undefined;
+    },
   });
 
+  const reset = () => {
+    state = freshState();
+  };
+  pi.on('session_start', reset);
+  pi.on('session_switch', reset);
+  pi.on('turn_end', reset);
+  pi.on('input', (event) => {
+    state = freshState(REGIONAL_EDGE.test(event.text));
+  });
   pi.on('tool_result', (event) => {
-    if (!state.active) return undefined;
+    if (!state.active) return;
     if (
       event.toolName === 'bash' &&
       state.collector?.status === 'pending' &&
@@ -316,22 +358,20 @@ export default function regionalEdgeGuard(pi: ExtensionAPI): void {
     ) {
       if (event.isError) {
         state.collector.status = 'failed';
-        return undefined;
+        return;
       }
       const result = collectorResult(event.content, state.collector.kind);
       if (result.reason) {
         state.collector.status = 'failed';
-        return failedResult(result.reason);
+        pi.logger.warn(`Cloudstatus Regional Edge advisory: ${result.reason}`);
+        return;
       }
       state.collector.status = 'succeeded';
       state.collector.mapLocations = result.mapLocations;
-      return undefined;
+      return;
     }
-    if (event.toolName !== 'render_map' || event.toolCallId !== state.renderToolCallId) return undefined;
-    if (state.collector?.kind !== 'map' || state.collector.status !== 'succeeded') {
-      return failedResult('unexpected render_map result; a second render is not permitted');
-    }
+    if (event.toolName !== 'render_map' || event.toolCallId !== state.renderToolCallId) return;
     const reason = invalidMapResult(event);
-    return reason ? failedResult(`${reason}; a second render is not permitted`) : undefined;
+    if (reason) pi.logger.warn(`Cloudstatus Regional Edge advisory: ${reason}`);
   });
 }
