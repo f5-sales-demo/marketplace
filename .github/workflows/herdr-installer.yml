@@ -1,0 +1,54 @@
+---
+name: Herdr Installer
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'plugins/herdr/**'
+      - 'tests/integration-lifecycle.test.ts'
+      - '.github/workflows/herdr-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{
+    github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  unix:
+    name: ${{ matrix.os }} installer
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.2
+      - name: Run hermetic installer and probe tests
+        run: bun test plugins/herdr/test
+      - name: Run stable-channel installer smoke
+        run: bash plugins/herdr/test/install-unix-live-smoke.sh
+
+  windows:
+    name: windows-latest installer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run manifest, checksum, activation, and idempotence smoke
+        shell: pwsh
+        run: ./plugins/herdr/test/install-windows-smoke.ps1

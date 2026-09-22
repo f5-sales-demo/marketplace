@@ -470,8 +470,8 @@
     },
     {
       "name": "herdr",
-      "description": "Control Herdr, a terminal multiplexer for coding agents — inspect workspaces, tabs and panes, split panes, run commands without stealing focus, read pane output, and coordinate sibling agents. Requires HERDR_ENV=1.",
-      "version": "1.1.0",
+      "description": "Install and operate the stable F5 Herdr fork with verified native xcsh health, explicit pairing, and complete pane-control guidance.",
+      "version": "1.1.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
       "license": "Apache-2.0",
       "author": {
@@ -485,7 +485,10 @@
       "lifecycle": {
         "mode": "integrated",
         "integrations": ["herdr"],
-        "requirements": ["HERDR_ENV environment marker", "Herdr CLI"],
+        "requirements": [
+          "Supported 64-bit Linux, macOS, or Windows host",
+          "HTTPS access to the f5-sales-demo/herdr stable manifest and release"
+        ],
         "setupRequired": true,
         "collectedData": [],
         "pluginDependencies": []

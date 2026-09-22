@@ -1,11 +1,17 @@
 {
   "name": "herdr",
-  "version": "1.1.0",
-  "description": "Herdr terminal multiplexer integration for xcsh",
+  "version": "1.1.1",
+  "description": "Verified stable Herdr installer and native xcsh runtime integration",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.2"
+  },
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Herdr",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "extensions": [
       "extensions/integration.ts"
     ]

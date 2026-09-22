@@ -165,7 +165,10 @@ and this project adheres to
   single-map rendering, factual non-rendering, ordering, and prohibited-tool
   behavior against both hermetic and authenticated local runs ([#1192](https://github.com/f5-sales-demo/marketplace/issues/1192)).
 
-- **`herdr`** bumped to v1.0.3
+- **`herdr`** v1.1.1 installs the fork's current stable release with immutable
+  URLs, verified checksums, atomic activation, owner-only receipts, and native
+  installation/context/runtime health. It also vendors the complete current
+  F5 fork skill and adds Linux, macOS, and Windows setup qualification (#1371).
 
 - **`azure`** v2.0.1 — makes current official F5 and Microsoft research plus live Azure
   Marketplace enumeration a mandatory Customer Edge gate. Natural-language CE paraphrases receive
