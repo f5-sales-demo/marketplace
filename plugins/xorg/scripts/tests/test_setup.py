@@ -151,7 +151,8 @@ class SetupTests(unittest.TestCase):
 
             def reject_unrelated_chmod(path, mode):
                 if path == unrelated:
-                    raise PermissionError("unrelated masked service")
+                    message = "unrelated masked service"
+                    raise PermissionError(message)
                 return original_chmod(path, mode)
 
             with (
