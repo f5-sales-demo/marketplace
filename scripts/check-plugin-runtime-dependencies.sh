@@ -13,6 +13,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 EXPECTED_XCSH="20.2.7"
+EXPECTED_GITHUB_XCSH="21.38.1"
 EXPECTED_SALESFORCE_XCSH="21.31.0"
 EXPECTED_ANTHROPIC="0.115.0"
 EXPECTED_SALESFORCE_ANTHROPIC="0.123.0"
@@ -113,15 +114,24 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   expected_anthropic="$EXPECTED_ANTHROPIC"
   expected_acp="$EXPECTED_ACP"
   expected_google_genai="$EXPECTED_GOOGLE_GENAI"
-  if [ "$plugin" = "salesforce" ]; then
+  expected_xcsh_range="^$expected_xcsh"
+  if [ "$plugin" = "github" ]; then
+    expected_xcsh="$EXPECTED_GITHUB_XCSH"
+    expected_pi_utils="$EXPECTED_GITHUB_XCSH"
+    expected_anthropic="$EXPECTED_SALESFORCE_ANTHROPIC"
+    expected_acp="$EXPECTED_SALESFORCE_ACP"
+    expected_google_genai="$EXPECTED_SALESFORCE_GOOGLE_GENAI"
+    expected_xcsh_range=">=$EXPECTED_GITHUB_XCSH"
+  elif [ "$plugin" = "salesforce" ]; then
     expected_xcsh="$EXPECTED_SALESFORCE_XCSH"
     expected_pi_utils="$EXPECTED_SALESFORCE_XCSH"
     expected_anthropic="$EXPECTED_SALESFORCE_ANTHROPIC"
     expected_acp="$EXPECTED_SALESFORCE_ACP"
     expected_google_genai="$EXPECTED_SALESFORCE_GOOGLE_GENAI"
+    expected_xcsh_range="^$EXPECTED_SALESFORCE_XCSH"
   fi
   require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/xcsh"]' \
-    "^$expected_xcsh" "$plugin xcsh peer range"
+    "$expected_xcsh_range" "$plugin xcsh peer range"
   require_json_value "$package_json" '.devDependencies["@sinclair/typebox"]' \
     "$EXPECTED_TYPEBOX_RANGE" "$plugin TypeBox development range"
   require_json_value "$package_json" '.devDependencies["bun-types"]' \

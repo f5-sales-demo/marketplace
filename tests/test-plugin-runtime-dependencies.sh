@@ -45,6 +45,17 @@ else
   pass "a broad xcsh peer range fails"
 fi
 
+OLD_GITHUB_ADVISORY_API="$WORK/old-github-advisory-api"
+copy_runtime_state "$OLD_GITHUB_ADVISORY_API"
+jq '.peerDependencies["@f5-sales-demo/xcsh"] = ">=21.38.0"' \
+  "$OLD_GITHUB_ADVISORY_API/plugins/github/package.json" >"$OLD_GITHUB_ADVISORY_API/package.json.tmp"
+mv "$OLD_GITHUB_ADVISORY_API/package.json.tmp" "$OLD_GITHUB_ADVISORY_API/plugins/github/package.json"
+if REPO_ROOT="$OLD_GITHUB_ADVISORY_API" bash "$CHECK" >/dev/null 2>&1; then
+  fail "a GitHub peer range predating the advisory API must fail"
+else
+  pass "a GitHub peer range predating the advisory API fails"
+fi
+
 BAD_RUNTIME_IMPORT="$WORK/bad-runtime-import"
 copy_runtime_state "$BAD_RUNTIME_IMPORT"
 mkdir -p "$BAD_RUNTIME_IMPORT/plugins/github/src"
@@ -149,12 +160,17 @@ pi_utils_version="20.2.7"
 anthropic_version="0.115.0"
 acp_version="1.3.0"
 google_genai_version="2.15.0"
-if [ "${PWD##*/}" = "salesforce" ]; then
-  xcsh_version="21.31.0"
-  pi_utils_version="21.31.0"
+if [ "${PWD##*/}" = "github" ] || [ "${PWD##*/}" = "salesforce" ]; then
   anthropic_version="0.123.0"
   acp_version="1.4.0"
   google_genai_version="2.21.0"
+fi
+if [ "${PWD##*/}" = "github" ]; then
+  xcsh_version="21.38.1"
+  pi_utils_version="21.38.1"
+elif [ "${PWD##*/}" = "salesforce" ]; then
+  xcsh_version="21.31.0"
+  pi_utils_version="21.31.0"
 fi
 printf '{"version":"%s"}\n' "$xcsh_version" >node_modules/@f5-sales-demo/xcsh/package.json
 printf '{"version":"%s"}\n' "$pi_utils_version" >node_modules/@f5-sales-demo/pi-utils/package.json
