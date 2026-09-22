@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.8 — restricts setup permission changes to Xorg-owned user
+  services so unrelated masked units cannot block clean-host prerequisite installation (#1366).
+
 - **`xorg`** v1.0.7 — keeps the reviewed prerequisite installer within xcsh's
   supported integration timeout contract so published clean-host setup can load and run (#1364).
 
