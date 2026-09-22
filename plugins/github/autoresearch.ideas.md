@@ -27,8 +27,9 @@
 - [ ] Merge near-duplicate guidance shared by gh_pr_view and gh_pr_diff prompts
 - [ ] Remove markdown that adds tokens without improving model parsing (horizontal rules, extra headings)
 
-## Guardrail Coverage
+## Lifecycle Coverage
 
-- [ ] Extend benchmark scenarios for gh_exec: graphql-with-body block, `-F` body implies POST block
+- [ ] Add benchmark scenarios for independent prepare, publish, monitor, repair, and cleanup stages
+- [ ] Compare typed lifecycle results for normal and explicitly overridden governance recommendations
 - [ ] Add a gh_run_watch fixture-driven scenario (run-list.json + run-jobs.json) for a completed success run
-- [ ] Keep the read-only allowlist fail-safe: new read verbs are opt-in, never a blanket allow
+- [ ] Keep `gh_exec` argv-only and preserve structural control-character validation

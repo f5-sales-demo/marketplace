@@ -141,15 +141,6 @@ const factory: ExtensionFactory = async (pi) => {
     },
   });
 
-  // Headless opt-in for mutating tools (checkout/push). Mirrors the GITHUB_ALLOW_MUTATIONS env var.
-  if (typeof pi.registerFlag === 'function') {
-    pi.registerFlag('github-allow-mutations', {
-      type: 'boolean',
-      description: 'Allow gh_pr_checkout/gh_pr_push to run without an interactive confirmation prompt.',
-    });
-    if (pi.getFlag?.('github-allow-mutations')) process.env.GITHUB_ALLOW_MUTATIONS = '1';
-  }
-
   // Check if gh CLI is available
   let ghAvailable = false;
   try {
@@ -233,6 +224,33 @@ const factory: ExtensionFactory = async (pi) => {
           try {
             // biome-ignore lint/suspicious/noExplicitAny: bridging xcsh internal types
             return await originalExecute(toolCallId, params, signal, onUpdate as any, ctx as any);
+          } catch (err) {
+            if (err instanceof ToolAbortError) throw err;
+            return {
+              content: [{ type: 'text' as const, text: renderError(err) }],
+              isError: true,
+              details: { errorType: detectGhErrorType(err) },
+            };
+          }
+        },
+      });
+    }
+
+    const { createGitHubWorkflowTools } = await import('./tools/github-workflow');
+    for (const workflowTool of createGitHubWorkflowTools(pi.typebox, sessionProxy)) {
+      const execute = workflowTool.execute.bind(workflowTool);
+      pi.registerTool({
+        ...workflowTool,
+        async execute(
+          toolCallId: string,
+          params: Record<string, unknown>,
+          signal: AbortSignal | undefined,
+          _onUpdate: unknown,
+          ctx: { cwd: string },
+        ) {
+          sessionProxy.cwd = ctx?.cwd ?? process.cwd();
+          try {
+            return await execute(toolCallId, params, signal);
           } catch (err) {
             if (err instanceof ToolAbortError) throw err;
             return {

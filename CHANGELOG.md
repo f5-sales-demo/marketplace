@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`cloudstatus`** v1.7.0 — replaces the session-wide Regional Edge blocker with
+  exact-capability, request-scoped advisories that never replace requested tool results (#1372).
+
+- **`github`** v3.0.0 — replaces the blocking monolithic lifecycle with independent typed stages,
+  argv-only Git and GitHub operations, normalized evidence, and non-blocking governance advisories
+  (#1372).
+
 - **`herdr`** v1.1.2 distinguishes the downloaded Windows archive checksum
   from the installed executable checksum and makes the native Windows
   idempotence smoke observe PowerShell's information stream (#1371).

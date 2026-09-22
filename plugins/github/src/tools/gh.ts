@@ -37,9 +37,8 @@ import ghRunWatchDescription from '../prompts/gh-run-watch.md' with { type: 'tex
 import ghSearchIssuesDescription from '../prompts/gh-search-issues.md' with { type: 'text' };
 import ghSearchPrsDescription from '../prompts/gh-search-prs.md' with { type: 'text' };
 import * as git from '../utils/git';
+import { hasControlChars } from '../utils/git';
 import { ToolError, throwIfAborted } from '../utils/tool-errors';
-import { findMutation, hasControlChars } from './gh-exec-guard';
-import { confirmMutation, HEADLESS_BLOCKED_MESSAGE, resolveApprovalMode } from './mutation-safety';
 
 // ---------------------------------------------------------------------------
 // Shims for xcsh internals removed during extraction
@@ -1733,12 +1732,9 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
     params: GhPrCheckoutInput,
     signal?: AbortSignal,
     _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
-    context?: AgentToolContext,
+    _context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
-      const mode = resolveApprovalMode(context);
-      if (mode === 'headless-blocked') throw new ToolError(HEADLESS_BLOCKED_MESSAGE);
-
       const pr = normalizeOptionalString(params.pr);
       const repo = normalizeOptionalString(params.repo);
       const requestedBranch = normalizeOptionalString(params.branch);
@@ -1786,25 +1782,6 @@ export class GhPrCheckoutTool implements AgentTool<typeof ghPrCheckoutSchema, Gh
             willReset = true;
           }
         }
-      }
-
-      if (mode === 'interactive') {
-        if (!context?.ui) {
-          throw new ToolError(
-            'Interactive confirmation required but no UI is available. Set GITHUB_ALLOW_MUTATIONS=1 to allow headless operation without a prompt.',
-          );
-        }
-        const approved = await confirmMutation(context.ui, {
-          title: 'Checkout PR branch',
-          message: `Create/update local branch ${localBranch} and worktree at ${worktreePath}?`,
-          rewrite: willReset
-            ? {
-                title: 'Reset existing branch',
-                message: `Branch ${localBranch} will be reset to the PR head. Continue?`,
-              }
-            : undefined,
-        });
-        if (!approved) throw new ToolError('Checkout cancelled: not confirmed.');
       }
 
       const remote = await ensurePrRemote(repoRoot, data, signal);
@@ -1896,12 +1873,9 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
     params: GhPrPushInput,
     signal?: AbortSignal,
     _onUpdate?: AgentToolUpdateCallback<GhToolDetails>,
-    context?: AgentToolContext,
+    _context?: AgentToolContext,
   ): Promise<AgentToolResult<GhToolDetails>> {
     return untilAborted(signal, async () => {
-      const mode = resolveApprovalMode(context);
-      if (mode === 'headless-blocked') throw new ToolError(HEADLESS_BLOCKED_MESSAGE);
-
       const repoRoot = await requireGitRepoRoot(this.session.cwd, signal);
       const localBranch = normalizeOptionalString(params.branch) ?? (await requireCurrentGitBranch(repoRoot, signal));
       const refExists = await git.ref.exists(repoRoot, toLocalBranchRef(localBranch), signal);
@@ -1913,25 +1887,6 @@ export class GhPrPushTool implements AgentTool<typeof ghPrPushSchema, GhToolDeta
       const currentBranch = await git.branch.current(repoRoot, signal);
       const sourceRef = currentBranch === localBranch ? 'HEAD' : toLocalBranchRef(localBranch);
       const refspec = `${sourceRef}:refs/heads/${target.remoteBranch}`;
-
-      if (mode === 'interactive') {
-        if (!context?.ui) {
-          throw new ToolError(
-            'Interactive confirmation required but no UI is available. Set GITHUB_ALLOW_MUTATIONS=1 to allow headless operation without a prompt.',
-          );
-        }
-        const approved = await confirmMutation(context.ui, {
-          title: 'Push PR branch',
-          message: `Push ${localBranch} to ${target.remoteName}/${target.remoteBranch}?`,
-          rewrite: params.forceWithLease
-            ? {
-                title: 'Force-with-lease push',
-                message: `This can overwrite remote history on ${target.remoteBranch}. Continue?`,
-              }
-            : undefined,
-        });
-        if (!approved) throw new ToolError('Push cancelled: not confirmed.');
-      }
 
       await git.push(repoRoot, {
         forceWithLease: params.forceWithLease,
@@ -2126,12 +2081,6 @@ export class GhExecTool implements AgentTool<unknown, GhToolDetails> {
       if (hasControlChars(a)) {
         return fail(`Error: argument contains a control character: "${a}"`);
       }
-    }
-    const mutation = findMutation(args);
-    if (mutation.blocked) {
-      return fail(
-        `Error: ${mutation.reason}. gh_exec is read-only by default. Run write operations through an explicitly confirmed path, not gh_exec.`,
-      );
     }
     return untilAborted(signal, async () => {
       const result = await git.github.run(this.session.cwd, args, signal);

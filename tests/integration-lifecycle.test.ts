@@ -48,13 +48,25 @@ type CommandDefinition = {
   description?: string;
   handler: (args: string, ctx: { ui: { notify(message: string, level?: string): void } }) => Promise<void>;
 };
-type Definitions = Definition[] & { tools: ToolDefinition[]; commands: CommandDefinition[] };
+type AdvisoryDefinition = {
+  id: string;
+  capabilities: readonly string[];
+  match: (event: unknown) => unknown;
+};
+type Definitions = Definition[] & {
+  tools: ToolDefinition[];
+  commands: CommandDefinition[];
+  advisories: AdvisoryDefinition[];
+};
 
-async function definitionsFor(plugin: string): Promise<Definitions> {
-  const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({ exitCode: 1 } as ReturnType<typeof Bun.spawnSync>);
+async function definitionsFor(plugin: string, commandAvailable = false): Promise<Definitions> {
+  const spawn = spyOn(Bun, 'spawnSync').mockReturnValue({
+    exitCode: commandAvailable ? 0 : 1,
+  } as ReturnType<typeof Bun.spawnSync>);
   const definitions: Definition[] = [];
   const tools: ToolDefinition[] = [];
   const commands: CommandDefinition[] = [];
+  const advisories: AdvisoryDefinition[] = [];
   const handlers: Record<string, unknown[]> = {};
   const typeFactory = new Proxy(
     {
@@ -85,6 +97,15 @@ async function definitionsFor(plugin: string): Promise<Definitions> {
         return { get: async () => ({ state: 'setup_required' }) };
       },
     },
+    advisories: {
+      register(definition: AdvisoryDefinition) {
+        advisories.push(definition);
+        return () => {};
+      },
+      unregister() {
+        return false;
+      },
+    },
     registerFlag() {},
     getFlag() {
       return false;
@@ -103,7 +124,7 @@ async function definitionsFor(plugin: string): Promise<Definitions> {
   };
   const entrypoint =
     {
-      cloudstatus: 'extensions/regional-edge-guard.ts',
+      cloudstatus: 'extensions/regional-edge-advisories.ts',
       devcontainer: 'extensions/integration.ts',
       firecrawl: 'extensions/integration.ts',
       herdr: 'extensions/integration.ts',
@@ -114,7 +135,7 @@ async function definitionsFor(plugin: string): Promise<Definitions> {
   const module = await import(`../plugins/${plugin}/${entrypoint}`);
   await module.default(pi);
   spawn.mockRestore();
-  return Object.assign(definitions, { tools, commands });
+  return Object.assign(definitions, { tools, commands, advisories });
 }
 
 describe('provider integration lifecycle', () => {
@@ -1042,6 +1063,30 @@ describe('provider integration lifecycle', () => {
     ] as const) {
       expect((await definitionsFor(plugin)).map((definition) => definition.id)).toEqual(ids);
     }
+  });
+
+  it('registers cloudstatus Regional Edge policy through scoped advisories', async () => {
+    const cloudstatus = await definitionsFor('cloudstatus');
+    expect(cloudstatus.advisories).toHaveLength(1);
+    expect(cloudstatus.advisories[0]).toMatchObject({
+      id: 'cloudstatus.regional-edge',
+      capabilities: ['read', 'task', 'web_search', 'bash', 'render_map'],
+    });
+  });
+
+  it('registers the complete typed GitHub lifecycle surface', async () => {
+    const github = await definitionsFor('github', true);
+    expect(github.tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining([
+        'github_workflow',
+        'github_issue_create',
+        'github_pr_create',
+        'github_pr_auto_merge',
+        'github_pr_update_branch',
+        'github_worktree_prepare',
+        'github_worktree_cleanup',
+      ]),
+    );
   });
 
   it('registers callable Xorg and Zoom tools through the xcsh extension API', async () => {

@@ -47,8 +47,9 @@ The existing slash command remains status-only:
 /cloud-status components
 ```
 
-Location and general Internet questions route through skills from ordinary
-language; version 1.6.0 adds on-demand lifecycle readiness without a background network probe.
+Location and general Internet questions route through skills from ordinary language. Scoped
+advisories recommend the Regional Edge evidence path without blocking other tools or replacing
+requested results.
 
 ## Investigation model
 
@@ -87,17 +88,12 @@ registry-only workflow. Its direct `locations --format map-v1 [query]` collector
 matches live country, region, metro, site code, and component names and emits
 the compact `cloudstatus.locations/v1` envelope with normalized `MapLocationV1`
 evidence. It consults F5 Statuspage, PeeringDB, and Wikidata only; missing or
-conflicting evidence stays unresolved. Visual intent returns that evidence to
-the parent xcsh session for one `render_map` call; factual intent stays
-text-first. It never delegates, runs general search, or calls a second renderer
-or `display_media`. The enforcement state spans every model turn in that agent
-request and resets before the next top-level request, including after collector
-failure. A map is permitted only after a successful collector result and must
-use the fixed, schema-valid `Cloudstatus evidence hydration` sentinel. The guard
-atomically replaces that placeholder with the validated `map_locations`
-evidence immediately before rendering. Coordinate-free entries remain in
-`unresolved_locations` for the answer and are never rendered at invented
-coordinates.
+conflicting evidence stays unresolved. Visual intent passes the collector's
+validated `map_locations` unchanged to one parent-session `render_map` call;
+factual intent stays text-first. Coordinate-free entries remain in
+`unresolved_locations` and are never rendered at invented coordinates.
+Deviations from the recommended registry and rendering path execute normally
+and are reported as structured, request-scoped advisories.
 
 ## Prompt-trace acceptance
 
@@ -109,7 +105,7 @@ start/completion pair with a canonical, byte-verified PNG only for visual
 intent. Factual scenarios prove that no render or image result occurred.
 
 Run the hermetic contract suite with the plugin tests. To run an authenticated
-local acceptance scenario, provide an xcsh 20.19.0+ executable (or use the
+local acceptance scenario, provide an xcsh 21.38.1+ executable (or use the
 installed `xcsh`):
 
 ```bash
@@ -190,7 +186,7 @@ address override, or durable location cache.
 
 ## Runtime requirements
 
-- xcsh 20.19.0 or later, which provides provenance-aware `render_map`
+- xcsh 21.38.1 or later, which provides scoped advisories and provenance-aware `render_map`
 - Plugin skill, task-agent, `skill://`, Bash, and web-search support
 - Python 3.9 or later standard library for network collection
 - `curl` and `jq` for status reports

@@ -21,7 +21,21 @@ describe('installed marketplace cache', () => {
       filter: (source) => path.basename(source) !== 'node_modules',
     });
 
+    const installedPackage = JSON.parse(await Bun.file(path.join(installedRoot, 'package.json')).text()) as {
+      version?: string;
+      xcsh?: { version?: string };
+      peerDependencies?: Record<string, string>;
+    };
+    const installedManifest = JSON.parse(
+      await Bun.file(path.join(installedRoot, '.xcsh-plugin', 'plugin.json')).text(),
+    ) as { version?: string };
+    expect(installedPackage.version).toBe('3.0.0');
+    expect(installedPackage.xcsh?.version).toBe(installedPackage.version);
+    expect(installedManifest.version).toBe(installedPackage.version);
+    expect(installedPackage.peerDependencies?.['@f5-sales-demo/xcsh']).toBe('>=21.38.1');
+
     const moduleUrl = pathToFileURL(path.join(installedRoot, 'src', 'tools', 'gh.ts')).href;
+    const workflowUrl = pathToFileURL(path.join(installedRoot, 'src', 'tools', 'github-workflow.ts')).href;
     const moduleSource = await Bun.file(fileURLToPath(moduleUrl)).text();
     expect(moduleSource).not.toMatch(/await\s+import\(['"]@sinclair\/typebox['"]\)/);
     expect(moduleSource).not.toContain("'node_modules', '@sinclair', 'typebox'");
@@ -31,15 +45,23 @@ describe('installed marketplace cache', () => {
       const Type = {
         Array: (items, options = {}) => ({ type: "array", items, ...options }),
         Boolean: scalar("boolean"),
+        Literal: (value) => ({ const: value }),
         Number: scalar("number"),
         Object: (properties) => ({ type: "object", properties }),
         Optional: (schema) => schema,
         String: scalar("string"),
+        Union: (variants) => ({ anyOf: variants }),
       };
       module.setTypebox({ Type });
       const tool = new module.GhExecTool({ cwd: ${JSON.stringify(cacheRoot)} });
       if (tool.parameters?.type !== "object" || tool.parameters?.properties?.args?.type !== "array") {
         throw new Error("host-provided typebox did not initialize GitHub tool schemas");
+      }
+      const workflow = await import(${JSON.stringify(workflowUrl)});
+      const tools = workflow.createGitHubWorkflowTools({ Type }, { cwd: ${JSON.stringify(cacheRoot)} });
+      const names = tools.map((entry) => entry.name);
+      if (!names.includes("github_workflow") || !names.includes("github_worktree_cleanup")) {
+        throw new Error("installed cache omitted typed GitHub lifecycle tools");
       }
     `;
     const result = Bun.spawnSync([process.execPath, '-e', script], {
