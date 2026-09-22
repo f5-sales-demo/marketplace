@@ -1,6 +1,6 @@
 {
   "name": "herdr",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Verified stable Herdr installer and native xcsh runtime integration",
   "scripts": {
     "test": "bun test"
@@ -11,7 +11,7 @@
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Herdr",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "extensions": [
       "extensions/integration.ts"
     ]

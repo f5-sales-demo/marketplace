@@ -7,7 +7,7 @@ interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
 }
 
-export const PLUGIN_VERSION = '1.1.1';
+export const PLUGIN_VERSION = '1.1.2';
 export const REQUIRED_RUNTIME_CAPABILITIES = [
   'health_check',
   'worker_context_handoff',
