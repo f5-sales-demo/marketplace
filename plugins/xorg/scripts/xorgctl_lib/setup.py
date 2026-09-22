@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -16,6 +16,7 @@ import tempfile
 import time
 
 from .common import ROOT, VERSION, Fault, rpc
+from .media import PIPER_CONFIG_SHA256, PIPER_MODEL_SHA256, PIPER_VERSION
 from .sessions import manage as manage_session
 
 UBUNTU_ID = "ubuntu"
@@ -23,27 +24,91 @@ UBUNTU_VERSION = "24.04"
 NERD_FONTS_VERSION = "3.5.1"
 NERD_FONTS_SHA256 = "04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf"
 NERD_FONTS_URL = f"https://github.com/ryanoasis/nerd-fonts/releases/download/v{NERD_FONTS_VERSION}/JetBrainsMono.tar.xz"
-VIRTUALGL_VERSION = "3.1.4"
+VIRTUALGL_VERSION = "3.1.4-20251007"
 VIRTUALGL_SHA256 = "02edc6b599571c385389af1a006f07a70c298e1d97c580a9bfd4b39d835c51e6"
 VIRTUALGL_URL = "https://github.com/VirtualGL/virtualgl/releases/download/3.1.4/virtualgl_3.1.4_amd64.deb"
+PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
+PIPER_CONFIG_URL = PIPER_MODEL_URL + ".json"
 REQUIRED_COMMANDS = (
-    "ffmpeg", "fc-match", "pactl", "tesseract", "v4l2-ctl", "wmctrl",
-    "xauth", "xdotool", "xdpyinfo", "xvfb-run",
+    "Xvfb",
+    "curl",
+    "dpkg-query",
+    "eglinfo",
+    "ffmpeg",
+    "fc-match",
+    "gsettings",
+    "glxinfo",
+    "loginctl",
+    "modprobe",
+    "openbox",
+    "pactl",
+    "systemctl",
+    "tesseract",
+    "udevadm",
+    "v4l2-ctl",
+    "vulkaninfo",
+    "wmctrl",
+    "xauth",
+    "xdotool",
+    "xdpyinfo",
+    "xvfb-run",
+    "x11vnc",
 )
-REQUIRED_MODULES = ("PIL", "PyQt6", "Xlib", "gi", "keyring")
+REQUIRED_MODULES = (
+    "PIL",
+    "PyQt6",
+    "Xlib",
+    "cv2",
+    "gi",
+    "keyring",
+    "numpy",
+    "piper",
+    "playwright",
+)
 APT_PACKAGES = (
-    "curl", "dbus-x11", "ffmpeg", "fontconfig", "fonts-crosextra-caladea",
-    "fonts-crosextra-carlito", "fonts-liberation", "fonts-noto-cjk",
-    "fonts-noto-color-emoji", "fonts-noto-core", "kmod", "libxcb-cursor0",
-    "mesa-utils", "openbox", "pipewire-pulse", "pulseaudio-utils",
-    "python3-keyring", "python3-pil", "python3-pyatspi", "python3-pyqt6",
-    "python3-venv", "python3-xlib", "tesseract-ocr", "v4l-utils",
-    "v4l2loopback-dkms", "vulkan-tools", "wmctrl", "x11-utils",
-    "x11-xserver-utils", "x11vnc", "xauth", "xdotool", "xvfb",
+    "at-spi2-core",
+    "curl",
+    "dbus-x11",
+    "ffmpeg",
+    "fontconfig",
+    "fonts-crosextra-caladea",
+    "fonts-crosextra-carlito",
+    "fonts-liberation",
+    "fonts-noto-cjk",
+    "fonts-noto-color-emoji",
+    "fonts-noto-core",
+    "kmod",
+    "libxcb-cursor0",
+    "gsettings-desktop-schemas",
+    "libglib2.0-bin",
+    "mesa-utils",
+    "openbox",
+    "pipewire-pulse",
+    "pulseaudio-utils",
+    "python3-keyring",
+    "python3-pil",
+    "python3-pyatspi",
+    "python3-pyqt6",
+    "python3-venv",
+    "python3-xlib",
+    "tesseract-ocr",
+    "v4l-utils",
+    "v4l2loopback-dkms",
+    "vulkan-tools",
+    "wireplumber",
+    "wmctrl",
+    "x11-utils",
+    "x11-xserver-utils",
+    "x11vnc",
+    "xauth",
+    "xdotool",
+    "xvfb",
 )
 PINNED_PYTHON = (
-    "numpy==2.2.6", "opencv-python-headless==4.12.0.88",
-    "piper-tts==1.8.0", "playwright==1.55.0",
+    "numpy==2.2.6",
+    "opencv-python-headless==4.12.0.88",
+    f"piper-tts=={PIPER_VERSION}",
+    "playwright==1.55.0",
 )
 
 
@@ -56,26 +121,40 @@ def _platform() -> dict[str, str]:
                 values[key] = value.strip().strip('"')
     except OSError:
         pass
-    return {"id": values.get("ID", "unknown"), "version_id": values.get("VERSION_ID", "unknown")}
+    return {
+        "id": values.get("ID", "unknown"),
+        "version_id": values.get("VERSION_ID", "unknown"),
+    }
 
 
-def _command(argv: list[str], *, check: bool = False, timeout: int = 30, env=None) -> subprocess.CompletedProcess[str]:
+def _command(
+    argv: list[str], *, check: bool = False, timeout: int = 30, env=None
+) -> subprocess.CompletedProcess[str]:
     try:
-        result = subprocess.run(argv, text=True, capture_output=True, check=False, timeout=timeout, env=env)
+        result = subprocess.run(
+            argv, text=True, capture_output=True, check=False, timeout=timeout, env=env
+        )
     except FileNotFoundError as error:
         if check:
-            raise Fault(f"command not found: {argv[0]}") from error
+            message = f"command not found: {argv[0]}"
+            raise Fault(message) from error
         return subprocess.CompletedProcess(argv, 127, "", "command not found")
     except subprocess.TimeoutExpired as error:
-        raise Fault(f"{argv[0]} timed out after {timeout}s") from error
+        message = f"{argv[0]} timed out after {timeout}s"
+        raise Fault(message) from error
     if check and result.returncode:
         detail = (result.stderr or result.stdout).strip()[-1000:]
-        raise Fault(f"{argv[0]} exited {result.returncode}: {detail}")
+        message = f"{argv[0]} exited {result.returncode}: {detail}"
+        raise Fault(message)
     return result
 
 
 def _service_active(name: str) -> bool:
-    return shutil.which("systemctl") is not None and _command(["systemctl", "--user", "is-active", "--quiet", name]).returncode == 0
+    return (
+        shutil.which("systemctl") is not None
+        and _command(["systemctl", "--user", "is-active", "--quiet", name]).returncode
+        == 0
+    )
 
 
 def _session_service(name: str) -> str:
@@ -100,7 +179,9 @@ def _session_config(name: str) -> dict[str, object]:
 
 def _configured_session_names() -> list[str]:
     try:
-        return sorted(path.parent.name for path in ROOT.glob("*/session.json") if path.is_file())
+        return sorted(
+            path.parent.name for path in ROOT.glob("*/session.json") if path.is_file()
+        )
     except OSError:
         return []
 
@@ -115,22 +196,112 @@ def session_worker_checks() -> dict[str, dict[str, object]]:
     return checks
 
 
+def _venv_python() -> pathlib.Path:
+    return pathlib.Path.home() / ".local/share/xorgctl/venv/bin/python"
+
+
 def _dependency_checks() -> dict[str, object]:
     commands = {name: shutil.which(name) is not None for name in REQUIRED_COMMANDS}
-    modules = {name: importlib.util.find_spec(name) is not None for name in REQUIRED_MODULES}
-    return {"ready": all(commands.values()) and all(modules.values()), "commands": commands, "python_modules": modules}
+    modules = dict.fromkeys(REQUIRED_MODULES, False)
+    interpreter = _venv_python()
+    if interpreter.is_file():
+        script = (
+            "import importlib.util,json,sys;"
+            "print(json.dumps({name:importlib.util.find_spec(name) is not None "
+            "for name in sys.argv[1:]}))"
+        )
+        result = _command([str(interpreter), "-c", script, *REQUIRED_MODULES])
+        if result.returncode == 0:
+            try:
+                reported = json.loads(result.stdout)
+                modules = {name: bool(reported.get(name)) for name in REQUIRED_MODULES}
+            except (TypeError, ValueError):
+                pass
+    return {
+        "ready": all(commands.values()) and all(modules.values()),
+        "commands": commands,
+        "python_modules": modules,
+    }
 
 
 def _font_status() -> dict[str, object]:
     if shutil.which("fc-match") is None:
         return {"ready": False, "version": NERD_FONTS_VERSION}
     result = _command(["fc-match", "-f", "%{family[0]}", "JetBrainsMono Nerd Font"])
-    return {"ready": result.returncode == 0 and "JetBrainsMono Nerd Font" in result.stdout, "version": NERD_FONTS_VERSION}
+    return {
+        "ready": result.returncode == 0 and "JetBrainsMono Nerd Font" in result.stdout,
+        "version": NERD_FONTS_VERSION,
+    }
+
+
+def _file_sha256(path: pathlib.Path) -> str | None:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _speech_status() -> dict[str, object]:
+    root = pathlib.Path.home() / ".local/share/xorgctl"
+    model = root / "voices/en_US-lessac-medium.onnx"
+    config = root / "voices/en_US-lessac-medium.onnx.json"
+    interpreter = _venv_python()
+    version = None
+    if interpreter.is_file():
+        result = _command(
+            [
+                str(interpreter),
+                "-c",
+                "import importlib.metadata; print(importlib.metadata.version('piper-tts'))",
+            ]
+        )
+        version = result.stdout.strip() if result.returncode == 0 else None
+    checks = {
+        "runtime": version == PIPER_VERSION,
+        "model": _file_sha256(model) == PIPER_MODEL_SHA256,
+        "config": _file_sha256(config) == PIPER_CONFIG_SHA256,
+    }
+    return {"ready": all(checks.values()), "version": version, "checks": checks}
+
+
+def _accessibility_status() -> dict[str, object]:
+    if shutil.which("gsettings") is None:
+        return {"ready": False, "toolkit_accessibility": False}
+    result = _command(
+        [
+            "gsettings",
+            "get",
+            "org.gnome.desktop.interface",
+            "toolkit-accessibility",
+        ]
+    )
+    ready = result.returncode == 0 and result.stdout.strip() == "true"
+    return {"ready": ready, "toolkit_accessibility": ready}
+
+
+def _configure_accessibility() -> None:
+    _command(
+        [
+            "gsettings",
+            "set",
+            "org.gnome.desktop.interface",
+            "toolkit-accessibility",
+            "true",
+        ],
+        check=True,
+    )
 
 
 def _camera_status() -> dict[str, object]:
     label = pathlib.Path("/sys/class/video4linux/video10/name")
-    ready = pathlib.Path("/dev/video10").exists() and label.is_file() and label.read_text().strip() == "xcsh Camera"
+    ready = (
+        pathlib.Path("/dev/video10").exists()
+        and label.is_file()
+        and label.read_text().strip() == "xcsh Camera"
+    )
     return {"ready": ready, "device": "/dev/video10", "label": "xcsh Camera"}
 
 
@@ -138,62 +309,204 @@ def _audio_status() -> dict[str, object]:
     config = _session_config("console")
     sink = str(config.get("audio_sink", ""))
     source = str(config.get("audio_source", ""))
-    ready = sink == "xorgctl_console" and source == "xcsh_microphone_input"
-    return {"ready": ready, "sink": sink or None, "source": "xcsh Microphone" if ready else None}
+    try:
+        devices = rpc("console", "audio.devices", {})
+    except (Fault, OSError, EOFError):
+        devices = {"sinks": [], "sources": []}
+    sinks = devices.get("sinks", []) if isinstance(devices, dict) else []
+    sources = devices.get("sources", []) if isinstance(devices, dict) else []
+    live_sink = next(
+        (
+            item
+            for item in sinks
+            if item.get("name") == "xorgctl_console"
+            and item.get("description") == "xcsh Inbound Audio"
+        ),
+        None,
+    )
+    live_source = next(
+        (
+            item
+            for item in sources
+            if item.get("name") == "xcsh_microphone_input"
+            and item.get("description") == "xcsh Microphone"
+        ),
+        None,
+    )
+    ready = bool(
+        config.get("virtual_audio") is True
+        and sink == "xorgctl_console"
+        and source == "xcsh_microphone_input"
+        and live_sink
+        and live_source
+    )
+    physical_fallback = bool(
+        (sink and sink != "xorgctl_console")
+        or (source and source != "xcsh_microphone_input")
+    )
+    return {
+        "ready": ready,
+        "sink": sink or None,
+        "sink_description": live_sink.get("description") if live_sink else None,
+        "source": source or None,
+        "source_description": live_source.get("description") if live_source else None,
+        "physical_fallback": physical_fallback,
+    }
+
+
+def _nvidia_detected() -> bool:
+    return bool(
+        shutil.which("nvidia-smi")
+        and _command(["nvidia-smi", "-L"], timeout=15).returncode == 0
+    )
+
+
+def _virtualgl_status() -> dict[str, object]:
+    required = _nvidia_detected()
+    if not required:
+        return {"required": False, "ready": True, "version": None}
+    result = _command(["dpkg-query", "-W", "-f=${Version}", "virtualgl"], timeout=15)
+    version = result.stdout.strip() if result.returncode == 0 else None
+    return {
+        "required": True,
+        "ready": version == VIRTUALGL_VERSION,
+        "version": version,
+    }
 
 
 def _gpu_status() -> dict[str, object]:
-    if shutil.which("nvidia-smi") is None:
-        return {"detected": False, "required": False, "ready": True, "renderer": "native"}
+    if not _nvidia_detected():
+        return {
+            "detected": False,
+            "required": False,
+            "ready": True,
+            "renderer": "native",
+        }
+    virtualgl = _virtualgl_status()
     config = _session_config("console")
     env = {**os.environ, **dict(config.get("env", {}))}
     vglrun = pathlib.Path("/opt/VirtualGL/bin/vglrun")
-    result = _command([str(vglrun), "-d", "egl0", "glxinfo", "-B"], env=env, timeout=30) if vglrun.is_file() else None
-    ready = bool(result and result.returncode == 0 and "NVIDIA" in result.stdout)
-    return {"detected": True, "required": True, "ready": ready, "renderer": "virtualgl-egl"}
+    result = (
+        _command(
+            [str(vglrun), "-d", "egl0", "glxinfo", "-B"],
+            env=env,
+            timeout=30,
+        )
+        if virtualgl["ready"] and vglrun.is_file()
+        else None
+    )
+    ready = bool(
+        virtualgl["ready"]
+        and result
+        and result.returncode == 0
+        and "NVIDIA" in result.stdout
+    )
+    return {
+        "detected": True,
+        "required": True,
+        "ready": ready,
+        "renderer": "virtualgl-egl",
+    }
 
 
 def _console_plan() -> tuple[str, dict[str, str], str]:
     auth = pathlib.Path(f"/run/user/{os.getuid()}/gdm/Xauthority")
     if auth.is_file():
-        result = _command(["xdpyinfo"], env={**os.environ, "DISPLAY": ":0", "XAUTHORITY": str(auth)})
+        result = _command(
+            ["xdpyinfo"], env={**os.environ, "DISPLAY": ":0", "XAUTHORITY": str(auth)}
+        )
         if result.returncode == 0:
             return "attach", {"display": ":0", "auth": str(auth)}, "attached_xorg"
     return "create", {"geometry": "1920x1080"}, "headless_xvfb"
 
 
 def _download_verified(url: str, expected: str, destination: pathlib.Path) -> None:
-    _command(["curl", "--proto", "=https", "--tlsv1.2", "--fail", "--location", "--silent", "--show-error", "-o", str(destination), url], check=True, timeout=300)
+    _command(
+        [
+            "curl",
+            "--proto",
+            "=https",
+            "--tlsv1.2",
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "-o",
+            str(destination),
+            url,
+        ],
+        check=True,
+        timeout=300,
+    )
     if hashlib.sha256(destination.read_bytes()).hexdigest() != expected:
-        raise Fault(f"download checksum mismatch for {destination.name}")
+        message = f"download checksum mismatch for {destination.name}"
+        raise Fault(message)
 
 
 def _install_packages() -> None:
-    _command(["sudo", "-n", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", *APT_PACKAGES], check=True, timeout=600)
+    _command(
+        ["sudo", "-n", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "update"],
+        check=True,
+        timeout=600,
+    )
+    _command(
+        [
+            "sudo",
+            "-n",
+            "env",
+            "DEBIAN_FRONTEND=noninteractive",
+            "apt-get",
+            "install",
+            "-y",
+            *APT_PACKAGES,
+        ],
+        check=True,
+        timeout=600,
+    )
 
 
 def _install_python() -> pathlib.Path:
     venv = pathlib.Path.home() / ".local/share/xorgctl/venv"
-    _command([sys.executable, "-m", "venv", "--system-site-packages", str(venv)], check=True, timeout=120)
-    _command([str(venv / "bin/pip"), "install", *PINNED_PYTHON], check=True, timeout=600)
+    _command(
+        [sys.executable, "-m", "venv", "--system-site-packages", str(venv)],
+        check=True,
+        timeout=120,
+    )
+    _command(
+        [str(venv / "bin/pip"), "install", *PINNED_PYTHON], check=True, timeout=600
+    )
     return venv / "bin/python"
 
 
 def _install_fonts() -> None:
-    destination = pathlib.Path.home() / ".local/share/fonts/xorgctl/JetBrainsMonoNerdFont"
+    if _font_status()["ready"]:
+        return
+    destination = (
+        pathlib.Path.home() / ".local/share/fonts/xorgctl/JetBrainsMonoNerdFont"
+    )
     with tempfile.TemporaryDirectory(prefix="xorgctl-fonts-") as directory:
         archive = pathlib.Path(directory) / "JetBrainsMono.tar.xz"
         extracted = pathlib.Path(directory) / "fonts"
         extracted.mkdir()
         _download_verified(NERD_FONTS_URL, NERD_FONTS_SHA256, archive)
         with tarfile.open(archive, "r:xz") as bundle:
-            members = [item for item in bundle.getmembers() if item.isfile() and re.fullmatch(r"JetBrainsMonoNerdFont-[A-Za-z]+\.ttf", pathlib.PurePosixPath(item.name).name)]
+            members = [
+                item
+                for item in bundle.getmembers()
+                if item.isfile()
+                and re.fullmatch(
+                    r"JetBrainsMonoNerdFont-[A-Za-z]+\.ttf",
+                    pathlib.PurePosixPath(item.name).name,
+                )
+            ]
             if len(members) != 16:
-                raise Fault(f"expected 16 JetBrains Mono faces, found {len(members)}")
+                message = f"expected 16 JetBrains Mono faces, found {len(members)}"
+                raise Fault(message)
             for member in members:
                 source = bundle.extractfile(member)
                 if source is None:
-                    raise Fault("font archive member could not be read")
+                    message = "font archive member could not be read"
+                    raise Fault(message)
                 target = extracted / pathlib.PurePosixPath(member.name).name
                 target.write_bytes(source.read())
                 target.chmod(0o644)
@@ -203,20 +516,54 @@ def _install_fonts() -> None:
         shutil.copytree(extracted, destination)
     config = pathlib.Path.home() / ".config/fontconfig/conf.d/50-xorgctl-rendering.conf"
     config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text('<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><alias><family>monospace</family><prefer><family>JetBrainsMono Nerd Font</family></prefer></alias><alias><family>sans-serif</family><prefer><family>Liberation Sans</family></prefer></alias><alias><family>serif</family><prefer><family>Liberation Serif</family></prefer></alias></fontconfig>\n')
+    config.write_text(
+        '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><alias><family>monospace</family><prefer><family>JetBrainsMono Nerd Font</family></prefer></alias><alias><family>sans-serif</family><prefer><family>Liberation Sans</family></prefer></alias><alias><family>serif</family><prefer><family>Liberation Serif</family></prefer></alias></fontconfig>\n'
+    )
     config.chmod(0o644)
     _command(["fc-cache", "-f"], check=True, timeout=120)
 
 
+def _install_voice() -> None:
+    if _speech_status()["ready"]:
+        return
+    destination = pathlib.Path.home() / ".local/share/xorgctl/voices"
+    destination.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.TemporaryDirectory(prefix="xorgctl-voice-") as directory:
+        model = pathlib.Path(directory) / "en_US-lessac-medium.onnx"
+        config = pathlib.Path(directory) / "en_US-lessac-medium.onnx.json"
+        _download_verified(PIPER_MODEL_URL, PIPER_MODEL_SHA256, model)
+        _download_verified(PIPER_CONFIG_URL, PIPER_CONFIG_SHA256, config)
+        for source in (model, config):
+            target = destination / source.name
+            temporary = target.with_suffix(target.suffix + ".tmp")
+            shutil.copyfile(source, temporary)
+            temporary.chmod(0o600)
+            temporary.replace(target)
+
+
 def _install_virtualgl() -> None:
-    if shutil.which("nvidia-smi") is None or pathlib.Path("/opt/VirtualGL/bin/vglrun").is_file():
+    if not _nvidia_detected() or _virtualgl_status()["ready"]:
         return
     if os.uname().machine not in ("x86_64", "amd64"):
-        raise Fault("NVIDIA VirtualGL setup is not published for this architecture")
+        message = "NVIDIA VirtualGL setup is not published for this architecture"
+        raise Fault(message)
     with tempfile.TemporaryDirectory(prefix="xorgctl-virtualgl-") as directory:
         package = pathlib.Path(directory) / "virtualgl.deb"
         _download_verified(VIRTUALGL_URL, VIRTUALGL_SHA256, package)
-        _command(["sudo", "-n", "dpkg", "-i", str(package)], check=True, timeout=300)
+        _command(
+            [
+                "sudo",
+                "-n",
+                "env",
+                "DEBIAN_FRONTEND=noninteractive",
+                "apt-get",
+                "install",
+                "-y",
+                str(package),
+            ],
+            check=True,
+            timeout=300,
+        )
 
 
 def _install_root_file(destination: str, content: str) -> None:
@@ -224,7 +571,10 @@ def _install_root_file(destination: str, content: str) -> None:
         stream.write(content)
         temporary = pathlib.Path(stream.name)
     try:
-        _command(["sudo", "-n", "install", "-D", "-m", "0644", str(temporary), destination], check=True)
+        _command(
+            ["sudo", "-n", "install", "-D", "-m", "0644", str(temporary), destination],
+            check=True,
+        )
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -232,26 +582,67 @@ def _install_root_file(destination: str, content: str) -> None:
 def _install_services() -> None:
     user = _command(["id", "-un"], check=True).stdout.strip()
     _install_root_file("/etc/modules-load.d/xcsh-camera.conf", "v4l2loopback\n")
-    _install_root_file("/etc/modprobe.d/xcsh-camera.conf", 'options v4l2loopback video_nr=10 card_label="xcsh Camera" exclusive_caps=1\n')
-    _install_root_file("/etc/udev/rules.d/99-xcsh-camera.rules", f'KERNEL=="video10", SUBSYSTEM=="video4linux", OWNER="{user}", GROUP="video", MODE="0660"\n')
+    _install_root_file(
+        "/etc/modprobe.d/xcsh-camera.conf",
+        'options v4l2loopback video_nr=10 card_label="xcsh Camera" exclusive_caps=1\n',
+    )
+    _install_root_file(
+        "/etc/udev/rules.d/99-xcsh-camera.rules",
+        f'KERNEL=="video10", SUBSYSTEM=="video4linux", OWNER="{user}", GROUP="video", MODE="0660"\n',
+    )
     systemd = pathlib.Path.home() / ".config/systemd/user"
     systemd.mkdir(parents=True, exist_ok=True)
-    (systemd / "xorgctl-session@.service").write_text("[Unit]\nDescription=xorgctl session %i\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=%h/.local/bin/xorgctl _service %i\nRestart=on-failure\nRestartSec=2\nKillMode=control-group\nUMask=0077\n\n[Install]\nWantedBy=default.target\n")
-    (systemd / "xcsh-camera.service").write_text("[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1280x720:rate=30 -vf drawtext=text=xcsh\\ Camera:x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65 -f v4l2 -pix_fmt yuv420p /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n")
+    (systemd / "xorgctl-session@.service").write_text(
+        "[Unit]\nDescription=xorgctl session %i\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=%h/.local/bin/xorgctl _service %i\nRestart=on-failure\nRestartSec=2\nKillMode=control-group\nUMask=0077\n\n[Install]\nWantedBy=default.target\n"
+    )
+    (systemd / "xcsh-camera.service").write_text(
+        "[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1280x720:rate=30 -vf \"drawtext=text='xcsh Camera':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65\" -f v4l2 -pix_fmt yuv420p /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n"
+    )
     for path in systemd.glob("*.service"):
         path.chmod(0o644)
     _command(["sudo", "-n", "loginctl", "enable-linger", user], check=True)
     _command(["systemctl", "--user", "daemon-reload"], check=True)
+    _command(
+        [
+            "systemctl",
+            "--user",
+            "enable",
+            "--now",
+            "pipewire.socket",
+            "pipewire-pulse.socket",
+            "wireplumber.service",
+        ],
+        check=True,
+    )
 
 
 def _ensure_virtual_media() -> None:
     if not _camera_status()["ready"]:
         if pathlib.Path("/sys/module/v4l2loopback").exists():
-            raise Fault("v4l2loopback is active without the required /dev/video10 xcsh Camera; refusing to reset an in-use module")
-        _command(["sudo", "-n", "modprobe", "v4l2loopback", "video_nr=10", "card_label=xcsh Camera", "exclusive_caps=1"], check=True)
+            message = (
+                "v4l2loopback is active without the required /dev/video10 "
+                "xcsh Camera; refusing to reset an in-use module"
+            )
+            raise Fault(message)
+        _command(
+            [
+                "sudo",
+                "-n",
+                "modprobe",
+                "v4l2loopback",
+                "video_nr=10",
+                "card_label=xcsh Camera",
+                "exclusive_caps=1",
+            ],
+            check=True,
+        )
         _command(["sudo", "-n", "udevadm", "control", "--reload-rules"], check=True)
-        _command(["sudo", "-n", "udevadm", "trigger", "--name-match=video10"], check=True)
-    _command(["systemctl", "--user", "enable", "--now", "xcsh-camera.service"], check=True)
+        _command(
+            ["sudo", "-n", "udevadm", "trigger", "--name-match=video10"], check=True
+        )
+    _command(
+        ["systemctl", "--user", "enable", "--now", "xcsh-camera.service"], check=True
+    )
     rpc("console", "audio.create", {})
 
 
@@ -259,25 +650,100 @@ def status(expected_version: str) -> dict[str, object]:
     platform = _platform()
     dependencies = _dependency_checks()
     font = _font_status()
+    accessibility = _accessibility_status()
+    speech = _speech_status()
     camera = _camera_status()
     audio = _audio_status()
     gpu = _gpu_status()
     workers = session_worker_checks()
     worker = workers.get("console", {"ready": False, "version": None})
+    workers_ready = bool(workers) and all(
+        bool(item.get("ready")) for item in workers.values()
+    )
     config = _session_config("console")
-    session_mode = "headless_xvfb" if config.get("owned") is True else "attached_xorg" if config else "unconfigured"
-    services = {"console": _service_active(_session_service("console")), "camera": _service_active("xcsh-camera.service")}
-    checks: dict[str, object] = {"platform": platform == {"id": UBUNTU_ID, "version_id": UBUNTU_VERSION}, "version": expected_version == VERSION, "commands": dependencies["commands"], "python_modules": dependencies["python_modules"], "virtual_camera": camera, "fonts": font, "services": services, "worker": worker, "session_workers": workers}
-    ready = bool(checks["platform"] and checks["version"] and dependencies["ready"] and font["ready"] and camera["ready"] and audio["ready"] and gpu["ready"] and all(services.values()) and worker["ready"])
+    session_mode = (
+        "headless_xvfb"
+        if config.get("owned") is True
+        else "attached_xorg"
+        if config
+        else "unconfigured"
+    )
+    services = {
+        "console": _service_active(_session_service("console")),
+        "camera": _service_active("xcsh-camera.service"),
+        "pipewire": _service_active("pipewire.service"),
+        "pipewire_pulse": _service_active("pipewire-pulse.service"),
+        "wireplumber": _service_active("wireplumber.service"),
+    }
+    checks: dict[str, object] = {
+        "platform": platform == {"id": UBUNTU_ID, "version_id": UBUNTU_VERSION},
+        "version": expected_version == VERSION,
+        "commands": dependencies["commands"],
+        "python_modules": dependencies["python_modules"],
+        "virtual_camera": camera,
+        "fonts": font,
+        "accessibility": accessibility,
+        "services": services,
+        "worker": worker,
+        "session_workers": workers,
+        "session_workers_ready": workers_ready,
+    }
+    ready = bool(
+        checks["platform"]
+        and checks["version"]
+        and dependencies["ready"]
+        and font["ready"]
+        and accessibility["ready"]
+        and speech["ready"]
+        and camera["ready"]
+        and audio["ready"]
+        and gpu["ready"]
+        and all(services.values())
+        and worker["ready"]
+        and workers_ready
+    )
     missing: list[str] = []
-    if not dependencies["ready"]: missing.append("dependencies")
-    if not font["ready"]: missing.append("fonts")
-    if not camera["ready"]: missing.append("virtual_camera")
-    if not audio["ready"]: missing.append("virtual_audio")
-    if not gpu["ready"]: missing.append("gpu_renderer")
+    if not checks["platform"]:
+        missing.append("platform")
+    if not checks["version"]:
+        missing.append("version")
+    if not dependencies["ready"]:
+        missing.append("dependencies")
+    if not font["ready"]:
+        missing.append("fonts")
+    if not accessibility["ready"]:
+        missing.append("accessibility")
+    if not speech["ready"]:
+        missing.append("speech")
+    if not camera["ready"]:
+        missing.append("virtual_camera")
+    if not audio["ready"]:
+        missing.append("virtual_audio")
+    if not gpu["ready"]:
+        missing.append("gpu_renderer")
     missing.extend(f"service:{name}" for name, value in services.items() if not value)
-    if not worker["ready"]: missing.append("worker_version")
-    return {"state": "ready" if ready else "degraded", "version": VERSION, "expected_version": expected_version, "platform": platform, "session_mode": session_mode, "dependencies": dependencies, "services": services, "virtual_devices": {"camera": camera, "audio": audio}, "gpu_renderer": gpu, "checks": checks, "missing": missing}
+    if not worker["ready"]:
+        missing.append("worker_version")
+    missing.extend(
+        f"worker_version:{name}"
+        for name, item in workers.items()
+        if name != "console" and not item.get("ready")
+    )
+    return {
+        "state": "ready" if ready else "degraded",
+        "version": VERSION,
+        "expected_version": expected_version,
+        "platform": platform,
+        "session_mode": session_mode,
+        "dependencies": dependencies,
+        "accessibility": accessibility,
+        "speech": speech,
+        "services": services,
+        "virtual_devices": {"camera": camera, "audio": audio},
+        "gpu_renderer": gpu,
+        "checks": checks,
+        "missing": missing,
+    }
 
 
 def _install_launcher(interpreter: pathlib.Path) -> None:
@@ -285,7 +751,10 @@ def _install_launcher(interpreter: pathlib.Path) -> None:
     destination = pathlib.Path.home() / ".local/bin/xorgctl"
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(".tmp")
-    temporary.write_text(f'#!/bin/sh\nexec {interpreter} {source} "$@"\n')
+    temporary.write_text(
+        f"#!/bin/sh\nexec {shlex.quote(str(interpreter))} "
+        f'{shlex.quote(str(source))} "$@"\n'
+    )
     temporary.chmod(0o755)
     temporary.replace(destination)
 
@@ -293,25 +762,42 @@ def _install_launcher(interpreter: pathlib.Path) -> None:
 def apply(expected_version: str) -> dict[str, object]:
     platform = _platform()
     if platform != {"id": UBUNTU_ID, "version_id": UBUNTU_VERSION}:
-        raise Fault("xorgctl setup supports Ubuntu 24.04 only")
+        message = "xorgctl setup supports Ubuntu 24.04 only"
+        raise Fault(message)
     if expected_version != VERSION:
-        raise Fault(f"requested Xorg version {expected_version} does not match installed {VERSION}")
+        message = (
+            f"requested Xorg version {expected_version} does not match installed "
+            f"{VERSION}"
+        )
+        raise Fault(message)
     _install_packages()
     interpreter = _install_python()
     _install_fonts()
+    _install_voice()
     _install_virtualgl()
+    _configure_accessibility()
     _install_launcher(interpreter)
     _install_services()
     if not (ROOT / "console/session.json").is_file():
         action, params, _mode = _console_plan()
         manage_session("console", action, params)
         manage_session("console", "stop", {})
-    _command(["systemctl", "--user", "enable", "--now", _session_service("console")], check=True)
-    active_sessions = [name for name in _configured_session_names() if _service_active(_session_service(name))]
+    _command(
+        ["systemctl", "--user", "enable", "--now", _session_service("console")],
+        check=True,
+    )
+    active_sessions = [
+        name
+        for name in _configured_session_names()
+        if _service_active(_session_service(name))
+    ]
     for name in active_sessions:
         _command(["systemctl", "--user", "restart", _session_service(name)], check=True)
     deadline = time.monotonic() + 20
-    while any(_worker_version(name) != VERSION for name in active_sessions) and time.monotonic() < deadline:
+    while (
+        any(_worker_version(name) != VERSION for name in active_sessions)
+        and time.monotonic() < deadline
+    ):
         time.sleep(0.1)
     _ensure_virtual_media()
     result = status(expected_version)
@@ -332,4 +818,5 @@ def manage(action: str, params: dict[str, object]) -> dict[str, object]:
         return status(expected)
     if action == "apply":
         return apply(expected)
-    raise Fault("unknown setup operation")
+    message = "unknown setup operation"
+    raise Fault(message)

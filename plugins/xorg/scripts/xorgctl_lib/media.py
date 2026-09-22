@@ -224,7 +224,13 @@ def media(w, m, p):
         # A killed worker can leave a Pulse module behind, while concurrent
         # startup used to create a second null sink before the first appeared.
         # Collapse only this session's duplicate modules before provisioning.
-        if len(matching_sinks) > 1:
+        if matching_sinks and (
+            len(matching_sinks) > 1
+            or any(
+                item.get("description") != "xcsh Inbound Audio"
+                for item in matching_sinks
+            )
+        ):
             for item in matching_sinks:
                 module = item.get("owner_module")
                 if isinstance(module, int) and module != 4294967295:
@@ -239,7 +245,7 @@ def media(w, m, p):
                         "load-module",
                         "module-null-sink",
                         f"sink_name={name}",
-                        f"sink_properties=device.description={name}",
+                        "sink_properties=device.description=xcsh Inbound Audio",
                     ]
                 ).strip()
             )
@@ -322,6 +328,7 @@ def media(w, m, p):
             msg = "xcsh Microphone did not become available"
             raise Fault(msg)
         w.c["audio_source"] = microphone
+        w.c["virtual_audio"] = True
         save(w.folder / "session.json", w.c)
         return {
             "sink": name,

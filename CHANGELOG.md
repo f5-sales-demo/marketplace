@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.6 — makes reviewed setup self-contained on clean Ubuntu 24.04:
+  provisions an owned Xvfb desktop when no accessible console exists, installs and
+  verifies packages, fonts, accessibility, Piper assets, PipeWire virtual audio,
+  the `xcsh Camera`, user services, and conditional NVIDIA VirtualGL/EGL support
+  with idempotent recovery and explicit readiness results (#1362).
+
 - **`xorg`** v1.0.5 — restarts every active configured session worker during
   reviewed setup and reports per-session runtime readiness, preventing stale
   workers from masking incomplete audio stimulus results.

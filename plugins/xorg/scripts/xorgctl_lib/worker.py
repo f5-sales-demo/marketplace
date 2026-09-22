@@ -65,6 +65,10 @@ class Worker:
         self.environment = Environment(self)
         if c.get("display_configuration"):
             self.configure_display(c["display_configuration"], persist=False)
+        if c.get("virtual_audio") is True:
+            from .media import media
+
+            media(self, "audio.create", {})
 
     def check(self) -> None:
         if self.cancel.is_set() or self.paused:
@@ -584,6 +588,7 @@ class Worker:
         for module in self.modules:
             run(["pactl", "unload-module", str(module)], check=False)
         self.c.pop("audio_sink", None)
+        self.c.pop("audio_injection_sink", None)
         self.c.pop("audio_source", None)
         save(self.folder / "session.json", self.c)
 
