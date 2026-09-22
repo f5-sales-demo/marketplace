@@ -14,7 +14,7 @@ from xorgctl_lib import media as media_module
 
 class FakeAudioWorker:
     def __init__(self, folder):
-        self.c = {"name": "console"}
+        self.c: dict[str, object] = {"name": "console"}
         self.folder = folder
         self.modules = []
         self.sinks = []

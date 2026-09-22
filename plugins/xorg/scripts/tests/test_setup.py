@@ -1,8 +1,10 @@
+# pylint: disable=protected-access
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Any, cast
 from unittest.mock import patch
 
 SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
@@ -158,7 +160,7 @@ class SetupTests(unittest.TestCase):
             patch.object(setup.shutil, "which", return_value="/usr/bin/tool"),
             patch.object(setup, "_command", return_value=completed) as command,
         ):
-            result = setup._dependency_checks()
+            result = cast(dict[str, Any], setup._dependency_checks())
         self.assertEqual(command.call_args.args[0][0], str(setup._venv_python()))
         self.assertIn("PIL", result["python_modules"])
 
@@ -269,12 +271,12 @@ class SetupTests(unittest.TestCase):
                 return_value={"console": {"ready": True, "version": VERSION}},
             ) as worker_checks,
         ):
-            result = setup.status(VERSION)
+            result = cast(dict[str, Any], setup.status(VERSION))
             worker_checks.return_value = {
                 "console": {"ready": True, "version": VERSION},
                 "desktop": {"ready": False, "version": "1.0.5"},
             }
-            stale_result = setup.status(VERSION)
+            stale_result = cast(dict[str, Any], setup.status(VERSION))
         self.assertEqual(result["state"], "ready")
         self.assertEqual(result["session_mode"], "headless_xvfb")
         self.assertTrue(result["dependencies"]["ready"])
@@ -290,7 +292,7 @@ class SetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory) / "state"
             home = pathlib.Path(directory) / "home"
-            calls = []
+            calls: list[object] = []
             with (
                 patch.object(setup, "ROOT", root),
                 patch.object(setup.pathlib.Path, "home", return_value=home),

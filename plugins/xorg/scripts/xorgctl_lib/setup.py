@@ -384,7 +384,10 @@ def _gpu_status() -> dict[str, object]:
         }
     virtualgl = _virtualgl_status()
     config = _session_config("console")
-    env = {**os.environ, **dict(config.get("env", {}))}
+    env = dict(os.environ)
+    config_env = config.get("env")
+    if isinstance(config_env, dict):
+        env.update({str(key): str(value) for key, value in config_env.items()})
     vglrun = pathlib.Path("/opt/VirtualGL/bin/vglrun")
     result = (
         _command(
@@ -808,7 +811,13 @@ def apply(expected_version: str) -> dict[str, object]:
     temporary.chmod(0o600)
     temporary.replace(state)
     if result["state"] != "ready":
-        raise Fault("Xorg setup incomplete: " + ", ".join(result["missing"]))
+        missing = result.get("missing")
+        if not isinstance(missing, list) or not all(
+            isinstance(item, str) for item in missing
+        ):
+            message = "Xorg setup incomplete: invalid missing status"
+            raise Fault(message)
+        raise Fault("Xorg setup incomplete: " + ", ".join(missing))
     return result
 
 
