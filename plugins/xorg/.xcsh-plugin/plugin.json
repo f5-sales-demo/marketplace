@@ -1,6 +1,6 @@
 {
   "name": "xorg",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Ubuntu 24.04 Xorg desktop automation substrate",
   "license": "Apache-2.0",
   "author": {
@@ -24,7 +24,7 @@
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["xorg"],
-    "requirements": ["Ubuntu 24.04 with Xorg"],
+    "requirements": ["Ubuntu 24.04 with passwordless sudo"],
     "setupRequired": true,
     "collectedData": [],
     "pluginDependencies": []
@@ -32,6 +32,6 @@
   "extensions": ["extensions/integration.ts"],
   "xcsh": {
     "name": "Xorg",
-    "version": "1.0.5"
+    "version": "1.0.6"
   }
 }

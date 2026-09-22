@@ -1,11 +1,11 @@
 {
   "name": "xorg",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Ubuntu 24.04 Xorg desktop automation substrate",
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Xorg",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "extensions": [
       "extensions/integration.ts"
     ]
