@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`cloudstatus`** v1.6.1 — runs the Regional Edge collector on Python 3.9 and
+  later, resolves multiple live region scopes, keeps map output below xcsh's
+  result limit, scopes its guard to one request, and atomically hydrates the map
+  tool from a successful correlated collector result without model copying or
+  invented coordinates (#1370).
+
 - **`xorg`** v1.0.9 — creates the managed Python runtime with Ubuntu's system
   interpreter and launches workers from that runtime, even when another Python
   distribution appears first on the invoking user's `PATH` (#1368).

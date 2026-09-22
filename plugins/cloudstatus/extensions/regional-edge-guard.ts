@@ -5,16 +5,30 @@ const LOCATION_SKILL = /cloudstatus(?:[:/])location\b/i;
 const REGIONAL_EDGE = /\bregional\s+edges?\b/i;
 const COLLECTOR =
   /^\s*python3\s+skill:\/\/cloudstatus:network-intelligence\/scripts\/network_lookup\.py\s+(locations\s+--format\s+map-v1|location)\s+"\$CLOUDSTATUS_QUERY"\s*$/;
+const RENDER_PLACEHOLDER = [
+  {
+    label: 'Cloudstatus evidence hydration',
+    longitude: 0,
+    latitude: 0,
+  },
+] as const;
 
 type WorkflowState = {
   active: boolean;
   skillRead: boolean;
-  collector: 'map' | 'factual' | undefined;
-  rendered: boolean;
+  collector:
+    | {
+        kind: 'map' | 'factual';
+        toolCallId: string;
+        status: 'pending' | 'succeeded' | 'failed';
+        mapLocations?: unknown[];
+      }
+    | undefined;
+  renderToolCallId: string | undefined;
 };
 
 function freshState(): WorkflowState {
-  return { active: false, skillRead: false, collector: undefined, rendered: false };
+  return { active: false, skillRead: false, collector: undefined, renderToolCallId: undefined };
 }
 
 function inputText(input: Record<string, unknown>): string {
@@ -125,10 +139,84 @@ function invalidMapResult(event: {
 function failedResult(reason: string) {
   return {
     isError: true,
-    content: [
-      { type: 'text' as const, text: `Cloudstatus Regional Edge guard: ${reason}; a second render is not permitted.` },
-    ],
+    content: [{ type: 'text' as const, text: `Cloudstatus Regional Edge guard: ${reason}` }],
   };
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function validMapLocation(value: unknown): boolean {
+  const location = record(value);
+  if (!location || typeof location.id !== 'string' || typeof location.label !== 'string') return false;
+  const longitude = location.longitude;
+  const latitude = location.latitude;
+  return (
+    typeof longitude === 'number' &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180 &&
+    typeof latitude === 'number' &&
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    Array.isArray(location.sources)
+  );
+}
+
+function isRenderPlaceholder(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length !== 1) return false;
+  const placeholder = record(value[0]);
+  return (
+    placeholder?.label === RENDER_PLACEHOLDER[0].label &&
+    placeholder.longitude === RENDER_PLACEHOLDER[0].longitude &&
+    placeholder.latitude === RENDER_PLACEHOLDER[0].latitude
+  );
+}
+
+function collectorResult(
+  content: Array<{ type: string; text?: string }>,
+  kind: 'map' | 'factual',
+): { mapLocations?: unknown[]; reason?: string } {
+  if (content.length !== 1 || content[0]?.type !== 'text' || typeof content[0].text !== 'string') {
+    return { reason: 'registry collector did not return exactly one JSON text result' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content[0].text);
+  } catch {
+    return { reason: 'registry collector returned malformed JSON' };
+  }
+  const payload = record(parsed);
+  if (!payload || (payload.status !== 'complete' && payload.status !== 'partial')) {
+    return { reason: 'registry collector returned an unavailable or invalid evidence status' };
+  }
+  for (const field of ['sources', 'inferences', 'errors']) {
+    if (!Array.isArray(payload[field])) return { reason: `registry collector omitted the ${field} evidence array` };
+  }
+  if (typeof payload.observed_at !== 'string' || typeof payload.query !== 'string') {
+    return { reason: 'registry collector omitted its query or observation timestamp' };
+  }
+  if (kind === 'map') {
+    if (payload.schema !== 'cloudstatus.locations/v1' || !Array.isArray(payload.map_locations)) {
+      return { reason: 'registry collector returned an invalid cloudstatus.locations/v1 envelope' };
+    }
+    if (
+      !Array.isArray(payload.evidence) ||
+      !Array.isArray(payload.unresolved_locations) ||
+      !payload.map_locations.every(validMapLocation)
+    ) {
+      return { reason: 'registry collector returned invalid renderable or unresolved location evidence' };
+    }
+    return { mapLocations: payload.map_locations };
+  }
+  if (payload.operation !== 'location' || !record(payload.facts)) {
+    return { reason: 'registry collector returned an invalid factual location envelope' };
+  }
+  return {};
 }
 
 /**
@@ -140,7 +228,7 @@ function failedResult(reason: string) {
 export default function regionalEdgeGuard(pi: ExtensionAPI): void {
   (
     pi as ExtensionAPI & {
-      integrations: { register<T>(definition: unknown): unknown };
+      integrations: { register<_T>(definition: unknown): unknown };
     }
   ).integrations.register({
     id: 'cloudstatus',
@@ -155,6 +243,12 @@ export default function regionalEdgeGuard(pi: ExtensionAPI): void {
   let state = freshState();
 
   pi.on('session_start', () => {
+    state = freshState();
+  });
+
+  // A submitted top-level prompt starts a new request. Turns and internal
+  // continuation loops within that request retain the same guard state.
+  pi.on('before_agent_start', () => {
     state = freshState();
   });
 
@@ -183,24 +277,61 @@ export default function regionalEdgeGuard(pi: ExtensionAPI): void {
       if (!state.skillRead) return blocked('read cloudstatus:location before invoking the registry collector');
       if (!match) return blocked('only the direct network_lookup.py registry collector is allowed');
       if (state.collector) return blocked('the registry collector may run exactly once per request');
-      state.collector = match[1].startsWith('locations') ? 'map' : 'factual';
+      if (event.input.async === true) return blocked('the registry collector must run in the foreground');
+      state.collector = {
+        kind: match[1].startsWith('locations') ? 'map' : 'factual',
+        toolCallId: event.toolCallId,
+        status: 'pending',
+      };
       return undefined;
     }
 
     if (event.toolName === 'render_map') {
-      if (state.collector !== 'map')
-        return blocked('render_map requires locations --format map-v1, not a factual location call');
-      if (state.rendered) return blocked('render_map may run exactly once per request');
-      state.rendered = true;
+      if (state.collector?.kind !== 'map')
+        return blocked('render_map requires a successful locations --format map-v1 collector result');
+      if (state.collector.status !== 'succeeded')
+        return blocked('render_map requires the successful registry collector result');
+      if (state.renderToolCallId) return blocked('render_map may run exactly once per request');
+      if (!isRenderPlaceholder(event.input.locations)) {
+        return blocked('render_map must use the Cloudstatus evidence hydration placeholder');
+      }
+      if (!state.collector.mapLocations?.length) {
+        return blocked('the registry collector returned no coordinate-complete locations to render');
+      }
+      // xcsh passes this same arguments object from the pre-call hook into the
+      // renderer. Hydrate it here so the model never reconstructs evidence.
+      event.input.locations = state.collector.mapLocations;
+      state.renderToolCallId = event.toolCallId;
     }
 
     return undefined;
   });
 
   pi.on('tool_result', (event) => {
-    if (!state.active || event.toolName !== 'render_map') return undefined;
-    if (state.collector !== 'map' || !state.rendered) return failedResult('unexpected render_map result');
+    if (!state.active) return undefined;
+    if (
+      event.toolName === 'bash' &&
+      state.collector?.status === 'pending' &&
+      event.toolCallId === state.collector.toolCallId
+    ) {
+      if (event.isError) {
+        state.collector.status = 'failed';
+        return undefined;
+      }
+      const result = collectorResult(event.content, state.collector.kind);
+      if (result.reason) {
+        state.collector.status = 'failed';
+        return failedResult(result.reason);
+      }
+      state.collector.status = 'succeeded';
+      state.collector.mapLocations = result.mapLocations;
+      return undefined;
+    }
+    if (event.toolName !== 'render_map' || event.toolCallId !== state.renderToolCallId) return undefined;
+    if (state.collector?.kind !== 'map' || state.collector.status !== 'succeeded') {
+      return failedResult('unexpected render_map result; a second render is not permitted');
+    }
     const reason = invalidMapResult(event);
-    return reason ? failedResult(reason) : undefined;
+    return reason ? failedResult(`${reason}; a second render is not permitted`) : undefined;
   });
 }

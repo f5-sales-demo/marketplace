@@ -90,7 +90,14 @@ evidence. It consults F5 Statuspage, PeeringDB, and Wikidata only; missing or
 conflicting evidence stays unresolved. Visual intent returns that evidence to
 the parent xcsh session for one `render_map` call; factual intent stays
 text-first. It never delegates, runs general search, or calls a second renderer
-or `display_media`.
+or `display_media`. The enforcement state spans every model turn in that agent
+request and resets before the next top-level request, including after collector
+failure. A map is permitted only after a successful collector result and must
+use the fixed, schema-valid `Cloudstatus evidence hydration` sentinel. The guard
+atomically replaces that placeholder with the validated `map_locations`
+evidence immediately before rendering. Coordinate-free entries remain in
+`unresolved_locations` for the answer and are never rendered at invented
+coordinates.
 
 ## Prompt-trace acceptance
 
@@ -185,7 +192,7 @@ address override, or durable location cache.
 
 - xcsh 20.19.0 or later, which provides provenance-aware `render_map`
 - Plugin skill, task-agent, `skill://`, Bash, and web-search support
-- Python 3 standard library for network collection
+- Python 3.9 or later standard library for network collection
 - `curl` and `jq` for status reports
 - Network access to the selected live sources
 - Optional `ping`, `tracepath` or `traceroute`, and `mtr` for path diagnostics

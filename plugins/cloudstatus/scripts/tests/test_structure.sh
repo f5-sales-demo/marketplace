@@ -22,7 +22,7 @@ test_plugin_metadata_is_consistent() {
   package_version=$(jq -r '.version' "$package_json")
   marketplace_version=$(jq -r '.plugins[] | select(.name == "cloudstatus") | .version' "$marketplace_json")
 
-  [ "$plugin_version" = "1.6.0" ] || {
+  [ "$plugin_version" = "1.6.1" ] || {
     echo "plugin version is $plugin_version"
     return 1
   }
