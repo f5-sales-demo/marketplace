@@ -43,15 +43,16 @@ class SetupTests(unittest.TestCase):
             home = pathlib.Path(directory)
             with (
                 patch.object(setup.pathlib.Path, "home", return_value=home),
-                patch.object(setup.sys, "executable", "/opt/anaconda/bin/python3"),
+                patch.dict(
+                    setup.os.environ,
+                    {"PATH": "/opt/anaconda/bin:/usr/bin"},
+                ),
                 patch.object(setup, "_command", side_effect=command),
             ):
                 interpreter = setup._install_python()
 
         self.assertEqual(calls[0][0][0], "/usr/bin/python3")
-        self.assertEqual(
-            calls[0][0][1:3], ["-m", "venv"]
-        )
+        self.assertEqual(calls[0][0][1:3], ["-m", "venv"])
         self.assertEqual(interpreter, home / ".local/share/xorgctl/venv/bin/python")
 
     def test_session_worker_uses_managed_interpreter_after_setup(self):
