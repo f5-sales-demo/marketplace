@@ -595,13 +595,15 @@ def _install_services() -> None:
     )
     systemd = pathlib.Path.home() / ".config/systemd/user"
     systemd.mkdir(parents=True, exist_ok=True)
-    (systemd / "xorgctl-session@.service").write_text(
+    session_service = systemd / "xorgctl-session@.service"
+    camera_service = systemd / "xcsh-camera.service"
+    session_service.write_text(
         "[Unit]\nDescription=xorgctl session %i\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=%h/.local/bin/xorgctl _service %i\nRestart=on-failure\nRestartSec=2\nKillMode=control-group\nUMask=0077\n\n[Install]\nWantedBy=default.target\n"
     )
-    (systemd / "xcsh-camera.service").write_text(
+    camera_service.write_text(
         "[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1280x720:rate=30 -vf \"drawtext=text='xcsh Camera':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65\" -f v4l2 -pix_fmt yuv420p /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n"
     )
-    for path in systemd.glob("*.service"):
+    for path in (session_service, camera_service):
         path.chmod(0o644)
     _command(["sudo", "-n", "loginctl", "enable-linger", user], check=True)
     _command(["systemctl", "--user", "daemon-reload"], check=True)

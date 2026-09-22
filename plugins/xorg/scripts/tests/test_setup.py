@@ -140,6 +140,35 @@ class SetupTests(unittest.TestCase):
             check=True,
         )
 
+    def test_service_install_preserves_unrelated_masked_user_unit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = pathlib.Path(directory) / "home"
+            systemd = home / ".config/systemd/user"
+            systemd.mkdir(parents=True)
+            unrelated = systemd / "snap.example.unrelated.service"
+            unrelated.symlink_to("/dev/null")
+            original_chmod = pathlib.Path.chmod
+
+            def reject_unrelated_chmod(path, mode):
+                if path == unrelated:
+                    raise PermissionError("unrelated masked service")
+                return original_chmod(path, mode)
+
+            with (
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(setup.pathlib.Path, "chmod", reject_unrelated_chmod),
+                patch.object(setup, "_install_root_file"),
+                patch.object(
+                    setup,
+                    "_command",
+                    return_value=subprocess.CompletedProcess([], 0, "", ""),
+                ),
+            ):
+                setup._install_services()
+
+            self.assertTrue(unrelated.is_symlink())
+            self.assertEqual(unrelated.readlink(), pathlib.Path("/dev/null"))
+
     def test_voice_install_is_idempotent_when_pinned_assets_are_ready(self):
         with (
             patch.object(setup, "_speech_status", return_value={"ready": True}),
