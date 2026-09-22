@@ -51,7 +51,10 @@ test_governance_is_advisory() {
   local workflow="$PLUGIN_ROOT/src/tools/github-workflow.ts"
   grep -q 'advisories:' "$workflow"
   grep -q 'github.cleanup_without_merge_proof' "$workflow"
-  ! grep -Rq 'GITHUB_ALLOW_MUTATIONS\|headless-blocked\|findMutation' "$PLUGIN_ROOT/src"
+  if grep -Rq 'GITHUB_ALLOW_MUTATIONS\|headless-blocked\|findMutation' "$PLUGIN_ROOT/src"; then
+    echo "blocking mutation guard remains"
+    return 1
+  fi
   [ ! -e "$PLUGIN_ROOT/hooks/hooks.json" ]
   [ ! -e "$PLUGIN_ROOT/scripts/ensure-precommit.sh" ]
 }
