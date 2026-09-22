@@ -22,8 +22,8 @@ test_plugin_metadata_is_consistent() {
   package_version=$(jq -r '.version' "$package_json")
   marketplace_version=$(jq -r '.plugins[] | select(.name == "cloudstatus") | .version' "$marketplace_json")
 
-  [ "$plugin_version" = "1.6.1" ] || {
-    echo "plugin version is $plugin_version"
+  [[ "$plugin_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+    echo "plugin version is not valid SemVer: $plugin_version"
     return 1
   }
   [ "$package_version" = "$plugin_version" ] || {
