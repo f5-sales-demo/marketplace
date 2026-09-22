@@ -1,4 +1,4 @@
-# ruff: noqa: D101, D102, D103, EM102, INP001, PT009, S603, TC003, TRY003
+# ruff: noqa: EM102, INP001, PT009, S603, TRY003
 # pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring,too-many-arguments
 """Hermetic trace-contract tests for Cloudstatus Regional Edge prompt routing."""
 

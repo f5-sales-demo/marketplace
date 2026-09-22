@@ -62,18 +62,27 @@ def collector_locations(completion: dict[str, Any]) -> list[dict[str, Any]]:
     result = completion.get("result")
     content = result.get("content") if isinstance(result, dict) else None
     if not isinstance(content, list) or len(content) != 1:
-        raise ValueError("registry collector completion must contain one JSON text block")
+        raise ValueError(
+            "registry collector completion must contain one JSON text block"
+        )
     block = content[0]
     if not isinstance(block, dict) or block.get("type") != "text":
-        raise ValueError("registry collector completion must contain one JSON text block")
+        raise ValueError(
+            "registry collector completion must contain one JSON text block"
+        )
     text = block.get("text")
     if not isinstance(text, str):
         raise ValueError("registry collector completion text is missing")
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as error:
-        raise ValueError("registry collector completion contains malformed JSON") from error
-    if not isinstance(payload, dict) or payload.get("schema") != "cloudstatus.locations/v1":
+        raise ValueError(
+            "registry collector completion contains malformed JSON"
+        ) from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != "cloudstatus.locations/v1"
+    ):
         raise ValueError("registry collector completion has the wrong schema")
     locations = payload.get("map_locations")
     if not isinstance(locations, list):

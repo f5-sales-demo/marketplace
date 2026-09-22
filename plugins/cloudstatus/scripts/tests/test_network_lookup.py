@@ -1,4 +1,5 @@
 # ruff: noqa: INP001, PT009, PT027
+# pylint: disable=protected-access
 """Hermetic unit tests for the cloudstatus network lookup engine."""
 
 from __future__ import annotations
@@ -593,7 +594,9 @@ class LocationInventoryTests(EngineTestCase):
         self.assertNotIn("regional_edge_groups", compact)
         self.assertNotIn("ix_participation", compact)
 
-    def test_map_v1_preserves_unresolved_evidence_without_rendering_fake_coordinates(self):
+    def test_map_v1_preserves_unresolved_evidence_without_rendering_fake_coordinates(
+        self,
+    ):
         fixtures = self.base_fixtures()
         fixtures["components.json"]["components"] = [
             fixtures["components.json"]["components"][0],
