@@ -181,7 +181,7 @@ def start(c):
     entry = pathlib.Path(__file__).parents[1] / "xorgctl"
     log = (folder / "worker.log").open("ab")
     pathlib.Path(log.name).chmod(0o600)
-    argv = [sys.executable, str(entry), "_supervise", c["name"]]
+    argv = [_worker_interpreter(), str(entry), "_supervise", c["name"]]
     p = subprocess.Popen(
         argv,
         env=environment(c),
@@ -202,6 +202,11 @@ def start(c):
     p.terminate()
     msg = f"worker startup timeout; inspect {folder}/worker.log"
     raise Fault(msg)
+
+
+def _worker_interpreter() -> str:
+    managed = pathlib.Path.home() / ".local/share/xorgctl/venv/bin/python"
+    return str(managed) if managed.is_file() else sys.executable
 
 
 def service(name) -> None:

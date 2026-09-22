@@ -10,7 +10,6 @@ import re
 import shlex
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import time
@@ -21,6 +20,7 @@ from .sessions import manage as manage_session
 
 UBUNTU_ID = "ubuntu"
 UBUNTU_VERSION = "24.04"
+SYSTEM_PYTHON = "/usr/bin/python3"
 NERD_FONTS_VERSION = "3.5.1"
 NERD_FONTS_SHA256 = "04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf"
 NERD_FONTS_URL = f"https://github.com/ryanoasis/nerd-fonts/releases/download/v{NERD_FONTS_VERSION}/JetBrainsMono.tar.xz"
@@ -471,7 +471,7 @@ def _install_packages() -> None:
 def _install_python() -> pathlib.Path:
     venv = pathlib.Path.home() / ".local/share/xorgctl/venv"
     _command(
-        [sys.executable, "-m", "venv", "--system-site-packages", str(venv)],
+        [SYSTEM_PYTHON, "-m", "venv", "--system-site-packages", str(venv)],
         check=True,
         timeout=120,
     )

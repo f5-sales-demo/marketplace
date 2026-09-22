@@ -10,7 +10,7 @@ from unittest.mock import patch
 SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
-from xorgctl_lib import setup  # noqa: E402
+from xorgctl_lib import sessions, setup  # noqa: E402
 from xorgctl_lib.common import VERSION  # noqa: E402
 
 
@@ -31,6 +31,41 @@ class SetupTests(unittest.TestCase):
             ["sudo", "-n", "env", "DEBIAN_FRONTEND=noninteractive", "apt-get"],
         )
         self.assertEqual(calls[1][0][5], "install")
+
+    def test_python_install_uses_ubuntu_interpreter_when_invoked_by_anaconda(self):
+        calls = []
+
+        def command(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as directory:
+            home = pathlib.Path(directory)
+            with (
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.dict(
+                    setup.os.environ,
+                    {"PATH": "/opt/anaconda/bin:/usr/bin"},
+                ),
+                patch.object(setup, "_command", side_effect=command),
+            ):
+                interpreter = setup._install_python()
+
+        self.assertEqual(calls[0][0][0], "/usr/bin/python3")
+        self.assertEqual(calls[0][0][1:3], ["-m", "venv"])
+        self.assertEqual(interpreter, home / ".local/share/xorgctl/venv/bin/python")
+
+    def test_session_worker_uses_managed_interpreter_after_setup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = pathlib.Path(directory)
+            managed = home / ".local/share/xorgctl/venv/bin/python"
+            managed.parent.mkdir(parents=True)
+            managed.touch()
+            with (
+                patch.object(sessions.pathlib.Path, "home", return_value=home),
+                patch.object(sessions.sys, "executable", "/opt/anaconda/bin/python3"),
+            ):
+                self.assertEqual(sessions._worker_interpreter(), str(managed))
 
     def test_font_install_is_idempotent_when_pinned_font_is_ready(self):
         with (

@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.0.9 — creates the managed Python runtime with Ubuntu's system
+  interpreter and launches workers from that runtime, even when another Python
+  distribution appears first on the invoking user's `PATH` (#1368).
+
 - **`xorg`** v1.0.8 — restricts setup permission changes to Xorg-owned user
   services so unrelated masked units cannot block clean-host prerequisite installation (#1366).
 

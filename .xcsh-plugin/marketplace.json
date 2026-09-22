@@ -540,7 +540,7 @@
     },
     {
       "name": "xorg",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "description": "Ubuntu 24.04 Xorg desktop automation substrate",
       "license": "Apache-2.0",
       "author": {
@@ -549,7 +549,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Xorg",
-        "version": "1.0.8"
+        "version": "1.0.9"
       },
       "source": "./plugins/xorg",
       "category": "development",
