@@ -73,7 +73,7 @@ class Query:
 
 def _utc_now() -> str:
     return (
-        dt.datetime.now(dt.UTC)
+        dt.datetime.now(dt.timezone.utc)  # noqa: UP017 - Python 3.9 and 3.10 support
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -157,7 +157,13 @@ def _retry_delay(value: str | None, attempt: int) -> float:
         except ValueError:
             try:
                 parsed = email.utils.parsedate_to_datetime(value)
-                now = dt.datetime.now(parsed.tzinfo or dt.UTC)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(
+                        tzinfo=dt.timezone.utc  # noqa: UP017 - Python 3.9 and 3.10 support
+                    )
+                now = dt.datetime.now(
+                    dt.timezone.utc  # noqa: UP017 - Python 3.9 and 3.10 support
+                )
                 return min(MAX_RETRY_AFTER, max(0.0, (parsed - now).total_seconds()))
             except (TypeError, ValueError, OverflowError):
                 pass
@@ -1038,13 +1044,39 @@ class Investigator:
                     *record["site_codes"],
                 ]
             ).casefold()
-            if not query_lower or query_lower in searchable:
-                edges.append(record)
+            edges.append((record, searchable))
+        if query_lower:
+            exact = [
+                record for record, searchable in edges if query_lower in searchable
+            ]
+            if exact:
+                selected = exact
+            else:
+                terms = [
+                    term[:-1] if len(term) > 3 and term.endswith("s") else term
+                    for term in re.findall(r"\w+", query_lower, flags=re.UNICODE)
+                ]
+                group_search = [
+                    " ".join([str(record["group"]), str(record["region"])]).casefold()
+                    for record, _searchable in edges
+                ]
+                if terms and all(
+                    any(term in group for group in group_search) for term in terms
+                ):
+                    selected = [
+                        record
+                        for index, (record, _searchable) in enumerate(edges)
+                        if any(term in group_search[index] for term in terms)
+                    ]
+                else:
+                    selected = []
+        else:
+            selected = [record for record, _searchable in edges]
         return {
             "regional_edge_groups": [
                 {"id": key, "name": value} for key, value in groups.items()
             ],
-            "edge_components": edges,
+            "edge_components": selected,
         }
 
     def _wikidata_metro_candidates(
@@ -1309,7 +1341,8 @@ ORDER BY ?metroLabel ?place
                 "map_location": location,
             }
             records.append(record)
-            map_locations.append(location)
+            if "longitude" in location and "latitude" in location:
+                map_locations.append(location)
 
         return {
             "regional_edge_groups": edge_facts["regional_edge_groups"],
@@ -1531,34 +1564,18 @@ def exit_code(report: dict[str, Any]) -> int:
     return 0
 
 
-def _compact_component(edge: dict[str, Any]) -> dict[str, Any]:
-    """Return public component evidence without retaining source payload fields."""
-    return {
-        key: edge.get(key)
-        for key in (
-            "id",
-            "name",
-            "status",
-            "group",
-            "region",
-            "metro",
-            "country",
-            "site_codes",
-        )
-    }
-
-
-def _compact_facility(
-    facility: dict[str, Any], classification: str, coordinate_provenance: str
-) -> dict[str, Any]:
+def _compact_facility(facility: dict[str, Any], classification: str) -> dict[str, Any]:
     """Keep only a facility candidate's map-relevant, non-sensitive evidence."""
     return {
-        "id": facility.get("id"),
-        "name": facility.get("name"),
-        "metro": facility.get("city"),
-        "country": facility.get("country"),
-        "classification": classification,
-        "coordinate_provenance": coordinate_provenance,
+        key: value
+        for key, value in {
+            "id": facility.get("id"),
+            "name": facility.get("name"),
+            "metro": facility.get("city"),
+            "country": facility.get("country"),
+            "classification": classification,
+        }.items()
+        if value not in (None, "")
     }
 
 
@@ -1566,43 +1583,41 @@ def compact_locations_report(report: dict[str, Any]) -> dict[str, Any]:
     """Create the stable, render-oriented locations map-v1 response."""
     facts = report.get("facts", {})
     evidence: list[dict[str, Any]] = []
+    unresolved_locations: list[dict[str, Any]] = []
     for record in facts.get("location_records", []):
-        candidates = [
-            _compact_facility(item, "direct-metro", "PeeringDB facility")
+        candidates_by_id = {
+            str(item.get("id")): _compact_facility(item, "direct-metro")
             for item in record.get("direct_metro_facilities", [])
-        ]
+        }
         for item in record.get("site_code_facility_candidates", []):
-            compact = _compact_facility(item, "site-code", "PeeringDB facility")
-            if compact not in candidates:
-                candidates.append(compact)
-        evidence.append(
-            {
-                "component": _compact_component(record.get("component", {})),
-                "placement_assessment": record.get("placement_assessment"),
-                "facility_candidates": candidates,
-                "coordinate_provenance": [
-                    {
-                        "source_name": source.get("sourceName"),
-                        "url": source.get("url"),
-                        "claim": source.get("claim"),
-                    }
-                    for source in record.get("map_location", {}).get("sources", [])
-                ],
-                "limitations": [
-                    "Facility candidates and metro coordinates do not prove Regional Edge service placement."
-                ],
-            }
-        )
+            candidates_by_id[str(item.get("id"))] = _compact_facility(item, "site-code")
+        candidates = list(candidates_by_id.values())
+        location = record.get("map_location", {})
+        if "longitude" not in location or "latitude" not in location:
+            unresolved_locations.append(location)
+        if candidates:
+            component = record.get("component", {})
+            evidence.append(
+                {
+                    "location_id": location.get("id") or component.get("id"),
+                    "placement_assessment": record.get("placement_assessment"),
+                    "facility_candidates": candidates,
+                }
+            )
     return {
         "schema": "cloudstatus.locations/v1",
         "observed_at": report.get("observed_at"),
         "query": report.get("query"),
         "status": report.get("status"),
         "map_locations": facts.get("map_locations", []),
+        "unresolved_locations": unresolved_locations,
         "evidence": evidence,
         "sources": report.get("sources", []),
         "inferences": report.get("inferences", []),
         "errors": report.get("errors", []),
+        "limitations": [
+            "Facility candidates and metro coordinates do not prove Regional Edge service placement."
+        ],
     }
 
 
@@ -1637,9 +1652,18 @@ def main(argv: list[str] | None = None) -> int:
         report = Investigator().run(operation, query)
     except InvalidInputError as error:
         report = invalid_report(operation, query, str(error))
-    if getattr(namespace, "format", "full") == "map-v1":
+    map_v1 = getattr(namespace, "format", "full") == "map-v1"
+    if map_v1:
         report = compact_locations_report(report)
-    print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False))  # noqa: T201
+    print(  # noqa: T201
+        json.dumps(
+            report,
+            indent=None if map_v1 else 2,
+            separators=(",", ":") if map_v1 else None,
+            sort_keys=False,
+            ensure_ascii=False,
+        )
+    )
     return exit_code(report)
 
 

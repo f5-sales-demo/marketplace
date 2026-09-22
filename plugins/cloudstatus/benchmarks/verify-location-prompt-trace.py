@@ -55,6 +55,41 @@ def tool_input(event: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def collector_locations(completion: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract the validated map array from one successful collector completion."""
+    if completion.get("isError") is not False:
+        raise ValueError("registry collector completion reported an error")
+    result = completion.get("result")
+    content = result.get("content") if isinstance(result, dict) else None
+    if not isinstance(content, list) or len(content) != 1:
+        raise ValueError(
+            "registry collector completion must contain one JSON text block"
+        )
+    block = content[0]
+    if not isinstance(block, dict) or block.get("type") != "text":
+        raise ValueError(
+            "registry collector completion must contain one JSON text block"
+        )
+    text = block.get("text")
+    if not isinstance(text, str):
+        raise ValueError("registry collector completion text is missing")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            "registry collector completion contains malformed JSON"
+        ) from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != "cloudstatus.locations/v1"
+    ):
+        raise ValueError("registry collector completion has the wrong schema")
+    locations = payload.get("map_locations")
+    if not isinstance(locations, list):
+        raise ValueError("registry collector completion is missing map_locations")
+    return locations
+
+
 def parse_png(png: bytes) -> tuple[int, int]:
     """Validate the structural PNG contract and return IHDR dimensions."""
     if not png.startswith(PNG_SIGNATURE):
@@ -198,7 +233,10 @@ def analyze_trace(
         index
         for index, event in enumerate(starts)
         if event["toolName"] == "read"
-        and "cloudstatus/location" in str(tool_input(event).get("path", ""))
+        and re.search(
+            r"cloudstatus(?::|/)location(?:/SKILL\.md)?$",
+            str(tool_input(event).get("path", "")),
+        )
     ]
     if len(skill_reads) != 1:
         errors.append(
@@ -220,6 +258,26 @@ def analyze_trace(
         tool_input(starts[collector_starts[0]]).get("command", "")
     ):
         errors.append(f"collector must use {collector!r}")
+
+    collected_locations: list[dict[str, Any]] | None = None
+    if scenario["intent"] == "visual" and len(collector_starts) == 1:
+        collector_id = starts[collector_starts[0]].get("toolCallId")
+        collector_completions = [
+            event
+            for event in events
+            if event.get("type") == "tool_execution_end"
+            and event.get("toolName") == "bash"
+            and event.get("toolCallId") == collector_id
+        ]
+        if len(collector_completions) != 1:
+            errors.append(
+                f"expected one paired registry collector completion, found {len(collector_completions)}"
+            )
+        else:
+            try:
+                collected_locations = collector_locations(collector_completions[0])
+            except ValueError as error:
+                errors.append(str(error))
 
     render_starts = [event for event in starts if event["toolName"] == "render_map"]
     render_completions = [
@@ -247,6 +305,17 @@ def analyze_trace(
         errors.append(
             f"expected {expected_renders} render_map completions, found {len(render_completions)}"
         )
+
+    evidence_hydrated_exactly = False
+    if visual and len(render_starts) == 1:
+        locations = tool_input(render_starts[0]).get("locations")
+        evidence_hydrated_exactly = (
+            collected_locations is not None and locations == collected_locations
+        )
+        if not evidence_hydrated_exactly:
+            errors.append(
+                "render_map locations must exactly match the registry collector result"
+            )
 
     paired = False
     if visual and len(render_starts) == 1 and len(render_completions) == 1:
@@ -304,6 +373,7 @@ def analyze_trace(
             name in tools for name in ("task", "web_search", "display_media")
         ),
         "tool_ordering_valid": ordering_valid,
+        "evidence_hydrated_exactly": visual and evidence_hydrated_exactly,
         "successful_render_pair": visual and paired and image_receipt is not None,
         "valid_png": visual and image_receipt is not None,
         "zero_image_generation": not visual

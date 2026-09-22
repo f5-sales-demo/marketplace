@@ -1,4 +1,5 @@
-# ruff: noqa: ANN001, ANN003, ANN201, ANN202, D101, D102, D103, D107, INP001, PT009, PT027, S101, TC003
+# ruff: noqa: INP001, PT009, PT027
+# pylint: disable=protected-access
 """Hermetic unit tests for the cloudstatus network lookup engine."""
 
 from __future__ import annotations
@@ -66,6 +67,13 @@ class EngineTestCase(unittest.TestCase):
         cls.engine = load_engine()
 
 
+class TimestampTests(EngineTestCase):
+    def test_utc_timestamp_uses_the_supported_python_runtime_api(self):
+        observed_at = self.engine._utc_now()
+
+        self.assertRegex(observed_at, r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
 class NormalizationTests(EngineTestCase):
     def test_hostname_ip_prefix_and_asn_normalization(self):
         cases = {
@@ -105,6 +113,9 @@ class NormalizationTests(EngineTestCase):
 
 
 class HttpClientTests(EngineTestCase):
+    def test_http_date_retry_after_is_supported_on_python_3_9(self):
+        self.assertEqual(self.engine._retry_delay("Fri, 01 Jan 2100 00:00:00", 1), 10)
+
     def test_rate_limit_retry_timeout_cap_and_memoization(self):
         headers = Message()
         headers["Retry-After"] = "99"
@@ -421,6 +432,52 @@ class LocationInventoryTests(EngineTestCase):
         )
         self.assertEqual(len(region["facts"]["map_locations"]), 2)
 
+    def test_multiple_live_region_scopes_are_a_union(self):
+        fixtures = self.base_fixtures()
+        fixtures["components.json"]["components"] = [
+            {
+                "id": f"group-{index}",
+                "name": group,
+                "group": True,
+            }
+            for index, group in enumerate(
+                (
+                    "North America PoPs",
+                    "South America PoPs",
+                    "Europe PoPs",
+                    "Asia PoPs",
+                    "Oceania PoPs",
+                )
+            )
+        ]
+        fixtures["components.json"]["components"].extend(
+            {
+                "id": f"edge-{index}",
+                "name": f"Fixtureville {index}, Exampleland",
+                "group": False,
+                "group_id": f"group-{index}",
+                "status": "operational",
+            }
+            for index in range(5)
+        )
+
+        report = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+            "locations", "Americas Europe Asia"
+        )
+
+        self.assertEqual(
+            [
+                item["component"]["group"]
+                for item in report["facts"]["location_records"]
+            ],
+            [
+                "North America PoPs",
+                "South America PoPs",
+                "Europe PoPs",
+                "Asia PoPs",
+            ],
+        )
+
     def test_multiple_facilities_remain_ambiguous_at_a_metro_point(self):
         fixtures = self.base_fixtures()
         fixtures["components.json"]["components"] = [
@@ -495,7 +552,7 @@ class LocationInventoryTests(EngineTestCase):
         self.assertEqual(record["map_location"]["resolution"], "candidate")
         self.assertEqual(record["map_location"]["confidence"], "low")
 
-    def test_unresolved_result_is_preserved_without_coordinates(self):
+    def test_unresolved_result_is_preserved_outside_renderable_locations(self):
         fixtures = self.base_fixtures()
         fixtures["components.json"]["components"] = [
             fixtures["components.json"]["components"][0],
@@ -509,9 +566,11 @@ class LocationInventoryTests(EngineTestCase):
         ]
         fixtures["query.wikidata.org"] = {"results": {"bindings": []}}
 
-        location = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
+        facts = self.engine.Investigator(http=FakeHttp(self.engine, fixtures)).run(
             "locations", "Unresolved"
-        )["facts"]["map_locations"][0]
+        )["facts"]
+        self.assertEqual(facts["map_locations"], [])
+        location = facts["location_records"][0]["map_location"]
         self.assertEqual(location["precision"], "unresolved")
         self.assertEqual(location["resolution"], "unresolved")
         self.assertNotIn("longitude", location)
@@ -527,14 +586,17 @@ class LocationInventoryTests(EngineTestCase):
         self.assertEqual(compact["query"], "Exampleland")
         self.assertEqual(compact["observed_at"], report["observed_at"])
         self.assertEqual(len(compact["map_locations"]), 1)
-        self.assertEqual(compact["evidence"][0]["component"]["id"], "edge-fv1")
-        self.assertTrue(compact["evidence"][0]["coordinate_provenance"])
+        self.assertEqual(compact["evidence"], [])
+        self.assertTrue(compact["map_locations"][0]["sources"])
+        self.assertTrue(compact["limitations"])
         serialized = json.dumps(compact)
         self.assertNotIn("Synthetic address from current fixture", serialized)
         self.assertNotIn("regional_edge_groups", compact)
         self.assertNotIn("ix_participation", compact)
 
-    def test_map_v1_preserves_ambiguous_and_unresolved_locations(self):
+    def test_map_v1_preserves_unresolved_evidence_without_rendering_fake_coordinates(
+        self,
+    ):
         fixtures = self.base_fixtures()
         fixtures["components.json"]["components"] = [
             fixtures["components.json"]["components"][0],
@@ -551,10 +613,53 @@ class LocationInventoryTests(EngineTestCase):
             "locations", "Fictional"
         )
         compact = self.engine.compact_locations_report(report)
-        location = compact["map_locations"][0]
+        self.assertEqual(compact["map_locations"], [])
+        location = compact["unresolved_locations"][0]
         self.assertEqual(location["resolution"], "unresolved")
         self.assertNotIn("longitude", location)
-        self.assertEqual(compact["evidence"][0]["placement_assessment"], "unresolved")
+        self.assertEqual(compact["evidence"], [])
+
+    def test_map_v1_deduplicates_and_keeps_only_facility_correlations(self):
+        facility = {
+            "id": 42,
+            "name": "Fixture Facility",
+            "city": "Fixtureville",
+            "country": "Exampleland",
+        }
+        report = {
+            "observed_at": "2026-09-22T12:00:00Z",
+            "query": "Exampleland",
+            "status": "complete",
+            "facts": {
+                "map_locations": [],
+                "location_records": [
+                    {
+                        "component": {"id": "candidate", "name": "Candidate"},
+                        "placement_assessment": "candidate",
+                        "direct_metro_facilities": [facility],
+                        "site_code_facility_candidates": [facility],
+                    },
+                    {
+                        "component": {"id": "unresolved", "name": "Unresolved"},
+                        "placement_assessment": "unresolved",
+                        "direct_metro_facilities": [],
+                        "site_code_facility_candidates": [],
+                    },
+                ],
+            },
+            "sources": [],
+            "inferences": [],
+            "errors": [],
+        }
+
+        evidence = self.engine.compact_locations_report(report)["evidence"]
+
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0]["location_id"], "candidate")
+        self.assertEqual(len(evidence[0]["facility_candidates"]), 1)
+        self.assertEqual(
+            evidence[0]["facility_candidates"][0]["classification"], "site-code"
+        )
 
     def test_site_codes_are_extracted_only_from_live_component_names(self):
         fixtures = peering_fixtures() | {
@@ -612,7 +717,32 @@ class FailureModeTests(EngineTestCase):
             "status": "complete",
             "facts": {
                 "map_locations": [],
-                "location_records": [],
+                "location_records": [
+                    {
+                        "component": {
+                            "id": "edge-example",
+                            "name": "Fixtureville, Exampleland",
+                            "status": "operational",
+                            "group": "Example Region Regional Edges",
+                            "region": "Example Region",
+                            "metro": "Fixtureville",
+                            "country": "Exampleland",
+                            "site_codes": [],
+                        },
+                        "placement_assessment": "unresolved",
+                        "direct_metro_facilities": [],
+                        "site_code_facility_candidates": [],
+                        "map_location": {
+                            "sources": [
+                                {
+                                    "sourceName": "F5 Statuspage components",
+                                    "url": "https://example.test",
+                                    "claim": "Repeated map provenance",
+                                }
+                            ]
+                        },
+                    }
+                ],
                 "regional_edge_groups": [{"id": "raw", "name": "omitted"}],
             },
             "inferences": [],
@@ -633,6 +763,14 @@ class FailureModeTests(EngineTestCase):
         self.assertEqual(result["schema"], "cloudstatus.locations/v1")
         self.assertEqual(result["query"], "Canada")
         self.assertNotIn("facts", result)
+        self.assertEqual(len(stdout.getvalue().splitlines()), 1)
+        self.assertEqual(result["evidence"], [])
+        self.assertEqual(
+            result["limitations"],
+            [
+                "Facility candidates and metro coordinates do not prove Regional Edge service placement."
+            ],
+        )
 
     def test_partial_source_failure_keeps_usable_results(self):
         http = FakeHttp(

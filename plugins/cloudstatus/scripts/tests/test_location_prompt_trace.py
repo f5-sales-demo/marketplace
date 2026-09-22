@@ -1,4 +1,4 @@
-# ruff: noqa: D101, D102, D103, EM102, INP001, PT009, S603, TC003, TRY003
+# ruff: noqa: EM102, INP001, PT009, S603, TRY003
 # pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring,too-many-arguments
 """Hermetic trace-contract tests for Cloudstatus Regional Edge prompt routing."""
 
@@ -118,6 +118,49 @@ def render_result(
     }
 
 
+MAP_LOCATIONS = [
+    {
+        "id": "edge-example",
+        "label": "Example Regional Edge",
+        "longitude": -75,
+        "latitude": 45,
+        "sources": [],
+    }
+]
+
+
+def collector_result(locations: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "type": "tool_execution_end",
+        "toolCallId": "bash-call",
+        "toolName": "bash",
+        "isError": False,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "schema": "cloudstatus.locations/v1",
+                            "observed_at": "2026-09-22T12:00:00Z",
+                            "query": "Example",
+                            "status": "complete",
+                            "map_locations": MAP_LOCATIONS
+                            if locations is None
+                            else locations,
+                            "unresolved_locations": [],
+                            "evidence": [],
+                            "sources": [],
+                            "inferences": [],
+                            "errors": [],
+                        }
+                    ),
+                }
+            ]
+        },
+    }
+
+
 def workflow(*render_events: dict[str, Any]) -> str:
     return trace(
         start("read", {"path": "skill://cloudstatus/location"}),
@@ -127,7 +170,8 @@ def workflow(*render_events: dict[str, Any]) -> str:
                 "command": 'python3 skill://cloudstatus:network-intelligence/scripts/network_lookup.py locations --format map-v1 "$CLOUDSTATUS_QUERY"'
             },
         ),
-        start("render_map", {"locations": []}, "render-call"),
+        collector_result(),
+        start("render_map", {"locations": MAP_LOCATIONS}, "render-call"),
         *render_events,
     )
 
@@ -154,6 +198,24 @@ class LocationPromptTraceTests(unittest.TestCase):
         self.assertTrue(result["pass"], result["errors"])
         self.assertEqual(result["receipt"]["claims"]["valid_png"], True)
         self.assertEqual(result["receipt"]["image"]["dimensions"], [2, 3])
+
+    def test_visual_trace_requires_exact_collector_hydration(self) -> None:
+        copied = workflow(render_result()).replace(
+            '"label": "Example Regional Edge"',
+            '"label": "model-altered"',
+            1,
+        )
+        self.assert_error(
+            self.verifier.evaluate_trace(VISUAL, copied),
+            "exactly match the registry collector result",
+        )
+
+    def test_accepts_canonical_colon_skill_uri(self) -> None:
+        colon_uri = workflow(render_result()).replace(
+            "skill://cloudstatus/location", "skill://cloudstatus:location", 1
+        )
+        result = self.verifier.evaluate_trace(VISUAL, colon_uri)
+        self.assertTrue(result["pass"], result["errors"])
 
     def test_rejects_render_start_without_completion(self) -> None:
         self.assert_error(

@@ -13,7 +13,10 @@ an ad hoc HTTP/Python command.
 Run the collector directly in the parent session exactly once. Pass only the
 normalized geographic filter through the Bash environment as
 `CLOUDSTATUS_QUERY` (for example, `United States`, not the full user request);
-do not interpolate user text into the command.
+do not interpolate user text into the command. Multiple current region names
+may be passed together when the request is a union, such as
+`Americas Europe Asia`; the collector resolves them only against live group
+names.
 
 For inventory, map, show, where, country, region, or “which Regional Edges”
 intent, use the compact map contract:
@@ -38,10 +41,21 @@ collector command, follow up with general research, or inspect raw registry
 responses. Keep missing or conflicting evidence visibly unresolved.
 
 For inventory, map, show, where, country, or region intent, invoke `render_map`
-exactly once in the parent session with the returned `MapLocationV1` array.
-Preserve unresolved entries in that input. Do not call `display_media` afterward.
-Narrow factual requests remain text-first unless the person explicitly asks for
-a visual.
+exactly once in the parent session with this schema-valid placeholder:
+
+```json
+{"locations":[{"label":"Cloudstatus evidence hydration","longitude":0,"latitude":0}]}
+```
+
+The Cloudstatus guard replaces that sentinel at the tool boundary with the
+collector's validated, coordinate-complete `map_locations` array, so never
+copy, summarize, or alter those locations yourself. The renderer may fill its
+optional location fields; the guard identifies the sentinel only by its single
+entry, exact label, and zero coordinates, then discards the whole placeholder.
+Report entries from
+`unresolved_locations` as limitations; never assign them invented coordinates.
+Do not call `display_media` afterward. Narrow factual requests remain text-first
+unless the person explicitly asks for a visual.
 
 The answer must include a short collection receipt: `Cloudstatus registry
 collector`, its observation time, and the consulted F5 Statuspage, PeeringDB,
