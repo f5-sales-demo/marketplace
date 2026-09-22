@@ -94,7 +94,8 @@ function Test-InstalledReceipt {
             [string]$record.plugin_version -ne $ExpectedPluginVersion -or
             [string]$record.target -ne "windows-x86_64" -or
             [string]$record.installed_path -ne $Binary -or
-            (Get-FileSha256 -Path $Binary) -ne [string]$record.sha256) {
+            [string]$record.binary_sha256 -notmatch '^[0-9a-f]{64}$' -or
+            (Get-FileSha256 -Path $Binary) -ne [string]$record.binary_sha256) {
             return $false
         }
         if ($null -ne $ExpectedRelease -and
@@ -214,6 +215,7 @@ try {
         target = $release.Target
         url = $release.Url
         sha256 = $release.Sha256
+        binary_sha256 = Get-FileSha256 -Path $binaryPath
         installed_path = $binaryPath
         installed_at = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
     }

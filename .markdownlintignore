@@ -6,3 +6,5 @@
 # Keep this list minimal and scoped to exact files, never whole directories, so
 # first-party markdown in the same plugin is still linted.
 plugins/herdr/skills/herdr/SKILL.md
+plugins/herdr/skills/herdr/references/agents.md
+plugins/herdr/skills/herdr/references/automation.md

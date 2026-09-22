@@ -151,6 +151,20 @@ describe('Herdr installation, context, and runtime probes', () => {
     ).toBe('self_updated');
   });
 
+  it('uses a distinct binary checksum when the release asset is an archive', () => {
+    const binarySha = 'b'.repeat(64);
+    const result = probeHerdr(
+      dependencies({
+        readText: () => JSON.stringify({ ...receipt, binary_sha256: binarySha }),
+        hashFile: () => binarySha,
+      }),
+    );
+    expect(result).toMatchObject({
+      state: 'ready',
+      value: { installation: { state: 'ready', hash: binarySha } },
+    });
+  });
+
   it('reports a genuinely managed compatible runtime and named capabilities', () => {
     const env = {
       PATH: '/usr/bin',

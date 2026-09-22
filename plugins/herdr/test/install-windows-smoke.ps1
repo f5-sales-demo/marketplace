@@ -35,7 +35,11 @@ try {
     & $installer -Action apply -PluginVersion 1.1.1 -InstallDir $installDir -ReceiptPath $receipt
     & $installer -Action verify -PluginVersion 1.1.1 -InstallDir $installDir -ReceiptPath $receipt
     $record = Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
-    if ((Get-FileHash -LiteralPath $record.installed_path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $record.sha256) {
+    if ($record.sha256 -notmatch '^[0-9a-f]{64}$') {
+        throw "Windows asset checksum is missing from the receipt."
+    }
+    if ($record.binary_sha256 -notmatch '^[0-9a-f]{64}$' -or
+        (Get-FileHash -LiteralPath $record.installed_path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $record.binary_sha256) {
         throw "Installed Windows binary does not match the receipt."
     }
     $second = & $installer -Action apply -PluginVersion 1.1.1 -InstallDir $installDir -ReceiptPath $receipt | Out-String

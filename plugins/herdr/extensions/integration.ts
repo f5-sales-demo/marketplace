@@ -27,6 +27,7 @@ export interface HerdrReceipt {
   target: string;
   url: string;
   sha256: string;
+  binary_sha256?: string;
   installed_path: string;
   installed_at: string;
 }
@@ -169,6 +170,8 @@ function isReceipt(value: unknown): value is HerdrReceipt {
     typeof r.url === 'string' &&
     typeof r.sha256 === 'string' &&
     /^[0-9a-f]{64}$/.test(r.sha256) &&
+    (r.binary_sha256 === undefined ||
+      (typeof r.binary_sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.binary_sha256))) &&
     typeof r.installed_path === 'string' &&
     typeof r.installed_at === 'string'
   );
@@ -309,7 +312,7 @@ export function probeHerdr(dependencies: ProbeDependencies = systemDependencies(
     );
   }
   const observedVersion = versionResult.exitCode === 0 ? parseVersion(versionResult.stdout) : undefined;
-  if (observedHash !== receipt.sha256) {
+  if (observedHash !== (receipt.binary_sha256 ?? receipt.sha256)) {
     const state = observedVersion && observedVersion !== receipt.herdr_version ? 'self_updated' : 'tampered';
     return base(
       { state, binary: paths.binary, receipt: paths.receipt, target, version: observedVersion, hash: observedHash },
