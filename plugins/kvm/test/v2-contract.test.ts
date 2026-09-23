@@ -48,9 +48,9 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
   expect(text).not.toMatch(/\b(?:aws|azurerm|azure|appstack|voltstack|maurice_config|get-image-download-url)\b/i);
 });
 
-test('declares install-scoped setup authorization with no cloud dependency plugins', () => {
+test('declares install-scoped setup authorization with the Platform dependency', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.xcsh-plugin', 'plugin.json'), 'utf8'));
-  expect(manifest.version).toBe('2.0.1');
+  expect(manifest.version).toBe('2.0.2');
   expect(manifest.lifecycle.setupAuthorization).toBe('install');
   expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
 });
@@ -83,7 +83,7 @@ test('registers setup steps within the xcsh integration timeout contract', async
   });
   expect(integration?.setup?.steps?.length).toBeGreaterThan(0);
   expect(integration?.setup?.steps?.map((step) => step.timeoutMs)).toEqual([7_200_000]);
-  expect(integration?.dependencies ?? []).toEqual([]);
+  expect(integration?.dependencies).toEqual(['platform']);
   expect(integration?.setup?.pluginDependencies).toEqual(['platform']);
 });
 
