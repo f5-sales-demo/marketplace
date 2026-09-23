@@ -28,8 +28,8 @@ and workflow YAML files for the `f5-sales-demo/console` catalog.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `F5XC_API_URL` | No | Auto-detected from browser URL | Tenant URL |
-| `F5XC_NAMESPACE` | No | — | Namespace for parameterized routes |
+| `XCSH_API_URL` | No | Auto-detected from browser URL | Tenant URL |
+| `XCSH_NAMESPACE` | No | — | Namespace for parameterized routes |
 
 ## Inspection Procedure
 

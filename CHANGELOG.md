@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`sales-engineer`** bumped to v1.0.12
+
 - **`cloudstatus`** v1.7.0 — replaces the session-wide Regional Edge blocker with
   exact-capability, request-scoped advisories that never replace requested tool results (#1372).
 
@@ -96,7 +98,9 @@ and this project adheres to
   renamed Multi-Cloud Networking Pages endpoint
   ([#1342](https://github.com/f5-sales-demo/marketplace/issues/1342)).
 
-- **`platform`** bumped to v5.0.1
+- **`platform`** v5.1.1 removes the discontinued `F5XC_*` environment contract and
+  resolves `XCSH_*` credentials from the active xcsh context for readiness and
+  Secure Mesh Site v2 tools (#1378).
 
 - **`aws`** v2.0.2 — reads the provider-neutral Customer Edge automation contract from the
   renamed Multi-Cloud Networking Pages endpoint

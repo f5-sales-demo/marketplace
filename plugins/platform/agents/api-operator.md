@@ -54,19 +54,19 @@ Read all referenced files before executing any API calls.
 
 | Variable | Purpose | Required |
 | -------- | ------- | -------- |
-| `F5XC_API_URL` | Tenant base URL (e.g., `https://<tenant>.console.ves.volterra.io`) | Yes |
-| `F5XC_API_TOKEN` | API token for Authorization header | Yes (unless P12) |
-| `F5XC_P12_FILE` | Path to P12 certificate file | No (alternative auth) |
-| `F5XC_P12_PASSWORD` | P12 certificate password | No (with P12_FILE) |
-| `F5XC_NAMESPACE` | Default namespace for scoped operations | No |
+| `XCSH_API_URL` | Tenant base URL (e.g., `https://<tenant>.console.ves.volterra.io`) | Yes |
+| `XCSH_API_TOKEN` | API token for Authorization header | Yes (unless P12) |
+| `XCSH_P12_FILE` | Path to P12 certificate file | No (alternative auth) |
+| `XCSH_P12_PASSWORD` | P12 certificate password | No (with P12_FILE) |
+| `XCSH_NAMESPACE` | Default namespace for scoped operations | No |
 
 ## Standard API Call Pattern
 
 ```bash
 curl -s -X METHOD \
-  -H "Authorization: APIToken ${F5XC_API_TOKEN}" \
+  -H "Authorization: APIToken ${XCSH_API_TOKEN}" \
   -H "Content-Type: application/json" \
-  "${F5XC_API_URL}/api/<path>" | jq .
+  "${XCSH_API_URL}/api/<path>" | jq .
 ```
 
 For P12 certificate auth:
@@ -74,9 +74,9 @@ For P12 certificate auth:
 ```bash
 curl -s -X METHOD \
   --cert-type P12 \
-  --cert "${F5XC_P12_FILE}:${F5XC_P12_PASSWORD}" \
+  --cert "${XCSH_P12_FILE}:${XCSH_P12_PASSWORD}" \
   -H "Content-Type: application/json" \
-  "${F5XC_API_URL}/api/<path>" | jq .
+  "${XCSH_API_URL}/api/<path>" | jq .
 ```
 
 ## Core Rules
@@ -91,13 +91,13 @@ curl -s -X METHOD \
    where others may see it or it may be logged.
 
    When showing cURL commands in your report, always write
-   the literal string `$F5XC_API_TOKEN` — never the expanded
+   the literal string `$XCSH_API_TOKEN` — never the expanded
    value. Do not use cURL `-v` or `--verbose` flags (they
    print auth headers to stderr). If a response body
    contains token values, redact them with `<redacted>`.
 
    **Wrong:** `curl -H "Authorization: APIToken abc123..."`
-   **Right:** `curl -H "Authorization: APIToken $F5XC_API_TOKEN"`
+   **Right:** `curl -H "Authorization: APIToken $XCSH_API_TOKEN"`
 
 3. **Use jq for JSON parsing** — always pipe JSON responses
    through jq for clean formatting and field extraction.
@@ -123,7 +123,7 @@ After completing a task, report:
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Actions Taken
-- <numbered list of API calls made, with $F5XC_API_TOKEN not the real value>
+- <numbered list of API calls made, with $XCSH_API_TOKEN not the real value>
 
 ### Response Summary
 - <key data extracted from API responses>
@@ -147,7 +147,7 @@ failed (e.g., batch operations).
 | 409 | Conflict (already exists) | Report existing resource details |
 | 429 | Rate limited | Wait and retry once after 5 seconds |
 | 500+ | Server error | Report full error response |
-| Network timeout | Connection issue | Check F5XC_API_URL, report |
+| Network timeout | Connection issue | Check XCSH_API_URL, report |
 
 ## Spec-Aware Workflow
 
@@ -165,7 +165,7 @@ this read-then-execute pattern:
 5. For mutually exclusive groups, include ONLY the chosen option
    as an empty object `{}` — the server applies defaults for the rest
 6. Execute the cURL call using the template from the profile
-7. Verify the HTTP response code and report (use `$F5XC_API_TOKEN`
+7. Verify the HTTP response code and report (use `$XCSH_API_TOKEN`
    in any cURL commands you show — never the expanded value)
 
 ### For Multi-Resource Workflows

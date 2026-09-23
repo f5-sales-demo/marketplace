@@ -11,14 +11,14 @@ Precondition: Tenant uses native email/password authentication
 on the login page.
 
 ```text
-1. navigate_page(url="${F5XC_API_URL}/web/login")
+1. navigate_page(url="${XCSH_API_URL}/web/login")
    # Redirects to the tenant's login host
 2. take_snapshot()
    # Detect: page shows email + password fields directly
    # with "Please enter your email address and password"
 3. fill_form(elements=[
-     {uid: <email-textbox>, value: "${F5XC_USERNAME}"},
-     {uid: <password-textbox>, value: "${F5XC_CONSOLE_PASSWORD}"}
+     {uid: <email-textbox>, value: "${XCSH_USERNAME}"},
+     {uid: <password-textbox>, value: "${XCSH_CONSOLE_PASSWORD}"}
    ])
 4. click(uid=<sign-in-button>)   # Text: "Sign In"
 5. wait_for(text=["F5 Distributed Cloud", "Welcome",
@@ -40,7 +40,7 @@ Precondition: User previously authenticated and selected
 "Stay signed in: Yes".
 
 ```text
-1. navigate_page(url="${F5XC_API_URL}/web/login")
+1. navigate_page(url="${XCSH_API_URL}/web/login")
    # Redirects to the tenant's login host
 2. wait_for(text=["Sign In with Azure"])
 3. take_snapshot()
@@ -57,13 +57,13 @@ Expected duration: 3-10 seconds.
 Precondition: Multiple Azure AD accounts cached in browser.
 
 ```text
-1. navigate_page(url="${F5XC_API_URL}/web/login")
+1. navigate_page(url="${XCSH_API_URL}/web/login")
 2. wait_for(text=["Sign In with Azure"])
 3. take_snapshot()
 4. click(uid=<sign-in-with-azure-link>)
 5. wait_for(text=["Pick an account"], timeout=15000)
 6. take_snapshot()
-7. click(uid=<account-matching-F5XC_USERNAME>)
+7. click(uid=<account-matching-XCSH_USERNAME>)
 8. wait_for(text=["web/home", "Enter password"], timeout=15000)
    # If /web/home -> done. If password -> continue to Path C
 9. take_snapshot()
@@ -75,7 +75,7 @@ Precondition: No cached session or session expired. Tenant
 uses Azure AD with DUO verified push MFA.
 
 ```text
- 1. navigate_page(url="${F5XC_API_URL}/web/login")
+ 1. navigate_page(url="${XCSH_API_URL}/web/login")
     # Redirects to the tenant's login host with SSO options
  2. wait_for(text=["Sign In with Azure"])
  3. take_snapshot()
@@ -84,13 +84,13 @@ uses Azure AD with DUO verified push MFA.
  # Username screen (login.microsoftonline.com)
  5. wait_for(text=["Sign in", "Enter your email"], timeout=15000)
  6. take_snapshot()
- 7. fill(uid=<email-textbox>, value="${F5XC_USERNAME}")
+ 7. fill(uid=<email-textbox>, value="${XCSH_USERNAME}")
  8. click(uid=<next-button>)
 
  # Password screen
  9. wait_for(text=["Enter password"], timeout=10000)
 10. take_snapshot()
-11. fill(uid=<password-textbox>, value="${F5XC_CONSOLE_PASSWORD}")
+11. fill(uid=<password-textbox>, value="${XCSH_CONSOLE_PASSWORD}")
 12. click(uid=<sign-in-button>)
 
  # DUO redirect screen
@@ -186,7 +186,7 @@ Validated via `platform:console-operator` subagent:
 - **Post-login redirect quirk**: browser may redirect to
   `chrome://new-tab-page/` instead of the console after native
   login. The session cookie IS set correctly — navigate
-  directly to `${F5XC_API_URL}/web/home` to recover.
+  directly to `${XCSH_API_URL}/web/home` to recover.
 - **SPA resource errors**: first load may hit
   `ERR_INSUFFICIENT_RESOURCES`. Retry with a hard reload
   (`navigate_page` with `ignoreCache: true`) to recover.
@@ -203,7 +203,7 @@ Validated via `platform:console-operator` subagent:
 ### Recovery Procedures
 
 - **Post-login redirect to chrome://new-tab-page**: Navigate
-  directly to `${F5XC_API_URL}/web/home`
+  directly to `${XCSH_API_URL}/web/home`
 - **ERR_INSUFFICIENT_RESOURCES**: Hard reload with
   `ignoreCache: true`. If that fails, the browser needs more
   memory — this is an infrastructure constraint, not an auth

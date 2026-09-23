@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "kvm-artifacts/v1",
+  "artifacts": {
+    "scripts/kvm-smsv2ctl": "91f5e22381ef3376cec84e0eacf5cfc08d192e380e4589d20aca771238456898",
+    "scripts/kvm_smsv2_controller.py": "b57211cc6f201623f1a68cc9cf3beeadc41dcfd4eb00dc5a16df43a6f9855920",
+    "terraform/.terraform.lock.hcl": "59d7423a96863344e3a237685e702a00fa3c89377e3949cc052f273cfbab2198",
+    "terraform/ensure-image.sh": "9178fb873bee055c53a906299ddcaaf48d34f88a3c5e6b20201cff1478736fe1",
+    "terraform/main.tf": "e3909f72cd78224c7cb15c2843b424da2a94dd3e0e5406f4bfef211cdedc8ea5",
+    "terraform/outputs.tf": "c9117d4befd0ea16bf5e1d14ce3222f40d7f11a22393dccbde14fd5d4a19d398",
+    "terraform/wait-registration.py": "97aaef1a4a6a57d31417afa95e0f07e298da51212576f726828e59eab7142ba9",
+    "terraform/variables.tf": "c20c2f67f29b335d6427eb9645bea39625a2a389c74d0612c54bbe26721e91ec",
+    "terraform/versions.tf": "717659ef657fcc4291924c2f79ff21177b3d31898ec0c0b7384e951551fd7255"
+  }
+}

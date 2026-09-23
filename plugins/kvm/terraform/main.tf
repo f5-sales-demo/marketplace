@@ -1,0 +1,443 @@
+locals {
+  owner                 = "xcsh-kvm-smsv2-v2"
+  pool_name             = "xcsh-kvm-smsv2"
+  network_name          = "xcsh-kvm-smsv2"
+  bridge_name           = "xckvm2"
+  ce_name               = "xcsh-kvm-smsv2-ce"
+  ce_address            = "10.100.0.11"
+  ce_mac                = "52:54:00:10:00:11"
+  workload_name         = "xcsh-kvm-smsv2-workload"
+  workload_address      = "10.100.0.100"
+  workload_mac          = "52:54:00:10:00:64"
+  cache_dir             = pathexpand("~/.cache/xcsh/kvm-smsv2")
+  workload_image_url    = "https://cloud.debian.org/images/cloud/bookworm/20260909-2596/debian-12-genericcloud-amd64-20260909-2596.qcow2"
+  workload_image_sha512 = "08fea112563461f251f3c95a5c5cf8cb25eb60f74cec03e85a97ff91d3efef3059d35837598bbb476008f20db6d3bdc7143c5f2f2a9a6da394a0acc601fd5986"
+  workload_image        = "${local.cache_dir}/workload-${substr(local.workload_image_sha512, 0, 16)}.qcow2"
+  frr_image             = "frrouting/frr@sha256:990e83490108b686fd6df3b1cafa6bdbb2714acb00eedb9a89693946f46f45ce"
+  ce_image_md5          = "373f25b2b1d04674baa48a8916905c68"
+  labels                = { owner = local.owner, managed_by = "terraform" }
+}
+
+resource "xcsh_securemesh_site_v2" "site" {
+  name        = var.site_name
+  namespace   = "system"
+  description = "Plugin-owned single-node KVM Secure Mesh Site v2"
+  labels      = local.labels
+
+  kvm {
+    not_managed {}
+  }
+  disable_ha                 = {}
+  block_all_services         = {}
+  no_network_policy          = {}
+  no_forward_proxy           = {}
+  f5_proxy                   = {}
+  no_proxy_bypass            = {}
+  logs_streaming_disabled    = {}
+  no_s2s_connectivity_sli    = {}
+  no_s2s_connectivity_slo    = {}
+  disable_url_categorization = {}
+  disable_management_network = {}
+
+  dns_ntp_config {
+    f5_dns_default = {}
+    f5_ntp_default = {}
+  }
+
+  local_vrf {
+    default_config     = {}
+    default_sli_config = {}
+  }
+
+  offline_survivability_mode {
+    no_offline_survivability_mode = {}
+  }
+
+  performance_enhancement_mode {
+    perf_mode_l7_enhanced {
+      jumbo_disabled = {}
+    }
+  }
+
+  re_select {
+    geo_proximity = {}
+  }
+
+  load_balancing {
+    vip_vrrp_mode = "VIP_VRRP_ENABLE"
+  }
+
+  software_settings {
+    os {
+      default_os_version = {}
+    }
+    sw {
+      volterra_software_version = var.software_version
+    }
+  }
+
+  upgrade_settings {
+    kubernetes_upgrade_drain {
+      enable_upgrade_drain {
+        drain_node_timeout               = 300
+        drain_max_unavailable_node_count = 1
+        disable_vega_upgrade_mode        = {}
+      }
+    }
+  }
+}
+
+resource "xcsh_token" "site" {
+  name        = "${var.site_name}-registration"
+  namespace   = "system"
+  description = "Site-bound JWT for ${var.site_name}"
+  labels      = local.labels
+  type        = 1
+  site_name   = xcsh_securemesh_site_v2.site.name
+}
+
+# Provider 9.5.2 resolves configuration ownership to the Site UID and then
+# queries /api/maurice/software_os_version. No legacy image endpoint exists here.
+data "xcsh_site_image" "site" {
+  site_name = xcsh_securemesh_site_v2.site.name
+}
+
+data "xcsh_site_cloud_init" "site" {
+  provider_ref              = "kvm"
+  site_name                 = xcsh_securemesh_site_v2.site.name
+  enable_management_network = false
+}
+
+resource "terraform_data" "ce_image" {
+  triggers_replace = [data.xcsh_site_image.site.image_download_url, data.xcsh_site_image.site.image_md5_sum]
+  provisioner "local-exec" {
+    command = "${path.module}/ensure-image.sh \"$IMAGE_URL\" \"md5:$IMAGE_MD5\" \"$IMAGE_DESTINATION\""
+    environment = {
+      IMAGE_URL         = data.xcsh_site_image.site.image_download_url
+      IMAGE_MD5         = data.xcsh_site_image.site.image_md5_sum
+      IMAGE_DESTINATION = "${local.cache_dir}/ce-${data.xcsh_site_image.site.image_md5_sum}.qcow2"
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = lower(data.xcsh_site_image.site.image_md5_sum) == local.ce_image_md5
+      error_message = "The issued CE image does not match the v2.0.0 pinned MD5."
+    }
+  }
+}
+
+resource "terraform_data" "workload_image" {
+  triggers_replace = [local.workload_image_url, local.workload_image_sha512]
+  provisioner "local-exec" {
+    command = "${path.module}/ensure-image.sh \"$IMAGE_URL\" \"sha512:$IMAGE_SHA512\" \"$IMAGE_DESTINATION\""
+    environment = {
+      IMAGE_URL         = local.workload_image_url
+      IMAGE_SHA512      = local.workload_image_sha512
+      IMAGE_DESTINATION = local.workload_image
+    }
+  }
+}
+
+resource "libvirt_pool" "site" {
+  name = local.pool_name
+  type = "dir"
+  target { path = "/var/lib/libvirt/images/${local.pool_name}" }
+}
+
+resource "terraform_data" "network_identity" {
+  input = sha256(jsonencode({
+    ce       = { address = local.ce_address, mac = local.ce_mac }
+    workload = { address = local.workload_address, mac = local.workload_mac }
+  }))
+}
+
+resource "libvirt_network" "site" {
+  name      = local.network_name
+  mode      = "nat"
+  domain    = "ce.local"
+  addresses = ["10.100.0.0/24"]
+  bridge    = local.bridge_name
+  autostart = true
+  dhcp {
+    enabled = true
+  }
+  dns {
+    enabled    = true
+    local_only = true
+  }
+  dnsmasq_options {
+    options {
+      option_name  = "dhcp-host"
+      option_value = "${local.ce_mac},${local.ce_address}"
+    }
+    options {
+      option_name  = "dhcp-host"
+      option_value = "${local.workload_mac},${local.workload_address}"
+    }
+  }
+  lifecycle {
+    replace_triggered_by = [terraform_data.network_identity]
+  }
+}
+
+resource "libvirt_volume" "ce_base" {
+  name       = "ce-base-${data.xcsh_site_image.site.image_md5_sum}.qcow2"
+  pool       = libvirt_pool.site.name
+  source     = "${local.cache_dir}/ce-${data.xcsh_site_image.site.image_md5_sum}.qcow2"
+  format     = "qcow2"
+  depends_on = [terraform_data.ce_image]
+}
+
+resource "libvirt_volume" "ce" {
+  name           = "${local.ce_name}.qcow2"
+  pool           = libvirt_pool.site.name
+  base_volume_id = libvirt_volume.ce_base.id
+  size           = 107374182400
+  format         = "qcow2"
+}
+
+resource "libvirt_cloudinit_disk" "ce" {
+  name      = "${local.ce_name}.iso"
+  pool      = libvirt_pool.site.name
+  user_data = replace(data.xcsh_site_cloud_init.site.cloud_init_config, "{{ .token }}", xcsh_token.site.uid)
+  meta_data = <<-EOF
+    instance-id: ${local.ce_name}
+    local-hostname: ${local.ce_name}
+  EOF
+}
+
+resource "libvirt_domain" "ce" {
+  name      = local.ce_name
+  memory    = 32768
+  vcpu      = 8
+  autostart = true
+  cloudinit = libvirt_cloudinit_disk.ce.id
+  cpu {
+    mode = "host-passthrough"
+  }
+  network_interface {
+    network_id     = libvirt_network.site.id
+    mac            = local.ce_mac
+    wait_for_lease = false
+  }
+  disk {
+    volume_id = libvirt_volume.ce.id
+  }
+  console {
+    type        = "pty"
+    target_port = "0"
+    target_type = "serial"
+  }
+  graphics {
+    type        = "vnc"
+    listen_type = "address"
+    autoport    = true
+  }
+  lifecycle {
+    replace_triggered_by = [libvirt_cloudinit_disk.ce, libvirt_network.site]
+  }
+}
+
+# XC chooses a fresh network_interface object name after each CE registration.
+# Resolve it through the current site UID, the one live KVM registration's
+# observed hostname/device, and the Terraform-owned MAC; never infer a Linux
+# device or construct an XC object name.
+data "xcsh_smsv2_kvm_runtime" "ce" {
+  namespace             = "system"
+  site                  = xcsh_securemesh_site_v2.site.name
+  expected_mac          = local.ce_mac
+  timeout_seconds       = 7200
+  poll_interval_seconds = 10
+  depends_on            = [libvirt_domain.ce]
+
+  lifecycle {
+    postcondition {
+      condition = (
+        self.interface_name != "" &&
+        self.hostname != "" &&
+        self.device != "" &&
+        lower(self.mac) == lower(local.ce_mac)
+      )
+      error_message = "KVM BGP requires one live XC network_interface correlated by current site ownership, observed registration hostname/device, and the Terraform-owned CE MAC."
+    }
+  }
+}
+
+resource "terraform_data" "registration_ready" {
+  triggers_replace = [libvirt_domain.ce.id]
+
+  provisioner "local-exec" {
+    command = "${path.module}/wait-registration.py ${jsonencode(xcsh_securemesh_site_v2.site.name)}"
+  }
+}
+
+data "xcsh_site_registration" "ce" {
+  site_name  = xcsh_securemesh_site_v2.site.name
+  namespace  = "system"
+  depends_on = [terraform_data.registration_ready]
+
+  lifecycle {
+    postcondition {
+      condition     = self.found && self.provider_type == "KVM"
+      error_message = "Exactly one live KVM registration is required before approval."
+    }
+  }
+}
+
+resource "xcsh_registration_approval" "ce" {
+  name         = data.xcsh_site_registration.ce.name
+  namespace    = "system"
+  cluster_size = 1
+  state        = "APPROVED"
+}
+
+resource "docker_image" "frr" {
+  name         = local.frr_image
+  keep_locally = true
+}
+
+resource "docker_network" "frr" {
+  name    = "${local.network_name}-frr"
+  driver  = "macvlan"
+  options = { parent = local.bridge_name }
+  ipam_config {
+    subnet  = "10.100.0.0/24"
+    gateway = "10.100.0.1"
+  }
+  depends_on = [libvirt_network.site]
+}
+
+resource "docker_container" "frr" {
+  name       = local.frr_image != "" ? "xcsh-kvm-smsv2-frr" : "invalid"
+  image      = docker_image.frr.image_id
+  privileged = true
+  must_run   = true
+  restart    = "unless-stopped"
+  upload {
+    file        = "/etc/frr/daemons"
+    content     = "bgpd=yes\nzebra=yes\nstaticd=yes\n"
+    permissions = "0640"
+  }
+  upload {
+    file        = "/etc/frr/frr.conf"
+    permissions = "0640"
+    content     = <<-EOF
+      frr defaults traditional
+      hostname xcsh-kvm-smsv2-frr
+      service integrated-vtysh-config
+      router bgp 65515
+       bgp router-id 10.100.0.2
+       no bgp ebgp-requires-policy
+       neighbor ${local.ce_address} remote-as 64512
+       address-family ipv4 unicast
+        neighbor ${local.ce_address} activate
+       exit-address-family
+       network 198.51.100.0/24
+      ip route 198.51.100.0/24 Null0
+    EOF
+  }
+  upload {
+    file        = "/etc/frr/vtysh.conf"
+    content     = "service integrated-vtysh-config\n"
+    permissions = "0640"
+  }
+  labels {
+    label = "com.f5-sales-demo.owner"
+    value = local.owner
+  }
+  networks_advanced {
+    name         = docker_network.frr.name
+    ipv4_address = "10.100.0.2"
+  }
+}
+
+resource "xcsh_bgp" "site" {
+  name      = "${var.site_name}-ebgp"
+  namespace = "system"
+  labels    = local.labels
+  where {
+    site {
+      network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
+      ref {
+        name      = xcsh_securemesh_site_v2.site.name
+        namespace = "system"
+      }
+      disable_internet_vip = {}
+    }
+  }
+  bgp_parameters {
+    asn           = 64512
+    local_address = {}
+  }
+  peers {
+    metadata {
+      name = "peer-router"
+    }
+    external {
+      asn     = 65515
+      address = "10.100.0.2"
+      port    = 179
+      interface {
+        name      = data.xcsh_smsv2_kvm_runtime.ce.interface_name
+        namespace = "system"
+      }
+      disable_v6 = {}
+    }
+    passive_mode_disabled = {}
+    bfd_disabled          = {}
+  }
+  depends_on = [data.xcsh_smsv2_kvm_runtime.ce, docker_container.frr, libvirt_domain.ce]
+}
+
+resource "libvirt_volume" "workload_base" {
+  name       = "workload-base-${substr(local.workload_image_sha512, 0, 16)}.qcow2"
+  pool       = libvirt_pool.site.name
+  source     = local.workload_image
+  format     = "qcow2"
+  depends_on = [terraform_data.workload_image]
+}
+
+resource "libvirt_volume" "workload" {
+  name           = "${local.workload_name}.qcow2"
+  pool           = libvirt_pool.site.name
+  base_volume_id = libvirt_volume.workload_base.id
+  size           = 21474836480
+  format         = "qcow2"
+}
+
+resource "libvirt_cloudinit_disk" "workload" {
+  name      = "${local.workload_name}.iso"
+  pool      = libvirt_pool.site.name
+  user_data = <<-EOF
+    #cloud-config
+    package_update: false
+    packages: [iputils-ping, qemu-guest-agent]
+    runcmd:
+      - [systemctl, enable, --now, qemu-guest-agent]
+      - [sh, -c, 'while true; do ping -c 1 -W 5 10.100.0.11 >/var/log/xcsh-kvm-traffic.log 2>&1 || true; sleep 30; done &']
+  EOF
+  meta_data = <<-EOF
+    instance-id: ${local.workload_name}
+    local-hostname: ${local.workload_name}
+  EOF
+}
+
+resource "libvirt_domain" "workload" {
+  name      = local.workload_name
+  memory    = 2048
+  vcpu      = 2
+  autostart = true
+  cloudinit = libvirt_cloudinit_disk.workload.id
+  network_interface {
+    network_id     = libvirt_network.site.id
+    mac            = local.workload_mac
+    wait_for_lease = true
+  }
+  disk {
+    volume_id = libvirt_volume.workload.id
+  }
+  lifecycle {
+    replace_triggered_by = [libvirt_cloudinit_disk.workload, libvirt_network.site]
+  }
+}

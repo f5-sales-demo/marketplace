@@ -61,8 +61,8 @@ Optional: healthcheck
 ## cURL Example
 
 ```bash
-curl -X POST "$F5XC_API_URL/api/config/namespaces/default/tcp_loadbalancers" \
-  -H "Authorization: APIToken $F5XC_API_TOKEN" \
+curl -X POST "$XCSH_API_URL/api/config/namespaces/default/tcp_loadbalancers" \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d @tcp-lb.json
 ```

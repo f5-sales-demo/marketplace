@@ -5,14 +5,14 @@ set -euo pipefail
 
 # T1.11 — no hardcoded API tokens in plugin files
 test_no_hardcoded_api_tokens() {
-  local patterns='F5XC_API_TOKEN=[A-Za-z0-9]|APIToken [A-Za-z0-9]{20,}|Bearer [A-Za-z0-9]{20,}'
+  local patterns='XCSH_API_TOKEN=[A-Za-z0-9]|APIToken [A-Za-z0-9]{20,}|Bearer [A-Za-z0-9]{20,}'
   local matches
   matches=$(grep -rIin -E "$patterns" "$PLUGIN_ROOT" \
     --exclude-dir=node_modules \
     --include='*.md' --include='*.json' --include='*.ts' |
     grep -v 'README.md' |
-    grep -v '\$F5XC_API_TOKEN' |
-    grep -v '\${F5XC_API_TOKEN' |
+    grep -v '\$XCSH_API_TOKEN' |
+    grep -v '\${XCSH_API_TOKEN' |
     grep -v 'APIToken \$' ||
     true)
 
@@ -43,7 +43,7 @@ test_ce_bootstrap_secret_boundary() {
 test_no_credential_echo_in_agents() {
   local agents_dir="$PLUGIN_ROOT/agents"
   local matches
-  matches=$(grep -rIin -E 'echo.*\$F5XC_API_TOKEN|echo.*\$F5XC_API_URL.*TOKEN|print.*TOKEN' "$agents_dir" \
+  matches=$(grep -rIin -E 'echo.*\$XCSH_API_TOKEN|echo.*\$XCSH_API_URL.*TOKEN|print.*TOKEN' "$agents_dir" \
     --exclude-dir=node_modules \
     --include='*.md' ||
     true)
