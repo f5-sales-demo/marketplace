@@ -21,6 +21,7 @@ const factory = async (pi: KvmExtensionApi, invokeController: ControllerInvoker 
     name: 'KVM Secure Mesh Site v2',
     plugin: 'kvm',
     kind: 'local',
+    dependencies: ['platform'],
     setup: {
       pluginDependencies: ['platform'],
       requiredEnvironment: ['XCSH_API_URL', 'XCSH_API_TOKEN'],

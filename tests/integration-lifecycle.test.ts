@@ -27,6 +27,7 @@ afterAll(() => {
 
 type Definition = {
   id: string;
+  dependencies?: string[];
   setup?: {
     pluginDependencies: string[];
     requiredEnvironment: string[];
@@ -1447,6 +1448,7 @@ describe('provider integration lifecycle', () => {
   it('runs KVM setup through its idempotent v2 controller', async () => {
     const [kvm] = await definitionsFor('kvm');
     const controller = join(import.meta.dir, '..', 'plugins', 'kvm', 'scripts', 'kvm-smsv2ctl');
+    expect(kvm.dependencies).toEqual(['platform']);
     expect(kvm.setup?.pluginDependencies).toEqual(['platform']);
     expect(kvm.setup?.steps).toHaveLength(1);
     expect(kvm.setup?.steps[0]).toMatchObject({

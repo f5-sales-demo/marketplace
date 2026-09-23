@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`kvm`** v2.0.2 — declares the Platform runtime dependency so fresh installs
+  defer KVM setup until Platform is authenticated instead of launching the
+  controller prematurely and reporting a generic install-step failure.
+
 - **`sales-engineer`** bumped to v1.0.12
 
 - **`cloudstatus`** v1.7.0 — replaces the session-wide Regional Edge blocker with
