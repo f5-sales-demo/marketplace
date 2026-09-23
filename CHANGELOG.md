@@ -80,7 +80,8 @@ and this project adheres to
   deterministic setup readiness, bounded AT-SPI observation, virtual media, browser sharing,
   screenshots, recording, VNC, GPU probes, cancellation, and supervised recovery (#1352).
 
-- **`kvm`** bumped to v1.0.2
+- **`kvm`** v2.0.1 — requires xcsh v21.39.1 for install-scoped, idempotent setup and
+  preserves the v2 controller contract introduced in v2.0.0 (#1380).
 
 - **`salesforce`** v1.4.0 — requires xcsh v21.31.0 and uses the canonical person profile API
   for profile reads and collector registration. Legacy loader and direct-file fallbacks are removed
