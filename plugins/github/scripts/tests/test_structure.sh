@@ -21,7 +21,7 @@ test_plugin_manifest_and_catalog_match() {
   catalog_version=$(jq -r '.plugins[] | select(.name == "github") | .version' "$catalog")
   [ "$package_version" = "$plugin_version" ]
   [ "$plugin_version" = "$catalog_version" ]
-  jq -e '.xcsh.version == "3.1.0" and .peerDependencies["@f5-sales-demo/xcsh"] == ">=21.39.1"' \
+  jq -e '.xcsh.version == "3.1.1" and .peerDependencies["@f5-sales-demo/xcsh"] == ">=21.39.1"' \
     "$package_json" >/dev/null
   jq -e '.plugins[] | select(.name == "github") | .source == "./plugins/github"' "$catalog" >/dev/null
 }

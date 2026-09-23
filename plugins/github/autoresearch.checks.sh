@@ -20,20 +20,22 @@ fi
 # ── Check 2: Biome lint clean ──────────────────────────────────────────────
 echo ""
 echo "=== Check 2: biome check ==="
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-BIOME_OUTPUT="$(cd "$REPO_ROOT" && npx biome check plugins/github/src/ 2>&1 || true)"
-BIOME_ERRORS="$(echo "$BIOME_OUTPUT" | grep -c 'error:' || true)"
-if [ "$BIOME_ERRORS" -eq 0 ]; then
-  echo "PASS: biome check clean"
+if REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  if BIOME_OUTPUT="$(cd "$REPO_ROOT" && npx biome check plugins/github/src/ plugins/github/test/ plugins/github/benchmarks/scenarios.ts 2>&1)"; then
+    echo "PASS: biome check clean"
+  else
+    echo "$BIOME_OUTPUT" | tail -20
+    echo "FAIL: biome check failed"
+    ERRORS=$((ERRORS + 1))
+  fi
 else
-  echo "FAIL: biome check found $BIOME_ERRORS error(s)"
-  ERRORS=$((ERRORS + 1))
+  echo "SKIP: installed cache has no repository lint configuration"
 fi
 
-# ── Check 3: All 11 tool classes in index.ts ──────────────────────────────
+# ── Check 3: Legacy and typed lifecycle tool registrations ────────────────
 echo ""
 echo "=== Check 3: tool registrations ==="
-TOOL_CLASSES=(
+LEGACY_TOOL_CLASSES=(
   "GhRepoViewTool"
   "GhIssueViewTool"
   "GhPrViewTool"
@@ -47,47 +49,50 @@ TOOL_CLASSES=(
   "GhExecTool"
 )
 ALL_TOOLS_OK=true
-for tool in "${TOOL_CLASSES[@]}"; do
+for tool in "${LEGACY_TOOL_CLASSES[@]}"; do
   if ! grep -q "$tool" src/index.ts; then
     echo "FAIL: $tool not found in src/index.ts"
     ERRORS=$((ERRORS + 1))
     ALL_TOOLS_OK=false
   fi
 done
+LIFECYCLE_TOOLS=(
+  "github_workflow"
+  "github_issue_create"
+  "github_pr_create"
+  "github_pr_auto_merge"
+  "github_pr_update_branch"
+  "github_worktree_prepare"
+  "github_worktree_cleanup"
+)
+for tool in "${LIFECYCLE_TOOLS[@]}"; do
+  if ! grep -q "'$tool'" src/tools/github-workflow.ts; then
+    echo "FAIL: $tool not found in src/tools/github-workflow.ts"
+    ERRORS=$((ERRORS + 1))
+    ALL_TOOLS_OK=false
+  fi
+done
 if [ "$ALL_TOOLS_OK" = true ]; then
-  echo "PASS: all 11 tool classes registered"
+  echo "PASS: legacy and typed lifecycle tools registered"
 fi
 
-# ── Check 4: Security invariants intact ────────────────────────────────────
+# ── Check 4: Advisory and argv execution contracts ────────────────────────
 echo ""
-echo "=== Check 4: security invariants ==="
-ALL_PATTERNS_OK=true
-# gh_exec guardrail: argv hygiene (control-char reject) + read-only allowlist.
-# The argv boundary is the injection control; do NOT reintroduce per-character
-# shell-metacharacter filtering (it breaks valid --jq expressions).
-if ! grep -q "hasControlChars" src/tools/gh-exec-guard.ts; then
-  echo "FAIL: argv hygiene guard (hasControlChars) missing from src/tools/gh-exec-guard.ts"
+echo "=== Check 4: advisory and argv contracts ==="
+CONTRACT_TESTS=(
+  "test/tools/gh-exec.test.ts"
+  "test/tools/gh-headless-mutations.test.ts"
+  "test/tools/github-workflow.test.ts"
+  "test/integration-profile.test.ts"
+  "test/installed-cache-load.test.ts"
+)
+if CONTRACT_OUTPUT="$(bun test "${CONTRACT_TESTS[@]}" 2>&1)"; then
+  echo "$CONTRACT_OUTPUT" | tail -3
+  echo "PASS: advisory, headless mutation, argv, profile, and installed-cache contracts"
+else
+  echo "$CONTRACT_OUTPUT" | tail -20
+  echo "FAIL: advisory and argv contract tests failed"
   ERRORS=$((ERRORS + 1))
-  ALL_PATTERNS_OK=false
-fi
-if ! grep -q "findMutation" src/tools/gh-exec-guard.ts; then
-  echo "FAIL: read-only guardrail (findMutation) missing from src/tools/gh-exec-guard.ts"
-  ERRORS=$((ERRORS + 1))
-  ALL_PATTERNS_OK=false
-fi
-# Mutation-safety gate for gh_pr_checkout/gh_pr_push.
-if ! grep -q "resolveApprovalMode" src/tools/mutation-safety.ts; then
-  echo "FAIL: mutation-safety gate (resolveApprovalMode) missing from src/tools/mutation-safety.ts"
-  ERRORS=$((ERRORS + 1))
-  ALL_PATTERNS_OK=false
-fi
-if ! grep -q "HEADLESS_BLOCKED_MESSAGE" src/tools/mutation-safety.ts; then
-  echo "FAIL: headless block message (HEADLESS_BLOCKED_MESSAGE) missing from src/tools/mutation-safety.ts"
-  ERRORS=$((ERRORS + 1))
-  ALL_PATTERNS_OK=false
-fi
-if [ "$ALL_PATTERNS_OK" = true ]; then
-  echo "PASS: all security invariants intact"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
