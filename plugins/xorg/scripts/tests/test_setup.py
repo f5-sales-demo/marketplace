@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, D101, D102, PT009, PT027, SLF001, TC006
 # pylint: disable=protected-access
 import pathlib
 import subprocess
@@ -226,7 +227,11 @@ class SetupTests(unittest.TestCase):
             with (
                 patch.object(setup, "ROOT", root),
                 patch.object(setup.pathlib.Path, "home", return_value=home),
-                patch.object(setup, "_platform", return_value={"id": "ubuntu", "version_id": "24.04"}),
+                patch.object(
+                    setup,
+                    "_platform",
+                    return_value={"id": "ubuntu", "version_id": "24.04"},
+                ),
                 patch.object(setup, "_dependency_checks", return_value=dependencies),
                 patch.object(setup, "_install_packages") as install_packages,
                 patch.object(setup, "_install_python") as install_python,
@@ -238,7 +243,11 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
                 patch.object(setup, "_service_active", return_value=True),
-                patch.object(setup, "_command", return_value=subprocess.CompletedProcess([], 0, "", "")),
+                patch.object(
+                    setup,
+                    "_command",
+                    return_value=subprocess.CompletedProcess([], 0, "", ""),
+                ),
                 patch.object(setup, "_worker_version", return_value=VERSION),
                 patch.object(setup, "_ensure_virtual_media"),
                 patch.object(setup, "status", return_value={"state": "ready"}),

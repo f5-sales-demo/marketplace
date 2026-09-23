@@ -1,4 +1,4 @@
-# ruff: noqa: E402
+# ruff: noqa: ANN001, ANN201, ANN204, D101, D102, D107, E402, PT009
 import json
 import pathlib
 import sys

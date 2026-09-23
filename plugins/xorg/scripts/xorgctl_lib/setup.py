@@ -1,4 +1,5 @@
 """Idempotent, self-contained Ubuntu 24.04 setup for xorgctl."""
+# ruff: noqa: ANN001, D103, PLR2004, S603
 
 from __future__ import annotations
 
@@ -776,9 +777,15 @@ def apply(expected_version: str) -> dict[str, object]:
         )
         raise Fault(message)
     dependencies = _dependency_checks()
-    if not all(dependencies["commands"].values()):
+    commands = dependencies.get("commands")
+    python_modules = dependencies.get("python_modules")
+    if not isinstance(commands, dict) or not all(commands.values()):
         _install_packages()
-    if not all(dependencies["python_modules"].values()) or not _venv_python().is_file():
+    if (
+        not isinstance(python_modules, dict)
+        or not all(python_modules.values())
+        or not _venv_python().is_file()
+    ):
         interpreter = _install_python()
     else:
         interpreter = _venv_python()
