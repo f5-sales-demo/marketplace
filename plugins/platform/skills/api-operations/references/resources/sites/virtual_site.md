@@ -18,9 +18,9 @@ Domain: `sites`. Tier: Standard. Logs: no. Metrics: no.
 
 ```bash
 curl -s -X POST \
-  -H "Authorization: APIToken $F5XC_API_TOKEN" \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$F5XC_API_URL/api/config/namespaces/{ns}/virtual_sites" \
+  "$XCSH_API_URL/api/config/namespaces/{ns}/virtual_sites" \
   -d @payload.json | jq .
 ```
 

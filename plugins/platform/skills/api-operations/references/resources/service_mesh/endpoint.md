@@ -18,8 +18,8 @@ Domain: `service_mesh`. Tier: Advanced. Logs: yes. Metrics: yes.
 
 ```bash
 curl -s -X POST \
-  -H "Authorization: APIToken $F5XC_API_TOKEN" \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$F5XC_API_URL/api/config/namespaces/{ns}/endpoints" \
+  "$XCSH_API_URL/api/config/namespaces/{ns}/endpoints" \
   -d @payload.json | jq .
 ```

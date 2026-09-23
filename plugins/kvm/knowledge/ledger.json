@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "kvm-knowledge/v1",
+  "entries": [
+    {
+      "id": "KVM-001",
+      "category": "image-contract",
+      "hypothesis": "The legacy image endpoint was required before creating a KVM site.",
+      "experiment": "Created a disposable SMSv2 KVM configuration, joined its configuration owner to the Site UID, and queried software_os_version.",
+      "evidence": "The Site-UID query returned complete image metadata; the legacy endpoint returned a cardinality failure.",
+      "outcome": "validated",
+      "rootCause": "Image selection belongs to the created SMSv2 Site UID, not a tenant-global configuration object.",
+      "rejectedApproaches": ["get-image-download-url", "maurice_config prerequisite", "guessed image URLs"],
+      "correction": "Create the configuration, resolve its Site UID, query software_os_version, and verify the returned MD5 before import.",
+      "pluginRequirement": "Use xcsh_site_image from provider 9.5.2 and expose no legacy image path.",
+      "automatedTest": "The bundled Terraform contract contains xcsh_site_image and rejects legacy endpoint tokens.",
+      "liveAcceptance": "The resolved qcow2 passed its published MD5 and booted to an ONLINE registration.",
+      "references": [
+        "api-specs-enriched#1806",
+        "terraform-provider-xcsh#2118",
+        "terraform-provider-xcsh#2134",
+        "multi-cloud-networking#1210"
+      ]
+    },
+    {
+      "id": "KVM-002",
+      "category": "transport",
+      "hypothesis": "Terraform schema generation caused the POST EOF failures.",
+      "experiment": "Compared release and development providers, captured secret-free HTTP timing, and isolated protocol negotiation.",
+      "evidence": "Both payload-equivalent clients failed until mutation ALPN was made consistent with the HTTP/1-only transport.",
+      "outcome": "validated",
+      "rootCause": "Inconsistent ALPN and HTTP transport behavior closed mutation connections before response headers.",
+      "rejectedApproaches": ["blind POST retry", "state surgery", "payload logging"],
+      "correction": "Pin provider 9.5.2; after EOF, GET the exact namespace/name and reconcile only an owned spec match.",
+      "pluginRequirement": "Never retry ambiguous mutation responses and retain only sanitized transport classifications.",
+      "automatedTest": "EOF classification covers absent, exact-owned/spec-matching, and collision outcomes.",
+      "liveAcceptance": "The fixed provider created the site and token without ambiguous EOF.",
+      "references": ["terraform-provider-xcsh#2118", "terraform-provider-xcsh#2134", "multi-cloud-networking#1210"]
+    },
+    {
+      "id": "KVM-003",
+      "category": "networking",
+      "hypothesis": "A generic libvirt DNS forwarder was sufficient for CE bootstrap.",
+      "experiment": "Observed the CE startup dependency chain and dnsmasq queries on the deterministic 10.100.0.0/24 network.",
+      "evidence": "Forwarded ce.local searches exhausted dnsmasq and stalled Vector-to-Vega startup; authoritative local DNS removed the amplification.",
+      "outcome": "validated",
+      "rootCause": "The CE search domain must not be forwarded upstream.",
+      "rejectedApproaches": ["additional retries", "alternate subnets", "manual guest repair"],
+      "correction": "Set libvirt DNS local_only and retain fixed CE, FRR, and workload identities.",
+      "pluginRequirement": "Reject topology conflicts; use CE 10.100.0.11, FRR 10.100.0.2, workload 10.100.0.100, and authoritative ce.local DNS.",
+      "automatedTest": "Terraform contract pins the subnet, addresses, MACs, ASNs, and local_only DNS.",
+      "liveAcceptance": "The CE reached ONLINE, one BGP peer established, the route imported, and workload traffic succeeded.",
+      "references": [
+        "multi-cloud-networking#1210",
+        "multi-cloud-networking#1220",
+        "multi-cloud-networking#1223",
+        "multi-cloud-networking#1225"
+      ]
+    },
+    {
+      "id": "KVM-004",
+      "category": "ownership",
+      "hypothesis": "Runtime hostnames and broad inventories were stable identifiers for approval and teardown.",
+      "experiment": "Compared site-scoped registrations, deterministic MACs, Terraform state, and live host resources across rebuilds.",
+      "evidence": "XC appended a runtime suffix while site scope and deterministic MAC identity remained stable.",
+      "outcome": "validated",
+      "rootCause": "Runtime hostname mutation makes literal hostname filters incomplete and broad deletion unsafe.",
+      "rejectedApproaches": ["literal hostname matching", "tag-only deletion", "arbitrary workspace input"],
+      "correction": "Persist the site identity before mutation and gate reconcile/destroy on exact ownership and saved-plan receipts.",
+      "pluginRequirement": "Use plugin-owned state, names, pool, plans, inventory, and mode-0600 receipts.",
+      "automatedTest": "Collision, stale-receipt, exact plan hash, ownership-safe destroy, and unrelated-resource tests are required.",
+      "liveAcceptance": "Destroy proved XC/libvirt/Docker absence and preserved unrelated resources before a clean rebuild.",
+      "references": [
+        "multi-cloud-networking#1216",
+        "multi-cloud-networking#1218",
+        "multi-cloud-networking#1223",
+        "multi-cloud-networking#1225"
+      ]
+    },
+    {
+      "id": "KVM-005",
+      "category": "plugin-lifecycle",
+      "hypothesis": "An external Terraform workspace and a second setup confirmation were acceptable deployment boundaries.",
+      "experiment": "Installed the marketplace plugin from its cache and traced direct, bulk, dependency, refresh, and upgrade paths.",
+      "evidence": "The v1 adapter required external state and direct installation could not carry bounded setup authorization.",
+      "outcome": "validated",
+      "rootCause": "Lifecycle ownership was split between the plugin, xcsh, and an unrelated repository checkout.",
+      "rejectedApproaches": ["workspace adapter", "compatibility shim", "bulk auto-setup", "upgrade auto-setup"],
+      "correction": "Bundle the controller and Terraform root; allow setup only from an explicitly reviewed direct install.",
+      "pluginRequirement": "Declare setupAuthorization install, atomically install artifacts, resume after reboot, and expose five v2 tools.",
+      "automatedTest": "Installed-cache and xcsh authorization tests distinguish direct installs from all indirect flows.",
+      "liveAcceptance": "A clean-host install owns readiness, reboot/resume, deploy, verification, destroy, and rebuild.",
+      "references": ["marketplace#1330", "multi-cloud-networking#1210"]
+    }
+  ]
+}

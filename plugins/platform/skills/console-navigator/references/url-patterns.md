@@ -1,7 +1,7 @@
 # F5 XC Console URL Patterns
 
 URL catalog for deterministic navigation. All URLs use the
-base `${F5XC_API_URL}`.
+base `${XCSH_API_URL}`.
 
 ## Workspace Selection
 

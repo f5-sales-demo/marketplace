@@ -18,8 +18,8 @@ Domain: `data_and_privacy_security`. Tier: Advanced. Logs: yes. Metrics: no.
 
 ```bash
 curl -s -X POST \
-  -H "Authorization: APIToken $F5XC_API_TOKEN" \
+  -H "Authorization: APIToken $XCSH_API_TOKEN" \
   -H "Content-Type: application/json" \
-  "$F5XC_API_URL/api/config/namespaces/{ns}/sensitive_data_policys" \
+  "$XCSH_API_URL/api/config/namespaces/{ns}/sensitive_data_policys" \
   -d @payload.json | jq .
 ```

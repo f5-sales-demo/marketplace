@@ -29,8 +29,8 @@ session. This skill translates user intent into a call to the
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `F5XC_API_URL` | No | Auto-detected from browser | Console base URL |
-| `F5XC_NAMESPACE` | No | — | Default namespace for operations |
+| `XCSH_API_URL` | No | Auto-detected from browser | Console base URL |
+| `XCSH_NAMESPACE` | No | — | Default namespace for operations |
 | `CONSOLE_CATALOG_PATH` | No | `~/GIT/f5-sales-demo/console` | Path to console catalog repo |
 
 ## Procedure
@@ -92,7 +92,7 @@ catalog_workflow_runner(
     ... other extracted params
   },
   observable: true,
-  base_url: "{F5XC_API_URL or auto-detected}"
+  base_url: "{XCSH_API_URL or auto-detected}"
 )
 ```
 

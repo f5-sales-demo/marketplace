@@ -18,8 +18,8 @@ Agent(
   subagent_type="platform:api-operator",
   description="Validate F5 XC API token",
   prompt="Validate the F5 XC API token.\n\n
-    Tenant URL: ${F5XC_API_URL} (or $ARGUMENTS if provided)\n
-    API Token: read from F5XC_API_TOKEN env var\n\n
+    Tenant URL: ${XCSH_API_URL} (or $ARGUMENTS if provided)\n
+    API Token: read from XCSH_API_TOKEN env var\n\n
     Read the api-auth skill and reference files first, then
     execute the token validation procedure.\n\n
     Report: token validity, accessible namespaces, and any
@@ -35,4 +35,4 @@ Report the agent's result to the user:
   the token is working
 - **Invalid/expired token**: explain how to generate a new
   one (System → Tenant Management → API Credentials)
-- **Missing env var**: tell the user to set `F5XC_API_TOKEN`
+- **Missing env var**: tell the user to set `XCSH_API_TOKEN`

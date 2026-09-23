@@ -91,12 +91,12 @@ export class HttpCeV2Driver implements CeV2Driver {
     env: Record<string, string | undefined> = process.env,
     resolveContract: typeof resolveSmsv2ReleaseContract = resolveSmsv2ReleaseContract,
   ) {
-    if (!env.F5XC_API_URL) throw new Error('F5XC_API_URL is required');
-    this.#base = new URL(env.F5XC_API_URL);
+    if (!env.XCSH_API_URL) throw new Error('XCSH_API_URL is required');
+    this.#base = new URL(env.XCSH_API_URL);
     if (this.#base.protocol !== 'https:' && this.#base.hostname !== 'localhost' && this.#base.hostname !== '127.0.0.1')
-      throw new Error('F5XC_API_URL must use HTTPS');
-    this.#apiToken = env.F5XC_API_TOKEN;
-    this.#consoleHelper = env.XCSH_F5XC_CE_CONSOLE_HELPER;
+      throw new Error('XCSH_API_URL must use HTTPS');
+    this.#apiToken = env.XCSH_API_TOKEN;
+    this.#consoleHelper = env.XCSH_CE_CONSOLE_HELPER;
     this.#resolveContract = resolveContract;
   }
 

@@ -29,6 +29,10 @@ fi
 
 info "Validating $MARKETPLACE"
 bash "$REPO_ROOT/tests/test-lifecycle-contract.sh"
+DISCONTINUED_ENV_PREFIX='F5''XC_'
+if rg -n --hidden --glob '!.git/**' --glob '!CHANGELOG.md' "$DISCONTINUED_ENV_PREFIX" "$REPO_ROOT"; then
+  error "discontinued environment prefix remains outside release history"
+fi
 
 # ── 2. marketplace.json required top-level fields ────────────
 for field in .name .metadata.description .owner.name .plugins; do

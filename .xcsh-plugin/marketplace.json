@@ -36,7 +36,7 @@
     {
       "name": "sales-engineer",
       "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
-      "version": "1.0.11",
+      "version": "1.0.12",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer",
       "license": "Apache-2.0",
       "author": {
@@ -161,7 +161,7 @@
     {
       "name": "platform",
       "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-      "version": "5.1.0",
+      "version": "5.1.1",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
       "license": "Apache-2.0",
       "author": {
@@ -369,7 +369,7 @@
     {
       "name": "kvm",
       "description": "Deterministic F5 Distributed Cloud Secure Mesh Site v2 lifecycle for KVM, libvirt, and Terraform-owned FRR routing",
-      "version": "1.2.0",
+      "version": "2.0.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
       "license": "Apache-2.0",
       "author": {
@@ -394,7 +394,7 @@
         "setupRequired": true,
         "setupAuthorization": "install",
         "collectedData": [],
-        "pluginDependencies": ["platform", "aws", "terraform"]
+        "pluginDependencies": ["platform"]
       }
     },
     {

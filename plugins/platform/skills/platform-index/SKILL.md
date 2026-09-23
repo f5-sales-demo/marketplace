@@ -46,7 +46,7 @@ without specifying console or API:
 
 1. If a browser session is already active (user recently
    logged in via console), default to **console**
-2. If no browser session exists but `F5XC_API_TOKEN` is set,
+2. If no browser session exists but `XCSH_API_TOKEN` is set,
    default to **API**
 3. If unclear, ask the user: "Would you like me to use the
    web console or the REST API?"
@@ -71,6 +71,6 @@ without specifying console or API:
 
 Both domains share these environment variables:
 
-- `F5XC_API_URL` — Tenant base URL
-- `F5XC_NAMESPACE` — Default namespace
-- `F5XC_USERNAME` — User email (console auth)
+- `XCSH_API_URL` — Tenant base URL
+- `XCSH_NAMESPACE` — Default namespace
+- `XCSH_USERNAME` — User email (console auth)

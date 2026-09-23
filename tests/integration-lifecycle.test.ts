@@ -1444,17 +1444,19 @@ describe('provider integration lifecycle', () => {
     }
   });
 
-  it('runs KVM setup through its idempotent desired-state installer', async () => {
+  it('runs KVM setup through its idempotent v2 controller', async () => {
     const [kvm] = await definitionsFor('kvm');
-    expect(kvm.setup?.pluginDependencies).toEqual(['platform', 'aws', 'terraform']);
+    const controller = join(import.meta.dir, '..', 'plugins', 'kvm', 'scripts', 'kvm-smsv2ctl');
+    expect(kvm.setup?.pluginDependencies).toEqual(['platform']);
     expect(kvm.setup?.steps).toHaveLength(1);
-    expect(kvm.setup?.steps[0]?.argv).toEqual([join(import.meta.dir, '..', 'plugins', 'kvm', 'scripts', 'setup')]);
-    expect(kvm.setup?.verification).toEqual([
-      { argv: ['terraform', 'version'], timeoutMs: 30000 },
-      { argv: ['virsh', '--connect', 'qemu:///system', 'uri'], timeoutMs: 30000 },
-      { argv: ['docker', 'version'], timeoutMs: 30000 },
-      { argv: ['curl', '--version'], timeoutMs: 30000 },
-    ]);
+    expect(kvm.setup?.steps[0]).toMatchObject({
+      kind: 'install',
+      argv: [controller, '--json', 'setup', 'apply'],
+      timeoutMs: 7_200_000,
+      environment: ['XCSH_API_URL', 'XCSH_API_TOKEN'],
+      stdin: 'inherit',
+    });
+    expect(kvm.setup?.verification).toEqual([{ argv: [controller, '--json', 'setup', 'status'], timeoutMs: 60_000 }]);
   });
 
   it('keeps non-human principals as account associations only', async () => {
