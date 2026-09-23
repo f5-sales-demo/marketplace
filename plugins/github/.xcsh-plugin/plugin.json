@@ -1,7 +1,7 @@
 {
   "name": "github",
   "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"

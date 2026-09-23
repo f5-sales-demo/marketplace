@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`github`** v3.1.1 — updates the standalone and installed-cache UAT gate to
+  verify argv-only execution, typed lifecycle stages, advisory overrides,
+  headless mutations, profile collection, and cache loading without obsolete
+  blocking-policy assertions or a Git checkout requirement.
+
 - **`kvm`** v2.0.2 — declares the Platform runtime dependency so fresh installs
   defer KVM setup until Platform is authenticated instead of launching the
   controller prematurely and reporting a generic install-step failure.
