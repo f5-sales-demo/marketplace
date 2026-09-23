@@ -11,9 +11,9 @@ Delegate to the `platform:api-operator` agent to check platform readiness.
 
 Spawn the `platform:api-operator` agent with the following instructions:
 
-1. Check if F5XC_API_TOKEN environment variable is set
-2. Check if F5XC_API_URL environment variable is set
-3. If both are set, verify token validity: `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: APIToken ${F5XC_API_TOKEN}" "${F5XC_API_URL}/api/web/namespaces"`
+1. Check if XCSH_API_TOKEN environment variable is set
+2. Check if XCSH_API_URL environment variable is set
+3. If both are set, verify token validity: `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: APIToken ${XCSH_API_TOKEN}" "${XCSH_API_URL}/api/web/namespaces"`
 4. If token is valid (HTTP 200), list available namespaces
 5. Report:
    - API URL (tenant endpoint)
@@ -21,4 +21,4 @@ Spawn the `platform:api-operator` agent with the following instructions:
    - Available namespaces (if authenticated)
    - Console access status
 6. If token is missing or expired, suggest using `/platform:check-api-token`
-7. If API URL is not set, suggest setting F5XC_API_URL environment variable
+7. If API URL is not set, suggest setting XCSH_API_URL environment variable

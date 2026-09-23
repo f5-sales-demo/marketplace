@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 function driver() {
-  return new HttpCeV2Driver({ F5XC_API_URL: 'https://tenant.example.test' }, async () => contract);
+  return new HttpCeV2Driver({ XCSH_API_URL: 'https://tenant.example.test' }, async () => contract);
 }
 
 describe('SMSv2 AWS CE driver', () => {

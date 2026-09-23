@@ -21,9 +21,9 @@ target page.
 
 | Variable | Required | Default | Purpose |
 | ---------- | ---------- | --------- | --------- |
-| `F5XC_API_URL` | No | `https://<tenant>.console.ves.volterra.io` | Tenant URL |
-| `F5XC_USERNAME` | No | — | Azure AD email (for auth) |
-| `F5XC_NAMESPACE` | No | — | Default namespace |
+| `XCSH_API_URL` | No | `https://<tenant>.console.ves.volterra.io` | Tenant URL |
+| `XCSH_USERNAME` | No | — | Azure AD email (for auth) |
+| `XCSH_NAMESPACE` | No | — | Default namespace |
 
 ## Navigation Procedure
 
@@ -36,11 +36,11 @@ invoke `console-auth` first.
 ### Step 2: Resolve target URL
 
 Look up the requested section in `references/url-patterns.md`.
-Substitute `${F5XC_API_URL}` and `${F5XC_NAMESPACE}` into the
+Substitute `${XCSH_API_URL}` and `${XCSH_NAMESPACE}` into the
 URL template.
 
 If the user specified a namespace, use that. Otherwise fall back
-to `F5XC_NAMESPACE` env var. If neither is set, detect the
+to `XCSH_NAMESPACE` env var. If neither is set, detect the
 current namespace from the browser URL.
 
 ### Step 3: Navigate

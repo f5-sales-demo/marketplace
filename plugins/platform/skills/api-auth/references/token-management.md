@@ -27,7 +27,7 @@ API tokens are created in the F5 XC console:
 ### Rotation
 
 1. Create a new token before the old one expires
-2. Update `F5XC_API_TOKEN` env var with the new value
+2. Update `XCSH_API_TOKEN` env var with the new value
 3. Verify the new token works (see validation procedure)
 4. Revoke the old token in the console
 
@@ -58,9 +58,9 @@ cURL usage:
 
 ```bash
 curl -s \
-  -H "Authorization: APIToken ${F5XC_API_TOKEN}" \
+  -H "Authorization: APIToken ${XCSH_API_TOKEN}" \
   -H "Content-Type: application/json" \
-  "${F5XC_API_URL}/api/web/namespaces"
+  "${XCSH_API_URL}/api/web/namespaces"
 ```
 
 ### P12 Certificate
@@ -71,9 +71,9 @@ a token header:
 ```bash
 curl -s \
   --cert-type P12 \
-  --cert "${F5XC_P12_FILE}:${F5XC_P12_PASSWORD}" \
+  --cert "${XCSH_P12_FILE}:${XCSH_P12_PASSWORD}" \
   -H "Content-Type: application/json" \
-  "${F5XC_API_URL}/api/web/namespaces"
+  "${XCSH_API_URL}/api/web/namespaces"
 ```
 
 P12 files are generated in the console alongside API tokens.
