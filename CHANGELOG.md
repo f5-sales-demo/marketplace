@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`platform`** v5.1.2 routes missing-credential setup through xcsh's native,
+  masked context wizard instead of presenting an empty confirmation plan (#1387).
+
 - **`github`** v3.1.1 — updates the standalone and installed-cache UAT gate to
   verify argv-only execution, typed lifecycle stages, advisory overrides,
   headless mutations, profile collection, and cache loading without obsolete

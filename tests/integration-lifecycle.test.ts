@@ -34,6 +34,7 @@ type Definition = {
     profileFields: string[];
     steps: Array<{ kind: string; argv: string[]; timeoutMs: number }>;
     verification: Array<{ argv: string[]; timeoutMs: number }>;
+    guidedAction?: { kind: 'context_wizard' };
   };
   probe(): Promise<{ state: string; reason?: string; retryAfterMs?: number; value?: unknown }>;
   profile?(value: unknown): { facts: Record<string, unknown>; observations: unknown[] };
@@ -1046,6 +1047,16 @@ describe('provider integration lifecycle', () => {
   it('discloses every GitHub person-profile category in its setup plan', async () => {
     const [github] = await definitionsFor('github');
     expect(github.setup?.profileFields).toEqual(['accounts', 'email', 'identifiers', 'sameAs']);
+  });
+
+  it('routes Platform setup to the native xcsh context wizard', async () => {
+    const [platform] = await definitionsFor('platform');
+    expect(platform.setup).toMatchObject({
+      requiredEnvironment: ['XCSH_API_URL', 'XCSH_API_TOKEN', 'XCSH_TENANT'],
+      steps: [],
+      verification: [],
+      guidedAction: { kind: 'context_wizard' },
+    });
   });
 
   it('does not request package-manager privileges when GitHub CLI is already installed', async () => {

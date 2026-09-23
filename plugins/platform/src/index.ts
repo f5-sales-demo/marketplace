@@ -35,6 +35,7 @@ const factory: ExtensionFactory = async (pi) => {
       profileFields: [],
       steps: [],
       verification: [],
+      guidedAction: { kind: 'context_wizard' },
     },
     async probe() {
       const environment = activeContextEnvironment(pi);
