@@ -1,0 +1,45 @@
+[
+  {
+    "id": "prepare-with-issue",
+    "prompt": "Prepare an isolated GitHub worktree for this change, creating or reusing the tracking issue, then stop before publishing anything.",
+    "expected": { "actions": ["prepare"], "advisories": [] }
+  },
+  {
+    "id": "status-only",
+    "prompt": "Inspect the current GitHub lifecycle state and report repository, issue, branch, worktree, PR, base SHA, checks, and retry timing without changing anything.",
+    "expected": { "actions": ["status"], "advisories": [] }
+  },
+  {
+    "id": "publish-selected-no-merge",
+    "prompt": "Publish only the selected paths on my custom branch, create the PR directly without an issue, and leave auto-merge disabled.",
+    "expected": {
+      "actions": ["publish"],
+      "advisories": [
+        "github.issue_omitted",
+        "github.custom_branch",
+        "github.direct_publication",
+        "github.auto_merge_disabled"
+      ]
+    }
+  },
+  {
+    "id": "publish-all",
+    "prompt": "Stage all current changes and publish them through the GitHub lifecycle, preserving advisory evidence.",
+    "expected": { "actions": ["publish"], "advisories": ["github.stage_all"] }
+  },
+  {
+    "id": "monitor-only",
+    "prompt": "Monitor the existing pull request checks and merge state, honoring retry metadata, then stop without repairing it.",
+    "expected": { "actions": ["monitor"], "advisories": [] }
+  },
+  {
+    "id": "repair-only",
+    "prompt": "Repair the current pull request branch or failed checks using the typed GitHub lifecycle repair stage, then stop.",
+    "expected": { "actions": ["repair"], "advisories": [] }
+  },
+  {
+    "id": "cleanup-override",
+    "prompt": "Clean up the exact task worktree and branch now even though merge proof is unavailable; proceed and report the deviation as an advisory.",
+    "expected": { "actions": ["cleanup"], "advisories": ["github.cleanup_without_merge_proof"] }
+  }
+]

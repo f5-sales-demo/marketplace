@@ -463,7 +463,57 @@ export class GitHubLifecycle {
       }
 
       case 'status': {
-        result.pullRequest = await this.viewPullRequest(repository, operations, input.pr, signal);
+        const selector = normalize(input.pr);
+        if (selector) {
+          result.pullRequest = await this.viewPullRequest(repository, operations, selector, signal);
+          if (result.pullRequest.headRefName) result.branch = { name: result.pullRequest.headRefName };
+          return result;
+        }
+        const branchName = normalize(
+          (await this.execute(operations, repository.root, 'git', ['symbolic-ref', '--short', 'HEAD'], signal)).stdout,
+        );
+        if (!branchName) throw new ToolError('status requires pr when HEAD is detached.');
+        result.branch = { name: branchName };
+        const listed = await this.execute(
+          operations,
+          repository.root,
+          'gh',
+          [
+            'pr',
+            'list',
+            '--repo',
+            repository.nameWithOwner,
+            '--head',
+            branchName,
+            '--state',
+            'all',
+            '--limit',
+            '1',
+            '--json',
+            PR_FIELDS,
+          ],
+          signal,
+        );
+        let rows: Array<Record<string, unknown>>;
+        try {
+          rows = JSON.parse(listed.stdout) as Array<Record<string, unknown>>;
+        } catch {
+          throw new ToolError('gh pr list returned invalid JSON.');
+        }
+        const value = rows[0];
+        if (!value) return result;
+        if (!Number.isInteger(value.number) || typeof value.url !== 'string') {
+          throw new ToolError('gh pr list omitted the pull request number or URL.');
+        }
+        result.pullRequest = {
+          number: value.number as number,
+          url: value.url,
+          state: typeof value.state === 'string' ? value.state : undefined,
+          mergeStateStatus: typeof value.mergeStateStatus === 'string' ? value.mergeStateStatus : undefined,
+          headRefName: typeof value.headRefName === 'string' ? value.headRefName : undefined,
+          headRefOid: typeof value.headRefOid === 'string' ? value.headRefOid : undefined,
+          baseRefName: typeof value.baseRefName === 'string' ? value.baseRefName : undefined,
+        };
         return result;
       }
 
@@ -475,6 +525,14 @@ export class GitHubLifecycle {
               .stdout,
           );
         if (!branchName) throw new ToolError('publish requires a named branch.');
+        if (input.issueMode === 'none') {
+          advisories.push(
+            advisory('github.issue_omitted', 'Publishing without a linked issue was explicitly requested.'),
+          );
+        }
+        if (normalize(input.branch)) {
+          advisories.push(advisory('github.custom_branch', `Using the explicitly requested branch ${branchName}.`));
+        }
         if (input.stageAll) {
           advisories.push(
             advisory('github.stage_all', 'All working-tree changes were staged as explicitly requested.'),

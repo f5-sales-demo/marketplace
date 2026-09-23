@@ -166,8 +166,8 @@ if [ "${PWD##*/}" = "github" ] || [ "${PWD##*/}" = "salesforce" ]; then
   google_genai_version="2.21.0"
 fi
 if [ "${PWD##*/}" = "github" ]; then
-  xcsh_version="21.38.1"
-  pi_utils_version="21.38.1"
+  xcsh_version="21.39.1"
+  pi_utils_version="21.39.1"
 elif [ "${PWD##*/}" = "salesforce" ]; then
   xcsh_version="21.31.0"
   pi_utils_version="21.31.0"

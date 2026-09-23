@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, D101, D102, PT009, PT027, SLF001, TC006
 # pylint: disable=protected-access
 import pathlib
 import subprocess
@@ -81,7 +82,7 @@ class SetupTests(unittest.TestCase):
 
     def test_audio_status_requires_live_named_virtual_endpoints(self):
         devices = {
-            "sinks": [{"name": "xorgctl_console", "description": "xcsh Inbound Audio"}],
+            "sinks": [{"name": "xorgctl_console", "description": "xcsh_Inbound_Audio"}],
             "sources": [
                 {"name": "xcsh_microphone_input", "description": "xcsh Microphone"}
             ],
@@ -98,7 +99,7 @@ class SetupTests(unittest.TestCase):
             result = setup._audio_status()
         self.assertTrue(result["ready"])
         self.assertFalse(result["physical_fallback"])
-        self.assertEqual(result["sink_description"], "xcsh Inbound Audio")
+        self.assertEqual(result["sink_description"], "xcsh_Inbound_Audio")
 
     def test_audio_status_rejects_stale_config_without_live_devices(self):
         config = {
@@ -212,6 +213,48 @@ class SetupTests(unittest.TestCase):
         ):
             setup._install_voice()
         download.assert_not_called()
+
+    def test_apply_skips_privileged_package_install_when_dependencies_are_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "state"
+            home = pathlib.Path(directory) / "home"
+            managed_python = home / "venv/bin/python"
+            managed_python.parent.mkdir(parents=True)
+            managed_python.touch()
+            (root / "console").mkdir(parents=True)
+            (root / "console/session.json").write_text("{}")
+            dependencies = {"commands": {}, "python_modules": {}, "ready": True}
+            with (
+                patch.object(setup, "ROOT", root),
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(
+                    setup,
+                    "_platform",
+                    return_value={"id": "ubuntu", "version_id": "24.04"},
+                ),
+                patch.object(setup, "_dependency_checks", return_value=dependencies),
+                patch.object(setup, "_install_packages") as install_packages,
+                patch.object(setup, "_install_python") as install_python,
+                patch.object(setup, "_venv_python", return_value=managed_python),
+                patch.object(setup, "_install_fonts"),
+                patch.object(setup, "_install_voice"),
+                patch.object(setup, "_install_virtualgl"),
+                patch.object(setup, "_configure_accessibility"),
+                patch.object(setup, "_install_launcher"),
+                patch.object(setup, "_install_services"),
+                patch.object(setup, "_service_active", return_value=True),
+                patch.object(
+                    setup,
+                    "_command",
+                    return_value=subprocess.CompletedProcess([], 0, "", ""),
+                ),
+                patch.object(setup, "_worker_version", return_value=VERSION),
+                patch.object(setup, "_ensure_virtual_media"),
+                patch.object(setup, "status", return_value={"state": "ready"}),
+            ):
+                setup.apply(VERSION)
+        install_packages.assert_not_called()
+        install_python.assert_not_called()
 
     def test_dependency_checks_use_the_managed_venv_for_python_modules(self):
         completed = subprocess.CompletedProcess(
@@ -372,6 +415,15 @@ class SetupTests(unittest.TestCase):
                     side_effect=lambda: calls.append("packages"),
                 ),
                 patch.object(
+                    setup,
+                    "_dependency_checks",
+                    return_value={
+                        "commands": {"Xvfb": False},
+                        "python_modules": {"PIL": False},
+                        "ready": False,
+                    },
+                ),
+                patch.object(
                     setup, "_install_python", return_value=home / "venv/bin/python"
                 ),
                 patch.object(
@@ -470,8 +522,8 @@ class SetupTests(unittest.TestCase):
 
             def service_active(name):
                 return name in {
-                    "xorgctl-session@console.service",
-                    "xorgctl-session@desktop.service",
+                    "xorgctl-session\u0040console.service",
+                    "xorgctl-session\u0040desktop.service",
                     "xcsh-camera.service",
                 }
 
@@ -509,8 +561,8 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(
                 restarts,
                 [
-                    "xorgctl-session@console.service",
-                    "xorgctl-session@desktop.service",
+                    "xorgctl-session\u0040console.service",
+                    "xorgctl-session\u0040desktop.service",
                 ],
             )
 
@@ -524,8 +576,8 @@ class SetupTests(unittest.TestCase):
 
             def service_active(name):
                 return name in {
-                    "xorgctl-session@console.service",
-                    "xorgctl-session@desktop.service",
+                    "xorgctl-session\u0040console.service",
+                    "xorgctl-session\u0040desktop.service",
                 }
 
             def worker_version(name):

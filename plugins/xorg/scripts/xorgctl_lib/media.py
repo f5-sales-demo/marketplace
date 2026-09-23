@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN002, ANN201, ANN202, D103, PLC0415, PLR0911, PLR2004
 # ctypes constructors and media dispatch branches are validated by runtime
 # probes; Pylint cannot infer their dynamic signatures.
 # pylint: disable=broad-exception-caught,import-outside-toplevel,no-value-for-parameter,too-many-branches,too-many-locals,too-many-return-statements,too-many-statements
@@ -233,7 +234,7 @@ def media(w, m, p):
         if matching_sinks and (
             len(matching_sinks) > 1
             or any(
-                item.get("description") != "xcsh Inbound Audio"
+                item.get("description") != "xcsh_Inbound_Audio"
                 for item in matching_sinks
             )
         ):
@@ -251,7 +252,7 @@ def media(w, m, p):
                         "load-module",
                         "module-null-sink",
                         f"sink_name={name}",
-                        "sink_properties=device.description=xcsh Inbound Audio",
+                        "sink_properties=device.description=xcsh_Inbound_Audio",
                     ]
                 ).strip()
             )

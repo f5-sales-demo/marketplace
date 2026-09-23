@@ -9,6 +9,31 @@ interface GitHubUser {
   type?: string;
 }
 
+export function githubUserProfile(value: GitHubUser) {
+  const principalType = value.type === 'Bot' ? 'service' : 'user';
+  return {
+    facts: {
+      accounts: [{ provider: 'github', identifier: String(value.id), principalType, username: value.login }],
+      ...(principalType === 'user'
+        ? { identifiers: { github: value.login }, sameAs: value.html_url ? [value.html_url] : undefined }
+        : {}),
+    },
+    observations: [],
+  };
+}
+
+export function githubEmailProfile(value: string[]) {
+  const email = [...new Set(value.map((item) => item.trim()).filter(Boolean))];
+  return { facts: email.length ? { email } : {}, observations: [] };
+}
+
+export function githubVerifiedEmails(pages: Array<Array<{ email?: string; verified?: boolean }>>): string[] {
+  return pages
+    .flat()
+    .filter((row): row is { email: string; verified?: boolean } => Boolean(row.verified && row.email))
+    .map((row) => row.email);
+}
+
 interface IntegrationApi {
   integrations: {
     register<T>(definition: unknown): { get(signal?: AbortSignal): Promise<{ state: string; value?: T }> };
@@ -42,9 +67,40 @@ export function githubInstallArgv(platform = process.platform): string[] {
   return ['sudo', 'apt-get', 'install', '--yes', 'gh'];
 }
 
+export function probeGitHubUser() {
+  const checker = process.platform === 'win32' ? 'where' : 'which';
+  if (Bun.spawnSync([checker, 'gh']).exitCode !== 0) return { state: 'setup_required', reason: 'cli_missing' };
+  const result = Bun.spawnSync(['gh', 'api', 'user']);
+  if (result.exitCode !== 0) {
+    const rawError = new TextDecoder().decode(result.stderr);
+    const error = rawError.toLowerCase();
+    if (error.includes('rate limit') || error.includes('429'))
+      return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
+    if (error.includes('expired')) return { state: 'setup_required', reason: 'expired' };
+    if (error.includes('403') || error.includes('forbidden'))
+      return { state: 'unavailable', reason: 'permission_denied' };
+    if (error.includes('connect') || error.includes('network')) return { state: 'unavailable', reason: 'network' };
+    return { state: 'setup_required', reason: 'not_authenticated' };
+  }
+  try {
+    const value = JSON.parse(new TextDecoder().decode(result.stdout)) as GitHubUser;
+    if (!Number.isInteger(value.id) || !value.login) return { state: 'error', reason: 'invalid_response' };
+    return { state: 'ready', value };
+  } catch {
+    return { state: 'error', reason: 'invalid_response' };
+  }
+}
+
 const factory: ExtensionFactory = async (pi) => {
   pi.setLabel('GitHub');
   const integrations = (pi as typeof pi & IntegrationApi).integrations;
+  let ghAvailable = false;
+  try {
+    const checker = process.platform === 'win32' ? 'where' : 'which';
+    ghAvailable = Bun.spawnSync([checker, 'gh']).exitCode === 0;
+  } catch {
+    // gh not available
+  }
   integrations.register<GitHubUser>({
     id: 'github',
     name: 'GitHub',
@@ -53,13 +109,17 @@ const factory: ExtensionFactory = async (pi) => {
     setup: {
       pluginDependencies: [],
       requiredEnvironment: [],
-      profileFields: ['accounts', 'identifiers', 'sameAs'],
+      profileFields: ['accounts', 'email', 'identifiers', 'sameAs'],
       steps: [
-        {
-          kind: 'install',
-          argv: githubInstallArgv(),
-          timeoutMs: 300_000,
-        },
+        ...(ghAvailable
+          ? []
+          : [
+              {
+                kind: 'install' as const,
+                argv: githubInstallArgv(),
+                timeoutMs: 300_000,
+              },
+            ]),
         {
           kind: 'login',
           argv: ['gh', 'auth', 'login'],
@@ -70,40 +130,9 @@ const factory: ExtensionFactory = async (pi) => {
       verification: [{ argv: ['gh', 'api', 'user'], timeoutMs: 30_000 }],
     },
     async probe() {
-      const checker = process.platform === 'win32' ? 'where' : 'which';
-      if (Bun.spawnSync([checker, 'gh']).exitCode !== 0) return { state: 'setup_required', reason: 'cli_missing' };
-      const result = Bun.spawnSync(['gh', 'api', 'user']);
-      if (result.exitCode !== 0) {
-        const rawError = new TextDecoder().decode(result.stderr);
-        const error = rawError.toLowerCase();
-        if (error.includes('rate limit') || error.includes('429'))
-          return { state: 'rate_limited', reason: 'rate_limited', retryAfterMs: retryAfterMsFromHeaders(rawError) };
-        if (error.includes('expired')) return { state: 'setup_required', reason: 'expired' };
-        if (error.includes('403') || error.includes('forbidden'))
-          return { state: 'unavailable', reason: 'permission_denied' };
-        if (error.includes('connect') || error.includes('network')) return { state: 'unavailable', reason: 'network' };
-        return { state: 'setup_required', reason: 'not_authenticated' };
-      }
-      try {
-        const value = JSON.parse(new TextDecoder().decode(result.stdout)) as GitHubUser;
-        if (!Number.isInteger(value.id) || !value.login) return { state: 'error', reason: 'invalid_response' };
-        return { state: 'ready', value };
-      } catch {
-        return { state: 'error', reason: 'invalid_response' };
-      }
+      return probeGitHubUser();
     },
-    profile(value: GitHubUser) {
-      const principalType = value.type === 'Bot' ? 'service' : 'user';
-      return {
-        facts: {
-          accounts: [{ provider: 'github', identifier: String(value.id), principalType, username: value.login }],
-          ...(principalType === 'user'
-            ? { identifiers: { github: value.login }, sameAs: value.html_url ? [value.html_url] : undefined }
-            : {}),
-        },
-        observations: [],
-      };
-    },
+    profile: githubUserProfile,
   });
   integrations.register<string[]>({
     id: 'github_email',
@@ -127,28 +156,14 @@ const factory: ExtensionFactory = async (pi) => {
         const pages = JSON.parse(new TextDecoder().decode(result.stdout)) as Array<
           Array<{ email?: string; verified?: boolean }>
         >;
-        const rows = pages.flat();
-        const value = rows
-          .filter((row): row is { email: string; verified?: boolean } => Boolean(row.verified && row.email))
-          .map((row) => row.email);
+        const value = githubVerifiedEmails(pages);
         return { state: 'ready', value };
       } catch {
         return { state: 'error', reason: 'invalid_response' };
       }
     },
-    profile(value: string[]) {
-      return { facts: value.length ? { email: value } : {}, observations: [] };
-    },
+    profile: githubEmailProfile,
   });
-
-  // Check if gh CLI is available
-  let ghAvailable = false;
-  try {
-    const checker = process.platform === 'win32' ? 'where' : 'which';
-    ghAvailable = Bun.spawnSync([checker, 'gh']).exitCode === 0;
-  } catch {
-    // gh not available
-  }
 
   // Only register tools when gh CLI is present
   if (ghAvailable) {

@@ -1042,6 +1042,27 @@ describe('provider integration lifecycle', () => {
     }
   });
 
+  it('discloses every GitHub person-profile category in its setup plan', async () => {
+    const [github] = await definitionsFor('github');
+    expect(github.setup?.profileFields).toEqual(['accounts', 'email', 'identifiers', 'sameAs']);
+  });
+
+  it('does not request package-manager privileges when GitHub CLI is already installed', async () => {
+    const [github] = await definitionsFor('github', true);
+    expect(github.setup?.steps).toEqual([
+      {
+        kind: 'login',
+        argv: ['gh', 'auth', 'login'],
+        timeoutMs: 300000,
+        stdin: 'inherit',
+      },
+    ]);
+
+    const [missingCli] = await definitionsFor('github');
+    expect(missingCli.setup?.steps.map((step) => step.kind)).toEqual(['install', 'login']);
+    expect(missingCli.setup?.steps[0]?.argv).toContain('gh');
+  });
+
   it('registers every runtime integration declared by the marketplace manifests', async () => {
     for (const [plugin, ids] of [
       ['asm-migration', ['asm_migration']],
@@ -1121,13 +1142,13 @@ describe('provider integration lifecycle', () => {
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.0.9' })],
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.0' })],
         timeoutMs: 900000,
       },
     ]);
     expect(definition.setup?.verification).toEqual([
       {
-        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.0.9' })],
+        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.0' })],
         timeoutMs: 30000,
       },
     ]);
@@ -1139,7 +1160,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.0.9' }),
+      JSON.stringify({ expected_version: '1.1.0' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
@@ -1152,7 +1173,7 @@ describe('provider integration lifecycle', () => {
     };
     expect(payload.ok).toBe(true);
     expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
-    expect(payload.result.version).toBe('1.0.9');
+    expect(payload.result.version).toBe('1.1.0');
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');
@@ -1421,6 +1442,21 @@ describe('provider integration lifecycle', () => {
       expect(plan.requiredEnvironment.every((name) => /^[A-Z_][A-Z0-9_]*$/.test(name))).toBe(true);
       expect(JSON.stringify(plan)).not.toMatch(/token=[^"\s]+|password=[^"\s]+|secret=[^"\s]+/i);
     }
+  });
+
+  it('runs KVM setup through its idempotent v2 controller', async () => {
+    const [kvm] = await definitionsFor('kvm');
+    const controller = join(import.meta.dir, '..', 'plugins', 'kvm', 'scripts', 'kvm-smsv2ctl');
+    expect(kvm.setup?.pluginDependencies).toEqual(['platform']);
+    expect(kvm.setup?.steps).toHaveLength(1);
+    expect(kvm.setup?.steps[0]).toMatchObject({
+      kind: 'install',
+      argv: [controller, '--json', 'setup', 'apply'],
+      timeoutMs: 7_200_000,
+      environment: ['XCSH_API_URL', 'XCSH_API_TOKEN'],
+      stdin: 'inherit',
+    });
+    expect(kvm.setup?.verification).toEqual([{ argv: [controller, '--json', 'setup', 'status'], timeoutMs: 60_000 }]);
   });
 
   it('keeps non-human principals as account associations only', async () => {

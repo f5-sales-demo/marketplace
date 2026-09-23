@@ -67,6 +67,30 @@ describe('GitHub lifecycle stages', () => {
     expect(calls.some((call) => call.command === 'gh' && call.args.slice(0, 2).join(' ') === 'pr create')).toBe(false);
   });
 
+  it('reports branch status without requiring a pull request selector', async () => {
+    const { calls, lifecycle } = fixture({
+      'git rev-parse --show-toplevel': '/repo\n',
+      'git remote get-url origin': 'https://github.com/acme/demo.git\n',
+      'git rev-parse origin/main': '0123456789012345678901234567890123456789\n',
+      'git symbolic-ref --short HEAD': 'feature/1380-plugin-fresh-uat\n',
+      'gh pr list --repo acme/demo --head feature/1380-plugin-fresh-uat --state all --limit 1 --json number,url,state,mergeStateStatus,headRefName,headRefOid,baseRefName':
+        '[]',
+    });
+
+    const result = await lifecycle.run('/repo', { action: 'status' });
+
+    expect(result.branch).toEqual({ name: 'feature/1380-plugin-fresh-uat' });
+    expect(result.pullRequest).toBeUndefined();
+    expect(
+      calls.some(
+        (call) =>
+          call.command === 'gh' &&
+          call.args.join(' ') ===
+            'pr view --repo acme/demo --json number,url,state,mergeStateStatus,headRefName,headRefOid,baseRefName',
+      ),
+    ).toBe(false);
+  });
+
   it('reports governance deviations as advisories while executing requested operations', async () => {
     const { calls, lifecycle } = fixture({
       'git rev-parse --show-toplevel': '/repo\n',
@@ -76,6 +100,8 @@ describe('GitHub lifecycle stages', () => {
     });
     const result = await lifecycle.run('/repo', {
       action: 'publish',
+      issueMode: 'none',
+      branch: 'custom',
       direct: true,
       stageAll: true,
       autoMerge: false,
@@ -83,8 +109,35 @@ describe('GitHub lifecycle stages', () => {
     expect(calls.some((call) => call.command === 'git' && call.args.join(' ') === 'add --all')).toBe(true);
     expect(calls.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(true);
     expect(result.advisories.map((item) => item.code)).toEqual(
-      expect.arrayContaining(['github.direct_publication', 'github.stage_all', 'github.auto_merge_disabled']),
+      expect.arrayContaining([
+        'github.issue_omitted',
+        'github.custom_branch',
+        'github.direct_publication',
+        'github.stage_all',
+        'github.auto_merge_disabled',
+      ]),
     );
+  });
+
+  it('stages only explicitly selected paths as one argv operation', async () => {
+    const { calls, lifecycle } = fixture({
+      'git rev-parse --show-toplevel': '/repo\n',
+      'git remote get-url origin': 'https://github.com/acme/demo.git\n',
+      'git rev-parse origin/main': '0123456789012345678901234567890123456789\n',
+      'git symbolic-ref --short HEAD': 'feature/42-demo\n',
+    });
+    const result = await lifecycle.run('/repo', {
+      action: 'publish',
+      direct: true,
+      stagePaths: ['src/index.ts', 'docs/path with spaces.md'],
+    });
+    expect(calls.find((call) => call.command === 'git' && call.args[0] === 'add')?.args).toEqual([
+      'add',
+      '--',
+      'src/index.ts',
+      'docs/path with spaces.md',
+    ]);
+    expect(result.advisories.map((item) => item.code)).not.toContain('github.stage_all');
   });
 
   it('keeps narrow issue and pull request operations independent', async () => {

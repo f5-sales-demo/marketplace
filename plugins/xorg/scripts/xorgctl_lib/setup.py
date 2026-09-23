@@ -1,4 +1,5 @@
 """Idempotent, self-contained Ubuntu 24.04 setup for xorgctl."""
+# ruff: noqa: ANN001, D103, PLR2004, S603
 
 from __future__ import annotations
 
@@ -320,7 +321,7 @@ def _audio_status() -> dict[str, object]:
             item
             for item in sinks
             if item.get("name") == "xorgctl_console"
-            and item.get("description") == "xcsh Inbound Audio"
+            and item.get("description") == "xcsh_Inbound_Audio"
         ),
         None,
     )
@@ -775,8 +776,19 @@ def apply(expected_version: str) -> dict[str, object]:
             f"{VERSION}"
         )
         raise Fault(message)
-    _install_packages()
-    interpreter = _install_python()
+    dependencies = _dependency_checks()
+    commands = dependencies.get("commands")
+    python_modules = dependencies.get("python_modules")
+    if not isinstance(commands, dict) or not all(commands.values()):
+        _install_packages()
+    if (
+        not isinstance(python_modules, dict)
+        or not all(python_modules.values())
+        or not _venv_python().is_file()
+    ):
+        interpreter = _install_python()
+    else:
+        interpreter = _venv_python()
     _install_fonts()
     _install_voice()
     _install_virtualgl()

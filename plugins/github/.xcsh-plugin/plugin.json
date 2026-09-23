@@ -1,7 +1,7 @@
 {
   "name": "github",
   "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -42,7 +42,8 @@
     "integrations": ["github", "github_email"],
     "requirements": ["GitHub CLI", "An authenticated GitHub account"],
     "setupRequired": true,
-    "collectedData": ["accounts", "email"],
+    "setupAuthorization": "install",
+    "collectedData": ["accounts", "email", "identifiers", "sameAs"],
     "pluginDependencies": []
   }
 }

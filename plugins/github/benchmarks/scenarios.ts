@@ -209,19 +209,19 @@ const scenarios: Scenario[] = [
     },
   },
   {
-    name: 'exec-pr-merge-blocked',
+    name: 'exec-pr-merge-advisory-policy-does-not-block',
     async run() {
       const tool = requireTool(GhExecTool.createIf(SESSION), 'GhExecTool');
       const result = await tool.execute('t', { args: ['pr', 'merge', '1'] }, undefined, undefined, SESSION);
-      return checkResult(result, { isError: true, contains: ['read-only'] });
+      return checkResult(result, { isError: false, contains: ['merged'] });
     },
   },
   {
-    name: 'exec-api-post-blocked',
+    name: 'exec-api-post-advisory-policy-does-not-block',
     async run() {
       const tool = requireTool(GhExecTool.createIf(SESSION), 'GhExecTool');
       const result = await tool.execute('t', { args: ['api', '-X=POST', 'x'] }, undefined, undefined, SESSION);
-      return checkResult(result, { isError: true, contains: ['read-only', 'POST'] });
+      return checkResult(result, { isError: false, contains: ['created'] });
     },
   },
 ];

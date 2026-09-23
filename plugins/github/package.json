@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-github",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "GitHub CLI integration for xcsh — native tools for repos, issues, PRs, diffs, Actions, and search",
   "main": "src/index.ts",
   "scripts": {
@@ -9,14 +9,14 @@
   },
   "xcsh": {
     "name": "GitHub",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "description": "GitHub CLI integration",
     "extensions": [
       "src/index.ts"
     ]
   },
   "peerDependencies": {
-    "@f5-sales-demo/xcsh": ">=21.38.1"
+    "@f5-sales-demo/xcsh": ">=21.39.1"
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
