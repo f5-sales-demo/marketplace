@@ -320,7 +320,7 @@ def _audio_status() -> dict[str, object]:
             item
             for item in sinks
             if item.get("name") == "xorgctl_console"
-            and item.get("description") == "xcsh Inbound Audio"
+            and item.get("description") == "xcsh_Inbound_Audio"
         ),
         None,
     )
@@ -775,8 +775,13 @@ def apply(expected_version: str) -> dict[str, object]:
             f"{VERSION}"
         )
         raise Fault(message)
-    _install_packages()
-    interpreter = _install_python()
+    dependencies = _dependency_checks()
+    if not all(dependencies["commands"].values()):
+        _install_packages()
+    if not all(dependencies["python_modules"].values()) or not _venv_python().is_file():
+        interpreter = _install_python()
+    else:
+        interpreter = _venv_python()
     _install_fonts()
     _install_voice()
     _install_virtualgl()

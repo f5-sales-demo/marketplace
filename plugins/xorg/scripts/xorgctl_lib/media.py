@@ -233,7 +233,7 @@ def media(w, m, p):
         if matching_sinks and (
             len(matching_sinks) > 1
             or any(
-                item.get("description") != "xcsh Inbound Audio"
+                item.get("description") != "xcsh_Inbound_Audio"
                 for item in matching_sinks
             )
         ):
@@ -251,7 +251,7 @@ def media(w, m, p):
                         "load-module",
                         "module-null-sink",
                         f"sink_name={name}",
-                        "sink_properties=device.description=xcsh Inbound Audio",
+                        "sink_properties=device.description=xcsh_Inbound_Audio",
                     ]
                 ).strip()
             )

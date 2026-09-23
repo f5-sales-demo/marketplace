@@ -369,7 +369,7 @@
     {
       "name": "kvm",
       "description": "Deterministic F5 Distributed Cloud Secure Mesh Site v2 lifecycle for KVM, libvirt, and Terraform-owned FRR routing",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
       "license": "Apache-2.0",
       "author": {
@@ -392,6 +392,7 @@
           "F5 Distributed Cloud Platform integration"
         ],
         "setupRequired": true,
+        "setupAuthorization": "install",
         "collectedData": [],
         "pluginDependencies": ["platform", "aws", "terraform"]
       }
@@ -447,7 +448,7 @@
     {
       "name": "github",
       "description": "GitHub and Git operations with typed lifecycle stages, normalized evidence, and advisory governance",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "author": {
         "name": "f5-sales-demo"
       },
@@ -464,7 +465,8 @@
         "integrations": ["github", "github_email"],
         "requirements": ["GitHub CLI", "An authenticated GitHub account"],
         "setupRequired": true,
-        "collectedData": ["accounts", "email"],
+        "setupAuthorization": "install",
+        "collectedData": ["accounts", "email", "identifiers", "sameAs"],
         "pluginDependencies": []
       }
     },
@@ -543,7 +545,7 @@
     },
     {
       "name": "xorg",
-      "version": "1.0.9",
+      "version": "1.1.0",
       "description": "Ubuntu 24.04 Xorg desktop automation substrate",
       "license": "Apache-2.0",
       "author": {
@@ -552,7 +554,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Xorg",
-        "version": "1.0.9"
+        "version": "1.1.0"
       },
       "source": "./plugins/xorg",
       "category": "development",
@@ -565,6 +567,7 @@
         "integrations": ["xorg"],
         "requirements": ["Ubuntu 24.04 with passwordless sudo"],
         "setupRequired": true,
+        "setupAuthorization": "install",
         "collectedData": [],
         "pluginDependencies": []
       }

@@ -1,10 +1,13 @@
+import { resolve } from 'node:path';
 import { createKvmSmsv2Tools } from './tools';
+
+const KVM_SETUP = resolve(import.meta.dir, '..', 'scripts', 'setup');
 
 interface KvmExtensionApi {
   typebox: { Type: Record<string, (...args: unknown[]) => unknown> };
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
-  integrations: { register<T>(definition: unknown): unknown };
+  integrations: { register<_T>(definition: unknown): unknown };
   on?(event: string, handler: unknown): void;
   logger: { debug(message: string): void };
 }
@@ -38,16 +41,7 @@ const factory = async (pi: KvmExtensionApi) => {
       pluginDependencies: ['platform', 'aws', 'terraform'],
       requiredEnvironment: [],
       profileFields: [],
-      steps:
-        process.platform === 'linux'
-          ? [
-              {
-                kind: 'install',
-                argv: ['sudo', 'apt-get', 'install', '--yes', 'libvirt-clients', 'docker.io', 'curl'],
-                timeoutMs: 300_000,
-              },
-            ]
-          : [],
+      steps: process.platform === 'linux' ? [{ kind: 'install', argv: [KVM_SETUP], timeoutMs: 300_000 }] : [],
       verification: [
         { argv: ['terraform', 'version'], timeoutMs: 30_000 },
         { argv: ['virsh', '--connect', 'qemu:///system', 'uri'], timeoutMs: 30_000 },

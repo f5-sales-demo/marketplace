@@ -41,6 +41,7 @@ test_kvm_required_surfaces() {
     tsconfig.json \
     src/index.ts \
     src/prompt-trace.ts \
+    scripts/setup \
     scripts/evals/run-smsv2-prompt-eval.sh \
     benchmarks/verify-smsv2-prompt-trace.ts \
     skills/kvm-smsv2/SKILL.md \
@@ -51,6 +52,22 @@ test_kvm_required_surfaces() {
       return 1
     }
   done
+}
+
+test_kvm_setup_avoids_sudo_when_commands_are_ready() {
+  local work path
+  work=$(mktemp -d)
+  trap 'rm -rf "$work"' RETURN
+  path="$work/bin"
+  mkdir -p "$path"
+  local command
+  for command in virsh docker curl; do
+    printf '#!/bin/sh\nexit 0\n' >"$path/$command"
+    chmod +x "$path/$command"
+  done
+  printf '#!/bin/sh\necho sudo-called >&2\nexit 97\n' >"$path/sudo"
+  chmod +x "$path/sudo"
+  PATH="$path" /bin/bash "$PLUGIN_ROOT/scripts/setup"
 }
 
 test_kvm_prompt_eval_runner() {

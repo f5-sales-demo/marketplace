@@ -29,10 +29,10 @@ describe('installed marketplace cache', () => {
     const installedManifest = JSON.parse(
       await Bun.file(path.join(installedRoot, '.xcsh-plugin', 'plugin.json')).text(),
     ) as { version?: string };
-    expect(installedPackage.version).toBe('3.0.0');
+    expect(installedPackage.version).toBe('3.1.0');
     expect(installedPackage.xcsh?.version).toBe(installedPackage.version);
     expect(installedManifest.version).toBe(installedPackage.version);
-    expect(installedPackage.peerDependencies?.['@f5-sales-demo/xcsh']).toBe('>=21.38.1');
+    expect(installedPackage.peerDependencies?.['@f5-sales-demo/xcsh']).toBe('>=21.39.1');
 
     const moduleUrl = pathToFileURL(path.join(installedRoot, 'src', 'tools', 'gh.ts')).href;
     const workflowUrl = pathToFileURL(path.join(installedRoot, 'src', 'tools', 'github-workflow.ts')).href;

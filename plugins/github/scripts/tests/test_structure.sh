@@ -21,9 +21,48 @@ test_plugin_manifest_and_catalog_match() {
   catalog_version=$(jq -r '.plugins[] | select(.name == "github") | .version' "$catalog")
   [ "$package_version" = "$plugin_version" ]
   [ "$plugin_version" = "$catalog_version" ]
-  jq -e '.xcsh.version == "3.0.0" and .peerDependencies["@f5-sales-demo/xcsh"] == ">=21.38.1"' \
+  jq -e '.xcsh.version == "3.1.0" and .peerDependencies["@f5-sales-demo/xcsh"] == ">=21.39.1"' \
     "$package_json" >/dev/null
   jq -e '.plugins[] | select(.name == "github") | .source == "./plugins/github"' "$catalog" >/dev/null
+}
+
+test_fresh_install_authorizes_idempotent_setup() {
+  for plugin in github xorg kvm; do
+    jq -e '.lifecycle.setupRequired == true and .lifecycle.setupAuthorization == "install"' \
+      "$MARKETPLACE_ROOT/plugins/$plugin/.xcsh-plugin/plugin.json" >/dev/null
+  done
+}
+
+test_github_lifecycle_uat_scenarios_cover_every_stage_and_override() {
+  local scenarios="$PLUGIN_ROOT/benchmarks/github-lifecycle-prompt-scenarios.json"
+  jq -e '
+    ([.[].expected.actions[]] | unique | sort) == (["cleanup", "monitor", "prepare", "publish", "repair", "status"] | sort)
+    and ([.[].expected.advisories[]] | unique | sort) == ([
+      "github.cleanup_without_merge_proof",
+      "github.custom_branch",
+      "github.direct_publication",
+      "github.issue_omitted",
+      "github.auto_merge_disabled",
+      "github.stage_all"
+    ] | sort)
+  ' "$scenarios" >/dev/null
+}
+
+test_github_lifecycle_uat_advisories_match_runtime_codes() {
+  local scenarios="$PLUGIN_ROOT/benchmarks/github-lifecycle-prompt-scenarios.json"
+  local workflow="$PLUGIN_ROOT/src/tools/github-workflow.ts"
+  while IFS= read -r action; do
+    grep -Fq "'$action'" "$workflow" || {
+      echo "synthesized UAT expects a lifecycle action absent from runtime: $action"
+      return 1
+    }
+  done < <(jq -r '.[].expected.actions[]' "$scenarios" | sort -u)
+  while IFS= read -r code; do
+    grep -Fq "'$code'" "$workflow" || {
+      echo "synthesized UAT expects an advisory code absent from runtime: $code"
+      return 1
+    }
+  done < <(jq -r '.[].expected.advisories[]' "$scenarios" | sort -u)
 }
 
 test_skill_frontmatter() {

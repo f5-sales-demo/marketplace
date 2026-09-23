@@ -27,6 +27,14 @@ case "$args" in
   echo "gh $args"
   exit 0
   ;;
+*"pr merge"*)
+  echo '{"merged":true}'
+  exit 0
+  ;;
+*"api -X=POST"*)
+  echo '{"created":true}'
+  exit 0
+  ;;
 esac
 
 if [ -n "$GH_BENCH_FIXTURES" ]; then

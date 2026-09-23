@@ -20,11 +20,13 @@ class FakeAudioWorker:
         self.sinks = []
         self.sources = []
         self.next_module = 1
+        self.commands = []
 
     def wait(self, _seconds):
         return None
 
     def command(self, argv):
+        self.commands.append(argv)
         if argv[:4] == ["pactl", "--format=json", "list", "sinks"]:
             return json.dumps(self.sinks).encode()
         if argv[:4] == ["pactl", "--format=json", "list", "sources"]:
@@ -39,7 +41,7 @@ class FakeAudioWorker:
                 item.split("device.description=", 1)[1]
                 for item in argv
                 if item.startswith("sink_properties=")
-            )
+            ).strip("'\"")
             self.sinks.append(
                 {"name": name, "description": description, "owner_module": module}
             )
@@ -76,9 +78,13 @@ class AudioLifecycleTests(unittest.TestCase):
             persisted = json.loads((worker.folder / "session.json").read_text())
 
         self.assertEqual(result["sink"], "xorgctl_console")
-        self.assertEqual(worker.sinks[0]["description"], "xcsh Inbound Audio")
+        self.assertEqual(worker.sinks[0]["description"], "xcsh_Inbound_Audio")
         self.assertEqual(persisted["audio_source"], "xcsh_microphone_input")
         self.assertTrue(persisted["virtual_audio"])
+        self.assertIn(
+            "sink_properties=device.description=xcsh_Inbound_Audio",
+            worker.commands[1],
+        )
 
     def test_audio_create_repairs_an_interrupted_stale_sink(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -99,7 +105,7 @@ class AudioLifecycleTests(unittest.TestCase):
             [
                 {
                     "name": "xorgctl_console",
-                    "description": "xcsh Inbound Audio",
+                    "description": "xcsh_Inbound_Audio",
                     "owner_module": 10,
                 }
             ],

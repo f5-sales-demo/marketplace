@@ -1,13 +1,16 @@
 {
   "name": "xorg",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Ubuntu 24.04 Xorg desktop automation substrate",
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Xorg",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "extensions": [
       "extensions/integration.ts"
     ]
+  },
+  "peerDependencies": {
+    "@f5-sales-demo/xcsh": ">=21.39.1"
   }
 }
