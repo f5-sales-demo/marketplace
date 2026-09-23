@@ -1,4 +1,4 @@
-# ruff: noqa: ANN001, ANN002, ANN201, ANN202, BLE001, D103, PLC0415, PLR0911, PLR2004
+# ruff: noqa: ANN001, ANN002, ANN201, ANN202, D103, PLC0415, PLR0911, PLR2004
 # ctypes constructors and media dispatch branches are validated by runtime
 # probes; Pylint cannot infer their dynamic signatures.
 # pylint: disable=broad-exception-caught,import-outside-toplevel,no-value-for-parameter,too-many-branches,too-many-locals,too-many-return-statements,too-many-statements

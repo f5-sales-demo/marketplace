@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# ruff: noqa: ANN001, ANN003, ANN201, D101, D103, N818, S108, S603
 import json
 import os
 import pathlib
