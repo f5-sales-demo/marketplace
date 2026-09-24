@@ -111,16 +111,29 @@ def allowed_lan_subnet(value: str) -> bool:
     return any(network.subnet_of(allowed) for allowed in LAN_RANGES)
 
 
-def select_lan_bridge(wired_link: str, bridges: dict[str, list[str]]) -> str:
+def select_lan_bridge(
+    wired_link: str,
+    bridges: dict[str, list[str]],
+    owned_ports: set[str] | None = None,
+) -> str:
     if not wired_link or wired_link.startswith(("br", "veth", "virbr", "wl")):
         raise ControllerError("a physical wired management link is required")
     if wired_link in bridges.get("br-kvm-lan", []):
         raise ControllerError("occupied br-kvm-lan belongs to another topology")
     matching = [name for name, members in bridges.items() if wired_link in members]
-    if len(matching) == 1 and matching[0] != "br-kvm-lan":
-        if len(bridges[matching[0]]) != 1:
+    if matching == ["xckvmlan"]:
+        members = bridges["xckvmlan"]
+        if (
+            len(owned_ports or set()) > 1
+            or len(members) != len(set(members))
+            or set(members)
+            != {
+                wired_link,
+                *(owned_ports or set()),
+            }
+        ):
             raise ControllerError("management bridge contains unowned ports")
-        return matching[0]
+        return "xckvmlan"
     if matching or "xckvmlan" in bridges:
         raise ControllerError("existing bridge ownership is ambiguous")
     return "xckvmlan"
@@ -165,6 +178,7 @@ def parse_home_lan(
     routes: list[dict[str, Any]],
     links: list[dict[str, Any]],
     addresses: list[dict[str, Any]],
+    owned_ports: set[str] | None = None,
 ) -> dict[str, Any]:
     by_name = {item.get("ifname"): item for item in links}
     bridges = {
@@ -209,7 +223,7 @@ def parse_home_lan(
             raise ValueError("wired LAN is outside the supported ranges")
     except (KeyError, ValueError) as error:
         raise ControllerError("wired LAN subnet or gateway is unsupported") from error
-    bridge = select_lan_bridge(physical, bridges)
+    bridge = select_lan_bridge(physical, bridges, owned_ports)
     return {
         "wiredLink": physical,
         "routeDevice": device,
@@ -320,10 +334,43 @@ def observe_home_lan(runner: Runner) -> dict[str, Any]:
             raise ControllerError("host link inventory is malformed")
         return result
 
+    routes = ip_json("-4", "route", "show", "default")
+    links = ip_json("link", "show")
+    addresses = ip_json("-4", "address", "show")
+    owned_ports: set[str] = set()
+    if any(
+        link.get("master") == "xckvmlan"
+        and str(link.get("ifname", "")).startswith("vnet")
+        for link in links
+    ):
+        domain = runner.run(
+            ["virsh", "--connect", "qemu:///system", "dumpxml", CE_DOMAIN]
+        )
+        if domain.returncode == 0:
+            try:
+                xml = ET.fromstring(domain.stdout)
+            except (ET.ParseError, TypeError) as error:
+                raise ControllerError(
+                    "CE bridge interface inventory is malformed"
+                ) from error
+            for interface in xml.findall("./devices/interface"):
+                source = interface.find("source")
+                mac = interface.find("mac")
+                target = interface.find("target")
+                if (
+                    source is not None
+                    and source.get("bridge") == "xckvmlan"
+                    and mac is not None
+                    and mac.get("address", "").lower() == SLI_MAC
+                    and target is not None
+                    and target.get("dev", "").startswith("vnet")
+                ):
+                    owned_ports.add(str(target.get("dev")))
     snapshot = parse_home_lan(
-        ip_json("-4", "route", "show", "default"),
-        ip_json("link", "show"),
-        ip_json("-4", "address", "show"),
+        routes,
+        links,
+        addresses,
+        owned_ports,
     )
     snapshot["ipv6"] = [
         entry.get("local")

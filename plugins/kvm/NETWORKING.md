@@ -14,6 +14,9 @@ Wi-Fi route, or overlapping wider prefix cannot substitute for the wired
 route. It records management IP, gateway, IPv6 use, bridge members and manager
 before a mutation. Only the wired management link can be moved into the
 dedicated `xckvmlan` bridge; an occupied `br-kvm-lan` is never repurposed.
+An existing management bridge is reused only when it is `xckvmlan` with the
+wired port and, if the CE is running, one tap attested by the CE's SLI MAC and
+libvirt bridge source. Other bridges and extra ports stop installation.
 
 On NetworkManager hosts, the bounded attempt uses `nmcli device checkpoint`
 with a 120-second rollback deadline. On networkd hosts it saves Netplan YAML,

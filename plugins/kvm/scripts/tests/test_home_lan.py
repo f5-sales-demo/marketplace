@@ -107,17 +107,83 @@ class HomeLanContracts(unittest.TestCase):
 
     def test_bridge_must_not_steal_occupied_or_other_lan(self):
         self.assertEqual(
-            controller.select_lan_bridge("enp2s0", {"br-home": ["enp2s0"]}),
-            "br-home",
+            controller.select_lan_bridge("enp2s0", {"xckvmlan": ["enp2s0"]}),
+            "xckvmlan",
         )
+        with self.assertRaises(controller.ControllerError):
+            controller.select_lan_bridge("enp2s0", {"br-home": ["enp2s0"]})
         with self.assertRaises(controller.ControllerError):
             controller.select_lan_bridge("enp2s0", {"br-kvm-lan": ["enp2s0"]})
         with self.assertRaises(controller.ControllerError):
             controller.select_lan_bridge("enp2s0", {"xckvmlan": ["enp3s0"]})
+        with self.assertRaises(controller.ControllerError):
+            controller.select_lan_bridge("enp2s0", {"xckvmlan": ["enp2s0", "vnet7"]})
+        self.assertEqual(
+            controller.select_lan_bridge(
+                "enp2s0", {"xckvmlan": ["enp2s0", "vnet7"]}, {"vnet7"}
+            ),
+            "xckvmlan",
+        )
+        with self.assertRaises(controller.ControllerError):
+            controller.select_lan_bridge(
+                "enp2s0",
+                {"xckvmlan": ["enp2s0", "vnet7", "vnet8"]},
+                {"vnet7", "vnet8"},
+            )
         self.assertEqual(
             controller.select_lan_bridge("enp2s0", {"br-kvm-lan": ["enp3s0"]}),
             "xckvmlan",
         )
+
+    def test_running_ce_tap_requires_exact_libvirt_bridge_and_sli_mac(self):
+        routes = [{"dst": "default", "dev": "xckvmlan", "gateway": "192.168.2.1"}]
+        links = [
+            {"ifname": "xckvmlan", "linkinfo": {"info_kind": "bridge"}},
+            {"ifname": "enp2s0", "master": "xckvmlan"},
+            {"ifname": "vnet7", "master": "xckvmlan"},
+        ]
+        addresses = [
+            {
+                "ifname": "xckvmlan",
+                "addr_info": [
+                    {"family": "inet", "local": "192.168.2.34", "prefixlen": 24}
+                ],
+            }
+        ]
+        domain_xml = (
+            '<domain><devices><interface type="bridge">'
+            '<mac address="52:54:00:10:00:12"/>'
+            '<source bridge="xckvmlan"/><target dev="vnet7"/>'
+            "</interface></devices></domain>"
+        )
+        for xml, accepted in (
+            (domain_xml, True),
+            (domain_xml.replace("52:54:00:10:00:12", "52:54:00:10:00:13"), False),
+            (domain_xml.replace('bridge="xckvmlan"', 'bridge="br-kvm-lan"'), False),
+            (domain_xml.replace('dev="vnet7"', 'dev="vnet8"'), False),
+            (
+                domain_xml.replace(
+                    "</devices>",
+                    '<interface type="bridge"><mac address="52:54:00:10:00:12"/>'
+                    '<source bridge="xckvmlan"/><target dev="vnet8"/>'
+                    "</interface></devices>",
+                ),
+                False,
+            ),
+        ):
+            runner = mock.Mock()
+            runner.checked.side_effect = [
+                json.dumps(value) for value in (routes, links, addresses, [], [])
+            ]
+            runner.run.side_effect = lambda argv, xml=xml, **_kwargs: mock.Mock(
+                returncode=0,
+                stdout=xml if "dumpxml" in argv else "",
+            )
+            if accepted:
+                self.assertTrue(controller.observe_home_lan(runner)["bridgeReady"])
+            else:
+                with self.assertRaises(controller.ControllerError):
+                    controller.observe_home_lan(runner)
 
     def test_candidates_exclude_leases_neighbors_and_responders(self):
         available = controller.select_lan_addresses(
