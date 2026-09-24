@@ -13,6 +13,26 @@ variable "xc_api_url" {
   type        = string
 }
 
+variable "lan_bridge" {
+  description = "Verified physical home-LAN bridge, never an occupied foreign bridge."
+  type        = string
+}
+
+variable "lan_subnet" {
+  description = "Observed wired home-LAN subnet."
+  type        = string
+}
+
+variable "sli_address" {
+  description = "Rechecked, selected CE inside address."
+  type        = string
+}
+
+variable "vip_address" {
+  description = "Rechecked, distinct inside HTTP VIP."
+  type        = string
+}
+
 variable "software_version" {
   description = "Software pinned for first boot; no post-registration upgrade is performed."
   type        = string

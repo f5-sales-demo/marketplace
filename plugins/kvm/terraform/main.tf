@@ -1,11 +1,13 @@
 locals {
-  owner                 = "xcsh-kvm-smsv2-v2"
+  owner                 = "xcsh-kvm-smsv2-v3"
   pool_name             = "xcsh-kvm-smsv2"
   network_name          = "xcsh-kvm-smsv2"
   bridge_name           = "xckvm2"
   ce_name               = "xcsh-kvm-smsv2-ce"
   ce_address            = "10.100.0.11"
   ce_mac                = "52:54:00:10:00:11"
+  sli_mac               = "52:54:00:10:00:12"
+  lab_route             = "10.231.0.0/24"
   workload_name         = "xcsh-kvm-smsv2-workload"
   workload_address      = "10.100.0.100"
   workload_mac          = "52:54:00:10:00:64"
@@ -96,7 +98,7 @@ resource "xcsh_token" "site" {
   site_name   = xcsh_securemesh_site_v2.site.name
 }
 
-# Provider 9.5.2 resolves configuration ownership to the Site UID and then
+# The pinned provider resolves configuration ownership to the Site UID and then
 # queries /api/maurice/software_os_version. No legacy image endpoint exists here.
 data "xcsh_site_image" "site" {
   site_name = xcsh_securemesh_site_v2.site.name
@@ -122,7 +124,7 @@ resource "terraform_data" "ce_image" {
   lifecycle {
     precondition {
       condition     = lower(data.xcsh_site_image.site.image_md5_sum) == local.ce_image_md5
-      error_message = "The issued CE image does not match the v2.0.0 pinned MD5."
+      error_message = "The issued CE image does not match the pinned MD5."
     }
   }
 }
@@ -221,6 +223,11 @@ resource "libvirt_domain" "ce" {
     mac            = local.ce_mac
     wait_for_lease = false
   }
+  network_interface {
+    bridge         = var.lan_bridge
+    mac            = local.sli_mac
+    wait_for_lease = false
+  }
   disk {
     volume_id = libvirt_volume.ce.id
   }
@@ -260,6 +267,25 @@ data "xcsh_smsv2_kvm_runtime" "ce" {
         lower(self.mac) == lower(local.ce_mac)
       )
       error_message = "KVM BGP requires one live XC network_interface correlated by current site ownership, observed registration hostname/device, and the Terraform-owned CE MAC."
+    }
+  }
+}
+
+resource "xcsh_smsv2_kvm_runtime_interface" "sli" {
+  site         = xcsh_securemesh_site_v2.site.name
+  expected_mac = local.sli_mac
+  ipv4_cidr    = "${var.sli_address}/${split("/", var.lan_subnet)[1]}"
+  depends_on   = [libvirt_domain.ce]
+
+  lifecycle {
+    postcondition {
+      condition = (
+        self.interface_name != "" &&
+        self.device != data.xcsh_smsv2_kvm_runtime.ce.device &&
+        self.owner_uid != "" &&
+        self.configured
+      )
+      error_message = "SLI requires a distinct live owned interface selected by the plugin MAC."
     }
   }
 }
@@ -333,8 +359,8 @@ resource "docker_container" "frr" {
        address-family ipv4 unicast
         neighbor ${local.ce_address} activate
        exit-address-family
-       network 198.51.100.0/24
-      ip route 198.51.100.0/24 Null0
+       network ${local.lab_route}
+      ip route ${local.lab_route} Null0
     EOF
   }
   upload {
@@ -412,9 +438,10 @@ resource "libvirt_cloudinit_disk" "workload" {
   user_data = <<-EOF
     #cloud-config
     package_update: false
-    packages: [iputils-ping, qemu-guest-agent]
+    packages: [iputils-ping, qemu-guest-agent, nginx]
     runcmd:
       - [systemctl, enable, --now, qemu-guest-agent]
+      - [systemctl, enable, --now, nginx]
       - [sh, -c, 'while true; do ping -c 1 -W 5 10.100.0.11 >/var/log/xcsh-kvm-traffic.log 2>&1 || true; sleep 30; done &']
   EOF
   meta_data = <<-EOF
@@ -440,4 +467,83 @@ resource "libvirt_domain" "workload" {
   lifecycle {
     replace_triggered_by = [libvirt_cloudinit_disk.workload, libvirt_network.site]
   }
+}
+
+resource "xcsh_origin_pool" "home" {
+  name        = "${var.site_name}-origin"
+  namespace   = "system"
+  description = "Plugin-owned isolated SLO demo origin"
+  labels      = local.labels
+  port        = 80
+
+  origin_servers {
+    labels = {}
+    private_ip {
+      ip              = local.workload_address
+      outside_network = {}
+      site_locator {
+        site {
+          name      = xcsh_securemesh_site_v2.site.name
+          namespace = "system"
+        }
+      }
+    }
+  }
+
+  no_tls                 = {}
+  loadbalancer_algorithm = "ROUND_ROBIN"
+  endpoint_selection     = "DISTRIBUTED"
+  depends_on             = [libvirt_domain.workload]
+}
+
+resource "xcsh_http_loadbalancer" "home" {
+  name        = "${var.site_name}-lan"
+  namespace   = "system"
+  description = "Plugin-owned inside LAN VIP ${var.vip_address}"
+  labels      = local.labels
+  domains     = ["${var.site_name}.internal.f5-sales-demo.com"]
+
+  http {
+    port = 80
+  }
+
+  advertise_custom {
+    advertise_where {
+      site {
+        network = "SITE_NETWORK_INSIDE"
+        site {
+          name      = xcsh_securemesh_site_v2.site.name
+          namespace = "system"
+        }
+        ip = var.vip_address
+      }
+      use_default_port = {}
+    }
+  }
+
+  default_route_pools {
+    pool {
+      name      = xcsh_origin_pool.home.name
+      namespace = "system"
+    }
+    weight   = 1
+    priority = 1
+  }
+
+  round_robin            = {}
+  no_challenge           = {}
+  user_id_client_ip      = {}
+  disable_waf            = {}
+  disable_rate_limit     = {}
+  disable_api_discovery  = {}
+  disable_api_testing    = {}
+  disable_api_definition = {}
+  l7_ddos_protection {}
+  service_policies_from_namespace  = {}
+  disable_trust_client_ip_headers  = {}
+  disable_malicious_user_detection = {}
+  disable_malware_protection       = {}
+  disable_threat_mesh              = {}
+  default_sensitive_data_policy    = {}
+  depends_on                       = [xcsh_smsv2_kvm_runtime_interface.sli]
 }

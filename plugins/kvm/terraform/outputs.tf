@@ -1,10 +1,30 @@
 output "identity" {
   value = {
-    namespace        = "system"
-    site_name        = xcsh_securemesh_site_v2.site.name
-    ce_name          = libvirt_domain.ce.name
-    ce_mac           = local.ce_mac
-    ce_address       = local.ce_address
+    namespace   = "system"
+    site_name   = xcsh_securemesh_site_v2.site.name
+    ce_name     = libvirt_domain.ce.name
+    ce_mac      = local.ce_mac
+    ce_address  = local.ce_address
+    sli_mac     = local.sli_mac
+    sli_address = var.sli_address
+    lan_subnet  = var.lan_subnet
+    lan_bridge  = var.lan_bridge
+    vip_address = var.vip_address
+    lb_hostname = "${var.site_name}.internal.f5-sales-demo.com"
+    origin_pool = xcsh_origin_pool.home.name
+    http_lb     = xcsh_http_loadbalancer.home.name
+    slo_interface = {
+      role           = "slo"
+      mac            = data.xcsh_smsv2_kvm_runtime.ce.mac
+      device         = data.xcsh_smsv2_kvm_runtime.ce.device
+      interface_name = data.xcsh_smsv2_kvm_runtime.ce.interface_name
+    }
+    sli_interface = {
+      role           = "sli"
+      mac            = local.sli_mac
+      device         = xcsh_smsv2_kvm_runtime_interface.sli.device
+      interface_name = xcsh_smsv2_kvm_runtime_interface.sli.interface_name
+    }
     workload_name    = libvirt_domain.workload.name
     workload_mac     = local.workload_mac
     workload_address = local.workload_address

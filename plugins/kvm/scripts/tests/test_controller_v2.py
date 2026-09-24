@@ -163,7 +163,7 @@ class ControllerContractTests(unittest.TestCase):
             },
         )
         encoded = json.dumps(envelope)
-        self.assertEqual(envelope["schemaVersion"], "kvm.smsv2/v2")
+        self.assertEqual(envelope["schemaVersion"], "kvm.smsv2/v3")
         self.assertIs(envelope["result"]["passwordlessSudo"], True)
         self.assertNotIn("secret-value", encoded)
         self.assertNotIn("Bearer abc", encoded)
@@ -1001,14 +1001,16 @@ class ControllerContractTests(unittest.TestCase):
             "registration": {
                 "count": 1,
                 "onlineCount": 1,
-                "registrations": [{"provider": "KVM", "macs": ["52:54:00:10:00:11"]}],
+                "registrations": [{"provider": "KVM", "macs": ["52:54:00:10:00:11", "52:54:00:10:00:12"]}],
             },
-            "host": {"ceIdentityReady": True, "workloadIdentityReady": True},
+            "host": {"ceIdentityReady": True, "sliIdentityReady": True, "workloadIdentityReady": True},
+            "lan": {"localHttp": True, "bridgeReady": True, "conflictFree": True},
+            "application": {"origin": {"owned": True}, "httpLb": {"owned": True}},
             "images": {"verified": True},
             "bgp": {
                 "peerCount": 1,
                 "establishedCount": 1,
-                "importedRoutes": ["198.51.100.0/24"],
+                "importedRoutes": ["10.231.0.0/24"],
                 "advertisedRouteCount": 1,
             },
             "traffic": {"samples": 5, "successes": 5},
@@ -1018,6 +1020,10 @@ class ControllerContractTests(unittest.TestCase):
         for path in (
             ("site", "state"),
             ("host", "ceIdentityReady"),
+            ("host", "sliIdentityReady"),
+            ("lan", "localHttp"),
+            ("lan", "conflictFree"),
+            ("application", "origin"),
             ("images", "verified"),
             ("bgp", "establishedCount"),
             ("traffic", "successes"),
@@ -1138,7 +1144,7 @@ class ControllerContractTests(unittest.TestCase):
                                 {
                                     "imported": [
                                         {
-                                            "subnet": "198.51.100.0/24",
+                                            "subnet": "10.231.0.0/24",
                                             "path": [
                                                 {
                                                     "peer": {
@@ -1158,7 +1164,7 @@ class ControllerContractTests(unittest.TestCase):
         }
         parsed = controller.parse_bgp_observation(peers, routes)
         self.assertEqual(parsed["establishedCount"], 1)
-        self.assertEqual(parsed["importedRoutes"], ["198.51.100.0/24"])
+        self.assertEqual(parsed["importedRoutes"], ["10.231.0.0/24"])
         self.assertEqual(parsed["advertisedRouteCount"], 1)
 
     def test_destroy_rejects_unowned_site_before_planning(self):

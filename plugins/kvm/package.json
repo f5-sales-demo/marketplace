@@ -1,7 +1,7 @@
 {
   "name": "@f5-sales-demo/xcsh-kvm",
-  "version": "2.0.2",
-  "description": "Deterministic KVM and libvirt lifecycle tools for F5 Secure Mesh Site v2",
+  "version": "3.0.0",
+  "description": "KVM dual-NIC home-LAN lifecycle tools for F5 Secure Mesh Site v2",
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test && python3 scripts/tests/test_controller_v2.py",
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "KVM SMSv2",
-    "version": "2.0.2",
+    "version": "3.0.0",
     "extensions": [
       "src/index.ts"
     ]

@@ -7,7 +7,7 @@ description: >-
 
 # KVM Secure Mesh Site v2
 
-This is a clean-break v2 workflow. Use only `kvm_smsv2_readiness`, `kvm_smsv2_deploy`,
+This is a clean-break v3 networking workflow. Use only `kvm_smsv2_readiness`, `kvm_smsv2_deploy`,
 `kvm_smsv2_status`, `kvm_smsv2_reconcile`, and `kvm_smsv2_destroy`. Do not use retired application
 stack modes, an external Terraform workspace, public-cloud providers, legacy image discovery,
 Terraform state editing, imports, taint, or direct resource deletion.
@@ -26,3 +26,12 @@ After deployment, use `kvm_smsv2_status` to require the fixed CE/workload identi
 and approval, ONLINE health, one Established BGP peer, imported and advertised routes, generated
 traffic, and a zero-change plan. For lifecycle acceptance, destroy through `kvm_smsv2_destroy`, prove
 absence, rebuild from empty state, and leave the final CE deployed and healthy.
+
+Follow `NETWORKING.md`: report the exact wired LAN gap, the bounded bridge
+remediation attempted, and the result of its timed rollback/health check.
+Never move an occupied `br-kvm-lan`, claim an unverified DHCP exclusion, or
+assume home DNS. Verify the inside VIP with an explicit Host header from
+another LAN device and prove the VPN-connected laptop still routes locally.
+Retire an MCN-owned CE through MCN's own reviewed lifecycle before installing
+this plugin; do not delete shared resources or confuse physical switch
+multi-MAC restrictions with remediable host configuration.

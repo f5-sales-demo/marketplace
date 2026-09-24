@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-contained KVM Secure Mesh Site v2 lifecycle controller."""
 # pylint: disable=too-many-lines
-# ruff: noqa: ANN204, D101, D102, D103, D107, EM101, EM102, I001, PERF401, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
+# ruff: noqa: ANN204, BLE001, D101, D102, D103, D107, EM101, EM102, I001, PERF401, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
 
 from __future__ import annotations
 
@@ -11,12 +11,14 @@ import contextlib
 import fcntl
 import grp
 import hashlib
+import ipaddress
 import json
 import os
 import pathlib
 import platform
 import pwd
 import re
+import select
 import shutil
 import socket
 import subprocess
@@ -30,14 +32,11 @@ import xml.etree.ElementTree as ET
 import zipfile
 from typing import Any
 
-SCHEMA_VERSION = "kvm.smsv2/v2"
-CONTROLLER_VERSION = "2.0.0"
+SCHEMA_VERSION = "kvm.smsv2/v3"
+CONTROLLER_VERSION = "3.0.0"
 TERRAFORM_VERSION = "1.16.3"
 TERRAFORM_SHA256 = "093b6ae9a2228af5029c41606bc96eb583553528aad1bfe7e0b4d62fc91e25d8"
-REFERENCE_PLAN_SHA256 = (
-    "e553496112ba9b903f36267225644f203c54c0b9ad92cdcf1a5efd183d211071"
-)
-OWNER = "xcsh-kvm-smsv2-v2"
+OWNER = "xcsh-kvm-smsv2-v3"
 NAMESPACE = "system"
 POOL = "xcsh-kvm-smsv2"
 NETWORK = "xcsh-kvm-smsv2"
@@ -46,24 +45,35 @@ CE_DOMAIN = "xcsh-kvm-smsv2-ce"
 WORKLOAD_DOMAIN = "xcsh-kvm-smsv2-workload"
 CE_ADDRESS = "10.100.0.11"
 CE_MAC = "52:54:00:10:00:11"
+SLI_MAC = "52:54:00:10:00:12"
 WORKLOAD_ADDRESS = "10.100.0.100"
 WORKLOAD_MAC = "52:54:00:10:00:64"
+LAB_ROUTE = "10.231.0.0/24"
+LAN_RANGES = (
+    ipaddress.ip_network("192.168.0.0/22"),
+    ipaddress.ip_network("192.168.4.0/23"),
+)
 CE_IMAGE_MD5 = "373f25b2b1d04674baa48a8916905c68"
 WORKLOAD_IMAGE_SHA512 = "08fea112563461f251f3c95a5c5cf8cb25eb60f74cec03e85a97ff91d3efef3059d35837598bbb476008f20db6d3bdc7143c5f2f2a9a6da394a0acc601fd5986"
 REQUIRED_COMMANDS = (
+    "arping",
     "brctl",
     "curl",
     "docker",
     "ip",
     "jq",
     "modprobe",
+    "ping",
     "qemu-img",
     "systemctl",
+    "systemd-run",
     "terraform",
     "virsh",
 )
 APT_PACKAGES = (
     "bridge-utils",
+    "iputils-arping",
+    "iputils-ping",
     "curl",
     "iproute2",
     "jq",
@@ -72,6 +82,7 @@ APT_PACKAGES = (
     "libvirt-daemon-system",
     "qemu-kvm",
     "qemu-utils",
+    "python3-yaml",
     "unzip",
 )
 ALLOWED_PROVIDERS = {
@@ -88,6 +99,452 @@ SECRET_VALUE = re.compile(r"(?i)(?:Bearer|APIToken)\s+\S+")
 
 class ControllerError(RuntimeError):
     pass
+
+
+def allowed_lan_subnet(value: str) -> bool:
+    try:
+        network = ipaddress.ip_network(value, strict=True)
+    except ValueError:
+        return False
+    return isinstance(network, ipaddress.IPv4Network) and any(
+        network.subnet_of(allowed) for allowed in LAN_RANGES
+    )
+
+
+def select_lan_bridge(wired_link: str, bridges: dict[str, list[str]]) -> str:
+    if not wired_link or wired_link.startswith(("br", "veth", "virbr", "wl")):
+        raise ControllerError("a physical wired management link is required")
+    if wired_link in bridges.get("br-kvm-lan", []):
+        raise ControllerError("occupied br-kvm-lan belongs to another topology")
+    matching = [name for name, members in bridges.items() if wired_link in members]
+    if len(matching) == 1 and matching[0] != "br-kvm-lan":
+        if len(bridges[matching[0]]) != 1:
+            raise ControllerError("management bridge contains unowned ports")
+        return matching[0]
+    if matching or "xckvmlan" in bridges:
+        raise ControllerError("existing bridge ownership is ambiguous")
+    return "xckvmlan"
+
+
+def select_lan_addresses(
+    subnet: str, gateway: str, excluded: set[str], responds: Any
+) -> tuple[str, str]:
+    if not allowed_lan_subnet(subnet):
+        raise ControllerError("wired LAN subnet must be wholly within an allowed range")
+    network = ipaddress.ip_network(subnet)
+    blocked = {str(ipaddress.ip_address(address)) for address in excluded | {gateway}}
+    candidates: list[str] = []
+    for address in reversed(list(network.hosts())):
+        value = str(address)
+        if value not in blocked and not responds(value):
+            candidates.append(value)
+            if len(candidates) == 2:
+                return tuple(reversed(candidates))
+    raise ControllerError("two unoccupied LAN addresses could not be established")
+
+
+def map_ce_interfaces(interfaces: list[dict[str, str]]) -> dict[str, dict[str, str]]:
+    expected = {"slo": CE_MAC, "sli": SLI_MAC}
+    mapped: dict[str, dict[str, str]] = {}
+    for item in interfaces:
+        role = item.get("role", "").lower()
+        mac = item.get("mac", "").lower().replace("-", ":")
+        if role not in expected or role in mapped or mac != expected[role]:
+            raise ControllerError("CE role/MAC mapping is ambiguous or unowned")
+        if not item.get("device") or any(
+            other["device"] == item["device"] for other in mapped.values()
+        ):
+            raise ControllerError("CE interfaces require distinct observed devices")
+        mapped[role] = item
+    if set(mapped) != set(expected):
+        raise ControllerError("both observed CE roles are required")
+    return mapped
+
+
+def parse_home_lan(
+    routes: list[dict[str, Any]],
+    links: list[dict[str, Any]],
+    addresses: list[dict[str, Any]],
+) -> dict[str, Any]:
+    by_name = {item.get("ifname"): item for item in links}
+    bridges = {
+        str(name): [str(link["ifname"]) for link in links if link.get("master") == name]
+        for name, item in by_name.items()
+        if item.get("linkinfo", {}).get("info_kind") == "bridge"
+    }
+    candidates: list[tuple[dict[str, Any], str]] = []
+    for route in routes:
+        device = str(route.get("dev", ""))
+        physical = device
+        if device in bridges:
+            wired = [port for port in bridges[device] if port.startswith(("en", "eth"))]
+            if len(wired) != 1:
+                continue
+            physical = wired[0]
+        if route.get("dst") == "default" and physical.startswith(("en", "eth")):
+            candidates.append((route, physical))
+    if len(candidates) != 1:
+        raise ControllerError("one unambiguous active wired default route is required")
+    route, physical = candidates[0]
+    device = str(route["dev"])
+    gateway = str(route.get("gateway", ""))
+    observed = [
+        item
+        for link in addresses
+        if link.get("ifname") == device
+        for item in link.get("addr_info", [])
+        if item.get("family") == "inet"
+    ]
+    if len(observed) != 1:
+        raise ControllerError("one wired LAN IPv4 address is required")
+    entry = observed[0]
+    try:
+        subnet = ipaddress.ip_network(
+            f"{entry['local']}/{entry['prefixlen']}", strict=False
+        )
+        if (
+            not allowed_lan_subnet(str(subnet))
+            or ipaddress.ip_address(gateway) not in subnet
+        ):
+            raise ValueError("wired LAN is outside the supported ranges")
+    except (KeyError, ValueError) as error:
+        raise ControllerError("wired LAN subnet or gateway is unsupported") from error
+    bridge = select_lan_bridge(physical, bridges)
+    return {
+        "wiredLink": physical,
+        "routeDevice": device,
+        "hostAddress": str(entry["local"]),
+        "gateway": gateway,
+        "subnet": str(subnet),
+        "bridge": bridge,
+        "bridgeReady": device == bridge,
+        "physicalMac": str(by_name.get(physical, {}).get("address", "")),
+        "bridges": bridges,
+    }
+
+
+def bridge_transaction_command(manager: str, wired_link: str, bridge: str) -> list[str]:
+    if not re.fullmatch(r"[a-zA-Z0-9_.-]{1,15}", wired_link):
+        raise ControllerError("invalid wired link name")
+    if bridge != "xckvmlan":
+        raise ControllerError("only the plugin-owned bridge can be created")
+    helper = str(pathlib.Path(__file__).with_name("bridge-prep.py"))
+    if manager == "NetworkManager":
+        return [
+            "sudo",
+            "nmcli",
+            "device",
+            "checkpoint",
+            "--timeout",
+            "120",
+            "--",
+            "python3",
+            helper,
+            "networkmanager",
+            wired_link,
+            bridge,
+        ]
+    if manager == "networkd":
+        return ["sudo", "python3", helper, "networkd", wired_link, bridge]
+    raise ControllerError("unsupported wired LAN network manager")
+
+
+def execute_checkpoint(argv: list[str]) -> None:
+    environment = dict(os.environ)
+    environment["LC_ALL"] = "C"
+    try:
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=environment,
+        )
+    except OSError as error:
+        raise ControllerError("NetworkManager checkpoint could not start") from error
+    output = bytearray()
+    deadline = time.monotonic() + 130
+    prompt = b'Type "Yes" to commit the changes:'
+    marker = b"KVM_BRIDGE_VERIFIED\n"
+    try:
+        if process.stdout is None or process.stdin is None:
+            raise ControllerError("NetworkManager checkpoint streams are unavailable")
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([process.stdout], [], [], 1)
+            if not ready:
+                if process.poll() is not None:
+                    break
+                continue
+            chunk = os.read(process.stdout.fileno(), 4096)
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > 8192:
+                del output[:-8192]
+            if prompt in output:
+                verified = marker in output
+                if verified:
+                    process.stdin.write(b"Yes\n")
+                    process.stdin.flush()
+                process.stdin.close()
+                process.wait(timeout=15)
+                if verified and process.returncode == 0:
+                    return
+                raise ControllerError(
+                    "NetworkManager checkpoint rejected an unverified bridge"
+                )
+        raise ControllerError(
+            "NetworkManager checkpoint ended without verified confirmation"
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ControllerError(
+            "NetworkManager checkpoint confirmation timed out"
+        ) from error
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        if process.stdin and not process.stdin.closed:
+            process.stdin.close()
+        if process.stdout:
+            process.stdout.close()
+
+
+def observe_home_lan(runner: Runner) -> dict[str, Any]:
+    def ip_json(*args: str) -> list[dict[str, Any]]:
+        try:
+            result = json.loads(runner.checked(["ip", "-j", *args]))
+        except ValueError as error:
+            raise ControllerError("host link inventory is malformed") from error
+        if not isinstance(result, list):
+            raise ControllerError("host link inventory is malformed")
+        return result
+
+    snapshot = parse_home_lan(
+        ip_json("-4", "route", "show", "default"),
+        ip_json("link", "show"),
+        ip_json("-4", "address", "show"),
+    )
+    snapshot["ipv6"] = [
+        entry.get("local")
+        for link in ip_json("-6", "address", "show")
+        if link.get("ifname") in (snapshot["wiredLink"], snapshot["bridge"])
+        for entry in link.get("addr_info", [])
+        if entry.get("scope") == "global"
+    ]
+    snapshot["neighbors"] = sorted(
+        {
+            str(entry["dst"])
+            for entry in ip_json("-4", "neigh", "show")
+            if entry.get("dst") and "FAILED" not in entry.get("state", [])
+        }
+    )
+    if (
+        runner.run(["systemctl", "is-active", "--quiet", "NetworkManager"]).returncode
+        == 0
+    ):
+        snapshot["manager"] = "NetworkManager"
+    elif (
+        runner.run(["systemctl", "is-active", "--quiet", "systemd-networkd"]).returncode
+        == 0
+    ):
+        snapshot["manager"] = "networkd"
+    else:
+        raise ControllerError(
+            "wired LAN manager is neither NetworkManager nor networkd"
+        )
+    return snapshot
+
+
+def _probe_lan_address(runner: Runner, bridge: str, address: str) -> bool:
+    result = runner.run(
+        ["sudo", "arping", "-D", "-I", bridge, "-c", "2", "-w", "3", address],
+        timeout=12,
+    )
+    if result.returncode not in (0, 1):
+        raise ControllerError(
+            "LAN ARP probe could not establish candidate availability"
+        )
+    return result.returncode == 1
+
+
+def _lan_arp_mac(runner: Runner, bridge: str, address: str) -> str | None:
+    result = runner.run(
+        ["sudo", "arping", "-I", bridge, "-c", "2", "-w", "3", address], timeout=12
+    )
+    if result.returncode not in (0, 1):
+        raise ControllerError("LAN ARP ownership probe failed")
+    macs = {mac.lower() for mac in re.findall(r"\[([0-9a-fA-F:]{17})\]", result.stdout)}
+    if len(macs) > 1:
+        raise ControllerError("multiple LAN MACs answered one selected address")
+    return next(iter(macs)) if macs else None
+
+
+def validate_lan_recheck(
+    selection: dict[str, str], expected: dict[str, str] | None, observe: Any
+) -> None:
+    for key in ("sliAddress", "vipAddress"):
+        address = selection[key]
+        responder = observe(address)
+        owner = expected.get(address) if expected else None
+        if responder is not None and (
+            owner is None or responder.lower() != owner.lower()
+        ):
+            raise ControllerError(
+                "LAN address has a new or mismatched ARP owner; review a fresh plan"
+            )
+        if owner is not None and responder is None:
+            raise ControllerError("previously owned LAN address no longer responds")
+
+
+def _observed_lan_leases(runner: Runner, subnet: str) -> list[str]:
+    payload = runner.checked(
+        [
+            "sudo",
+            "python3",
+            str(pathlib.Path(__file__).with_name("bridge-prep.py")),
+            "leases",
+            subnet,
+        ]
+    )
+    try:
+        leases = json.loads(payload)
+        if not isinstance(leases, list) or not all(
+            isinstance(item, str) for item in leases
+        ):
+            raise ValueError("malformed lease inventory")
+    except ValueError as error:
+        raise ControllerError("LAN lease inventory is malformed") from error
+    return leases
+
+
+def prepare_home_lan(
+    store: StateStore, runner: Runner, config: dict[str, Any]
+) -> dict[str, Any]:
+    snapshot = observe_home_lan(runner)
+    if not snapshot["bridgeReady"]:
+        argv = bridge_transaction_command(
+            snapshot["manager"], snapshot["wiredLink"], snapshot["bridge"]
+        )
+        command = [
+            *argv,
+            snapshot["hostAddress"],
+            snapshot["gateway"],
+            snapshot["physicalMac"],
+            "yes" if snapshot["ipv6"] else "no",
+        ]
+        if snapshot["manager"] == "NetworkManager":
+            execute_checkpoint(command)
+        elif runner.run(command, timeout=150).returncode:
+            raise ControllerError(
+                "timed bridge transaction failed; original network configuration must be verified"
+            )
+        try:
+            verified = observe_home_lan(runner)
+            if (
+                not verified["bridgeReady"]
+                or verified["subnet"] != snapshot["subnet"]
+                or verified["hostAddress"] != snapshot["hostAddress"]
+            ):
+                raise ControllerError(
+                    "bridge transaction changed the management identity"
+                )
+            runner.checked(
+                ["sudo", "systemctl", "stop", "kvm-smsv2-lan-rollback.timer"]
+            )
+        except ControllerError:
+            try:
+                runner.checked(
+                    [
+                        "sudo",
+                        "python3",
+                        str(pathlib.Path(__file__).with_name("bridge-prep.py")),
+                        "restore",
+                    ],
+                    timeout=155,
+                )
+            except ControllerError as error:
+                raise ControllerError(
+                    "bridge validation and management rollback failed; inspect the host rollback timer"
+                ) from error
+            raise
+        snapshot = verified
+    if not shutil.which("arping"):
+        raise ControllerError(
+            "iputils-arping is required for best-effort LAN conflict probing"
+        )
+    leases = _observed_lan_leases(runner, snapshot["subnet"])
+    snapshot["observedLeases"] = leases
+    known = set(snapshot["neighbors"]) | set(leases) | {snapshot["hostAddress"]}
+    addresses = config.get("lan")
+    if addresses:
+        if any(
+            addresses.get(key) != snapshot[value]
+            for key, value in (
+                ("subnet", "subnet"),
+                ("bridge", "bridge"),
+                ("gateway", "gateway"),
+            )
+        ):
+            raise ControllerError(
+                "persisted LAN topology drift requires a new reviewed deployment"
+            )
+        selected = (addresses["sliAddress"], addresses["vipAddress"])
+        if len(set(selected)) != 2 or any(
+            ipaddress.ip_address(address)
+            not in ipaddress.ip_network(snapshot["subnet"])
+            for address in selected
+        ):
+            raise ControllerError("persisted LAN address selection is invalid")
+        baseline_path = store.receipts / "lan-arp-owners.json"
+        expected = (
+            store.read_receipt("lan-arp-owners").get("macs")
+            if baseline_path.exists()
+            else None
+        )
+        if any(address in leases for address in selected):
+            raise ControllerError(
+                "persisted LAN address appears in observed DHCP leases"
+            )
+        if expected is None and any(address in known for address in selected):
+            raise ControllerError("unowned LAN address appears in neighbor inventory")
+    else:
+        selected = select_lan_addresses(
+            snapshot["subnet"],
+            snapshot["gateway"],
+            known,
+            lambda address: _probe_lan_address(runner, snapshot["bridge"], address),
+        )
+        addresses = {
+            "subnet": snapshot["subnet"],
+            "bridge": snapshot["bridge"],
+            "gateway": snapshot["gateway"],
+            "sliAddress": selected[0],
+            "vipAddress": selected[1],
+        }
+        config["lan"] = addresses
+        path = store.root / "deployment.json"
+        fd, temporary = tempfile.mkstemp(prefix=".deployment.", dir=store.root)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(config, stream, sort_keys=True)
+            stream.write("\n")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+        store.write_receipt(
+            "lan",
+            {
+                "selection": addresses,
+                "inventory": snapshot,
+                "dhcpExclusionVerified": False,
+            },
+        )
+        expected = None
+    validate_lan_recheck(
+        addresses,
+        expected,
+        lambda address: _lan_arp_mac(runner, snapshot["bridge"], address),
+    )
+    return addresses
 
 
 def _redact(value: Any, key: str = "") -> Any:
@@ -174,6 +631,19 @@ def inspect_plan(document: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "providers": sorted(providers), "addresses": sorted(addresses)}
 
 
+def require_home_lan_plan(document: dict[str, Any]) -> None:
+    changes = document.get("resource_changes", [])
+    for kind in ("xcsh_http_loadbalancer", "xcsh_origin_pool"):
+        addresses = [
+            item.get("address")
+            for item in changes
+            if isinstance(item, dict)
+            and str(item.get("address", "")).startswith(f"{kind}.")
+        ]
+        if addresses != [f"{kind}.home"]:
+            raise ControllerError(f"saved plan requires exactly one owned {kind}")
+
+
 def classify_ambiguous_post(error: str, exact: dict[str, Any] | None) -> str:
     if "eof" not in error.lower():
         return "not_ambiguous"
@@ -244,7 +714,8 @@ class StateStore:
     def __init__(self, root: pathlib.Path | None = None):
         configured = os.environ.get("KVM_SMSV2_STATE_DIR")
         self.root = (
-            root or pathlib.Path(configured or "~/.local/share/kvm-smsv2").expanduser()
+            root
+            or pathlib.Path(configured or "~/.local/share/kvm-smsv2-v3").expanduser()
         )
         self.receipts = self.root / "receipts"
         self.plans = self.root / "plans"
@@ -539,6 +1010,15 @@ def readiness(
         artifacts_ready = True
     except ControllerError:
         artifacts_ready = False
+    try:
+        lan = observe_home_lan(runner)
+        lan["gap"] = (
+            "none"
+            if lan["bridgeReady"]
+            else "wired management needs a rollback-protected bridge"
+        )
+    except (ControllerError, TypeError):
+        lan = {"bridgeReady": False, "gap": "wired LAN discovery is incomplete"}
     checks: dict[str, Any] = {
         "platform": os_release.get("ID") == "ubuntu"
         and os_release.get("VERSION_ID") == "24.04"
@@ -552,6 +1032,7 @@ def readiness(
         "services": services,
         "virtualization": virtualization,
         "artifacts": artifacts_ready,
+        "lan": lan,
         "capacity": {
             "cpu": cpu,
             "memoryGiB": memory,
@@ -559,7 +1040,7 @@ def readiness(
             "ready": capacity_ready(cpu, memory, disk, store=store, runner=runner),
         },
     }
-    ready = (
+    core_ready = (
         checks["platform"]
         and checks["passwordlessSudo"]
         and all(commands.values())
@@ -574,7 +1055,11 @@ def readiness(
         and artifacts_ready
         and checks["capacity"]["ready"]
     )
-    return {"state": "ready" if ready else "setup_required", "checks": checks}
+    checks["coreReady"] = core_ready
+    return {
+        "state": "ready" if core_ready and lan["bridgeReady"] else "setup_required",
+        "checks": checks,
+    }
 
 
 def _plugin_root() -> pathlib.Path:
@@ -972,6 +1457,37 @@ def _site_observation(site_name: str) -> dict[str, Any] | None:
     }
 
 
+def _application_observation(kind: str, name: str) -> dict[str, Any] | None:
+    try:
+        document = _xc_json(
+            f"/api/config/namespaces/{NAMESPACE}/{kind}/{urllib.parse.quote(name, safe='')}"
+        )
+    except ControllerError as error:
+        if "HTTP 404" in str(error):
+            return None
+        raise
+    metadata = document.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise ControllerError("XC application ownership metadata is malformed")
+    labels = metadata.get("labels", {})
+    return {
+        "name": metadata.get("name"),
+        "owned": bool(
+            metadata.get("name") == name
+            and metadata.get("namespace") == NAMESPACE
+            and isinstance(labels, dict)
+            and labels.get("owner") == OWNER
+        ),
+    }
+
+
+def _owned_application_object(kind: str, name: str) -> dict[str, Any]:
+    value = _application_observation(kind, name)
+    if value is None:
+        raise ControllerError("owned XC application object is absent")
+    return value
+
+
 def parse_registration_observation(
     document: dict[str, Any], site_name: str
 ) -> dict[str, Any]:
@@ -1093,6 +1609,7 @@ def _terraform_env(store: StateStore | None = None) -> dict[str, str]:
     env = dict(os.environ)
     env.update({"XCSH_API_URL": api_url, "XCSH_API_TOKEN": token})
     if store is not None:
+        env["TF_CLI_CONFIG_FILE"] = str(store.root / "terraform" / "registry.tfrc")
         data_dir = store.root / "terraform-data"
         data_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
         env["TF_DATA_DIR"] = str(data_dir)
@@ -1129,8 +1646,20 @@ def _terraform_plan(
 ) -> dict[str, Any]:
     env = _terraform_env(store)
     variables = terraform_root / "terraform.tfvars.json"
+    lan = config.get("lan")
+    if not lan:
+        raise ControllerError("saved LAN selection is required before planning")
     variables.write_text(
-        json.dumps({"site_name": config["siteName"], "xc_api_url": env["XCSH_API_URL"]})
+        json.dumps(
+            {
+                "site_name": config["siteName"],
+                "xc_api_url": env["XCSH_API_URL"],
+                "lan_bridge": lan["bridge"],
+                "lan_subnet": lan["subnet"],
+                "sli_address": lan["sliAddress"],
+                "vip_address": lan["vipAddress"],
+            }
+        )
         + "\n"
     )
     variables.chmod(0o600)
@@ -1170,6 +1699,8 @@ def _terraform_plan(
     except ValueError as error:
         raise ControllerError("Terraform saved-plan JSON is malformed") from error
     summary = inspect_plan(plan_json)
+    if mode == "apply":
+        require_home_lan_plan(plan_json)
     digest = file_digest(plan)
     receipt = {
         "mode": mode,
@@ -1190,6 +1721,33 @@ def _apply_plan(
 ) -> dict[str, Any]:
     plan = pathlib.Path(str(receipt["path"]))
     require_plan_digest(plan, str(receipt["sha256"]))
+    if receipt["mode"] == "apply":
+        config = _config(store, {})
+        selection = config.get("lan")
+        if not isinstance(selection, dict):
+            raise ControllerError("LAN selection was not persisted before apply")
+        snapshot = observe_home_lan(runner)
+        if (
+            snapshot["subnet"] != selection["subnet"]
+            or snapshot["bridge"] != selection["bridge"]
+        ):
+            raise ControllerError("LAN changed since the saved plan was reviewed")
+        if any(
+            selection[key] in _observed_lan_leases(runner, snapshot["subnet"])
+            for key in ("sliAddress", "vipAddress")
+        ):
+            raise ControllerError("a selected LAN address entered observed DHCP leases")
+        baseline_path = store.receipts / "lan-arp-owners.json"
+        expected = (
+            store.read_receipt("lan-arp-owners").get("macs")
+            if baseline_path.exists()
+            else None
+        )
+        validate_lan_recheck(
+            selection,
+            expected,
+            lambda address: _lan_arp_mac(runner, snapshot["bridge"], address),
+        )
     result = runner.run(
         [
             "terraform",
@@ -1462,7 +2020,30 @@ def _runtime_status(
     terraform_root: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     config = _config(store, {})
+    lan_selection = config.get("lan")
+    if not isinstance(lan_selection, dict):
+        raise ControllerError("persisted LAN selection is missing")
     terraform_root = terraform_root or terraform_workspace(store, active_bundle(store))
+    try:
+        identity = json.loads(
+            runner.checked(
+                [
+                    "terraform",
+                    f"-chdir={terraform_root}",
+                    "output",
+                    "-json",
+                    "identity",
+                ],
+                env=_terraform_env(store),
+            )
+        )
+        interfaces = map_ce_interfaces(
+            [identity["slo_interface"], identity["sli_interface"]]
+        )
+        if not all(item.get("interface_name") for item in interfaces.values()):
+            raise ControllerError("XC interface names are incomplete")
+    except (ValueError, KeyError, TypeError) as error:
+        raise ControllerError("Terraform SLO/SLI identity is unavailable") from error
     site = _site_observation(config["siteName"])
     domains = {
         name: runner.run(["virsh", "--connect", "qemu:///system", "domstate", name])
@@ -1497,10 +2078,72 @@ def _runtime_status(
         WORKLOAD_IMAGE_SHA512,
     )
     store.write_receipt("image-hashes", images)
+    lan_observed = observe_home_lan(runner)
+    domain = f"{config['siteName']}.internal.f5-sales-demo.com"
+    local_http = runner.run(
+        [
+            "curl",
+            "-fsS",
+            "--max-time",
+            "8",
+            "--resolve",
+            f"{domain}:80:{lan_selection['vipAddress']}",
+            f"http://{domain}/",
+        ],
+        timeout=12,
+    )
+    lan = {
+        "selection": lan_selection,
+        "observed": lan_observed,
+        "bridgeReady": lan_observed["bridgeReady"]
+        and lan_observed["bridge"] == lan_selection["bridge"],
+        "localHttp": local_http.returncode == 0,
+        "dhcpExclusionVerified": False,
+        "externalLanHttpVerified": False,
+    }
+    application = {
+        "origin": _owned_application_object(
+            "origin_pools", f"{config['siteName']}-origin"
+        ),
+        "httpLb": _owned_application_object(
+            "http_loadbalancers", f"{config['siteName']}-lan"
+        ),
+        "hostname": domain,
+        "vipAddress": lan_selection["vipAddress"],
+    }
+    macs = {
+        address: _lan_arp_mac(runner, lan_observed["bridge"], address)
+        for address in (lan_selection["sliAddress"], lan_selection["vipAddress"])
+    }
+    baseline_path = store.receipts / "lan-arp-owners.json"
+    if (
+        not baseline_path.exists()
+        and all(macs.values())
+        and macs[lan_selection["sliAddress"]] == SLI_MAC
+        and local_http.returncode == 0
+        and all(
+            item["owned"] for item in (application["origin"], application["httpLb"])
+        )
+    ):
+        store.write_receipt("lan-arp-owners", {"macs": macs})
+    baseline = (
+        store.read_receipt("lan-arp-owners").get("macs")
+        if baseline_path.exists()
+        else None
+    )
+    try:
+        validate_lan_recheck(lan_selection, baseline, macs.get)
+    except ControllerError:
+        lan["conflictFree"] = False
+    else:
+        lan["conflictFree"] = bool(baseline and all(macs.values()))
+    lan["arpMacs"] = macs
     host = {
         "ce": ce,
         "ceAddresses": ce_addresses,
         "ceIdentityReady": ce_identity_ready(ce, ce_addresses),
+        "sliIdentityReady": SLI_MAC in ce.get("macs", []),
+        "xcInterfaces": interfaces,
         "workload": workload,
         "workloadAddresses": workload_addresses,
         "workloadIdentityReady": _domain_identity_ready(
@@ -1519,6 +2162,8 @@ def _runtime_status(
         "registration": registration,
         "domains": domains,
         "host": host,
+        "lan": lan,
+        "application": application,
         "images": images,
         "bgp": bgp,
         "traffic": _guest_traffic(runner),
@@ -1535,11 +2180,15 @@ def acceptance_ready(status: dict[str, Any]) -> bool:
     traffic = status.get("traffic", {})
     host = status.get("host", {})
     images = status.get("images", {})
+    application = status.get("application", {})
+    origin = application.get("origin", {})
+    lb = application.get("httpLb", {})
     registrations = registration.get("registrations", [])
     registration_identity = bool(
         len(registrations) == 1
         and registrations[0].get("provider") == "KVM"
         and CE_MAC in registrations[0].get("macs", [])
+        and SLI_MAC in registrations[0].get("macs", [])
     )
     return bool(
         site.get("state") == "ONLINE"
@@ -1548,11 +2197,19 @@ def acceptance_ready(status: dict[str, Any]) -> bool:
         and registration.get("onlineCount") == 1
         and registration_identity
         and host.get("ceIdentityReady") is True
+        and host.get("sliIdentityReady") is True
         and host.get("workloadIdentityReady") is True
+        and status.get("lan", {}).get("bridgeReady") is True
+        and status.get("lan", {}).get("localHttp") is True
+        and status.get("lan", {}).get("conflictFree") is True
+        and isinstance(origin, dict)
+        and origin.get("owned") is True
+        and isinstance(lb, dict)
+        and lb.get("owned") is True
         and images.get("verified") is True
         and bgp.get("peerCount") == 1
         and bgp.get("establishedCount") == 1
-        and "198.51.100.0/24" in bgp.get("importedRoutes", [])
+        and LAB_ROUTE in bgp.get("importedRoutes", [])
         and bgp.get("advertisedRouteCount", 0) >= 1
         and traffic.get("samples", 0) >= 1
         and traffic.get("successes") == traffic.get("samples")
@@ -1648,11 +2305,18 @@ def _deploy(
         store, terraform_root, config["siteName"], runner
     )
     state = readiness(runner, store)
-    if state["state"] != "ready":
+    if state["checks"].get("coreReady") is not True:
         raise ControllerError("host readiness is incomplete")
     observed = _site_observation(config["siteName"])
     if observed and not (observed["owned"] and observed["specMatches"]):
         raise ControllerError("site naming or ownership collision")
+    for kind, name in (
+        ("origin_pools", f"{config['siteName']}-origin"),
+        ("http_loadbalancers", f"{config['siteName']}-lan"),
+    ):
+        application_observation = _application_observation(kind, name)
+        if application_observation and not application_observation["owned"]:
+            raise ControllerError("XC application name belongs to an unowned object")
     if (
         observed
         and not reconcile
@@ -1664,12 +2328,14 @@ def _deploy(
         )
     host_inventory = inventory(runner, store)
     reject_collisions(host_inventory)
+    prepare_home_lan(store, runner, config)
+    if readiness(runner, store)["state"] != "ready":
+        raise ControllerError("wired LAN remediation did not complete host readiness")
     store.write_receipt(
         "intent",
         {
             **config,
             "inventory": host_inventory,
-            "referencePlanSha256": REFERENCE_PLAN_SHA256,
         },
     )
     plan = _terraform_plan(store, terraform_root, config, "apply", runner)
@@ -1678,9 +2344,21 @@ def _deploy(
     except ControllerError as error:
         exact = _site_observation(config["siteName"])
         classification = classify_ambiguous_post(str(error), exact)
+        applications = {
+            kind: _application_observation(kind, name)
+            for kind, name in (
+                ("origin_pools", f"{config['siteName']}-origin"),
+                ("http_loadbalancers", f"{config['siteName']}-lan"),
+            )
+        }
         store.write_receipt(
             "ambiguous-post",
-            {"classification": classification, "site": exact, "error": str(error)},
+            {
+                "classification": classification,
+                "site": exact,
+                "applications": applications,
+                "error": str(error),
+            },
         )
         raise
     _capture_ownership(store, runner)
@@ -1693,18 +2371,51 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
     exact = _site_observation(config["siteName"])
     if exact and not (exact["owned"] and exact["specMatches"]):
         raise ControllerError("destroy refused an unowned or mismatched site")
+    application_names = {
+        "origin_pools": f"{config['siteName']}-origin",
+        "http_loadbalancers": f"{config['siteName']}-lan",
+    }
+    for kind, name in application_names.items():
+        observed = _application_observation(kind, name)
+        if observed and not observed["owned"]:
+            raise ControllerError("destroy refused an unowned XC application object")
     terraform_root = install_bundle(store)
     host_inventory = inventory(runner, store)
     reject_collisions(host_inventory)
     plan = _terraform_plan(store, terraform_root, config, "destroy", runner)
     applied = _apply_plan(store, terraform_root, plan, runner)
     remaining = [item for item in inventory(runner, store) if item.get("owned")]
-    if remaining or _site_observation(config["siteName"]) is not None:
+    if (
+        remaining
+        or _site_observation(config["siteName"]) is not None
+        or any(
+            _application_observation(kind, name) is not None
+            for kind, name in application_names.items()
+        )
+    ):
         raise ControllerError("owned resource absence verification failed")
+    lan_receipt = store.read_receipt("lan")
+    original_lan = lan_receipt.get("inventory", {})
+    bridge_restored = False
+    if original_lan.get("bridgeReady") is False:
+        selection = lan_receipt.get("selection", {})
+        if selection != config.get("lan") or selection.get("bridge") != "xckvmlan":
+            raise ControllerError("bridge teardown lacks an exact owned LAN receipt")
+        runner.checked(
+            [
+                "sudo",
+                "python3",
+                str(active_bundle(store) / "scripts" / "bridge-prep.py"),
+                "restore",
+            ],
+            timeout=155,
+        )
+        bridge_restored = True
     receipt = {
         "deployment": applied,
         "remainingOwned": [],
         "preserved": unrelated_resources(host_inventory),
+        "bridgeRestored": bridge_restored,
     }
     store.write_receipt("status", {"accepted": False, "destroyed": True})
     store.write_receipt("destroy", receipt)
