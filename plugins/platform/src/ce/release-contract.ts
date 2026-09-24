@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto';
 
-const RELEASE_TAG = 'v7.0.3';
-const RELEASE_COMMIT = '55151d9bda8ea8f04c595e76ee6b05aee96d7fc7';
-const RELEASE_VERSION = '7.0.3';
+const RELEASE_TAG = 'v7.0.9';
+const RELEASE_COMMIT = '1c4f4eb8dd6cd9c440c241b995a6c0ef1bcd23ab';
+const RELEASE_VERSION = '7.0.9';
+const OPENAPI_SHA256 = 'sha256:31a1b5ede0a12dae48b2e93373565bd0717ac56cafff5800c595475c7030b327';
 const REPOSITORY = 'f5-sales-demo/api-specs-enriched';
 const RELEASE_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/${RELEASE_TAG}`;
 const TAG_URL = `https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/${RELEASE_TAG}`;
 const REQUIRED_ASSETS = new Set([
   'api-catalog.json',
   'concurrency_contracts.json',
-  'f5xc-api-specs-v7.0.3.zip',
+  'f5xc-api-specs-v7.0.9.zip',
   'index.json',
   'minimal-export-defaults.json',
   'openapi.json',
@@ -20,18 +21,20 @@ const REQUIRED_ASSETS = new Set([
   'upstream-contract-removals.json',
 ]);
 
-export interface Smsv2KvmImagePrerequisite {
-  id: 'maurice_config_cardinality_exactly_one';
-  resource: 'maurice_config';
-  cardinality: { exactly: 1 };
-  enforcement: 'server';
-  availability: 'external_tenant_prerequisite';
-  reason: string;
-  source: {
-    kind: 'runtime_api_error';
-    operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl';
-    immutable: true;
+export interface Smsv2KvmImageResolution {
+  id: 'site_uid_image_resolution';
+  endpoint: '/api/maurice/software_os_version';
+  operation: 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage';
+  ownerJoin: {
+    namespace: 'system';
+    namedConfiguration: 'exactly_one';
+    ownerKind: 'securemesh_site_v2';
+    cardinality: 'exactly_one';
+    uidSource: 'site_object';
   };
+  validation: Array<
+    'exact_site_uid_mapping' | 'empty_error_description' | 'https_image_url' | 'md5_checksum' | 'ownership_recheck'
+  >;
   publication: {
     repository: typeof REPOSITORY;
     tag: typeof RELEASE_TAG;
@@ -51,14 +54,36 @@ export interface Smsv2ReleaseContract {
     runtimeStatus: 'available';
     tgwConnect: 'available';
   };
-  kvmImagePrerequisite: Smsv2KvmImagePrerequisite;
+  kvmImageResolution: Smsv2KvmImageResolution;
 }
 
 type Json = Record<string, unknown>;
 type Fetcher = typeof fetch;
 
 function fail(message: string): never {
-  throw new Error(`Verified SMSv2 release is unavailable: ${message}`);
+  throw new ReleaseContractFailure(message);
+}
+
+export class ReleaseContractFailure extends Error {
+  readonly category:
+    | 'public_contract_transport'
+    | 'public_contract_http'
+    | 'public_contract_parsing'
+    | 'public_contract_integrity'
+    | 'public_contract_provenance';
+
+  constructor(message: string) {
+    super(`Verified SMSv2 release is unavailable: ${message}`);
+    this.category = message.startsWith('public_contract_transport')
+      ? 'public_contract_transport'
+      : message.startsWith('public_contract_http')
+        ? 'public_contract_http'
+        : message.startsWith('public_contract_parsing')
+          ? 'public_contract_parsing'
+          : message.includes('checksum') || message.includes('digest') || message.includes('asset')
+            ? 'public_contract_integrity'
+            : 'public_contract_provenance';
+  }
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -66,9 +91,18 @@ function sha256(bytes: Uint8Array): string {
 }
 
 async function json(fetcher: Fetcher, url: string): Promise<Json> {
-  const response = await fetcher(url, { headers: { Accept: 'application/vnd.github+json' } });
-  if (!response.ok) fail(`release request failed with HTTP ${response.status}`);
-  return (await response.json()) as Json;
+  let response: Response;
+  try {
+    response = await fetcher(url, { headers: { Accept: 'application/vnd.github+json' } });
+  } catch {
+    fail('public_contract_transport');
+  }
+  if (!response.ok) fail(`public_contract_http:${response.status}`);
+  try {
+    return object(await response.json(), 'release response');
+  } catch {
+    fail('public_contract_parsing');
+  }
 }
 
 function receipt(body: unknown): Json {
@@ -87,18 +121,125 @@ function object(value: unknown, label: string): Json {
   return value as Json;
 }
 
+function parseAsset(bytes: Uint8Array, label: string): Json {
+  try {
+    return object(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)), label);
+  } catch {
+    fail(`public_contract_parsing: ${label} is invalid JSON`);
+  }
+}
+
 async function asset(fetcher: Fetcher, value: Json, expected: string): Promise<Uint8Array> {
   if (typeof value.browser_download_url !== 'string' || typeof value.digest !== 'string')
     fail('release asset metadata is malformed');
-  const response = await fetcher(value.browser_download_url);
-  if (!response.ok) fail(`asset download failed with HTTP ${response.status}`);
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  let response: Response;
+  try {
+    response = await fetcher(value.browser_download_url);
+  } catch {
+    fail('public_contract_transport');
+  }
+  if (!response.ok) fail(`public_contract_http:${response.status}`);
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } catch {
+    fail('public_contract_transport');
+  }
   if (sha256(bytes) !== expected || value.digest !== expected)
-    fail('asset checksum does not match the immutable release receipt');
+    fail('public_contract_integrity: asset checksum does not match the immutable release receipt');
   return bytes;
 }
 
-export async function resolveSmsv2ReleaseContract(fetcher: Fetcher = fetch): Promise<Smsv2ReleaseContract> {
+export function parseKvmImageResolution(openapi: unknown): Omit<Smsv2KvmImageResolution, 'publication'> {
+  const api = object(openapi, 'KVM image resolution OpenAPI');
+  const paths = object(api.paths, 'KVM image resolution paths');
+  const endpoint = '/api/maurice/software_os_version';
+  const operation = object(object(paths[endpoint], 'KVM image resolution path').post, 'KVM image resolution operation');
+  const operationId = 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage';
+  const requestRef = object(
+    object(
+      object(operation.requestBody, 'KVM image resolution request').content,
+      'KVM image resolution request content',
+    )['application/json'],
+    'KVM image resolution request JSON',
+  ).schema;
+  const responseRef = object(
+    object(
+      object(object(operation.responses, 'KVM image resolution responses')['200'], 'KVM image resolution response')
+        .content,
+      'KVM image resolution response content',
+    )['application/json'],
+    'KVM image resolution response JSON',
+  ).schema;
+  const schemas = object(
+    object(api.components, 'KVM image resolution components').schemas,
+    'KVM image resolution schemas',
+  );
+  const request = object(
+    object(schemas.virtual_applianceGetImageRequest, 'KVM image resolution request schema').properties,
+    'KVM image resolution request properties',
+  );
+  const uids = object(request.uids, 'KVM image resolution UIDs');
+  const images = object(
+    object(
+      object(schemas.virtual_applianceGetImageResponse, 'KVM image resolution response schema').properties,
+      'KVM image resolution response properties',
+    ).images,
+    'KVM image resolution images',
+  );
+  const image = object(
+    object(images.additionalProperties, 'KVM image resolution image').properties,
+    'KVM image resolution image fields',
+  );
+  const link = object(image.download_image_link, 'KVM image resolution link');
+  const checksum = object(image.image_md5_sum, 'KVM image resolution checksum');
+  const error = object(image.error_description, 'KVM image resolution error');
+  if (
+    operation.operationId !== operationId ||
+    object(requestRef, 'KVM image resolution request reference').$ref !==
+      '#/components/schemas/virtual_applianceGetImageRequest' ||
+    object(responseRef, 'KVM image resolution response reference').$ref !==
+      '#/components/schemas/virtual_applianceGetImageResponse' ||
+    uids.type !== 'array' ||
+    uids.uniqueItems !== true ||
+    uids.minItems !== 1 ||
+    object(uids.items, 'KVM image resolution UID item').type !== 'string' ||
+    typeof uids.description !== 'string' ||
+    !uids.description.includes('owner_view.kind equal to securemesh_site_v2') ||
+    !uids.description.includes('owner_view.uid to the exact Secure Mesh Site v2 configuration UID') ||
+    images.type !== 'object' ||
+    link.type !== 'string' ||
+    link.format !== 'uri' ||
+    checksum.type !== 'string' ||
+    checksum.pattern !== '^[0-9a-fA-F]{32}$' ||
+    error.type !== 'string'
+  )
+    fail('KVM image resolution schema is unsupported');
+  return {
+    id: 'site_uid_image_resolution',
+    endpoint,
+    operation: operationId,
+    ownerJoin: {
+      namespace: 'system',
+      namedConfiguration: 'exactly_one',
+      ownerKind: 'securemesh_site_v2',
+      cardinality: 'exactly_one',
+      uidSource: 'site_object',
+    },
+    validation: [
+      'exact_site_uid_mapping',
+      'empty_error_description',
+      'https_image_url',
+      'md5_checksum',
+      'ownership_recheck',
+    ],
+  };
+}
+
+export async function resolveSmsv2ReleaseContract(
+  fetcher: Fetcher = fetch,
+  expectedOpenapiDigest = OPENAPI_SHA256,
+): Promise<Smsv2ReleaseContract> {
   const release = await json(fetcher, RELEASE_URL);
   if (
     release.tag_name !== RELEASE_TAG ||
@@ -113,6 +254,8 @@ export async function resolveSmsv2ReleaseContract(fetcher: Fetcher = fetch): Pro
 
   const published = receipt(release.body);
   const publishedAssets = object(published.assets, 'publication receipt assets');
+  if (publishedAssets['openapi.json'] !== expectedOpenapiDigest)
+    fail('public_contract_integrity: OpenAPI digest differs from the pinned release');
   if (published.commit !== RELEASE_COMMIT || published.version !== RELEASE_VERSION)
     fail('publication receipt identity differs from the pinned release');
   const assets = Array.isArray(release.assets)
@@ -137,7 +280,7 @@ export async function resolveSmsv2ReleaseContract(fetcher: Fetcher = fetch): Pro
     return asset(fetcher, item, publishedAssets[name] as string);
   };
 
-  const manifest = object(JSON.parse(new TextDecoder().decode(await get('smsv2-contract-manifest.json'))), 'manifest');
+  const manifest = parseAsset(await get('smsv2-contract-manifest.json'), 'manifest');
   const manifestRelease = object(manifest.release, 'manifest release');
   const manifestAssets = object(manifest.assets, 'manifest assets');
   if (
@@ -158,14 +301,14 @@ export async function resolveSmsv2ReleaseContract(fetcher: Fetcher = fetch): Pro
   )
     fail('manifest checksums are inconsistent');
 
-  const contract = object(JSON.parse(new TextDecoder().decode(contractBytes)), 'contract');
+  const contract = parseAsset(contractBytes, 'contract');
   const api = object(contract.api, 'contract API');
   const aws = object(object(contract.providers, 'providers').aws, 'AWS provider');
   const capabilities = object(aws.capabilities, 'AWS capabilities');
   const bootstrap = object(aws.bootstrap, 'AWS bootstrap policy');
   const declaredEvidence = object(aws.evidence, 'AWS evidence');
   const operations = api.operations;
-  const evidence = object(JSON.parse(new TextDecoder().decode(evidenceBytes)), 'evidence receipt');
+  const evidence = parseAsset(evidenceBytes, 'evidence receipt');
   const receipts = Array.isArray(evidence.receipts)
     ? evidence.receipts.map((value) => object(value, 'evidence receipt'))
     : [];
@@ -206,37 +349,12 @@ export async function resolveSmsv2ReleaseContract(fetcher: Fetcher = fetch): Pro
   )
     fail('AWS capability boundary is unsupported');
 
-  const openapi = object(JSON.parse(new TextDecoder().decode(openapiBytes)), 'OpenAPI contract');
-  const paths = object(openapi.paths, 'OpenAPI paths');
-  const imagePath = object(paths['/api/register/namespaces/system/get-image-download-url'], 'KVM image path');
-  const imageOperation = object(imagePath.post, 'KVM image operation');
-  const prerequisites = Array.isArray(imageOperation['x-f5xc-prerequisites'])
-    ? imageOperation['x-f5xc-prerequisites'].map((value) => object(value, 'KVM image prerequisite'))
-    : fail('KVM image prerequisite is missing');
-  if (
-    imageOperation.operationId !== 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl' ||
-    imageOperation['x-f5xc-terraform-name'] !== 'site_image' ||
-    imageOperation['x-f5xc-operation-role'] !== 'query' ||
-    prerequisites.length !== 1
-  )
-    fail('KVM image operation identity is unsupported');
-  const prerequisite = prerequisites[0];
-  const cardinality = object(prerequisite.cardinality, 'KVM image prerequisite cardinality');
-  const source = object(prerequisite.source, 'KVM image prerequisite source');
-  if (
-    prerequisite.id !== 'maurice_config_cardinality_exactly_one' ||
-    prerequisite.resource !== 'maurice_config' ||
-    cardinality.exactly !== 1 ||
-    prerequisite.enforcement !== 'server' ||
-    prerequisite.availability !== 'external_tenant_prerequisite' ||
-    typeof prerequisite.reason !== 'string' ||
-    prerequisite.reason.trim() !== prerequisite.reason ||
-    prerequisite.reason.length === 0 ||
-    source.kind !== 'runtime_api_error' ||
-    source.operation !== imageOperation.operationId ||
-    source.immutable !== true
-  )
-    fail('KVM image prerequisite contract is unsupported');
+  let resolution: Omit<Smsv2KvmImageResolution, 'publication'>;
+  try {
+    resolution = parseKvmImageResolution(parseAsset(openapiBytes, 'OpenAPI contract'));
+  } catch {
+    fail('public_contract_parsing: KVM image resolution schema is unsupported');
+  }
 
   return {
     collectionPath: api.collection_path,
@@ -244,18 +362,8 @@ export async function resolveSmsv2ReleaseContract(fetcher: Fetcher = fetch): Pro
     namespace: 'system',
     operations: ['create', 'read', 'replace', 'delete'],
     capabilities: { awsCeCreate: 'available', runtimeStatus: 'available', tgwConnect: 'available' },
-    kvmImagePrerequisite: {
-      id: 'maurice_config_cardinality_exactly_one',
-      resource: 'maurice_config',
-      cardinality: { exactly: 1 },
-      enforcement: 'server',
-      availability: 'external_tenant_prerequisite',
-      reason: prerequisite.reason,
-      source: {
-        kind: 'runtime_api_error',
-        operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl',
-        immutable: true,
-      },
+    kvmImageResolution: {
+      ...resolution,
       publication: {
         repository: REPOSITORY,
         tag: RELEASE_TAG,

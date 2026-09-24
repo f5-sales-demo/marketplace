@@ -2,22 +2,30 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { HttpCeV2Driver } from '../../src/ce/driver';
 
 const originalFetch = globalThis.fetch;
-const kvmImagePrerequisite = {
-  id: 'maurice_config_cardinality_exactly_one' as const,
-  resource: 'maurice_config' as const,
-  cardinality: { exactly: 1 as const },
-  enforcement: 'server' as const,
-  availability: 'external_tenant_prerequisite' as const,
-  reason: 'The tenant must contain exactly one maurice_config object before image issuance.',
-  source: {
-    kind: 'runtime_api_error' as const,
-    operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl' as const,
-    immutable: true as const,
+const kvmImageResolution = {
+  id: 'site_uid_image_resolution' as const,
+  endpoint: '/api/maurice/software_os_version' as const,
+  operation: 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage' as const,
+  ownerJoin: {
+    namespace: 'system' as const,
+    namedConfiguration: 'exactly_one' as const,
+    ownerKind: 'securemesh_site_v2' as const,
+    cardinality: 'exactly_one' as const,
+    uidSource: 'site_object' as const,
   },
+  validation: [
+    'exact_site_uid_mapping',
+    'empty_error_description',
+    'https_image_url',
+    'md5_checksum',
+    'ownership_recheck',
+  ] as Array<
+    'exact_site_uid_mapping' | 'empty_error_description' | 'https_image_url' | 'md5_checksum' | 'ownership_recheck'
+  >,
   publication: {
     repository: 'f5-sales-demo/api-specs-enriched' as const,
-    tag: 'v7.0.3' as const,
-    commit: '55151d9bda8ea8f04c595e76ee6b05aee96d7fc7' as const,
+    tag: 'v7.0.9' as const,
+    commit: '1c4f4eb8dd6cd9c440c241b995a6c0ef1bcd23ab' as const,
     asset: 'openapi.json' as const,
     sha256: `sha256:${'a'.repeat(64)}`,
   },
@@ -32,7 +40,7 @@ const contract = {
     runtimeStatus: 'available' as const,
     tgwConnect: 'available' as const,
   },
-  kvmImagePrerequisite,
+  kvmImageResolution,
 };
 
 afterEach(() => {

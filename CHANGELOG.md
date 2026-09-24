@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`platform`** v6.0.0 replaces the retired external KVM maurice prerequisite
+  with the verified Site-UID image-resolution contract from immutable API v7.0.9
+  (#1389). This removes the public `kvmImagePrerequisite` field in favor of
+  `kvmImageResolution`; KVM v2.0.2 is unchanged.
+
 - **`platform`** v5.1.2 routes missing-credential setup through xcsh's native,
   masked context wizard instead of presenting an empty confirmation plan (#1387).
 

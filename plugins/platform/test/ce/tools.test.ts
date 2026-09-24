@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CeV2Driver, CeV2SiteConfig } from '../../src/ce/driver';
+import { CeCapabilityFailure, type CeV2Driver, type CeV2SiteConfig } from '../../src/ce/driver';
+import { ReleaseContractFailure } from '../../src/ce/release-contract';
 import { createF5xcCeV2BootstrapTool } from '../../src/tools/f5xc-ce-v2-bootstrap';
 import { createF5xcCeV2CapabilitiesTool } from '../../src/tools/f5xc-ce-v2-capabilities';
 import { createF5xcCeV2SiteTool, createSitePlan } from '../../src/tools/f5xc-ce-v2-site';
@@ -24,22 +25,30 @@ const Type = {
   Unknown: () => ({}),
 };
 const pi: PlatformToolApi = { typebox: { Type } };
-const kvmImagePrerequisite = {
-  id: 'maurice_config_cardinality_exactly_one' as const,
-  resource: 'maurice_config' as const,
-  cardinality: { exactly: 1 as const },
-  enforcement: 'server' as const,
-  availability: 'external_tenant_prerequisite' as const,
-  reason: 'The tenant must contain exactly one maurice_config object before image issuance.',
-  source: {
-    kind: 'runtime_api_error' as const,
-    operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl' as const,
-    immutable: true as const,
+const kvmImageResolution = {
+  id: 'site_uid_image_resolution' as const,
+  endpoint: '/api/maurice/software_os_version' as const,
+  operation: 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage' as const,
+  ownerJoin: {
+    namespace: 'system' as const,
+    namedConfiguration: 'exactly_one' as const,
+    ownerKind: 'securemesh_site_v2' as const,
+    cardinality: 'exactly_one' as const,
+    uidSource: 'site_object' as const,
   },
+  validation: [
+    'exact_site_uid_mapping',
+    'empty_error_description',
+    'https_image_url',
+    'md5_checksum',
+    'ownership_recheck',
+  ] as Array<
+    'exact_site_uid_mapping' | 'empty_error_description' | 'https_image_url' | 'md5_checksum' | 'ownership_recheck'
+  >,
   publication: {
     repository: 'f5-sales-demo/api-specs-enriched' as const,
-    tag: 'v7.0.3' as const,
-    commit: '55151d9bda8ea8f04c595e76ee6b05aee96d7fc7' as const,
+    tag: 'v7.0.9' as const,
+    commit: '1c4f4eb8dd6cd9c440c241b995a6c0ef1bcd23ab' as const,
     asset: 'openapi.json' as const,
     sha256: `sha256:${'a'.repeat(64)}`,
   },
@@ -56,7 +65,7 @@ function driver(overrides: Partial<CeV2Driver> = {}): CeV2Driver {
         azure: ['direct-nic', 'route-server-bgp'],
       },
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
-      kvmImagePrerequisite,
+      kvmImageResolution,
     }),
     site: async (_action, request) => ({
       metadata: { name: request.siteName, namespace: request.namespace },
@@ -259,10 +268,35 @@ describe('f5xc_ce_v2_capabilities', () => {
         azure: ['direct-nic', 'route-server-bgp'],
       },
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
-      kvmImagePrerequisite,
+      kvmImageResolution,
     });
-    expect(result.content[0].text).toContain('KVM image prerequisite: external_tenant_prerequisite');
+    expect(result.content[0].text).toContain('KVM image resolution: site_uid_image_resolution');
+    expect(JSON.stringify(result)).not.toMatch(
+      /maurice_config_cardinality_exactly_one|external_tenant_prerequisite|get-image-download-url/,
+    );
     expect(JSON.stringify(result)).not.toMatch(/token|password|secret/i);
+  });
+
+  it.each([
+    ['context', new CeCapabilityFailure('context', 'XCSH_API_TOKEN sensitive')],
+    ['public_contract_transport', new ReleaseContractFailure('public_contract_transport')],
+    ['public_contract_http', new ReleaseContractFailure('public_contract_http:403')],
+    ['public_contract_parsing', new ReleaseContractFailure('public_contract_parsing')],
+    ['public_contract_provenance', new ReleaseContractFailure('evidence is stale')],
+    ['public_contract_integrity', new ReleaseContractFailure('asset checksum is invalid')],
+    ['tenant_http', new CeCapabilityFailure('tenant_http', 'Bearer sensitive')],
+    ['tenant_transport', new CeCapabilityFailure('tenant_transport', 'Bearer sensitive')],
+    ['unexpected', new Error('Bearer sensitive')],
+  ] as const)('redacts %s failures', async (category, error) => {
+    const tool = createF5xcCeV2CapabilitiesTool(pi, () => ({
+      ...driver(),
+      capabilities: async () => {
+        throw error;
+      },
+    }));
+    const result = await tool.execute('id', {});
+    expect(result.details.failure).toEqual({ category });
+    expect(JSON.stringify(result)).not.toMatch(/sensitive|authenticated tenant capability request was rejected/);
   });
 });
 
