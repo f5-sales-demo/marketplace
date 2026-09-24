@@ -158,8 +158,8 @@ class HomeLanContracts(unittest.TestCase):
                 config = controller._config(
                     store, {"siteName": "onprem-workstation-kvm"}
                 )
+                self.assertEqual(controller.storage_root(store), "/data/libvirt/images")
             self.assertEqual(config["storageRoot"], "/data/libvirt/images")
-            self.assertEqual(controller.storage_root(store), "/data/libvirt/images")
             with (
                 mock.patch.object(controller.os.path, "ismount", return_value=False),
                 self.assertRaisesRegex(controller.ControllerError, "mount"),
