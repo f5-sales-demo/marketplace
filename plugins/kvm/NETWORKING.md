@@ -17,7 +17,7 @@ selection is rejected. The controller substitutes that value as the required
 Terraform `application_namespace` variable for both objects and the LB's pool
 reference. A direct Terraform invocation must set
 `-var='application_namespace=multi-cloud-networking'` (or another selected
-namespace) rather than hard-code `system` for application objects. An existing
+namespace) rather than hardcode `system` for application objects. An existing
 v3 deployment without that selection adopts the project default at its next
 reviewed plan; this changes only the two owned application objects after plan
 inspection. Do not claim a namespace change is a zero-change reapply.

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "kvm-artifacts/v1",
   "artifacts": {
-    "NETWORKING.md": "ed000dbd523d1083513e92783fe944c0bbe9783bfb083c0d716854a959478fcd",
+    "NETWORKING.md": "85ec9b449040512498a0e663b1f7373ae84a770db5474d18d019d1ad48a634b0",
     "scripts/bridge-prep.py": "776c8ec8759e8178ef7df1fbdf1f2c5c432623d15e286bd2b950f33504391d1d",
     "scripts/kvm-smsv2ctl": "91f5e22381ef3376cec84e0eacf5cfc08d192e380e4589d20aca771238456898",
     "scripts/kvm_smsv2_controller.py": "44fd12d6b7f63649c831d6442a171ae0bbfeed3931c9c2fdbd650825ab75cd7d",
