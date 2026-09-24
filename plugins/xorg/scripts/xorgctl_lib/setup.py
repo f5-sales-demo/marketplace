@@ -268,6 +268,15 @@ def _speech_status() -> dict[str, object]:
     return {"ready": all(checks.values()), "version": version, "checks": checks}
 
 
+def _user_settings_env() -> dict[str, str]:
+    runtime = f"/run/user/{os.getuid()}"
+    return {
+        **os.environ,
+        "XDG_RUNTIME_DIR": runtime,
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime}/bus",
+    }
+
+
 def _accessibility_status() -> dict[str, object]:
     if shutil.which("gsettings") is None:
         return {"ready": False, "toolkit_accessibility": False}
@@ -277,7 +286,8 @@ def _accessibility_status() -> dict[str, object]:
             "get",
             "org.gnome.desktop.interface",
             "toolkit-accessibility",
-        ]
+        ],
+        env=_user_settings_env(),
     )
     ready = result.returncode == 0 and result.stdout.strip() == "true"
     return {"ready": ready, "toolkit_accessibility": ready}
@@ -293,6 +303,7 @@ def _configure_accessibility() -> None:
             "true",
         ],
         check=True,
+        env=_user_settings_env(),
     )
 
 

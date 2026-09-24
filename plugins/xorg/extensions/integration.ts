@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
 interface ExtensionApi {
@@ -13,10 +14,11 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.1.1';
+const VERSION = '1.1.2';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
+const INSTALLED_XORGCTL = resolve(homedir(), '.local', 'bin', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
-  Bun.spawnSync(['xorgctl', ...(session ? ['--session', session] : []), '--json', ...args]);
+  Bun.spawnSync([INSTALLED_XORGCTL, ...(session ? ['--session', session] : []), '--json', ...args]);
 export default function xorgIntegration(pi: ExtensionApi) {
   pi.integrations.register({
     id: 'xorg',
@@ -36,7 +38,14 @@ export default function xorgIntegration(pi: ExtensionApi) {
       ],
       verification: [
         {
-          argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: VERSION })],
+          argv: [
+            INSTALLED_XORGCTL,
+            '--json',
+            'setup',
+            'status',
+            '--params',
+            JSON.stringify({ expected_version: VERSION }),
+          ],
           timeoutMs: 30000,
         },
       ],
