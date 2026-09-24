@@ -1176,9 +1176,7 @@ describe('provider integration lifecycle', () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
       calls.push(command);
-      const result = command.includes('capabilities')
-        ? { version: '1.1.2' }
-        : { state: 'ready', version: '1.1.2' };
+      const result = command.includes('capabilities') ? { version: '1.1.2' } : { state: 'ready', version: '1.1.2' };
       return {
         exitCode: 0,
         stdout: new TextEncoder().encode(JSON.stringify({ ok: true, result })),
@@ -1189,14 +1187,7 @@ describe('provider integration lifecycle', () => {
       expect(await definition.probe()).toMatchObject({ state: 'ready' });
       expect(calls).toEqual([
         [installedLauncher, '--json', 'capabilities'],
-        [
-          installedLauncher,
-          '--json',
-          'setup',
-          'status',
-          '--params',
-          JSON.stringify({ expected_version: '1.1.2' }),
-        ],
+        [installedLauncher, '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.2' })],
       ]);
     } finally {
       spawn.mockRestore();

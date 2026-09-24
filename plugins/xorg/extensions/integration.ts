@@ -1,5 +1,5 @@
-import { resolve } from 'node:path';
 import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
