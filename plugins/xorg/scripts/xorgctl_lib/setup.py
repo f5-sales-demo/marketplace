@@ -472,7 +472,14 @@ def _install_packages() -> None:
 def _install_python() -> pathlib.Path:
     venv = pathlib.Path.home() / ".local/share/xorgctl/venv"
     _command(
-        [SYSTEM_PYTHON, "-m", "venv", "--system-site-packages", str(venv)],
+        [
+            SYSTEM_PYTHON,
+            "-m",
+            "venv",
+            "--clear",
+            "--system-site-packages",
+            str(venv),
+        ],
         check=True,
         timeout=120,
     )
