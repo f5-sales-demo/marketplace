@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`platform`** v6.0.1 reads active-context settings from each native tool
+  execution rather than from the registration API; capability, site, and
+  bootstrap tools now follow context switches and explicit environment precedence
+  in fresh xcsh sessions (#1389).
+
 - **`platform`** v6.0.0 replaces the retired external KVM maurice prerequisite
   with the verified Site-UID image-resolution contract from immutable API v7.0.9
   (#1389). This removes the public `kvmImagePrerequisite` field in favor of
