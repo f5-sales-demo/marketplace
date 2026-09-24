@@ -539,6 +539,166 @@ class HomeLanContracts(unittest.TestCase):
             controller.prepare_home_lan(mock.Mock(), runner, {})
         self.assertEqual(runner.checked.call_args.args[0][-1], "restore")
 
+    def test_successful_bridge_records_original_state_for_owned_teardown(self):
+        before = {
+            "manager": "NetworkManager",
+            "wiredLink": "enp5s0",
+            "bridge": "xckvmlan",
+            "hostAddress": "192.168.2.240",
+            "gateway": "192.168.2.1",
+            "physicalMac": "00:11:22:33:44:55",
+            "subnet": "192.168.2.0/24",
+            "bridgeReady": False,
+            "ipv6": False,
+            "neighbors": [],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.ensure()
+            runner = mock.Mock()
+            with (
+                mock.patch.object(
+                    controller,
+                    "observe_home_lan",
+                    side_effect=[before, {**before, "bridgeReady": True}],
+                ),
+                mock.patch.object(controller, "execute_checkpoint"),
+                mock.patch.object(
+                    controller.shutil, "which", return_value="/usr/bin/arping"
+                ),
+                mock.patch.object(controller, "_observed_lan_leases", return_value=[]),
+                mock.patch.object(
+                    controller,
+                    "select_lan_addresses",
+                    return_value=("192.168.2.253", "192.168.2.254"),
+                ),
+                mock.patch.object(controller, "validate_lan_recheck"),
+            ):
+                controller.prepare_home_lan(store, runner, {})
+            self.assertFalse(store.read_receipt("lan")["inventory"]["bridgeReady"])
+
+    def test_restore_skips_expired_transient_timers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "rollback"
+            profile_dir = pathlib.Path(directory) / "system-connections"
+            root.mkdir()
+            profile_dir.mkdir()
+            (root / "inventory.json").write_text(
+                json.dumps(
+                    {
+                        "directory": str(profile_dir),
+                        "files": {},
+                        "manager": "networkmanager",
+                        "wired": "enp5s0",
+                        "address": "192.168.2.240",
+                        "gateway": "192.168.2.1",
+                    }
+                )
+            )
+            with (
+                mock.patch.object(bridge_prep, "ROOT", root),
+                mock.patch.object(
+                    bridge_prep,
+                    "run",
+                    side_effect=lambda *args: (
+                        "xcsh-kvm-lan" if args[0] == "nmcli" else "not-found"
+                    ),
+                ) as commands,
+                mock.patch.object(bridge_prep, "schedule"),
+                mock.patch.object(bridge_prep, "rollback"),
+                mock.patch.object(bridge_prep, "verify_original"),
+                mock.patch.object(bridge_prep, "rollback_current") as rollback_current,
+            ):
+                bridge_prep.restore()
+            self.assertFalse(root.exists())
+            self.assertFalse(
+                any(
+                    call.args[:2] == ("systemctl", "stop")
+                    for call in commands.call_args_list
+                )
+            )
+            rollback_current.assert_not_called()
+
+    def test_restored_management_never_rolls_back_on_timer_cleanup_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "rollback"
+            profile_dir = pathlib.Path(directory) / "system-connections"
+            root.mkdir()
+            profile_dir.mkdir()
+            (root / "inventory.json").write_text(
+                json.dumps(
+                    {
+                        "directory": str(profile_dir),
+                        "files": {},
+                        "manager": "networkmanager",
+                        "wired": "enp5s0",
+                        "address": "192.168.2.240",
+                        "gateway": "192.168.2.1",
+                    }
+                )
+            )
+
+            reason = "timer stop failed"
+
+            def command(*args: str) -> str:
+                if args[0] == "nmcli":
+                    return "xcsh-kvm-lan"
+                if args[:2] == ("systemctl", "stop"):
+                    raise RuntimeError(reason)
+                return "loaded"
+
+            with (
+                mock.patch.object(bridge_prep, "ROOT", root),
+                mock.patch.object(bridge_prep, "run", side_effect=command),
+                mock.patch.object(bridge_prep, "schedule"),
+                mock.patch.object(bridge_prep, "rollback"),
+                mock.patch.object(bridge_prep, "verify_original"),
+                mock.patch.object(bridge_prep, "rollback_current") as rollback_current,
+                self.assertRaisesRegex(RuntimeError, "timer stop failed"),
+            ):
+                bridge_prep.restore()
+            self.assertTrue(root.exists())
+            rollback_current.assert_not_called()
+
+    def test_interrupted_restore_finalizes_verified_original_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "rollback"
+            root.mkdir()
+            (root / "current").mkdir()
+            (root / "inventory.json").write_text(
+                json.dumps(
+                    {
+                        "directory": str(
+                            pathlib.Path(directory) / "system-connections"
+                        ),
+                        "files": {},
+                        "currentFiles": {},
+                        "manager": "networkmanager",
+                        "wired": "enp5s0",
+                        "address": "192.168.2.240",
+                        "gateway": "192.168.2.1",
+                    }
+                )
+            )
+
+            reason = "bridge is absent"
+
+            def command(*args: str) -> str:
+                if args[0] == "nmcli":
+                    raise RuntimeError(reason)
+                return "not-found"
+
+            with (
+                mock.patch.object(bridge_prep, "ROOT", root),
+                mock.patch.object(bridge_prep, "run", side_effect=command),
+                mock.patch.object(bridge_prep, "verify_original") as verify,
+                mock.patch.object(bridge_prep, "rollback") as rollback,
+            ):
+                bridge_prep.restore()
+            verify.assert_called_once_with("enp5s0", "192.168.2.240", "192.168.2.1")
+            rollback.assert_not_called()
+            self.assertFalse(root.exists())
+
     def test_helper_keeps_timer_armed_until_controller_verifies(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory) / "rollback"

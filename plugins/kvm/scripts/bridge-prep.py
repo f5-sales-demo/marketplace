@@ -143,6 +143,15 @@ def rollback_current() -> None:
         run("nmcli", "connection", "up", "xcsh-kvm-lan-port")
 
 
+def stop_timer_if_loaded(unit: str) -> None:
+    timer = f"{unit}.timer"
+    if (
+        run("systemctl", "show", "--property=LoadState", "--value", timer)
+        != "not-found"
+    ):
+        run("systemctl", "stop", timer)
+
+
 def verify_original(wired: str, address: str, gateway: str) -> None:
     for attempt in range(20):
         assigned = json.loads(run("ip", "-j", "-4", "address", "show", "dev", wired))
@@ -175,6 +184,24 @@ def restore() -> None:
     for field in ("wired", "address", "gateway", "manager"):
         if not record.get(field):
             raise RuntimeError("owned bridge restore receipt is incomplete")
+    if record["manager"] == "networkmanager":
+        try:
+            connection = run(
+                "nmcli", "-g", "GENERAL.CONNECTION", "device", "show", "xckvmlan"
+            )
+        except RuntimeError:
+            if (
+                "currentFiles" not in record
+                or pathlib.Path("/sys/class/net/xckvmlan").exists()
+            ):
+                raise
+            verify_original(record["wired"], record["address"], record["gateway"])
+            stop_timer_if_loaded(RESTORE_TIMER)
+            stop_timer_if_loaded(TIMER)
+            shutil.rmtree(ROOT)
+            return
+        if connection != "xcsh-kvm-lan":
+            raise RuntimeError("NetworkManager bridge is no longer plugin-owned")
     directory = pathlib.Path(record["directory"])
     current = ROOT / "current"
     current.mkdir(mode=0o700)
@@ -188,23 +215,17 @@ def restore() -> None:
         source = directory / record["modifiedSource"]
         if files.get(source.name) != record.get("modifiedSha256"):
             raise RuntimeError("Netplan bridge profile changed since plugin setup")
-    elif record["manager"] == "networkmanager":
-        if (
-            run("nmcli", "-g", "GENERAL.CONNECTION", "device", "show", "xckvmlan")
-            != "xcsh-kvm-lan"
-        ):
-            raise RuntimeError("NetworkManager bridge is no longer plugin-owned")
     update_record(currentFiles=files)
     schedule("rollback-current")
     try:
         rollback()
         verify_original(record["wired"], record["address"], record["gateway"])
-        run("systemctl", "stop", f"{RESTORE_TIMER}.timer")
-        run("systemctl", "stop", f"{TIMER}.timer")
-        shutil.rmtree(ROOT)
     except Exception:
         rollback_current()
         raise
+    stop_timer_if_loaded(RESTORE_TIMER)
+    stop_timer_if_loaded(TIMER)
+    shutil.rmtree(ROOT)
 
 
 def verify(

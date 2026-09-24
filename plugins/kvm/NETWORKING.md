@@ -38,6 +38,11 @@ created both interfaces, but denied the SLI static-IP PUT with `FORBIDDEN`.
 That gap requires an XC credential authorized for the exact interface update;
 do not retry a saved plan, switch tenants, or claim VIP acceptance until the
 permission and a new reviewed plan are verified.
+The forbidden Ubuntu rebuild was removed through a second reviewed destroy
+plan. Its management Ethernet recovered, but an expired transient timer caused
+restore cleanup to stop; the verified original route then allowed bounded
+cleanup without switching the healthy link back to the bridge. The lab is
+currently empty, not a successful LAN-VIP deployment.
 
 The CE and VIP candidate addresses are distinct, never the host, gateway,
 network or broadcast addresses, and exclude observed neighbors and probe
