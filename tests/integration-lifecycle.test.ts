@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it, spyOn } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   call,
@@ -1151,19 +1151,47 @@ describe('provider integration lifecycle', () => {
   it('exposes an Ubuntu-only Xorg setup contract without IPv6 readiness gates', async () => {
     const [definition] = await definitionsFor('xorg');
     const script = join(import.meta.dir, '..', 'plugins', 'xorg', 'scripts', 'xorgctl');
+    const installedLauncher = join(homedir(), '.local', 'bin', 'xorgctl');
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.1' })],
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.2' })],
         timeoutMs: 900000,
       },
     ]);
     expect(definition.setup?.verification).toEqual([
       {
-        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.1' })],
+        argv: [
+          installedLauncher,
+          '--json',
+          'setup',
+          'status',
+          '--params',
+          JSON.stringify({ expected_version: '1.1.2' }),
+        ],
         timeoutMs: 30000,
       },
     ]);
+    const calls: string[][] = [];
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      calls.push(command);
+      const result = command.includes('capabilities') ? { version: '1.1.2' } : { state: 'ready', version: '1.1.2' };
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ ok: true, result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(await definition.probe()).toMatchObject({ state: 'ready' });
+      expect(calls).toEqual([
+        [installedLauncher, '--json', 'capabilities'],
+        [installedLauncher, '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.2' })],
+      ]);
+    } finally {
+      spawn.mockRestore();
+    }
 
     const probe = Bun.spawnSync([
       'python3',
@@ -1172,7 +1200,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.1.1' }),
+      JSON.stringify({ expected_version: '1.1.2' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
@@ -1185,7 +1213,7 @@ describe('provider integration lifecycle', () => {
     };
     expect(payload.ok).toBe(true);
     expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
-    expect(payload.result.version).toBe('1.1.1');
+    expect(payload.result.version).toBe('1.1.2');
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');
