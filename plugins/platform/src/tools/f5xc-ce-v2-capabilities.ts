@@ -1,10 +1,10 @@
 import { CeCapabilityFailure, type CeV2Driver, createDefaultCeV2Driver } from '../ce/driver';
 import { ReleaseContractFailure } from '../ce/release-contract';
-import type { PlatformToolApi } from '../types';
+import type { PlatformToolApi, PlatformToolContext } from '../types';
 
 export function createF5xcCeV2CapabilitiesTool(
   pi: PlatformToolApi,
-  makeDriver: () => CeV2Driver = createDefaultCeV2Driver,
+  makeDriver: (context?: PlatformToolContext) => CeV2Driver = createDefaultCeV2Driver,
 ) {
   const { Type } = pi.typebox;
   return {
@@ -18,10 +18,10 @@ export function createF5xcCeV2CapabilitiesTool(
       _params: Record<string, never>,
       _signal?: AbortSignal,
       _update?: unknown,
-      _ctx?: unknown,
+      ctx?: PlatformToolContext,
     ) {
       try {
-        const capabilities = await makeDriver().capabilities();
+        const capabilities = await makeDriver(ctx).capabilities();
         return {
           content: [
             {

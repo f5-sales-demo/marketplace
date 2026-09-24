@@ -60,7 +60,10 @@ export function createSitePlan(request: Omit<SiteParams, 'planSha256'>) {
   return { ...draft, planId: `f5xc-ce-v2-${planSha256.slice(0, 24)}`, planSha256 };
 }
 
-export function createF5xcCeV2SiteTool(pi: PlatformToolApi, makeDriver: () => CeV2Driver = createDefaultCeV2Driver) {
+export function createF5xcCeV2SiteTool(
+  pi: PlatformToolApi,
+  makeDriver: (context?: PlatformToolContext) => CeV2Driver = createDefaultCeV2Driver,
+) {
   const { Type } = pi.typebox;
   return {
     name: 'f5xc_ce_v2_site',
@@ -125,7 +128,7 @@ export function createF5xcCeV2SiteTool(pi: PlatformToolApi, makeDriver: () => Ce
       try {
         assertSafeName(params.namespace, 'namespace');
         assertSafeName(params.siteName, 'siteName');
-        const driver = makeDriver();
+        const driver = makeDriver(ctx);
         const capabilities = await driver.capabilities();
         if (params.action === 'read') {
           const result = await driver.site('read', params);

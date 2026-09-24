@@ -1,10 +1,13 @@
 import { afterEach, expect, test } from 'bun:test';
 import platformExtension from '../src/index';
 
+const originalFetch = globalThis.fetch;
+
 const previousUrl = process.env.XCSH_API_URL;
 const previousToken = process.env.XCSH_API_TOKEN;
 const previousTenant = process.env.XCSH_TENANT;
 afterEach(() => {
+  globalThis.fetch = originalFetch;
   for (const [name, value] of Object.entries({
     XCSH_API_URL: previousUrl,
     XCSH_API_TOKEN: previousToken,
@@ -13,6 +16,47 @@ afterEach(() => {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
+});
+
+test('native capability execution reads the active context from its session, not registration', async () => {
+  delete process.env.XCSH_API_URL;
+  delete process.env.XCSH_API_TOKEN;
+  delete process.env.XCSH_TENANT;
+  globalThis.fetch = (async () => {
+    throw new Error('simulated public release transport failure');
+  }) as unknown as typeof fetch;
+  let capabilities:
+    | {
+        execute(
+          id: string,
+          params: object,
+          signal?: unknown,
+          update?: unknown,
+          context?: unknown,
+        ): Promise<{ details: { failure: { category: string } } }>;
+      }
+    | undefined;
+  await platformExtension({
+    typebox: { Type: new Proxy({}, { get: () => () => ({}) }) as never },
+    setLabel: () => {},
+    registerTool: (tool: unknown) => {
+      if ((tool as { name: string }).name === 'f5xc_ce_v2_capabilities') capabilities = tool as typeof capabilities;
+    },
+    integrations: { register: (definition: unknown) => definition },
+  });
+  let active = { XCSH_API_URL: 'https://active-context.test', XCSH_API_TOKEN: 'fixture', XCSH_TENANT: 'active' };
+  const settings = { get: () => active };
+  expect((await capabilities?.execute('id', {}, undefined, undefined, { settings }))?.details.failure.category).toBe(
+    'public_contract_transport',
+  );
+  active = { ...active, XCSH_API_URL: 'http://unsafe-context.test' };
+  expect((await capabilities?.execute('id', {}, undefined, undefined, { settings }))?.details.failure.category).toBe(
+    'context',
+  );
+  process.env.XCSH_API_URL = 'https://explicit-override.test';
+  expect((await capabilities?.execute('id', {}, undefined, undefined, { settings }))?.details.failure.category).toBe(
+    'public_contract_transport',
+  );
 });
 
 test('platform readiness reads the active xcsh context contract', async () => {

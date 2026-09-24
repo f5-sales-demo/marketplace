@@ -6,7 +6,7 @@ import type { PlatformToolApi, PlatformToolContext } from '../types';
 
 export function createF5xcCeV2BootstrapTool(
   pi: PlatformToolApi,
-  makeDriver: () => CeV2Driver = createDefaultCeV2Driver,
+  makeDriver: (context?: PlatformToolContext) => CeV2Driver = createDefaultCeV2Driver,
   root = defaultBootstrapRoot(),
 ) {
   const { Type } = pi.typebox;
@@ -34,7 +34,7 @@ export function createF5xcCeV2BootstrapTool(
         assertSafeName(params.nodeName, 'nodeName');
         if (!ctx.hasUI)
           throw new PublicCeError('Headless bootstrap checkout is unavailable until F5 publishes a supported API');
-        const driver = makeDriver();
+        const driver = makeDriver(ctx);
         const capabilities = await driver.capabilities();
         if (!capabilities.bootstrapDrivers.includes('console'))
           throw new PublicCeError('Console-only bootstrap is unavailable in the verified SMSv2 release');

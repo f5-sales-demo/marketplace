@@ -8,6 +8,7 @@ export interface PlatformSessionManager {
 }
 
 export interface PlatformToolContext {
+  settings?: { get(key: string): unknown };
   hasUI: boolean;
   ui: { confirm(title: string, message: string): Promise<boolean> };
   sessionManager: PlatformSessionManager;
