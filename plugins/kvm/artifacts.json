@@ -4,7 +4,7 @@
     "NETWORKING.md": "898053dfd581b5ffb31545995943ff6d0d334258f6b4494902a94013cb782f1d",
     "scripts/bridge-prep.py": "776c8ec8759e8178ef7df1fbdf1f2c5c432623d15e286bd2b950f33504391d1d",
     "scripts/kvm-smsv2ctl": "91f5e22381ef3376cec84e0eacf5cfc08d192e380e4589d20aca771238456898",
-    "scripts/kvm_smsv2_controller.py": "2d482436167f2972461f9ec40d6d7f3a9efea60bd1378de1271f373ae010e871",
+    "scripts/kvm_smsv2_controller.py": "55b00e8d7d54af9d4aa7b8513f5e1bd760957af8216675cb464b1a12086288d4",
     "terraform/.terraform.lock.hcl": "8f6678358925432bf8fef8e5c2f8f7def3e9f73fd851dfed4a3a6608627afb72",
     "terraform/ensure-image.sh": "9178fb873bee055c53a906299ddcaaf48d34f88a3c5e6b20201cff1478736fe1",
     "terraform/main.tf": "7104a4c878ac9a3f5d680223ba289a16e2af32f0cd08f4d41e820471b63423b4",

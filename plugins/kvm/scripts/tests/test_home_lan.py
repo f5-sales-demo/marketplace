@@ -1,5 +1,5 @@
 """Safety contracts for a two-interface home-LAN KVM CE."""
-# pylint: disable=protected-access,too-many-public-methods
+# pylint: disable=protected-access,too-many-lines,too-many-public-methods
 # ruff: noqa: ANN001, ANN201, ANN202, D101, D102, INP001, PT009, PT018, PT027, RUF005, S101, SLF001
 
 import hashlib
@@ -8,6 +8,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from typing import Any
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -308,7 +309,7 @@ class HomeLanContracts(unittest.TestCase):
             )
 
     def test_registration_maps_both_owned_macs_to_distinct_observed_devices(self):
-        registration = {
+        registration: dict[str, Any] = {
             "items": [
                 {
                     "name": "registration-1",
@@ -420,7 +421,7 @@ class HomeLanContracts(unittest.TestCase):
                 }
             ]
         }
-        exact = {
+        exact: dict[str, Any] = {
             "system_metadata": {"owner_view": listing["items"][0]["owner_view"]},
             "spec": {
                 "ethernet_interface": {

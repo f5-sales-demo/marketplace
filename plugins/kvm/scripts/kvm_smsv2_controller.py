@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-contained KVM Secure Mesh Site v2 lifecycle controller."""
-# pylint: disable=too-many-lines,too-many-locals,consider-using-with
-# ruff: noqa: ANN204, BLE001, D101, D102, D103, D107, EM101, EM102, I001, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
+# pylint: disable=too-many-lines,too-many-locals,too-many-statements,consider-using-with
+# ruff: noqa: ANN204, D101, D102, D103, D107, EM101, EM102, I001, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
 
 from __future__ import annotations
 
@@ -3190,7 +3190,14 @@ def main(argv: list[str] | None = None) -> None:
                 result = dispatch(args.command, args.action, params, store, Runner())
         payload = envelope(args.command, result)
         print(json.dumps(payload, sort_keys=True))
-    except Exception as error:
+    except (
+        ControllerError,
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        subprocess.SubprocessError,
+    ) as error:
         payload = envelope(args.command, ok=False, error=str(error))
         print(json.dumps(payload, sort_keys=True), file=sys.stderr)
         raise SystemExit(1) from None
