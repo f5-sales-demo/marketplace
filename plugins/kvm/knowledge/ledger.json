@@ -45,10 +45,10 @@
       "outcome": "validated",
       "rootCause": "The CE search domain must not be forwarded upstream.",
       "rejectedApproaches": ["additional retries", "alternate subnets", "manual guest repair"],
-      "correction": "Set libvirt DNS local_only and retain fixed CE, FRR, and workload identities.",
-      "pluginRequirement": "Reject topology conflicts; use CE 10.100.0.11, FRR 10.100.0.2, workload 10.100.0.100, and authoritative ce.local DNS.",
-      "automatedTest": "Terraform contract pins the subnet, addresses, MACs, ASNs, and local_only DNS.",
-      "liveAcceptance": "The CE reached ONLINE, one BGP peer established, the route imported, and workload traffic succeeded.",
+      "correction": "Set libvirt DNS local_only and retain fixed CE and workload identities; retire the old BGP fixture when the VIP moves on-link.",
+      "pluginRequirement": "Reject topology conflicts; use CE 10.100.0.11, workload 10.100.0.100, and authoritative ce.local DNS.",
+      "automatedTest": "Terraform contract pins the subnet, addresses, MACs, and local_only DNS without BGP or Docker resources.",
+      "liveAcceptance": "The earlier NAT-only iteration reached ONLINE and established BGP; the home-LAN iteration serves HTTP through the on-link VIP without BGP.",
       "references": [
         "multi-cloud-networking#1210",
         "multi-cloud-networking#1220",
@@ -68,7 +68,7 @@
       "correction": "Persist the site identity before mutation and gate reconcile/destroy on exact ownership and saved-plan receipts.",
       "pluginRequirement": "Use plugin-owned state, names, pool, plans, inventory, and mode-0600 receipts.",
       "automatedTest": "Collision, stale-receipt, exact plan hash, ownership-safe destroy, and unrelated-resource tests are required.",
-      "liveAcceptance": "Destroy proved XC/libvirt/Docker absence and preserved unrelated resources before a clean rebuild.",
+      "liveAcceptance": "The earlier iteration proved XC/libvirt/Docker absence and preserved unrelated resources; the new topology has no Docker dependency.",
       "references": [
         "multi-cloud-networking#1216",
         "multi-cloud-networking#1218",

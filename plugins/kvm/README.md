@@ -4,7 +4,7 @@ This document is generated from `knowledge/ledger.json`. Edit the ledger, then r
 
 ## Fixed contract
 
-The plugin owns one Ubuntu 24.04 x86_64 KVM deployment: one 8-vCPU, 32-GiB, 100-GiB dual-NIC Secure Mesh CE; isolated NAT SLO, physical home-LAN SLI, one inside-VIP HTTP LB, one private origin pool, one deterministic workload, and one FRR peer.
+The plugin owns one Ubuntu 24.04 x86_64 KVM deployment: one 8-vCPU, 32-GiB, 100-GiB dual-NIC Secure Mesh CE; isolated NAT SLO, physical home-LAN SLI, one inside-VIP HTTP LB, one private origin pool, and one deterministic workload. No BGP peer is needed for the on-link VIP.
 Namespace is `system`; there are no AppStack, public-cloud, legacy-image, or external-workspace paths. See `NETWORKING.md` for rollback, DHCP, and external-client acceptance limits.
 
 ## Validated knowledge
@@ -45,10 +45,10 @@ Namespace is `system`; there are no AppStack, public-cloud, legacy-image, or ext
 - Outcome: validated
 - Root cause: The CE search domain must not be forwarded upstream.
 - Rejected: additional retries, alternate subnets, manual guest repair
-- Correction: Set libvirt DNS local_only and retain fixed CE, FRR, and workload identities.
-- Plugin requirement: Reject topology conflicts; use CE 10.100.0.11, FRR 10.100.0.2, workload 10.100.0.100, and authoritative ce.local DNS.
-- Automated test: Terraform contract pins the subnet, addresses, MACs, ASNs, and local_only DNS.
-- Live acceptance: The CE reached ONLINE, one BGP peer established, the route imported, and workload traffic succeeded.
+- Correction: Set libvirt DNS local_only and retain fixed CE and workload identities; retire the old BGP fixture when the VIP moves on-link.
+- Plugin requirement: Reject topology conflicts; use CE 10.100.0.11, workload 10.100.0.100, and authoritative ce.local DNS.
+- Automated test: Terraform contract pins the subnet, addresses, MACs, and local_only DNS without BGP or Docker resources.
+- Live acceptance: The earlier NAT-only iteration reached ONLINE and established BGP; the home-LAN iteration serves HTTP through the on-link VIP without BGP.
 - References: multi-cloud-networking#1210, multi-cloud-networking#1220, multi-cloud-networking#1223, multi-cloud-networking#1225
 
 ### KVM-004: ownership
@@ -62,7 +62,7 @@ Namespace is `system`; there are no AppStack, public-cloud, legacy-image, or ext
 - Correction: Persist the site identity before mutation and gate reconcile/destroy on exact ownership and saved-plan receipts.
 - Plugin requirement: Use plugin-owned state, names, pool, plans, inventory, and mode-0600 receipts.
 - Automated test: Collision, stale-receipt, exact plan hash, ownership-safe destroy, and unrelated-resource tests are required.
-- Live acceptance: Destroy proved XC/libvirt/Docker absence and preserved unrelated resources before a clean rebuild.
+- Live acceptance: The earlier iteration proved XC/libvirt/Docker absence and preserved unrelated resources; the new topology has no Docker dependency.
 - References: multi-cloud-networking#1216, multi-cloud-networking#1218, multi-cloud-networking#1223, multi-cloud-networking#1225
 
 ### KVM-005: plugin-lifecycle

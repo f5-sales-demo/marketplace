@@ -7,7 +7,6 @@ locals {
   ce_address            = "10.100.0.11"
   ce_mac                = "52:54:00:10:00:11"
   sli_mac               = "52:54:00:10:00:12"
-  lab_route             = "10.231.0.0/24"
   workload_name         = "xcsh-kvm-smsv2-workload"
   workload_address      = "10.100.0.100"
   workload_mac          = "52:54:00:10:00:64"
@@ -15,7 +14,6 @@ locals {
   workload_image_url    = "https://cloud.debian.org/images/cloud/bookworm/20260909-2596/debian-12-genericcloud-amd64-20260909-2596.qcow2"
   workload_image_sha512 = "08fea112563461f251f3c95a5c5cf8cb25eb60f74cec03e85a97ff91d3efef3059d35837598bbb476008f20db6d3bdc7143c5f2f2a9a6da394a0acc601fd5986"
   workload_image        = "${local.cache_dir}/workload-${substr(local.workload_image_sha512, 0, 16)}.qcow2"
-  frr_image             = "frrouting/frr@sha256:990e83490108b686fd6df3b1cafa6bdbb2714acb00eedb9a89693946f46f45ce"
   ce_image_md5          = "373f25b2b1d04674baa48a8916905c68"
   labels                = { owner = local.owner, managed_by = "terraform" }
 }
@@ -266,26 +264,7 @@ data "xcsh_smsv2_kvm_runtime" "ce" {
         self.device != "" &&
         lower(self.mac) == lower(local.ce_mac)
       )
-      error_message = "KVM BGP requires one live XC network_interface correlated by current site ownership, observed registration hostname/device, and the Terraform-owned CE MAC."
-    }
-  }
-}
-
-resource "xcsh_smsv2_kvm_runtime_interface" "sli" {
-  site         = xcsh_securemesh_site_v2.site.name
-  expected_mac = local.sli_mac
-  ipv4_cidr    = "${var.sli_address}/${split("/", var.lan_subnet)[1]}"
-  depends_on   = [libvirt_domain.ce]
-
-  lifecycle {
-    postcondition {
-      condition = (
-        self.interface_name != "" &&
-        self.device != data.xcsh_smsv2_kvm_runtime.ce.device &&
-        self.owner_uid != "" &&
-        self.configured
-      )
-      error_message = "SLI requires a distinct live owned interface selected by the plugin MAC."
+      error_message = "KVM SLO requires one live XC network_interface correlated by current site ownership, observed registration hostname/device, and the Terraform-owned CE MAC."
     }
   }
 }
@@ -316,104 +295,6 @@ resource "xcsh_registration_approval" "ce" {
   namespace    = "system"
   cluster_size = 1
   state        = "APPROVED"
-}
-
-resource "docker_image" "frr" {
-  name         = local.frr_image
-  keep_locally = true
-}
-
-resource "docker_network" "frr" {
-  name    = "${local.network_name}-frr"
-  driver  = "macvlan"
-  options = { parent = local.bridge_name }
-  ipam_config {
-    subnet  = "10.100.0.0/24"
-    gateway = "10.100.0.1"
-  }
-  depends_on = [libvirt_network.site]
-}
-
-resource "docker_container" "frr" {
-  name       = local.frr_image != "" ? "xcsh-kvm-smsv2-frr" : "invalid"
-  image      = docker_image.frr.image_id
-  privileged = true
-  must_run   = true
-  restart    = "unless-stopped"
-  upload {
-    file        = "/etc/frr/daemons"
-    content     = "bgpd=yes\nzebra=yes\nstaticd=yes\n"
-    permissions = "0640"
-  }
-  upload {
-    file        = "/etc/frr/frr.conf"
-    permissions = "0640"
-    content     = <<-EOF
-      frr defaults traditional
-      hostname xcsh-kvm-smsv2-frr
-      service integrated-vtysh-config
-      router bgp 65515
-       bgp router-id 10.100.0.2
-       no bgp ebgp-requires-policy
-       neighbor ${local.ce_address} remote-as 64512
-       address-family ipv4 unicast
-        neighbor ${local.ce_address} activate
-       exit-address-family
-       network ${local.lab_route}
-      ip route ${local.lab_route} Null0
-    EOF
-  }
-  upload {
-    file        = "/etc/frr/vtysh.conf"
-    content     = "service integrated-vtysh-config\n"
-    permissions = "0640"
-  }
-  labels {
-    label = "com.f5-sales-demo.owner"
-    value = local.owner
-  }
-  networks_advanced {
-    name         = docker_network.frr.name
-    ipv4_address = "10.100.0.2"
-  }
-}
-
-resource "xcsh_bgp" "site" {
-  name      = "${var.site_name}-ebgp"
-  namespace = "system"
-  labels    = local.labels
-  where {
-    site {
-      network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
-      ref {
-        name      = xcsh_securemesh_site_v2.site.name
-        namespace = "system"
-      }
-      disable_internet_vip = {}
-    }
-  }
-  bgp_parameters {
-    asn           = 64512
-    local_address = {}
-  }
-  peers {
-    metadata {
-      name = "peer-router"
-    }
-    external {
-      asn     = 65515
-      address = "10.100.0.2"
-      port    = 179
-      interface {
-        name      = data.xcsh_smsv2_kvm_runtime.ce.interface_name
-        namespace = "system"
-      }
-      disable_v6 = {}
-    }
-    passive_mode_disabled = {}
-    bfd_disabled          = {}
-  }
-  depends_on = [data.xcsh_smsv2_kvm_runtime.ce, docker_container.frr, libvirt_domain.ce]
 }
 
 resource "libvirt_volume" "workload_base" {
@@ -456,6 +337,9 @@ resource "libvirt_domain" "workload" {
   vcpu      = 2
   autostart = true
   cloudinit = libvirt_cloudinit_disk.workload.id
+  cpu {
+    mode = "host-passthrough"
+  }
   network_interface {
     network_id     = libvirt_network.site.id
     mac            = local.workload_mac
@@ -545,5 +429,5 @@ resource "xcsh_http_loadbalancer" "home" {
   disable_malware_protection       = {}
   disable_threat_mesh              = {}
   default_sensitive_data_policy    = {}
-  depends_on                       = [xcsh_smsv2_kvm_runtime_interface.sli]
+  depends_on                       = [data.xcsh_smsv2_kvm_runtime.ce]
 }

@@ -31,7 +31,6 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
   expect(text).toContain('required_version = "= 1.16.3"');
   expect(text).toContain('version = "= 11.1.0"');
   expect(text).toContain('data "xcsh_smsv2_kvm_runtime" "ce"');
-  expect(text).toContain('name      = data.xcsh_smsv2_kvm_runtime.ce.interface_name');
   expect(text).not.toContain('name      = "eth0"');
   expect(text).toContain('crt-20260801-0205');
   expect(text).toContain('offline_survivability_mode');
@@ -41,7 +40,7 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
   expect(text).toContain('drain_max_unavailable_node_count = 1');
   expect(text).toContain('disable_vega_upgrade_mode');
   expect(text).toContain('373f25b2b1d04674baa48a8916905c68');
-  expect(text).toContain('frrouting/frr@sha256:990e83490108b686fd6df3b1cafa6bdbb2714acb00eedb9a89693946f46f45ce');
+  expect(text).not.toMatch(/resource "(?:docker_|xcsh_bgp)|frrouting\/frr|kreuzwerker\/docker/);
   expect(text).toContain(
     '08fea112563461f251f3c95a5c5cf8cb25eb60f74cec03e85a97ff91d3efef3059d35837598bbb476008f20db6d3bdc7143c5f2f2a9a6da394a0acc601fd5986',
   );

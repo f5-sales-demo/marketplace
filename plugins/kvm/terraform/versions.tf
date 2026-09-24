@@ -10,10 +10,6 @@ terraform {
       source  = "dmacvicar/libvirt"
       version = "= 0.8.3"
     }
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "= 3.6.2"
-    }
   }
 }
 
@@ -24,5 +20,3 @@ provider "xcsh" {
 provider "libvirt" {
   uri = "qemu:///system"
 }
-
-provider "docker" {}

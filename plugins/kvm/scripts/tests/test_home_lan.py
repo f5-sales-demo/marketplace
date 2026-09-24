@@ -8,7 +8,6 @@ import json
 import pathlib
 import tempfile
 import unittest
-from itertools import pairwise
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -146,7 +145,7 @@ class HomeLanContracts(unittest.TestCase):
             if call.args[:4] == ("nmcli", "connection", "add", "type")
             and "bridge" in call.args
         )
-        self.assertIn(("bridge.stp", "no"), tuple(pairwise(bridge_add)))
+        self.assertEqual(bridge_add[bridge_add.index("bridge.stp") + 1], "no")
 
     def test_storage_selection_prefers_mounted_data_and_persists_for_rebuild(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -184,6 +183,7 @@ class HomeLanContracts(unittest.TestCase):
         self.assertIn(
             'target { path = "${var.storage_root}/${local.pool_name}" }', terraform
         )
+        self.assertEqual(terraform.count('mode = "host-passthrough"'), 2)
         self.assertIn(
             '"storage_root": config["storageRoot"]',
             (ROOT / "scripts" / "kvm_smsv2_controller.py").read_text(),
@@ -307,6 +307,230 @@ class HomeLanContracts(unittest.TestCase):
                 [interfaces[0], {**interfaces[1], "mac": controller.CE_MAC}]
             )
 
+    def test_registration_maps_both_owned_macs_to_distinct_observed_devices(self):
+        registration = {
+            "items": [
+                {
+                    "name": "registration-1",
+                    "get_spec": {
+                        "passport": {"cluster_name": "owned-site"},
+                        "infra": {
+                            "hostname": "observed-node",
+                            "provider": "KVM",
+                            "hw_info": {
+                                "network": [
+                                    {"mac_address": controller.CE_MAC, "name": "ens3"},
+                                    {"mac_address": controller.SLI_MAC, "name": "ens4"},
+                                ]
+                            },
+                        },
+                    },
+                }
+            ]
+        }
+        mapped = controller.map_registered_ce_interfaces(registration, "owned-site")
+        self.assertEqual(mapped["hostname"], "observed-node")
+        self.assertEqual(mapped["interfaces"]["sli"]["device"], "ens4")
+        registration["items"][0]["get_spec"]["infra"]["hw_info"]["network"][1][
+            "name"
+        ] = "ens3"
+        with self.assertRaisesRegex(controller.ControllerError, "distinct"):
+            controller.map_registered_ce_interfaces(registration, "owned-site")
+        registration["items"].append(registration["items"][0])
+        with self.assertRaisesRegex(controller.ControllerError, "one.*registration"):
+            controller.map_registered_ce_interfaces(registration, "owned-site")
+
+    def test_site_static_plan_owns_only_observed_sli(self):
+        site, registration, config = self.site_static_fixture()
+        plan = controller.build_site_static_plan(site, registration, config)
+        node = plan["payload"]["spec"]["kvm"]["not_managed"]["node_list"][0]
+        self.assertEqual(
+            node["interface_list"][0],
+            site["spec"]["kvm"]["not_managed"]["node_list"][0]["interface_list"][0],
+        )
+        inside = node["interface_list"][1]
+        self.assertNotIn("dhcp_client", inside)
+        self.assertEqual(inside["static_ip"], {"ip_address": "192.168.2.253/24"})
+        self.assertFalse(plan["alreadyConfigured"])
+        self.assertEqual(plan["ownerUID"], "owned-uid")
+        self.assertEqual(plan["resourceVersion"], "42")
+        self.assertEqual(
+            site["spec"]["kvm"]["not_managed"]["node_list"][0]["interface_list"][1],
+            self.site_static_fixture()[0]["spec"]["kvm"]["not_managed"]["node_list"][0][
+                "interface_list"
+            ][1],
+        )
+        observed = controller.build_site_static_plan(
+            {**site, "spec": plan["payload"]["spec"]}, registration, config
+        )
+        self.assertTrue(observed["alreadyConfigured"])
+
+    def test_site_static_plan_rejects_unowned_or_ambiguous_child(self):
+        site, registration, config = self.site_static_fixture()
+        site["metadata"]["labels"]["owner"] = "foreign"
+        with self.assertRaisesRegex(controller.ControllerError, "owner"):
+            controller.build_site_static_plan(site, registration, config)
+        site, registration, config = self.site_static_fixture()
+        site["spec"]["kvm"]["not_managed"]["node_list"] = []
+        with self.assertRaisesRegex(controller.ControllerError, "one.*node"):
+            controller.build_site_static_plan(site, registration, config)
+        site, registration, config = self.site_static_fixture()
+        interfaces = site["spec"]["kvm"]["not_managed"]["node_list"][0][
+            "interface_list"
+        ]
+        interfaces[1]["ethernet_interface"]["mac"] = controller.CE_MAC
+        with self.assertRaises(controller.ControllerError):
+            controller.build_site_static_plan(site, registration, config)
+        site, registration, config = self.site_static_fixture()
+        interfaces = site["spec"]["kvm"]["not_managed"]["node_list"][0][
+            "interface_list"
+        ]
+        del interfaces[1]["dhcp_client"]
+        interfaces[1]["static_ip"] = {"ip_address": "192.168.2.252/24"}
+        with self.assertRaisesRegex(controller.ControllerError, "conflict"):
+            controller.build_site_static_plan(site, registration, config)
+
+    def test_guest_sli_address_requires_exact_owned_mac_and_no_dhcp_alias(self):
+        output = (
+            " Name MAC Protocol Address\n"
+            " vhost0 52:54:00:10:00:11 ipv4 10.100.0.11/24\n"
+            " vhost-int-1 52:54:00:10:00:12 ipv4 192.168.2.253/24\n"
+        )
+        self.assertTrue(controller.guest_sli_address_ready(output, "192.168.2.253/24"))
+        self.assertFalse(controller.guest_sli_address_ready(output, "192.168.2.254/24"))
+        self.assertFalse(
+            controller.guest_sli_address_ready(
+                output + " vhost-int-1 52:54:00:10:00:12 ipv4 192.168.2.10/24\n",
+                "192.168.2.253/24",
+            )
+        )
+
+    def test_sli_child_name_requires_exact_site_uid_device_and_static_ip(self):
+        listing = {
+            "items": [
+                {
+                    "name": "random-platform-name",
+                    "namespace": "system",
+                    "owner_view": {
+                        "kind": "securemesh_site_v2",
+                        "name": "owned-site",
+                        "namespace": "system",
+                        "uid": "owned-uid",
+                    },
+                }
+            ]
+        }
+        exact = {
+            "system_metadata": {"owner_view": listing["items"][0]["owner_view"]},
+            "spec": {
+                "ethernet_interface": {
+                    "node": "observed-node",
+                    "device": "ens4",
+                    "site_local_inside_network": {},
+                    "static_ip": {"node_static_ip": {"ip_address": "192.168.2.253/24"}},
+                }
+            },
+        }
+        self.assertEqual(
+            controller.select_sli_child_name(
+                listing,
+                lambda _name: exact,
+                "owned-site",
+                "owned-uid",
+                "observed-node",
+                "ens4",
+                "192.168.2.253/24",
+            ),
+            "random-platform-name",
+        )
+        with self.assertRaisesRegex(controller.ControllerError, "ambiguous"):
+            controller.select_sli_child_name(
+                {"items": listing["items"] * 2},
+                lambda _name: exact,
+                "owned-site",
+                "owned-uid",
+                "observed-node",
+                "ens4",
+                "192.168.2.253/24",
+            )
+        exact["spec"]["ethernet_interface"]["static_ip"]["node_static_ip"][
+            "ip_address"
+        ] = "192.168.2.252/24"
+        with self.assertRaisesRegex(controller.ControllerError, "ambiguous"):
+            controller.select_sli_child_name(
+                listing,
+                lambda _name: exact,
+                "owned-site",
+                "owned-uid",
+                "observed-node",
+                "ens4",
+                "192.168.2.253/24",
+            )
+
+    @staticmethod
+    def site_static_fixture() -> tuple[dict, dict, dict]:
+        registration = {
+            "items": [
+                {
+                    "name": "registration-1",
+                    "object": {"status": {"current_state": "ONLINE"}},
+                    "get_spec": {
+                        "passport": {"cluster_name": "owned-site"},
+                        "infra": {
+                            "hostname": "observed-node",
+                            "provider": "KVM",
+                            "hw_info": {
+                                "network": [
+                                    {"mac_address": controller.CE_MAC, "name": "ens3"},
+                                    {"mac_address": controller.SLI_MAC, "name": "ens4"},
+                                ]
+                            },
+                        },
+                    },
+                }
+            ]
+        }
+        interfaces = [
+            {
+                "name": name,
+                "ethernet_interface": {"device": name, "mac": mac},
+                "dhcp_client": {},
+                "network_option": {network: {}},
+            }
+            for name, mac, network in (
+                ("ens3", controller.CE_MAC, "site_local_network"),
+                ("ens4", controller.SLI_MAC, "site_local_inside_network"),
+            )
+        ]
+        site = {
+            "metadata": {
+                "name": "owned-site",
+                "namespace": "system",
+                "labels": {"owner": controller.OWNER},
+            },
+            "system_metadata": {"uid": "owned-uid"},
+            "resource_version": "42",
+            "spec": {
+                "kvm": {
+                    "not_managed": {
+                        "node_list": [
+                            {"hostname": "observed-node", "interface_list": interfaces}
+                        ]
+                    }
+                },
+                "site_state": "UPGRADING",
+            },
+        }
+        config = {
+            "siteName": "owned-site",
+            "lan": {
+                "subnet": "192.168.2.0/24",
+                "sliAddress": "192.168.2.253",
+                "vipAddress": "192.168.2.254",
+            },
+        }
+        return site, registration, config
+
     def test_manager_requires_timed_rollback(self):
         nm = controller.bridge_transaction_command(
             "NetworkManager", "enp5s0", "xckvmlan"
@@ -358,17 +582,18 @@ class HomeLanContracts(unittest.TestCase):
             with self.assertRaises(controller.ControllerError):
                 controller.require_home_lan_plan({"resource_changes": changes})
 
-    def test_terraform_uses_provider_owned_sli_not_slo_runtime_lookup(self):
+    def test_terraform_binds_observed_sli_without_mutating_platform_child(self):
         text = (ROOT / "terraform" / "main.tf").read_text()
-        self.assertEqual(
-            text.count('resource "xcsh_smsv2_kvm_runtime_interface" "sli"'), 1
-        )
+        self.assertNotIn('resource "xcsh_smsv2_kvm_runtime_interface" "sli"', text)
         self.assertNotIn('data "xcsh_smsv2_kvm_runtime" "sli"', text)
-        self.assertIn("self.device != data.xcsh_smsv2_kvm_runtime.ce.device", text)
+        outputs = (ROOT / "terraform" / "outputs.tf").read_text()
+        self.assertIn("device         = var.sli_device", outputs)
+        self.assertIn("interface_name = var.sli_interface_name", outputs)
         self.assertEqual(text.count('resource "xcsh_origin_pool" "home"'), 1)
         self.assertEqual(text.count('resource "xcsh_http_loadbalancer" "home"'), 1)
         self.assertIn('network = "SITE_NETWORK_INSIDE"', text)
         self.assertNotIn("198.51.100.0/24", text)
+        self.assertNotIn("xcsh_smsv2_kvm_runtime_interface.sli", outputs)
 
     def test_netplan_backup_restores_exact_original_after_failure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -688,11 +913,21 @@ class HomeLanContracts(unittest.TestCase):
                     raise RuntimeError(reason)
                 return "not-found"
 
+            original_exists = pathlib.Path.exists
             with (
                 mock.patch.object(bridge_prep, "ROOT", root),
                 mock.patch.object(bridge_prep, "run", side_effect=command),
                 mock.patch.object(bridge_prep, "verify_original") as verify,
                 mock.patch.object(bridge_prep, "rollback") as rollback,
+                mock.patch.object(
+                    pathlib.Path,
+                    "exists",
+                    lambda path: (
+                        False
+                        if path == pathlib.Path("/sys/class/net/xckvmlan")
+                        else original_exists(path)
+                    ),
+                ),
             ):
                 bridge_prep.restore()
             verify.assert_called_once_with("enp5s0", "192.168.2.240", "192.168.2.1")
@@ -724,11 +959,21 @@ class HomeLanContracts(unittest.TestCase):
                     }
                 )
             )
+            original_exists = pathlib.Path.exists
             with (
                 mock.patch.object(bridge_prep, "ROOT", root),
                 mock.patch.object(bridge_prep, "run", return_value="not-found"),
                 mock.patch.object(bridge_prep, "verify_original") as verify,
                 mock.patch.object(bridge_prep, "rollback") as rollback,
+                mock.patch.object(
+                    pathlib.Path,
+                    "exists",
+                    lambda path: (
+                        False
+                        if path == pathlib.Path("/sys/class/net/xckvmlan")
+                        else original_exists(path)
+                    ),
+                ),
             ):
                 bridge_prep.restore()
             verify.assert_called_once_with("enp109s0", "192.168.2.34", "192.168.2.1")

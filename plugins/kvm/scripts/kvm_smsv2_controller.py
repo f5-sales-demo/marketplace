@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Self-contained KVM Secure Mesh Site v2 lifecycle controller."""
 # pylint: disable=too-many-lines,too-many-locals,consider-using-with
-# ruff: noqa: ANN204, D101, D102, D103, D107, EM101, EM102, I001, PERF401, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
+# ruff: noqa: ANN204, BLE001, D101, D102, D103, D107, EM101, EM102, I001, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Iterator
 import contextlib
+import copy
 import fcntl
 import grp
 import hashlib
@@ -40,7 +41,6 @@ OWNER = "xcsh-kvm-smsv2-v3"
 NAMESPACE = "system"
 POOL = "xcsh-kvm-smsv2"
 NETWORK = "xcsh-kvm-smsv2"
-FRR = "xcsh-kvm-smsv2-frr"
 CE_DOMAIN = "xcsh-kvm-smsv2-ce"
 WORKLOAD_DOMAIN = "xcsh-kvm-smsv2-workload"
 CE_ADDRESS = "10.100.0.11"
@@ -48,7 +48,6 @@ CE_MAC = "52:54:00:10:00:11"
 SLI_MAC = "52:54:00:10:00:12"
 WORKLOAD_ADDRESS = "10.100.0.100"
 WORKLOAD_MAC = "52:54:00:10:00:64"
-LAB_ROUTE = "10.231.0.0/24"
 DATA_STORAGE_ROOT = "/data/libvirt/images"
 DEFAULT_STORAGE_ROOT = "/var/lib/libvirt/images"
 LAN_RANGES = (
@@ -61,7 +60,6 @@ REQUIRED_COMMANDS = (
     "arping",
     "brctl",
     "curl",
-    "docker",
     "ip",
     "jq",
     "modprobe",
@@ -91,7 +89,6 @@ ALLOWED_PROVIDERS = {
     "terraform.io/builtin/terraform",
     "registry.terraform.io/f5-sales-demo/xcsh",
     "registry.terraform.io/dmacvicar/libvirt",
-    "registry.terraform.io/kreuzwerker/docker",
 }
 SECRET_KEY = re.compile(
     r"token|authorization|secret|credential|password", re.IGNORECASE
@@ -174,6 +171,185 @@ def map_ce_interfaces(interfaces: list[dict[str, str]]) -> dict[str, dict[str, s
     if set(mapped) != set(expected):
         raise ControllerError("both observed CE roles are required")
     return mapped
+
+
+def map_registered_ce_interfaces(
+    document: dict[str, Any], site_name: str
+) -> dict[str, Any]:
+    registrations = [
+        item
+        for item in document.get("items", [])
+        if isinstance(item, dict)
+        and isinstance(item.get("get_spec"), dict)
+        and item["get_spec"].get("passport", {}).get("cluster_name") == site_name
+    ]
+    if len(registrations) != 1:
+        raise ControllerError("expected one owned KVM registration")
+    infra = registrations[0]["get_spec"].get("infra", {})
+    hostname = infra.get("hostname", "")
+    adapters = infra.get("hw_info", {}).get("network", [])
+    if infra.get("provider") != "KVM" or not hostname or not isinstance(adapters, list):
+        raise ControllerError("KVM registration hardware inventory is incomplete")
+    expected = {CE_MAC: "slo", SLI_MAC: "sli"}
+    interfaces = [
+        {
+            "role": expected[str(adapter.get("mac_address", "")).lower()],
+            "mac": str(adapter["mac_address"]).lower(),
+            "device": str(adapter.get("name", "")),
+        }
+        for adapter in adapters
+        if isinstance(adapter, dict)
+        and str(adapter.get("mac_address", "")).lower() in expected
+    ]
+    return {"hostname": hostname, "interfaces": map_ce_interfaces(interfaces)}
+
+
+def build_site_static_plan(
+    site: dict[str, Any], registration: dict[str, Any], config: dict[str, Any]
+) -> dict[str, Any]:
+    name = config["siteName"]
+    metadata = site.get("metadata", {})
+    owner_uid = site.get("system_metadata", {}).get("uid")
+    resource_version = site.get("resource_version")
+    if (
+        metadata.get("name") != name
+        or metadata.get("namespace") != NAMESPACE
+        or metadata.get("labels", {}).get("owner") != OWNER
+        or not owner_uid
+        or not resource_version
+    ):
+        raise ControllerError("site owner, identity, or version is unavailable")
+    registrations = registration.get("items", [])
+    mapped = map_registered_ce_interfaces(registration, name)
+    if (
+        len(registrations) != 1
+        or registrations[0].get("object", {}).get("status", {}).get("current_state")
+        != "ONLINE"
+    ):
+        raise ControllerError("one online KVM registration is required")
+    spec = site.get("spec", {})
+    nodes = spec.get("kvm", {}).get("not_managed", {}).get("node_list", [])
+    if len(nodes) != 1 or nodes[0].get("hostname") != mapped["hostname"]:
+        raise ControllerError("one observed KVM node is required")
+    interfaces = nodes[0].get("interface_list", [])
+    if len(interfaces) != 2:
+        raise ControllerError("the owned node requires exactly two interfaces")
+    roles = map_ce_interfaces(
+        [
+            {
+                "role": {CE_MAC: "slo", SLI_MAC: "sli"}.get(
+                    str(item.get("ethernet_interface", {}).get("mac", "")).lower(), ""
+                ),
+                "mac": str(item.get("ethernet_interface", {}).get("mac", "")),
+                "device": str(item.get("ethernet_interface", {}).get("device", "")),
+            }
+            for item in interfaces
+        ]
+    )
+    if any(
+        roles[role]["device"] != mapped["interfaces"][role]["device"]
+        for role in ("slo", "sli")
+    ):
+        raise ControllerError("site interface device differs from observed MAC mapping")
+    selection = config["lan"]
+    if not allowed_lan_subnet(selection["subnet"]):
+        raise ControllerError("selected LAN subnet is outside allowed ranges")
+    subnet = ipaddress.ip_network(selection["subnet"])
+    address = ipaddress.ip_address(selection["sliAddress"])
+    if (
+        address not in subnet.hosts()
+        or selection["sliAddress"] == selection["vipAddress"]
+    ):
+        raise ControllerError("selected SLI/VIP addresses conflict")
+    desired = f"{address}/{subnet.prefixlen}"
+    inside = next(
+        item
+        for item in interfaces
+        if str(item["ethernet_interface"]["mac"]).lower() == SLI_MAC
+    )
+    if "site_local_inside_network" not in inside.get("network_option", {}):
+        raise ControllerError("observed SLI is not on the site-local inside network")
+    if "dhcp_client" in inside and "static_ip" not in inside:
+        already_configured = False
+    elif (
+        "dhcp_client" not in inside
+        and inside.get("static_ip", {}).get("ip_address") == desired
+        and not inside["static_ip"].get("default_gw")
+    ):
+        already_configured = True
+    else:
+        raise ControllerError("site SLI address or mode conflict requires a new plan")
+    after = copy.deepcopy(spec)
+    updated = after["kvm"]["not_managed"]["node_list"][0]["interface_list"]
+    for item in updated:
+        if str(item["ethernet_interface"]["mac"]).lower() == SLI_MAC:
+            item.pop("dhcp_client", None)
+            item["static_ip"] = {"ip_address": desired}
+    return {
+        "siteName": name,
+        "ownerUID": owner_uid,
+        "resourceVersion": resource_version,
+        "beforeSpecSha256": hashlib.sha256(
+            json.dumps(spec, sort_keys=True).encode()
+        ).hexdigest(),
+        "registrationName": registrations[0]["name"],
+        "mapped": mapped,
+        "selection": selection,
+        "alreadyConfigured": already_configured,
+        "payload": {
+            "metadata": metadata,
+            "spec": after,
+            "resource_version": resource_version,
+        },
+    }
+
+
+def select_sli_child_name(
+    listing: dict[str, Any],
+    exact_get: Any,
+    site_name: str,
+    owner_uid: str,
+    hostname: str,
+    device: str,
+    expected_cidr: str,
+) -> str:
+    items = listing.get("items", [])
+    if not isinstance(items, list) or listing.get("errors"):
+        raise ControllerError("XC interface inventory is incomplete")
+    expected_owner = {
+        "kind": "securemesh_site_v2",
+        "name": site_name,
+        "namespace": NAMESPACE,
+        "uid": owner_uid,
+    }
+    matches: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ControllerError("XC interface inventory is malformed")
+        owner = item.get("owner_view") or {}
+        if any(owner.get(key) != value for key, value in expected_owner.items()):
+            continue
+        name = item.get("name")
+        if not name or item.get("namespace") != NAMESPACE:
+            raise ControllerError("owned XC interface identity is incomplete")
+        exact = exact_get(name)
+        exact_owner = exact.get("system_metadata", {}).get("owner_view") or {}
+        if any(exact_owner.get(key) != value for key, value in expected_owner.items()):
+            raise ControllerError("owned XC interface identity changed during read")
+        ethernet = exact.get("spec", {}).get("ethernet_interface") or {}
+        if ethernet.get("node") != hostname or ethernet.get("device") != device:
+            continue
+        static = ethernet.get("static_ip") or {}
+        if (
+            "site_local_inside_network" not in ethernet
+            or static.get("node_static_ip", {}).get("ip_address") != expected_cidr
+            or static.get("node_static_ip", {}).get("default_gw")
+        ):
+            raise ControllerError("owned SLI child is ambiguous or drifted")
+        matches.append(name)
+    if len(matches) != 1:
+        raise ControllerError("owned SLI child selection is ambiguous or absent")
+    return matches[0]
 
 
 def parse_home_lan(
@@ -549,6 +725,19 @@ def prepare_home_lan(
             if baseline_path.exists()
             else None
         )
+        site_receipt_path = store.receipts / "apply-site-static.json"
+        if expected is None and site_receipt_path.exists():
+            site, registration = _site_static_documents(config["siteName"])
+            site_plan = build_site_static_plan(site, registration, config)
+            receipt = store.read_receipt("apply-site-static")
+            if (
+                not site_plan["alreadyConfigured"]
+                or site_plan["ownerUID"] != receipt.get("ownerUID")
+                or receipt.get("sliAddress") != addresses["sliAddress"]
+            ):
+                raise ControllerError("persisted site SLI ownership has changed")
+            expected = {addresses["sliAddress"]: SLI_MAC}
+            known.discard(addresses["sliAddress"])
         if any(address in leases for address in selected):
             raise ControllerError(
                 "persisted LAN address appears in observed DHCP leases"
@@ -717,7 +906,7 @@ def safe_apply_failure(output: str) -> str | None:
 def reject_collisions(inventory: list[dict[str, Any]]) -> None:
     for item in inventory:
         if (
-            item.get("name") in {POOL, NETWORK, FRR, CE_DOMAIN, WORKLOAD_DOMAIN}
+            item.get("name") in {POOL, NETWORK, CE_DOMAIN, WORKLOAD_DOMAIN}
             and item.get("owned") is not True
         ):
             raise ControllerError(
@@ -731,7 +920,6 @@ def unrelated_resources(inventory: list[dict[str, Any]]) -> list[dict[str, Any]]
         if item.get("owned") is True or item.get("name") in {
             POOL,
             NETWORK,
-            FRR,
             CE_DOMAIN,
             WORKLOAD_DOMAIN,
         }:
@@ -740,7 +928,7 @@ def unrelated_resources(inventory: list[dict[str, Any]]) -> list[dict[str, Any]]
             "kind": str(item.get("kind", "unknown")),
             "name": str(item.get("name", "unknown")),
         }
-        if item.get("kind") in {"domain", "container"} and "running" in item:
+        if item.get("kind") == "domain" and "running" in item:
             resource["running"] = item.get("running") is True
         resources.append(resource)
     return resources
@@ -752,10 +940,7 @@ def unrelated_left_stopped(
     current = {(str(item.get("kind")), str(item.get("name"))): item for item in after}
     stopped: list[dict[str, str]] = []
     for item in before:
-        if (
-            item.get("kind") not in {"domain", "container"}
-            or item.get("running") is not True
-        ):
+        if item.get("kind") != "domain" or item.get("running") is not True:
             continue
         key = (str(item.get("kind")), str(item.get("name")))
         observed = current.get(key)
@@ -976,12 +1161,9 @@ def package_ready(runner: Runner, package: str) -> bool:
 
 
 def apt_packages_to_install(checks: dict[str, Any]) -> list[str]:
-    packages = [
+    return [
         name for name in APT_PACKAGES if not checks.get("packages", {}).get(name, False)
     ]
-    if not checks.get("commands", {}).get("docker", False):
-        packages.append("docker.io")
-    return packages
 
 
 def _install_terraform(runner: Runner) -> None:
@@ -1071,7 +1253,7 @@ def readiness(
             ).returncode
             == 0,
         }
-        for name in ("libvirtd", "docker")
+        for name in ("libvirtd",)
     }
     virtualization = runner.run(["test", "-r", "/dev/kvm"]).returncode == 0
     cpu = os.cpu_count() or 0
@@ -1101,7 +1283,7 @@ def readiness(
         "commands": commands,
         "packages": packages,
         "terraform": {"requiredVersion": TERRAFORM_VERSION, "ready": terraform_ready},
-        "groups": {name: name in groups for name in ("kvm", "libvirt", "docker")},
+        "groups": {name: name in groups for name in ("kvm", "libvirt")},
         "modules": modules,
         "services": services,
         "virtualization": virtualization,
@@ -1264,33 +1446,19 @@ def _resource_identity(runner: Runner, kind: str, name: str) -> tuple[str, bool]
     elif kind == "pool":
         result = runner.run(["virsh", "--connect", "qemu:///system", "pool-uuid", name])
     else:
-        result = runner.run(
-            [
-                "docker",
-                "inspect",
-                "--format",
-                '{{.Id}} {{index .Config.Labels "com.f5-sales-demo.owner"}}',
-                name,
-            ]
-        )
+        raise ControllerError(f"unsupported owned resource kind: {kind}")
     if result.returncode:
         return "", False
     fields = result.stdout.strip().split()
     if not fields:
         return "", False
-    declared_owner = kind != "container" or (len(fields) == 2 and fields[1] == OWNER)
-    return fields[0], declared_owner
+    return fields[0], True
 
 
 def _resource_running(runner: Runner, kind: str, name: str) -> bool | None:
     if kind == "domain":
         result = runner.run(["virsh", "--connect", "qemu:///system", "domstate", name])
         return result.returncode == 0 and result.stdout.strip().lower() == "running"
-    if kind == "container":
-        result = runner.run(
-            ["docker", "inspect", "--format", "{{.State.Running}}", name]
-        )
-        return result.returncode == 0 and result.stdout.strip().lower() == "true"
     return None
 
 
@@ -1321,7 +1489,6 @@ def inventory(
             "pool",
             ["virsh", "--connect", "qemu:///system", "pool-list", "--all", "--name"],
         ),
-        ("container", ["docker", "ps", "--all", "--format", "{{.Names}}"]),
     ):
         for name in _command_lines(runner, argv):
             identity, declared_owner = _resource_identity(runner, kind, name)
@@ -1347,7 +1514,6 @@ def parse_state_ownership(
     mappings = {
         ("libvirt_pool", "site"): ("pool", POOL),
         ("libvirt_network", "site"): ("network", NETWORK),
-        ("docker_container", "frr"): ("container", FRR),
         ("libvirt_domain", "ce"): ("domain", CE_DOMAIN),
         ("libvirt_domain", "workload"): ("domain", WORKLOAD_DOMAIN),
     }
@@ -1425,7 +1591,7 @@ def _recover_interrupted_ownership(
 
 
 def _capture_ownership(store: StateStore, runner: Runner) -> list[dict[str, str]]:
-    expected = {POOL, NETWORK, FRR, CE_DOMAIN, WORKLOAD_DOMAIN}
+    expected = {POOL, NETWORK, CE_DOMAIN, WORKLOAD_DOMAIN}
     resources = []
     for item in inventory(runner):
         if item["name"] not in expected:
@@ -1434,12 +1600,6 @@ def _capture_ownership(store: StateStore, runner: Runner) -> list[dict[str, str]
             raise ControllerError(
                 f"owned {item['kind']} {item['name']} has no stable identity"
             )
-        if item["kind"] == "container":
-            _, declared_owner = _resource_identity(runner, item["kind"], item["name"])
-            if not declared_owner:
-                raise ControllerError(
-                    f"owned container {item['name']} has no owner label"
-                )
         resources.append(
             {"kind": item["kind"], "name": item["name"], "identity": item["identity"]}
         )
@@ -1617,70 +1777,6 @@ def parse_registration_observation(
     }
 
 
-def _peer_ip(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, dict):
-        ipv4 = value.get("ipv4")
-        if isinstance(ipv4, str):
-            return ipv4
-        if isinstance(ipv4, dict):
-            return str(ipv4.get("addr", ""))
-    return ""
-
-
-def parse_bgp_observation(
-    peers: dict[str, Any], routes: dict[str, Any]
-) -> dict[str, Any]:
-    matches: list[dict[str, Any]] = []
-    for node in peers.get("ver", []):
-        if not isinstance(node, dict):
-            continue
-        for peer in node.get("peer", []):
-            if (
-                isinstance(peer, dict)
-                and _peer_ip(peer.get("peer_address")) == "10.100.0.2"
-            ):
-                matches.append(peer)
-    imported: set[str] = set()
-    exported: set[str] = set()
-    for node in routes.get("ver", []):
-        if not isinstance(node, dict):
-            continue
-        for instance in node.get("ri_table", []):
-            if not isinstance(instance, dict):
-                continue
-            for table in instance.get("rt_table", []):
-                if not isinstance(table, dict):
-                    continue
-                for route in table.get("imported", []):
-                    if not isinstance(route, dict):
-                        continue
-                    if any(
-                        isinstance(path, dict)
-                        and _peer_ip(path.get("peer")) == "10.100.0.2"
-                        for path in route.get("path", [])
-                    ):
-                        imported.add(str(route.get("subnet", "")))
-                for route in table.get("exported", []):
-                    if isinstance(route, dict) and route.get("subnet"):
-                        exported.add(str(route["subnet"]))
-    advertised = sum(
-        int(peer.get("advertised_prefix_count", 0))
-        for peer in matches
-        if isinstance(peer.get("advertised_prefix_count", 0), (int, float))
-    )
-    return {
-        "peerCount": len(matches),
-        "establishedCount": sum(
-            peer.get("protocol_status") == "Established" for peer in matches
-        ),
-        "importedRoutes": sorted(imported),
-        "exportedRoutes": sorted(exported),
-        "advertisedRouteCount": max(advertised, len(exported)),
-    }
-
-
 def _terraform_env(store: StateStore | None = None) -> dict[str, str]:
     api_url, token = _credentials()
     env = dict(os.environ)
@@ -1732,6 +1828,16 @@ def _terraform_plan(
     lan = config.get("lan")
     if not lan:
         raise ControllerError("saved LAN selection is required before planning")
+    site_receipt_path = store.receipts / "apply-site-static.json"
+    site_receipt = (
+        store.read_receipt("apply-site-static") if site_receipt_path.exists() else {}
+    )
+    if mode == "apply" and not all(
+        site_receipt.get(key) for key in ("ownerUID", "sliDevice", "sliInterfaceName")
+    ):
+        raise ControllerError(
+            "observed, owned SLI identity is required before planning"
+        )
     variables.write_text(
         json.dumps(
             {
@@ -1741,6 +1847,8 @@ def _terraform_plan(
                 "lan_bridge": lan["bridge"],
                 "lan_subnet": lan["subnet"],
                 "sli_address": lan["sliAddress"],
+                "sli_device": site_receipt.get("sliDevice", ""),
+                "sli_interface_name": site_receipt.get("sliInterfaceName", ""),
                 "vip_address": lan["vipAddress"],
             }
         )
@@ -1769,6 +1877,8 @@ def _terraform_plan(
     ]
     if mode == "destroy":
         argv.append("-destroy")
+    if mode == "bootstrap":
+        argv.append("-target=libvirt_domain.ce")
     result = runner.run(argv, timeout=900, env=env)
     if result.returncode not in (0, 2):
         raise ControllerError(f"Terraform {mode} planning failed; output withheld")
@@ -1785,6 +1895,22 @@ def _terraform_plan(
     summary = inspect_plan(plan_json)
     if mode == "apply":
         require_home_lan_plan(plan_json)
+    if mode == "bootstrap":
+        created = {
+            item.get("address")
+            for item in plan_json.get("resource_changes", [])
+            if item.get("change", {}).get("actions") == ["create"]
+        }
+        if (
+            "libvirt_domain.ce" not in created
+            or summary["delete"]
+            or summary["update"]
+            or any(
+                address.startswith(("xcsh_http_loadbalancer.", "xcsh_origin_pool."))
+                for address in summary["addresses"]
+            )
+        ):
+            raise ControllerError("bootstrap plan is not limited to the one owned CE")
     digest = file_digest(plan)
     receipt = {
         "mode": mode,
@@ -1805,7 +1931,7 @@ def _apply_plan(
 ) -> dict[str, Any]:
     plan = pathlib.Path(str(receipt["path"]))
     require_plan_digest(plan, str(receipt["sha256"]))
-    if receipt["mode"] == "apply":
+    if receipt["mode"] in ("apply", "bootstrap"):
         config = _config(store, {})
         selection = config.get("lan")
         if not isinstance(selection, dict):
@@ -1827,6 +1953,10 @@ def _apply_plan(
             if baseline_path.exists()
             else None
         )
+        if expected is None and receipt["mode"] == "apply":
+            if not (store.receipts / "apply-site-static.json").exists():
+                raise ControllerError("owned site SLI configuration receipt is missing")
+            expected = {selection["sliAddress"]: SLI_MAC}
         validate_lan_recheck(
             selection,
             expected,
@@ -1861,6 +1991,225 @@ def _apply_plan(
     }
     store.write_receipt(f"apply-{receipt['mode']}", applied)
     return applied
+
+
+def _site_static_documents(site_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    quoted = urllib.parse.quote(site_name, safe="")
+    return (
+        _xc_json(f"/api/config/namespaces/{NAMESPACE}/securemesh_site_v2s/{quoted}"),
+        _xc_json(
+            f"/api/register/namespaces/{NAMESPACE}/registrations_by_site/{quoted}"
+        ),
+    )
+
+
+def _wait_site_static_plan(config: dict[str, Any]) -> dict[str, Any]:
+    deadline = time.monotonic() + 7200
+    while time.monotonic() < deadline:
+        site, registration = _site_static_documents(config["siteName"])
+        if site.get("metadata", {}).get("labels", {}).get("owner") != OWNER:
+            raise ControllerError("site node discovery belongs to another owner")
+        spec = site.get("spec", {})
+        if spec.get("site_errors"):
+            raise ControllerError("site has platform errors before SLI configuration")
+        nodes = spec.get("kvm", {}).get("not_managed", {}).get("node_list", [])
+        online = [
+            item
+            for item in registration.get("items", [])
+            if item.get("object", {}).get("status", {}).get("current_state") == "ONLINE"
+        ]
+        if nodes and online:
+            return build_site_static_plan(site, registration, config)
+        time.sleep(20)
+    raise ControllerError("one online observed KVM node was not available")
+
+
+def _plan_site_static(store: StateStore, config: dict[str, Any]) -> dict[str, Any]:
+    document = _wait_site_static_plan(config)
+    plan = store.plans / "site-static.json"
+    fd, temporary = tempfile.mkstemp(prefix=".site-static.", dir=store.plans)
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        json.dump(document, stream, sort_keys=True)
+        stream.write("\n")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, plan)
+    receipt = {
+        "path": str(plan),
+        "sha256": file_digest(plan),
+        "siteName": document["siteName"],
+        "ownerUID": document["ownerUID"],
+        "resourceVersion": document["resourceVersion"],
+        "alreadyConfigured": document["alreadyConfigured"],
+    }
+    store.write_receipt("plan-site-static", receipt)
+    return receipt
+
+
+def _apply_site_static(
+    store: StateStore, config: dict[str, Any], runner: Runner
+) -> dict[str, Any]:
+    receipt = _plan_site_static(store, config)
+    plan_path = pathlib.Path(receipt["path"])
+    require_plan_digest(plan_path, receipt["sha256"])
+    document = json.loads(plan_path.read_text(encoding="utf-8"))
+    site, registration = _site_static_documents(config["siteName"])
+    observed = build_site_static_plan(site, registration, config)
+    if any(
+        observed[key] != document[key]
+        for key in (
+            "ownerUID",
+            "resourceVersion",
+            "beforeSpecSha256",
+            "mapped",
+            "registrationName",
+            "selection",
+            "alreadyConfigured",
+        )
+    ):
+        raise ControllerError("reviewed site SLI plan changed before apply")
+    snapshot = observe_home_lan(runner)
+    selection = config["lan"]
+    if (
+        not snapshot["bridgeReady"]
+        or snapshot["subnet"] != selection["subnet"]
+        or snapshot["bridge"] != selection["bridge"]
+    ):
+        raise ControllerError("LAN topology changed before site SLI update")
+    leases = _observed_lan_leases(runner, selection["subnet"])
+    if any(selection[key] in leases for key in ("sliAddress", "vipAddress")):
+        raise ControllerError("selected SLI or VIP entered observed DHCP leases")
+    baseline_path = store.receipts / "lan-arp-owners.json"
+    expected = (
+        store.read_receipt("lan-arp-owners").get("macs")
+        if baseline_path.exists()
+        else {selection["sliAddress"]: SLI_MAC}
+        if document["alreadyConfigured"]
+        else None
+    )
+    validate_lan_recheck(
+        selection,
+        expected,
+        lambda address: _lan_arp_mac(runner, selection["bridge"], address),
+    )
+    if not document["alreadyConfigured"]:
+        api_url, token = _credentials()
+        quoted = urllib.parse.quote(config["siteName"], safe="")
+        request = urllib.request.Request(
+            f"{api_url}/api/config/namespaces/{NAMESPACE}/securemesh_site_v2s/{quoted}",
+            data=json.dumps(document["payload"], separators=(",", ":")).encode(),
+            headers={
+                "Authorization": f"APIToken {token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Connection": "close",
+            },
+            method="PUT",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60):
+                pass
+        except urllib.error.HTTPError as error:
+            raise ControllerError(
+                f"owned site SLI update denied with HTTP {error.code}; review the site plan"
+            ) from error
+        except OSError:
+            exact, current_registration = _site_static_documents(config["siteName"])
+            reconciled = build_site_static_plan(exact, current_registration, config)
+            if (
+                not reconciled["alreadyConfigured"]
+                or reconciled["ownerUID"] != document["ownerUID"]
+            ):
+                raise ControllerError(
+                    "ambiguous site PUT was not reconciled by exact read"
+                ) from None
+    exact, current_registration = _site_static_documents(config["siteName"])
+    reconciled = build_site_static_plan(exact, current_registration, config)
+    if (
+        not reconciled["alreadyConfigured"]
+        or reconciled["ownerUID"] != document["ownerUID"]
+    ):
+        raise ControllerError("owned site SLI static update did not converge")
+    result = {
+        "siteName": config["siteName"],
+        "ownerUID": document["ownerUID"],
+        "planSha256": receipt["sha256"],
+        "resourceVersion": reconciled["resourceVersion"],
+        "sliAddress": selection["sliAddress"],
+        "mapped": reconciled["mapped"],
+    }
+    store.write_receipt("apply-site-static", result)
+    return result
+
+
+def guest_sli_address_ready(output: str, expected: str) -> bool:
+    addresses = [
+        fields[3]
+        for line in output.splitlines()
+        if len(fields := line.split()) >= 4
+        and fields[1].lower() == SLI_MAC
+        and fields[2].lower() == "ipv4"
+    ]
+    return addresses == [expected]
+
+
+def _wait_site_static_convergence(
+    store: StateStore, config: dict[str, Any], runner: Runner
+) -> None:
+    selection = config["lan"]
+    expected = f"{selection['sliAddress']}/{selection['subnet'].split('/')[1]}"
+    deadline = time.monotonic() + 7200
+    while time.monotonic() < deadline:
+        site, registration = _site_static_documents(config["siteName"])
+        observed = build_site_static_plan(site, registration, config)
+        if not observed["alreadyConfigured"]:
+            raise ControllerError("owned site SLI static configuration drifted")
+        if site.get("spec", {}).get("site_errors"):
+            raise ControllerError("XC site reported errors after SLI configuration")
+        guest = runner.run(
+            [
+                "virsh",
+                "--connect",
+                "qemu:///system",
+                "domifaddr",
+                CE_DOMAIN,
+                "--source",
+                "agent",
+            ]
+        )
+        if (
+            site["spec"].get("site_state") == "ONLINE"
+            and guest.returncode == 0
+            and guest_sli_address_ready(guest.stdout, expected)
+            and _lan_arp_mac(runner, selection["bridge"], selection["sliAddress"])
+            == SLI_MAC
+        ):
+            listing = _xc_json(f"/api/config/namespaces/{NAMESPACE}/network_interfaces")
+            child_name = select_sli_child_name(
+                listing,
+                lambda name: _xc_json(
+                    f"/api/config/namespaces/{NAMESPACE}/network_interfaces/"
+                    f"{urllib.parse.quote(name, safe='')}"
+                ),
+                config["siteName"],
+                observed["ownerUID"],
+                observed["mapped"]["hostname"],
+                observed["mapped"]["interfaces"]["sli"]["device"],
+                expected,
+            )
+            receipt = store.read_receipt("apply-site-static")
+            if receipt.get("ownerUID") != observed["ownerUID"]:
+                raise ControllerError("SLI child does not match site ownership receipt")
+            store.write_receipt(
+                "apply-site-static",
+                {
+                    **receipt,
+                    "sliDevice": observed["mapped"]["interfaces"]["sli"]["device"],
+                    "sliInterfaceName": child_name,
+                },
+            )
+            return
+        time.sleep(20)
+    raise ControllerError("owned site SLI address did not converge on the home LAN")
 
 
 def _guest_traffic(runner: Runner, samples: int = 5) -> dict[str, int]:
@@ -2144,14 +2493,6 @@ def _runtime_status(
         ),
         config["siteName"],
     )
-    bgp = parse_bgp_observation(
-        _xc_json(
-            f"/api/operate/namespaces/{NAMESPACE}/sites/{quoted_site}/ver/bgp_peers"
-        ),
-        _xc_json(
-            f"/api/operate/namespaces/{NAMESPACE}/sites/{quoted_site}/ver/bgp_routes"
-        ),
-    )
     ce = _domain_observation(runner, CE_DOMAIN)
     workload = _domain_observation(runner, WORKLOAD_DOMAIN)
     ce_addresses = _dhcp_addresses(runner, CE_MAC)
@@ -2187,6 +2528,52 @@ def _runtime_status(
         "dhcpExclusionVerified": False,
         "externalLanHttpVerified": False,
     }
+    try:
+        site_document, registration_document = _site_static_documents(
+            config["siteName"]
+        )
+        static_plan = build_site_static_plan(
+            site_document, registration_document, config
+        )
+        static_receipt = store.read_receipt("apply-site-static")
+        child_name = select_sli_child_name(
+            _xc_json(f"/api/config/namespaces/{NAMESPACE}/network_interfaces"),
+            lambda name: _xc_json(
+                f"/api/config/namespaces/{NAMESPACE}/network_interfaces/"
+                f"{urllib.parse.quote(name, safe='')}"
+            ),
+            config["siteName"],
+            static_plan["ownerUID"],
+            static_plan["mapped"]["hostname"],
+            static_plan["mapped"]["interfaces"]["sli"]["device"],
+            f"{lan_selection['sliAddress']}/{lan_selection['subnet'].split('/')[1]}",
+        )
+        guest = runner.run(
+            [
+                "virsh",
+                "--connect",
+                "qemu:///system",
+                "domifaddr",
+                CE_DOMAIN,
+                "--source",
+                "agent",
+            ]
+        )
+        lan["sliStatic"] = bool(
+            static_plan["alreadyConfigured"]
+            and static_plan["ownerUID"] == static_receipt.get("ownerUID")
+            and child_name == static_receipt.get("sliInterfaceName")
+            and child_name == identity["sli_interface"]["interface_name"]
+            and static_plan["mapped"]["interfaces"]["sli"]["device"]
+            == identity["sli_interface"]["device"]
+            and guest.returncode == 0
+            and guest_sli_address_ready(
+                guest.stdout,
+                f"{lan_selection['sliAddress']}/{lan_selection['subnet'].split('/')[1]}",
+            )
+        )
+    except ControllerError:
+        lan["sliStatic"] = False
     application = {
         "origin": _owned_application_object(
             "origin_pools", f"{config['siteName']}-origin"
@@ -2251,7 +2638,6 @@ def _runtime_status(
         "lan": lan,
         "application": application,
         "images": images,
-        "bgp": bgp,
         "traffic": _guest_traffic(runner),
         "zeroChange": _zero_change(store, terraform_root, runner),
     }
@@ -2262,7 +2648,6 @@ def _runtime_status(
 def acceptance_ready(status: dict[str, Any]) -> bool:
     site = status.get("site", {})
     registration = status.get("registration", {})
-    bgp = status.get("bgp", {})
     traffic = status.get("traffic", {})
     host = status.get("host", {})
     images = status.get("images", {})
@@ -2288,15 +2673,12 @@ def acceptance_ready(status: dict[str, Any]) -> bool:
         and status.get("lan", {}).get("bridgeReady") is True
         and status.get("lan", {}).get("localHttp") is True
         and status.get("lan", {}).get("conflictFree") is True
+        and status.get("lan", {}).get("sliStatic") is True
         and isinstance(origin, dict)
         and origin.get("owned") is True
         and isinstance(lb, dict)
         and lb.get("owned") is True
         and images.get("verified") is True
-        and bgp.get("peerCount") == 1
-        and bgp.get("establishedCount") == 1
-        and LAB_ROUTE in bgp.get("importedRoutes", [])
-        and bgp.get("advertisedRouteCount", 0) >= 1
         and traffic.get("samples", 0) >= 1
         and traffic.get("successes") == traffic.get("samples")
         and status.get("zeroChange") is True
@@ -2331,7 +2713,6 @@ def setup_status(store: StateStore, runner: Runner) -> dict[str, Any]:
             required = {
                 ("pool", POOL),
                 ("network", NETWORK),
-                ("container", FRR),
                 ("domain", CE_DOMAIN),
                 ("domain", WORKLOAD_DOMAIN),
             }
@@ -2366,7 +2747,7 @@ def _wait_for_acceptance(
             if status["accepted"]:
                 return status
             last_error = (
-                "ONLINE, BGP, route, traffic, or zero-change acceptance is pending"
+                "ONLINE, LAN HTTP, traffic, or zero-change acceptance is pending"
             )
         if time.monotonic() >= deadline:
             store.write_receipt(
@@ -2424,6 +2805,17 @@ def _deploy(
             "inventory": host_inventory,
         },
     )
+    if not any(
+        item["kind"] == "domain" and item["name"] == CE_DOMAIN and item["owned"]
+        for item in host_inventory
+    ):
+        bootstrap = _terraform_plan(store, terraform_root, config, "bootstrap", runner)
+        _apply_plan(store, terraform_root, bootstrap, runner)
+        _recover_interrupted_ownership(
+            store, terraform_root, config["siteName"], runner
+        )
+    _apply_site_static(store, config, runner)
+    _wait_site_static_convergence(store, config, runner)
     plan = _terraform_plan(store, terraform_root, config, "apply", runner)
     try:
         applied = _apply_plan(store, terraform_root, plan, runner)
@@ -2452,7 +2844,42 @@ def _deploy(
     return {"deployment": applied, "plan": plan, "status": status}
 
 
+def _verified_destroyed(store: StateStore, runner: Runner) -> dict[str, Any]:
+    receipt = store.read_receipt("destroy")
+    site_name = receipt.get("siteName")
+    if (
+        not isinstance(site_name, str)
+        or not site_name
+        or receipt.get("remainingOwned") != []
+    ):
+        raise ControllerError("destroyed state lacks an exact absence receipt")
+    reject_collisions(inventory(runner, store))
+    if _site_observation(site_name) is not None or any(
+        _application_observation(kind, f"{site_name}{suffix}") is not None
+        for kind, suffix in (
+            ("origin_pools", "-origin"),
+            ("http_loadbalancers", "-lan"),
+        )
+    ):
+        raise ControllerError("destroyed site or application reappeared")
+    if receipt.get("bridgeRestored") is True:
+        original = store.read_receipt("lan").get("inventory", {})
+        observed = observe_home_lan(runner)
+        if (
+            "xckvmlan" in observed["bridges"]
+            or observed["routeDevice"] != original.get("wiredLink")
+            or any(
+                observed[field] != original.get(field)
+                for field in ("wiredLink", "hostAddress", "gateway")
+            )
+        ):
+            raise ControllerError("destroyed bridge is not restored")
+    return receipt
+
+
 def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
+    if not (store.root / "deployment.json").exists():
+        return _verified_destroyed(store, runner)
     config = _config(store, {})
     exact = _site_observation(config["siteName"])
     if exact and not (exact["owned"] and exact["specMatches"]):
@@ -2487,17 +2914,47 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
         selection = lan_receipt.get("selection", {})
         if selection != config.get("lan") or selection.get("bridge") != "xckvmlan":
             raise ControllerError("bridge teardown lacks an exact owned LAN receipt")
-        runner.checked(
-            [
-                "sudo",
-                "python3",
-                str(active_bundle(store) / "scripts" / "bridge-prep.py"),
-                "restore",
-            ],
-            timeout=155,
+        previous_path = store.receipts / "destroy.json"
+        previous = store.read_receipt("destroy") if previous_path.exists() else {}
+        observed = (
+            observe_home_lan(runner) if previous.get("bridgeRestored") is True else None
         )
+        if observed is not None and "xckvmlan" not in observed["bridges"]:
+            if (
+                observed["routeDevice"] != original_lan["wiredLink"]
+                or any(
+                    observed[field] != original_lan[field]
+                    for field in ("wiredLink", "hostAddress", "gateway")
+                )
+                or runner.run(
+                    [
+                        "ping",
+                        "-n",
+                        "-c",
+                        "1",
+                        "-W",
+                        "2",
+                        "-I",
+                        original_lan["wiredLink"],
+                        original_lan["gateway"],
+                    ]
+                ).returncode
+                != 0
+            ):
+                raise ControllerError("previous bridge restore is not healthy")
+        else:
+            runner.checked(
+                [
+                    "sudo",
+                    "python3",
+                    str(active_bundle(store) / "scripts" / "bridge-prep.py"),
+                    "restore",
+                ],
+                timeout=155,
+            )
         bridge_restored = True
     receipt = {
+        "siteName": config["siteName"],
         "deployment": applied,
         "remainingOwned": [],
         "preserved": unrelated_resources(host_inventory),
@@ -2505,6 +2962,13 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
     }
     store.write_receipt("status", {"accepted": False, "destroyed": True})
     store.write_receipt("destroy", receipt)
+    for path in (
+        store.root / "deployment.json",
+        store.receipts / "lan-arp-owners.json",
+        store.receipts / "apply-site-static.json",
+        store.receipts / "ownership.json",
+    ):
+        path.unlink(missing_ok=True)
     return receipt
 
 
@@ -2533,7 +2997,7 @@ def _persist_resume_credentials(runner: Runner, store: StateStore) -> None:
         runner.checked(["sudo", "mv", str(temporary), str(target)])
     user = pwd.getpwuid(os.getuid()).pw_name
     installed_controller = active_bundle(store) / "scripts" / "kvm_smsv2_controller.py"
-    unit = f"""[Unit]\nDescription=Resume xcsh KVM SMSv2 deployment\nAfter=network-online.target libvirtd.service docker.service\nWants=network-online.target\n\n[Service]\nType=oneshot\nUser={user}\nEnvironment=KVM_SMSV2_STATE_DIR={store.root}\nLoadCredentialEncrypted=xc_api_url:{credential_root}/xc_api_url.cred\nLoadCredentialEncrypted=xc_api_token:{credential_root}/xc_api_token.cred\nExecStart=/usr/bin/python3 {installed_controller} --json setup resume\nTimeoutStartSec=2h\n\n[Install]\nWantedBy=multi-user.target\n"""
+    unit = f"""[Unit]\nDescription=Resume xcsh KVM SMSv2 deployment\nAfter=network-online.target libvirtd.service\nWants=network-online.target\n\n[Service]\nType=oneshot\nUser={user}\nEnvironment=KVM_SMSV2_STATE_DIR={store.root}\nLoadCredentialEncrypted=xc_api_url:{credential_root}/xc_api_url.cred\nLoadCredentialEncrypted=xc_api_token:{credential_root}/xc_api_token.cred\nExecStart=/usr/bin/python3 {installed_controller} --json setup resume\nTimeoutStartSec=2h\n\n[Install]\nWantedBy=multi-user.target\n"""
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as unit_file:
         unit_file.write(unit)
         unit_file.flush()
@@ -2678,6 +3142,15 @@ def dispatch(
     if command == "deploy":
         return _deploy(store, params, runner)
     if command == "status":
+        if not (store.root / "deployment.json").exists():
+            receipt = _verified_destroyed(store, runner)
+            return {
+                "siteName": receipt["siteName"],
+                "accepted": False,
+                "destroyed": True,
+                "remainingOwned": [],
+                "bridgeRestored": receipt["bridgeRestored"],
+            }
         return _runtime_status(store, runner)
     if command == "reconcile":
         return _deploy(store, params, runner, reconcile=True)

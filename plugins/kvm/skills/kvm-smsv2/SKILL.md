@@ -23,16 +23,21 @@ retried: query the exact persisted site name and use `kvm_smsv2_reconcile` only 
 plugin-owned, spec-matching object.
 
 After deployment, use `kvm_smsv2_status` to require the fixed CE/workload identities, XC registration
-and approval, ONLINE health, one Established BGP peer, imported and advertised routes, generated
-traffic, and a zero-change plan. For lifecycle acceptance, destroy through `kvm_smsv2_destroy`, prove
-absence, rebuild from empty state, and leave the final CE deployed and healthy.
+and approval, ONLINE health, LAN VIP HTTP, generated traffic, and a zero-change plan.
+For lifecycle acceptance, destroy through `kvm_smsv2_destroy`, prove absence,
+and rebuild from empty state. Never overlap Ubuntu and NUC CEs: finish Ubuntu
+acceptance, destroy and prove absence, then install the released plugin on NUC
+and leave only that final CE deployed and healthy.
 
 Follow `NETWORKING.md`: report the exact wired LAN gap, the bounded bridge
 remediation attempted, and the result of its timed rollback/health check.
-Report an XC `network_interface` write denial separately: host `sudo` cannot
-remediate XC API permissions. Stop the partial apply, preserve its receipts and
-state, and request an authorized XC credential before making a new reviewed
-plan. Do not retry a forbidden PUT, switch tenants, or claim SLI/VIP acceptance.
+Do not write the platform-owned XC `network_interface` child. Bootstrap the
+one owned CE, wait for XC to populate its node, then use an exact-UID,
+version-bound saved site plan to set the MAC-mapped SLI static address through
+`securemesh_site_v2`. Verify guest convergence and ARP before the final plan.
+On a denial, version drift, or ambiguous PUT, preserve receipts, query the
+exact owned site, and stop for a new reviewed plan rather than blindly retry.
+Do not claim SLI/VIP acceptance from the API response alone.
 Never move an occupied `br-kvm-lan`, claim an unverified DHCP exclusion, or
 assume home DNS. Verify the inside VIP with an explicit Host header from
 another LAN device and prove the VPN-connected laptop still routes locally.

@@ -85,7 +85,7 @@ export function createKvmSmsv2Tools(pi: ExtensionApi, invoke: ControllerInvoker 
     {
       name: 'kvm_smsv2_status',
       label: 'KVM SMSv2 status',
-      description: 'Report owned VM, SLO/SLI, XC site, VIP, origin, BGP, LAN HTTP, and receipt state.',
+      description: 'Report owned VM, SLO/SLI, XC site, VIP, origin, LAN HTTP, and receipt state.',
       parameters: Type.Object({}),
       execute: async () => toolResult('kvm_smsv2_status', invoke, {}),
     },

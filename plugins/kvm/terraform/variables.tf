@@ -38,6 +38,18 @@ variable "sli_address" {
   type        = string
 }
 
+variable "sli_device" {
+  description = "Exact SLI device observed on the plugin-owned registered KVM node."
+  type        = string
+  default     = ""
+}
+
+variable "sli_interface_name" {
+  description = "Exact platform child name observed with the site UID and SLI MAC/device mapping."
+  type        = string
+  default     = ""
+}
+
 variable "vip_address" {
   description = "Rechecked, distinct inside HTTP VIP."
   type        = string

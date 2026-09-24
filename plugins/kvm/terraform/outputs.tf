@@ -22,8 +22,8 @@ output "identity" {
     sli_interface = {
       role           = "sli"
       mac            = local.sli_mac
-      device         = xcsh_smsv2_kvm_runtime_interface.sli.device
-      interface_name = xcsh_smsv2_kvm_runtime_interface.sli.interface_name
+      device         = var.sli_device
+      interface_name = var.sli_interface_name
     }
     workload_name    = libvirt_domain.workload.name
     workload_mac     = local.workload_mac

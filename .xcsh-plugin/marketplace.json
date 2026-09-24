@@ -377,7 +377,7 @@
       },
       "source": "./plugins/kvm",
       "category": "development",
-      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "frr", "terraform"],
+      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "home-lan", "terraform"],
       "tags": ["kvm", "libvirt", "f5xc", "customer-edge", "xcsh-extension"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "recommended": true,
@@ -387,7 +387,6 @@
         "requirements": [
           "Terraform CLI",
           "libvirt and qemu system access",
-          "Docker CLI",
           "curl",
           "F5 Distributed Cloud Platform integration"
         ],
