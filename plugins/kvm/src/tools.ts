@@ -65,7 +65,10 @@ export function createKvmSmsv2Tools(pi: ExtensionApi, invoke: ControllerInvoker 
     Type.String({ description: 'Persisted XC site name override for the first run only.' }),
   );
   const applicationNamespace = Type.Optional(
-    Type.String({ description: 'Selected project namespace for the HTTP-LB and origin pool; defaults to multi-cloud-networking. The site remains in system.' }),
+    Type.String({
+      description:
+        'Selected project namespace for the HTTP-LB and origin pool; defaults to multi-cloud-networking. The site remains in system.',
+    }),
   );
   const deployment = Type.Object({ siteName, applicationNamespace });
   return [
