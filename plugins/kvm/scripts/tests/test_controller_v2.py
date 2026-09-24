@@ -1001,9 +1001,18 @@ class ControllerContractTests(unittest.TestCase):
             "registration": {
                 "count": 1,
                 "onlineCount": 1,
-                "registrations": [{"provider": "KVM", "macs": ["52:54:00:10:00:11", "52:54:00:10:00:12"]}],
+                "registrations": [
+                    {
+                        "provider": "KVM",
+                        "macs": ["52:54:00:10:00:11", "52:54:00:10:00:12"],
+                    }
+                ],
             },
-            "host": {"ceIdentityReady": True, "sliIdentityReady": True, "workloadIdentityReady": True},
+            "host": {
+                "ceIdentityReady": True,
+                "sliIdentityReady": True,
+                "workloadIdentityReady": True,
+            },
             "lan": {"localHttp": True, "bridgeReady": True, "conflictFree": True},
             "application": {"origin": {"owned": True}, "httpLb": {"owned": True}},
             "images": {"verified": True},

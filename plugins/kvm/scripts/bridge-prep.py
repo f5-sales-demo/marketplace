@@ -1,4 +1,5 @@
 """Prepare a dedicated home-LAN bridge with an independent timed rollback."""
+# pylint: disable=invalid-name,too-many-boolean-expressions,import-outside-toplevel,consider-using-with
 # ruff: noqa: B007, D103, EM101, EM102, INP001, PLC0415, PLR2004, PTH101, S603, S607, T201, TRY003, TRY301
 
 from __future__ import annotations
@@ -94,7 +95,7 @@ def schedule(mode: str) -> None:
     )
 
 
-def update_record(**fields: str) -> None:
+def update_record(**fields: str | bool | dict[str, str]) -> None:
     path = ROOT / "inventory.json"
     record = json.loads(path.read_text())
     record.update(fields)

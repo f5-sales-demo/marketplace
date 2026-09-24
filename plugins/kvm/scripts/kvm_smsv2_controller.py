@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Self-contained KVM Secure Mesh Site v2 lifecycle controller."""
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-locals,consider-using-with
 # ruff: noqa: ANN204, BLE001, D101, D102, D103, D107, EM101, EM102, I001, PERF401, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
 
 from __future__ import annotations
@@ -50,8 +50,8 @@ WORKLOAD_ADDRESS = "10.100.0.100"
 WORKLOAD_MAC = "52:54:00:10:00:64"
 LAB_ROUTE = "10.231.0.0/24"
 LAN_RANGES = (
-    ipaddress.ip_network("192.168.0.0/22"),
-    ipaddress.ip_network("192.168.4.0/23"),
+    ipaddress.IPv4Network("192.168.0.0/22"),
+    ipaddress.IPv4Network("192.168.4.0/23"),
 )
 CE_IMAGE_MD5 = "373f25b2b1d04674baa48a8916905c68"
 WORKLOAD_IMAGE_SHA512 = "08fea112563461f251f3c95a5c5cf8cb25eb60f74cec03e85a97ff91d3efef3059d35837598bbb476008f20db6d3bdc7143c5f2f2a9a6da394a0acc601fd5986"
@@ -106,9 +106,9 @@ def allowed_lan_subnet(value: str) -> bool:
         network = ipaddress.ip_network(value, strict=True)
     except ValueError:
         return False
-    return isinstance(network, ipaddress.IPv4Network) and any(
-        network.subnet_of(allowed) for allowed in LAN_RANGES
-    )
+    if not isinstance(network, ipaddress.IPv4Network):
+        return False
+    return any(network.subnet_of(allowed) for allowed in LAN_RANGES)
 
 
 def select_lan_bridge(wired_link: str, bridges: dict[str, list[str]]) -> str:
@@ -139,7 +139,7 @@ def select_lan_addresses(
         if value not in blocked and not responds(value):
             candidates.append(value)
             if len(candidates) == 2:
-                return tuple(reversed(candidates))
+                return candidates[1], candidates[0]
     raise ControllerError("two unoccupied LAN addresses could not be established")
 
 
