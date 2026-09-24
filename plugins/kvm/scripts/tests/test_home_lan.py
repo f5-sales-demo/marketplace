@@ -1,5 +1,5 @@
 """Safety contracts for a two-interface home-LAN KVM CE."""
-# pylint: disable=protected-access
+# pylint: disable=protected-access,too-many-public-methods
 # ruff: noqa: ANN001, ANN201, ANN202, D101, D102, INP001, PT009, PT018, PT027, RUF005, S101, SLF001
 
 import hashlib

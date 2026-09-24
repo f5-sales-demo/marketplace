@@ -357,14 +357,11 @@ def observe_home_lan(runner: Runner) -> dict[str, Any]:
                 source = interface.find("source")
                 mac = interface.find("mac")
                 target = interface.find("target")
-                if (
-                    source is not None
-                    and source.get("bridge") == "xckvmlan"
-                    and mac is not None
-                    and mac.get("address", "").lower() == SLI_MAC
-                    and target is not None
-                    and target.get("dev", "").startswith("vnet")
-                ):
+                if source is None or source.get("bridge") != "xckvmlan":
+                    continue
+                if mac is None or mac.get("address", "").lower() != SLI_MAC:
+                    continue
+                if target is not None and target.get("dev", "").startswith("vnet"):
                     owned_ports.add(str(target.get("dev")))
     snapshot = parse_home_lan(
         routes,
