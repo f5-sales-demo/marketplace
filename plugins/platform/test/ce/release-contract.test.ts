@@ -2,15 +2,13 @@ import { describe, expect, it } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { resolveSmsv2ReleaseContract } from '../../src/ce/release-contract';
 
-const releaseUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/v7.0.3';
-const tagUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/v7.0.3';
-const commit = '55151d9bda8ea8f04c595e76ee6b05aee96d7fc7';
-const kvmReason =
-  'The tenant must contain exactly one maurice_config object before the platform can issue a Customer Edge image download URL.';
+const releaseUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/releases/tags/v7.0.9';
+const tagUrl = 'https://api.github.com/repos/f5-sales-demo/api-specs-enriched/commits/v7.0.9';
+const commit = '1c4f4eb8dd6cd9c440c241b995a6c0ef1bcd23ab';
 const names = [
   'api-catalog.json',
   'concurrency_contracts.json',
-  'f5xc-api-specs-v7.0.3.zip',
+  'f5xc-api-specs-v7.0.9.zip',
   'index.json',
   'minimal-export-defaults.json',
   'openapi.json',
@@ -29,46 +27,73 @@ type Options = {
   tamper?: boolean;
   wrongCommit?: boolean;
   tgwUnavailable?: boolean;
-  malformedKvmPrerequisite?: boolean;
+  malformedKvmImage?: boolean;
+  wrongDigest?: boolean;
 };
 
 function digest(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 }
 
-function kvmPrerequisite(exactly = 1) {
-  return {
-    id: 'maurice_config_cardinality_exactly_one',
-    resource: 'maurice_config',
-    cardinality: { exactly },
-    enforcement: 'server',
-    availability: 'external_tenant_prerequisite',
-    reason: kvmReason,
-    source: {
-      kind: 'runtime_api_error',
-      operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl',
-      immutable: true,
-    },
-  };
-}
-
-function openapiDocument(prerequisite = kvmPrerequisite()) {
+function openapiDocument(malformed = false) {
   return {
     openapi: '3.0.3',
     paths: {
-      '/api/register/namespaces/system/get-image-download-url': {
+      '/api/maurice/software_os_version': {
         post: {
-          operationId: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl',
-          'x-f5xc-terraform-name': 'site_image',
-          'x-f5xc-operation-role': 'query',
-          'x-f5xc-prerequisites': [prerequisite],
+          operationId: 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage',
+          requestBody: {
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/virtual_applianceGetImageRequest' } },
+            },
+          },
+          responses: {
+            '200': {
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/virtual_applianceGetImageResponse' } },
+              },
+            },
+          },
+        },
+      },
+      '/api/register/namespaces/system/get-image-download-url': {
+        post: { operationId: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl' },
+      },
+    },
+    components: {
+      schemas: {
+        virtual_applianceGetImageRequest: {
+          properties: {
+            uids: {
+              type: 'array',
+              minItems: 1,
+              uniqueItems: true,
+              items: { type: 'string' },
+              description:
+                'Observed Site object UIDs from the system Site collection. For SMSv2 select owner_view.kind equal to securemesh_site_v2 and join owner_view.uid to the exact Secure Mesh Site v2 configuration UID.',
+            },
+          },
+        },
+        virtual_applianceGetImageResponse: {
+          properties: {
+            images: {
+              type: 'object',
+              additionalProperties: {
+                properties: {
+                  download_image_link: { type: 'string', format: 'uri' },
+                  image_md5_sum: { type: 'string', pattern: malformed ? 'broken' : '^[0-9a-fA-F]{32}$' },
+                  error_description: { type: 'string' },
+                },
+              },
+            },
+          },
         },
       },
     },
   };
 }
 
-function fixture(options: Options = {}): typeof fetch {
+function fixture(options: Options = {}): { fetcher: typeof fetch; openapiDigest: string } {
   const encoder = new TextEncoder();
   const contract = {
     contract_id: 'f5xc-smsv2-api/v1',
@@ -96,7 +121,7 @@ function fixture(options: Options = {}): typeof fetch {
       },
     },
   };
-  const openapi = openapiDocument(kvmPrerequisite(options.malformedKvmPrerequisite ? 2 : 1));
+  const openapi = openapiDocument(options.malformedKvmImage);
   const contractBytes = encoder.encode(JSON.stringify(contract));
   const openapiBytes = encoder.encode(JSON.stringify(openapi));
   const evidenceBytes = encoder.encode(
@@ -118,7 +143,7 @@ function fixture(options: Options = {}): typeof fetch {
       schema_version: 1,
       contract_id: 'f5xc-smsv2-api/v1',
       contract_version: '7.0.0',
-      release: { tag: 'v7.0.3', commit: options.wrongCommit ? '0'.repeat(40) : commit },
+      release: { tag: 'v7.0.9', commit: options.wrongCommit ? '0'.repeat(40) : commit },
       assets: {
         'smsv2-contract.json': digest(contractBytes),
         'smsv2-evidence-receipt.json': digest(evidenceBytes),
@@ -139,14 +164,14 @@ function fixture(options: Options = {}): typeof fetch {
   }));
   const publicationAssets = Object.fromEntries(metadata.map((item) => [item.name, item.digest]));
   const release = {
-    tag_name: 'v7.0.3',
+    tag_name: 'v7.0.9',
     draft: options.draft ?? false,
     prerelease: false,
     immutable: true,
-    body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '7.0.3' })} -->`,
+    body: `<!-- publication-receipt:${JSON.stringify({ assets: publicationAssets, commit, version: '7.0.9' })} -->`,
     assets: options.malformed ? metadata.slice(1) : metadata,
   };
-  return (async (input: RequestInfo | URL) => {
+  const fetcher = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === releaseUrl) return new Response(JSON.stringify(release), { status: 200 });
     if (url === tagUrl) return new Response(JSON.stringify({ sha: commit }), { status: 200 });
@@ -157,35 +182,48 @@ function fixture(options: Options = {}): typeof fetch {
       Buffer.from(options.tamper && name === 'smsv2-contract.json' ? encoder.encode('tampered') : bytes),
     );
   }) as typeof fetch;
+  return { fetcher, openapiDigest: options.wrongDigest ? `sha256:${'0'.repeat(64)}` : digest(openapiBytes) };
 }
 
 describe('verified SMSv2 AWS release resolver', () => {
+  it('never accepts fixture bytes as the pinned production OpenAPI asset', async () => {
+    const { fetcher } = fixture();
+    await expect(resolveSmsv2ReleaseContract(fetcher)).rejects.toThrow(/pinned release/);
+  });
+
   it('accepts only the immutable system-namespace AWS CE contract', async () => {
-    const resolved = await resolveSmsv2ReleaseContract(fixture());
+    const { fetcher, openapiDigest } = fixture();
+    const resolved = await resolveSmsv2ReleaseContract(fetcher, openapiDigest);
     expect(resolved).toEqual({
       collectionPath: '/api/config/namespaces/{namespace}/securemesh_site_v2s',
       itemPath: '/api/config/namespaces/{namespace}/securemesh_site_v2s/{name}',
       namespace: 'system',
       operations: ['create', 'read', 'replace', 'delete'],
       capabilities: { awsCeCreate: 'available', runtimeStatus: 'available', tgwConnect: 'available' },
-      kvmImagePrerequisite: {
-        id: 'maurice_config_cardinality_exactly_one',
-        resource: 'maurice_config',
-        cardinality: { exactly: 1 },
-        enforcement: 'server',
-        availability: 'external_tenant_prerequisite',
-        reason: kvmReason,
-        source: {
-          kind: 'runtime_api_error',
-          operation: 'ves.io.schema.registration.CustomAPI.GetImageDownloadUrl',
-          immutable: true,
+      kvmImageResolution: {
+        id: 'site_uid_image_resolution',
+        endpoint: '/api/maurice/software_os_version',
+        operation: 'ves.io.schema.virtual_appliance.SoftwareVersionOsImageCustomApi.GetImage',
+        ownerJoin: {
+          namespace: 'system',
+          namedConfiguration: 'exactly_one',
+          ownerKind: 'securemesh_site_v2',
+          cardinality: 'exactly_one',
+          uidSource: 'site_object',
         },
+        validation: [
+          'exact_site_uid_mapping',
+          'empty_error_description',
+          'https_image_url',
+          'md5_checksum',
+          'ownership_recheck',
+        ],
         publication: {
           repository: 'f5-sales-demo/api-specs-enriched',
-          tag: 'v7.0.3',
+          tag: 'v7.0.9',
           commit,
           asset: 'openapi.json',
-          sha256: digest(new TextEncoder().encode(JSON.stringify(openapiDocument()))),
+          sha256: openapiDigest,
         },
       },
     });
@@ -199,9 +237,11 @@ describe('verified SMSv2 AWS release resolver', () => {
     ['an unsanitized evidence receipt', { unsanitized: true }],
     ['a manifest with the wrong commit', { wrongCommit: true }],
     ['an unavailable TGW capability', { tgwUnavailable: true }],
-    ['a malformed KVM image prerequisite', { malformedKvmPrerequisite: true }],
+    ['a malformed KVM image resolution', { malformedKvmImage: true }],
+    ['a mismatched pinned digest', { wrongDigest: true }],
   ])('rejects %s', async (_label, options) => {
-    await expect(resolveSmsv2ReleaseContract(fixture(options))).rejects.toThrow(
+    const { fetcher, openapiDigest } = fixture(options);
+    await expect(resolveSmsv2ReleaseContract(fetcher, openapiDigest)).rejects.toThrow(
       /Verified SMSv2 release is unavailable/,
     );
   });

@@ -6,10 +6,14 @@ Provides Azure SSO authentication, deterministic console
 navigation, API token management, and a foundation for
 workflow automation across both interfaces.
 
-Platform 5.x provides provider-neutral Secure Mesh Site v2 Customer Edge tools
+Platform 6.x provides provider-neutral Secure Mesh Site v2 Customer Edge tools
 for capability evidence, typed canonical site changes, one-use bootstrap
 checkout, and allowlisted status. Legacy Azure VNet Site, AWS VPC/TGW Site,
 Fleet, and shared registration-token workflows are removed.
+KVM image resolution joins exactly one owned Site UID to its named configuration,
+queries `/api/maurice/software_os_version`, checks the exact UID mapping and
+empty error status, verifies the HTTPS image and MD5, then rechecks ownership.
+The retired external maurice prerequisite is not part of this capability.
 
 ## Prerequisites
 
