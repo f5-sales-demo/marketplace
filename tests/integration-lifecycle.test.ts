@@ -1154,13 +1154,13 @@ describe('provider integration lifecycle', () => {
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.0' })],
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.1' })],
         timeoutMs: 900000,
       },
     ]);
     expect(definition.setup?.verification).toEqual([
       {
-        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.0' })],
+        argv: ['xorgctl', '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.1' })],
         timeoutMs: 30000,
       },
     ]);
@@ -1172,7 +1172,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.1.0' }),
+      JSON.stringify({ expected_version: '1.1.1' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
@@ -1185,7 +1185,7 @@ describe('provider integration lifecycle', () => {
     };
     expect(payload.ok).toBe(true);
     expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
-    expect(payload.result.version).toBe('1.1.0');
+    expect(payload.result.version).toBe('1.1.1');
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');

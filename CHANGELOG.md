@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.1.1 rebuilds an incomplete managed Python environment with
+  Ubuntu's system interpreter so stale Anaconda symlinks cannot survive setup (#1394).
+
 - **`platform`** v6.0.1 reads active-context settings from each native tool
   execution rather than from the registration API; capability, site, and
   bootstrap tools now follow context switches and explicit environment precedence

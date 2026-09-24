@@ -33,7 +33,7 @@ class SetupTests(unittest.TestCase):
         )
         self.assertEqual(calls[1][0][5], "install")
 
-    def test_python_install_uses_ubuntu_interpreter_when_invoked_by_anaconda(self):
+    def test_python_install_rebuilds_stale_anaconda_venv_with_ubuntu_interpreter(self):
         calls = []
 
         def command(argv, **kwargs):
@@ -42,6 +42,9 @@ class SetupTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             home = pathlib.Path(directory)
+            stale_python = home / ".local/share/xorgctl/venv/bin/python"
+            stale_python.parent.mkdir(parents=True)
+            stale_python.symlink_to("/opt/anaconda/bin/python3")
             with (
                 patch.object(setup.pathlib.Path, "home", return_value=home),
                 patch.dict(
@@ -52,8 +55,17 @@ class SetupTests(unittest.TestCase):
             ):
                 interpreter = setup._install_python()
 
-        self.assertEqual(calls[0][0][0], "/usr/bin/python3")
-        self.assertEqual(calls[0][0][1:3], ["-m", "venv"])
+        self.assertEqual(
+            calls[0][0],
+            [
+                "/usr/bin/python3",
+                "-m",
+                "venv",
+                "--clear",
+                "--system-site-packages",
+                str(home / ".local/share/xorgctl/venv"),
+            ],
+        )
         self.assertEqual(interpreter, home / ".local/share/xorgctl/venv/bin/python")
 
     def test_session_worker_uses_managed_interpreter_after_setup(self):
