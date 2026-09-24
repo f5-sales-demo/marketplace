@@ -368,8 +368,8 @@
     },
     {
       "name": "kvm",
-      "description": "Deterministic F5 Distributed Cloud Secure Mesh Site v2 lifecycle for KVM, libvirt, and Terraform-owned FRR routing",
-      "version": "2.0.2",
+      "description": "Dual-NIC KVM Secure Mesh Site v2 with isolated SLO, home-LAN SLI, inside VIP, and rollback-protected host preparation",
+      "version": "3.0.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
       "license": "Apache-2.0",
       "author": {
@@ -377,7 +377,7 @@
       },
       "source": "./plugins/kvm",
       "category": "development",
-      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "frr", "terraform"],
+      "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "home-lan", "terraform"],
       "tags": ["kvm", "libvirt", "f5xc", "customer-edge", "xcsh-extension"],
       "repository": "https://github.com/f5-sales-demo/marketplace",
       "recommended": true,
@@ -387,7 +387,6 @@
         "requirements": [
           "Terraform CLI",
           "libvirt and qemu system access",
-          "Docker CLI",
           "curl",
           "F5 Distributed Cloud Platform integration"
         ],

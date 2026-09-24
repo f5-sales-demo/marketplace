@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 
-export const KVM_SMSV2_PROTOCOL = 'kvm.smsv2/v2';
+export const KVM_SMSV2_PROTOCOL = 'kvm.smsv2/v3';
 export const KVM_SMSV2_CONTROLLER = resolve(import.meta.dir, '..', 'scripts', 'kvm-smsv2ctl');
 
 interface ExtensionApi {
@@ -50,7 +50,7 @@ function toolResult(name: string, invoke: ControllerInvoker, params: Record<stri
   } catch (error) {
     const result = {
       schemaVersion: KVM_SMSV2_PROTOCOL,
-      controllerVersion: '2.0.0',
+      controllerVersion: '3.0.0',
       action,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
@@ -69,21 +69,23 @@ export function createKvmSmsv2Tools(pi: ExtensionApi, invoke: ControllerInvoker 
     {
       name: 'kvm_smsv2_readiness',
       label: 'KVM SMSv2 readiness',
-      description: 'Inspect Ubuntu, virtualization, capacity, services, permissions, and immutable plugin artifacts.',
+      description:
+        'Inspect Ubuntu, wired LAN and bridge ownership, virtualization, capacity, services, and immutable artifacts.',
       parameters: Type.Object({}),
       execute: async () => toolResult('kvm_smsv2_readiness', invoke, {}),
     },
     {
       name: 'kvm_smsv2_deploy',
       label: 'Deploy KVM SMSv2',
-      description: 'Execute one exact-hash KVM-only Terraform plan for the plugin-owned Secure Mesh Site v2.',
+      description:
+        'Prepare a rollback-protected wired bridge and execute one exact-hash, two-NIC CE and inside-VIP plan.',
       parameters: deployment,
       execute: async (_id: string, params: Record<string, unknown>) => toolResult('kvm_smsv2_deploy', invoke, params),
     },
     {
       name: 'kvm_smsv2_status',
       label: 'KVM SMSv2 status',
-      description: 'Report owned VM, XC site, BGP, route, workload, and receipt state without mutation.',
+      description: 'Report owned VM, SLO/SLI, XC site, VIP, origin, LAN HTTP, and receipt state.',
       parameters: Type.Object({}),
       execute: async () => toolResult('kvm_smsv2_status', invoke, {}),
     },

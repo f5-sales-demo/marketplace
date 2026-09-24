@@ -1,11 +1,12 @@
 locals {
-  owner                 = "xcsh-kvm-smsv2-v2"
+  owner                 = "xcsh-kvm-smsv2-v3"
   pool_name             = "xcsh-kvm-smsv2"
   network_name          = "xcsh-kvm-smsv2"
   bridge_name           = "xckvm2"
   ce_name               = "xcsh-kvm-smsv2-ce"
   ce_address            = "10.100.0.11"
   ce_mac                = "52:54:00:10:00:11"
+  sli_mac               = "52:54:00:10:00:12"
   workload_name         = "xcsh-kvm-smsv2-workload"
   workload_address      = "10.100.0.100"
   workload_mac          = "52:54:00:10:00:64"
@@ -13,7 +14,6 @@ locals {
   workload_image_url    = "https://cloud.debian.org/images/cloud/bookworm/20260909-2596/debian-12-genericcloud-amd64-20260909-2596.qcow2"
   workload_image_sha512 = "08fea112563461f251f3c95a5c5cf8cb25eb60f74cec03e85a97ff91d3efef3059d35837598bbb476008f20db6d3bdc7143c5f2f2a9a6da394a0acc601fd5986"
   workload_image        = "${local.cache_dir}/workload-${substr(local.workload_image_sha512, 0, 16)}.qcow2"
-  frr_image             = "frrouting/frr@sha256:990e83490108b686fd6df3b1cafa6bdbb2714acb00eedb9a89693946f46f45ce"
   ce_image_md5          = "373f25b2b1d04674baa48a8916905c68"
   labels                = { owner = local.owner, managed_by = "terraform" }
 }
@@ -96,7 +96,7 @@ resource "xcsh_token" "site" {
   site_name   = xcsh_securemesh_site_v2.site.name
 }
 
-# Provider 9.5.2 resolves configuration ownership to the Site UID and then
+# The pinned provider resolves configuration ownership to the Site UID and then
 # queries /api/maurice/software_os_version. No legacy image endpoint exists here.
 data "xcsh_site_image" "site" {
   site_name = xcsh_securemesh_site_v2.site.name
@@ -122,7 +122,7 @@ resource "terraform_data" "ce_image" {
   lifecycle {
     precondition {
       condition     = lower(data.xcsh_site_image.site.image_md5_sum) == local.ce_image_md5
-      error_message = "The issued CE image does not match the v2.0.0 pinned MD5."
+      error_message = "The issued CE image does not match the pinned MD5."
     }
   }
 }
@@ -142,7 +142,7 @@ resource "terraform_data" "workload_image" {
 resource "libvirt_pool" "site" {
   name = local.pool_name
   type = "dir"
-  target { path = "/var/lib/libvirt/images/${local.pool_name}" }
+  target { path = "${var.storage_root}/${local.pool_name}" }
 }
 
 resource "terraform_data" "network_identity" {
@@ -221,6 +221,11 @@ resource "libvirt_domain" "ce" {
     mac            = local.ce_mac
     wait_for_lease = false
   }
+  network_interface {
+    bridge         = var.lan_bridge
+    mac            = local.sli_mac
+    wait_for_lease = false
+  }
   disk {
     volume_id = libvirt_volume.ce.id
   }
@@ -259,7 +264,7 @@ data "xcsh_smsv2_kvm_runtime" "ce" {
         self.device != "" &&
         lower(self.mac) == lower(local.ce_mac)
       )
-      error_message = "KVM BGP requires one live XC network_interface correlated by current site ownership, observed registration hostname/device, and the Terraform-owned CE MAC."
+      error_message = "KVM SLO requires one live XC network_interface correlated by current site ownership, observed registration hostname/device, and the Terraform-owned CE MAC."
     }
   }
 }
@@ -292,104 +297,6 @@ resource "xcsh_registration_approval" "ce" {
   state        = "APPROVED"
 }
 
-resource "docker_image" "frr" {
-  name         = local.frr_image
-  keep_locally = true
-}
-
-resource "docker_network" "frr" {
-  name    = "${local.network_name}-frr"
-  driver  = "macvlan"
-  options = { parent = local.bridge_name }
-  ipam_config {
-    subnet  = "10.100.0.0/24"
-    gateway = "10.100.0.1"
-  }
-  depends_on = [libvirt_network.site]
-}
-
-resource "docker_container" "frr" {
-  name       = local.frr_image != "" ? "xcsh-kvm-smsv2-frr" : "invalid"
-  image      = docker_image.frr.image_id
-  privileged = true
-  must_run   = true
-  restart    = "unless-stopped"
-  upload {
-    file        = "/etc/frr/daemons"
-    content     = "bgpd=yes\nzebra=yes\nstaticd=yes\n"
-    permissions = "0640"
-  }
-  upload {
-    file        = "/etc/frr/frr.conf"
-    permissions = "0640"
-    content     = <<-EOF
-      frr defaults traditional
-      hostname xcsh-kvm-smsv2-frr
-      service integrated-vtysh-config
-      router bgp 65515
-       bgp router-id 10.100.0.2
-       no bgp ebgp-requires-policy
-       neighbor ${local.ce_address} remote-as 64512
-       address-family ipv4 unicast
-        neighbor ${local.ce_address} activate
-       exit-address-family
-       network 198.51.100.0/24
-      ip route 198.51.100.0/24 Null0
-    EOF
-  }
-  upload {
-    file        = "/etc/frr/vtysh.conf"
-    content     = "service integrated-vtysh-config\n"
-    permissions = "0640"
-  }
-  labels {
-    label = "com.f5-sales-demo.owner"
-    value = local.owner
-  }
-  networks_advanced {
-    name         = docker_network.frr.name
-    ipv4_address = "10.100.0.2"
-  }
-}
-
-resource "xcsh_bgp" "site" {
-  name      = "${var.site_name}-ebgp"
-  namespace = "system"
-  labels    = local.labels
-  where {
-    site {
-      network_type = "VIRTUAL_NETWORK_SITE_LOCAL"
-      ref {
-        name      = xcsh_securemesh_site_v2.site.name
-        namespace = "system"
-      }
-      disable_internet_vip = {}
-    }
-  }
-  bgp_parameters {
-    asn           = 64512
-    local_address = {}
-  }
-  peers {
-    metadata {
-      name = "peer-router"
-    }
-    external {
-      asn     = 65515
-      address = "10.100.0.2"
-      port    = 179
-      interface {
-        name      = data.xcsh_smsv2_kvm_runtime.ce.interface_name
-        namespace = "system"
-      }
-      disable_v6 = {}
-    }
-    passive_mode_disabled = {}
-    bfd_disabled          = {}
-  }
-  depends_on = [data.xcsh_smsv2_kvm_runtime.ce, docker_container.frr, libvirt_domain.ce]
-}
-
 resource "libvirt_volume" "workload_base" {
   name       = "workload-base-${substr(local.workload_image_sha512, 0, 16)}.qcow2"
   pool       = libvirt_pool.site.name
@@ -412,9 +319,10 @@ resource "libvirt_cloudinit_disk" "workload" {
   user_data = <<-EOF
     #cloud-config
     package_update: false
-    packages: [iputils-ping, qemu-guest-agent]
+    packages: [iputils-ping, qemu-guest-agent, nginx]
     runcmd:
       - [systemctl, enable, --now, qemu-guest-agent]
+      - [systemctl, enable, --now, nginx]
       - [sh, -c, 'while true; do ping -c 1 -W 5 10.100.0.11 >/var/log/xcsh-kvm-traffic.log 2>&1 || true; sleep 30; done &']
   EOF
   meta_data = <<-EOF
@@ -429,6 +337,9 @@ resource "libvirt_domain" "workload" {
   vcpu      = 2
   autostart = true
   cloudinit = libvirt_cloudinit_disk.workload.id
+  cpu {
+    mode = "host-passthrough"
+  }
   network_interface {
     network_id     = libvirt_network.site.id
     mac            = local.workload_mac
@@ -440,4 +351,83 @@ resource "libvirt_domain" "workload" {
   lifecycle {
     replace_triggered_by = [libvirt_cloudinit_disk.workload, libvirt_network.site]
   }
+}
+
+resource "xcsh_origin_pool" "home" {
+  name        = "${var.site_name}-origin"
+  namespace   = "system"
+  description = "Plugin-owned isolated SLO demo origin"
+  labels      = local.labels
+  port        = 80
+
+  origin_servers {
+    labels = {}
+    private_ip {
+      ip              = local.workload_address
+      outside_network = {}
+      site_locator {
+        site {
+          name      = xcsh_securemesh_site_v2.site.name
+          namespace = "system"
+        }
+      }
+    }
+  }
+
+  no_tls                 = {}
+  loadbalancer_algorithm = "ROUND_ROBIN"
+  endpoint_selection     = "DISTRIBUTED"
+  depends_on             = [libvirt_domain.workload]
+}
+
+resource "xcsh_http_loadbalancer" "home" {
+  name        = "${var.site_name}-lan"
+  namespace   = "system"
+  description = "Plugin-owned inside LAN VIP ${var.vip_address}"
+  labels      = local.labels
+  domains     = ["${var.site_name}.internal.f5-sales-demo.com"]
+
+  http {
+    port = 80
+  }
+
+  advertise_custom {
+    advertise_where {
+      site {
+        network = "SITE_NETWORK_INSIDE"
+        site {
+          name      = xcsh_securemesh_site_v2.site.name
+          namespace = "system"
+        }
+        ip = var.vip_address
+      }
+      use_default_port = {}
+    }
+  }
+
+  default_route_pools {
+    pool {
+      name      = xcsh_origin_pool.home.name
+      namespace = "system"
+    }
+    weight   = 1
+    priority = 1
+  }
+
+  round_robin            = {}
+  no_challenge           = {}
+  user_id_client_ip      = {}
+  disable_waf            = {}
+  disable_rate_limit     = {}
+  disable_api_discovery  = {}
+  disable_api_testing    = {}
+  disable_api_definition = {}
+  l7_ddos_protection {}
+  service_policies_from_namespace  = {}
+  disable_trust_client_ip_headers  = {}
+  disable_malicious_user_detection = {}
+  disable_malware_protection       = {}
+  disable_threat_mesh              = {}
+  default_sensitive_data_policy    = {}
+  depends_on                       = [data.xcsh_smsv2_kvm_runtime.ce]
 }

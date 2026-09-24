@@ -4,15 +4,11 @@ terraform {
   required_providers {
     xcsh = {
       source  = "f5-sales-demo/xcsh"
-      version = "= 9.5.2"
+      version = "= 11.1.0"
     }
     libvirt = {
       source  = "dmacvicar/libvirt"
       version = "= 0.8.3"
-    }
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "= 3.6.2"
     }
   }
 }
@@ -24,5 +20,3 @@ provider "xcsh" {
 provider "libvirt" {
   uri = "qemu:///system"
 }
-
-provider "docker" {}

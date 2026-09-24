@@ -111,12 +111,6 @@ class ControllerContractTests(unittest.TestCase):
                     "owned": True,
                 },
                 {
-                    "kind": "container",
-                    "name": controller.FRR,
-                    "identity": "frr",
-                    "owned": True,
-                },
-                {
                     "kind": "domain",
                     "name": controller.CE_DOMAIN,
                     "identity": "ce",
@@ -163,7 +157,7 @@ class ControllerContractTests(unittest.TestCase):
             },
         )
         encoded = json.dumps(envelope)
-        self.assertEqual(envelope["schemaVersion"], "kvm.smsv2/v2")
+        self.assertEqual(envelope["schemaVersion"], "kvm.smsv2/v3")
         self.assertIs(envelope["result"]["passwordlessSudo"], True)
         self.assertNotIn("secret-value", encoded)
         self.assertNotIn("Bearer abc", encoded)
@@ -256,6 +250,20 @@ class ControllerContractTests(unittest.TestCase):
             ),
             "stop_collision",
         )
+
+    def test_sli_permission_failure_is_classified_without_echoing_api_output(self):
+        output = (
+            "Error: KVM Runtime Interface Adoption Failed\n"
+            "with xcsh_smsv2_kvm_runtime_interface.sli\n"
+            "[FORBIDDEN] Access denied - insufficient permissions "
+            "(resource: network_interface; token=never-print-this)"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(output),
+            "XC network_interface write denied for the SLI; use an authorized "
+            "XC credential and a new reviewed plan",
+        )
+        self.assertIsNone(controller.safe_apply_failure("unrelated failure"))
 
     def test_inventory_rejects_conflicts_and_preserves_unrelated_resources(self):
         inventory = [
@@ -400,7 +408,7 @@ class ControllerContractTests(unittest.TestCase):
         )
         with (
             mock.patch.object(
-                controller, "_group_names", return_value={"kvm", "libvirt", "docker"}
+                controller, "_group_names", return_value={"kvm", "libvirt"}
             ),
             mock.patch.object(controller, "_memory_gib", return_value=64),
             mock.patch.object(controller.os, "cpu_count", return_value=16),
@@ -417,6 +425,31 @@ class ControllerContractTests(unittest.TestCase):
             result = controller.readiness(runner)
         self.assertFalse(result["checks"]["packages"]["bridge-utils"])
         self.assertEqual(result["state"], "setup_required")
+
+    def test_readiness_reports_missing_storage_root_without_raising(self):
+        runner = mock.Mock()
+        runner.run.return_value = subprocess.CompletedProcess([], 1, "", "")
+        with (
+            mock.patch.object(
+                controller, "storage_root", return_value="/var/lib/libvirt/images"
+            ),
+            mock.patch.object(controller.pathlib.Path, "is_dir", return_value=False),
+            mock.patch.object(
+                controller.shutil,
+                "disk_usage",
+                side_effect=AssertionError("missing path must not be queried"),
+            ),
+            mock.patch.object(
+                controller,
+                "observe_home_lan",
+                side_effect=controller.ControllerError("no LAN"),
+            ),
+            mock.patch.object(controller, "_artifact_manifest", return_value={}),
+        ):
+            result = controller.readiness(runner)
+        self.assertFalse(result["checks"]["capacity"]["storageAvailable"])
+        self.assertEqual(result["checks"]["capacity"]["diskFreeGiB"], 0)
+        self.assertFalse(result["checks"]["capacity"]["ready"])
 
     def test_live_identity_requires_ce_shape_mac_and_dhcp_address(self):
         domain = {
@@ -513,11 +546,10 @@ class ControllerContractTests(unittest.TestCase):
                 "passwordlessSudo": True,
                 "commands": {"terraform": True},
                 "packages": dict.fromkeys(controller.APT_PACKAGES, True),
-                "groups": {"kvm": True, "libvirt": True, "docker": True},
+                "groups": {"kvm": True, "libvirt": True},
                 "modules": True,
                 "services": {
                     "libvirtd": {"active": True, "enabled": True},
-                    "docker": {"active": True, "enabled": True},
                 },
                 "capacity": {"ready": True},
             },
@@ -577,11 +609,10 @@ class ControllerContractTests(unittest.TestCase):
                 "passwordlessSudo": True,
                 "commands": {"terraform": False},
                 "packages": {"qemu-kvm": False},
-                "groups": {"kvm": False, "libvirt": False, "docker": False},
+                "groups": {"kvm": False, "libvirt": False},
                 "modules": False,
                 "services": {
                     "libvirtd": {"active": False, "enabled": False},
-                    "docker": {"active": False, "enabled": False},
                 },
                 "capacity": {"ready": True},
             },
@@ -589,11 +620,10 @@ class ControllerContractTests(unittest.TestCase):
         after = json.loads(json.dumps(before))
         after["checks"]["commands"] = {"terraform": True}
         after["checks"]["packages"] = {"qemu-kvm": True}
-        after["checks"]["groups"] = {"kvm": True, "libvirt": True, "docker": True}
+        after["checks"]["groups"] = {"kvm": True, "libvirt": True}
         after["checks"]["modules"] = True
         after["checks"]["services"] = {
             "libvirtd": {"active": True, "enabled": True},
-            "docker": {"active": True, "enabled": True},
         }
         runner = mock.Mock()
         runner.run.return_value = subprocess.CompletedProcess([], 0, "", "")
@@ -635,13 +665,12 @@ class ControllerContractTests(unittest.TestCase):
         ready_checks = {
             "platform": True,
             "passwordlessSudo": True,
-            "commands": {"docker": True, "terraform": True},
+            "commands": {"terraform": True},
             "packages": dict.fromkeys(controller.APT_PACKAGES, True),
-            "groups": {"kvm": True, "libvirt": False, "docker": True},
+            "groups": {"kvm": True, "libvirt": False},
             "modules": True,
             "services": {
                 "libvirtd": {"active": True, "enabled": True},
-                "docker": {"active": True, "enabled": True},
             },
             "capacity": {"ready": True},
         }
@@ -697,13 +726,12 @@ class ControllerContractTests(unittest.TestCase):
         ready_checks = {
             "platform": True,
             "passwordlessSudo": True,
-            "commands": {"docker": True, "terraform": True},
+            "commands": {"terraform": True},
             "packages": dict.fromkeys(controller.APT_PACKAGES, True),
-            "groups": {"kvm": True, "libvirt": True, "docker": True},
+            "groups": {"kvm": True, "libvirt": True},
             "modules": True,
             "services": {
                 "libvirtd": {"active": False, "enabled": True},
-                "docker": {"active": True, "enabled": True},
             },
             "capacity": {"ready": True},
         }
@@ -743,20 +771,9 @@ class ControllerContractTests(unittest.TestCase):
             [call.args[0] for call in runner.checked.call_args_list],
         )
 
-    def test_existing_docker_provider_does_not_request_conflicting_docker_io_package(
-        self,
-    ):
-        checks = {
-            "commands": {"docker": True, "terraform": False},
-            "packages": {
-                name: True for name in controller.APT_PACKAGES if name != "docker.io"
-            },
-        }
-        checks["packages"]["docker.io"] = False
-
-        self.assertEqual(controller.apt_packages_to_install(checks), [])
-        checks["commands"]["docker"] = False
-        self.assertEqual(controller.apt_packages_to_install(checks), ["docker.io"])
+    def test_host_packages_do_not_include_unused_docker(self):
+        self.assertNotIn("docker.io", controller.APT_PACKAGES)
+        self.assertNotIn("docker", controller.REQUIRED_COMMANDS)
 
     def test_matching_names_are_not_ownership_evidence(self):
         class InventoryRunner:
@@ -772,7 +789,7 @@ class ControllerContractTests(unittest.TestCase):
                     )
                 if "net-list" in argv:
                     return subprocess.CompletedProcess(argv, 0, "xcsh-kvm-smsv2\n", "")
-                if "pool-list" in argv or argv[:2] == ["docker", "ps"]:
+                if "pool-list" in argv:
                     return subprocess.CompletedProcess(argv, 0, "", "")
                 if "domuuid" in argv:
                     return subprocess.CompletedProcess(argv, 0, "domain-uuid\n", "")
@@ -805,13 +822,13 @@ class ControllerContractTests(unittest.TestCase):
             "resources": [
                 {
                     "mode": "managed",
-                    "type": "docker_container",
-                    "name": "frr",
+                    "type": "libvirt_network",
+                    "name": "site",
                     "instances": [
                         {
                             "attributes": {
-                                "id": "container-id",
-                                "name": controller.FRR,
+                                "id": "network-id",
+                                "name": controller.NETWORK,
                             }
                         }
                     ],
@@ -851,14 +868,14 @@ class ControllerContractTests(unittest.TestCase):
             resources,
             [
                 {
-                    "kind": "container",
-                    "name": controller.FRR,
-                    "identity": "container-id",
-                },
-                {
                     "kind": "domain",
                     "name": controller.WORKLOAD_DOMAIN,
                     "identity": "domain-id",
+                },
+                {
+                    "kind": "network",
+                    "name": controller.NETWORK,
+                    "identity": "network-id",
                 },
             ],
         )
@@ -873,13 +890,13 @@ class ControllerContractTests(unittest.TestCase):
             "resources": [
                 {
                     "mode": "managed",
-                    "type": "docker_container",
-                    "name": "frr",
+                    "type": "libvirt_network",
+                    "name": "site",
                     "instances": [
                         {
                             "attributes": {
-                                "id": "missing-container-id",
-                                "name": controller.FRR,
+                                "id": "missing-network-id",
+                                "name": controller.NETWORK,
                             }
                         }
                     ],
@@ -915,8 +932,6 @@ class ControllerContractTests(unittest.TestCase):
 
         class RecoveryRunner:
             def run(self, argv, **_kwargs):
-                if argv[:2] == ["docker", "inspect"]:
-                    return subprocess.CompletedProcess(argv, 1, "", "not found")
                 if "domuuid" in argv:
                     return subprocess.CompletedProcess(argv, 0, "domain-id\n", "")
                 return subprocess.CompletedProcess(argv, 1, "", "not found")
@@ -995,22 +1010,32 @@ class ControllerContractTests(unittest.TestCase):
                     with store.lock():
                         pass
 
-    def test_acceptance_requires_online_bgp_routes_traffic_and_zero_change(self):
+    def test_acceptance_requires_online_lan_http_traffic_and_zero_change(self):
         accepted = {
             "site": {"state": "ONLINE", "errorCount": 0},
             "registration": {
                 "count": 1,
                 "onlineCount": 1,
-                "registrations": [{"provider": "KVM", "macs": ["52:54:00:10:00:11"]}],
+                "registrations": [
+                    {
+                        "provider": "KVM",
+                        "macs": ["52:54:00:10:00:11", "52:54:00:10:00:12"],
+                    }
+                ],
             },
-            "host": {"ceIdentityReady": True, "workloadIdentityReady": True},
+            "host": {
+                "ceIdentityReady": True,
+                "sliIdentityReady": True,
+                "workloadIdentityReady": True,
+            },
+            "lan": {
+                "localHttp": True,
+                "bridgeReady": True,
+                "conflictFree": True,
+                "sliStatic": True,
+            },
+            "application": {"origin": {"owned": True}, "httpLb": {"owned": True}},
             "images": {"verified": True},
-            "bgp": {
-                "peerCount": 1,
-                "establishedCount": 1,
-                "importedRoutes": ["198.51.100.0/24"],
-                "advertisedRouteCount": 1,
-            },
             "traffic": {"samples": 5, "successes": 5},
             "zeroChange": True,
         }
@@ -1018,8 +1043,12 @@ class ControllerContractTests(unittest.TestCase):
         for path in (
             ("site", "state"),
             ("host", "ceIdentityReady"),
+            ("host", "sliIdentityReady"),
+            ("lan", "localHttp"),
+            ("lan", "conflictFree"),
+            ("lan", "sliStatic"),
+            ("application", "origin"),
             ("images", "verified"),
-            ("bgp", "establishedCount"),
             ("traffic", "successes"),
             (None, "zeroChange"),
         ):
@@ -1087,7 +1116,7 @@ class ControllerContractTests(unittest.TestCase):
         )
         self.assertEqual(len(runner.requests), 2)
 
-    def test_runtime_observations_require_exact_online_registration_and_route_path(
+    def test_runtime_observations_require_exact_online_registration(
         self,
     ):
         registrations = {
@@ -1113,57 +1142,12 @@ class ControllerContractTests(unittest.TestCase):
             ],
             1,
         )
-        peers = {
-            "ver": [
-                {
-                    "name": "node-1",
-                    "peer": [
-                        {
-                            "peer_address": {"ipv4": {"addr": "10.100.0.2"}},
-                            "protocol_status": "Established",
-                            "received_prefix_count": 1,
-                            "advertised_prefix_count": 1,
-                        }
-                    ],
-                }
-            ]
-        }
-        routes = {
-            "ver": [
-                {
-                    "name": "node-1",
-                    "ri_table": [
-                        {
-                            "rt_table": [
-                                {
-                                    "imported": [
-                                        {
-                                            "subnet": "198.51.100.0/24",
-                                            "path": [
-                                                {
-                                                    "peer": {
-                                                        "ipv4": {"addr": "10.100.0.2"}
-                                                    }
-                                                }
-                                            ],
-                                        }
-                                    ],
-                                    "exported": [{"subnet": "10.100.0.0/24"}],
-                                }
-                            ]
-                        }
-                    ],
-                }
-            ]
-        }
-        parsed = controller.parse_bgp_observation(peers, routes)
-        self.assertEqual(parsed["establishedCount"], 1)
-        self.assertEqual(parsed["importedRoutes"], ["198.51.100.0/24"])
-        self.assertEqual(parsed["advertisedRouteCount"], 1)
 
     def test_destroy_rejects_unowned_site_before_planning(self):
         with tempfile.TemporaryDirectory() as directory:
             store = controller.StateStore(pathlib.Path(directory))
+            store.ensure()
+            (store.root / "deployment.json").write_text('{"siteName":"onprem-nuc-kvm"}')
             store.write_receipt(
                 "installation", {"release": "unused", "manifestSha256": "0" * 64}
             )
@@ -1179,6 +1163,183 @@ class ControllerContractTests(unittest.TestCase):
                 self.assertRaisesRegex(controller.ControllerError, "destroy refused"),
             ):
                 controller._destroy(store, controller.Runner())
+
+    def test_destroy_clears_only_stale_deployment_bindings_after_absence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.ensure()
+            (store.root / "deployment.json").write_text('{"siteName":"onprem-nuc-kvm"}')
+            store.write_receipt("lan-arp-owners", {"macs": {"192.168.2.253": "old"}})
+            store.write_receipt("apply-site-static", {"ownerUID": "old"})
+            store.write_receipt("ownership", {"resources": []})
+            store.write_receipt("lan", {"inventory": {"bridgeReady": True}})
+            with (
+                mock.patch.object(
+                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm"}
+                ),
+                mock.patch.object(controller, "_site_observation", return_value=None),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(
+                    controller, "install_bundle", return_value=store.root / "terraform"
+                ),
+                mock.patch.object(controller, "inventory", return_value=[]),
+                mock.patch.object(
+                    controller, "_terraform_plan", return_value={"mode": "destroy"}
+                ),
+                mock.patch.object(
+                    controller, "_apply_plan", return_value={"planSha256": "owned"}
+                ),
+            ):
+                controller._destroy(store, controller.Runner())
+            self.assertFalse((store.root / "deployment.json").exists())
+            for name in ("lan-arp-owners", "apply-site-static", "ownership"):
+                self.assertFalse((store.receipts / f"{name}.json").exists())
+            self.assertEqual(
+                store.read_receipt("destroy")["deployment"]["planSha256"], "owned"
+            )
+            self.assertTrue((store.receipts / "lan.json").exists())
+
+    def test_repeated_destroy_accepts_only_verified_previous_bridge_restore(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.ensure()
+            (store.root / "deployment.json").write_text('{"siteName":"onprem-nuc-kvm"}')
+            selection = {"bridge": "xckvmlan"}
+            store.write_receipt(
+                "lan",
+                {
+                    "selection": selection,
+                    "inventory": {
+                        "bridgeReady": False,
+                        "wiredLink": "enp5s0",
+                        "hostAddress": "192.168.2.240",
+                        "gateway": "192.168.2.1",
+                    },
+                },
+            )
+            store.write_receipt("destroy", {"bridgeRestored": True})
+            runner = mock.Mock()
+            runner.run.return_value.returncode = 0
+            with (
+                mock.patch.object(
+                    controller,
+                    "_config",
+                    return_value={"siteName": "onprem-nuc-kvm", "lan": selection},
+                ),
+                mock.patch.object(controller, "_site_observation", return_value=None),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(
+                    controller, "install_bundle", return_value=store.root / "terraform"
+                ),
+                mock.patch.object(controller, "inventory", return_value=[]),
+                mock.patch.object(
+                    controller, "_terraform_plan", return_value={"mode": "destroy"}
+                ),
+                mock.patch.object(
+                    controller, "_apply_plan", return_value={"planSha256": "owned"}
+                ),
+                mock.patch.object(
+                    controller,
+                    "observe_home_lan",
+                    return_value={
+                        "bridgeReady": False,
+                        "bridges": {},
+                        "wiredLink": "enp5s0",
+                        "routeDevice": "enp5s0",
+                        "hostAddress": "192.168.2.240",
+                        "gateway": "192.168.2.1",
+                    },
+                ),
+            ):
+                self.assertTrue(controller._destroy(store, runner)["bridgeRestored"])
+            runner.checked.assert_not_called()
+
+    def test_recreated_owned_bridge_is_restored_even_with_old_destroy_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.ensure()
+            (store.root / "deployment.json").write_text('{"siteName":"onprem-nuc-kvm"}')
+            selection = {"bridge": "xckvmlan"}
+            store.write_receipt(
+                "lan",
+                {
+                    "selection": selection,
+                    "inventory": {
+                        "bridgeReady": False,
+                        "wiredLink": "enp5s0",
+                        "hostAddress": "192.168.2.240",
+                        "gateway": "192.168.2.1",
+                    },
+                },
+            )
+            store.write_receipt("destroy", {"bridgeRestored": True})
+            runner = mock.Mock()
+            with (
+                mock.patch.object(
+                    controller,
+                    "_config",
+                    return_value={"siteName": "onprem-nuc-kvm", "lan": selection},
+                ),
+                mock.patch.object(controller, "_site_observation", return_value=None),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(
+                    controller, "install_bundle", return_value=store.root / "terraform"
+                ),
+                mock.patch.object(
+                    controller, "active_bundle", return_value=store.root / "bundle"
+                ),
+                mock.patch.object(controller, "inventory", return_value=[]),
+                mock.patch.object(
+                    controller, "_terraform_plan", return_value={"mode": "destroy"}
+                ),
+                mock.patch.object(
+                    controller, "_apply_plan", return_value={"planSha256": "owned"}
+                ),
+                mock.patch.object(
+                    controller,
+                    "observe_home_lan",
+                    return_value={"bridges": {"xckvmlan": ["enp5s0"]}},
+                ),
+            ):
+                self.assertTrue(controller._destroy(store, runner)["bridgeRestored"])
+            self.assertEqual(runner.checked.call_args.args[0][-1], "restore")
+
+    def test_repeated_destroy_and_status_verify_absence_without_new_intent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.ensure()
+            store.write_receipt(
+                "destroy",
+                {
+                    "siteName": "onprem-nuc-kvm",
+                    "bridgeRestored": False,
+                    "remainingOwned": [],
+                    "deployment": {"planSha256": "owned"},
+                },
+            )
+            with (
+                mock.patch.object(controller, "_site_observation", return_value=None),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(controller, "inventory", return_value=[]),
+            ):
+                result = controller.dispatch(
+                    "destroy", None, {}, store, controller.Runner()
+                )
+                status = controller.dispatch(
+                    "status", None, {}, store, controller.Runner()
+                )
+            self.assertEqual(result["siteName"], "onprem-nuc-kvm")
+            self.assertTrue(status["destroyed"])
+            self.assertFalse(status["accepted"])
+            self.assertFalse((store.root / "deployment.json").exists())
 
     def test_reboot_resume_uses_the_installed_bundle_and_completes_checkpoint(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1217,6 +1378,50 @@ class ControllerContractTests(unittest.TestCase):
             )
             erase.assert_called_once()
             self.assertEqual(store.read_receipt("checkpoint")["phase"], "complete")
+
+    def test_setup_apply_resumes_failed_reboot_checkpoint_after_host_repair(self):
+        ready = {
+            "state": "ready",
+            "checks": {
+                "platform": True,
+                "passwordlessSudo": True,
+                "packages": dict.fromkeys(controller.APT_PACKAGES, True),
+                "groups": {"kvm": True, "libvirt": True},
+                "modules": True,
+                "services": {
+                    "libvirtd": {"active": True, "enabled": True},
+                },
+                "capacity": {"ready": True},
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.write_receipt(
+                "checkpoint", {"phase": "reboot_pending", "siteName": "onprem-nuc-kvm"}
+            )
+            runner = mock.Mock()
+            with (
+                mock.patch.object(controller, "_credentials"),
+                mock.patch.object(
+                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm"}
+                ),
+                mock.patch.object(controller, "_recover_interrupted_ownership"),
+                mock.patch.object(controller, "inventory", return_value=[]),
+                mock.patch.object(controller, "reject_collisions"),
+                mock.patch.object(controller, "readiness", side_effect=[ready, ready]),
+                mock.patch.object(
+                    controller, "terraform_version_ready", return_value=True
+                ),
+                mock.patch.object(
+                    controller, "_setup_resume", return_value={"accepted": True}
+                ) as resume,
+                mock.patch.object(controller, "_deploy") as deploy,
+            ):
+                self.assertEqual(
+                    controller._setup_apply(store, {}, runner), {"accepted": True}
+                )
+            resume.assert_called_once_with(store, runner)
+            deploy.assert_not_called()
 
 
 if __name__ == "__main__":
