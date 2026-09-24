@@ -17,7 +17,7 @@ install missing Ubuntu 24.04 prerequisites, repair service or group readiness, p
 one-shot resume credential, reboot when required, and continue the deployment. Bulk recommended
 installation, dependency installation, upgrades, and cache refreshes never authorize setup.
 
-The controller persists the site name before mutation, rejects collisions, uses namespace `system`,
+The controller persists the site name and selected application namespace before mutation, rejects collisions, keeps site-scoped resources in `system` and places the HTTP-LB and origin pool in `multi-cloud-networking` by default,
 and applies only a newly inspected saved plan whose SHA-256 still matches. An ambiguous POST is never
 retried: query the exact persisted site name and use `kvm_smsv2_reconcile` only for an exact
 plugin-owned, spec-matching object.

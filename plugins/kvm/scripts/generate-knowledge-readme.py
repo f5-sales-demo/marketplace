@@ -22,7 +22,7 @@ def render() -> str:
         "## Fixed contract",
         "",
         "The plugin owns one Ubuntu 24.04 x86_64 KVM deployment: one 8-vCPU, 32-GiB, 100-GiB dual-NIC Secure Mesh CE; isolated NAT SLO, physical home-LAN SLI, one inside-VIP HTTP LB, one private origin pool, and one deterministic workload. No BGP peer is needed for the on-link VIP.",
-        "Namespace is `system`; there are no AppStack, public-cloud, legacy-image, or external-workspace paths. See `NETWORKING.md` for rollback, DHCP, and external-client acceptance limits.",
+        "The site, registration, and platform interfaces remain in `system`; the HTTP-LB and origin pool use the selected application namespace (`multi-cloud-networking` by default). There are no AppStack, public-cloud, legacy-image, or external-workspace paths. See `NETWORKING.md` for namespace selection, rollback, DHCP, and external-client acceptance limits.",
         "",
         "## Validated knowledge",
         "",

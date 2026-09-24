@@ -645,7 +645,7 @@ class ControllerContractTests(unittest.TestCase):
                     controller, "_install_terraform"
                 ) as install_terraform,
                 mock.patch.object(
-                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm"}
+                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm", "applicationNamespace": "multi-cloud-networking"}
                 ),
                 mock.patch.object(
                     controller, "_persist_resume_credentials"
@@ -694,7 +694,7 @@ class ControllerContractTests(unittest.TestCase):
                     controller, "terraform_version_ready", return_value=True
                 ),
                 mock.patch.object(
-                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm"}
+                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm", "applicationNamespace": "multi-cloud-networking"}
                 ),
                 mock.patch.object(controller, "_persist_resume_credentials"),
                 mock.patch.object(controller, "_herdr_ids", return_value=[]),
@@ -1175,7 +1175,7 @@ class ControllerContractTests(unittest.TestCase):
             store.write_receipt("lan", {"inventory": {"bridgeReady": True}})
             with (
                 mock.patch.object(
-                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm"}
+                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm", "applicationNamespace": "multi-cloud-networking"}
                 ),
                 mock.patch.object(controller, "_site_observation", return_value=None),
                 mock.patch.object(
@@ -1226,7 +1226,7 @@ class ControllerContractTests(unittest.TestCase):
                 mock.patch.object(
                     controller,
                     "_config",
-                    return_value={"siteName": "onprem-nuc-kvm", "lan": selection},
+                    return_value={"siteName": "onprem-nuc-kvm", "lan": selection, "applicationNamespace": "multi-cloud-networking"},
                 ),
                 mock.patch.object(controller, "_site_observation", return_value=None),
                 mock.patch.object(
@@ -1282,7 +1282,7 @@ class ControllerContractTests(unittest.TestCase):
                 mock.patch.object(
                     controller,
                     "_config",
-                    return_value={"siteName": "onprem-nuc-kvm", "lan": selection},
+                    return_value={"siteName": "onprem-nuc-kvm", "lan": selection, "applicationNamespace": "multi-cloud-networking"},
                 ),
                 mock.patch.object(controller, "_site_observation", return_value=None),
                 mock.patch.object(
@@ -1318,6 +1318,7 @@ class ControllerContractTests(unittest.TestCase):
                 "destroy",
                 {
                     "siteName": "onprem-nuc-kvm",
+                    "applicationNamespace": "multi-cloud-networking",
                     "bridgeRestored": False,
                     "remainingOwned": [],
                     "deployment": {"planSha256": "owned"},

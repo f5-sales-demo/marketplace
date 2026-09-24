@@ -8,6 +8,16 @@ variable "site_name" {
   }
 }
 
+variable "application_namespace" {
+  description = "Selected project namespace for the origin pool and HTTP load balancer; site resources remain in system."
+  type        = string
+
+  validation {
+    condition     = var.application_namespace != "system" && can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.application_namespace))
+    error_message = "application_namespace must be a non-system lower-case XC namespace."
+  }
+}
+
 variable "xc_api_url" {
   description = "API URL from the active xcsh context."
   type        = string

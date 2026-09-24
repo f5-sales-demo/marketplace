@@ -49,7 +49,7 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
 
 test('declares install-scoped setup authorization with the Platform dependency', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.xcsh-plugin', 'plugin.json'), 'utf8'));
-  expect(manifest.version).toBe('3.0.0');
+  expect(manifest.version).toBe('3.0.1');
   expect(manifest.lifecycle.setupAuthorization).toBe('install');
   expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
 });
@@ -117,7 +117,7 @@ test('integration setup remains required until the owned deployment is accepted'
       calls.push({ command, action });
       return {
         schemaVersion: 'kvm.smsv2/v3',
-        controllerVersion: '3.0.0',
+        controllerVersion: '3.0.1',
         action: command,
         ok: true,
         result: { state: 'setup_required', deploymentAccepted: false },
