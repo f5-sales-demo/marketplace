@@ -29,6 +29,10 @@ absence, rebuild from empty state, and leave the final CE deployed and healthy.
 
 Follow `NETWORKING.md`: report the exact wired LAN gap, the bounded bridge
 remediation attempted, and the result of its timed rollback/health check.
+Report an XC `network_interface` write denial separately: host `sudo` cannot
+remediate XC API permissions. Stop the partial apply, preserve its receipts and
+state, and request an authorized XC credential before making a new reviewed
+plan. Do not retry a forbidden PUT, switch tenants, or claim SLI/VIP acceptance.
 Never move an occupied `br-kvm-lan`, claim an unverified DHCP exclusion, or
 assume home DNS. Verify the inside VIP with an explicit Host header from
 another LAN device and prove the VPN-connected laptop still routes locally.
