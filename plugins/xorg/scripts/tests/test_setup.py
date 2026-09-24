@@ -171,11 +171,20 @@ class SetupTests(unittest.TestCase):
             )
 
     def test_accessibility_is_configured_without_a_desktop_shell(self):
-        with patch.object(
-            setup,
-            "_command",
-            return_value=subprocess.CompletedProcess([], 0, "", ""),
-        ) as command:
+        stale = {
+            "HOME": "/home/tester",
+            "XDG_RUNTIME_DIR": "/tmp/stale-runtime",
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/stale-bus",
+        }
+        with (
+            patch.dict(setup.os.environ, stale, clear=True),
+            patch.object(setup.os, "getuid", return_value=502),
+            patch.object(
+                setup,
+                "_command",
+                return_value=subprocess.CompletedProcess([], 0, "", ""),
+            ) as command,
+        ):
             setup._configure_accessibility()
         command.assert_called_once_with(
             [
@@ -186,6 +195,39 @@ class SetupTests(unittest.TestCase):
                 "true",
             ],
             check=True,
+            env={
+                "HOME": "/home/tester",
+                "XDG_RUNTIME_DIR": "/run/user/502",
+                "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/502/bus",
+            },
+        )
+
+    def test_accessibility_status_uses_the_same_normalized_user_bus(self):
+        with (
+            patch.dict(setup.os.environ, {"HOME": "/home/tester"}, clear=True),
+            patch.object(setup.os, "getuid", return_value=502),
+            patch.object(
+                setup,
+                "_command",
+                return_value=subprocess.CompletedProcess([], 0, "true\n", ""),
+            ) as command,
+        ):
+            self.assertEqual(
+                setup._accessibility_status(),
+                {"ready": True, "toolkit_accessibility": True},
+            )
+        command.assert_called_once_with(
+            [
+                "gsettings",
+                "get",
+                "org.gnome.desktop.interface",
+                "toolkit-accessibility",
+            ],
+            env={
+                "HOME": "/home/tester",
+                "XDG_RUNTIME_DIR": "/run/user/502",
+                "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/502/bus",
+            },
         )
 
     def test_service_install_preserves_unrelated_masked_user_unit(self):
