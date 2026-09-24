@@ -99,7 +99,12 @@
       "evidence": "Ubuntu's management Ethernet is separate from an occupied br-kvm-lan; NUC uses a static wired Netplan profile and an independent Wi-Fi default route. Provider 11.1.0 publishes a MAC-correlated KVM runtime interface resource.",
       "outcome": "pending live acceptance",
       "rootCause": "A one-NIC NAT-only CE cannot advertise an on-link VIP to independent LAN clients.",
-      "rejectedApproaches": ["repurpose occupied br-kvm-lan", "guess future DHCP exclusions", "assume home DNS", "reuse TEST-NET as a lab route"],
+      "rejectedApproaches": [
+        "repurpose occupied br-kvm-lan",
+        "guess future DHCP exclusions",
+        "assume home DNS",
+        "reuse TEST-NET as a lab route"
+      ],
       "correction": "Use a dedicated, rollback-protected management bridge; select and recheck two distinct LAN addresses; map SLO and SLI by MAC; serve a private origin through one inside VIP.",
       "pluginRequirement": "Keep SLO isolated, gate SLI on physical LAN ownership and address conflict checks, and require an external-device HTTP/ARP probe before live acceptance.",
       "automatedTest": "Subnet containment, bridge ownership, candidate exclusion, role mapping, rollback, cardinality, artifact hashes, and provider schema validation.",

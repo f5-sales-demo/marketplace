@@ -69,14 +69,16 @@ export function createKvmSmsv2Tools(pi: ExtensionApi, invoke: ControllerInvoker 
     {
       name: 'kvm_smsv2_readiness',
       label: 'KVM SMSv2 readiness',
-      description: 'Inspect Ubuntu, wired LAN and bridge ownership, virtualization, capacity, services, and immutable artifacts.',
+      description:
+        'Inspect Ubuntu, wired LAN and bridge ownership, virtualization, capacity, services, and immutable artifacts.',
       parameters: Type.Object({}),
       execute: async () => toolResult('kvm_smsv2_readiness', invoke, {}),
     },
     {
       name: 'kvm_smsv2_deploy',
       label: 'Deploy KVM SMSv2',
-      description: 'Prepare a rollback-protected wired bridge and execute one exact-hash, two-NIC CE and inside-VIP plan.',
+      description:
+        'Prepare a rollback-protected wired bridge and execute one exact-hash, two-NIC CE and inside-VIP plan.',
       parameters: deployment,
       execute: async (_id: string, params: Record<string, unknown>) => toolResult('kvm_smsv2_deploy', invoke, params),
     },
