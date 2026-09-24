@@ -259,10 +259,10 @@ class ControllerContractTests(unittest.TestCase):
 
     def test_sli_permission_failure_is_classified_without_echoing_api_output(self):
         output = (
-            'Error: KVM Runtime Interface Adoption Failed\n'
-            'with xcsh_smsv2_kvm_runtime_interface.sli\n'
-            '[FORBIDDEN] Access denied - insufficient permissions '
-            '(resource: network_interface; token=never-print-this)'
+            "Error: KVM Runtime Interface Adoption Failed\n"
+            "with xcsh_smsv2_kvm_runtime_interface.sli\n"
+            "[FORBIDDEN] Access denied - insufficient permissions "
+            "(resource: network_interface; token=never-print-this)"
         )
         self.assertEqual(
             controller.safe_apply_failure(output),
@@ -431,6 +431,31 @@ class ControllerContractTests(unittest.TestCase):
             result = controller.readiness(runner)
         self.assertFalse(result["checks"]["packages"]["bridge-utils"])
         self.assertEqual(result["state"], "setup_required")
+
+    def test_readiness_reports_missing_storage_root_without_raising(self):
+        runner = mock.Mock()
+        runner.run.return_value = subprocess.CompletedProcess([], 1, "", "")
+        with (
+            mock.patch.object(
+                controller, "storage_root", return_value="/var/lib/libvirt/images"
+            ),
+            mock.patch.object(controller.pathlib.Path, "is_dir", return_value=False),
+            mock.patch.object(
+                controller.shutil,
+                "disk_usage",
+                side_effect=AssertionError("missing path must not be queried"),
+            ),
+            mock.patch.object(
+                controller,
+                "observe_home_lan",
+                side_effect=controller.ControllerError("no LAN"),
+            ),
+            mock.patch.object(controller, "_artifact_manifest", return_value={}),
+        ):
+            result = controller.readiness(runner)
+        self.assertFalse(result["checks"]["capacity"]["storageAvailable"])
+        self.assertEqual(result["checks"]["capacity"]["diskFreeGiB"], 0)
+        self.assertFalse(result["checks"]["capacity"]["ready"])
 
     def test_live_identity_requires_ce_shape_mac_and_dhcp_address(self):
         domain = {
@@ -1278,8 +1303,12 @@ class ControllerContractTests(unittest.TestCase):
                 mock.patch.object(controller, "inventory", return_value=[]),
                 mock.patch.object(controller, "reject_collisions"),
                 mock.patch.object(controller, "readiness", side_effect=[ready, ready]),
-                mock.patch.object(controller, "terraform_version_ready", return_value=True),
-                mock.patch.object(controller, "_setup_resume", return_value={"accepted": True}) as resume,
+                mock.patch.object(
+                    controller, "terraform_version_ready", return_value=True
+                ),
+                mock.patch.object(
+                    controller, "_setup_resume", return_value={"accepted": True}
+                ) as resume,
                 mock.patch.object(controller, "_deploy") as deploy,
             ):
                 self.assertEqual(

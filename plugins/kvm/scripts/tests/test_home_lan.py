@@ -8,6 +8,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from itertools import pairwise
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -106,9 +107,12 @@ class HomeLanContracts(unittest.TestCase):
             {"ifname": "enp5s0", "master": "xckvmlan", "address": "00:11:22:33:44:55"},
         ]
         addresses = [
-            {"ifname": "xckvmlan", "addr_info": [
-                {"family": "inet", "local": "192.168.2.240", "prefixlen": 24}
-            ]}
+            {
+                "ifname": "xckvmlan",
+                "addr_info": [
+                    {"family": "inet", "local": "192.168.2.240", "prefixlen": 24}
+                ],
+            }
         ]
         runner = mock.Mock()
         runner.checked.side_effect = map(json.dumps, (routes, links, addresses, [], []))
@@ -117,7 +121,7 @@ class HomeLanContracts(unittest.TestCase):
         runner.checked.assert_any_call(["ip", "-j", "-d", "link", "show"])
 
     def test_networkmanager_disables_stp_on_single_uplink_bridge(self):
-        def run(*args):
+        def run(*args: object):
             if args[:5] == ("nmcli", "-g", "GENERAL.CONNECTION", "device", "show"):
                 return "Wired connection 1"
             if args[:3] == ("nmcli", "-g", "ipv4.method"):
@@ -130,15 +134,19 @@ class HomeLanContracts(unittest.TestCase):
             mock.patch.object(bridge_prep, "verify"),
         ):
             bridge_prep.networkmanager(
-                "enp5s0", "xckvmlan", "192.168.2.240", "192.168.2.1",
+                "enp5s0",
+                "xckvmlan",
+                "192.168.2.240",
+                "192.168.2.1",
                 "00:11:22:33:44:55",
             )
         bridge_add = next(
-            call.args for call in commands.call_args_list
+            call.args
+            for call in commands.call_args_list
             if call.args[:4] == ("nmcli", "connection", "add", "type")
             and "bridge" in call.args
         )
-        self.assertIn(("bridge.stp", "no"), tuple(zip(bridge_add, bridge_add[1:])))
+        self.assertIn(("bridge.stp", "no"), tuple(pairwise(bridge_add)))
 
     def test_storage_selection_prefers_mounted_data_and_persists_for_rebuild(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -147,18 +155,24 @@ class HomeLanContracts(unittest.TestCase):
                 mock.patch.object(controller.os.path, "ismount", return_value=True),
                 mock.patch.object(controller.pathlib.Path, "is_dir", return_value=True),
             ):
-                config = controller._config(store, {"siteName": "onprem-workstation-kvm"})
+                config = controller._config(
+                    store, {"siteName": "onprem-workstation-kvm"}
+                )
             self.assertEqual(config["storageRoot"], "/data/libvirt/images")
             self.assertEqual(controller.storage_root(store), "/data/libvirt/images")
-            with mock.patch.object(controller.os.path, "ismount", return_value=False):
-                with self.assertRaisesRegex(controller.ControllerError, "mount"):
-                    controller.storage_root(store)
+            with (
+                mock.patch.object(controller.os.path, "ismount", return_value=False),
+                self.assertRaisesRegex(controller.ControllerError, "mount"),
+            ):
+                controller.storage_root(store)
 
     def test_storage_selection_uses_root_on_nuc_and_rejects_unbound_state(self):
         with tempfile.TemporaryDirectory() as directory:
             store = controller.StateStore(pathlib.Path(directory))
             with mock.patch.object(controller.os.path, "ismount", return_value=False):
-                self.assertEqual(controller.storage_root(store), "/var/lib/libvirt/images")
+                self.assertEqual(
+                    controller.storage_root(store), "/var/lib/libvirt/images"
+                )
             (store.root / "deployment.json").write_text(
                 json.dumps({"siteName": "onprem-nuc-kvm"})
             )
@@ -167,9 +181,13 @@ class HomeLanContracts(unittest.TestCase):
 
     def test_terraform_pool_uses_bound_storage_root(self):
         terraform = (ROOT / "terraform" / "main.tf").read_text()
-        self.assertIn('target { path = "${var.storage_root}/${local.pool_name}" }', terraform)
-        self.assertIn('"storage_root": config["storageRoot"]',
-                      (ROOT / "scripts" / "kvm_smsv2_controller.py").read_text())
+        self.assertIn(
+            'target { path = "${var.storage_root}/${local.pool_name}" }', terraform
+        )
+        self.assertIn(
+            '"storage_root": config["storageRoot"]',
+            (ROOT / "scripts" / "kvm_smsv2_controller.py").read_text(),
+        )
 
     def test_subnet_must_be_wholly_contained(self):
         for subnet in ("192.168.2.0/24", "192.168.0.0/22", "192.168.4.0/23"):

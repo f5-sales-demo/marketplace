@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-contained KVM Secure Mesh Site v2 lifecycle controller."""
 # pylint: disable=too-many-lines,too-many-locals,consider-using-with
-# ruff: noqa: ANN204, D101, D102, D103, D107, EM101, EM102, I001, PERF401, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
+# ruff: noqa: ANN204, BLE001, D101, D102, D103, D107, EM101, EM102, I001, PERF401, PLR0911, PLR2004, PTH101, PTH105, PTH108, S310, S314, S603, T201, TC003, TRY003, TRY004, TRY301
 
 from __future__ import annotations
 
@@ -933,7 +933,9 @@ def storage_root(store: StateStore | None = None) -> str:
             config = json.loads((store.root / "deployment.json").read_text())
             selected = config["storageRoot"]
         except (OSError, ValueError, KeyError, TypeError) as error:
-            raise ControllerError("persisted storage root is missing or invalid") from error
+            raise ControllerError(
+                "persisted storage root is missing or invalid"
+            ) from error
         if selected not in (DATA_STORAGE_ROOT, DEFAULT_STORAGE_ROOT):
             raise ControllerError("persisted storage root is outside owned paths")
         if selected == DATA_STORAGE_ROOT and not os.path.ismount("/data"):
@@ -1073,9 +1075,8 @@ def readiness(
     virtualization = runner.run(["test", "-r", "/dev/kvm"]).returncode == 0
     cpu = os.cpu_count() or 0
     selected_storage = storage_root(store)
-    if not pathlib.Path(selected_storage).is_dir():
-        raise ControllerError("selected KVM storage root is unavailable")
-    disk = shutil.disk_usage(selected_storage).free // 2**30
+    storage_available = pathlib.Path(selected_storage).is_dir()
+    disk = shutil.disk_usage(selected_storage).free // 2**30 if storage_available else 0
     memory = _memory_gib()
     try:
         _artifact_manifest(_plugin_root())
@@ -1110,7 +1111,9 @@ def readiness(
             "memoryGiB": memory,
             "diskFreeGiB": disk,
             "storageRoot": selected_storage,
-            "ready": capacity_ready(cpu, memory, disk, store=store, runner=runner),
+            "storageAvailable": storage_available,
+            "ready": storage_available
+            and capacity_ready(cpu, memory, disk, store=store, runner=runner),
         },
     }
     core_ready = (
