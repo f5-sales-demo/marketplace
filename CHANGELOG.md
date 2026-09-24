@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.1.2 makes lifecycle probes and post-setup verification invoke
+  the installed absolute launcher, so non-login shells do not depend on
+  `~/.local/bin` being present in `PATH` (#1396).
+
 - **`xorg`** v1.1.1 rebuilds an incomplete managed Python environment with
   Ubuntu's system interpreter so stale Anaconda symlinks cannot survive setup (#1394).
 
