@@ -699,6 +699,42 @@ class HomeLanContracts(unittest.TestCase):
             rollback.assert_not_called()
             self.assertFalse(root.exists())
 
+    def test_interrupted_networkd_restore_matches_original_profile_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "rollback"
+            netplan = pathlib.Path(directory) / "netplan"
+            root.mkdir()
+            (root / "current").mkdir()
+            netplan.mkdir()
+            profile = netplan / "01-wired.yaml"
+            profile.write_text("network: {version: 2}\n")
+            digest = hashlib.sha256(profile.read_bytes()).hexdigest()
+            (root / "inventory.json").write_text(
+                json.dumps(
+                    {
+                        "directory": str(netplan),
+                        "files": {profile.name: digest},
+                        "modifiedSource": profile.name,
+                        "modifiedSha256": "different",
+                        "currentFiles": {profile.name: "different"},
+                        "manager": "networkd",
+                        "wired": "enp109s0",
+                        "address": "192.168.2.34",
+                        "gateway": "192.168.2.1",
+                    }
+                )
+            )
+            with (
+                mock.patch.object(bridge_prep, "ROOT", root),
+                mock.patch.object(bridge_prep, "run", return_value="not-found"),
+                mock.patch.object(bridge_prep, "verify_original") as verify,
+                mock.patch.object(bridge_prep, "rollback") as rollback,
+            ):
+                bridge_prep.restore()
+            verify.assert_called_once_with("enp109s0", "192.168.2.34", "192.168.2.1")
+            rollback.assert_not_called()
+            self.assertFalse(root.exists())
+
     def test_helper_keeps_timer_armed_until_controller_verifies(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory) / "rollback"

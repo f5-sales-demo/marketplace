@@ -203,6 +203,20 @@ def restore() -> None:
         if connection != "xcsh-kvm-lan":
             raise RuntimeError("NetworkManager bridge is no longer plugin-owned")
     directory = pathlib.Path(record["directory"])
+    if record["manager"] == "networkd" and "currentFiles" in record:
+        source = directory / record["modifiedSource"]
+        original = record["files"].get(source.name)
+        if (
+            original
+            and source.is_file()
+            and hashlib.sha256(source.read_bytes()).hexdigest() == original
+            and not pathlib.Path("/sys/class/net/xckvmlan").exists()
+        ):
+            verify_original(record["wired"], record["address"], record["gateway"])
+            stop_timer_if_loaded(RESTORE_TIMER)
+            stop_timer_if_loaded(TIMER)
+            shutil.rmtree(ROOT)
+            return
     current = ROOT / "current"
     current.mkdir(mode=0o700)
     files = {}
