@@ -173,8 +173,8 @@ class SetupTests(unittest.TestCase):
     def test_accessibility_is_configured_without_a_desktop_shell(self):
         stale = {
             "HOME": "/home/tester",
-            "XDG_RUNTIME_DIR": "/tmp/stale-runtime",
-            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/stale-bus",
+            "XDG_RUNTIME_DIR": "/run/user/999",
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/999/bus",
         }
         with (
             patch.dict(setup.os.environ, stale, clear=True),
