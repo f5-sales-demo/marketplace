@@ -882,7 +882,10 @@ def require_home_lan_plan(document: dict[str, Any], application_namespace: str) 
         resource = next(
             item for item in changes if item.get("address") == f"{kind}.home"
         )
-        if resource.get("change", {}).get("after", {}).get("namespace") != application_namespace:
+        if (
+            resource.get("change", {}).get("after", {}).get("namespace")
+            != application_namespace
+        ):
             raise ControllerError(f"saved plan {kind} namespace differs from selection")
 
 
@@ -1806,16 +1809,23 @@ def _config(store: StateStore, params: dict[str, Any]) -> dict[str, Any]:
         selected_namespace = value.get(
             "applicationNamespace", DEFAULT_APPLICATION_NAMESPACE
         )
-        if params.get("applicationNamespace") and params["applicationNamespace"] != selected_namespace:
-            raise ControllerError("persisted application namespace differs from the requested namespace")
+        if (
+            params.get("applicationNamespace")
+            and params["applicationNamespace"] != selected_namespace
+        ):
+            raise ControllerError(
+                "persisted application namespace differs from the requested namespace"
+            )
         value["applicationNamespace"] = selected_namespace
         storage_root(store)
     else:
         selected_namespace = params.get(
             "applicationNamespace", DEFAULT_APPLICATION_NAMESPACE
         )
-    if not isinstance(selected_namespace, str) or selected_namespace == NAMESPACE or not re.fullmatch(
-        r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", selected_namespace
+    if (
+        not isinstance(selected_namespace, str)
+        or selected_namespace == NAMESPACE
+        or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", selected_namespace)
     ):
         raise ControllerError("selected application namespace is invalid or system")
     if path.exists():
@@ -2601,10 +2611,14 @@ def _runtime_status(
         lan["sliStatic"] = False
     application = {
         "origin": _owned_application_object(
-            "origin_pools", f"{config['siteName']}-origin", config["applicationNamespace"]
+            "origin_pools",
+            f"{config['siteName']}-origin",
+            config["applicationNamespace"],
         ),
         "httpLb": _owned_application_object(
-            "http_loadbalancers", f"{config['siteName']}-lan", config["applicationNamespace"]
+            "http_loadbalancers",
+            f"{config['siteName']}-lan",
+            config["applicationNamespace"],
         ),
         "hostname": domain,
         "vipAddress": lan_selection["vipAddress"],
@@ -2885,7 +2899,8 @@ def _verified_destroyed(store: StateStore, runner: Runner) -> dict[str, Any]:
     if _site_observation(site_name) is not None or any(
         _application_observation(
             kind, f"{site_name}{suffix}", receipt["applicationNamespace"]
-        ) is not None
+        )
+        is not None
         for kind, suffix in (
             ("origin_pools", "-origin"),
             ("http_loadbalancers", "-lan"),
@@ -2932,7 +2947,8 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
         remaining
         or _site_observation(config["siteName"]) is not None
         or any(
-            _application_observation(kind, name, config["applicationNamespace"]) is not None
+            _application_observation(kind, name, config["applicationNamespace"])
+            is not None
             for kind, name in application_names.items()
         )
     ):
