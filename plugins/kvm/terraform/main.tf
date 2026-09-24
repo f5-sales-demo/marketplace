@@ -144,7 +144,7 @@ resource "terraform_data" "workload_image" {
 resource "libvirt_pool" "site" {
   name = local.pool_name
   type = "dir"
-  target { path = "/var/lib/libvirt/images/${local.pool_name}" }
+  target { path = "${var.storage_root}/${local.pool_name}" }
 }
 
 resource "terraform_data" "network_identity" {

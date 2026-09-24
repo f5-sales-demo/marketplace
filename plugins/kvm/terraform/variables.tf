@@ -13,6 +13,16 @@ variable "xc_api_url" {
   type        = string
 }
 
+variable "storage_root" {
+  description = "Persisted host filesystem selected before deployment for the owned libvirt pool."
+  type        = string
+
+  validation {
+    condition     = contains(["/data/libvirt/images", "/var/lib/libvirt/images"], var.storage_root)
+    error_message = "storage_root must be one of the two supported host storage roots."
+  }
+}
+
 variable "lan_bridge" {
   description = "Verified physical home-LAN bridge, never an occupied foreign bridge."
   type        = string

@@ -99,6 +99,78 @@ class HomeLanContracts(unittest.TestCase):
             controller.observe_home_lan(runner)["neighbors"], ["192.168.2.71"]
         )
 
+    def test_observer_requests_detailed_bridge_link_kind(self):
+        routes = [{"dst": "default", "dev": "xckvmlan", "gateway": "192.168.2.1"}]
+        links = [
+            {"ifname": "xckvmlan", "linkinfo": {"info_kind": "bridge"}},
+            {"ifname": "enp5s0", "master": "xckvmlan", "address": "00:11:22:33:44:55"},
+        ]
+        addresses = [
+            {"ifname": "xckvmlan", "addr_info": [
+                {"family": "inet", "local": "192.168.2.240", "prefixlen": 24}
+            ]}
+        ]
+        runner = mock.Mock()
+        runner.checked.side_effect = map(json.dumps, (routes, links, addresses, [], []))
+        runner.run.return_value.returncode = 0
+        self.assertTrue(controller.observe_home_lan(runner)["bridgeReady"])
+        runner.checked.assert_any_call(["ip", "-j", "-d", "link", "show"])
+
+    def test_networkmanager_disables_stp_on_single_uplink_bridge(self):
+        def run(*args):
+            if args[:5] == ("nmcli", "-g", "GENERAL.CONNECTION", "device", "show"):
+                return "Wired connection 1"
+            if args[:3] == ("nmcli", "-g", "ipv4.method"):
+                return "auto"
+            return ""
+
+        with (
+            mock.patch.object(bridge_prep, "run", side_effect=run) as commands,
+            mock.patch.object(bridge_prep, "backup"),
+            mock.patch.object(bridge_prep, "verify"),
+        ):
+            bridge_prep.networkmanager(
+                "enp5s0", "xckvmlan", "192.168.2.240", "192.168.2.1",
+                "00:11:22:33:44:55",
+            )
+        bridge_add = next(
+            call.args for call in commands.call_args_list
+            if call.args[:4] == ("nmcli", "connection", "add", "type")
+            and "bridge" in call.args
+        )
+        self.assertIn(("bridge.stp", "no"), tuple(zip(bridge_add, bridge_add[1:])))
+
+    def test_storage_selection_prefers_mounted_data_and_persists_for_rebuild(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with (
+                mock.patch.object(controller.os.path, "ismount", return_value=True),
+                mock.patch.object(controller.pathlib.Path, "is_dir", return_value=True),
+            ):
+                config = controller._config(store, {"siteName": "onprem-workstation-kvm"})
+            self.assertEqual(config["storageRoot"], "/data/libvirt/images")
+            self.assertEqual(controller.storage_root(store), "/data/libvirt/images")
+            with mock.patch.object(controller.os.path, "ismount", return_value=False):
+                with self.assertRaisesRegex(controller.ControllerError, "mount"):
+                    controller.storage_root(store)
+
+    def test_storage_selection_uses_root_on_nuc_and_rejects_unbound_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with mock.patch.object(controller.os.path, "ismount", return_value=False):
+                self.assertEqual(controller.storage_root(store), "/var/lib/libvirt/images")
+            (store.root / "deployment.json").write_text(
+                json.dumps({"siteName": "onprem-nuc-kvm"})
+            )
+            with self.assertRaisesRegex(controller.ControllerError, "storage root"):
+                controller.storage_root(store)
+
+    def test_terraform_pool_uses_bound_storage_root(self):
+        terraform = (ROOT / "terraform" / "main.tf").read_text()
+        self.assertIn('target { path = "${var.storage_root}/${local.pool_name}" }', terraform)
+        self.assertIn('"storage_root": config["storageRoot"]',
+                      (ROOT / "scripts" / "kvm_smsv2_controller.py").read_text())
+
     def test_subnet_must_be_wholly_contained(self):
         for subnet in ("192.168.2.0/24", "192.168.0.0/22", "192.168.4.0/23"):
             self.assertTrue(controller.allowed_lan_subnet(subnet))

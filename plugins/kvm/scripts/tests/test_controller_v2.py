@@ -257,6 +257,20 @@ class ControllerContractTests(unittest.TestCase):
             "stop_collision",
         )
 
+    def test_sli_permission_failure_is_classified_without_echoing_api_output(self):
+        output = (
+            'Error: KVM Runtime Interface Adoption Failed\n'
+            'with xcsh_smsv2_kvm_runtime_interface.sli\n'
+            '[FORBIDDEN] Access denied - insufficient permissions '
+            '(resource: network_interface; token=never-print-this)'
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(output),
+            "XC network_interface write denied for the SLI; use an authorized "
+            "XC credential and a new reviewed plan",
+        )
+        self.assertIsNone(controller.safe_apply_failure("unrelated failure"))
+
     def test_inventory_rejects_conflicts_and_preserves_unrelated_resources(self):
         inventory = [
             {"kind": "domain", "name": "unrelated", "owned": False},
@@ -1232,6 +1246,47 @@ class ControllerContractTests(unittest.TestCase):
             )
             erase.assert_called_once()
             self.assertEqual(store.read_receipt("checkpoint")["phase"], "complete")
+
+    def test_setup_apply_resumes_failed_reboot_checkpoint_after_host_repair(self):
+        ready = {
+            "state": "ready",
+            "checks": {
+                "platform": True,
+                "passwordlessSudo": True,
+                "packages": dict.fromkeys(controller.APT_PACKAGES, True),
+                "groups": {"kvm": True, "libvirt": True, "docker": True},
+                "modules": True,
+                "services": {
+                    "libvirtd": {"active": True, "enabled": True},
+                    "docker": {"active": True, "enabled": True},
+                },
+                "capacity": {"ready": True},
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            store.write_receipt(
+                "checkpoint", {"phase": "reboot_pending", "siteName": "onprem-nuc-kvm"}
+            )
+            runner = mock.Mock()
+            with (
+                mock.patch.object(controller, "_credentials"),
+                mock.patch.object(
+                    controller, "_config", return_value={"siteName": "onprem-nuc-kvm"}
+                ),
+                mock.patch.object(controller, "_recover_interrupted_ownership"),
+                mock.patch.object(controller, "inventory", return_value=[]),
+                mock.patch.object(controller, "reject_collisions"),
+                mock.patch.object(controller, "readiness", side_effect=[ready, ready]),
+                mock.patch.object(controller, "terraform_version_ready", return_value=True),
+                mock.patch.object(controller, "_setup_resume", return_value={"accepted": True}) as resume,
+                mock.patch.object(controller, "_deploy") as deploy,
+            ):
+                self.assertEqual(
+                    controller._setup_apply(store, {}, runner), {"accepted": True}
+                )
+            resume.assert_called_once_with(store, runner)
+            deploy.assert_not_called()
 
 
 if __name__ == "__main__":

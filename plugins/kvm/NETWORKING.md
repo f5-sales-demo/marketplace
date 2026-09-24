@@ -27,6 +27,17 @@ gateway reachability and working DNS before confirmation. Original profiles
 are stored root-only under `/var/lib/kvm-smsv2/lan-rollback` for an owned
 teardown. Failure requires checking that restoration actually occurred; never
 retry by blindly switching interfaces over SSH.
+The dedicated single-uplink NetworkManager bridge disables STP forwarding delay.
+Inventory requests detailed link metadata so a default route on the bridge is
+correlated with its physical Ethernet port after the checkpoint commits.
+The host can remediate missing packages and its own bridge, not an XC credential
+that lacks permission to update a platform-owned `network_interface`. On the
+Ubuntu prototype, the first partial apply was retired through a state-identity
+checked, hashed destroy plan, then rebuilt on `/data`. XC admitted the CE and
+created both interfaces, but denied the SLI static-IP PUT with `FORBIDDEN`.
+That gap requires an XC credential authorized for the exact interface update;
+do not retry a saved plan, switch tenants, or claim VIP acceptance until the
+permission and a new reviewed plan are verified.
 
 The CE and VIP candidate addresses are distinct, never the host, gateway,
 network or broadcast addresses, and exclude observed neighbors and probe
@@ -36,6 +47,13 @@ best-effort: it **does not create or prove a future DHCP exclusion**. Monitor
 for conflicts and stop on one; allocate replacements only via a fresh reviewed
 plan. A switch that forbids additional source MACs cannot be fixed in host
 software. Do not bypass that gate with NAT, macvtap, or DNS assumptions.
+
+The installer selects `/data/libvirt/images` for its owned libvirt pool only
+when `/data` is mounted and that directory exists; otherwise it selects
+`/var/lib/libvirt/images`. The selection is persisted with the deployment and
+must remain mounted for subsequent plans and teardown. Image downloads stay in
+the plugin cache. If the selected filesystem lacks capacity, stop and inspect
+the mount rather than silently relocating an existing pool.
 
 The hostname is `<site>.internal.f5-sales-demo.com`. No home DNS record is
 assumed. From another LAN device, verify the VIP's ARP and HTTP response with

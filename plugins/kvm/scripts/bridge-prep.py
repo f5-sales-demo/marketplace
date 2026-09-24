@@ -287,6 +287,8 @@ def networkmanager(
         "xcsh-kvm-lan",
         "bridge.mac-address",
         mac,
+        "bridge.stp",
+        "no",
         "ipv4.method",
         "auto",
         "ipv6.method",

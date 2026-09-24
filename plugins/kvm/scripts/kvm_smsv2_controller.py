@@ -49,6 +49,8 @@ SLI_MAC = "52:54:00:10:00:12"
 WORKLOAD_ADDRESS = "10.100.0.100"
 WORKLOAD_MAC = "52:54:00:10:00:64"
 LAB_ROUTE = "10.231.0.0/24"
+DATA_STORAGE_ROOT = "/data/libvirt/images"
+DEFAULT_STORAGE_ROOT = "/var/lib/libvirt/images"
 LAN_RANGES = (
     ipaddress.IPv4Network("192.168.0.0/22"),
     ipaddress.IPv4Network("192.168.4.0/23"),
@@ -335,7 +337,7 @@ def observe_home_lan(runner: Runner) -> dict[str, Any]:
         return result
 
     routes = ip_json("-4", "route", "show", "default")
-    links = ip_json("link", "show")
+    links = ip_json("-d", "link", "show")
     addresses = ip_json("-4", "address", "show")
     owned_ports: set[str] = set()
     if any(
@@ -698,6 +700,19 @@ def classify_ambiguous_post(error: str, exact: dict[str, Any] | None) -> str:
     return "stop_collision"
 
 
+def safe_apply_failure(output: str) -> str | None:
+    if (
+        "xcsh_smsv2_kvm_runtime_interface.sli" in output
+        and "[FORBIDDEN]" in output
+        and "network_interface" in output
+    ):
+        return (
+            "XC network_interface write denied for the SLI; use an authorized "
+            "XC credential and a new reviewed plan"
+        )
+    return None
+
+
 def reject_collisions(inventory: list[dict[str, Any]]) -> None:
     for item in inventory:
         if (
@@ -912,6 +927,23 @@ def capacity_ready(
     )
 
 
+def storage_root(store: StateStore | None = None) -> str:
+    if store and (store.root / "deployment.json").exists():
+        try:
+            config = json.loads((store.root / "deployment.json").read_text())
+            selected = config["storageRoot"]
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ControllerError("persisted storage root is missing or invalid") from error
+        if selected not in (DATA_STORAGE_ROOT, DEFAULT_STORAGE_ROOT):
+            raise ControllerError("persisted storage root is outside owned paths")
+        if selected == DATA_STORAGE_ROOT and not os.path.ismount("/data"):
+            raise ControllerError("persisted data storage mount is unavailable")
+        return selected
+    if os.path.ismount("/data") and pathlib.Path(DATA_STORAGE_ROOT).is_dir():
+        return DATA_STORAGE_ROOT
+    return DEFAULT_STORAGE_ROOT
+
+
 def _group_names() -> set[str]:
     group_ids = {os.getgid(), *os.getgroups()}
     names = {grp.getgrgid(group_id).gr_name for group_id in group_ids}
@@ -1040,14 +1072,10 @@ def readiness(
     }
     virtualization = runner.run(["test", "-r", "/dev/kvm"]).returncode == 0
     cpu = os.cpu_count() or 0
-    disk = (
-        shutil.disk_usage(
-            "/var/lib/libvirt/images"
-            if pathlib.Path("/var/lib/libvirt/images").exists()
-            else "/"
-        ).free
-        // 2**30
-    )
+    selected_storage = storage_root(store)
+    if not pathlib.Path(selected_storage).is_dir():
+        raise ControllerError("selected KVM storage root is unavailable")
+    disk = shutil.disk_usage(selected_storage).free // 2**30
     memory = _memory_gib()
     try:
         _artifact_manifest(_plugin_root())
@@ -1081,6 +1109,7 @@ def readiness(
             "cpu": cpu,
             "memoryGiB": memory,
             "diskFreeGiB": disk,
+            "storageRoot": selected_storage,
             "ready": capacity_ready(cpu, memory, disk, store=store, runner=runner),
         },
     }
@@ -1666,12 +1695,18 @@ def _config(store: StateStore, params: dict[str, Any]) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
         if params.get("siteName") and params["siteName"] != value.get("siteName"):
             raise ControllerError("persisted site name differs from the requested name")
+        storage_root(store)
         return value
     site = str(params.get("siteName") or default_site_name(socket.gethostname()))
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,126}[a-z0-9])?", site):
         raise ControllerError("site name is not a valid XC name")
     store.ensure()
-    value = {"siteName": site, "namespace": NAMESPACE, "owner": OWNER}
+    value = {
+        "siteName": site,
+        "namespace": NAMESPACE,
+        "owner": OWNER,
+        "storageRoot": storage_root(),
+    }
     fd, temporary = tempfile.mkstemp(prefix=".deployment.", dir=store.root)
     with os.fdopen(fd, "w", encoding="utf-8") as stream:
         json.dump(value, stream, sort_keys=True)
@@ -1698,6 +1733,7 @@ def _terraform_plan(
             {
                 "site_name": config["siteName"],
                 "xc_api_url": env["XCSH_API_URL"],
+                "storage_root": config["storageRoot"],
                 "lan_bridge": lan["bridge"],
                 "lan_subnet": lan["subnet"],
                 "sli_address": lan["sliAddress"],
@@ -1809,8 +1845,10 @@ def _apply_plan(
         error_kind = (
             "eof" if "eof" in (result.stdout + result.stderr).lower() else "terraform"
         )
+        failure = safe_apply_failure(result.stdout + result.stderr)
         raise ControllerError(
-            f"Terraform saved-plan apply failed ({error_kind}); output sha256 {output_hash}"
+            f"Terraform saved-plan apply failed ({error_kind})"
+            f"{': ' + failure if failure else ''}; output sha256 {output_hash}"
         )
     applied = {
         "planSha256": receipt["sha256"],
@@ -2579,6 +2617,10 @@ def _setup_apply(
         _persist_resume_credentials(runner, store)
         runner.checked(["sudo", "systemctl", "reboot"])
         return {"state": "rebooting", "checkpoint": checkpoint}
+    if (store.receipts / "checkpoint.json").exists():
+        checkpoint = store.read_receipt("checkpoint")
+        if checkpoint.get("phase") == "reboot_pending":
+            return _setup_resume(store, runner)
     return _deploy(store, params, runner)
 
 
