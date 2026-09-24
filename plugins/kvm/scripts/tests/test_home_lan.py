@@ -27,6 +27,41 @@ BRIDGE_SPEC.loader.exec_module(bridge_prep)
 
 
 class HomeLanContracts(unittest.TestCase):
+    def test_selected_application_namespace_persists_and_cannot_be_changed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with mock.patch.object(
+                controller, "storage_root", return_value="/data/libvirt/images"
+            ):
+                config = controller._config(
+                    store,
+                    {
+                        "siteName": "onprem-nuc-kvm",
+                        "applicationNamespace": "multi-cloud-networking",
+                    },
+                )
+                self.assertEqual(config["namespace"], "system")
+                self.assertEqual(
+                    config["applicationNamespace"], "multi-cloud-networking"
+                )
+                self.assertEqual(
+                    controller._config(store, {})["applicationNamespace"],
+                    "multi-cloud-networking",
+                )
+                with self.assertRaisesRegex(
+                    controller.ControllerError, "persisted application namespace"
+                ):
+                    controller._config(
+                        store, {"applicationNamespace": "another-project"}
+                    )
+            with self.assertRaisesRegex(
+                controller.ControllerError, "invalid or system"
+            ):
+                controller._config(
+                    controller.StateStore(pathlib.Path(directory) / "new"),
+                    {"applicationNamespace": "system"},
+                )
+
     def test_wired_route_wins_over_vpn_and_wifi(self):
         routes = [
             {
@@ -566,7 +601,10 @@ class HomeLanContracts(unittest.TestCase):
             return {
                 "address": address,
                 "provider_name": "registry.terraform.io/f5-sales-demo/xcsh",
-                "change": {"actions": ["create"]},
+                "change": {
+                    "actions": ["create"],
+                    "after": {"namespace": "multi-cloud-networking"},
+                },
             }
 
         valid = {
@@ -575,13 +613,26 @@ class HomeLanContracts(unittest.TestCase):
                 change("xcsh_origin_pool.home"),
             ]
         }
-        controller.require_home_lan_plan(valid)
+        controller.require_home_lan_plan(valid, "multi-cloud-networking")
         for changes in (
             [change("xcsh_http_loadbalancer.home")],
             valid["resource_changes"] + [change("xcsh_http_loadbalancer.other")],
         ):
             with self.assertRaises(controller.ControllerError):
-                controller.require_home_lan_plan({"resource_changes": changes})
+                controller.require_home_lan_plan(
+                    {"resource_changes": changes}, "multi-cloud-networking"
+                )
+        wrong = {
+            "resource_changes": [
+                {
+                    **change("xcsh_http_loadbalancer.home"),
+                    "change": {"actions": ["create"], "after": {"namespace": "system"}},
+                },
+                change("xcsh_origin_pool.home"),
+            ]
+        }
+        with self.assertRaisesRegex(controller.ControllerError, "namespace"):
+            controller.require_home_lan_plan(wrong, "multi-cloud-networking")
 
     def test_terraform_binds_observed_sli_without_mutating_platform_child(self):
         text = (ROOT / "terraform" / "main.tf").read_text()
@@ -1033,16 +1084,19 @@ class HomeLanContracts(unittest.TestCase):
     def test_exact_application_ownership_rejects_label_or_name_drift(self):
         owned = {
             "metadata": {
-                "namespace": "system",
+                "namespace": "multi-cloud-networking",
                 "name": "site-lan",
                 "labels": {"owner": controller.OWNER},
             }
         }
-        with mock.patch.object(controller, "_xc_json", return_value=owned):
+        with mock.patch.object(controller, "_xc_json", return_value=owned) as request:
             self.assertTrue(
-                controller._owned_application_object("http_loadbalancers", "site-lan")[
-                    "owned"
-                ]
+                controller._owned_application_object(
+                    "http_loadbalancers", "site-lan", "multi-cloud-networking"
+                )["owned"]
+            )
+            request.assert_called_once_with(
+                "/api/config/namespaces/multi-cloud-networking/http_loadbalancers/site-lan"
             )
         with mock.patch.object(
             controller,
@@ -1050,10 +1104,38 @@ class HomeLanContracts(unittest.TestCase):
             return_value={"metadata": {**owned["metadata"], "name": "other"}},
         ):
             self.assertFalse(
-                controller._owned_application_object("http_loadbalancers", "site-lan")[
-                    "owned"
-                ]
+                controller._owned_application_object(
+                    "http_loadbalancers", "site-lan", "multi-cloud-networking"
+                )["owned"]
             )
+        with mock.patch.object(
+            controller,
+            "_xc_json",
+            return_value={"metadata": {**owned["metadata"], "namespace": "system"}},
+        ):
+            self.assertFalse(
+                controller._owned_application_object(
+                    "http_loadbalancers", "site-lan", "multi-cloud-networking"
+                )["owned"]
+            )
+
+    def test_application_namespace_is_selected_and_site_namespace_stays_system(self):
+        terraform = (ROOT / "terraform" / "main.tf").read_text()
+        variables = (ROOT / "terraform" / "variables.tf").read_text()
+        self.assertIn('variable "application_namespace"', variables)
+        for resource in ('xcsh_origin_pool" "home', 'xcsh_http_loadbalancer" "home'):
+            block = terraform.split('resource "' + resource + '" {', 1)[1]
+            self.assertIn(
+                "namespace   = var.application_namespace", block.split("\n}", 1)[0]
+            )
+        self.assertIn(
+            "namespace = var.application_namespace",
+            terraform.split("default_route_pools {", 1)[1],
+        )
+        self.assertIn(
+            'namespace = "system"',
+            terraform.split("origin_servers {", 1)[1].split("\n}", 1)[0],
+        )
 
     def test_netplan_teardown_restores_original_with_backup_timer(self):
         with tempfile.TemporaryDirectory() as directory:

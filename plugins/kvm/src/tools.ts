@@ -50,7 +50,7 @@ function toolResult(name: string, invoke: ControllerInvoker, params: Record<stri
   } catch (error) {
     const result = {
       schemaVersion: KVM_SMSV2_PROTOCOL,
-      controllerVersion: '3.0.0',
+      controllerVersion: '3.0.1',
       action,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
@@ -64,7 +64,13 @@ export function createKvmSmsv2Tools(pi: ExtensionApi, invoke: ControllerInvoker 
   const siteName = Type.Optional(
     Type.String({ description: 'Persisted XC site name override for the first run only.' }),
   );
-  const deployment = Type.Object({ siteName });
+  const applicationNamespace = Type.Optional(
+    Type.String({
+      description:
+        'Selected project namespace for the HTTP-LB and origin pool; defaults to multi-cloud-networking. The site remains in system.',
+    }),
+  );
+  const deployment = Type.Object({ siteName, applicationNamespace });
   return [
     {
       name: 'kvm_smsv2_readiness',

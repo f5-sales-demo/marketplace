@@ -34,11 +34,12 @@ import zipfile
 from typing import Any
 
 SCHEMA_VERSION = "kvm.smsv2/v3"
-CONTROLLER_VERSION = "3.0.0"
+CONTROLLER_VERSION = "3.0.1"
 TERRAFORM_VERSION = "1.16.3"
 TERRAFORM_SHA256 = "093b6ae9a2228af5029c41606bc96eb583553528aad1bfe7e0b4d62fc91e25d8"
 OWNER = "xcsh-kvm-smsv2-v3"
 NAMESPACE = "system"
+DEFAULT_APPLICATION_NAMESPACE = "multi-cloud-networking"
 POOL = "xcsh-kvm-smsv2"
 NETWORK = "xcsh-kvm-smsv2"
 CE_DOMAIN = "xcsh-kvm-smsv2-ce"
@@ -867,7 +868,7 @@ def inspect_plan(document: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "providers": sorted(providers), "addresses": sorted(addresses)}
 
 
-def require_home_lan_plan(document: dict[str, Any]) -> None:
+def require_home_lan_plan(document: dict[str, Any], application_namespace: str) -> None:
     changes = document.get("resource_changes", [])
     for kind in ("xcsh_http_loadbalancer", "xcsh_origin_pool"):
         addresses = [
@@ -878,6 +879,14 @@ def require_home_lan_plan(document: dict[str, Any]) -> None:
         ]
         if addresses != [f"{kind}.home"]:
             raise ControllerError(f"saved plan requires exactly one owned {kind}")
+        resource = next(
+            item for item in changes if item.get("address") == f"{kind}.home"
+        )
+        if (
+            resource.get("change", {}).get("after", {}).get("namespace")
+            != application_namespace
+        ):
+            raise ControllerError(f"saved plan {kind} namespace differs from selection")
 
 
 def classify_ambiguous_post(error: str, exact: dict[str, Any] | None) -> str:
@@ -1694,10 +1703,12 @@ def _site_observation(site_name: str) -> dict[str, Any] | None:
     }
 
 
-def _application_observation(kind: str, name: str) -> dict[str, Any] | None:
+def _application_observation(
+    kind: str, name: str, namespace: str
+) -> dict[str, Any] | None:
     try:
         document = _xc_json(
-            f"/api/config/namespaces/{NAMESPACE}/{kind}/{urllib.parse.quote(name, safe='')}"
+            f"/api/config/namespaces/{namespace}/{kind}/{urllib.parse.quote(name, safe='')}"
         )
     except ControllerError as error:
         if "HTTP 404" in str(error):
@@ -1711,15 +1722,15 @@ def _application_observation(kind: str, name: str) -> dict[str, Any] | None:
         "name": metadata.get("name"),
         "owned": bool(
             metadata.get("name") == name
-            and metadata.get("namespace") == NAMESPACE
+            and metadata.get("namespace") == namespace
             and isinstance(labels, dict)
             and labels.get("owner") == OWNER
         ),
     }
 
 
-def _owned_application_object(kind: str, name: str) -> dict[str, Any]:
-    value = _application_observation(kind, name)
+def _owned_application_object(kind: str, name: str, namespace: str) -> dict[str, Any]:
+    value = _application_observation(kind, name, namespace)
     if value is None:
         raise ControllerError("owned XC application object is absent")
     return value
@@ -1795,7 +1806,29 @@ def _config(store: StateStore, params: dict[str, Any]) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
         if params.get("siteName") and params["siteName"] != value.get("siteName"):
             raise ControllerError("persisted site name differs from the requested name")
+        selected_namespace = value.get(
+            "applicationNamespace", DEFAULT_APPLICATION_NAMESPACE
+        )
+        if (
+            params.get("applicationNamespace")
+            and params["applicationNamespace"] != selected_namespace
+        ):
+            raise ControllerError(
+                "persisted application namespace differs from the requested namespace"
+            )
+        value["applicationNamespace"] = selected_namespace
         storage_root(store)
+    else:
+        selected_namespace = params.get(
+            "applicationNamespace", DEFAULT_APPLICATION_NAMESPACE
+        )
+    if (
+        not isinstance(selected_namespace, str)
+        or selected_namespace == NAMESPACE
+        or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", selected_namespace)
+    ):
+        raise ControllerError("selected application namespace is invalid or system")
+    if path.exists():
         return value
     site = str(params.get("siteName") or default_site_name(socket.gethostname()))
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,126}[a-z0-9])?", site):
@@ -1804,6 +1837,7 @@ def _config(store: StateStore, params: dict[str, Any]) -> dict[str, Any]:
     value = {
         "siteName": site,
         "namespace": NAMESPACE,
+        "applicationNamespace": selected_namespace,
         "owner": OWNER,
         "storageRoot": storage_root(),
     }
@@ -1842,6 +1876,7 @@ def _terraform_plan(
         json.dumps(
             {
                 "site_name": config["siteName"],
+                "application_namespace": config["applicationNamespace"],
                 "xc_api_url": env["XCSH_API_URL"],
                 "storage_root": config["storageRoot"],
                 "lan_bridge": lan["bridge"],
@@ -1894,7 +1929,7 @@ def _terraform_plan(
         raise ControllerError("Terraform saved-plan JSON is malformed") from error
     summary = inspect_plan(plan_json)
     if mode == "apply":
-        require_home_lan_plan(plan_json)
+        require_home_lan_plan(plan_json, config["applicationNamespace"])
     if mode == "bootstrap":
         created = {
             item.get("address")
@@ -2576,10 +2611,14 @@ def _runtime_status(
         lan["sliStatic"] = False
     application = {
         "origin": _owned_application_object(
-            "origin_pools", f"{config['siteName']}-origin"
+            "origin_pools",
+            f"{config['siteName']}-origin",
+            config["applicationNamespace"],
         ),
         "httpLb": _owned_application_object(
-            "http_loadbalancers", f"{config['siteName']}-lan"
+            "http_loadbalancers",
+            f"{config['siteName']}-lan",
+            config["applicationNamespace"],
         ),
         "hostname": domain,
         "vipAddress": lan_selection["vipAddress"],
@@ -2781,7 +2820,9 @@ def _deploy(
         ("origin_pools", f"{config['siteName']}-origin"),
         ("http_loadbalancers", f"{config['siteName']}-lan"),
     ):
-        application_observation = _application_observation(kind, name)
+        application_observation = _application_observation(
+            kind, name, config["applicationNamespace"]
+        )
         if application_observation and not application_observation["owned"]:
             raise ControllerError("XC application name belongs to an unowned object")
     if (
@@ -2823,7 +2864,7 @@ def _deploy(
         exact = _site_observation(config["siteName"])
         classification = classify_ambiguous_post(str(error), exact)
         applications = {
-            kind: _application_observation(kind, name)
+            kind: _application_observation(kind, name, config["applicationNamespace"])
             for kind, name in (
                 ("origin_pools", f"{config['siteName']}-origin"),
                 ("http_loadbalancers", f"{config['siteName']}-lan"),
@@ -2850,12 +2891,16 @@ def _verified_destroyed(store: StateStore, runner: Runner) -> dict[str, Any]:
     if (
         not isinstance(site_name, str)
         or not site_name
+        or not isinstance(receipt.get("applicationNamespace"), str)
         or receipt.get("remainingOwned") != []
     ):
         raise ControllerError("destroyed state lacks an exact absence receipt")
     reject_collisions(inventory(runner, store))
     if _site_observation(site_name) is not None or any(
-        _application_observation(kind, f"{site_name}{suffix}") is not None
+        _application_observation(
+            kind, f"{site_name}{suffix}", receipt["applicationNamespace"]
+        )
+        is not None
         for kind, suffix in (
             ("origin_pools", "-origin"),
             ("http_loadbalancers", "-lan"),
@@ -2889,7 +2934,7 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
         "http_loadbalancers": f"{config['siteName']}-lan",
     }
     for kind, name in application_names.items():
-        observed = _application_observation(kind, name)
+        observed = _application_observation(kind, name, config["applicationNamespace"])
         if observed and not observed["owned"]:
             raise ControllerError("destroy refused an unowned XC application object")
     terraform_root = install_bundle(store)
@@ -2902,7 +2947,8 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
         remaining
         or _site_observation(config["siteName"]) is not None
         or any(
-            _application_observation(kind, name) is not None
+            _application_observation(kind, name, config["applicationNamespace"])
+            is not None
             for kind, name in application_names.items()
         )
     ):
@@ -2955,6 +3001,7 @@ def _destroy(store: StateStore, runner: Runner) -> dict[str, Any]:
         bridge_restored = True
     receipt = {
         "siteName": config["siteName"],
+        "applicationNamespace": config["applicationNamespace"],
         "deployment": applied,
         "remainingOwned": [],
         "preserved": unrelated_resources(host_inventory),

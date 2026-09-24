@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`kvm`** v3.0.1 places the private origin pool and advertised HTTP-LB in the
+  selected application namespace (`multi-cloud-networking` by default), while
+  the Secure Mesh site and platform-managed objects remain in `system` (#1399).
+  The selected namespace is persisted, substituted into Terraform, and checked
+  during ownership, status, and teardown.
+
 - **`xorg`** v1.1.2 makes lifecycle probes and post-setup verification invoke
   the installed absolute launcher, so non-login shells do not depend on
   `~/.local/bin` being present in `PATH`; accessibility setup and readiness

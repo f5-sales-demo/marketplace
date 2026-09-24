@@ -355,7 +355,7 @@ resource "libvirt_domain" "workload" {
 
 resource "xcsh_origin_pool" "home" {
   name        = "${var.site_name}-origin"
-  namespace   = "system"
+  namespace   = var.application_namespace
   description = "Plugin-owned isolated SLO demo origin"
   labels      = local.labels
   port        = 80
@@ -382,7 +382,7 @@ resource "xcsh_origin_pool" "home" {
 
 resource "xcsh_http_loadbalancer" "home" {
   name        = "${var.site_name}-lan"
-  namespace   = "system"
+  namespace   = var.application_namespace
   description = "Plugin-owned inside LAN VIP ${var.vip_address}"
   labels      = local.labels
   domains     = ["${var.site_name}.internal.f5-sales-demo.com"]
@@ -408,7 +408,7 @@ resource "xcsh_http_loadbalancer" "home" {
   default_route_pools {
     pool {
       name      = xcsh_origin_pool.home.name
-      namespace = "system"
+      namespace = var.application_namespace
     }
     weight   = 1
     priority = 1
