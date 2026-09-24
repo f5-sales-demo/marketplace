@@ -1,5 +1,5 @@
 import { isAbsolute } from 'node:path';
-import { resolveSmsv2ReleaseContract, type Smsv2KvmImagePrerequisite } from './release-contract';
+import { resolveSmsv2ReleaseContract, type Smsv2KvmImageResolution } from './release-contract';
 
 export interface CeV2Capabilities {
   smsv2ContractVersion: 'v2';
@@ -7,7 +7,7 @@ export interface CeV2Capabilities {
   bootstrapDrivers: Array<'console'>;
   providerNetworkingProfiles: Partial<Record<'aws' | 'azure', string[]>>;
   awsSmsv2TgwConnect: { supported: boolean; schemaVersion: string | null };
-  kvmImagePrerequisite: Smsv2KvmImagePrerequisite;
+  kvmImageResolution: Smsv2KvmImageResolution;
 }
 
 export interface CeV2InterfaceAddressing {
@@ -80,6 +80,15 @@ interface CapabilityDocument extends CeV2Capabilities {
 const SAFE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$/;
 const LEGACY_CE_ROUTE = /(?:azure.?vnet|fleet|registration.?token|site.?token|shared.?token)/i;
 
+export class CeCapabilityFailure extends Error {
+  constructor(
+    readonly category: 'context' | 'tenant_http' | 'tenant_transport',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export class HttpCeV2Driver implements CeV2Driver {
   readonly #base: URL;
   readonly #apiToken: string | undefined;
@@ -91,10 +100,14 @@ export class HttpCeV2Driver implements CeV2Driver {
     env: Record<string, string | undefined> = process.env,
     resolveContract: typeof resolveSmsv2ReleaseContract = resolveSmsv2ReleaseContract,
   ) {
-    if (!env.XCSH_API_URL) throw new Error('XCSH_API_URL is required');
-    this.#base = new URL(env.XCSH_API_URL);
+    if (!env.XCSH_API_URL) throw new CeCapabilityFailure('context', 'API URL is not configured');
+    try {
+      this.#base = new URL(env.XCSH_API_URL);
+    } catch {
+      throw new CeCapabilityFailure('context', 'API URL is invalid');
+    }
     if (this.#base.protocol !== 'https:' && this.#base.hostname !== 'localhost' && this.#base.hostname !== '127.0.0.1')
-      throw new Error('XCSH_API_URL must use HTTPS');
+      throw new CeCapabilityFailure('context', 'API URL must use HTTPS');
     this.#apiToken = env.XCSH_API_TOKEN;
     this.#consoleHelper = env.XCSH_CE_CONSOLE_HELPER;
     this.#resolveContract = resolveContract;
@@ -105,8 +118,14 @@ export class HttpCeV2Driver implements CeV2Driver {
     headers.set('Accept', 'application/json');
     if (init.body) headers.set('Content-Type', 'application/json');
     if (this.#apiToken) headers.set('Authorization', `APIToken ${this.#apiToken}`);
-    const response = await fetch(url, { ...init, headers });
-    if (!response.ok) throw new Error(`F5 CE v2 API request failed with HTTP ${response.status}`);
+    let response: Response;
+    try {
+      response = await fetch(url, { ...init, headers });
+    } catch {
+      throw new CeCapabilityFailure('tenant_transport', 'Tenant request failed');
+    }
+    if (!response.ok)
+      throw new CeCapabilityFailure('tenant_http', `Tenant request failed with HTTP ${response.status}`);
     const text = await response.text();
     return text ? (JSON.parse(text) as Record<string, unknown>) : {};
   }
@@ -120,7 +139,7 @@ export class HttpCeV2Driver implements CeV2Driver {
       bootstrapDrivers: ['console'],
       providerNetworkingProfiles: {},
       awsSmsv2TgwConnect: { supported: false, schemaVersion: null },
-      kvmImagePrerequisite: release.kvmImagePrerequisite,
+      kvmImageResolution: release.kvmImageResolution,
       namespace: release.namespace,
       endpoints: { siteCollection: release.collectionPath, siteItem: release.itemPath, status: '' },
       consoleFallback: true,
@@ -152,7 +171,7 @@ export class HttpCeV2Driver implements CeV2Driver {
       ),
       providerNetworkingProfiles: document.providerNetworkingProfiles,
       awsSmsv2TgwConnect: document.awsSmsv2TgwConnect,
-      kvmImagePrerequisite: document.kvmImagePrerequisite,
+      kvmImageResolution: document.kvmImageResolution,
     };
   }
 
