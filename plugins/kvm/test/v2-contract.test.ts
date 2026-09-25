@@ -89,7 +89,7 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
 
 test('declares install-scoped setup authorization with the Platform dependency', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.xcsh-plugin', 'plugin.json'), 'utf8'));
-  expect(manifest.version).toBe('3.0.3');
+  expect(manifest.version).toBe('3.0.4');
   expect(manifest.lifecycle.setupAuthorization).toBe('install');
   expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
 });
@@ -199,5 +199,60 @@ test('integration setup remains required until the owned deployment is accepted'
   } else {
     expect(await integration?.probe?.()).toEqual({ state: 'unavailable', reason: 'dependency_missing' });
     expect(calls).toEqual([]);
+  }
+});
+
+test('integration readiness probe uses the active xcsh context environment', async () => {
+  let integration: { probe?: () => Promise<{ state: string }> } | undefined;
+  let observedEnvironment: Record<string, string | undefined> | undefined;
+  const Type = new Proxy(
+    {},
+    {
+      get:
+        () =>
+        (..._args: unknown[]) => ({}),
+    },
+  );
+  await kvmExtension(
+    {
+      typebox: { Type: Type as never },
+      setLabel: () => {},
+      registerTool: () => {},
+      settings: {
+        get: (key: string) =>
+          key === 'bash.environment'
+            ? {
+                XCSH_API_URL: 'https://active.example.test',
+                XCSH_API_TOKEN: 'active-token',
+                XCSH_NAMESPACE: 'active-namespace',
+                LD_PRELOAD: '/untrusted/library.so',
+              }
+            : undefined,
+      },
+      integrations: {
+        register: (definition: unknown) => {
+          integration = definition as typeof integration;
+          return definition;
+        },
+      },
+    },
+    (command, _params, _action, environment) => {
+      observedEnvironment = environment;
+      return {
+        schemaVersion: 'kvm.smsv2/v3',
+        controllerVersion: '3.0.2',
+        action: command,
+        ok: true,
+        result: { state: 'ready', deploymentAccepted: true },
+      };
+    },
+  );
+
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    expect(await integration?.probe?.()).toEqual({ state: 'ready', value: expect.anything() });
+    expect(observedEnvironment?.XCSH_API_URL).toBe('https://active.example.test');
+    expect(observedEnvironment?.XCSH_API_TOKEN).toBe('active-token');
+    expect(observedEnvironment?.XCSH_NAMESPACE).toBe('active-namespace');
+    expect(observedEnvironment?.LD_PRELOAD).not.toBe('/untrusted/library.so');
   }
 });

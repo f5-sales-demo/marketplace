@@ -10,7 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`kvm`** v3.0.3 keeps current-schema ownership, LAN, plan, and acceptance
+- **`kvm`** v3.0.4 runs readiness probes with the active session's `XCSH_*`
+  context while excluding unrelated environment values. It keeps current-schema
+  ownership, LAN, plan, and acceptance
   receipts valid across controller patch upgrades; requires explicit
   reconciliation when an owned local CE outlives its XC site; restricts recovery
   replacements to the owned CE bootstrap resources; and retries only bounded,

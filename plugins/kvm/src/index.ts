@@ -1,6 +1,7 @@
 import {
   type ControllerInvoker,
   createKvmSmsv2Tools,
+  controllerEnvironment,
   invokeController as defaultInvokeController,
   KVM_SMSV2_CONTROLLER,
   KVM_SMSV2_PROTOCOL,
@@ -11,6 +12,7 @@ interface KvmExtensionApi {
   setLabel(label: string): void;
   registerTool?(tool: unknown): void;
   integrations: { register<_T>(definition: unknown): unknown };
+  settings?: { get(key: string): unknown };
   on?(event: string, handler: unknown): void;
 }
 
@@ -41,7 +43,7 @@ const factory = async (pi: KvmExtensionApi, invokeController: ControllerInvoker 
       if (process.platform !== 'linux' || process.arch !== 'x64')
         return { state: 'unavailable', reason: 'dependency_missing' };
       try {
-        const result = invokeController('setup', {}, 'status');
+        const result = invokeController('setup', {}, 'status', controllerEnvironment({ settings: pi.settings }));
         const status = result.result as { state?: string } | undefined;
         return status?.state === 'ready'
           ? { state: 'ready', value: result }
