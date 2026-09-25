@@ -651,5 +651,72 @@ class SetupTests(unittest.TestCase):
                 )
 
 
+    def test_apply_waits_for_a_recovered_console_before_creating_virtual_media(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "state"
+            home = pathlib.Path(directory) / "home"
+            console = root / "console"
+            console.mkdir(parents=True)
+            (console / "session.json").write_text("{}")
+            calls: list[object] = []
+            versions = iter([None, VERSION])
+            version_calls: list[str] = []
+
+            def worker_version(name):
+                version_calls.append(name)
+                return next(versions)
+
+            def command(argv, **_kwargs):
+                calls.append(argv)
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with (
+                patch.object(setup, "ROOT", root),
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(setup, "_platform", return_value={"id": "ubuntu", "version_id": "24.04"}),
+                patch.object(setup, "_dependency_checks", return_value={"commands": {}, "python_modules": {}, "ready": True}),
+                patch.object(setup, "_venv_python", return_value=home / "venv/bin/python"),
+                patch.object(setup, "_install_fonts"),
+                patch.object(setup, "_install_voice"),
+                patch.object(setup, "_install_virtualgl"),
+                patch.object(setup, "_configure_accessibility"),
+                patch.object(setup, "_install_launcher"),
+                patch.object(setup, "_install_services"),
+                patch.object(setup, "_command", side_effect=command),
+                patch.object(setup, "_service_active", return_value=False),
+                patch.object(setup, "_worker_version", side_effect=worker_version),
+                patch.object(setup, "_ensure_virtual_media", side_effect=lambda: calls.append("virtual_media")),
+                patch.object(setup, "status", return_value={"state": "ready"}),
+                patch.object(setup.time, "sleep"),
+            ):
+                setup.apply(VERSION)
+
+        self.assertEqual(calls[-1], "virtual_media")
+        self.assertEqual(version_calls, ["console", "console"])
+        self.assertIn(["systemctl", "--user", "enable", "--now", "xorgctl-session@console.service"], calls)
+
+    def test_owned_console_publishes_display_authority_to_systemd_activation(self):
+        config = {
+            "name": "console",
+            "owned": True,
+            "env": {"DISPLAY": ":121", "XAUTHORITY": "/tmp/Xauthority"},
+        }
+        with patch.object(sessions, "run") as run:
+            sessions._publish_activation_environment(config)
+
+        run.assert_called_once_with(
+            ["dbus-update-activation-environment", "--systemd", "DISPLAY", "XAUTHORITY"],
+            check=False,
+            env={
+                **sessions.os.environ,
+                "DISPLAY": ":121",
+                "XAUTHORITY": "/tmp/Xauthority",
+                "QT_QPA_PLATFORM": "xcb",
+                "QT_AUTO_SCREEN_SCALE_FACTOR": "0",
+                "QT_SCALE_FACTOR": "1",
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

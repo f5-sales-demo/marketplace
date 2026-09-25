@@ -170,6 +170,18 @@ def _worker_version(name: str) -> str | None:
         return None
 
 
+def _wait_for_workers(names: list[str]) -> None:
+    deadline = time.monotonic() + 20
+    pending = list(dict.fromkeys(names))
+    while pending and time.monotonic() < deadline:
+        pending = [name for name in pending if _worker_version(name) != VERSION]
+        if pending:
+            time.sleep(0.1)
+    if pending:
+        message = "Xorg session worker did not become ready: " + ", ".join(pending)
+        raise Fault(message)
+
+
 def _session_config(name: str) -> dict[str, object]:
     try:
         value = json.loads((ROOT / name / "session.json").read_text())
@@ -828,12 +840,7 @@ def apply(expected_version: str) -> dict[str, object]:
     ]
     for name in active_sessions:
         _command(["systemctl", "--user", "restart", _session_service(name)], check=True)
-    deadline = time.monotonic() + 20
-    while (
-        any(_worker_version(name) != VERSION for name in active_sessions)
-        and time.monotonic() < deadline
-    ):
-        time.sleep(0.1)
+    _wait_for_workers(["console", *active_sessions])
     _ensure_virtual_media()
     result = status(expected_version)
     state = pathlib.Path.home() / ".local/state/xorgctl/setup.json"
