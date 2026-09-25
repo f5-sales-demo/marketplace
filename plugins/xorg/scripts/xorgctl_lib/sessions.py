@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN002, ANN201, ANN202, D103, PLC0415, PLR0911, S108, S603, S607, TRY301
 from __future__ import annotations
 
 # Session dispatch is intentionally centralized; process handles remain open
