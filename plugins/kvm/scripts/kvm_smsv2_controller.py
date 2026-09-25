@@ -949,6 +949,142 @@ def classify_ambiguous_post(error: str, exact: dict[str, Any] | None) -> str:
     return "stop_collision"
 
 
+_PROVIDER_FAILURE_CODES = (
+    "NOT_FOUND",
+    "UNAUTHORIZED",
+    "FORBIDDEN",
+    "CONFLICT",
+    "RATE_LIMIT",
+    "SERVER_ERROR",
+    "BAD_REQUEST",
+    "TIMEOUT",
+    "NETWORK_ERROR",
+    "VALIDATION",
+    "STATE_READ",
+    "STATE_WRITE",
+    "CONFIGURATION",
+)
+_PROVIDER_FAILURE_PATTERN = rf"\[({'|'.join(_PROVIDER_FAILURE_CODES)})\]"
+_PROVIDER_OPERATION_NAMES = {
+    "post": "create",
+    "get": "read",
+    "put": "update",
+    "patch": "update",
+    "delete": "delete",
+}
+_MUTATING_PROVIDER_OPERATIONS = {"create", "update", "delete"}
+
+
+def _provider_forbidden_failure(operation: str, resource: str) -> str:
+    return (
+        f"XC provider {operation} {resource} denied [FORBIDDEN]; "
+        "select an XC context authorized for this application write and "
+        "create a new reviewed plan"
+    )
+
+
+def _structured_provider_failure(output: str) -> str | None:
+    for match in re.finditer(_PROVIDER_FAILURE_PATTERN, output):
+        diagnostic = output[match.start() : match.start() + 768]
+        resource = re.search(r"\(resource:\s*([^\s)]+)\)", diagnostic)
+        operation = re.search(r"\(operation:\s*([a-z]+)\)", diagnostic, re.IGNORECASE)
+        if resource is None or operation is None:
+            continue
+        resource_name = resource.group(1).rstrip("/").rsplit("/", 1)[-1]
+        if re.fullmatch(r"[a-z0-9_-]+", resource_name) is None:
+            continue
+        raw_operation = operation.group(1).lower()
+        operation_name = _PROVIDER_OPERATION_NAMES.get(raw_operation, raw_operation)
+        status = re.search(r"\(status:\s*([1-5][0-9]{2})\)", diagnostic)
+        if (
+            match.group(1) == "FORBIDDEN"
+            and operation_name in _MUTATING_PROVIDER_OPERATIONS
+        ):
+            return _provider_forbidden_failure(operation_name, resource_name)
+        suffix = f" (status {status.group(1)})" if status else ""
+        return (
+            f"XC provider {operation_name} {resource_name} failed "
+            f"[{match.group(1)}]{suffix}"
+        )
+    return None
+
+
+def _legacy_provider_failure(output: str) -> str | None:
+    legacy = re.search(
+        r"Unable to\s+(create|read|update|delete)\s+"
+        r"([A-Za-z][A-Za-z0-9_-]{0,63}):([^\r\n]{0,512})",
+        output,
+        re.IGNORECASE,
+    )
+    if legacy is None:
+        return None
+    detail = legacy.group(3)
+    code = re.search(_PROVIDER_FAILURE_PATTERN, detail)
+    status = re.search(
+        r"(?:status(?:\s+code)?|HTTP)\D{0,8}([1-5][0-9]{2})\b",
+        detail,
+        re.IGNORECASE,
+    ) or re.search(
+        r"\b([1-5][0-9]{2})\s+"
+        r"(?:Bad Request|Unauthorized|Forbidden|Not Found|Conflict|"
+        r"Too Many Requests|Internal Server Error|Bad Gateway|"
+        r"Service Unavailable|Gateway Timeout)\b",
+        detail,
+        re.IGNORECASE,
+    )
+    lowered = detail.lower()
+    if code:
+        suffix = f" [{code.group(1)}]"
+        if status:
+            suffix += f" (status {status.group(1)})"
+    elif status:
+        suffix = f" (status {status.group(1)})"
+    elif any(
+        marker in lowered
+        for marker in (
+            "connection reset",
+            "connection refused",
+            "no such host",
+            "network is unreachable",
+            "unexpected eof",
+        )
+    ):
+        suffix = " (network)"
+    elif "deadline exceeded" in lowered or "timed out" in lowered:
+        suffix = " (timeout)"
+    elif any(
+        marker in lowered
+        for marker in (
+            "unexpected end of json input",
+            "invalid character",
+            "cannot unmarshal",
+        )
+    ):
+        suffix = " (response-decode)"
+    else:
+        suffix = ""
+    operation_name = legacy.group(1).lower()
+    resource_name = legacy.group(2)
+    if (
+        code
+        and code.group(1) == "FORBIDDEN"
+        and operation_name in _MUTATING_PROVIDER_OPERATIONS
+    ):
+        return _provider_forbidden_failure(operation_name, resource_name)
+    return f"XC provider {operation_name} {resource_name} failed{suffix}"
+
+
+def _terraform_apply_failure(output: str) -> str | None:
+    plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
+    title_match = re.search(r"(?:^|\n)[^\r\n]*?\bError:\s*([^\r\n]+)", plain)
+    if title_match is None:
+        return None
+    title = re.sub(r"https?://\S+", "[URL]", title_match.group(1)).strip()
+    if SECRET_KEY.search(title):
+        return "Terraform apply reported a redacted error"
+    return f"Terraform: {title[:160]}"
+
+
 def safe_apply_failure(output: str) -> str | None:
     if (
         "xcsh_smsv2_kvm_runtime_interface.sli" in output
@@ -959,129 +1095,13 @@ def safe_apply_failure(output: str) -> str | None:
             "XC network_interface write denied for the SLI; use an authorized "
             "XC credential and a new reviewed plan"
         )
-    codes = (
-        "NOT_FOUND",
-        "UNAUTHORIZED",
-        "FORBIDDEN",
-        "CONFLICT",
-        "RATE_LIMIT",
-        "SERVER_ERROR",
-        "BAD_REQUEST",
-        "TIMEOUT",
-        "NETWORK_ERROR",
-        "VALIDATION",
-        "STATE_READ",
-        "STATE_WRITE",
-        "CONFIGURATION",
-    )
-    for match in re.finditer(rf"\[({'|'.join(codes)})\]", output):
-        diagnostic = output[match.start() : match.start() + 768]
-        resource = re.search(r"\(resource:\s*([^\s)]+)\)", diagnostic)
-        operation = re.search(r"\(operation:\s*([a-z]+)\)", diagnostic, re.IGNORECASE)
-        if resource is None or operation is None:
-            continue
-        resource_name = resource.group(1).rstrip("/").rsplit("/", 1)[-1]
-        if re.fullmatch(r"[a-z0-9_-]+", resource_name) is None:
-            continue
-        operation_name = {
-            "post": "create",
-            "get": "read",
-            "put": "update",
-            "patch": "update",
-            "delete": "delete",
-        }.get(operation.group(1).lower(), operation.group(1).lower())
-        status = re.search(r"\(status:\s*([1-5][0-9]{2})\)", diagnostic)
-        if match.group(1) == "FORBIDDEN" and operation_name in {
-            "create",
-            "update",
-            "delete",
-        }:
-            return (
-                f"XC provider {operation_name} {resource_name} denied [FORBIDDEN]; "
-                "select an XC context authorized for this application write and "
-                "create a new reviewed plan"
-            )
-        suffix = f" (status {status.group(1)})" if status else ""
-        return (
-            f"XC provider {operation_name} {resource_name} failed "
-            f"[{match.group(1)}]{suffix}"
-        )
-    legacy = re.search(
-        r"Unable to\s+(create|read|update|delete)\s+"
-        r"([A-Za-z][A-Za-z0-9_-]{0,63}):([^\r\n]{0,512})",
-        output,
-        re.IGNORECASE,
-    )
-    if legacy:
-        detail = legacy.group(3)
-        code = re.search(rf"\[({'|'.join(codes)})\]", detail)
-        status = re.search(
-            r"(?:status(?:\s+code)?|HTTP)\D{0,8}([1-5][0-9]{2})\b",
-            detail,
-            re.IGNORECASE,
-        ) or re.search(
-            r"\b([1-5][0-9]{2})\s+"
-            r"(?:Bad Request|Unauthorized|Forbidden|Not Found|Conflict|"
-            r"Too Many Requests|Internal Server Error|Bad Gateway|"
-            r"Service Unavailable|Gateway Timeout)\b",
-            detail,
-            re.IGNORECASE,
-        )
-        lowered = detail.lower()
-        if code:
-            suffix = f" [{code.group(1)}]"
-            if status:
-                suffix += f" (status {status.group(1)})"
-        elif status:
-            suffix = f" (status {status.group(1)})"
-        elif any(
-            marker in lowered
-            for marker in (
-                "connection reset",
-                "connection refused",
-                "no such host",
-                "network is unreachable",
-                "unexpected eof",
-            )
-        ):
-            suffix = " (network)"
-        elif "deadline exceeded" in lowered or "timed out" in lowered:
-            suffix = " (timeout)"
-        elif any(
-            marker in lowered
-            for marker in (
-                "unexpected end of json input",
-                "invalid character",
-                "cannot unmarshal",
-            )
-        ):
-            suffix = " (response-decode)"
-        else:
-            suffix = ""
-        if (
-            code
-            and code.group(1) == "FORBIDDEN"
-            and legacy.group(1).lower()
-            in {
-                "create",
-                "update",
-                "delete",
-            }
-        ):
-            return (
-                f"XC provider {legacy.group(1).lower()} {legacy.group(2)} denied "
-                "[FORBIDDEN]; select an XC context authorized for this application "
-                "write and create a new reviewed plan"
-            )
-        return f"XC provider {legacy.group(1).lower()} {legacy.group(2)} failed{suffix}"
-    plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
-    title_match = re.search(r"(?:^|\n)[^\r\n]*?\bError:\s*([^\r\n]+)", plain)
-    if title_match:
-        title = re.sub(r"https?://\S+", "[URL]", title_match.group(1)).strip()
-        if SECRET_KEY.search(title):
-            return "Terraform apply reported a redacted error"
-        return f"Terraform: {title[:160]}"
-    return None
+    structured = _structured_provider_failure(output)
+    if structured is not None:
+        return structured
+    legacy = _legacy_provider_failure(output)
+    if legacy is not None:
+        return legacy
+    return _terraform_apply_failure(output)
 
 
 def reject_collisions(inventory: list[dict[str, Any]]) -> None:

@@ -547,7 +547,7 @@ class ControllerContractTests(unittest.TestCase):
             },
         }
         site = {"spec": {"site_errors": [], "site_state": "ONLINE"}}
-        registration = {"items": []}
+        registration: dict[str, object] = {"items": []}
         observed = {
             "alreadyConfigured": True,
             "ownerUID": "owned-site-uid",
