@@ -296,6 +296,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_configure_accessibility"),
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session"),
                 patch.object(setup, "_service_active", return_value=True),
                 patch.object(
                     setup,
@@ -602,6 +603,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_configure_accessibility"),
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session"),
                 patch.object(setup, "_ensure_virtual_media"),
                 patch.object(setup, "status", return_value={"state": "ready"}),
             ):
@@ -691,6 +693,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_configure_accessibility"),
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session"),
                 patch.object(setup, "_command", side_effect=command),
                 patch.object(setup, "_service_active", return_value=False),
                 patch.object(setup, "_worker_version", side_effect=worker_version),
@@ -791,7 +794,12 @@ class SetupTests(unittest.TestCase):
                 )
                 setup.apply(VERSION)
 
-            stop = ("session", "console", "stop", {})
+            stop: tuple[str, str, str, dict[str, object]] = (
+                "session",
+                "console",
+                "stop",
+                {},
+            )
             enable = [
                 "systemctl",
                 "--user",
