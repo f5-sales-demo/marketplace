@@ -828,7 +828,7 @@ def apply(expected_version: str) -> dict[str, object]:
     if not (ROOT / "console/session.json").is_file():
         action, params, _mode = _console_plan()
         manage_session("console", action, params)
-        manage_session("console", "stop", {})
+    manage_session("console", "stop", {})
     _command(
         ["systemctl", "--user", "enable", "--now", _session_service("console")],
         check=True,

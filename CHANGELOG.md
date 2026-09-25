@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.1.5 reclaims an orphaned controller-owned `console` worker
+  before enabling or restarting its user service. Setup preserves the configured
+  display and session identity, leaves unrelated sessions untouched, and waits for
+  the replacement worker before provisioning virtual media (#1410).
+
 - **`xorg`** v1.1.4 unconditionally restarts the `console` worker after launcher
   installation, replacing stale workers before virtual-media provisioning. It retains
   the v1.1.3 readiness check and publishes the console `DISPLAY` and `XAUTHORITY` to the
