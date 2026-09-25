@@ -1,7 +1,7 @@
 {
   "name": "kvm",
   "description": "Dual-NIC KVM Secure Mesh Site v2 with isolated SLO, home-LAN SLI, inside VIP, and rollback-protected host preparation",
-  "version": "3.0.1",
+  "version": "3.0.3",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm",
   "license": "Apache-2.0",
   "author": {

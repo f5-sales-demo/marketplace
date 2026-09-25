@@ -10,17 +10,17 @@ is needed for an on-link VIP. TEST-NET addresses are examples only.
 
 The SMSv2 site, site token, registration approval, and platform-managed
 interfaces stay in the `system` namespace. The HTTP-LB and its origin pool
-belong in the selected application namespace, `multi-cloud-networking` by
-default. On first deployment, pass `applicationNamespace` to select a different
-project namespace; it is persisted with the deployment, and a later conflicting
-selection is rejected. The controller substitutes that value as the required
+belong in the selected application namespace. On first deployment, pass
+`applicationNamespace` explicitly or let the controller use the active xcsh
+context's `XCSH_NAMESPACE`; setup stops when neither is available. The selected
+value is persisted with the deployment, and a later conflicting selection is
+rejected. A receipt without `applicationNamespace` is stale and must not be
+silently migrated. The controller substitutes the selected value as the required
 Terraform `application_namespace` variable for both objects and the LB's pool
-reference. A direct Terraform invocation must set
-`-var='application_namespace=multi-cloud-networking'` (or another selected
-namespace) rather than hardcode `system` for application objects. An existing
-v3 deployment without that selection adopts the project default at its next
-reviewed plan; this changes only the two owned application objects after plan
-inspection. Do not claim a namespace change is a zero-change reapply.
+reference. A direct Terraform invocation must set its actual application
+namespace rather than hardcode `system` for application objects. Changing a
+deployment's namespace requires an ownership-scoped destroy and fresh deploy;
+never call it a zero-change reapply.
 
 The installer accepts only a discovered subnet wholly inside `192.168.0.0/22`
 or `192.168.4.0/23`; the expected LAN is `192.168.2.0/24`. A VPN interface,

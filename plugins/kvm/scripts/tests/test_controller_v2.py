@@ -32,6 +32,44 @@ WAIT_SPEC.loader.exec_module(wait_registration)
 
 
 class ControllerContractTests(unittest.TestCase):
+    def test_new_deployment_uses_active_context_namespace_without_a_hardcoded_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with mock.patch.dict(
+                controller.os.environ, {"XCSH_NAMESPACE": "example"}, clear=False
+            ):
+                config = controller._config(store, {"siteName": "onprem-nuc-kvm"})
+        self.assertEqual(config["applicationNamespace"], "example")
+
+    def test_new_deployment_requires_an_explicit_or_active_context_namespace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with mock.patch.dict(controller.os.environ, {}, clear=True):
+                with self.assertRaisesRegex(
+                    controller.ControllerError, "application namespace is required"
+                ):
+                    controller._config(store, {"siteName": "onprem-nuc-kvm"})
+
+    def test_existing_deployment_requires_a_persisted_application_namespace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "deployment.json").write_text(
+                json.dumps(
+                    {
+                        "siteName": "onprem-nuc-kvm",
+                        "namespace": "system",
+                        "owner": controller.OWNER,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            store = controller.StateStore(root)
+            with self.assertRaisesRegex(
+                controller.ControllerError,
+                "persisted deployment is missing application namespace",
+            ):
+                controller._config(store, {})
+
     def test_controller_failures_emit_structured_detail_on_stderr(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -173,6 +211,9 @@ class ControllerContractTests(unittest.TestCase):
                 "secret-check", {"apiToken": "never-store-this"}
             )
             self.assertNotIn("never-store-this", secret_path.read_text())
+            receipt["controllerVersion"] = "3.0.0"
+            path.write_text(json.dumps(receipt))
+            self.assertEqual(store.read_receipt("deploy")["controllerVersion"], "3.0.0")
             receipt["schemaVersion"] = "old"
             path.write_text(json.dumps(receipt))
             with self.assertRaisesRegex(controller.ControllerError, "stale receipt"):
@@ -210,6 +251,368 @@ class ControllerContractTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(controller.ControllerError, "forbidden provider"):
             controller.inspect_plan(forbidden)
+
+    def test_bootstrap_recovery_allows_only_explicit_owned_replacements(self):
+        recovery = {
+            "resource_changes": [
+                {
+                    "address": "xcsh_securemesh_site_v2.site",
+                    "provider_name": "registry.terraform.io/f5-sales-demo/xcsh",
+                    "change": {"actions": ["create"]},
+                },
+                {
+                    "address": "libvirt_domain.ce",
+                    "provider_name": "registry.terraform.io/dmacvicar/libvirt",
+                    "change": {"actions": ["delete", "create"]},
+                },
+            ]
+        }
+        with self.assertRaisesRegex(controller.ControllerError, "bootstrap plan"):
+            controller.validate_bootstrap_plan(recovery, allow_owned_replacement=False)
+        summary = controller.validate_bootstrap_plan(
+            recovery, allow_owned_replacement=True
+        )
+        self.assertEqual(summary["create"], 2)
+        self.assertEqual(summary["delete"], 1)
+
+        unowned = {
+            "resource_changes": [
+                *recovery["resource_changes"],
+                {
+                    "address": "xcsh_http_loadbalancer.home",
+                    "provider_name": "registry.terraform.io/f5-sales-demo/xcsh",
+                    "change": {"actions": ["delete", "create"]},
+                },
+            ]
+        }
+        with self.assertRaisesRegex(controller.ControllerError, "bootstrap plan"):
+            controller.validate_bootstrap_plan(unowned, allow_owned_replacement=True)
+
+    def test_reconcile_recovery_allows_only_absent_previous_lan_owners(self):
+        selection = {
+            "sliAddress": "192.168.2.253",
+            "vipAddress": "192.168.2.254",
+        }
+        expected = {
+            "192.168.2.253": controller.SLI_MAC,
+            "192.168.2.254": controller.SLI_MAC,
+        }
+
+        controller.validate_lan_recheck(
+            selection,
+            expected,
+            lambda _address: None,
+            allow_missing_owned=True,
+        )
+        with self.assertRaisesRegex(controller.ControllerError, "mismatched ARP owner"):
+            controller.validate_lan_recheck(
+                selection,
+                expected,
+                lambda address: "00:11:22:33:44:55"
+                if address == selection["vipAddress"]
+                else None,
+                allow_missing_owned=True,
+            )
+        with self.assertRaisesRegex(controller.ControllerError, "no longer responds"):
+            controller.validate_lan_recheck(
+                selection,
+                expected,
+                lambda _address: None,
+            )
+
+    def test_reconcile_recovers_a_missing_site_from_the_owned_local_ce(self):
+        config = {
+            "siteName": "onprem-nuc-kvm",
+            "applicationNamespace": "multi-cloud-networking",
+            "lan": {"bridge": "xckvmlan"},
+        }
+        owned_ce = [
+            {
+                "kind": "domain",
+                "name": controller.CE_DOMAIN,
+                "owned": True,
+            }
+        ]
+        runner = mock.Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with (
+                mock.patch.object(
+                    controller, "install_bundle", return_value=pathlib.Path(directory)
+                ),
+                mock.patch.object(controller, "_config", return_value=config),
+                mock.patch.object(
+                    controller, "_recover_interrupted_ownership", return_value=False
+                ),
+                mock.patch.object(
+                    controller,
+                    "readiness",
+                    return_value={"state": "ready", "checks": {"coreReady": True}},
+                ),
+                mock.patch.object(controller, "_site_observation", return_value=None),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(controller, "inventory", return_value=owned_ce),
+                mock.patch.object(controller, "reject_collisions"),
+                mock.patch.object(
+                    controller, "prepare_home_lan"
+                ) as prepare_home_lan,
+                mock.patch.object(
+                    controller,
+                    "_terraform_plan",
+                    side_effect=[{"mode": "bootstrap"}, {"mode": "apply"}],
+                ) as terraform_plan,
+                mock.patch.object(controller, "_apply_plan") as apply_plan,
+                mock.patch.object(
+                    controller, "_apply_site_static"
+                ) as apply_site_static,
+                mock.patch.object(controller, "_wait_site_static_convergence"),
+                mock.patch.object(controller, "_capture_ownership"),
+                mock.patch.object(
+                    controller, "_wait_for_acceptance", return_value={"accepted": True}
+                ),
+            ):
+                result = controller._deploy(store, {}, runner, reconcile=True)
+
+        self.assertEqual(result["status"], {"accepted": True})
+        self.assertEqual(result["plan"], {"mode": "apply"})
+        prepare_home_lan.assert_called_once_with(
+            store, runner, config, allow_missing_owned=True
+        )
+        self.assertEqual(terraform_plan.call_args_list[0].args[3], "bootstrap")
+        self.assertIs(
+            terraform_plan.call_args_list[0].kwargs["allow_owned_replacement"],
+            True,
+        )
+        self.assertEqual(terraform_plan.call_args_list[1].args[3], "apply")
+        self.assertIs(
+            apply_plan.call_args_list[0].kwargs["allow_missing_owned"], True
+        )
+        self.assertIs(
+            apply_plan.call_args_list[1].kwargs["allow_missing_owned"], True
+        )
+        apply_site_static.assert_called_once_with(
+            store, config, runner, allow_missing_owned=True
+        )
+
+    def test_reconcile_restores_missing_lan_owners_for_an_existing_owned_site(self):
+        config = {
+            "siteName": "onprem-nuc-kvm",
+            "applicationNamespace": "multi-cloud-networking",
+            "lan": {"bridge": "xckvmlan"},
+        }
+        owned_ce = [
+            {
+                "kind": "domain",
+                "name": controller.CE_DOMAIN,
+                "owned": True,
+            }
+        ]
+        runner = mock.Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with (
+                mock.patch.object(
+                    controller, "install_bundle", return_value=pathlib.Path(directory)
+                ),
+                mock.patch.object(controller, "_config", return_value=config),
+                mock.patch.object(
+                    controller, "_recover_interrupted_ownership", return_value=False
+                ),
+                mock.patch.object(
+                    controller,
+                    "readiness",
+                    return_value={"state": "ready", "checks": {"coreReady": True}},
+                ),
+                mock.patch.object(
+                    controller,
+                    "_site_observation",
+                    return_value={"owned": True, "specMatches": True},
+                ),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(controller, "inventory", return_value=owned_ce),
+                mock.patch.object(controller, "reject_collisions"),
+                mock.patch.object(
+                    controller, "prepare_home_lan"
+                ) as prepare_home_lan,
+                mock.patch.object(
+                    controller, "_terraform_plan", return_value={"mode": "apply"}
+                ) as terraform_plan,
+                mock.patch.object(controller, "_apply_plan") as apply_plan,
+                mock.patch.object(
+                    controller, "_apply_site_static"
+                ) as apply_site_static,
+                mock.patch.object(controller, "_wait_site_static_convergence"),
+                mock.patch.object(controller, "_capture_ownership"),
+                mock.patch.object(
+                    controller, "_wait_for_acceptance", return_value={"accepted": True}
+                ),
+            ):
+                result = controller._deploy(store, {}, runner, reconcile=True)
+
+        self.assertEqual(result["status"], {"accepted": True})
+        prepare_home_lan.assert_called_once_with(
+            store, runner, config, allow_missing_owned=True
+        )
+        terraform_plan.assert_called_once_with(
+            store, pathlib.Path(directory), config, "apply", runner
+        )
+        apply_plan.assert_called_once_with(
+            store,
+            pathlib.Path(directory),
+            {"mode": "apply"},
+            runner,
+            allow_missing_owned=True,
+        )
+        apply_site_static.assert_called_once_with(
+            store, config, runner, allow_missing_owned=True
+        )
+
+    def test_regular_deploy_requires_explicit_reconcile_for_a_missing_owned_site(self):
+        config = {
+            "siteName": "onprem-nuc-kvm",
+            "applicationNamespace": "multi-cloud-networking",
+        }
+        owned_ce = [
+            {
+                "kind": "domain",
+                "name": controller.CE_DOMAIN,
+                "owned": True,
+            }
+        ]
+        runner = mock.Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            store = controller.StateStore(pathlib.Path(directory))
+            with (
+                mock.patch.object(
+                    controller, "install_bundle", return_value=pathlib.Path(directory)
+                ),
+                mock.patch.object(controller, "_config", return_value=config),
+                mock.patch.object(
+                    controller, "_recover_interrupted_ownership", return_value=False
+                ),
+                mock.patch.object(
+                    controller,
+                    "readiness",
+                    return_value={"state": "ready", "checks": {"coreReady": True}},
+                ),
+                mock.patch.object(controller, "_site_observation", return_value=None),
+                mock.patch.object(
+                    controller, "_application_observation", return_value=None
+                ),
+                mock.patch.object(controller, "inventory", return_value=owned_ce),
+                mock.patch.object(controller, "reject_collisions"),
+                mock.patch.object(controller, "_terraform_plan") as terraform_plan,
+            ):
+                with self.assertRaisesRegex(
+                    controller.ControllerError, "use reconcile"
+                ):
+                    controller._deploy(store, {}, runner)
+        terraform_plan.assert_not_called()
+
+    def test_site_static_wait_retries_a_transient_xc_read_failure(self):
+        site = {
+            "metadata": {"labels": {"owner": controller.OWNER}},
+            "spec": {
+                "site_errors": [],
+                "kvm": {"not_managed": {"node_list": [{"name": "node"}]}},
+            },
+        }
+        registration = {"items": [{"object": {"status": {"current_state": "ONLINE"}}}]}
+        expected = {"alreadyConfigured": True}
+        with (
+            mock.patch.object(
+                controller,
+                "_site_static_documents",
+                side_effect=[
+                    controller.ControllerError("XC read failed: TimeoutError"),
+                    (site, registration),
+                ],
+            ),
+            mock.patch.object(
+                controller, "build_site_static_plan", return_value=expected
+            ),
+            mock.patch.object(controller.time, "sleep") as sleep,
+        ):
+            self.assertEqual(
+                controller._wait_site_static_plan({"siteName": "onprem-nuc-kvm"}),
+                expected,
+            )
+        sleep.assert_called_once()
+
+    def test_site_static_convergence_retries_a_transient_xc_read_failure(self):
+        config = {
+            "siteName": "onprem-nuc-kvm",
+            "lan": {
+                "sliAddress": "192.168.2.50",
+                "subnet": "192.168.2.0/24",
+                "bridge": "br0",
+            },
+        }
+        site = {"spec": {"site_errors": [], "site_state": "ONLINE"}}
+        registration = {"items": []}
+        observed = {
+            "alreadyConfigured": True,
+            "ownerUID": "owned-site-uid",
+            "mapped": {
+                "hostname": "node",
+                "interfaces": {"sli": {"device": "eth1"}},
+            },
+        }
+        runner = mock.Mock()
+        runner.run.return_value = subprocess.CompletedProcess(
+            [], 0, f"vnet0 {controller.SLI_MAC} ipv4 192.168.2.50/24\n", ""
+        )
+        store = mock.Mock()
+        store.read_receipt.return_value = {"ownerUID": "owned-site-uid"}
+        with (
+            mock.patch.object(
+                controller,
+                "_site_static_documents",
+                side_effect=[
+                    controller.ControllerError("XC read failed: TimeoutError"),
+                    (site, registration),
+                ],
+            ),
+            mock.patch.object(
+                controller, "build_site_static_plan", return_value=observed
+            ),
+            mock.patch.object(
+                controller, "_lan_arp_mac", return_value=controller.SLI_MAC
+            ),
+            mock.patch.object(controller, "_xc_json", return_value={}),
+            mock.patch.object(
+                controller, "select_sli_child_name", return_value="sli-child"
+            ),
+            mock.patch.object(controller.time, "sleep") as sleep,
+        ):
+            controller._wait_site_static_convergence(store, config, runner)
+        sleep.assert_called_once()
+        store.write_receipt.assert_called_once()
+
+    def test_xc_read_retry_is_bounded_and_rejects_other_failures(self):
+        transient = mock.Mock(
+            side_effect=controller.ControllerError("XC read failed: TimeoutError")
+        )
+        with (
+            mock.patch.object(controller.time, "sleep") as sleep,
+            self.assertRaisesRegex(controller.ControllerError, "TimeoutError"),
+        ):
+            controller._retry_xc_read(transient)
+        self.assertEqual(transient.call_count, controller.XC_READ_ATTEMPTS)
+        self.assertEqual(sleep.call_count, controller.XC_READ_ATTEMPTS - 1)
+
+        non_read_failure = mock.Mock(
+            side_effect=controller.ControllerError(
+                "ambiguous site PUT was not reconciled by exact read"
+            )
+        )
+        with self.assertRaisesRegex(controller.ControllerError, "ambiguous site PUT"):
+            controller._retry_xc_read(non_read_failure)
+        non_read_failure.assert_called_once_with()
         external = {
             "resource_changes": [
                 {
@@ -264,6 +667,115 @@ class ControllerContractTests(unittest.TestCase):
             "XC credential and a new reviewed plan",
         )
         self.assertIsNone(controller.safe_apply_failure("unrelated failure"))
+
+    def test_provider_apply_failure_reports_only_structured_safe_fields(self):
+        output = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: [BAD_REQUEST] Invalid request parameters "
+            "(resource: origin_pool) (operation: create) (status: 400) "
+            "details: token=never-print-this\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(output),
+            "XC provider create origin_pool failed [BAD_REQUEST] (status 400)",
+        )
+        self.assertNotIn("never-print-this", controller.safe_apply_failure(output))
+
+    def test_provider_apply_failure_normalizes_http_operation_and_resource_path(self):
+        output = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: [BAD_REQUEST] Invalid request parameters "
+            "(resource: /api/config/namespaces/multi-cloud-networking/origin_pools)\n"
+            "(operation: POST) (status: 400) details: token=never-print-this\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(output),
+            "XC provider create origin_pools failed [BAD_REQUEST] (status 400)",
+        )
+        self.assertNotIn("multi-cloud-networking", controller.safe_apply_failure(output))
+        self.assertNotIn("never-print-this", controller.safe_apply_failure(output))
+
+    def test_structured_provider_forbidden_has_actionable_context_guidance(self):
+        output = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: [FORBIDDEN] Access denied "
+            "(resource: /api/config/namespaces/application/origin_pools)\n"
+            "(operation: POST) (status: 403) details: token=never-print-this\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(output),
+            "XC provider create origin_pools denied [FORBIDDEN]; select an XC "
+            "context authorized for this application write and create a new "
+            "reviewed plan",
+        )
+        self.assertNotIn(
+            "never-print-this", controller.safe_apply_failure(output)
+        )
+
+    def test_terraform_apply_failure_reports_a_redacted_bounded_title(self):
+        self.assertEqual(
+            controller.safe_apply_failure(
+                "\x1b[31mError: Provider produced inconsistent result after apply\x1b[0m\n"
+            ),
+            "Terraform: Provider produced inconsistent result after apply",
+        )
+        secret_title = "Error: token secret-value was rejected\n"
+        self.assertEqual(
+            controller.safe_apply_failure(secret_title),
+            "Terraform apply reported a redacted error",
+        )
+        long_title = "Error: " + ("x" * 400) + "\n"
+        self.assertLessEqual(len(controller.safe_apply_failure(long_title)), 171)
+
+    def test_legacy_provider_failure_reports_only_operation_resource_and_class(self):
+        bad_request = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: request failed with status code 400: "
+            "token=never-print-this\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(bad_request),
+            "XC provider create OriginPool failed (status 400)",
+        )
+        network = (
+            "Error: Client Error\n"
+            "Unable to create HTTPLoadbalancer: connection reset by peer\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(network),
+            "XC provider create HTTPLoadbalancer failed (network)",
+        )
+        response_decode = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: unexpected end of JSON input\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(response_decode),
+            "XC provider create OriginPool failed (response-decode)",
+        )
+        structured_code_only = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: [SERVER_ERROR] F5 XC API server error "
+            "details: token=never-print-this\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(structured_code_only),
+            "XC provider create OriginPool failed [SERVER_ERROR]",
+        )
+        self.assertNotIn(
+            "never-print-this", controller.safe_apply_failure(structured_code_only)
+        )
+        forbidden = (
+            "Error: Client Error\n"
+            "Unable to create OriginPool: [FORBIDDEN] Access denied "
+            "details: token=never-print-this\n"
+        )
+        self.assertEqual(
+            controller.safe_apply_failure(forbidden),
+            "XC provider create OriginPool denied [FORBIDDEN]; select an XC context "
+            "authorized for this application write and create a new reviewed plan",
+        )
+        self.assertNotIn("never-print-this", controller.safe_apply_failure(forbidden))
 
     def test_inventory_rejects_conflicts_and_preserves_unrelated_resources(self):
         inventory = [
@@ -348,6 +860,46 @@ class ControllerContractTests(unittest.TestCase):
         setup_apply.assert_not_called()
         runner.run.assert_not_called()
         runner.checked.assert_not_called()
+
+    def test_xc_read_error_identifies_the_safe_request_path(self):
+        request_path = "/api/config/namespaces/system/network_interfaces"
+        failure = controller.urllib.error.HTTPError(
+            "https://tenant.example.com" + request_path,
+            404,
+            "Not Found",
+            None,
+            None,
+        )
+        with (
+            mock.patch.object(
+                controller,
+                "_credentials",
+                return_value=("https://tenant.example.com", "secret-token"),
+            ),
+            mock.patch.object(
+                controller.urllib.request, "urlopen", side_effect=failure
+            ),
+        ):
+            with self.assertRaisesRegex(
+                controller.ControllerError,
+                r"XC read failed for /api/config/namespaces/system/network_interfaces with HTTP 404",
+            ):
+                controller._xc_json(request_path)
+
+    def test_missing_application_is_a_structured_status_observation(self):
+        with mock.patch.object(
+            controller, "_application_observation", return_value=None
+        ):
+            self.assertEqual(
+                controller._owned_application_object(
+                    "origin_pools", "onprem-nuc-kvm-origin", "multi-cloud-networking"
+                ),
+                {
+                    "name": "onprem-nuc-kvm-origin",
+                    "owned": False,
+                    "state": "absent",
+                },
+            )
 
     def test_constrained_capacity_is_not_ready(self):
         self.assertTrue(controller.capacity_ready(10, 34, 125))
@@ -772,10 +1324,13 @@ class ControllerContractTests(unittest.TestCase):
                     controller, "_deploy", return_value={"accepted": True}
                 ) as deploy,
             ):
-                result = controller._setup_apply(store, {}, runner)
+                params = {"applicationNamespace": "application"}
+                result = controller._setup_apply(store, params, runner)
         self.assertEqual(result, {"accepted": True})
         install_terraform.assert_called_once_with(runner)
-        deploy.assert_called_once_with(store, {}, runner)
+        deploy.assert_called_once_with(
+            store, {"applicationNamespace": "application"}, runner
+        )
         self.assertNotIn(
             ["sudo", "systemctl", "reboot"],
             [call.args[0] for call in runner.checked.call_args_list],

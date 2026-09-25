@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 import contextlib
 import copy
 import fcntl
+from functools import partial
 import grp
 import hashlib
 import ipaddress
@@ -34,12 +35,11 @@ import zipfile
 from typing import Any
 
 SCHEMA_VERSION = "kvm.smsv2/v3"
-CONTROLLER_VERSION = "3.0.1"
+CONTROLLER_VERSION = "3.0.2"
 TERRAFORM_VERSION = "1.16.3"
 TERRAFORM_SHA256 = "093b6ae9a2228af5029c41606bc96eb583553528aad1bfe7e0b4d62fc91e25d8"
 OWNER = "xcsh-kvm-smsv2-v3"
 NAMESPACE = "system"
-DEFAULT_APPLICATION_NAMESPACE = "multi-cloud-networking"
 POOL = "xcsh-kvm-smsv2"
 NETWORK = "xcsh-kvm-smsv2"
 CE_DOMAIN = "xcsh-kvm-smsv2-ce"
@@ -95,6 +95,8 @@ SECRET_KEY = re.compile(
     r"token|authorization|secret|credential|password", re.IGNORECASE
 )
 SECRET_VALUE = re.compile(r"(?i)(?:Bearer|APIToken)\s+\S+")
+XC_READ_ATTEMPTS = 3
+XC_READ_RETRY_DELAY_SECONDS = 2
 
 
 class ControllerError(RuntimeError):
@@ -604,7 +606,11 @@ def _lan_arp_mac(runner: Runner, bridge: str, address: str) -> str | None:
 
 
 def validate_lan_recheck(
-    selection: dict[str, str], expected: dict[str, str] | None, observe: Any
+    selection: dict[str, str],
+    expected: dict[str, str] | None,
+    observe: Any,
+    *,
+    allow_missing_owned: bool = False,
 ) -> None:
     for key in ("sliAddress", "vipAddress"):
         address = selection[key]
@@ -616,7 +622,7 @@ def validate_lan_recheck(
             raise ControllerError(
                 "LAN address has a new or mismatched ARP owner; review a fresh plan"
             )
-        if owner is not None and responder is None:
+        if owner is not None and responder is None and not allow_missing_owned:
             raise ControllerError("previously owned LAN address no longer responds")
 
 
@@ -642,7 +648,11 @@ def _observed_lan_leases(runner: Runner, subnet: str) -> list[str]:
 
 
 def prepare_home_lan(
-    store: StateStore, runner: Runner, config: dict[str, Any]
+    store: StateStore,
+    runner: Runner,
+    config: dict[str, Any],
+    *,
+    allow_missing_owned: bool = False,
 ) -> dict[str, Any]:
     snapshot = observe_home_lan(runner)
     original_snapshot = snapshot
@@ -780,6 +790,7 @@ def prepare_home_lan(
         addresses,
         expected,
         lambda address: _lan_arp_mac(runner, snapshot["bridge"], address),
+        allow_missing_owned=allow_missing_owned,
     )
     return addresses
 
@@ -868,6 +879,45 @@ def inspect_plan(document: dict[str, Any]) -> dict[str, Any]:
     return {**counts, "providers": sorted(providers), "addresses": sorted(addresses)}
 
 
+BOOTSTRAP_REPLACEABLE_ADDRESSES = frozenset(
+    {
+        "terraform_data.ce_image",
+        "libvirt_volume.ce_base",
+        "libvirt_volume.ce",
+        "libvirt_cloudinit_disk.ce",
+        "libvirt_domain.ce",
+    }
+)
+
+
+def validate_bootstrap_plan(
+    document: dict[str, Any], *, allow_owned_replacement: bool = False
+) -> dict[str, Any]:
+    summary = inspect_plan(document)
+    changes = document.get("resource_changes", [])
+    if (
+        "libvirt_domain.ce" not in summary["addresses"]
+        or summary["create"] < 1
+        or summary["update"]
+        or any(
+            address.startswith(("xcsh_http_loadbalancer.", "xcsh_origin_pool."))
+            for address in summary["addresses"]
+        )
+    ):
+        raise ControllerError("bootstrap plan is not limited to the owned CE")
+    for item in changes:
+        actions = item.get("change", {}).get("actions", [])
+        if "delete" not in actions:
+            continue
+        if (
+            not allow_owned_replacement
+            or actions != ["delete", "create"]
+            or item.get("address") not in BOOTSTRAP_REPLACEABLE_ADDRESSES
+        ):
+            raise ControllerError("bootstrap plan is not limited to the owned CE")
+    return summary
+
+
 def require_home_lan_plan(document: dict[str, Any], application_namespace: str) -> None:
     changes = document.get("resource_changes", [])
     for kind in ("xcsh_http_loadbalancer", "xcsh_origin_pool"):
@@ -909,6 +959,125 @@ def safe_apply_failure(output: str) -> str | None:
             "XC network_interface write denied for the SLI; use an authorized "
             "XC credential and a new reviewed plan"
         )
+    codes = (
+        "NOT_FOUND",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "CONFLICT",
+        "RATE_LIMIT",
+        "SERVER_ERROR",
+        "BAD_REQUEST",
+        "TIMEOUT",
+        "NETWORK_ERROR",
+        "VALIDATION",
+        "STATE_READ",
+        "STATE_WRITE",
+        "CONFIGURATION",
+    )
+    for match in re.finditer(rf"\[({'|'.join(codes)})\]", output):
+        diagnostic = output[match.start() : match.start() + 768]
+        resource = re.search(r"\(resource:\s*([^\s)]+)\)", diagnostic)
+        operation = re.search(
+            r"\(operation:\s*([a-z]+)\)", diagnostic, re.IGNORECASE
+        )
+        if resource is None or operation is None:
+            continue
+        resource_name = resource.group(1).rstrip("/").rsplit("/", 1)[-1]
+        if re.fullmatch(r"[a-z0-9_-]+", resource_name) is None:
+            continue
+        operation_name = {
+            "post": "create",
+            "get": "read",
+            "put": "update",
+            "patch": "update",
+            "delete": "delete",
+        }.get(operation.group(1).lower(), operation.group(1).lower())
+        status = re.search(r"\(status:\s*([1-5][0-9]{2})\)", diagnostic)
+        if match.group(1) == "FORBIDDEN" and operation_name in {
+            "create", "update", "delete"
+        }:
+            return (
+                f"XC provider {operation_name} {resource_name} denied [FORBIDDEN]; "
+                "select an XC context authorized for this application write and "
+                "create a new reviewed plan"
+            )
+        suffix = f" (status {status.group(1)})" if status else ""
+        return (
+            f"XC provider {operation_name} {resource_name} failed "
+            f"[{match.group(1)}]{suffix}"
+        )
+    legacy = re.search(
+        r"Unable to\s+(create|read|update|delete)\s+"
+        r"([A-Za-z][A-Za-z0-9_-]{0,63}):([^\r\n]{0,512})",
+        output,
+        re.IGNORECASE,
+    )
+    if legacy:
+        detail = legacy.group(3)
+        code = re.search(rf"\[({'|'.join(codes)})\]", detail)
+        status = re.search(
+            r"(?:status(?:\s+code)?|HTTP)\D{0,8}([1-5][0-9]{2})\b",
+            detail,
+            re.IGNORECASE,
+        ) or re.search(
+            r"\b([1-5][0-9]{2})\s+"
+            r"(?:Bad Request|Unauthorized|Forbidden|Not Found|Conflict|"
+            r"Too Many Requests|Internal Server Error|Bad Gateway|"
+            r"Service Unavailable|Gateway Timeout)\b",
+            detail,
+            re.IGNORECASE,
+        )
+        lowered = detail.lower()
+        if code:
+            suffix = f" [{code.group(1)}]"
+            if status:
+                suffix += f" (status {status.group(1)})"
+        elif status:
+            suffix = f" (status {status.group(1)})"
+        elif any(
+            marker in lowered
+            for marker in (
+                "connection reset",
+                "connection refused",
+                "no such host",
+                "network is unreachable",
+                "unexpected eof",
+            )
+        ):
+            suffix = " (network)"
+        elif "deadline exceeded" in lowered or "timed out" in lowered:
+            suffix = " (timeout)"
+        elif any(
+            marker in lowered
+            for marker in (
+                "unexpected end of json input",
+                "invalid character",
+                "cannot unmarshal",
+            )
+        ):
+            suffix = " (response-decode)"
+        else:
+            suffix = ""
+        if code and code.group(1) == "FORBIDDEN" and legacy.group(1).lower() in {
+            "create",
+            "update",
+            "delete",
+        }:
+            return (
+                f"XC provider {legacy.group(1).lower()} {legacy.group(2)} denied "
+                "[FORBIDDEN]; select an XC context authorized for this application "
+                "write and create a new reviewed plan"
+            )
+        return (
+            f"XC provider {legacy.group(1).lower()} {legacy.group(2)} failed{suffix}"
+        )
+    plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
+    title_match = re.search(r"(?:^|\n)[^\r\n]*?\bError:\s*([^\r\n]+)", plain)
+    if title_match:
+        title = re.sub(r"https?://\S+", "[URL]", title_match.group(1)).strip()
+        if SECRET_KEY.search(title):
+            return "Terraform apply reported a redacted error"
+        return f"Terraform: {title[:160]}"
     return None
 
 
@@ -1024,7 +1193,8 @@ class StateStore:
             raise ControllerError(f"missing or invalid {name} receipt") from error
         if (
             value.get("schemaVersion") != SCHEMA_VERSION
-            or value.get("controllerVersion") != CONTROLLER_VERSION
+            or not isinstance(value.get("controllerVersion"), str)
+            or not value["controllerVersion"]
         ):
             raise ControllerError(f"stale receipt for {name}")
         return value
@@ -1658,7 +1828,9 @@ def _xc_json(path: str) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=30) as response:
             value = json.loads(response.read())
     except urllib.error.HTTPError as error:
-        raise ControllerError(f"XC read failed with HTTP {error.code}") from error
+        raise ControllerError(
+            f"XC read failed for {path} with HTTP {error.code}"
+        ) from error
     except (OSError, ValueError) as error:
         raise ControllerError(f"XC read failed: {type(error).__name__}") from error
     if not isinstance(value, dict):
@@ -1732,7 +1904,7 @@ def _application_observation(
 def _owned_application_object(kind: str, name: str, namespace: str) -> dict[str, Any]:
     value = _application_observation(kind, name, namespace)
     if value is None:
-        raise ControllerError("owned XC application object is absent")
+        return {"name": name, "owned": False, "state": "absent"}
     return value
 
 
@@ -1806,9 +1978,12 @@ def _config(store: StateStore, params: dict[str, Any]) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
         if params.get("siteName") and params["siteName"] != value.get("siteName"):
             raise ControllerError("persisted site name differs from the requested name")
-        selected_namespace = value.get(
-            "applicationNamespace", DEFAULT_APPLICATION_NAMESPACE
-        )
+        selected_namespace = value.get("applicationNamespace")
+        if not isinstance(selected_namespace, str) or not selected_namespace:
+            raise ControllerError(
+                "persisted deployment is missing application namespace; "
+                "destroy and deploy it again from an active XC context"
+            )
         if (
             params.get("applicationNamespace")
             and params["applicationNamespace"] != selected_namespace
@@ -1816,12 +1991,16 @@ def _config(store: StateStore, params: dict[str, Any]) -> dict[str, Any]:
             raise ControllerError(
                 "persisted application namespace differs from the requested namespace"
             )
-        value["applicationNamespace"] = selected_namespace
         storage_root(store)
     else:
-        selected_namespace = params.get(
-            "applicationNamespace", DEFAULT_APPLICATION_NAMESPACE
+        selected_namespace = params.get("applicationNamespace") or os.environ.get(
+            "XCSH_NAMESPACE"
         )
+        if not selected_namespace:
+            raise ControllerError(
+                "application namespace is required from applicationNamespace or "
+                "XCSH_NAMESPACE"
+            )
     if (
         not isinstance(selected_namespace, str)
         or selected_namespace == NAMESPACE
@@ -1856,6 +2035,8 @@ def _terraform_plan(
     config: dict[str, Any],
     mode: str,
     runner: Runner,
+    *,
+    allow_owned_replacement: bool = False,
 ) -> dict[str, Any]:
     env = _terraform_env(store)
     variables = terraform_root / "terraform.tfvars.json"
@@ -1927,25 +2108,15 @@ def _terraform_plan(
         plan_json = json.loads(shown)
     except ValueError as error:
         raise ControllerError("Terraform saved-plan JSON is malformed") from error
-    summary = inspect_plan(plan_json)
+    summary = (
+        validate_bootstrap_plan(
+            plan_json, allow_owned_replacement=allow_owned_replacement
+        )
+        if mode == "bootstrap"
+        else inspect_plan(plan_json)
+    )
     if mode == "apply":
         require_home_lan_plan(plan_json, config["applicationNamespace"])
-    if mode == "bootstrap":
-        created = {
-            item.get("address")
-            for item in plan_json.get("resource_changes", [])
-            if item.get("change", {}).get("actions") == ["create"]
-        }
-        if (
-            "libvirt_domain.ce" not in created
-            or summary["delete"]
-            or summary["update"]
-            or any(
-                address.startswith(("xcsh_http_loadbalancer.", "xcsh_origin_pool."))
-                for address in summary["addresses"]
-            )
-        ):
-            raise ControllerError("bootstrap plan is not limited to the one owned CE")
     digest = file_digest(plan)
     receipt = {
         "mode": mode,
@@ -1963,6 +2134,8 @@ def _apply_plan(
     terraform_root: pathlib.Path,
     receipt: dict[str, Any],
     runner: Runner,
+    *,
+    allow_missing_owned: bool = False,
 ) -> dict[str, Any]:
     plan = pathlib.Path(str(receipt["path"]))
     require_plan_digest(plan, str(receipt["sha256"]))
@@ -1996,6 +2169,7 @@ def _apply_plan(
             selection,
             expected,
             lambda address: _lan_arp_mac(runner, snapshot["bridge"], address),
+            allow_missing_owned=allow_missing_owned,
         )
     result = runner.run(
         [
@@ -2038,10 +2212,44 @@ def _site_static_documents(site_name: str) -> tuple[dict[str, Any], dict[str, An
     )
 
 
+def _retry_xc_read(operation: Callable[[], Any]) -> Any:
+    for attempt in range(XC_READ_ATTEMPTS):
+        try:
+            return operation()
+        except ControllerError as error:
+            if (
+                not str(error).startswith("XC read failed")
+                or attempt + 1 == XC_READ_ATTEMPTS
+            ):
+                raise
+            time.sleep(XC_READ_RETRY_DELAY_SECONDS)
+    raise AssertionError("XC read retry loop exhausted without returning or raising")
+
+
+def _read_sli_child_name(
+    config: dict[str, Any], observed: dict[str, Any], expected: str
+) -> str:
+    listing = _xc_json(f"/api/config/namespaces/{NAMESPACE}/network_interfaces")
+    return select_sli_child_name(
+        listing,
+        lambda name: _xc_json(
+            f"/api/config/namespaces/{NAMESPACE}/network_interfaces/"
+            f"{urllib.parse.quote(name, safe='')}"
+        ),
+        config["siteName"],
+        observed["ownerUID"],
+        observed["mapped"]["hostname"],
+        observed["mapped"]["interfaces"]["sli"]["device"],
+        expected,
+    )
+
+
 def _wait_site_static_plan(config: dict[str, Any]) -> dict[str, Any]:
     deadline = time.monotonic() + 7200
     while time.monotonic() < deadline:
-        site, registration = _site_static_documents(config["siteName"])
+        site, registration = _retry_xc_read(
+            lambda: _site_static_documents(config["siteName"])
+        )
         if site.get("metadata", {}).get("labels", {}).get("owner") != OWNER:
             raise ControllerError("site node discovery belongs to another owner")
         spec = site.get("spec", {})
@@ -2081,7 +2289,11 @@ def _plan_site_static(store: StateStore, config: dict[str, Any]) -> dict[str, An
 
 
 def _apply_site_static(
-    store: StateStore, config: dict[str, Any], runner: Runner
+    store: StateStore,
+    config: dict[str, Any],
+    runner: Runner,
+    *,
+    allow_missing_owned: bool = False,
 ) -> dict[str, Any]:
     receipt = _plan_site_static(store, config)
     plan_path = pathlib.Path(receipt["path"])
@@ -2125,6 +2337,7 @@ def _apply_site_static(
         selection,
         expected,
         lambda address: _lan_arp_mac(runner, selection["bridge"], address),
+        allow_missing_owned=allow_missing_owned,
     )
     if not document["alreadyConfigured"]:
         api_url, token = _credentials()
@@ -2194,7 +2407,9 @@ def _wait_site_static_convergence(
     expected = f"{selection['sliAddress']}/{selection['subnet'].split('/')[1]}"
     deadline = time.monotonic() + 7200
     while time.monotonic() < deadline:
-        site, registration = _site_static_documents(config["siteName"])
+        site, registration = _retry_xc_read(
+            lambda: _site_static_documents(config["siteName"])
+        )
         observed = build_site_static_plan(site, registration, config)
         if not observed["alreadyConfigured"]:
             raise ControllerError("owned site SLI static configuration drifted")
@@ -2218,18 +2433,8 @@ def _wait_site_static_convergence(
             and _lan_arp_mac(runner, selection["bridge"], selection["sliAddress"])
             == SLI_MAC
         ):
-            listing = _xc_json(f"/api/config/namespaces/{NAMESPACE}/network_interfaces")
-            child_name = select_sli_child_name(
-                listing,
-                lambda name: _xc_json(
-                    f"/api/config/namespaces/{NAMESPACE}/network_interfaces/"
-                    f"{urllib.parse.quote(name, safe='')}"
-                ),
-                config["siteName"],
-                observed["ownerUID"],
-                observed["mapped"]["hostname"],
-                observed["mapped"]["interfaces"]["sli"]["device"],
-                expected,
+            child_name = _retry_xc_read(
+                partial(_read_sli_child_name, config, observed, expected)
             )
             receipt = store.read_receipt("apply-site-static")
             if receipt.get("ownerUID") != observed["ownerUID"]:
@@ -2836,7 +3041,21 @@ def _deploy(
         )
     host_inventory = inventory(runner, store)
     reject_collisions(host_inventory)
-    prepare_home_lan(store, runner, config)
+    ce_present = any(
+        item["kind"] == "domain" and item["name"] == CE_DOMAIN and item["owned"]
+        for item in host_inventory
+    )
+    if observed is None and ce_present and not reconcile:
+        raise ControllerError(
+            "owned XC site is absent while the local CE remains; use reconcile"
+        )
+    reconciling_owned_ce = bool(reconcile and ce_present)
+    prepare_home_lan(
+        store,
+        runner,
+        config,
+        allow_missing_owned=reconciling_owned_ce,
+    )
     if readiness(runner, store)["state"] != "ready":
         raise ControllerError("wired LAN remediation did not complete host readiness")
     store.write_receipt(
@@ -2846,20 +3065,41 @@ def _deploy(
             "inventory": host_inventory,
         },
     )
-    if not any(
-        item["kind"] == "domain" and item["name"] == CE_DOMAIN and item["owned"]
-        for item in host_inventory
-    ):
-        bootstrap = _terraform_plan(store, terraform_root, config, "bootstrap", runner)
-        _apply_plan(store, terraform_root, bootstrap, runner)
+    if not ce_present or observed is None:
+        bootstrap = _terraform_plan(
+            store,
+            terraform_root,
+            config,
+            "bootstrap",
+            runner,
+            allow_owned_replacement=ce_present and reconcile,
+        )
+        _apply_plan(
+            store,
+            terraform_root,
+            bootstrap,
+            runner,
+            allow_missing_owned=reconciling_owned_ce,
+        )
         _recover_interrupted_ownership(
             store, terraform_root, config["siteName"], runner
         )
-    _apply_site_static(store, config, runner)
+    _apply_site_static(
+        store,
+        config,
+        runner,
+        allow_missing_owned=reconciling_owned_ce,
+    )
     _wait_site_static_convergence(store, config, runner)
     plan = _terraform_plan(store, terraform_root, config, "apply", runner)
     try:
-        applied = _apply_plan(store, terraform_root, plan, runner)
+        applied = _apply_plan(
+            store,
+            terraform_root,
+            plan,
+            runner,
+            allow_missing_owned=reconciling_owned_ce,
+        )
     except ControllerError as error:
         exact = _site_observation(config["siteName"])
         classification = classify_ambiguous_post(str(error), exact)
