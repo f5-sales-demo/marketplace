@@ -833,9 +833,14 @@ def apply(expected_version: str) -> dict[str, object]:
         ["systemctl", "--user", "enable", "--now", _session_service("console")],
         check=True,
     )
+    _command(
+        ["systemctl", "--user", "restart", _session_service("console")],
+        check=True,
+    )
     active_sessions = [
         name
         for name in _configured_session_names()
+        if name != "console"
         if _service_active(_session_service(name))
     ]
     for name in active_sessions:

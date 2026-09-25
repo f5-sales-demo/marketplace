@@ -717,6 +717,16 @@ class SetupTests(unittest.TestCase):
             calls,
         )
 
+        self.assertIn(
+            [
+                "systemctl",
+                "--user",
+                "restart",
+                "xorgctl-session@console.service",
+            ],
+            calls,
+        )
+
     def test_owned_console_publishes_display_authority_to_systemd_activation(self):
         config = {
             "name": "console",

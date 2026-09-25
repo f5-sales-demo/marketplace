@@ -10,8 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`xorg`** v1.1.3 waits for a recovered `console` worker before provisioning
-  virtual media, and publishes the console `DISPLAY` and `XAUTHORITY` to the
+- **`xorg`** v1.1.4 unconditionally restarts the `console` worker after launcher
+  installation, replacing stale workers before virtual-media provisioning. It retains
+  the v1.1.3 readiness check and publishes the console `DISPLAY` and `XAUTHORITY` to the
   user systemd activation environment so D-Bus-activated applications can open
   the owned display after stopped-session recovery (#1406).
 
