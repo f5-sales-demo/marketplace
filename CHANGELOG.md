@@ -10,6 +10,18 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`kvm`** v3.0.4 runs readiness probes with the active session's `XCSH_*`
+  context while excluding unrelated environment values. It keeps current-schema
+  ownership, LAN, plan, and acceptance
+  receipts valid across controller patch upgrades; requires explicit
+  reconciliation when an owned local CE outlives its XC site; restricts recovery
+  replacements to the owned CE bootstrap resources; and retries only bounded,
+  read-only XC failures. New deployments use the explicit application namespace
+  or active `XCSH_NAMESPACE`, with no tenant-specific default or stale-receipt
+  migration, and permission failures include actionable context guidance.
+  Receipt schema remains the compatibility boundary;
+  controller version remains provenance (#1402).
+
 - **`kvm`** v3.0.1 places the private origin pool and advertised HTTP-LB in the
   selected application namespace (`multi-cloud-networking` by default), while
   the Secure Mesh site and platform-managed objects remain in `system` (#1399).

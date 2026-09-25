@@ -1,10 +1,10 @@
 {
   "schemaVersion": "kvm-artifacts/v1",
   "artifacts": {
-    "NETWORKING.md": "85ec9b449040512498a0e663b1f7373ae84a770db5474d18d019d1ad48a634b0",
+    "NETWORKING.md": "d8e639a10bf0a410db5edd71ce4f7163a5e0101c2f4f6e01a436e63ecadaf531",
     "scripts/bridge-prep.py": "776c8ec8759e8178ef7df1fbdf1f2c5c432623d15e286bd2b950f33504391d1d",
     "scripts/kvm-smsv2ctl": "91f5e22381ef3376cec84e0eacf5cfc08d192e380e4589d20aca771238456898",
-    "scripts/kvm_smsv2_controller.py": "44fd12d6b7f63649c831d6442a171ae0bbfeed3931c9c2fdbd650825ab75cd7d",
+    "scripts/kvm_smsv2_controller.py": "76e16caa9789db85268b3e1f8155e62fc700b8ec3c4f9c93832b75ced21357f3",
     "terraform/.terraform.lock.hcl": "8f6678358925432bf8fef8e5c2f8f7def3e9f73fd851dfed4a3a6608627afb72",
     "terraform/ensure-image.sh": "9178fb873bee055c53a906299ddcaaf48d34f88a3c5e6b20201cff1478736fe1",
     "terraform/main.tf": "0a33b60f2b5258aa0011176fa063676d0ccfde3089f500e300603cf68fcf3cf2",

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import kvmExtension from '../src/index';
-import { createKvmSmsv2Tools } from '../src/tools';
+import { controllerEnvironment, createKvmSmsv2Tools, parseControllerEnvelope } from '../src/tools';
 
 const root = join(import.meta.dir, '..');
 
@@ -23,6 +23,46 @@ test('publishes only the five clean-break SMSv2 tools', () => {
     'kvm_smsv2_reconcile',
     'kvm_smsv2_destroy',
   ]);
+});
+
+test('preserves a structured controller failure emitted on stderr', () => {
+  const failure = {
+    schemaVersion: 'kvm.smsv2/v3',
+    controllerVersion: '3.0.2',
+    action: 'reconcile',
+    ok: false,
+    error: 'XC read failed: TimeoutError',
+  };
+  expect(() =>
+    parseControllerEnvelope('reconcile', 1, new Uint8Array(), new TextEncoder().encode(JSON.stringify(failure))),
+  ).toThrow('XC read failed: TimeoutError');
+});
+
+test('passes only the active XCSH context to the controller environment', () => {
+  const previous = process.env.XCSH_API_URL;
+  delete process.env.XCSH_API_URL;
+  try {
+    const environment = controllerEnvironment({
+      settings: {
+        get: (key: string) =>
+          key === 'bash.environment'
+            ? {
+                XCSH_API_URL: 'https://tenant.example.test',
+                XCSH_API_TOKEN: 'fixture-token',
+                XCSH_NAMESPACE: 'application',
+                LD_PRELOAD: '/untrusted/library.so',
+              }
+            : undefined,
+      },
+    });
+    expect(environment.XCSH_API_URL).toBe('https://tenant.example.test');
+    expect(environment.XCSH_API_TOKEN).toBe('fixture-token');
+    expect(environment.XCSH_NAMESPACE).toBe('application');
+    expect(environment.LD_PRELOAD).not.toBe('/untrusted/library.so');
+  } finally {
+    if (previous === undefined) delete process.env.XCSH_API_URL;
+    else process.env.XCSH_API_URL = previous;
+  }
 });
 
 test('pins the self-contained KVM artifact and excludes retired dependencies', () => {
@@ -49,9 +89,34 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
 
 test('declares install-scoped setup authorization with the Platform dependency', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.xcsh-plugin', 'plugin.json'), 'utf8'));
-  expect(manifest.version).toBe('3.0.1');
+  expect(manifest.version).toBe('3.0.4');
   expect(manifest.lifecycle.setupAuthorization).toBe('install');
   expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
+});
+
+test('uses the active XCSH namespace instead of a tenant-specific application default', async () => {
+  let integration: { setup?: { requiredEnvironment?: string[] } } | undefined;
+  const Type = new Proxy(
+    {},
+    {
+      get:
+        () =>
+        (..._args: unknown[]) => ({}),
+    },
+  );
+  await kvmExtension({
+    typebox: { Type: Type as never },
+    setLabel: () => {},
+    registerTool: () => {},
+    integrations: {
+      register: (definition: unknown) => {
+        integration = definition as typeof integration;
+        return definition;
+      },
+    },
+  });
+  expect(integration?.setup?.requiredEnvironment).toEqual(['XCSH_API_URL', 'XCSH_API_TOKEN', 'XCSH_NAMESPACE']);
+  expect(readFileSync(join(root, 'src', 'tools.ts'), 'utf8')).not.toContain('defaults to multi-cloud-networking');
 });
 
 test('registers setup steps within the xcsh integration timeout contract', async () => {
@@ -117,7 +182,7 @@ test('integration setup remains required until the owned deployment is accepted'
       calls.push({ command, action });
       return {
         schemaVersion: 'kvm.smsv2/v3',
-        controllerVersion: '3.0.1',
+        controllerVersion: '3.0.2',
         action: command,
         ok: true,
         result: { state: 'setup_required', deploymentAccepted: false },
@@ -134,5 +199,64 @@ test('integration setup remains required until the owned deployment is accepted'
   } else {
     expect(await integration?.probe?.()).toEqual({ state: 'unavailable', reason: 'dependency_missing' });
     expect(calls).toEqual([]);
+  }
+});
+
+test('integration readiness probe uses the active xcsh context environment', async () => {
+  let integration:
+    | {
+        probe?: () => Promise<{ state: string; reason?: string; value?: unknown }>;
+      }
+    | undefined;
+  let observedEnvironment: Record<string, string | undefined> | undefined;
+  const Type = new Proxy(
+    {},
+    {
+      get:
+        () =>
+        (..._args: unknown[]) => ({}),
+    },
+  );
+  await kvmExtension(
+    {
+      typebox: { Type: Type as never },
+      setLabel: () => {},
+      registerTool: () => {},
+      settings: {
+        get: (key: string) =>
+          key === 'bash.environment'
+            ? {
+                XCSH_API_URL: 'https://active.example.test',
+                XCSH_API_TOKEN: 'active-token',
+                XCSH_NAMESPACE: 'active-namespace',
+                LD_PRELOAD: '/untrusted/library.so',
+              }
+            : undefined,
+      },
+      integrations: {
+        register: (definition: unknown) => {
+          integration = definition as typeof integration;
+          return definition;
+        },
+      },
+    },
+    (command, _params, _action, environment) => {
+      observedEnvironment = environment;
+      return {
+        schemaVersion: 'kvm.smsv2/v3',
+        controllerVersion: '3.0.2',
+        action: command,
+        ok: true,
+        result: { state: 'ready', deploymentAccepted: true },
+      };
+    },
+  );
+
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    expect(await integration?.probe?.()).toEqual({ state: 'ready', value: expect.anything() });
+    expect(observedEnvironment?.XCSH_API_URL).toBe('https://active.example.test');
+    expect(observedEnvironment?.XCSH_API_TOKEN).toBe('active-token');
+    expect(observedEnvironment?.XCSH_NAMESPACE).toBe('active-namespace');
+    expect(observedEnvironment?.LD_PRELOAD).not.toBe('/untrusted/library.so');
   }
 });

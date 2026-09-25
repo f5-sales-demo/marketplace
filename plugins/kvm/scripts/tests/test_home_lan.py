@@ -37,16 +37,14 @@ class HomeLanContracts(unittest.TestCase):
                     store,
                     {
                         "siteName": "onprem-nuc-kvm",
-                        "applicationNamespace": "multi-cloud-networking",
+                        "applicationNamespace": "example",
                     },
                 )
                 self.assertEqual(config["namespace"], "system")
-                self.assertEqual(
-                    config["applicationNamespace"], "multi-cloud-networking"
-                )
+                self.assertEqual(config["applicationNamespace"], "example")
                 self.assertEqual(
                     controller._config(store, {})["applicationNamespace"],
-                    "multi-cloud-networking",
+                    "example",
                 )
                 with self.assertRaisesRegex(
                     controller.ControllerError, "persisted application namespace"
@@ -191,7 +189,11 @@ class HomeLanContracts(unittest.TestCase):
                 mock.patch.object(controller.pathlib.Path, "is_dir", return_value=True),
             ):
                 config = controller._config(
-                    store, {"siteName": "onprem-workstation-kvm"}
+                    store,
+                    {
+                        "siteName": "onprem-workstation-kvm",
+                        "applicationNamespace": "example",
+                    },
                 )
                 self.assertEqual(controller.storage_root(store), "/data/libvirt/images")
             self.assertEqual(config["storageRoot"], "/data/libvirt/images")
@@ -603,7 +605,7 @@ class HomeLanContracts(unittest.TestCase):
                 "provider_name": "registry.terraform.io/f5-sales-demo/xcsh",
                 "change": {
                     "actions": ["create"],
-                    "after": {"namespace": "multi-cloud-networking"},
+                    "after": {"namespace": "example"},
                 },
             }
 
@@ -613,14 +615,14 @@ class HomeLanContracts(unittest.TestCase):
                 change("xcsh_origin_pool.home"),
             ]
         }
-        controller.require_home_lan_plan(valid, "multi-cloud-networking")
+        controller.require_home_lan_plan(valid, "example")
         for changes in (
             [change("xcsh_http_loadbalancer.home")],
             valid["resource_changes"] + [change("xcsh_http_loadbalancer.other")],
         ):
             with self.assertRaises(controller.ControllerError):
                 controller.require_home_lan_plan(
-                    {"resource_changes": changes}, "multi-cloud-networking"
+                    {"resource_changes": changes}, "example"
                 )
         wrong = {
             "resource_changes": [
@@ -632,7 +634,7 @@ class HomeLanContracts(unittest.TestCase):
             ]
         }
         with self.assertRaisesRegex(controller.ControllerError, "namespace"):
-            controller.require_home_lan_plan(wrong, "multi-cloud-networking")
+            controller.require_home_lan_plan(wrong, "example")
 
     def test_terraform_binds_observed_sli_without_mutating_platform_child(self):
         text = (ROOT / "terraform" / "main.tf").read_text()
@@ -1084,7 +1086,7 @@ class HomeLanContracts(unittest.TestCase):
     def test_exact_application_ownership_rejects_label_or_name_drift(self):
         owned = {
             "metadata": {
-                "namespace": "multi-cloud-networking",
+                "namespace": "example",
                 "name": "site-lan",
                 "labels": {"owner": controller.OWNER},
             }
@@ -1092,11 +1094,11 @@ class HomeLanContracts(unittest.TestCase):
         with mock.patch.object(controller, "_xc_json", return_value=owned) as request:
             self.assertTrue(
                 controller._owned_application_object(
-                    "http_loadbalancers", "site-lan", "multi-cloud-networking"
+                    "http_loadbalancers", "site-lan", "example"
                 )["owned"]
             )
             request.assert_called_once_with(
-                "/api/config/namespaces/multi-cloud-networking/http_loadbalancers/site-lan"
+                "/api/config/namespaces/example/http_loadbalancers/site-lan"
             )
         with mock.patch.object(
             controller,
@@ -1105,7 +1107,7 @@ class HomeLanContracts(unittest.TestCase):
         ):
             self.assertFalse(
                 controller._owned_application_object(
-                    "http_loadbalancers", "site-lan", "multi-cloud-networking"
+                    "http_loadbalancers", "site-lan", "example"
                 )["owned"]
             )
         with mock.patch.object(
@@ -1115,7 +1117,7 @@ class HomeLanContracts(unittest.TestCase):
         ):
             self.assertFalse(
                 controller._owned_application_object(
-                    "http_loadbalancers", "site-lan", "multi-cloud-networking"
+                    "http_loadbalancers", "site-lan", "example"
                 )["owned"]
             )
 

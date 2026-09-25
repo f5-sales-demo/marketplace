@@ -1,6 +1,6 @@
 {
   "name": "@f5-sales-demo/xcsh-kvm",
-  "version": "3.0.1",
+  "version": "3.0.4",
   "description": "KVM dual-NIC home-LAN lifecycle tools for F5 Secure Mesh Site v2",
   "main": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "xcsh": {
     "name": "KVM SMSv2",
-    "version": "3.0.1",
+    "version": "3.0.4",
     "extensions": [
       "src/index.ts"
     ]

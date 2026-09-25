@@ -1494,7 +1494,7 @@ describe('provider integration lifecycle', () => {
       kind: 'install',
       argv: [controller, '--json', 'setup', 'apply'],
       timeoutMs: 7_200_000,
-      environment: ['XCSH_API_URL', 'XCSH_API_TOKEN'],
+      environment: ['XCSH_API_URL', 'XCSH_API_TOKEN', 'XCSH_NAMESPACE'],
       stdin: 'inherit',
     });
     expect(kvm.setup?.verification).toEqual([{ argv: [controller, '--json', 'setup', 'status'], timeoutMs: 60_000 }]);
