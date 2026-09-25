@@ -89,7 +89,7 @@ test('pins the self-contained KVM artifact and excludes retired dependencies', (
 
 test('declares install-scoped setup authorization with the Platform dependency', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.xcsh-plugin', 'plugin.json'), 'utf8'));
-  expect(manifest.version).toBe('3.0.2');
+  expect(manifest.version).toBe('3.0.3');
   expect(manifest.lifecycle.setupAuthorization).toBe('install');
   expect(manifest.lifecycle.pluginDependencies).toEqual(['platform']);
 });

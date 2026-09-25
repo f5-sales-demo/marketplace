@@ -3,7 +3,7 @@
 test_kvm_plugin_manifest() {
   jq -e '
     .name == "kvm" and
-    .version == "3.0.2" and
+    .version == "3.0.3" and
     .version == (input | .version) and
     .lifecycle.setupRequired == true and
     .lifecycle.setupAuthorization == "install" and
@@ -14,9 +14,9 @@ test_kvm_plugin_manifest() {
 test_kvm_marketplace_entry() {
   local marketplace_manifest="$MARKETPLACE_ROOT/.xcsh-plugin/marketplace.json"
   if [ -f "$marketplace_manifest" ]; then
-    jq -e '[.plugins[] | select(.name == "kvm" and .version == "3.0.2" and .source == "./plugins/kvm" and .recommended == true and .lifecycle.setupAuthorization == "install")] | length == 1' "$marketplace_manifest" >/dev/null
+    jq -e '[.plugins[] | select(.name == "kvm" and .version == "3.0.3" and .source == "./plugins/kvm" and .recommended == true and .lifecycle.setupAuthorization == "install")] | length == 1' "$marketplace_manifest" >/dev/null
   else
-    jq -e '.name == "kvm" and .version == "3.0.2"' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json" >/dev/null
+    jq -e '.name == "kvm" and .version == "3.0.3"' "$PLUGIN_ROOT/.xcsh-plugin/plugin.json" >/dev/null
   fi
 }
 
