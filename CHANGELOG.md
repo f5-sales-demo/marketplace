@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.1.3 waits for a recovered `console` worker before provisioning
+  virtual media, and publishes the console `DISPLAY` and `XAUTHORITY` to the
+  user systemd activation environment so D-Bus-activated applications can open
+  the owned display after stopped-session recovery (#1406).
+
 - **`kvm`** v3.0.4 runs readiness probes with the active session's `XCSH_*`
   context while excluding unrelated environment values. It keeps current-schema
   ownership, LAN, plan, and acceptance

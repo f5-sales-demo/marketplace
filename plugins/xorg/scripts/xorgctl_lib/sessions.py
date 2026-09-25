@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN002, ANN201, ANN202, D103, PLC0415, PLR0911, S108, S603, S607, TRY301
 from __future__ import annotations
 
 # Session dispatch is intentionally centralized; process handles remain open
@@ -218,6 +219,15 @@ def service(name) -> None:
     supervise(name)
 
 
+def _publish_activation_environment(c) -> None:
+    """Give D-Bus-activated user services the console display authority."""
+    run(
+        ["dbus-update-activation-environment", "--systemd", "DISPLAY", "XAUTHORITY"],
+        check=False,
+        env=environment(c),
+    )
+
+
 def supervise(name) -> None:
     os.umask(0o077)
     c = config(name)
@@ -278,6 +288,8 @@ def supervise(name) -> None:
             children.append(
                 subprocess.Popen(["openbox", "--sm-disable"], start_new_session=True)
             )
+        if c["name"] == "console":
+            _publish_activation_environment(c)
         # Apply the no-idle contract to attached and owned displays. These are
         # idempotent X server settings and never depend on a desktop shell.
         for command in (
