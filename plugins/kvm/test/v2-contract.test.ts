@@ -203,7 +203,11 @@ test('integration setup remains required until the owned deployment is accepted'
 });
 
 test('integration readiness probe uses the active xcsh context environment', async () => {
-  let integration: { probe?: () => Promise<{ state: string }> } | undefined;
+  let integration:
+    | {
+        probe?: () => Promise<{ state: string; reason?: string; value?: unknown }>;
+      }
+    | undefined;
   let observedEnvironment: Record<string, string | undefined> | undefined;
   const Type = new Proxy(
     {},
