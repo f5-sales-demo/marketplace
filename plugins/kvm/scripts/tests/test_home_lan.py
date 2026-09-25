@@ -41,9 +41,7 @@ class HomeLanContracts(unittest.TestCase):
                     },
                 )
                 self.assertEqual(config["namespace"], "system")
-                self.assertEqual(
-                    config["applicationNamespace"], "example"
-                )
+                self.assertEqual(config["applicationNamespace"], "example")
                 self.assertEqual(
                     controller._config(store, {})["applicationNamespace"],
                     "example",

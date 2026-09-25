@@ -977,9 +977,7 @@ def safe_apply_failure(output: str) -> str | None:
     for match in re.finditer(rf"\[({'|'.join(codes)})\]", output):
         diagnostic = output[match.start() : match.start() + 768]
         resource = re.search(r"\(resource:\s*([^\s)]+)\)", diagnostic)
-        operation = re.search(
-            r"\(operation:\s*([a-z]+)\)", diagnostic, re.IGNORECASE
-        )
+        operation = re.search(r"\(operation:\s*([a-z]+)\)", diagnostic, re.IGNORECASE)
         if resource is None or operation is None:
             continue
         resource_name = resource.group(1).rstrip("/").rsplit("/", 1)[-1]
@@ -994,7 +992,9 @@ def safe_apply_failure(output: str) -> str | None:
         }.get(operation.group(1).lower(), operation.group(1).lower())
         status = re.search(r"\(status:\s*([1-5][0-9]{2})\)", diagnostic)
         if match.group(1) == "FORBIDDEN" and operation_name in {
-            "create", "update", "delete"
+            "create",
+            "update",
+            "delete",
         }:
             return (
                 f"XC provider {operation_name} {resource_name} denied [FORBIDDEN]; "
@@ -1058,19 +1058,22 @@ def safe_apply_failure(output: str) -> str | None:
             suffix = " (response-decode)"
         else:
             suffix = ""
-        if code and code.group(1) == "FORBIDDEN" and legacy.group(1).lower() in {
-            "create",
-            "update",
-            "delete",
-        }:
+        if (
+            code
+            and code.group(1) == "FORBIDDEN"
+            and legacy.group(1).lower()
+            in {
+                "create",
+                "update",
+                "delete",
+            }
+        ):
             return (
                 f"XC provider {legacy.group(1).lower()} {legacy.group(2)} denied "
                 "[FORBIDDEN]; select an XC context authorized for this application "
                 "write and create a new reviewed plan"
             )
-        return (
-            f"XC provider {legacy.group(1).lower()} {legacy.group(2)} failed{suffix}"
-        )
+        return f"XC provider {legacy.group(1).lower()} {legacy.group(2)} failed{suffix}"
     plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
     title_match = re.search(r"(?:^|\n)[^\r\n]*?\bError:\s*([^\r\n]+)", plain)
     if title_match:

@@ -32,7 +32,9 @@ WAIT_SPEC.loader.exec_module(wait_registration)
 
 
 class ControllerContractTests(unittest.TestCase):
-    def test_new_deployment_uses_active_context_namespace_without_a_hardcoded_default(self):
+    def test_new_deployment_uses_active_context_namespace_without_a_hardcoded_default(
+        self,
+    ):
         with tempfile.TemporaryDirectory() as directory:
             store = controller.StateStore(pathlib.Path(directory))
             with mock.patch.dict(
@@ -308,9 +310,9 @@ class ControllerContractTests(unittest.TestCase):
             controller.validate_lan_recheck(
                 selection,
                 expected,
-                lambda address: "00:11:22:33:44:55"
-                if address == selection["vipAddress"]
-                else None,
+                lambda address: (
+                    "00:11:22:33:44:55" if address == selection["vipAddress"] else None
+                ),
                 allow_missing_owned=True,
             )
         with self.assertRaisesRegex(controller.ControllerError, "no longer responds"):
@@ -355,9 +357,7 @@ class ControllerContractTests(unittest.TestCase):
                 ),
                 mock.patch.object(controller, "inventory", return_value=owned_ce),
                 mock.patch.object(controller, "reject_collisions"),
-                mock.patch.object(
-                    controller, "prepare_home_lan"
-                ) as prepare_home_lan,
+                mock.patch.object(controller, "prepare_home_lan") as prepare_home_lan,
                 mock.patch.object(
                     controller,
                     "_terraform_plan",
@@ -386,12 +386,8 @@ class ControllerContractTests(unittest.TestCase):
             True,
         )
         self.assertEqual(terraform_plan.call_args_list[1].args[3], "apply")
-        self.assertIs(
-            apply_plan.call_args_list[0].kwargs["allow_missing_owned"], True
-        )
-        self.assertIs(
-            apply_plan.call_args_list[1].kwargs["allow_missing_owned"], True
-        )
+        self.assertIs(apply_plan.call_args_list[0].kwargs["allow_missing_owned"], True)
+        self.assertIs(apply_plan.call_args_list[1].kwargs["allow_missing_owned"], True)
         apply_site_static.assert_called_once_with(
             store, config, runner, allow_missing_owned=True
         )
@@ -435,9 +431,7 @@ class ControllerContractTests(unittest.TestCase):
                 ),
                 mock.patch.object(controller, "inventory", return_value=owned_ce),
                 mock.patch.object(controller, "reject_collisions"),
-                mock.patch.object(
-                    controller, "prepare_home_lan"
-                ) as prepare_home_lan,
+                mock.patch.object(controller, "prepare_home_lan") as prepare_home_lan,
                 mock.patch.object(
                     controller, "_terraform_plan", return_value={"mode": "apply"}
                 ) as terraform_plan,
@@ -692,7 +686,9 @@ class ControllerContractTests(unittest.TestCase):
             controller.safe_apply_failure(output),
             "XC provider create origin_pools failed [BAD_REQUEST] (status 400)",
         )
-        self.assertNotIn("multi-cloud-networking", controller.safe_apply_failure(output))
+        self.assertNotIn(
+            "multi-cloud-networking", controller.safe_apply_failure(output)
+        )
         self.assertNotIn("never-print-this", controller.safe_apply_failure(output))
 
     def test_structured_provider_forbidden_has_actionable_context_guidance(self):
@@ -708,9 +704,7 @@ class ControllerContractTests(unittest.TestCase):
             "context authorized for this application write and create a new "
             "reviewed plan",
         )
-        self.assertNotIn(
-            "never-print-this", controller.safe_apply_failure(output)
-        )
+        self.assertNotIn("never-print-this", controller.safe_apply_failure(output))
 
     def test_terraform_apply_failure_reports_a_redacted_bounded_title(self):
         self.assertEqual(
@@ -719,9 +713,9 @@ class ControllerContractTests(unittest.TestCase):
             ),
             "Terraform: Provider produced inconsistent result after apply",
         )
-        secret_title = "Error: token secret-value was rejected\n"
+        sensitive_output = "Error: token secret-value was rejected\n"
         self.assertEqual(
-            controller.safe_apply_failure(secret_title),
+            controller.safe_apply_failure(sensitive_output),
             "Terraform apply reported a redacted error",
         )
         long_title = "Error: " + ("x" * 400) + "\n"
