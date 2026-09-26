@@ -37,6 +37,7 @@ REQUIRED_COMMANDS = (
     "eglinfo",
     "ffmpeg",
     "fc-match",
+    "fuser",
     "gsettings",
     "glxinfo",
     "loginctl",
@@ -85,6 +86,7 @@ APT_PACKAGES = (
     "mesa-utils",
     "openbox",
     "pipewire-pulse",
+    "psmisc",
     "pulseaudio-utils",
     "python3-keyring",
     "python3-pil",
@@ -341,6 +343,74 @@ def _camera_status() -> dict[str, object]:
         and label.read_text().strip() == "xcsh Camera"
     )
     return {"ready": ready, "device": "/dev/video10", "label": "xcsh Camera"}
+
+
+def _camera_output_ready() -> bool:
+    result = _command(
+        ["v4l2-ctl", "--device=/dev/video10", "--get-fmt-video-out"],
+        timeout=10,
+    )
+    output = result.stdout
+    return bool(
+        result.returncode == 0
+        and "Width/Height" in output
+        and "1280/720" in output
+        and "'YU12'" in output
+    )
+
+
+def _loopback_devices() -> list[str]:
+    parameter = pathlib.Path("/sys/module/v4l2loopback/parameters/video_nr")
+    try:
+        values = [int(value) for value in parameter.read_text().strip().split(",")]
+    except (OSError, ValueError):
+        return []
+    return sorted(f"/dev/video{value}" for value in values if value >= 0)
+
+
+def _camera_in_use() -> bool:
+    result = _command(["fuser", "/dev/video10"], timeout=10)
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    detail = (result.stderr or result.stdout).strip()
+    message = f"could not determine /dev/video10 ownership: {detail}"
+    raise Fault(message)
+
+
+def _recover_virtual_camera() -> None:
+    _command(["systemctl", "--user", "stop", "xcsh-camera.service"], check=True)
+    if _camera_in_use():
+        message = "/dev/video10 is in use; refusing to reset v4l2loopback"
+        raise Fault(message)
+    loopbacks = _loopback_devices()
+    if loopbacks != ["/dev/video10"]:
+        detail = ", ".join(loopbacks) if loopbacks else "none"
+        message = (
+            "expected /dev/video10 to be the sole v4l2loopback device "
+            f"before recovery; found: {detail}"
+        )
+        raise Fault(message)
+    _command(["sudo", "-n", "modprobe", "-r", "v4l2loopback"], check=True)
+    _command(
+        [
+            "sudo",
+            "-n",
+            "modprobe",
+            "v4l2loopback",
+            "video_nr=10",
+            "card_label=xcsh Camera",
+            "exclusive_caps=1",
+        ],
+        check=True,
+    )
+    _command(["sudo", "-n", "udevadm", "control", "--reload-rules"], check=True)
+    _command(
+        ["sudo", "-n", "udevadm", "trigger", "--name-match=video10"],
+        check=True,
+    )
+    _command(["sudo", "-n", "udevadm", "settle"], check=True)
 
 
 def _audio_status() -> dict[str, object]:
@@ -690,6 +760,8 @@ def _ensure_virtual_media() -> None:
         _command(
             ["sudo", "-n", "udevadm", "trigger", "--name-match=video10"], check=True
         )
+    elif not _camera_output_ready():
+        _recover_virtual_camera()
     _command(
         ["systemctl", "--user", "enable", "--now", "xcsh-camera.service"], check=True
     )
