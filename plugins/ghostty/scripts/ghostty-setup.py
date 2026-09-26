@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D101, D103, EM101, EM102, PLR2004, PTH101, PTH105, S101, S310, S603, T201, TRY300, TRY301
+# pylint: disable=invalid-name
 """Install and configure Ghostty without taking ownership of user settings."""
 
 from __future__ import annotations
@@ -183,7 +184,10 @@ def current_platform() -> Platform:
 
 def parse_version(value: str) -> tuple[int, int, int] | None:
     match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", value)
-    return tuple(map(int, match.groups())) if match else None
+    if not match:
+        return None
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch)
 
 
 def _compatible_version(value: str | None) -> bool:

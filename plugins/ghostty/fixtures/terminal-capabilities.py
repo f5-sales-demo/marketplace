@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D103, T201
+# pylint: disable=invalid-name
 """Published visual/response fixture for Ghostty-on-Xorg acceptance."""
 
 from __future__ import annotations

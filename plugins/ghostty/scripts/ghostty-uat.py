@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D103, EM101, EM102, PTH101, S603, T201, TRY301
+# pylint: disable=consider-using-with,invalid-name
 """Run an interactive command in a real PTY and retain sanitized UAT evidence."""
 
 from __future__ import annotations
