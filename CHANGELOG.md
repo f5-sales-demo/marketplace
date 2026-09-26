@@ -10,6 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.0.2 republishes the unchanged terminal setup and UAT payload
+  against the corrected, discoverable Herdr dependency (#1422).
+
+- **`herdr`** v1.1.3 declares its integration entrypoint in the canonical plugin
+  manifest so installed xcsh sessions load the setup plan and can install and
+  verify the published Herdr executable (#1422).
+
 - **`ghostty`** v1.0.1 is the immutable post-failure UAT candidate for the
   corrected xcsh marketplace-extension reload path. Its verified terminal setup
   payload is unchanged from v1.0.0.
