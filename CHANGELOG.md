@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.1.8 aligns the virtual camera with the existing managed-display
+  default of 1920x1080. Camera setup explicitly configures and produces YU12
+  Full HD output, and readiness rejects the former 1280x720 format (#1416).
+
 - **`xorg`** v1.1.7 detects a wedged controller-owned virtual camera and safely
   reloads v4l2loopback only when `/dev/video10` is unused and is the sole
   loopback device, then settles udev before restarting the producer (#1414).

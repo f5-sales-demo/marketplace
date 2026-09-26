@@ -354,7 +354,7 @@ def _camera_output_ready() -> bool:
     return bool(
         result.returncode == 0
         and "Width/Height" in output
-        and "1280/720" in output
+        and "1920/1080" in output
         and "'YU12'" in output
     )
 
@@ -716,7 +716,7 @@ def _install_services() -> None:
         "[Unit]\nDescription=xorgctl session %i\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=%h/.local/bin/xorgctl _service %i\nRestart=on-failure\nRestartSec=2\nKillMode=control-group\nUMask=0077\n\n[Install]\nWantedBy=default.target\n"
     )
     camera_service.write_text(
-        "[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStartPre=/usr/bin/v4l2-ctl --device=/dev/video10 --set-fmt-video-out=width=1280,height=720,pixelformat=YU12\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1280x720:rate=30 -vf \"drawtext=text='xcsh Camera':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65\" -f v4l2 -pix_fmt yuv420p /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n"
+        "[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStartPre=/usr/bin/v4l2-ctl --device=/dev/video10 --set-fmt-video-out=width=1920,height=1080,pixelformat=YU12\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1920x1080:rate=30 -vf \"drawtext=text='xcsh Camera':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65\" -pix_fmt yuv420p -s:v 1920x1080 -f v4l2 /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n"
     )
     for path in (session_service, camera_service):
         path.chmod(0o644)

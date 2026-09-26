@@ -46,7 +46,7 @@ class CameraRecoveryTests(unittest.TestCase):
         completed = subprocess.CompletedProcess(
             [],
             0,
-            "Width/Height      : 1280/720\nPixel Format      : 'YU12'\n",
+            "Width/Height      : 1920/1080\nPixel Format      : 'YU12'\n",
             "",
         )
         with patch.object(setup, "_command", return_value=completed) as command:
@@ -55,6 +55,16 @@ class CameraRecoveryTests(unittest.TestCase):
             ["v4l2-ctl", "--device=/dev/video10", "--get-fmt-video-out"],
             timeout=10,
         )
+
+    def test_camera_output_ready_rejects_the_legacy_hd_format(self):
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            "Width/Height      : 1280/720\nPixel Format      : 'YU12'\n",
+            "",
+        )
+        with patch.object(setup, "_command", return_value=completed):
+            self.assertFalse(setup._camera_output_ready())
 
     def test_loopback_inventory_uses_the_loaded_module_device_numbers(self):
         with patch.object(
