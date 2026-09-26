@@ -260,6 +260,56 @@ class SetupTests(unittest.TestCase):
             self.assertTrue(unrelated.is_symlink())
             self.assertEqual(unrelated.readlink(), pathlib.Path("/dev/null"))
 
+    def test_camera_service_primes_a_blank_loopback_before_ffmpeg(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = pathlib.Path(directory) / "home"
+            with (
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(setup, "_install_root_file"),
+                patch.object(
+                    setup,
+                    "_command",
+                    return_value=subprocess.CompletedProcess([], 0, "", ""),
+                ),
+            ):
+                setup._install_services()
+
+            unit = (home / ".config/systemd/user/xcsh-camera.service").read_text()
+
+        prime = (
+            "ExecStartPre=/usr/bin/v4l2-ctl --device=/dev/video10 "
+            "--set-fmt-video-out=width=1280,height=720,pixelformat=YU12"
+        )
+        self.assertIn(prime, unit)
+        self.assertLess(unit.index(prime), unit.index("ExecStart=/usr/bin/ffmpeg"))
+
+    def test_virtual_media_waits_for_the_camera_producer(self):
+        with (
+            patch.object(setup, "_camera_status", return_value={"ready": True}),
+            patch.object(
+                setup,
+                "_command",
+                return_value=subprocess.CompletedProcess([], 0, "", ""),
+            ),
+            patch.object(setup, "rpc"),
+            patch.object(setup, "_wait_for_services") as wait_for_services,
+        ):
+            setup._ensure_virtual_media()
+
+        wait_for_services.assert_called_once_with(["xcsh-camera.service"])
+
+    def test_service_readiness_rejects_a_transient_active_sample(self):
+        samples = iter([True, False, True, True, True])
+        ticks = iter([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+        with (
+            patch.object(setup, "_service_active", side_effect=samples) as active,
+            patch.object(setup.time, "monotonic", side_effect=ticks),
+            patch.object(setup.time, "sleep"),
+        ):
+            setup._wait_for_services(["xcsh-camera.service"])
+
+        self.assertEqual(active.call_count, 5)
+
     def test_voice_install_is_idempotent_when_pinned_assets_are_ready(self):
         with (
             patch.object(setup, "_speech_status", return_value={"ready": True}),
@@ -560,7 +610,7 @@ class SetupTests(unittest.TestCase):
                 },
             )
 
-    def test_apply_restarts_every_active_configured_session_worker(self):
+    def test_apply_preserves_current_active_configured_session_workers(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory) / "state"
             home = pathlib.Path(directory) / "home"
@@ -614,13 +664,7 @@ class SetupTests(unittest.TestCase):
                 for argv in commands
                 if argv[:3] == ["systemctl", "--user", "restart"]
             ]
-            self.assertEqual(
-                restarts,
-                [
-                    "xorgctl-session\u0040console.service",
-                    "xorgctl-session\u0040desktop.service",
-                ],
-            )
+            self.assertEqual(restarts, [])
 
     def test_session_worker_checks_include_each_active_configured_session(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -823,6 +867,64 @@ class SetupTests(unittest.TestCase):
             )
             self.assertEqual(console_config.read_bytes(), original_console)
             self.assertEqual(unrelated_config.read_bytes(), original_unrelated)
+
+    def test_apply_preserves_a_healthy_current_console_on_repeat(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "state"
+            home = pathlib.Path(directory) / "home"
+            console = root / "console"
+            console.mkdir(parents=True)
+            (console / "session.json").write_text(
+                '{"display":":121","name":"console","owned":true}'
+            )
+            commands: list[list[str]] = []
+
+            def command(argv, **_kwargs):
+                commands.append(argv)
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with (
+                patch.object(setup, "ROOT", root),
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(
+                    setup,
+                    "_platform",
+                    return_value={"id": "ubuntu", "version_id": "24.04"},
+                ),
+                patch.object(
+                    setup,
+                    "_dependency_checks",
+                    return_value={"commands": {}, "python_modules": {}, "ready": True},
+                ),
+                patch.object(
+                    setup, "_venv_python", return_value=home / "venv/bin/python"
+                ),
+                patch.object(setup, "_install_fonts"),
+                patch.object(setup, "_install_voice"),
+                patch.object(setup, "_install_virtualgl"),
+                patch.object(setup, "_configure_accessibility"),
+                patch.object(setup, "_install_launcher"),
+                patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session") as manage_session,
+                patch.object(setup, "_command", side_effect=command),
+                patch.object(setup, "_service_active", return_value=True),
+                patch.object(setup, "_worker_version", return_value=VERSION),
+                patch.object(setup, "_wait_for_workers"),
+                patch.object(setup, "_ensure_virtual_media"),
+                patch.object(setup, "status", return_value={"state": "ready"}),
+            ):
+                setup.apply(VERSION)
+
+        manage_session.assert_not_called()
+        self.assertNotIn(
+            [
+                "systemctl",
+                "--user",
+                "restart",
+                "xorgctl-session@console.service",
+            ],
+            commands,
+        )
 
     def test_owned_console_publishes_display_authority_to_systemd_activation(self):
         config = {

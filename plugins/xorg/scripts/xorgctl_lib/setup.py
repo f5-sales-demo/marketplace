@@ -182,6 +182,20 @@ def _wait_for_workers(names: list[str]) -> None:
         raise Fault(message)
 
 
+def _wait_for_services(names: list[str]) -> None:
+    deadline = time.monotonic() + 20
+    stable = dict.fromkeys(names, 0)
+    while time.monotonic() < deadline:
+        for name in names:
+            stable[name] = stable[name] + 1 if _service_active(name) else 0
+        if all(samples >= 3 for samples in stable.values()):
+            return
+        time.sleep(0.1)
+    pending = [name for name, samples in stable.items() if samples < 3]
+    message = "Xorg service did not become ready: " + ", ".join(pending)
+    raise Fault(message)
+
+
 def _session_config(name: str) -> dict[str, object]:
     try:
         value = json.loads((ROOT / name / "session.json").read_text())
@@ -632,7 +646,7 @@ def _install_services() -> None:
         "[Unit]\nDescription=xorgctl session %i\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=%h/.local/bin/xorgctl _service %i\nRestart=on-failure\nRestartSec=2\nKillMode=control-group\nUMask=0077\n\n[Install]\nWantedBy=default.target\n"
     )
     camera_service.write_text(
-        "[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1280x720:rate=30 -vf \"drawtext=text='xcsh Camera':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65\" -f v4l2 -pix_fmt yuv420p /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n"
+        "[Unit]\nDescription=xcsh virtual camera\nAfter=default.target\nConditionPathExists=/dev/video10\n\n[Service]\nExecStartPre=/usr/bin/v4l2-ctl --device=/dev/video10 --set-fmt-video-out=width=1280,height=720,pixelformat=YU12\nExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -re -f lavfi -i testsrc2=size=1280x720:rate=30 -vf \"drawtext=text='xcsh Camera':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=72:fontcolor=white:box=1:boxcolor=black@0.65\" -f v4l2 -pix_fmt yuv420p /dev/video10\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n"
     )
     for path in (session_service, camera_service):
         path.chmod(0o644)
@@ -679,6 +693,7 @@ def _ensure_virtual_media() -> None:
     _command(
         ["systemctl", "--user", "enable", "--now", "xcsh-camera.service"], check=True
     )
+    _wait_for_services(["xcsh-camera.service"])
     rpc("console", "audio.create", {})
 
 
@@ -828,20 +843,27 @@ def apply(expected_version: str) -> dict[str, object]:
     if not (ROOT / "console/session.json").is_file():
         action, params, _mode = _console_plan()
         manage_session("console", action, params)
-    manage_session("console", "stop", {})
+    console_service = _session_service("console")
+    console_current = (
+        _service_active(console_service) and _worker_version("console") == VERSION
+    )
+    if not console_current:
+        manage_session("console", "stop", {})
     _command(
-        ["systemctl", "--user", "enable", "--now", _session_service("console")],
+        ["systemctl", "--user", "enable", "--now", console_service],
         check=True,
     )
-    _command(
-        ["systemctl", "--user", "restart", _session_service("console")],
-        check=True,
-    )
+    if not console_current:
+        _command(
+            ["systemctl", "--user", "restart", console_service],
+            check=True,
+        )
     active_sessions = [
         name
         for name in _configured_session_names()
         if name != "console"
         if _service_active(_session_service(name))
+        if _worker_version(name) != VERSION
     ]
     for name in active_sessions:
         _command(["systemctl", "--user", "restart", _session_service(name)], check=True)
