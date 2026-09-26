@@ -10,11 +10,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** v1.1.7 detects a wedged controller-owned virtual camera and safely
+  reloads v4l2loopback only when `/dev/video10` is unused and is the sole
+  loopback device, then settles udev before restarting the producer (#1414).
+
 - **`xorg`** v1.1.6 primes a fresh v4l2loopback output before starting the
-  virtual-camera producer, safely reloads a wedged controller-owned loopback
-  only when it is unused and is the sole loopback device, requires stable
-  service readiness, and leaves a healthy current-version console worker
-  running during repeated setup (#1412).
+  virtual-camera producer, requires stable service readiness, and leaves a
+  healthy current-version console worker running during repeated setup (#1412).
 
 - **`xorg`** v1.1.5 reclaims an orphaned controller-owned `console` worker
   before enabling or restarting its user service. Setup preserves the configured
