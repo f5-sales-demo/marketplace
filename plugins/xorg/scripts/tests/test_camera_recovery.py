@@ -1,4 +1,5 @@
 # ruff: noqa: ANN001, ANN003, ANN201, ANN202, D101, D102, PT009, PT027, SLF001
+# pylint: disable=protected-access
 import pathlib
 import subprocess
 import sys
