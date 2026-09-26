@@ -286,6 +286,7 @@ class SetupTests(unittest.TestCase):
     def test_virtual_media_waits_for_the_camera_producer(self):
         with (
             patch.object(setup, "_camera_status", return_value={"ready": True}),
+            patch.object(setup, "_camera_output_ready", return_value=True),
             patch.object(
                 setup,
                 "_command",
