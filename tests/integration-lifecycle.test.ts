@@ -1464,8 +1464,8 @@ describe('provider integration lifecycle', () => {
     }
   });
 
-  it('declares Xorg and Zoom extension entrypoints where xcsh loads them', async () => {
-    for (const plugin of ['xorg', 'zoom']) {
+  it('declares integrated plugin extension entrypoints where installed xcsh loads them', async () => {
+    for (const plugin of ['ghostty', 'herdr', 'xorg', 'zoom']) {
       const manifest = JSON.parse(
         await readFile(join(import.meta.dir, '..', 'plugins', plugin, '.xcsh-plugin', 'plugin.json'), 'utf8'),
       ) as { extensions?: string[] };

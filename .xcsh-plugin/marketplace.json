@@ -472,11 +472,16 @@
     {
       "name": "herdr",
       "description": "Install and operate the stable F5 Herdr fork with verified native xcsh health, explicit pairing, and complete pane-control guidance.",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/herdr",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
+      },
+      "extensions": ["extensions/integration.ts"],
+      "xcsh": {
+        "name": "Herdr",
+        "version": "1.1.3"
       },
       "source": "./plugins/herdr",
       "category": "development",
@@ -601,7 +606,7 @@
     },
     {
       "name": "ghostty",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Curated Linux Ghostty setup for Xorg and Herdr terminal sessions",
       "license": "MIT",
       "author": {
@@ -610,7 +615,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Ghostty",
-        "version": "1.0.1"
+        "version": "1.0.2"
       },
       "source": "./plugins/ghostty",
       "category": "development",
