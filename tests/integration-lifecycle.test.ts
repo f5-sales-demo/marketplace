@@ -129,6 +129,7 @@ async function definitionsFor(plugin: string, commandAvailable = false): Promise
       cloudstatus: 'extensions/regional-edge-advisories.ts',
       devcontainer: 'extensions/integration.ts',
       firecrawl: 'extensions/integration.ts',
+      ghostty: 'extensions/integration.ts',
       herdr: 'extensions/integration.ts',
       terraform: 'extensions/integration.ts',
       xorg: 'extensions/integration.ts',
