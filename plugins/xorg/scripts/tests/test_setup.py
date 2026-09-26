@@ -260,7 +260,7 @@ class SetupTests(unittest.TestCase):
             self.assertTrue(unrelated.is_symlink())
             self.assertEqual(unrelated.readlink(), pathlib.Path("/dev/null"))
 
-    def test_camera_service_primes_a_blank_loopback_before_ffmpeg(self):
+    def test_camera_service_defaults_to_full_hd_before_ffmpeg(self):
         with tempfile.TemporaryDirectory() as directory:
             home = pathlib.Path(directory) / "home"
             with (
@@ -278,10 +278,12 @@ class SetupTests(unittest.TestCase):
 
         prime = (
             "ExecStartPre=/usr/bin/v4l2-ctl --device=/dev/video10 "
-            "--set-fmt-video-out=width=1280,height=720,pixelformat=YU12"
+            "--set-fmt-video-out=width=1920,height=1080,pixelformat=YU12"
         )
         self.assertIn(prime, unit)
         self.assertLess(unit.index(prime), unit.index("ExecStart=/usr/bin/ffmpeg"))
+        self.assertIn("testsrc2=size=1920x1080:rate=30", unit)
+        self.assertIn("-s:v 1920x1080 -f v4l2", unit)
 
     def test_virtual_media_waits_for_the_camera_producer(self):
         with (

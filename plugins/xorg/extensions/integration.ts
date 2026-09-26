@@ -14,7 +14,7 @@ interface ExtensionApi {
   };
   registerTool(definition: unknown): void;
 }
-const VERSION = '1.1.7';
+const VERSION = '1.1.8';
 const BUNDLED_XORGCTL = resolve(import.meta.dir, '..', 'scripts', 'xorgctl');
 const INSTALLED_XORGCTL = resolve(homedir(), '.local', 'bin', 'xorgctl');
 const invoke = (session: string | undefined, args: string[]) =>
