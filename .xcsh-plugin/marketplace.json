@@ -601,7 +601,7 @@
     },
     {
       "name": "ghostty",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Curated Linux Ghostty setup for Xorg and Herdr terminal sessions",
       "license": "MIT",
       "author": {
@@ -610,7 +610,7 @@
       "extensions": ["extensions/integration.ts"],
       "xcsh": {
         "name": "Ghostty",
-        "version": "1.0.0"
+        "version": "1.0.1"
       },
       "source": "./plugins/ghostty",
       "category": "development",

@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.0.1 is the immutable post-failure UAT candidate for the
+  corrected xcsh marketplace-extension reload path. Its verified terminal setup
+  payload is unchanged from v1.0.0.
+
 - **`ghostty`** v1.0.0 adds a verified Ubuntu 24.04 installation and curated,
   advisory terminal setup for Xorg and Herdr. It preserves compatible installs,
   validates published package digests, respects recursive user configuration and

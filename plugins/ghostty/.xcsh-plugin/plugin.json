@@ -1,13 +1,17 @@
 {
   "name": "ghostty",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Curated Linux Ghostty setup for Xorg and Herdr terminal sessions",
   "license": "MIT",
-  "author": { "name": "f5-sales-demo" },
+  "author": {
+    "name": "f5-sales-demo"
+  },
   "marketplace": {
     "order": 92,
     "catalog": {
-      "author": { "name": "f5-sales-demo" },
+      "author": {
+        "name": "f5-sales-demo"
+      },
       "source": "./plugins/ghostty",
       "category": "development",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/ghostty",
@@ -27,5 +31,8 @@
     "pluginDependencies": ["xorg", "herdr"]
   },
   "extensions": ["extensions/integration.ts"],
-  "xcsh": { "name": "Ghostty", "version": "1.0.0" }
+  "xcsh": {
+    "name": "Ghostty",
+    "version": "1.0.1"
+  }
 }
