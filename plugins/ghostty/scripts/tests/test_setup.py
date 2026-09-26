@@ -1,4 +1,4 @@
-# ruff: noqa: ANN001, ANN201, D101, D102, PT009, PT027, S108
+# ruff: noqa: ANN201, D101, D102, PT009, PT018, PT027, S101, S603, S607, SIM117
 from __future__ import annotations
 
 import importlib.util
@@ -20,8 +20,12 @@ SPEC.loader.exec_module(setup)
 class PlatformAndInstallTests(unittest.TestCase):
     def test_ubuntu_2404_architectures_map_to_published_names(self):
         os_release = 'ID=ubuntu\nVERSION_ID="24.04"\n'
-        self.assertEqual(setup.parse_platform(os_release, "x86_64").package_arch, "amd64")
-        self.assertEqual(setup.parse_platform(os_release, "aarch64").package_arch, "arm64")
+        self.assertEqual(
+            setup.parse_platform(os_release, "x86_64").package_arch, "amd64"
+        )
+        self.assertEqual(
+            setup.parse_platform(os_release, "aarch64").package_arch, "arm64"
+        )
 
     def test_other_platforms_are_refused(self):
         with self.assertRaisesRegex(setup.SetupError, "unsupported_platform"):
@@ -29,11 +33,15 @@ class PlatformAndInstallTests(unittest.TestCase):
 
     def test_install_precedence_and_incompatible_refusal(self):
         current = setup.Installation(version=(1, 3, 1), executable="/usr/bin/ghostty")
-        self.assertEqual(setup.choose_install_source(current, "1.4.0", True), "existing")
+        self.assertEqual(
+            setup.choose_install_source(current, "1.4.0", True), "existing"
+        )
         self.assertEqual(setup.choose_install_source(None, "1.4.0", True), "apt")
         self.assertEqual(setup.choose_install_source(None, None, True), "github_deb")
         self.assertEqual(setup.choose_install_source(None, None, False), "snap")
-        with self.assertRaisesRegex(setup.SetupError, "incompatible_existing_installation"):
+        with self.assertRaisesRegex(
+            setup.SetupError, "incompatible_existing_installation"
+        ):
             setup.choose_install_source(
                 setup.Installation(version=(1, 2, 9), executable="/usr/bin/ghostty"),
                 "1.4.0",
@@ -46,12 +54,12 @@ class PlatformAndInstallTests(unittest.TestCase):
             "assets": [
                 {
                     "name": "ghostty_1.3.1-0.ppa2_amd64_24.04.deb",
-                    "browser_download_url": "https://example.test/amd64.deb",
+                    "browser_download_url": "https://github.com/mkasberg/ghostty-ubuntu/releases/download/1.3.1-0-ppa2/amd64.deb",
                     "digest": "sha256:" + "a" * 64,
                 },
                 {
                     "name": "ghostty_1.3.1-0.ppa2_arm64_24.04.deb",
-                    "browser_download_url": "https://example.test/arm64.deb",
+                    "browser_download_url": "https://github.com/mkasberg/ghostty-ubuntu/releases/download/1.3.1-0-ppa2/arm64.deb",
                     "digest": "sha256:" + "b" * 64,
                 },
             ],
@@ -82,6 +90,20 @@ class PlatformAndInstallTests(unittest.TestCase):
             with self.assertRaisesRegex(setup.SetupError, "package_digest_mismatch"):
                 setup.verify_sha256(package, "0" * 64)
 
+    def test_only_an_ubuntu_archive_candidate_has_apt_precedence(self):
+        ubuntu = """
+  Candidate: 1.3.1-0ubuntu1
+     1.3.1-0ubuntu1 500
+        500 http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages
+"""
+        third_party = """
+  Candidate: 1.3.1-0ppa2
+     1.3.1-0ppa2 500
+        500 https://ppa.launchpadcontent.net/vendor/ghostty ubuntu/main amd64 Packages
+"""
+        self.assertEqual(setup.apt_candidate_from_policy(ubuntu), "1.3.1-0ubuntu1")
+        self.assertIsNone(setup.apt_candidate_from_policy(third_party))
+
 
 class ConfigurationTests(unittest.TestCase):
     def test_recursive_optional_and_cyclic_includes(self):
@@ -97,7 +119,10 @@ class ConfigurationTests(unittest.TestCase):
             )
             analysis = setup.analyze_config(root / "config", root)
             self.assertIn("font-size", analysis.identities)
-            self.assertEqual(set(analysis.files), {root / "config", root / "child.conf"})
+            self.assertEqual(
+                set(analysis.files),
+                {(root / "config").resolve(), (root / "child.conf").resolve()},
+            )
 
     def test_required_missing_include_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -114,6 +139,25 @@ class ConfigurationTests(unittest.TestCase):
             config.write_text("font-size =\n", encoding="utf-8")
             analysis = setup.analyze_config(config, root)
             self.assertIn("font-size", analysis.identities)
+
+    def test_palette_and_keybind_blank_resets_win(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            config = root / "config"
+            config.write_text("palette =\nkeybind =\n", encoding="utf-8")
+            candidate = setup.build_candidate(config, root, set())
+            text = candidate.content.decode()
+            self.assertNotIn("palette = 0=", text)
+            self.assertNotIn("keybind = ctrl+insert", text)
+
+    def test_question_prefixed_optional_include_can_be_absent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            config = root / "config"
+            config.write_text("config-file = ?missing.conf\n", encoding="utf-8")
+            self.assertEqual(
+                setup.analyze_config(config, root).files, (config.resolve(),)
+            )
 
     def test_palette_and_keybind_entries_have_independent_identity(self):
         self.assertEqual(setup.setting_identity("palette", "1=#abcdef"), "palette:1")
@@ -134,7 +178,9 @@ class ConfigurationTests(unittest.TestCase):
             outside = pathlib.Path(directory) / "outside.conf"
             outside.write_text("font-size = 12\n", encoding="utf-8")
             (root / "escaped.conf").symlink_to(outside)
-            (root / "config").write_text("config-file = escaped.conf\n", encoding="utf-8")
+            (root / "config").write_text(
+                "config-file = escaped.conf\n", encoding="utf-8"
+            )
             with self.assertRaisesRegex(setup.SetupError, "config_path_escape"):
                 setup.analyze_config(root / "config", root)
 
@@ -168,11 +214,14 @@ class ConfigurationTests(unittest.TestCase):
             first = setup.build_candidate(config, root, set())
             config.write_bytes(first.content)
             deleted_id = "clipboard.copy-on-select"
-            deleted = b"\n".join(
-                line
-                for line in config.read_bytes().splitlines()
-                if line != b"copy-on-select = true"
-            ) + b"\n"
+            deleted = (
+                b"\n".join(
+                    line
+                    for line in config.read_bytes().splitlines()
+                    if line != b"copy-on-select = true"
+                )
+                + b"\n"
+            )
             config.write_bytes(deleted)
             second = setup.build_candidate(config, root, set(first.offered_ids))
             self.assertFalse(second.changed)
@@ -201,6 +250,35 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class ReceiptTests(unittest.TestCase):
+    def test_complete_setup_rerun_keeps_config_and_receipt_bytes_identical(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            config = root / "ghostty" / "config"
+            receipt = root / "state" / "receipt.json"
+            executable = root / "bin" / "ghostty"
+            config.parent.mkdir()
+            executable.parent.mkdir()
+            config.write_text("# user config\n", encoding="utf-8")
+            executable.write_bytes(b"binary")
+            platform = setup.parse_platform("ID=ubuntu\nVERSION_ID=24.04\n", "x86_64")
+            identity = setup.PackageIdentity(
+                "github_deb", "dpkg", "ghostty", "1.3.1-0.ppa2", None, "a" * 64
+            )
+            installation = setup.Installation((1, 3, 1), str(executable), identity)
+            with (
+                patch.object(
+                    setup, "_paths", return_value=(config, config.parent, receipt)
+                ),
+                patch.object(setup, "current_platform", return_value=platform),
+                patch.object(setup, "install_ghostty", return_value=installation),
+                patch.object(setup, "inspect_installation", return_value=installation),
+                patch.object(setup, "validate_config"),
+            ):
+                setup.apply_setup()
+                first = (config.read_bytes(), receipt.read_bytes())
+                setup.apply_setup()
+                self.assertEqual((config.read_bytes(), receipt.read_bytes()), first)
+
     def test_receipt_is_redacted_owner_only_and_stable(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -244,8 +322,12 @@ class ReceiptTests(unittest.TestCase):
             config.write_text("font-size = 12\n", encoding="utf-8")
             executable.write_bytes(b"binary")
             platform = setup.parse_platform("ID=ubuntu\nVERSION_ID=24.04\n", "x86_64")
-            identity = setup.PackageIdentity("existing", "local", "ghostty", "1.3.1", None, None)
-            payload = setup.receipt_payload(executable, (1, 3, 1), identity, config, [], platform)
+            identity = setup.PackageIdentity(
+                "existing", "local", "ghostty", "1.3.1", None, None
+            )
+            payload = setup.receipt_payload(
+                executable, (1, 3, 1), identity, config, [], platform
+            )
             setup.write_receipt(receipt, payload)
             installation = setup.Installation((1, 3, 1), str(executable), identity)
             with (
@@ -255,7 +337,9 @@ class ReceiptTests(unittest.TestCase):
             ):
                 self.assertEqual(setup.verify_ready(config, receipt)["state"], "ready")
                 executable.write_bytes(b"changed")
-                with self.assertRaisesRegex(setup.SetupError, "executable_hash_mismatch"):
+                with self.assertRaisesRegex(
+                    setup.SetupError, "executable_hash_mismatch"
+                ):
                     setup.verify_ready(config, receipt)
 
 
@@ -273,7 +357,7 @@ class HarnessTests(unittest.TestCase):
                             "-c",
                             "printf 'ready token=unsafe\\n'; read answer; printf 'done:%s\\n' \"$answer\"",
                         ],
-                        "steps": [{"wait_for": "ready", "send": "yes\\n"}],
+                        "steps": [{"wait_for": "ready", "send": "yes\n"}],
                         "required": ["ready", "done:yes"],
                     }
                 ),
@@ -300,7 +384,9 @@ class HarnessTests(unittest.TestCase):
             self.assertIn("token=[REDACTED]", transcript)
             self.assertNotIn("token=unsafe", transcript)
             self.assertEqual(stat.S_IMODE(evidence.stat().st_mode), 0o700)
-            self.assertEqual(stat.S_IMODE((evidence / "result.json").stat().st_mode), 0o600)
+            self.assertEqual(
+                stat.S_IMODE((evidence / "result.json").stat().st_mode), 0o600
+            )
 
 
 if __name__ == "__main__":

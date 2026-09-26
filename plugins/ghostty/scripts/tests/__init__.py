@@ -1,0 +1,1 @@
+"""Ghostty setup tests."""

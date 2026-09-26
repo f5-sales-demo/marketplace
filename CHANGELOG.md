@@ -10,6 +10,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.0.0 adds a verified Ubuntu 24.04 installation and curated,
+  advisory terminal setup for Xorg and Herdr. It preserves compatible installs,
+  validates published package digests, respects recursive user configuration and
+  deletions, records redacted owner-only provenance, revalidates readiness, and
+  ships a real-PTY UAT harness plus a terminal-capability fixture (#1418).
+
 - **`xorg`** v1.1.8 aligns the virtual camera with the existing managed-display
   default of 1920x1080. Camera setup explicitly configures and produces YU12
   Full HD output, and readiness rejects the former 1280x720 format (#1416).

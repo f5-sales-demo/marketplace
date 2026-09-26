@@ -1,1 +1,12 @@
-{"name":"@f5-sales-demo/ghostty-plugin","version":"1.0.0","private":true,"type":"module","scripts":{"test":"bun test"},"devDependencies":{"bun-types":"^1.4.2"}}
+{
+  "name": "@f5-sales-demo/ghostty-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.2"
+  }
+}
