@@ -296,6 +296,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_configure_accessibility"),
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session"),
                 patch.object(setup, "_service_active", return_value=True),
                 patch.object(
                     setup,
@@ -602,6 +603,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_configure_accessibility"),
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session"),
                 patch.object(setup, "_ensure_virtual_media"),
                 patch.object(setup, "status", return_value={"state": "ready"}),
             ):
@@ -691,6 +693,7 @@ class SetupTests(unittest.TestCase):
                 patch.object(setup, "_configure_accessibility"),
                 patch.object(setup, "_install_launcher"),
                 patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session"),
                 patch.object(setup, "_command", side_effect=command),
                 patch.object(setup, "_service_active", return_value=False),
                 patch.object(setup, "_worker_version", side_effect=worker_version),
@@ -726,6 +729,100 @@ class SetupTests(unittest.TestCase):
             ],
             calls,
         )
+
+    def test_apply_reclaims_only_the_configured_orphaned_console_before_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory) / "state"
+            home = pathlib.Path(directory) / "home"
+            console_config = root / "console/session.json"
+            unrelated_config = root / "desktop/session.json"
+            console_config.parent.mkdir(parents=True)
+            unrelated_config.parent.mkdir(parents=True)
+            console_config.write_text(
+                '{"display":":121","name":"console","owned":true}'
+            )
+            unrelated_config.write_text(
+                '{"display":":122","name":"desktop","owned":true}'
+            )
+            original_console = console_config.read_bytes()
+            original_unrelated = unrelated_config.read_bytes()
+            calls: list[object] = []
+
+            def command(argv, **_kwargs):
+                calls.append(argv)
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with (
+                patch.object(setup, "ROOT", root),
+                patch.object(setup.pathlib.Path, "home", return_value=home),
+                patch.object(
+                    setup,
+                    "_platform",
+                    return_value={"id": "ubuntu", "version_id": "24.04"},
+                ),
+                patch.object(
+                    setup,
+                    "_dependency_checks",
+                    return_value={"commands": {}, "python_modules": {}, "ready": True},
+                ),
+                patch.object(
+                    setup, "_venv_python", return_value=home / "venv/bin/python"
+                ),
+                patch.object(setup, "_install_fonts"),
+                patch.object(setup, "_install_voice"),
+                patch.object(setup, "_install_virtualgl"),
+                patch.object(setup, "_configure_accessibility"),
+                patch.object(setup, "_install_launcher"),
+                patch.object(setup, "_install_services"),
+                patch.object(setup, "manage_session") as manage_session,
+                patch.object(setup, "_command", side_effect=command),
+                patch.object(setup, "_service_active", return_value=False),
+                patch.object(
+                    setup,
+                    "_wait_for_workers",
+                    side_effect=lambda names: calls.append(("workers", names)),
+                ),
+                patch.object(
+                    setup,
+                    "_ensure_virtual_media",
+                    side_effect=lambda: calls.append("virtual_media"),
+                ),
+                patch.object(setup, "status", return_value={"state": "ready"}),
+            ):
+                manage_session.side_effect = lambda name, action, params: calls.append(
+                    ("session", name, action, params)
+                )
+                setup.apply(VERSION)
+
+            stop: tuple[str, str, str, dict[str, object]] = (
+                "session",
+                "console",
+                "stop",
+                {},
+            )
+            enable = [
+                "systemctl",
+                "--user",
+                "enable",
+                "--now",
+                "xorgctl-session@console.service",
+            ]
+            restart = [
+                "systemctl",
+                "--user",
+                "restart",
+                "xorgctl-session@console.service",
+            ]
+            self.assertEqual(manage_session.call_count, 1)
+            manage_session.assert_called_once_with("console", "stop", {})
+            self.assertLess(calls.index(stop), calls.index(enable))
+            self.assertLess(calls.index(stop), calls.index(restart))
+            self.assertLess(calls.index(restart), calls.index(("workers", ["console"])))
+            self.assertLess(
+                calls.index(("workers", ["console"])), calls.index("virtual_media")
+            )
+            self.assertEqual(console_config.read_bytes(), original_console)
+            self.assertEqual(unrelated_config.read_bytes(), original_unrelated)
 
     def test_owned_console_publishes_display_authority_to_systemd_activation(self):
         config = {
