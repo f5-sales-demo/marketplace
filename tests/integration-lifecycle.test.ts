@@ -1156,7 +1156,7 @@ describe('provider integration lifecycle', () => {
     expect(definition.setup?.steps).toEqual([
       {
         kind: 'install',
-        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.8' })],
+        argv: [script, 'setup', 'apply', '--params', JSON.stringify({ expected_version: '1.1.9' })],
         timeoutMs: 900000,
       },
     ]);
@@ -1168,7 +1168,7 @@ describe('provider integration lifecycle', () => {
           'setup',
           'status',
           '--params',
-          JSON.stringify({ expected_version: '1.1.8' }),
+          JSON.stringify({ expected_version: '1.1.9' }),
         ],
         timeoutMs: 30000,
       },
@@ -1177,7 +1177,7 @@ describe('provider integration lifecycle', () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
       calls.push(command);
-      const result = command.includes('capabilities') ? { version: '1.1.8' } : { state: 'ready', version: '1.1.8' };
+      const result = command.includes('capabilities') ? { version: '1.1.9' } : { state: 'ready', version: '1.1.9' };
       return {
         exitCode: 0,
         stdout: new TextEncoder().encode(JSON.stringify({ ok: true, result })),
@@ -1188,7 +1188,7 @@ describe('provider integration lifecycle', () => {
       expect(await definition.probe()).toMatchObject({ state: 'ready' });
       expect(calls).toEqual([
         [installedLauncher, '--json', 'capabilities'],
-        [installedLauncher, '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.8' })],
+        [installedLauncher, '--json', 'setup', 'status', '--params', JSON.stringify({ expected_version: '1.1.9' })],
       ]);
     } finally {
       spawn.mockRestore();
@@ -1201,7 +1201,7 @@ describe('provider integration lifecycle', () => {
       'setup',
       'status',
       '--params',
-      JSON.stringify({ expected_version: '1.1.8' }),
+      JSON.stringify({ expected_version: '1.1.9' }),
     ]);
     expect(probe.exitCode).toBe(0);
     const payload = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
@@ -1214,7 +1214,7 @@ describe('provider integration lifecycle', () => {
     };
     expect(payload.ok).toBe(true);
     expect(payload.result.platform).toEqual({ id: 'ubuntu', version_id: '24.04' });
-    expect(payload.result.version).toBe('1.1.8');
+    expect(payload.result.version).toBe('1.1.9');
     expect(['ready', 'degraded']).toContain(payload.result.state);
     expect(typeof payload.result.checks.worker.ready).toBe('boolean');
     expect(JSON.stringify(payload).toLowerCase()).not.toContain('ipv6');

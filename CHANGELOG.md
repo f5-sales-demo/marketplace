@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`xorg`** bumped to v1.1.9
+
 - **`ghostty`** v1.0.2 republishes the unchanged terminal setup and UAT payload
   against the corrected, discoverable Herdr dependency (#1422).
 

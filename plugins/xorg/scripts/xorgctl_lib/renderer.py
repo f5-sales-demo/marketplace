@@ -1,3 +1,5 @@
+# ruff: noqa: ANN001, ANN201, D103
+
 import os
 import pathlib
 import shutil
@@ -7,6 +9,12 @@ from .common import Fault, run
 
 def prepare(worker, argv, p):
     env = os.environ.copy()
+    env.update(worker.c["env"])
+    local_bin = str(pathlib.Path.home() / ".local/bin")
+    path_entries = [entry for entry in env.get("PATH", os.defpath).split(":") if entry]
+    if local_bin not in path_entries:
+        path_entries.insert(0, local_bin)
+    env["PATH"] = ":".join(path_entries)
     renderer = p.get("renderer", "native")
     if renderer == "native":
         return argv, env

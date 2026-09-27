@@ -40,6 +40,14 @@ else
   fail "Bun installer must be executable and verify the pinned artifact in runner temp"
 fi
 
+if grep -Fq 'node_gyp_version=13.0.2' "$INSTALLER" &&
+  grep -Fq 'add --global --exact "node-gyp@${node_gyp_version}"' "$INSTALLER" &&
+  grep -Fq 'node_gyp_actual=' "$INSTALLER"; then
+  pass "Bun installer provides a pinned node-gyp outside the persistent runner home"
+else
+  fail "Bun installer must install and verify pinned node-gyp in runner temp"
+fi
+
 missing_locks=()
 for plugin_dir in "$SOURCE_ROOT"/plugins/*; do
   if find "$plugin_dir" -name '*.test.ts' -not -path '*/node_modules/*' -print -quit | grep -q . &&
