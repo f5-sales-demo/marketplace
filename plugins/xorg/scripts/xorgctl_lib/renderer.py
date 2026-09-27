@@ -1,3 +1,5 @@
+# ruff: noqa: ANN001, ANN201, D103
+
 import os
 import pathlib
 import shutil
