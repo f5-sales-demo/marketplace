@@ -3,6 +3,7 @@
 set -euo pipefail
 
 bun_version=1.4.2
+node_gyp_version=13.0.2
 
 if [[ -z "${RUNNER_TEMP:-}" || "$RUNNER_TEMP" != /* || "$RUNNER_TEMP" == *$'\n'* ]]; then
   echo "RUNNER_TEMP must be an absolute path without newlines" >&2
@@ -52,4 +53,19 @@ if [[ "$actual_version" != "$bun_version" ]]; then
 fi
 
 printf '%s\n' "$bun_bin_dir" >>"$GITHUB_PATH"
-printf 'Installed Bun %s in the runner temporary directory\n' "$actual_version"
+
+# Native dependencies in the frozen plugin graphs must compile without depending
+# on a persistent runner user's global npm/Bun packages. Install the pinned tool
+# under this job's temporary root so later lifecycle scripts resolve it on PATH.
+node_gyp_root="${install_root}/node-gyp"
+BUN_INSTALL="$node_gyp_root" "$bun_bin_dir/bun" add --global --exact "node-gyp@${node_gyp_version}"
+node_gyp_bin_dir="${node_gyp_root}/bin"
+node_gyp_actual="$("${node_gyp_bin_dir}/node-gyp" --version)"
+if [[ "$node_gyp_actual" != "v${node_gyp_version}" ]]; then
+  echo "Expected node-gyp ${node_gyp_version}, got ${node_gyp_actual}" >&2
+  exit 1
+fi
+
+printf '%s\n' "$node_gyp_bin_dir" >>"$GITHUB_PATH"
+printf 'Installed Bun %s and node-gyp %s in the runner temporary directory\n' \
+  "$actual_version" "$node_gyp_actual"
