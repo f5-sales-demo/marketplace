@@ -4,31 +4,15 @@ New-Item -ItemType Directory -Force -Path $root | Out-Null
 $originalUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $originalHerdrHome = $env:HERDR_HOME
 try {
-    $manifest = Join-Path $root "latest.json"
-    $sha = "a" * 64
-    [IO.File]::WriteAllText($manifest, (@{
-        version = "0.19.1"
-        protocol = 27
-        assets = @{ "windows-x86_64" = "https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-windows-x86_64.zip" }
-        sha256 = @{ "windows-x86_64" = $sha }
-    } | ConvertTo-Json -Compress))
     $installer = Join-Path $PSScriptRoot "..\scripts\install-windows.ps1"
-    $resolved = & $installer -Action resolve -PluginVersion 1.1.4 -ManifestPath $manifest -Architecture Arm64 | ConvertFrom-Json
-    if ($resolved.version -ne "0.19.1" -or
+    $resolved = & $installer -Action resolve -PluginVersion 1.1.5 -Architecture Arm64 | ConvertFrom-Json
+    if ($resolved.version -ne "0.19.2" -or
         $resolved.target -ne "windows-x86_64" -or
         $resolved.windows_emulated -ne $true -or
-        $resolved.url -ne "https://github.com/f5-sales-demo/herdr/releases/download/v0.19.1/herdr-windows-x86_64.zip") {
+        $resolved.sha256 -ne "b0d3b75f70f57a9ea7bd6fb88cc3475703e841fb850d09a1d5658bd91409960b" -or
+        $resolved.url -ne "https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-windows-x86_64.zip") {
         throw "Windows stable manifest resolution failed."
     }
-    $badManifest = Join-Path $root "bad.json"
-    [IO.File]::WriteAllText($badManifest, [IO.File]::ReadAllText($manifest).Replace($sha, "bad"))
-    $failed = $false
-    try {
-        & $installer -Action resolve -PluginVersion 1.1.2 -ManifestPath $badManifest -Architecture X64 | Out-Null
-    } catch {
-        $failed = $_.Exception.Message -match "manifest_checksum"
-    }
-    if (-not $failed) { throw "Invalid Windows checksum was accepted." }
     $env:HERDR_HOME = Join-Path $root "herdr-home"
     $installDir = Join-Path $root "bin"
     $receipt = Join-Path $root "state\setup-receipt.json"

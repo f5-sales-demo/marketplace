@@ -4,10 +4,8 @@ param(
     [string]$Action = "apply",
     [Parameter(Mandatory = $true)]
     [string]$PluginVersion,
-    [string]$ManifestUrl = "https://raw.githubusercontent.com/f5-sales-demo/herdr/build-xcsh/distribution/latest.json",
     [string]$InstallDir,
     [string]$ReceiptPath,
-    [string]$ManifestPath,
     [string]$PackagePath,
     [string]$Architecture
 )
@@ -16,6 +14,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $MinimumProtocol = 27
+$PinnedVersion = "0.19.2"
+$PinnedSha256 = "b0d3b75f70f57a9ea7bd6fb88cc3475703e841fb850d09a1d5658bd91409960b"
 
 function Get-Target {
     param([string]$RequestedArchitecture)
@@ -32,45 +32,15 @@ function Get-Target {
     }
 }
 
-function Read-JsonFile {
-    param([string]$Path)
-    try {
-        return [System.IO.File]::ReadAllText($Path) | ConvertFrom-Json
-    } catch {
-        throw "manifest_invalid"
-    }
-}
-
 function Resolve-StableRelease {
-    param([object]$Manifest, [string]$Target)
-    if ($null -eq $Manifest -or $Manifest -is [string]) { throw "manifest_schema" }
-    $version = [string]$Manifest.version
-    if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "manifest_version" }
-    $protocol = 0
-    if ($Manifest.protocol -is [bool] -or -not [int]::TryParse([string]$Manifest.protocol, [ref]$protocol) -or $protocol -lt $MinimumProtocol) {
-        throw "manifest_protocol"
-    }
-    $assetProperty = $Manifest.assets.PSObject.Properties[$Target]
-    $shaProperty = $Manifest.sha256.PSObject.Properties[$Target]
-    if ($null -eq $assetProperty -or $null -eq $shaProperty) { throw "manifest_target" }
-    $asset = [string]$assetProperty.Value
-    $checksum = ([string]$shaProperty.Value).ToLowerInvariant()
-    if ($checksum -notmatch '^[0-9a-f]{64}$') { throw "manifest_checksum" }
+    param([string]$Target)
     $expectedName = "herdr-windows-x86_64.zip"
-    $uri = $null
-    if (-not [Uri]::TryCreate($asset, [UriKind]::Absolute, [ref]$uri) -or
-        $uri.Scheme -ne "https" -or
-        $uri.Host -ne "github.com" -or
-        -not $uri.AbsolutePath.StartsWith("/f5-sales-demo/herdr/releases/") -or
-        [IO.Path]::GetFileName($uri.AbsolutePath) -ne $expectedName) {
-        throw "manifest_asset"
-    }
     return [PSCustomObject]@{
-        Version = $version
-        Protocol = $protocol
+        Version = $PinnedVersion
+        Protocol = $MinimumProtocol
         Target = $Target
-        Url = "https://github.com/f5-sales-demo/herdr/releases/download/v$version/$expectedName"
-        Sha256 = $checksum
+        Url = "https://github.com/f5-sales-demo/herdr/releases/download/v$PinnedVersion/$expectedName"
+        Sha256 = $PinnedSha256
     }
 }
 
@@ -162,18 +132,7 @@ if ($Action -eq "verify") {
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("xcsh-herdr-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $temporaryRoot | Out-Null
 try {
-    $localManifest = if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
-        $candidate = Join-Path $temporaryRoot "latest.json"
-        $manifestUri = $null
-        if (-not [Uri]::TryCreate($ManifestUrl, [UriKind]::Absolute, [ref]$manifestUri) -or $manifestUri.Scheme -ne "https") {
-            throw "manifest_url"
-        }
-        Invoke-WebRequest -UseBasicParsing -Uri $ManifestUrl -OutFile $candidate
-        $candidate
-    } else {
-        $ManifestPath
-    }
-    $release = Resolve-StableRelease -Manifest (Read-JsonFile -Path $localManifest) -Target $targetInfo.Target
+    $release = Resolve-StableRelease -Target $targetInfo.Target
     if ($Action -eq "resolve") {
         [PSCustomObject]@{
             version = $release.Version
