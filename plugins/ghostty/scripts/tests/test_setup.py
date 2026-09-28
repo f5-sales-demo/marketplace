@@ -111,6 +111,18 @@ class PlatformAndInstallTests(unittest.TestCase):
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_fresh_config_uses_mac_like_density_and_clean_frame(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            config = root / "config"
+            config.write_text("", encoding="utf-8")
+            candidate = setup.build_candidate(config, root, set())
+            text = candidate.content.decode()
+            self.assertIn("font-size = 13", text)
+            self.assertIn("window-decoration = false", text)
+            self.assertIn("font.size", candidate.offered_ids)
+            self.assertIn("appearance.window-decoration", candidate.offered_ids)
+
     def test_recursive_optional_and_cyclic_includes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -203,12 +215,17 @@ class ConfigurationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             config = root / "config"
-            original = b"font-size = 12\n# XORGCTL user configuration\n"
+            original = (
+                b"font-size = 12\n"
+                b"window-decoration = true\n"
+                b"# XORGCTL user configuration\n"
+            )
             config.write_bytes(original)
             result = setup.build_candidate(config, root, set())
             self.assertTrue(result.changed)
             self.assertTrue(result.content.startswith(original))
-            self.assertNotIn("font-size = 9", result.content.decode())
+            self.assertNotIn("font-size = 13", result.content.decode())
+            self.assertNotIn("window-decoration = false", result.content.decode())
             self.assertIn("XORGCTL", result.content.decode())
 
     def test_user_deletion_is_not_restored_and_rerun_is_byte_stable(self):

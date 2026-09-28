@@ -7,7 +7,8 @@ interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
 }
 
-export const PLUGIN_VERSION = '1.1.3';
+export const PLUGIN_VERSION = '1.1.4';
+export const MINIMUM_PROTOCOL = 27;
 export const REQUIRED_RUNTIME_CAPABILITIES = [
   'health_check',
   'worker_context_handoff',
@@ -74,7 +75,9 @@ export function deriveStableRelease(manifest: unknown, target: string) {
   if (typeof value.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(value.version)) {
     throw new Error('manifest_version');
   }
-  if (!Number.isSafeInteger(value.protocol) || Number(value.protocol) <= 0) throw new Error('manifest_protocol');
+  if (!Number.isSafeInteger(value.protocol) || Number(value.protocol) < MINIMUM_PROTOCOL) {
+    throw new Error('manifest_protocol');
+  }
   const assets = value.assets;
   const checksums = value.sha256;
   if (!assets || typeof assets !== 'object' || Array.isArray(assets)) throw new Error('manifest_schema');
@@ -165,7 +168,7 @@ function isReceipt(value: unknown): value is HerdrReceipt {
     typeof r.herdr_version === 'string' &&
     /^\d+\.\d+\.\d+$/.test(r.herdr_version) &&
     Number.isSafeInteger(r.protocol) &&
-    Number(r.protocol) > 0 &&
+    Number(r.protocol) >= MINIMUM_PROTOCOL &&
     typeof r.target === 'string' &&
     typeof r.url === 'string' &&
     typeof r.sha256 === 'string' &&
@@ -215,7 +218,13 @@ function runtimeDetails(binary: string, context: Record<string, unknown>, spawn:
     compatible: server.compatible === true && server.endpoint_compatible === true,
     capabilities: present,
   };
-  if (client.version !== server.version || client.protocol !== server.protocol || !base.compatible) {
+  if (
+    client.version !== server.version ||
+    client.protocol !== server.protocol ||
+    !Number.isSafeInteger(server.protocol) ||
+    Number(server.protocol) < MINIMUM_PROTOCOL ||
+    !base.compatible
+  ) {
     return { state: 'client_server_mismatch', ...base };
   }
   if (missingCapabilities.length > 0) return { state: 'missing_capability', ...base, missingCapabilities };
