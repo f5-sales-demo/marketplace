@@ -92,9 +92,7 @@ RECOMMENDATIONS = (
     Recommendation("appearance.cursor-style", "cursor-style", "block"),
     Recommendation("appearance.cursor-blink", "cursor-style-blink", "false"),
     Recommendation("appearance.bold-color", "bold-color", "#ffffff"),
-    Recommendation(
-        "appearance.window-decoration", "window-decoration", "false"
-    ),
+    Recommendation("appearance.window-decoration", "window-decoration", "false"),
     Recommendation("palette.0", "palette", "0=#14191e"),
     Recommendation("palette.1", "palette", "1=#b43c2a"),
     Recommendation("palette.2", "palette", "2=#00c200"),
