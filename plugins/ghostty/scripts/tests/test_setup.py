@@ -15,6 +15,11 @@ SPEC = importlib.util.spec_from_file_location("ghostty_setup", SCRIPT)
 assert SPEC and SPEC.loader
 setup = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(setup)
+FIXTURE = SCRIPT.parents[1] / "fixtures" / "terminal-capabilities.py"
+FIXTURE_SPEC = importlib.util.spec_from_file_location("ghostty_fixture", FIXTURE)
+assert FIXTURE_SPEC and FIXTURE_SPEC.loader
+fixture = importlib.util.module_from_spec(FIXTURE_SPEC)
+FIXTURE_SPEC.loader.exec_module(fixture)
 
 
 class PlatformAndInstallTests(unittest.TestCase):
@@ -404,6 +409,19 @@ class HarnessTests(unittest.TestCase):
             self.assertEqual(
                 stat.S_IMODE((evidence / "result.json").stat().st_mode), 0o600
             )
+
+
+class FixtureTests(unittest.TestCase):
+    def test_kitty_fixture_requests_a_visible_image_and_recognizes_acknowledgement(
+        self,
+    ):
+        request = fixture.kitty_graphics_request()
+        self.assertIn(b"a=T,f=24,s=32,v=32,i=1", request)
+        self.assertNotIn(b"q=2", request)
+        self.assertTrue(fixture.kitty_graphics_acknowledged(b"\x1b_Gi=1;OK\x1b\\"))
+        self.assertFalse(
+            fixture.kitty_graphics_acknowledged(b"\x1b_Gi=1;ENOTSUPPORTED\x1b\\")
+        )
 
 
 if __name__ == "__main__":

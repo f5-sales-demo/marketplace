@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-export const PLUGIN_VERSION = '1.0.3';
+export const PLUGIN_VERSION = '1.0.4';
 const setup = resolve(import.meta.dir, '..', 'scripts', 'ghostty-setup.py');
 export default function ghosttyIntegration(pi: { integrations: { register(definition: unknown): unknown } }) {
   pi.integrations.register({

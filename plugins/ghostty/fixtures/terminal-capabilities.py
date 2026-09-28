@@ -6,16 +6,63 @@
 from __future__ import annotations
 
 import base64
+import os
+import select
 import sys
+import termios
+import time
+import tty
 
-PNG = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAMUlEQVR4nO3NMQEAAAgDINc/9K3h"
-    "HFQgE1lV55x1Op1Op9PpdDqdTqfT6XQ6nU6n0+l0Ov0AXUEBPYTBhWYAAAAASUVORK5CYII="
-)
+IMAGE_WIDTH = 32
+IMAGE_HEIGHT = 32
+
+
+def kitty_graphics_request() -> bytes:
+    """Build a visibly high-contrast Kitty graphics transmission request."""
+    pixels = bytearray()
+    for y in range(IMAGE_HEIGHT):
+        for x in range(IMAGE_WIDTH):
+            pixels.extend((255, 80, 80) if (x // 4 + y // 4) % 2 else (80, 255, 160))
+    encoded = base64.b64encode(bytes(pixels))
+    return (
+        f"\x1b_Ga=T,f=24,s={IMAGE_WIDTH},v={IMAGE_HEIGHT},i=1;".encode()
+        + encoded
+        + b"\x1b\\"
+    )
+
+
+def kitty_graphics_acknowledged(response: bytes) -> bool:
+    """Return whether a Kitty graphics response acknowledges image id one."""
+    return b"\x1b_Gi=1;OK\x1b\\" in response
+
+
+def send_kitty_graphics() -> bool:
+    """Render the fixture image and wait briefly for its terminal acknowledgement."""
+    descriptor = sys.stdin.fileno()
+    if not os.isatty(descriptor):
+        return False
+    previous = termios.tcgetattr(descriptor)
+    try:
+        tty.setcbreak(descriptor)
+        sys.stdout.buffer.write(kitty_graphics_request())
+        sys.stdout.buffer.flush()
+        response = bytearray()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            readable, _, _ = select.select(
+                [descriptor], [], [], deadline - time.monotonic()
+            )
+            if not readable:
+                break
+            response.extend(os.read(descriptor, 4096))
+            if kitty_graphics_acknowledged(bytes(response)):
+                return True
+    finally:
+        termios.tcsetattr(descriptor, termios.TCSADRAIN, previous)
+    return False
 
 
 def main() -> int:
-    encoded = base64.b64encode(PNG).decode("ascii")
     print("GHOSTTY-CAPABILITY-FIXTURE-v1")
     print("Nerd Font: \ue0b0 \uf120 \uf17c \uf1d3")
     print("Emoji fallback: 🚀 🔐 ✅")
@@ -29,10 +76,11 @@ def main() -> int:
     print(
         "SGR mouse enabled: \x1b[?1000h\x1b[?1006hSGR-MOUSE-READY\x1b[?1006l\x1b[?1000l"
     )
-    sys.stdout.write(f"Kitty graphics: \x1b_Gf=100,a=T,q=2;{encoded}\x1b\\\n")
-    print("KITTY-GRAPHICS-SENT")
+    print("Kitty graphics: high-contrast checkerboard requested")
+    acknowledged = send_kitty_graphics()
+    print("KITTY-GRAPHICS-ACK: OK" if acknowledged else "KITTY-GRAPHICS-ACK: MISSING")
     print("GHOSTTY-CAPABILITY-FIXTURE-END")
-    return 0
+    return 0 if acknowledged else 1
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 from typing import Any, NamedTuple
 
-PLUGIN_VERSION = "1.0.3"
+PLUGIN_VERSION = "1.0.4"
 RECEIPT_SCHEMA = 2
 MIN_VERSION = (1, 3, 1)
 RELEASE_API = "https://api.github.com/repos/mkasberg/ghostty-ubuntu/releases/latest"
