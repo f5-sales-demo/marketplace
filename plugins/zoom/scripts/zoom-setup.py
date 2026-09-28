@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D101, D102, D103, D107, EM101, EM102, PLR2004, S603, T201, TRY300, TRY301
+# pylint: disable=invalid-name
 """Install and verify Zoom's isolated terminal-camera pipeline."""
 
 from __future__ import annotations
@@ -11,12 +12,11 @@ import os
 import pathlib
 import platform
 import re
-import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import time
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -250,11 +250,23 @@ class Controller:
         os.close(descriptor)
         package = pathlib.Path(name)
         try:
-            with (
-                urllib.request.urlopen(ZOOM_URL, timeout=180) as response,
-                package.open("wb") as output,
-            ):
-                shutil.copyfileobj(response, output)
+            self.runner.run(
+                [
+                    "curl",
+                    "-fsSL",
+                    "--retry",
+                    "3",
+                    "--connect-timeout",
+                    "10",
+                    "--max-time",
+                    "300",
+                    "--proto",
+                    "=https",
+                    ZOOM_URL,
+                    "-o",
+                    str(package),
+                ]
+            )
             if sha256_file(package) != ZOOM_SHA256:
                 raise SetupError("package_digest_mismatch")
             self.runner.run(["sudo", "-n", "dpkg", "--install", str(package)])
@@ -671,6 +683,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
-
     raise SystemExit(main())

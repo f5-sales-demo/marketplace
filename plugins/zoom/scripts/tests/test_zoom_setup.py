@@ -1,4 +1,6 @@
 # ruff: noqa: ANN001, ANN201, ANN202, ARG005, D101, D102, D107, PLR0911, PT009, PT018, PT027, S101, S108
+# mypy: ignore-errors
+# pylint: disable=too-many-return-statements
 from __future__ import annotations
 
 import importlib.util
