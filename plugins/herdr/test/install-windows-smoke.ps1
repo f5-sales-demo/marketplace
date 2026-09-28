@@ -7,17 +7,17 @@ try {
     $manifest = Join-Path $root "latest.json"
     $sha = "a" * 64
     [IO.File]::WriteAllText($manifest, (@{
-        version = "0.18.0"
-        protocol = 26
+        version = "0.19.1"
+        protocol = 27
         assets = @{ "windows-x86_64" = "https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-windows-x86_64.zip" }
         sha256 = @{ "windows-x86_64" = $sha }
     } | ConvertTo-Json -Compress))
     $installer = Join-Path $PSScriptRoot "..\scripts\install-windows.ps1"
-    $resolved = & $installer -Action resolve -PluginVersion 1.1.2 -ManifestPath $manifest -Architecture Arm64 | ConvertFrom-Json
-    if ($resolved.version -ne "0.18.0" -or
+    $resolved = & $installer -Action resolve -PluginVersion 1.1.4 -ManifestPath $manifest -Architecture Arm64 | ConvertFrom-Json
+    if ($resolved.version -ne "0.19.1" -or
         $resolved.target -ne "windows-x86_64" -or
         $resolved.windows_emulated -ne $true -or
-        $resolved.url -ne "https://github.com/f5-sales-demo/herdr/releases/download/v0.18.0/herdr-windows-x86_64.zip") {
+        $resolved.url -ne "https://github.com/f5-sales-demo/herdr/releases/download/v0.19.1/herdr-windows-x86_64.zip") {
         throw "Windows stable manifest resolution failed."
     }
     $badManifest = Join-Path $root "bad.json"

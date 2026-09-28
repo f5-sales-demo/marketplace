@@ -12,20 +12,20 @@ versioned and atomic.
 | --- | --- |
 | Upstream repository | <https://github.com/f5-sales-demo/herdr> |
 | Upstream branch | `build-xcsh` |
-| Reviewed commit | `993f928f20a1b9d1dad8afd737ee29e5917f4097` |
+| Reviewed commit | `dfe3b16630b7e530861ddf91d8de6ce0632902ad` (`v0.19.1`) |
 | Skill path | `skills/herdr` |
 | Skill inventory | `SKILL.md`, `references/agents.md`, `references/automation.md`, `references/external-workers.md`, `references/remote-and-persistence.md` |
-| Skill bytes | 21,524 |
+| Skill bytes | 22,143 |
 | Windows installer path | `distribution/install.ps1` |
 | Windows installer SHA-256 | `af585770c482623d8e7526a3fd1ee9d07fc85c780fddee0f60b187717565e35b` |
-| Retrieved | 2026-09-22 |
+| Retrieved | 2026-09-28 |
 | Upstream license | Apache-2.0 |
 
 ## Vendored skill checksums
 
 | Path | SHA-256 |
 | --- | --- |
-| `SKILL.md` | `50fcd8a907a313d76646b2f2519903b2ecc58194b3acb84448ea16c3d50c90c0` |
+| `SKILL.md` | `0ca7a42ca0fb04ef13780130d9c8bf657267b3a3135a7799b65b8cf9c9bec35c` |
 | `references/agents.md` | `c073c3b87353e01541f16ad1e1c9bc914ed1982f1231caf0a1ebaf491a67baf7` |
 | `references/automation.md` | `ef76ba05aad2046408925764fb3b08397960880876dea05b50bfc2c389879770` |
 | `references/external-workers.md` | `ca4c2c2c8a1d04ef69f30819dcc451d0dfad4d95007361ee45f9795f58a1935c` |

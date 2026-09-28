@@ -15,6 +15,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+$MinimumProtocol = 27
 
 function Get-Target {
     param([string]$RequestedArchitecture)
@@ -46,7 +47,7 @@ function Resolve-StableRelease {
     $version = [string]$Manifest.version
     if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "manifest_version" }
     $protocol = 0
-    if ($Manifest.protocol -is [bool] -or -not [int]::TryParse([string]$Manifest.protocol, [ref]$protocol) -or $protocol -le 0) {
+    if ($Manifest.protocol -is [bool] -or -not [int]::TryParse([string]$Manifest.protocol, [ref]$protocol) -or $protocol -lt $MinimumProtocol) {
         throw "manifest_protocol"
     }
     $assetProperty = $Manifest.assets.PSObject.Properties[$Target]
@@ -94,6 +95,7 @@ function Test-InstalledReceipt {
             [string]$record.plugin_version -ne $ExpectedPluginVersion -or
             [string]$record.target -ne "windows-x86_64" -or
             [string]$record.installed_path -ne $Binary -or
+            [int]$record.protocol -lt $MinimumProtocol -or
             [string]$record.binary_sha256 -notmatch '^[0-9a-f]{64}$' -or
             (Get-FileSha256 -Path $Binary) -ne [string]$record.binary_sha256) {
             return $false
