@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.0.3 aligns the Linux/Xorg terminal with the MacBook demo
+  view by recommending 13-point text and a borderless Ghostty window while
+  preserving explicit user configuration and stable reruns (#1434).
+
 - **`herdr`** bumped to v1.1.4
 
 - **`xorg`** bumped to v1.1.9
