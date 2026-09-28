@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`herdr`** bumped to v1.1.4
+
 - **`xorg`** bumped to v1.1.9
 
 - **`ghostty`** v1.0.2 republishes the unchanged terminal setup and UAT payload

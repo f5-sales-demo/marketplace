@@ -3,6 +3,7 @@ set -eu
 
 ACTION=${1:-}
 PLUGIN_VERSION=${2:-}
+MINIMUM_PROTOCOL=27
 MANIFEST_URL=${HERDR_MANIFEST_URL:-https://raw.githubusercontent.com/f5-sales-demo/herdr/build-xcsh/distribution/latest.json}
 INSTALL_DIR=${HERDR_INSTALL_DIR:-$HOME/.local/bin}
 STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
@@ -135,9 +136,12 @@ verify_installation() {
   [ "$(receipt_value target 2>/dev/null)" = "$TARGET" ] || return 1
   [ "$(receipt_value installed_path 2>/dev/null)" = "$BINARY_PATH" ] || return 1
   receipt_version=$(receipt_value herdr_version 2>/dev/null) || return 1
+  receipt_protocol=$(receipt_value protocol 2>/dev/null) || return 1
   receipt_sha=$(receipt_value sha256 2>/dev/null) || return 1
   receipt_url=$(receipt_value url 2>/dev/null) || return 1
   case "$receipt_version" in '' | *[!0-9.]* | .* | *.) return 1 ;; esac
+  case "$receipt_protocol" in '' | *[!0-9]* | 0) return 1 ;; esac
+  [ "$receipt_protocol" -ge "$MINIMUM_PROTOCOL" ] || return 1
   case "$receipt_sha" in
   *[!0-9a-f]* | '') return 1 ;;
   esac
@@ -191,7 +195,7 @@ try:
     version, protocol = manifest.get("version"), manifest.get("protocol")
     assets, checksums = manifest.get("assets"), manifest.get("sha256")
     if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version): raise ValueError("manifest_version")
-    if not isinstance(protocol, int) or isinstance(protocol, bool) or protocol <= 0: raise ValueError("manifest_protocol")
+    if not isinstance(protocol, int) or isinstance(protocol, bool) or protocol < 27: raise ValueError("manifest_protocol")
     if not isinstance(assets, dict) or not isinstance(checksums, dict): raise ValueError("manifest_schema")
     asset, checksum = assets.get(target), checksums.get(target)
     if not isinstance(asset, str) or not isinstance(checksum, str): raise ValueError("manifest_target")
@@ -219,7 +223,7 @@ function run(argv) {
   const expectedName = argv[2];
   if (!manifest || Array.isArray(manifest) || typeof manifest !== 'object') throw new Error('manifest_schema');
   if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('manifest_version');
-  if (!Number.isSafeInteger(manifest.protocol) || manifest.protocol <= 0) throw new Error('manifest_protocol');
+  if (!Number.isSafeInteger(manifest.protocol) || manifest.protocol < 27) throw new Error('manifest_protocol');
   if (!manifest.assets || Array.isArray(manifest.assets) || typeof manifest.assets !== 'object') throw new Error('manifest_schema');
   if (!manifest.sha256 || Array.isArray(manifest.sha256) || typeof manifest.sha256 !== 'object') throw new Error('manifest_schema');
   const asset = manifest.assets[target];
@@ -239,6 +243,7 @@ $manifest_values
 EOF
 case "$VERSION" in '' | *[!0-9.]* | .* | *.) fail manifest_version ;; esac
 case "$PROTOCOL" in '' | *[!0-9]* | 0) fail manifest_protocol ;; esac
+[ "$PROTOCOL" -ge "$MINIMUM_PROTOCOL" ] || fail manifest_protocol
 case "$ASSET_URL" in "https://github.com/f5-sales-demo/herdr/releases/"*"/download/$ASSET_NAME") ;; *) fail manifest_asset ;; esac
 EXPECTED_SHA=$(printf '%s' "$EXPECTED_SHA" | tr 'A-F' 'a-f')
 case "$EXPECTED_SHA" in *[!0-9a-f]* | '') fail manifest_checksum ;; esac

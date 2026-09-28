@@ -17,22 +17,22 @@ const receiptPath = '/home/test/.local/state/xcsh/herdr/setup-receipt.json';
 const receipt: HerdrReceipt = {
   schema_version: 1,
   plugin_version: PLUGIN_VERSION,
-  herdr_version: '0.18.0',
-  protocol: 26,
+  herdr_version: '0.19.1',
+  protocol: 27,
   target: 'linux-x86_64',
-  url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.18.0/herdr-linux-x86_64',
+  url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.1/herdr-linux-x86_64',
   sha256: sha,
   installed_path: binaryPath,
   installed_at: '2026-09-22T12:00:00Z',
 };
 
 const compatibleStatus = {
-  client: { version: '0.18.0', protocol: 26 },
+  client: { version: '0.19.1', protocol: 27 },
   server: {
     status: 'running',
     running: true,
-    version: '0.18.0',
-    protocol: 26,
+    version: '0.19.1',
+    protocol: 27,
     compatible: true,
     endpoint_compatible: true,
     capabilities: Object.fromEntries(REQUIRED_RUNTIME_CAPABILITIES.map((name) => [name, true])),
@@ -48,7 +48,7 @@ function dependencies(overrides: Partial<ProbeDependencies> = {}): ProbeDependen
     exists: (path) => path === binaryPath || path === receiptPath,
     readText: () => JSON.stringify(receipt),
     hashFile: () => sha,
-    spawn: (_argv) => ({ exitCode: 0, stdout: 'herdr 0.18.0\n', stderr: '' }),
+    spawn: (_argv) => ({ exitCode: 0, stdout: 'herdr 0.19.1\n', stderr: '' }),
     ...overrides,
   };
 }
@@ -68,8 +68,8 @@ describe('Herdr platform and stable manifest contracts', () => {
   it('validates the stable manifest and derives an immutable release URL', () => {
     const resolved = deriveStableRelease(
       {
-        version: '0.18.0',
-        protocol: 26,
+        version: '0.19.1',
+        protocol: 27,
         assets: {
           'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64',
         },
@@ -78,18 +78,39 @@ describe('Herdr platform and stable manifest contracts', () => {
       'linux-x86_64',
     );
     expect(resolved).toEqual({
-      version: '0.18.0',
-      protocol: 26,
+      version: '0.19.1',
+      protocol: 27,
       target: 'linux-x86_64',
-      url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.18.0/herdr-linux-x86_64',
+      url: 'https://github.com/f5-sales-demo/herdr/releases/download/v0.19.1/herdr-linux-x86_64',
       sha256: sha,
     });
   });
 
+  it('requires the published 0.19.1 protocol-27 release contract', () => {
+    const manifest = {
+      version: '0.19.1',
+      protocol: 27,
+      assets: {
+        'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64',
+        'linux-aarch64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-aarch64',
+      },
+      sha256: {
+        'linux-x86_64': '23da9795e084403c0999e639f4058e902c2ee209c0b4c02ca0f1188448bffa8e',
+        'linux-aarch64': 'a97c11dc553702a7d4f3ba276d9102d98384567db3a39929a1d880233280ee8d',
+      },
+    };
+    expect(deriveStableRelease(manifest, 'linux-x86_64')).toMatchObject({
+      version: '0.19.1',
+      protocol: 27,
+      sha256: manifest.sha256['linux-x86_64'],
+    });
+    expect(() => deriveStableRelease({ ...manifest, protocol: 26 }, 'linux-x86_64')).toThrow('manifest_protocol');
+  });
+
   it('rejects malformed versions, protocols, targets, assets, and checksums', () => {
     const base = {
-      version: '0.18.0',
-      protocol: 26,
+      version: '0.19.1',
+      protocol: 27,
       assets: { 'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64' },
       sha256: { 'linux-x86_64': sha },
     };
@@ -127,7 +148,7 @@ describe('Herdr installation, context, and runtime probes', () => {
     expect(result).toMatchObject({
       state: 'ready',
       value: {
-        installation: { state: 'ready', version: '0.18.0', hash: sha, target: 'linux-x86_64', pathVisible: true },
+        installation: { state: 'ready', version: '0.19.1', hash: sha, target: 'linux-x86_64', pathVisible: true },
         context: { state: 'unpaired' },
         runtime: { state: 'unpaired' },
       },
@@ -180,14 +201,14 @@ describe('Herdr installation, context, and runtime probes', () => {
         spawn: (argv) =>
           argv.includes('status')
             ? { exitCode: 0, stdout: JSON.stringify(compatibleStatus), stderr: '' }
-            : { exitCode: 0, stdout: 'herdr 0.18.0\n', stderr: '' },
+            : { exitCode: 0, stdout: 'herdr 0.19.1\n', stderr: '' },
       }),
     );
     expect(result).toMatchObject({
       state: 'ready',
       value: {
         context: { state: 'managed' },
-        runtime: { state: 'compatible', protocol: 26, capabilities: REQUIRED_RUNTIME_CAPABILITIES },
+        runtime: { state: 'compatible', protocol: 27, capabilities: REQUIRED_RUNTIME_CAPABILITIES },
       },
     });
     expect(JSON.stringify(result)).not.toContain('secret-not-returned');
@@ -209,10 +230,20 @@ describe('Herdr installation, context, and runtime probes', () => {
           spawn: (argv) =>
             argv.includes('status')
               ? { exitCode: 0, stdout: JSON.stringify(status), stderr: '' }
-              : { exitCode: 0, stdout: 'herdr 0.18.0\n', stderr: '' },
+              : { exitCode: 0, stdout: 'herdr 0.19.1\n', stderr: '' },
         }),
       );
     expect(run({ ...compatibleStatus, server: { ...compatibleStatus.server, version: '0.17.0' } })).toMatchObject({
+      state: 'degraded',
+      value: { runtime: { state: 'client_server_mismatch' } },
+    });
+    expect(
+      run({
+        ...compatibleStatus,
+        client: { ...compatibleStatus.client, protocol: 26 },
+        server: { ...compatibleStatus.server, protocol: 26 },
+      }),
+    ).toMatchObject({
       state: 'degraded',
       value: { runtime: { state: 'client_server_mismatch' } },
     });

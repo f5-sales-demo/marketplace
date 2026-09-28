@@ -17,13 +17,13 @@ function fixture(checksum = '') {
   const packagePath = join(root, 'herdr-package');
   const manifestPath = join(root, 'latest.json');
   mkdirSync(home, { recursive: true });
-  writeFileSync(packagePath, '#!/bin/sh\nprintf "herdr 0.18.0\\n"\n', { mode: 0o755 });
+  writeFileSync(packagePath, '#!/bin/sh\nprintf "herdr 0.19.1\\n"\n', { mode: 0o755 });
   const actual = new Bun.CryptoHasher('sha256').update(readFileSync(packagePath)).digest('hex');
   writeFileSync(
     manifestPath,
     JSON.stringify({
-      version: '0.18.0',
-      protocol: 26,
+      version: '0.19.1',
+      protocol: 27,
       assets: {
         'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64',
       },
@@ -34,7 +34,7 @@ function fixture(checksum = '') {
 }
 
 function run(f: ReturnType<typeof fixture>, extra: Record<string, string> = {}) {
-  return Bun.spawnSync(['sh', installer, 'apply', '1.1.2'], {
+  return Bun.spawnSync(['sh', installer, 'apply', '1.1.4'], {
     env: {
       ...process.env,
       HOME: f.home,
@@ -62,14 +62,14 @@ describe('Unix Herdr setup', () => {
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
     expect(receipt).toMatchObject({
       schema_version: 1,
-      plugin_version: '1.1.2',
-      herdr_version: '0.18.0',
-      protocol: 26,
+      plugin_version: '1.1.4',
+      herdr_version: '0.19.1',
+      protocol: 27,
       target: 'linux-x86_64',
       sha256: f.actual,
       installed_path: binary,
     });
-    expect(receipt.url).toBe('https://github.com/f5-sales-demo/herdr/releases/download/v0.18.0/herdr-linux-x86_64');
+    expect(receipt.url).toBe('https://github.com/f5-sales-demo/herdr/releases/download/v0.19.1/herdr-linux-x86_64');
     const before = statSync(binary).ino;
     const second = run(f);
     expect(second.exitCode).toBe(0);
@@ -89,6 +89,24 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(unrelated, 'utf8')).toBe('keep');
   });
 
+  it('refuses a manifest below the protocol-27 release floor', () => {
+    const f = fixture();
+    writeFileSync(
+      f.manifestPath,
+      JSON.stringify({
+        version: '0.19.1',
+        protocol: 26,
+        assets: {
+          'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64',
+        },
+        sha256: { 'linux-x86_64': f.actual },
+      }),
+    );
+    const result = run(f);
+    expect(result.exitCode).not.toBe(0);
+    expect(new TextDecoder().decode(result.stderr)).toContain('manifest_protocol');
+  });
+
   it('keeps the old binary on interruption and recovers on the next run', () => {
     const f = fixture();
     const bin = join(f.home, '.local', 'bin');
@@ -101,7 +119,7 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(binary, 'utf8')).toContain('0.17.0');
     const recovered = run(f);
     expect(recovered.exitCode).toBe(0);
-    expect(readFileSync(binary, 'utf8')).toContain('0.18.0');
+    expect(readFileSync(binary, 'utf8')).toContain('0.19.1');
   });
 
   it('normalizes unsupported targets and records Ubuntu bootstrap intent', () => {
