@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.0 replaces the static virtual-camera test card with an
+  isolated 1920x1080 Ghostty, Herdr, and xcsh capture, pins Zoom Workplace
+  7.2.1.5760 by digest, adds transactional provenance and readiness checks,
+  and refuses physical-camera fallback (#1441).
+
 - **`ghostty`** v1.0.4 replaces the malformed Kitty graphics fixture with a
   visible high-contrast RGB checkerboard and requires Ghostty's image
   acknowledgement before the published terminal-capability UAT can pass

@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 interface ExtensionApi {
   integrations: { register<_T>(definition: unknown): unknown };
@@ -37,6 +37,7 @@ export type Action =
   | 'join';
 const DEFAULT_SESSION = 'desktop';
 const CANDIDATE_SESSIONS = ['console', DEFAULT_SESSION] as const;
+const ZOOM_SETUP = resolve(import.meta.dir, '..', 'scripts', 'zoom-setup.py');
 type AccessibilityItem = {
   name?: string;
   role?: string;
@@ -676,6 +677,55 @@ const closeAudioMenu = (session: string) => {
     steps: [{ action: 'key', key: 'Escape' }],
   });
 };
+const videoMenuOpen = (items: AccessibilityItem[]) => exactItem(items, 'Select a camera', 'menu item') !== undefined;
+const openVideoMenu = (session: string) => {
+  let items = meetingAccessibility(session).items;
+  if (videoMenuOpen(items)) return { items, changed: false };
+  const settings = exactItem(items, 'Video Settings', 'push button');
+  if (!settings || !clickAccessible(session, settings)) return undefined;
+  const deadline = Date.now() + 3_000;
+  while (Date.now() < deadline) {
+    items = meetingAccessibility(session).items;
+    if (videoMenuOpen(items)) return { items, changed: true };
+    Bun.sleepSync(100);
+  }
+  return undefined;
+};
+const closeVideoMenu = (session: string) => {
+  publicXorgCall(session, 'input', 'batch', {
+    allow_focus_change: true,
+    steps: [{ action: 'key', key: 'Escape' }],
+  });
+};
+export const ensureVirtualCamera = (session: string) => {
+  let menu = openVideoMenu(session);
+  if (!menu) return { exitCode: 1, code: 'video_settings_unavailable', camera: 'unknown', verified: false };
+  let camera = exactItem(menu.items, 'xcsh Camera', 'check box');
+  if (!camera) {
+    closeVideoMenu(session);
+    return { exitCode: 1, code: 'virtual_camera_unavailable', camera: 'unknown', verified: false };
+  }
+  if (camera.checked === true) {
+    closeVideoMenu(session);
+    return { exitCode: 0, camera: 'xcsh Camera', changed: menu.changed, verified: true };
+  }
+  if (!clickAccessible(session, camera)) {
+    closeVideoMenu(session);
+    return { exitCode: 1, code: 'virtual_camera_input_failed', camera: 'unknown', verified: false };
+  }
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    menu = openVideoMenu(session);
+    camera = menu && exactItem(menu.items, 'xcsh Camera', 'check box');
+    if (camera?.checked === true) {
+      closeVideoMenu(session);
+      return { exitCode: 0, camera: 'xcsh Camera', changed: true, verified: true };
+    }
+    Bun.sleepSync(100);
+  }
+  closeVideoMenu(session);
+  return { exitCode: 1, code: 'virtual_camera_verification_timeout', camera: 'unknown', verified: false };
+};
 const selectAudioOption = (
   session: string,
   name: string,
@@ -873,6 +923,10 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
     hand: { raised: 'lowered', lowered: 'raised' },
   }[action] as Record<string, string>;
   const target = requested === 'toggle' ? inverse[previous] : requested;
+  if (action === 'video' && target === 'on') {
+    const camera = ensureVirtualCamera(session);
+    if (camera.exitCode) return { ...camera, control: action, requested, previous };
+  }
   if (previous === target) {
     return { exitCode: 0, control: action, requested, previous, current: previous, changed: false, verified: true };
   }
@@ -949,10 +1003,20 @@ export const call = (action: Action, args: string[]) => {
         awareness.hand = observeHandState(session);
       }
       if (awareness.meeting === 'home' || awareness.meeting === 'signed_out') forgetMeetingIdentity(session);
+      const setup = Bun.spawnSync(['python3', ZOOM_SETUP, 'status', '--json']);
+      let terminalCamera: Record<string, unknown> = { ready: false, error: 'status_unavailable' };
+      if (setup.exitCode === 0) {
+        try {
+          terminalCamera = JSON.parse(new TextDecoder().decode(setup.stdout)) as Record<string, unknown>;
+        } catch {
+          terminalCamera = { ready: false, error: 'invalid_status' };
+        }
+      }
       return {
         exitCode: 0,
         session,
         awareness,
+        terminal_camera: terminalCamera,
         evidence: { accessibility: { items: allItems }, windows: windowEnvelope.result },
       };
     } catch {
@@ -990,16 +1054,23 @@ export default function zoomIntegration(pi: ExtensionApi) {
     plugin: 'zoom',
     kind: 'local',
     setup: {
-      pluginDependencies: ['xorg'],
+      pluginDependencies: ['xorg', 'herdr', 'ghostty'],
       requiredEnvironment: [],
       profileFields: [],
-      steps: [{ kind: 'install', argv: ['zoom', '--version'], timeoutMs: 30000 }],
-      verification: [{ argv: ['xorgctl', '--version'], timeoutMs: 30000 }],
+      steps: [{ kind: 'install', argv: ['python3', ZOOM_SETUP, 'apply', '--json'], timeoutMs: 900000 }],
+      verification: [{ argv: ['python3', ZOOM_SETUP, 'verify', '--json'], timeoutMs: 120000 }],
     },
     async probe() {
-      return Bun.spawnSync(['zoom', '--version']).exitCode === 0
-        ? { state: 'ready' }
-        : { state: 'setup_required', reason: 'zoom_missing' };
+      const result = Bun.spawnSync(['python3', ZOOM_SETUP, 'status', '--json']);
+      if (result.exitCode !== 0) return { state: 'setup_required', reason: 'terminal_camera_not_ready' };
+      try {
+        const value = JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, unknown>;
+        return value.ready === true
+          ? { state: 'ready', value }
+          : { state: 'setup_required', reason: 'terminal_camera_not_ready', value };
+      } catch {
+        return { state: 'setup_required', reason: 'invalid_response' };
+      }
     },
   });
   pi.registerTool({

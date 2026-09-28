@@ -16,7 +16,9 @@ calls. Use `/zoom
 virtual-microphone test. Before a stimulus, the controller opens Zoom's semantic
 Audio Settings menu and verifies `xcsh Microphone`, `xorgctl_desktop`, and
 Original Sound for Musicians; it fails closed instead of selecting a physical
-device. Numeric IDs are canonicalized. Full invitation
+device. `video on` likewise selects and verifies exactly `xcsh Camera`; it
+never falls back to a physical camera. `/zoom status` reports isolated
+terminal-camera readiness and provenance. Numeric IDs are canonicalized. Full invitation
 URLs are the expected invitation mechanism and are passed directly to Zoom
 unchanged. Numeric joins never consult a keyring: if a passcode is required,
 return `passcode_required` and use the full invitation URL. Verify each state
