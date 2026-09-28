@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`ghostty`** v1.0.4 replaces the malformed Kitty graphics fixture with a
+  visible high-contrast RGB checkerboard and requires Ghostty's image
+  acknowledgement before the published terminal-capability UAT can pass
+  (#1426).
+
 - **`ghostty`** v1.0.3 aligns the Linux/Xorg terminal with the MacBook demo
   view by recommending 13-point text and a borderless Ghostty window while
   preserving explicit user configuration and stable reruns (#1434).

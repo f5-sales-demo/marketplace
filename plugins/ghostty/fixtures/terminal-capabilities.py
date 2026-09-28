@@ -55,7 +55,7 @@ def send_kitty_graphics() -> bool:
             if not readable:
                 break
             response.extend(os.read(descriptor, 4096))
-            if kitty_graphics_acknowledged(response):
+            if kitty_graphics_acknowledged(bytes(response)):
                 return True
     finally:
         termios.tcsetattr(descriptor, termios.TCSADRAIN, previous)
