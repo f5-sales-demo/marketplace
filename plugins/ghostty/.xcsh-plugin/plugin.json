@@ -1,6 +1,6 @@
 {
   "name": "ghostty",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Curated Linux Ghostty setup for Xorg and Herdr terminal sessions",
   "license": "MIT",
   "author": {
@@ -33,6 +33,6 @@
   "extensions": ["extensions/integration.ts"],
   "xcsh": {
     "name": "Ghostty",
-    "version": "1.0.2"
+    "version": "1.0.3"
   }
 }

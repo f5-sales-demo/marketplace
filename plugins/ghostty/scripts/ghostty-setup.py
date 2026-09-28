@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 from typing import Any, NamedTuple
 
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_VERSION = "1.0.3"
 RECEIPT_SCHEMA = 2
 MIN_VERSION = (1, 3, 1)
 RELEASE_API = "https://api.github.com/repos/mkasberg/ghostty-ubuntu/releases/latest"
@@ -92,6 +92,9 @@ RECOMMENDATIONS = (
     Recommendation("appearance.cursor-style", "cursor-style", "block"),
     Recommendation("appearance.cursor-blink", "cursor-style-blink", "false"),
     Recommendation("appearance.bold-color", "bold-color", "#ffffff"),
+    Recommendation(
+        "appearance.window-decoration", "window-decoration", "false"
+    ),
     Recommendation("palette.0", "palette", "0=#14191e"),
     Recommendation("palette.1", "palette", "1=#b43c2a"),
     Recommendation("palette.2", "palette", "2=#00c200"),
@@ -111,7 +114,7 @@ RECOMMENDATIONS = (
     Recommendation("font.primary", "font-family", '"JetBrainsMono Nerd Font"'),
     Recommendation("font.emoji", "font-family", '"Noto Color Emoji"'),
     Recommendation("font.style", "font-style", "Regular"),
-    Recommendation("font.size", "font-size", "9"),
+    Recommendation("font.size", "font-size", "13"),
     Recommendation("gtk.single-instance", "gtk-single-instance", "false"),
     Recommendation("terminal.term", "term", "xterm-ghostty"),
     Recommendation("terminal.mouse", "mouse-reporting", "true"),
