@@ -19,7 +19,9 @@ and this project adheres to
   view by recommending 13-point text and a borderless Ghostty window while
   preserving explicit user configuration and stable reruns (#1434).
 
-- **`herdr`** bumped to v1.1.4
+- **`herdr`** v1.1.5 pins the marketplace installer to immutable Herdr 0.19.2
+  release URLs and published SHA-256 digests for every supported platform,
+  eliminating mutable `latest` manifest drift (#1439).
 
 - **`xorg`** bumped to v1.1.9
 

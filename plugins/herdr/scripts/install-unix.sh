@@ -4,7 +4,8 @@ set -eu
 ACTION=${1:-}
 PLUGIN_VERSION=${2:-}
 MINIMUM_PROTOCOL=27
-MANIFEST_URL=${HERDR_MANIFEST_URL:-https://raw.githubusercontent.com/f5-sales-demo/herdr/build-xcsh/distribution/latest.json}
+PINNED_VERSION=0.19.2
+PINNED_PROTOCOL=27
 INSTALL_DIR=${HERDR_INSTALL_DIR:-$HOME/.local/bin}
 STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
 RECEIPT_PATH=${XCSH_HERDR_RECEIPT_PATH:-$STATE_HOME/xcsh/herdr/setup-receipt.json}
@@ -12,7 +13,6 @@ RECEIPT_DIR=$(dirname "$RECEIPT_PATH")
 LOCK_DIR=$RECEIPT_DIR/install.lock
 STAGED_BINARY=
 STAGED_RECEIPT=
-STAGED_MANIFEST=
 LOCK_OWNED=0
 
 fail() {
@@ -23,7 +23,6 @@ fail() {
 cleanup() {
   [ -z "$STAGED_BINARY" ] || rm -f "$STAGED_BINARY"
   [ -z "$STAGED_RECEIPT" ] || rm -f "$STAGED_RECEIPT"
-  [ -z "$STAGED_MANIFEST" ] || rm -f "$STAGED_MANIFEST"
   if [ "$LOCK_OWNED" -eq 1 ]; then rm -rf "$LOCK_DIR"; fi
 }
 trap cleanup EXIT HUP INT TERM
@@ -172,83 +171,19 @@ LOCK_OWNED=1
 printf '%s\n' "$$" >"$LOCK_DIR/pid"
 find "$INSTALL_DIR" -maxdepth 1 -type f -name '.herdr.xcsh.tmp.*' -exec rm -f {} \;
 
-MANIFEST_FILE=${HERDR_MANIFEST_FILE:-$RECEIPT_DIR/manifest.$$}
-REMOVE_MANIFEST=0
-if [ -z "${HERDR_MANIFEST_FILE:-}" ]; then
-  STAGED_MANIFEST=$MANIFEST_FILE
-  case "$MANIFEST_URL" in https://*) ;; *) fail manifest_url ;; esac
-  if [ "$HOST_OS" = Darwin ]; then CURL=/usr/bin/curl; else CURL=curl; fi
-  "$CURL" -fsSL --retry 3 --connect-timeout 10 --max-time 30 --proto '=https' "$MANIFEST_URL" -o "$MANIFEST_FILE" || fail manifest_download
-  REMOVE_MANIFEST=1
+VERSION=$PINNED_VERSION
+PROTOCOL=$PINNED_PROTOCOL
+case "$TARGET" in
+linux-x86_64) EXPECTED_SHA=8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394 ;;
+linux-aarch64) EXPECTED_SHA=dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c ;;
+macos-x86_64) EXPECTED_SHA=36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a ;;
+macos-aarch64) EXPECTED_SHA=f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a ;;
+*) fail "unsupported_target:$TARGET" ;;
+esac
+if [ "${HERDR_TESTING:-}" = 1 ] && [ -n "${HERDR_TEST_EXPECTED_SHA:-}" ]; then
+  EXPECTED_SHA=$HERDR_TEST_EXPECTED_SHA
 fi
-
-if [ "$HOST_OS" = Linux ]; then
-  manifest_values=$(
-    python3 - "$MANIFEST_FILE" "$TARGET" "$ASSET_NAME" <<'PY'
-import json, re, sys
-from urllib.parse import urlparse
-try:
-    with open(sys.argv[1], encoding="utf-8") as stream:
-        manifest = json.load(stream)
-    target, expected_name = sys.argv[2], sys.argv[3]
-    if not isinstance(manifest, dict): raise ValueError("manifest_schema")
-    version, protocol = manifest.get("version"), manifest.get("protocol")
-    assets, checksums = manifest.get("assets"), manifest.get("sha256")
-    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version): raise ValueError("manifest_version")
-    if not isinstance(protocol, int) or isinstance(protocol, bool) or protocol < 27: raise ValueError("manifest_protocol")
-    if not isinstance(assets, dict) or not isinstance(checksums, dict): raise ValueError("manifest_schema")
-    asset, checksum = assets.get(target), checksums.get(target)
-    if not isinstance(asset, str) or not isinstance(checksum, str): raise ValueError("manifest_target")
-    parsed = urlparse(asset)
-    if parsed.scheme != "https" or parsed.netloc != "github.com" or not parsed.path.startswith("/f5-sales-demo/herdr/releases/") or parsed.path.rsplit("/", 1)[-1] != expected_name: raise ValueError("manifest_asset")
-    if not re.fullmatch(r"[0-9a-fA-F]{64}", checksum): raise ValueError("manifest_checksum")
-    print("\t".join((version, str(protocol), asset, checksum.lower())))
-except (OSError, json.JSONDecodeError, ValueError) as error:
-    print(str(error), file=sys.stderr)
-    raise SystemExit(1)
-PY
-  ) || fail manifest_invalid
-else
-  manifest_values=$(
-    /usr/bin/osascript -l JavaScript - "$MANIFEST_FILE" "$TARGET" "$ASSET_NAME" <<'JXA'
-ObjC.import('Foundation');
-function readUtf8(path) {
-  const data = $.NSData.dataWithContentsOfFile(path);
-  if (!data) throw new Error('manifest_read');
-  return ObjC.unwrap($.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding));
-}
-function run(argv) {
-  const manifest = JSON.parse(readUtf8(argv[0]));
-  const target = argv[1];
-  const expectedName = argv[2];
-  if (!manifest || Array.isArray(manifest) || typeof manifest !== 'object') throw new Error('manifest_schema');
-  if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('manifest_version');
-  if (!Number.isSafeInteger(manifest.protocol) || manifest.protocol < 27) throw new Error('manifest_protocol');
-  if (!manifest.assets || Array.isArray(manifest.assets) || typeof manifest.assets !== 'object') throw new Error('manifest_schema');
-  if (!manifest.sha256 || Array.isArray(manifest.sha256) || typeof manifest.sha256 !== 'object') throw new Error('manifest_schema');
-  const asset = manifest.assets[target];
-  const checksum = manifest.sha256[target];
-  if (typeof asset !== 'string' || typeof checksum !== 'string') throw new Error('manifest_target');
-  if (!asset.startsWith('https://github.com/f5-sales-demo/herdr/releases/') || !asset.endsWith('/' + expectedName)) throw new Error('manifest_asset');
-  if (!/^[0-9a-fA-F]{64}$/.test(checksum)) throw new Error('manifest_checksum');
-  return [manifest.version, String(manifest.protocol), asset, checksum.toLowerCase()].join('\t');
-}
-JXA
-  ) || fail manifest_invalid
-fi
-[ "$REMOVE_MANIFEST" -eq 0 ] || rm -f "$MANIFEST_FILE"
-STAGED_MANIFEST=
-IFS='	' read -r VERSION PROTOCOL ASSET_URL EXPECTED_SHA <<EOF
-$manifest_values
-EOF
-case "$VERSION" in '' | *[!0-9.]* | .* | *.) fail manifest_version ;; esac
-case "$PROTOCOL" in '' | *[!0-9]* | 0) fail manifest_protocol ;; esac
-[ "$PROTOCOL" -ge "$MINIMUM_PROTOCOL" ] || fail manifest_protocol
-case "$ASSET_URL" in "https://github.com/f5-sales-demo/herdr/releases/"*"/download/$ASSET_NAME") ;; *) fail manifest_asset ;; esac
-EXPECTED_SHA=$(printf '%s' "$EXPECTED_SHA" | tr 'A-F' 'a-f')
-case "$EXPECTED_SHA" in *[!0-9a-f]* | '') fail manifest_checksum ;; esac
-[ "${#EXPECTED_SHA}" -eq 64 ] || fail manifest_checksum
-IMMUTABLE_URL=https://github.com/f5-sales-demo/herdr/releases/download/v$VERSION/$ASSET_NAME
+IMMUTABLE_URL=https://github.com/f5-sales-demo/herdr/releases/download/v$PINNED_VERSION/$ASSET_NAME
 
 if verify_installation &&
   [ "$(receipt_value herdr_version)" = "$VERSION" ] &&

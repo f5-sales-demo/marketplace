@@ -15,34 +15,22 @@ function fixture(checksum = '') {
   roots.push(root);
   const home = join(root, 'home');
   const packagePath = join(root, 'herdr-package');
-  const manifestPath = join(root, 'latest.json');
   mkdirSync(home, { recursive: true });
-  writeFileSync(packagePath, '#!/bin/sh\nprintf "herdr 0.19.1\\n"\n', { mode: 0o755 });
+  writeFileSync(packagePath, '#!/bin/sh\nprintf "herdr 0.19.2\\n"\n', { mode: 0o755 });
   const actual = new Bun.CryptoHasher('sha256').update(readFileSync(packagePath)).digest('hex');
-  writeFileSync(
-    manifestPath,
-    JSON.stringify({
-      version: '0.19.1',
-      protocol: 27,
-      assets: {
-        'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64',
-      },
-      sha256: { 'linux-x86_64': checksum || actual },
-    }),
-  );
-  return { root, home, packagePath, manifestPath, actual };
+  return { root, home, packagePath, actual, checksum: checksum || actual };
 }
 
 function run(f: ReturnType<typeof fixture>, extra: Record<string, string> = {}) {
-  return Bun.spawnSync(['sh', installer, 'apply', '1.1.4'], {
+  return Bun.spawnSync(['sh', installer, 'apply', '1.1.5'], {
     env: {
       ...process.env,
       HOME: f.home,
       HERDR_TESTING: '1',
       HERDR_TEST_OS: 'Linux',
       HERDR_TEST_ARCH: 'x86_64',
-      HERDR_MANIFEST_FILE: f.manifestPath,
       HERDR_PACKAGE_FILE: f.packagePath,
+      HERDR_TEST_EXPECTED_SHA: f.checksum,
       ...extra,
     },
     stdout: 'pipe',
@@ -62,14 +50,14 @@ describe('Unix Herdr setup', () => {
     const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
     expect(receipt).toMatchObject({
       schema_version: 1,
-      plugin_version: '1.1.4',
-      herdr_version: '0.19.1',
+      plugin_version: '1.1.5',
+      herdr_version: '0.19.2',
       protocol: 27,
       target: 'linux-x86_64',
       sha256: f.actual,
       installed_path: binary,
     });
-    expect(receipt.url).toBe('https://github.com/f5-sales-demo/herdr/releases/download/v0.19.1/herdr-linux-x86_64');
+    expect(receipt.url).toBe('https://github.com/f5-sales-demo/herdr/releases/download/v0.19.2/herdr-linux-x86_64');
     const before = statSync(binary).ino;
     const second = run(f);
     expect(second.exitCode).toBe(0);
@@ -89,22 +77,17 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(unrelated, 'utf8')).toBe('keep');
   });
 
-  it('refuses a manifest below the protocol-27 release floor', () => {
-    const f = fixture();
-    writeFileSync(
-      f.manifestPath,
-      JSON.stringify({
-        version: '0.19.1',
-        protocol: 26,
-        assets: {
-          'linux-x86_64': 'https://github.com/f5-sales-demo/herdr/releases/latest/download/herdr-linux-x86_64',
-        },
-        sha256: { 'linux-x86_64': f.actual },
-      }),
-    );
-    const result = run(f);
-    expect(result.exitCode).not.toBe(0);
-    expect(new TextDecoder().decode(result.stderr)).toContain('manifest_protocol');
+  it('embeds the immutable 0.19.2 release and every supported checksum', () => {
+    const source = readFileSync(installer, 'utf8');
+    expect(source).toContain('PINNED_VERSION=0.19.2');
+    expect(source).not.toContain('releases/latest');
+    for (const checksum of [
+      '8de126f93b97a11a4ce7be84614acbc1f9bea7b6453300cd5e7b75b2e820b394',
+      'dbf25d255a3dcfb5eb3f5bd5ac6f03a541736e56ecf451d789b2a9e3b877d00c',
+      '36c933a42bc0506ff1ac4e74c90a4dcd2bdb06bf6845cda580ec3525601b890a',
+      'f82bf856cf50904f007da1abe2139668ba70f0b81339f4ec198af30da6cd313a',
+    ])
+      expect(source).toContain(checksum);
   });
 
   it('keeps the old binary on interruption and recovers on the next run', () => {
@@ -119,7 +102,7 @@ describe('Unix Herdr setup', () => {
     expect(readFileSync(binary, 'utf8')).toContain('0.17.0');
     const recovered = run(f);
     expect(recovered.exitCode).toBe(0);
-    expect(readFileSync(binary, 'utf8')).toContain('0.19.1');
+    expect(readFileSync(binary, 'utf8')).toContain('0.19.2');
   });
 
   it('normalizes unsupported targets and records Ubuntu bootstrap intent', () => {
