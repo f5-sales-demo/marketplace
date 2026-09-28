@@ -11,6 +11,7 @@ import {
   deriveMeetingId,
   discoverActiveMeetingSession,
   discoverZoomSession,
+  ensureVirtualCamera,
   invitationToZoomMtg,
   parseZoomCommand,
   parseZoomToolInput,
@@ -1575,6 +1576,103 @@ describe('provider integration lifecycle', () => {
       } finally {
         spawn.mockRestore();
       }
+    }
+  });
+
+  it('declares terminal-camera setup with all three explicit plugin dependencies', async () => {
+    const [zoom] = await definitionsFor('zoom');
+    const setup = join(import.meta.dir, '..', 'plugins', 'zoom', 'scripts', 'zoom-setup.py');
+    expect(zoom.setup).toEqual({
+      pluginDependencies: ['xorg', 'herdr', 'ghostty'],
+      requiredEnvironment: [],
+      profileFields: [],
+      steps: [{ kind: 'install', argv: ['python3', setup, 'apply', '--json'], timeoutMs: 900000 }],
+      verification: [{ argv: ['python3', setup, 'verify', '--json'], timeoutMs: 120000 }],
+    });
+  });
+
+  it('selects and verifies only xcsh Camera before enabling video', () => {
+    let menuOpen = false;
+    let selected = false;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const paramsIndex = command.indexOf('--params');
+      const params = paramsIndex >= 0 ? (JSON.parse(command[paramsIndex + 1]) as Record<string, unknown>) : {};
+      let result: Record<string, unknown> = {};
+      if (operation === 'window' && action === 'list') result = { windows: [{ id: 42, pid: 7, title: 'Meeting' }] };
+      if (operation === 'inspect' && action === 'accessibility') {
+        result = {
+          items: [
+            { name: 'Stop Video', role: 'push button', pid: 7 },
+            { name: 'Video Settings', role: 'push button', pid: 7, box: [20, 20, 20, 30] },
+            ...(menuOpen
+              ? [
+                  { name: 'Select a camera', role: 'menu item', pid: 7, box: [20, 60, 200, 30] },
+                  { name: 'Integrated Camera', role: 'check box', checked: !selected, pid: 7, box: [20, 90, 200, 30] },
+                  { name: 'xcsh Camera', role: 'check box', checked: selected, pid: 7, box: [20, 120, 200, 30] },
+                ]
+              : []),
+          ],
+        };
+      }
+      if (operation === 'input' && action === 'batch') {
+        for (const step of params.steps as Array<Record<string, unknown>>) {
+          if (step.action !== 'click') continue;
+          if (Number(step.y) === 35) menuOpen = true;
+          if (Number(step.y) === 135) selected = true;
+        }
+      }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(ensureVirtualCamera('console')).toMatchObject({
+        exitCode: 0,
+        camera: 'xcsh Camera',
+        verified: true,
+      });
+      expect(selected).toBe(true);
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
+  it('refuses physical-camera fallback when xcsh Camera is unavailable', () => {
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const result =
+        operation === 'window' && action === 'list'
+          ? { windows: [{ id: 42, pid: 7, title: 'Meeting' }] }
+          : operation === 'inspect'
+            ? {
+                items: [
+                  { name: 'Video Settings', role: 'push button', pid: 7, box: [20, 20, 20, 30] },
+                  { name: 'Select a camera', role: 'menu item', pid: 7, box: [20, 60, 200, 30] },
+                  { name: 'Integrated Camera', role: 'check box', checked: true, pid: 7, box: [20, 90, 200, 30] },
+                ],
+              }
+            : {};
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      expect(ensureVirtualCamera('console')).toMatchObject({
+        exitCode: 1,
+        code: 'virtual_camera_unavailable',
+        verified: false,
+      });
+    } finally {
+      spawn.mockRestore();
     }
   });
 });
