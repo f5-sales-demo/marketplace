@@ -20,14 +20,15 @@ structured data into a JSON file that validates against the MEDDPICC
 schema, score each element 0-4, identify gaps, and recommend next
 actions.
 
-## Identity safety gate
+## Authorized account data
 
-Use synthetic demo data only. Before reading or writing a deal, require
-all people to be represented by stable role aliases such as
-`<ECONOMIC_BUYER>`, `<CHAMPION>`, or `<SELLER_1>`. Never persist or
-repeat legal or full names, email addresses, phone numbers, social
-handles, or other personal identifiers. If source material contains
-them, stop and ask for a sanitized copy.
+Use the account data the user is authorized to provide for this workflow.
+Names, contact details, account names, CRM identifiers, correspondence,
+and Salesforce data are valid runtime inputs and may be preserved in the
+deal JSON, Markdown scorecard, and workbook. Authorization comes from the
+user's organization and source system; do not add another activation or
+policy step. Never copy private account data into Git, public examples,
+logs, or telemetry.
 
 ## Schema
 
@@ -255,11 +256,11 @@ User invokes with an existing complete deal.
 Deal JSON files are stored at a configurable path:
 
 1. If the user specifies a path, use it
-2. Otherwise, stop and ask the user for an explicit access-controlled
-   location outside any Git worktree
-3. File naming: `{accountAlias}-{dealAlias}.json` (slugified —
+2. Otherwise, ask the user for the local project location where the deal
+   artifacts should be stored
+3. File naming: `{accountName}-{dealName}.json` (slugified —
    lowercase, spaces replaced with hyphens, special characters
-   removed). Never place a real account or customer name in the path.
+   removed). Do not commit artifacts containing real customer data.
 
 ## Scoring Protocol
 

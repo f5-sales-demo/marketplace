@@ -111,6 +111,48 @@ describe('cli', () => {
     expect(code).toBe(0);
     expect(JSON.parse(out).valid).toBe(true);
   });
+  test('authorized identity-shaped data survives validate and workbook round trip unchanged', async () => {
+    const deal = JSON.parse(fs.readFileSync(example, 'utf8'));
+    const fictionalAccountName = ['Example', 'Health'].join(' ');
+    const fictionalSalesforceIds = ['006000000000123AAA', '001000000000456AAA', '005000000000789AAA'];
+    deal.metadata.accountName = fictionalAccountName;
+    deal.metadata.dealName = 'Network Modernization';
+    deal.metadata.accountTeam = 'Dana R. and Kiran M.';
+    deal.metadata.reviewer = 'Rosario L.';
+    deal.metadata.salesforce = {
+      ...deal.metadata.salesforce,
+      opportunityId: fictionalSalesforceIds[0],
+      accountId: fictionalSalesforceIds[1],
+      ownerId: fictionalSalesforceIds[2],
+    };
+    deal.stakeholders[0].name = 'Dana R.';
+    deal.stakeholders[0].relationshipOwner = 'Kiran M.';
+    deal.team.internal[0].name = 'Kiran M.';
+    deal.team.partner[0].name = 'Amal B.';
+    deal.closePlan.criticalActions[0].owner = 'Rosario L.';
+    deal.qualification.economicBuyer.responses[0] =
+      'Dana R. <dana@example.com> confirmed budget authority for the program.';
+
+    const dealFile = path.join(scratch, 'authorized-identities.json');
+    const workbook = path.join(scratch, 'authorized-identities.xlsx');
+    const expected = `${JSON.stringify(deal, null, 2)}\n`;
+    fs.writeFileSync(dealFile, expected);
+
+    const validation = await run(['validate', dealFile]);
+    expect(validation.code).toBe(0);
+    expect(JSON.parse(validation.out)).toEqual({ valid: true, errors: [] });
+
+    const generated = await run(['generate', dealFile, '--out', workbook]);
+    expect(generated.code).toBe(0);
+    expect(fs.existsSync(workbook)).toBe(true);
+
+    const read = await run(['read', workbook, '--deal', dealFile]);
+    expect(read.code).toBe(0);
+    const report = JSON.parse(read.out);
+    expect(report.proposals).toEqual([]);
+    expect(report.rejections).toEqual([]);
+    expect(fs.readFileSync(dealFile, 'utf8')).toBe(expected);
+  });
   test('check-sfdc', async () => {
     const { code, out } = await run(['check-sfdc']);
     expect(code).toBe(0);

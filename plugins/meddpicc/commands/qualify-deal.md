@@ -8,10 +8,10 @@ argument-hint: "[deal name or account] [--import] [--sfdc <opportunity-id>]"
 Invoke the `meddpicc:deal-qualification` skill to produce a
 MEDDPICC scorecard for the deal "$ARGUMENTS".
 
-Start from only the files the user explicitly supplies and confirms
-are sanitized. Read any supplied `*.json` conforming to the MEDDPICC
-schema, and treat sanitized call notes, briefings, and transcripts
-alongside them as evidence. If a
+Start from only the files the user explicitly supplies or identifies for
+the authorized account workflow. Read any supplied `*.json` conforming to
+the MEDDPICC schema, and treat call notes, briefings, transcripts, and CRM
+data alongside them as evidence. If a
 deal file for "$ARGUMENTS" already exists, resume from it rather
 than re-interviewing.
 
@@ -22,7 +22,7 @@ than re-interviewing.
 - `--import`: resume an existing partial deal JSON or import from
   an existing file
 - `--sfdc <id>`: import deal data from a Salesforce opportunity ID
-  before starting the guided interview, after removing identity fields
+  before starting the guided interview
 
 **Output:** JSON deal file (source of truth) + Markdown scorecard.
 Add "render" or "export" for the spreadsheet too. That is generated

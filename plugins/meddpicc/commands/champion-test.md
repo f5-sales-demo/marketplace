@@ -1,6 +1,6 @@
 ---
-description: Test whether your aliased contact is a true MEDDPICC champion
-argument-hint: "[contact role alias]"
+description: Test whether your contact is a true MEDDPICC champion
+argument-hint: "[contact name or role]"
 ---
 
 # Champion Test

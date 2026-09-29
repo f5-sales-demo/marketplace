@@ -23,7 +23,7 @@
         },
         "accountTeam": {
           "type": "string",
-          "description": "The account team owning the relationship (the sellers), using role-based aliases such as \"<SELLER_1> and <SELLER_2>\". Never store legal or full names. Distinct from `team.internal`, which is the specialist bench assigned to the deal."
+          "description": "The account team owning the relationship (the sellers), recorded by name or role. Distinct from `team.internal`, which is the specialist bench assigned to the deal."
         },
         "dealName": {
           "type": "string",
@@ -118,7 +118,7 @@
         },
         "reviewer": {
           "type": "string",
-          "description": "Role-based alias for the person conducting the review; never store legal or full names"
+          "description": "Name or role of the person conducting the review"
         },
         "salesforce": {
           "type": "object",
@@ -468,7 +468,7 @@
             "type": "string",
             "minLength": 1,
             "pattern": "\\S",
-            "description": "Role-based stakeholder alias; never store legal or full names"
+            "description": "Stakeholder name or role"
           },
           "title": {
             "type": "string",
@@ -499,7 +499,7 @@
           },
           "relationshipOwner": {
             "type": "string",
-            "description": "Role-based alias for the team member responsible for this relationship; never store legal or full names"
+            "description": "Name or role of the team member responsible for this relationship"
           }
         },
         "required": ["name", "title", "roleInDeal"]
@@ -554,7 +554,7 @@
               },
               "owner": {
                 "type": "string",
-                "description": "Role-based owner alias; never store legal or full names"
+                "description": "Name or role of the person responsible for this action"
               },
               "dueDate": {
                 "type": "string",
@@ -580,7 +580,7 @@
             "properties": {
               "name": {
                 "type": "string",
-                "description": "Role-based internal team alias; never store legal or full names"
+                "description": "Internal team member name or role"
               },
               "role": {
                 "type": "string"
@@ -602,7 +602,7 @@
             "properties": {
               "name": {
                 "type": "string",
-                "description": "Role-based partner team alias; never store legal or full names"
+                "description": "Partner team member name or role"
               },
               "role": {
                 "type": "string"

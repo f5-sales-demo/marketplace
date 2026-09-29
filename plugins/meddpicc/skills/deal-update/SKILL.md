@@ -1,10 +1,10 @@
 ---
 name: deal-update
 description: >-
-  Ingest sanitized unstructured intelligence into a MEDDPICC deal file.
-  Accepts sanitized meeting notes, email threads, call transcripts,
+  Ingest authorized unstructured intelligence into a MEDDPICC deal file.
+  Accepts meeting notes, email threads, call transcripts,
   Salesforce updates, competitive intel briefs, presentation feedback,
-  or other sanitized deal-relevant text. Extracts
+  or other authorized deal-relevant text. Extracts
   MEDDPICC elements, proposes updates with a structured diff, and writes
   confirmed changes to the deal JSON. Use when the user says "here are
   my meeting notes", "update the deal with this", "I got an email from",
@@ -22,24 +22,25 @@ MEDDPICC deal file. This is the **primary ongoing interaction** for
 keeping a deal's qualification data current as new information
 arrives throughout the deal cycle.
 
-## Identity safety gate
+## Authorized account data
 
-Accept only synthetic or pre-sanitized inputs. Every person must use a
-stable role alias such as `<ECONOMIC_BUYER>` or `<CHAMPION>`. Never
-persist or repeat legal or full names, email addresses, phone numbers,
-social handles, or other personal identifiers. If an input contains
-them, stop and ask for a sanitized copy; do not write a partial update.
+Use the account data the user is authorized to provide for this workflow.
+Names, contact details, account names, CRM identifiers, correspondence,
+and Salesforce data are valid runtime inputs and may be preserved in deal
+JSON, scorecard Markdown, and workbooks. Do not add an authorization mode,
+replace identity values with aliases, or redact confirmed data. Never copy
+private account data into Git, public examples, logs, or telemetry.
 
 ## Supported Input Types
 
 - Meeting notes and call summaries
-- Sanitized email excerpts
-- Sanitized online meeting transcripts
+- Email excerpts
+- Online meeting transcripts
 - Competitive intelligence briefs
-- Sanitized Salesforce opportunity exports or field summaries
+- Salesforce opportunity exports or field summaries
 - Presentation or demo feedback
-- Sanitized internal collaboration excerpts
-- Sanitized customer-facing documents (RFPs, SOWs, evaluation matrices)
+- Internal collaboration excerpts
+- Customer-facing documents (RFPs, SOWs, evaluation matrices)
 - Company-level public filings analysis
 - News articles about the account or competitors
 
@@ -280,7 +281,7 @@ Before writing anything, display a structured summary of all
 proposed changes:
 
 ```text
-## Proposed Updates: [Account Alias]
+## Proposed Updates: [Account]
 ### Source: [source-type] — [date]
 
 | # | Element | Update Type | Current Value (truncated) | Proposed Change |
@@ -355,7 +356,7 @@ output format, highlighting which elements changed and by how
 much since this ingestion session.
 
 ```text
-## MEDDPICC Scorecard: [Account Alias] (Updated)
+## MEDDPICC Scorecard: [Account] (Updated)
 ### Source ingested: [source-type] — [date]
 ### Elements updated: [list]
 ### Overall: X/32 (Y%) — [Rating] (was Z/32 before this update)

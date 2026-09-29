@@ -18,13 +18,14 @@ This is the operational heartbeat of MEDDPICC — it keeps deals real
 and forecastable. Reviews read from and write to structured JSON deal
 files.
 
-## Identity safety gate
+## Authorized account data
 
-Use synthetic demo data only. Require role aliases for every person and
-never persist or repeat legal or full names, contact details, social
-handles, or other personal identifiers. If the deal file or new review
-material contains them, stop and ask for a sanitized copy before making
-any write.
+Use the account data the user is authorized to provide for this workflow.
+Names, contact details, account names, CRM identifiers, correspondence,
+and Salesforce data are valid runtime inputs and may be preserved in deal
+JSON, review Markdown, and workbooks. Do not add an authorization mode or
+replace identity values with aliases. Never copy private account data into
+Git, public examples, logs, or telemetry.
 
 ## Schema
 
@@ -251,7 +252,7 @@ For the final writes:
 ## Output Format
 
 ```text
-## Deal Review: [Account Alias]
+## Deal Review: [Account]
 ### Date: [today's date]
 ### Stage: [stage] → [recommended stage change, if any]
 ### Score: [X/32] ([percentage]%) — [Red/Yellow/Green]

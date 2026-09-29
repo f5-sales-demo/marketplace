@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.6.0 allows authorized real account data in installed
+  qualification, update, review, Salesforce, JSON, Markdown, and workbook
+  flows without an extra mode, policy gate, alias substitution, or redaction.
+  Committed and public examples remain synthetic (#1438).
+
 - **`zoom`** v1.1.1 resolves Xorg and Herdr from the marketplace-managed
   user-local executable directory, so terminal setup works when a normal
   desktop shell does not inherit `~/.local/bin` (#1443).
