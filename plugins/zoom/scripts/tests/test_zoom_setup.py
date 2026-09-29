@@ -179,6 +179,7 @@ class ZoomSetupTests(unittest.TestCase):
             self.assertEqual(pid, 444)
             launch = next(call for call in runner.calls if "launch" in call)
             launch_argv = json.loads(launch[-1])["argv"]
+            self.assertIn("--gtk-single-instance=false", launch_argv)
             self.assertIn("attach", launch_argv)
             self.assertNotIn("xcsh", launch_argv)
 
