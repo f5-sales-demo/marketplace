@@ -97,6 +97,24 @@ class FakeRunner:
 
 
 class ZoomSetupTests(unittest.TestCase):
+    def test_command_environment_keeps_user_and_system_launchers(self):
+        environment = zoom_setup.command_environment(
+            {"HOME": "/home/robin", "PATH": "/custom"}
+        )
+        self.assertEqual(
+            environment["PATH"].split(":"),
+            [
+                "/home/robin/.local/bin",
+                "/usr/local/sbin",
+                "/usr/local/bin",
+                "/usr/sbin",
+                "/usr/bin",
+                "/sbin",
+                "/bin",
+                "/custom",
+            ],
+        )
+
     def test_package_selection_and_conflicts(self):
         self.assertEqual(zoom_setup.select_package_action(None, False), "install")
         self.assertEqual(

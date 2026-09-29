@@ -43,9 +43,37 @@ class CommandResult:
     stderr: str = ""
 
 
+def command_environment(source: dict[str, str] | None = None) -> dict[str, str]:
+    environment = dict(source or os.environ)
+    user_bin = str(
+        pathlib.Path(environment.get("HOME", str(pathlib.Path.home())))
+        / ".local"
+        / "bin"
+    )
+    standard = (
+        "/usr/local/sbin",
+        "/usr/local/bin",
+        "/usr/sbin",
+        "/usr/bin",
+        "/sbin",
+        "/bin",
+    )
+    paths: list[str] = []
+    for entry in (user_bin, *standard, *environment.get("PATH", "").split(os.pathsep)):
+        if entry and entry not in paths:
+            paths.append(entry)
+    environment["PATH"] = os.pathsep.join(paths)
+    return environment
+
+
 class Runner:
+    def __init__(self, environment: dict[str, str] | None = None) -> None:
+        self.environment = command_environment(environment)
+
     def run(self, argv: list[str], *, check: bool = True) -> CommandResult:
-        result = subprocess.run(argv, check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            argv, check=False, capture_output=True, text=True, env=self.environment
+        )
         value = CommandResult(result.returncode, result.stdout, result.stderr)
         if check and value.returncode:
             raise SetupError(f"command_failed:{pathlib.Path(argv[0]).name}")
