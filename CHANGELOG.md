@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.1 resolves Xorg and Herdr from the marketplace-managed
+  user-local executable directory, so terminal setup works when a normal
+  desktop shell does not inherit `~/.local/bin` (#1443).
+
 - **`zoom`** v1.1.0 replaces the static virtual-camera test card with an
   isolated 1920x1080 Ghostty, Herdr, and xcsh capture, pins Zoom Workplace
   7.2.1.5760 by digest, adds transactional provenance and readiness checks,

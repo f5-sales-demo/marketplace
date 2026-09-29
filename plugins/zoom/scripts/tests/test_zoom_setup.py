@@ -273,6 +273,16 @@ class ZoomSetupTests(unittest.TestCase):
             ):
                 zoom_setup.Controller(runner, pathlib.Path(directory)).dependencies()
 
+    def test_resolves_the_user_local_xorg_launcher_when_path_omits_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = pathlib.Path(directory)
+            launcher = home / ".local" / "bin" / "xorgctl"
+            launcher.parent.mkdir(parents=True)
+            launcher.write_text("#!/bin/sh\n")
+            launcher.chmod(0o700)
+            controller = zoom_setup.Controller(FakeRunner(), home)
+            self.assertEqual(controller.xorgctl, str(launcher))
+
 
 if __name__ == "__main__":
     unittest.main()

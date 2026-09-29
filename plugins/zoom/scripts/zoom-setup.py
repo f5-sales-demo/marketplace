@@ -199,6 +199,16 @@ class Controller:
             / ".config/systemd/user/xcsh-camera.service.d/zoom-terminal-camera.conf"
         )
         self.session_dir = self.home / ".xcsh/agent/sessions"
+        self.xorgctl = self.local_executable("xorgctl")
+        self.herdr = self.local_executable("herdr")
+
+    def local_executable(self, name: str) -> str:
+        candidate = self.home / ".local" / "bin" / name
+        return (
+            str(candidate)
+            if candidate.is_file() and not candidate.is_symlink()
+            else name
+        )
 
     def command_version(self, argv: list[str]) -> str:
         result = self.runner.run(argv, check=False)
@@ -228,11 +238,11 @@ class Controller:
         return value if isinstance(value, dict) else None
 
     def dependencies(self) -> dict[str, str]:
-        xorg = run_json(self.runner, ["xorgctl", "--json", "capabilities"])
+        xorg = run_json(self.runner, [self.xorgctl, "--json", "capabilities"])
         xorg_version = str(xorg_result(xorg).get("version", ""))
         versions = {
             "xorg": xorg_version,
-            "herdr": self.command_version(["herdr", "--version"]),
+            "herdr": self.command_version([self.herdr, "--version"]),
             "ghostty": self.command_version(["ghostty", "--version"]),
             "xcsh": self.command_version(["xcsh", "--version"]),
         }
@@ -281,7 +291,8 @@ class Controller:
 
     def ensure_session(self) -> tuple[str, str, bool]:
         listed = run_json(
-            self.runner, ["xorgctl", "--session", SESSION, "--json", "session", "list"]
+            self.runner,
+            [self.xorgctl, "--session", SESSION, "--json", "session", "list"],
         )
         existing = next(
             (item for item in session_records(listed) if item.get("name") == SESSION),
@@ -292,7 +303,7 @@ class Controller:
             run_json(
                 self.runner,
                 [
-                    "xorgctl",
+                    self.xorgctl,
                     "--session",
                     SESSION,
                     "--json",
@@ -305,7 +316,7 @@ class Controller:
         status = xorg_result(
             run_json(
                 self.runner,
-                ["xorgctl", "--session", SESSION, "--json", "session", "status"],
+                [self.xorgctl, "--session", SESSION, "--json", "session", "status"],
             )
         )
         display = str(status.get("display", ""))
@@ -327,7 +338,7 @@ class Controller:
         return display, xauthority, created
 
     def ensure_herdr_window(self) -> tuple[bool, int]:
-        sessions = run_json(self.runner, ["herdr", "session", "list", "--json"])
+        sessions = run_json(self.runner, [self.herdr, "session", "list", "--json"])
         existing = next(
             (
                 item
@@ -341,20 +352,20 @@ class Controller:
             raise SetupError("herdr_session_not_running")
         if existing is not None:
             panes = run_json(
-                self.runner, ["herdr", "--session", HERDR_SESSION, "pane", "list"]
+                self.runner, [self.herdr, "--session", HERDR_SESSION, "pane", "list"]
             )
             if "xcsh" not in json.dumps(panes).lower():
                 raise SetupError("existing_xcsh_not_running")
         command = (
-            ["herdr", "--session", HERDR_SESSION]
+            [self.herdr, "--session", HERDR_SESSION]
             if created
-            else ["herdr", "session", "attach", HERDR_SESSION]
+            else [self.herdr, "session", "attach", HERDR_SESSION]
         )
         launch = xorg_result(
             run_json(
                 self.runner,
                 [
-                    "xorgctl",
+                    self.xorgctl,
                     "--session",
                     SESSION,
                     "--json",
@@ -385,7 +396,7 @@ class Controller:
             windows = xorg_result(
                 run_json(
                     self.runner,
-                    ["xorgctl", "--session", SESSION, "--json", "window", "list"],
+                    [self.xorgctl, "--session", SESSION, "--json", "window", "list"],
                 )
             ).get("windows", [])
             window_id = next(
@@ -404,7 +415,7 @@ class Controller:
         run_json(
             self.runner,
             [
-                "xorgctl",
+                self.xorgctl,
                 "--session",
                 SESSION,
                 "--json",
@@ -419,7 +430,8 @@ class Controller:
             pane_id = None
             while time.monotonic() < deadline:
                 panes = run_json(
-                    self.runner, ["herdr", "--session", HERDR_SESSION, "pane", "list"]
+                    self.runner,
+                    [self.herdr, "--session", HERDR_SESSION, "pane", "list"],
                 )
                 records = xorg_result(panes).get("panes", [])
                 pane_id = next(
@@ -432,7 +444,7 @@ class Controller:
             if not isinstance(pane_id, str):
                 raise SetupError("herdr_session_creation_timeout")
             self.runner.run(
-                ["herdr", "--session", HERDR_SESSION, "pane", "run", pane_id, "xcsh"]
+                [self.herdr, "--session", HERDR_SESSION, "pane", "run", pane_id, "xcsh"]
             )
         return created, pid
 
@@ -471,17 +483,17 @@ class Controller:
             check=False,
         )
         session = self.runner.run(
-            ["xorgctl", "--session", SESSION, "--json", "session", "status"],
+            [self.xorgctl, "--session", SESSION, "--json", "session", "status"],
             check=False,
         )
         applications = self.runner.run(
-            ["xorgctl", "--session", SESSION, "--json", "app", "list"], check=False
+            [self.xorgctl, "--session", SESSION, "--json", "app", "list"], check=False
         )
         herdr_sessions = self.runner.run(
-            ["herdr", "session", "list", "--json"], check=False
+            [self.herdr, "session", "list", "--json"], check=False
         )
         herdr_panes = self.runner.run(
-            ["herdr", "--session", HERDR_SESSION, "pane", "list"], check=False
+            [self.herdr, "--session", HERDR_SESSION, "pane", "list"], check=False
         )
         try:
             session_state = (
@@ -615,7 +627,7 @@ class Controller:
             if ghostty_pid is not None and not session_created:
                 self.runner.run(
                     [
-                        "xorgctl",
+                        self.xorgctl,
                         "--session",
                         SESSION,
                         "--json",
@@ -628,16 +640,16 @@ class Controller:
                 )
             if session_created:
                 self.runner.run(
-                    ["xorgctl", "--session", SESSION, "--json", "session", "remove"],
+                    [self.xorgctl, "--session", SESSION, "--json", "session", "remove"],
                     check=False,
                 )
             if herdr_created:
                 self.runner.run(
-                    ["herdr", "session", "stop", HERDR_SESSION, "--json"],
+                    [self.herdr, "session", "stop", HERDR_SESSION, "--json"],
                     check=False,
                 )
                 self.runner.run(
-                    ["herdr", "session", "delete", HERDR_SESSION, "--json"],
+                    [self.herdr, "session", "delete", HERDR_SESSION, "--json"],
                     check=False,
                 )
             if previous_dropin is None:
