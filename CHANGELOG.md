@@ -10,6 +10,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** bumped to v1.1.2
+
 - **`meddpicc`** v7.6.0 allows authorized real account data in installed
   qualification, update, review, Salesforce, JSON, Markdown, and workbook
   flows without an extra mode, policy gate, alias substitution, or redaction.
