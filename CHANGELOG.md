@@ -10,7 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`zoom`** bumped to v1.1.3
+- **`zoom`** bumped to v1.1.4
 
 - **`meddpicc`** v7.6.0 allows authorized real account data in installed
   qualification, update, review, Salesforce, JSON, Markdown, and workbook
