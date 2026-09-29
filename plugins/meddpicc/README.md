@@ -4,19 +4,21 @@ MEDDPICC sales qualification and deal-execution framework plugin for Claude Code
 
 ## Overview
 
-This plugin turns MEDDPICC from a checkbox exercise into a **living deal intelligence system**. Qualification data accumulates as you feed in sanitized meeting notes, emails, call transcripts, competitive intel, and Salesforce updates. Every piece of evidence is extracted, mapped to the correct MEDDPICC element, and persisted incrementally to a structured JSON deal file.
+This plugin turns MEDDPICC from a checkbox exercise into a **living deal intelligence system**. Qualification data accumulates as you feed in meeting notes, emails, call transcripts, competitive intel, and Salesforce updates. Every piece of evidence is extracted, mapped to the correct MEDDPICC element, and persisted incrementally to a structured JSON deal file.
 
 The system supports the full deal lifecycle: initial qualification, ongoing intelligence ingestion, weekly structured reviews, champion assessment, and mutual action plan creation.
 
 ## Identity and data safety
 
-Use this plugin only with synthetic demo data. Never provide legal or full names, personal contact
-details, raw CRM exports, unsanitized correspondence, or other real employee, customer, or
-third-party data. Replace each person with a stable role alias such as `<ECONOMIC_BUYER>`,
-`<CHAMPION>`, or `<SELLER_1>` before analysis. If an input has not been sanitized, stop and ask the
-user to supply a sanitized copy before continuing.
+Installed MEDDPICC workflows may use authorized real account data when the work requires it. Valid
+runtime inputs include names, contact details, account names, customer relationship management
+identifiers, correspondence, and Salesforce data. Authorization comes from the user's organization
+and source system; MEDDPICC adds no separate activation mode or policy gate.
 
-Deal JSON and generated workbooks are unencrypted files. Store them only at an explicit access-controlled location outside a Git worktree, share them only within the authorized demo scope, and delete them when the demo or review is complete.
+Deal JSON, Markdown, and generated workbooks are unencrypted files stored at the user's selected
+local project location. Apply the access and retention practices required by the organization. Never
+commit or publish real customer data, credentials, or private correspondence; repository examples,
+templates, fixtures, logs, telemetry, issues, pull requests, and release evidence remain synthetic.
 
 ## What is MEDDPICC?
 
@@ -72,14 +74,14 @@ Output: JSON deal file (source of truth) + Markdown scorecard. Add `render` or `
 
 ### Deal update (`/meddpicc:update-deal`)
 
-The **primary ongoing interaction**. Accepts pre-sanitized unstructured text, extracts MEDDPICC-relevant intelligence, and proposes updates to the deal JSON. Supported sources include sanitized meeting notes, email threads, call transcripts, competitive intel, Salesforce exports, presentation feedback, and news articles.
+The **primary ongoing interaction**. Accepts authorized unstructured text, extracts MEDDPICC-relevant intelligence, and proposes updates to the deal JSON. Supported sources include meeting notes, email threads, call transcripts, competitive intel, Salesforce exports, presentation feedback, and news articles.
 
 The extraction protocol scans for signals mapped to each MEDDPICC element (KPIs, budget statements, procurement steps, pain language, champion actions, competitor mentions, etc.) and presents a structured diff before writing:
 
-- Evidence is **appended** with `[YYYY-MM-DD source-type]` prefixes until the user deletes the demo artifact under the retention guidance above
+- Evidence is **appended** with `[YYYY-MM-DD source-type]` prefixes until the user deletes the artifact under the retention guidance above
 - Score changes are **recommended with reasoning** and require user confirmation
 - Conflicts with existing data are **flagged** for reconciliation
-- New stakeholder aliases are **detected** and offered for addition
+- New stakeholders are **detected** and offered for addition
 
 ### Deal review (`/meddpicc:deal-review`)
 
@@ -117,7 +119,7 @@ Every task has a named owner, specific date, exit criteria, and dependencies.
 
 ## Agents
 
-**`deal-analyst`** — Read-only research agent that analyzes deal health from explicitly supplied, sanitized local files (meeting notes, CRM exports, account plans, proposals). Produces a structured MEDDPICC assessment report with evidence citations, gap analysis, and prioritized actions. Uses WebSearch for company-level competitive intelligence only. Does not modify files.
+**`deal-analyst`** — Read-only research agent that analyzes deal health from explicitly supplied, authorized local files (meeting notes, CRM exports, account plans, proposals). Produces a structured MEDDPICC assessment report with evidence citations, gap analysis, and prioritized actions. Uses WebSearch for company-level competitive intelligence only. Does not modify files.
 
 Use the deal-analyst when you want an independent assessment of deal health without changing the deal file, or when you want to analyze multiple deal artifacts in bulk.
 
@@ -128,7 +130,7 @@ Deals are stored as JSON files conforming to the [MEDDPICC schema](schema/meddpi
 - **Metadata** — deal identification, stage, financials, client interactions, Salesforce integration, completion tracking
 - **Qualification** — all 8 MEDDPICC elements with definitions, questions, responses, scores, score definitions, evidence, and notes
 - **Three Whys** — Why Anything, Why Us, Why Now (for both your own company and the partner)
-- **Stakeholders** — role alias, title, role in deal, veto power, beliefs needed, sentiment, relationship-owner alias
+- **Stakeholders** — name or role, title, role in deal, veto power, beliefs needed, sentiment, and relationship owner
 - **Sales Strategy** — differentiated value proposition and win strategy
 - **Close Plan** — milestones and critical actions with dates and owners
 - **Team** — internal and partner team members assigned to the deal

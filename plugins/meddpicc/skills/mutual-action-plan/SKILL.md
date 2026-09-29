@@ -22,9 +22,11 @@ seller and buyer agree to. It converts the Decision Process and
 Paper Process into a concrete, actionable roadmap with dates, owners,
 and exit criteria.
 
-Use synthetic demo data only. Represent every owner and stakeholder by
-a stable role alias; never request, persist, or repeat legal or full
-names or personal contact details.
+Use the account data the user is authorized to provide for this workflow.
+Owner and stakeholder names, titles, contact details, account names, and
+CRM identifiers may be preserved when required. Do not replace identity
+values with aliases or add a separate authorization prompt. Never copy
+private account data into Git, public examples, logs, or telemetry.
 
 ## MAP Design Protocol
 
@@ -55,7 +57,7 @@ full template.
 
 Every task must have:
 
-- **Owner:** Role alias (customer or seller side)
+- **Owner:** Name or role (customer or seller side)
 - **Date:** Specific date, not "TBD"
 - **Exit criteria:** How we know this step is complete
 - **Dependencies:** What must happen first

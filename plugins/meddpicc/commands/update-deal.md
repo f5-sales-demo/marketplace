@@ -1,6 +1,6 @@
 ---
-description: Ingest sanitized deal intelligence into a MEDDPICC deal file
-argument-hint: "[account or deal alias] — then provide a sanitized source"
+description: Ingest authorized deal intelligence into a MEDDPICC deal file
+argument-hint: "[account or deal] — then provide a source"
 ---
 
 # Update Deal
@@ -11,12 +11,12 @@ intelligence from "$ARGUMENTS" and update the matching deal JSON file.
 **Accepted sources:**
 
 - Meeting notes or call summaries
-- Sanitized email excerpts
-- Sanitized online meeting transcripts
+- Email excerpts
+- Online meeting transcripts
 - Company-level competitive intelligence reports
-- Sanitized Salesforce opportunity exports
+- Salesforce opportunity exports
 - Presentation or demo feedback
-- Sanitized text containing deal-relevant information
+- Other authorized text containing deal-relevant information
 
 **Output:** Proposed update diff (for your review) → confirmed
 changes written to the deal JSON via `jq` → updated MEDDPICC scorecard.

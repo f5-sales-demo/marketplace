@@ -17,9 +17,11 @@ Assess whether an internal contact meets the bar for a true MEDDPICC
 champion — someone with power, a personal win, and willingness to
 take action on your behalf.
 
-Use synthetic demo data only. Refer to the contact by a role alias such
-as `<CHAMPION>`; never request, persist, or repeat a legal or full name
-or personal contact detail.
+Use the contact data the user is authorized to provide for this workflow.
+A real name, title, contact detail, or CRM identifier may be used and
+preserved when required. Do not replace it with an alias or add a separate
+authorization prompt. Never copy private contact data into Git, public
+examples, logs, or telemetry.
 
 ## Assessment Protocol
 
@@ -27,7 +29,7 @@ or personal contact detail.
 
 Ask the user:
 
-- What is the contact's role alias, title, and role?
+- What is the contact's name, title, and role?
 - How long have you been working with them?
 - What have they done for you so far?
 - What's their relationship to the Economic Buyer?
@@ -94,9 +96,9 @@ Based on the classification:
 ## Output Format
 
 ```text
-## Champion Assessment: [Role Alias]
+## Champion Assessment: [Contact]
 
-### Contact: [Role Alias], [Title]
+### Contact: [Contact], [Title]
 ### Account: <ACCOUNT_NAME>
 ### Assessment Date: [date]
 

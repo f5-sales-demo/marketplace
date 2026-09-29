@@ -52,7 +52,7 @@ test_identity_examples_use_reserved_placeholders() {
   fi
 }
 
-test_identity_schema_documents_role_aliases() {
+test_identity_schema_allows_authorized_runtime_values() {
   jq -e '
     [
       .properties.metadata.properties.accountTeam.description,
@@ -63,14 +63,34 @@ test_identity_schema_documents_role_aliases() {
       .properties.team.properties.internal.items.properties.name.description,
       .properties.team.properties.partner.items.properties.name.description
     ]
-    | all(type == "string" and test("alias"; "i") and test("full names"; "i"))
+    | all(
+        type == "string" and
+        (test("alias"; "i") | not) and
+        (test("full names"; "i") | not)
+      )
   ' "$PLUGIN_ROOT/schema/meddpicc-schema.json" >/dev/null || {
-    echo "Every identity-bearing schema field must require aliases and prohibit full names"
+    echo "Identity-bearing schema descriptions must allow authorized runtime values"
     return 1
   }
 }
 
-test_identity_output_templates_use_alias_labels() {
+test_runtime_guidance_has_no_synthetic_or_alias_gate() {
+  local blocked
+  blocked=$(grep -rIin -E \
+    'Use synthetic demo data only|Accept only synthetic or pre-sanitized|stop and ask (the user )?for a sanitized copy|Use role aliases in every output|after removing identity fields' \
+    --include='*.md' \
+    "$PLUGIN_ROOT/README.md" \
+    "$PLUGIN_ROOT/agents" \
+    "$PLUGIN_ROOT/commands" \
+    "$PLUGIN_ROOT/skills" || true)
+  if [ -n "$blocked" ]; then
+    echo "Runtime guidance still blocks authorized identity data:"
+    printf '%s\n' "$blocked"
+    return 1
+  fi
+}
+
+test_identity_output_templates_are_visibly_fictional() {
   local unsafe
   unsafe=$(grep -rIin -E '\[(Contact Name|Name|Account Name|Customer Name|Your Company)\]' \
     --include='*.md' \
@@ -79,7 +99,7 @@ test_identity_output_templates_use_alias_labels() {
     "$PLUGIN_ROOT/commands" \
     "$PLUGIN_ROOT/skills" || true)
   if [ -n "$unsafe" ]; then
-    echo "Identity-bearing output templates must use role or organization aliases:"
+    echo "Identity-bearing output templates must use explicit fictional placeholders:"
     printf '%s\n' "$unsafe"
     return 1
   fi
