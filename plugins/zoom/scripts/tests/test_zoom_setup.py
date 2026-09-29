@@ -53,7 +53,7 @@ class FakeRunner:
                             "display": ":91",
                             "geometry": "1920x1080",
                             "owned": True,
-                            "env": {"XAUTHORITY": "/tmp/Xauthority"},
+                            "env": {"DISPLAY": ":91", "XAUTHORITY": "/tmp/Xauthority"},
                         }
                     }
                 ),

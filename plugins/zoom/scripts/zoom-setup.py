@@ -347,9 +347,11 @@ class Controller:
                 [self.xorgctl, "--session", SESSION, "--json", "session", "status"],
             )
         )
-        display = str(status.get("display", ""))
-        geometry = str(status.get("geometry", ""))
         environment = status.get("env", {})
+        display = (
+            str(environment.get("DISPLAY", "")) if isinstance(environment, dict) else ""
+        )
+        geometry = str(status.get("geometry", ""))
         xauthority = (
             str(environment.get("XAUTHORITY", ""))
             if isinstance(environment, dict)
