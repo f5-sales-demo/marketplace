@@ -205,8 +205,6 @@ def render_camera_unit(display: str, xauthority: str) -> str:
         f"Environment=XAUTHORITY={xauthority}\n"
         "ExecStartPre=\n"
         "ExecStart=\n"
-        f"ExecStartPre=/usr/bin/v4l2-ctl --device={CAMERA} "
-        "--set-fmt-video-out=width=1920,height=1080,pixelformat=YU12\n"
         f"ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -f x11grab -draw_mouse 0 "
         f"-framerate {FPS} -video_size {GEOMETRY} -i {display} -vf format=yuv420p "
         f"-pix_fmt yuv420p -r {FPS} -s:v {GEOMETRY} -f v4l2 {CAMERA}\n"

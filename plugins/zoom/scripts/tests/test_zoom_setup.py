@@ -152,6 +152,7 @@ class ZoomSetupTests(unittest.TestCase):
         self.assertIn("-pix_fmt yuv420p -r 30", unit)
         self.assertIn("/dev/video10", unit)
         self.assertIn("Environment=XAUTHORITY=/tmp/Xauthority", unit)
+        self.assertNotIn("v4l2-ctl", unit)
         self.assertNotIn("testsrc", unit)
         with self.assertRaisesRegex(zoom_setup.SetupError, "invalid_display"):
             zoom_setup.render_camera_unit(":0;touch /tmp/no", "/tmp/Xauthority")
