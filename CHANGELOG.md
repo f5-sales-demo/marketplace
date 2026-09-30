@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.10 enables and verifies the virtual camera on every
+  matching meeting join, including an already-joined meeting with video off.
+
 - **`zoom`** v1.1.9 stops the previous camera producer before checking
   whether its owned loopback needs recovery.
 

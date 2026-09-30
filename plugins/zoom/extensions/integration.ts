@@ -337,11 +337,16 @@ const verifiedMeetingResult = (session: string, requestedMeetingId: string, chan
       requested_meeting_id: requestedMeetingId,
     };
   }
+  const video = controlState(session, 'video', 'on');
+  if (video.exitCode !== 0)
+    return { ...video, session, meeting_identity: activeMeetingId, requested_meeting_id: requestedMeetingId };
   return {
     exitCode: 0,
     state: 'in_meeting',
+    video: 'on',
+    camera: 'xcsh Camera',
     session,
-    changed,
+    changed: changed || video.changed,
     verified: true,
     meeting_identity: activeMeetingId,
     requested_meeting_id: requestedMeetingId,
@@ -681,8 +686,11 @@ const videoMenuOpen = (items: AccessibilityItem[]) => exactItem(items, 'Select a
 const openVideoMenu = (session: string) => {
   let items = meetingAccessibility(session).items;
   if (videoMenuOpen(items)) return { items, changed: false };
-  const settings = exactItem(items, 'Video Settings', 'push button');
-  if (!settings || !clickAccessible(session, settings)) return undefined;
+  const settings = items.filter(
+    (item) => item.role === 'push button' && /^video settings(?:, menu item)?$/i.test((item.name ?? '').trim()),
+  );
+  const settingsControl = settings.length === 1 ? settings[0] : undefined;
+  if (!settingsControl || !clickAccessible(session, settingsControl)) return undefined;
   const deadline = Date.now() + 3_000;
   while (Date.now() < deadline) {
     items = meetingAccessibility(session).items;
@@ -1077,7 +1085,7 @@ export default function zoomIntegration(pi: ExtensionApi) {
     name: 'zoom_meeting',
     label: 'Zoom meeting',
     description:
-      'Deterministic Zoom controller and sole owner of Zoom Xorg interaction. Select exactly one action. For join, provide exactly one complete invitation_url or numeric meeting_id. For share, set state to browser or desktop; browser is the default. For status or awareness, omit all optional fields. The controller discovers the active session and verifies state through public xorgctl JSON without physical media.',
+      'Deterministic Zoom controller and sole owner of Zoom Xorg interaction. Select exactly one action. For join, provide exactly one complete invitation_url or numeric meeting_id. Every matching join selects xcsh Camera and verifies video on. For share, set state to browser or desktop; browser is the default. For status or awareness, omit all optional fields. The controller discovers the active session and verifies state through public xorgctl JSON without physical media.',
     parameters: pi.typebox.Type.Object({
       action: pi.typebox.Type.Union(actions.map((action) => pi.typebox.Type.Literal(action))),
       invitation_url: pi.typebox.Type.Optional(pi.typebox.Type.String()),
