@@ -391,6 +391,7 @@ class Controller:
 
     def ensure_ghostty_profile(self) -> bool:
         return CameraProfile(self).ensure()
+
     setup_error = SetupError
 
     def _hd_controller(self) -> ZoomHd:
@@ -678,7 +679,9 @@ class Controller:
             and receipt.get("font_size") == 9
             and receipt.get("unit_sha256")
             == hashlib.sha256(
-                render_camera_unit(display, str(environment.get("XAUTHORITY", ""))).encode()
+                render_camera_unit(
+                    display, str(environment.get("XAUTHORITY", ""))
+                ).encode()
             ).hexdigest()
             and receipt.get("profile_sha256")
             == (sha256_file(self.profile) if self.profile.is_file() else None)
