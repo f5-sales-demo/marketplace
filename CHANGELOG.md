@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.7 recovers an unformatted owned camera only when no other
+  loopback or opener exists, and waits for producer readiness before rollback.
+
+- **`zoom`** bumped to v1.1.6
+
 - **`zoom`** v1.1.6 reads the isolated display from the Xorg environment for
   readiness and keeps successful setup reruns unchanged.
 

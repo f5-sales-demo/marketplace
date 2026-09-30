@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-PLUGIN_VERSION = "1.1.6"
+PLUGIN_VERSION = "1.1.7"
 ZOOM_VERSION = "7.2.1.5760"
 ZOOM_URL = "https://cdn.zoom.us/prod/7.2.1.5760/zoom_amd64.deb"
 ZOOM_SHA256 = "e9a522c794622633b24908ac0589a8e4df8a542846b97818e76f6c27e117cbdb"
@@ -596,6 +596,51 @@ class Controller:
             "receipt": receipt,
         }
 
+    def ensure_camera_device(self) -> None:
+        fmt = self.runner.run(
+            ["v4l2-ctl", f"--device={CAMERA}", "--get-fmt-video-out"], check=False
+        )
+        if fmt.returncode == 0:
+            return
+        try:
+            label = (
+                pathlib.Path("/sys/class/video4linux/video10/name").read_text().strip()
+            )
+            numbers = pathlib.Path(
+                "/sys/module/v4l2loopback/parameters/video_nr"
+            ).read_text()
+            devices = sorted(
+                int(value) for value in numbers.strip().split(",") if int(value) >= 0
+            )
+        except (OSError, ValueError) as error:
+            raise SetupError("camera_recovery_ownership_unknown") from error
+        if label != CAMERA_LABEL or devices != [10]:
+            raise SetupError("camera_recovery_foreign_device")
+        self.runner.run(["systemctl", "--user", "stop", "xcsh-camera.service"])
+        users = self.runner.run(["fuser", CAMERA], check=False)
+        if users.returncode != 1:
+            raise SetupError("camera_recovery_device_busy_or_unknown")
+        self.runner.run(["sudo", "-n", "modprobe", "-r", "v4l2loopback"])
+        self.runner.run(
+            [
+                "sudo",
+                "-n",
+                "modprobe",
+                "v4l2loopback",
+                "video_nr=10",
+                f"card_label={CAMERA_LABEL}",
+                "exclusive_caps=1",
+            ]
+        )
+
+    def await_ready(self) -> dict[str, Any]:
+        deadline = time.monotonic() + 30
+        while True:
+            result = self.status()
+            if result["ready"] or time.monotonic() >= deadline:
+                return result
+            time.sleep(0.2)
+
     def apply(self) -> dict[str, Any]:
         require_platform()
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -619,6 +664,7 @@ class Controller:
         herdr_created = False
         ghostty_pid: int | None = None
         try:
+            self.ensure_camera_device()
             display, xauthority, session_created = self.ensure_session()
             herdr_created, ghostty_pid = self.ensure_herdr_window()
             receipt = {
@@ -646,7 +692,7 @@ class Controller:
             self.write_managed_files(display, xauthority, receipt)
             self.runner.run(["systemctl", "--user", "daemon-reload"])
             self.runner.run(["systemctl", "--user", "restart", "xcsh-camera.service"])
-            result = self.status()
+            result = self.await_ready()
             if not result["ready"]:
                 raise SetupError("readiness_failed")
             return {

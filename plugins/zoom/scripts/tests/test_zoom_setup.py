@@ -10,6 +10,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPT = pathlib.Path(__file__).parents[1] / "zoom-setup.py"
 SPEC = importlib.util.spec_from_file_location("zoom_setup", SCRIPT)
@@ -298,6 +299,9 @@ class ZoomSetupTests(unittest.TestCase):
                 def status(self):
                     return {"ready": False}
 
+                def await_ready(self):
+                    return {"ready": False}
+
             controller = TestController(runner, root)
             controller.dropin.parent.mkdir(parents=True)
             controller.receipt.parent.mkdir(parents=True)
@@ -308,6 +312,83 @@ class ZoomSetupTests(unittest.TestCase):
                 controller.apply()
             self.assertEqual(controller.dropin.read_bytes(), b"old unit\n")
             self.assertEqual(controller.receipt.read_bytes(), b"old receipt\n")
+
+    def test_unformatted_camera_recovers_only_the_owned_unused_loopback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FakeRunner()
+            original = runner.run
+
+            def run(argv, *, check=True):
+                if argv[0] == "v4l2-ctl":
+                    return zoom_setup.CommandResult(255, "Invalid argument")
+                if argv[0] == "fuser":
+                    return zoom_setup.CommandResult(1)
+                return original(argv, check=check)
+
+            runner.run = run
+            controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+            with patch.object(
+                pathlib.Path, "read_text", side_effect=["xcsh Camera\n", "10,-1,-1\n"]
+            ):
+                controller.ensure_camera_device()
+            stop = ["systemctl", "--user", "stop", "xcsh-camera.service"]
+            unload = ["sudo", "-n", "modprobe", "-r", "v4l2loopback"]
+            load = [
+                "sudo",
+                "-n",
+                "modprobe",
+                "v4l2loopback",
+                "video_nr=10",
+                "card_label=xcsh Camera",
+                "exclusive_caps=1",
+            ]
+            self.assertLess(runner.calls.index(stop), runner.calls.index(unload))
+            self.assertLess(runner.calls.index(unload), runner.calls.index(load))
+
+    def test_camera_recovery_refuses_busy_or_foreign_devices(self):
+        for label, numbers, fuser in (
+            ("Physical Camera", "10", 1),
+            ("xcsh Camera", "10,42", 1),
+            ("xcsh Camera", "10", 0),
+            ("xcsh Camera", "10", 2),
+        ):
+            with (
+                self.subTest(label=label, numbers=numbers, fuser=fuser),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                runner = FakeRunner()
+                original = runner.run
+
+                def run(argv, *, check=True, fuser=fuser, original=original):
+                    if argv[0] == "v4l2-ctl":
+                        return zoom_setup.CommandResult(255)
+                    if argv[0] == "fuser":
+                        return zoom_setup.CommandResult(fuser)
+                    return original(argv, check=check)
+
+                runner.run = run
+                controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+                with (
+                    patch.object(
+                        pathlib.Path, "read_text", side_effect=[label, numbers]
+                    ),
+                    self.assertRaises(zoom_setup.SetupError),
+                ):
+                    controller.ensure_camera_device()
+                self.assertFalse(any("modprobe" in call for call in runner.calls))
+
+    def test_waits_for_delayed_producer_readiness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            controller = zoom_setup.Controller(FakeRunner(), pathlib.Path(directory))
+            with (
+                patch.object(
+                    controller,
+                    "status",
+                    side_effect=[{"ready": False}, {"ready": True}],
+                ),
+                patch.object(zoom_setup.time, "sleep"),
+            ):
+                self.assertTrue(controller.await_ready()["ready"])
 
     def test_dependency_versions_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
