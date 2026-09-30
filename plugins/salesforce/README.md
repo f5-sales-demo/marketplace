@@ -10,7 +10,7 @@ skills for Salesforce development.
 
 ## Prerequisites
 
-- **Salesforce CLI** (`@salesforce/cli`): `brew install sf`
+- **xcsh 22.4.6 or later** and **Salesforce CLI** (`sf`): setup reuses a working installation. Missing CLI setup uses Homebrew on macOS without sudo or a verified official archive per user on Linux. Windows setup requires a verified current `sf` package; when unavailable, install the current official Salesforce CLI and retry setup.
 - **afv-library skills** (optional): `npx skills add forcedotcom/afv-library`
 - **Salesforce org** with API access
 
