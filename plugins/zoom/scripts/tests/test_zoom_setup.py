@@ -24,6 +24,7 @@ class FakeRunner:
         self.calls: list[list[str]] = []
         self.package = zoom_setup.ZOOM_VERSION
         self.existing_herdr = True
+        self.session_environment = {"DISPLAY": ":91", "XAUTHORITY": "/tmp/Xauthority"}
 
     def run(self, argv: list[str], *, check: bool = True):
         self.calls.append(argv)
@@ -50,10 +51,9 @@ class FakeRunner:
                 json.dumps(
                     {
                         "result": {
-                            "display": ":91",
                             "geometry": "1920x1080",
                             "owned": True,
-                            "env": {"DISPLAY": ":91", "XAUTHORITY": "/tmp/Xauthority"},
+                            "env": self.session_environment,
                         }
                     }
                 ),
@@ -226,6 +226,21 @@ class ZoomSetupTests(unittest.TestCase):
             status = controller.status()
             self.assertTrue(status["ready"])
             self.assertEqual(status["producer_pid"], 555)
+            original_run = runner.run
+
+            def with_legacy_display(argv, *, check=True):
+                result = original_run(argv, check=check)
+                if "session" in argv and "status" in argv:
+                    value = json.loads(result.stdout)
+                    value["result"]["display"] = ":91"
+                    return zoom_setup.CommandResult(0, json.dumps(value))
+                return result
+
+            runner.run = with_legacy_display
+            for environment in ({}, {"DISPLAY": ""}, {"DISPLAY": ":92"}, None):
+                with self.subTest(environment=environment):
+                    runner.session_environment = environment
+                    self.assertFalse(controller.status()["ready"])
             runner.run = lambda argv, check=True: zoom_setup.CommandResult(
                 0, "inactive\n"
             )
@@ -244,7 +259,24 @@ class ZoomSetupTests(unittest.TestCase):
             self.assertTrue(first["ready"])
             self.assertTrue(first["changed"])
             before = (controller.receipt.read_bytes(), controller.dropin.read_bytes())
+
+            def metadata():
+                return tuple(
+                    (path.stat().st_mtime_ns, path.stat().st_ino, path.stat().st_mode)
+                    for path in (controller.receipt, controller.dropin)
+                )
+
+            before_metadata = metadata()
+            calls = len(runner.calls)
             second = controller.apply()
+            self.assertTrue(second["ready"])
+            self.assertEqual(before_metadata, metadata())
+            self.assertFalse(
+                any(
+                    "restart" in call or "launch" in call or "daemon-reload" in call
+                    for call in runner.calls[calls:]
+                )
+            )
             self.assertFalse(second["changed"])
             self.assertEqual(
                 before,

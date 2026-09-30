@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-PLUGIN_VERSION = "1.1.5"
+PLUGIN_VERSION = "1.1.6"
 ZOOM_VERSION = "7.2.1.5760"
 ZOOM_URL = "https://cdn.zoom.us/prod/7.2.1.5760/zoom_amd64.deb"
 ZOOM_SHA256 = "e9a522c794622633b24908ac0589a8e4df8a542846b97818e76f6c27e117cbdb"
@@ -552,13 +552,17 @@ class Controller:
             xcsh_present = "xcsh" in herdr_panes.stdout.lower()
         except json.JSONDecodeError:
             herdr_running, xcsh_present = False, False
+        environment = session_state.get("env", {})
+        display = environment.get("DISPLAY") if isinstance(environment, dict) else None
         ready = bool(
             receipt
             and receipt.get("plugin_version") == PLUGIN_VERSION
             and receipt.get("zoom_version") == ZOOM_VERSION
             and receipt.get("camera_label") == CAMERA_LABEL
             and receipt.get("geometry") == GEOMETRY
-            and session_state.get("display") == receipt.get("display")
+            and isinstance(display, str)
+            and bool(display)
+            and display == receipt.get("display")
             and session_state.get("geometry") == GEOMETRY
             and ghostty_owned
             and herdr_running
