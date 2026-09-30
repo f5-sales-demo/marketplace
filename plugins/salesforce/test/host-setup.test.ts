@@ -135,3 +135,63 @@ it('registers six tools with the resolved executable', async () => {
   });
   expect(names).toEqual(['sf_query', 'sf_describe', 'sf_org_display', 'sf_pipeline_report', 'sf_help', 'sf_exec']);
 });
+
+it('passes the explicit normalized domain to shared preparation and rejects stale login reviews', async () => {
+  const previous = process.env.SF_ORG_INSTANCE_URL;
+  process.env.SF_ORG_INSTANCE_URL = 'https://example.lightning.force.com';
+  type Plan = { steps: { argv: string[] }[]; notes?: string[]; validate?: () => Promise<void> };
+  let definition: { prepareSetup(): Promise<Plan> } | undefined;
+  let prepared: Plan | undefined;
+  let softwareValidated = 0;
+  try {
+    await factory({
+      host: { findExecutable: () => undefined },
+      personProfile: { get: async () => ({ facts: {} }) },
+      software: {
+        prepareSetup: async (_recipe: unknown, plan: Plan) => {
+          prepared = plan;
+          return {
+            ...plan,
+            validate: async () => {
+              softwareValidated++;
+            },
+          };
+        },
+      },
+      integrations: {
+        register: (value: { prepareSetup(): Promise<Plan> }) => {
+          definition = value;
+          return { get: async () => ({ state: 'setup_required' }) };
+        },
+      },
+      exec: async () => {
+        throw new Error('No auth/config command expected with environment configured');
+      },
+      setLabel() {},
+      on() {},
+      logger: { debug() {} },
+    } as never);
+    if (!definition?.prepareSetup) throw new Error('Missing setup definition');
+    const plan = await definition.prepareSetup();
+    if (!prepared) throw new Error('Shared setup preparation was not called');
+    expect(prepared.steps[0].argv).toEqual([
+      'sf',
+      'org',
+      'login',
+      'web',
+      '--set-default',
+      '--alias',
+      'SFDC',
+      '--instance-url',
+      'https://example.my.salesforce.com',
+    ]);
+    expect(plan.notes).toContain('Salesforce login URL: https://example.my.salesforce.com');
+    await plan.validate?.();
+    expect(softwareValidated).toBe(1);
+    process.env.SF_ORG_INSTANCE_URL = 'https://another.my.salesforce.com';
+    await expect(plan.validate?.()).rejects.toThrow('review setup again');
+  } finally {
+    if (previous === undefined) delete process.env.SF_ORG_INSTANCE_URL;
+    else process.env.SF_ORG_INSTANCE_URL = previous;
+  }
+});

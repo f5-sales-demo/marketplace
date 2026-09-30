@@ -10,6 +10,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`salesforce`** v2.0.1 — review and execute the configured Salesforce My Domain login URL. Setup normalizes Lightning domains, honors `SF_ORG_INSTANCE_URL` and CLI configuration, and requires fresh review when the login URL changes.
 - **`zoom`** v1.1.10 enables and verifies the virtual camera on every
   matching meeting join, including an already-joined meeting with video off.
 

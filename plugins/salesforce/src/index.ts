@@ -1,5 +1,6 @@
 import { mapSalesforceToProfile } from './context/profile-mapper';
 import type { SalesforceContext, UserProfile } from './context/salesforce-context';
+import { prepareLoginUrl } from './login-url';
 import type { PluginHost } from './tools/plugin-host';
 import type { SfToolDetails } from './tools/shared';
 import { detectErrorType, errorResult, makeExecApi, renderError } from './tools/shared';
@@ -24,7 +25,9 @@ export function retryAfterMsFromHeaders(text: string, now = Date.now()): number 
 export function withErrorType<T extends { name?: string; execute: (...args: never[]) => Promise<unknown> }>(
   tool: T,
 ): T {
-  const originalExecute = tool.execute.bind(tool) as (...args: unknown[]) => Promise<unknown>;
+  const originalExecute = tool.execute.bind(tool) as (
+    ...args: unknown[]
+  ) => Promise<{ readonly validate?: (signal?: AbortSignal) => Promise<void>; readonly notes?: readonly string[] }>;
   const toolName = tool.name as SfToolDetails['tool'];
   return {
     ...tool,
@@ -43,7 +46,18 @@ export function withErrorType<T extends { name?: string; execute: (...args: neve
 interface CanonicalExtensionAPI extends PluginHost {
   host: { findExecutable(name: string): string | undefined };
   software: {
-    prepareSetup(recipe: typeof softwareRecipe, plan: typeof providerSetup, signal?: AbortSignal): Promise<unknown>;
+    prepareSetup(
+      recipe: typeof softwareRecipe,
+      plan: Omit<typeof providerSetup, 'steps'> & {
+        readonly steps: readonly {
+          readonly kind: 'login';
+          readonly argv: readonly string[];
+          readonly timeoutMs: number;
+          readonly stdin: 'inherit';
+        }[];
+      },
+      signal?: AbortSignal,
+    ): Promise<{ readonly validate?: (signal?: AbortSignal) => Promise<void>; readonly notes?: readonly string[] }>;
   };
   integrations: IntegrationApi['integrations'];
   personProfile: { get(): Promise<{ facts: UserProfile }> };
@@ -99,7 +113,7 @@ const providerSetup = {
 } as const;
 const factory = async (pi: CanonicalExtensionAPI) => {
   if (!pi.host || !pi.software)
-    throw new Error('Salesforce plugin requires xcsh 22.5.0 or later with the host/software API');
+    throw new Error('Salesforce plugin requires xcsh 22.4.6 or later with the host/software API');
   if (!pi.personProfile || typeof pi.personProfile.get !== 'function') {
     throw new Error('Salesforce plugin requires the xcsh personProfile API');
   }
@@ -119,7 +133,29 @@ const factory = async (pi: CanonicalExtensionAPI) => {
     plugin: 'salesforce',
     kind: 'network',
     setup: providerSetup,
-    prepareSetup: (signal?: AbortSignal) => pi.software.prepareSetup(softwareRecipe, providerSetup, signal),
+    async prepareSetup(signal?: AbortSignal) {
+      const login = await prepareLoginUrl(
+        {
+          environment: () => process.env.SF_ORG_INSTANCE_URL,
+          executable: () => pi.host.findExecutable('sf'),
+          exec: (command, args, options) => pi.exec(command, args, options),
+        },
+        signal,
+      );
+      const plan = {
+        ...providerSetup,
+        steps: providerSetup.steps.map((step) => ({ ...step, argv: [...step.argv, '--instance-url', login.url] })),
+      };
+      const prepared = await pi.software.prepareSetup(softwareRecipe, plan, signal);
+      return {
+        ...prepared,
+        notes: [...(prepared.notes ?? []), `Salesforce login URL: ${login.url}`],
+        validate: async (currentSignal?: AbortSignal) => {
+          await prepared.validate?.(currentSignal);
+          await login.validate(currentSignal);
+        },
+      };
+    },
     async probe(signal?: AbortSignal) {
       if (!pi.host.findExecutable('sf')) return { state: 'setup_required', reason: 'cli_missing' };
       const org = await pi.exec(pi.host.findExecutable('sf') ?? 'sf', ['org', 'display', '--json'], {
