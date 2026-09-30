@@ -1,7 +1,7 @@
 {
   "name": "salesforce",
   "description": "Salesforce pipeline intelligence with shared lifecycle setup, account discovery, context, and reporting tools",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "author": {
     "name": "f5-sales-demo",
     "url": "https://github.com/f5-sales-demo"
@@ -42,9 +42,14 @@
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["salesforce"],
-    "requirements": ["Salesforce CLI", "An authenticated default Salesforce org"],
+    "requirements": [
+      "xcsh 22.4.6 or later (shared host/software API)",
+      "Salesforce CLI",
+      "An authenticated default Salesforce org"
+    ],
     "setupRequired": true,
     "collectedData": ["accounts", "identifiers", "business_profile"],
     "pluginDependencies": []
-  }
+  },
+  "minimumRuntimeVersion": "22.4.6"
 }

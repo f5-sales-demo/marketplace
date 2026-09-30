@@ -94,7 +94,9 @@ describe('makeExecApi forwards AbortSignal to Bun.spawn only while live', () => 
     await makeExecApi('/tmp').exec('sf', ['org', 'list'], { signal: controller.signal });
     expect(recordedOptions).toBeDefined();
     expect('signal' in (recordedOptions ?? {})).toBe(true);
-    expect(recordedOptions?.signal).toBe(controller.signal);
+    expect(recordedOptions?.signal?.aborted).toBe(false);
+    controller.abort();
+    expect(recordedOptions?.signal?.aborted).toBe(true);
   });
 
   it('withholds an already-aborted (stale) signal from Bun.spawn', async () => {
@@ -103,9 +105,9 @@ describe('makeExecApi forwards AbortSignal to Bun.spawn only while live', () => 
     controller.abort(); // stale abort left over from a prior turn
     await makeExecApi('/tmp').exec('sf', ['org', 'list'], { signal: controller.signal });
     expect(recordedOptions).toBeDefined();
-    // The stale-abort path must build `{}` (no signal), never `{ signal }` —
-    // otherwise Bun would kill the fresh child immediately (false-cancel).
-    expect('signal' in (recordedOptions ?? {})).toBe(false);
+    // A stale caller abort is ignored while the fresh operation keeps its timeout.
+    expect(recordedOptions?.signal).toBeInstanceOf(AbortSignal);
+    expect(recordedOptions?.signal?.aborted).toBe(false);
   });
 });
 

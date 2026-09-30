@@ -14,7 +14,7 @@ fi
 
 EXPECTED_XCSH="20.2.7"
 EXPECTED_GITHUB_XCSH="21.39.1"
-EXPECTED_SALESFORCE_XCSH="21.31.0"
+EXPECTED_SALESFORCE_XCSH="22.4.6"
 EXPECTED_ANTHROPIC="0.115.0"
 EXPECTED_SALESFORCE_ANTHROPIC="0.123.0"
 EXPECTED_ACP="1.3.0"
@@ -128,7 +128,7 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
     expected_anthropic="$EXPECTED_SALESFORCE_ANTHROPIC"
     expected_acp="$EXPECTED_SALESFORCE_ACP"
     expected_google_genai="$EXPECTED_SALESFORCE_GOOGLE_GENAI"
-    expected_xcsh_range="^$EXPECTED_SALESFORCE_XCSH"
+    expected_xcsh_range=">=$EXPECTED_SALESFORCE_XCSH"
   fi
   require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/xcsh"]' \
     "$expected_xcsh_range" "$plugin xcsh peer range"
@@ -139,6 +139,10 @@ for plugin in "${RUNTIME_PLUGINS[@]}"; do
   if jq -e '.peerDependencies["@f5-sales-demo/pi-utils"]' "$package_json" >/dev/null 2>&1; then
     require_json_value "$package_json" '.peerDependencies["@f5-sales-demo/pi-utils"]' \
       "^$expected_pi_utils" "$plugin pi-utils peer range"
+  fi
+
+  if [ "$plugin" = "salesforce" ]; then
+    require_json_value "$package_json" '.devDependencies["@f5-sales-demo/xcsh"]' "$EXPECTED_SALESFORCE_XCSH" "Salesforce pinned development runtime"
   fi
 
   require_lock_version "$lock" '@f5-sales-demo/xcsh' "$expected_xcsh"

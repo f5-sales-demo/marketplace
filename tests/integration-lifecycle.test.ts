@@ -94,6 +94,16 @@ async function definitionsFor(plugin: string, commandAvailable = false): Promise
     typebox: { Type: typeFactory },
     pi: {},
     personProfile: { get: async () => ({ facts: {} }) },
+    host: { findExecutable: (name: string) => name },
+    software: { prepareSetup: async (_recipe: unknown, plan: unknown) => plan },
+    exec: async (command: string, args: string[]) => {
+      const result = Bun.spawnSync([command, ...args]);
+      return {
+        code: result.exitCode,
+        stdout: new TextDecoder().decode(result.stdout ?? new Uint8Array()),
+        stderr: new TextDecoder().decode(result.stderr ?? new Uint8Array()),
+      };
+    },
     integrations: {
       register(definition: Definition) {
         definitions.push(definition);
@@ -137,7 +147,9 @@ async function definitionsFor(plugin: string, commandAvailable = false): Promise
       zoom: 'extensions/integration.ts',
     }[plugin] ?? 'src/index.ts';
   const module = await import(`../plugins/${plugin}/${entrypoint}`);
+  pi.host.findExecutable = (name: string) => (commandAvailable ? name : undefined);
   await module.default(pi);
+  pi.host.findExecutable = (name: string) => name;
   spawn.mockRestore();
   return Object.assign(definitions, { tools, commands, advisories });
 }
@@ -1559,7 +1571,7 @@ describe('provider integration lifecycle', () => {
       const calls: string[][] = [];
       const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
         calls.push([...argv] as string[]);
-        if (calls.length === 1) return { exitCode: 0 } as ReturnType<typeof Bun.spawnSync>;
+        if (plugin !== 'salesforce' && calls.length === 1) return { exitCode: 0 } as ReturnType<typeof Bun.spawnSync>;
         return {
           exitCode: 1,
           stdout: new Uint8Array(),
@@ -1572,7 +1584,11 @@ describe('provider integration lifecycle', () => {
           reason: 'rate_limited',
           retryAfterMs: 120_000,
         });
-        expect(calls).toEqual([[process.platform === 'win32' ? 'where' : 'which', executable], [...probeArgv]]);
+        expect(calls).toEqual(
+          plugin === 'salesforce'
+            ? [[...probeArgv]]
+            : [[process.platform === 'win32' ? 'where' : 'which', executable], [...probeArgv]],
+        );
       } finally {
         spawn.mockRestore();
       }

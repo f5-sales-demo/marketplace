@@ -169,8 +169,8 @@ if [ "${PWD##*/}" = "github" ]; then
   xcsh_version="21.39.1"
   pi_utils_version="21.39.1"
 elif [ "${PWD##*/}" = "salesforce" ]; then
-  xcsh_version="21.31.0"
-  pi_utils_version="21.31.0"
+  xcsh_version="22.4.6"
+  pi_utils_version="22.4.6"
 fi
 printf '{"version":"%s"}\n' "$xcsh_version" >node_modules/@f5-sales-demo/xcsh/package.json
 printf '{"version":"%s"}\n' "$pi_utils_version" >node_modules/@f5-sales-demo/pi-utils/package.json

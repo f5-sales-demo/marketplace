@@ -1,6 +1,17 @@
-import { $ } from 'bun';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { SfFieldDescription, SfSObjectDescription } from '../sf/describe';
 import { normalizeDescribe } from '../sf/describe';
+import type { SfRawResult } from '../sf/types';
+export type SalesforceExecutor = (args: readonly string[], signal?: AbortSignal) => Promise<SfRawResult>;
+let salesforceExecutor: SalesforceExecutor | undefined;
+export function configureSalesforceExecutor(executor?: SalesforceExecutor): void {
+  salesforceExecutor = executor;
+}
+async function runSalesforce(args: readonly string[]): Promise<SfRawResult> {
+  if (!salesforceExecutor) throw new Error('Salesforce host executor is unavailable');
+  return salesforceExecutor(args, discoveryScope.getStore());
+}
+const discoveryScope = new AsyncLocalStorage<AbortSignal>();
 
 // ---------------------------------------------------------------------------
 // Canonical xcsh person profile access supplied by the extension API.
@@ -29,7 +40,7 @@ export async function readPersonFacts(): Promise<UserProfile> {
 export interface UserProfile {
   givenName?: string;
   familyName?: string;
-  email?: string;
+  email?: string | string[];
   territories?: string[];
   partner?: { id: string; name: string; role: string };
   identifiers?: { salesforceId?: string };
@@ -40,15 +51,6 @@ export interface UserProfile {
 // ---------------------------------------------------------------------------
 // Utility inlines (replacing pi-utils imports)
 // ---------------------------------------------------------------------------
-
-function $which(cmd: string): boolean {
-  try {
-    const result = Bun.spawnSync(['which', cmd]);
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-}
 
 const logger = {
   debug: (..._args: unknown[]) => {},
@@ -223,8 +225,7 @@ export function salesforceContextIsStale(ctx: SalesforceContext): boolean {
 
 async function runSfQuery(soql: string): Promise<Record<string, unknown>[]> {
   try {
-    const escaped = soql.replace(/'/g, "'");
-    const result = await $`sf data query --query ${escaped} --json`.quiet().nothrow();
+    const result = await runSalesforce(['data', 'query', '--query', soql, '--json']);
     if (result.exitCode !== 0) return [];
     const parsed = JSON.parse(result.stdout.toString()) as {
       result?: { records?: Record<string, unknown>[] };
@@ -238,7 +239,7 @@ async function runSfQuery(soql: string): Promise<Record<string, unknown>[]> {
 
 async function getOrgInfo(): Promise<{ username: string; instanceUrl: string; alias: string } | null> {
   try {
-    const result = await $`sf org display --json`.quiet().nothrow();
+    const result = await runSalesforce(['org', 'display', '--json']);
     if (result.exitCode !== 0) return null;
     const parsed = JSON.parse(result.stdout.toString()) as {
       result?: { username?: string; instanceUrl?: string; alias?: string };
@@ -253,7 +254,7 @@ async function getOrgInfo(): Promise<{ username: string; instanceUrl: string; al
 
 async function describeSObject(sobject: string): Promise<SfSObjectDescription | null> {
   try {
-    const result = await $`sf sobject describe --sobject ${sobject} --json`.quiet().nothrow();
+    const result = await runSalesforce(['sobject', 'describe', '--sobject', sobject, '--json']);
     if (result.exitCode !== 0) return null;
     const parsed = JSON.parse(result.stdout.toString()) as { result?: unknown };
     if (!parsed.result) return null;
@@ -582,8 +583,13 @@ async function discoverRoleAndTeam(userId: string): Promise<Partial<SalesforceCo
 // Main discovery
 // ---------------------------------------------------------------------------
 
-export async function discoverSalesforceContext(): Promise<SalesforceContext | null> {
-  if (!$which('sf')) return null;
+export async function discoverSalesforceContext(signal?: AbortSignal): Promise<SalesforceContext | null> {
+  const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000);
+  bounded.throwIfAborted();
+  return discoveryScope.run(bounded, () => discoverContext());
+}
+async function discoverContext(): Promise<SalesforceContext | null> {
+  if (!salesforceExecutor) return null;
 
   // OpportunityLineItem is described alongside Opportunity so the pipeline report can
   // feature-detect its value fields instead of assuming one org's custom schema.
@@ -592,6 +598,7 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
     describeSObject('Opportunity'),
     describeSObject('OpportunityLineItem'),
   ]);
+  discoveryScope.getStore()?.throwIfAborted();
   if (!orgInfo) return null;
 
   const profile = await readPersonFacts();
@@ -626,11 +633,12 @@ export async function discoverSalesforceContext(): Promise<SalesforceContext | n
     Object.assign(merged, partial);
   }
 
+  discoveryScope.getStore()?.throwIfAborted();
   return merged;
 }
 
-export async function seedSalesforceContext(): Promise<SalesforceContext | null> {
-  return discoverSalesforceContext();
+export async function seedSalesforceContext(signal?: AbortSignal): Promise<SalesforceContext | null> {
+  return discoverSalesforceContext(signal);
 }
 
 // ---------------------------------------------------------------------------

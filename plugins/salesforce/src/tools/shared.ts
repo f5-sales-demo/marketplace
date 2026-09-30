@@ -64,7 +64,10 @@ export function hasControlChars(arg: string): boolean {
 // Exec API factory
 // ---------------------------------------------------------------------------
 
-export function makeExecApi(cwd: string): SfExecApi {
+export function makeExecApi(
+  cwd: string,
+  resolveExecutable: (name: string) => string | undefined = () => undefined,
+): SfExecApi {
   return {
     async exec(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<SfRawResult> {
       // Thread the AbortSignal so a genuine in-flight cancellation actually
@@ -76,18 +79,21 @@ export function makeExecApi(cwd: string): SfExecApi {
       // hand us an AbortSignal that already fired in a PRIOR multi-turn tool
       // call, and a stale abort must never cancel a fresh sf command (they
       // finish in 1-5s). So we never pre-check signal.aborted to throw a
-      // "cancelled" before running, and we only wire the signal into Bun.spawn
-      // while it is still live at spawn time — handing an already-aborted
+      // "cancelled" before running, and we only combine the caller signal
+      // with the timeout while it is still live at spawn time — handing an already-aborted
       // (stale) signal to Bun.spawn would kill the fresh process immediately,
       // resurrecting exactly that false cancel. A signal that aborts *during*
       // the run is still honored and cancels for real.
       const signal = options?.signal;
-      const child = Bun.spawn([command, ...args], {
+      const child = Bun.spawn([resolveExecutable(command) ?? command, ...args], {
         cwd,
         stdin: 'ignore',
         stdout: 'pipe',
         stderr: 'pipe',
-        ...(signal && !signal.aborted ? { signal } : {}),
+        signal:
+          signal && !signal.aborted
+            ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+            : AbortSignal.timeout(30_000),
       });
       if (!child.stdout || !child.stderr) {
         return { stdout: '', stderr: 'Failed to capture output', exitCode: 1 };
