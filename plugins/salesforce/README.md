@@ -92,10 +92,32 @@ shows the immutable installer, login, dependency, environment-name,
 profile-collection, and verification plan before asking for confirmation.
 The plugin never performs authentication from a model-callable tool.
 
+For an organization with My Domain, set its login URL before setup:
+
+```bash
+SF_ORG_INSTANCE_URL=https://example.my.salesforce.com xcsh plugin setup salesforce
+```
+
+Setup uses `SF_ORG_INSTANCE_URL` first, then the Salesforce CLI's
+`org-instance-url` configuration. With neither configured, it uses
+`https://login.salesforce.com`. Lightning URLs such as
+`https://example.lightning.force.com` are converted to
+`https://example.my.salesforce.com`; sandbox Lightning domains retain
+their sandbox name. The review shows the effective URL in `--instance-url`.
+Changing the configured URL after review requires a new review.
+
+To persist a My Domain selection without editing shell startup files:
+
+```bash
+sf config set org-instance-url=https://example.my.salesforce.com --global
+xcsh plugin setup salesforce
+```
+
 ## Environment Variables
 
 | Variable        | Purpose                                  |
 | --------------- | ---------------------------------------- |
+| `SF_ORG_INSTANCE_URL` | Login endpoint for reviewed browser authentication |
 | `SF_TARGET_ORG` | Existing Salesforce target-org selection |
 | `SFDX_AUTH_URL` | Provider-managed authentication input    |
 

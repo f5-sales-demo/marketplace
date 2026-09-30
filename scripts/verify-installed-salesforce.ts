@@ -73,7 +73,10 @@ const receipt: Record<string, unknown> = {
   reviewed: true,
   installSteps: plan.steps.filter((step) => step.kind !== 'login').length,
   loginCommandPreserved: plan.steps.some(
-    (step) => step.argv.slice(1).join(' ') === 'org login web --set-default --alias SFDC',
+    (step) =>
+      step.argv.slice(1, 7).join(' ') === 'org login web --set-default --alias SFDC' &&
+      step.argv[7] === '--instance-url' &&
+      typeof step.argv[8] === 'string',
   ),
   tools: tools.map((tool) => tool.name),
 };
