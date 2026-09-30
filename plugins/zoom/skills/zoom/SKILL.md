@@ -25,7 +25,6 @@ unchanged. Numeric joins never consult a keyring: if a passcode is required,
 return `passcode_required` and use the full invitation URL. Verify each state
 change through AT-SPI/EWMH. Do not explore undocumented Xorg aliases.
 
-
 Terminal-camera setup uses native 1280×720 YUV420p at 15 FPS, normal chroma
 conversion, and a dedicated Ghostty font-9 profile with one pixel added to box
 strokes. Existing Xorg desktops retain their geometry; the owned camera window
