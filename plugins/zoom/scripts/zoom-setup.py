@@ -12,6 +12,7 @@ import os
 import pathlib
 import platform
 import re
+import shlex
 import stat
 import subprocess
 import sys
@@ -20,16 +21,21 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-PLUGIN_VERSION = "1.1.10"
+from camera_profile import CameraProfile
+from camera_verification import CameraVerification
+from zoom_hd import ZoomHd
+
+PLUGIN_VERSION = "1.1.11"
 ZOOM_VERSION = "7.2.1.5760"
 ZOOM_URL = "https://cdn.zoom.us/prod/7.2.1.5760/zoom_amd64.deb"
 ZOOM_SHA256 = "e9a522c794622633b24908ac0589a8e4df8a542846b97818e76f6c27e117cbdb"
 SESSION = "zoom-camera"
 HERDR_SESSION = "client-side-defense"
-GEOMETRY = "1920x1080"
+GEOMETRY = "1280x720"
+DESKTOP_GEOMETRY = "1920x1080"
 CAMERA = "/dev/video10"
 CAMERA_LABEL = "xcsh Camera"
-FPS = 30
+FPS = 15
 
 
 class SetupError(RuntimeError):
@@ -206,8 +212,9 @@ def render_camera_unit(display: str, xauthority: str) -> str:
         "ExecStartPre=\n"
         "ExecStart=\n"
         f"ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error -f x11grab -draw_mouse 0 "
-        f"-framerate {FPS} -video_size {GEOMETRY} -i {display} -vf format=yuv420p "
+        f"-framerate {FPS} -video_size {GEOMETRY} -i {display}+0,0 -vf format=yuv420p "
         f"-pix_fmt yuv420p -r {FPS} -s:v {GEOMETRY} -f v4l2 {CAMERA}\n"
+        f"ExecStartPost=/usr/bin/v4l2-ctl --device={CAMERA} --set-parm={FPS}\n"
         "Restart=on-failure\nRestartSec=5\n"
     )
 
@@ -224,9 +231,18 @@ class Controller:
             self.home
             / ".config/systemd/user/xcsh-camera.service.d/zoom-terminal-camera.conf"
         )
+        self.gui_session = "console"
         self.session_dir = self.home / ".xcsh/agent/sessions"
         self.xorgctl = self.local_executable("xorgctl")
         self.herdr = self.local_executable("herdr")
+
+    @property
+    def profile(self) -> pathlib.Path:
+        return self.home / ".config/ghostty/zoom-camera-red.conf"
+
+    @property
+    def zoom_config(self) -> pathlib.Path:
+        return self.home / ".config/zoomus.conf"
 
     def local_executable(self, name: str) -> str:
         candidate = self.home / ".local" / "bin" / name
@@ -336,7 +352,7 @@ class Controller:
                     "session",
                     "create",
                     "--params",
-                    json.dumps({"geometry": GEOMETRY}),
+                    json.dumps({"geometry": DESKTOP_GEOMETRY}),
                 ],
             )
         status = xorg_result(
@@ -357,13 +373,35 @@ class Controller:
         )
         if (
             status.get("owned") is not True
-            or geometry != GEOMETRY
+            or geometry not in (GEOMETRY, DESKTOP_GEOMETRY)
             or not re.fullmatch(r":\d+(?:\.\d+)?", display)
         ):
             raise SetupError("xorg_session_not_ready")
         if not pathlib.Path(xauthority).is_absolute():
             raise SetupError("xorg_session_not_ready")
         return display, xauthority, created
+
+    @staticmethod
+    def confine(path: pathlib.Path, root: pathlib.Path) -> None:
+        ensure_confined(path, root)
+
+    @staticmethod
+    def write(path: pathlib.Path, content: bytes) -> None:
+        atomic_write(path, content)
+
+    def ensure_ghostty_profile(self) -> bool:
+        return CameraProfile(self).ensure()
+
+    setup_error = SetupError
+
+    def _hd_controller(self) -> ZoomHd:
+        return ZoomHd(self)
+
+    def hd_enabled(self) -> bool:
+        return self._hd_controller().hd_enabled()
+
+    def ensure_hd(self) -> dict[str, Any]:
+        return self._hd_controller().ensure_hd()
 
     def ensure_herdr_window(self) -> tuple[bool, int]:
         sessions = run_json(self.runner, [self.herdr, "session", "list", "--json"])
@@ -389,6 +427,46 @@ class Controller:
             if created
             else [self.herdr, "session", "attach", HERDR_SESSION]
         )
+        applications = xorg_result(
+            run_json(
+                self.runner,
+                [self.xorgctl, "--session", SESSION, "--json", "app", "list"],
+            )
+        )
+        windows = xorg_result(
+            run_json(
+                self.runner,
+                [self.xorgctl, "--session", SESSION, "--json", "window", "list"],
+            )
+        )
+        for app in applications.get("owned_processes", []):
+            pid = app.get("pid")
+            if not isinstance(pid, int) or app.get("running") is not True:
+                continue
+            args = self.runner.run(["ps", "-p", str(pid), "-o", "args="], check=False)
+            try:
+                argv = shlex.split(args.stdout)
+            except ValueError:
+                continue
+            matches = all(
+                value in argv
+                for value in (
+                    "--font-size=9",
+                    "--gtk-single-instance=false",
+                    f"--config-file={self.profile}",
+                    "attach",
+                    HERDR_SESSION,
+                )
+            )
+            window: dict[str, Any] = next(
+                (item for item in windows.get("windows", []) if item.get("pid") == pid),
+                {},
+            )
+            if matches and all(
+                window.get(key) == value
+                for key, value in {"x": 0, "y": 0, "width": 1280, "height": 720}.items()
+            ):
+                return False, pid
         launch = xorg_result(
             run_json(
                 self.runner,
@@ -405,7 +483,9 @@ class Controller:
                             "argv": [
                                 "ghostty",
                                 "--gtk-single-instance=false",
-                                "--font-size=13",
+                                "--font-size=9",
+                                "--config-default-files=false",
+                                f"--config-file={self.profile}",
                                 "--window-decoration=false",
                                 f"--working-directory={self.session_dir}",
                                 "-e",
@@ -449,9 +529,11 @@ class Controller:
                 SESSION,
                 "--json",
                 "window",
-                "maximize",
+                "geometry",
                 "--params",
-                json.dumps({"window": window_id}),
+                json.dumps(
+                    {"window": window_id, "x": 0, "y": 0, "width": 1280, "height": 720}
+                ),
             ],
         )
         if created:
@@ -490,6 +572,21 @@ class Controller:
             ).encode(),
         )
 
+    def _verification(self) -> CameraVerification:
+        return CameraVerification(self, render_camera_unit, xorg_result)
+
+    def producer_matches(self, display: str, pid: int | None) -> bool:
+        return self._verification().producer_matches(display, pid)
+
+    def camera_live(self, display: str) -> bool:
+        return self._verification().camera_live(display)
+
+    def reconcile_override(self, display: str, xauthority: str) -> bool:
+        return self._verification().reconcile_override(display, xauthority)
+
+    def window_matches(self, pid: int | None) -> bool:
+        return self._verification().window_matches(pid)
+
     def status(self) -> dict[str, Any]:
         receipt = self.read_receipt()
         package = self.package_version()
@@ -497,7 +594,13 @@ class Controller:
             ["systemctl", "--user", "is-active", "xcsh-camera.service"], check=False
         )
         fmt = self.runner.run(
-            ["v4l2-ctl", f"--device={CAMERA}", "--get-fmt-video-out"], check=False
+            [
+                "v4l2-ctl",
+                f"--device={CAMERA}",
+                "--get-fmt-video-out",
+                "--get-output-parm",
+            ],
+            check=False,
         )
         producer = self.runner.run(
             [
@@ -561,15 +664,44 @@ class Controller:
             and receipt.get("camera_label") == CAMERA_LABEL
             and receipt.get("geometry") == GEOMETRY
             and isinstance(display, str)
-            and bool(display)
+            and bool(re.fullmatch(r":\d+(?:\.\d+)?", display))
             and display == receipt.get("display")
-            and session_state.get("geometry") == GEOMETRY
+            and session_state.get("geometry") in (GEOMETRY, DESKTOP_GEOMETRY)
+            and receipt.get("desktop_geometry") == session_state.get("geometry")
+            and isinstance(environment.get("XAUTHORITY"), str)
+            and pathlib.Path(environment["XAUTHORITY"]).is_absolute()
+            and not any(value in environment["XAUTHORITY"] for value in "\r\n")
+            and receipt.get("fps") == FPS
+            and receipt.get("font_size") == 9
+            and receipt.get("unit_sha256")
+            == hashlib.sha256(
+                render_camera_unit(
+                    display, str(environment.get("XAUTHORITY", ""))
+                ).encode()
+            ).hexdigest()
+            and receipt.get("profile_sha256")
+            == (sha256_file(self.profile) if self.profile.is_file() else None)
+            and self.hd_enabled()
             and ghostty_owned
+            and self.window_matches(receipt_pid)
+            and self.dropin.is_file()
+            and isinstance(receipt.get("xauthority"), str)
+            and pathlib.Path(receipt["xauthority"]).is_absolute()
+            and not any(value in receipt["xauthority"] for value in "\r\n")
+            and self.dropin.read_text()
+            == render_camera_unit(display, receipt["xauthority"])
+            and not (self.dropin.parent / "zz-720-fps-comparison.conf").exists()
+            and self.producer_matches(
+                display,
+                int(producer.stdout.strip())
+                if producer.stdout.strip().isdigit()
+                else None,
+            )
             and herdr_running
             and xcsh_present
             and service.stdout.strip() == "active"
-            and "1920" in fmt.stdout
-            and "1080" in fmt.stdout
+            and re.search(r"Width/Height\s*:\s*1280/720\b", fmt.stdout)
+            and re.search(r"Frames per second:\s*15(?:\.0+)?\b", fmt.stdout)
             and ("YU12" in fmt.stdout or "YUV420" in fmt.stdout)
             and producer.stdout.strip().isdigit()
             and producer.stdout.strip() != "0"
@@ -580,6 +712,9 @@ class Controller:
             "zoom_version": package,
             "session": SESSION,
             "geometry": GEOMETRY,
+            "desktop_geometry": session_state.get("geometry"),
+            "font_size": 9,
+            "hd": self.hd_enabled(),
             "herdr_session": HERDR_SESSION,
             "camera": CAMERA,
             "camera_label": CAMERA_LABEL,
@@ -599,7 +734,13 @@ class Controller:
     def ensure_camera_device(self) -> None:
         self.runner.run(["systemctl", "--user", "stop", "xcsh-camera.service"])
         fmt = self.runner.run(
-            ["v4l2-ctl", f"--device={CAMERA}", "--get-fmt-video-out"], check=False
+            [
+                "v4l2-ctl",
+                f"--device={CAMERA}",
+                "--get-fmt-video-out",
+                "--get-output-parm",
+            ],
+            check=False,
         )
         if fmt.returncode == 0:
             return
@@ -641,57 +782,161 @@ class Controller:
                 return result
             time.sleep(0.2)
 
+    def _camera_receipt(
+        self,
+        display: str,
+        xauthority: str,
+        ghostty_pid: int,
+        herdr_created: bool,
+        dependencies: dict[str, str],
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "plugin_version": PLUGIN_VERSION,
+            "zoom_version": ZOOM_VERSION,
+            "zoom_url": ZOOM_URL,
+            "zoom_sha256": ZOOM_SHA256,
+            "session": SESSION,
+            "display": display,
+            "xauthority": xauthority,
+            "geometry": GEOMETRY,
+            "desktop_geometry": xorg_result(
+                run_json(
+                    self.runner,
+                    [
+                        self.xorgctl,
+                        "--session",
+                        SESSION,
+                        "--json",
+                        "session",
+                        "status",
+                    ],
+                )
+            ).get("geometry"),
+            "font_size": 9,
+            "profile_sha256": sha256_file(self.profile),
+            "herdr_session": HERDR_SESSION,
+            "herdr_created": herdr_created,
+            "ghostty_pid": ghostty_pid,
+            "camera": CAMERA,
+            "camera_label": CAMERA_LABEL,
+            "format": "yuv420p",
+            "fps": FPS,
+            "dependencies": dependencies,
+            "unit_sha256": hashlib.sha256(
+                render_camera_unit(display, xauthority).encode()
+            ).hexdigest(),
+        }
+
+    def _rollback(
+        self,
+        previous: dict[str, bytes | None],
+        experimental: pathlib.Path,
+        ghostty_pid: int | None,
+        launched_ghostty: bool,
+        session_created: bool,
+        herdr_created: bool,
+    ) -> None:
+        if previous["profile"] is None:
+            self.profile.unlink(missing_ok=True)
+        else:
+            atomic_write(self.profile, previous["profile"])
+        if previous["experiment"] is not None:
+            atomic_write(experimental, previous["experiment"])
+        if ghostty_pid is not None and not session_created and launched_ghostty:
+            self.runner.run(
+                [
+                    self.xorgctl,
+                    "--session",
+                    SESSION,
+                    "--json",
+                    "app",
+                    "close",
+                    "--params",
+                    json.dumps({"pid": ghostty_pid}),
+                ],
+                check=False,
+            )
+        if session_created:
+            self.runner.run(
+                [self.xorgctl, "--session", SESSION, "--json", "session", "remove"],
+                check=False,
+            )
+        if herdr_created:
+            self.runner.run(
+                [self.herdr, "session", "stop", HERDR_SESSION, "--json"],
+                check=False,
+            )
+            self.runner.run(
+                [self.herdr, "session", "delete", HERDR_SESSION, "--json"],
+                check=False,
+            )
+        if previous["dropin"] is None:
+            self.dropin.unlink(missing_ok=True)
+        else:
+            atomic_write(self.dropin, previous["dropin"])
+        if previous["receipt"] is None:
+            self.receipt.unlink(missing_ok=True)
+        else:
+            atomic_write(self.receipt, previous["receipt"])
+        self.runner.run(["systemctl", "--user", "daemon-reload"], check=False)
+        self.runner.run(
+            ["systemctl", "--user", "restart", "xcsh-camera.service"], check=False
+        )
+
     def apply(self) -> dict[str, Any]:
         require_platform()
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.session_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         dependencies = self.dependencies()
+        hd = self.ensure_hd()
         current = self.status()
         if current["ready"]:
-            return {**current, "changed": False}
+            return {**current, "changed": hd["changed"]}
         package_action = self.ensure_zoom_package()
-        previous_dropin = (
-            self.dropin.read_bytes()
-            if self.dropin.is_file() and not self.dropin.is_symlink()
-            else None
-        )
-        previous_receipt = (
-            self.receipt.read_bytes()
-            if self.receipt.is_file() and not self.receipt.is_symlink()
-            else None
-        )
+        previous = {
+            "profile": self.profile.read_bytes() if self.profile.is_file() else None,
+            "dropin": self.dropin.read_bytes() if self.dropin.is_file() else None,
+            "receipt": self.receipt.read_bytes() if self.receipt.is_file() else None,
+            "experiment": None,
+        }
         session_created = False
         herdr_created = False
         ghostty_pid: int | None = None
+        launched_ghostty = False
+        experimental = self.dropin.parent / "zz-720-fps-comparison.conf"
         try:
-            self.ensure_camera_device()
+            self.ensure_ghostty_profile()
             display, xauthority, session_created = self.ensure_session()
-            herdr_created, ghostty_pid = self.ensure_herdr_window()
-            receipt = {
-                "schema_version": 1,
-                "plugin_version": PLUGIN_VERSION,
-                "zoom_version": ZOOM_VERSION,
-                "zoom_url": ZOOM_URL,
-                "zoom_sha256": ZOOM_SHA256,
-                "session": SESSION,
-                "display": display,
-                "xauthority": xauthority,
-                "geometry": GEOMETRY,
-                "herdr_session": HERDR_SESSION,
-                "herdr_created": herdr_created,
-                "ghostty_pid": ghostty_pid,
-                "camera": CAMERA,
-                "camera_label": CAMERA_LABEL,
-                "format": "yuv420p",
-                "fps": FPS,
-                "dependencies": dependencies,
-                "unit_sha256": hashlib.sha256(
-                    render_camera_unit(display, xauthority).encode()
-                ).hexdigest(),
+            reuse_producer = self.camera_live(display)
+            if not reuse_producer:
+                self.ensure_camera_device()
+            old_apps = xorg_result(
+                run_json(
+                    self.runner,
+                    [self.xorgctl, "--session", SESSION, "--json", "app", "list"],
+                )
+            )
+            old_pids = {
+                item.get("pid")
+                for item in old_apps.get("owned_processes", [])
+                if item.get("running")
             }
+            herdr_created, ghostty_pid = self.ensure_herdr_window()
+            launched_ghostty = ghostty_pid not in old_pids
+            receipt = self._camera_receipt(
+                display, xauthority, ghostty_pid, herdr_created, dependencies
+            )
+            previous["experiment"] = (
+                experimental.read_bytes() if experimental.is_file() else None
+            )
+            self.reconcile_override(display, xauthority)
             self.write_managed_files(display, xauthority, receipt)
             self.runner.run(["systemctl", "--user", "daemon-reload"])
-            self.runner.run(["systemctl", "--user", "restart", "xcsh-camera.service"])
+            if not reuse_producer:
+                self.runner.run(
+                    ["systemctl", "--user", "restart", "xcsh-camera.service"]
+                )
             result = self.await_ready()
             if not result["ready"]:
                 raise SetupError("readiness_failed")
@@ -703,57 +948,34 @@ class Controller:
                 "herdr_created": herdr_created,
             }
         except Exception:
-            if ghostty_pid is not None and not session_created:
-                self.runner.run(
-                    [
-                        self.xorgctl,
-                        "--session",
-                        SESSION,
-                        "--json",
-                        "app",
-                        "close",
-                        "--params",
-                        json.dumps({"pid": ghostty_pid}),
-                    ],
-                    check=False,
-                )
-            if session_created:
-                self.runner.run(
-                    [self.xorgctl, "--session", SESSION, "--json", "session", "remove"],
-                    check=False,
-                )
-            if herdr_created:
-                self.runner.run(
-                    [self.herdr, "session", "stop", HERDR_SESSION, "--json"],
-                    check=False,
-                )
-                self.runner.run(
-                    [self.herdr, "session", "delete", HERDR_SESSION, "--json"],
-                    check=False,
-                )
-            if previous_dropin is None:
-                self.dropin.unlink(missing_ok=True)
-            else:
-                atomic_write(self.dropin, previous_dropin)
-            if previous_receipt is None:
-                self.receipt.unlink(missing_ok=True)
-            else:
-                atomic_write(self.receipt, previous_receipt)
-            self.runner.run(["systemctl", "--user", "daemon-reload"], check=False)
-            self.runner.run(
-                ["systemctl", "--user", "restart", "xcsh-camera.service"], check=False
+            self._rollback(
+                previous,
+                experimental,
+                ghostty_pid,
+                launched_ghostty,
+                session_created,
+                herdr_created,
             )
             raise
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("apply", "verify", "status"))
+    parser.add_argument("action", choices=("apply", "verify", "status", "hd"))
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--session", default="console")
     args = parser.parse_args()
     try:
         controller = Controller()
-        result = controller.apply() if args.action == "apply" else controller.status()
+        controller.gui_session = args.session
+        result = (
+            controller.ensure_hd()
+            if args.action == "hd"
+            else (controller.apply() if args.action == "apply" else controller.status())
+        )
+        if args.action == "hd":
+            print(json.dumps(result, sort_keys=True))
+            return 0
         if args.action == "verify" and not result["ready"]:
             raise SetupError("setup_incomplete")
         print(

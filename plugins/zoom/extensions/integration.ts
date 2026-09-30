@@ -345,6 +345,7 @@ const verifiedMeetingResult = (session: string, requestedMeetingId: string, chan
     state: 'in_meeting',
     video: 'on',
     camera: 'xcsh Camera',
+    hd: true,
     session,
     changed: changed || video.changed,
     verified: true,
@@ -912,6 +913,18 @@ const controlLeave = (session: string) => {
   }
   return { exitCode: 1, code: 'leave_verification_timeout', control: 'leave', previous, verified: false };
 };
+export const ensureZoomHd = (session: string) => {
+  const result = Bun.spawnSync(['python3', ZOOM_SETUP, 'hd', '--json', '--session', session]);
+  try {
+    const state = JSON.parse(new TextDecoder().decode(result.stdout)) as Record<string, unknown>;
+    if (result.exitCode === 0 && state.hd === true && state.verified === true) {
+      return { exitCode: 0, hd: true, changed: state.changed === true, verified: true };
+    }
+  } catch {
+    /* Invalid evidence fails closed. */
+  }
+  return { exitCode: 1, code: 'zoom_hd_verification_failed', hd: 'unknown', verified: false };
+};
 const controlState = (session: string, action: 'audio' | 'video' | 'hand', requested = 'toggle') => {
   const allowed = {
     audio: ['muted', 'unmuted', 'toggle'],
@@ -931,12 +944,25 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
     hand: { raised: 'lowered', lowered: 'raised' },
   }[action] as Record<string, string>;
   const target = requested === 'toggle' ? inverse[previous] : requested;
+  let hdChanged = false;
   if (action === 'video' && target === 'on') {
     const camera = ensureVirtualCamera(session);
     if (camera.exitCode) return { ...camera, control: action, requested, previous };
+    const hd = ensureZoomHd(session);
+    if (hd.exitCode) return { ...hd, control: action, requested, previous };
+    hdChanged = hd.changed === true;
   }
   if (previous === target) {
-    return { exitCode: 0, control: action, requested, previous, current: previous, changed: false, verified: true };
+    return {
+      exitCode: 0,
+      control: action,
+      requested,
+      previous,
+      current: previous,
+      changed: hdChanged,
+      verified: true,
+      ...(action === 'video' && target === 'on' ? { hd: true } : {}),
+    };
   }
   const meeting = sessionWindows(session).find((window) => /^(zoom )?meeting$/i.test((window.title ?? '').trim()));
   if (!meeting?.id) return { exitCode: 1, code: 'meeting_window_unavailable', control: action, verified: false };
@@ -955,7 +981,16 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
   while (Date.now() < deadline) {
     const current = action === 'hand' ? observeHandState(session) : observeAwareness(session)[action];
     if (current === target) {
-      return { exitCode: 0, control: action, requested, previous, current, changed: true, verified: true };
+      return {
+        exitCode: 0,
+        control: action,
+        requested,
+        previous,
+        current,
+        changed: true,
+        verified: true,
+        ...(action === 'video' && target === 'on' ? { hd: true } : {}),
+      };
     }
     Bun.sleepSync(100);
   }

@@ -176,6 +176,12 @@ describe('provider integration lifecycle', () => {
     const calls: string[][] = [];
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       calls.push(command);
       const operation = command[command.indexOf('--json') + 1];
       if (operation === 'app') launched = true;
@@ -268,6 +274,12 @@ describe('provider integration lifecycle', () => {
     const inputSteps: Array<Record<string, unknown>> = [];
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -383,6 +395,12 @@ describe('provider integration lifecycle', () => {
     let accessibilityCalls = 0;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -434,6 +452,12 @@ describe('provider integration lifecycle', () => {
     let stopShortcuts = 0;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -525,6 +549,12 @@ describe('provider integration lifecycle', () => {
     let reacted = false;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -577,6 +607,12 @@ describe('provider integration lifecycle', () => {
   it('routes bounded stimuli only through the verified virtual microphone sink', () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -631,6 +667,12 @@ describe('provider integration lifecycle', () => {
     let complete = true;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -694,6 +736,12 @@ describe('provider integration lifecycle', () => {
     let stimulusCalls = 0;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -764,6 +812,12 @@ describe('provider integration lifecycle', () => {
     let stimulusCalls = 0;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -875,6 +929,12 @@ describe('provider integration lifecycle', () => {
       let stimulusCalls = 0;
       const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
         const command = [...argv] as string[];
+        if (command[0] === 'python3' && command.includes('hd'))
+          return {
+            exitCode: 0,
+            stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+            stderr: new Uint8Array(),
+          } as ReturnType<typeof Bun.spawnSync>;
         const session = command[command.indexOf('--session') + 1];
         const operation = command[command.indexOf('--json') + 1];
         const action = command[command.indexOf('--json') + 2];
@@ -947,6 +1007,12 @@ describe('provider integration lifecycle', () => {
     let left = false;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -1196,6 +1262,12 @@ describe('provider integration lifecycle', () => {
     const calls: string[][] = [];
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       calls.push(command);
       const result = command.includes('capabilities') ? { version: '1.1.9' } : { state: 'ready', version: '1.1.9' };
       return {
@@ -1289,6 +1361,12 @@ describe('provider integration lifecycle', () => {
     let informationOpen = false;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -1333,6 +1411,12 @@ describe('provider integration lifecycle', () => {
     let informationOpen = false;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -1393,6 +1477,12 @@ describe('provider integration lifecycle', () => {
   it('returns unchanged only when the active meeting identity matches', () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       if (operation === 'window') {
@@ -1444,6 +1534,12 @@ describe('provider integration lifecycle', () => {
     const calls: string[][] = [];
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       calls.push(command);
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
@@ -1646,6 +1742,12 @@ describe('provider integration lifecycle', () => {
     let toggles = 0;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const session = command[command.indexOf('--session') + 1];
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
@@ -1705,11 +1807,55 @@ describe('provider integration lifecycle', () => {
     }
   });
 
+  it.each([true, false])('requires verified HD before video-on succeeds', (verified) => {
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: verified ? 0 : 1,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: verified, verified, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
+      const operation = command[command.indexOf('--json') + 1];
+      const result =
+        operation === 'window'
+          ? { windows: [{ id: 42, pid: 7, title: 'Meeting' }] }
+          : operation === 'inspect'
+            ? {
+                items: [
+                  { name: 'Stop video', role: 'push button', pid: 7 },
+                  { name: 'Select a camera', role: 'menu item', pid: 7 },
+                  { name: 'xcsh Camera', role: 'check box', checked: true, pid: 7 },
+                ],
+              }
+            : {};
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      const result = call('video', ['on']);
+      expect(result.exitCode).toBe(verified ? 0 : 1);
+      if (verified) expect(result).toMatchObject({ hd: true, verified: true });
+      else expect(result).toMatchObject({ code: 'zoom_hd_verification_failed', verified: false });
+    } finally {
+      spawn.mockRestore();
+    }
+  });
+
   it('selects and verifies only xcsh Camera before enabling video', () => {
     let menuOpen = false;
     let selected = false;
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
       const paramsIndex = command.indexOf('--params');
@@ -1759,6 +1905,12 @@ describe('provider integration lifecycle', () => {
   it('refuses physical-camera fallback when xcsh Camera is unavailable', () => {
     const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
       const command = [...argv] as string[];
+      if (command[0] === 'python3' && command.includes('hd'))
+        return {
+          exitCode: 0,
+          stdout: new TextEncoder().encode(JSON.stringify({ hd: true, verified: true, changed: false })),
+          stderr: new Uint8Array(),
+        } as ReturnType<typeof Bun.spawnSync>;
       const operation = command[command.indexOf('--json') + 1];
       const action = command[command.indexOf('--json') + 2];
       const result =

@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 SCRIPT = pathlib.Path(__file__).parents[1] / "zoom-setup.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("zoom_setup", SCRIPT)
 assert SPEC and SPEC.loader
 zoom_setup = importlib.util.module_from_spec(SPEC)
@@ -25,11 +26,36 @@ class FakeRunner:
         self.calls: list[list[str]] = []
         self.package = zoom_setup.ZOOM_VERSION
         self.existing_herdr = True
+        self.live_producer = False
         self.session_environment = {"DISPLAY": ":91", "XAUTHORITY": "/tmp/Xauthority"}
 
     def run(self, argv: list[str], *, check: bool = True):
+        # pylint: disable=too-many-branches
         self.calls.append(argv)
         joined = " ".join(argv)
+        if argv[:3] == ["pgrep", "-x", "zoom"]:
+            return zoom_setup.CommandResult(1)
+        if argv[0] == "ps":
+            if argv[2] == "555":
+                return zoom_setup.CommandResult(
+                    0,
+                    zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
+                    .split("ExecStart=", 2)[2]
+                    .splitlines()[0]
+                    if self.live_producer
+                    else "",
+                )
+            profile = next(
+                (
+                    json.loads(call[-1])["argv"]
+                    for call in self.calls
+                    if "launch" in call
+                ),
+                None,
+            )
+            return zoom_setup.CommandResult(0, " ".join(profile or []))
+        if argv[0] == "systemctl" and "restart" in argv:
+            self.live_producer = True
         if argv[0] == "dpkg-query":
             return zoom_setup.CommandResult(0, self.package)
         if argv[:3] == ["xorgctl", "--json", "capabilities"]:
@@ -77,7 +103,23 @@ class FakeRunner:
             return zoom_setup.CommandResult(0, json.dumps({"result": {"pid": 444}}))
         if "window list" in joined:
             return zoom_setup.CommandResult(
-                0, json.dumps({"result": {"windows": [{"id": 9, "pid": 444}]}})
+                0,
+                json.dumps(
+                    {
+                        "result": {
+                            "windows": [
+                                {
+                                    "id": 9,
+                                    "pid": 444,
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 1280,
+                                    "height": 720,
+                                }
+                            ]
+                        }
+                    }
+                ),
             )
         if "app list" in joined:
             return zoom_setup.CommandResult(
@@ -92,12 +134,218 @@ class FakeRunner:
             return zoom_setup.CommandResult(0, "555\n")
         if argv[0] == "v4l2-ctl":
             return zoom_setup.CommandResult(
-                0, "Width/Height : 1920/1080\nPixel Format : 'YU12'"
+                0,
+                "Width/Height : 1280/720\nPixel Format : 'YU12'\nFrames per second: 15.000 (15/1)",
             )
         return zoom_setup.CommandResult(0, "{}")
 
 
 class ZoomSetupTests(unittest.TestCase):
+    def test_accepted_camera_profile_is_not_desktop_geometry(self):
+        unit = zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
+        self.assertIn("-video_size 1280x720 -i :91+0,0", unit)
+        self.assertIn("-pix_fmt yuv420p -r 15", unit)
+        self.assertIn("--set-parm=15", unit)
+        self.assertNotIn("neighbor", unit)
+        self.assertEqual(zoom_setup.GEOMETRY, "1280x720")
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FakeRunner()
+            controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+            self.assertEqual(
+                controller.ensure_session(), (":91", "/tmp/Xauthority", False)
+            )
+            controller.ensure_herdr_window()
+            launch = next(call for call in runner.calls if "launch" in call)
+            self.assertIn("--font-size=9", json.loads(launch[-1])["argv"])
+            self.assertTrue(any("geometry" in call for call in runner.calls))
+            self.assertFalse(any("maximize" in call for call in runner.calls))
+
+    def test_ghostty_profile_preserves_unrelated_defaults_and_is_noop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = pathlib.Path(directory)
+            original = home / ".config/ghostty/config"
+            original.parent.mkdir(parents=True)
+            original.write_text("font-size = 13\nbackground = #15191f\n")
+            controller = zoom_setup.Controller(FakeRunner(), home)
+            controller.ensure_ghostty_profile()
+            content = controller.profile.read_text()
+            self.assertIn("font-size = 9", content)
+            self.assertIn("adjust-box-thickness = 1", content)
+            self.assertIn("background = #15191f", content)
+            self.assertEqual(
+                original.read_text(), "font-size = 13\nbackground = #15191f\n"
+            )
+            before = controller.profile.stat().st_mtime_ns
+            controller.ensure_ghostty_profile()
+            self.assertEqual(before, controller.profile.stat().st_mtime_ns)
+
+    def test_hd_cold_setup_preserves_unrelated_settings_and_second_run_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            controller = zoom_setup.Controller(FakeRunner(), pathlib.Path(directory))
+            controller.zoom_config.parent.mkdir(parents=True)
+            controller.zoom_config.write_text(
+                "[General]\ncaptureHDCamera=false\nunrelated=keep\n"
+            )
+            self.assertTrue(controller.ensure_hd()["changed"])
+            self.assertIn("unrelated=keep", controller.zoom_config.read_text())
+            before = controller.zoom_config.stat().st_mtime_ns
+            self.assertFalse(controller.ensure_hd()["changed"])
+            self.assertEqual(before, controller.zoom_config.stat().st_mtime_ns)
+
+    def test_active_hd_uses_semantic_gui_and_preserves_live_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FakeRunner()
+            controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+            controller.zoom_config.parent.mkdir(parents=True)
+            controller.zoom_config.write_text(
+                "[General]\ncaptureHDCamera=false\nunrelated=keep\n"
+            )
+            original = runner.run
+            enabled = False
+
+            def run(argv, *, check=True):
+                nonlocal enabled
+                if argv[0] == "pgrep":
+                    return zoom_setup.CommandResult(0, "7\n")
+                if "inspect" in argv:
+                    return zoom_setup.CommandResult(
+                        0,
+                        json.dumps(
+                            {
+                                "result": {
+                                    "items": [
+                                        {
+                                            "name": "HD",
+                                            "role": "check box",
+                                            "checked": enabled,
+                                            "showing": True,
+                                            "pid": 7,
+                                            "box": [10, 10, 20, 20],
+                                        }
+                                    ]
+                                }
+                            }
+                        ),
+                    )
+                if "input" in argv:
+                    enabled = True
+                return original(argv, check=check)
+
+            runner.run = run
+            with patch.object(zoom_setup.time, "sleep"):
+                self.assertTrue(controller.ensure_hd()["changed"])
+                self.assertFalse(controller.ensure_hd()["changed"])
+            self.assertIn("captureHDCamera=false", controller.zoom_config.read_text())
+
+    def test_status_rejects_camera_fps_and_argv_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FakeRunner()
+            controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+            with patch.object(controller, "ensure_zoom_package", return_value="verify"):
+                controller.apply()
+            original = runner.run
+
+            def run(argv, *, check=True):
+                result = original(argv, check=check)
+                if argv[0] == "v4l2-ctl":
+                    return zoom_setup.CommandResult(
+                        0, result.stdout.replace("15.000", "30.000")
+                    )
+                return result
+
+            runner.run = run
+            self.assertFalse(controller.status()["ready"])
+            runner.run = original
+            runner.live_producer = False
+            self.assertFalse(controller.status()["ready"])
+
+    def test_accepted_override_is_removed_only_after_exact_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            controller = zoom_setup.Controller(FakeRunner(), pathlib.Path(directory))
+            experimental = controller.dropin.parent / "zz-720-fps-comparison.conf"
+            experimental.parent.mkdir(parents=True)
+            body = (
+                zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
+                .split("[Service]\n", 1)[1]
+                .split("Restart=", 1)[0]
+            )
+            body = (
+                "\n".join(
+                    line
+                    for line in body.splitlines()
+                    if not line.startswith("Environment=")
+                )
+                + "\n"
+            )
+            experimental.write_text("[Service]\n" + body)
+            self.assertTrue(controller.reconcile_override(":91", "/tmp/Xauthority"))
+            self.assertFalse(experimental.exists())
+            experimental.write_text("[Service]\nExecStart=/foreign/producer\n")
+            with self.assertRaisesRegex(
+                zoom_setup.SetupError, "camera_override_conflict"
+            ):
+                controller.reconcile_override(":91", "/tmp/Xauthority")
+            self.assertTrue(experimental.exists())
+
+    def test_setup_reuses_matching_owned_window_and_live_producer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = FakeRunner()
+            controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+            with patch.object(controller, "ensure_zoom_package", return_value="verify"):
+                controller.apply()
+                first_pid = controller.read_receipt()["ghostty_pid"]
+                receipt = controller.read_receipt()
+                receipt["plugin_version"] = "old"
+                zoom_setup.atomic_write(
+                    controller.receipt, (json.dumps(receipt) + "\n").encode()
+                )
+                calls = len(runner.calls)
+                result = controller.apply()
+            self.assertTrue(result["ready"])
+            self.assertEqual(result["receipt"]["ghostty_pid"], first_pid)
+            self.assertFalse(
+                any(
+                    "launch" in call or "restart" in call or "stop" in call
+                    for call in runner.calls[calls:]
+                )
+            )
+
+    def test_hd_missing_or_ambiguous_state_fails_closed(self):
+        for count in (0, 2):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as directory:
+                runner = FakeRunner()
+                controller = zoom_setup.Controller(runner, pathlib.Path(directory))
+                original = runner.run
+
+                def run(argv, *, check=True, count=count, original=original):
+                    if argv[0] == "pgrep":
+                        return zoom_setup.CommandResult(0, "7\n")
+                    if "inspect" in argv:
+                        return zoom_setup.CommandResult(
+                            0,
+                            json.dumps(
+                                {
+                                    "result": {
+                                        "items": [
+                                            {
+                                                "name": "HD",
+                                                "role": "check box",
+                                                "pid": 7,
+                                                "showing": True,
+                                                "checked": True,
+                                            }
+                                        ]
+                                        * count
+                                    }
+                                }
+                            ),
+                        )
+                    return original(argv, check=check)
+
+                runner.run = run
+                with self.assertRaises(zoom_setup.SetupError):
+                    controller.ensure_hd()
+
     def test_command_environment_keeps_user_and_system_launchers(self):
         environment = zoom_setup.command_environment(
             {"HOME": "/home/robin", "PATH": "/custom"}
@@ -150,11 +398,11 @@ class ZoomSetupTests(unittest.TestCase):
         unit = zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
         self.assertNotIn("Requires=xorgctl-session@zoom-camera.service", unit)
         self.assertIn("-f x11grab", unit)
-        self.assertIn("-video_size 1920x1080 -i :91", unit)
-        self.assertIn("-pix_fmt yuv420p -r 30", unit)
+        self.assertIn("-video_size 1280x720 -i :91+0,0", unit)
+        self.assertIn("-pix_fmt yuv420p -r 15", unit)
         self.assertIn("/dev/video10", unit)
         self.assertIn("Environment=XAUTHORITY=/tmp/Xauthority", unit)
-        self.assertNotIn("v4l2-ctl", unit)
+        self.assertIn("--set-parm=15", unit)
         self.assertNotIn("testsrc", unit)
         with self.assertRaisesRegex(zoom_setup.SetupError, "invalid_display"):
             zoom_setup.render_camera_unit(":0;touch /tmp/no", "/tmp/Xauthority")
@@ -214,17 +462,8 @@ class ZoomSetupTests(unittest.TestCase):
             runner = FakeRunner()
             controller = zoom_setup.Controller(runner, pathlib.Path(directory))
             controller.state.mkdir(parents=True)
-            receipt = {
-                "plugin_version": zoom_setup.PLUGIN_VERSION,
-                "zoom_version": zoom_setup.ZOOM_VERSION,
-                "camera_label": zoom_setup.CAMERA_LABEL,
-                "geometry": zoom_setup.GEOMETRY,
-                "display": ":91",
-                "ghostty_pid": 444,
-            }
-            zoom_setup.atomic_write(
-                controller.receipt, (json.dumps(receipt) + "\n").encode()
-            )
+            with patch.object(controller, "ensure_zoom_package", return_value="verify"):
+                controller.apply()
             status = controller.status()
             self.assertTrue(status["ready"])
             self.assertEqual(status["producer_pid"], 555)
@@ -344,7 +583,12 @@ class ZoomSetupTests(unittest.TestCase):
                 "card_label=xcsh Camera",
                 "exclusive_caps=1",
             ]
-            query = ["v4l2-ctl", "--device=/dev/video10", "--get-fmt-video-out"]
+            query = [
+                "v4l2-ctl",
+                "--device=/dev/video10",
+                "--get-fmt-video-out",
+                "--get-output-parm",
+            ]
             self.assertLess(runner.calls.index(stop), runner.calls.index(query))
             self.assertLess(runner.calls.index(stop), runner.calls.index(unload))
             self.assertLess(runner.calls.index(unload), runner.calls.index(load))
