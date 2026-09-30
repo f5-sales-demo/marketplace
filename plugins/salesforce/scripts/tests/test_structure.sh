@@ -213,12 +213,8 @@ test_T1_13_extension_registers_tools() {
     echo "SKIP: no src/index.ts"
     return 0
   fi
-  for factory in createSfQueryTool createSfDescribeTool createSfOrgDisplayTool createSfPipelineReportTool createSfHelpTool createSfExecTool; do
-    grep -q "$factory(pi)" "$entry" || {
-      echo "FAIL: src/index.ts does not register $factory"
-      return 1
-    }
-  done
+  (cd "$PLUGIN_ROOT" && bun test test/host-setup.test.ts --test-name-pattern 'registers six tools')
+
 }
 
 # T1.14 — all expected tool factory files exist

@@ -15,6 +15,8 @@ and this project adheres to
 
 - **`zoom`** bumped to v1.1.6
 
+- **`salesforce`** v2.0.0 — reuse a working host CLI before browser sign-in. Setup uses the shared xcsh host/software API, Homebrew on macOS without sudo, and verified per-user official archives on Linux. Requires xcsh 22.4.6 or later. Removes legacy profile/platform detection and npm/Scoop fallbacks.
+
 - **`zoom`** v1.1.6 reads the isolated display from the Xorg environment for
   readiness and keeps successful setup reruns unchanged.
 
