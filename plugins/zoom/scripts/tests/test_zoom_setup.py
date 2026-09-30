@@ -148,6 +148,7 @@ class ZoomSetupTests(unittest.TestCase):
 
     def test_unit_captures_only_isolated_display(self):
         unit = zoom_setup.render_camera_unit(":91", "/tmp/Xauthority")
+        self.assertNotIn("Requires=xorgctl-session@zoom-camera.service", unit)
         self.assertIn("-f x11grab", unit)
         self.assertIn("-video_size 1920x1080 -i :91", unit)
         self.assertIn("-pix_fmt yuv420p -r 30", unit)

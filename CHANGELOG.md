@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.8 captures the verified existing Xorg session without
+  requiring a competing systemd worker for its display.
+
+- **`zoom`** bumped to v1.1.7
+
 - **`zoom`** v1.1.7 recovers an unformatted owned camera only when no other
   loopback or opener exists, and waits for producer readiness before rollback.
 
