@@ -10,6 +10,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.6 reads the isolated display from the Xorg environment for
+  readiness and keeps successful setup reruns unchanged.
+
 - **`zoom`** bumped to v1.1.5
 
 - **`meddpicc`** v7.6.0 allows authorized real account data in installed
