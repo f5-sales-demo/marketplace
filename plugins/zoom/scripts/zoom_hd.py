@@ -121,6 +121,29 @@ class ZoomHd:
             )
             time.sleep(0.3)
 
+        windows = self.run_json(
+            [self.xorgctl, "--session", session, "--json", "window", "list"]
+        ).get("windows", [])
+        meeting = [
+            item
+            for item in windows
+            if item.get("pid") in pids
+            and str(item.get("title", "")).strip().lower()
+            in ("meeting", "zoom meeting")
+        ]
+        if len(meeting) == 1:
+            self.run_json(
+                [
+                    self.xorgctl,
+                    "--session",
+                    session,
+                    "--json",
+                    "window",
+                    "focus",
+                    "--params",
+                    json.dumps({"window": meeting[0]["id"]}),
+                ]
+            )
         items = observe()
         hd = exact(items, "HD", "check box")
         opened = False

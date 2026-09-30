@@ -944,11 +944,13 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
     hand: { raised: 'lowered', lowered: 'raised' },
   }[action] as Record<string, string>;
   const target = requested === 'toggle' ? inverse[previous] : requested;
+  let hdChanged = false;
   if (action === 'video' && target === 'on') {
     const camera = ensureVirtualCamera(session);
     if (camera.exitCode) return { ...camera, control: action, requested, previous };
     const hd = ensureZoomHd(session);
     if (hd.exitCode) return { ...hd, control: action, requested, previous };
+    hdChanged = hd.changed === true;
   }
   if (previous === target) {
     return {
@@ -957,7 +959,7 @@ const controlState = (session: string, action: 'audio' | 'video' | 'hand', reque
       requested,
       previous,
       current: previous,
-      changed: false,
+      changed: hdChanged,
       verified: true,
       ...(action === 'video' && target === 'on' ? { hd: true } : {}),
     };
