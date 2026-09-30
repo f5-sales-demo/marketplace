@@ -321,6 +321,7 @@ class ZoomSetupTests(unittest.TestCase):
 
             def run(argv, *, check=True):
                 if argv[0] == "v4l2-ctl":
+                    runner.calls.append(argv)
                     return zoom_setup.CommandResult(255, "Invalid argument")
                 if argv[0] == "fuser":
                     return zoom_setup.CommandResult(1)
@@ -343,6 +344,8 @@ class ZoomSetupTests(unittest.TestCase):
                 "card_label=xcsh Camera",
                 "exclusive_caps=1",
             ]
+            query = ["v4l2-ctl", "--device=/dev/video10", "--get-fmt-video-out"]
+            self.assertLess(runner.calls.index(stop), runner.calls.index(query))
             self.assertLess(runner.calls.index(stop), runner.calls.index(unload))
             self.assertLess(runner.calls.index(unload), runner.calls.index(load))
 

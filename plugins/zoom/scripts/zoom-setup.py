@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-PLUGIN_VERSION = "1.1.8"
+PLUGIN_VERSION = "1.1.9"
 ZOOM_VERSION = "7.2.1.5760"
 ZOOM_URL = "https://cdn.zoom.us/prod/7.2.1.5760/zoom_amd64.deb"
 ZOOM_SHA256 = "e9a522c794622633b24908ac0589a8e4df8a542846b97818e76f6c27e117cbdb"
@@ -597,6 +597,7 @@ class Controller:
         }
 
     def ensure_camera_device(self) -> None:
+        self.runner.run(["systemctl", "--user", "stop", "xcsh-camera.service"])
         fmt = self.runner.run(
             ["v4l2-ctl", f"--device={CAMERA}", "--get-fmt-video-out"], check=False
         )
@@ -616,7 +617,6 @@ class Controller:
             raise SetupError("camera_recovery_ownership_unknown") from error
         if label != CAMERA_LABEL or devices != [10]:
             raise SetupError("camera_recovery_foreign_device")
-        self.runner.run(["systemctl", "--user", "stop", "xcsh-camera.service"])
         users = self.runner.run(["fuser", CAMERA], check=False)
         if users.returncode != 1:
             raise SetupError("camera_recovery_device_busy_or_unknown")

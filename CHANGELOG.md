@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`zoom`** v1.1.9 stops the previous camera producer before checking
+  whether its owned loopback needs recovery.
+
+- **`zoom`** bumped to v1.1.8
+
 - **`zoom`** v1.1.8 captures the verified existing Xorg session without
   requiring a competing systemd worker for its display.
 
