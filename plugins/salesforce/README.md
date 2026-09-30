@@ -115,11 +115,11 @@ xcsh plugin setup salesforce
 
 ## Environment Variables
 
-| Variable        | Purpose                                  |
-| --------------- | ---------------------------------------- |
+| Variable              | Purpose                                            |
+| --------------------- | -------------------------------------------------- |
 | `SF_ORG_INSTANCE_URL` | Login endpoint for reviewed browser authentication |
-| `SF_TARGET_ORG` | Existing Salesforce target-org selection |
-| `SFDX_AUTH_URL` | Provider-managed authentication input    |
+| `SF_TARGET_ORG`       | Existing Salesforce target-org selection           |
+| `SFDX_AUTH_URL`       | Provider-managed authentication input              |
 
 ## Usage Examples
 
