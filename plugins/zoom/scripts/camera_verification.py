@@ -118,10 +118,10 @@ class CameraVerification:
         args_result = (
             controller.runner.run(["ps", "-p", str(pid), "-o", "args="], check=False)
             if pid
-            else controller.empty_result()
+            else None
         )
         try:
-            ghostty_args = shlex.split(args_result.stdout)
+            ghostty_args = shlex.split(args_result.stdout if args_result else "")
         except ValueError:
             ghostty_args = []
         profile_matches = all(

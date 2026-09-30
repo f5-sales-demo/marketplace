@@ -575,10 +575,6 @@ class Controller:
     def _verification(self) -> CameraVerification:
         return CameraVerification(self, render_camera_unit, xorg_result)
 
-    @staticmethod
-    def empty_result() -> CommandResult:
-        return CommandResult(1)
-
     def producer_matches(self, display: str, pid: int | None) -> bool:
         return self._verification().producer_matches(display, pid)
 
