@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-PLUGIN_VERSION = "1.1.9"
+PLUGIN_VERSION = "1.1.10"
 ZOOM_VERSION = "7.2.1.5760"
 ZOOM_URL = "https://cdn.zoom.us/prod/7.2.1.5760/zoom_amd64.deb"
 ZOOM_SHA256 = "e9a522c794622633b24908ac0589a8e4df8a542846b97818e76f6c27e117cbdb"

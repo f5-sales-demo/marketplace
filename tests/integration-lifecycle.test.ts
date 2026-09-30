@@ -183,7 +183,14 @@ describe('provider integration lifecycle', () => {
         operation === 'window'
           ? { windows: launched ? [{ title: 'Meeting', pid: 42 }] : [] }
           : operation === 'inspect'
-            ? { items: [{ name: 'Meeting ID 123 456 789', pid: 42 }] }
+            ? {
+                items: [
+                  { name: 'Meeting ID 123 456 789', pid: 42 },
+                  { name: 'Stop video', role: 'push button', pid: 42 },
+                  { name: 'Select a camera', role: 'menu item', pid: 42 },
+                  { name: 'xcsh Camera', role: 'check box', checked: true, pid: 42 },
+                ],
+              }
             : {};
       return {
         exitCode: 0,
@@ -1399,7 +1406,16 @@ describe('provider integration lifecycle', () => {
       return {
         exitCode: 0,
         stdout: new TextEncoder().encode(
-          JSON.stringify({ result: { items: [{ name: 'Meeting ID123 4567 8901', pid: 42 }] } }),
+          JSON.stringify({
+            result: {
+              items: [
+                { name: 'Meeting ID123 4567 8901', pid: 42 },
+                { name: 'Stop video', role: 'push button', pid: 42 },
+                { name: 'Select a camera', role: 'menu item', pid: 42 },
+                { name: 'xcsh Camera', role: 'check box', checked: true, pid: 42 },
+              ],
+            },
+          }),
         ),
         stderr: new Uint8Array(),
       } as ReturnType<typeof Bun.spawnSync>;
@@ -1448,7 +1464,16 @@ describe('provider integration lifecycle', () => {
       return {
         exitCode: 0,
         stdout: new TextEncoder().encode(
-          JSON.stringify({ result: { items: [{ name: 'Meeting ID123 4567 8901', pid: 42 }] } }),
+          JSON.stringify({
+            result: {
+              items: [
+                { name: 'Meeting ID123 4567 8901', pid: 42 },
+                { name: 'Stop video', role: 'push button', pid: 42 },
+                { name: 'Select a camera', role: 'menu item', pid: 42 },
+                { name: 'xcsh Camera', role: 'check box', checked: true, pid: 42 },
+              ],
+            },
+          }),
         ),
         stderr: new Uint8Array(),
       } as ReturnType<typeof Bun.spawnSync>;
@@ -1605,6 +1630,79 @@ describe('provider integration lifecycle', () => {
       steps: [{ kind: 'install', argv: ['python3', setup, 'apply', '--json'], timeoutMs: 900000 }],
       verification: [{ argv: ['python3', setup, 'verify', '--json'], timeoutMs: 120000 }],
     });
+  });
+
+  it.each([
+    { existing: false, videoOn: false, cameraAvailable: true, match: true },
+    { existing: true, videoOn: false, cameraAvailable: true, match: true },
+    { existing: true, videoOn: true, cameraAvailable: true, match: true },
+    { existing: true, videoOn: false, cameraAvailable: false, match: true },
+    { existing: true, videoOn: false, cameraAvailable: true, match: false },
+  ])('enables and verifies virtual camera video for matching joins', (scenario) => {
+    let joined = scenario.existing;
+    let joinedSession = 'console';
+    let videoOn = scenario.videoOn;
+    let menuOpen = false;
+    let toggles = 0;
+    const spawn = spyOn(Bun, 'spawnSync').mockImplementation((argv) => {
+      const command = [...argv] as string[];
+      const session = command[command.indexOf('--session') + 1];
+      const operation = command[command.indexOf('--json') + 1];
+      const action = command[command.indexOf('--json') + 2];
+      const index = command.indexOf('--params');
+      const params = index >= 0 ? JSON.parse(command[index + 1]) : {};
+      let result = {};
+      if (operation === 'app' && action === 'launch') {
+        joined = true;
+        joinedSession = session;
+      }
+      if (operation === 'window' && action === 'list')
+        result = { windows: joined && session === joinedSession ? [{ id: 42, pid: 7, title: 'Meeting' }] : [] };
+      if (operation === 'inspect')
+        result = {
+          items: [
+            { name: scenario.match ? 'Meeting ID 123456789' : 'Meeting ID 987654321', pid: 7 },
+            { name: videoOn ? 'Stop video' : 'Start video', role: 'push button', pid: 7 },
+            { name: 'Unmute', role: 'push button', pid: 7 },
+            { name: 'Video Settings, menu item', role: 'push button', pid: 7, box: [10, 10, 20, 20] },
+            ...(menuOpen
+              ? [
+                  { name: 'Select a camera', role: 'menu item', pid: 7 },
+                  ...(scenario.cameraAvailable
+                    ? [{ name: 'xcsh Camera', role: 'check box', checked: true, pid: 7 }]
+                    : []),
+                ]
+              : []),
+          ],
+        };
+      if (operation === 'input')
+        for (const step of params.steps ?? []) {
+          if (step.action === 'click' && step.y === 20) menuOpen = true;
+          if (step.action === 'key' && step.key === 'Escape') menuOpen = false;
+          if (step.action === 'chord' && step.keys?.includes('v')) {
+            videoOn = !videoOn;
+            toggles++;
+          }
+        }
+      return {
+        exitCode: 0,
+        stdout: new TextEncoder().encode(JSON.stringify({ result })),
+        stderr: new Uint8Array(),
+      } as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      const result = call('join', ['123456789']);
+      if (!scenario.match) expect(result).toMatchObject({ exitCode: 1, code: 'active_meeting_conflict' });
+      else if (!scenario.cameraAvailable)
+        expect(result).toMatchObject({ exitCode: 1, code: 'virtual_camera_unavailable' });
+      else {
+        expect(result).toMatchObject({ exitCode: 0, video: 'on', camera: 'xcsh Camera', verified: true });
+        expect(videoOn).toBe(true);
+      }
+      expect(toggles).toBe(scenario.match && scenario.cameraAvailable && !scenario.videoOn ? 1 : 0);
+    } finally {
+      spawn.mockRestore();
+    }
   });
 
   it('selects and verifies only xcsh Camera before enabling video', () => {
