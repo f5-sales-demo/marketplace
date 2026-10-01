@@ -2,7 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import pkg from '../package.json' with { type: 'json' };
-import { isCommandName, parseCommandArguments } from './cli-arguments';
+import { commandList, isCommandName, parseCommandArguments, parseHelpRequest } from './cli-arguments';
 import { computeCompletion } from './completion';
 import { generateWorkbook, planWorkbook } from './generate';
 import { loadLocale, resolveLocale } from './locale';
@@ -77,11 +77,20 @@ function refuseLegacyDeal(deal: unknown, dealPath: string): number | null {
 }
 
 async function main(): Promise<number> {
-  const [requestedCommand, ...rawArguments] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  try {
+    const help = parseHelpRequest(args);
+    if (help !== null) {
+      process.stdout.write(`${help}\n`);
+      return 0;
+    }
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+  const [requestedCommand, ...rawArguments] = args;
   if (!isCommandName(requestedCommand)) {
-    process.stderr.write(
-      `Unknown command: ${requestedCommand ?? '(none)'}\nCommands: validate, next, score, hint, generate, read, migrate, check-sfdc, check-spec\n`,
-    );
+    process.stderr.write(`Unknown command: ${requestedCommand ?? '(none)'}\nCommands: ${commandList()}\n`);
     return 1;
   }
   const command = requestedCommand;
