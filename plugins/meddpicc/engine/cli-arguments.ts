@@ -14,6 +14,7 @@ export interface OptionDeclaration {
 }
 
 export interface CommandDeclaration {
+  description: string;
   usage: string;
   positionals: readonly PositionalDeclaration[];
   options: readonly OptionDeclaration[];
@@ -27,26 +28,31 @@ export interface CommandDeclaration {
  */
 export const COMMAND_SPECS = {
   validate: {
+    description: 'Validate a deal against the MEDDPICC schema.',
     usage: 'Usage: cli.ts validate <deal.json>',
     positionals: [{ name: 'dealPath', label: '<deal.json>', required: true }],
     options: [],
   },
   next: {
+    description: 'Show completion and the next incomplete qualification section.',
     usage: 'Usage: cli.ts next <deal.json>',
     positionals: [{ name: 'dealPath', label: '<deal.json>', required: true }],
     options: [],
   },
   score: {
+    description: 'Compute qualification scores and the overall rating.',
     usage: 'Usage: cli.ts score <deal.json>',
     positionals: [{ name: 'dealPath', label: '<deal.json>', required: true }],
     options: [],
   },
   hint: {
+    description: 'Show discovery questions and scoring guidance.',
     usage: 'Usage: cli.ts hint [element]',
     positionals: [{ name: 'element', label: '[element]', required: false }],
     options: [],
   },
   'check-sfdc': {
+    description: 'Check Salesforce field mappings against the schema.',
     usage: 'Usage: cli.ts check-sfdc [--schema <schema.json>] [--sfdc <mapping.json>]',
     positionals: [],
     options: [
@@ -55,6 +61,7 @@ export const COMMAND_SPECS = {
     ],
   },
   generate: {
+    description: 'Generate an Excel workbook or inspect its generation plan.',
     usage:
       'Usage: cli.ts generate <deal.json> [--out <file.xlsx>] [--plan] [--prose-heights] [--spec <workbook-spec.json>] [--locale <slug>]',
     positionals: [{ name: 'dealPath', label: '<deal.json>', required: true }],
@@ -67,6 +74,7 @@ export const COMMAND_SPECS = {
     ],
   },
   read: {
+    description: 'Preview workbook edits and optionally apply them to a deal.',
     usage: 'Usage: cli.ts read <workbook.xlsx> --deal <deal.json> [--apply] [--spec <workbook-spec.json>]',
     positionals: [{ name: 'workbookPath', label: '<workbook.xlsx>', required: true }],
     options: [
@@ -76,11 +84,13 @@ export const COMMAND_SPECS = {
     ],
   },
   migrate: {
+    description: 'Preview retired deal field changes and optionally apply them.',
     usage: 'Usage: cli.ts migrate <deal.json> [--apply]',
     positionals: [{ name: 'dealPath', label: '<deal.json>', required: true }],
     options: [{ name: 'apply', flag: '--apply', kind: 'boolean' }],
   },
   'check-spec': {
+    description: 'Check the workbook specification against the schema.',
     usage: 'Usage: cli.ts check-spec [--spec <workbook-spec.json>] [--schema <schema.json>]',
     positionals: [],
     options: [
@@ -99,6 +109,61 @@ export interface ParsedCommandArguments {
 
 export function isCommandName(value: string | undefined): value is CommandName {
   return value !== undefined && Object.hasOwn(COMMAND_SPECS, value);
+}
+
+export function commandList(): string {
+  return Object.keys(COMMAND_SPECS).join(', ');
+}
+
+export function formatHelp(command?: CommandName): string {
+  if (command === undefined) {
+    return [
+      'MEDDPICC CLI',
+      '',
+      'Usage: cli.ts <command> [arguments]',
+      '',
+      'Commands:',
+      ...Object.entries(COMMAND_SPECS).map(([name, spec]) => `  ${name.padEnd(12)} ${spec.description}`),
+      '',
+      'Help: cli.ts --help | -h | help',
+      'Command help: cli.ts <command> --help | <command> -h | help <command>',
+      'Run help separately from execution arguments.',
+    ].join('\n');
+  }
+  const spec: CommandDeclaration = COMMAND_SPECS[command];
+  return [
+    `MEDDPICC CLI: ${command}`,
+    spec.description,
+    '',
+    spec.usage,
+    '',
+    'Options:',
+    ...spec.options.map(
+      (option) =>
+        `  ${option.flag}${option.kind === 'boolean' ? ' (switch)' : ' <value>'}${option.required ? ' (required)' : ''}`,
+    ),
+    '  --help, -h  Show this help without reading inputs or writing outputs.',
+    '',
+    `Also: cli.ts help ${command}`,
+    'Run help separately from execution arguments.',
+  ].join('\n');
+}
+
+/** Recognize only complete help requests, before execution parsing or input access. */
+export function parseHelpRequest(args: string[]): string | null {
+  const helpFlags = args.filter((arg) => arg === '--help' || arg === '-h' || /^(-h|--help)=/.test(arg));
+  if (args[0] !== 'help' && helpFlags.length === 0) return null;
+  if (helpFlags.some((arg) => arg.includes('='))) throw new Error('Help flags take no value.');
+
+  if (args.length === 1 && (args[0] === 'help' || helpFlags.length === 1)) return formatHelp();
+  if (args.length === 2) {
+    const target = args[0] === 'help' ? args[1] : args[0];
+    if (args[0] === 'help' || args[1] === '--help' || args[1] === '-h') {
+      if (!isCommandName(target)) throw new Error(`Unknown help target: ${target}\nCommands: ${commandList()}`);
+      return formatHelp(target);
+    }
+  }
+  throw new Error('Help must be used alone or with one command; omit execution arguments.');
 }
 
 function positionalExpectation(spec: CommandDeclaration): string {

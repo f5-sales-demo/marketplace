@@ -20,6 +20,24 @@ local project location. Apply the access and retention practices required by the
 commit or publish real customer data, credentials, or private correspondence; repository examples,
 templates, fixtures, logs, telemetry, issues, pull requests, and release evidence remain synthetic.
 
+## CLI help
+
+Use the installed xcsh Bash tool to discover the engine commands:
+
+```bash
+bun xcsh://plugin/meddpicc/file/engine/cli.ts --help
+bun xcsh://plugin/meddpicc/file/engine/cli.ts read --help
+```
+
+`--help`, `-h`, and `help` show the command overview. Request command usage
+with `<command> --help`, `<command> -h`, or `help <command>`. Help lists
+supported options, including required values and boolean switches, and
+returns exit code 0 without reading deal or workbook inputs or writing outputs.
+
+Run help separately from execution arguments. Unknown help targets, help
+flags with values, and help mixed with execution arguments fail on stderr
+with a nonzero exit code. An empty invocation also remains an error.
+
 ## What is MEDDPICC?
 
 MEDDPICC is a qualification and deal-execution framework for complex B2B sales:

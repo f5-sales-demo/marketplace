@@ -10,6 +10,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+- **`meddpicc`** v7.6.1 adds overview and command help to the CLI.
+  Use `--help`, `-h`, or `help`, or request help for one command.
+  Invalid and mixed help requests fail before inputs are read or outputs
+  are written. Empty invocation remains an error (#1477).
+
 - **`zoom`** v1.1.11 preserves the accepted Linux 720p terminal-camera
   profile and verifies Zoom HD on joins and video activation.
 

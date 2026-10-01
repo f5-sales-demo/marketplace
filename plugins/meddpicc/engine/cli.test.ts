@@ -55,6 +55,130 @@ async function run(args: string[]): Promise<{ code: number; out: string; err: st
   return { code, out, err };
 }
 
+describe('cli help', () => {
+  for (const form of ['--help', '-h', 'help']) {
+    test(`${form} prints the declared command overview`, async () => {
+      const { code, out, err } = await run([form]);
+      expect(code).toBe(0);
+      expect(err).toBe('');
+      expect(out).toContain('MEDDPICC CLI');
+      expect(out).toContain('Usage: cli.ts <command>');
+      for (const [command, spec] of Object.entries(COMMAND_SPECS)) {
+        expect(out).toContain(command);
+        expect(out).toContain(spec.description);
+      }
+      expect(out).toContain('help <command>');
+    });
+  }
+
+  for (const [command, spec] of Object.entries(COMMAND_SPECS)) {
+    for (const args of [
+      [command, '--help'],
+      [command, '-h'],
+      ['help', command],
+    ]) {
+      test(`${args.join(' ')} prints usage without execution arguments`, async () => {
+        const { code, out, err } = await run(args);
+        expect(code).toBe(0);
+        expect(err).toBe('');
+        expect(out).toContain(spec.description);
+        expect(out).toContain(spec.usage);
+        for (const option of spec.options) {
+          expect(out).toContain(option.flag);
+          if ('required' in option && option.required) {
+            expect(out).toContain(`${option.flag} <value> (required)`);
+          }
+          if (option.kind === 'boolean') expect(out).toContain(`${option.flag} (switch)`);
+        }
+        expect(out).toContain('--help, -h');
+      });
+    }
+
+    test(`${command} rejects help mixed with execution arguments before reading inputs`, async () => {
+      const positionals = spec.positionals.map(({ name }) => path.join(scratch, `missing-${name}`));
+      const executionArgs = [
+        ...positionals,
+        ...spec.options.flatMap((option) => [
+          option.flag,
+          ...(option.kind === 'value' ? [path.join(scratch, `missing-${option.name}`)] : []),
+        ]),
+      ];
+      for (const flag of ['--help', '-h']) {
+        for (const args of [
+          [command, flag, ...executionArgs],
+          [command, ...executionArgs, flag],
+          ['help', command, ...executionArgs],
+        ]) {
+          const { code, out, err } = await run(args);
+          expect(code, args.join(' ')).toBe(1);
+          expect(out).toBe('');
+          expect(err).toContain('Help');
+          expect(err).not.toMatch(/ENOENT|Cannot find|no such file/i);
+        }
+      }
+    });
+  }
+
+  for (const args of [[], ['bogus'], ['help', 'bogus'], ['bogus', '--help'], ['bogus', '-h']]) {
+    test(`${args.join(' ') || '(empty)'} remains an error and lists declared commands`, async () => {
+      const { code, out, err } = await run(args);
+      expect(code).toBe(1);
+      expect(out).toBe('');
+      expect(err).toContain('Unknown');
+      expect(err).toContain(`Commands: ${Object.keys(COMMAND_SPECS).join(', ')}`);
+    });
+  }
+
+  for (const args of [
+    ['--help=true'],
+    ['--help='],
+    ['-h=false'],
+    ['-h='],
+    ['--help', 'true'],
+    ['-h', 'false'],
+    ['--help', 'read'],
+    ['-h', 'read'],
+    ['help', 'read', '--help'],
+    ['help', 'read', 'extra'],
+    ['help', '--help'],
+    ['--help', '-h'],
+    ['read', '--help', '--help'],
+    ['read', '--help=true'],
+    ['read', '-h=false'],
+    ['read', '--deal', '--help'],
+    ['read', '--deal=example.json', '-h'],
+  ]) {
+    test(`${args.join(' ')} rejects malformed or mixed help`, async () => {
+      const { code, out, err } = await run(args);
+      expect(code).toBe(1);
+      expect(out).toBe('');
+      expect(err).toMatch(/Help|Unknown help target/);
+      expect(err).not.toMatch(/ENOENT|Cannot find|no such file/i);
+    });
+  }
+
+  test('mixed generate help never creates a workbook', async () => {
+    const workbook = path.join(scratch, 'mixed-help.xlsx');
+    for (const flag of ['--help', '-h', '--help=true', '-h=false']) {
+      const { code, out } = await run(['generate', example, '--out', workbook, flag]);
+      expect(code).toBe(1);
+      expect(out).toBe('');
+      expect(fs.existsSync(workbook)).toBe(false);
+    }
+  });
+
+  test('mixed migrate help never changes a legacy deal', async () => {
+    const deal = legacyDeal('mixed-help-legacy');
+    const before = fs.readFileSync(deal);
+    for (const flag of ['--help', '-h', '--help=true', '-h=false']) {
+      const { code, out } = await run(['migrate', deal, '--apply', flag]);
+      expect(code).toBe(1);
+      expect(out).toBe('');
+      expect(fs.readFileSync(deal)).toEqual(before);
+    }
+  });
+});
+
 describe('cli', () => {
   test('every command rejects positional arguments beyond its declaration', async () => {
     for (const [command, spec] of Object.entries(COMMAND_SPECS)) {
@@ -241,6 +365,22 @@ describe('cli read', () => {
     if (!found) throw new Error(`no input cell for ${jsonPath}`);
     return found.address;
   }
+
+  test('mixed read help never applies an edited workbook to a deal', async () => {
+    const { deal, workbook } = await fixture('mixed-read-help');
+    const address = await addressOf(deal, 'metadata.accountName');
+    await retype(workbook, address, `<c r="${address}" t="inlineStr"><is><t>Synthetic Help Account</t></is></c>`);
+    const preview = await run(['read', workbook, '--deal', deal]);
+    expect(preview.code).toBe(0);
+    expect(JSON.parse(preview.out).proposals.length).toBeGreaterThan(0);
+    const before = fs.readFileSync(deal);
+    for (const flag of ['--help', '-h', '--help=true', '-h=false']) {
+      const { code, out } = await run(['read', workbook, '--deal', deal, '--apply', flag]);
+      expect(code).toBe(1);
+      expect(out).toBe('');
+      expect(fs.readFileSync(deal)).toEqual(before);
+    }
+  });
 
   test('an untouched workbook proposes nothing and exits 0', async () => {
     const { deal, workbook } = await fixture('untouched');
