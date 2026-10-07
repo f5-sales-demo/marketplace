@@ -1,0 +1,72 @@
+---
+title: Google Cloud
+description: Inspect Google Cloud accounts, projects, compute instances, and storage buckets.
+sidebar:
+  order: 15
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Inspect Google Cloud accounts, projects, compute instances, and storage buckets.
+
+<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+
+Plugin identifier: `gcloud`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud/.xcsh-plugin/plugin.json).
+
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Google Cloud CLI, `gcloud`.
+- An authenticated account and the intended active configuration and project.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install gcloud@f5-sales-demo-marketplace
+```
+
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
+
+```bash
+xcsh plugin status gcloud
+xcsh plugin setup gcloud
+```
+
+## Use the plugin
+
+| Task | Native tool |
+| --- | --- |
+| Inspect active configuration | `gcloud_config_list` |
+| List projects | `gcloud_projects_list` |
+| List compute instances | `gcloud_compute_instances_list` |
+| List storage buckets | `gcloud_storage_buckets_list` |
+| Inspect command usage or execute an explicit command | `gcloud_help`, `gcloud_exec` |
+
+`gcloud-auth` supports the authentication workflow; `gcloud-index` routes
+requests to typed tools or `cli-operator`. Ask for the selected project's
+instances or buckets before requesting changes. Account detection, token
+expiry, and injected context help identify the current environment.
+
+## Verify
+
+Check integration status and `gcloud_config_list`. Confirm the account and
+project before comparing listed resources with the requested scope.
+
+## Clean up
+
+Remove disposable exports. Uninstalling the plugin leaves provider CLI
+credentials and resources intact; manage those through Google Cloud.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud/skills)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud/agents)

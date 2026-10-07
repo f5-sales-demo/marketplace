@@ -1,0 +1,90 @@
+---
+title: Zoom
+description: Join and control Zoom Workplace with verified desktop state and an isolated terminal camera.
+sidebar:
+  order: 22
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Join and control Zoom Workplace with verified desktop state and an isolated terminal camera.
+
+<Badge text="Productivity" variant="tip" /> <Badge text="Integrated" variant="note" />
+
+Plugin identifier: `zoom`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom/.xcsh-plugin/plugin.json).
+
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Ubuntu 24.04 amd64.
+- Zoom Workplace 7.2.1.5760.
+- Xorg, Herdr, and Ghostty plugins.
+- The intended full meeting invitation URL or numeric meeting ID.
+
+Plugin dependencies: [Xorg](/marketplace/en/plugins/xorg/), [Herdr](/marketplace/en/plugins/herdr/), [Ghostty](/marketplace/en/plugins/ghostty/).
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install zoom@f5-sales-demo-marketplace
+```
+
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
+
+```bash
+xcsh plugin status zoom
+xcsh plugin setup zoom
+```
+
+## Use the plugin
+
+Use `zoom_meeting` as the sole Zoom controller. It discovers the active Xorg
+session and verifies state through public `xorgctl` JSON; requested operations
+don't need a separate desktop preflight.
+
+| Task | Interactive command |
+| --- | --- |
+| Join a meeting | `/zoom <INVITATION_URL_OR_MEETING_ID>` |
+| Inspect or leave the meeting | `/zoom status`, `/zoom leave` |
+| Control audio | `/zoom audio muted`, `/zoom audio unmuted` |
+| Control video | `/zoom video on`, `/zoom video off` |
+| Share a browser or desktop | `/zoom share browser`, `/zoom share desktop` |
+| Stop sharing | `/zoom stop-share` |
+| Send a reaction | `/zoom reaction thumbs-up` |
+| Inspect awareness | `/zoom awareness` |
+| Test virtual microphone input | `/zoom stimulus tones`, `/zoom stimulus speech` |
+
+Invitation URLs pass to Zoom unchanged. A numeric join that needs a passcode
+returns `passcode_required`; provide the full invitation URL instead.
+Video uses exactly `xcsh Camera`; microphone tests verify `xcsh Microphone`
+and Original Sound for Musicians. Failed operations don't fall back to physical
+media or direct desktop retries.
+
+Setup owns a dedicated Ghostty/Herdr terminal camera at 1280×720, 15 frames per
+second, with verified profile and producer settings. Joins and video-on verify
+the Zoom high-definition (HD) checkbox. Zoom can still adapt transmitted
+resolution to network conditions; the original Herdr session stays running.
+
+## Verify
+
+Use `/zoom status` to check meeting state, terminal-camera readiness, and
+provenance. Confirm audio, video, and shared content from the meeting audience
+when evaluating the full meeting experience.
+
+## Clean up
+
+Run `/zoom stop-share` if sharing, then `/zoom leave`. Stop only test stimuli
+and owned meeting resources; preserve unrelated desktops and terminal sessions.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom/skills)

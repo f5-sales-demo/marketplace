@@ -1,409 +1,86 @@
 ---
-title: salesforce
-description: Salesforce CLI automation with org authentication, account management, pipeline analysis, and natural language data queries.
+title: Salesforce
+description: Discover accounts, query Salesforce, and report pipeline evidence from the selected organization.
 sidebar:
-  label: Salesforce
-  order: 14
+  order: 10
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **salesforce** plugin integrates Salesforce CLI with Claude Code,
-providing org authentication and a general-purpose CLI agent that can
-run any `sf` command including SOQL queries. It supports headless
-container environments with JWT, access-token, and SFDX URL
-authentication flows. The usage guide below demonstrates how to use
-natural language to query accounts, opportunities, cases, and contacts
-through the CLI agent.
+Discover accounts, query Salesforce, and report pipeline evidence from the selected organization.
 
-<Badge text="v1.0.0" variant="note" /> <Badge text="Development" variant="tip" />
+<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-## Installation
-
-```text
-/plugin install salesforce@f5-sales-demo-marketplace
-```
+Plugin identifier: `salesforce`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/.xcsh-plugin/plugin.json).
 
 ## Prerequisites
 
-- **Salesforce CLI** (`@salesforce/cli`)
-- **Salesforce org** with API access
-- A user account with permissions to query objects (Cases, Opportunities, Accounts, Contacts)
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
 
-Install the Salesforce CLI on your workstation:
+- xcsh 22.4.6 or later.
+- Salesforce command-line interface (CLI), `sf`.
+- An authenticated default organization with API access.
+- The intended My Domain login URL, if your organization requires one.
 
-```bash
-brew install sf
-```
+## Set up
 
-Verify the installation:
-
-```bash
-sf --version
-```
-
-You should see output like `@salesforce/cli/2.x.x`.
-
-## Authentication Setup
-
-### Step 1: Find your Salesforce domain
-
-Look at your Salesforce URL in the browser. If you access Salesforce at
-`https://example-corp.lightning.force.com`, your login domain is
-`https://example-corp.my.salesforce.com`.
-
-<Aside type="tip">
-  If your company uses SSO, you must specify your custom domain with
-  `--instance-url` so the login redirects through your SSO provider
-  instead of the generic Salesforce login page.
-</Aside>
-
-### Step 2: Authenticate via browser
+Install from your shell after registering the marketplace:
 
 ```bash
-sf org login web --alias my-org --set-default --instance-url https://YOUR-DOMAIN.my.salesforce.com
+xcsh plugin install salesforce@f5-sales-demo-marketplace
 ```
 
-Replace `YOUR-DOMAIN` with your company domain from Step 1. Your browser
-opens — complete the SSO or login flow and authorize the app. You should
-see:
-
-```text
-Successfully authorized your-email@example.com with org ID 00DXXXXXXXXXXXXXXX
-```
-
-### Step 3: Verify the connection
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
 
 ```bash
-sf org display --target-org my-org
+xcsh plugin status salesforce
+xcsh plugin setup salesforce
 ```
 
-Confirm the output shows `Connected Status: Connected` with your username
-and instance URL.
+## Use the plugin
 
-### Step 4: Portable auth for containers (optional)
-
-If you need to authenticate in a headless environment (CI/CD, container,
-remote session), export the SFDX auth URL from your workstation:
-
-```bash
-sf org display --verbose --target-org my-org
-```
-
-Copy the **Sfdx Auth URL** value (starts with `force://`). In the
-container, run:
-
-```bash
-export SFDX_AUTH_URL="force://PlatformCLI::YOUR_AUTH_TOKEN@example.com"
-echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias=my-org --set-default
-```
-
-<Aside type="caution">
-  The SFDX auth URL is a credential — treat it like a password. Do not
-  commit it to files or paste it into chat. Use environment variables
-  and stdin pipes only.
-</Aside>
-
-### Authentication methods reference
-
-| Method | Best For | Requires |
-| --- | --- | --- |
-| Web Login | Workstations with a browser | Browser + SSO |
-| SFDX URL | Containers, CI/CD, portable auth | Auth URL from an authenticated session |
-| JWT Bearer | Automated pipelines | Connected App + private key + consumer key |
-| Access Token | Environment variable auth | `SF_ACCESS_TOKEN` + `SF_ORG_INSTANCE_URL` |
-
-**Note:** Device flow (`sf org login device`) is blocked since August
-2025 and is not supported.
-
-### Environment variables
-
-| Variable | Purpose |
+| Task | Native tool |
 | --- | --- |
-| `SF_ACCESS_TOKEN` | Bearer token for access-token auth |
-| `SFDX_AUTH_URL` | Force auth URL for SFDX URL auth |
-| `SF_ORG_INSTANCE_URL` | Org instance URL |
-| `SF_JWT_KEY_FILE` | Path to JWT private key |
-| `SF_CLIENT_ID` | Connected App consumer key |
-| `SF_USERNAME` | Salesforce username for JWT |
-
-## Commands
-
-### /salesforce:sf-status
-
-Check your Salesforce org connection status, CLI version, and
-authenticated orgs.
-
-```text
-/salesforce:sf-status
-```
-
-**What to expect:** A table showing your sf CLI version, authenticated
-org alias, username, instance URL, connected status, and API version.
-
-### /salesforce:sf-login
-
-Authenticate to a Salesforce org. Optionally provide an alias.
-
-```text
-/salesforce:sf-login
-/salesforce:sf-login my-org
-```
-
-**What to expect:** If an org with that alias is already authenticated,
-it reports the connection details. If not, it checks for available
-credentials (environment variables) and authenticates using the first
-fully satisfied method.
-
-## Skills
-
-### salesforce-index
-
-Top-level intent router. Automatically activates when you mention
-Salesforce, org management, or data queries in natural language.
-
-| You say | Routes to |
-| --- | --- |
-| "login to salesforce", "authenticate org" | `salesforce-auth` skill |
-| "check org status", "list orgs" | `cli-operator` agent |
-| "show me opportunities", "look up case" | `cli-operator` agent (SOQL query) |
-| "generate Apex class", "create Flow" | afv-library development skills |
-
-### salesforce-auth
-
-Container-adapted authentication skill. Supports four auth methods and
-automatically detects which credentials are available. Prioritizes:
-access-token, then JWT, then SFDX URL, then web login.
-
-## Agents
-
-### cli-operator
-
-Autonomous Salesforce CLI agent that executes `sf` commands with safety
-guardrails. All Salesforce operations are delegated to this agent to
-keep the main session context lean.
-
-**Safety rules:**
-
-- Read-only by default — write operations require explicit approval
-- Never deploys without a preview and confirmation step
-- Never echoes access tokens, auth URLs, or credentials in output
-- Sanitizes all user-provided values (rejects shell metacharacters)
-- Uses `--json` output for structured, parseable results
-
-**Response format:**
-
-```text
-## Result: [SUCCESS | FAILURE | PARTIAL]
-### Command Executed
-### Output Summary
-### Issues
-```
-
-## Usage Guide: Account Management
-
-<Aside type="note">
-  The prompts below are not hardcoded features of the plugin. They work
-  because the cli-operator agent can run any `sf` CLI command, including
-  arbitrary SOQL queries. Results depend on your org's data model and
-  your user permissions. The prompts here have been tested and verified
-  to work with standard Salesforce objects (Account, Contact, Case,
-  Opportunity, AccountTeamMember, OpportunityTeamMember).
-</Aside>
-
-These prompts work with any Salesforce org. Replace the placeholder
-values with your own information. Each prompt produces results specific
-to your role, accounts, and territory.
-
-<Aside type="tip">
-  For best results, include your email address in prompts that need to
-  identify your user record. Salesforce orgs can have multiple users
-  with similar names.
-</Aside>
-
-### Getting started
-
-After authenticating, verify everything works:
-
-```text
-/salesforce:sf-status
-```
-
-Then try a simple natural language query:
-
-```text
-list my authenticated salesforce orgs
-```
-
-**What to expect:** A table showing all connected orgs with alias,
-username, instance URL, and connection status.
-
-### Find your accounts
-
-Discover which accounts you are assigned to:
-
-```text
-what salesforce accounts am I on the account team for? My email is your-email@example.com
-```
-
-**What to expect:** A list of accounts grouped by account owner, showing
-your team member role on each. If most roles show as empty, that is a
-common data hygiene gap — the account team memberships exist but roles
-were not populated.
-
-### Cross-reference coverage with a colleague
-
-Compare your account coverage with a teammate to find gaps:
-
-```text
-In salesforce, find all accounts where Colleague Name is on the account team. Then for each of those accounts, check if your-email@example.com is also on the account team. Show me two lists: accounts where we are BOTH tagged, and accounts where only my colleague is tagged but I am missing.
-```
-
-**What to expect:** A summary table showing overlap count and gap count,
-followed by two lists. If you recently changed roles, you may find zero
-overlap — this reveals which accounts you need to be added to.
-
-<Aside type="note">
-  You can also check for a predecessor by adding: "Also check if
-  Previous Person Name appears on any of those accounts." This helps
-  identify handoff gaps when replacing someone on a territory.
-</Aside>
-
-### Territory pipeline overview
-
-See all open opportunities across your accounts:
-
-```text
-show me all open salesforce opportunities on Colleague Name's account team accounts, sorted by close date, include the stage, amount, and probability
-```
-
-**What to expect:** A summary with total opportunity count, raw pipeline,
-and weighted pipeline. Then a stage distribution table and a list of top
-opportunities by amount. The output flags data hygiene issues like
-past-due close dates or null amounts.
-
-### Opportunity deep dive
-
-Get the full picture on a specific deal:
-
-```text
-show me a detailed view of the OPPORTUNITY NAME opportunity in salesforce - include the opportunity team members, any activities or tasks, and the account contacts
-```
-
-**What to expect:** The opportunity overview (stage, amount, close date,
-probability, forecast category, owner), opportunity team members with
-roles, tagged contacts, recent tasks and events, and field change
-history showing how the deal amount and close date have moved over time.
-
-### Support cases across territory
-
-Check for open support cases on your accounts:
-
-```text
-show me all open salesforce cases across Colleague Name's account team accounts, grouped by account, sorted by most recent first
-```
-
-**What to expect:** A count of open cases with priority and status
-breakdown, then case details grouped by account. Stale cases (months or
-years old with no activity) are flagged as hygiene candidates.
-
-### Quarterly pipeline forecast
-
-Get a forecast-ready view of your pipeline:
-
-```text
-for Colleague Name's accounts, show me a quarterly pipeline summary - group the open opportunities by close date quarter with count, total amount, and weighted amount for each quarter
-```
-
-**What to expect:** A table with one row per quarter showing opportunity
-count, total pipeline, and weighted pipeline. Includes a stage mix
-breakdown per quarter and highlights the top weighted deals. Past-due
-opportunities are grouped separately.
-
-### Full account overview
-
-Deep dive into a specific customer:
-
-```text
-give me a full account overview for ACCOUNT NAME in salesforce including contacts, open opportunities, and recent cases
-```
-
-**What to expect:** Company profile (industry, revenue, employees,
-location), key contacts with titles and email, open opportunities with
-stages and amounts, and recent support cases with status.
-
-### Case lookup
-
-Look up a specific support case by number:
-
-```text
-look up salesforce case CASE-NUMBER and show me the case details, the customer account, and who owns it
-```
-
-**What to expect:** Case subject, status, priority, description, the
-customer account profile, and the case owner with contact information.
-
-## Usage Guide: Data Queries
-
-For power users, you can ask for specific SOQL-style queries in natural
-language. The plugin translates your request into the appropriate SOQL
-and runs it.
-
-### Specific fields
-
-```text
-query salesforce for all Contacts at ACCOUNT NAME - show Name, Title, Email, Phone, and Department
-```
-
-### Date filtering
-
-```text
-show me all salesforce opportunities that closed won in the last 90 days on ACCOUNT NAME
-```
-
-### Aggregation
-
-```text
-count all open salesforce cases grouped by priority and status across my accounts
-```
-
-### Custom objects
-
-```text
-query the CUSTOM_OBJECT__c object in salesforce for records where Status__c = 'Active'
-```
-
-<Aside type="tip">
-  If a query fails because a field does not exist, the plugin
-  automatically retries without that field. Custom fields in your org
-  may use different names — check your Salesforce Setup if a field
-  is not found.
-</Aside>
-
-## Development Skills
-
-The 30 Salesforce development skills from the
-[forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
-activate automatically for Apex, Flow, LWC, SOQL, metadata, Agentforce,
-and deployment tasks. Install them separately:
-
-```bash
-npx skills add forcedotcom/afv-library
-```
-
-| Topic | Skill |
-| --- | --- |
-| Apex classes and services | `generating-apex` |
-| Apex tests | `generating-apex-test` |
-| Flows | `generating-flow` |
-| LWC and UI bundles | `building-ui-bundle-app` |
-| Custom objects | `generating-custom-object` |
-| Custom fields | `generating-custom-field` |
-| Validation rules | `generating-validation-rule` |
-| Permission sets | `generating-permission-set` |
-| FlexiPages | `generating-flexipage` |
-| Agentforce agents | `developing-agentforce` |
-| Agentforce testing | `testing-agentforce` |
-| Deployment | `deploying-ui-bundle` |
-| SLDS2 migration | `uplifting-components-to-slds2` |
-| Trigger refactoring | `trigger-refactor-pipeline` |
+| Inspect the selected organization | `sf_org_display` |
+| Discover real fields and relationships | `sf_describe` |
+| Query records with Salesforce Object Query Language (SOQL) | `sf_query` |
+| Build a pipeline report | `sf_pipeline_report` |
+| Inspect command usage or execute an explicit command | `sf_help`, `sf_exec` |
+
+Discover fields before querying custom objects. `sf_describe` matches API names
+and labels, returns active picklist values, and identifies child relationships.
+Ask for open opportunities grouped by close quarter or for account-team coverage
+in ordinary language. The authentication and index skills route work to the
+`cli-operator` agent; optional development skills are installed separately.
+
+Setup reviews `SF_ORG_INSTANCE_URL` first, then the CLI's `org-instance-url`
+configuration, and otherwise uses `https://login.salesforce.com`. It normalizes
+Lightning URLs to My Domain login URLs and shows the effective `--instance-url`
+before authentication. Set the intended value through protected local
+configuration before setup. A changed login URL requires a new review.
+
+Setup reuses a working host CLI. Missing CLI installation follows the reviewed
+host-specific route. Authentication runs from human setup, rather than a
+model-callable tool.
+
+## Verify
+
+Check integration status and use `sf_org_display` to confirm the intended
+organization. Run a bounded query and compare the report with its source records.
+
+## Clean up
+
+Remove private report exports according to your organization's retention
+policy. Uninstalling the plugin leaves Salesforce CLI sessions and credentials
+in their provider-managed storage.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/skills)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/salesforce/agents)

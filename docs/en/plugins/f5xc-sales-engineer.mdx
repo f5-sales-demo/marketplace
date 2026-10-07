@@ -1,114 +1,65 @@
 ---
-title: f5xc-sales-engineer
-description: Sales Engineer persona framework for demo execution, presentations, Q&A, and teardown.
+title: Sales engineer
+description: Prepare, execute, and present F5 Distributed Cloud demos with evidence for each result.
 sidebar:
-  order: 5
+  order: 2
 ---
 
-import { Aside, Badge, Steps } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-sales-engineer** plugin provides a reusable Sales Engineer
-persona framework for F5 XC demo repositories. It handles the full
-demo meeting lifecycle — from pre-meeting verification through live
-execution, Q&A, and teardown.
+Prepare, execute, and present F5 Distributed Cloud demos with evidence for each result.
 
-<Badge text="v1.0.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
 
-## Installation
+Plugin identifier: `sales-engineer`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- An authorized demo environment.
+- Product guidance in `DEMO_PRODUCT_EXPERTISE.md`.
+- Demo procedures in `docs/demo/index.mdx` and its phase pages.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install sales-engineer@f5-sales-demo-marketplace
 ```
 
-## Skills
+This content plugin has no integration setup or authentication step. Start a
+fresh xcsh session to load its skills and commands.
 
-### demo-executor
+## Use the plugin
 
-API-driven demo execution with a four-stage meeting lifecycle:
+Ask to prepare or run a demo. The `persona` skill routes the request;
+`demo-ops` checks the environment, `demo-executor` follows the documented
+build, attack, and mitigation phases, and `presenter` explains the result.
+The `subject-matter-expert` skill answers questions from cited product material.
 
-1. **Prepare** — pre-meeting environment verification via
-   `demo-housekeeping` agent
-2. **Execute** — deterministic phase execution with customer-facing
-   narration
-3. **Q&A** — improvisational mode with live environment
-4. **Teardown** — post-meeting cleanup via `demo-housekeeping` agent
+`demo-researcher` gathers references. `demo-housekeeping` checks readiness and
+teardown. Use the demo repository's procedures to select exact commands and
+resource names.
 
-Reads product-specific content from `DEMO_PRODUCT_EXPERTISE.md` and demo
-commands from `docs/demo/`.
+## Verify
 
-### presenter
+Check each phase against its documented evidence gates. Record the deployed
+behavior, mitigation result, and unresolved questions in the debrief.
 
-As-built walkthrough presentation using a pre-configured demo
-environment. Follows a show → narrate → connect → pause pattern at
-each step. Reads walkthrough order from `DEMO_WALKTHROUGH_CONFIG.md`.
+## Clean up
 
-### subject-matter-expert
+Follow the demo repository's teardown procedure. Confirm that owned resources
+are removed and billing has stopped before ending the session.
 
-Reference-backed Q&A with strict citation requirements. Never
-guesses — every answer includes a reference or proof. Delegates
-research to the `demo-researcher` agent when needed.
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-### sales-engineer
+## Related resources
 
-Role index that routes user intent to the correct persona skill.
-Activates when the request is demo-related but does not match a
-specific trigger phrase.
-
-## Agents
-
-### demo-housekeeping
-
-Autonomous agent for pre-meeting verification and post-meeting
-teardown. Runs the Readiness Verification Matrix (T0–T5) defined
-in `DEMO_READINESS_MATRIX.md` and executes teardown commands from
-`docs/demo/phase-4-teardown.mdx`.
-
-### demo-researcher
-
-Read-only research librarian that finds verified answers with
-citations. Searches local `docs/` first, then indexed external
-sources from `DEMO_SOURCE_INDEX.md`, with WebSearch as fallback.
-
-## Convention Files
-
-<Aside type="tip" title="Product-specific content">
-  This plugin is product-agnostic. Each repository provides
-  product-specific content through standardized convention files.
-</Aside>
-
-Create these files in your repository root to configure the plugin:
-
-| File | Purpose | Required For |
-| ---- | ------- | ------------ |
-| `DEMO_PRODUCT_EXPERTISE.md` | Product capabilities, detection signals, threat coverage, compliance alignment, API reference | All skills |
-| `DEMO_WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
-| `DEMO_SOURCE_INDEX.md` | Research source catalog with local docs and external URLs | demo-researcher |
-| `DEMO_READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-housekeeping |
-| `docs/demo/` | Phase files with cURL commands and evidence gates | demo-executor |
-
-## Trigger Phrases
-
-The `.claude/CLAUDE.md` trigger map (managed by `docs-control`)
-activates skills based on user intent:
-
-| Phrase | Skill | Stage |
-| ------ | ----- | ----- |
-| "run the demo", "execute the demo" | demo-executor | Execute |
-| "prepare the demo", "pre-flight" | demo-executor | Prepare |
-| "Q&A", "question and answer" | demo-executor | Q&A |
-| "tear down", "clean up" | demo-executor | Teardown |
-| "walk through the demo", "present" | presenter | — |
-| "answer questions", "explain" | subject-matter-expert | — |
-
-## Narration Style
-
-All personas share a consistent narration style:
-
-- **Present tense, first-person plural** — "What we're looking at
-  here…"
-- **One concern per paragraph** — each narration answers: What is
-  this? Why does it matter? What should I do about it?
-- **Name the signal** — call out which capability is at work
-- **Compliance hook when relevant** — mention regulatory alignment
-  naturally
-- **Pacing pause marker** — `> ⏸ *[Pause for audience — ready to continue?]*`
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer/agents)

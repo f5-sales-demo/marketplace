@@ -1,119 +1,83 @@
 ---
-title: f5xc-meddpicc
-description: MEDDPICC sales qualification and deal-execution framework for complex enterprise B2B sales.
+title: MEDDPICC
+description: Qualify deals, track evidence, and generate deal reviews and editable Excel workbooks.
 sidebar:
-  order: 6
+  order: 5
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-meddpicc** plugin provides a comprehensive MEDDPICC sales
-qualification and deal-execution framework for complex enterprise B2B
-sales. It transforms MEDDPICC from a checkbox exercise into a living
-deal execution system with evidence-based qualification, structured
-deal reviews, and actionable coaching.
+Qualify deals, track evidence, and generate deal reviews and editable Excel workbooks.
 
-<Badge text="v1.0.4" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
 
-## Installation
+Plugin identifier: `meddpicc`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-meddpicc@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Authorized deal evidence and a private working directory.
+- Bun when you run the bundled command-line engine.
+- Salesforce access only if you use Salesforce-backed evidence.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install meddpicc@f5-sales-demo-marketplace
 ```
 
-## What is MEDDPICC?
+This content plugin has no integration setup or authentication step. Start a
+fresh xcsh session to load its skills and commands.
 
-MEDDPICC is a qualification and deal-execution framework designed for
-complex B2B sales where multiple stakeholders, technical risk, and
-procurement steps can derail momentum.
+## Use the plugin
 
-| Letter | Element | Purpose |
-| ------ | ------- | ------- |
-| **M** | Metrics | Quantified business outcomes the customer expects |
-| **E** | Economic Buyer | Individual with final budget authority |
-| **D** | Decision Criteria | Requirements used to evaluate options |
-| **D** | Decision Process | Step-by-step path from evaluation to agreement |
-| **P** | Paper Process | Procurement mechanics (legal, security, signature) |
-| **I** | Identify Pain | Compelling business pain that creates urgency |
-| **C** | Champion | Powerful internal advocate |
-| **C** | Competition | All alternatives (vendors, build, do-nothing) |
+MEDDPICC covers Metrics, Economic buyer, Decision criteria, Decision process,
+Paper process, Identify pain, Champion, and Competition. Each element scores
+0–4; the overall percentage is the sum divided by 32, multiplied by 100.
 
-## Skills
+| Task | Command |
+| --- | --- |
+| Start a guided qualification | `/meddpicc:qualify-deal` |
+| Add meeting notes or other evidence | `/meddpicc:update-deal` |
+| Inspect score changes and forecast risk | `/meddpicc:deal-review` |
+| Test champion evidence | `/meddpicc:champion-test` |
+| Build a mutual action plan | `/meddpicc:build-map` |
 
-### meddpicc-coach
+Deal JSON is the source of truth. The engine validates and scores it, generates
+a formula-driven workbook, and previews workbook edits before applying them
+back to the deal. Ask for engine help before choosing its options. In the
+installed xcsh Bash tool, run:
 
-Comprehensive MEDDPICC methodology coaching that activates
-automatically when you discuss deal qualification, pipeline health,
-forecast accuracy, or any MEDDPICC element. Provides evidence-based
-guidance, operating rhythm recommendations, and links to detailed
-reference material.
+```bash
+bun xcsh://plugin/meddpicc/file/engine/cli.ts --help
+bun xcsh://plugin/meddpicc/file/engine/cli.ts read --help
+```
 
-<Aside type="tip" title="Auto-activated">
-  This skill activates automatically when relevant — no slash command
-  needed.
-</Aside>
+These resource paths resolve inside xcsh. In a source checkout, use
+`bun plugins/meddpicc/engine/cli.ts --help`. Run help separately from execution
+arguments; malformed or mixed help requests return an error.
 
-### deal-qualification
+## Verify
 
-Produces a scored MEDDPICC scorecard (0&ndash;24) with gap analysis,
-risk assessment, and forecast recommendation. Each element is scored
-0&ndash;3 based on verified evidence.
+Validate the deal and check that scores cite supporting evidence. Preview
+workbook changes before applying them, then regenerate to confirm consistency.
 
-### deal-review
+## Clean up
 
-Facilitates structured weekly deal inspections with evidence delta
-tracking, risk identification, and action items with named owners
-and due dates.
+Apply your organization's retention policy to deal JSON, Markdown reports,
+and workbooks. These local files are unencrypted; keep authorized customer
+data in private storage and out of Git or public artifacts.
 
-### mutual-action-plan
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-Builds a customer-facing Mutual Action Plan tied to MEDDPICC
-elements. Includes evaluation milestones, procurement roadmap,
-implementation readiness, and stakeholder mapping.
+## Related resources
 
-### champion-test
-
-Applies a 5-criterion assessment (Power, Personal Win, Access,
-Intel, Action) scoring 0&ndash;15 to determine whether your internal
-contact is a true champion, emerging champion, coach, or friendly
-contact.
-
-## Commands
-
-| Command | Purpose |
-| ------- | ------- |
-| `/f5xc-meddpicc:qualify-deal [account]` | Score a deal with MEDDPICC scorecard |
-| `/f5xc-meddpicc:deal-review [account]` | Facilitate weekly deal inspection |
-| `/f5xc-meddpicc:champion-test [contact]` | Assess if contact is a true champion |
-| `/f5xc-meddpicc:build-map [account]` | Build a Mutual Action Plan |
-
-## Agents
-
-### deal-analyst
-
-Read-only research agent that analyzes deal health by reviewing
-local documentation, meeting notes, and account plans. Produces
-structured MEDDPICC assessment reports with evidence citations,
-gap analysis, and prioritized action recommendations.
-
-## Reference Library
-
-The plugin includes comprehensive reference material that loads on
-demand:
-
-- **MEDDPICC Framework** &mdash; complete definitions and evidence
-  requirements for all 8 elements
-- **Discovery Questions** &mdash; field-tested questions for every
-  element across the deal cycle
-- **Roles &amp; Responsibilities** &mdash; RACI ownership matrix by
-  team role (AE, SE, CSM, PS, Product, Channel, Deal Desk, Legal)
-- **Deal Stage Gates** &mdash; what must be true before advancing
-  (Early Qualification through Closed Won)
-- **Anti-Patterns** &mdash; 10 common failure modes with
-  evidence-based remediation
-- **Scoring Rubric** &mdash; objective 0&ndash;3 scoring criteria
-  per element
-- **Review Templates** &mdash; weekly inspection question sets with
-  red flag indicators
-- **MAP Templates** &mdash; customer-facing action plan structure
-  with evaluation, procurement, and implementation roadmaps
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/agents)

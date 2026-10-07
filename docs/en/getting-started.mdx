@@ -1,116 +1,132 @@
 ---
-title: Getting Started
-description: Step-by-step guide to adding the f5-sales-demo marketplace and installing your first plugin.
+title: Get started
+description: Register the marketplace, install a plugin, and verify xcsh readiness.
 sidebar:
   order: 2
 ---
 
-import { Steps, Aside, Code } from '@astrojs/starlight/components';
-
-This guide walks you through adding the f5-sales-demo
-marketplace to Claude Code and installing your first plugin.
+Install a marketplace plugin and check that it is ready for your task. Allow
+about 5 minutes for a content plugin; account or desktop setup takes longer.
 
 ## Prerequisites
 
-- Claude Code **v1.0.33** or later (plugin marketplace support)
-- A GitHub account with access to the
-  [f5-sales-demo](https://github.com/f5-sales-demo)
-  organization
+- A current xcsh installation with plugin lifecycle support.
+- Git and HTTPS access to the marketplace repository and release sources.
+- An interactive terminal for human setup.
+- The selected plugin's account, tool, host, and permission requirements.
 
-## Installation
+The [plugin catalog](/marketplace/en/plugins/) links those requirements.
+Run shell commands below in your terminal. Run slash commands inside an
+interactive xcsh session.
 
-<Steps>
+## Register the marketplace
 
-1. **Add the marketplace**
+```bash
+xcsh plugin marketplace add f5-sales-demo/marketplace
+xcsh plugin marketplace list
+```
 
-   In any Claude Code session, run:
+Confirm that `f5-sales-demo-marketplace` is enabled. Register the source once
+for the intended user environment.
 
-   ```text
-   /plugin marketplace add f5-sales-demo/marketplace
-   ```
+## Install a plugin
 
-   This registers the marketplace as a plugin source. You only
-   need to do this once.
+Start with Documentation tools:
 
-2. **Browse available plugins**
+```bash
+xcsh plugin install docs-tools@f5-sales-demo-marketplace
+```
 
-   List what the marketplace offers:
+Use the catalog's identifier for another plugin. To inspect the dependency
+plan without installing:
 
-   ```text
-   /plugin marketplace list f5-sales-demo-marketplace
-   ```
+```bash
+xcsh plugin install zoom@f5-sales-demo-marketplace --dry-run --json
+```
 
-3. **Install a plugin**
+Add `--scope project` when you need a project-scoped installation. The default
+scope is `user`. Review dependencies and any direct-install setup before it runs.
 
-   Install the plugin you need:
+## Complete setup
 
-   ```text
-   /plugin install f5xc-docs-tools@f5-sales-demo-marketplace
-   /plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
-   ```
+Content plugins need no integration setup. For integrated plugins, inspect
+readiness and follow their page's instructions. For example:
 
-4. **Use the plugin**
+```bash
+xcsh plugin status salesforce
+xcsh plugin setup salesforce
+```
 
-   Navigate to any f5-sales-demo content repository.
+Setup is human-only and doesn't accept `--json`. It reviews the exact plan
+before installation or authentication. Keep credentials in provider-managed
+storage or protected configuration.
 
-   For **docs tools**, run the MDX review command:
-
-   ```text
-   /f5xc-docs-tools:review-mdx
-   ```
-
-   For **sales engineer**, use trigger phrases like
-   "prepare the demo", "run the demo", or "walk through
-   the demo" — the plugin activates automatically.
-
-</Steps>
-
-## Updating Plugins
-
-To update an installed plugin to the latest version:
+Platform opens a context wizard inside the xcsh terminal user interface:
 
 ```text
-/plugin update f5xc-docs-tools@f5-sales-demo-marketplace
-/plugin update f5xc-sales-engineer@f5-sales-demo-marketplace
+/plugin setup platform
 ```
 
-## Uninstalling
+Dependency installation and upgrades may leave an integration requiring setup.
+Run the plugin's human setup flow when needed.
 
-Remove a plugin:
+## Verify
+
+Start a fresh xcsh session after installation or upgrade. Check installed plugins:
+
+```bash
+xcsh plugin list
+```
+
+For Documentation tools, open a repository with Markdown with JSX (MDX) pages
+and run:
 
 ```text
-/plugin uninstall f5xc-docs-tools@f5-sales-demo-marketplace
-/plugin uninstall f5xc-sales-engineer@f5-sales-demo-marketplace
+/docs-tools:review-mdx
 ```
 
-Remove the marketplace entirely:
+Confirm that the review reports the intended files. For integrated plugins,
+use `xcsh plugin status <PLUGIN_IDENTIFIER>` and the plugin page's verification
+steps. Content-only plugins have no integration status entry.
 
-```text
-/plugin marketplace remove f5-sales-demo-marketplace
+## Update a plugin
+
+Refresh the marketplace catalog, then upgrade the installed plugin:
+
+```bash
+xcsh plugin marketplace update f5-sales-demo-marketplace
+xcsh plugin upgrade docs-tools@f5-sales-demo-marketplace
 ```
 
-## Team Configuration
+Start a fresh session and repeat verification. Review release notes before
+upgrading a plugin that manages persisted plans or receipts.
 
-To pre-configure the marketplace for your entire team, add it
-to your project's `.claude/settings.json`:
+## Clean up
 
-```json
-{
-  "extraKnownMarketplaces": [
-    "f5-sales-demo/marketplace"
-  ],
-  "enabledPlugins": [
-    "f5xc-docs-tools@f5-sales-demo-marketplace",
-    "f5xc-sales-engineer@f5-sales-demo-marketplace"
-  ]
-}
+Finish the plugin's resource cleanup before removing its files. Uninstalling
+doesn't destroy cloud resources, stop existing sessions, or revoke provider credentials.
+
+### Remove a plugin
+
+```bash
+xcsh plugin uninstall docs-tools@f5-sales-demo-marketplace
 ```
 
-<Aside type="tip" title="Shared settings">
-  Committing `.claude/settings.json` to your repository means
-  every team member gets the marketplace and plugins
-  automatically — no manual setup required.
-</Aside>
+Use the same `--scope project` if you installed into project scope. Remove the
+marketplace registration only when you no longer need it:
 
-This ensures every contributor has the same tooling available
-from their first Claude Code session in the repository.
+```bash
+xcsh plugin marketplace remove f5-sales-demo-marketplace
+```
+
+## Troubleshoot readiness
+
+| Symptom | Next step |
+| --- | --- |
+| Marketplace is missing | Register it again and check `marketplace list`. |
+| Plugin files are installed but tools are missing | Start a fresh session and check `plugin list`. |
+| Integration reports `setup_required` | Follow its human setup flow and resolve the reported requirement. |
+| Status says no integration is registered | Check the identifier, installation, and enabled state; content plugins have no integration. |
+| Account or project differs from the target | Select the intended context before proceeding. |
+
+See [Reference](/marketplace/en/reference/) for manifest and readiness details.

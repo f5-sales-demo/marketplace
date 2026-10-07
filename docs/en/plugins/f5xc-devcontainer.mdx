@@ -1,72 +1,62 @@
 ---
-title: f5xc-devcontainer
-description: Container awareness plugin for tool catalog, live introspection, and tool installation with persistence tracking.
+title: Development container
+description: Choose installed tools, inspect container health, and identify catalog drift.
 sidebar:
-  order: 10
+  order: 6
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-devcontainer** plugin provides container awareness for
-the f5-sales-demo development environment. It maintains a
-comprehensive tool catalog, enables live container introspection,
-and handles tool installation with persistence tracking via
-GitHub issues.
+Choose installed tools, inspect container health, and identify catalog drift.
 
-<Badge text="v1.1.6" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-## Installation
+Plugin identifier: `devcontainer`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-devcontainer@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- A supported development container runtime.
+- Access to the container's tool catalog and Dockerfile.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install devcontainer@f5-sales-demo-marketplace
 ```
 
-## Skills
+The integration detects the running container; it has no setup procedure.
 
-### tool-catalog
+## Use the plugin
 
-Knowledge base of every CLI tool installed in the devcontainer,
-organized by category (cloud, networking, security, development,
-etc.). Activates when you ask which tool to use, how to use a
-tool, whether something is installed, or need help with a
-specific operation.
+Use `tool-catalog` to choose a tool and find its usage and authentication
+requirements. Use `self-awareness` to inspect the container's identity, build
+history, resources, and health.
 
-### self-awareness
+`tool-advisor` recommends tools. `tool-auditor` compares the catalog with the
+Dockerfile. `container-introspector` gathers live identity and health evidence.
+`container-maintainer` handles requested tool changes and persistence work.
 
-Container identity and self-diagnosis skill. Provides live
-introspection of the running container via GitHub API and local
-build metadata. Activates for identity, version, build info,
-health checks, and contributor history questions.
+## Verify
 
-<Aside type="tip">
-  Ask "who are you?" or "what version am I running?" to trigger
-  self-awareness.
-</Aside>
+Run `/devcontainer:devcontainer-status` in the intended container. Compare
+tool versions with the catalog and record any missing or unexpected tools.
 
-## Agents
+## Clean up
 
-### tool-advisor
+Remove temporary diagnostic output. Persist intended tool changes through
+the container build source before discarding the container.
 
-Reads the tool catalog and returns recommendations with purpose,
-quick-start commands, and authentication requirements for any CLI
-tool question.
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-### tool-auditor
+## Related resources
 
-Audits the devcontainer Dockerfile against the tool catalog
-reference files to detect drift &mdash; tools added to the image
-but not cataloged, or catalog entries for tools that have been
-removed.
-
-### container-introspector
-
-Performs live container introspection via GitHub API and local
-metadata for identity, genealogy, self-diagnosis, contributor
-history, and build lineage. Read-only operations only.
-
-### container-maintainer
-
-Installs, removes, searches, and updates CLI tools in the running
-container using correct package manager patterns. Files GitHub
-issues against the devcontainer repository for persistence
-tracking.
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer/agents)

@@ -1,164 +1,89 @@
 ---
-title: Contributing a Plugin
-description: Guide to creating, structuring, and publishing plugins for the f5-sales-demo marketplace.
+title: Contribute a plugin
+description: Add or update a marketplace plugin and keep its documentation aligned with source.
 sidebar:
   order: 6
 ---
 
-import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+Add a plugin with a canonical manifest and a concise documentation page, then
+verify it through the repository's contribution workflow.
 
-This guide explains how to create a new plugin and add it to
-the f5-sales-demo marketplace.
+## Prerequisites
 
-## Plugin Structure
+- A current source checkout and the required tools for the changed plugin.
+- A detailed issue with objective acceptance criteria.
+- The repository's [contribution rules](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
+  and [style guide](https://github.com/f5-sales-demo/marketplace/blob/main/STYLE_GUIDE.md).
 
-Every plugin lives in its own directory under `plugins/` and
-follows this structure:
+Allow about 15 minutes to register and document a plugin after implementation.
+Plugin development and live acceptance depend on its runtime.
 
-<FileTree>
-- plugins/
-  - example-plugin/
-    - .claude-plugin/
-      - plugin.json
-    - skills/
-      - example-skill/
-        - SKILL.md
-        - references/
-          - reference-data.md
-    - commands/
-      - example-command.md
-    - agents/
-      - example-agent.md
-    - README.md
-</FileTree>
+## Register the plugin
 
-## Creating a Plugin
-
-<Steps>
-
-1. **Create the plugin directory**
+1. Create `plugins/<PLUGIN_IDENTIFIER>/` with a stable identifier.
+2. Define identity, catalog metadata, and lifecycle in `.xcsh-plugin/plugin.json`.
+3. Add focused skills, commands, agents, or native extensions as required.
+4. Declare runtime prerequisites, dependencies, setup, and collection fields.
+5. Generate `.xcsh-plugin/marketplace.json` from the plugin manifests:
 
    ```bash
-   mkdir -p plugins/example-plugin/.claude-plugin
-   mkdir -p plugins/example-plugin/skills
-   mkdir -p plugins/example-plugin/commands
+   node scripts/generate-marketplace-catalog.mjs
    ```
 
-2. **Write `plugin.json`**
+Use the [manifest reference](/marketplace/en/reference/) and an existing plugin
+with the same lifecycle as examples. Keep large references separate from skill
+instructions. Inspect managed-file ownership before changing fleet scaffolding.
 
-   Create `plugins/example-plugin/.claude-plugin/plugin.json`:
+## Write the plugin page
 
-   ```json
-   {
-     "name": "example-plugin",
-     "description": "What this plugin does",
-     "version": "1.0.0",
-     "author": {
-       "name": "f5-sales-demo"
-     },
-     "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/example-plugin",
-     "keywords": ["relevant", "keywords"],
-     "license": "Apache-2.0",
-     "repository": "https://github.com/f5-sales-demo/marketplace"
-   }
-   ```
+Add one primary page under `docs/en/plugins/` and link it from the catalog.
+Preserve existing published routes when updating a page.
 
-3. **Add skills**
+Use the same `Badge` components for category and lifecycle. Let the shared
+Starlight theme control typography, color, spacing, and navigation. Keep current
+version numbers in manifests and releases so page badges don't drift.
 
-   Create `plugins/example-plugin/skills/example-skill/SKILL.md` with
-   frontmatter:
+Use these sections in order:
 
-   ```markdown
-   ---
-   name: example-skill
-   description: One-line description of what this skill does
-   ---
+- Prerequisites
+- Set up
+- Use the plugin
+- Verify
+- Clean up
+- Related resources
 
-   Detailed instructions for Claude when this skill activates.
-   ```
+Lead with the task outcome. Use sentence-case headings, active voice, short
+paragraphs, and one action per numbered step. Use tables for task comparisons
+and descriptive links for shared setup and complete command definitions.
+Document actual registered names and link claims to implementation sources.
 
-   Place any reference data in a `references/` subdirectory
-   alongside `SKILL.md`.
+These conventions follow Microsoft's
+[style and voice guidance](https://learn.microsoft.com/en-us/style-guide/top-10-tips-style-voice)
+[heading guidance](https://learn.microsoft.com/en-us/style-guide/scannable-content/headings),
+and [procedure guidance](https://learn.microsoft.com/en-us/style-guide/procedures-instructions/writing-step-by-step-instructions).
+Develop English documentation under the repository's translation policy.
 
-4. **Add commands**
+## Verify
 
-   Create `plugins/example-plugin/commands/example-command.md`:
+```bash
+node scripts/generate-marketplace-catalog.mjs --check
+bash scripts/validate-plugins.sh
+bash scripts/lint-mdx-prose.sh docs/en/plugins/*.mdx
+```
 
-   ```markdown
-   ---
-   description: What this command does
-   argument_hint: "[optional-args]"
-   allowed_tools:
-     - Read
-     - Glob
-     - Grep
-   ---
+Run the plugin's appropriate tests and installed acceptance. Build the site and
+check changed pages, navigation, and links. Confirm that every manifest entry
+has one primary catalog link and that commands match packaged definitions.
 
-   Instructions for Claude when the user invokes this command.
-   ```
+## Submit the change
 
-5. **Add the plugin to marketplace.json**
+Use a fresh issue-numbered branch and worktree from fetched `origin/main`.
+Open a completed pull request with `Closes #<ISSUE_NUMBER>` and validation
+evidence. Follow required checks and branch repair through merge; for docs
+changes, verify the merged Pages deployment.
 
-   Add an entry to the `plugins` array in
-   `.claude-plugin/marketplace.json`:
+## Clean up
 
-   ```json
-   {
-     "name": "example-plugin",
-     "description": "What this plugin does",
-     "version": "1.0.0",
-     "author": { "name": "f5-sales-demo" },
-     "source": "./plugins/example-plugin",
-     "category": "productivity",
-     "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/example-plugin",
-     "license": "Apache-2.0",
-     "keywords": ["relevant", "keywords"],
-     "tags": ["searchable", "tags"],
-     "repository": "https://github.com/f5-sales-demo/marketplace"
-   }
-   ```
-
-6. **Test locally**
-
-   Test your plugin without publishing by pointing Claude Code
-   at the local directory:
-
-   ```bash
-   claude --plugin-dir ./plugins/example-plugin
-   ```
-
-   Verify that skills activate in the right context and
-   commands produce expected output.
-
-</Steps>
-
-## Submitting Your Plugin
-
-<Aside type="tip" title="Repository workflow">
-  This repository enforces a strict governance workflow.
-  See [CONTRIBUTING.md](https://github.com/f5-sales-demo/marketplace/blob/main/CONTRIBUTING.md)
-  for the full process.
-</Aside>
-
-<Steps>
-
-1. Create a GitHub issue describing the new plugin
-2. Create a feature branch from `main`
-3. Add your plugin directory and update `marketplace.json`
-4. Add a documentation page at `docs/plugins/example-plugin.mdx`
-5. Open a PR linking to the issue with `Closes #N`
-6. Fix any CI failures and merge after checks pass
-
-</Steps>
-
-## Best Practices
-
-- **Keep skills focused** — one skill should do one thing well
-- **Use reference files** — put large datasets, schemas, and
-  lookup tables in `references/` rather than inline in SKILL.md
-- **Scope intelligently** — check for uncommitted changes to
-  narrow the working set when possible
-- **Group output by severity** — use ERROR, WARNING, and INFO
-  levels so users can prioritize fixes
-- **Write a README** — include usage examples and a description
-  of what each skill and command does
+Inspect tracked and ignored files before retiring the task worktree. Remove
+only confirmed-merged local branches and disposable verification output.
+Preserve unrelated work and any private runtime material still required.

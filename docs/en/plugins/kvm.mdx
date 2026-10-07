@@ -1,0 +1,93 @@
+---
+title: KVM
+description: Deploy a dual-interface Secure Mesh Site v2 with a private origin and an inside virtual IP on a wired LAN.
+sidebar:
+  order: 14
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Deploy a dual-interface Secure Mesh Site v2 with a private origin and an inside virtual IP on a wired LAN.
+
+<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+
+Plugin identifier: `kvm`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm/.xcsh-plugin/plugin.json).
+
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Ubuntu 24.04 x86_64 with Kernel-based Virtual Machine (KVM), libvirt, and QEMU access.
+- Terraform, `curl`, and the Platform integration.
+- Capacity for an 8-vCPU, 32-GiB-memory, 100-GiB-disk Customer Edge.
+- A supported wired local area network (LAN), two distinct reserved candidate addresses, and an application namespace.
+
+Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install kvm@f5-sales-demo-marketplace
+```
+
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
+
+```bash
+xcsh plugin status kvm
+xcsh plugin setup kvm
+```
+
+A reviewed direct install can authorize bounded setup. Dependency installation
+and upgrades don't grant that setup authorization.
+
+## Use the plugin
+
+| Task | Native tool |
+| --- | --- |
+| Inspect host and network readiness | `kvm_smsv2_readiness` |
+| Plan or apply the owned deployment | `kvm_smsv2_deploy` |
+| Inspect site, interfaces, and workload | `kvm_smsv2_status` |
+| Reconcile against a reviewed plan | `kvm_smsv2_reconcile` |
+| Remove the owned deployment | `kvm_smsv2_destroy` |
+
+The site-local outside (SLO) interface uses an isolated libvirt network. The
+site-local inside (SLI) interface joins the wired LAN through an owned bridge.
+An inside virtual IP (VIP) exposes one Hypertext Transfer Protocol (HTTP) load
+balancer to LAN clients; its origin remains isolated. The on-link VIP needs no
+Border Gateway Protocol (BGP) peer.
+
+Site and registration objects stay in `system`. Application objects use
+`applicationNamespace` or the active context's `XCSH_NAMESPACE`. The chosen
+namespace persists with the deployment; changing it requires an owned teardown
+and fresh deployment.
+
+Host preparation records network ownership and uses rollback checkpoints.
+Occupied bridges, unsupported LAN ranges, address conflicts, and conflicting
+receipts block the operation. Address probing doesn't reserve an address in
+the router's Dynamic Host Configuration Protocol (DHCP) pool. Inspect the
+[network contract](https://github.com/f5-sales-demo/marketplace/blob/main/plugins/kvm/NETWORKING.md)
+before approving host changes.
+
+## Verify
+
+Confirm registration, the observed SLO/SLI interface mapping, origin isolation,
+and a zero-change reapply. Test VIP Address Resolution Protocol (ARP) and HTTP
+from another LAN device. Host-only probes don't complete external-device acceptance.
+
+## Clean up
+
+Use `kvm_smsv2_destroy` with the reviewed saved plan. Verify owned virtual
+machines, networks, site objects, and application objects are absent. Check
+that the management network is restored and unrelated resources remain.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm/skills)

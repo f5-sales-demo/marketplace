@@ -1,197 +1,65 @@
 ---
-title: osint-framework
-description: OSINT tool catalog and investigation skills with 1,064 intelligence-gathering tools across 34 categories.
+title: OSINT Framework
+description: Select open-source intelligence (OSINT) tools and organize authorized investigations.
 sidebar:
-  order: 12
+  order: 8
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **osint-framework** plugin provides OSINT tool catalog and
-investigation skills — 1,064 free intelligence-gathering tools
-across 34 categories mapped from [osintframework.com](https://osintframework.com).
-It includes category-based skills, executable investigation pipelines,
-CLI tool execution, OPSEC-aware workflows, and a persistent entity
-graph for cross-investigation correlation.
+Select open-source intelligence (OSINT) tools and organize authorized investigations.
 
-<Badge text="v1.0.1" variant="note" /> <Badge text="Security" variant="tip" />
+<Badge text="Security" variant="tip" /> <Badge text="Content" variant="note" />
 
-## Installation
+Plugin identifier: `osint-framework`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install osint-framework@f5-sales-demo-marketplace
-```
+## Prerequisites
 
-## Commands
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
 
-### /osint-investigate
+- A defined investigation scope and permission for the target.
+- Network access and any command-line tools required by the selected workflow.
 
-Run a full OSINT investigation against any target. Automatically
-detects the target type (email, domain, IP, username, company,
-person name) and routes to the correct category skills.
+## Set up
 
-```text
-/osint-investigate j.smith@example.com
-/osint-investigate example.com
-/osint-investigate 198.51.100.1
-/osint-investigate example-user
-```
-
-### /osint-search
-
-Search the tool catalog for tools matching a capability query.
-
-```text
-/osint-search subdomain enumeration
-/osint-search email breach check
-/osint-search satellite imagery
-```
-
-### /osint-catalog
-
-Browse the full tool catalog by category. Without arguments shows
-all 34 categories with tool counts.
-
-```text
-/osint-catalog
-/osint-catalog domain
-/osint-catalog threat-intel
-```
-
-## Skills
-
-### osint-index
-
-Top-level intent router. Auto-activates when you say "find
-information about", "investigate", "look up", "background check",
-or describe any open-source intelligence task. Routes to the
-correct category skill based on target type.
-
-| Target | Routes To |
-| --- | --- |
-| Username or handle | `username-recon` |
-| Email address | `email-recon` |
-| Domain name | `domain-recon` |
-| IP address | `ip-address-recon` |
-| Person name + company | `people-search` + `business-records` |
-| Company / org | `business-records` + `domain-recon` |
-| Malware hash | `malicious-file-analysis` + `threat-intelligence` |
-
-### Category Skills (34 total)
-
-Each category has a dedicated skill with CLI tools, web resources,
-investigation workflow, cross-category pivots, and OPSEC notes.
-
-| Category | Tools | Key CLI Tools |
-| --- | --- | --- |
-| `username-recon` | 18 | sherlock, maigret, sylva |
-| `email-recon` | 28 | holehe, h8mail, theHarvester |
-| `domain-recon` | 131 | subfinder, amass, whois, dig |
-| `cloud-recon` | 23 | cloud_enum, S3Scanner, ScoutSuite |
-| `ip-address-recon` | 55 | nmap, masscan, checkip |
-| `images-videos` | 89 | exiftool, exiv2, yt-dlp |
-| `social-networks` | 63 | maigret, yt-dlp, Osintgram |
-| `threat-intelligence` | 38 | iocextract, ioc_parser, pymisp |
-| `malicious-file-analysis` | 33 | oletools, pdfid, Ghidra |
-| `search-engines` | 73 | gitleaks, pagodo, gobuster |
-| `geolocation` | 47 | Hyperlapse |
-| `opsec` | 47 | 47 web-based privacy tools |
-| `people-search` | 18 | GitHub API, GitLab API |
-| `business-records` | 28 | SEC EDGAR, OpenCorporates |
-| *(20 more categories)* | 500+ | — |
-
-<Aside type="tip">
-  Use `/osint-catalog` to browse all 34 categories or
-  `/osint-search <capability>` to find tools for a specific task.
-</Aside>
-
-### osint-catalog
-
-Tool catalog browser. Provides access to the full tool registry,
-category index, investigation pipelines, rate-limit reference,
-and correlation engine documentation.
-
-## Agents
-
-### osint-investigator
-
-Autonomous multi-tool investigation orchestrator. Runs full
-investigation workflows — tool availability check, target type
-detection, sequential tool execution (passive first), result
-aggregation, and structured report generation with confidence
-levels and OPSEC classifications.
-
-Integrates with the entity graph: each tool result creates entities
-and relationships in `/tmp/osint-graph/` for cross-investigation
-correlation.
-
-<Aside type="caution">
-  Active recon tools (nmap, nuclei, sherlock) make direct contact
-  with target infrastructure. The OPSEC warning hook alerts before
-  running active tools. Always ensure you have authorization.
-</Aside>
-
-### osint-researcher
-
-Read-only catalog lookup agent. Searches reference files to
-recommend the best tools for a given task. Never executes tools —
-only recommends and explains. Used internally by category skills
-for tool discovery.
-
-### osint-executor
-
-Single-tool CLI execution agent. Runs one tool at a time with
-specific parameters, parses output, and returns structured results.
-Includes per-tool execution recipes for 20+ tools with exact flags,
-output formats, and jq parsing patterns.
-
-## Rate Limiting
-
-All API calls use the `osint_curl` helper with built-in exponential
-backoff on HTTP 429/503. Key limits:
-
-| API | Free Limit | Env Var |
-| --- | --- | --- |
-| ipinfo.io | 1,000/day | — |
-| crt.sh | 60/min | — |
-| NVD | 5/30s (no key) | `NVD_API_KEY` |
-| OpenCorporates | Requires key | `OPENCORPORATES_API_KEY` |
-| Shodan | 1/sec | `SHODAN_API_KEY` |
-| GitHub API | 60/hr (no auth) | `GH_TOKEN` |
-
-APIs that require keys are automatically skipped with a clear
-message if the environment variable is not set.
-
-## Correlation Engine
-
-The plugin includes a persistent JSON entity graph at
-`/tmp/osint-graph/` that accumulates findings across investigations.
+Install from your shell after registering the marketplace:
 
 ```bash
-source plugins/osint-framework/scripts/osint-graph.sh
-osint_graph_init
-
-# Add entities
-P=$(osint_entity_add "person" "J. Smith" --tool github-api)
-C=$(osint_entity_add "company" "F5" --tool github-api)
-
-# Link them
-osint_rel_add "$P" "$C" "works_at" --tool github-api
-
-# Query: all entities within 2 hops of the person
-osint_graph_query "$P" 2
-
-# Generate report
-osint_graph_report
+xcsh plugin install osint-framework@f5-sales-demo-marketplace
 ```
 
-**Confidence scoring** uses multi-source fusion:
-`confidence = 1 - product(1 - ci)` for each confirming source.
-Two sources at 0.80 → 0.96 combined confidence.
+This content plugin has no integration setup or authentication step. Start a
+fresh xcsh session to load its skills and commands.
 
-## Legal Notice
+## Use the plugin
 
-All tools use only publicly available information. Users are
-responsible for ensuring compliance with applicable laws,
-regulations, and platform terms of service. Never use OSINT tools
-for unauthorized access, harassment, or any illegal activity.
+Use `/osint-framework:osint-catalog` to browse tool categories,
+`/osint-framework:osint-search` to find a tool, and
+`/osint-framework:osint-investigate` to coordinate an investigation.
+
+Category skills cover usernames, domains, email, network addresses, social
+networks, geolocation, public records, threat intelligence, and other research
+areas. `osint-index` routes requests; `opsec` covers operational security.
+`osint-researcher`, `osint-investigator`, and `osint-executor` separate tool
+selection, correlation, and execution.
+
+## Verify
+
+Check source dates, corroborate key observations, and label inference and
+unresolved questions. A catalog entry doesn't prove that a service is available.
+
+## Clean up
+
+Remove temporary collected data according to the engagement's retention
+requirements. Keep private investigation evidence out of public artifacts.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/agents)

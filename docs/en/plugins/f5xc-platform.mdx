@@ -1,127 +1,87 @@
 ---
-title: f5xc-platform
-description: F5 Distributed Cloud platform automation — console operations, REST API, authentication, and config analysis.
+title: F5 Distributed Cloud Platform
+description: Configure Secure Mesh Site v2 and inspect F5 Distributed Cloud API and console behavior.
 sidebar:
-  order: 11
+  order: 7
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-platform** plugin provides full automation for the F5
-Distributed Cloud platform. It covers web console operations via
-Chrome DevTools MCP, spec-aware REST API operations via cURL,
-multi-provider authentication, and configuration analysis across
-95 generic resource types in 38 domains, plus native Secure Mesh Site v2
-Customer Edge tools.
+Configure Secure Mesh Site v2 and inspect F5 Distributed Cloud API and console behavior.
 
-<Badge text="v5.0.0" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-## Installation
+Plugin identifier: `platform`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-platform@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Access to the intended F5 Distributed Cloud tenant.
+- `XCSH_API_URL`, `XCSH_API_TOKEN`, and `XCSH_TENANT` in the active context or environment.
+- An attached supported browser connection for console workflows.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install platform@f5-sales-demo-marketplace
 ```
 
-## Skills
-
-### api-operations
-
-Spec-aware API CRUD operations covering 95 resource types across
-38 domains. Provides precise endpoints, payload templates,
-dependency ordering, and multi-step workflow compositions for
-HTTP load balancers, origin pools, WAF policies, DNS zones,
-certificates, cloud sites, and more.
-
-### Secure Mesh Site v2 tools
-
-The native `f5xc_ce_v2_capabilities` tool returns non-secret provider, bootstrap,
-network-profile, and capability-gated AWS TGW Connect schema evidence.
-`f5xc_ce_v2_site` plans and applies typed provider-neutral Secure Mesh Site v2
-configuration with ordered interfaces, VRFs, addressing, BGP peers, and provider
-network metadata. `f5xc_ce_v2_bootstrap` checks out one-use bootstrap material and
-returns only a session-bound `f5xc-ce://` reference. `f5xc_ce_v2_status` returns
-allowlisted registration, provisioning, health, interface, Border Gateway
-Protocol (BGP), and route evidence.
-
-Legacy Azure VNet Site, AWS VPC/TGW Site, Fleet, and shared registration-token
-routes are not available in Platform 5.x.
-
-### config-analysis
-
-Configuration analysis and advisory capability. Analyzes customer
-JSON configurations to answer questions about security posture,
-feature enablement, mode settings, exclusions, and best practices.
-Supports multi-turn Q&A with compressed context between dispatches.
-
-### api-auth
-
-API authentication supporting API token header authentication and
-P12 certificate authentication with token validation procedures.
-
-### console-auth
-
-Multi-provider authentication for the F5 XC web console.
-Auto-detects login type: native F5 XC login, Azure SSO with
-cached session, or Azure SSO with DUO verified push MFA.
-
-### console-navigator
-
-Deterministic navigation to F5 XC console sections. Translates
-section names to URL paths, verifies session health, and confirms
-page load.
-
-### platform-index / api-index / console-index
-
-Intent routers that classify user requests and delegate to the
-appropriate skill and agent. These activate automatically and are
-not user-invocable.
-
-## Commands
-
-### /check-api-token
+Platform setup opens the context wizard in the xcsh terminal user interface.
+Run this inside an interactive xcsh session:
 
 ```text
-/f5xc-platform:check-api-token
+/plugin setup platform
 ```
 
-Validates your F5 XC API token by delegating to the api-operator
-agent.
+The shell command `xcsh plugin setup platform` cannot open this wizard. The
+wizard configures the active context; keep credentials in its protected input.
 
-### /login-console
+## Use the plugin
 
-```text
-/f5xc-platform:login-console
-```
+| Task | Native tool |
+| --- | --- |
+| Discover provider and networking capabilities | `f5xc_ce_v2_capabilities` |
+| Plan or apply typed site configuration | `f5xc_ce_v2_site` |
+| Check out one-use bootstrap material | `f5xc_ce_v2_bootstrap` |
+| Inspect registration and site health | `f5xc_ce_v2_status` |
 
-Authenticates to the F5 Distributed Cloud console via the
-console-operator agent.
+Site configuration covers ordered interfaces, virtual routing and forwarding
+instances, addressing, and Border Gateway Protocol (BGP) peers. Provider-specific
+compute work belongs in [AWS](/marketplace/en/plugins/f5xc-aws/),
+[Azure](/marketplace/en/plugins/f5xc-azure/), or [KVM](/marketplace/en/plugins/kvm/).
 
-## Agents
+Use `api-operations` and `api-auth` for application programming interface (API)
+work, `config-analysis` for configuration review, and the `console-*` skills
+for browser authentication, discovery, inspection, navigation, and execution.
+The index skills route requests to `api-operator`, `console-operator`, or
+`config-analyzer`. Pass prior findings explicitly when asking a fresh analyzer
+agent a follow-up question.
 
-### api-operator
+Bootstrap checkout returns a session-bound `f5xc-ce://` reference. Let the
+provider tool consume it; keep token material out of prompts, plans, and reports.
+Legacy cloud-site and shared-token workflows aren't part of this interface.
 
-Autonomous REST API agent executing cURL and jq sequences for
-resource CRUD, token validation, and configuration operations.
-Runs in a subagent to keep verbose API JSON payloads out of the
-main session context.
+## Verify
 
-### console-operator
+Run `/platform:check-api-token` for authentication verification. Inspect
+`f5xc_ce_v2_status` for the expected site, registration, health, interfaces,
+BGP peers, and routes. Configured environment values alone don't prove API access.
 
-Autonomous browser automation agent executing Chrome DevTools MCP
-tool sequences for authentication, navigation, and form
-interactions. Runs in a subagent to keep token-heavy browser
-snapshots out of the main session.
+## Clean up
 
-### config-analyzer
+Use the owning provider's approved teardown plan to remove site resources.
+Verify site absence and retain only secret-free evidence.
 
-Read-only configuration analysis agent. Analyzes customer JSON
-configurations against resource profile reference files to answer
-questions about security posture, feature enablement, mode
-transitions, and best practices.
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-<Aside type="caution">
-  The config-analyzer agent is **ephemeral** &mdash; spawned fresh
-  for each question with no memory between dispatches. Follow-up
-  questions must include compressed previous findings in the
-  dispatch prompt.
-</Aside>
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform/agents)

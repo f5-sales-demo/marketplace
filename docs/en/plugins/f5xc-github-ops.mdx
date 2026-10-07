@@ -1,59 +1,82 @@
 ---
-title: f5xc-github-ops
-description: GitHub operations automation for issue-driven development, PR workflow, and CI monitoring.
+title: GitHub
+description: Manage Git and GitHub work through typed workflow stages and normalized evidence.
 sidebar:
-  order: 7
+  order: 17
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-github-ops** plugin provides exclusive GitHub operations
-automation for f5-sales-demo repositories. It handles the full
-Git and GitHub lifecycle from issue creation through post-merge
-monitoring, enforcing issue-driven development and pre-commit
-lint gates.
+Manage Git and GitHub work through typed workflow stages and normalized evidence.
 
-<Badge text="v2.2.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-## Installation
+Plugin identifier: `github`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-github-ops@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- GitHub CLI, `gh`, and Git.
+- An authenticated account with access to the intended repository.
+- The repository's contribution and host-routing instructions.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install github@f5-sales-demo-marketplace
 ```
 
-## Skills
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
 
-### workflow-lifecycle
+```bash
+xcsh plugin status github
+xcsh plugin setup github
+```
 
-Repository governance workflow handling issue creation, branch
-naming conventions, PR creation, CI polling with error feedback
-to issues, post-merge monitoring, verification, and task
-completion criteria. Activates when you say "commit", "push",
-"create a PR", "merge", or perform any Git operation.
+A reviewed direct install can authorize bounded setup. Dependency installation
+and upgrades don't grant that setup authorization.
 
-### upstream-contribution
+## Use the plugin
 
-Upstream contribution workflow for fork-based development. Handles
-fork detection, upstream research (issues, PRs, CONTRIBUTING.md,
-CI patterns), cross-repo issue and PR creation, local tracking
-issue management, upstream CI monitoring, and guided resolution.
+| Task | Native tool |
+| --- | --- |
+| Coordinate workflow stages | `github_workflow` |
+| Create an issue or pull request | `github_issue_create`, `github_pr_create` |
+| Enable auto-merge or update a branch | `github_pr_auto_merge`, `github_pr_update_branch` |
+| Prepare or retire a worktree | `github_worktree_prepare`, `github_worktree_cleanup` |
 
-## Agents
+Use `workflow-lifecycle` for issue, branch, implementation, verification,
+review, merge, and cleanup stages. `upstream-contribution` covers upstream work;
+`github-index` routes tasks to typed tools, `github-ops`, or `cli-operator`.
+General GitHub CLI tools also support issue, pull request, diff, search, and
+failed-check inspection.
 
-### github-ops
+Setup can collect account and associated-email profile evidence. Review the
+selected account and collection fields. Repository governance remains advisory
+in the tool result; follow the repository's actual delivery requirements.
 
-Exclusive agent for all mechanical Git and GitHub operations.
-Handles pre-commit lint gates, issue creation, branch creation,
-staging, committing, pushing, PR creation, CI polling with error
-feedback, infrastructure failure retry, post-merge monitoring,
-branch cleanup, and repository settings management via the
-GitHub API.
+## Verify
 
-Returns structured status reports: `COMPLETE`,
-`PRE_COMMIT_FAILED`, `CI_FAILED`, `BLOCKED`, or `FAILED`.
+Compare workflow evidence with the intended repository and branch. Confirm
+the pull request reaches `MERGED` and required checks pass before reporting delivery.
 
-<Aside type="caution">
-  This agent is the **exclusive** handler for Git operations.
-  Never run `git commit`, `git push`, or `gh pr create` directly
-  in repositories that use this plugin.
-</Aside>
+## Clean up
+
+Inspect tracked and ignored files before removing the task worktree. Delete
+only a local branch whose pull request is confirmed merged. Preserve unrelated
+worktrees, branches, and authentication.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/agents)

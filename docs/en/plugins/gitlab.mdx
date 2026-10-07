@@ -1,0 +1,72 @@
+---
+title: GitLab
+description: Inspect GitLab issues and search project evidence through the GitLab CLI.
+sidebar:
+  order: 16
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Inspect GitLab issues and search project evidence through the GitLab CLI.
+
+<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+
+Plugin identifier: `gitlab`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gitlab/.xcsh-plugin/plugin.json).
+
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- GitLab CLI, `glab`.
+- An authenticated account for the intended GitLab host.
+- Access to the target project.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install gitlab@f5-sales-demo-marketplace
+```
+
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
+
+```bash
+xcsh plugin status gitlab
+xcsh plugin setup gitlab
+```
+
+## Use the plugin
+
+| Task | Native tool |
+| --- | --- |
+| List issues | `glab_issue_list` |
+| Read an issue | `glab_issue_view` |
+| Search GitLab evidence | `glab_search` |
+| Inspect command usage | `glab_help` |
+| Execute an explicit CLI command | `glab_exec` |
+
+`gitlab-index` routes requests; `gitlab-auth` supports account setup. Use the
+`cli-operator` agent when the task needs a general CLI operation. Confirm the
+host and project before requesting a mutation.
+
+## Verify
+
+Check integration status, then read a known issue in the intended project.
+Confirm that its title, state, and source link match the requested result.
+
+## Clean up
+
+Remove temporary exports and task-owned local branches as appropriate.
+Manage GitLab authentication separately from plugin removal.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gitlab/skills)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gitlab/agents)
