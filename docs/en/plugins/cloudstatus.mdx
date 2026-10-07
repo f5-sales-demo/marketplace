@@ -1,0 +1,83 @@
+---
+title: Cloud status
+description: Investigate live cloud incidents, F5 Regional Edge locations, and Internet network evidence.
+sidebar:
+  order: 11
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Investigate live cloud incidents, F5 Regional Edge locations, and Internet network evidence.
+
+<Badge text="Productivity" variant="tip" /> <Badge text="On demand" variant="note" />
+
+Plugin identifier: `cloudstatus`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus/.xcsh-plugin/plugin.json).
+
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- xcsh 21.38.1 or later for provenance-aware maps.
+- Python 3.9 or later, `curl`, `jq`, and access to the selected live sources.
+- Optional `ping`, `tracepath` or `traceroute`, and `mtr` for path diagnostics.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install cloudstatus@f5-sales-demo-marketplace
+```
+
+The plugin gathers live evidence on demand. It needs no account setup or
+background polling service.
+
+## Use the plugin
+
+| Task | Entry point |
+| --- | --- |
+| Check incidents, maintenance, or components | `/cloud-status` and the `monitor` skill |
+| Locate F5 Regional Edges or request a map | Ordinary language and the `location` skill |
+| Investigate registration, routes, peering, or paths | Ordinary language and `network-intelligence` |
+
+```text
+/cloud-status incidents
+Show a current map of Canadian F5 Regional Edges with coordinate provenance.
+Investigate example.net: registration, DNS answers, route origins, and RPKI.
+```
+
+Domain Name System (DNS), Registration Data Access Protocol (RDAP), Border
+Gateway Protocol (BGP), and Resource Public Key Infrastructure (RPKI) evidence
+answer different questions. Reports separate observed facts, correlations,
+inference, and unresolved candidates.
+
+Regional Edge work uses the registry-only location collector with F5 Statuspage,
+PeeringDB, and Wikidata. Maps use validated coordinates; unresolved locations
+stay unplotted. General network work has a wider source ladder. A facility match
+doesn't establish that a particular F5 service runs in that building.
+
+Path troubleshooting uses four ping packets, a trace of at most 30 hops, five
+`mtr` cycles, and a 45-second total limit. Missing tools and blocked probes
+remain reported limitations. `STATUSPAGE_URL` selects another Statuspage-backed
+service for monitoring; F5 location work keeps its F5 sources.
+
+## Verify
+
+Check observation timestamps and cited sources. Preserve partial results
+and errors when a source is unavailable. Confirm map coordinates have provenance.
+
+## Clean up
+
+Remove temporary reports or maps you no longer need. The plugin has no
+durable topology cache to clear.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus/agents)

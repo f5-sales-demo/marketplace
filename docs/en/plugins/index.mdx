@@ -1,58 +1,50 @@
 ---
 title: Plugins
-description: Catalog of available plugins in the f5-sales-demo marketplace with versions and categories.
+description: Choose from all 23 marketplace plugins for documentation, sales, cloud, development, and desktop workflows.
 sidebar:
   order: 3
 ---
 
-The f5-sales-demo marketplace provides the following plugins.
-Each plugin adds skills, commands, and agents to Claude Code
-that help with documentation, demo workflows, sales methodology,
-branding, and development operations.
+Choose a plugin for your task. This catalog covers all 23 entries in the
+[marketplace manifest](https://github.com/f5-sales-demo/marketplace/blob/main/.xcsh-plugin/marketplace.json).
+Use the identifier column when installing; the manifest records current versions.
 
-## Plugin Catalog
+## Plugin catalog
 
-| Plugin | Version | Category | Description |
+| Plugin | Identifier | Lifecycle | Purpose |
 | --- | --- | --- | --- |
-| [f5xc-docs-tools](/marketplace/en/plugins/f5xc-docs-tools/) | 1.1.2 | Productivity | MDX content validation and review tools |
-| [f5xc-sales-engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | 1.0.6 | Productivity | Sales Engineer persona framework — demo execution, presentation, Q&A, environment management |
-| [f5xc-github-ops](/marketplace/en/plugins/f5xc-github-ops/) | 2.2.2 | Productivity | GitHub operations automation — issue-driven development, PR lifecycle, CI polling |
-| [f5xc-docs-pipeline](/marketplace/en/plugins/f5xc-docs-pipeline/) | 1.0.2 | Productivity | Documentation pipeline architecture — content authoring, local preview, config ownership |
-| [f5xc-brand](/marketplace/en/plugins/f5xc-brand/) | 1.0.2 | Productivity | F5 corporate branding enforcement — colors, typography, logos, icons, accessibility |
-| [f5xc-meddpicc](/marketplace/en/plugins/f5xc-meddpicc/) | 1.0.4 | Productivity | MEDDPICC sales qualification and deal-execution framework |
-| [f5xc-devcontainer](/marketplace/en/plugins/f5xc-devcontainer/) | 1.1.6 | Productivity | Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance |
-| [f5xc-platform](/marketplace/en/plugins/f5xc-platform/) | 5.0.0 | Productivity | Provider-neutral Secure Mesh Site v2 capabilities, site, bootstrap, and status automation |
-| [Azure](/marketplace/en/plugins/f5xc-azure/) | 3.0.0 | Development | Azure CLI and shared-contract deterministic F5 Customer Edge administration |
-| [AWS](/marketplace/en/plugins/f5xc-aws/) | 2.0.0 | Development | AWS CLI and shared-contract deterministic F5 Customer Edge administration |
-| [osint-framework](/marketplace/en/plugins/osint-framework/) | 1.0.1 | Security | OSINT tool catalog and investigation skills — 1,064 free tools across 34 categories, investigation pipelines, correlation engine |
-| [f5xc-firecrawl](/marketplace/en/plugins/f5xc-firecrawl/) | 1.1.0 | Productivity | Local self-hosted web scraping — scrape, crawl, map, search, extract via firecrawl on localhost:3002 |
+| [Documentation tools](/marketplace/en/plugins/f5xc-docs-tools/) | `docs-tools` | Content | Review Markdown with JSX (MDX) content for syntax, metadata, imports, and page structure. |
+| [Sales engineer](/marketplace/en/plugins/f5xc-sales-engineer/) | `sales-engineer` | Content | Prepare, execute, and present F5 Distributed Cloud demos with evidence for each result. |
+| [Documentation pipeline](/marketplace/en/plugins/f5xc-docs-pipeline/) | `docs-pipeline` | Content | Find the repository that owns a documentation change, then author and preview the content. |
+| [F5 brand](/marketplace/en/plugins/f5xc-brand/) | `brand` | Content | Review colors, typography, logos, icons, terminology, and accessibility against F5 brand guidance. |
+| [MEDDPICC](/marketplace/en/plugins/f5xc-meddpicc/) | `meddpicc` | Content | Qualify deals, track evidence, and generate deal reviews and editable Excel workbooks. |
+| [Development container](/marketplace/en/plugins/f5xc-devcontainer/) | `devcontainer` | Integrated | Choose installed tools, inspect container health, and identify catalog drift. |
+| [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/) | `platform` | Integrated | Configure Secure Mesh Site v2 and inspect F5 Distributed Cloud API and console behavior. |
+| [OSINT Framework](/marketplace/en/plugins/osint-framework/) | `osint-framework` | Content | Select open-source intelligence (OSINT) tools and organize authorized investigations. |
+| [Firecrawl](/marketplace/en/plugins/f5xc-firecrawl/) | `firecrawl` | Integrated | Scrape pages, crawl sites, and extract content through a local Firecrawl service. |
+| [Salesforce](/marketplace/en/plugins/salesforce/) | `salesforce` | Integrated | Discover accounts, query Salesforce, and report pipeline evidence from the selected organization. |
+| [Cloud status](/marketplace/en/plugins/cloudstatus/) | `cloudstatus` | On demand | Investigate live cloud incidents, F5 Regional Edge locations, and Internet network evidence. |
+| [Azure](/marketplace/en/plugins/f5xc-azure/) | `azure` | Integrated | Inspect Azure resources and plan F5 Distributed Cloud Customer Edge deployments. |
+| [AWS](/marketplace/en/plugins/f5xc-aws/) | `aws` | Integrated | Inspect Amazon Web Services resources and plan F5 Distributed Cloud Customer Edge deployments. |
+| [KVM](/marketplace/en/plugins/kvm/) | `kvm` | Integrated | Deploy a dual-interface Secure Mesh Site v2 with a private origin and an inside virtual IP on a wired LAN. |
+| [Google Cloud](/marketplace/en/plugins/gcloud/) | `gcloud` | Integrated | Inspect Google Cloud accounts, projects, compute instances, and storage buckets. |
+| [GitLab](/marketplace/en/plugins/gitlab/) | `gitlab` | Integrated | Inspect GitLab issues and search project evidence through the GitLab CLI. |
+| [GitHub](/marketplace/en/plugins/f5xc-github-ops/) | `github` | Integrated | Manage Git and GitHub work through typed workflow stages and normalized evidence. |
+| [Herdr](/marketplace/en/plugins/herdr/) | `herdr` | Integrated | Install the stable F5 Herdr fork and work with its terminal workspaces, tabs, panes, and agents. |
+| [ASM migration](/marketplace/en/plugins/asm-migration/) | `asm-migration` | Integrated | Convert BIG-IP Application Security Manager policies offline, then deploy reviewed F5 Distributed Cloud artifacts. |
+| [Terraform](/marketplace/en/plugins/terraform/) | `terraform` | Integrated | Author, test, and troubleshoot infrastructure as code using current provider contracts. |
+| [Xorg](/marketplace/en/plugins/xorg/) | `xorg` | Integrated | Observe and control an Ubuntu Xorg desktop through structured xorgctl operations. |
+| [Zoom](/marketplace/en/plugins/zoom/) | `zoom` | Integrated | Join and control Zoom Workplace with verified desktop state and an isolated terminal camera. |
+| [Ghostty](/marketplace/en/plugins/ghostty/) | `ghostty` | Integrated | Set up a Linux Ghostty terminal for Xorg desktops and Herdr sessions. |
 
-## What's in a Plugin?
+## Choose a lifecycle
 
-Each plugin can include:
+| Lifecycle | What happens after installation |
+| --- | --- |
+| Content | Skills, commands, and reference material load without integration setup. |
+| On demand | Live evidence is collected only when requested; network access may be required. |
+| Integrated | xcsh checks runtime readiness. Follow the page's setup and dependency requirements. |
 
-- **Skills** — contextual knowledge that Claude activates
-  automatically when relevant (e.g., reviewing MDX files)
-- **Commands** — slash commands you invoke directly
-  (e.g., `/f5xc-docs-tools:review-mdx`)
-- **Agents** — specialized sub-agents for complex tasks
-
-## Installing a Plugin
-
-```text
-/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
-/plugin install f5xc-sales-engineer@f5-sales-demo-marketplace
-/plugin install f5xc-github-ops@f5-sales-demo-marketplace
-/plugin install f5xc-docs-pipeline@f5-sales-demo-marketplace
-/plugin install f5xc-brand@f5-sales-demo-marketplace
-/plugin install f5xc-meddpicc@f5-sales-demo-marketplace
-/plugin install f5xc-devcontainer@f5-sales-demo-marketplace
-/plugin install f5xc-platform@f5-sales-demo-marketplace
-/plugin install azure@f5-sales-demo-marketplace
-/plugin install aws@f5-sales-demo-marketplace
-/plugin install osint-framework@f5-sales-demo-marketplace
-/plugin install f5xc-firecrawl@f5-sales-demo-marketplace
-```
-
-See [Getting Started](/marketplace/en/getting-started/) for the
-full setup walkthrough.
+Each plugin page explains prerequisites, setup, tasks, verification, and cleanup.
+Follow [Get started](/marketplace/en/getting-started/) to register the marketplace
+and install your first plugin.

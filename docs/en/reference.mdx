@@ -1,186 +1,103 @@
 ---
 title: Reference
-description: marketplace.json schema reference with field definitions, skill configuration, and validation rules.
+description: Find the current xcsh manifest paths, catalog fields, and integration readiness contract.
 sidebar:
   order: 7
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+Use the xcsh manifests and validation scripts as the source of truth for
+plugin identity, packaging, and lifecycle behavior.
 
-## marketplace.json Schema
+## Source files
 
-The marketplace manifest lives at
-`.claude-plugin/marketplace.json` in the repository root.
+| Source | Purpose |
+| --- | --- |
+| `.xcsh-plugin/marketplace.json` | Generated plugin catalog and current versions |
+| `plugins/<PLUGIN_IDENTIFIER>/.xcsh-plugin/plugin.json` | Canonical identity, catalog metadata, and lifecycle |
+| `scripts/generate-marketplace-catalog.mjs` | Generates catalog entries from plugin manifests |
+| `scripts/validate-plugins.sh` | Validates manifests and packaged components |
+| `scripts/check-version-bumps.sh` | Enforces versions for changed plugin content |
 
-### Top-level fields
+These are repository paths. See the
+[catalog generator](https://github.com/f5-sales-demo/marketplace/blob/main/scripts/generate-marketplace-catalog.mjs)
+and [manifest validator](https://github.com/f5-sales-demo/marketplace/blob/main/scripts/validate-plugins.sh)
+for the enforced fields.
 
-| Field | Required | Description |
-| --- | --- | --- |
-| `$schema` | No | JSON Schema URL for validation |
-| `name` | Yes | Unique marketplace identifier |
-| `version` | No | Marketplace schema version (SemVer) |
-| `metadata.description` | Yes | Human-readable marketplace description |
-| `owner.name` | Yes | Organization or user that owns the marketplace |
-| `owner.url` | No | URL to the owner's profile or site |
-| `owner.email` | No | Contact email |
-| `plugins` | Yes | Array of plugin entries |
+## Manifest fields
 
-### Plugin entry fields
+| Field | Purpose |
+| --- | --- |
+| `name`, `version`, `description` | Plugin identifier, semantic version, and purpose |
+| `marketplace.order` | Catalog ordering |
+| `marketplace.catalog.source` | Plugin directory relative to the repository root |
+| `marketplace.catalog.category` | Discovery category |
+| `lifecycle.mode` | `content`, `on_demand`, or `integrated` |
+| `lifecycle.integrations` | Registered integration identifiers |
+| `lifecycle.requirements` | Human-readable prerequisites |
+| `lifecycle.setupRequired` | Whether the plugin declares setup |
+| `lifecycle.setupAuthorization` | Whether reviewed direct installation may authorize bounded setup |
+| `lifecycle.pluginDependencies` | Required marketplace plugins |
+| `lifecycle.collectedData` | Profile data categories collected by setup |
+| `extensions`, `xcsh` | Native extension entry points and presentation metadata, where declared |
 
-| Field | Required | Description |
-| --- | --- | --- |
-| `name` | Yes | Plugin identifier (must match `plugin.json`) |
-| `description` | Yes | Short description of the plugin |
-| `version` | Yes | Semantic version string |
-| `author.name` | Yes | Plugin author |
-| `source` | Yes | Path or URL to the plugin (see Source Types) |
-| `category` | Yes | Plugin category (e.g., `productivity`) |
-| `homepage` | No | URL to plugin documentation or homepage |
-| `license` | No | SPDX license identifier |
-| `keywords` | No | Array of search keywords |
-| `tags` | No | Array of tags for filtering |
-| `repository` | No | Repository URL |
+The generator copies identity and catalog metadata from each plugin manifest.
+Edit those inputs, then regenerate the catalog. Content plugins cannot declare
+integration setup.
 
-## Plugin Source Types
-
-The `source` field in marketplace.json supports multiple
-formats:
-
-| Type | Example | Description |
-| --- | --- | --- |
-| Relative path | `./plugins/example-plugin` | Plugin in same repository |
-| GitHub shorthand | `owner/repo` | Plugin at repository root |
-| GitHub with path | `owner/repo/path/to/plugin` | Plugin in subdirectory |
-| Git URL | `https://github.com/owner/repo.git` | Git repository |
-| npm package | `npm:@scope/package` | Published npm package |
-
-## plugin.json Schema
-
-Each plugin has a manifest at
-`.claude-plugin/plugin.json` inside its directory.
-
-| Field | Required | Description |
-| --- | --- | --- |
-| `name` | Yes | Plugin identifier |
-| `description` | Yes | What the plugin does |
-| `version` | Yes | Semantic version |
-| `author.name` | Yes | Plugin author |
-| `author.url` | No | URL to the author's profile or site |
-| `homepage` | No | Documentation URL |
-| `keywords` | No | Search keywords |
-| `license` | No | SPDX license identifier |
-| `repository` | No | Repository URL |
-
-## Plugin Directory Layout
+## Plugin layout
 
 ```text
-plugins/example-plugin/
-  .claude-plugin/
-    plugin.json          # Plugin manifest (required)
+plugins/<PLUGIN_IDENTIFIER>/
+  .xcsh-plugin/
+    plugin.json
   skills/
-    skill-name/
-      SKILL.md           # Skill definition (required per skill)
-      references/        # Reference data files (optional)
+    <SKILL_NAME>/SKILL.md
   commands/
-    command-name.md      # Command definition (one per command)
+    <COMMAND_NAME>.md
   agents/
-    agent-name.md        # Agent definition (one per agent)
-  README.md              # Plugin documentation (recommended)
+    <AGENT_NAME>.md
+  extensions/ or src/
+    <NATIVE_ENTRY_POINT>
 ```
 
-## Environment Variables
+Components beyond the manifest depend on the plugin. A command file's basename
+and plugin identifier form its namespaced slash command. Extensions can also
+register commands, such as `/zoom`, and typed tools. Link to the actual source
+rather than predicting a command from a skill name.
 
-Plugins can use these variables in their skill and command
-files:
-
-| Variable | Description |
-| --- | --- |
-| `$\{CLAUDE_PLUGIN_ROOT\}` | Absolute path to the plugin's root directory |
-
-## Validation
-
-Validate your marketplace and plugin manifests locally:
+## Readiness and setup
 
 ```bash
-claude plugin validate .
+xcsh plugin status <PLUGIN_IDENTIFIER> --json
+xcsh plugin status <PLUGIN_IDENTIFIER> --context <CONTEXT_NAME>
 ```
 
-This checks:
+Status returns an `integrations` array for enabled integrations. A configured
+CLI or account can be ready while a requested cloud or desktop operation still
+fails its own checks. Inspect the operation's verification evidence as well.
 
-- `marketplace.json` schema compliance
-- All referenced plugin directories exist
-- Each plugin has a valid `plugin.json`
-- Skills have properly formatted `SKILL.md` frontmatter
-- Commands have required frontmatter fields
+Human setup requires an interactive terminal and reviews the selected plan.
+Platform's context wizard runs through `/plugin setup platform` inside xcsh.
+See [Get started](/marketplace/en/getting-started/) for the shared lifecycle.
 
-## Team Configuration
+## Validate a source checkout
 
-### Pre-configuring marketplaces
-
-Add to `.claude/settings.json` in any repository:
-
-```json
-{
-  "extraKnownMarketplaces": [
-    "f5-sales-demo/marketplace"
-  ]
-}
+```bash
+node scripts/generate-marketplace-catalog.mjs --check
+bash scripts/validate-plugins.sh
+bash scripts/lint-mdx-prose.sh docs/en/plugins/*.mdx
 ```
 
-### Pre-enabling plugins
+Run these from the repository root. The first command checks generated catalog
+convergence; the others validate packaging and English Markdown with JSX (MDX)
+prose. Installation acceptance also requires a fresh session using the released
+plugin, followed by its documented verification steps.
 
-```json
-{
-  "enabledPlugins": [
-    "f5xc-docs-tools@f5-sales-demo-marketplace"
-  ]
-}
-```
+## Other plugin hosts
 
-<Aside type="tip">
-  Committing these settings to your repository ensures every
-  team member gets the same marketplace and plugin
-  configuration automatically.
-</Aside>
-
-## Troubleshooting
-
-### Marketplace not found
-
-Verify the marketplace was added:
-
-```text
-/plugin marketplace list
-```
-
-If missing, re-add it:
-
-```text
-/plugin marketplace add f5-sales-demo/marketplace
-```
-
-### Plugin not activating
-
-- Confirm the plugin is installed:
-  `/plugin list`
-- Check that your Claude Code version supports plugins
-  (v1.0.33+)
-- Verify the skill's trigger conditions match your current
-  context
-
-### Skills not triggering automatically
-
-Skills activate based on their `description` field in
-SKILL.md frontmatter. If a skill is not activating when
-expected:
-
-- Check that the description accurately describes the
-  trigger context
-- Use the command directly (e.g., `/f5xc-docs-tools:review-mdx`)
-  as a workaround
-
-### Build errors after review
-
-The plugin reports issues but does not auto-fix them. Apply
-the suggested fixes manually, then re-run the review to
-confirm resolution.
+xcsh packaging doesn't establish OpenAI or Claude Code compatibility. OpenAI
+supports portable Agent Plugins and documented compatibility manifests, with
+its own marketplace configuration. See
+[OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins)
+when targeting ChatGPT or Codex. Verify the host's supported package and runtime
+before describing a cross-client installation workflow.

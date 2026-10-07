@@ -1,0 +1,81 @@
+---
+title: ASM migration
+description: Convert BIG-IP Application Security Manager policies offline, then deploy reviewed F5 Distributed Cloud artifacts.
+sidebar:
+  order: 19
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Convert BIG-IP Application Security Manager policies offline, then deploy reviewed F5 Distributed Cloud artifacts.
+
+<Badge text="Security" variant="tip" /> <Badge text="Integrated" variant="note" />
+
+Plugin identifier: `asm-migration`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/.xcsh-plugin/plugin.json).
+
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Bun and the Platform integration.
+- A BIG-IP Application Security Manager (ASM) XML policy and signature mapping.
+- A namespace and a non-symlinked output directory.
+- For deployment, `XCSH_API_URL`, `XCSH_API_TOKEN`, `XCSH_USERNAME`, and `XCSH_NAMESPACE` in protected local configuration.
+
+Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install asm-migration@f5-sales-demo-marketplace
+```
+
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
+
+```bash
+xcsh plugin status asm-migration
+xcsh plugin setup asm-migration
+```
+
+## Use the plugin
+
+| Task | Command or native tool |
+| --- | --- |
+| Validate a policy or config pack | `/asm-migration:validate`, `asm_migration_validate` |
+| Convert a policy | `/asm-migration:convert`, `asm_migration_convert` |
+| Plan, apply, verify, or clean up | `/asm-migration:deploy`, `asm_migration_deploy` |
+
+Conversion is offline and writes `config-pack.json`, `warnings.json`,
+`report.json`, and `manifest.json`. Review warnings before deployment. The
+signature mapping uses `asm-migration.signatures/v1`; generated packs use
+`asm-migration.config-pack/v1`.
+
+Deployment validates all four artifacts and uses digest-bound confirmation.
+Keep the receipt outside the conversion directory. Incomplete output cannot
+be deployed; old packs that fail the current contract need reconversion.
+The deployment tool contacts the configured API origin and reads credentials
+from the environment. On macOS, use `/private/tmp` or another normal directory;
+`/tmp` is a symlink and is rejected.
+
+## Verify
+
+Inspect the conversion report and warnings, then validate the generated pack.
+Run deployment `verify` against its receipt and confirm the intended objects.
+
+## Clean up
+
+Run receipt-backed deployment `cleanup` with its exact confirmation. Verify
+owned resource absence before removing private artifacts and receipts.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/commands)

@@ -1,157 +1,63 @@
 ---
-title: f5xc-docs-tools
-description: MDX content validation and quality checks for the f5-sales-demo documentation pipeline.
+title: Documentation tools
+description: Review Markdown with JSX (MDX) content for syntax, metadata, imports, and page structure.
 sidebar:
-  order: 4
+  order: 1
 ---
 
-import { Aside, Badge, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-docs-tools** plugin validates MDX content files for
-the f5-sales-demo documentation pipeline. It catches common
-build-breaking issues before they reach CI, including bare JSX
-characters, invalid imports, broken image references, and
-incomplete frontmatter.
+Review Markdown with JSX (MDX) content for syntax, metadata, imports, and page structure.
 
-<Badge text="v1.1.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
 
-## Installation
+Plugin identifier: `docs-tools`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-docs-tools@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- A repository with MDX documentation.
+- Its component definitions and content conventions.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install docs-tools@f5-sales-demo-marketplace
 ```
 
-## Skills
+This content plugin has no integration setup or authentication step. Start a
+fresh xcsh session to load its skills and commands.
 
-### mdx-content-reviewer
+## Use the plugin
 
-This skill activates automatically when Claude detects you are
-working with MDX files in an f5-sales-demo content
-repository. It performs seven validation checks:
+Run `/docs-tools:review-mdx` to review changed content or a selected path. The
+`content-reviewer` skill checks frontmatter, syntax, imports, components,
+images, structure, and exports. The `mdx-content-reviewer` agent groups findings
+by severity so you can address errors first.
 
-<CardGrid>
-  <Card title="Frontmatter validation">
-    Checks required fields like `title` and `sidebar.order`.
-    Splash pages must include `hero` fields and
-    `template: splash`.
-  </Card>
-  <Card title="MDX syntax pitfalls">
-    Detects bare `&lt;` characters and unescaped `\{` `\}`
-    braces that break MDX parsing.
-  </Card>
-  <Card title="Import validation">
-    Validates imports against an allowlist of Starlight
-    built-in and f5-sales-demo theme components.
-  </Card>
-  <Card title="Component attributes">
-    Checks required props for components like Screenshot,
-    Aside, Code, LinkCard, Card, and Badge.
-  </Card>
-  <Card title="Image references">
-    Verifies that referenced images exist in the `docs/images/`
-    directory.
-  </Card>
-  <Card title="Structure checks">
-    Ensures `docs/index.mdx` exists and image directories
-    contain no stray MDX files.
-  </Card>
-  <Card title="Export and code blocks">
-    Verifies that variables used in `Code` component `code`
-    props have matching exports.
-  </Card>
-</CardGrid>
+Use `/docs-tools:docs-tools-status` to check whether the workspace contains
+MDX content and an Astro/Starlight project.
 
-#### Scoping behavior
+## Verify
 
-The skill intelligently scopes its review:
+Apply the reported fixes, rerun the review, and build the site. Confirm that
+imports resolve and each changed page renders.
 
-- If there are uncommitted or staged changes to `docs/**/*.mdx`
-  files, only those files are reviewed
-- Otherwise, all `docs/**/*.mdx` files are reviewed
+## Clean up
 
-#### Output format
+Stop any preview server you started. Keep the review report if you need it
+for the documentation pull request.
 
-Findings are grouped by severity:
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-- **ERROR** — will break the build; must fix before merging
-- **WARNING** — likely problems that should be addressed
-- **INFO** — suggestions and best practices
+## Related resources
 
-Each finding includes the file path, line number, and a
-description of the issue.
-
-## Commands
-
-### /review-mdx
-
-```text
-/f5xc-docs-tools:review-mdx [path-or-glob]
-```
-
-Runs the `mdx-content-reviewer` skill on demand.
-
-**Arguments:**
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `path-or-glob` | No | File path or glob pattern to scope the review. Defaults to all `docs/**/*.mdx` files. |
-
-**Examples:**
-
-```text
-# Review all MDX files in docs/
-/f5xc-docs-tools:review-mdx
-
-# Review a specific file
-/f5xc-docs-tools:review-mdx docs/getting-started.mdx
-
-# Review files matching a glob
-/f5xc-docs-tools:review-mdx docs/guides/*.mdx
-```
-
-**Output:** A summary line at the end reports total files
-reviewed and finding counts by severity.
-
-## Allowed Imports
-
-The plugin validates imports against these sources:
-
-**Starlight built-in components** (`@astrojs/starlight/components`):
-
-`Aside` `Badge` `Card` `CardGrid` `Code` `FileTree` `Icon`
-`LinkCard` `Steps` `TabItem` `Tabs`
-
-**f5-sales-demo theme components** (`@f5-sales-demo/docs-theme/components/`):
-
-`Banner` `Icon` `LinkCard` `Screenshot`
-
-<Aside type="caution">
-  Theme components use default imports from individual `.astro`
-  files. Direct `node_modules` imports, relative paths, and
-  `require()` calls are flagged as warnings.
-</Aside>
-
-## Component Quick Reference
-
-| Component | Required Props | Optional Props |
-| --- | --- | --- |
-| Screenshot | `alt` + at least one of `light` or `dark` | — |
-| Aside | `type` | `title` |
-| Code | `code`, `lang` | `title`, `frame`, `mark`, `ins`, `del` |
-| LinkCard (theme) | `title`, `href` | `description`, `icon` |
-| Card | `title` | `icon` |
-| Badge | `text` | `variant` |
-| Steps | — | — |
-| Tabs / TabItem | TabItem: `label` | — |
-| CardGrid | — | — |
-| FileTree | — | — |
-
-## MDX Pitfalls
-
-Common issues the plugin catches:
-
-| Pitfall | Problem | Fix |
-| --- | --- | --- |
-| Bare `&lt;` | MDX interprets as JSX tag | Use `&amp;lt;`, inline code, or rephrase |
-| Unescaped `\{` `\}` | MDX treats as JSX expression | Use inline code, escape with `\`, or use code block |
-| Braces in filenames | Astro cannot process the file | Never use `\{` or `\}` in `.mdx` filenames |
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/agents)

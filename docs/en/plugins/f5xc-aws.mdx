@@ -1,102 +1,103 @@
 ---
 title: AWS
-description: Deterministic AWS CLI and F5 Customer Edge administration for Secure Mesh Site v2.
+description: Inspect Amazon Web Services resources and plan F5 Distributed Cloud Customer Edge deployments.
 sidebar:
   order: 13
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **AWS** plugin preserves its generic read-only AWS CLI tools and adds deterministic F5
-Distributed Cloud Customer Edge administration for Secure Mesh Site v2.
+Inspect Amazon Web Services resources and plan F5 Distributed Cloud Customer Edge deployments.
 
-<Badge text="v2.0.0" variant="note" /> <Badge text="Development" variant="tip" />
+<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+
+Plugin identifier: `aws`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/.xcsh-plugin/plugin.json).
 
 ## Prerequisites
 
-- Install a current AWS CLI with STS, EC2 Allowed AMIs, SSM, Service Quotas, Marketplace
-  Agreement Service, ELBv2, and Transit Gateway commands, then authenticate to the intended
-  account and partition. The live read-only verification baseline is AWS CLI 1.46.0; AWS CLI v2 is
-  also supported. Full mutation UAT remains a release gate.
-- Install Platform 5.x and configure F5 Distributed Cloud authentication.
-- Confirm that the target is an authorized lab or demo environment.
-- Subscribe to the F5 Marketplace product in the AWS console. The plugin checks Agreement Service
-  but never automates initial legal acceptance.
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
 
-## Customer Edge tools
+- Amazon Web Services (AWS) CLI with the required compute, quota, and networking commands.
+- Credentials or an authenticated single sign-on (SSO) profile for the intended account and partition.
+- The Platform plugin with F5 Distributed Cloud authentication.
+- An authorized target and an accepted F5 Marketplace subscription.
 
-| Tool | Purpose |
-| --- | --- |
-| `aws_compute_discover` | Retrieve current contract/vendor sources, enumerate every region, pin SSM/AMI versions, and rank agreement, AMI, instance, ENI, AZ, quota, policy, TGW, and brownfield evidence |
-| `aws_ce_plan` | Compile schema-v1 intent into a canonical secret-free plan, ownership inventory, rollback state, exact argv arrays, and SHA-256 |
-| `aws_ce_apply` | Apply or resume only the exact persisted plan after current-source and cloud-state revalidation |
-| `aws_ce_status` | Correlate tagged EC2/ENI, NLB/TGW, checkpoint, and F5 evidence |
-| `aws_ce_diagnose` | Run passive or separately approved active redacted diagnostics |
-| `aws_cloud_init_analyze` | Validate cloud-init stages and summarize EC2 boot evidence without exposing user data |
+Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
 
-## Mandatory research gate
+## Set up
 
-Natural-language AWS Customer Edge requests first use web research, STS identity,
-`f5xc_ce_v2_capabilities`, and `aws_compute_discover`. Discovery retrieves the dedicated
-`f5xc-ce-automation/v1` contract and current F5/AWS sources, records their normalized SHA-256,
-enumerates all enabled and opted-out regions, resolves
-`/aws/service/marketplace/prod-wrwzhcymymama/latest` regionally, and validates the returned AMI.
-Planning and apply fail closed for unavailable or changed sources, account/partition substitution,
-SSM/AMI drift, agreement or quota changes, policy restrictions, route/target/TGW/tag drift, or
-changed platform capabilities.
-
-<Aside type="caution">
-  TGW Connect is disabled unless current F5 SMSv2 documentation and the authenticated tenant both
-  advertise the supported GRE/BGP schema. Missing evidence blocks release; it never enables a
-  legacy AWS TGW Site fallback.
-</Aside>
-
-## Topology and networking
-
-- One-node and three-node topologies support one through eight ordered, symmetric ENIs.
-- Default discovery checks the F5-recommended minimum `m5.2xlarge` and equivalent current
-  generations for one through four ENIs, plus their `4xlarge` variants for five through eight
-  ENIs. The exact regional ENI limits and AZ offerings remain live eligibility gates.
-- `direct-eni` uses explicit VPC routes to the one-node SLI ENI.
-- `nlb-ingress` uses three Availability Zones, IP targets, health checks, and explicit cross-zone
-  behavior. The NLB is not a routed VPC/TGW next hop.
-- `tgw-static` uses appliance-mode attachment, explicit TGW route tables, associations,
-  propagations, routes, and CE ENI routes.
-- Capability-gated `tgw-connect` uses an appliance transport attachment, one GRE Connect peer per
-  node, six AWS-managed BGP sessions, deterministic inside addressing, and three-zone symmetry.
-
-<Aside type="caution">
-  The current F5 AWS guide recommends NLB ingress for network-based HA composed of multiple
-  single-node CEs and sends traffic to secondary CE IP addresses. It does not document NLB ingress
-  for the default three-node CE cluster, nor does it document Transit Gateway integration. Treat
-  the generated three-node NLB and TGW profiles as release/UAT gated: the authenticated tenant
-  capability and the approved site design must confirm the exact topology before apply.
-</Aside>
-
-Plans list all billable resources before approval. Every created resource receives the exact
-`xcsh-managed-by=aws-ce`, deployment, plan, and F5 site tags. Routed appliances have EC2
-source/destination checks disabled.
-
-## Bootstrap and headless controls
-
-Platform returns a session-bound one-use `f5xc-ce://` reference. Apply consumes it into a 0600
-cloud-init file under a session-owned 0700 directory, passes only the file path to AWS CLI, and
-deletes it immediately. Plans, command strings, artifacts, diagnostics, and output never contain
-the token or user data.
-
-Headless mutation requires `XCSH_CE_HEADLESS_MUTATIONS=1` and the exact plan hash. Destruction also
-requires `XCSH_CE_ALLOW_DESTROY=1`. Initial Marketplace acceptance remains console-only.
-
-## Lifecycle and verification
-
-Supported operations are deploy, reconcile, start, stop, resize, update-network, replace-node,
-repair, and teardown. Three-node work advances one node at a time through EC2, registration, F5
-health, BGP, NLB/TGW route, and traffic gates. Single-node disruption requires a maintenance
-window. Teardown restores approved brownfield routing before deleting only exactly owned resources.
-
-Maintainers can run a synthesized prompt trace without cloud mutation:
+Install from your shell after registering the marketplace:
 
 ```bash
-cd plugins/aws
-bun run eval:ce-prompt greenfield-single-node-direct-eni
+xcsh plugin install aws@f5-sales-demo-marketplace
 ```
+
+Check readiness. If setup is required, run the human setup flow in an
+interactive terminal:
+
+```bash
+xcsh plugin status aws
+xcsh plugin setup aws
+```
+
+## Use the plugin
+
+| Task | Native tool |
+| --- | --- |
+| Inspect identity, storage, or instances | `aws_sts_whoami`, `aws_s3_ls`, `aws_ec2_describe_instances` |
+| Discover eligible regions, images, and compute | `aws_compute_discover` |
+| Create an immutable plan, then apply or resume it | `aws_ce_plan`, `aws_ce_apply` |
+| Inspect state, diagnose paths, or analyze boot | `aws_ce_status`, `aws_ce_diagnose`, `aws_cloud_init_analyze` |
+| Inspect command usage or run an explicit command | `aws_help`, `aws_exec` |
+
+Customer Edge (CE) requests first verify identity, current F5/AWS sources,
+the shared automation contract, and `f5xc_ce_v2_capabilities`. Discovery enumerates
+regions, resolves exact images, and checks agreements, quotas, zones, interfaces,
+policy, and existing network state. Apply revalidates the saved plan and source
+digests; account or cloud-state drift requires a fresh plan.
+
+| Network profile | Routing model |
+| --- | --- |
+| `direct-eni` | Explicit routes to the single-node inside interface |
+| `nlb-ingress` | Network Load Balancer (NLB) ingress with explicit target and health checks |
+| `tgw-static` | Transit Gateway (TGW) attachments and explicit route tables |
+| `tgw-connect` | Capability-gated Generic Routing Encapsulation (GRE) and Border Gateway Protocol (BGP) peers |
+
+The NLB isn't a routed next hop. Three-node NLB and TGW profiles require design
+and live acceptance evidence. Enable TGW Connect only when current F5 guidance
+and the authenticated tenant advertise the exact supported schema.
+
+Plans list billable resources, ownership tags, rollback state, and the plan hash.
+Lifecycle operations include deploy, reconcile, start, stop, resize,
+update-network, replace-node, repair, and teardown. Three-node changes advance
+one node at a time through compute, registration, health, and routing gates.
+Single-node disruption requires a maintenance window.
+
+Headless mutation requires `XCSH_CE_HEADLESS_MUTATIONS=1` and the exact plan
+hash; destruction also requires `XCSH_CE_ALLOW_DESTROY=1`. Initial Marketplace
+legal acceptance stays in the AWS console. Bootstrap uses a one-use Platform
+reference and a temporary restricted file; tokens never enter plans or reports.
+See the [shared CE contract validation](https://github.com/f5-sales-demo/marketplace/blob/main/plugins/platform/src/ce/release-contract.ts)
+for the current contract and lifecycle gates.
+
+## Verify
+
+Use `aws_ce_status`, `f5xc_ce_v2_status`, and passive `aws_ce_diagnose`.
+Check instance and interface ownership, registration, health, target/peer state,
+routes, and traffic. Automated checks alone don't establish live topology support.
+
+## Clean up
+
+Approve a teardown plan that restores brownfield routing before deleting
+exactly owned resources. Confirm AWS and F5 absence, then inspect for remaining
+billable resources.
+
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/skills)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/agents)

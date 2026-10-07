@@ -1,55 +1,63 @@
 ---
-title: f5xc-docs-pipeline
-description: Documentation pipeline architecture knowledge for multi-repo builds, content authoring, and local preview.
+title: Documentation pipeline
+description: Find the repository that owns a documentation change, then author and preview the content.
 sidebar:
-  order: 8
+  order: 3
 ---
 
-import { Aside, Badge } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-docs-pipeline** plugin provides documentation pipeline
-architecture knowledge for f5-sales-demo repositories. It guides
-content authoring, clarifies config ownership across multi-repo
-builds, and provides local Docker-based preview.
+Find the repository that owns a documentation change, then author and preview the content.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
 
-## Installation
+Plugin identifier: `docs-pipeline`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-docs-pipeline@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- A documentation repository in the F5 sales-demo fleet.
+- Docker for the local preview workflow.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install docs-pipeline@f5-sales-demo-marketplace
 ```
 
-## Skills
+This content plugin has no integration setup or authentication step. Start a
+fresh xcsh session to load its skills and commands.
 
-### content-author
+## Use the plugin
 
-Content authoring guide covering file structure, MDX syntax rules,
-frontmatter requirements, image references, and local Docker
-preview. Activates when creating or editing `docs/` content,
-working with MDX files, or setting up local preview.
+Use `pipeline-navigator` to locate configuration ownership across
+`docs-control`, `docs-theme`, `docs-builder`, and `docs-icons`. It also explains
+the release dispatch chain and managed-file reconciliation.
 
-### pipeline-navigator
+Use `content-author` for page structure and MDX conventions. Run
+`/docs-pipeline:preview-docs` for a local container preview, or
+`/docs-pipeline:docs-pipeline-status` to inspect pipeline readiness.
 
-Documentation pipeline architecture explaining where to make
-changes across the four upstream repositories: docs-theme,
-docs-builder, docs-control, and docs-icons. Clarifies config
-ownership (`astro.config.mjs`, `content.config.ts`), the release
-dispatch chain, and managed file tracking.
+## Verify
 
-<Aside type="tip">
-  Use pipeline-navigator when you need to understand which
-  repository owns a specific configuration file or component.
-</Aside>
+Build the changed content and open its rendered pages. For publication,
+confirm that the deployment used the intended content commit.
 
-## Commands
+## Clean up
 
-### /preview-docs
+Stop the preview container you started. Preserve authored files and review
+evidence; remove only disposable preview output.
 
-```text
-/f5xc-docs-pipeline:preview-docs
-```
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-Starts a local Docker dev server to preview documentation. Runs
-the shared Docker build image with your local `docs/` directory
-mounted for live preview.
+## Related resources
+
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline/agents)

@@ -1,59 +1,63 @@
 ---
-title: f5xc-brand
-description: F5 corporate brand identity enforcement — colors, typography, logos, icons, and WCAG AA accessibility.
+title: F5 brand
+description: Review colors, typography, logos, icons, terminology, and accessibility against F5 brand guidance.
 sidebar:
-  order: 9
+  order: 4
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
-The **f5xc-brand** plugin enforces F5 corporate brand identity
-across all content types. It covers the 45-color F5 palette,
-typography rules (Neusa Next Pro Wide headlines, Proxima Nova
-body), SVG-only logo usage, icon pack selection, WCAG AA
-accessibility, and product terminology.
+Review colors, typography, logos, icons, terminology, and accessibility against F5 brand guidance.
 
-<Badge text="v1.0.2" variant="note" /> <Badge text="Productivity" variant="tip" />
+<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
 
-## Installation
+Plugin identifier: `brand`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/.xcsh-plugin/plugin.json).
 
-```text
-/plugin install f5xc-brand@f5-sales-demo-marketplace
+## Prerequisites
+
+Follow [Get started](/marketplace/en/getting-started/) for shared installation
+requirements. Allow about 5 minutes for an initial check after setup.
+
+- Content or visual assets to review.
+- The applicable F5 brand references.
+
+## Set up
+
+Install from your shell after registering the marketplace:
+
+```bash
+xcsh plugin install brand@f5-sales-demo-marketplace
 ```
 
-## Skills
+This content plugin has no integration setup or authentication step. Start a
+fresh xcsh session to load its skills and commands.
 
-### brand-guardian
+## Use the plugin
 
-Proactive brand identity enforcement for all content creation.
-Activates automatically when creating documentation, diagrams,
-presentations, video thumbnails, social media graphics, Mermaid
-charts, or Excalidraw drawings. Ensures correct use of F5 colors,
-typography, logos, icons, tone of voice, and accessibility.
+Run `/brand:review-brand` with a path or file pattern. The `reviewer` skill
+reports inconsistencies; `guardian` provides brand standards, and
+`visual-content` guides the creation of visual assets.
 
-### brand-reviewer
+Use `brand-operator` for a scoped review that needs reference lookups. Check
+accessibility as part of the content review, including contrast, readable text,
+and meaningful image descriptions.
 
-Reviews existing content for F5 brand compliance. Audits colors,
-typography, logo format, icon selection, alt text, contrast ratios,
-and product terminology. Produces structured reports with
-VIOLATIONS, WARNINGS, and SUGGESTIONS.
+## Verify
 
-### visual-content
+Reopen the changed artifact at its intended size. Confirm the approved logo,
+colors, typography, and readable contrast.
 
-Format-specific rules for branded visual content. Provides
-guidance for Mermaid diagrams, Excalidraw drawings, screenshots,
-PowerPoint presentations, YouTube thumbnails, video scripts, and
-social media graphics with icon pack selection, slide layouts,
-font fallbacks, and platform-specific dimensions.
+## Clean up
 
-## Commands
+Remove disposable previews and unused asset variants. Retain approved source
+assets in their intended repository.
 
-### /review-brand
+For plugin removal, follow
+[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
 
-```text
-/f5xc-brand:review-brand [path-or-glob]
-```
+## Related resources
 
-Reviews content for F5 brand compliance. Accepts an optional path
-or glob pattern to scope the review. Without arguments, reviews
-all content in the current directory.
+- [Plugin catalog](/marketplace/en/plugins/)
+- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/skills)
+- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/commands)
+- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand/agents)
