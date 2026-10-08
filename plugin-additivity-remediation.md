@@ -3,7 +3,7 @@
 **Status: in progress.** Source changes are validated; released installed acceptance remains open.
 
 Host fixes merged in [xcsh #4827](https://github.com/f5-sales-demo/xcsh/pull/4827). Release [23.0.3 /
-#4828](https://github.com/f5-sales-demo/xcsh/pull/4828) is pending. Combined plugin changes are in
+#4828](https://github.com/f5-sales-demo/xcsh/pull/4828) has merged; tag exists and native artifacts are pending. Combined plugin changes are in
 [marketplace #1514](https://github.com/f5-sales-demo/marketplace/pull/1514); publication waits for the
 verified host release. Acceptance is tracked in [#1513](https://github.com/f5-sales-
 demo/marketplace/issues/1513).
@@ -49,3 +49,5 @@ Original audit files remain unchanged. Released artifacts, installed receipts, r
 control and final closure are outstanding. Raw traces and authenticated payloads are excluded.
 
 Companion: [plugin-additivity-remediation.json](plugin-additivity-remediation.json).
+
+Combined source probe: 102 cases across 17 runtime extensions preserved host prompt, inventory, and selected tool with no hard blocks. Explicit nested delegation passed through the permitted Firecrawl operator child.
