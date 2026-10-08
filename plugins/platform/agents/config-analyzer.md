@@ -1,5 +1,5 @@
 ---
-name: config-analyzer
+name: platform:config-analyzer
 description: >-
   Read-only configuration analysis agent for F5 XC platform
   resources. Analyzes customer JSON configurations against

@@ -1,5 +1,5 @@
 ---
-name: firecrawl-operator
+name: firecrawl:firecrawl-operator
 description: >-
   Autonomous web scraping agent for the local self-hosted firecrawl
   instance. Executes curl + jq sequences against http://localhost:3002

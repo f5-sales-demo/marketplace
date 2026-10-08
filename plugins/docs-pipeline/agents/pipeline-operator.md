@@ -1,5 +1,5 @@
 ---
-name: pipeline-operator
+name: docs-pipeline:pipeline-operator
 description: Read-only agent for inspecting documentation pipeline configuration and running preview builds
 tools:
   - read

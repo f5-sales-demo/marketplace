@@ -1,5 +1,5 @@
 ---
-name: osint-investigator
+name: osint-framework:osint-investigator
 description: >-
   OSINT investigation orchestrator. Executes multi-tool intelligence
   workflows by reading category reference files and running available

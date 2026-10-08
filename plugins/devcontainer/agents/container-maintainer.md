@@ -1,5 +1,5 @@
 ---
-name: container-maintainer
+name: devcontainer:container-maintainer
 description: >-
   Installs, removes, searches, and updates CLI tools in the running
   container using correct package manager patterns, then files GitHub

@@ -1,5 +1,5 @@
 ---
-name: container-introspector
+name: devcontainer:container-introspector
 description: >-
   Performs live container introspection via GitHub API and local
   metadata — identity, genealogy, self-diagnosis, contributor history,

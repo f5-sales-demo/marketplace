@@ -1,5 +1,5 @@
 ---
-name: cli-operator
+name: gcloud:cli-operator
 description: >-
   Autonomous Google Cloud CLI agent for project management and
   infrastructure queries. Executes gcloud CLI commands with safety

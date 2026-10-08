@@ -34,7 +34,9 @@ for (const plugin of await readdir(pluginRoot)) {
     const content = await readFile(source, 'utf8');
     const { frontmatter } = parseFrontmatter(content);
     const parsed = parseAgent(source, content, 'project');
-    const name = `${plugin}:${parsed.name}`;
+    const name = parsed.name;
+    if (plugin !== 'cloudstatus' && name !== `${plugin}:${file.slice(0, -3)}`)
+      errors.push(`${name}: plugin-qualified identity required`);
     if ('disallowedTools' in frontmatter) errors.push(`${name}: ignored disallowedTools`);
     if (!Array.isArray(frontmatter.tools) || frontmatter.tools.length === 0)
       errors.push(`${name}: explicit tools required`);

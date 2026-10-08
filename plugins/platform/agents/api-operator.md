@@ -1,5 +1,5 @@
 ---
-name: api-operator
+name: platform:api-operator
 description: >-
   Autonomous REST API agent for F5 XC platform management.
   Executes cURL + jq sequences for resource CRUD, token

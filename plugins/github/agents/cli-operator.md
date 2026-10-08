@@ -1,5 +1,5 @@
 ---
-name: cli-operator
+name: github:cli-operator
 description: >-
   Autonomous GitHub CLI agent for repository management, PR operations,
   and CI/CD monitoring. Executes gh CLI commands with professional mastery.

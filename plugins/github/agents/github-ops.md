@@ -1,5 +1,5 @@
 ---
-name: github-ops
+name: github:github-ops
 description: >-
   GitHub lifecycle operator for independently preparing, publishing, monitoring,
   repairing, and cleaning repository work.

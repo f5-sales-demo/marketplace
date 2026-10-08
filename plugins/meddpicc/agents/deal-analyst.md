@@ -1,5 +1,5 @@
 ---
-name: deal-analyst
+name: meddpicc:deal-analyst
 description: Read-only research agent that analyzes deal health, identifies MEDDPICC gaps, and produces structured assessment reports
 tools:
   - read

@@ -1,5 +1,5 @@
 ---
-name: tool-advisor
+name: devcontainer:tool-advisor
 description: Reads the devcontainer tool catalog and returns tool recommendations with purpose, quick-start commands, and authentication requirements for any CLI tool question
 tools:
   - read

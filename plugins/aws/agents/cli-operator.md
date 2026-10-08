@@ -1,5 +1,5 @@
 ---
-name: cli-operator
+name: aws:cli-operator
 description: >-
   Autonomous AWS CLI agent for cloud infrastructure query and management.
   Executes aws CLI commands securely with read-first safety controls.

@@ -1,5 +1,5 @@
 ---
-name: cli-operator
+name: gitlab:cli-operator
 description: >-
   Autonomous GitLab CLI agent for project management, MR operations,
   and pipeline monitoring. Executes glab CLI commands with safety

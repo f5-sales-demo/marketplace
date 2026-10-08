@@ -1,5 +1,5 @@
 ---
-name: console-operator
+name: platform:console-operator
 description: >-
   Autonomous browser automation agent for F5 XC console
   operations. Executes MCP tool sequences for authentication,

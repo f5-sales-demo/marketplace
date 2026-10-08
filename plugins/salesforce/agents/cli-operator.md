@@ -1,5 +1,5 @@
 ---
-name: cli-operator
+name: salesforce:cli-operator
 description: >-
   Autonomous Salesforce CLI agent for org management, metadata operations,
   and deployment. Executes sf CLI commands with safety guardrails.

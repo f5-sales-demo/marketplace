@@ -1,5 +1,5 @@
 ---
-name: osint-executor
+name: osint-framework:osint-executor
 description: >-
   CLI tool execution agent for OSINT operations. Runs installed
   reconnaissance CLI tools against specified targets and returns

@@ -1,5 +1,5 @@
 ---
-name: tool-auditor
+name: devcontainer:tool-auditor
 description: >-
   Audits the devcontainer Dockerfile against the tool catalog reference
   files to detect drift — tools added but not cataloged, or catalog

@@ -1,5 +1,5 @@
 ---
-name: cli-operator
+name: azure:cli-operator
 description: >-
   Autonomous Azure CLI agent for cloud infrastructure query and management.
   Executes az CLI commands securely with read-first safety controls.

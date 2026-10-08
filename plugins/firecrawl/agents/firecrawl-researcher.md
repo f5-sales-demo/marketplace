@@ -1,5 +1,5 @@
 ---
-name: firecrawl-researcher
+name: firecrawl:firecrawl-researcher
 description: >-
   Research agent that answers natural language questions by searching the
   web via firecrawl, scraping the top results, and synthesizing a

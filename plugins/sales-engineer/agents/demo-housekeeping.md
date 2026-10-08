@@ -1,5 +1,5 @@
 ---
-name: demo-housekeeping
+name: sales-engineer:demo-housekeeping
 description: >-
   Autonomous agent for demo Prepare (pre-meeting verification/cleanup)
   and Teardown (post-meeting deletion) stages.

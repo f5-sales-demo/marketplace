@@ -1,5 +1,5 @@
 ---
-name: brand-operator
+name: brand:brand-operator
 description: Read-only agent for analyzing files against F5 brand compliance guidelines
 tools:
   - read

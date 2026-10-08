@@ -1,5 +1,5 @@
 ---
-name: demo-researcher
+name: sales-engineer:demo-researcher
 description: Read-only research agent that finds verified answers with citations for demo Q&A and subject matter expert conversations
 tools:
   - read

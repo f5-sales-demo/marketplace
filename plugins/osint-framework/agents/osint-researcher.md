@@ -1,5 +1,5 @@
 ---
-name: osint-researcher
+name: osint-framework:osint-researcher
 description: >-
   Read-only OSINT research agent. Searches the tool catalog to find
   the right tools for a given task. Does not execute tools — only

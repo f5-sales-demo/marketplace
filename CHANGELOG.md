@@ -10,33 +10,33 @@ and this project adheres to
 
 ## [Unreleased]
 
-- **`osint-framework`** bumped to v1.0.10
+- **`osint-framework`** bumped to v1.0.11
 
-- **`meddpicc`** bumped to v7.6.3
+- **`meddpicc`** bumped to v7.6.4
 
-- **`docs-tools`** bumped to v1.1.8
+- **`docs-tools`** bumped to v1.1.9
 
-- **`docs-pipeline`** bumped to v1.0.8
+- **`docs-pipeline`** bumped to v1.0.9
 
-- **`brand`** bumped to v1.0.8
+- **`brand`** bumped to v1.0.9
 
-- **`salesforce`** bumped to v2.0.4
+- **`salesforce`** bumped to v2.0.5
 
-- **`platform`** bumped to v6.0.4
+- **`platform`** bumped to v6.0.5
 
 - **`kvm`** bumped to v3.0.5
 
-- **`github`** bumped to v3.1.4
+- **`github`** bumped to v3.1.5
 
-- **`firecrawl`** bumped to v1.2.3
+- **`firecrawl`** bumped to v1.2.4
 
-- **`devcontainer`** bumped to v1.2.3
+- **`devcontainer`** bumped to v1.2.4
 
 - **`cloudstatus`** bumped to v1.7.1
 
-- **`azure`** bumped to v4.4.3
+- **`azure`** bumped to v4.4.4
 
-- **`aws`** bumped to v2.1.3
+- **`aws`** bumped to v2.1.4
 
 - **`meddpicc`** v7.6.1 adds overview and command help to the CLI.
   Use `--help`, `-h`, or `help`, or request help for one command.
@@ -190,7 +190,7 @@ and this project adheres to
   defer KVM setup until Platform is authenticated instead of launching the
   controller prematurely and reporting a generic install-step failure.
 
-- **`sales-engineer`** bumped to v1.0.14
+- **`sales-engineer`** bumped to v1.0.15
 
 - **`cloudstatus`** v1.7.0 — replaces the session-wide Regional Edge blocker with
   exact-capability, request-scoped advisories that never replace requested tool results (#1372).
@@ -267,13 +267,13 @@ and this project adheres to
   for profile reads and collector registration. Legacy loader and direct-file fallbacks are removed
   ([#1336](https://github.com/f5-sales-demo/marketplace/issues/1336)).
 
-- **`gitlab`** bumped to v1.3.3
+- **`gitlab`** bumped to v1.3.4
 
 - **`github`** v2.1.1 — loads tool schemas exclusively from xcsh's host-provided TypeBox API, so
   clean marketplace-cache installs no longer depend on an absent plugin-local `node_modules` tree
   ([#1349](https://github.com/f5-sales-demo/marketplace/issues/1349)).
 
-- **`gcloud`** bumped to v1.3.3
+- **`gcloud`** bumped to v1.3.4
 
 - **`azure`** v4.3.3 — reads the provider-neutral Customer Edge automation contract from the
   renamed Multi-Cloud Networking Pages endpoint
