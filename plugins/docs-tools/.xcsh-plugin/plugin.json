@@ -29,5 +29,6 @@
     "setupRequired": false,
     "collectedData": [],
     "pluginDependencies": []
-  }
+  },
+  "minimumRuntimeVersion": "23.0.3"
 }

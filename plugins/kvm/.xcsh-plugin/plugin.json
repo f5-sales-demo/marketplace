@@ -36,5 +36,6 @@
     "setupAuthorization": "install",
     "collectedData": [],
     "pluginDependencies": ["platform"]
-  }
+  },
+  "minimumRuntimeVersion": "23.0.3"
 }

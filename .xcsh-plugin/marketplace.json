@@ -19,6 +19,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/docs-tools",
       "category": "productivity",
       "keywords": ["mdx", "documentation", "validation", "starlight", "astro"],
@@ -42,6 +43,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/sales-engineer",
       "category": "productivity",
       "keywords": ["sales-engineer", "demo", "persona", "presentation", "f5xc"],
@@ -65,6 +67,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/docs-pipeline",
       "category": "productivity",
       "keywords": ["docs", "pipeline", "astro", "starlight", "content", "authoring"],
@@ -88,6 +91,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/brand",
       "category": "productivity",
       "keywords": ["brand", "design-system", "colors", "typography", "accessibility"],
@@ -111,6 +115,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/meddpicc",
       "category": "productivity",
       "keywords": [
@@ -144,6 +149,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/devcontainer",
       "category": "productivity",
       "keywords": ["devcontainer", "tools", "catalog", "cli", "inventory", "container"],
@@ -167,6 +173,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/platform",
       "category": "productivity",
       "keywords": [
@@ -206,6 +213,7 @@
       "keywords": ["osint", "reconnaissance", "intelligence", "investigation", "security"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/osint-framework",
       "category": "security",
       "tags": ["osint", "recon", "security", "intelligence"],
@@ -227,6 +235,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/firecrawl",
       "category": "productivity",
       "keywords": ["firecrawl", "scrape", "crawl", "web-scraping", "markdown", "self-hosted", "local", "open-source"],
@@ -265,7 +274,7 @@
       ],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
-      "minimumRuntimeVersion": "22.4.6",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/salesforce",
       "category": "development",
       "tags": ["salesforce", "development", "cli", "crm", "xcsh-extension"],
@@ -286,12 +295,13 @@
     {
       "name": "cloudstatus",
       "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-      "version": "1.7.1",
+      "version": "1.7.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
       "license": "Apache-2.0",
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/cloudstatus",
       "category": "productivity",
       "keywords": [
@@ -332,6 +342,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/azure",
       "category": "development",
       "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
@@ -356,6 +367,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/aws",
       "category": "development",
       "keywords": ["aws", "amazon", "cloud", "f5xc", "customer-edge", "secure-mesh-site", "tgw", "nlb"],
@@ -380,6 +392,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/kvm",
       "category": "development",
       "keywords": ["kvm", "libvirt", "qemu", "f5xc", "customer-edge", "secure-mesh-site", "home-lan", "terraform"],
@@ -410,6 +423,7 @@
       "author": {
         "name": "f5-sales-demo"
       },
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/gcloud",
       "category": "development",
       "keywords": ["gcloud", "google", "cloud"],
@@ -435,6 +449,7 @@
       "keywords": ["gitlab", "glab", "issues", "git"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/gitlab",
       "category": "development",
       "tags": ["gitlab", "development", "cli", "xcsh-extension"],
@@ -460,6 +475,7 @@
       "keywords": ["github", "gh", "git", "pr", "issues", "ci", "workflow", "git-sops", "github-ops"],
       "license": "Apache-2.0",
       "repository": "https://github.com/f5-sales-demo/marketplace",
+      "minimumRuntimeVersion": "23.0.3",
       "source": "./plugins/github",
       "category": "development",
       "tags": ["github", "development", "cli", "workflow", "xcsh-extension"],
