@@ -5,9 +5,9 @@ description: >-
 
 # Firecrawl status
 
-Delegate to the `firecrawl:firecrawl-operator` agent to check Firecrawl service readiness.
+Optionally delegate to the `firecrawl:firecrawl-operator` agent to check Firecrawl service readiness.
 
-## Delegation
+## Optional delegation
 
 Spawn the `firecrawl:firecrawl-operator` agent with the following instructions:
 

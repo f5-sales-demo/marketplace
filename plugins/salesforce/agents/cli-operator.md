@@ -3,9 +3,7 @@ name: cli-operator
 description: >-
   Autonomous Salesforce CLI agent for org management, metadata operations,
   and deployment. Executes sf CLI commands with safety guardrails.
-  Skills MUST delegate to this agent — never run sf commands in the main
-  session. This keeps the main session context lean since sf CLI output
-  can be verbose.
+  Direct execution is the default; this agent is available for optional delegation.
 tools:
   - Read
   - Bash
@@ -51,12 +49,15 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
+
 <the exact sf command run>
 
 ### Output Summary
+
 <key findings, formatted for readability>
 
 ### Issues
+
 <any errors, warnings, or items needing attention>
 ```
 
@@ -81,9 +82,9 @@ You execute Salesforce CLI (`sf`) commands on behalf of the main session.
 
 ## Error Recovery
 
-| Error                   | Action                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `sf: command not found` | Report: sf CLI not installed, suggest `brew install sf`                         |
-| `No default org`        | Report `setup_required` and suggest `xcsh plugin setup salesforce`              |
-| `INVALID_SESSION_ID`    | Report: session expired, suggest re-authenticating                              |
-| `ECONNREFUSED`          | Report: cannot reach Salesforce, check network and org URL                      |
+| Error                   | Action                                                             |
+| ----------------------- | ------------------------------------------------------------------ |
+| `sf: command not found` | Report: sf CLI not installed, suggest `brew install sf`            |
+| `No default org`        | Report `setup_required` and suggest `xcsh plugin setup salesforce` |
+| `INVALID_SESSION_ID`    | Report: session expired, suggest re-authenticating                 |
+| `ECONNREFUSED`          | Report: cannot reach Salesforce, check network and org URL         |

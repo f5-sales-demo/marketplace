@@ -3,9 +3,7 @@ name: cli-operator
 description: >-
   Autonomous GitLab CLI agent for project management, MR operations,
   and pipeline monitoring. Executes glab CLI commands with safety
-  guardrails. Skills MUST delegate to this agent — never run glab
-  commands in the main session. This keeps the main session context
-  lean since glab CLI output can be verbose.
+  guardrails. Direct execution is the default; optionally delegate substantial tasks.
 tools:
   - Read
   - Bash
@@ -55,12 +53,15 @@ You execute GitLab CLI (`glab`) commands on behalf of the main session.
 ## Result: [SUCCESS | FAILURE | PARTIAL]
 
 ### Command Executed
+
 <the exact glab command run>
 
 ### Output Summary
+
 <key findings, formatted for readability>
 
 ### Issues
+
 <any errors, warnings, or items needing attention>
 ```
 

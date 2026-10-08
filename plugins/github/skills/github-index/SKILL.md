@@ -11,6 +11,12 @@ user-invocable: false
 
 **Canonical skill URI**: `skill://github:github-index`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # GitHub Intent Router
 
 Route the user's request to the correct skill or agent.
@@ -26,7 +32,7 @@ Keywords: "login", "authenticate", "gh auth", "GitHub login",
 - Auth status check -> delegate to `github:cli-operator` agent:
 
   ```text
-  Agent(
+  task(
     subagent_type="github:cli-operator",
     description="Check GitHub auth status",
     prompt="Run gh auth status and report the authenticated user, active account, and token scopes."
@@ -38,9 +44,10 @@ Keywords: "login", "authenticate", "gh auth", "GitHub login",
 Keywords: "repo", "repository", "pull request", "PR", "issue",
 "merge", "review", "diff", "checkout", "branch"
 
-Delegate to the cli-operator agent:
+Optionally delegate to the cli-operator agent:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="github:cli-operator",
   description="<brief description of the operation>",
@@ -50,16 +57,16 @@ Agent(
 
 Common patterns:
 
-| Topic              | Example delegation prompt                                                              |
-| ------------------ | -------------------------------------------------------------------------------------- |
-| View repo info     | `Run gh repo view --json nameWithOwner,description,url and report the details.`        |
-| List PRs           | `Run gh pr list --json number,title,state,author and format as a table.`               |
-| View a PR          | `Run gh pr view <number> --json title,body,state,reviews and summarize.`               |
-| PR diff            | `Run gh pr diff <number> and summarize the changes.`                                   |
-| Checkout PR        | `Run gh pr checkout <number> and confirm the branch switch.`                           |
-| List issues        | `Run gh issue list --json number,title,state,labels and format as a table.`            |
-| View an issue      | `Run gh issue view <number> --json title,body,state,comments and summarize.`           |
-| Search             | `Run gh search repos <query> --json fullName,description,stars and report top results.`|
+| Topic          | Example delegation prompt                                                               |
+| -------------- | --------------------------------------------------------------------------------------- |
+| View repo info | `Run gh repo view --json nameWithOwner,description,url and report the details.`         |
+| List PRs       | `Run gh pr list --json number,title,state,author and format as a table.`                |
+| View a PR      | `Run gh pr view <number> --json title,body,state,reviews and summarize.`                |
+| PR diff        | `Run gh pr diff <number> and summarize the changes.`                                    |
+| Checkout PR    | `Run gh pr checkout <number> and confirm the branch switch.`                            |
+| List issues    | `Run gh issue list --json number,title,state,labels and format as a table.`             |
+| View an issue  | `Run gh issue view <number> --json title,body,state,comments and summarize.`            |
+| Search         | `Run gh search repos <query> --json fullName,description,stars and report top results.` |
 
 ### CI/CD and Actions
 
@@ -71,7 +78,7 @@ Keywords: "actions", "workflow", "run", "CI", "CD", "build",
 - Listing workflows -> delegate to cli-operator agent:
 
   ```text
-  Agent(
+  task(
     subagent_type="github:cli-operator",
     description="List GitHub Actions workflow runs",
     prompt="Run gh run list --json databaseId,displayTitle,status,conclusion,headBranch --limit 10 and format as a table."
@@ -80,10 +87,11 @@ Keywords: "actions", "workflow", "run", "CI", "CD", "build",
 
 ### Generic gh Commands
 
-For any gh CLI command not covered above, delegate to the
+For any gh CLI command not covered above, optionally delegate to the
 cli-operator agent with the specific command:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="github:cli-operator",
   description="Execute gh CLI command",

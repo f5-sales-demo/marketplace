@@ -357,7 +357,7 @@ class LocationPromptTraceTests(unittest.TestCase):
             ),
         )
         self.assert_error(result, "expected one registry collector Bash call, found 2")
-        self.assert_error(result, "forbidden tool invoked: task")
+        self.assertFalse(any("forbidden tool" in error for error in result["errors"]))
         self.assert_error(
             result, "expected one cloudstatus location skill read, found 0"
         )

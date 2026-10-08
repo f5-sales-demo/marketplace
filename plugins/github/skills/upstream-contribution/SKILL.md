@@ -14,11 +14,17 @@ description: >-
   parent/upstream repository from a fork, or needs to check the
   status of an existing upstream contribution.
   Requires the current repository to be a GitHub fork.
-  All operations are delegated to the github:github-ops subagent.
+  Direct execution is the default; github:github-ops is optional.
 user-invocable: false
 ---
 
 **Canonical skill URI**: `skill://github:upstream-contribution`
+
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
 
 # Upstream Contribution Workflow
 
@@ -26,18 +32,18 @@ This skill manages the lifecycle of contributing code from a local
 GitHub fork to the upstream (parent) repository. It coordinates
 four phases: Research, Contribute, Track, and Resolve.
 
-ALL upstream Git and GitHub operations MUST be delegated to the
-`github-ops` agent. The main session MUST NOT directly run
-cross-repo `gh` commands.
+Execute authorized upstream work directly using native tools. The
+`github-ops` agent is available for optional delegation; target authorization
+and repository routing requirements apply in either path.
 
 ## Phases
 
-| Phase | When | What happens |
-| ----- | ---- | ------------ |
-| Research | User says "contribute upstream" | Fork detection, search upstream issues/PRs, read CONTRIBUTING.md, check CI patterns |
-| Contribute | Research passes (PROCEED) | Create upstream issue, upstream PR from fork, local tracking issue |
-| Track | User says "check upstream status" | Poll upstream PR state, update local tracking issue |
-| Resolve | Upstream PR reaches terminal state | Guided cleanup with user confirmation |
+| Phase      | When                               | What happens                                                                        |
+| ---------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
+| Research   | User says "contribute upstream"    | Fork detection, search upstream issues/PRs, read CONTRIBUTING.md, check CI patterns |
+| Contribute | Research passes (PROCEED)          | Create upstream issue, upstream PR from fork, local tracking issue                  |
+| Track      | User says "check upstream status"  | Poll upstream PR state, update local tracking issue                                 |
+| Resolve    | Upstream PR reaches terminal state | Guided cleanup with user confirmation                                               |
 
 ## Phase 1: Research
 
@@ -48,9 +54,9 @@ contribution requirements.
 Delegate with:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="github:github-ops",
-  mode="bypassPermissions",
   prompt="upstream-research: <keywords describing the contribution>
 
 Upstream: <owner/repo>
@@ -80,9 +86,9 @@ or abandon the contribution.
 After research passes, delegate the contribution:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="github:github-ops",
-  mode="bypassPermissions",
   prompt="upstream-contribute: <type>: <description>
 
 Upstream: <owner/repo>
@@ -118,9 +124,9 @@ present in the response. If any are missing, treat as a failure.
 When the user asks to check on an upstream contribution:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="github:github-ops",
-  mode="bypassPermissions",
   prompt="upstream-status:
 
 Upstream-PR: <owner/repo>#<number>
@@ -140,9 +146,9 @@ The agent will:
 When tracking reveals a terminal state (merged, closed, or stale):
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="github:github-ops",
-  mode="bypassPermissions",
   prompt="upstream-resolve:
 
 Upstream-PR: <owner/repo>#<number>
@@ -166,12 +172,12 @@ tracking issue open, suggest pinging upstream maintainers.
 
 ## Handling Agent Responses
 
-| Status | Meaning | Your Action |
-| ------ | ------- | ----------- |
-| `COMPLETE` | Upstream operation finished successfully | Phase complete, report to user |
-| `REVIEW_NEEDED` | Similar upstream work found | Present findings, let user decide |
-| `FAILED` | Operation failed | Check failure reason, report to user |
-| `BLOCKED` | Rate limit or auth issue | Resolve blocker, re-delegate |
+| Status          | Meaning                                  | Your Action                          |
+| --------------- | ---------------------------------------- | ------------------------------------ |
+| `COMPLETE`      | Upstream operation finished successfully | Phase complete, report to user       |
+| `REVIEW_NEEDED` | Similar upstream work found              | Present findings, let user decide    |
+| `FAILED`        | Operation failed                         | Check failure reason, report to user |
+| `BLOCKED`       | Rate limit or auth issue                 | Resolve blocker, re-delegate         |
 
 ## Worktree Awareness
 

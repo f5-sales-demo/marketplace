@@ -3,10 +3,7 @@ name: api-operator
 description: >-
   Autonomous REST API agent for F5 XC platform management.
   Executes cURL + jq sequences for resource CRUD, token
-  validation, and configuration operations. Skills MUST
-  delegate to this agent — never run large API sequences in
-  the main session. This keeps the main session context lean
-  since API JSON payloads can be verbose.
+  validation, and configuration operations. Direct execution is the default; this agent is available for optional delegation.
 disallowedTools: Write, Edit, Agent
 ---
 
@@ -52,13 +49,13 @@ Read all referenced files before executing any API calls.
 
 ## Environment Variables
 
-| Variable | Purpose | Required |
-| -------- | ------- | -------- |
-| `XCSH_API_URL` | Tenant base URL (e.g., `https://<tenant>.console.ves.volterra.io`) | Yes |
-| `XCSH_API_TOKEN` | API token for Authorization header | Yes (unless P12) |
-| `XCSH_P12_FILE` | Path to P12 certificate file | No (alternative auth) |
-| `XCSH_P12_PASSWORD` | P12 certificate password | No (with P12_FILE) |
-| `XCSH_NAMESPACE` | Default namespace for scoped operations | No |
+| Variable            | Purpose                                                            | Required              |
+| ------------------- | ------------------------------------------------------------------ | --------------------- |
+| `XCSH_API_URL`      | Tenant base URL (e.g., `https://<tenant>.console.ves.volterra.io`) | Yes                   |
+| `XCSH_API_TOKEN`    | API token for Authorization header                                 | Yes (unless P12)      |
+| `XCSH_P12_FILE`     | Path to P12 certificate file                                       | No (alternative auth) |
+| `XCSH_P12_PASSWORD` | P12 certificate password                                           | No (with P12_FILE)    |
+| `XCSH_NAMESPACE`    | Default namespace for scoped operations                            | No                    |
 
 ## Standard API Call Pattern
 
@@ -110,7 +107,7 @@ curl -s -X METHOD \
 
 5. **Verify HTTP status codes** — always check the HTTP
    status code with `-w '\n%{http_code}'` or `-o /dev/null
-   -w '%{http_code}'` before processing the response body.
+-w '%{http_code}'` before processing the response body.
 
 6. **Include -s flag** — always use cURL's silent mode to
    suppress progress output.
@@ -139,15 +136,15 @@ failed (e.g., batch operations).
 
 ## Error Recovery
 
-| HTTP Code | Meaning | Recovery |
-| --------- | ------- | -------- |
-| 401 | Token expired or invalid | Report — user must regenerate token |
-| 403 | Insufficient permissions | Report the required scope/role |
-| 404 | Resource not found | Verify resource name/namespace, report |
-| 409 | Conflict (already exists) | Report existing resource details |
-| 429 | Rate limited | Wait and retry once after 5 seconds |
-| 500+ | Server error | Report full error response |
-| Network timeout | Connection issue | Check XCSH_API_URL, report |
+| HTTP Code       | Meaning                   | Recovery                               |
+| --------------- | ------------------------- | -------------------------------------- |
+| 401             | Token expired or invalid  | Report — user must regenerate token    |
+| 403             | Insufficient permissions  | Report the required scope/role         |
+| 404             | Resource not found        | Verify resource name/namespace, report |
+| 409             | Conflict (already exists) | Report existing resource details       |
+| 429             | Rate limited              | Wait and retry once after 5 seconds    |
+| 500+            | Server error              | Report full error response             |
+| Network timeout | Connection issue          | Check XCSH_API_URL, report             |
 
 ## Spec-Aware Workflow
 
@@ -177,7 +174,7 @@ this read-then-execute pattern:
    c. If it needs creation, construct the payload from the profile
    d. Execute, capture the resource name for downstream steps
    e. Reference created resources by name in subsequent payloads:
-      `{"name": "resource-name", "namespace": "shared"}`
+   `{"name": "resource-name", "namespace": "shared"}`
 3. After all steps, run any verification checks from the workflow
 
 ### Dependency Resolution
@@ -211,8 +208,8 @@ this read-then-execute pattern:
 If no reference files are specified in your task prompt, use these
 common paths:
 
-| Resource | Method | Path |
-| -------- | ------ | ---- |
-| List namespaces | GET | `/api/web/namespaces` |
-| Get namespace | GET | `/api/web/namespaces/{ns}` |
-| Validate token | GET | `/api/web/namespaces` |
+| Resource        | Method | Path                       |
+| --------------- | ------ | -------------------------- |
+| List namespaces | GET    | `/api/web/namespaces`      |
+| Get namespace   | GET    | `/api/web/namespaces/{ns}` |
+| Validate token  | GET    | `/api/web/namespaces`      |

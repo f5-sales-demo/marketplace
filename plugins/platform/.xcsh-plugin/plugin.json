@@ -1,7 +1,7 @@
 {
   "name": "platform",
   "description": "Provider-neutral F5 Distributed Cloud Secure Mesh Site v2 capabilities, configuration, bootstrap, and status tools",
-  "version": "6.0.1",
+  "version": "6.0.2",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/platform",
   "license": "Apache-2.0",
   "author": {
@@ -32,14 +32,24 @@
         "crud",
         "spec-aware"
       ],
-      "tags": ["console", "browser", "automation", "f5xc", "api", "platform", "openapi"],
+      "tags": [
+        "console",
+        "browser",
+        "automation",
+        "f5xc",
+        "api",
+        "platform",
+        "openapi"
+      ],
       "repository": "https://github.com/f5-sales-demo/marketplace"
     }
   },
   "lifecycle": {
     "mode": "integrated",
     "integrations": ["platform"],
-    "requirements": ["F5 Distributed Cloud API URL and token environment variables"],
+    "requirements": [
+      "F5 Distributed Cloud API URL and token environment variables"
+    ],
     "setupRequired": true,
     "collectedData": [],
     "pluginDependencies": []

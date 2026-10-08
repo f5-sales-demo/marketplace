@@ -1,11 +1,11 @@
 {
   "name": "devcontainer",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance",
   "license": "Apache-2.0",
   "xcsh": {
     "name": "Development Container",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "extensions": [
       "extensions/integration.ts"
     ]

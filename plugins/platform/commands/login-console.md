@@ -6,14 +6,14 @@ argument-hint: "[tenant-url]"
 # Console login
 
 Delegate authentication to the `console-operator` subagent.
-Do NOT run browser MCP tools in the main session — browser
-snapshots are token-heavy and must stay in the subagent.
+Execute directly with the available host tools. Delegation is optional.
 
-## Delegation
+## Optional delegation
 
 Spawn the `platform:console-operator` agent with:
 
 ```text
+Optional delegation prompt:
 Agent(
   subagent_type="platform:console-operator",
   description="Authenticate to F5 XC console",

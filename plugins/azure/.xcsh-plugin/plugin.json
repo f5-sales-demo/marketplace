@@ -1,7 +1,7 @@
 {
   "name": "azure",
   "description": "Azure CLI integration and deterministic F5 Customer Edge discovery, planning, lifecycle, and diagnostics",
-  "version": "4.4.0",
+  "version": "4.4.1",
   "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",
   "license": "Apache-2.0",
   "author": {
@@ -15,7 +15,14 @@
       },
       "source": "./plugins/azure",
       "category": "development",
-      "keywords": ["azure", "az", "cloud", "f5xc", "customer-edge", "secure-mesh-site"],
+      "keywords": [
+        "azure",
+        "az",
+        "cloud",
+        "f5xc",
+        "customer-edge",
+        "secure-mesh-site"
+      ],
       "tags": ["azure", "cloud", "f5xc", "customer-edge", "xcsh-extension"],
       "license": "Apache-2.0",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/azure",

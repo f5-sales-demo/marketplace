@@ -5,9 +5,9 @@ description: >-
 
 # Development container status
 
-Delegate to the `devcontainer:container-introspector` agent to check devcontainer status.
+Optionally delegate to the `devcontainer:container-introspector` agent to check devcontainer status.
 
-## Delegation
+## Optional delegation
 
 Spawn the `devcontainer:container-introspector` agent with the following instructions:
 

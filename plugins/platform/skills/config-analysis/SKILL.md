@@ -13,13 +13,18 @@ user-invocable: false
 
 **Canonical skill URI**: `skill://platform:config-analysis`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # Config Analysis — Configuration Q&A
 
 Analyzes customer JSON configurations against the api-operations
 resource profiles to answer questions about security posture,
-feature enablement, and best practices. Delegates analysis to
-the `config-analyzer` agent to keep large JSON configs out of
-the main session.
+feature enablement, and best practices. Analyze directly using reference
+files; optionally delegate large configurations to config-analyzer.
 
 ## When This Skill Applies
 
@@ -34,13 +39,13 @@ Route here when the user:
 - Asks to analyze, review, audit, or explain a configuration
 - Asks follow-up questions about a previously analyzed config
 
-## Critical: Subagent Delegation
+## Direct execution and optional delegation
 
-**Never analyze large JSON configs in the main session.** Customer
-configurations can be hundreds of lines. All analysis must be
-delegated to the `config-analyzer` agent:
+Execute the requested task directly with available tools. For large payloads,
+optional delegation is available:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="platform:config-analyzer",
   description="Analyze {resource_type} configuration",
@@ -56,16 +61,16 @@ returns a structured analysis report.
 Identify the resource type from the JSON config before dispatching
 to the agent. Use these structural indicators:
 
-| JSON Indicators | Resource Type | Domain | Profile Path |
-| --------------- | ------------- | ------ | ------------ |
-| `spec.detection_settings` | app_firewall | virtual | `resources/virtual/app_firewall.md` |
-| `spec.domains` + `spec.advertise_*` | http_loadbalancer | virtual | `resources/virtual/http_loadbalancer.md` |
-| `spec.listen_port` + `spec.dns_volterra_managed` | tcp_loadbalancer | virtual | `resources/virtual/tcp_loadbalancer.md` |
-| `spec.origin_servers` | origin_pool | virtual | `resources/virtual/origin_pool.md` |
-| `spec.dns_type` or `spec.primary` | dns_zone | DNS | `resources/dns/dns_zone.md` |
-| `spec.rule_list` or `spec.legacy_rule_list` | service_policy | virtual | `resources/virtual/service_policy.md` |
-| `spec.http_health_check` | healthcheck | virtual | `resources/virtual/healthcheck.md` |
-| `spec.certificate_url` | certificate | certificates | `resources/certificates/certificate.md` |
+| JSON Indicators                                  | Resource Type     | Domain       | Profile Path                             |
+| ------------------------------------------------ | ----------------- | ------------ | ---------------------------------------- |
+| `spec.detection_settings`                        | app_firewall      | virtual      | `resources/virtual/app_firewall.md`      |
+| `spec.domains` + `spec.advertise_*`              | http_loadbalancer | virtual      | `resources/virtual/http_loadbalancer.md` |
+| `spec.listen_port` + `spec.dns_volterra_managed` | tcp_loadbalancer  | virtual      | `resources/virtual/tcp_loadbalancer.md`  |
+| `spec.origin_servers`                            | origin_pool       | virtual      | `resources/virtual/origin_pool.md`       |
+| `spec.dns_type` or `spec.primary`                | dns_zone          | DNS          | `resources/dns/dns_zone.md`              |
+| `spec.rule_list` or `spec.legacy_rule_list`      | service_policy    | virtual      | `resources/virtual/service_policy.md`    |
+| `spec.http_health_check`                         | healthcheck       | virtual      | `resources/virtual/healthcheck.md`       |
+| `spec.certificate_url`                           | certificate       | certificates | `resources/certificates/certificate.md`  |
 
 All profile paths are relative to:
 `skills/api-operations/references/`
@@ -74,11 +79,12 @@ If the resource type is ambiguous, include multiple candidate
 profile paths in the agent prompt — the agent will determine the
 correct one.
 
-## Dispatch Patterns
+## Optional delegation prompts
 
 ### First Question (new config)
 
 ````text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="platform:config-analyzer",
   description="Analyze {resource_type} configuration",
@@ -105,6 +111,7 @@ For follow-up questions about a previously analyzed configuration,
 re-dispatch with accumulated context:
 
 ````text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="platform:config-analyzer",
   description="Follow-up analysis on {resource_type}",
@@ -132,7 +139,8 @@ When a config references other resource types (e.g., an HTTP LB
 config that includes `enable_waf` referencing an app_firewall),
 include both resource profiles:
 
-````text
+```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="platform:config-analyzer",
   description="Analyze {primary_type} with {related_type} context",
@@ -144,49 +152,24 @@ Agent(
   ...
   "
 )
-````
+```
 
-## Multi-Turn Q&A Protocol
+## Follow-up questions
 
-The `config-analyzer` agent is ephemeral — it has no memory
-between dispatches. The main session must maintain conversational
-state:
-
-1. **First question**: Dispatch agent with JSON config + question.
-   Store the agent's Findings and Security Posture sections.
-2. **Follow-up**: Re-dispatch with same JSON config + compressed
-   previous findings + new question.
-3. **Context compression**: Extract only the key findings from
-   the previous analysis — do not accumulate full agent outputs.
-   Include them as bullet points under "Previous findings" in
-   the new dispatch prompt.
-
-This keeps follow-up dispatches focused while preserving
-conversational continuity.
-
-## Antipatterns — Do NOT Use
-
-- **SendMessage to a completed agent**: The config-analyzer
-  agent is ephemeral. Once it returns, it is gone. Do not
-  attempt SendMessage or team-based continuation. Always
-  spawn a fresh Agent invocation with accumulated context.
-- **Team-based coordination**: Do not create a team or use
-  persistent agent patterns for config analysis. The
-  dispatch-and-forget model is intentional — it prevents
-  context accumulation in long-lived agents.
-- **Raw JSON accumulation**: Do not pass full prior agent
-  outputs into follow-up prompts. Compress findings to
-  bullet points to keep dispatch token cost low.
+Keep the relevant configuration and verified findings available for follow-ups.
+Analyze the next question directly. If optional delegation is useful, supply
+only the necessary configuration, reference paths, previous findings, and the
+new question. Review the returned evidence before responding.
 
 ## Common Question Patterns
 
-| Question Pattern | Key Analysis |
-| ---------------- | ------------ |
-| "Is WAF enabled?" | Check `spec.monitoring` vs `spec.blocking` for app_firewall; check `spec.enable_waf` vs `spec.disable_waf` for http_loadbalancer |
-| "Is it in blocking mode?" | Check app_firewall top-level mode: `spec.monitoring: {}` = detect-only, `spec.blocking: {}` = active blocking |
-| "What violations are disabled?" | Check `spec.detection_settings.violation_settings.disabled_violation_types` |
-| "How to add an exclusion?" | Reference detection_settings structure for signature and violation exclusions |
-| "What signatures are active?" | Check `spec.detection_settings.signature_selection_setting` accuracy level |
-| "Is bot defense enabled?" | Check the `bot_defense` mutually exclusive group on the LB or `spec.default_bot_setting` on the WAF |
-| "What's the security posture?" | Enumerate all security features across mutually exclusive groups |
-| "How to switch from monitoring to blocking?" | Explain mode change + recommend reviewing staged signatures and disabled violations first |
+| Question Pattern                             | Key Analysis                                                                                                                     |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| "Is WAF enabled?"                            | Check `spec.monitoring` vs `spec.blocking` for app_firewall; check `spec.enable_waf` vs `spec.disable_waf` for http_loadbalancer |
+| "Is it in blocking mode?"                    | Check app_firewall top-level mode: `spec.monitoring: {}` = detect-only, `spec.blocking: {}` = active blocking                    |
+| "What violations are disabled?"              | Check `spec.detection_settings.violation_settings.disabled_violation_types`                                                      |
+| "How to add an exclusion?"                   | Reference detection_settings structure for signature and violation exclusions                                                    |
+| "What signatures are active?"                | Check `spec.detection_settings.signature_selection_setting` accuracy level                                                       |
+| "Is bot defense enabled?"                    | Check the `bot_defense` mutually exclusive group on the LB or `spec.default_bot_setting` on the WAF                              |
+| "What's the security posture?"               | Enumerate all security features across mutually exclusive groups                                                                 |
+| "How to switch from monitoring to blocking?" | Explain mode change + recommend reviewing staged signatures and disabled violations first                                        |

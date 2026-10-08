@@ -10,10 +10,16 @@ description: >-
 
 # Azure Customer Edge
 
-Use only Secure Mesh Site v2. Read the
+Apply this workflow to the requested CE operation. Source inspection, public
+research, ordinary cloud reads, and unrelated follow-ups execute directly and
+do not require live identity, discovery, or Platform readiness. Cross-plane
+site and bootstrap operations require Platform capability/context; missing
+prerequisites affect only those operations.
+
+For native CE lifecycle operations, use Secure Mesh Site v2. Read the
 [Azure provider contract](references/contracts.md) before discovery or planning. The provider-neutral
 contract is fetched and validated by `azure_compute_discover`; do not copy it into prompts or infer
-it from this skill. Never substitute generic `az_exec`, Azure VNet Site, Fleet, or shared-token flows.
+it from this skill. For these CE lifecycle operations, never substitute generic `az_exec`, Azure VNet Site, Fleet, or shared-token flows.
 
 ## Existing-state inventory
 
@@ -21,8 +27,9 @@ For questions about existing CE deployments, inventory, ownership, creator evide
 the current CE footprint, call `az_account_show` and then `azure_ce_inventory`. Pass only the
 subscription UUID plus optional caller and non-secret platform-site evidence. The composite tool
 owns all Resource Graph paging, instance-view runtime checks, retained Activity Log evidence,
-correlation, deterministic classification, and artifact persistence. Do not use web search, generic
-delegation, `az_exec`, `azure_compute_discover`, `azure_ce_plan`, or mutation for this path. Treat
+correlation, deterministic classification, and artifact persistence. Use the composite
+read for current inventory attribution. Independent web research and source inspection
+remain available; this inventory operation does not authorize mutations. Treat
 caller association as evidence, never as an ownership claim, and keep infrastructure, runtime,
 platform, routing, and traffic-health states independent.
 

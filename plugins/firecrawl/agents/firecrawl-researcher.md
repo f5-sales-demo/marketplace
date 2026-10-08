@@ -39,11 +39,11 @@ synthesizing a structured report with citations.
 
 Your prompt will contain these fields:
 
-| Parameter | Required | Default | Description |
-| --------- | -------- | ------- | ----------- |
-| QUESTION | Yes | — | The natural language question to research |
-| LIMIT | No | 5 | Number of search results to fetch and scrape |
-| DOMAINS | No | none | Comma-separated domain scope for the search query |
+| Parameter | Required | Default | Description                                       |
+| --------- | -------- | ------- | ------------------------------------------------- |
+| QUESTION  | Yes      | —       | The natural language question to research         |
+| LIMIT     | No       | 5       | Number of search results to fetch and scrape      |
+| DOMAINS   | No       | none    | Comma-separated domain scope for the search query |
 
 ## Research Protocol
 
@@ -66,10 +66,11 @@ searched, not just the first.
 
 ### Step 2 — Search and scrape
 
-Delegate to the firecrawl-operator agent to search the web and scrape
+Optionally delegate to the firecrawl-operator agent to search the web and scrape
 the results in a single call:
 
 ```text
+Optional delegation prompt:
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Search+scrape: <3-word topic>",
@@ -106,13 +107,16 @@ Every response must follow this exact structure:
 ## Research Report
 
 ### Question
+
 [Restate the research question]
 
 ### Answer
+
 [1-3 paragraphs synthesizing the answer. Use inline source references
 like [1], [2] to cite specific sources from the table below.]
 
 ### Confidence
+
 [One of: Verified / Likely / Unverified]
 
 - **Verified** — answer directly supported by official documentation
@@ -120,25 +124,28 @@ like [1], [2] to cite specific sources from the table below.]
 - **Unverified** — partial information, gaps remain
 
 ### Sources
-| # | Source | URL |
-|---|--------|-----|
-| 1 | [page title] | [URL] |
-| 2 | [page title] | [URL] |
+
+| #   | Source       | URL   |
+| --- | ------------ | ----- |
+| 1   | [page title] | [URL] |
+| 2   | [page title] | [URL] |
 
 ### Key Evidence
+
 - [Specific quote or fact from source [1] that supports the answer]
 - [Specific quote or fact from source [2] that supports the answer]
 
 ### Gaps & Follow-up
+
 - [What couldn't be confirmed]
 - [Suggested next steps or additional queries]
-[Omit this section entirely if the answer is complete.]
+  [Omit this section entirely if the answer is complete.]
 ```
 
 ## Execution Rules
 
-1. **Always delegate search+scrape** to firecrawl-operator — never
-   run cURL commands yourself
+1. Execute search and scraping directly; optionally delegate large collections
+   to firecrawl-operator
 2. **Cite everything** — every factual claim must trace to a source
 3. **Acknowledge limits** — if you cannot find the answer, say so
    clearly in Gaps & Follow-up

@@ -12,6 +12,12 @@ user-invocable: false
 
 **Canonical skill URI**: `skill://gcloud:gcloud-index`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # Google Cloud Intent Router
 
 Route the user's request to the correct skill or agent.
@@ -30,10 +36,10 @@ Keywords: "login", "authenticate", "gcloud auth", "connect gcp",
 Keywords: "project", "gcloud projects", "list projects",
 "switch project", "set project", "current project"
 
-- Delegate to `gcloud:cli-operator` agent:
+- Optionally delegate to `gcloud:cli-operator` agent:
 
   ```text
-  Agent(
+  task(
     subagent_type="gcloud:cli-operator",
     description="Google Cloud project operations",
     prompt="<specific gcloud project commands to execute>"
@@ -45,10 +51,10 @@ Keywords: "project", "gcloud projects", "list projects",
 Keywords: "compute", "instance", "VM", "GKE", "kubernetes", "cluster",
 "Cloud Run", "Cloud Functions", "serverless"
 
-- Delegate to `gcloud:cli-operator` agent:
+- Optionally delegate to `gcloud:cli-operator` agent:
 
   ```text
-  Agent(
+  task(
     subagent_type="gcloud:cli-operator",
     description="<brief description of the operation>",
     prompt="<specific gcloud commands to execute and what to report>"
@@ -57,11 +63,12 @@ Keywords: "compute", "instance", "VM", "GKE", "kubernetes", "cluster",
 
 ### Generic gcloud Commands
 
-For any gcloud CLI operation not covered above, delegate to the
+For any gcloud CLI operation not covered above, optionally delegate to the
 cli-operator agent. The agent will use `gcloud <subcommand> --help`
 for discovery when needed:
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="gcloud:cli-operator",
   description="<brief description of the operation>",
@@ -72,6 +79,6 @@ Agent(
 ## Important Notes
 
 - Always check authentication status before infrastructure operations
-- The cli-operator agent handles all gcloud CLI execution
-- Never run gcloud commands directly in the main session
+- Direct tools and the optional cli-operator agent support gcloud CLI execution
+- Execute directly with typed native tools or guarded CLI operations
 - Use `gcloud <subcommand> --help` for command discovery when unsure

@@ -12,6 +12,12 @@ user-invocable: false
 
 **Canonical skill URI**: `skill://gitlab:gitlab-index`
 
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
+
 # GitLab Intent Router
 
 Route the user's request to the correct skill or agent.

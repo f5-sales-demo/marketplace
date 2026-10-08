@@ -10,9 +10,15 @@ description: >-
 
 # AWS Customer Edge
 
-Use only Secure Mesh Site v2. Read the [AWS provider contract](references/contracts.md) before
+Apply this workflow to the requested CE operation. Source inspection, public
+research, ordinary cloud reads, and unrelated follow-ups execute directly and
+do not require live identity, discovery, or Platform readiness. Cross-plane
+site and bootstrap operations require Platform capability/context; missing
+prerequisites affect only those operations.
+
+For native CE lifecycle operations, use Secure Mesh Site v2. Read the [AWS provider contract](references/contracts.md) before
 discovery or planning. `aws_compute_discover` fetches and validates the provider-neutral contract;
-do not copy that contract into prompts. Never substitute generic `aws_exec`, legacy AWS VPC/TGW
+do not copy that contract into prompts. For these CE lifecycle operations, never substitute generic `aws_exec`, legacy AWS VPC/TGW
 Site, Fleet, or shared-token flows.
 
 ## Workflow

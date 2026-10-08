@@ -1,19 +1,17 @@
 ---
 name: web-scraper
 description: >-
-  Local firecrawl web scraping, crawling, site mapping, web search,
-  structured extraction, llms.txt generation, and research synthesis.
-  Activates when the user asks to scrape a URL, crawl a website, map
-  site URLs, search the web, extract structured data from pages,
-  generate llms.txt, batch scrape multiple URLs, cancel a crawl, list
-  active crawls, convert a web page to markdown, fetch page content,
-  or research a question using web search and scrape. Uses the
-  self-hosted firecrawl instance on localhost:3002 — no API keys or
-  subscriptions required.
+  Use for explicit Firecrawl requests or a selected scraping, crawling, extraction, or mapping operation using the local Firecrawl service. Generic research uses available host research capabilities. A missing service affects only the selected Firecrawl operation.
 user-invocable: false
 ---
 
 **Canonical skill URI**: `skill://firecrawl:web-scraper`
+
+Direct execution is the default for the requested task. Use available typed
+native tools or the documented protocol directly. Delegation examples are
+optional for substantial work. Keep source inspection, independent research,
+and unrelated follow-ups available; native authorization and credential
+safeguards apply to each operation.
 
 # Web Scraper (Local Firecrawl)
 
@@ -22,32 +20,34 @@ LLM-powered extraction, and llms.txt generation via the local
 self-hosted firecrawl API. All operations run against
 `http://localhost:3002` with no authentication required.
 
-Delegate to the firecrawl-operator agent to keep API payloads out of
+Optionally delegate to the firecrawl-operator agent to keep API payloads out of
 the main session context.
 
 ## Capabilities
 
-| Operation | What it does | Endpoint | Type |
-| ----------- | ------------- | ---------- | ------ |
-| **Scrape** | Extract content from a single URL | `POST /v1/scrape` | Sync |
-| **Batch Scrape** | Scrape multiple URLs at once | `POST /v1/batch/scrape` | Async |
-| **Crawl** | Crawl multiple pages from a starting URL | `POST /v1/crawl` | Async |
-| **Crawl Cancel** | Cancel a running crawl job | `DELETE /v1/crawl/:id` | Sync |
-| **Crawl Active** | List all active crawl jobs | `GET /v1/crawl/active` | Sync |
-| **Crawl Errors** | Get error details for a crawl | `GET /v1/crawl/:id/errors` | Sync |
-| **Map** | Discover all URLs on a site | `POST /v1/map` | Sync |
-| **Search** | Web search with optional scraping | `POST /v1/search` | Sync |
-| **Extract** | LLM-powered structured data extraction | `POST /v1/extract` | Async |
-| **llms.txt** | Generate llms.txt for a site | `POST /v1/llmstxt` | Async |
-| **Research** | Search + scrape + synthesize answer | Multiple | Sync |
+| Operation        | What it does                             | Endpoint                   | Type  |
+| ---------------- | ---------------------------------------- | -------------------------- | ----- |
+| **Scrape**       | Extract content from a single URL        | `POST /v1/scrape`          | Sync  |
+| **Batch Scrape** | Scrape multiple URLs at once             | `POST /v1/batch/scrape`    | Async |
+| **Crawl**        | Crawl multiple pages from a starting URL | `POST /v1/crawl`           | Async |
+| **Crawl Cancel** | Cancel a running crawl job               | `DELETE /v1/crawl/:id`     | Sync  |
+| **Crawl Active** | List all active crawl jobs               | `GET /v1/crawl/active`     | Sync  |
+| **Crawl Errors** | Get error details for a crawl            | `GET /v1/crawl/:id/errors` | Sync  |
+| **Map**          | Discover all URLs on a site              | `POST /v1/map`             | Sync  |
+| **Search**       | Web search with optional scraping        | `POST /v1/search`          | Sync  |
+| **Extract**      | LLM-powered structured data extraction   | `POST /v1/extract`         | Async |
+| **llms.txt**     | Generate llms.txt for a site             | `POST /v1/llmstxt`         | Async |
+| **Research**     | Search + scrape + synthesize answer      | Multiple                   | Sync  |
 
-## Delegation Protocol
+## Direct execution and optional delegation
 
-When this skill activates, delegate immediately to the firecrawl-operator agent.
+Execute the selected Firecrawl operation directly using its documented API.
+For large payloads, optionally delegate to firecrawl-operator.
 
 ### For scrape requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Scrape: [URL in 3 words]",
@@ -58,6 +58,7 @@ Agent(
 ### For batch scrape requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Batch scrape: [count] URLs",
@@ -68,6 +69,7 @@ Agent(
 ### For crawl requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Crawl: [URL in 3 words]",
@@ -78,6 +80,7 @@ Agent(
 ### For crawl management requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Crawl mgmt: [action]",
@@ -88,6 +91,7 @@ Agent(
 ### For map requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Map: [URL in 3 words]",
@@ -98,6 +102,7 @@ Agent(
 ### For search requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Search: [query in 3 words]",
@@ -108,6 +113,7 @@ Agent(
 ### For extract requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="Extract: [what] from [URL]",
@@ -118,6 +124,7 @@ Agent(
 ### For llms.txt requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-operator",
   description="llms.txt: [URL in 3 words]",
@@ -128,6 +135,7 @@ Agent(
 ### For research requests
 
 ```text
+Optional delegation prompt (expand with the available task schema):
 Agent(
   subagent_type="firecrawl:firecrawl-researcher",
   description="Research: [topic in 3 words]",
@@ -135,25 +143,17 @@ Agent(
 )
 ```
 
-Wait for the agent's response and relay it directly to the user.
+Complete the requested operation and verify usable results before responding.
+If delegated, review the result and integrate it with independent work.
 
-## When to activate
+## Selection and service failures
 
-- "scrape this URL" / "scrape https://..."
-- "batch scrape" / "scrape these URLs" / "scrape multiple pages"
-- "crawl this site" / "crawl https://..."
-- "cancel the crawl" / "stop the crawl" / "list active crawls"
-- "map this site" / "find all URLs on"
-- "search for" / "search the web for" / "web search"
-- "extract data from" / "extract structured data" / "pull fields from"
-- "generate llms.txt" / "create llms.txt" / "make an llms.txt"
-- "convert this page to Markdown"
-- "fetch page content" / "get Markdown from"
-- Any request to read, extract, or search web content
-- "research this" / "find out if" / "does [product] support"
-- "is [feature] available in" / "answer this question"
-- "look up" / "investigate" / "what do we know about"
-- Any natural language question that needs web research to answer
+Use for explicit Firecrawl requests or when Firecrawl is chosen for a scraping,
+crawling, mapping, or extraction operation. Execute directly using the protocol
+details in firecrawl-operator. Optional delegation handles large payloads.
+Observe service readiness before claiming it works. If unavailable, report the
+scoped failure and continue independent research through available web_search,
+HTTP, or browser capabilities without changing credentials or deploying services.
 
 ## What this does NOT do
 

@@ -3,10 +3,7 @@ name: console-operator
 description: >-
   Autonomous browser automation agent for F5 XC console
   operations. Executes MCP tool sequences for authentication,
-  navigation, and form interactions. Skills MUST delegate to
-  this agent — never run MCP browser tools in the main session.
-  This keeps the main session context lean since browser
-  snapshots are token-heavy.
+  navigation, and form interactions. Direct execution is the default; this agent is available for optional delegation.
 disallowedTools: Write, Edit, Agent
 ---
 
@@ -56,23 +53,23 @@ logic, and error handling for each operation.
 
 These Chrome DevTools MCP tools are available in the session:
 
-| Tool | Purpose |
-| ------ | --------- |
-| `take_snapshot` | Capture page accessibility tree with UIDs |
-| `take_screenshot` | Capture visual screenshot |
-| `click` | Click an element by UID |
-| `fill` | Fill a form input by UID |
-| `fill_form` | Fill multiple form inputs at once |
-| `navigate_page` | Navigate to a URL or back/forward |
-| `wait_for` | Wait for text to appear on page |
-| `evaluate_script` | Run JavaScript in the browser |
-| `press_key` | Press keyboard keys |
-| `type_text` | Type text into focused element |
-| `hover` | Hover over an element |
-| `list_pages` | List open browser pages |
-| `select_page` | Select a browser page |
-| `list_console_messages` | Check browser console |
-| `list_network_requests` | Monitor network activity |
+| Tool                    | Purpose                                   |
+| ----------------------- | ----------------------------------------- |
+| `take_snapshot`         | Capture page accessibility tree with UIDs |
+| `take_screenshot`       | Capture visual screenshot                 |
+| `click`                 | Click an element by UID                   |
+| `fill`                  | Fill a form input by UID                  |
+| `fill_form`             | Fill multiple form inputs at once         |
+| `navigate_page`         | Navigate to a URL or back/forward         |
+| `wait_for`              | Wait for text to appear on page           |
+| `evaluate_script`       | Run JavaScript in the browser             |
+| `press_key`             | Press keyboard keys                       |
+| `type_text`             | Type text into focused element            |
+| `hover`                 | Hover over an element                     |
+| `list_pages`            | List open browser pages                   |
+| `select_page`           | Select a browser page                     |
+| `list_console_messages` | Check browser console                     |
+| `list_network_requests` | Monitor network activity                  |
 
 ## Core Rules
 
@@ -121,16 +118,20 @@ After completing a task, report:
 ## Result: [SUCCESS | FAILURE | NEEDS_USER_INPUT]
 
 ### Actions Taken
+
 - <numbered list of key actions>
 
 ### Final State
+
 - URL: <current URL>
 - Page: <detected page/section name>
 
 ### User Action Required (if any)
+
 - <e.g., DUO verification code: 403>
 
 ### Issues (if any)
+
 - <any errors, unexpected states, or warnings>
 ```
 
@@ -141,14 +142,14 @@ re-invoke you to continue.
 
 ## Timeout Guidance
 
-| Action | Timeout |
-| -------- | --------- |
-| Page navigation | 15,000 ms |
+| Action                         | Timeout   |
+| ------------------------------ | --------- |
+| Page navigation                | 15,000 ms |
 | Element appearance after click | 10,000 ms |
-| Azure SSO redirect | 15,000 ms |
-| DUO MFA approval | 60,000 ms |
-| Console SPA load | 30,000 ms |
-| Form submission response | 15,000 ms |
+| Azure SSO redirect             | 15,000 ms |
+| DUO MFA approval               | 60,000 ms |
+| Console SPA load               | 30,000 ms |
+| Form submission response       | 15,000 ms |
 
 ## Error Recovery
 
