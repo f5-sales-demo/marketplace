@@ -72,7 +72,8 @@ raw = (root / "trace.jsonl").open("w")
 
 def receive() -> None:
     """Retain private frames and queue parsed events."""
-    assert child.stdout is not None
+    if child.stdout is None:
+        raise RuntimeError("RPC output pipe unavailable")
     for line in child.stdout:
         raw.write(line)
         raw.flush()
@@ -87,7 +88,8 @@ threading.Thread(target=receive, daemon=True).start()
 
 def send(frame: dict[str, Any]) -> None:
     """Send one structured RPC command."""
-    assert child.stdin is not None
+    if child.stdin is None:
+        raise RuntimeError("RPC input pipe unavailable")
     child.stdin.write(json.dumps(frame) + "\n")
     child.stdin.flush()
 
