@@ -265,9 +265,10 @@ export default function regionalEdgeAdvisories(pi: ExtensionAPI): void {
       if (event.toolName === 'bash') {
         const command = String(event.input.command ?? '');
         if (!COLLECTOR_INTENT.test(command)) return undefined;
-        state.active = true;
         const findings: Advisory[] = [];
         const match = command.match(COLLECTOR);
+        if (!match) return undefined;
+        state.active = true;
         if (!state.skillRead) {
           findings.push(
             warning(
@@ -275,15 +276,6 @@ export default function regionalEdgeAdvisories(pi: ExtensionAPI): void {
               'Read cloudstatus:location before invoking the registry collector.',
             ),
           );
-        }
-        if (!match) {
-          findings.push(
-            warning(
-              'cloudstatus.registry_collector_recommended',
-              'Use the direct network_lookup.py location collector with the documented argv.',
-            ),
-          );
-          return findings;
         }
         if (state.collector) {
           findings.push(

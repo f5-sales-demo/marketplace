@@ -36,7 +36,7 @@
     },
     {
       "name": "sales-engineer",
-      "description": "Sales Engineer persona framework for F5 XC demo repositories \u2014 demo execution, environment operations, presentation, Q&A, post-session debrief",
+      "description": "Sales Engineer persona framework for F5 XC demo repositories — demo execution, environment operations, presentation, Q&A, post-session debrief",
       "version": "1.0.15",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/sales-engineer",
       "license": "Apache-2.0",
@@ -60,7 +60,7 @@
     },
     {
       "name": "docs-pipeline",
-      "description": "Documentation pipeline architecture \u2014 config ownership, release dispatch chain, content authoring, managed files, local preview",
+      "description": "Documentation pipeline architecture — config ownership, release dispatch chain, content authoring, managed files, local preview",
       "version": "1.0.9",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-pipeline",
       "license": "Apache-2.0",
@@ -84,7 +84,7 @@
     },
     {
       "name": "brand",
-      "description": "F5 corporate branding enforcement \u2014 colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
+      "description": "F5 corporate branding enforcement — colors, typography, logos, icons, accessibility, and visual identity standards across all content types",
       "version": "1.0.9",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/brand",
       "license": "Apache-2.0",
@@ -108,7 +108,7 @@
     },
     {
       "name": "meddpicc",
-      "description": "MEDDPICC sales qualification and deal-execution framework \u2014 evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
+      "description": "MEDDPICC sales qualification and deal-execution framework — evidence-based deal management, stakeholder mapping, mutual action plans, and forecast integrity for complex enterprise B2B sales",
       "version": "7.6.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc",
       "license": "Apache-2.0",
@@ -142,7 +142,7 @@
     },
     {
       "name": "devcontainer",
-      "description": "Container awareness \u2014 tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
+      "description": "Container awareness — tool catalog, self-identity, self-diagnosis, and maintenance for the f5-sales-demo devcontainer",
       "version": "1.2.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/devcontainer",
       "license": "Apache-2.0",
@@ -204,7 +204,7 @@
     },
     {
       "name": "osint-framework",
-      "description": "OSINT Framework tool catalog and investigation skills \u2014 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
+      "description": "OSINT Framework tool catalog and investigation skills — 1,064 free intelligence-gathering tools across 34 categories, mapped from osintframework.com. Category-based skills, executable investigation pipelines, CLI tool execution, and OPSEC-aware workflows.",
       "version": "1.0.11",
       "author": {
         "name": "f5-sales-demo"
@@ -228,7 +228,7 @@
     },
     {
       "name": "firecrawl",
-      "description": "Local self-hosted firecrawl web scraping \u2014 scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
+      "description": "Local self-hosted firecrawl web scraping — scrape, crawl, and map websites via the local firecrawl API on port 3002. No API keys, no subscriptions, fully open-source.",
       "version": "1.2.5",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl",
       "license": "Apache-2.0",
@@ -294,8 +294,8 @@
     },
     {
       "name": "cloudstatus",
-      "description": "Live cloud status and Internet network intelligence for xcsh \u2014 current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
-      "version": "1.7.2",
+      "description": "Live cloud status and Internet network intelligence for xcsh — current incidents, routing, registration, RPKI, peering, facilities, F5 Regional Edge evidence, and bounded path diagnostics",
+      "version": "1.7.3",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/cloudstatus",
       "license": "Apache-2.0",
       "author": {
@@ -416,7 +416,7 @@
     },
     {
       "name": "gcloud",
-      "description": "Google Cloud CLI integration \u2014 container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
+      "description": "Google Cloud CLI integration — container-adapted auth, context injection, CLI operator agent, token expiry detection, and welcome screen status",
       "version": "1.3.4",
       "homepage": "https://github.com/f5-sales-demo/marketplace/tree/main/plugins/gcloud",
       "license": "Apache-2.0",
