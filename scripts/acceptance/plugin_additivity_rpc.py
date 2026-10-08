@@ -99,7 +99,7 @@ def wait_response(identifier: str, timeout: int = 60) -> dict[str, Any]:
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         try:
-            rpc_frame = rpc_frames.get(timeout=1)
+            rpc_frame = events.get(timeout=1)
         except queue.Empty:
             if child.poll() is not None:
                 raise RuntimeError("RPC process exited") from None
