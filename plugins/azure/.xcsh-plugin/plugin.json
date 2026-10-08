@@ -30,5 +30,6 @@
     "setupRequired": true,
     "collectedData": ["accounts"],
     "pluginDependencies": []
-  }
+  },
+  "minimumRuntimeVersion": "23.0.3"
 }

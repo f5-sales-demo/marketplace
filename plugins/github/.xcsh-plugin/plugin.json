@@ -45,5 +45,6 @@
     "setupAuthorization": "install",
     "collectedData": ["accounts", "email", "identifiers", "sameAs"],
     "pluginDependencies": []
-  }
+  },
+  "minimumRuntimeVersion": "23.0.3"
 }
