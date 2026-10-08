@@ -1,6 +1,6 @@
 """Private synthetic RPC replay and sanitized result receipts."""
 
-# pylint: disable=consider-using-with
+# pylint: disable=consider-using-with,line-too-long
 # ruff: noqa: S603, TRY003, EM101
 import argparse
 import hashlib
@@ -99,13 +99,13 @@ def wait_response(identifier: str, timeout: int = 60) -> dict[str, Any]:
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         try:
-            event = events.get(timeout=1)
+            rpc_frame = rpc_frames.get(timeout=1)
         except queue.Empty:
             if child.poll() is not None:
                 raise RuntimeError("RPC process exited") from None
             continue
-        if event.get("id") == identifier and event.get("type") == "response":
-            return event
+        if rpc_frame.get("id") == identifier and rpc_frame.get("type") == "response":
+            return rpc_frame
     raise RuntimeError("RPC response deadline")
 
 
