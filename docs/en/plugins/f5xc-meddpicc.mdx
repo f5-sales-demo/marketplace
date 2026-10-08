@@ -3,37 +3,33 @@ title: MEDDPICC
 description: Qualify deals, track evidence, and generate deal reviews and editable Excel workbooks.
 sidebar:
   order: 5
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Qualify deals, track evidence, and generate deal reviews and editable Excel workbooks.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
+<Badge text="Sales" variant="tip" /> <Badge text="Content" variant="note" />
 
-Plugin identifier: `meddpicc`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Authorized deal evidence and a private working directory.
 - Bun when you run the bundled command-line engine.
 - Salesforce access only if you use Salesforce-backed evidence.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install meddpicc@f5-sales-demo-marketplace
 ```
 
-This content plugin has no integration setup or authentication step. Start a
-fresh xcsh session to load its skills and commands.
+Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
 
-## Use the plugin
+## Qualify and review a deal
+
+In a private working directory, run `/meddpicc:qualify-deal` with the authorized evidence for one deal. Add new meeting evidence with `/meddpicc:update-deal`, then run `/meddpicc:deal-review` to inspect score changes and forecast risk.
 
 MEDDPICC covers Metrics, Economic buyer, Decision criteria, Decision process,
 Paper process, Identify pain, Champion, and Competition. Each element scores
@@ -61,23 +57,19 @@ These resource paths resolve inside xcsh. In a source checkout, use
 `bun plugins/meddpicc/engine/cli.ts --help`. Run help separately from execution
 arguments; malformed or mixed help requests return an error.
 
-## Verify
+## Check the result
 
 Validate the deal and check that scores cite supporting evidence. Preview
 workbook changes before applying them, then regenerate to confirm consistency.
 
-## Clean up
+## Keep deal files private
 
 Apply your organization's retention policy to deal JSON, Markdown reports,
 and workbooks. These local files are unencrypted; keep authorized customer
 data in private storage and out of Git or public artifacts.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Salesforce](/marketplace/en/plugins/salesforce/)
+- [Engine reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/engine)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/meddpicc/agents)

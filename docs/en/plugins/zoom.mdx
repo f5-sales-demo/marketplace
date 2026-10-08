@@ -3,45 +3,34 @@ title: Zoom
 description: Join and control Zoom Workplace with verified desktop state and an isolated terminal camera.
 sidebar:
   order: 22
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Join and control Zoom Workplace with verified desktop state and an isolated terminal camera.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Desktop" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `zoom`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Ubuntu 24.04 amd64.
 - Zoom Workplace 7.2.1.5760.
 - Xorg, Herdr, and Ghostty plugins.
 - The intended full meeting invitation URL or numeric meeting ID.
 
-Plugin dependencies: [Xorg](/marketplace/en/plugins/xorg/), [Herdr](/marketplace/en/plugins/herdr/), [Ghostty](/marketplace/en/plugins/ghostty/).
-
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install zoom@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status zoom
-xcsh plugin setup zoom
-```
+## Join, verify, and leave a meeting
 
-## Use the plugin
+Run `/zoom <INVITATION_URL_OR_MEETING_ID>` with the intended invitation. Use `/zoom status` to inspect the meeting state and terminal-camera readiness. When finished, run `/zoom stop-share` if sharing, then `/zoom leave`.
 
 Use `zoom_meeting` as the sole Zoom controller. It discovers the active Xorg
 session and verifies state through public `xorgctl` JSON; requested operations
@@ -70,21 +59,19 @@ second, with verified profile and producer settings. Joins and video-on verify
 the Zoom high-definition (HD) checkbox. Zoom can still adapt transmitted
 resolution to network conditions; the original Herdr session stays running.
 
-## Verify
+## Check the result
 
 Use `/zoom status` to check meeting state, terminal-camera readiness, and
 provenance. Confirm audio, video, and shared content from the meeting audience
 when evaluating the full meeting experience.
 
-## Clean up
+## Finish the task
 
 Run `/zoom stop-share` if sharing, then `/zoom leave`. Stop only test stimuli
 and owned meeting resources; preserve unrelated desktops and terminal sessions.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Ghostty](/marketplace/en/plugins/ghostty/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/zoom/skills)

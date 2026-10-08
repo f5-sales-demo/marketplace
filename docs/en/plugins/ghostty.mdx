@@ -3,78 +3,56 @@ title: Ghostty
 description: Set up a Linux Ghostty terminal for Xorg desktops and Herdr sessions.
 sidebar:
   order: 23
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Set up a Linux Ghostty terminal for Xorg desktops and Herdr sessions.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Desktop" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `ghostty`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/ghostty/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Ubuntu Linux.
 - The Xorg and Herdr plugins.
 - Access to the intended desktop and user configuration.
 
-Plugin dependencies: [Xorg](/marketplace/en/plugins/xorg/), [Herdr](/marketplace/en/plugins/herdr/).
-
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install ghostty@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status ghostty
-xcsh plugin setup ghostty
-```
+## Launch a terminal in the selected desktop
 
-A reviewed direct install can authorize bounded setup. Dependency installation
-and upgrades don't grant that setup authorization.
-
-## Use the plugin
+Use the generic Xorg application interface to launch `ghostty -e herdr` in the selected desktop. Observe the new window and confirm the intended Herdr session before resizing the window or entering fullscreen.
 
 This plugin installs and configures Ghostty. It has no Ghostty-specific
 runtime tool and doesn't launch a terminal during setup.
-
-Use the generic Xorg application interface to launch Ghostty in the selected
-desktop. The underlying application command is:
-
-```bash
-ghostty -e herdr
-```
 
 Inspect the live window before maximizing or entering fullscreen. The user's
 Ghostty configuration, including any `XORGCTL` block, remains authoritative.
 For image workflows, verify visible Kitty graphics rendering through the
 actual terminal and Herdr pane.
 
-## Verify
+## Check the result
 
 Check integration status, launch a task-owned terminal, and confirm its
 rendered output. A successful process or graphics acknowledgement alone
 doesn't establish visible image rendering.
 
-## Clean up
+## Finish the task
 
 Close the terminal you created for the task. Keep the user's configuration,
 existing Herdr sessions, and unrelated windows intact.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Herdr](/marketplace/en/plugins/herdr/)
+- [Zoom](/marketplace/en/plugins/zoom/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/ghostty/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/ghostty/skills)

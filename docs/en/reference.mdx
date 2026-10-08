@@ -2,11 +2,13 @@
 title: Reference
 description: Find the current xcsh manifest paths, catalog fields, and integration readiness contract.
 sidebar:
-  order: 7
+  order: 4
+prev: false
+next: false
 ---
 
-Use the xcsh manifests and validation scripts as the source of truth for
-plugin identity, packaging, and lifecycle behavior.
+Use the xcsh manifests as the source of truth when packaging a plugin. The
+[contributor guide](/marketplace/en/contributing/) owns generation and validation commands.
 
 ## Source files
 
@@ -65,39 +67,8 @@ and plugin identifier form its namespaced slash command. Extensions can also
 register commands, such as `/zoom`, and typed tools. Link to the actual source
 rather than predicting a command from a skill name.
 
-## Readiness and setup
+## Continue contributing
 
-```bash
-xcsh plugin status <PLUGIN_IDENTIFIER> --json
-xcsh plugin status <PLUGIN_IDENTIFIER> --context <CONTEXT_NAME>
-```
-
-Status returns an `integrations` array for enabled integrations. A configured
-CLI or account can be ready while a requested cloud or desktop operation still
-fails its own checks. Inspect the operation's verification evidence as well.
-
-Human setup requires an interactive terminal and reviews the selected plan.
-Platform's context wizard runs through `/plugin setup platform` inside xcsh.
-See [Get started](/marketplace/en/getting-started/) for the shared lifecycle.
-
-## Validate a source checkout
-
-```bash
-node scripts/generate-marketplace-catalog.mjs --check
-bash scripts/validate-plugins.sh
-bash scripts/lint-mdx-prose.sh docs/en/plugins/*.mdx
-```
-
-Run these from the repository root. The first command checks generated catalog
-convergence; the others validate packaging and English Markdown with JSX (MDX)
-prose. Installation acceptance also requires a fresh session using the released
-plugin, followed by its documented verification steps.
-
-## Other plugin hosts
-
-xcsh packaging doesn't establish OpenAI or Claude Code compatibility. OpenAI
-supports portable Agent Plugins and documented compatibility manifests, with
-its own marketplace configuration. See
-[OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins)
-when targeting ChatGPT or Codex. Verify the host's supported package and runtime
-before describing a cross-client installation workflow.
+Use [Contribute a plugin](/marketplace/en/contributing/) to register the package,
+write its article, and validate the catalog. Reader installation and readiness
+instructions live in [Get started](/marketplace/en/getting-started/).

@@ -3,6 +3,8 @@ title: OSINT Framework
 description: Select open-source intelligence (OSINT) tools and organize authorized investigations.
 sidebar:
   order: 8
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
@@ -11,55 +13,35 @@ Select open-source intelligence (OSINT) tools and organize authorized investigat
 
 <Badge text="Security" variant="tip" /> <Badge text="Content" variant="note" />
 
-Plugin identifier: `osint-framework`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - A defined investigation scope and permission for the target.
 - Network access and any command-line tools required by the selected workflow.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install osint-framework@f5-sales-demo-marketplace
 ```
 
-This content plugin has no integration setup or authentication step. Start a
-fresh xcsh session to load its skills and commands.
+Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
 
-## Use the plugin
+## Select tools for an investigation
+
+Define the authorized target, question, and evidence you need. Use `/osint-framework:osint-catalog` to choose a category and `/osint-framework:osint-search` to find a tool. Run `/osint-framework:osint-investigate` for the scoped investigation and corroborate key findings.
 
 Use `/osint-framework:osint-catalog` to browse tool categories,
 `/osint-framework:osint-search` to find a tool, and
 `/osint-framework:osint-investigate` to coordinate an investigation.
 
-Category skills cover usernames, domains, email, network addresses, social
-networks, geolocation, public records, threat intelligence, and other research
-areas. `osint-index` routes requests; `opsec` covers operational security.
-`osint-researcher`, `osint-investigator`, and `osint-executor` separate tool
-selection, correlation, and execution.
+The catalog covers usernames, domains, email, network addresses, social networks, geolocation, public records, and threat intelligence. Check each service’s availability and access requirements before using it.
 
-## Verify
+## Check the result
 
 Check source dates, corroborate key observations, and label inference and
 unresolved questions. A catalog entry doesn't prove that a service is available.
 
-## Clean up
+## Next steps
 
-Remove temporary collected data according to the engagement's retention
-requirements. Keep private investigation evidence out of public artifacts.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [Investigation reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/osint-framework/agents)

@@ -3,6 +3,8 @@ title: ASM migration
 description: Convert BIG-IP Application Security Manager policies offline, then deploy reviewed F5 Distributed Cloud artifacts.
 sidebar:
   order: 19
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
@@ -11,37 +13,24 @@ Convert BIG-IP Application Security Manager policies offline, then deploy review
 
 <Badge text="Security" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `asm-migration`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Bun and the Platform integration.
 - A BIG-IP Application Security Manager (ASM) XML policy and signature mapping.
 - A namespace and a non-symlinked output directory.
 - For deployment, `XCSH_API_URL`, `XCSH_API_TOKEN`, `XCSH_USERNAME`, and `XCSH_NAMESPACE` in protected local configuration.
 
-Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
-
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install asm-migration@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status asm-migration
-xcsh plugin setup asm-migration
-```
+## Validate and convert a policy
 
-## Use the plugin
+Run `/asm-migration:validate` for the selected policy and signature mapping, then `/asm-migration:convert` with the namespace and output directory. Inspect the report and warnings and validate the generated pack before requesting a deployment plan.
 
 | Task | Command or native tool |
 | --- | --- |
@@ -61,21 +50,18 @@ The deployment tool contacts the configured API origin and reads credentials
 from the environment. On macOS, use `/private/tmp` or another normal directory;
 `/tmp` is a symlink and is rejected.
 
-## Verify
+## Check the result
 
 Inspect the conversion report and warnings, then validate the generated pack.
 Run deployment `verify` against its receipt and confirm the intended objects.
 
-## Clean up
+## Finish the task
 
 Run receipt-backed deployment `cleanup` with its exact confirmation. Verify
 owned resource absence before removing private artifacts and receipts.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Platform](/marketplace/en/plugins/f5xc-platform/)
+- [Deployment reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/skills/asm-migration/)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/asm-migration/commands)

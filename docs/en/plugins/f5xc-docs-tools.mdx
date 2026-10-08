@@ -3,61 +3,45 @@ title: Documentation tools
 description: Review Markdown with JSX (MDX) content for syntax, metadata, imports, and page structure.
 sidebar:
   order: 1
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Review Markdown with JSX (MDX) content for syntax, metadata, imports, and page structure.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Content" variant="note" />
+<Badge text="Documentation and web" variant="tip" /> <Badge text="Content" variant="note" />
 
-Plugin identifier: `docs-tools`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - A repository with MDX documentation.
 - Its component definitions and content conventions.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install docs-tools@f5-sales-demo-marketplace
 ```
 
-This content plugin has no integration setup or authentication step. Start a
-fresh xcsh session to load its skills and commands.
+Follow [shared installation and restart instructions](/marketplace/en/getting-started/#install-a-plugin).
 
-## Use the plugin
+## Review selected pages
 
-Run `/docs-tools:review-mdx` to review changed content or a selected path. The
-`content-reviewer` skill checks frontmatter, syntax, imports, components,
-images, structure, and exports. The `mdx-content-reviewer` agent groups findings
-by severity so you can address errors first.
+Open the repository and run `/docs-tools:review-mdx` with the MDX paths you want reviewed. Ask for findings grouped by severity, with the affected file and an actionable correction.
+
+The review checks frontmatter, syntax, imports, components, images, structure, and exports.
 
 Use `/docs-tools:docs-tools-status` to check whether the workspace contains
 MDX content and an Astro/Starlight project.
 
-## Verify
+## Check the result
 
 Apply the reported fixes, rerun the review, and build the site. Confirm that
 imports resolve and each changed page renders.
 
-## Clean up
+## Next steps
 
-Stop any preview server you started. Keep the review report if you need it
-for the documentation pull request.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [Documentation pipeline](/marketplace/en/plugins/f5xc-docs-pipeline/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/docs-tools/agents)

@@ -3,45 +3,34 @@ title: AWS
 description: Inspect Amazon Web Services resources and plan F5 Distributed Cloud Customer Edge deployments.
 sidebar:
   order: 13
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Inspect Amazon Web Services resources and plan F5 Distributed Cloud Customer Edge deployments.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Cloud" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `aws`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Amazon Web Services (AWS) CLI with the required compute, quota, and networking commands.
 - Credentials or an authenticated single sign-on (SSO) profile for the intended account and partition.
 - The Platform plugin with F5 Distributed Cloud authentication.
 - An authorized target and an accepted F5 Marketplace subscription.
 
-Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
-
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install aws@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status aws
-xcsh plugin setup aws
-```
+## Discover infrastructure and review a plan
 
-## Use the plugin
+Ask `aws_sts_whoami` to confirm the account and partition. Use `aws_compute_discover` to identify eligible regions, images, and compute, then request an `aws_ce_plan` for your chosen topology. Review its resources, routing, ownership, cost, and plan hash before any apply.
 
 | Task | Native tool |
 | --- | --- |
@@ -69,10 +58,7 @@ and live acceptance evidence. Enable TGW Connect only when current F5 guidance
 and the authenticated tenant advertise the exact supported schema.
 
 Plans list billable resources, ownership tags, rollback state, and the plan hash.
-Lifecycle operations include deploy, reconcile, start, stop, resize,
-update-network, replace-node, repair, and teardown. Three-node changes advance
-one node at a time through compute, registration, health, and routing gates.
-Single-node disruption requires a maintenance window.
+Three-node changes advance one node at a time through compute, registration, health, and routing gates. Single-node disruption requires a maintenance window.
 
 Headless mutation requires `XCSH_CE_HEADLESS_MUTATIONS=1` and the exact plan
 hash; destruction also requires `XCSH_CE_ALLOW_DESTROY=1`. Initial Marketplace
@@ -81,23 +67,20 @@ reference and a temporary restricted file; tokens never enter plans or reports.
 See the [shared CE contract validation](https://github.com/f5-sales-demo/marketplace/blob/main/plugins/platform/src/ce/release-contract.ts)
 for the current contract and lifecycle gates.
 
-## Verify
+## Check the result
 
 Use `aws_ce_status`, `f5xc_ce_v2_status`, and passive `aws_ce_diagnose`.
 Check instance and interface ownership, registration, health, target/peer state,
 routes, and traffic. Automated checks alone don't establish live topology support.
 
-## Clean up
+## Finish the task
 
 Approve a teardown plan that restores brownfield routing before deleting
 exactly owned resources. Confirm AWS and F5 absence, then inspect for remaining
 billable resources.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Platform](/marketplace/en/plugins/f5xc-platform/)
+- [Customer Edge reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/skills/aws-ce/)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/skills)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/aws/agents)

@@ -3,48 +3,34 @@ title: KVM
 description: Deploy a dual-interface Secure Mesh Site v2 with a private origin and an inside virtual IP on a wired LAN.
 sidebar:
   order: 14
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Deploy a dual-interface Secure Mesh Site v2 with a private origin and an inside virtual IP on a wired LAN.
 
-<Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Cloud" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `kvm`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - Ubuntu 24.04 x86_64 with Kernel-based Virtual Machine (KVM), libvirt, and QEMU access.
 - Terraform, `curl`, and the Platform integration.
 - Capacity for an 8-vCPU, 32-GiB-memory, 100-GiB-disk Customer Edge.
 - A supported wired local area network (LAN), two distinct reserved candidate addresses, and an application namespace.
 
-Plugin dependencies: [F5 Distributed Cloud Platform](/marketplace/en/plugins/f5xc-platform/).
-
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install kvm@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status kvm
-xcsh plugin setup kvm
-```
+## Check host and network readiness
 
-A reviewed direct install can authorize bounded setup. Dependency installation
-and upgrades don't grant that setup authorization.
-
-## Use the plugin
+Ask `kvm_smsv2_readiness` to inspect the intended host, wired LAN, available capacity, reserved addresses, and application namespace. Request a plan through `kvm_smsv2_deploy`; review bridge ownership and rollback checkpoints before host preparation or deployment.
 
 | Task | Native tool |
 | --- | --- |
@@ -72,22 +58,20 @@ the router's Dynamic Host Configuration Protocol (DHCP) pool. Inspect the
 [network contract](https://github.com/f5-sales-demo/marketplace/blob/main/plugins/kvm/NETWORKING.md)
 before approving host changes.
 
-## Verify
+## Check the result
 
 Confirm registration, the observed SLO/SLI interface mapping, origin isolation,
 and a zero-change reapply. Test VIP Address Resolution Protocol (ARP) and HTTP
 from another LAN device. Host-only probes don't complete external-device acceptance.
 
-## Clean up
+## Finish the task
 
 Use `kvm_smsv2_destroy` with the reviewed saved plan. Verify owned virtual
 machines, networks, site objects, and application objects are absent. Check
 that the management network is restored and unrelated resources remain.
 
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
+## Next steps
 
-## Related resources
-
+- [Platform](/marketplace/en/plugins/f5xc-platform/)
+- [Network contract](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm/NETWORKING.md)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/kvm/skills)

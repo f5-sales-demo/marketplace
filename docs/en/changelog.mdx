@@ -1,71 +1,19 @@
 ---
 title: Changelog
-description: Release history and notable changes for f5-sales-demo marketplace plugins.
+description: Find canonical release notes and repository history for marketplace plugins.
 sidebar:
-  order: 8
+  order: 5
+prev: false
+next: false
 ---
 
-Browse [GitHub releases](https://github.com/f5-sales-demo/marketplace/releases)
-for current plugin release notes, or the
-[complete repository changelog](https://github.com/f5-sales-demo/marketplace/blob/main/CHANGELOG.md)
-for the recorded release history. The entries below are selected historical
-milestones; their identifiers and versions describe those releases.
+Use [GitHub releases](https://github.com/f5-sales-demo/marketplace/releases) for
+plugin release notes and downloadable artifacts. Check the notes for your
+plugin before upgrading, especially when it manages saved plans or receipts.
 
-## Documentation refresh
+The [repository changelog](https://github.com/f5-sales-demo/marketplace/blob/main/CHANGELOG.md)
+records release history. The [commit history](https://github.com/f5-sales-demo/marketplace/commits/main/)
+shows documentation and source changes between releases.
 
-The [plugin catalog](/marketplace/en/plugins/) now covers all 23 plugins.
-Current pages use xcsh identifiers and shared setup guidance, with consistent
-prerequisites, task guidance, verification, and cleanup.
-
-## AWS 2.0.0, Azure 3.0.0, and Platform 5.0.0
-
-- Publish one shared `f5xc-ce-automation/v1` contract receipt across AWS and Azure discovery and
-  reject stale contract/provider digests before planning or mutation.
-- Add full AWS Secure Mesh Site v2 discovery, immutable plans, approved apply/resume, lifecycle,
-  NLB ingress, capability-gated TGW networking, status, diagnostics, and cloud-init analysis while
-  preserving the generic AWS CLI tools.
-- Advance Azure CE intent/plan schema to v2 and keep only Azure-specific Marketplace, compute,
-  networking, and diagnostics guidance in the provider skill.
-- Add provider-neutral Platform capabilities and typed site configuration, plus neutral headless
-  mutation, legal, and destruction gates.
-- Generalize synthesized Customer Edge prompt-trace evaluation across both clouds. TGW Connect
-  remains release-blocked until current F5 documentation and tenant capability evidence agree.
-
-## Azure 2.0.1
-
-- Require current official F5 and Microsoft research plus live Azure catalog and
-  subscription observations before CE recommendations or plans.
-- Route realistic Customer Edge paraphrases through a runtime research gate and
-  allow discovery to resolve exact image and VM identifiers without guesses.
-- Add synthesized prompt traces that verify the real xcsh tool sequence and fix
-  Gemini compatibility for numeric CE tool parameters.
-
-## Azure 2.0.0 and Platform 4.0.0
-
-- Add deterministic F5 Customer Edge discovery, immutable planning, approved
-  apply and resume, lifecycle operations, status correlation, and diagnostics.
-- Add native Secure Mesh Site v2 configuration, one-use opaque bootstrap
-  checkout, and non-secret F5 status evidence.
-- Remove legacy Azure VNet Site, Fleet, and shared registration-token workflows.
-
-## 1.0.0
-
-Initial release of the marketplace with two plugins.
-
-### f5xc-docs-tools v1.0.0
-
-- MDX content validation skill with seven checks
-  (frontmatter, syntax, imports, components, images,
-  structure, exports)
-- `/review-mdx` command for on-demand validation
-
-### f5xc-sales-engineer v1.0.0
-
-- Four persona skills: sales-engineer (dispatcher),
-  demo-executor (4-stage lifecycle), presenter
-  (walkthrough), subject-matter-expert (cited Q&A)
-- Two agents: demo-housekeeping (readiness verification
-  and teardown), demo-researcher (reference-backed
-  research)
-- Convention file architecture for product-agnostic
-  reuse across demo repositories
+Return to the [plugin catalog](/marketplace/en/plugins/) for current workflows,
+or follow [upgrade instructions](/marketplace/en/getting-started/#update-a-plugin).

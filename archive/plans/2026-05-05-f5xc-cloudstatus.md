@@ -1,5 +1,7 @@
 # f5xc-cloudstatus Plugin Implementation Plan
 
+Archived implementation plan. Use the current [Cloud status article](https://f5-sales-demo.github.io/marketplace/en/plugins/cloudstatus/) for supported workflows.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Create a marketplace agent skill plugin that monitors Atlassian Statuspage.io-powered status pages, porting all functionality from the f5xc-cloudstatus-mcp server and adding operational intelligence capabilities.

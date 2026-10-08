@@ -3,42 +3,33 @@ title: Firecrawl
 description: Scrape pages, crawl sites, and extract content through a local Firecrawl service.
 sidebar:
   order: 9
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
 
 Scrape pages, crawl sites, and extract content through a local Firecrawl service.
 
-<Badge text="Productivity" variant="tip" /> <Badge text="Integrated" variant="note" />
+<Badge text="Documentation and web" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `firecrawl`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - A reachable local Firecrawl service, normally `http://127.0.0.1:3002/`.
 - `curl` and `jq` for the operator workflows.
-- A configured language model backend for operations that require one.
+- Optional service backends for search or structured extraction.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install firecrawl@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Complete [integration setup](/marketplace/en/getting-started/#complete-setup) for the local service. Basic scraping needs no language model; search and structured extraction depend on optional service backends.
 
-```bash
-xcsh plugin status firecrawl
-xcsh plugin setup firecrawl
-```
+## Scrape one page
 
-## Use the plugin
+Run `/firecrawl:scrape https://example.com` inside xcsh. Inspect the returned content and source URL before expanding to a crawl. Supply a page limit when requesting multiple pages.
 
 | Task | Command |
 | --- | --- |
@@ -49,27 +40,16 @@ xcsh plugin setup firecrawl
 | Extract structured content | `/firecrawl:extract` |
 | Create an `llms.txt` summary | `/firecrawl:llmstxt` |
 
-`web-scraper` routes work to `firecrawl-operator` or `firecrawl-researcher`.
 Provide the target and a bounded page limit for a crawl. Local hosting doesn't
 supply search or extraction backends; check service configuration before using
 those operations.
 
-## Verify
+## Check the result
 
 Run `/firecrawl:firecrawl-status`. Check a scrape for the requested content
 and source URL. For asynchronous jobs, confirm completion and inspect errors.
 
-## Clean up
+## Next steps
 
-Cancel running crawl jobs through the service before deleting disposable
-results. Stop a local service only if you started it for this task.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [Command reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl/commands)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/firecrawl/agents)

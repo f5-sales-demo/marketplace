@@ -3,6 +3,8 @@ title: GitHub
 description: Manage Git and GitHub work through typed workflow stages and normalized evidence.
 sidebar:
   order: 17
+prev: false
+next: false
 ---
 
 import { Badge } from '@astrojs/starlight/components';
@@ -11,37 +13,23 @@ Manage Git and GitHub work through typed workflow stages and normalized evidence
 
 <Badge text="Development" variant="tip" /> <Badge text="Integrated" variant="note" />
 
-Plugin identifier: `github`. [Source and release metadata](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/.xcsh-plugin/plugin.json).
-
-## Prerequisites
-
-Follow [Get started](/marketplace/en/getting-started/) for shared installation
-requirements. Allow about 5 minutes for an initial check after setup.
+## Requirements
 
 - GitHub CLI, `gh`, and Git.
 - An authenticated account with access to the intended repository.
 - The repository's contribution and host-routing instructions.
 
-## Set up
-
-Install from your shell after registering the marketplace:
+## Install
 
 ```bash
 xcsh plugin install github@f5-sales-demo-marketplace
 ```
 
-Check readiness. If setup is required, run the human setup flow in an
-interactive terminal:
+Check readiness and complete [integration setup](/marketplace/en/getting-started/#complete-setup) if required.
 
-```bash
-xcsh plugin status github
-xcsh plugin setup github
-```
+## Inspect repository work
 
-A reviewed direct install can authorize bounded setup. Dependency installation
-and upgrades don't grant that setup authorization.
-
-## Use the plugin
+Ask to inspect issues, pull requests, and failed checks in the intended repository. Confirm the repository and branch in the evidence, then use `github_workflow` to follow that repository’s documented delivery stages for a selected issue.
 
 | Task | Native tool |
 | --- | --- |
@@ -50,9 +38,7 @@ and upgrades don't grant that setup authorization.
 | Enable auto-merge or update a branch | `github_pr_auto_merge`, `github_pr_update_branch` |
 | Prepare or retire a worktree | `github_worktree_prepare`, `github_worktree_cleanup` |
 
-Use `workflow-lifecycle` for issue, branch, implementation, verification,
-review, merge, and cleanup stages. `upstream-contribution` covers upstream work;
-`github-index` routes tasks to typed tools, `github-ops`, or `cli-operator`.
+Follow the repository’s issue, branch, implementation, verification, review, merge, and cleanup requirements.
 General GitHub CLI tools also support issue, pull request, diff, search, and
 failed-check inspection.
 
@@ -60,23 +46,13 @@ Setup can collect account and associated-email profile evidence. Review the
 selected account and collection fields. Repository governance remains advisory
 in the tool result; follow the repository's actual delivery requirements.
 
-## Verify
+## Check the result
 
 Compare workflow evidence with the intended repository and branch. Confirm
 the pull request reaches `MERGED` and required checks pass before reporting delivery.
 
-## Clean up
+## Next steps
 
-Inspect tracked and ignored files before removing the task worktree. Delete
-only a local branch whose pull request is confirmed merged. Preserve unrelated
-worktrees, branches, and authentication.
-
-For plugin removal, follow
-[Remove a plugin](/marketplace/en/getting-started/#remove-a-plugin).
-
-## Related resources
-
+- [Contributor guide](/marketplace/en/contributing/)
+- [Workflow reference](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/skills)
 - [Plugin catalog](/marketplace/en/plugins/)
-- [Skills and workflow references](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/skills)
-- [Complete command definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/commands)
-- [Agent definitions](https://github.com/f5-sales-demo/marketplace/tree/main/plugins/github/agents)
