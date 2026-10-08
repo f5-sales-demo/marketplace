@@ -1,0 +1,449 @@
+{
+  "schema": "plugin-additivity-remediation/v1",
+  "status": "in_progress",
+  "audit": {
+    "plugin-additivity-audit.md": "ecda1e86751ed70aabdd34ef6338c27c70be70f489d270d82be19b9bb76ae31e",
+    "plugin-additivity-audit.json": "a77cc674d70c295db1a9357f2fe174a3524f339195741efb467c0acfa02624c8"
+  },
+  "sourceBases": {
+    "marketplace": "fdfaa1cf3b20b574ea489352ac0a79055050fe2e",
+    "xcsh": "aa278eecbd560345b7571f285d77c88608b2cf01"
+  },
+  "delivery": {
+    "hostPR": "https://github.com/f5-sales-demo/xcsh/pull/4827",
+    "hostMerge": "3fffb6906",
+    "hostReleasePR": "https://github.com/f5-sales-demo/xcsh/pull/4828",
+    "hostReleaseTarget": "23.0.3",
+    "pluginPR": "https://github.com/f5-sales-demo/marketplace/pull/1514",
+    "acceptanceIssue": "https://github.com/f5-sales-demo/marketplace/issues/1513"
+  },
+  "findings": [
+    {
+      "id": "F01",
+      "plugins": ["cloudstatus"],
+      "sourceChange": "Location guidance permits inspection and independent research; trace validation drops request-wide forbidden-tool checks. Collector/render integrity remains.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F02",
+      "plugins": ["kvm"],
+      "sourceChange": "Remove keyword-triggered KVM before_agent_start guidance; retain native controller ownership/plan safeguards.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F03",
+      "plugins": ["azure"],
+      "sourceChange": "Remove Azure keyword routing and mandatory inventory prohibitions; retain informational account hints and native CE contracts.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F04",
+      "plugins": ["aws"],
+      "sourceChange": "Remove AWS keyword routing; retain informational account hints and task-scoped CE contract/discovery safeguards.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F05",
+      "plugins": ["firecrawl"],
+      "sourceChange": "Scope Firecrawl selection to explicit requests/chosen scraping; direct execution default; scoped service failure and optional named child.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F06",
+      "plugins": ["devcontainer"],
+      "sourceChange": "Require identified container and observed runtime/tool inventory; host identity and unrelated tool choice remain available.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F07",
+      "plugins": ["platform"],
+      "sourceChange": "Direct Platform operations and configuration inspection; optional delegation with explicit positive child permissions.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F08",
+      "plugins": ["gcloud", "aws", "salesforce", "github"],
+      "sourceChange": "Direct native/guarded CLI work and independent follow-ups; optional agents.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F09",
+      "plugins": ["aws", "azure"],
+      "sourceChange": "Remove Platform install/setup dependencies from AWS/Azure; retain cross-plane capability/context prerequisites.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F10",
+      "plugins": ["platform", "osint-framework"],
+      "sourceChange": "Replace ignored deny lists with explicit positive permissions for Platform and OSINT agents.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F11",
+      "plugins": [
+        "docs-tools",
+        "sales-engineer",
+        "docs-pipeline",
+        "brand",
+        "meddpicc",
+        "devcontainer",
+        "firecrawl",
+        "aws",
+        "azure",
+        "gcloud",
+        "gitlab",
+        "salesforce",
+        "github"
+      ],
+      "sourceChange": "Canonical xcsh tool names, qualified agent identities, named spawning references; frozen published 23.0.2 parser/registry validation.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F12",
+      "plugins": ["docs-tools", "docs-pipeline", "brand", "firecrawl"],
+      "sourceChange": "Remove ignored command allowlists; document scoped prompt expansion and native/agent permission boundaries.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    },
+    {
+      "id": "F13",
+      "plugins": [],
+      "sourceChange": "No reproduced attributable refusal cause. Three original-fixture Mac replays pass on unchanged 23.0.2. Equal 98-tool no-skills/rules replay passes. Recorded request max_tokens=32000 and tool_choice=auto; historical length event with zero usage does not prove token exhaustion.",
+      "status": "unattributed"
+    },
+    {
+      "id": "F14",
+      "plugins": ["aws"],
+      "sourceChange": "Blank/spaces profile normalizes to omission, controls and unsafe nonblank names reject; returned errors propagate through host hooks/events.",
+      "status": "implemented_pending_release_and_installed_acceptance"
+    }
+  ],
+  "sourceValidation": {
+    "hostTests": {
+      "pass": 10100,
+      "skip": 562,
+      "fail": 0,
+      "total": 10662
+    },
+    "hostFocusedSearchErrorTests": {
+      "pass": 100,
+      "fail": 0
+    },
+    "hostTypes": "passed",
+    "hostDocsQuality": "passed",
+    "hostDocsQualityTests": {
+      "pass": 29
+    },
+    "pluginFrozenSuites": "passed",
+    "publishedAgentValidation": {
+      "runtime": "23.0.2",
+      "agents": 27,
+      "status": "passed"
+    },
+    "auditTypeBoxImportErrors": "not reproduced after supported frozen dependency preparation"
+  },
+  "live": [
+    {
+      "variant": "baseline",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 56.58
+        },
+        {
+          "case": "public_research",
+          "completed": true,
+          "pass": false,
+          "tools": ["web_search", "web_search", "read", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 68.0
+        },
+        {
+          "case": "research_followup",
+          "completed": true,
+          "pass": true,
+          "tools": ["web_search"],
+          "searchSources": 5,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 51.78
+        },
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": false,
+          "tools": ["aws_sts_whoami", "aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": ["aws_sts_whoami", "aws_sts_whoami"],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 39.7
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 39.16
+        }
+      ]
+    },
+    {
+      "variant": "no-skills-rules",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 57.49
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 32.69
+        }
+      ]
+    },
+    {
+      "variant": "original-baseline",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc", "read"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 50.24
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 36.95
+        }
+      ]
+    },
+    {
+      "variant": "original-observed",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 53.22
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 35.19
+        }
+      ]
+    },
+    {
+      "variant": "original-third",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 98,
+      "cases": [
+        {
+          "case": "untrusted",
+          "completed": true,
+          "pass": true,
+          "tools": ["read", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 55.59
+        },
+        {
+          "case": "unrelated",
+          "completed": true,
+          "pass": true,
+          "tools": ["calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 30.71
+        }
+      ]
+    },
+    {
+      "variant": "child-find",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 29,
+      "cases": [
+        {
+          "case": "delegated_find",
+          "completed": true,
+          "pass": true,
+          "tools": ["task", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 91.24
+        }
+      ]
+    },
+    {
+      "variant": "nested-permissions",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 29,
+      "cases": [
+        {
+          "case": "nested",
+          "completed": true,
+          "pass": false,
+          "tools": ["task", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 72.1,
+          "note": "Child did not delegate; initial scorer too permissive. Superseded by explicit nested replay."
+        }
+      ]
+    },
+    {
+      "variant": "nested-explicit",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 29,
+      "cases": [
+        {
+          "case": "nested",
+          "completed": true,
+          "pass": true,
+          "tools": ["task", "calc"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "toolUse", "stop"],
+          "elapsedSeconds": 110.14
+        }
+      ]
+    },
+    {
+      "variant": "aws-source-refreshed",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 40,
+      "cases": [
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 34.06
+        }
+      ]
+    },
+    {
+      "variant": "aws-source-no-platform",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 40,
+      "cases": [
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": false,
+          "tools": ["aws_sts_whoami"],
+          "searchSources": 0,
+          "errors": ["aws_sts_whoami"],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 34.62
+        }
+      ]
+    },
+    {
+      "variant": "azure-source-no-platform",
+      "version": "xcsh/23.0.2",
+      "timeoutSeconds": 300,
+      "inventoryPreserved": true,
+      "toolCount": 44,
+      "cases": [
+        {
+          "case": "azure_identity",
+          "completed": true,
+          "pass": true,
+          "tools": ["az_account_show"],
+          "searchSources": 0,
+          "errors": [],
+          "stopReasons": ["toolUse", "stop"],
+          "elapsedSeconds": 33.24
+        }
+      ]
+    }
+  ],
+  "releases": [],
+  "installedReceipts": [],
+  "remaining": [
+    "Verify host 23.0.3 immutable release and install on both daily profiles",
+    "Merge/release all 17 plugin changes after verified host release",
+    "Verify released plugin archive/cache equality and install/upgrade both daily profiles wherever supported",
+    "Complete three consecutive released installed research/follow-up/AWS identity result replays",
+    "Complete individual/combined-plugin and ASM 2.1.1 control UAT",
+    "Resolve attributable Mac refusal cause or document reproducible non-attribution with matched context",
+    "Finish source-independent native/mock safeguards and installed nested delegation acceptance"
+  ],
+  "blockers": [],
+  "privacy": "Raw traces and authenticated results remain private. Public report includes synthetic requests, counts, sanitized statuses and artifact receipts only. No credentials, model-route identity, account identifiers or raw payloads included."
+}
