@@ -19,7 +19,8 @@
     "hostReleasePRState": "MERGED",
     "hostTag": "v23.0.3",
     "hostArtifactStatus": "native build and publication pending",
-    "acceptancePR": "https://github.com/f5-sales-demo/marketplace/pull/1515"
+    "acceptancePR": "https://github.com/f5-sales-demo/marketplace/pull/1515",
+    "pluginCI": "required checks passed"
   },
   "findings": [
     {
@@ -198,6 +199,14 @@
         10
       ],
       "emptyResults": "valid success but fails evidence gate"
+    },
+    "delegatedResearch": {
+      "status": "passed",
+      "agent": "osint-framework:osint-researcher",
+      "publicSources": 2,
+      "childTaskPermission": false,
+      "childWritePermission": false,
+      "parentInventoryPreserved": true
     }
   },
   "live": [
@@ -616,6 +625,20 @@
     {
       "variant": "aws-source-refreshed",
       "version": "xcsh/23.0.2",
+      "cases": [
+        {
+          "case": "aws_identity",
+          "completed": true,
+          "pass": true,
+          "tools": [
+            "aws_sts_whoami"
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "ubuntu-aws-source-refreshed",
+      "version": "xcsh/23.0.0",
       "cases": [
         {
           "case": "aws_identity",

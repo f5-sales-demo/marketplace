@@ -51,3 +51,5 @@ control and final closure are outstanding. Raw traces and authenticated payloads
 Companion: [plugin-additivity-remediation.json](plugin-additivity-remediation.json).
 
 Combined source probe: 102 cases across 17 runtime extensions preserved host prompt, inventory, and selected tool with no hard blocks. Explicit nested delegation passed through the permitted Firecrawl operator child.
+
+After the user refreshed the token, the source-fixed AWS default identity read passed on both Mac and Ubuntu. A real OSINT researcher child returned two verified public sources with no task or write tool available; parent capabilities remained intact.
